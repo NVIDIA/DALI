@@ -244,7 +244,6 @@ class MultiPasteGPU : public MultiPasteOp<GPUBackend> {
 
   void FillGPUInput(const workspace_t<GPUBackend> &ws);
 
-  vector<kernels::paste::GridCellInput<2>> grid_cells;
   vector<kernels::paste::MultiPasteSampleInput<2>> samples;
 };
 

@@ -15,20 +15,19 @@
 #ifndef DALI_KERNELS_IMGPROC_PASTE_PASTE_GPU_INPUT_H_
 #define DALI_KERNELS_IMGPROC_PASTE_PASTE_GPU_INPUT_H_
 
+#include <vector>
+
 namespace dali {
 namespace kernels {
 namespace paste {
 
-template<int ndims>
-struct GridCellInput {
-    int input_idx;
-    ivec<ndims> cell_start, cell_end, in_anchor;
-};
 
 template <int ndims>
 struct MultiPasteSampleInput {
-    int grid_cell_start_idx;
-    ivec<ndims> cell_counts;
+    vector<ivec<ndims>> in_anchors, out_anchors, sizes;
+    vector<int> in_idx;
+    ivec<ndims> out_size;
+    int channels;
 };
 
 }  // namespace paste

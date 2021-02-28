@@ -18,6 +18,10 @@
 #define DALI_KERNELS_IMGPROC_PASTE_PASTE_GPU_H_
 
 #include <vector>
+#include <unordered_set>
+#include <set>
+#include <map>
+#include <tuple>
 #include "dali/core/span.h"
 #include "dali/core/convert.h"
 #include "dali/core/geom/box.h"
@@ -30,27 +34,27 @@ namespace kernels {
 namespace paste {
 
 template<class InputType, int ndims>
-struct GridCellGPU {
+struct PatchDesc {
     const InputType *in;
-    ivec<ndims> cell_start, cell_end, in_anchor, in_pitch;
+    ivec<ndims> patch_start, patch_end, in_anchor, in_pitch;
 };
 
 template <class OutputType, class InputType, int ndims>
 struct SampleDescriptorGPU {
   OutputType *out;
-  int grid_cell_start_idx;
-  ivec<ndims> cell_counts, out_pitch;
+  int patch_start_idx;
+  ivec<ndims> patch_counts, out_pitch;
 };
 
-template <int ndim>
-ivec<ndim - 2> pitch_flatten_channels(const TensorShape<ndim> &shape) {
-  ivec<ndim - 2> ret;
-  int stride = shape[ndim - 1];  // channels
-  for (int i = ndim - 2; i > 0; i--) {
-    stride *= shape[i];
-    ret[ndim - 2 - i] = stride;  // x dimension is at ret[0] - use reverse indexing
+// Could not fill this in Setup, as we are not given reference to out then
+template <class OutputType, class InputType, int ndims>
+void FillOutDetails(span<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> out_descs,
+                    const OutListGPU<OutputType, ndims> &out) {
+  int batch_size = out_descs.size();
+
+  for (int i = 0; i < batch_size; i++) {
+    out_descs[i].out = out[i].data;
   }
-  return ret;
 }
 
 /**
@@ -61,74 +65,166 @@ ivec<ndim - 2> pitch_flatten_channels(const TensorShape<ndim> &shape) {
  */
 template <class OutputType, class InputType, int ndims>
 void CreateSampleDescriptors(
-    span<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> out_descs,
-    span<GridCellGPU<InputType, ndims - 1>> out_grid_cells,
-    const OutListGPU<OutputType, ndims> &out,
+    vector<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> &out_descs,
+    vector<PatchDesc<InputType, ndims - 1>> &out_patchs,
     const InListGPU<InputType, ndims> &in,
-    span<paste::MultiPasteSampleInput<ndims - 1>> samples,
-    span<paste::GridCellInput<ndims - 1>> grid, int channels) {
-  assert(out_descs.size() >= in.num_samples());
+    span<paste::MultiPasteSampleInput<ndims - 1>> samples
+) {
+  assert(ndims == 3);
 
-  for (int i = 0; i < samples.size(); i++) {
-    auto &cpu_sample = samples[i];
-    auto &gpu_sample = out_descs[i];
-    gpu_sample.out = out[i].data;
-    gpu_sample.grid_cell_start_idx = cpu_sample.grid_cell_start_idx;
-    gpu_sample.cell_counts = cpu_sample.cell_counts;
-    gpu_sample.out_pitch[1] = out[i].shape[1];
+  int batch_size = samples.size();
 
-    gpu_sample.out_pitch[1] *= channels;
-  }
+  out_descs.resize(batch_size);
+  out_patchs.clear();
 
-  for (int i = 0; i < grid.size(); i++) {
-    auto &cpu_grid_cell = grid[i];
-    auto &gpu_grid_cell = out_grid_cells[i];
+  for (int out_idx = 0; out_idx < batch_size; out_idx++) {
+    const auto &sample = samples[out_idx];
+      const int channels = sample.channels;
+      int n = sample.in_idx.size();
 
-    gpu_grid_cell.in = cpu_grid_cell.input_idx == -1 ? nullptr : in[cpu_grid_cell.input_idx].data;
-    gpu_grid_cell.cell_start = cpu_grid_cell.cell_start;
-    gpu_grid_cell.cell_end = cpu_grid_cell.cell_end;
-    gpu_grid_cell.in_anchor = cpu_grid_cell.in_anchor;
-    gpu_grid_cell.in_pitch[1] =
-            cpu_grid_cell.input_idx == -1 ? -1 : in[cpu_grid_cell.input_idx].shape[1];
+      // Get all significant points on x and y axis
+      // Those will be the starts and ends of the patchs
+      int NO_DATA = 0;
+      std::map<int, int> x_points;
+      std::map<int, int> y_points;
+      x_points[0] = NO_DATA;
+      x_points[sample.out_size[1]] = NO_DATA;
+      y_points[0] = NO_DATA;
+      y_points[sample.out_size[0]] = NO_DATA;
 
-    gpu_grid_cell.cell_start[1] *= channels;
-    gpu_grid_cell.cell_end[1] *= channels;
-    gpu_grid_cell.in_anchor[1] *= channels;
-    gpu_grid_cell.in_pitch *= channels;
+      for (int i = 0; i < n; i++) {
+        x_points[sample.out_anchors[i][1]] = NO_DATA;
+        x_points[sample.out_anchors[i][1] + sample.sizes[i][1]] = NO_DATA;
+        y_points[sample.out_anchors[i][0]] = NO_DATA;
+        y_points[sample.out_anchors[i][0] + sample.sizes[i][0]] = NO_DATA;
+      }
+
+      // When we know how many of those points there are, we know how big our patch patch is
+      int x_patch_cnt = x_points.size() - 1;
+      int y_patch_cnt = y_points.size() - 1;
+
+      // Now lets fill forward and backward mapping of those significant points to patch indices
+      vector<int> scaled_x_to_x;
+      for (auto &x_point : x_points) {
+        x_point.second = scaled_x_to_x.size();
+        scaled_x_to_x.push_back(x_point.first);
+      }
+      vector<int> scaled_y_to_y;
+      for (auto &y_point : y_points) {
+        y_point.second = scaled_y_to_y.size();
+        scaled_y_to_y.push_back(y_point.first);
+      }
+
+      // We create events that will fire when sweeping
+      vector<vector<std::tuple<int, int, int>>> y_starting(y_patch_cnt + 1);
+      vector<vector<std::tuple<int, int, int>>> y_ending(y_patch_cnt + 1);
+      for (int i = 0; i < n; i++) {
+        y_starting[y_points[sample.out_anchors[i][0]]].emplace_back(
+                i, x_points[sample.out_anchors[i][1]],
+                x_points[sample.out_anchors[i][1] + sample.sizes[i][1]]);
+        y_ending[y_points[sample.out_anchors[i][0] + sample.sizes[i][0]]].emplace_back(
+                i, x_points[sample.out_anchors[i][1]],
+                x_points[sample.out_anchors[i][1] + sample.sizes[i][1]]);
+      }
+      y_starting[0].emplace_back(-1, 0, x_patch_cnt);
+      y_ending[y_patch_cnt].emplace_back(-1, 0, x_patch_cnt);
+
+      // Filling sample
+      int prev_patch_count = out_patchs.size();
+      auto &out_sample = out_descs[out_idx];
+      out_sample.patch_start_idx = prev_patch_count;
+      out_sample.patch_counts[1] = x_patch_cnt;
+      out_sample.patch_counts[0] = y_patch_cnt;
+      out_sample.out_pitch[1] = sample.out_size[1] * channels;
+
+      // And now the sweeping itself
+      out_patchs.resize(prev_patch_count + x_patch_cnt * y_patch_cnt);
+      vector<std::unordered_set<int>> starting(x_patch_cnt + 1);
+      vector<std::unordered_set<int>> ending(x_patch_cnt + 1);
+      std::set<int> open_pastes;
+      for (int y = 0; y < y_patch_cnt; y++) {
+        // Add open and close events on x axis for regions with given y start coordinate
+        for (auto &i : y_starting[y]) {
+          starting[std::get<1>(i)].insert(std::get<0>(i));
+          ending[std::get<2>(i)].insert(std::get<0>(i));
+        }
+        // Now sweep through x
+        for (int x = 0; x < x_patch_cnt; x++) {
+          // Open regions starting here
+          for (int i : starting[x]) {
+            open_pastes.insert(i);
+          }
+
+          // Take top most region
+          int max_paste = *(--open_pastes.end());
+          auto& patch = out_patchs[prev_patch_count + y * x_patch_cnt + x];
+
+
+          // And fill the patch
+          patch.patch_start[0] = scaled_y_to_y[y];
+          patch.patch_start[1] = scaled_x_to_x[x];
+          patch.patch_end[0] = scaled_y_to_y[y + 1];
+          patch.patch_end[1] = scaled_x_to_x[x + 1];
+          patch.in = max_paste == -1 ? nullptr : in[sample.in_idx[max_paste]].data;
+          patch.in_pitch[1] = max_paste == -1 ? -1 : in[sample.in_idx[max_paste]].shape[1];
+
+          if (max_paste != -1) {
+            patch.in_anchor[0] = sample.in_anchors[max_paste][0] +
+                              patch.patch_start[0] - sample.out_anchors[max_paste][0];
+            patch.in_anchor[1] = sample.in_anchors[max_paste][1] +
+                              patch.patch_start[1] - sample.out_anchors[max_paste][1];
+          }
+          patch.patch_start[1] *= channels;
+          patch.patch_end[1] *= channels;
+          patch.in_pitch[1] *= channels;
+          patch.in_anchor[1] *= channels;
+
+          // Now remove regions that end here
+          for (int i : ending[x + 1]) {
+            open_pastes.erase(i);
+          }
+        }
+        // And remove start/events for regions whose y ends here
+        for (auto &i : y_ending[y + 1]) {
+          starting[std::get<1>(i)].erase(std::get<0>(i));
+          ending[std::get<2>(i)].erase(std::get<0>(i));
+        }
+      }
   }
 }
+
 
 
 template <class OutputType, class InputType, int ndims>
 __global__ void
 PasteKernel(const SampleDescriptorGPU<OutputType, InputType, ndims> *samples,
-                  const GridCellGPU<InputType, ndims> *grid_cells,
+                  const PatchDesc<InputType, ndims> *patchs,
                   const BlockDesc<ndims> *blocks) {
   static_assert(ndims == 2, "Function requires 2 dimensions in the input");
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
-  const GridCellGPU<InputType, ndims> *my_grid_cells = grid_cells + sample.grid_cell_start_idx;
+  const PatchDesc<InputType, ndims> *my_patchs = patchs + sample.patch_start_idx;
 
 
   auto *__restrict__ out = sample.out;
 
-  int grid_y = 0;
-  int min_grid_x = 0;
-  while (threadIdx.x + block.start.x >= my_grid_cells[min_grid_x].cell_end[1]) min_grid_x++;
+  int patch_y = 0;
+  int min_patch_x = 0;
+  while (threadIdx.x + block.start.x >= my_patchs[min_patch_x].patch_end[1]) min_patch_x++;
 
   for (int y = threadIdx.y + block.start.y; y < block.end.y; y += blockDim.y) {
-    while (y >= my_grid_cells[grid_y * sample.cell_counts[1]].cell_end[0]) grid_y++;
-    int grid_x = min_grid_x;
+    while (y >= my_patchs[patch_y * sample.patch_counts[1]].patch_end[0]) patch_y++;
+    int patch_x = min_patch_x;
     for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
-      while (x >= my_grid_cells[grid_y * sample.cell_counts[1] + grid_x].cell_end[1]) grid_x++;
-      const GridCellGPU<InputType, ndims> *cell =
-              &my_grid_cells[grid_y * sample.cell_counts[1] + grid_x];
-      if (cell->in == nullptr) {
+      while (x >= my_patchs[patch_y * sample.patch_counts[1] + patch_x].patch_end[1]) patch_x++;
+      const PatchDesc<InputType, ndims> *patch =
+              &my_patchs[patch_y * sample.patch_counts[1] + patch_x];
+      if (patch->in == nullptr) {
           out[y * sample.out_pitch[1] + x] = 0;
       } else {
         out[y * sample.out_pitch[1] + x] = ConvertSat<OutputType>(
-                cell->in[(y - cell->cell_start[0] + cell->in_anchor[0]) * cell->in_pitch[1]
-                         + (x - cell->cell_start[1] + cell->in_anchor[1])]);
+                patch->in[(y - patch->patch_start[0] + patch->in_anchor[0]) * patch->in_pitch[1]
+                         + (x - patch->patch_start[1] + patch->in_anchor[1])]);
       }
     }
   }
@@ -142,10 +238,10 @@ class PasteGPU {
   static constexpr size_t spatial_dims = ndims - 1;
   using BlockDesc = kernels::BlockDesc<spatial_dims>;
   using SampleDesc = paste::SampleDescriptorGPU<OutputType, InputType, spatial_dims>;
-  using GridCellDesc = paste::GridCellGPU<InputType, spatial_dims>;
+  using PatchDesc = paste::PatchDesc<InputType, spatial_dims>;
 
   std::vector<SampleDesc> sample_descriptors_;
-  std::vector<GridCellDesc> grid_cell_descriptors_;
+  std::vector<PatchDesc> patch_descriptors_;
 
  public:
   BlockSetup<spatial_dims, -1 /* No channel dimension, only spatial */> block_setup_;
@@ -154,26 +250,15 @@ class PasteGPU {
       KernelContext &context,
       const InListGPU<InputType, ndims> &in,
       span<paste::MultiPasteSampleInput<spatial_dims>> samples,
-      span<paste::GridCellInput<spatial_dims>> grid_cells,
       TensorListShape<ndims> out_shape) {
-    DALI_ENFORCE([=]() -> bool {
-      auto ref_nchannels = in.shape[0][ndims - 1];
-      for (int i = 0; i < in.num_samples(); i++) {
-        if (in.shape[i][ndims - 1] != ref_nchannels) {
-          return false;
-        }
-      }
-      return true;
-    }(), "Number of channels for every image in batch must be equal");
+    paste::CreateSampleDescriptors(sample_descriptors_, patch_descriptors_, in, samples);
 
     KernelRequirements req;
     ScratchpadEstimator se;
     auto flattened_shape = collapse_dim(out_shape, 1);
     block_setup_.SetupBlocks(flattened_shape, true);
-    sample_descriptors_.resize(samples.size());
-    grid_cell_descriptors_.resize(grid_cells.size());
-    se.add<SampleDesc>(AllocType::GPU, samples.size());
-    se.add<GridCellDesc>(AllocType::GPU, grid_cells.size());
+    se.add<SampleDesc>(AllocType::GPU, sample_descriptors_.size());
+    se.add<PatchDesc>(AllocType::GPU, patch_descriptors_.size());
     se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
     // req.output_shapes = {in.shape}; Once again, this is determined by operator
     req.scratch_sizes = se.sizes;
@@ -184,24 +269,22 @@ class PasteGPU {
   void Run(
       KernelContext &context,
       const OutListGPU<OutputType, ndims> &out, const InListGPU<InputType, ndims> &in,
-      span<paste::MultiPasteSampleInput<spatial_dims>> samples,
-      span<paste::GridCellInput<spatial_dims>> grid) {
-    paste::CreateSampleDescriptors(
-        make_span(sample_descriptors_),
-        make_span(grid_cell_descriptors_), out, in, samples, grid, 3);
+      span<paste::MultiPasteSampleInput<spatial_dims>> __samples) {
+    paste::FillOutDetails(make_span(sample_descriptors_), out);
 
     SampleDesc *samples_gpu;
-    GridCellDesc  *grid_cells_gpu;
+    PatchDesc  *patches_gpu;
     BlockDesc *blocks_gpu;
 
-    std::tie(samples_gpu, grid_cells_gpu, blocks_gpu) = context.scratchpad->ToContiguousGPU(
-        context.gpu.stream, sample_descriptors_, grid_cell_descriptors_, block_setup_.Blocks());
+    std::tie(samples_gpu, patches_gpu, blocks_gpu) = context.scratchpad->ToContiguousGPU(
+        context.gpu.stream, sample_descriptors_, patch_descriptors_, block_setup_.Blocks());
 
-    dim3 grid_dim = block_setup_.GridDim();
+    dim3 patch_dim = block_setup_.GridDim();
     dim3 block_dim = block_setup_.BlockDim();
     auto stream = context.gpu.stream;
 
-    paste::PasteKernel<<<grid_dim, block_dim, 0, stream>>>(samples_gpu, grid_cells_gpu, blocks_gpu);
+    paste::PasteKernel<<<patch_dim, block_dim, 0, stream>>>(
+        samples_gpu, patches_gpu, blocks_gpu);
   }
 };
 
