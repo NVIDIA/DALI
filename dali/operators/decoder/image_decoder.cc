@@ -339,7 +339,7 @@ submodule and renamed to follow a common pattern. This is a placeholder operator
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
 
 DALI_SCHEMA(ImageDecoderRandomCrop)
-    .DocStr("Legacy alias for :meth:`decoders.image_random`.")
+    .DocStr("Legacy alias for :meth:`decoders.image_random_crop`.")
     .NumInput(1)
     .NumOutput(1)
     .AddParent("decoders__ImageRandomCrop")
