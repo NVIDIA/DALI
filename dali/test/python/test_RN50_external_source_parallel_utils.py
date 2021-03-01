@@ -142,12 +142,12 @@ def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch
         batch_size=batch_size, num_threads=num_threads, device_id=device_id,
         prefetch_queue_depth=prefetch)
     with pipe:
-        images, labels = dali.fn.file_reader(
+        images, labels = dali.fn.readers.file(
             name="Reader",
             file_root=data_path,
             prefetch_queue_depth=reader_queue_depth,
             random_shuffle=True,)
-        images = dali.fn.image_decoder(images, device="cpu", output_type=types.RGB)
+        images = dali.fn.decoders.image(images, device="cpu", output_type=types.RGB)
         images = common_pipeline(images.gpu())
         pipe.set_outputs(images, labels)
     return pipe
