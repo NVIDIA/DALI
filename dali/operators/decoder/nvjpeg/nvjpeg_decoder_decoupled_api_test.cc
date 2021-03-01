@@ -312,11 +312,11 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
                     .AddInput("begin_data", "cpu")
                     .AddInput("crop_data", "cpu")
                     .AddOutput("images", "gpu");
-    pipeline_.AddOperator(decoder_spec, decoder_name_);
     pipeline_.AddExternalInput("begin_data");
     pipeline_.SetExternalInput("begin_data", begin_data);
     pipeline_.AddExternalInput("crop_data");
     pipeline_.SetExternalInput("crop_data", crop_data);
+    pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);
 
@@ -384,8 +384,8 @@ class HwDecoderCropUtilizationTest : public ::testing::Test {
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
                     .AddArg("hw_decoder_load", .7f)
-                    .AddInput("compressed_images", "cpu")
                     .AddArg("crop", std::vector<float>{224.0f, 224.0f})
+                    .AddInput("compressed_images", "cpu")
                     .AddOutput("images", "gpu");
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 

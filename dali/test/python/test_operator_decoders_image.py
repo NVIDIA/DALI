@@ -16,6 +16,7 @@ from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+from nvidia.dali.backend_impl import TensorGPU
 import math
 import os
 import random
@@ -61,6 +62,7 @@ def create_decoder(data_path, device, use_fast_idct=False, memory_stats=False):
 def to_array(dali_out):
     if isinstance(dali_out, TensorGPU):
         dali_out = dali_out.as_cpu()
+    return np.array(dali_out)
 
 test_data_root = get_dali_extra_path()
 good_path = 'db/single'
@@ -240,10 +242,10 @@ def test_image_decoder_random_crop():
 
 def check_FastDCT_body(batch_size, img_type, device):
     data_path = os.path.join(test_data_root, good_path, img_type)
-    compare_pipelines(DecoderPipeline(data_path=data_path, batch_size=batch_size, num_threads=3,
-                                      device_id=0, device=device, use_fast_idct=False),
-                      DecoderPipeline(data_path=data_path, batch_size=batch_size, num_threads=3,
-                                      device_id=0, device='cpu', use_fast_idct=True),
+    compare_pipelines(create_decoder(data_path=data_path, batch_size=batch_size, num_threads=3,
+                                     device_id=0, device=device, use_fast_idct=False),
+                      create_decoder(data_path=data_path, batch_size=batch_size, num_threads=3,
+                                     device_id=0, device='cpu', use_fast_idct=True),
                       # average difference should be no bigger by off-by-3
                       batch_size=batch_size, N_iterations=3, eps=3)
 

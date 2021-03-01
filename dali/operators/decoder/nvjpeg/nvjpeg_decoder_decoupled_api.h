@@ -113,6 +113,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       in_data_.reserve(max_batch_size_);
       in_lengths_.reserve(max_batch_size_);
       nvjpeg_destinations_.reserve(max_batch_size_);
+      nvjpeg_params_.reserve(max_batch_size_);
     } else {
       LOG_LINE << "NVJPEG_BACKEND_HARDWARE is either disabled or not supported" << std::endl;
       NVJPEG_CALL(nvjpegCreateSimple(&handle_));
@@ -523,35 +524,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       nvjpegChromaSubsampling_t subsampling;
       nvjpegStatus_t ret = nvjpegGetImageInfo(handle_, input_data, in_size, &c,
                                               &subsampling, widths, heights);
+      bool hw_decode = false;
+      bool nvjpeg_decode = (ret == NVJPEG_STATUS_SUCCESS);
 
       auto crop_generator = GetCropWindowGenerator(i);
-      bool hw_decode = false;
-      if (ret == NVJPEG_STATUS_SUCCESS) {
-#if NVJPEG_VER_MAJOR >= 11
-        if (!crop_generator && state_hw_batched_ != nullptr) {
-          NVJPEG_CALL(nvjpegJpegStreamParseHeader(handle_, input_data, in_size,
-                                                  hw_decoder_jpeg_stream_));
-          int is_supported = -1;
-          NVJPEG_CALL(nvjpegDecodeBatchedSupported(handle_, hw_decoder_jpeg_stream_,
-                                                   &is_supported));
-          hw_decode = is_supported == 0;
-          if (!hw_decode) {
-            LOG_LINE << "Sample \"" << data.file_name
-                     << "\" can't be handled by the HW decoder and shall be processed by the CUDA "
-                        "hybrid decoder"
-                     << std::endl;
-          }
-        }
-#endif
+      if (nvjpeg_decode) {
         data.shape = {heights[0], widths[0], c};
         data.subsampling = subsampling;
-        if (hw_decode) {
-          data.method = DecodeMethod::NvjpegHw;
-          samples_hw_batched_.push_back(&data);
-        } else {
-          data.method = DecodeMethod::NvjpegCuda;
-          samples_single_.push_back(&data);
-        }
       } else if (crop_generator || !ParseNvjpeg2k(data, span<const uint8_t>(input_data, in_size))) {
         try {
           data.method = DecodeMethod::Host;
@@ -575,6 +554,33 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       } else {
         output_shape_.set_tensor_shape(i, {data.shape[0], data.shape[1], data.req_nchannels});
         NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, 0, 0, -1, -1));
+      }
+
+      // only when we have ROI info check if nvjpegDecodeBatchedSupportedEx supports it
+      if (nvjpeg_decode) {
+#if NVJPEG_VER_MAJOR >= 11
+        if (state_hw_batched_ != nullptr) {
+          NVJPEG_CALL(nvjpegJpegStreamParseHeader(handle_, input_data, in_size,
+                                                  hw_decoder_jpeg_stream_));
+          int is_supported = -1;
+          NVJPEG_CALL(nvjpegDecodeBatchedSupportedEx(handle_, hw_decoder_jpeg_stream_,
+                                                     data.params, &is_supported));
+          hw_decode = is_supported == 0;
+          if (!hw_decode) {
+            LOG_LINE << "Sample \"" << data.file_name
+                     << "\" can't be handled by the HW decoder and shall be processed by the CUDA "
+                        "hybrid decoder"
+                     << std::endl;
+          }
+        }
+#endif
+        if (hw_decode) {
+          data.method = DecodeMethod::NvjpegHw;
+          samples_hw_batched_.push_back(&data);
+        } else {
+          data.method = DecodeMethod::NvjpegCuda;
+          samples_single_.push_back(&data);
+        }
       }
 
       data.is_progressive = IsProgressiveJPEG(input_data, in_size);
@@ -732,7 +738,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     if (!samples_hw_batched_.empty()) {
       nvjpegJpegState_t &state = state_hw_batched_;
       assert(state != nullptr);
-      int max_cpu_threads = 4;
+      // not used so set to 1
+      int max_cpu_threads = 1;
 
       nvjpegOutputFormat_t format = GetFormat(output_image_type_);
       NVJPEG_CALL(nvjpegDecodeBatchedInitialize(handle_, state, samples_hw_batched_.size(),
@@ -741,7 +748,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       in_data_.resize(samples_hw_batched_.size());
       in_lengths_.resize(samples_hw_batched_.size());
       nvjpeg_destinations_.resize(samples_hw_batched_.size());
+      nvjpeg_params_.resize(samples_hw_batched_.size());
       memset(nvjpeg_destinations_.data(), 0, nvjpeg_destinations_.size() * sizeof(nvjpegImage_t));
+      memset(nvjpeg_params_.data(), 0, nvjpeg_params_.size() * sizeof(nvjpegDecodeParams_t));
 
       int j = 0;
       TensorVector<CPUBackend> tv(samples_hw_batched_.size());
@@ -755,6 +764,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         in_lengths_[j] = in.size();
         nvjpeg_destinations_[j].channel[0] = output.mutable_tensor<uint8_t>(i);
         nvjpeg_destinations_[j].pitch[0] = out_shape[1] * out_shape[2];
+        nvjpeg_params_[j] = sample->params;
         j++;
       }
 
@@ -765,8 +775,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       for (size_t k = 0; k < samples_hw_batched_.size(); ++k) {
         in_data_[k] = hw_decoder_images_staging_.mutable_tensor<uint8_t>(k);
       }
-      NVJPEG_CALL(nvjpegDecodeBatched(handle_, state, in_data_.data(), in_lengths_.data(),
-                                      nvjpeg_destinations_.data(), hw_decode_stream_));
+      NVJPEG_CALL(nvjpegDecodeBatchedEx(handle_, state, in_data_.data(), in_lengths_.data(),
+                                        nvjpeg_destinations_.data(), nvjpeg_params_.data(),
+                                        hw_decode_stream_));
 
       if (output_image_type_ == DALI_YCbCr) {
         // We don't decode directly to YCbCr, since we want to control the YCbCr definition,
@@ -971,6 +982,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   std::vector<const unsigned char*> in_data_;
   std::vector<size_t> in_lengths_;
   std::vector<nvjpegImage_t> nvjpeg_destinations_;
+  std::vector<nvjpegDecodeParams_t> nvjpeg_params_;
 
   // Allocators
   nvjpegDevAllocator_t device_allocator_;
