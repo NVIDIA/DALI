@@ -132,9 +132,9 @@ def decoder_pipe(decoder_op, file_root, device, use_fast_idct, split_stages):
 
 
 def check_image_decoder_alias(new_op, old_op, file_root, device, use_fast_idct, split_stages):
-        new_pipe = decoder_pipe(new_op, file_root, device, use_fast_idct, split_stages)
-        legacy_pipe = decoder_pipe(old_op, file_root, device, use_fast_idct, split_stages)
-        compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
+    new_pipe = decoder_pipe(new_op, file_root, device, use_fast_idct, split_stages)
+    legacy_pipe = decoder_pipe(old_op, file_root, device, use_fast_idct, split_stages)
+    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
 
 
 def test_image_decoder_alias():
@@ -145,7 +145,7 @@ def test_image_decoder_alias():
         for device in ["cpu", "mixed"]:
             for use_fast_idct in [True, False]:
                 for split_stages in [False]:
-                        yield check_image_decoder_alias, new_op, old_op, data_path, device, use_fast_idct, split_stages
+                    yield check_image_decoder_alias, new_op, old_op, data_path, device, use_fast_idct, split_stages
 
 def test_image_decoder_split_alias():
     raise SkipTest("Sanity tests for aliases of split decoder are temporarily disabled due to accuracy issues.")
@@ -167,13 +167,13 @@ def decoder_slice_pipe(decoder_op, file_root, device, use_fast_idct):
 
 
 def check_image_decoder_slice_alias(new_op, old_op, file_root, device, use_fast_idct):
-        new_pipe = decoder_slice_pipe(new_op, file_root, device, use_fast_idct)
-        legacy_pipe = decoder_slice_pipe(old_op, file_root, device, use_fast_idct)
-        compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
+    new_pipe = decoder_slice_pipe(new_op, file_root, device, use_fast_idct)
+    legacy_pipe = decoder_slice_pipe(old_op, file_root, device, use_fast_idct)
+    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
 
 def test_image_decoder_slice_alias():
     data_path = os.path.join(test_data_root, good_path, "jpeg")
     new_op, old_op = fn.decoders.image_slice, fn.image_decoder_slice
     for device in ["cpu", "mixed"]:
         for use_fast_idct in [True, False]:
-                    yield check_image_decoder_slice_alias, new_op, old_op, data_path, device, use_fast_idct
+            yield check_image_decoder_slice_alias, new_op, old_op, data_path, device, use_fast_idct

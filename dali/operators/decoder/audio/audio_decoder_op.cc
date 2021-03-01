@@ -53,8 +53,8 @@ DALI_REGISTER_OPERATOR(AudioDecoder, AudioDecoderCpu, CPU);
 
 DALI_SCHEMA(AudioDecoder)
     .DocStr("Legacy alias for :meth:`decoders.audio`.")
-  .NumInput(1)
-  .NumOutput(2)
+    .NumInput(1)
+    .NumOutput(2)
     .AddParent("decoders__Audio")
     .MakeDocPartiallyHidden()
     .Deprecate(

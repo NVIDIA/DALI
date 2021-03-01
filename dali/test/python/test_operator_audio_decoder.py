@@ -127,9 +127,9 @@ def decoder_pipe(decoder_op, sample_rate, downmix, quality, dtype):
 
 
 def check_audio_decoder_alias(sample_rate, downmix, quality, dtype):
-        new_pipe = decoder_pipe(fn.decoders.audio, sample_rate, downmix, quality, dtype)
-        legacy_pipe = decoder_pipe(fn.audio_decoder, sample_rate, downmix, quality, dtype)
-        compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
+    new_pipe = decoder_pipe(fn.decoders.audio, sample_rate, downmix, quality, dtype)
+    legacy_pipe = decoder_pipe(fn.audio_decoder, sample_rate, downmix, quality, dtype)
+    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
 
 
 def test_audio_decoder_alias():
