@@ -44,8 +44,8 @@ class PythonFunctionPipeline(Pipeline):
                                                      exec_async=False, exec_pipelined=False)
         self.device = device
         self.reader = ops.readers.File(file_root=images_dir)
-        self.decode = ops.ImageDecoder(device='cpu',
-                                       output_type=types.RGB)
+        self.decode = ops.decoders.Image(device='cpu',
+                                         output_type=types.RGB)
         self.norm = ops.CropMirrorNormalize(std=255., mean=0., device=device, output_layout="HWC")
         self.func = ops.PythonFunction(device=device, function=function, num_outputs=num_outputs)
 

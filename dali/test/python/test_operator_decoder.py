@@ -33,8 +33,8 @@ class DecoderPipeline(Pipeline):
         self.input = ops.readers.File(file_root = data_path,
                                       shard_id = 0,
                                       num_shards = 1)
-        self.decode = ops.ImageDecoder(device = device, output_type = types.RGB, use_fast_idct=use_fast_idct,
-                                       memory_stats=memory_stats)
+        self.decode = ops.decoders.Image(device = device, output_type = types.RGB, use_fast_idct=use_fast_idct,
+                                         memory_stats=memory_stats)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -81,7 +81,7 @@ class DecoderPipelineFastIDC(Pipeline):
         self.input = ops.readers.File(file_root = data_path,
                                       shard_id = 0,
                                       num_shards = 1)
-        self.decode = ops.ImageDecoder(device = 'cpu', output_type = types.RGB, use_fast_idct=use_fast_idct)
+        self.decode = ops.decoders.Image(device = 'cpu', output_type = types.RGB, use_fast_idct=use_fast_idct)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")

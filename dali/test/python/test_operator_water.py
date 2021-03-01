@@ -32,7 +32,7 @@ class WaterPipeline(Pipeline):
         super(WaterPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
         self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         self.water = ops.Water(device = self.device, ampl_x=ampl_x, ampl_y=ampl_y,
                                phase_x=phase_x, phase_y=phase_y, freq_x=freq_x, freq_y=freq_y,
                                interp_type = dali.types.INTERP_LINEAR)
@@ -70,7 +70,7 @@ class WaterPythonPipeline(Pipeline):
                                            exec_async=False,
                                            exec_pipelined=False)
         self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         self.water = ops.PythonFunction(function=function, output_layouts="HWC")
 
 

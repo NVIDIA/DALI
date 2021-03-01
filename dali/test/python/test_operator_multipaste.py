@@ -124,7 +124,7 @@ def get_pipeline(
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=types.CPU_ONLY_DEVICE_ID)
     with pipe:
         input, _ = fn.readers.file(file_root=img_dir)
-        decoded = fn.image_decoder(input, device='cpu', output_type=types.RGB)
+        decoded = fn.decoders.image(input, device='cpu', output_type=types.RGB)
         resized = fn.resize(decoded, resize_x=in_size[1], resize_y=in_size[0])
         in_idx_l, in_anchors_l, shapes_l, out_anchors_l = prepare_cuts(
             k, batch_size, in_size, out_size, even_paste_count,

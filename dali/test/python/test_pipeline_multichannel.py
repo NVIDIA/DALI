@@ -185,7 +185,7 @@ class MultichannelPipeline(Pipeline):
         self.reader = ops.readers.File(file_root=multichannel_tiff_root)
 
         decoder_device = 'mixed' if self.device == 'gpu' else 'cpu'
-        self.decoder = ops.ImageDecoder(device = decoder_device, output_type = types.ANY_DATA)
+        self.decoder = ops.decoders.Image(device = decoder_device, output_type = types.ANY_DATA)
 
         self.resize = ops.Resize(device = self.device,
                                  resize_y = 900, resize_x = 300,
@@ -222,7 +222,7 @@ class MultichannelPythonOpPipeline(Pipeline):
                                                            exec_async=False,
                                                            exec_pipelined=False)
         self.reader = ops.readers.File(file_root=multichannel_tiff_root)
-        self.decoder = ops.ImageDecoder(device = 'cpu', output_type = types.ANY_DATA)
+        self.decoder = ops.decoders.Image(device = 'cpu', output_type = types.ANY_DATA)
         self.oper = ops.PythonFunction(function=function, output_layouts="HWC")
 
     def define_graph(self):
