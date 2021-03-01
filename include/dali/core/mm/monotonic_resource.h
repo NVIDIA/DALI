@@ -163,6 +163,10 @@ class monotonic_memory_resource<kind, Context, true> : public memory_resource<ki
   void do_deallocate(void *data, size_t bytes, size_t alignment) override {
   }
 
+  virtual Context do_get_context() const noexcept {
+    return upstream_->get_context();
+  }
+
   static constexpr size_t sentinel_value = detail::sentinel_value<size_t>::value;
 
   char *curr_ = nullptr, *limit_ = nullptr;
@@ -252,6 +256,10 @@ class monotonic_memory_resource<kind, Context, false> : public memory_resource<k
 
   // don't deallocate at all
   void do_deallocate(void *data, size_t bytes, size_t alignment) override {
+  }
+
+  virtual Context do_get_context() const noexcept {
+    return upstream_->get_context();
   }
 
   char *curr_ = nullptr, *limit_ = nullptr;

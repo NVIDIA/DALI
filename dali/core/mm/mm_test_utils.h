@@ -163,6 +163,10 @@ class test_resource_wrapper<owning, security_check, memory_resource<kind, Contex
       return this->upstream_->deallocate(p, b, a);
     }, ptr, bytes, alignment);
   }
+
+  virtual Context do_get_context() const noexcept {
+    return this->upstream_->get_context();
+  }
 };
 
 

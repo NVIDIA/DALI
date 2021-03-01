@@ -127,6 +127,10 @@ class pool_resource_base : public memory_resource<kind, Context> {
     }
   }
 
+  virtual Context do_get_context() const noexcept {
+    return upstream_->get_context();
+  }
+
   size_t next_block_size(size_t upcoming_allocation_size) {
     size_t actual_block_size = std::max(upcoming_allocation_size, next_block_size_);
     next_block_size_ = std::min<size_t>(actual_block_size * options_.growth_factor,
