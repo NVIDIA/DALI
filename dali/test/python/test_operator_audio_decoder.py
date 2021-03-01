@@ -1,4 +1,5 @@
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
+import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import scipy.io.wavfile
@@ -6,6 +7,7 @@ import numpy as np
 import math
 import librosa
 from test_audio_decoder_utils import generate_waveforms, rosa_resample
+from test_utils import compare_pipelines
 
 names = [
   "/tmp/dali_test_1C.wav",
@@ -112,3 +114,27 @@ def test_decoded_vs_generated():
       assert np.allclose(res_mix, rosa3, rtol = 0, atol=3e-3)
 
       idx = (idx + 1) % len(names)
+
+
+batch_size_alias_test=16
+
+@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+def decoder_pipe(decoder_op, sample_rate, downmix, quality, dtype):
+    encoded, _ = fn.readers.file(files=names)
+    decoded, rates = decoder_op(encoded, sample_rate=sample_rate, downmix=downmix, quality=quality,
+                                dtype=dtype)
+    return decoded, rates
+
+
+def check_audio_decoder_alias(sample_rate, downmix, quality, dtype):
+        new_pipe = decoder_pipe(fn.decoders.audio, sample_rate, downmix, quality, dtype)
+        legacy_pipe = decoder_pipe(fn.audio_decoder, sample_rate, downmix, quality, dtype)
+        compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
+
+
+def test_audio_decoder_alias():
+    for sample_rate in [None, 16000, 12999]:
+        for downmix in [False, True]:
+            for quality in [0, 50, 100]:
+                for dtype in [types.INT16, types.INT32, types.FLOAT]:
+                    yield check_audio_decoder_alias, sample_rate, downmix, quality, dtype
