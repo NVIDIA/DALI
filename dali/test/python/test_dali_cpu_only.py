@@ -86,7 +86,7 @@ def test_gpu_op_bad_device():
 def check_mixed_op_bad_device(device_id):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=device_id)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.image_decoder(input, device="mixed", output_type=types.RGB)
+    decoded = fn.decoders.image(input, device="mixed", output_type=types.RGB)
     pipe.set_outputs(decoded)
     assert_raises(RuntimeError, pipe.build)
 
@@ -97,7 +97,7 @@ def test_mixed_op_bad_device():
 def test_image_decoder_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.image_decoder(input, output_type=types.RGB)
+    decoded = fn.decoders.image(input, output_type=types.RGB)
     pipe.set_outputs(decoded)
     pipe.build()
     for _ in range(3):
@@ -174,7 +174,7 @@ def test_flip_cpu():
 def test_image_decoder_crop_device():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.image_decoder_crop(input, output_type=types.RGB, crop = (10, 10))
+    decoded = fn.decoders.image_crop(input, output_type=types.RGB, crop = (10, 10))
     pipe.set_outputs(decoded)
     pipe.build()
     for _ in range(3):
@@ -183,7 +183,7 @@ def test_image_decoder_crop_device():
 def test_image_decoder_random_crop_device():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.image_decoder_random_crop(input, output_type=types.RGB)
+    decoded = fn.decoders.image_random_crop(input, output_type=types.RGB)
     pipe.set_outputs(decoded)
     pipe.build()
     for _ in range(3):
@@ -299,7 +299,7 @@ def test_transpose_cpu():
 def test_audio_decoder_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=audio_dir, shard_id=0, num_shards=1)
-    decoded, _ = fn.audio_decoder(input)
+    decoded, _ = fn.decoders.audio(input)
     pipe.set_outputs(decoded)
     pipe.build()
     for _ in range(3):
@@ -383,7 +383,7 @@ def test_image_decoder_slice_cpu():
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
     anchors = fn.external_source(source = get_anchors)
     shape = fn.external_source(source = get_shape)
-    processed = fn.image_decoder_slice(input, anchors, shape)
+    processed = fn.decoders.image_slice(input, anchors, shape)
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
@@ -794,7 +794,7 @@ def test_separated_exec_setup():
     batch_size = 128
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None, prefetch_queue_depth = {"cpu_size": 5, "gpu_size": 3})
     inputs, labels = fn.readers.caffe(path = caffe_dir, shard_id = 0, num_shards = 1)
-    images = fn.image_decoder(inputs, output_type = types.RGB)
+    images = fn.decoders.image(inputs, output_type = types.RGB)
     images = fn.resize(images, resize_x=224, resize_y=224)
     images_cpu = fn.dump_image(images, suffix = "cpu")
     pipe.set_outputs(images, images_cpu)

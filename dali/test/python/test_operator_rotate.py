@@ -98,7 +98,7 @@ class RotatePipeline(Pipeline):
         super(RotatePipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.name = device
         self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         if input_type != dali.types.UINT8:
           self.cast = ops.Cast(device = device, dtype = input_type)
         else:
@@ -123,7 +123,7 @@ class CVPipeline(Pipeline):
         super(CVPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.name = "cv"
         self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         self.rotate = ops.PythonFunction(function=CVRotate(output_type, input_type, fixed_size),
                                          output_layouts="HWC")
         self.uniform = ops.random.Uniform(range = (-180.0, 180.0), seed = 42)

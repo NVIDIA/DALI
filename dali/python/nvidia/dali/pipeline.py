@@ -1067,7 +1067,7 @@ def pipeline_def(fn=None, **pipeline_kwargs):
         def my_pipe(flip_vertical, flip_horizontal):
             ''' Creates a DALI pipeline, which returns flipped and original images '''
             data, _ = fn.readers.file(file_root=images_dir)
-            img = fn.image_decoder(data, device="mixed")
+            img = fn.decoders.image(data, device="mixed")
             flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
             return flipped, img
 

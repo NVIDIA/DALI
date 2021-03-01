@@ -32,7 +32,7 @@ def reference_pipeline(flip_vertical, flip_horizontal, ref_batch_size=max_batch_
     pipeline = Pipeline(ref_batch_size, num_threads, device_id)
     with pipeline:
         data, _ = fn.readers.file(file_root=images_dir)
-        img = fn.image_decoder(data)
+        img = fn.decoders.image(data)
         flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
         pipeline.set_outputs(flipped, img)
     return pipeline
@@ -42,7 +42,7 @@ def reference_pipeline(flip_vertical, flip_horizontal, ref_batch_size=max_batch_
 @pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
 def pipeline_static(flip_vertical, flip_horizontal):
     data, _ = fn.readers.file(file_root=images_dir)
-    img = fn.image_decoder(data)
+    img = fn.decoders.image(data)
     flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
     return flipped, img
 
@@ -51,7 +51,7 @@ def pipeline_static(flip_vertical, flip_horizontal):
 @pipeline_def
 def pipeline_runtime(flip_vertical, flip_horizontal):
     data, _ = fn.readers.file(file_root=images_dir)
-    img = fn.image_decoder(data)
+    img = fn.decoders.image(data)
     flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
     return flipped, img
 

@@ -93,7 +93,7 @@ class TFRecordDetectionPipeline(Pipeline):
             num_shards=1,
             random_shuffle=False)
 
-        self.decode_gpu = ops.ImageDecoder(device="mixed", output_type=types.RGB)
+        self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
         self.cast = ops.Cast(dtype = types.INT32)
         self.box_encoder = ops.BoxEncoder(
             device="cpu",
@@ -131,7 +131,7 @@ class COCODetectionPipeline(Pipeline):
             ltrb=True,
             random_shuffle=False)
 
-        self.decode_gpu = ops.ImageDecoder(device="mixed", output_type=types.RGB)
+        self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
         self.box_encoder = ops.BoxEncoder(
             device="cpu",
             criteria=0.5,

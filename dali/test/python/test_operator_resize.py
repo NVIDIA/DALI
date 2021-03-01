@@ -242,7 +242,7 @@ def build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype, w_i
     with dali_pipe:
         if dim == 2:
             files, labels = dali.fn.readers.caffe(path = db_2d_folder, random_shuffle = True)
-            images_cpu = dali.fn.image_decoder(files, device="cpu")
+            images_cpu = dali.fn.decoders.image(files, device="cpu")
         else:
             images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
 
@@ -451,7 +451,7 @@ def _test_stitching(device, dim, channel_first, dtype, interp):
     with pipe:
         if dim == 2:
             files, labels = dali.fn.readers.caffe(path = db_2d_folder, random_shuffle = True)
-            images_cpu = dali.fn.image_decoder(files, device="cpu")
+            images_cpu = dali.fn.decoders.image(files, device="cpu")
         else:
             images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
 
@@ -533,7 +533,7 @@ def _test_empty_input(dim, device):
     pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, seed=1234)
     if dim == 2:
         files, labels = dali.fn.readers.caffe(path = db_2d_folder, random_shuffle = True)
-        images_cpu = dali.fn.image_decoder(files, device="cpu")
+        images_cpu = dali.fn.decoders.image(files, device="cpu")
     else:
         images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
 
@@ -575,7 +575,7 @@ def _test_very_small_output(dim, device):
     pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, seed=1234)
     if dim == 2:
         files, labels = dali.fn.readers.caffe(path = db_2d_folder, random_shuffle = True)
-        images_cpu = dali.fn.image_decoder(files, device="cpu")
+        images_cpu = dali.fn.decoders.image(files, device="cpu")
     else:
         images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
 

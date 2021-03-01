@@ -28,7 +28,7 @@ def run_decode(data_path, out_type):
     batch_size = 4
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     input, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="reader")
-    decoded = fn.image_decoder(input, output_type=types.RGB)
+    decoded = fn.decoders.image(input, output_type=types.RGB)
     decoded_shape = fn.shapes(decoded)
     raw_shape = fn.peek_image_shape(input, type=out_type)
     pipe.set_outputs(decoded, decoded_shape, raw_shape)

@@ -663,7 +663,7 @@ def create_custom_pipeline(batch_size, num_threads, device_id, num_gpus, data_pa
     with pipe:
         jpegs, _ = fn.readers.file(
             file_root=data_paths, shard_id=device_id, num_shards=num_gpus, name="Reader")
-        images = fn.image_decoder(jpegs, device="mixed", output_type=types.RGB)
+        images = fn.decoders.image(jpegs, device="mixed", output_type=types.RGB)
         images = fn.random_resized_crop(images, size=(224, 224))
         images = fn.crop_mirror_normalize(images,
                                           dtype=types.FLOAT,
