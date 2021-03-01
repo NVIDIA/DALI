@@ -27,7 +27,7 @@ template <typename FreeList>
 void TestPoolResource(int num_iter) {
   test_host_resource upstream;
   auto opt = default_host_pool_opts();
-  pool_resource_base<memory_kind::host, allocation_order::host, FreeList, detail::dummy_lock>
+  pool_resource_base<memory_kind::host, any_context, FreeList, detail::dummy_lock>
     pool(&upstream, opt);
   std::mt19937_64 rng(12345);
   std::bernoulli_distribution is_free(0.4);
