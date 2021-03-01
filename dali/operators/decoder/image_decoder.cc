@@ -185,7 +185,7 @@ image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.fn.decoders.image` automatically disables hardware accelerated
+  :meth:`nvidia.dali.fn.decoders.image_crop` automatically disables hardware accelerated
   decoding. To use the hardware decoder, use the :meth:`nvidia.dali.fn.decoders.image` and
   :meth:`nvidia.dali.fn.crop` operators instead.
 
@@ -313,7 +313,7 @@ interpreted as absolute or relative coordinates, depending on the value of
 // Deprecated aliases
 
 DALI_SCHEMA(ImageDecoder)
-    .DocStr("Legacy alias for :meth:`decoders.image_decoder`.")
+    .DocStr("Legacy alias for :meth:`decoders.image`.")
     .NumInput(1)
     .NumOutput(1)
     .AddParent("decoders__Image")
@@ -327,7 +327,7 @@ functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
 // Fused
 
 DALI_SCHEMA(ImageDecoderCrop)
-    .DocStr("Legacy alias for :meth:`decoders.image_decoder_crop`.")
+    .DocStr("Legacy alias for :meth:`decoders.image_crop`.")
     .NumInput(1)
     .NumOutput(1)
     .AddParent("decoders__ImageCrop")
@@ -339,7 +339,7 @@ submodule and renamed to follow a common pattern. This is a placeholder operator
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
 
 DALI_SCHEMA(ImageDecoderRandomCrop)
-    .DocStr("Legacy alias for :meth:`decoders.image_decoder_random`.")
+    .DocStr("Legacy alias for :meth:`decoders.image_random`.")
     .NumInput(1)
     .NumOutput(1)
     .AddParent("decoders__ImageRandomCrop")
@@ -352,7 +352,7 @@ functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
 
 
 DALI_SCHEMA(ImageDecoderSlice)
-    .DocStr("Legacy alias for :meth:`decoders.image_decoder_slice`.")
+    .DocStr("Legacy alias for :meth:`decoders.image_slice`.")
     .NumInput(1, 3)
     .NumOutput(1)
     .AddParent("decoders__ImageSlice")
