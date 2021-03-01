@@ -224,7 +224,7 @@ def test_operator_multipaste():
         # - should "in_anchors" parameter be omitted
         # - should "out_anchors" parameter be omitted
         # - output dtype
-        # - should use GPU operator
+        # - backend
         [4, 2, (128, 256), (128, 128), False, False, False, False, False, types.UINT8],
         [4, 2, (256, 128), (128, 128), False, True, False, False, False, types.UINT8],
         [4, 2, (128, 128), (256, 128), True, False, False, False, False, types.UINT8],

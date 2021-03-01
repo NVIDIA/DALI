@@ -31,10 +31,7 @@ void MultiPasteGPU::FillGPUInput(const workspace_t<GPUBackend> &ws) {
     auto &sample = samples[i];
     int n = in_idx_[i].num_elements();
 
-    sample.sizes.resize(n);
-    sample.out_anchors.resize(n);
-    sample.in_anchors.resize(n);
-    sample.in_idx.resize(n);
+    sample.inputs.resize(n);
 
     sample.channels = 3;
     memcpy(sample.out_size.begin(), output_size_[i].data, sizeof(int) * spatial_ndim);
@@ -45,10 +42,10 @@ void MultiPasteGPU::FillGPUInput(const workspace_t<GPUBackend> &ws) {
       auto shape_view = GetShape(i, j, Coords(
           raw_input_size_mem_.data() + 2 * from_sample,
           dali::TensorShape<>(spatial_ndim)));
-      memcpy(sample.sizes[j].begin(), shape_view.data, sizeof(int) * spatial_ndim);
-      memcpy(sample.in_anchors[j].begin(), in_anchor_view.data, sizeof(int) * spatial_ndim);
-      memcpy(sample.out_anchors[j].begin(), out_anchor_view.data, sizeof(int) * spatial_ndim);
-      sample.in_idx[j] = from_sample;
+      memcpy(sample.inputs[j].size.begin(), shape_view.data, sizeof(int) * spatial_ndim);
+      memcpy(sample.inputs[j].in_anchor.begin(), in_anchor_view.data, sizeof(int) * spatial_ndim);
+      memcpy(sample.inputs[j].out_anchor.begin(), out_anchor_view.data, sizeof(int) * spatial_ndim);
+      sample.inputs[j].in_idx = from_sample;
     }
   }
 }

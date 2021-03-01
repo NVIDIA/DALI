@@ -35,8 +35,8 @@ namespace paste {
 
 template<class InputType, int ndims>
 struct PatchDesc {
-    const InputType *in;
-    ivec<ndims> patch_start, patch_end, in_anchor, in_pitch;
+  const InputType *in;
+  ivec<ndims> patch_start, patch_end, in_anchor, in_pitch;
 };
 
 template <class OutputType, class InputType, int ndims>
@@ -80,10 +80,10 @@ void CreateSampleDescriptors(
   for (int out_idx = 0; out_idx < batch_size; out_idx++) {
     const auto &sample = samples[out_idx];
       const int channels = sample.channels;
-      int n = sample.in_idx.size();
+      int n = sample.inputs.size();
 
       // Get all significant points on x and y axis
-      // Those will be the starts and ends of the patchs
+      // Those will be the starts and ends of the patches
       int NO_DATA = 0;
       std::map<int, int> x_points;
       std::map<int, int> y_points;
@@ -93,10 +93,10 @@ void CreateSampleDescriptors(
       y_points[sample.out_size[0]] = NO_DATA;
 
       for (int i = 0; i < n; i++) {
-        x_points[sample.out_anchors[i][1]] = NO_DATA;
-        x_points[sample.out_anchors[i][1] + sample.sizes[i][1]] = NO_DATA;
-        y_points[sample.out_anchors[i][0]] = NO_DATA;
-        y_points[sample.out_anchors[i][0] + sample.sizes[i][0]] = NO_DATA;
+        x_points[sample.inputs[i].out_anchor[1]] = NO_DATA;
+        x_points[sample.inputs[i].out_anchor[1] + sample.inputs[i].size[1]] = NO_DATA;
+        y_points[sample.inputs[i].out_anchor[0]] = NO_DATA;
+        y_points[sample.inputs[i].out_anchor[0] + sample.inputs[i].size[0]] = NO_DATA;
       }
 
       // When we know how many of those points there are, we know how big our patch patch is
@@ -119,12 +119,12 @@ void CreateSampleDescriptors(
       vector<vector<std::tuple<int, int, int>>> y_starting(y_patch_cnt + 1);
       vector<vector<std::tuple<int, int, int>>> y_ending(y_patch_cnt + 1);
       for (int i = 0; i < n; i++) {
-        y_starting[y_points[sample.out_anchors[i][0]]].emplace_back(
-                i, x_points[sample.out_anchors[i][1]],
-                x_points[sample.out_anchors[i][1] + sample.sizes[i][1]]);
-        y_ending[y_points[sample.out_anchors[i][0] + sample.sizes[i][0]]].emplace_back(
-                i, x_points[sample.out_anchors[i][1]],
-                x_points[sample.out_anchors[i][1] + sample.sizes[i][1]]);
+        y_starting[y_points[sample.inputs[i].out_anchor[0]]].emplace_back(
+                i, x_points[sample.inputs[i].out_anchor[1]],
+                x_points[sample.inputs[i].out_anchor[1] + sample.inputs[i].size[1]]);
+        y_ending[y_points[sample.inputs[i].out_anchor[0] + sample.inputs[i].size[0]]].emplace_back(
+                i, x_points[sample.inputs[i].out_anchor[1]],
+                x_points[sample.inputs[i].out_anchor[1] + sample.inputs[i].size[1]]);
       }
       y_starting[0].emplace_back(-1, 0, x_patch_cnt);
       y_ending[y_patch_cnt].emplace_back(-1, 0, x_patch_cnt);
@@ -165,14 +165,14 @@ void CreateSampleDescriptors(
           patch.patch_start[1] = scaled_x_to_x[x];
           patch.patch_end[0] = scaled_y_to_y[y + 1];
           patch.patch_end[1] = scaled_x_to_x[x + 1];
-          patch.in = max_paste == -1 ? nullptr : in[sample.in_idx[max_paste]].data;
-          patch.in_pitch[1] = max_paste == -1 ? -1 : in[sample.in_idx[max_paste]].shape[1];
+          patch.in = max_paste == -1 ? nullptr : in[sample.inputs[max_paste].in_idx].data;
+          patch.in_pitch[1] = max_paste == -1 ? -1 : in[sample.inputs[max_paste].in_idx].shape[1];
 
           if (max_paste != -1) {
-            patch.in_anchor[0] = sample.in_anchors[max_paste][0] +
-                              patch.patch_start[0] - sample.out_anchors[max_paste][0];
-            patch.in_anchor[1] = sample.in_anchors[max_paste][1] +
-                              patch.patch_start[1] - sample.out_anchors[max_paste][1];
+            patch.in_anchor[0] = sample.inputs[max_paste].in_anchor[0] +
+                              patch.patch_start[0] - sample.inputs[max_paste].out_anchor[0];
+            patch.in_anchor[1] = sample.inputs[max_paste].in_anchor[1] +
+                              patch.patch_start[1] - sample.inputs[max_paste].out_anchor[1];
           }
           patch.patch_start[1] *= channels;
           patch.patch_end[1] *= channels;
@@ -198,27 +198,27 @@ void CreateSampleDescriptors(
 template <class OutputType, class InputType, int ndims>
 __global__ void
 PasteKernel(const SampleDescriptorGPU<OutputType, InputType, ndims> *samples,
-                  const PatchDesc<InputType, ndims> *patchs,
-                  const BlockDesc<ndims> *blocks) {
+            const PatchDesc<InputType, ndims> *patchs,
+            const BlockDesc<ndims> *blocks) {
   static_assert(ndims == 2, "Function requires 2 dimensions in the input");
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
-  const PatchDesc<InputType, ndims> *my_patchs = patchs + sample.patch_start_idx;
+  const PatchDesc<InputType, ndims> *my_patches = patchs + sample.patch_start_idx;
 
 
   auto *__restrict__ out = sample.out;
 
   int patch_y = 0;
   int min_patch_x = 0;
-  while (threadIdx.x + block.start.x >= my_patchs[min_patch_x].patch_end[1]) min_patch_x++;
+  while (threadIdx.x + block.start.x >= my_patches[min_patch_x].patch_end[1]) min_patch_x++;
 
   for (int y = threadIdx.y + block.start.y; y < block.end.y; y += blockDim.y) {
-    while (y >= my_patchs[patch_y * sample.patch_counts[1]].patch_end[0]) patch_y++;
+    while (y >= my_patches[patch_y * sample.patch_counts[1]].patch_end[0]) patch_y++;
     int patch_x = min_patch_x;
     for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
-      while (x >= my_patchs[patch_y * sample.patch_counts[1] + patch_x].patch_end[1]) patch_x++;
+      while (x >= my_patches[patch_y * sample.patch_counts[1] + patch_x].patch_end[1]) patch_x++;
       const PatchDesc<InputType, ndims> *patch =
-              &my_patchs[patch_y * sample.patch_counts[1] + patch_x];
+              &my_patches[patch_y * sample.patch_counts[1] + patch_x];
       if (patch->in == nullptr) {
           out[y * sample.out_pitch[1] + x] = 0;
       } else {
@@ -250,7 +250,7 @@ class PasteGPU {
       KernelContext &context,
       const InListGPU<InputType, ndims> &in,
       span<paste::MultiPasteSampleInput<spatial_dims>> samples,
-      TensorListShape<ndims> out_shape) {
+      const TensorListShape<ndims> &out_shape) {
     paste::CreateSampleDescriptors(sample_descriptors_, patch_descriptors_, in, samples);
 
     KernelRequirements req;
@@ -260,7 +260,7 @@ class PasteGPU {
     se.add<SampleDesc>(AllocType::GPU, sample_descriptors_.size());
     se.add<PatchDesc>(AllocType::GPU, patch_descriptors_.size());
     se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
-    // req.output_shapes = {in.shape}; Once again, this is determined by operator
+    req.output_shapes = { out_shape };
     req.scratch_sizes = se.sizes;
     return req;
   }

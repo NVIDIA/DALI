@@ -21,13 +21,15 @@ namespace dali {
 namespace kernels {
 namespace paste {
 
-
 template <int ndims>
 struct MultiPasteSampleInput {
-    vector<ivec<ndims>> in_anchors, out_anchors, sizes;
-    vector<int> in_idx;
-    ivec<ndims> out_size;
-    int channels;
+  struct InputPatch {
+    ivec<ndims> out_anchor, in_anchor, size;
+    int in_idx;
+  };
+  vector<InputPatch> inputs;
+  ivec<ndims> out_size;
+  int channels;
 };
 
 }  // namespace paste
