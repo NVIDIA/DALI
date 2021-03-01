@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
+import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import os
+import numpy as np
+
+from nose import SkipTest
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
@@ -114,3 +118,62 @@ def test_image_decoder_memory_stats():
     for threads in {1, 2, 3, 4}:
         for size in {1, 10}:
             yield check, img_type, size, device, threads
+
+
+
+batch_size_alias_test=16
+
+@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+def decoder_pipe(decoder_op, file_root, device, use_fast_idct, split_stages):
+    encoded, labels = fn.readers.file(file_root=file_root)
+    decoded = decoder_op(encoded, device=device, output_type=types.RGB, use_fast_idct=use_fast_idct,
+                         split_stages=split_stages, seed=42)
+    return decoded
+
+
+def check_image_decoder_alias(new_op, old_op, file_root, device, use_fast_idct, split_stages):
+    new_pipe = decoder_pipe(new_op, file_root, device, use_fast_idct, split_stages)
+    legacy_pipe = decoder_pipe(old_op, file_root, device, use_fast_idct, split_stages)
+    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
+
+
+def test_image_decoder_alias():
+    data_path = os.path.join(test_data_root, good_path, "jpeg")
+    for new_op, old_op in [(fn.decoders.image, fn.image_decoder),
+                           (fn.decoders.image_crop, fn.image_decoder_crop),
+                           (fn.decoders.image_random_crop, fn.image_decoder_random_crop)]:
+        for device in ["cpu", "mixed"]:
+            for use_fast_idct in [True, False]:
+                for split_stages in [False]:
+                    yield check_image_decoder_alias, new_op, old_op, data_path, device, use_fast_idct, split_stages
+
+def test_image_decoder_split_alias():
+    raise SkipTest("Sanity tests for aliases of split decoder are temporarily disabled due to accuracy issues.")
+    data_path = os.path.join(test_data_root, good_path, "jpeg")
+    for new_op, old_op in [(fn.decoders.image, fn.image_decoder),
+                           (fn.decoders.image_crop, fn.image_decoder_crop),
+                           (fn.decoders.image_random_crop, fn.image_decoder_random_crop)]:
+        for device in ["mixed"]:
+            yield check_image_decoder_alias, new_op, old_op, data_path, device, False, True
+
+@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+def decoder_slice_pipe(decoder_op, file_root, device, use_fast_idct):
+    encoded, labels = fn.readers.file(file_root=file_root)
+    start = types.Constant(np.array([0., 0.]))
+    end = types.Constant(np.array([0.5, 0.5]))
+    decoded = decoder_op(encoded, start, end, device=device,
+                         output_type=types.RGB, use_fast_idct=use_fast_idct)
+    return decoded
+
+
+def check_image_decoder_slice_alias(new_op, old_op, file_root, device, use_fast_idct):
+    new_pipe = decoder_slice_pipe(new_op, file_root, device, use_fast_idct)
+    legacy_pipe = decoder_slice_pipe(old_op, file_root, device, use_fast_idct)
+    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
+
+def test_image_decoder_slice_alias():
+    data_path = os.path.join(test_data_root, good_path, "jpeg")
+    new_op, old_op = fn.decoders.image_slice, fn.image_decoder_slice
+    for device in ["cpu", "mixed"]:
+        for use_fast_idct in [True, False]:
+            yield check_image_decoder_slice_alias, new_op, old_op, data_path, device, use_fast_idct

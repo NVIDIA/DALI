@@ -26,6 +26,6 @@ It is automatically inserted during the pipeline creation.)code")
   .NumInput(1)
   .NumOutput(3)
   .MakeInternal()
-  .AddParent("ImageDecoder");
+  .AddParent("decoders__Image");
 
 }  // namespace dali

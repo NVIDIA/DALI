@@ -17,6 +17,7 @@
 
 namespace dali {
 
+DALI_REGISTER_OPERATOR(decoders__ImageCrop, nvJPEGDecoderCrop, Mixed);
 DALI_REGISTER_OPERATOR(ImageDecoderCrop, nvJPEGDecoderCrop, Mixed);
 
 }  // namespace dali
