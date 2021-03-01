@@ -14,9 +14,12 @@
 
 from nvidia.dali.pool import WorkerPool, ProcPool
 from nvidia.dali.types import SampleInfo
+from functools import wraps
 import numpy as np
 import os
 import time
+
+from test_pool_utils import *
 
 def answer(pid, info):
     return np.array([pid, info.idx_in_epoch, info.idx_in_batch, info.iteration])
@@ -32,19 +35,44 @@ def create_pool(callbacks, queue_depth=1, num_workers=1, start_method="fork"):
     worker_pool = WorkerPool(len(callbacks), proc_pool)
     return worker_pool
 
-def get_internal_pids(worker_pool):
-    return [proc.pid for proc in worker_pool.pool._processes]
+def get_pids(worker_pool):
+    # Note that we also capture the pids so the setup_function and teardown_function can
+    # verify its correctness.
+    capture_processes(worker_pool)
+    return worker_pool.pids()
+
+start_methods=["fork", "spawn"]
+
+# Invoke the `fn` with all start methods. Call setup and teardown before and after the test.
+#
+# We do this to not repeat the pattern of:
+#
+# def check_somthing(start_method):
+#    ...
+#
+# @with_setup(setup_function, teardown_function)
+# def test_something():
+#   for start_method in start_methods:
+#      yield check_somthing, start_method
+def check_pool(fn):
+    @wraps(fn)
+    def wrapper():
+        for start_method in start_methods:
+            setup_function()
+            yield fn, start_method
+            teardown_function()
+    return wrapper
 
 
 # ################################################################################################ #
 # 1 callback, 1 worker tests
 # ################################################################################################ #
 
-
-def test_pool_one_task():
+@check_pool
+def test_pool_one_task(start_method):
     callbacks = [simple_callback]
-    pool = create_pool(callbacks, queue_depth=1, num_workers=1, start_method="fork")
-    pids = get_internal_pids(pool)
+    pool = create_pool(callbacks, queue_depth=1, num_workers=1, start_method=start_method)
+    pids = get_pids(pool)
     pid = pids[0]
     tasks = [(SampleInfo(0, 0, 0),)]
     pool.schedule_batch(context_i=0, batch_i=0, tasks=tasks)
@@ -54,10 +82,11 @@ def test_pool_one_task():
     pool.close()
 
 
-def test_pool_multi_task():
+@check_pool
+def test_pool_multi_task(start_method):
     callbacks = [simple_callback]
-    pool = create_pool(callbacks, queue_depth=1, num_workers=1, start_method="fork")
-    pids = get_internal_pids(pool)
+    pool = create_pool(callbacks, queue_depth=1, num_workers=1, start_method=start_method)
+    pids = get_pids(pool)
     pid = pids[0]
     tasks = [(SampleInfo(i, i, 0),) for i in range(10)]
     pool.schedule_batch(context_i=0, batch_i=0, tasks=tasks)
@@ -69,10 +98,11 @@ def test_pool_multi_task():
 
 # Even though we receive 1 batch, it already should be overwritten by the result
 # of calculating the second batch, just in case we wait a few seconds
-def test_pool_overwrite_single_batch():
+@check_pool
+def test_pool_overwrite_single_batch(start_method):
     callbacks = [simple_callback]
-    pool = create_pool(callbacks, queue_depth=1, num_workers=1, start_method="fork")
-    pids = get_internal_pids(pool)
+    pool = create_pool(callbacks, queue_depth=1, num_workers=1, start_method=start_method)
+    pids = get_pids(pool)
     pid = pids[0]
     tasks_0 = [(SampleInfo(0, 0, 0),)]
     tasks_1 = [(SampleInfo(1, 0, 1),)]
@@ -89,10 +119,11 @@ def test_pool_overwrite_single_batch():
 
 
 # Test that with bigger queue depth we will still overwrite the memory used as the results
-def test_pool_overwrite_multiple_batch():
+@check_pool
+def test_pool_overwrite_multiple_batch(start_method):
     callbacks = [simple_callback]
-    pool = create_pool(callbacks, queue_depth=3, num_workers=1, start_method="fork")
-    pids = get_internal_pids(pool)
+    pool = create_pool(callbacks, queue_depth=3, num_workers=1, start_method=start_method)
+    pids = get_pids(pool)
     pid = pids[0]
     tasks_list = [(i, [(SampleInfo(i, 0, i),)]) for i in range(4)]
     for i, tasks in tasks_list:
@@ -111,11 +142,12 @@ def test_pool_overwrite_multiple_batch():
 
 
 # Test that we can hold as many results as the queue depth
-def test_pool_no_overwrite_batch():
+@check_pool
+def test_pool_no_overwrite_batch(start_method):
     callbacks = [simple_callback]
     for depth in [1, 2, 4, 8]:
-        pool = create_pool(callbacks, queue_depth=depth, num_workers=1, start_method="fork")
-        pids = get_internal_pids(pool)
+        pool = create_pool(callbacks, queue_depth=depth, num_workers=1, start_method=start_method)
+        pids = get_pids(pool)
         pid = pids[0]
         tasks_list = [(i, [(SampleInfo(i, 0, i),)]) for i in range(depth)]
         for i, tasks in tasks_list:
@@ -133,10 +165,11 @@ def test_pool_no_overwrite_batch():
 # ################################################################################################ #
 
 
-def test_pool_work_split_2_tasks():
+@check_pool
+def test_pool_work_split_2_tasks(start_method):
     callbacks = [simple_callback]
-    pool = create_pool(callbacks, queue_depth=1, num_workers=2, start_method="fork")
-    pids = get_internal_pids(pool)
+    pool = create_pool(callbacks, queue_depth=1, num_workers=2, start_method=start_method)
+    pids = get_pids(pool)
     tasks = [(SampleInfo(0, 0, 0),), (SampleInfo(1, 1, 0),)]
     pool.schedule_batch(context_i=0, batch_i=0, tasks=tasks)
     batch = pool.receive_batch(context_i=0)
@@ -145,11 +178,12 @@ def test_pool_work_split_2_tasks():
     pool.close()
 
 
-def test_pool_work_split_multiple_tasks():
+@check_pool
+def test_pool_work_split_multiple_tasks(start_method):
     callbacks = [simple_callback]
-    pool = create_pool(callbacks, queue_depth=1, num_workers=2, start_method="fork")
+    pool = create_pool(callbacks, queue_depth=1, num_workers=2, start_method=start_method)
     num_tasks = 16
-    pids = get_internal_pids(pool)
+    pids = get_pids(pool)
     tasks = [(SampleInfo(i, i, 0),) for i in range(num_tasks)]
     split_pids = []
     assert num_tasks % len(pids) == 0, "Testing only even splits"
@@ -170,10 +204,12 @@ def test_pool_work_split_multiple_tasks():
 def another_callback(info):
     return simple_callback(info) + 100
 
-def test_pool_many_ctxs():
+
+@check_pool
+def test_pool_many_ctxs(start_method):
     callbacks = [simple_callback, another_callback]
-    pool = create_pool(callbacks, queue_depth=1, num_workers=1, start_method="fork")
-    pids = get_internal_pids(pool)
+    pool = create_pool(callbacks, queue_depth=1, num_workers=1, start_method=start_method)
+    pids = get_pids(pool)
     pid = pids[0]
     tasks = [(SampleInfo(0, 0, 0),)]
     pool.schedule_batch(context_i=0, batch_i=0, tasks=tasks)
@@ -188,10 +224,11 @@ def test_pool_many_ctxs():
 
 
 # Check that the same worker executes the ctxs
-def test_pool_many_ctxs_many_workers():
+@check_pool
+def test_pool_many_ctxs_many_workers(start_method):
     callbacks = [simple_callback, another_callback]
-    pool = create_pool(callbacks, queue_depth=1, num_workers=5, start_method="fork")
-    pids = get_internal_pids(pool)
+    pool = create_pool(callbacks, queue_depth=1, num_workers=5, start_method=start_method)
+    pids = get_pids(pool)
     pid = pids[0]
     tasks = [(SampleInfo(0, 0, 0),)]
     pool.schedule_batch(context_i=0, batch_i=0, tasks=tasks)
@@ -204,6 +241,3 @@ def test_pool_many_ctxs_many_workers():
         np.testing.assert_array_equal(answer(pid, *task) + 100, sample)
     pool.close()
 
-
-
-# TODO(klecki): Add the cleanup checkup, and test "spawn" as well

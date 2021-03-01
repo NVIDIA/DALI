@@ -15,6 +15,7 @@
 import numpy as np
 from nose.tools import raises, with_setup
 
+from test_pool_utils import *
 from test_utils import compare_pipelines
 from test_external_source_parallel_utils import *
 
@@ -35,8 +36,8 @@ def test_parallel_fork_cpu_only():
     for pipe0, pipe1 in parallel_pipes:
         pipe0.build()
         pipe1.build()
-        capture_processes(pipe0)
-        capture_processes(pipe1)
+        capture_processes(pipe0._py_pool)
+        capture_processes(pipe1._py_pool)
         compare_pipelines(pipe0, pipe1, batch_size, iters)
 
 @with_setup(setup_function, teardown_function)
@@ -47,7 +48,7 @@ def test_parallel_no_workers():
     parallel_pipe = create_pipe(callback, 'cpu', batch_size, py_num_workers=0,
                                 py_start_method='spawn', parallel=True, device_id=None)
     parallel_pipe.build()
-    capture_processes(parallel_pipe)
+    capture_processes(parallel_pipe._py_pool)
     assert parallel_pipe._py_pool is None
     assert parallel_pipe._py_pool_started == False
 

@@ -21,9 +21,12 @@ np = None
 
 
 def _div_ceil(a, b):
-    """Calculate ceil of a/b without decaying to float.
-    """
+    """Calculate ceil of a/b without decaying to float."""
     return -(-a // b)
+
+def _align_up(x, alignment):
+    """ Align x up to multiple of alignment"""
+    return _div_ceil(x, alignment) * alignment
 
 
 def import_numpy():
@@ -73,7 +76,7 @@ class SharedBatchMeta:
 def deserialize_sample(buffer: shared_mem.SharedMem, sample):
     if isinstance(sample, SampleMeta):
         offset = sample.offset
-        assert offset % sample.dtype.itemsize == 0, "Sample offset is missaligned."
+        assert offset % sample.dtype.itemsize == 0, "Sample offset is misaligned."
         buffer = buffer.buf[offset:offset + sample.nbytes]
         return np.ndarray(sample.shape, dtype=sample.dtype, buffer=buffer)
     if isinstance(sample, (tuple, list,)):
@@ -198,7 +201,7 @@ class SharedBatchWriter:
 
         def make_meta(np_array):
             nonlocal data_size
-            offset = _div_ceil(data_size, self.SAMPLE_ALIGNMENT) * self.SAMPLE_ALIGNMENT
+            offset = _align_up(data_size, self.SAMPLE_ALIGNMENT)
             data_size = offset + np_array.nbytes
             return SampleMeta(offset, np_array.shape, np_array.dtype, np_array.nbytes)
 
@@ -222,12 +225,12 @@ class SharedBatchWriter:
         meta, data_size = self._prepare_samples_meta(batch)
         serialized_meta = pickle.dumps(meta)
         self.meta_data_size = len(serialized_meta)
-        self.data_size = _div_ceil(data_size, self.SAMPLE_ALIGNMENT) * self.SAMPLE_ALIGNMENT
+        self.data_size = _align_up(data_size, self.SAMPLE_ALIGNMENT)
         needed_capacity = self.data_size + self.meta_data_size
         if self.mem_batch.capacity < needed_capacity:
-            grow_capacity = max(needed_capacity, 2 * self.mem_batch.capacity)
-            grow_capacity = _div_ceil(grow_capacity, self.BUFFER_ALIGNMENT) * self.BUFFER_ALIGNMENT
-            self.mem_batch.resize(grow_capacity)
+            new_capacity = max(needed_capacity, 2 * self.mem_batch.capacity)
+            new_capacity = _align_up(new_capacity, self.BUFFER_ALIGNMENT)
+            self.mem_batch.resize(new_capacity)
         memview = self.mem_batch.shm_chunk.buf
         for (idx, sample), (meta_idx, sample_meta) in zip(batch, meta):
             assert idx == meta_idx

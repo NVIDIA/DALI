@@ -20,6 +20,7 @@
 import torch
 from nose.tools import raises, with_setup
 
+from test_pool_utils import *
 from test_external_source_parallel_utils import *
 
 class ExtCallbackTorch(ExtCallback):
@@ -40,4 +41,4 @@ def test_pytorch_cuda_context():
     pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
                 py_start_method='fork', parallel=True)
     pipe.start_py_workers()
-    capture_processes(pipe)
+    capture_processes(pipe._py_pool)

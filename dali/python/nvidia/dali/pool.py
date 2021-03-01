@@ -220,6 +220,12 @@ starts thread keeping track of running processes and initializes communication.
     def num_workers(self):
         return self._num_workers
 
+    def pids(self):
+        """Get pids of the processes started by this pool.
+        """
+        return [proc.pid for proc in self._processes]
+
+
     @property
     def task_pipes_lock(self):
         return self._task_pipes_lock
@@ -442,6 +448,11 @@ class WorkerPool:
                 context.receive_chunk(
                     batch_i, self.pool.sock(worker_id),
                     completed_tasks.serialized_batch)
+
+    def pids(self):
+        """Get pids of the processes started by this pool.
+        """
+        return self.pool.pids()
 
     def reset(self):
         for context in self.contexts:
