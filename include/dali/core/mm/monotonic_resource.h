@@ -32,8 +32,8 @@ namespace mm {
  * Monotonic buffer resources don't require manual deallocation of the returned pointers.
  * The memory is freed in bulk when the underlying buffer is freed.
  */
-template <memory_kind kind, allocation_order order = allocation_order::host>
-class monotonic_buffer_resource : public memory_resource<kind, order> {
+template <memory_kind kind, typename Context = any_context>
+class monotonic_buffer_resource : public memory_resource<kind, Context> {
  public:
   monotonic_buffer_resource() = default;
   monotonic_buffer_resource(void *memory, size_t bytes)
@@ -75,7 +75,7 @@ class monotonic_buffer_resource : public memory_resource<kind, order> {
   char *curr_ = nullptr, *limit_ = nullptr;
 };
 
-template <memory_kind kind, allocation_order order = allocation_order::host,
+template <memory_kind kind, typename Context = any_context,
           bool host_impl = detail::is_host_memory(kind)>
 class monotonic_memory_resource;
 
@@ -87,10 +87,10 @@ class monotonic_memory_resource;
  * The lifetime of a monotonic resource is limited and all memory will be deallocated in bulk
  * when the resource is destroyed.
  */
-template <memory_kind kind, allocation_order order>
-class monotonic_memory_resource<kind, order, true> : public memory_resource<kind, order> {
+template <memory_kind kind, typename Context>
+class monotonic_memory_resource<kind, Context, true> : public memory_resource<kind, Context> {
  public:
-  explicit monotonic_memory_resource(memory_resource<kind, order> *upstream,
+  explicit monotonic_memory_resource(memory_resource<kind, Context> *upstream,
                                      size_t next_block_size = 1024)
   : upstream_(upstream), next_block_size_(next_block_size) {}
 
@@ -163,11 +163,15 @@ class monotonic_memory_resource<kind, order, true> : public memory_resource<kind
   void do_deallocate(void *data, size_t bytes, size_t alignment) override {
   }
 
+  virtual Context do_get_context() const noexcept {
+    return upstream_->get_context();
+  }
+
   static constexpr size_t sentinel_value = detail::sentinel_value<size_t>::value;
 
   char *curr_ = nullptr, *limit_ = nullptr;
 
-  memory_resource<kind, order> *upstream_;
+  memory_resource<kind, Context> *upstream_;
   size_t next_block_size_;
   struct block_info {
     size_t sentinel;
@@ -188,10 +192,10 @@ class monotonic_memory_resource<kind, order, true> : public memory_resource<kind
  * The lifetime of a monotonic resource is limited and all memory will be deallocated in bulk
  * when the resource is destroyed.
  */
-template <memory_kind kind, allocation_order order>
-class monotonic_memory_resource<kind, order, false> : public memory_resource<kind, order> {
+template <memory_kind kind, typename Context>
+class monotonic_memory_resource<kind, Context, false> : public memory_resource<kind, Context> {
  public:
-  explicit monotonic_memory_resource(memory_resource<kind, order> *upstream,
+  explicit monotonic_memory_resource(memory_resource<kind, Context> *upstream,
                                      size_t next_block_size = 1024)
   : upstream_(upstream), next_block_size_(next_block_size) {}
 
@@ -254,9 +258,13 @@ class monotonic_memory_resource<kind, order, false> : public memory_resource<kin
   void do_deallocate(void *data, size_t bytes, size_t alignment) override {
   }
 
+  virtual Context do_get_context() const noexcept {
+    return upstream_->get_context();
+  }
+
   char *curr_ = nullptr, *limit_ = nullptr;
 
-  memory_resource<kind, order> *upstream_;
+  memory_resource<kind, Context> *upstream_;
   size_t next_block_size_;
   struct upstream_block {
     void *base;
@@ -268,8 +276,8 @@ class monotonic_memory_resource<kind, order, false> : public memory_resource<kin
 
 using monotonic_host_resource = monotonic_memory_resource<memory_kind::host>;
 
-template <allocation_order order = allocation_order::host>
-using monotonic_device_resource = monotonic_memory_resource<memory_kind::device, order>;
+template <typename Context = any_context>
+using monotonic_device_resource = monotonic_memory_resource<memory_kind::device, Context>;
 
 }  // namespace mm
 }  // namespace dali

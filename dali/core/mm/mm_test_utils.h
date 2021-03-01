@@ -136,16 +136,16 @@ class test_resource_wrapper_impl {
   }
 };
 
-template <memory_kind kind, allocation_order order, bool owning, bool security_check,
+template <memory_kind kind, typename Context, bool owning, bool security_check,
           typename Upstream>
-class test_resource_wrapper<owning, security_check, memory_resource<kind, order>, Upstream>
-: public memory_resource<kind, order>
+class test_resource_wrapper<owning, security_check, memory_resource<kind, Context>, Upstream>
+: public memory_resource<kind, Context>
 , public test_resource_wrapper_impl<owning, security_check, Upstream> {
   static_assert(!security_check || kind != memory_kind::device,
                 "Cannot place a security cookie in device memory");
 
   using test_resource_wrapper_impl<owning, security_check, Upstream>::test_resource_wrapper_impl;
-  bool do_is_equal(const memory_resource<kind, order> &other) const noexcept override {
+  bool do_is_equal(const memory_resource<kind, Context> &other) const noexcept override {
     if (auto *oth = dynamic_cast<const test_resource_wrapper*>(&other))
       return this->upstream_->is_equal(*oth->upstream_);
     else
@@ -162,6 +162,10 @@ class test_resource_wrapper<owning, security_check, memory_resource<kind, order>
     return this->do_deallocate_impl([&](void *p, size_t b, size_t a) {
       return this->upstream_->deallocate(p, b, a);
     }, ptr, bytes, alignment);
+  }
+
+  virtual Context do_get_context() const noexcept {
+    return this->upstream_->get_context();
   }
 };
 
