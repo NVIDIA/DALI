@@ -23,13 +23,11 @@ from nose.tools import raises, with_setup
 from test_pool_utils import *
 from test_external_source_parallel_utils import *
 
+
 class ExtCallbackTorch(ExtCallback):
     def __call__(self, sample_info):
         return torch.tensor(super().__call__(sample_info))
 
-@with_setup(setup_function, teardown_function)
-def test_pytorch():
-    yield from check_spawn_with_callback(ExtCallbackTorch)
 
 @raises(RuntimeError)
 @with_setup(setup_function, teardown_function)
@@ -39,6 +37,11 @@ def test_pytorch_cuda_context():
     _ = torch.ones([1, 1], dtype=torch.float32, device=cuda0)
     callback = ExtCallback((4, 5), 10, np.int32)
     pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
-                py_start_method='fork', parallel=True)
+                       py_start_method='fork', parallel=True)
     pipe.start_py_workers()
     capture_processes(pipe._py_pool)
+
+
+@with_setup(setup_function, teardown_function)
+def test_pytorch():
+    yield from check_spawn_with_callback(ExtCallbackTorch)

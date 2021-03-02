@@ -14,7 +14,7 @@
 
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
-#if SHM_BINDINGS_ENABLED
+#if SHM_WRAPPER_ENABLED
 #include "dali/core/os/shared_mem.h"
 #endif
 #include "dali/core/python_util.h"
@@ -1133,7 +1133,7 @@ PYBIND11_MODULE(backend_impl, m) {
     return context != nullptr;
   });
 
-#if SHM_BINDINGS_ENABLED
+#if SHM_WRAPPER_ENABLED
 
   py::class_<SharedMem>(m, "SharedMem")
       .def(py::init<int, int>())
@@ -1148,7 +1148,7 @@ PYBIND11_MODULE(backend_impl, m) {
              if (ptr == nullptr) {
                throw py::value_error("Cannot create buffer - no memory has been mapped");
              }
-             return py::memoryview::from_buffer(ptr, {shm->size()}, {sizeof(SharedMem::b_type)});
+             return py::memoryview::from_buffer(ptr, {shm->size()}, {sizeof(uint8_t)});
            })
       .def("resize", &SharedMem::resize)
       .def("close", &SharedMem::close);

@@ -143,6 +143,8 @@ def _to_numpy(sample):
     if isinstance(sample, np.ndarray):
         return sample
     if types._is_mxnet_array(sample):
+        if sample.ctx.device_type != 'cpu':
+            raise TypeError("GPU tensors are not supported")
         return sample.asnumpy()
     if types._is_torch_tensor(sample):
         if sample.device.type != 'cpu':

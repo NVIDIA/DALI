@@ -79,8 +79,6 @@ def create_pipe(
     return pipe
 
 
-
-
 def build_and_run_pipeline(pipe, iters=None, *args):
     pipe.build()
     capture_processes(pipe._py_pool)

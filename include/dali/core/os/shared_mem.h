@@ -137,8 +137,6 @@ class DLL_PUBLIC MemoryMapping : public UniqueHandle<MappedMemoryChunk, MemoryMa
  */
 class DLL_PUBLIC SharedMem {
  public:
-  using b_type = uint8_t;
-
   DLL_PUBLIC SharedMem(shm_handle_t handle, uint64_t size);
 
   DLL_PUBLIC ~SharedMem() = default;
@@ -147,7 +145,7 @@ class DLL_PUBLIC SharedMem {
 
   DLL_PUBLIC shm_handle_t handle();
 
-  DLL_PUBLIC b_type *get_raw_ptr();
+  DLL_PUBLIC uint8_t *get_raw_ptr();
 
   /**
    * @brief Resize the current chunk with optional call to ftruncate (to actually change the size)

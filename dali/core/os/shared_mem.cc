@@ -121,7 +121,7 @@ void MemoryMapping::resize(uint64_t new_size) {
   handle_.size = new_size;
 }
 
-SharedMem::SharedMem(shm_handle_t handle, uint64_t size) : size_{size * sizeof(SharedMem::b_type)} {
+SharedMem::SharedMem(shm_handle_t handle, uint64_t size) : size_{size * sizeof(uint8_t)} {
   if (handle >= 0) {
     shm_handle_ = ShmHandle(handle);
   } else {
@@ -139,12 +139,12 @@ int SharedMem::handle() {
   return !shm_handle_ ? -1 : shm_handle_;
 }
 
-SharedMem::b_type *SharedMem::get_raw_ptr() {
+uint8_t *SharedMem::get_raw_ptr() {
   return !memory_mapping_ ? nullptr : memory_mapping_.get_raw_ptr();
 }
 
 void SharedMem::resize(uint64_t size, bool trunc) {
-  size_ = size * sizeof(SharedMem::b_type);
+  size_ = size * sizeof(uint8_t);
   if (trunc) {
     POSIX_CALL_EX(ftruncate(shm_handle_, size_), "Failed to resize shared memory.");
   }

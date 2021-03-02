@@ -33,14 +33,3 @@ class ExtCallbackMX(ExtCallback):
 def test_mxnet():
     yield from check_spawn_with_callback(ExtCallbackMX)
 
-
-@raises(RuntimeError)
-@with_setup(setup_function, teardown_function)
-def test_pytorch_cuda_context():
-    # Create a dummy MXNet CUDA tensor so we acquire CUDA context
-    _ = mx.nd.zeros((1, 1), ctx=mx.gpu(0))
-    callback = ExtCallback((4, 5), 10, np.int32)
-    pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
-                py_start_method='fork', parallel=True)
-    pipe.start_py_workers()
-    capture_processes(pipe._py_pool)
