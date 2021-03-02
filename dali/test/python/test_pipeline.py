@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import glob
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
@@ -1738,7 +1738,7 @@ def test_epoch_size():
 
 def test_pipeline_out_of_scope():
     def get_output():
-        pipe = dali.pipeline.Pipeline(1, 1, 0)
+        pipe = dali.Pipeline(1, 1, 0)
         with pipe:
             pipe.set_outputs(dali.fn.external_source(source=[[np.array([-0.5, 1.25])]]))
         pipe.build()
@@ -1747,7 +1747,7 @@ def test_pipeline_out_of_scope():
     assert out[0] == -0.5 and out[1] == 1.25
 
 def test_return_constants():
-    pipe = dali.pipeline.Pipeline(1, 1, None)
+    pipe = dali.Pipeline(1, 1, None)
     types = [bool, np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32, np.float32]
     pipe.set_outputs(np.array([[1,2],[3,4]]), 10, *[t(42) for t in types])
     pipe.build()
@@ -1759,9 +1759,18 @@ def test_return_constants():
         assert o.at(0).dtype == types[i]
 
 def test_preserve_arg():
-    pipe = dali.pipeline.Pipeline(1, 1, 0)
+    pipe = dali.Pipeline(1, 1, 0)
     with pipe:
         out = dali.fn.external_source(source=[[np.array([-0.5, 1.25])]], preserve = True)
         res = dali.fn.resize(out, preserve = True)
         pipe.set_outputs(out)
     pipe.build()
+
+def test_pipeline_wrong_device_id():
+    pipe = dali.Pipeline(batch_size=1, num_threads=1, device_id=-123)
+    with pipe:
+        pipe.set_outputs(np.int32([1,2,3]))
+    with assert_raises(RuntimeError) as x:
+        pipe.build()
+        pipe.run()
+    assert "device_id" in str(x.exception).lower()
