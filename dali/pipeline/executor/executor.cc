@@ -249,10 +249,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
     RunCPUImpl();
   } catch (std::exception &e) {
     HandleError(make_string("Exception in CPU stage: ", e.what()));
-    throw;
   } catch (...) {
-    HandleError();
-    throw;
+    HandleError("Unknown error in CPU stage.");
   }
 }
 
@@ -261,11 +259,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
   try {
     RunMixedImpl();
   } catch (std::exception &e) {
-    HandleError(make_string("Exception in Mixed stage: ", e.what()));
-    throw;
+    HandleError(make_string("Exception in mixed stage: ", e.what()));
   } catch (...) {
-    HandleError();
-    throw;
+    HandleError("Unknown error in mixed stage.");
   }
 }
 
@@ -275,10 +271,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
     RunGPUImpl();
   } catch (std::exception &e) {
     HandleError(make_string("Exception in GPU stage: ", e.what()));
-    throw;
   } catch (...) {
-    HandleError();
-    throw;
+    HandleError("Unknown error in GPU stage.");
   }
 }
 
