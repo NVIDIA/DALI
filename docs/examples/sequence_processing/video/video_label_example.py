@@ -3,8 +3,8 @@
 import os
 import numpy as np
 
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
+from nvidia.dali import pipeline_def
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 
 try:
@@ -37,21 +37,17 @@ VIDEO_FILE_ROOT = os.path.join(os.environ['DALI_EXTRA_PATH'], "db", "video", "si
 
 ITER=100
 
-class VideoPipe(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, data):
-        super(VideoPipe, self).__init__(batch_size, num_threads, device_id, seed=12)
-        self.input = ops.readers.Video(device="gpu", file_root = data, sequence_length=COUNT,
-        # instead of file_root, path to text file with pairs video_filepath label_value can be provided
-        # self.input = ops.readers.Video(device="gpu", file_list = "file_list.txt", sequence_length=COUNT,
-                                       shard_id=0, num_shards=1, random_shuffle=False,
-                                       normalized=True, image_type=types.YCbCr, dtype=types.FLOAT)
-
-    def define_graph(self):
-        output = self.input(name="Reader")
-        return output
+@pipeline_def
+def video_pipe(file_root):
+    video, label = fn.readers.video(device="gpu", file_root=file_root, sequence_length=COUNT,
+                                    shard_id=0, num_shards=1, random_shuffle=False,
+                                    normalized=True, image_type=types.YCbCr, dtype=types.FLOAT)
+    # instead of file_root, path to text file with pairs video_filepath label_value can be provided
+    # self.input = fn.readers.video(device="gpu", file_list = "file_list.txt", sequence_length=COUNT, ...)
+    return video, label
 
 if __name__ == "__main__":
-    pipe = VideoPipe(batch_size=BATCH_SIZE, num_threads=2, device_id=0, data=VIDEO_FILE_ROOT)
+    pipe = video_pipe(batch_size=BATCH_SIZE, num_threads=2, device_id=0, file_root=VIDEO_FILE_ROOT)
     pipe.build()
     for i in range(ITER):
         print("Iteration " + str(i))
