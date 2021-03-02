@@ -28,12 +28,22 @@ namespace dali {
 using shm_handle_t = int;
 using fd_handle_t = int;
 
+void handle_strerror(int errnum, char *buf, size_t buflen) {
+  #if (_POSIX_C_SOURCE >= 200112L) && !_GNU_SOURCE
+    DALI_ENFORCE(strerror_r(errnum, buf, buflen) == 0, "Call to strerror_r failed.");
+  #else
+    char *ptr = strerror_r(errnum, buf, buflen);
+    if (ptr != buf)
+      memcpy(buf, ptr, buflen);
+  #endif
+}
+
 #define POSIX_CHECK_STATUS_EX(status, call_str, message)                               \
   do {                                                                                 \
     if (status == -1) {                                                                \
       std::string errmsg(256, '\0');                                                   \
       int e = errno;                                                                   \
-      strerror_r(e, &errmsg[0], errmsg.size());                                        \
+      handle_strerror(e, &errmsg[0], errmsg.size());                                   \
       DALI_FAIL(make_string("Call to ", call_str, " failed. ", errmsg, " ", message)); \
     }                                                                                  \
   } while (0)
