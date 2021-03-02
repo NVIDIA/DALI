@@ -47,7 +47,7 @@ def create_coco_pipeline(default_boxes, args):
                                                                 bbox_layout="xyXY",
                                                                 allow_no_crop=True,
                                                                 num_attempts=50)
-    images = fn.image_decoder_slice(images, crop_begin, crop_size, device="mixed", output_type=types.RGB)
+    images = fn.decoders.image_slice(images, crop_begin, crop_size, device="mixed", output_type=types.RGB)
     flip_coin = fn.random.coin_flip(probability=0.5)
     images = fn.resize(images,
                        resize_x=300,

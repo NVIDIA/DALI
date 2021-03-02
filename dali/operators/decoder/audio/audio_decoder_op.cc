@@ -19,7 +19,9 @@
 
 namespace dali {
 
-DALI_SCHEMA(AudioDecoder)
+DALI_REGISTER_OPERATOR(decoders__Audio, AudioDecoderCpu, CPU);
+
+DALI_SCHEMA(decoders__Audio)
   .DocStr(R"code(Decodes waveforms from encoded audio data.
 
 It supports the following audio formats: wav, flac and ogg.
@@ -46,7 +48,20 @@ the highest.
 0 gives 3 lobes of the sinc filter, 50 gives 16 lobes, and 100 gives 64 lobes.)code",
           50.0f, false);
 
+
 DALI_REGISTER_OPERATOR(AudioDecoder, AudioDecoderCpu, CPU);
+
+DALI_SCHEMA(AudioDecoder)
+    .DocStr("Legacy alias for :meth:`decoders.audio`.")
+    .NumInput(1)
+    .NumOutput(2)
+    .AddParent("decoders__Audio")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "decoders__Audio",
+        R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
+submodule and renamed to follow a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 bool
 AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) {

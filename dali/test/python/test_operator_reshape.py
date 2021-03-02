@@ -35,7 +35,7 @@ class ReshapePipeline(Pipeline):
         super(ReshapePipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=True, exec_pipelined=True)
         self.device = device
         self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         W = 320
         H = 224
         self.resize = ops.Resize(device = "cpu", resize_x = W, resize_y = H);
@@ -70,7 +70,7 @@ class ReshapeWithInput(Pipeline):
         super(ReshapeWithInput, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.device = device
         self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         fn = CollapseChannelsWildcard if use_wildcard else CollapseChannels
         self.gen_shapes = ops.PythonFunction(function=fn)
         self.reshape = ops.Reshape(device = device, layout = "ab");
@@ -99,7 +99,7 @@ class ReshapeWithArgInput(Pipeline):
         self.device = device
         self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.resize = ops.Resize(device = "cpu");
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         self.gen_shapes = ops.PythonFunction(function=MakeTallFunc(relative, use_wildcard))
         self.reshape = ops.Reshape(device = device);
         self.relative = relative

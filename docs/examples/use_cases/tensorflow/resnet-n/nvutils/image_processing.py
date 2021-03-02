@@ -173,7 +173,7 @@ def get_dali_pipeline(
     decode_device = "cpu" if dali_cpu else "mixed"
     resize_device = "cpu" if dali_cpu else "gpu"
     if training:
-        images = fn.image_decoder_random_crop(
+        images = fn.decoders.image_random_crop(
             inputs["image/encoded"],
             device=decode_device,
             output_type=types.RGB,
@@ -182,7 +182,7 @@ def get_dali_pipeline(
             num_attempts=100)
         images = fn.resize(images, device=resize_device, resize_x=width, resize_y=height)
     else:
-        images = fn.image_decoder(
+        images = fn.decoders.image(
             inputs["image/encoded"],
             device=decode_device,
             output_type=types.RGB)

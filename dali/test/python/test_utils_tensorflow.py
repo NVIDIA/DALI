@@ -63,7 +63,7 @@ def get_pipeline(batch_size, num_threads, device, device_id=0, shard_id=0, num_s
             num_shards=num_shards,
             ratio=False,
             image_ids=True)
-        images = fn.image_decoder(
+        images = fn.decoders.image(
             jpegs,
             device=('mixed' if device == 'gpu' else 'cpu'),
             output_type=types.RGB)

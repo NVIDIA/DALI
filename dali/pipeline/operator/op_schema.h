@@ -753,16 +753,9 @@ graph even if its outputs are not used.)code", false);
     return deprecation_message_;
   }
 
-  DLL_PUBLIC inline bool IsDeprecatedArg(const std::string &arg_name) const {
-    return deprecated_arguments_.find(arg_name) != deprecated_arguments_.end();
-  }
+  DLL_PUBLIC bool IsDeprecatedArg(const std::string &arg_name) const;
 
-  DLL_PUBLIC inline const DeprecatedArgDef& DeprecatedArgMeta(const std::string& arg_name) const  {
-    auto it = deprecated_arguments_.find(arg_name);
-    DALI_ENFORCE(it != deprecated_arguments_.end(),
-      make_string("Argument \"", arg_name, "\" is not marked as a deprecated argument"));
-    return it->second;
-  }
+  DLL_PUBLIC const DeprecatedArgDef &DeprecatedArgMeta(const std::string &arg_name) const;
 
   DLL_PUBLIC inline bool HasOutputFn() const {
     return static_cast<bool>(output_fn_);

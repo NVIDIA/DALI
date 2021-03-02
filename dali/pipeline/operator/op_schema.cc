@@ -111,6 +111,30 @@ std::map<std::string, DefaultedArgumentDef> OpSchema::GetOptionalArguments() con
   return ret;
 }
 
+DLL_PUBLIC bool OpSchema::IsDeprecatedArg(const std::string &arg_name) const {
+  if (deprecated_arguments_.find(arg_name) != deprecated_arguments_.end())
+    return true;
+  for (const auto &parent_name : parents_) {
+    const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
+    if (parent.IsDeprecatedArg(arg_name))
+      return true;
+  }
+  return false;
+}
+
+DLL_PUBLIC const DeprecatedArgDef &OpSchema::DeprecatedArgMeta(const std::string &arg_name) const {
+  auto it = deprecated_arguments_.find(arg_name);
+  if (it != deprecated_arguments_.end()) {
+    return it->second;
+  }
+  for (const auto &parent_name : parents_) {
+    const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
+    if (parent.IsDeprecatedArg(arg_name))
+      return parent.DeprecatedArgMeta(arg_name);
+  }
+  DALI_FAIL(make_string("No deprecation metadata for argument \"", arg_name, "\" found."));
+}
+
 std::string OpSchema::GetArgumentDox(const std::string &name) const {
   DALI_ENFORCE(HasArgument(name), "Argument \"" + name +
       "\" is not supported by operator \"" + this->name() + "\".");

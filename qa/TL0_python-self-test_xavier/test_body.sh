@@ -8,8 +8,10 @@ test_nose() {
         "cv2"
         "scipy"
         "librosa"
-        "image[_]*decoder\(device\s*="
-        "video[_]*reader"
+        "\"mixed\""
+        "'mixed'"
+        "video\("
+        "caffe"
     )
 
     for test_script in $(ls test_operator_*.py test_pipeline*.py test_external_source_dali.py test_external_source_numpy.py test_functional_api.py test_backend_impl.py); do

@@ -44,13 +44,13 @@ def create_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, siz
         device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
         host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
         if is_training:
-            images = fn.image_decoder_random_crop(images,
-                                                  device=decoder_device, output_type=types.RGB,
-                                                  device_memory_padding=device_memory_padding,
-                                                  host_memory_padding=host_memory_padding,
-                                                  random_aspect_ratio=[0.8, 1.25],
-                                                  random_area=[0.1, 1.0],
-                                                  num_attempts=100)
+            images = fn.decoders.image_random_crop(images,
+                                                   device=decoder_device, output_type=types.RGB,
+                                                   device_memory_padding=device_memory_padding,
+                                                   host_memory_padding=host_memory_padding,
+                                                   random_aspect_ratio=[0.8, 1.25],
+                                                   random_area=[0.1, 1.0],
+                                                   num_attempts=100)
             images = fn.resize(images,
                                device=dali_device,
                                resize_x=crop,
@@ -58,9 +58,9 @@ def create_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, siz
                                interp_type=types.INTERP_TRIANGULAR)
             mirror = fn.random.coin_flip(probability=0.5)
         else:
-            images = fn.image_decoder(images,
-                                      device=decoder_device,
-                                      output_type=types.RGB)
+            images = fn.decoders.image(images,
+                                       device=decoder_device,
+                                       output_type=types.RGB)
             images = fn.resize(images,
                                device=dali_device,
                                size=size,

@@ -41,7 +41,7 @@ class CropMirrorNormalizePipeline(Pipeline):
         super(CropMirrorNormalizePipeline, self).__init__(batch_size, num_threads, device_id, seed=7865)
         self.device = device
         self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         self.cmn = ops.CropMirrorNormalize(device = self.device,
                                            dtype = dtype,
                                            output_layout = output_layout,
@@ -105,7 +105,7 @@ class NoCropPipeline(Pipeline):
         self.decoder_only = decoder_only
         self.device = device
         self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         if not self.decoder_only:
             self.cast = ops.CropMirrorNormalize(device = self.device,
                                                dtype = types.FLOAT,
@@ -138,7 +138,7 @@ class PythonOpPipeline(Pipeline):
 
         super(PythonOpPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         self.cmn = ops.PythonFunction(function=function, output_layouts=output_layout)
         self.coin = ops.random.CoinFlip(probability=mirror_probability, seed=7865)
 

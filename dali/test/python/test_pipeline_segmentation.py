@@ -46,7 +46,7 @@ def check_bbox_random_crop_adjust_polygons(file_root, annotations_file, batch_si
                 scaling=[0.3, 1.0], bbox_layout='xyXY', output_bbox_indices=True
             )
         # Crop the image
-        images = fn.image_decoder_slice(
+        images = fn.decoders.image_slice(
             inputs, slice_anchor, slice_shape,
             device='mixed', axis_names='WH'
         )

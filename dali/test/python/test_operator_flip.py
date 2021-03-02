@@ -33,7 +33,7 @@ class FlipPipeline(Pipeline):
                                            device_id)
         self.device = device
         self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         self.flip = ops.Flip(device = self.device, vertical=is_vertical, horizontal=is_horizontal)
 
 

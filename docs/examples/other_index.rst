@@ -7,3 +7,4 @@ Other
    general/multigpu.ipynb
    custom_operations/index
    advanced/serialization.ipynb
+   legacy_getting_started.ipynb

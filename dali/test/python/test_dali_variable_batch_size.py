@@ -52,7 +52,7 @@ common cases:
 6. If your operator performs random operation, this approach won't provide
    a comparable result. In this case, the best thing you can do is to check
    whether the operator works, without qualitative comparison. Use `run_pipeline`
-   instead of `check_pipeline`. 
+   instead of `check_pipeline`.
 """
 
 
@@ -602,7 +602,7 @@ def test_audio_decoders():
     def audio_decoder_pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
-        decoded, _ = fn.audio_decoder(encoded, downmix=True, sample_rate=12345, device=device)
+        decoded, _ = fn.decoders.audio(encoded, downmix=True, sample_rate=12345, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
@@ -614,14 +614,14 @@ def test_image_decoders():
     def image_decoder_pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
-        decoded = fn.image_decoder(encoded, device=device)
+        decoded = fn.decoders.image(encoded, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
     def image_decoder_crop_pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
-        decoded = fn.image_decoder_crop(encoded, device=device)
+        decoded = fn.decoders.image_crop(encoded, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
@@ -630,14 +630,14 @@ def test_image_decoders():
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
         anch = fn.constant(fdata=.1)
         sh = fn.constant(fdata=.4)
-        decoded = fn.image_decoder_slice(encoded, anch, sh, axes=0, device=device)
+        decoded = fn.decoders.image_slice(encoded, anch, sh, axes=0, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
     def image_decoder_rcrop_pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
-        decoded = fn.image_decoder_random_crop(encoded, device=device)
+        decoded = fn.decoders.image_random_crop(encoded, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
