@@ -61,6 +61,8 @@ endif()
 # Third party library dependencies
 cmake_dependent_option(BUILD_PYTHON "Build Python bindings" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_SHM_BINDINGS "Build shared memory bindings, needs BUILD_PYTHON=ON" ON
+                      "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_LMDB "Build LMDB readers" OFF
                        "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_JPEG_TURBO "Build with libjpeg-turbo support" ON
@@ -101,6 +103,11 @@ else()
   set(BUILD_OPENCV ON)
   set(BUILD_PROTOBUF ON)
 endif()
+
+if (NOT BUILD_PYTHON)
+  set(BUILD_SHM_BINDINGS OFF)
+endif()
+
 
 # DALI modules
 # Note dali_core is always enabled
@@ -170,12 +177,14 @@ if(${ARCH} MATCHES "aarch64-linux")
 elseif(${ARCH} MATCHES "aarch64-qnx")
   message("Target set to aarch64-qnx")
   include(cmake/Dependencies.aarch64-qnx.cmake)
+  set(BUILD_SHM_BINDINGS OFF)
 else()
   include(cmake/Dependencies.cmake)
 endif()
 
 propagate_option(BUILD_NVTX)
 propagate_option(BUILD_PYTHON)
+propagate_option(BUILD_SHM_BINDINGS)
 propagate_option(BUILD_LMDB)
 propagate_option(BUILD_JPEG_TURBO)
 propagate_option(BUILD_LIBTIFF)

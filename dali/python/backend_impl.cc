@@ -14,7 +14,9 @@
 
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
+#if SHM_BINDINGS_ENABLED
 #include "dali/core/os/shared_mem.h"
+#endif
 #include "dali/core/python_util.h"
 #include "dali/operators.h"
 #include "dali/operators/reader/parser/tfrecord_parser.h"
@@ -1131,6 +1133,8 @@ PYBIND11_MODULE(backend_impl, m) {
     return context != nullptr;
   });
 
+#if SHM_BINDINGS_ENABLED
+
   py::class_<SharedMem>(m, "SharedMem")
       .def(py::init<int, int>())
       .def_property_readonly("size", &SharedMem::size)
@@ -1148,6 +1152,8 @@ PYBIND11_MODULE(backend_impl, m) {
            })
       .def("resize", &SharedMem::resize)
       .def("close", &SharedMem::close);
+
+#endif
 
   // Types
   py::module types_m = m.def_submodule("types");
