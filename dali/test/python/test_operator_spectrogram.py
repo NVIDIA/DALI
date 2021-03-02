@@ -177,7 +177,7 @@ class AudioSpectrogramPipeline(Pipeline):
                  num_threads=1, device_id=0, layout="ft"):
         super(AudioSpectrogramPipeline, self).__init__(batch_size, num_threads, device_id)
         self.input = ops.readers.File(device="cpu", file_root=audio_files)
-        self.decode = ops.AudioDecoder(device="cpu", dtype=types.FLOAT, downmix=True)
+        self.decode = ops.decoders.Audio(device="cpu", dtype=types.FLOAT, downmix=True)
         self.fft = ops.Spectrogram(device=device,
                                    nfft=nfft,
                                    window_length=window_length,
@@ -203,7 +203,7 @@ class AudioSpectrogramPythonPipeline(Pipeline):
             seed=12345, exec_async=False, exec_pipelined=False)
 
         self.input = ops.readers.File(device="cpu", file_root=audio_files)
-        self.decode = ops.AudioDecoder(device="cpu", dtype=types.FLOAT, downmix=True)
+        self.decode = ops.decoders.Audio(device="cpu", dtype=types.FLOAT, downmix=True)
 
         function = partial(spectrogram_func, nfft, window_length, window_step, None)
         self.spectrogram = ops.PythonFunction(function=function, output_layouts=["ft"])

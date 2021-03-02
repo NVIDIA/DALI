@@ -66,11 +66,11 @@ def test_compose_change_device():
 
     size = fn.random.uniform(shape=2, range=(300,500))
     c = ops.Compose([
-        ops.ImageDecoder(device="cpu"),
+        ops.decoders.Image(device="cpu"),
         ops.Resize(size=size, device="gpu")
     ])
     files, labels = fn.readers.caffe(path=caffe_db_folder, seed=1)
-    pipe.set_outputs(c(files), fn.resize(fn.image_decoder(files).gpu(), size=size))
+    pipe.set_outputs(c(files), fn.resize(fn.decoders.image(files).gpu(), size=size))
 
     pipe.build()
     out = pipe.run()

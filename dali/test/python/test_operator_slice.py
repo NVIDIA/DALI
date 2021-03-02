@@ -115,15 +115,15 @@ class SlicePipeline(Pipeline):
         self.input_crop_size = ops.ExternalSource()
 
         if self.is_fused_decoder:
-            self.decode = ops.ImageDecoderSlice(device = "cpu",
-                                                output_type = types.RGB,
-                                                normalized_anchor=normalized_anchor,
-                                                normalized_shape=normalized_shape,
-                                                axis_names = axis_names,
-                                                axes = axes)
+            self.decode = ops.decoders.ImageSlice(device = "cpu",
+                                                  output_type = types.RGB,
+                                                  normalized_anchor=normalized_anchor,
+                                                  normalized_shape=normalized_shape,
+                                                  axis_names = axis_names,
+                                                  axes = axes)
         else:
-            self.decode = ops.ImageDecoder(device = "cpu",
-                                           output_type = types.RGB)
+            self.decode = ops.decoders.Image(device = "cpu",
+                                             output_type = types.RGB)
             self.slice = ops.Slice(device = self.device,
                                    normalized_anchor=normalized_anchor,
                                    normalized_shape=normalized_shape,
@@ -311,7 +311,7 @@ class SlicePythonOp(Pipeline):
         self.pos_size_iter = pos_size_iter
 
         self.input = ops.readers.Caffe(path = caffe_db_folder, random_shuffle=False)
-        self.decode = ops.ImageDecoder(device = 'cpu', output_type = types.RGB)
+        self.decode = ops.decoders.Image(device = 'cpu', output_type = types.RGB)
 
         self.input_crop_pos = ops.ExternalSource()
         self.input_crop_size = ops.ExternalSource()

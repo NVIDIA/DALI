@@ -1229,7 +1229,7 @@ The example below chains an image decoder and a Resize operation with random squ
 The  ``decode_and_resize`` object can be called as if it was an operator::
 
     decode_and_resize = ops.Compose([
-        ops.ImageDecoder(device="cpu"),
+        ops.decoders.Image(device="cpu"),
         ops.Resize(size=fn.random.uniform(range=400,500)), device="gpu")
     ])
 

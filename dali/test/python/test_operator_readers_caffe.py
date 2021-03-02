@@ -40,11 +40,11 @@ class CaffeReaderPipeline(Pipeline):
                                            device_id)
         self.input = ops.readers.Caffe(path = path, shard_id = device_id, num_shards = num_gpus)
 
-        self.decode = ops.ImageDecoderCrop(device = "cpu",
-                                           crop = (224, 224),
-                                           crop_pos_x = 0.3,
-                                           crop_pos_y = 0.2,
-                                           output_type = types.RGB)
+        self.decode = ops.decoders.ImageCrop(device = "cpu",
+                                             crop = (224, 224),
+                                             crop_pos_x = 0.3,
+                                             crop_pos_y = 0.2,
+                                             output_type = types.RGB)
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
 

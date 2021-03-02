@@ -194,8 +194,8 @@ def test_constant_promotion_mixed():
     pipe = Pipeline(1, 3, 0)
     with pipe:
         jpegs, _ = fn.readers.file(files=[filename])
-        from_reader = fn.image_decoder(jpegs, device="mixed")
-        from_constant = fn.image_decoder(file_contents, device="mixed")
+        from_reader = fn.decoders.image(jpegs, device="mixed")
+        from_constant = fn.decoders.image(file_contents, device="mixed")
         pipe.set_outputs(from_constant, from_reader)
     pipe.build()
     from_reader, from_constant = pipe.run()

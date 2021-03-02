@@ -127,7 +127,7 @@ allocation might be useful to determine suitable values for ``device_memory_padd
 )code",
       false);
 
-DALI_SCHEMA(ImageDecoder)
+DALI_SCHEMA(decoders__Image)
   .DocStr(R"code(Decodes images.
 
 For jpeg images, depending on the backend selected ("mixed" and "cpu"), the implementation uses
@@ -175,7 +175,7 @@ The hint is used to preallocate memory for the HW JPEG decoder.)code",
 
 // Fused
 
-DALI_SCHEMA(ImageDecoderCrop)
+DALI_SCHEMA(decoders__ImageCrop)
   .DocStr(R"code(Decodes images and extracts regions-of-interest (ROI) that are specified
 by fixed window dimensions and variable anchors.
 
@@ -185,8 +185,8 @@ image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.fn.image_decoder` automatically disables hardware accelerated
-  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.fn.image_decoder` and
+  :meth:`nvidia.dali.fn.decoders.image_crop` automatically disables hardware accelerated
+  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.fn.decoders.image` and
   :meth:`nvidia.dali.fn.crop` operators instead.
 
 The output of the decoder is in *HWC* layout.
@@ -196,7 +196,7 @@ Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
 .. note::
   JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
   a CPU implementation regardless of the selected backend. For a GPU accelerated implementation,
-  consider using separate ``image_decoder`` and ``crop`` operators.
+  consider using separate ``decoders.image`` and ``crop`` operators.
 
 .. note::
   EXIF orientation metadata is disregarded.)code")
@@ -205,7 +205,7 @@ Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
   .AddParent("ImageDecoderAttr")
   .AddParent("CropAttr");
 
-DALI_SCHEMA(ImageDecoderRandomCrop)
+DALI_SCHEMA(decoders__ImageRandomCrop)
   .DocStr(R"code(Decodes images and randomly crops them.
 
 The cropping window's area (relative to the entire image) and aspect ratio can be restricted to
@@ -217,8 +217,8 @@ image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.fn.image_decoder_random_crop` automatically disables hardware accelerated
-  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.fn.image_decoder` and
+  :meth:`nvidia.dali.fn.decoders.image_random_crop` automatically disables hardware accelerated
+  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.fn.decoders.image` and
   :meth:`nvidia.dali.fn.random_crop` operators instead.
 
 The output of the decoder is in *HWC* layout.
@@ -228,7 +228,7 @@ Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
 .. note::
   JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
   a CPU implementation regardless of the selected backend. For a GPU accelerated implementation,
-  consider using separate ``image_decoder`` and ``random_crop`` operators.
+  consider using separate ``decoders.image`` and ``random_crop`` operators.
 
 .. note::
   EXIF orientation metadata is disregarded.)code")
@@ -238,7 +238,7 @@ Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
   .AddParent("RandomCropAttr");
 
 
-DALI_SCHEMA(ImageDecoderSlice)
+DALI_SCHEMA(decoders__ImageSlice)
   .DocStr(R"code(Decodes images and extracts regions of interest.
 
 The slice can be specified by proving the start and end coordinates, or start coordinates
@@ -265,7 +265,7 @@ and shape is incompatible with the named arguments specified above.
 The slice arguments should provide as many dimensions as specified by the ``axis_names`` or ``axes``
 arguments.
 
-By default, the :meth:`nvidia.dali.fn.image_decoder_slice` operator uses normalized coordinates
+By default, the :meth:`nvidia.dali.fn.decoders.image_slice` operator uses normalized coordinates
 and "WH" order for the slice arguments.
 
 When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
@@ -274,8 +274,8 @@ image format, it will decode the entire image and crop the selected ROI.
 
 .. note::
   ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.fn.image_decoder_slice` automatically disables hardware accelerated decoding.
-  To use the hardware decoder, use the :meth:`nvidia.dali.fn.image_decoder` and
+  :meth:`nvidia.dali.fn.decoders.image_slice` automatically disables hardware accelerated decoding.
+  To use the hardware decoder, use the :meth:`nvidia.dali.fn.decoders.image` and
   :meth:`nvidia.dali.fn.slice` operators instead.
 
 The output of the decoder is in the *HWC* layout.
@@ -285,7 +285,7 @@ Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
 .. note::
   JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
   a CPU implementation regardless of the selected backend. For a GPU accelerated implementation,
-  consider using separate ``image_decoder`` and ``slice`` operators.
+  consider using separate ``decoders.image`` and ``slice`` operators.
 
 .. note::
   EXIF orientation metadata is disregarded.)code")
@@ -308,5 +308,59 @@ of the slice (s0, s1, s2, …).
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
 interpreted as absolute or relative coordinates, depending on the value of
 ``normalized_shape``.)code");
+
+
+// Deprecated aliases
+
+DALI_SCHEMA(ImageDecoder)
+    .DocStr("Legacy alias for :meth:`decoders.image`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddParent("decoders__Image")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "decoders__Image",
+        R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
+submodule and renamed to follow a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
+
+// Fused
+
+DALI_SCHEMA(ImageDecoderCrop)
+    .DocStr("Legacy alias for :meth:`decoders.image_crop`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddParent("decoders__ImageCrop")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "decoders__ImageCrop",
+        R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
+submodule and renamed to follow a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
+
+DALI_SCHEMA(ImageDecoderRandomCrop)
+    .DocStr("Legacy alias for :meth:`decoders.image_random_crop`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddParent("decoders__ImageRandomCrop")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "decoders__ImageRandomCrop",
+        R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
+submodule and renamed to follow a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
+
+
+DALI_SCHEMA(ImageDecoderSlice)
+    .DocStr("Legacy alias for :meth:`decoders.image_slice`.")
+    .NumInput(1, 3)
+    .NumOutput(1)
+    .AddParent("decoders__ImageSlice")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "decoders__ImageSlice",
+        R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
+submodule and renamed to follow a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
 
 }  // namespace dali

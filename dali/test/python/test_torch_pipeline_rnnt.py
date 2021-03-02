@@ -186,7 +186,7 @@ class RnntTrainPipeline(nvidia.dali.Pipeline):
         self.read = ops.readers.File(file_root=file_root, file_list=file_list, device="cpu",
                                      shard_id=device_id, num_shards=n_devices)
 
-        self.decode = ops.AudioDecoder(device="cpu", dtype=types.FLOAT, downmix=True)
+        self.decode = ops.decoders.Audio(device="cpu", dtype=types.FLOAT, downmix=True)
 
         self.normal_distribution = ops.random.Normal(device="cpu")
 

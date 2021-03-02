@@ -44,7 +44,7 @@ def mnist_pipeline(
     with pipeline:
         jpegs, labels = fn.readers.caffe2(
             path=path, random_shuffle=True, shard_id=shard_id, num_shards=num_shards)
-        images = fn.image_decoder(jpegs, device='mixed' if device == 'gpu' else 'cpu', output_type=types.GRAY)
+        images = fn.decoders.image(jpegs, device='mixed' if device == 'gpu' else 'cpu', output_type=types.GRAY)
         if device == 'gpu':
             labels = labels.gpu()
         images = fn.crop_mirror_normalize(
