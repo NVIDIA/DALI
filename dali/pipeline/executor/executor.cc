@@ -40,7 +40,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PreRun() {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
+void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl() {
   PreRun();
 
   if (device_id_ < 0) {
@@ -93,7 +93,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
 
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
+void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
   DomainTimeRange tr("[DALI][Executor] RunMixed");
   DeviceGuard g(device_id_);
 
@@ -165,7 +165,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
 
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
+void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl() {
   DomainTimeRange tr("[DALI][Executor] RunGPU");
 
   auto gpu_idxs = QueuePolicy::AcquireIdxs(OpType::GPU);
@@ -243,6 +243,38 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   QueuePolicy::QueueOutputIdxs(gpu_idxs, gpu_op_stream_);
 }
 
+template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
+  try {
+    RunCPUImpl();
+  } catch (std::exception &e) {
+    HandleError(make_string("Exception in CPU stage: ", e.what()));
+  } catch (...) {
+    HandleError("Unknown error in CPU stage.");
+  }
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
+  try {
+    RunMixedImpl();
+  } catch (std::exception &e) {
+    HandleError(make_string("Exception in mixed stage: ", e.what()));
+  } catch (...) {
+    HandleError("Unknown error in mixed stage.");
+  }
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
+  try {
+    RunGPUImpl();
+  } catch (std::exception &e) {
+    HandleError(make_string("Exception in GPU stage: ", e.what()));
+  } catch (...) {
+    HandleError("Unknown error in GPU stage.");
+  }
+}
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 template <typename Workspace>
