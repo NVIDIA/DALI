@@ -97,15 +97,23 @@ Otherwise, the threads can be reassigned to any CPU core by the operating system
   .AddOptionalArg("split_stages",
       R"code(Applies **only** to the ``mixed`` backend type.
 
-If True, the operator will be split into two sub-stages: a CPU and GPU one.)code",
+If True, the operator will be split into two sub-stages: a CPU and GPU one.
+
+Warning: This argument is now deprecated, and its value will be ignored.
+)code",
       false)
+  .DeprecateArg("split_stages")  // deprecated in DALI 1.0
   .AddOptionalArg("use_chunk_allocator",
       R"code(**Experimental**, applies **only** to the ``mixed`` backend type.
 
 Uses the chunk pinned memory allocator and allocates a chunk of the
 ``batch_size * prefetch_queue_depth`` size during the construction and suballocates
-them at runtime. When ``split_stages`` is false, this argument is ignored.)code",
+them at runtime.
+
+Warning: This argument is now deprecated, and its value will be ignored.
+)code",
       false)
+  .DeprecateArg("use_chunk_allocator")  // deprecated in DALI 1.0
   .AddOptionalArg("use_fast_idct",
       R"code(Enables fast IDCT in the libjpeg-turbo based CPU decoder, used when ``device`` is set
 to "cpu" or when the it is set to "mixed" but the particular image can not be handled by

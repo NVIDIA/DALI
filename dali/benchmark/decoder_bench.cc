@@ -137,29 +137,6 @@ BENCHMARK_REGISTER_F(DecoderBench, ImageDecoder_GPU)->Iterations(100)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSplitStages_GPU)(benchmark::State& st) {
-  int batch_size = st.range(0);
-  int num_thread = st.range(1);
-  DALIImageType img_type = DALI_RGB;
-
-  this->DecoderPipelineTest(
-    st, batch_size, num_thread, "gpu",
-    OpSpec("ImageDecoder")
-      .AddArg("device", "mixed")
-      .AddArg("output_type", img_type)
-      .AddArg("max_streams", num_thread)
-      .AddArg("hybrid_huffman_threshold", std::numeric_limits<unsigned int>::max())
-      .AddArg("use_batched_decode", false)
-      .AddArg("split_stages", true)
-      .AddInput("raw_jpegs", "cpu")
-      .AddOutput("images", "gpu"));
-}
-
-BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderSplitStages_GPU)->Iterations(100)
-->Unit(benchmark::kMillisecond)
-->UseRealTime()
-->Apply(PipeArgs);
-
 
 BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderCachedThreshold_GPU)(benchmark::State& st) {
   int batch_size = st.range(0);

@@ -495,9 +495,6 @@ class DLL_PUBLIC Pipeline {
 
   void PropagateMemoryHint(OpNode &node);
 
-  // Helper for hybrid decoder split_stages special handling
-  inline void AddSplitHybridDecoder(OpSpec &spec, const std::string &inst_name, int logical_id);
-
   inline void AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, int logical_id);
 
   int GetNextLogicalId();
