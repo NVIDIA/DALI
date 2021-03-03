@@ -30,10 +30,6 @@ class CommonPipeline(Pipeline):
             print('Using nvJPEG with ROI decoding')
             self.decode_gpu = ops.decoders.ImageRandomCrop(device = "mixed", output_type = types.RGB)
             self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)
-        elif decoder_type == 'roi_split':
-            print('Using nvJPEG with ROI decoding and split CPU/GPU stages')
-            self.decode_gpu = ops.decoders.ImageRandomCrop(device = "mixed", output_type = types.RGB, split_stages=True)
-            self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)
         elif decoder_type == 'cached':
             assert decoder_cache_params['cache_enabled'] == True
             cache_size = decoder_cache_params['cache_size']
@@ -43,10 +39,6 @@ class CommonPipeline(Pipeline):
             self.decode_gpu = ops.decoders.Image(device = "mixed", output_type = types.RGB,
                                                 cache_size=cache_size, cache_threshold=cache_threshold,
                                                 cache_type=cache_type, cache_debug=False)
-            self.res = ops.RandomResizedCrop(device="gpu", size =(224,224))
-        elif decoder_type == 'split':
-            print('Using nvJPEG with split CPU/GPU stages')
-            self.decode_gpu = ops.decoders.Image(device = "mixed", output_type = types.RGB, split_stages=True)
             self.res = ops.RandomResizedCrop(device="gpu", size =(224,224))
         else:
             print('Using nvJPEG')
@@ -211,7 +203,7 @@ parser.add_argument('-i', '--iters', default=-1, type=int, metavar='N',
 parser.add_argument('--epochs', default=2, type=int, metavar='N',
                     help='Number of epochs to run')
 parser.add_argument('--decoder_type', default='', type=str, metavar='N',
-                    help='split, roi, roi_split, cached (default: regular nvjpeg)')
+                    help='roi, cached (default: regular nvjpeg)')
 parser.add_argument('--cache_size', default=0, type=int, metavar='N',
                     help='Cache size (in MB)')
 parser.add_argument('--cache_threshold', default=0, type=int, metavar='N',
