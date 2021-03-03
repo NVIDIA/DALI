@@ -361,13 +361,12 @@ all_packages = [PlainPackage("opencv-python", ["4.4.0.42"]),
                 CudaPackage("tensorflow-gpu",
                         { "100" : [
                               PckgVer("1.15.4",  python_max_ver="3.7"),
-                              "2.2.1",
                               "2.3.1"],
                           "110" : [
                               PckgVer("1.15.4",  python_max_ver="3.7"),
-                              "2.2.1",
                               "2.3.1",
-                              PckgVer("1.15.4+nv20.11", python_min_ver="3.6", python_max_ver="3.6", alias="nvidia-tensorflow")]
+                              "2.4.1",
+                              PckgVer("1.15.5+nv21.02", python_min_ver="3.8", python_max_ver="3.8", alias="nvidia-tensorflow")]
                         }),
                 CudaHttpPackage("torch",
                         { "100" : ["http://download.pytorch.org/whl/cu{cuda_v}/torch-1.4.0+cu{cuda_v}-{platform}.whl"] }),

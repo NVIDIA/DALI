@@ -53,7 +53,10 @@ struct NvJPEG2KHandle : public UniqueHandle<nvjpeg2kHandle_t, NvJPEG2KHandle> {
   NvJPEG2KHandle() = default;
 
   NvJPEG2KHandle(nvjpeg2kDeviceAllocator_t *dev_alloc, nvjpeg2kPinnedAllocator_t *pin_alloc) {
-    NVJPEG2K_CALL(nvjpeg2kCreate(NVJPEG2K_BACKEND_DEFAULT, dev_alloc, pin_alloc, &handle_));
+    if (nvjpeg2kCreate(NVJPEG2K_BACKEND_DEFAULT, dev_alloc, pin_alloc, &handle_) !=
+        NVJPEG2K_STATUS_SUCCESS) {
+      handle_ = null_handle();
+    }
   }
 
   static constexpr nvjpeg2kHandle_t null_handle() { return nullptr; }

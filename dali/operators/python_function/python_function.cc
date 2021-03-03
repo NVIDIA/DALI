@@ -37,7 +37,7 @@ DALI_SCHEMA(PythonFunction)
 This operator can be used to execute custom Python code in the DALI pipeline.
 The function receives the data from DALI as NumPy arrays in case of CPU operators or
 as CuPy arrays for GPU operators. It is expected to return the results in the same format. For
-a more universal data format, see :meth:`nvidia.dali.ops.DLTensorPythonFunction`.
+a more universal data format, see :meth:`nvidia.dali.fn.dl_tensor_python_function`.
 The function should not modify input tensors.
 
 .. warning::
@@ -62,7 +62,7 @@ for CPU and GPU backend, respectively.)code", false);
 DALI_SCHEMA(TorchPythonFunction)
         .DocStr(R"code(Executes a function that is operating on Torch tensors.
 
-This class is analogous to :meth:`nvidia.dali.ops.PythonFunction` but the tensor data is handled
+This class is analogous to :meth:`nvidia.dali.fn.python_function` but the tensor data is handled
 as PyTorch tensors.)code")
         .NumInput(0, 256)
         .AllowSequences()

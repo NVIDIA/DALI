@@ -467,7 +467,9 @@ TEST(ExternalSourceTestNoInput, ThrowCpu) {
   vector<string> outputs = {"data_out_cpu"};
 
   exe->Build(&graph, outputs);
-  ASSERT_THROW(exe->RunCPU(), std::exception);
+  exe->RunCPU();
+  DeviceWorkspace ws;
+  EXPECT_THROW(exe->ShareOutputs(&ws), std::exception);
 }
 
 namespace {

@@ -94,7 +94,7 @@ class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
     auto out_view = view<OutputType>(out);
 
     auto &thread_pool = ws.GetThreadPool();
-    int num_threads = thread_pool.size();
+    int num_threads = thread_pool.NumThreads();
 
     using Kernel = ReductionType<OutputType, InputType, OutputType>;
     kmgr_.template Resize<Kernel>(num_threads, num_threads);

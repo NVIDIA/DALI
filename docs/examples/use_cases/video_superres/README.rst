@@ -1,5 +1,5 @@
-Example VideoReader usage: Video Super-Resolution
-=================================================
+Video Super-Resolution
+======================
 
 In this example we use DALI with the VideoReader operator to supply data for training a video super-resolution network implemented in `PyTorch <https://github.com/pytorch/pytorch>`_.  We replicate the network described in `End-to-End Learning of Video Super-Resolution with Motion Compensation <https://arxiv.org/abs/1707.00471>`_.
 
@@ -21,7 +21,7 @@ Two data loader options are provided for comparison:
 
 These dataloaders can be found in dataloading/dataloaders.py.
 
-Data loader performance
+Data Loader Performance
 -----------------------
 
 We present performance characteristics of DALI, NVVL standalone, and a standard .png data loader
@@ -76,7 +76,7 @@ Software requirements:
 * tensorboard
 * tensorboardX
 
-FlowNet2-SD implementation and pre-trained model
+FlowNet2-SD Implementation and Pre-trained Model
 ------------------------------------------------
 
 We make use of the FlowNet2-SD PyTorch implementation available `here <https://github.com/NVIDIA/flownet2-pytorch>`_.  It is included in this repo as a git submodule.
@@ -157,7 +157,7 @@ for your system.
 
 Visualization of training data, e.g. loss curves and timings, aswell as sample images is provided through `Tensorboard <https://www.tensorflow.org/programmers_guide/summaries_and_tensorboard>`_ via the `tensorboardX <https://github.com/lanpa/tensorboard-pytorch>`_ library.  Whilst training is running you can access Tensorboard at ``<host_ip>:6006``.
 
-Results on Myanmar validation set
+Results on Myanmar Validation Set
 ---------------------------------
 
 All testing of this project was carried out on an NVIDIA DGX-1 using all 8 V100 GPUs and running CUDA 9.1, PyTorch 0.4.0a0+02b758f, cuDNN v7.0.5 in Ubuntu 16.04 Docker containers.

@@ -61,16 +61,20 @@ void VideoReader::Prefetch() {
 }
 
 
-DALI_REGISTER_OPERATOR(VideoReader, VideoReader, GPU);
+DALI_REGISTER_OPERATOR(readers__Video, VideoReader, GPU);
 
-DALI_SCHEMA(VideoReader)
+DALI_SCHEMA(readers__Video)
   .DocStr(R"code(Loads and decodes video files using FFmpeg and NVDECODE, which is
 the hardware-accelerated video decoding feature in the NVIDIA(R) GPU.
 
 The video streams can be in most of the container file formats. FFmpeg is used to parse video
 containers and returns a batch of sequences of ``sequence_length`` frames with shape
 ``(N, F, H, W, C)``, where ``N`` is the batch size, and ``F`` is the number of frames).
-This class only supports constant frame rate videos.)code")
+This class only supports constant frame rate videos.
+
+.. note::
+  Containers which doesn't support indexing, like mpeg, requires DALI to seek to the sequence  when
+  each new sequence needs to be decoded.)code")
   .NumInput(0)
   .OutputFn(detail::VideoReaderOutputFn)
   .AddOptionalArg("filenames",
@@ -158,4 +162,21 @@ the end frame number will be rounded down.
 
 Frame numbers start from 0.)code", false)
   .AddParent("LoaderBase");
+
+
+// Deprecated alias
+DALI_REGISTER_OPERATOR(VideoReader, VideoReader, GPU);
+
+DALI_SCHEMA(VideoReader)
+    .DocStr("Legacy alias for :meth:`readers.video`.")
+    .NumInput(0)
+    .OutputFn(detail::VideoReaderOutputFn)
+    .AddParent("readers__Video")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "readers__Video",
+        R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
+submodule and renamed to follow a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
+
 }  // namespace dali

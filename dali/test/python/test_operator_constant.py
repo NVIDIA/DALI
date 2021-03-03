@@ -12,12 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
 import os
+from test_utils import get_dali_extra_path
+from test_utils import check_batch
+
+jpeg_folder = os.path.join(get_dali_extra_path(), 'db', 'single', 'jpeg')
 
 array_interfaces = [(np.array, None)]
 try:
@@ -183,3 +187,16 @@ def test_variable_batch():
         for i in range(len(batch)):
             assert np.array_equal(cpu.at(i), val)
             assert np.array_equal(gpu.at(i), val)
+
+def test_constant_promotion_mixed():
+    filename = os.path.join(jpeg_folder, "241", "cute-4074304_1280.jpg")
+    file_contents = np.fromfile(filename, dtype=np.uint8)
+    pipe = Pipeline(1, 3, 0)
+    with pipe:
+        jpegs, _ = fn.readers.file(files=[filename])
+        from_reader = fn.decoders.image(jpegs, device="mixed")
+        from_constant = fn.decoders.image(file_contents, device="mixed")
+        pipe.set_outputs(from_constant, from_reader)
+    pipe.build()
+    from_reader, from_constant = pipe.run()
+    check_batch(from_reader, from_constant, 1)

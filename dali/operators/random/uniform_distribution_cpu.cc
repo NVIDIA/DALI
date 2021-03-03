@@ -62,7 +62,7 @@ This argument is mutually exclusive with ``values``.)code",
 This argument is mutually exclusive with ``range``.)code",
       nullptr, true)
     .AddParent("RNGAttr")
-    .Deprecate("random.Uniform");  // Deprecated in 0.30
+    .Deprecate("random__Uniform");  // Deprecated in 0.30
 
 
 DALI_REGISTER_OPERATOR(Uniform, UniformDistribution<CPUBackend>, CPU);

@@ -28,6 +28,24 @@ using namespace std::string_literals;  // NOLINT(build/namespaces)
 
 namespace dali {
 
+DALI_SCHEMA(DummyGrandparentForSpecTest)
+  .NumInput(0).NumOutput(0)
+  .AddOptionalArg("grandparent_replacing_arg", "arg that replaces deprecated arg", 0)
+  .DeprecateArgInFavorOf("grandparent_deprecated_arg", "grandparent_replacing_arg");
+
+DALI_SCHEMA(DummyParentZeroForSpecTest)
+  .NumInput(0).NumOutput(0)
+  .AddOptionalArg("parent_zero_replacing_arg", "arg that replaces deprecated arg", 0)
+  .DeprecateArgInFavorOf("parent_zero_deprecated_arg", "parent_zero_replacing_arg")
+  .AddParent("DummyGrandparentForSpecTest");
+
+
+DALI_SCHEMA(DummyParentOneForSpecTest)
+  .NumInput(0).NumOutput(0)
+  .AddOptionalArg("parent_one_replacing_arg", "arg that replaces deprecated arg", 0)
+  .DeprecateArgInFavorOf("parent_one_deprecated_arg", "parent_one_replacing_arg");
+
+
 DALI_SCHEMA(DummyOpForSpecTest)
   .NumInput(0).NumOutput(0)
   .AddArg("required", "required argument", DALIDataType::DALI_INT32)
@@ -43,7 +61,9 @@ DALI_SCHEMA(DummyOpForSpecTest)
   .DeprecateArgInFavorOf("deprecated_arg", "replacing_arg")
   .AddOptionalArg("deprecated_ignored_arg",
                   "arg that is deprecated and ignored by the implementation", 0)
-  .DeprecateArg("deprecated_ignored_arg", true);
+  .DeprecateArg("deprecated_ignored_arg", true)
+  .AddParent("DummyParentZeroForSpecTest")
+  .AddParent("DummyParentOneForSpecTest");
 
 TEST(OpSpecTest, GetArgumentTensorSet) {
   // Check how required and optional arguments handle Argument Inputs
@@ -223,6 +243,66 @@ TEST(OpSpecTest, DeprecatedArgs) {
   // It is marked as to be ingored, but there's no reason we should not be
   // able to query for the argument if it was provided.
   ASSERT_TRUE(spec0.TryGetArgument<int>(result, "deprecated_ignored_arg"));
+}
+
+TEST(OpSpecTest, DeprecatedArgsParents) {
+  auto spec0 = OpSpec("DummyOpForSpecTest")
+      .AddArg("max_batch_size", 2)
+      .AddArg("grandparent_deprecated_arg", 3)
+      .AddArg("parent_zero_deprecated_arg", 4)
+      .AddArg("parent_one_deprecated_arg", 5);
+  ASSERT_THROW(spec0.GetArgument<int>("grandparent_deprecated_arg"), DALIException);
+  ASSERT_THROW(spec0.GetArgument<int>("parent_zero_deprecated_arg"), DALIException);
+  ASSERT_THROW(spec0.GetArgument<int>("parent_one_deprecated_arg"), DALIException);
+  ASSERT_EQ(spec0.GetArgument<int>("grandparent_replacing_arg"), 3);
+  ASSERT_EQ(spec0.GetArgument<int>("parent_zero_replacing_arg"), 4);
+  ASSERT_EQ(spec0.GetArgument<int>("parent_one_replacing_arg"), 5);
+
+
+  int result = 0;
+  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "grandparent_deprecated_arg"));
+  ASSERT_TRUE(spec0.TryGetArgument<int>(result, "grandparent_replacing_arg"));
+  ASSERT_EQ(result, 3);
+
+  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "parent_zero_deprecated_arg"));
+  ASSERT_TRUE(spec0.TryGetArgument<int>(result, "parent_zero_replacing_arg"));
+  ASSERT_EQ(result, 4);
+
+  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "parent_one_deprecated_arg"));
+  ASSERT_TRUE(spec0.TryGetArgument<int>(result, "parent_one_replacing_arg"));
+  ASSERT_EQ(result, 5);
+
+  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+      .AddArg("max_batch_size", 2)
+      .AddArg("grandparent_deprecated_arg", 1)
+      .AddArg("grandparent_replacing_arg", 2), DALIException);
+
+  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+      .AddArg("max_batch_size", 2)
+      .AddArg("grandparent_replacing_arg", 1)
+      .AddArg("grandparent_deprecated_arg", 2), DALIException);
+
+
+  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+      .AddArg("max_batch_size", 2)
+      .AddArg("parent_zero_deprecated_arg", 1)
+      .AddArg("parent_zero_replacing_arg", 2), DALIException);
+
+  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+      .AddArg("max_batch_size", 2)
+      .AddArg("parent_zero_replacing_arg", 1)
+      .AddArg("parent_zero_deprecated_arg", 2), DALIException);
+
+
+  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+      .AddArg("max_batch_size", 2)
+      .AddArg("parent_one_deprecated_arg", 1)
+      .AddArg("parent_one_replacing_arg", 2), DALIException);
+
+  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+      .AddArg("max_batch_size", 2)
+      .AddArg("parent_one_replacing_arg", 1)
+      .AddArg("parent_one_deprecated_arg", 2), DALIException);
 }
 
 class TestArgumentInput_Producer : public Operator<CPUBackend> {

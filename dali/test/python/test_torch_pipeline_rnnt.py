@@ -159,7 +159,7 @@ class FilterbankFeatures():
         return x.to(dtype)
 
 
-class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
+class RnntTrainPipeline(nvidia.dali.Pipeline):
     def __init__(self,
                  device_id,
                  n_devices,
@@ -183,10 +183,10 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
         self.dither = dither
         self.frame_splicing_factor = frame_splicing_factor
 
-        self.read = ops.FileReader(file_root=file_root, file_list=file_list, device="cpu",
-                                   shard_id=device_id, num_shards=n_devices)
+        self.read = ops.readers.File(file_root=file_root, file_list=file_list, device="cpu",
+                                     shard_id=device_id, num_shards=n_devices)
 
-        self.decode = ops.AudioDecoder(device="cpu", dtype=types.FLOAT, downmix=True)
+        self.decode = ops.decoders.Audio(device="cpu", dtype=types.FLOAT, downmix=True)
 
         self.normal_distribution = ops.random.Normal(device="cpu")
 

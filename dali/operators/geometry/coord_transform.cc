@@ -54,7 +54,7 @@ void CoordTransform<CPUBackend>::RunTyped(HostWorkspace &ws) {
   auto out_view = view<OutputType>(out);
   auto &tp = ws.GetThreadPool();
 
-  int nthreads = tp.size();
+  int nthreads = tp.NumThreads();
 
   using Kernel = kernels::TransformPointsCPU<OutputType, InputType, out_dim, in_dim>;
   kmgr_.template Resize<Kernel>(nthreads, nthreads);

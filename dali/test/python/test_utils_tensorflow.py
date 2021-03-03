@@ -56,14 +56,14 @@ def get_pipeline(batch_size, num_threads, device, device_id=0, shard_id=0, num_s
 
     pipe = Pipeline(batch_size, num_threads, device_id)
     with pipe:
-        jpegs, _, _, image_ids = fn.coco_reader(
+        jpegs, _, _, image_ids = fn.readers.coco(
             file_root=file_root,
             annotations_file=annotations_file,
             shard_id=shard_id,
             num_shards=num_shards,
             ratio=False,
             image_ids=True)
-        images = fn.image_decoder(
+        images = fn.decoders.image(
             jpegs,
             device=('mixed' if device == 'gpu' else 'cpu'),
             output_type=types.RGB)
@@ -112,7 +112,7 @@ def get_dali_dataset(batch_size, num_threads, device, device_id, num_devices=1):
     shard_id = 0 if num_devices == 1 else device_id
     dataset_pipeline = get_pipeline(
         batch_size, num_threads, device, device_id, shard_id, num_devices)
-    
+
     return get_dali_dataset_from_pipeline(
         dataset_pipeline, batch_size, num_threads, device, device_id, num_devices)
 

@@ -81,7 +81,7 @@ class TFRecordDetectionPipeline(Pipeline):
     def __init__(self, args):
         super(TFRecordDetectionPipeline, self).__init__(
             args.batch_size, args.num_workers, 0, 0)
-        self.input = ops.TFRecordReader(
+        self.input = ops.readers.TFRecord(
             path = os.path.join(test_dummy_data_path, 'small_coco.tfrecord'),
             index_path = os.path.join(test_dummy_data_path, 'small_coco_index.idx'),
             features = {
@@ -93,7 +93,7 @@ class TFRecordDetectionPipeline(Pipeline):
             num_shards=1,
             random_shuffle=False)
 
-        self.decode_gpu = ops.ImageDecoder(device="mixed", output_type=types.RGB)
+        self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
         self.cast = ops.Cast(dtype = types.INT32)
         self.box_encoder = ops.BoxEncoder(
             device="cpu",
@@ -122,7 +122,7 @@ class COCODetectionPipeline(Pipeline):
         super(COCODetectionPipeline, self).__init__(
             args.batch_size, args.num_workers, 0, 0)
 
-        self.input = ops.COCOReader(
+        self.input = ops.readers.COCO(
             file_root=os.path.join(data_path, 'images'),
             annotations_file=os.path.join(data_path, 'instances.json'),
             shard_id=0,
@@ -131,7 +131,7 @@ class COCODetectionPipeline(Pipeline):
             ltrb=True,
             random_shuffle=False)
 
-        self.decode_gpu = ops.ImageDecoder(device="mixed", output_type=types.RGB)
+        self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
         self.box_encoder = ops.BoxEncoder(
             device="cpu",
             criteria=0.5,

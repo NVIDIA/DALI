@@ -45,6 +45,29 @@ def get_data():
     out = [np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
     return out
 
+def test_move_to_device_end():
+    test_data_shape = [1, 3, 0, 4]
+    def get_data():
+        out = [np.empty(test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        return out
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    outs = fn.external_source(source = get_data)
+    pipe.set_outputs(outs.gpu())
+    assert_raises(RuntimeError, pipe.build)
+
+def test_move_to_device_middle():
+    test_data_shape = [1, 3, 0, 4]
+    def get_data():
+        out = [np.empty(test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        return out
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    data = fn.external_source(source = get_data)
+    outs = fn.rotate(data.gpu(), angle = 25)
+    pipe.set_outputs(outs)
+    assert_raises(RuntimeError, pipe.build)
+
 def check_bad_device(device_id):
     test_data_shape = [1, 3, 0, 4]
     def get_data():
@@ -62,8 +85,8 @@ def test_gpu_op_bad_device():
 
 def check_mixed_op_bad_device(device_id):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=device_id)
-    input, _ = fn.file_reader(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.image_decoder(input, device="mixed", output_type=types.RGB)
+    input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
+    decoded = fn.decoders.image(input, device="mixed", output_type=types.RGB)
     pipe.set_outputs(decoded)
     assert_raises(RuntimeError, pipe.build)
 
@@ -73,8 +96,8 @@ def test_mixed_op_bad_device():
 
 def test_image_decoder_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    input, _ = fn.file_reader(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.image_decoder(input, output_type=types.RGB)
+    input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
+    decoded = fn.decoders.image(input, output_type=types.RGB)
     pipe.set_outputs(decoded)
     pipe.build()
     for _ in range(3):
@@ -150,8 +173,8 @@ def test_flip_cpu():
 
 def test_image_decoder_crop_device():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    input, _ = fn.file_reader(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.image_decoder_crop(input, output_type=types.RGB, crop = (10, 10))
+    input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
+    decoded = fn.decoders.image_crop(input, output_type=types.RGB, crop = (10, 10))
     pipe.set_outputs(decoded)
     pipe.build()
     for _ in range(3):
@@ -159,8 +182,8 @@ def test_image_decoder_crop_device():
 
 def test_image_decoder_random_crop_device():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    input, _ = fn.file_reader(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.image_decoder_random_crop(input, output_type=types.RGB)
+    input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
+    decoded = fn.decoders.image_random_crop(input, output_type=types.RGB)
     pipe.set_outputs(decoded)
     pipe.build()
     for _ in range(3):
@@ -275,8 +298,8 @@ def test_transpose_cpu():
 
 def test_audio_decoder_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    input, _ = fn.file_reader(file_root=audio_dir, shard_id=0, num_shards=1)
-    decoded, _ = fn.audio_decoder(input)
+    input, _ = fn.readers.file(file_root=audio_dir, shard_id=0, num_shards=1)
+    decoded, _ = fn.decoders.audio(input)
     pipe.set_outputs(decoded)
     pipe.build()
     for _ in range(3):
@@ -357,10 +380,10 @@ def test_image_decoder_slice_cpu():
         return out
 
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    input, _ = fn.file_reader(file_root=images_dir, shard_id=0, num_shards=1)
+    input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
     anchors = fn.external_source(source = get_anchors)
     shape = fn.external_source(source = get_shape)
-    processed = fn.image_decoder_slice(input, anchors, shape)
+    processed = fn.decoders.image_slice(input, anchors, shape)
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
@@ -381,9 +404,9 @@ def test_pad_cpu():
 
 def test_mxnet_reader_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    out, _ = fn.mxnet_reader(path = os.path.join(recordio_dir, "train.rec"),
-                             index_path = os.path.join(recordio_dir, "train.idx"),
-                             shard_id=0, num_shards=1)
+    out, _ = fn.readers.mxnet(path = os.path.join(recordio_dir, "train.rec"),
+                              index_path = os.path.join(recordio_dir, "train.idx"),
+                              shard_id=0, num_shards=1)
     pipe.set_outputs(out)
     pipe.build()
     for _ in range(3):
@@ -393,7 +416,7 @@ def test_tfrecord_reader_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     tfrecord = sorted(glob.glob(os.path.join(tfrecord_dir, '*[!i][!d][!x]')))
     tfrecord_idx = sorted(glob.glob(os.path.join(tfrecord_dir, '*idx')))
-    input = fn.tfrecord_reader(path = tfrecord,
+    input = fn.readers.tfrecord(path = tfrecord,
                                 index_path = tfrecord_idx,
                                 shard_id=0, num_shards=1,
                                 features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
@@ -406,7 +429,7 @@ def test_tfrecord_reader_cpu():
 
 def test_coco_reader_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    out, _, _ = fn.coco_reader(file_root=coco_dir, annotations_file=coco_annotation, shard_id=0, num_shards=1)
+    out, _, _ = fn.readers.coco(file_root=coco_dir, annotations_file=coco_annotation, shard_id=0, num_shards=1)
     pipe.set_outputs(out)
     pipe.build()
     for _ in range(3):
@@ -414,7 +437,7 @@ def test_coco_reader_cpu():
 
 def test_caffe_reader_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    out, _ = fn.caffe_reader(path = caffe_dir, shard_id=0, num_shards=1)
+    out, _ = fn.readers.caffe(path = caffe_dir, shard_id=0, num_shards=1)
     pipe.set_outputs(out)
     pipe.build()
     for _ in range(3):
@@ -422,7 +445,7 @@ def test_caffe_reader_cpu():
 
 def test_caffe2_reader_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    out, _ = fn.caffe2_reader(path = caffe2_dir, shard_id=0, num_shards=1)
+    out, _ = fn.readers.caffe2(path = caffe2_dir, shard_id=0, num_shards=1)
     pipe.set_outputs(out)
     pipe.build()
     for _ in range(3):
@@ -600,7 +623,7 @@ def test_numpy_reader_cpu():
             create_numpy_file(filename, (5, 2, 8), np.float32, False)
 
         pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-        processed = fn.numpy_reader(file_root = test_data_root)
+        processed = fn.readers.numpy(file_root = test_data_root)
         pipe.set_outputs(processed)
         pipe.build()
         for _ in range(3):
@@ -627,7 +650,7 @@ def test_dump_image_cpu():
 
 def test_sequence_reader_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    processed = fn.sequence_reader(file_root=sequence_dir, sequence_length=2, shard_id=0, num_shards=1)
+    processed = fn.readers.sequence(file_root=sequence_dir, sequence_length=2, shard_id=0, num_shards=1)
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
@@ -723,6 +746,13 @@ def test_arithm_ops_cpu():
     for _ in range(3):
         pipe.run()
 
+def test_arithm_ops_cpu_gpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
+    data = fn.external_source(source = get_data, layout = "HWC")
+    processed = [data * data.gpu(), data + data.gpu(), data - data.gpu(), data / data.gpu(), data // data.gpu()]
+    pipe.set_outputs(*processed)
+    assert_raises(RuntimeError, pipe.build)
+
 def test_pytorch_plugin_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
     outs = fn.external_source(source = get_data, layout = "HWC")
@@ -763,8 +793,8 @@ def test_stack_cpu():
 def test_separated_exec_setup():
     batch_size = 128
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None, prefetch_queue_depth = {"cpu_size": 5, "gpu_size": 3})
-    inputs, labels = fn.caffe_reader(path = caffe_dir, shard_id = 0, num_shards = 1)
-    images = fn.image_decoder(inputs, output_type = types.RGB)
+    inputs, labels = fn.readers.caffe(path = caffe_dir, shard_id = 0, num_shards = 1)
+    images = fn.decoders.image(inputs, output_type = types.RGB)
     images = fn.resize(images, resize_x=224, resize_y=224)
     images_cpu = fn.dump_image(images, suffix = "cpu")
     pipe.set_outputs(images, images_cpu)

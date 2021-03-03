@@ -39,13 +39,18 @@ namespace dali {
 namespace mm {
 
 using rmm::mr::memory_resource;
-using rmm::mr::stream_aware_memory_resource;
 using rmm::mr::host_memory_resource;
 using rmm::mr::device_memory_resource;
 using rmm::mr::memory_kind;
-using rmm::mr::allocation_order;
 using stream_view = rmm::cuda_stream_view;
+using rmm::mr::any_context;
 
+template <memory_kind kind>
+using stream_aware_memory_resource = rmm::mr::stream_ordered_memory_resource<kind>;
+
+struct stream_context {
+  stream_view stream;
+};
 
 namespace detail {
 constexpr bool is_host_memory(memory_kind kind) {

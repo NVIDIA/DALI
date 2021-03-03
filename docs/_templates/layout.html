@@ -7,6 +7,10 @@
       background: #76b900;
     }
 
+    .wy-menu > .caption > span.caption-text {
+      color: #76b900;
+    }
+
     .wy-side-nav-search a:link, .wy-nav-top a:link {
       color: #fff;
     }
@@ -32,6 +36,18 @@
     .wy-nav-content {
       max-width: 1000px;
     }
+
+    /* override table width restrictions */
+    .wy-table-responsive table td, .wy-table-responsive table th {
+        /* !important prevents the common CSS stylesheets from
+          overriding this as on RTD they are loaded after this stylesheet */
+        white-space: normal !important;
+    }
+
+    .wy-table-responsive {
+        overflow: visible !important;
+    }
+
   </style>
   {% endblock %}
 

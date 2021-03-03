@@ -421,12 +421,19 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Returns the GPU device number used by the pipeline
    */
-  DLL_PUBLIC inline int device_id() const { return device_id_; }
+  DLL_PUBLIC inline int device_id() const {
+    return device_id_;
+  }
 
-    /**
+  /**
    * @brief Returns number of outputs.
    */
   DLL_PUBLIC int num_outputs() const;
+
+  /**
+   * @brief Returns a string describing the name of the output specified by given id.
+   */
+  DLL_PUBLIC const std::string &output_name(int id) const;
 
   /**
    * @brief Returns a string describing the device type backing the output specified by given id.

@@ -43,16 +43,16 @@ def create_coco_pipeline(file_root,
                         local_rank, seed=42 + device_id)
 
     with pipeline:
-        images, bboxes, labels = fn.coco_reader(file_root=file_root,
-                                                annotations_file=annotations_file,
-                                                skip_empty=True,
-                                                shard_id=local_rank,
-                                                num_shards=world_size,
-                                                ratio=True,
-                                                ltrb=True,
-                                                random_shuffle=False,
-                                                shuffle_after_epoch=True,
-                                                name="Reader")
+        images, bboxes, labels = fn.readers.coco(file_root=file_root,
+                                                 annotations_file=annotations_file,
+                                                 skip_empty=True,
+                                                 shard_id=local_rank,
+                                                 num_shards=world_size,
+                                                 ratio=True,
+                                                 ltrb=True,
+                                                 random_shuffle=False,
+                                                 shuffle_after_epoch=True,
+                                                 name="Reader")
 
         crop_begin, crop_size, bboxes, labels = fn.random_bbox_crop(bboxes, labels,
                                                                     device="cpu",
@@ -62,7 +62,7 @@ def create_coco_pipeline(file_root,
                                                                     bbox_layout="xyXY",
                                                                     allow_no_crop=True,
                                                                     num_attempts=50)
-        images = fn.image_decoder_slice(images, crop_begin, crop_size, device="mixed", output_type=types.RGB)
+        images = fn.decoders.image_slice(images, crop_begin, crop_size, device="mixed", output_type=types.RGB)
         flip_coin = fn.random.coin_flip(probability=0.5)
         images = fn.resize(images,
                            resize_x=300,

@@ -30,8 +30,8 @@ def dali_pipe_batch_1(shapes, types, as_single_tuple = False):
     class TestPipeline(pipeline.Pipeline):
         def __init__(self, **kwargs):
             super(TestPipeline, self).__init__(**kwargs)
-            self.reader = ops.FileReader(file_root=data_path, file_list=file_list_path)
-            self.decoder = ops.ImageDecoder(device='mixed')
+            self.reader = ops.readers.File(file_root=data_path, file_list=file_list_path)
+            self.decoder = ops.decoders.Image(device='mixed')
 
         def define_graph(self):
             data, _ = self.reader()
@@ -83,8 +83,8 @@ def dali_pipe_batch_N(shapes, types, batch):
     class TestPipeline(pipeline.Pipeline):
         def __init__(self, **kwargs):
             super(TestPipeline, self).__init__(**kwargs)
-            self.reader = ops.FileReader(file_root=data_path, file_list=file_list_path)
-            self.decoder = ops.ImageDecoder(device='mixed')
+            self.reader = ops.readers.File(file_root=data_path, file_list=file_list_path)
+            self.decoder = ops.decoders.Image(device='mixed')
             self.resize = ops.Resize(device="gpu", resize_x = 200, resize_y = 200)
 
         def define_graph(self):
@@ -124,8 +124,8 @@ def dali_pipe_multiple_out(shapes, types, batch):
     class TestPipeline(pipeline.Pipeline):
         def __init__(self, **kwargs):
             super(TestPipeline, self).__init__(**kwargs)
-            self.reader = ops.FileReader(file_root=data_path, file_list=file_list_path)
-            self.decoder = ops.ImageDecoder(device='mixed')
+            self.reader = ops.readers.File(file_root=data_path, file_list=file_list_path)
+            self.decoder = ops.decoders.Image(device='mixed')
             self.resize = ops.Resize(device="gpu", resize_x = 200, resize_y = 200)
 
         def define_graph(self):

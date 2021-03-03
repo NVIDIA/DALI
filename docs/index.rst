@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-NVIDIA DALI documentation
+NVIDIA DALI Documentation
 =========================
 
 .. ifconfig:: "dev" in release
@@ -19,29 +19,49 @@ NVIDIA DALI documentation
    :start-after: overview-begin-marker-do-not-remove
    :end-before: overview-end-marker-do-not-remove
 
-This library is open sourced and it is available in the `NVIDIA GitHub repository <https://github.com/NVIDIA/DALI>`_.
-
 .. toctree::
    :hidden:
 
-   Documentation home <self>
+   Home <self>
 
 .. toctree::
-   :maxdepth: 2
-   :caption: User Guide
+   :hidden:
+   :caption: Getting Started
 
    installation
-   compilation
-   Platform support matrix <support_matrix>
-   examples/getting started.ipynb
-   examples/index
-   framework_plugins
-   api
+   Platform Support <support_matrix>
+   Getting Started Tutorial <examples/getting started.ipynb>
+
+.. toctree::
+   :hidden:
+   :caption: Python API Documentation
+
+   pipeline
+   data_types
    supported_ops
-   advanced_topics
+   math
+   framework_plugins
+   supported_ops_legacy
+
+.. toctree::
+   :hidden:
+   :caption: Examples and Tutorials
+
+   examples/index
+
+.. toctree::
+   :hidden:
+   :caption: Advanced
+
+   advanced_topics_performance_tuning
+   advanced_topics_sharding
+   advanced_topics_pipe_run
+   advanced_topics_experimental
+   compilation
+
+.. toctree::
+   :hidden:
+   :caption: Reference
+
    Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes/index.html>
-
-Indices and tables
-==================
-
-* :ref:`genindex`
+   GitHub <https://github.com/NVIDIA/DALI>

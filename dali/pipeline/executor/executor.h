@@ -140,6 +140,10 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
+  DLL_PUBLIC void RunCPUImpl();
+  DLL_PUBLIC void RunMixedImpl();
+  DLL_PUBLIC void RunGPUImpl();
+
   template<typename T>
   inline void GetMaxSizesCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
     auto out_size = in.nbytes();

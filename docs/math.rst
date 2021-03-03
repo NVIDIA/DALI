@@ -1,13 +1,11 @@
 .. _mathematical expressions:
 
-Mathematical expressions
+Mathematical Expressions
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 DALI allows you to use regular Python arithmetic operations and other mathematical functions in
-the :meth:`~nvidia.dali.pipeline.Pipeline.define_graph` method on the values that are returned
+the :meth:`~nvidia.dali.Pipeline.define_graph` method on the values that are returned
 from invoking other operators.
-
-Same expressions can be used with :ref:`functional api`.
 
 The expressions that are used will be incorporated into the pipeline without needing to explicitly
 instantiate operators and will describe the element-wise operations on Tensors.
@@ -26,7 +24,7 @@ For details and examples see :doc:`expressions tutorials <examples/general/expre
 
 .. _type promotions:
 
-Type promotion rules
+Type Promotion Rules
 --------------------
 
 For operations that accept two (or more) arguments, type promotions apply.
@@ -58,7 +56,7 @@ For more than two arguments, the resulting type is calculated as a reduction fro
 - first calculating the result of operating on first two arguments, next between that intermediate
 result and the third argument and so on, until we have only the result type left.
 
-Supported arithmetic operations
+Supported Arithmetic Operations
 -------------------------------
 
 Currently, DALI supports the following operations:
@@ -104,7 +102,7 @@ Currently, DALI supports the following operations:
     :rtype: TensorList of the type that is calculated based on the type promotion rules.
 
 
-Mathematical funcions
+Mathematical Funcions
 ---------------------
 
 Similarly to arithmetic expressions, one can use selected mathematical functions in the Pipeline

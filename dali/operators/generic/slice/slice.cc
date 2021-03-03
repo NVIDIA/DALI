@@ -19,32 +19,47 @@ namespace dali {
 
 DALI_SCHEMA(Slice)
     .DocStr(
-        R"code(Extracts a subtensor, or slice, with a specified shape and anchor.
+        R"code(Extracts a subtensor, or slice.
 
-Inputs must be supplied as the following separate tensors in the following order:
+The slice can be specified by proving the start and end coordinates, or start coordinates 
+and shape of the slice. Both coordinates and shapes can be provided in absolute or relative terms.
 
-#. ``data``
-#. ``anchor``
-#. ``shape``
+The slice arguments can be specified by the following named arguments:
 
-The ``anchor`` and ``shape`` coordinates must be in the  [0.0, 1.0] interval for normalized
-coordinates, or in the image shape for absolute coordinates. The ``anchor`` and ``shape`` inputs
-must provide as many dimensions as are specified with the ``axis_names`` or ``axes`` arguments.
-By default, the :meth:`nvidia.dali.ops.Slice` operator uses normalized coordinates and ``WH``
+#. ``start``: Slice start coordinates (absolute)
+#. ``rel_start``: Slice start coordinates (relative)
+#. ``end``: Slice end coordinates (absolute)
+#. ``rel_end``: Slice end coordinates (relative)
+#. ``shape``: Slice shape (absolute)
+#. ``rel_shape``: Slice shape (relative)
+
+The slice can be configured by providing start and end coordinates or start and shape.
+Relative and absolute arguments can be mixed (for example, ``rel_start`` can be used with ``shape``)
+as long as start and shape or end are uniquely defined.
+
+Alternatively, two extra positional inputs can be provided, specifying ``anchor`` and ``shape``.
+When using positional inputs, two extra boolean arguments ``normalized_anchor``/``normalized_shape``
+can be used to specify the nature of the arguments provided. Using positional inputs for anchor
+and shape is incompatible with the named arguments specified above.
+
+The slice arguments should provide as many dimensions as specified by the ``axis_names`` or ``axes``
+arguments.
+
+By default, the :meth:`nvidia.dali.fn.slice` operator uses normalized coordinates and ``WH``
 order for the slice arguments.)code")
-    .NumInput(3)
+    .NumInput(1, 3)
     .InputDevice(1, 3, InputDevice::CPU)
     .NumOutput(1)
     .InputDox(0, "data", "TensorList", R"code(Batch that contains the input data.)code")
     .InputDox(1, "anchor", "1D TensorList of float or int",
-                 R"code(Input that contains normalized or absolute coordinates for the starting
+                 R"code((Optional) Input that contains normalized or absolute coordinates for the starting
 point of the slice (x0, x1, x2, …).
 
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
 interpreted as absolute or relative coordinates, depending on the value of
 ``normalized_anchor``.)code")
     .InputDox(2, "shape", "1D TensorList of float or int",
-                 R"code(Input that contains normalized or absolute coordinates for the dimensions
+                 R"code((Optional) Input that contains normalized or absolute coordinates for the dimensions
 of the slice (s0, s1, s2, …).
 
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be

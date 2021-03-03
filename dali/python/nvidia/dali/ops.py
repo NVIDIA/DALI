@@ -15,6 +15,7 @@
 #pylint: disable=no-member
 import sys
 import copy
+import ast
 from itertools import count
 import threading
 import warnings
@@ -48,39 +49,73 @@ def _numpydoc_formatter(name, type, doc, optional = False):
         type += ", optional"
     return "`{}` : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
 
-def _get_kwargs(schema, only_tensor = False):
+def _get_inputs_doc(schema):
+    # Inputs section
+    if schema.MaxNumInput() == 0:
+        return ""
+    ret = """
+Args
+----
+"""
+    if schema.HasInputDox():
+        for i in range(schema.MaxNumInput()):
+            optional = i >= schema.MinNumInput()
+            input_type_str = schema.GetInputType(i) + _supported_layouts_str(schema.GetSupportedLayouts(i))
+            dox = schema.GetInputDox(i)
+            input_name = schema.GetInputName(i)
+            ret += _numpydoc_formatter(input_name, input_type_str, dox, optional) + "\n"
+    else:
+        for i in range(schema.MinNumInput()):
+            input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
+            dox = "Input to the operator."
+            input_name = f"input{i}" if schema.MaxNumInput() > 1 else "input"
+            ret += _numpydoc_formatter(input_name, input_type_str, dox, False) + "\n"
+
+        extra_opt_args = schema.MaxNumInput() - schema.MinNumInput()
+        if extra_opt_args == 1:
+            i = schema.MinNumInput()
+            input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
+            dox = "Input to the operator."
+            input_name = f"input{i}" if schema.MaxNumInput() > 1 else "input"
+            ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
+        elif extra_opt_args > 1:
+            input_type_str = "TensorList"
+            input_name = f"input[{schema.MinNumInput()}..{schema.MaxNumInput()-1}]"
+            dox = f"This function accepts up to {extra_opt_args} optional positional inputs"
+            ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
+
+    ret += "\n"
+    return ret
+
+
+def _get_kwargs(schema):
     """
     Get the keywords arguments from the schema.
 
     `schema`
         the schema in which to lookup arguments
-    `only_tensor`: bool
-        If True list only keyword arguments that can be passed as TensorLists (argument inputs)
-        If False list all the arguments. False indicates that we list arguments to the
-        constructor of the operator which does not accept TensorLists (argument inputs) - that
-        fact will be reflected in specified type
     """
     ret = ""
     for arg in schema.GetArgumentNames():
-        if not only_tensor or schema.IsTensorArgument(arg):
-            arg_name_doc = arg
-            dtype = schema.GetArgumentType(arg)
-            type_name = _type_name_convert_to_string(dtype, is_tensor = only_tensor)
-            if schema.IsArgumentOptional(arg):
-                type_name += ", optional"
-                if schema.HasArgumentDefaultValue(arg):
-                    default_value_string = schema.GetArgumentDefaultValueString(arg)
-                    default_value = eval(default_value_string)
-                    type_name += ", default = {}".format(_default_converter(dtype, default_value))
-            doc = schema.GetArgumentDox(arg)
-            ret += _numpydoc_formatter(arg, type_name, doc)
-            ret += '\n'
+        allow_tensors = schema.IsTensorArgument(arg)
+        arg_name_doc = arg
+        dtype = schema.GetArgumentType(arg)
+        type_name = _type_name_convert_to_string(dtype, allow_tensors = allow_tensors)
+        if schema.IsArgumentOptional(arg):
+            type_name += ", optional"
+            if schema.HasArgumentDefaultValue(arg):
+                default_value_string = schema.GetArgumentDefaultValueString(arg)
+                default_value = ast.literal_eval(default_value_string)
+                type_name += ", default = {}".format(_default_converter(dtype, default_value))
+        doc = schema.GetArgumentDox(arg)
+        ret += _numpydoc_formatter(arg, type_name, doc)
+        ret += '\n'
     return ret
 
 def _schema_name(cls):
     return getattr(cls, 'schema_name', cls.__name__)
 
-def _docstring_generator(cls):
+def _docstring_generator_main(cls, api):
     """
         Generate docstring for the class obtaining it from schema based on cls.__name__
         This lists all the Keyword args that can be used when creating operator
@@ -90,14 +125,24 @@ def _docstring_generator(cls):
     ret = '\n'
 
     if schema.IsDeprecated():
-        use_instead = schema.DeprecatedInFavorOf()
+        use_instead = _op_name(schema.DeprecatedInFavorOf(), api)
         ret += ".. warning::\n\n   This operator is now deprecated"
         if use_instead:
-            ret +=". Use :class:`" + use_instead + "` instead."
+            ret +=". Use :meth:`" + use_instead + "` instead."
+        explanation = schema.DeprecationMessage()
+        if explanation:
+            indent = "\n" + " " * 3
+            ret += indent
+            ret += indent
+            explanation = explanation.replace("\n", indent)
+            ret += explanation
         ret += "\n\n"
 
     ret += schema.Dox()
     ret += '\n'
+
+    if schema.IsDocPartiallyHidden():
+        return ret
 
     supported_statements = []
     if schema.IsSequenceOperator():
@@ -131,13 +176,21 @@ Supported backends
     for dev in op_dev:
         ret += " * " + dev + "\n"
     ret += "\n"
+    return ret
 
+def _docstring_generator(cls):
+    op_name = _schema_name(cls)
+    schema = _b.GetSchema(op_name)
+    ret = _docstring_generator_main(cls, "ops")
+    if schema.IsDocPartiallyHidden():
+        return ret
     ret += """
 Keyword args
 ------------
 """
     ret += _get_kwargs(schema)
     return ret
+
 
 def _supported_layouts_str(supported_layouts):
     if len(supported_layouts) == 0:
@@ -157,16 +210,7 @@ def _docstring_prefix_from_inputs(op_name):
     # __call__ docstring
     ret += "\nOperator call to be used in graph definition.\n"
     # Args section
-    ret += """
-Args
-----
-"""
-    for i in range(schema.MaxNumInput()):
-        optional = i >= schema.MinNumInput()
-        input_type_str = schema.GetInputType(i) + _supported_layouts_str(schema.GetSupportedLayouts(i))
-        ret += _numpydoc_formatter(schema.GetInputName(i), input_type_str, schema.GetInputDox(i), optional)
-        ret += "\n"
-    ret += "\n"
+    ret += _get_inputs_doc(schema)
     return ret
 
 def _docstring_prefix_auto(op_name):
@@ -200,6 +244,8 @@ def _docstring_generator_call(op_name):
         Generate full docstring for `__call__` of Operator `op_name`.
     """
     schema = _b.GetSchema(op_name)
+    if schema.IsDocPartiallyHidden():
+        return ""
     if schema.HasCallDox():
         ret = schema.GetCallDox()
     elif schema.HasInputDox():
@@ -211,13 +257,27 @@ def _docstring_generator_call(op_name):
         ret = "See :meth:`nvidia.dali.ops." + op_full_name + "` class for complete information.\n"
     if schema.AppendKwargsSection():
         # Kwargs section
-        tensor_kwargs = _get_kwargs(schema, only_tensor = True)
+        tensor_kwargs = _get_kwargs(schema)
         if tensor_kwargs:
             ret += """
 Keyword Args
 ------------
 """
             ret += tensor_kwargs
+    return ret
+
+def _docstring_generator_fn(cls):
+    op_name = _schema_name(cls)
+    schema = _b.GetSchema(op_name)
+    ret = _docstring_generator_main(cls, "fn")
+    if schema.IsDocPartiallyHidden():
+        return ret
+    ret += _get_inputs_doc(schema)
+    ret += """
+Keyword args
+------------
+"""
+    ret += _get_kwargs(schema)
     return ret
 
 class _OpCounter(object):
@@ -343,14 +403,21 @@ class _OperatorInstance(object):
                                 "`DataNode` or convertible to constant nodes. Received " +
                                 "input `{}` of type '{}'.")
                                 .format(k, type(arg_inp).__name__)) from e
+
+                _check_arg_input(op._schema, type(self._op).__name__, k)
+
                 self._spec.AddArgumentInput(k, arg_inp.name)
                 self._inputs = list(self._inputs) + [arg_inp]
 
         if self._op.schema.IsDeprecated():
-            use_instead = self._op.schema.DeprecatedInFavorOf()
-            msg = "WARNING: `{}` is now deprecated".format(type(self._op).__name__)
+            # TODO(klecki): how to know if this is fn or ops?
+            msg = "WARNING: `{}` is now deprecated".format(_op_name(type(self._op).__name__, "fn"))
+            use_instead = _op_name(self._op.schema.DeprecatedInFavorOf(), "fn")
             if use_instead:
-                msg +=". Use `" + use_instead + "` instead"
+                msg +=". Use `" + use_instead + "` instead."
+            explanation = self._op.schema.DeprecationMessage()
+            if explanation:
+                msg += "\n" + explanation
             with warnings.catch_warnings():
                 warnings.simplefilter("default")
                 warnings.warn(msg, DeprecationWarning, stacklevel=2)
@@ -428,6 +495,13 @@ class _DaliOperatorMeta(type):
     def __doc__(self):
         return _docstring_generator(self)
 
+def _check_arg_input(schema, op_name, name):
+    if name == "name":
+        return
+    if not schema.IsTensorArgument(name):
+        raise TypeError("The argument `{}` for operator `{}` should not be a `DataNode` but a {}".format(
+            name, op_name, _type_name_convert_to_string(schema.GetArgumentType(name), False)))
+
 def python_op_factory(name, schema_name = None, op_device = "cpu"):
     class Operator(metaclass=_DaliOperatorMeta):
         def __init__(self, **kwargs):
@@ -445,6 +519,9 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
             self._spec.AddArg("device", self._device)
 
             kwargs, self._call_args = _separate_kwargs(kwargs)
+
+            for k in self._call_args.keys():
+                _check_arg_input(self._schema, type(self).__name__, k)
 
             if "preserve" in kwargs.keys():
                 self._preserve = kwargs["preserve"]
@@ -612,8 +689,18 @@ def _process_op_name(op_schema_name, make_hidden=False):
         submodule = (*submodule, 'hidden')
     return op_full_name, submodule, op_name
 
+def _op_name(op_schema_name, api="fn"):
+    full_name, submodule, op_name = _process_op_name(op_schema_name)
+    if api == "fn":
+        return ".".join([*submodule, _functional._to_snake_case(op_name)])
+    elif api == "ops":
+        return full_name
+    else:
+        raise ValueError('{} is not a valid DALI api name, try one of {"fn", "ops"}'.format(api))
+
+
 def _wrap_op(op_class, submodule = [], parent_module=None):
-    return _functional._wrap_op(op_class, submodule, parent_module)
+    return _functional._wrap_op(op_class, submodule, parent_module, _docstring_generator_fn(op_class))
 
 def _load_ops():
     global _cpu_ops
@@ -648,9 +735,7 @@ def Reload():
     _load_ops()
 
 # custom wrappers around ops
-class TFRecordReader(metaclass=_DaliOperatorMeta):
-    global _cpu_ops
-    _cpu_ops = _cpu_ops.union({'TFRecordReader'})
+class _TFRecordReaderImpl():
 
     def __init__(self, path, index_path, features, **kwargs):
         if isinstance(path, list):
@@ -661,8 +746,8 @@ class TFRecordReader(metaclass=_DaliOperatorMeta):
             self._index_path = index_path
         else:
             self._index_path = [index_path]
-        self._schema = _b.GetSchema("_TFRecordReader")
-        self._spec = _b.OpSpec("_TFRecordReader")
+        self._schema = _b.GetSchema(self._internal_schema_name)
+        self._spec = _b.OpSpec(self._internal_schema_name)
         self._device = "cpu"
 
         self._spec.AddArg("path", self._path)
@@ -719,7 +804,26 @@ class TFRecordReader(metaclass=_DaliOperatorMeta):
         op_instance.spec.AddArg("features", features)
         return outputs
 
-TFRecordReader.__call__.__doc__ = _docstring_generator_call("TFRecordReader")
+_TFRecordReaderImpl.__call__.__doc__ = _docstring_generator_call("readers__TFRecord")
+
+def _load_readers_tfrecord():
+    global _cpu_ops
+    _cpu_ops = _cpu_ops.union({'readers__TFRecord', 'TFRecordReader'})
+
+    ops_module = sys.modules[__name__]
+    class TFRecordReader(_TFRecordReaderImpl, metaclass=_DaliOperatorMeta): pass
+    class TFRecord(_TFRecordReaderImpl, metaclass=_DaliOperatorMeta): pass
+    for op_reg_name, internal_schema, op_class in [('readers__TFRecord', 'readers___TFRecord', TFRecord),
+                                                   ('TFRecordReader', '_TFRecordReader', TFRecordReader)]:
+        op_class.schema_name = op_reg_name
+        op_class._internal_schema_name = internal_schema
+        op_full_name, submodule, op_name = _process_op_name(op_reg_name)
+        module = _internal.get_submodule(ops_module, submodule)
+        if not hasattr(module, op_name):
+            op_class.__module__ = module.__name__
+            setattr(module, op_name, op_class)
+            _wrap_op(op_class, submodule)
+
 
 class PythonFunctionBase(metaclass=_DaliOperatorMeta):
     def __init__(self, impl_name, function, num_outputs=1, device='cpu', **kwargs):
@@ -901,7 +1005,6 @@ class DLTensorPythonFunction(PythonFunctionBase):
 
 _wrap_op(PythonFunction)
 _wrap_op(DLTensorPythonFunction)
-_wrap_op(TFRecordReader)
 
 
 def _choose_device(inputs):
@@ -924,12 +1027,14 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
                 any(isinstance(y, _DataNode) for y in x) and \
                 all(isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x)
 
+    default_input_device = "gpu" if device == "gpu" else "cpu"
+
     for idx, inp in enumerate(inputs):
         if not is_input(inp):
-            input_device = schema.GetInputDevice(idx) or device if schema else device
+            input_device = schema.GetInputDevice(idx) or default_input_device if schema else default_input_device
             if not isinstance(inp, nvidia.dali.types.ScalarConstant):
                 try:
-                    inp = nvidia.dali.types.Constant(inp, device=input_device)
+                    inp = _Constant(inp, device=input_device)
                 except Exception as ex:
                     raise TypeError("""when calling operator {0}:
 Input {1} is neither a DALI `DataNode` nor a list of data nodes but `{2}`.
@@ -1124,11 +1229,11 @@ The example below chains an image decoder and a Resize operation with random squ
 The  ``decode_and_resize`` object can be called as if it was an operator::
 
     decode_and_resize = ops.Compose([
-        ops.ImageDecoder(device="cpu"),
+        ops.decoders.Image(device="cpu"),
         ops.Resize(size=fn.random.uniform(range=400,500)), device="gpu")
     ])
 
-    files, labels = fn.caffe_reader(path=caffe_db_folder, seed=1)
+    files, labels = fn.readers.caffe(path=caffe_db_folder, seed=1)
     pipe.set_ouputs(decode_and_resize(files), labels)
 
 If there's a transition from CPU to GPU in the middle of the ``op_list``, as is the case in this
@@ -1143,4 +1248,6 @@ example, ``Compose`` automatically arranges copying the data to GPU memory.
 _cpu_ops = _cpu_ops.union({"Compose"})
 _gpu_ops = _gpu_ops.union({"Compose"})
 
+
 _load_ops()
+_load_readers_tfrecord()

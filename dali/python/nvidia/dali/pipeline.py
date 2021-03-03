@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#pylint: disable=no-member
+# pylint: disable=no-member
 from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
@@ -20,12 +20,17 @@ from nvidia.dali import types
 from nvidia.dali.backend import CheckDLPackCapsule
 from threading import local as tls
 from . import data_node as _data_node
+import functools
+import inspect
 import warnings
 import ctypes
+
 pipeline_tls = tls()
 
 from .data_node import DataNode
-DataNode.__module__ = __name__      # move to pipeline
+
+DataNode.__module__ = __name__  # move to pipeline
+
 
 def _show_deprecation_warning(deprecated, in_favor_of):
     # show only this warning
@@ -33,6 +38,7 @@ def _show_deprecation_warning(deprecated, in_favor_of):
         warnings.simplefilter("default")
         warnings.warn("{} is deprecated, please use {} instead".format(deprecated, in_favor_of),
                       Warning, stacklevel=2)
+
 
 def _get_default_stream_for_array(array):
     if types._is_torch_tensor(array):
@@ -123,7 +129,7 @@ Parameters
         if device_id is None:
             device_id = types.CPU_ONLY_DEVICE_ID
         self._device_id = device_id
-        self._seed = seed
+        self._seed = seed if seed is not None else -1
         self._exec_pipelined = exec_pipelined
         self._built = False
         self._first_iter = True
@@ -400,12 +406,34 @@ Parameters
         elif not isinstance(outputs, list):
             outputs = [outputs]
 
+        def is_nested(container, pred, container_types):
+            if isinstance(container, container_types):
+                if any(pred(x) for x in container):
+                    return True
+                for x in container:
+                    if is_nested(x, pred, container_types):
+                        return True
+            return False
+
+        def contains_nested_datanode(nested):
+            return is_nested(nested, lambda x: isinstance(x, DataNode), (list, tuple))
+
         for i in range(len(outputs)):
             if isinstance(outputs[i], types.ScalarConstant):
                 import nvidia.dali.ops
                 outputs[i] = nvidia.dali.ops._instantiate_constant_node("cpu", outputs[i])
+            elif contains_nested_datanode(outputs[i]):
+                raise TypeError(f"Illegal pipeline output type. The output {i} contains a nested "
+                                "`DataNode`. Missing list/tuple expansion (*) is the likely cause.")
             elif not isinstance(outputs[i], DataNode):
-                outputs[i] = types.Constant(outputs[i], device="cpu")
+                try:
+                    outputs[i] = types.Constant(outputs[i], device="cpu")
+                except TypeError:
+                    raise TypeError(f"Illegal output type. The output {i} is a `{type(outputs[i])}`. "
+                                     "Allowed types are ``DataNode`` and types convertible to "
+                                     "`types.Constant` (numerical constants, 1D lists/tuple of numbers "
+                                     "and ND arrays).")
+
             _data_node._check(outputs[i])
 
         # Backtrack to construct the graph
@@ -500,7 +528,7 @@ Parameters
         Parameters
         ----------
         data_node : :class:`DataNode` or str
-            The name of the :class:`nvidia.dali.ops.ExternalSource` node or a :class:`DataNode`
+            The name of the :class:`nvidia.dali.fn.external_source` node or a :class:`DataNode`
             object returned by a call to that ExternalSource.
 
         data : an ndarray or DLPack or a list thereof
@@ -976,8 +1004,14 @@ Parameters
         if self._input_callbacks is None:
             return
 
+        stop_iter = False
         for group in self._input_callbacks:
-            group.call_and_feed(self, self._max_batch_size)
+            try:
+                group.call_and_feed(self, self._max_batch_size)
+            except StopIteration:
+                stop_iter = True
+        if stop_iter:
+            raise StopIteration()
 
     def _iter_setup(self):
         self._run_input_callbacks()
@@ -990,3 +1024,111 @@ Parameters
         For example, one can use this function to feed the input
         data from NumPy arrays."""
         pass
+
+
+def _discriminate_args(func, **func_kwargs):
+    """Split args on those applicable to Pipeline constructor and the decorated function."""
+    func_argspec = inspect.getfullargspec(func)
+    ctor_argspec = inspect.getfullargspec(Pipeline.__init__)
+
+    ctor_args = {}
+    fn_args = {}
+
+    if func_argspec.varkw is not None:
+        raise TypeError(
+            "Using variadic keyword argument `**{}` in graph-defining function is not allowed.".format(
+                func_argspec.varkw))
+
+    for farg in func_kwargs.items():
+        is_ctor_arg = farg[0] in ctor_argspec.args or farg[0] in ctor_argspec.kwonlyargs
+        is_fn_arg = farg[0] in func_argspec.args or farg[0] in func_argspec.kwonlyargs
+        if is_fn_arg:
+            fn_args[farg[0]] = farg[1]
+            if is_ctor_arg:
+                print(
+                    "Warning: the argument `{}` shadows a Pipeline constructor argument of the same name.".format(
+                        farg[0]))
+        elif is_ctor_arg:
+            ctor_args[farg[0]] = farg[1]
+        else:
+            assert False, "This shouldn't happen. Please double-check the `{}` argument".format(farg[0])
+
+    return ctor_args, fn_args
+
+
+def pipeline_def(fn=None, **pipeline_kwargs):
+    """
+    Decorator that converts a graph definition function into a DALI pipeline factory.
+
+    A graph definition function is a function that returns intended pipeline outputs.
+    You can decorate this function with ``@pipeline_def``::
+
+        @pipeline_def
+        def my_pipe(flip_vertical, flip_horizontal):
+            ''' Creates a DALI pipeline, which returns flipped and original images '''
+            data, _ = fn.readers.file(file_root=images_dir)
+            img = fn.decoders.image(data, device="mixed")
+            flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
+            return flipped, img
+
+    The decorated function returns a DALI Pipeline object::
+
+        pipe = my_pipe(True, False)
+        # pipe.build()  # the pipeline is not configured properly yet
+
+    A pipeline requires additional parameters such as batch size, number of worker threads,
+    GPU device id and so on (see :meth:`Pipeline.__init__` for a complete list of pipeline parameters).
+    These parameters can be supplied as additional keyword arguments, passed to the decorated function::
+
+        pipe = my_pipe(True, False, batch_size=32, num_threads=1, device_id=0)
+        pipe.build()  # the pipeline is properly configured, we can build it now
+
+    The outputs from the original function became the outputs of the Pipeline::
+
+        flipped, img = pipe.run()
+
+    When some of the pipeline parameters are fixed, they can be specified by name in the decorator::
+
+        @pipeline_def(batch_size=42, num_threads=3)
+        def my_pipe(flip_vertical, flip_horizontal):
+            ...
+
+    Any Pipeline constructor parameter passed later when calling the decorated function will
+    override the decorator-defined params::
+
+        @pipeline_def(batch_size=32, num_threads=3)
+        def my_pipe():
+            data = fn.external_source(source=my_generator)
+            return data
+
+        pipe = my_pipe(batch_size=128)  # batch_size=128 overrides batch_size=32
+
+    .. warning::
+
+        The arguments of the function being decorated can shadow pipeline constructor arguments -
+        in which case there's no way to alter their values.
+
+    .. note::
+
+        Using ``**kwargs`` (variadic keyword arguments) in graph-defining function is not allowed.
+        They may result in unwanted, silent hijacking of some arguments of the same name by
+        Pipeline constructor. Code written this way would cease to work with future versions of DALI
+        when new parameters are added to the Pipeline constructor.
+    """
+    def actual_decorator(func):
+        @functools.wraps(func)
+        def create_pipeline(*args, **kwargs):
+            ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
+            pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
+            with pipe:
+                pipe_outputs = func(*args, **fn_kwargs)
+                if isinstance(pipe_outputs, tuple):
+                    po = pipe_outputs
+                elif pipe_outputs is None:
+                    po = ()
+                else:
+                    po = (pipe_outputs,)
+                pipe.set_outputs(*po)
+            return pipe
+        return create_pipeline
+    return actual_decorator(fn) if fn else actual_decorator

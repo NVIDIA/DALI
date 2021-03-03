@@ -39,11 +39,11 @@ def compare(tl1, tl2):
 class HybridDecoderPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, cache_size):
         super(HybridDecoderPipeline, self).__init__(batch_size, num_threads, device_id, seed = seed)
-        self.input = ops.FileReader(file_root = image_dir)
+        self.input = ops.readers.File(file_root = image_dir)
         policy = None
         if cache_size > 0:
           policy = "threshold"
-        self.decode = ops.ImageDecoder(device = 'mixed', output_type = types.RGB, cache_debug = False, cache_size = cache_size, cache_type = policy, cache_batch_copy = True)
+        self.decode = ops.decoders.Image(device = 'mixed', output_type = types.RGB, cache_debug = False, cache_size = cache_size, cache_type = policy, cache_batch_copy = True)
 
     def define_graph(self):
         jpegs, labels = self.input(name="Reader")

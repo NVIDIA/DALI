@@ -102,4 +102,10 @@ TEST(DeviceBuffer, FromDevice) {
   EXPECT_EQ(v1, v2);
 }
 
+TEST(DeviceBufferFail, Resize) {
+  DeviceBuffer<int> db;
+  size_t size = static_cast<size_t>(-1);
+  EXPECT_THROW(db.resize(size), CUDABadAlloc);
+}
+
 }  // namespace dali

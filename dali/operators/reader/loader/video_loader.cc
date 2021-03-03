@@ -380,7 +380,12 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
       almost_equal(av_q2d(file.frame_base_), pkt.duration * av_q2d(file.stream_base_), 2),
       "Variable frame rate videos are unsupported. Check failed for file: " + filename);
 
-    file.frame_count_ = av_rescale_q(stream->duration,
+    auto duration = stream->duration;
+    // if no info in the stream check the container
+    if (duration == AV_NOPTS_VALUE)
+      duration = file.fmt_ctx_->duration / 1000;
+
+    file.frame_count_ = av_rescale_q(duration,
                                      stream->time_base,
                                      file.frame_base_);
 
@@ -479,7 +484,6 @@ void VideoLoader::read_file() {
   // av_packet_unref is unlike the other libav free functions
   using pkt_ptr = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
   AVPacket raw_pkt = {};
-  int seek_hack = 1;
 
   while (!stop_) {
     if (stop_) {
@@ -509,6 +513,7 @@ void VideoLoader::read_file() {
     // we want to seek each time because even if we ended on the
     // correct key frame, we've flushed the decoder, so it needs
     // another key frame to start decoding again
+    int seek_hack = 1;
     seek(file, req.frame);
 
     auto nonkey_frame_count = 0;
@@ -543,31 +548,38 @@ void VideoLoader::read_file() {
                  << "\nPacket contains " << pkt_frames << " frames\n";
       }
 
+      // Or we didn't get to a key frame as the first one or we went too far
+      if ((!key && is_first_frame) ||
+          (key && frame > req.frame && is_first_frame)) {
+          LOG_LINE << device_id_ << ": We got ahead of ourselves! "
+                   << frame << " > " << req.frame << " + "
+                   << nonkey_frame_count
+                   << " seek_hack = " << seek_hack << std::endl;
+          if (seek_must_succeed) {
+            std::stringstream ss;
+            ss << device_id_ << ": failed to seek frame "
+                << req.frame;
+            DALI_FAIL(ss.str());
+          }
+          if (req.frame > seek_hack) {
+            seek(file, req.frame - seek_hack);
+            seek_hack *= 2;
+          } else {
+            seek_must_succeed = true;
+            seek(file, 0);
+          }
+          continue;
+      }
       if (frame > req.frame) {
         if (key) {
-          if (frames_left <= 0)
-            break;
-          if (is_first_frame) {
-            LOG_LINE << device_id_ << ": We got ahead of ourselves! "
-                          << frame << " > " << req.frame << " + "
-                          << nonkey_frame_count
-                          << " seek_hack = " << seek_hack << std::endl;
-            if (seek_must_succeed) {
-              std::stringstream ss;
-              ss << device_id_ << ": failed to seek frame "
-                  << req.frame;
-              DALI_FAIL(ss.str());
-            }
-            if (req.frame > seek_hack) {
-              seek(file, req.frame - seek_hack);
-              seek_hack *= 2;
-            } else {
-              seek_must_succeed = true;
-              seek(file, 0);
-            }
-            continue;
-          } else {
+          if (!is_first_frame) {
             nonkey_frame_count = 0;
+            if (frame > req.frame + req.count) {
+              // Found a key frame past the requested range. We can stop searching
+              // (If there were missing frames in the range they won't be found after
+              // the next key frame)
+              break;
+            }
           }
           seek_must_succeed = false;
         } else {

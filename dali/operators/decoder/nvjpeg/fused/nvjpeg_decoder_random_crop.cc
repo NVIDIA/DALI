@@ -19,6 +19,7 @@
 
 namespace dali {
 
+DALI_REGISTER_OPERATOR(decoders__ImageRandomCrop, nvJPEGDecoderRandomCrop, Mixed);
 DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, nvJPEGDecoderRandomCrop, Mixed);
 
 }  // namespace dali

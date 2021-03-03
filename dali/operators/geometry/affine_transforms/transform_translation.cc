@@ -40,7 +40,7 @@ DALI_SCHEMA(TransformTranslation)  // Deprecated in 0.28.0dev
 .. warning::
 
    This operator was renamed and moved to dedicated submodule.
-   Please use :class:`transforms.Translation` instead.
+   Please use :meth:`transforms.translation` instead.
 
 )code")
   .AddArg(
@@ -50,7 +50,7 @@ DALI_SCHEMA(TransformTranslation)  // Deprecated in 0.28.0dev
 The number of dimensions of the transform is inferred from this argument.)code",
     DALI_FLOAT_VEC, true)
   .MakeDocHidden()
-  .Deprecate("transforms.Translation")
+  .Deprecate("transforms__Translation")
   .NumInput(0, 1)
   .NumOutput(1)
   .AddParent("TransformAttr");

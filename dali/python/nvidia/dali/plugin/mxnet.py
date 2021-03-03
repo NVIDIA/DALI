@@ -80,9 +80,17 @@ class _DALIMXNetIteratorBase(mx.io.DataIter, _DaliBaseIterator):
                  fill_last_batch=None,
                  last_batch_padded=False,
                  auto_reset=False,
-                 last_batch_policy=LastBatchPolicy.FILL):
-        _DaliBaseIterator.__init__(self, pipelines, size, reader_name, auto_reset,
-                                   fill_last_batch, last_batch_padded, last_batch_policy)
+                 last_batch_policy=LastBatchPolicy.FILL,
+                 prepare_first_batch=True):
+        _DaliBaseIterator.__init__(self,
+                                   pipelines,
+                                   size,
+                                   reader_name,
+                                   auto_reset,
+                                   fill_last_batch,
+                                   last_batch_padded,
+                                   last_batch_policy,
+                                   prepare_first_batch=prepare_first_batch)
 
     def next(self):
         """
@@ -130,7 +138,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
 
     Parameters
     ----------
-    pipelines : list of nvidia.dali.pipeline.Pipeline
+    pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     output_map : list of (str, str)
                  List of pairs (output_name, tag) which maps consecutive
@@ -189,7 +197,9 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 True next epoch would be the same length as the first one. For this to happen,
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
-
+    prepare_first_batch : bool, optional, default = True
+                Whether DALI should buffer the first batch right after the creation of the iterator,
+                so one batch is already prepared when the iterator is prompted for the data
     Example
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
@@ -217,7 +227,8 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                  squeeze_labels=True,
                  dynamic_shape=False,
                  last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL):
+                 last_batch_policy=LastBatchPolicy.FILL,
+                 prepare_first_batch=True):
 
         # check the assert first as _DaliBaseIterator would run the prefetch
         self._output_names_map = [x[0] for x in output_map]
@@ -229,14 +240,14 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             "output_names in output_map should be distinct"
         self.output_map = output_map
 
-        super(DALIGenericIterator, self).__init__(
-            pipelines,
-            size,
-            reader_name,
-            fill_last_batch,
-            last_batch_padded,
-            auto_reset,
-            last_batch_policy)
+        super().__init__(pipelines,
+                         size,
+                         reader_name,
+                         fill_last_batch,
+                         last_batch_padded,
+                         auto_reset,
+                         last_batch_policy,
+                         prepare_first_batch=prepare_first_batch)
         self._squeeze_labels = squeeze_labels
         self._dynamic_shape = dynamic_shape
         # Use double-buffering of data batches
@@ -244,25 +255,47 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
         self._current_data_batch = 0
 
         self._first_batch = None
-        try:
-            self._first_batch = DALIGenericIterator.__next__(self)
-        except StopIteration:
-            assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
-        # Set data descriptors for MXNet
-        self.provide_data = []
-        self.provide_label = []
+        self._descriptors_populated = False
+        self._data_layout = data_layout
+        if self._prepare_first_batch:
+            try:
+                self._first_batch = DALIGenericIterator.__next__(self)
+            except StopIteration:
+                assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
 
-        category_names = {key : [] for key in self._output_categories}
-        for name, category in output_map:
-            category_names[category].append(name)
-        for i, data in enumerate(self._first_batch[0].data):
-            data_shape  = (data.shape[0] * self._num_gpus,) + data.shape[1:]
-            self.provide_data.append(mx.io.DataDesc(category_names[DALIGenericIterator.DATA_TAG][i], \
-                data_shape, data.dtype, layout=data_layout))
-        for i, label in enumerate(self._first_batch[0].label):
-            label_shape = (label.shape[0] * self._num_gpus,) + label.shape[1:]
-            self.provide_label.append(mx.io.DataDesc(category_names[DALIGenericIterator.LABEL_TAG][i], \
-                label_shape, label.dtype))
+    def __getattr__(self, key):
+        # these attributes are required by MXNet thus DALI needs to provide them
+        if key == 'provide_data' or key == 'provide_label':
+            # obtain the first batch to populate the metadata
+            try:
+                self._first_batch = DALIGenericIterator.__next__(self)
+                # this entries should be there thanks to the above call
+                return self.__dict__[key]
+            except StopIteration:
+                assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
+        raise AttributeError
+
+    def _populate_descriptors(self, data_batch):
+        # populate metadata
+        if not self._descriptors_populated:
+            provide_data = []
+            provide_label = []
+
+            category_names = {key : [] for key in self._output_categories}
+            for name, category in self.output_map:
+                category_names[category].append(name)
+            for i, data in enumerate(data_batch[0].data):
+                data_shape  = (data.shape[0] * self._num_gpus,) + data.shape[1:]
+                provide_data.append(mx.io.DataDesc(category_names[DALIGenericIterator.DATA_TAG][i], \
+                    data_shape, data.dtype, layout=self._data_layout))
+            for i, label in enumerate(data_batch[0].label):
+                label_shape = (label.shape[0] * self._num_gpus,) + label.shape[1:]
+                provide_label.append(mx.io.DataDesc(category_names[DALIGenericIterator.LABEL_TAG][i], \
+                    label_shape, label.dtype))
+
+            self.__dict__['provide_data'] = provide_data
+            self.__dict__['provide_label'] = provide_label
+            self._descriptors_populated = True
 
     def __next__(self):
         if self._first_batch is not None:
@@ -364,7 +397,9 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 for db in self._data_batches:
                     db[copy_db_index].pad = 0
 
-        return [db[copy_db_index] for db in self._data_batches]
+        batches = [db[copy_db_index] for db in self._data_batches]
+        self._populate_descriptors(batches)
+        return batches
 
     DATA_TAG = "data"
     LABEL_TAG = "label"
@@ -396,7 +431,7 @@ class DALIClassificationIterator(DALIGenericIterator):
 
     Parameters
     ----------
-    pipelines : list of nvidia.dali.pipeline.Pipeline
+    pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     size : int, default = -1
            Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
@@ -451,6 +486,9 @@ class DALIClassificationIterator(DALIGenericIterator):
                 True next epoch would be the same length as the first one. For this to happen,
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
+    prepare_first_batch : bool, optional, default = True
+                Whether DALI should buffer the first batch right after the creation of the iterator,
+                so one batch is already prepared when the iterator is prompted for the data
 
     Example
     -------
@@ -480,7 +518,8 @@ class DALIClassificationIterator(DALIGenericIterator):
                  squeeze_labels=True,
                  dynamic_shape=False,
                  last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL):
+                 last_batch_policy=LastBatchPolicy.FILL,
+                 prepare_first_batch=True):
         super(DALIClassificationIterator, self).__init__(pipelines,
                                                          [(data_name, DALIClassificationIterator.DATA_TAG),
                                                           (label_name, DALIClassificationIterator.LABEL_TAG)],
@@ -492,7 +531,8 @@ class DALIClassificationIterator(DALIGenericIterator):
                                                          squeeze_labels=squeeze_labels,
                                                          dynamic_shape=dynamic_shape,
                                                          last_batch_padded = last_batch_padded,
-                                                         last_batch_policy = last_batch_policy)
+                                                         last_batch_policy = last_batch_policy,
+                                                         prepare_first_batch = prepare_first_batch)
 
 ###############################################
 ###############################################
@@ -537,7 +577,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
 
     Parameters
     ----------
-    pipelines : list of nvidia.dali.pipeline.Pipeline
+    pipelines : list of nvidia.dali.Pipeline
             List of pipelines to use
     size : int, default = -1
             Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
@@ -586,6 +626,9 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 True next epoch would be the same length as the first one. For this to happen,
                 the option `pad_last_batch` in the reader needs to be set to True as well.
                 It is overwritten when `reader_name` argument is provided
+    prepare_first_batch : bool, optional, default = True
+                Whether DALI should buffer the first batch right after the creation of the iterator,
+                so one batch is already prepared when the iterator is prompted for the data
 
     Example
     -------
@@ -611,7 +654,8 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                  auto_reset=False,
                  fill_last_batch=None,
                  last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL):
+                 last_batch_policy=LastBatchPolicy.FILL,
+                 prepare_first_batch=True):
 
         # check the assert first as _DaliBaseIterator would run the prefetch
         self._output_tags = {DALIGluonIterator.DENSE_TAG, DALIGluonIterator.SPARSE_TAG}
@@ -627,15 +671,17 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
             fill_last_batch,
             last_batch_padded,
             auto_reset,
-            last_batch_policy)
+            last_batch_policy,
+            prepare_first_batch = prepare_first_batch)
 
         self._data_batches = [None for i in range(self._num_gpus)]
 
         self._first_batch = None
-        try:
-            self._first_batch = self._first_batch = DALIGluonIterator.__next__(self)
-        except StopIteration:
-            assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
+        if self._prepare_first_batch:
+            try:
+                self._first_batch = self._first_batch = DALIGluonIterator.__next__(self)
+            except StopIteration:
+                assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
 
     def __next__(self):
         if self._first_batch is not None:

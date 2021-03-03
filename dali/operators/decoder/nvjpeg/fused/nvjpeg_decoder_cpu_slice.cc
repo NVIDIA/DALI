@@ -29,7 +29,7 @@ image data, `begin` containing the starting pixel coordinates for the `crop` in 
 format, and `size` containing the pixel dimensions of the `crop` in `(w,h)` format.
 For both `begin` and `size`, coordinates must be in the interval `[0.0, 1.0]`.
 Output of the decoder is in `HWC` ordering.)code")
-    .NumInput(3)
+    .NumInput(1, 3)
     .NumOutput(3)
     .MakeInternal()
     .AddParent("nvJPEGDecoderCPUStage")

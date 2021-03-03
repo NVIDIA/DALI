@@ -27,7 +27,7 @@ import subprocess
 # -- Project information -----------------------------------------------------
 
 project = u'NVIDIA DALI'
-copyright = u'2018-2019, NVIDIA Corporation'
+copyright = u'2018-2021, NVIDIA Corporation'
 author = u'NVIDIA Corporation'
 
 version_long = u'0.0.0'
@@ -54,8 +54,10 @@ release = str(version_long)
 # mock torch required by supported_op_devices
 with mock(["torch"]):
     sys.path.insert(0, os.path.abspath('./'))
-    import supported_op_devices
-    supported_op_devices.main("op_inclusion")
+    import operations_table
+    operations_table.operations_table("fn_table")
+    operations_table.fn_to_op_table("fn_to_op_table")
+
     import autodoc_submodules
     autodoc_submodules.op_autodoc("op_autodoc")
     autodoc_submodules.fn_autodoc("fn_autodoc")
@@ -168,6 +170,8 @@ html_static_path = []
 favicon_rel_path = "nvidia.ico"
 subprocess.call(["wget", "-O", favicon_rel_path, "https://docs.nvidia.com/images/nvidia.ico"])
 html_favicon = favicon_rel_path
+
+subprocess.call(["wget", "-O", "dali.png", "https://developer.nvidia.com/sites/default/files/akamai/dali.png"])
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.

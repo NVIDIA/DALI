@@ -111,7 +111,7 @@ class DetectionPipeline(Pipeline):
             seed=args.seed)
 
         # Reading COCO dataset
-        self.input = ops.COCOReader(
+        self.input = ops.readers.COCO(
             file_root=file_root,
             annotations_file=annotations_file,
             shard_id=device_id,
@@ -120,11 +120,11 @@ class DetectionPipeline(Pipeline):
             ltrb=True,
             random_shuffle=True)
 
-        self.decode_cpu = ops.ImageDecoder(device="cpu", output_type=types.RGB)
-        self.decode_crop = ops.ImageDecoderSlice(device="cpu", output_type=types.RGB)
+        self.decode_cpu = ops.decoders.Image(device="cpu", output_type=types.RGB)
+        self.decode_crop = ops.decoders.ImageSlice(device="cpu", output_type=types.RGB)
 
-        self.decode_gpu = ops.ImageDecoder(device="mixed", output_type=types.RGB, hw_decoder_load=0)
-        self.decode_gpu_crop = ops.ImageDecoderSlice(device="mixed", output_type=types.RGB)
+        self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB, hw_decoder_load=0)
+        self.decode_gpu_crop = ops.decoders.ImageSlice(device="mixed", output_type=types.RGB)
 
         self.ssd_crop = ops.SSDRandomCrop(
             device="cpu", num_attempts=1, seed=args.seed)

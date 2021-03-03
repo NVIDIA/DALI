@@ -22,9 +22,9 @@ void SequenceReader::RunImpl(SampleWorkspace &ws) {
   parser_->Parse(GetSample(ws.data_idx()), &ws);
 }
 
-DALI_REGISTER_OPERATOR(SequenceReader, SequenceReader, CPU);
+DALI_REGISTER_OPERATOR(readers__Sequence, SequenceReader, CPU);
 
-DALI_SCHEMA(SequenceReader)
+DALI_SCHEMA(readers__Sequence)
     .DocStr(
         R"code(Reads [Frame] sequences from a directory representing a collection of streams.
 
@@ -74,5 +74,22 @@ represent streams.)code",
                     R"code(The color space of input and output image.)code", DALI_RGB, false)
     .AddParent("LoaderBase")
     .AllowSequences();
+
+
+// Deprecated alias
+DALI_REGISTER_OPERATOR(SequenceReader, SequenceReader, CPU);
+
+DALI_SCHEMA(SequenceReader)
+    .DocStr("Legacy alias for :meth:`readers.sequence`.")
+    .NumInput(0)
+    .NumOutput(1)  // ([Frames])
+    .AllowSequences()
+    .AddParent("readers__Sequence")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "readers__Sequence",
+        R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
+submodule and renamed to follow a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 }  // namespace dali

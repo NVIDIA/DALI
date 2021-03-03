@@ -49,7 +49,7 @@ sample is generated.
     .NumInput(0, 1)
     .NumOutput(1)
     .AddParent("random__CoinFlip")
-    .Deprecate("random.CoinFlip");  // Deprecated in 0.30
+    .Deprecate("random__CoinFlip");  // Deprecated in 0.30
 
 
 DALI_REGISTER_OPERATOR(CoinFlip, CoinFlip<CPUBackend>, CPU);

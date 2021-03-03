@@ -85,8 +85,8 @@ class WarpPipeline(Pipeline):
         self.use_input = use_input
         self.use_dynamic_size = use_input  # avoid Cartesian product
         self.name = device
-        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         if input_type != dali.types.UINT8:
           self.cast = ops.Cast(device = device, dtype = input_type)
         else:
@@ -126,8 +126,8 @@ class CVPipeline(Pipeline):
         super(CVPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.use_input = use_input
         self.name = "cv"
-        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         if self.use_input:
           self.transform_source = ops.ExternalSource(lambda: gen_transforms(self.batch_size, 10))
           self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type, inv_map=inv_map),

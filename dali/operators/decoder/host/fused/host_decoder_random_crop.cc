@@ -23,6 +23,7 @@
 
 namespace dali {
 
+DALI_REGISTER_OPERATOR(decoders__ImageRandomCrop, HostDecoderRandomCrop, CPU);
 DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, HostDecoderRandomCrop, CPU);
 
 }  // namespace dali

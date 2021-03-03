@@ -1,15 +1,10 @@
-Tutorials
-=========
+.. title:: Examples and Tutorials
 
 .. toctree::
    :maxdepth: 2
 
-   general/index
-   custom_operations/index
-   audio_processing/index
-   image_processing/index
-   math/index
-   sequence_processing/index
+   general/data_loading/index
+   operations_index
    use_cases/index
-   advanced/index
+   other_index
 
