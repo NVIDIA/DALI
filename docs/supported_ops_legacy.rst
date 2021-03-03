@@ -6,7 +6,7 @@ a functional API. The use of the object API is discouraged now and its documenta
 here for reference purposes.
 
 The legacy object "operators" are contained in the ``dali.ops`` module and their names are camel cased, instead of snake cased.
-For example, ``dali.ops.ImageDecoder`` is the legacy counterpart of ``dali.fn.image_decoder``.
+For example, ``dali.ops.CropMirrorNormalize`` is the legacy counterpart of ``dali.fn.crop_mirror_normalize``.
 
 When using the operator object API, the definition of the operator is separated from its use in a
 DALI pipeline, which allows to set static arguments during instantiation.
@@ -18,7 +18,7 @@ Here is an example pipeline using the (recommended) functional API::
     pipe = dali.pipeline.Pipeline(batch_size = 3, num_threads = 2, device_id = 0)
     with pipe:
         files, labels = dali.fn.readers.file(file_root = "./my_file_root")
-        images = dali.fn.image_decoder(files, device = "mixed")
+        images = dali.fn.decoders.image(files, device = "mixed")
         images = dali.fn.rotate(images, angle = dali.fn.random.uniform(range=(-45,45)))
         images = dali.fn.resize(images, resize_x = 300, resize_y = 300)
         pipe.set_outputs(images, labels)
@@ -58,7 +58,7 @@ It is worth noting that the two APIs can be used together in a single pipeline. 
 
     with pipe:
         files, labels = reader()
-        images = dali.fn.image_decoder(files, device = "mixed")
+        images = dali.fn.decoders.image(files, device = "mixed")
         images = dali.fn.rotate(images, angle = dali.fn.random.uniform(range=(-45,45)))
         images = resize(images)
         pipe.set_outputs(images, labels)
