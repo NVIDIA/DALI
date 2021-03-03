@@ -28,7 +28,7 @@ bool GridMaskGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_desc.resize(1);
   GetArguments(ws);
   output_desc[0] = {input.shape(), input.type()};
-  kernel_manager_.Resize(num_threads_, max_batch_size_);
+  kernel_manager_.Resize(1, 1);
   TYPE_SWITCH(input.type().id(), type2id, Type, GRID_MASK_TYPES, (
       {
           using Kernel = kernels::GridMaskGpu<Type>;
