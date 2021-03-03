@@ -72,14 +72,13 @@ class SharedBatchesDispatcher:
         self.ready_cv = threading.Condition()
         self.ready_queue = []
 
-    def dispatch(self, processed_task: _ProcessedTasks):
+    def dispatch(self, processed_task: _ProcessedTasks, queue_depth):
         """Pass the processed task (or None to end) to the dispatcher.
         """
         with self.ready_cv:
             if processed_task is None:
                 self.ready_queue.insert(0, None)
             else:
-                # assert len(ready_queue) < prefetch_queue_depths[scheduled.context_i], "Worker queue size exceeded."
                 self.ready_queue.append(processed_task)
             self.ready_cv.notify()
 
