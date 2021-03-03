@@ -210,20 +210,6 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
     spec.SetArg("device", "cpu");
   }
 
-  // If necessary, split ImageDecoder operator in two separated stages (CPU and Mixed-GPU)
-  bool split_stages = false;
-  bool is_hybrid_decoder = device == "mixed" && (has_prefix(operator_name, "ImageDecoder") ||
-                                                 has_prefix(operator_name, "decoders__Image"));
-
-  if (is_hybrid_decoder &&
-      operator_name.find("CPUStage") == std::string::npos &&
-      operator_name.find("GPUStage") == std::string::npos &&
-      spec.TryGetArgument<bool>(split_stages, "split_stages") &&
-      split_stages) {
-    AddSplitHybridDecoder(spec, inst_name, logical_id);
-    return logical_id;
-  }
-
   DeviceGuard g(device_id_);
 
   // Verify the regular inputs to the op
@@ -332,48 +318,6 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
 
 bool Pipeline::IsLogicalIdUsed(int logical_id) const {
   return logical_ids_.find(logical_id) != logical_ids_.end();
-}
-
-inline void Pipeline::AddSplitHybridDecoder(OpSpec &spec, const std::string &inst_name,
-                                            int logical_id) {
-  std::string operator_name = spec.name();
-
-  std::string suffix = "";
-  bool any_match = false;
-  for (const std::string& prefix : {"ImageDecoder", "decoders__Image"}) {
-    if (has_prefix(operator_name, prefix)) {
-      suffix = operator_name.substr(prefix.size());
-      any_match = true;
-      break;
-    }
-  }
-  DALI_ENFORCE(any_match);
-
-  std::string cpu_stage_name = "nvJPEGDecoderCPUStage" + suffix;
-  spec.set_name(cpu_stage_name);
-  spec.SetArg("device", "cpu");
-
-  auto& op_output = spec.MutableOutput(0);
-  string op_output_name = op_output.name;
-
-  const std::string mangled_outputname(cpu_stage_name + inst_name);
-  op_output.name = mangled_outputname + "0";
-  op_output.device = "cpu";
-  spec.AddOutput(mangled_outputname + "1", "cpu");
-  spec.AddOutput(mangled_outputname + "2", "cpu");
-
-  OpSpec gpu_spec = OpSpec("nvJPEGDecoderGPUStage")
-    .ShareArguments(spec)
-    .AddInput(spec.OutputName(0), "cpu")
-    .AddInput(spec.OutputName(1), "cpu")
-    .AddInput(spec.OutputName(2), "cpu")
-    .AddOutput(op_output_name, "gpu");
-  gpu_spec.SetArg("device", "mixed");
-
-  // TODO(spanev): handle serialization for nvJPEGDecoderNew
-  // Considering Logical Ids, they would not cause collisions as they are explicitly serialized
-  this->AddOperator(spec, inst_name, logical_id);
-  this->AddOperator(gpu_spec, inst_name + "_gpu", GetNextLogicalId());
 }
 
 void Pipeline::AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, int logical_id) {
