@@ -1034,23 +1034,14 @@ def _discriminate_args(func, **func_kwargs):
     ctor_args = {}
     fn_args = {}
 
-    if func_argspec.varkw is not None:
-        raise TypeError(
-            "Using variadic keyword argument `**{}` in graph-defining function is not allowed.".format(
-                func_argspec.varkw))
-
     for farg in func_kwargs.items():
         is_ctor_arg = farg[0] in ctor_argspec.args or farg[0] in ctor_argspec.kwonlyargs
         is_fn_arg = farg[0] in func_argspec.args or farg[0] in func_argspec.kwonlyargs
         if is_fn_arg:
             fn_args[farg[0]] = farg[1]
-            if is_ctor_arg:
-                print(
-                    "Warning: the argument `{}` shadows a Pipeline constructor argument of the same name.".format(
-                        farg[0]))
-        elif is_ctor_arg:
+        if is_ctor_arg:
             ctor_args[farg[0]] = farg[1]
-        else:
+        if not is_fn_arg and not is_ctor_arg:
             assert False, "This shouldn't happen. Please double-check the `{}` argument".format(farg[0])
 
     return ctor_args, fn_args
@@ -1105,15 +1096,10 @@ def pipeline_def(fn=None, **pipeline_kwargs):
 
     .. warning::
 
-        The arguments of the function being decorated can shadow pipeline constructor arguments -
-        in which case there's no way to alter their values.
+        When the arguments of the function being decorated have the same names as pipeline constructor arguments 
+        then passed value will be used in both decorated function and pipeline constructor. Be mindful about reusing
+        pipeline constructor arguments in decorated function.
 
-    .. note::
-
-        Using ``**kwargs`` (variadic keyword arguments) in graph-defining function is not allowed.
-        They may result in unwanted, silent hijacking of some arguments of the same name by
-        Pipeline constructor. Code written this way would cease to work with future versions of DALI
-        when new parameters are added to the Pipeline constructor.
     """
     def actual_decorator(func):
         @functools.wraps(func)
