@@ -562,7 +562,7 @@ Parameters
         The same applies to using any other functionality that would create CUDA context -
         for example, initializing a framework that uses CUDA or creating CUDA tensors with it.
         You need to call :meth:`start_py_workers` before you call such functionality when
-        using ``py_start_method=fork``.
+        using ``py_start_method="fork"``.
 
         Forking a process that has a CUDA context is unsupported and may lead to unexpected errors.
 
@@ -586,8 +586,10 @@ Parameters
             This parameter must not be set, if the pipeline outputs are specified with
             :meth:`set_outputs` or if the :meth:`start_py_workers` is used.
 
-        ..note::
-            This method of defining the processing graph cannot be used with parallel ``ExternalSource``.
+            .. note::
+
+                This method of defining the processing graph cannot be used with parallel
+                ``ExternalSource``.
         """
         if self._built:
             return
