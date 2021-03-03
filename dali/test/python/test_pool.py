@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pool import WorkerPool, ProcPool
+from nvidia.dali._multiproc.pool import WorkerPool, ProcPool
 from nvidia.dali.types import SampleInfo
 from functools import wraps
 import numpy as np

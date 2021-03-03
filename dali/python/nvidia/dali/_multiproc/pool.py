@@ -18,11 +18,11 @@ import threading
 import multiprocessing
 from collections import OrderedDict
 from nvidia.dali import backend as _b
-from nvidia.dali.worker import worker
-from nvidia.dali.messages import ScheduledTasks
-from nvidia.dali.shared_batch import SharedBatchMeta
-from nvidia.dali.shared_batch import deserialize_batch, import_numpy
-from nvidia.dali import shared_mem
+from nvidia.dali._multiproc.worker import worker
+from nvidia.dali._multiproc.messages import ScheduledTasks
+from nvidia.dali._multiproc.shared_batch import SharedBatchMeta
+from nvidia.dali._multiproc.shared_batch import deserialize_batch, import_numpy
+from nvidia.dali._multiproc import shared_mem
 
 
 class SharedBatchesConsumer:

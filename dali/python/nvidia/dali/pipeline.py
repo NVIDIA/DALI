@@ -17,7 +17,7 @@ from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
-from nvidia.dali.pool import WorkerPool
+from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali.backend import CheckDLPackCapsule
 from threading import local as tls
 from . import data_node as _data_node

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali import shared_mem, tensors
-from nvidia.dali import types
+from nvidia.dali._multiproc import shared_mem
+from nvidia.dali import types, tensors
 import pickle
 
 

@@ -17,8 +17,8 @@ import traceback
 import os
 import socket
 from multiprocessing import reduction
-from nvidia.dali.shared_batch import SharedMemChunk, write_batch, assert_valid_data_type
-from nvidia.dali.messages import CompletedTasks
+from nvidia.dali._multiproc.shared_batch import SharedMemChunk, write_batch, assert_valid_data_type
+from nvidia.dali._multiproc.messages import CompletedTasks
 
 
 class _ProcessedTasks:
@@ -72,7 +72,7 @@ class SharedBatchesDispatcher:
         self.ready_cv = threading.Condition()
         self.ready_queue = []
 
-    def dispatch(self, processed_task: _ProcessedTasks, queue_depth):
+    def dispatch(self, processed_task: _ProcessedTasks):
         """Pass the processed task (or None to end) to the dispatcher.
         """
         with self.ready_cv:

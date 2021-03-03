@@ -15,7 +15,7 @@
 
 import numpy as np
 
-import nvidia.dali.shared_batch as sb
+import nvidia.dali._multiproc.shared_batch as sb
 
 from test_utils import RandomlyShapedDataIterator
 
