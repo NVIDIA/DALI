@@ -16,7 +16,7 @@ threads. The number of DALI threads is set during the pipeline construction by t
 argument and ``set_affinity`` enables thread affinity for the CPU worker threads.
 
 .. note::
-  For performance reasons, the hybrid :meth:`nvidia.dali.fn.image_decoder` operator, which is
+  For performance reasons, the hybrid :meth:`nvidia.dali.fn.decoders.image` operator, which is
   nvJPEG based, creates threads on its own, and these threads are always affined.
 
 In ``DALI_AFFINITY_MASK``, if the number of threads is higher than the number of CPU IDs,

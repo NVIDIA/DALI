@@ -36,8 +36,8 @@ Example::
         """ Create a pipeline which reads images and masks, decodes the images and returns them. """
         img_files, labels = fn.readers.file(file_root="image_dir", seed=1)
         mask_files, _ = fn.readers.file(file_root="mask_dir", seed=1)
-        images = fn.image_decoder(img_files, device="mixed")
-        masks  = fn.image_decoder(mask_files, device="mixed")
+        images = fn.decoders.image(img_files, device="mixed")
+        masks  = fn.decoders.image(mask_files, device="mixed")
         return images, masks, labels
 
     pipe = my_pipeline(batch_size=4, num_threads=2, device_id=0)
