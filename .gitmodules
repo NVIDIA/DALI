@@ -38,3 +38,45 @@
 [submodule "third_party/thrust"]
 	path = third_party/thrust
 	url = https://github.com/NVIDIA/thrust
+[submodule "third_party/libsndfile"]
+	path = third_party/libsndfile
+	url = https://github.com/libsndfile/libsndfile
+[submodule "third_party/vorbis"]
+	path = third_party/vorbis
+	url = https://github.com/xiph/vorbis
+[submodule "third_party/ogg"]
+	path = third_party/ogg
+	url = https://github.com/xiph/ogg
+[submodule "third_party/flac"]
+	path = third_party/flac
+	url = https://github.com/xiph/flac
+[submodule "third_party/FFmpeg"]
+	path = third_party/FFmpeg
+	url = https://github.com/FFmpeg/FFmpeg
+[submodule "third_party/opencv"]
+	path = third_party/opencv
+	url = https://github.com/opencv/opencv
+[submodule "third_party/openjpeg"]
+	path = third_party/openjpeg
+	url = https://github.com/uclouvain/openjpeg
+[submodule "third_party/libtiff"]
+	path = third_party/libtiff
+	url = https://gitlab.com/libtiff/libtiff
+[submodule "third_party/zstd"]
+	path = third_party/zstd
+	url = https://github.com/facebook/zstd
+[submodule "third_party/libjpeg-turbo"]
+	path = third_party/libjpeg-turbo
+	url = https://github.com/libjpeg-turbo/libjpeg-turbo
+[submodule "third_party/lmdb"]
+	path = third_party/lmdb
+	url = https://github.com/LMDB/lmdb
+[submodule "third_party/protobuf"]
+	path = third_party/protobuf
+	url = https://github.com/google/protobuf
+[submodule "third_party/CMake"]
+	path = third_party/CMake
+	url = https://github.com/Kitware/CMake
+[submodule "third_party/zlib"]
+	path = third_party/zlib
+	url = https://github.com/madler/zlib

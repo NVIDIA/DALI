@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libtool \
     libtool-bin \
+    autogen \
     python3.6 \
     python3-distutils \
     && rm -rf /var/lib/apt/lists/* && \
@@ -54,37 +55,31 @@ RUN dpkg -i $REPO_DEBS && \
    && rm -rf /tmp/cuda-packages.txt
 
 #zlib
-RUN LIBZ_VERSION=1.2.11 && \
-    cd /tmp && \
-    curl -L https://github.com/madler/zlib/archive/v${LIBZ_VERSION}.tar.gz | tar -xzf - && \
-    cd zlib-${LIBZ_VERSION} && \
+COPY third_party/zlib/ /tmp/zlib
+RUN cd /tmp/zlib && \
       CFLAGS="-fPIC" \
       CXXFLAGS="-fPIC" \
       CC=aarch64-unknown-nto-qnx7.0.0-gcc \
       CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
     ./configure -prefix=/usr/aarch64-unknown-nto-qnx/aarch64le && \
     make install -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
-    cd && \
-    rm -rf /tmp/zlib-${LIBZ_VERSION}
+    rm -rf /tmp/zlib
 
 # CMake
-RUN CMAKE_VERSION=3.13 && \
-    CMAKE_BUILD=3.13.5 && \
-    curl -L https://cmake.org/files/v${CMAKE_VERSION}/cmake-${CMAKE_BUILD}.tar.gz | tar -xzf - && \
-    cd /cmake-${CMAKE_BUILD} && \
+COPY third_party/CMake/ /tmp/cmake
+RUN cd /tmp/cmake && \
     ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l) && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /cmake-${CMAKE_BUILD}
+    rm -rf /tmp/cmake
 
 # protobuf
-ENV PROTOBUF_VERSION=3.14.0
-RUN curl -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-all-${PROTOBUF_VERSION}.tar.gz | tar -xzf - && \
-    cd /protobuf-${PROTOBUF_VERSION} && \
+COPY third_party/protobuf/ /tmp/protobuf
+RUN cd /tmp/protobuf && \
     ./autogen.sh && \
     ./configure CXXFLAGS="-fPIC" --prefix=/usr/local --disable-shared 2>&1 > /dev/null && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 > /dev/null
 
-RUN cd /protobuf-${PROTOBUF_VERSION} && make clean \
+RUN cd /tmp/protobuf && make clean \
     ./autogen.sh && ./configure \
     CC=$QNX_HOST/usr/bin/aarch64-unknown-nto-qnx7.0.0-gcc \
     CXX=$QNX_HOST/usr/bin/aarch64-unknown-nto-qnx7.0.0-g++ \
@@ -94,23 +89,21 @@ RUN cd /protobuf-${PROTOBUF_VERSION} && make clean \
       --with-sysroot=$QNX_TARGET \
       --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le \
       --with-protoc=/usr/local/bin/protoc && make -j$(nproc) install && \
-    rm -rf /protobuf-${PROTOBUF_VERSION}
+    rm -rf /tmp/protobuf
 
 # LMDB
 COPY docker/Makefile-lmdb.patch /tmp
-RUN LMDB_VERSION=0.9.24 && \
-    git clone -b LMDB_${LMDB_VERSION} --single-branch https://github.com/LMDB/lmdb && \
-    cd /lmdb/libraries/liblmdb && \
+COPY third_party/lmdb/ /tmp/lmdb
+RUN cd /tmp/lmdb/libraries/liblmdb && \
     patch -p3 < /tmp/Makefile-lmdb.patch && \
     rm -f /tmp/Makefile-lmdb.patch && \
       CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc CXX=aarch64-unknown-nto-qnx7.0.0-g++ prefix=/usr/aarch64-unknown-nto-qnx/aarch64le \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /lmdb
+    rm -rf /tmp/lmdb
 
 # libjpeg-turbo
-RUN JPEG_TURBO_VERSION=2.0.6 && \
-    curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
-    cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
+COPY third_party/libjpeg-turbo/ /tmp/libjpeg-turbo
+RUN cd /tmp/libjpeg-turbo/ && \
     echo "set(CMAKE_SYSTEM_NAME Linux)" > toolchain.cmake && \
     echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake && \
     echo "set(CMAKE_C_COMPILER aarch64-unknown-nto-qnx7.0.0-gcc)" >> toolchain.cmake && \
@@ -124,22 +117,19 @@ RUN JPEG_TURBO_VERSION=2.0.6 && \
       CC=aarch64-unknown-nto-qnx7.0.0-gcc \
       CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
-    rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
+    rm -rf /tmp/libjpeg-turbo
 
 # zstandard compression library
-RUN ZSTANDARD_VERSION=1.4.5 && \
-    curl -L https://github.com/facebook/zstd/releases/download/v${ZSTANDARD_VERSION}/zstd-${ZSTANDARD_VERSION}.tar.gz | tar -xzf - && \
-    cd zstd-${ZSTANDARD_VERSION} && \
+COPY third_party/zstd/ /tmp/zstd
+RUN cd /tmp/zstd && \
       CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
       prefix=/usr/aarch64-unknown-nto-qnx/aarch64le \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
-    rm -rf /zstd-${ZSTANDARD_VERSION}
+    rm -rf /tmp/zstd
 
 # libtiff
-RUN LIBTIFF_VERSION=4.1.0 && \
-    cd /tmp && \
-    curl -L http://download.osgeo.org/libtiff/tiff-${LIBTIFF_VERSION}.tar.gz | tar -xzf - && \
-    cd tiff-${LIBTIFF_VERSION} && \
+COPY third_party/libtiff/ /tmp/libtiff
+RUN cd /tmp/libtiff && \
     ./autogen.sh && \
     ./configure \
       CFLAGS="-fPIC" \
@@ -154,14 +144,12 @@ RUN LIBTIFF_VERSION=4.1.0 && \
       --with-zlib-lib-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/lib      && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
     make install && \
-    cd && \
-    rm -rf /tmp/tiff-${LIBTIFF_VERSION}
+    rm -rf /tmp/libtiff
 
 # OpenJPEG
-RUN OPENJPEG_VERSION=2.3.1 && \
-    cd /tmp && \
-    curl -L https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz | tar -xzf - && \
-    cd openjpeg-${OPENJPEG_VERSION} && mkdir build && cd build && \
+COPY third_party/openjpeg/ /tmp/openjpeg
+RUN cd /tmp/openjpeg && \
+    mkdir build && cd build && \
     echo "set(CMAKE_SYSTEM_NAME  Linux)" > toolchain.cmake && \
     echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake && \
     echo "set(CMAKE_C_COMPILER aarch64-unknown-nto-qnx7.0.0-gcc)" >> toolchain.cmake && \
@@ -176,14 +164,14 @@ RUN OPENJPEG_VERSION=2.3.1 && \
       CC=aarch64-unknown-nto-qnx7.0.0-gcc \
       CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf openjpeg-${OPENJPEG_VERSION}
+    rm -rf /tmp/openjpeg
 
 # OpenCV
-COPY docker/opencv-qnx.patch /opencv-qnx.patch
-RUN OPENCV_VERSION=4.5.0 && \
-    curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
-    cd /opencv-${OPENCV_VERSION} && git apply /opencv-qnx.patch \
-    && mkdir build && cd build && \
+COPY docker/opencv-qnx.patch /tmp/opencv-qnx.patch
+COPY third_party/opencv/ /tmp/opencv
+RUN cd /tmp/opencv && \
+    patch -p1 < /tmp/opencv-qnx.patch && \
+    mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release \
           -DVIBRANTE_PDK:STRING=/ \
           -DCMAKE_TOOLCHAIN_FILE=$PWD/../platforms/qnx/aarch64-qnx.toolchain.cmake \
@@ -222,62 +210,53 @@ RUN OPENCV_VERSION=4.5.0 && \
           -DVIBRANTE=TRUE \
           VERBOSE=1 ../ && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /opencv-${OPENCV_VERSION}
+    rm -rf /tmp/opencv
 
 ENV PKG_CONFIG_PATH=/usr/aarch64-unknown-nto-qnx/aarch64le/lib/pkgconfig
 
 # flac
 # QNX doesn't support wcswidth as DJGPP, so enabling __DJGPP__ fixes the problem
-RUN FLAC_VERSION=1.3.3 && cd /tmp                                                    && \
-    wget https://github.com/xiph/flac/archive/${FLAC_VERSION}.tar.gz                 && \
-    tar -xf ${FLAC_VERSION}.tar.gz                                                   && \
-    rm -f  ${FLAC_VERSION}.tar.gz                                                    && \
-    cd flac-$FLAC_VERSION                                                            && \
+COPY third_party/flac/ /tmp/flac
+RUN cd /tmp/flac                                                                     && \
     ./autogen.sh                                                                     && \
     ./configure CFLAGS="-fPIC -D__DJGPP__" CXXFLAGS="-fPIC -D__DJGPP__" CC=aarch64-unknown-nto-qnx7.0.0-gcc \
            CXX=aarch64-unknown-nto-qnx7.0.0-g++ --host=aarch64-unknown-nto-qnx7.0.0 \
            --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le --disable-ogg             && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
-    cd /tmp && rm -rf flac-$FLAC_VERSION
+    rm -rf /tmp/flac
 
 # libogg
-RUN OGG_VERSION=1.3.4 && cd /tmp                                                     && \
-    wget https://github.com/xiph/ogg/releases/download/v1.3.4/libogg-${OGG_VERSION}.tar.gz && \
-    tar -xf libogg-${OGG_VERSION}.tar.gz                                             && \
-    rm -f libogg-${OGG_VERSION}.tar.gz                                               && \
-    cd libogg-${OGG_VERSION}                                                         && \
+COPY third_party/ogg/ /tmp/ogg
+RUN cd /tmp/ogg                                                                      && \
+    ./autogen.sh                                                                     && \
     ./configure CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc \
            CXX=aarch64-unknown-nto-qnx7.0.0-g++ --host=aarch64-unknown-nto-qnx7.0.0 \
            --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le                           && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
-    cd /tmp && rm -rf libogg-$OGG_VERSION
+    rm -rf /tmp/ogg
 
 # libvorbis
 # Install after libogg
-RUN VORBIS_VERSION=1.3.7 && cd /tmp                                                   && \
-    wget https://github.com/xiph/vorbis/archive/v${VORBIS_VERSION}.tar.gz             && \
-    tar -xf v${VORBIS_VERSION}.tar.gz                                                 && \
-    rm -f  v${VORBIS_VERSION}.tar.gz                                                  && \
-    cd vorbis-$VORBIS_VERSION                                                         && \
+
+COPY third_party/vorbis/ /tmp/vorbis
+RUN cd /tmp/vorbis                                                                    && \
     ./autogen.sh                                                                      && \
     ./configure CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc \
            CXX=aarch64-unknown-nto-qnx7.0.0-g++ --host=aarch64-unknown-nto-qnx7.0.0 \
            --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le                            && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                 && \
-    cd /tmp && rm -rf vorbis-$VORBIS_VERSION
+    rm -rf /tmp/vorbis
 
-# libsnd
+# libsnd https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-1.0.28.tar.gz
 # libsnd cannot find /usr/aarch64-unknown-nto-qnx/aarch64le/include for FLAC so add it manually
-RUN LIBSND_VERSION=1.0.28 && cd /tmp                                                                           && \
-    wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-${LIBSND_VERSION}.tar.gz  && \
-    tar -xf libsndfile-$LIBSND_VERSION.tar.gz                                                                  && \
-    rm libsndfile-$LIBSND_VERSION.tar.gz                                                                       && \
-    cd libsndfile-$LIBSND_VERSION                                                                              && \
+COPY third_party/libsndfile/ /tmp/libsndfile
+RUN cd /tmp/libsndfile                                                                                         && \
+    ./autogen.sh                                                                                               && \
     ./configure CFLAGS="-fPIC -I/usr/aarch64-unknown-nto-qnx/aarch64le/include" CXXFLAGS="-fPIC -I/usr/aarch64-unknown-nto-qnx/aarch64le/include" CC=aarch64-unknown-nto-qnx7.0.0-gcc \
            CXX=aarch64-unknown-nto-qnx7.0.0-g++ --host=aarch64-unknown-nto-qnx7.0.0 \
            --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le                                                     && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install                                                  && \
-    cd /tmp && rm -rf libsndfile-$LIBSND_VERSION
+    rm -rf /tmp/libsndfile
 
 VOLUME /dali
 

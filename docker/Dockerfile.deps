@@ -8,7 +8,8 @@ FROM ${BUILDER_EXTRA_DEPS} as extra_deps
 FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
-RUN yum install -y wget nasm doxygen graphviz gettext xz openssl
+RUN yum install -y wget nasm doxygen graphviz gettext xz openssl autogen
+ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
 
 # add devtoolset-7 to paths
 ENV PATH=/opt/rh/devtoolset-7/root/usr/bin:$PATH \
@@ -22,48 +23,39 @@ RUN yum remove -y devtoolset* && \
 RUN rm -f /opt/python/cp27-cp27m
 
 #zlib
-RUN LIBZ_VERSION=1.2.11 && \
-    cd /tmp && \
-    curl -L https://github.com/madler/zlib/archive/v${LIBZ_VERSION}.tar.gz | tar -xzf - && \
-    cd zlib-${LIBZ_VERSION} && \
-      CFLAGS="-fPIC" \
-      CXXFLAGS="-fPIC" \
+COPY third_party/zlib/ /tmp/zlib
+RUN cd /tmp/zlib && \
+    CFLAGS="-fPIC" \
+    CXXFLAGS="-fPIC" \
     ./configure --prefix=/usr/local && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
     make install && \
     cd && \
-    rm -rf /tmp/zlib-${LIBZ_VERSION}
+    rm -rf /tmp/zlib
 
 # CMake
-RUN CMAKE_VERSION=3.13 && \
-    CMAKE_BUILD=3.13.5 && \
-    cd /tmp && \
-    curl -L https://cmake.org/files/v${CMAKE_VERSION}/cmake-${CMAKE_BUILD}.tar.gz | tar -xzf - && \
-    cd cmake-${CMAKE_BUILD} && \
+COPY third_party/CMake/ /tmp/cmake
+RUN cd /tmp/cmake && \
     ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l) && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
     make install && \
     cd && \
-    rm -rf /tmp/cmake-${CMAKE_BUILD}
+    rm -rf /tmp/cmake
 
 # protobuf
-RUN PROTOBUF_VERSION=3.14.0 && \
-    cd /tmp && \
-    curl -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-all-${PROTOBUF_VERSION}.tar.gz | tar -xzf - && \
-    cd protobuf-${PROTOBUF_VERSION} && \
+COPY third_party/protobuf/ /tmp/protobuf
+RUN cd /tmp/protobuf && \
     ./autogen.sh && \
     ./configure CXXFLAGS="-fPIC" --prefix=/usr/local --disable-shared 2>&1 > /dev/null && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 > /dev/null && \
     make install 2>&1 > /dev/null && \
     cd && \
-    rm -rf /tmp/protobuf-${PROTOBUF_VERSION}
+    rm -rf /tmp/protobuf
 
 # LMDB
 COPY docker/Makefile-lmdb.patch /tmp
-RUN LMDB_VERSION=0.9.24 && \
-    cd /tmp && \
-    git clone -b LMDB_${LMDB_VERSION} --single-branch https://github.com/LMDB/lmdb && \
-    cd lmdb/libraries/liblmdb && \
+COPY third_party/lmdb/ /tmp/lmdb
+RUN cd /tmp/lmdb/libraries/liblmdb && \
     patch -p3 < /tmp/Makefile-lmdb.patch && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
     make install && \
@@ -72,55 +64,47 @@ RUN LMDB_VERSION=0.9.24 && \
     rm -rf /tmp/lmdb
 
 # libjpeg-turbo
-RUN JPEG_TURBO_VERSION=2.0.6 && \
-    cd /tmp && \
-    curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
-    cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
+COPY third_party/libjpeg-turbo/ /tmp/libjpeg-turbo
+RUN cd /tmp/libjpeg-turbo/ && \
     cmake -G"Unix Makefiles" -DENABLE_SHARED=TRUE -DCMAKE_INSTALL_PREFIX=/usr/local . 2>&1 >/dev/null && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 >/dev/null && \
     make install 2>&1 >/dev/null && \
     cd && \
-    rm -rf /tmp/libjpeg-turbo-${JPEG_TURBO_VERSION}
+    rm -rf /tmp/libjpeg-turbo
 
 # zstandard compression library
-RUN ZSTANDARD_VERSION=1.4.5 && \
-    cd /tmp && \
-    curl -L https://github.com/facebook/zstd/releases/download/v${ZSTANDARD_VERSION}/zstd-${ZSTANDARD_VERSION}.tar.gz | tar -xzf - && \
-    cd zstd-${ZSTANDARD_VERSION} && \
+COPY third_party/zstd/ /tmp/zstd
+RUN cd /tmp/zstd && \
       CFLAGS="-fPIC" CXXFLAGS="-fPIC" \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 >/dev/null && \
     make install 2>&1 >/dev/null && \
     cd && \
-    rm -rf /tmp/zstd-${ZSTANDARD_VERSION}
+    rm -rf /tmp/zstd
 
 # libtiff
-RUN LIBTIFF_VERSION=4.1.0 && \
-    cd /tmp && \
-    curl -L http://download.osgeo.org/libtiff/tiff-${LIBTIFF_VERSION}.tar.gz | tar -xzf - && \
-    cd tiff-${LIBTIFF_VERSION} && \
+COPY third_party/libtiff/ /tmp/libtiff
+RUN cd /tmp/libtiff && \
     ./autogen.sh && \
     ./configure --prefix=/usr/local && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
     make install && \
     cd && \
-    rm -rf /tmp/tiff-${LIBTIFF_VERSION}
+    rm -rf /tmp/libtiff
 
 # OpenJPEG
-RUN OPENJPEG_VERSION=2.3.1 && \
-    cd /tmp && \
-    curl -L https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz | tar -xzf - && \
-    cd openjpeg-${OPENJPEG_VERSION} && mkdir build && cd build && \
+COPY third_party/openjpeg/ /tmp/openjpeg
+RUN cd /tmp/openjpeg && \
+    mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_CODEC=OFF -DCMAKE_INSTALL_PREFIX=/usr/local .. && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
     make install && \
     cd && \
-    rm -rf /tmp/openjpeg-${OPENJPEG_VERSION}
+    rm -rf /tmp/openjpeg
 
 # OpenCV
-RUN OPENCV_VERSION=4.5.0 && \
-    cd /tmp && \
-    curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
-    cd opencv-${OPENCV_VERSION} && mkdir build && cd build && \
+COPY third_party/opencv/ /tmp/opencv
+RUN cd /tmp/opencv && \
+    mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
           -DBUILD_SHARED_LIBS=OFF \
           -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \
@@ -133,7 +117,7 @@ RUN OPENCV_VERSION=4.5.0 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     make install && \
     cd && \
-    rm -rf /opencv-${OPENCV_VERSION}
+    rm -rf /opencv
 
 # Clang, but only for x86_64
 RUN if [ "$(uname -m)" == "x86_64" ]; then \
@@ -144,13 +128,9 @@ RUN if [ "$(uname -m)" == "x86_64" ]; then \
         rm clang+llvm-*.tar.xz; \
     fi
 
-# FFmpeg
-RUN FFMPEG_VERSION=4.3.1 && \
-    cd /tmp && \
-    wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
-    tar xf ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
-    rm ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
-    cd ffmpeg-$FFMPEG_VERSION && \
+# FFmpeg  https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.3.1.tar.bz2
+COPY third_party/FFmpeg/ /tmp/ffmpeg
+RUN cd /tmp/ffmpeg && \
     ./configure \
       --prefix=/usr/local \
       --disable-static \
@@ -191,53 +171,43 @@ RUN FFMPEG_VERSION=4.3.1 && \
       --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
     cd / && \
-    rm -rf /tmp/ffmpeg-$FFMPEG_VERSION
+    rm -rf /tmp/ffmpeg
 
 # flac
-RUN FLAC_VERSION=1.3.3 && cd /tmp                                                    && \
-    wget https://github.com/xiph/flac/archive/${FLAC_VERSION}.tar.gz                 && \
-    tar -xf ${FLAC_VERSION}.tar.gz                                                   && \
-    rm -f  ${FLAC_VERSION}.tar.gz                                                    && \
-    cd flac-$FLAC_VERSION                                                            && \
+COPY third_party/flac/ /tmp/flac
+RUN cd /tmp/flac                                                                     && \
     ./autogen.sh                                                                     && \
     ./configure                                                                      && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
     cd / && \
-    rm -rf /tmp/flac-$FLAC_VERSION
+    rm -rf /tmp/flac
 
 # libogg
-RUN OGG_VERSION=1.3.4 && cd /tmp                                                     && \
-    wget https://github.com/xiph/ogg/releases/download/v1.3.4/libogg-${OGG_VERSION}.tar.gz && \
-    tar -xf libogg-${OGG_VERSION}.tar.gz                                             && \
-    rm -f libogg-${OGG_VERSION}.tar.gz                                               && \
-    cd libogg-${OGG_VERSION}                                                         && \
+COPY third_party/ogg/ /tmp/ogg
+RUN cd /tmp/ogg                                                                      && \
+    ./autogen.sh                                                                     && \
     ./configure                                                                      && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
     cd / && \
-    rm -rf /tmp/libogg-$OGG_VERSION
+    rm -rf /tmp/ogg
 
 # libvorbis
 # Install after libogg
-RUN VORBIS_VERSION=1.3.7 && cd /tmp                                                   && \
-    wget https://github.com/xiph/vorbis/archive/v${VORBIS_VERSION}.tar.gz             && \
-    tar -xf v${VORBIS_VERSION}.tar.gz                                                 && \
-    rm -f  v${VORBIS_VERSION}.tar.gz                                                  && \
-    cd vorbis-$VORBIS_VERSION                                                         && \
+COPY third_party/vorbis/ /tmp/vorbis
+RUN cd /tmp/vorbis                                                                    && \
     ./autogen.sh                                                                      && \
     ./configure                                                                       && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                 && \
     cd / && \
-    rm -rf /tmp/vorbis-$VORBIS_VERSION
+    rm -rf /tmp/vorbis
 
-# libsnd
-RUN LIBSND_VERSION=1.0.28 && cd /tmp                                                                           && \
-    wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-${LIBSND_VERSION}.tar.gz  && \
-    tar -xf libsndfile-$LIBSND_VERSION.tar.gz                                                                  && \
-    rm libsndfile-$LIBSND_VERSION.tar.gz                                                                       && \
-    cd libsndfile-$LIBSND_VERSION                                                                              && \
-    ./configure && make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                           && \
+# libsnd https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-1.0.28.tar.gz
+COPY third_party/libsndfile/ /tmp/libsndfile
+RUN cd /tmp/libsndfile                                                                && \
+    ./autogen.sh                                                                      && \
+    ./configure && make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install  && \
     cd / && \
-    rm -rf /tmp/libsndfile-$LIBSND_VERSION
+    rm -rf /tmp/libsndfile
 
 # extra deps
 COPY --from=extra_deps / /
