@@ -848,7 +848,7 @@ graph even if its outputs are not used.)code", false);
   DLL_PUBLIC std::string GetArgumentDefaultValueString(const std::string &name) const;
 
   /**
-   * @brief Get names of all required and optional arguments
+   * @brief Get names of all required, optional, and deprecated arguments
    */
   DLL_PUBLIC std::vector<std::string> GetArgumentNames() const;
   DLL_PUBLIC bool IsTensorArgument(const std::string &name) const;
@@ -871,11 +871,14 @@ graph even if its outputs are not used.)code", false);
                                              const std::string &renamed_to,
                                              bool removed) const {
     std::stringstream ss;
-    ss << "Argument '" << arg_name << "' for operator '" << name_ << "' is now deprecated.";
-    if (!renamed_to.empty()) {
-      ss << " Use '" << renamed_to << "' instead.";
-    } else if (removed) {
-      ss << " The argument is no longer used and should be removed.";
+    if (removed) {
+      ss << "The argument `" << arg_name
+         << "` is no longer used and will be removed in a future release.";
+    } else if (!renamed_to.empty()) {
+      ss << "The argument `" << arg_name << "` is a deprecated alias for `" << renamed_to
+         << "`. Use `" << renamed_to << "` instead.";
+    } else {
+      ss << "The argument `" << arg_name << "` is now deprecated and its usage is discouraged.";
     }
     return ss.str();
   }
@@ -891,8 +894,8 @@ graph even if its outputs are not used.)code", false);
   }
 
   std::map<std::string, RequiredArgumentDef> GetRequiredArguments() const;
-
   std::map<std::string, DefaultedArgumentDef> GetOptionalArguments() const;
+  std::map<std::string, DeprecatedArgDef> GetDeprecatedArguments() const;
 
   string dox_;
   string name_;
