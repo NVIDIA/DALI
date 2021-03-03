@@ -77,7 +77,7 @@ def check(result, input, tile, ratio, angle):
   input2 = cv2.bitwise_and(input, input, mask=mask)
   assert np.all(result2 == input2)
 
-def test_cpu_vs_cv():
+def test_gridmask_vs_cv():
   batch_size = 4
   for device in ['cpu', 'gpu']:
     for (tile, ratio, angle) in [(40, 0.5, 0),
@@ -95,7 +95,7 @@ def test_cpu_vs_cv():
       for i in range(batch_size):
         yield check, results[i], inputs[i], tile, ratio, angle
 
-def test_cpu_vs_cv_random():
+def test_gridmask_vs_cv_random():
   batch_size = 4
   for device in ['cpu', 'gpu']:
     pipe = get_random_pipeline(device, batch_size)
