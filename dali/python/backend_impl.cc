@@ -12,24 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/util/pybind.h"
-#include "dali/pipeline/init.h"
-#include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/operator/op_schema.h"
-#include "dali/pipeline/operator/op_spec.h"
-#include "dali/pipeline/pipeline.h"
-#include "dali/pipeline/data/tensor.h"
-#include "dali/pipeline/data/tensor_list.h"
-#include "dali/python/python3_compat.h"
-#include "dali/util/user_stream.h"
-#include "dali/operators/reader/parser/tfrecord_parser.h"
-#include "dali/plugin/plugin_manager.h"
-#include "dali/util/half.hpp"
+#include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
+#if SHM_WRAPPER_ENABLED
+#include "dali/core/os/shared_mem.h"
+#endif
 #include "dali/core/python_util.h"
 #include "dali/operators.h"
-#include "dali/pipeline/data/dltensor.h"
+#include "dali/operators/reader/parser/tfrecord_parser.h"
 #include "dali/pipeline/data/copy_to_external.h"
+#include "dali/pipeline/data/dltensor.h"
+#include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/init.h"
+#include "dali/pipeline/operator/op_schema.h"
+#include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/pipeline.h"
+#include "dali/plugin/plugin_manager.h"
+#include "dali/python/python3_compat.h"
+#include "dali/util/half.hpp"
+#include "dali/util/pybind.h"
+#include "dali/util/user_stream.h"
 
 namespace dali {
 namespace python {
@@ -1119,6 +1123,37 @@ PYBIND11_MODULE(backend_impl, m) {
   m.def("LoadLibrary", &PluginManager::LoadLibrary);
 
   m.def("GetCxx11AbiFlag", &GetCxx11AbiFlag);
+
+  m.def("HasCudaContext", []{
+    if (!cuInitChecked()) {
+      return false;
+    }
+    CUcontext context;
+    CUDA_CALL(cuCtxGetCurrent(&context));
+    return context != nullptr;
+  });
+
+#if SHM_WRAPPER_ENABLED
+
+  py::class_<SharedMem>(m, "SharedMem")
+      .def(py::init<int, int>())
+      .def_property_readonly("size", &SharedMem::size)
+      .def_property_readonly("handle", &SharedMem::handle)
+      .def("buf",
+           [](SharedMem *shm) {
+             if (shm == nullptr) {
+               throw py::value_error("Cannot create buffer - no shared memory object provided");
+             }
+             auto *ptr = shm->get_raw_ptr();
+             if (ptr == nullptr) {
+               throw py::value_error("Cannot create buffer - no memory has been mapped");
+             }
+             return py::memoryview::from_buffer(ptr, {shm->size()}, {sizeof(uint8_t)});
+           })
+      .def("resize", &SharedMem::resize)
+      .def("close", &SharedMem::close);
+
+#endif
 
   // Types
   py::module types_m = m.def_submodule("types");

@@ -17,12 +17,14 @@ from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
+from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali.backend import CheckDLPackCapsule
 from threading import local as tls
 from . import data_node as _data_node
 import functools
 import inspect
 import warnings
+import weakref
 import ctypes
 
 pipeline_tls = tls()
@@ -113,16 +115,33 @@ Parameters
     unrestricted number of streams is assumed).
 `default_cuda_stream_priority` : int, optional, default = 0
     CUDA stream priority used by DALI. See `cudaStreamCreateWithPriority` in CUDA documentation
-`enable_memory_stats`: bool, optional, default = False
+`enable_memory_stats`: bool, optional, default = 1
     If DALI should print operator output buffer statistics.
     Usefull for `bytes_per_sample_hint` operator parameter.
+`py_num_workers`: int, optional, default = 1
+    The number of Python workers that will process ``ExternalSource`` callbacks.
+    The pool starts only if there is at least one ExternalSource with ``parallel`` set to True.
+    Setting it to 0 disables the pool and all ExternalSource operators fall back to non-parallel
+    mode even if ``parallel`` is set to True.
+`py_start_method` : str, default = "fork"
+    Determines how Python workers are started. Supported methods:
+
+      * ``"fork"`` - start by forking the process
+      * ``"spawn"`` - start a fresh interpreter process
+
+    If ``spawn`` method is used, ExternalSource's callback must be picklable.
+    In order to use ``fork``, there must be no CUDA contexts acquired at the moment of starting
+    the workers. For this reason, if you need to build multiple pipelines that use Python workers,
+    you will need to call :meth:`start_py_workers` before calling :meth:`build` of any
+    of the pipelines. You can find more details and caveats of both methods in Python's
+    ``multiprocessing`` module documentation.
 """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
                  exec_async=True, bytes_per_sample=0,
                  set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
                  *,
-                 enable_memory_stats=False):
+                 enable_memory_stats=False, py_num_workers=1, py_start_method="fork"):
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads
@@ -131,6 +150,14 @@ Parameters
         self._device_id = device_id
         self._seed = seed if seed is not None else -1
         self._exec_pipelined = exec_pipelined
+        # When initializing DALI, we do the following in order:
+        # * Discover the ops specified in Python, group the ExternalSources (_build_graph())
+        # * Start the Python workers pool (_start_py_workers())
+        # * Construct the C++ Pipeline backend and pass the graph to it (_init_pipeline_backend())
+        # * Build the pieline. (_pipe.Build())
+        self._py_graph_built = False
+        self._py_pool_started = False
+        self._backend_prepared = False
         self._built = False
         self._first_iter = True
         self._last_iter = False
@@ -138,17 +165,23 @@ Parameters
         self._batches_to_consume = 0
         self._cpu_batches_to_consume = 0
         self._gpu_batches_to_consume = 0
-        self._prepared = False
         self._names_and_devices = None
         self._exec_async = exec_async
         self._bytes_per_sample = bytes_per_sample
         self._set_affinity = set_affinity
         self._max_streams = max_streams
         self._default_cuda_stream_priority = default_cuda_stream_priority
+        self._py_num_workers = py_num_workers
+        self._py_start_method = py_start_method
         self._api_type = None
         self._skip_api_check = False
         self._graph_out = None
+        self._ops = None
+        self._graph_outputs = None
+        self._py_pool = None
         self._input_callbacks = None
+        self._parallel_input_callbacks = None
+        self._seq_input_callbacks = None
         self._enable_memory_stats = enable_memory_stats
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
@@ -219,17 +252,17 @@ Parameters
 
         Available metadata keys for each operator:
 
-        ``real_memory_size``:     list of memory sizes that is used by each output of the operator;
-                                  index in the list corresponds to the output index
+            * ``real_memory_size`` - list of memory sizes that is used by each output of the operator.
+              Index in the list corresponds to the output index.
 
-        ``max_real_memory_size``: list of maximum tensor size that is used by each output of the operator;
-                                  index in the list corresponds to the output index
+            * ``max_real_memory_size`` - list of maximum tensor size that is used by each output of the operator.
+              Index in the list corresponds to the output index.
 
-        ``reserved_memory_size``: list of memory sizes that is reserved for each of the operator outputs
-                                  index in the list corresponds to the output index
+            * ``reserved_memory_size`` - list of memory sizes that is reserved for each of the operator outputs.
+              Index in the list corresponds to the output index.
 
-        ``max_reserved_memory_size``: list of maximum memory sizes per tensor that is reserved for each of the operator outputs
-                                  index in the list corresponds to the output index
+            * ``max_reserved_memory_size`` - list of maximum memory sizes per tensor that is reserved for each of the operator outputs.
+              Index in the list corresponds to the output index.
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -373,22 +406,7 @@ Parameters
         return api_checker(self)
 
     # Graph is constructed by backtracking from the output edges and the edges marked as sinks
-    def _prepare_graph(self, define_graph = None):
-        self._pipe = b.Pipeline(self._max_batch_size,
-                                self._num_threads,
-                                self._device_id,
-                                self._seed,
-                                self._exec_pipelined,
-                                self._prefetch_queue_depth,
-                                self._exec_async,
-                                self._bytes_per_sample,
-                                self._set_affinity,
-                                self._max_streams,
-                                self._default_cuda_stream_priority)
-        self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
-        self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
-        self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
-
+    def _build_graph(self, define_graph=None):
         if define_graph is not None:
             if self._graph_out is not None:
                 raise RuntimeError("Duplicate graph definition - `define_graph` argument "
@@ -470,20 +488,48 @@ Parameters
                         edges.append(e)
                 else:
                     edges.append(edge)
+        ops.reverse()
+        self._ops = ops
+        self._graph_outputs = outputs
+        self._setup_input_callbacks()
+        self._py_graph_built = True
+
+    def _start_py_workers(self):
+        if not self._parallel_input_callbacks:
+            return
+        self._py_pool = WorkerPool.from_groups(
+            self._parallel_input_callbacks, self._prefetch_queue_depth, self._py_start_method, self._py_num_workers)
+        # pool instance releases shared memory when garbage collected, thus it must outlive the pipeline instance
+        # when external source is used with no_copy=True
+        weakref.finalize(self, lambda pool : pool.close(), self._py_pool)
+        self._py_pool_started = True
+
+    def _init_pipeline_backend(self):
+        self._pipe = b.Pipeline(self._max_batch_size,
+                                self._num_threads,
+                                self._device_id,
+                                self._seed,
+                                self._exec_pipelined,
+                                self._prefetch_queue_depth,
+                                self._exec_async,
+                                self._bytes_per_sample,
+                                self._set_affinity,
+                                self._max_streams,
+                                self._default_cuda_stream_priority)
+        self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
+        self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
+        self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
 
         # Add the ops to the graph and build the backend
         related_logical_id = {}
-        self._ops = []
-        while ops:
-            op = ops.pop()
-            self._ops.append(op)
+
+        for op in self._ops:
             if op.relation_id not in related_logical_id:
                 related_logical_id[op.relation_id] = self._pipe.AddOperator(op.spec, op.name)
             else:
                 self._pipe.AddOperator(op.spec, op.name, related_logical_id[op.relation_id])
-        self._prepared = True
-        self._setup_input_callbacks()
-        self._names_and_devices = [(e.name, e.device) for e in outputs]
+        self._backend_prepared = True
+        self._names_and_devices = [(e.name, e.device) for e in self._graph_outputs]
 
     def _setup_input_callbacks(self):
         from nvidia.dali.external_source import _is_external_source_with_callback
@@ -492,7 +538,40 @@ Parameters
             if _is_external_source_with_callback(op):
                 group = op._group
                 groups.add(group)
-        self._input_callbacks = list(groups)
+        groups = list(groups)
+        self._input_callbacks = groups
+        if self._py_num_workers == 0:
+            self._parallel_input_callbacks = []
+            self._seq_input_callbacks = self._input_callbacks
+        else:
+            self._parallel_input_callbacks = [group for group in groups if group.parallel]
+            self._seq_input_callbacks = [group for group in groups if not group.parallel]
+
+    def start_py_workers(self):
+        """
+        Start Python workers (that will run ``ExternalSource`` callbacks).
+        You need to call :meth:`start_py_workers` before you call any functionality that creates
+        or acquires CUDA context when using ``fork`` to start Python workers (``py_start_method="fork"``).
+        It is called automatically by :meth:`Pipeline.build` method when such separation is not necessary.
+
+        If you are going to build more than one pipeline that starts Python workers by forking
+        the process then you need to call :meth:`start_py_workers` method on all those pipelines
+        before calling :meth:`build` method of any pipeline, as build acquires CUDA context
+        for current process.
+
+        The same applies to using any other functionality that would create CUDA context -
+        for example, initializing a framework that uses CUDA or creating CUDA tensors with it.
+        You need to call :meth:`start_py_workers` before you call such functionality when
+        using ``py_start_method="fork"``.
+
+        Forking a process that has a CUDA context is unsupported and may lead to unexpected errors.
+
+        If you use the method you cannot specify ``define_graph`` argument when calling :meth:`build`.
+        """
+        if not self._py_graph_built:
+            self._build_graph()
+        if not self._py_pool_started:
+            self._start_py_workers()
 
     def build(self, define_graph = None):
         """Build the pipeline.
@@ -505,7 +584,12 @@ Parameters
         define_graph : callable
             If specified, this function will be used instead of member :meth:`define_graph`.
             This parameter must not be set, if the pipeline outputs are specified with
-            :meth:`set_outputs`.
+            :meth:`set_outputs` or if the :meth:`start_py_workers` is used.
+
+            .. note::
+
+                This method of defining the processing graph cannot be used with parallel
+                ``ExternalSource``.
         """
         if self._built:
             return
@@ -514,8 +598,9 @@ Parameters
             raise ValueError("Pipeline created with `num_threads` < 1 can only be used "
                              "for serialization.")
 
-        if not self._prepared:
-            self._prepare_graph(define_graph)
+        self.start_py_workers()
+        if not self._backend_prepared:
+            self._init_pipeline_backend()
 
         self._pipe.Build(self._names_and_devices)
         self._built = True
@@ -533,6 +618,7 @@ Parameters
 
         data : an ndarray or DLPack or a list thereof
             The array(s) may be one of:
+
               * NumPy ndarray (CPU)
               * MXNet ndarray (CPU)
               * PyTorch tensor (CPU or GPU)
@@ -559,6 +645,7 @@ Parameters
             explicitly.
 
             Special values:
+
               *  0 - use default CUDA stream
               * -1 - use DALI's internal stream
 
@@ -778,13 +865,13 @@ Parameters
         """Executes pipeline to fill executor's pipeline."""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
+        self._schedule_py_workers()
         if self._exec_separated:
             self._fill_separated_queues()
         else:
             for _ in range(self._prefetch_queue_depth):
                 self._run_once()
         self._first_iter = False
-
 
     def _run_once(self):
         """Start running the whole pipeline once without waiting for its results.
@@ -819,6 +906,12 @@ Parameters
         except StopIteration:
             self._last_iter = True
 
+    def _schedule_py_workers(self):
+        if self._py_pool is None:
+            return
+        for i, group in enumerate(self._parallel_input_callbacks):
+            for _ in range(group.prefetch_queue_depth):
+                group.schedule_batch(self._py_pool, i, self._max_batch_size)
 
     def _fill_separated_queues(self):
         """When using separated execution fill each of the prefetch queues
@@ -846,6 +939,8 @@ Parameters
             if self._input_callbacks:
                 for group in self._input_callbacks:
                     group.reset_indices()
+            if self._py_pool:
+                self._py_pool.reset()
 
     def empty(self):
         """If there is any work scheduled in the pipeline but not yet consumed
@@ -860,7 +955,7 @@ Parameters
 
         Parameters
         ----------
-        define_graph : allable
+        define_graph : callable
                 If specified, this function will be used instead of member :meth:`define_graph`.
                 This parameter must not be set, if the pipeline outputs are specified with
                 :meth:`set_outputs`.
@@ -869,8 +964,10 @@ Parameters
         kwargs : dict
                 Refer to Pipeline constructor for full list of arguments.
         """
-        if not self._prepared:
-            self._prepare_graph(define_graph)
+        if not self._py_graph_built:
+            self._build_graph(define_graph)
+        if not self._backend_prepared:
+            self._init_pipeline_backend()
             self._pipe.SetOutputNames(self._names_and_devices)
         ret = self._pipe.SerializeToProtobuf()
         if filename is not None:
@@ -931,7 +1028,7 @@ Parameters
                                          pipeline._exec_async)
         pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)
         pipeline._pipe.EnableExecutorMemoryStats(pipeline._enable_memory_stats)
-        pipeline._prepared = True
+        pipeline._backend_prepared = True
         pipeline._pipe.Build()
         pipeline._built = True
         return pipeline
@@ -958,7 +1055,7 @@ Parameters
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
-        self._prepared = True
+        self._backend_prepared = True
         self._pipe.Build()
         self._built = True
 
@@ -1005,7 +1102,12 @@ Parameters
             return
 
         stop_iter = False
-        for group in self._input_callbacks:
+        for i, group in enumerate(self._parallel_input_callbacks):
+            try:
+                group.schedule_and_feed(self, self._py_pool, i, self._max_batch_size)
+            except StopIteration:
+                stop_iter = True
+        for group in self._seq_input_callbacks:
             try:
                 group.call_and_feed(self, self._max_batch_size)
             except StopIteration:

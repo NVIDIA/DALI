@@ -20,7 +20,7 @@ build_per_python_lib(dali_python
                      OUTPUT_NAME backend_impl
                      OUTPUT_DIR ${DALI_LIBRARY_OUTPUT_DIR}
                      PUBLIC_LIBS dali dali_operators dali_kernels dali_core ${CUDART_LIB}
-                     PRIV_LIBS ${CUDA_LIBRARIES}
+                     PRIV_LIBS ${CUDA_LIBRARIES} dynlink_cuda
                      EXCLUDE_LIBS ${exclude_libs}
                      SRC ${DALI_PYTHON_BACKEND_SRCS})
 

@@ -3,6 +3,7 @@ from nvidia.dali import backend as _b
 import inspect
 import nvidia.dali.types
 
+
 def _get_batch_shape(data):
     if isinstance(data, (list, tuple, _b.TensorListCPU, _b.TensorListGPU)):
         if len(data) == 0:
@@ -71,8 +72,12 @@ class _CycleGenFunc():
             else:
                 return next(self.it)
 
+
 class _ExternalSourceGroup(object):
-    def __init__(self, callback, is_multioutput, instances = [], cuda_stream = None, use_copy_kernel = None, batch = True):
+    def __init__(
+            self, callback, is_multioutput, instances=[], *,
+            cuda_stream=None, use_copy_kernel=None, batch=True, parallel=False,
+            prefetch_queue_depth=None):
         self.instances = list(instances)  # we need a copy!
         self.is_multioutput = is_multioutput
         self.callback = callback
@@ -81,15 +86,24 @@ class _ExternalSourceGroup(object):
         self.batch = batch
         self.current_iter = 0
         self.current_sample = 0
+        self.parallel = parallel
+        self.prefetch_queue_depth = prefetch_queue_depth
         if callback is not None:
-            if callback.__code__.co_argcount not in [0, 1]:
+            arg_count = _accepted_arg_count(callback)
+            if arg_count not in [0, 1]:
                 raise TypeError("External source callback must be a callable with 0 or 1 argument")
-            self.accepts_arg = callback.__code__.co_argcount > 0
+            self.accepts_arg = arg_count > 0
 
     def append(self, instance):
         self.instances.append(instance)
 
     def callback_args(self, idx_in_batch):
+        """Generate information to be passed to ES callback.
+
+        Args:
+            idx_in_batch: Index in batch for per-sample mode, None indicates batch mode where we
+            pass only the iteration number.
+        """
         if not self.accepts_arg:
             return ()
         if idx_in_batch is not None:
@@ -102,7 +116,34 @@ class _ExternalSourceGroup(object):
         self.current_iter = 0
         self.current_sample = 0
 
+    def schedule_batch(self, pool, context_i, batch_size):
+        """Schedule computing new batch from source callback by the parallel pool."""
+        pool.schedule_batch(context_i, self.current_iter, [
+            self.callback_args(i) for i in range(batch_size)
+        ])
+        self.current_sample += batch_size
+        self.current_iter += 1
+
+    def schedule_and_feed(self, pipeline, pool, context_i, batch_size):
+        """Obtain the computed results of calling source callback in parallel pool and feed
+        the results to the ExternalSource nodes in `pipeline`.
+        Schedule the execution of the source callback in the pool to compute next batch.
+        Used by the parallel ExternalSource variant.
+
+        Args:
+            context_i (int): Index of the callback (in the list of parallel groups)"""
+        try:
+            callback_out = pool.receive_batch(context_i)
+            self.schedule_batch(pool, context_i, batch_size)
+            self.feed(pipeline, callback_out, batch_size)
+        except StopIteration:
+            self.reset_indices()
+            pool.reset_context(context_i)
+            raise
+
     def call_and_feed(self, pipeline, batch_size):
+        """Call the source callback and feed the results to the ExternalSource nodes in `pipeline`.
+        Used for the sequential ExternalSource variant."""
         try:
             if self.batch:
                 callback_out = self.callback(*self.callback_args(None))
@@ -113,7 +154,11 @@ class _ExternalSourceGroup(object):
         except StopIteration:
             self.reset_indices()
             raise
+        self.feed(pipeline, callback_out, batch_size)
 
+    def feed(self, pipeline, callback_out, batch_size):
+        """Feed the `callback_out` data obtained from source to the ExternalSource nodes
+        in the `pipeline`"""
         if self.is_multioutput:
             for op in self.instances:
                 if self.batch:
@@ -132,7 +177,7 @@ def _is_generator_function(x):
     where __call__ is a generator function"""
     if inspect.isgeneratorfunction(x):
         return True
-    if x is None or inspect.isfunction(x):
+    if x is None or inspect.isfunction(x) or inspect.ismethod(x):
         return False
     call = getattr(x, "__call__", None)
     return _is_generator_function(call)
@@ -148,6 +193,16 @@ def _cycle_enabled(cycle):
   - "no", False or None - cycling disabled
   - "quiet", True - quietly rewind the data
   - "raise" - raise StopIteration on each rewind.""".format(repr(cycle)))
+
+def _accepted_arg_count(callable):
+    if not inspect.isfunction(callable) and not inspect.ismethod(callable) and hasattr(callable, '__call__'):
+        callable = callable.__call__
+    if not inspect.ismethod(callable):
+        implicit_args = 0
+    else:
+        implicit_args = 1
+        callable = callable.__func__
+    return callable.__code__.co_argcount - implicit_args
 
 def _get_callback_from_source(source, cycle):
     iterable = False
@@ -212,6 +267,7 @@ Args
     respective return value of the external_source.
 
     The data samples must be in one of the compatible array types:
+
         * NumPy ndarray (CPU)
         * MXNet ndarray (CPU)
         * PyTorch tensor (CPU or GPU)
@@ -252,6 +308,7 @@ Keyword Args
 `cycle`: string or bool, optional
     Specifies if and how to cycle through the source.
     It can be one of the following values:
+
         * ``"no"``, ``False`` or ``None`` - don't cycle; ``StopIteration`` is raised whe end of data is reached; this is the default behavior
         * ``"quiet"`` or ``True`` - the data is repeated indefinitely,
         * ``"raise"`` - when the end of data is reached, ``StopIteration`` is raised, but the iteration is restarted on subsequent call.
@@ -286,6 +343,7 @@ Keyword Args
     explicitly supply the stream handle.
 
     This argument has two special values:
+
       * 0 - Use the default CUDA stream
       * 1 - Use DALI's internal stream
 
@@ -303,7 +361,7 @@ Keyword Args
     Determines whether the external source should wait until data is available or just fail
     when the data is not available.
 
-`no_copy` : boo, optional
+`no_copy` : bool, optional
     Determines whether DALI should copy the buffer when feed_input is called.
 
     If set to True, DALI passes the user memory directly to the pipeline, instead of copying it.
@@ -311,7 +369,7 @@ Keyword Args
     consumed by the pipeline.
 
     The buffer can be modified or freed again after the output of the relevant iterations
-    has been consumed. Effectively, it happens after ``prefetch_queue_depth`` or
+    has been consumed. Effectively, it happens after Pipeline's ``prefetch_queue_depth`` or
     ``cpu_queue_depth * gpu_queue_depth`` (when they are not equal) iterations following
     the ``feed_input`` call.
 
@@ -321,13 +379,35 @@ Keyword Args
     of separate Tensors, there will be an additional copy made internally, consuming both memory
     and bandwidth.
 
+    Automatically set to ``True`` when ``parallel=True``
+
 `batch` : bool, optional
-    If set to ``True`` or ``None``, the ``source`` is expected to produce an entire batch at once.
-    If set to ``False``, the ``source`` is called per-sample.
+    If set to True or None, the ``source`` is expected to produce an entire batch at once.
+    If set to False, the ``source`` is called per-sample.
+
+    Setting ``parallel`` to True automatically sets ``batch`` to False if it was not provided.
+
+`parallel` : bool, optional, default = False
+    If set to True, the corresponding pipeline will run pool of Python workers to run the
+    callback in parallel. You can specify the number of workers by passing ``py_num_workers``
+    into pipeline's constructor.
+
+    When ``parallel`` is set to True, ``source`` must return NumPy/MXNet/PyTorch CPU array,
+    TensorCPU, or tuple/list of these types with length matching num_outputs.
+    The ``source`` callback must raise StopIteration when the end of data is reached.
+
+    Setting ``parallel`` to True makes the external source work in per-sample mode.
+    If ``batch`` was not set it is set to False.
+
+`prefetch_queue_depth` : int, option, default = 1
+    When run in ``parallel=True`` mode, specifies the number of batches to be computed in advance and stored
+    in the internal buffer, otherwise parameter is ignored.
 """
 
-    def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu",
-                 cuda_stream = None, use_copy_kernel = None, batch = None, **kwargs):
+    def __init__(
+            self, source=None, num_outputs=None, *, cycle=None, layout=None, name=None,
+            device="cpu", cuda_stream=None, use_copy_kernel=None, batch=None, parallel=None,
+            no_copy=None, prefetch_queue_depth=None, **kwargs):
         self._schema = _b.GetSchema("_ExternalSource")
         self._spec = _b.OpSpec("_ExternalSource")
         self._device = device
@@ -347,6 +427,9 @@ Keyword Args
         self._num_outputs = num_outputs
         self._batch = batch
         self._callback = callback
+        self._parallel = parallel
+        self._no_copy = no_copy
+        self._prefetch_queue_depth = prefetch_queue_depth
 
         self._spec.AddArg("device", device)
         for key, value in kwargs.items():
@@ -368,8 +451,10 @@ Keyword Args
     def preserve(self):
         return False
 
-    def __call__(self, *, source = None, cycle = None, name = None, layout = None, cuda_stream = None,
-                 use_copy_kernel = None, batch = None, **kwargs):
+    def __call__(
+            self, *, source=None, cycle=None, name=None, layout=None, cuda_stream=None,
+            use_copy_kernel=None, batch=None, parallel=None, no_copy=None,
+            prefetch_queue_depth=None, **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
 
@@ -388,14 +473,50 @@ Keyword Args
                 raise RuntimeError("``source`` already specified in constructor.")
             callback = _get_callback_from_source(source, cycle)
 
+        if parallel is None:
+            parallel = self._parallel or False
+        elif self._parallel is not None:
+            raise ValueError("The argument ``parallel`` already specified in constructor.")
 
         if batch is None:
             batch = self._batch
         elif self._batch is not None:
             raise ValueError("The argument ``batch`` already specified in constructor.")
 
+        # By default parallel is False, so batch will be True
         if batch is None:
-            batch = True
+            batch = not parallel
+
+        if prefetch_queue_depth is None:
+            prefetch_queue_depth = self._prefetch_queue_depth
+        elif self._prefetch_queue_depth is not None:
+            raise ValueError(
+                "The argument ``prefetch_queue_depth`` already specified in constructor.")
+
+        if no_copy is None:
+            no_copy = self._no_copy
+        elif self._no_copy is not None:
+            raise ValueError("The argument ``no_copy`` already specified in constructor.")
+
+        if parallel:
+            if prefetch_queue_depth is None:
+                prefetch_queue_depth = 1
+            if no_copy is None:
+                no_copy = True
+            if not no_copy:
+                raise ValueError("The argument ``no_copy`` cannot be specified to False " +
+                    " when used with ``parallel=True``.")
+            if batch:
+                raise ValueError("ExternalSource can be run in parallel only in per-sample " +
+                    "(``batch=False``) mode.")
+            if prefetch_queue_depth < 1:
+                raise ValueError(
+                    "``prefetch_queue_depth`` must be a positive integer, got {}.".format(
+                        prefetch_queue_depth))
+        else:
+            if prefetch_queue_depth is not None:
+                raise ValueError("The argument `prefetch_queue_depth` is valid only for " +
+                    "parallel external sources (when ``parallel`` is True).")
 
         if self._layout is not None:
             if layout is not None:
@@ -419,12 +540,20 @@ Keyword Args
             name = self._name
 
         if name is not None and self._num_outputs is not None:
-            raise RuntimeError("``num_outputs`` is not compatible with named ``ExternalSource``")
+            raise RuntimeError("``num_outputs`` is not compatible with named ``ExternalSource``.")
+
+        group_common_kwargs = {
+            'cuda_stream': cuda_stream,
+            'use_copy_kernel': use_copy_kernel,
+            'batch': batch,
+            'parallel': parallel,
+            'prefetch_queue_depth': prefetch_queue_depth,
+        }
 
         if self._num_outputs is not None:
             outputs = []
-            kwargs = {}
-            group = _ExternalSourceGroup(callback, True, cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel, batch=batch)
+            kwargs = {"no_copy": no_copy}
+            group = _ExternalSourceGroup(callback, True, **group_common_kwargs)
             for i in range(self._num_outputs):
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
@@ -446,11 +575,13 @@ Keyword Args
         else:
             if name is not None:
                 kwargs["name"] = name
+            if no_copy is not None:
+                kwargs["no_copy"] = no_copy
             op_instance = _OperatorInstance([], self, **kwargs)
             op_instance._callback = callback
             op_instance._output_index = None
-            op_instance._group = _ExternalSourceGroup(callback, False, [op_instance], cuda_stream=cuda_stream,
-                                                      use_copy_kernel=use_copy_kernel, batch=batch)
+            op_instance._group = _ExternalSourceGroup(
+                callback, False, [op_instance], **group_common_kwargs)
             op_instance._layout = layout
             op_instance.generate_outputs()
 

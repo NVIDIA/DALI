@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 # due to https://github.com/numpy/numpy/issues/18131 we cannot use 1.19.5
-pip_packages="nose numpy>=1.17,<=1.19.4 pillow"
+pip_packages="nose numpy>=1.17,<=1.19.4 pillow psutil"
 
 target_dir=./dali/test/python
 
