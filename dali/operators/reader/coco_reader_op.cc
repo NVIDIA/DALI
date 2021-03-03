@@ -109,15 +109,12 @@ If set to False, the bboxes are returned as [x, y, width, height].)code",
 .. warning::
     Currently objects with ``iscrowd=1`` annotations are skipped.)code",
       false)
-  .AddOptionalArg("masks",
-  R"code(Enable polygon masks.
-
-.. warning::
-  Use ``polygon_masks`` instead. Note that the polygon format has changed ``mask_id, start_coord, end_coord`` to ``mask_id, start_vertex, end_vertex`` where
-  start_coord and end_coord are total number of coordinates, effectly ``start_coord = 2 * start_vertex`` and ``end_coord = 2 * end_vertex``.
-  Example: A polygon with vertices ``[[x0, y0], [x1, y1], [x2, y2]]`` would be represented as ``[mask_id, 0, 6]`` when using the deprecated
-  argument ``masks``, but ``[mask_id, 0, 3]`` when using the new argument ``polygon_masks``.)code", false)
-  .DeprecateArg("masks", false)  // deprecated since 0.28dev
+  .AddOptionalArg("masks", R"code(Enable polygon masks.)code", false)
+  .DeprecateArg("masks", false,
+R"code(Use ``polygon_masks`` instead. Note that the polygon format has changed ``mask_id, start_coord, end_coord`` to ``mask_id, start_vertex, end_vertex`` where
+start_coord and end_coord are total number of coordinates, effectly ``start_coord = 2 * start_vertex`` and ``end_coord = 2 * end_vertex``.
+Example: A polygon with vertices ``[[x0, y0], [x1, y1], [x2, y2]]`` would be represented as ``[mask_id, 0, 6]`` when using the deprecated
+argument ``masks``, but ``[mask_id, 0, 3]`` when using the new argument ``polygon_masks``.)code")  // deprecated since 0.28dev
   .AddOptionalArg("pixelwise_masks",
       R"code(If true, segmentation masks are read and returned as pixel-wise masks. This argument is
 mutually exclusive with ``polygon_masks``.)code",

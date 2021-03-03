@@ -101,11 +101,12 @@ def _get_kwargs(schema):
         type_name = ""
         dtype = None
         doc = ""
+        deprecation_warning = None
         if schema.IsDeprecatedArg(arg):
             meta = schema.DeprecatedArgMeta(arg)
             msg = meta['msg']
             assert msg is not None
-            doc += ".. warning::\n\n    " + msg
+            deprecation_warning = ".. warning::\n\n    " + msg.replace("\n", "\n    ")
             renamed_arg = meta['renamed_to']
             # Renamed and removed arguments won't show full documentation (only warning box)
             skip_full_doc = renamed_arg or meta['removed']
@@ -129,6 +130,10 @@ def _get_kwargs(schema):
                     default_value = ast.literal_eval(default_value_string)
                     type_name += ", default = {}".format(_default_converter(dtype, default_value))
             doc += schema.GetArgumentDox(arg)
+            if deprecation_warning:
+                doc += "\n\n" + deprecation_warning
+        elif deprecation_warning:
+            doc += deprecation_warning
         ret += _numpydoc_formatter(arg, type_name, doc)
         ret += '\n'
     return ret
