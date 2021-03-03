@@ -244,7 +244,8 @@ starts thread keeping track of running processes and initializes communication.
         try:
             self._to_tracker.send(None)
         except BrokenPipeError:
-            """workers already exited, tracker_thread finished its task and exited and closed the pipe"""
+            # workers already exited, tracker_thread finished its task and exited and closed the pipe
+            pass
         self._tracker_thread.join()
         self._tracker_thread = None
 
