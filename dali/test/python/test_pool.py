@@ -18,6 +18,7 @@ from functools import wraps
 import numpy as np
 import os
 import time
+from nose.tools import raises, with_setup
 
 from test_pool_utils import *
 
@@ -241,3 +242,21 @@ def test_pool_many_ctxs_many_workers(start_method):
         np.testing.assert_array_equal(answer(pid, *task) + 100, sample)
     pool.close()
 
+# ################################################################################################ #
+# invalid return type
+# ################################################################################################ #
+
+
+def invalid_callback():
+    return "42"
+
+@raises(Exception)
+@with_setup(setup_function, teardown_function)
+def test_pool_invalid_return():
+    callbacks = [invalid_callback]
+    pool = create_pool(callbacks, queue_depth=1, num_workers=1, start_method="spawn")
+    _ = get_pids(pool)
+    tasks = [()]
+    pool.schedule_batch(context_i=0, batch_i=0, tasks=tasks)
+    batch_0 = pool.receive_batch(context_i=0)
+    pool.close()

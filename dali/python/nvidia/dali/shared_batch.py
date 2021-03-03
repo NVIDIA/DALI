@@ -155,9 +155,9 @@ def _assert_valid_data_type(sample):
         return
     elif isinstance(sample, tensors.TensorCPU):
         return
-    raise TypeError(
+    raise TypeError((
         "Unsupported callback return type. Expected NumPy array, PyTorch or MXNet cpu tensors, "
-        "or list or tuple of them.")
+        "DALI TensorCPU, or list or tuple of them. Got `{}` instead.").format(type(sample)))
 
 
 def assert_valid_data_type(sample):
@@ -180,7 +180,7 @@ def _to_numpy(sample):
         return np.array(sample)
     raise TypeError(
         "Unsupported callback return type. Expected NumPy array, PyTorch or MXNet cpu tensors, "
-        "or list or tuple of them.")
+        "DALI TensorCPU, or list or tuple of them.")
 
 
 def _apply_to_sample(func, sample, *args, nest_with_sample=0):
