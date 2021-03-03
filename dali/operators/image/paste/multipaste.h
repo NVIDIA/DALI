@@ -143,12 +143,19 @@ class MultiPasteOp : public Operator<Backend> {
       }
 
       bool found_intersection = false;
-
       for (int j = 0; j < n_paste; j++) {
         auto out_anchor = GetOutAnchors(i, j);
+        auto in_anchor = GetInAnchors(i, j);
         auto j_idx = in_idx_[i].data[j];
-        const auto &shape = GetShape(i, j, Coords(raw_input_size_mem_.data() + 2 * j_idx,
-                                                  dali::TensorShape<>(2)));
+        auto in_shape = Coords(raw_input_size_mem_.data() + 2 * j_idx, dali::TensorShape<>(2));
+        const auto &shape = GetShape(i, j, in_shape);
+        for (int k = 0; k < spatial_ndim; k++) {
+          DALI_ENFORCE(out_anchor.data[k] >= 0 && in_anchor.data[k] >= 0 &&
+                       out_anchor.data[k] + shape.data[k] <= output_size_[i].data[k] &&
+                       in_anchor.data[k] + shape.data[k] <= in_shape.data[k],
+                       "Paste in/out coords should be within inout/output bounds.");
+        }
+
         for (int k = 0; k < j; k++) {
           auto k_idx = in_idx_[i].data[k];
           if (Intersects(out_anchor, shape, GetOutAnchors(i, k), GetShape(

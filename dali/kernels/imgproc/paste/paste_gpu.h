@@ -66,7 +66,7 @@ void FillOutDetails(span<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> 
 template <class OutputType, class InputType, int ndims>
 void CreateSampleDescriptors(
     vector<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> &out_descs,
-    vector<PatchDesc<InputType, ndims - 1>> &out_patchs,
+    vector<PatchDesc<InputType, ndims - 1>> &out_patches,
     const InListGPU<InputType, ndims> &in,
     span<paste::MultiPasteSampleInput<ndims - 1>> samples
 ) {
@@ -75,7 +75,7 @@ void CreateSampleDescriptors(
   int batch_size = samples.size();
 
   out_descs.resize(batch_size);
-  out_patchs.clear();
+  out_patches.clear();
 
   for (int out_idx = 0; out_idx < batch_size; out_idx++) {
     const auto &sample = samples[out_idx];
@@ -130,7 +130,7 @@ void CreateSampleDescriptors(
       y_ending[y_patch_cnt].emplace_back(-1, 0, x_patch_cnt);
 
       // Filling sample
-      int prev_patch_count = out_patchs.size();
+      int prev_patch_count = out_patches.size();
       auto &out_sample = out_descs[out_idx];
       out_sample.patch_start_idx = prev_patch_count;
       out_sample.patch_counts[1] = x_patch_cnt;
@@ -138,7 +138,7 @@ void CreateSampleDescriptors(
       out_sample.out_pitch[1] = sample.out_size[1] * channels;
 
       // And now the sweeping itself
-      out_patchs.resize(prev_patch_count + x_patch_cnt * y_patch_cnt);
+      out_patches.resize(prev_patch_count + x_patch_cnt * y_patch_cnt);
       vector<std::unordered_set<int>> starting(x_patch_cnt + 1);
       vector<std::unordered_set<int>> ending(x_patch_cnt + 1);
       std::set<int> open_pastes;
@@ -157,7 +157,7 @@ void CreateSampleDescriptors(
 
           // Take top most region
           int max_paste = *(--open_pastes.end());
-          auto& patch = out_patchs[prev_patch_count + y * x_patch_cnt + x];
+          auto& patch = out_patches[prev_patch_count + y * x_patch_cnt + x];
 
 
           // And fill the patch
@@ -198,12 +198,12 @@ void CreateSampleDescriptors(
 template <class OutputType, class InputType, int ndims>
 __global__ void
 PasteKernel(const SampleDescriptorGPU<OutputType, InputType, ndims> *samples,
-            const PatchDesc<InputType, ndims> *patchs,
+            const PatchDesc<InputType, ndims> *patches,
             const BlockDesc<ndims> *blocks) {
   static_assert(ndims == 2, "Function requires 2 dimensions in the input");
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
-  const PatchDesc<InputType, ndims> *my_patches = patchs + sample.patch_start_idx;
+  const PatchDesc<InputType, ndims> *my_patches = patches + sample.patch_start_idx;
 
 
   auto *__restrict__ out = sample.out;
