@@ -139,21 +139,47 @@ class SharedMemChunk:
         self.shm_chunk.close()
 
 
+def _assert_valid_data_type(sample):
+    import_numpy()
+    if isinstance(sample, np.ndarray):
+        return
+    if types._is_mxnet_array(sample):
+        if sample.ctx.device_type != 'cpu':
+            raise TypeError("Unsupported callback return type. "
+                            "GPU tensors are not supported. Got an MXNet GPU tensor.")
+        return
+    if types._is_torch_tensor(sample):
+        if sample.device.type != 'cpu':
+            raise TypeError("Unsupported callback return type. "
+                            "GPU tensors are not supported. Got a PyTorch GPU tensor.")
+        return
+    elif isinstance(sample, tensors.TensorCPU):
+        return
+    raise TypeError(
+        "Unsupported callback return type. Expected NumPy array, PyTorch or MXNet cpu tensors, "
+        "or list or tuple of them.")
+
+
+def assert_valid_data_type(sample):
+    """Check if the output of the callback is type that can be serialized"""
+    _apply_to_sample(_assert_valid_data_type, sample)
+
+
 def _to_numpy(sample):
     if isinstance(sample, np.ndarray):
         return sample
     if types._is_mxnet_array(sample):
         if sample.ctx.device_type != 'cpu':
-            raise TypeError("GPU tensors are not supported")
+            raise TypeError("GPU tensors are not supported/ Got an MXNet GPU tensor.")
         return sample.asnumpy()
     if types._is_torch_tensor(sample):
         if sample.device.type != 'cpu':
-            raise TypeError("GPU tensors are not supported")
+            raise TypeError("GPU tensors are not supported. Got a PyTorch GPU tensor.")
         return sample.numpy()
     elif isinstance(sample, tensors.TensorCPU):
         return np.array(sample)
     raise TypeError(
-        "Unsupported callback return type. Expected numpy array, pytorch or mxnet cpu tensors, "
+        "Unsupported callback return type. Expected NumPy array, PyTorch or MXNet cpu tensors, "
         "or list or tuple of them.")
 
 

@@ -17,7 +17,7 @@ import traceback
 import os
 import socket
 from multiprocessing import reduction
-from nvidia.dali.shared_batch import SharedMemChunk, write_batch
+from nvidia.dali.shared_batch import SharedMemChunk, write_batch, assert_valid_data_type
 from nvidia.dali.messages import CompletedTasks
 
 
@@ -243,6 +243,8 @@ def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task
             try:
                 data_batch = [(task_id, callback(*task_args))
                               for (task_id, task_args) in scheduled.tasks]
+                for i, sample in data_batch:
+                    assert_valid_data_type(sample)
             except Exception as exception:
                 tb_str = traceback.format_exc()
                 processed = _ProcessedTasks.failed(scheduled, exception, tb_str)

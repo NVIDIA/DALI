@@ -45,3 +45,17 @@ def test_pytorch_cuda_context():
 @with_setup(setup_function, teardown_function)
 def test_pytorch():
     yield from check_spawn_with_callback(ExtCallbackTorch)
+
+
+class ExtCallbackTorchCuda(ExtCallback):
+    def __call__(self, sample_info):
+        return torch.tensor(super().__call__(sample_info), device=torch.device('cuda:0'))
+
+
+@raises(Exception)
+@with_setup(setup_function, teardown_function)
+def test_pytorch_cuda():
+    callback = ExtCallbackTorchCuda((4, 5), 10, np.int32)
+    pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
+                       py_start_method='spawn', parallel=True)
+    build_and_run_pipeline(pipe)

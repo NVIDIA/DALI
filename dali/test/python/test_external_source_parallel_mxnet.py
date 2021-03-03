@@ -33,3 +33,17 @@ class ExtCallbackMX(ExtCallback):
 def test_mxnet():
     yield from check_spawn_with_callback(ExtCallbackMX)
 
+
+class ExtCallbackMXCuda(ExtCallback):
+    def __call__(self, sample_info):
+        a = super().__call__(sample_info)
+        return mx.nd.array(a, dtype=a.dtype, ctx=mx.gpu(0))
+
+
+@raises(Exception)
+@with_setup(setup_function, teardown_function)
+def test_mxnet_cuda():
+    callback = ExtCallbackMXCuda((4, 5), 10, np.int32)
+    pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
+                       py_start_method='spawn', parallel=True)
+    build_and_run_pipeline(pipe)
