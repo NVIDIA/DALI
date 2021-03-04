@@ -5,7 +5,6 @@ test_nose() {
     # also there is no nvJPEG on xavier so don't run any test with the ImageDecoder having
     # the device explicitly set
     EXCLUDE_PACKAGES=(
-        "cv2"
         "scipy"
         "librosa"
         "\"mixed\""
