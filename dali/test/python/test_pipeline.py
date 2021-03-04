@@ -1774,3 +1774,25 @@ def test_pipeline_wrong_device_id():
         pipe.build()
         pipe.run()
     assert "device_id" in str(x.exception).lower()
+
+def test_properties():
+    @dali.pipeline_def(batch_size=11, prefetch_queue_depth={"cpu_size":3, "gpu_size":2})
+    def my_pipe():
+        pipe = Pipeline.current()
+        assert pipe.max_batch_size == 11
+        assert pipe.batch_size == 11
+        assert pipe.num_threads == 3
+        assert pipe.device_id == 0
+        assert pipe.seed == 1234
+        assert pipe.exec_pipelined == True
+        assert pipe.exec_async == True
+        assert pipe.set_affinity == True
+        assert pipe.max_streams == -1
+        assert pipe.prefetch_queue_depth == {"cpu_size":3, "gpu_size":2}
+        assert pipe.cpu_queue_size == 3
+        assert pipe.gpu_queue_size == 2
+        assert pipe.py_num_workers == 3
+        assert pipe.py_start_method == "fork"
+        assert pipe.enable_memory_stats == False
+        return np.float32([1,2,3])
+    p = my_pipe(device_id=0, seed=1234, num_threads=3, set_affinity=True, py_num_workers=3)
