@@ -51,10 +51,20 @@ class GridMask : public Operator<Backend> {
 class GridMaskCpu : public GridMask<CPUBackend> {
  public:
   explicit GridMaskCpu(const OpSpec &spec) : GridMask(spec) { }
+  using Operator<CPUBackend>::RunImpl;
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
   void RunImpl(workspace_t<CPUBackend> &ws) override;
+};
+
+class GridMaskGpu : public GridMask<GPUBackend> {
+ public:
+  explicit GridMaskGpu(const OpSpec &spec) : GridMask(spec) { }
+
+ protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
+  void RunImpl(workspace_t<GPUBackend> &ws) override;
 };
 
 }  // namespace dali

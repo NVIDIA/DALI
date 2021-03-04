@@ -24,24 +24,26 @@ from test_utils import get_dali_extra_path
 data_root = get_dali_extra_path()
 img_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 
-def get_pipeline(batch_size, tile, ratio, angle):
-  pipe = Pipeline(batch_size, 4, None)
+def get_pipeline(device, batch_size, tile, ratio, angle):
+  pipe = Pipeline(batch_size, 4, 0)
   with pipe:
     input, _ = fn.readers.file(file_root=img_dir)
     decoded = fn.decoders.image(input, device='cpu', output_type=types.RGB)
-    grided = fn.grid_mask(decoded, device='cpu', tile=tile, ratio=ratio, angle=angle)
+    decoded = decoded.gpu() if device == 'gpu' else decoded
+    grided = fn.grid_mask(decoded, device=device, tile=tile, ratio=ratio, angle=angle)
     pipe.set_outputs(grided, decoded)
   return pipe
 
-def get_random_pipeline(batch_size):
-  pipe = Pipeline(batch_size, 4, None)
+def get_random_pipeline(device, batch_size):
+  pipe = Pipeline(batch_size, 4, 0)
   with pipe:
     input, _ = fn.readers.file(file_root=img_dir)
     decoded = fn.decoders.image(input, device='cpu', output_type=types.RGB)
-    tile = fn.cast(fn.uniform(range=(50, 200), shape=[1]), dtype=types.INT32)
-    ratio = fn.uniform(range=(0.3, 0.7), shape=[1])
-    angle = fn.uniform(range=(-math.pi, math.pi), shape=[1])
-    grided = fn.grid_mask(decoded, device='cpu', tile=tile, ratio=ratio, angle=angle)
+    decoded = decoded.gpu() if device == 'gpu' else decoded
+    tile = fn.cast(fn.uniform(range=(50, 200)), dtype=types.INT32)
+    ratio = fn.uniform(range=(0.3, 0.7))
+    angle = fn.uniform(range=(-math.pi, math.pi))
+    grided = fn.grid_mask(decoded, device=device, tile=tile, ratio=ratio, angle=angle)
     pipe.set_outputs(grided, decoded, tile, ratio, angle)
   return pipe
 
@@ -75,29 +77,35 @@ def check(result, input, tile, ratio, angle):
   input2 = cv2.bitwise_and(input, input, mask=mask)
   assert np.all(result2 == input2)
 
-def test_cpu_vs_cv():
+def test_gridmask_vs_cv():
   batch_size = 4
-  for (tile, ratio, angle) in [(40, 0.5, 0),
-                               (100, 0.1, math.pi / 2),
-                               (200, 0.7, math.pi / 3),
-                               (150, 1/3, math.pi / 4),
-                               (50, 0.532, 1),
-                               (51, 0.38158387, 2.6810782),
-                               (123, 0.456, 0.789)]:
-    pipe = get_pipeline(batch_size, tile, ratio, angle)
-    pipe.build()
-    results, inputs = pipe.run()
-    for i in range(batch_size):
-      yield check, results[i], inputs[i], tile, ratio, angle
+  for device in ['cpu', 'gpu']:
+    for (tile, ratio, angle) in [(40, 0.5, 0),
+                                 (100, 0.1, math.pi / 2),
+                                 (200, 0.7, math.pi / 3),
+                                 (150, 1/3, math.pi / 4),
+                                 (50, 0.532, 1),
+                                 (51, 0.38158387, 2.6810782),
+                                 (123, 0.456, 0.789)]:
+      pipe = get_pipeline(device, batch_size, tile, ratio, angle)
+      pipe.build()
+      results, inputs = pipe.run()
+      if device == 'gpu':
+        results, inputs = results.as_cpu(), inputs.as_cpu()
+      for i in range(batch_size):
+        yield check, results[i], inputs[i], tile, ratio, angle
 
-def test_cpu_vs_cv_random():
+def test_gridmask_vs_cv_random():
   batch_size = 4
-  pipe = get_random_pipeline(batch_size)
-  pipe.build()
-  for _ in range(16):
-    results, inputs, tiles, ratios, angles = pipe.run()
-    for i in range(batch_size):
-      tile = np.int32(tiles[i])[0]
-      ratio = np.float32(ratios[i])[0]
-      angle = np.float32(angles[i])[0]
-      yield check, results[i], inputs[i], tile, ratio, angle
+  for device in ['cpu', 'gpu']:
+    pipe = get_random_pipeline(device, batch_size)
+    pipe.build()
+    for _ in range(16):
+      results, inputs, tiles, ratios, angles = pipe.run()
+      if device == 'gpu':
+        results, inputs = results.as_cpu(), inputs.as_cpu()
+      for i in range(batch_size):
+        tile = np.int32(tiles[i])
+        ratio = np.float32(ratios[i])
+        angle = np.float32(angles[i])
+        yield check, results[i], inputs[i], tile, ratio, angle
