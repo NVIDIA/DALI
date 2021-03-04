@@ -1664,9 +1664,7 @@ def test_output_dtype_deprecation():
         # Verify DeprecationWarning
         assert len(w) == 1
         assert issubclass(w[-1].category, DeprecationWarning)
-        print(str(w[-1].message))
-        assert ("Argument 'output_dtype' for operator 'CropMirrorNormalize' is now deprecated. " +
-                "Use 'dtype' instead.") == str(w[-1].message)
+        assert ("The argument ``output_dtype`` is a deprecated alias for ``dtype``. Use ``dtype`` instead." == str(w[-1].message))
 
 def test_image_type_deprecation():
     with warnings.catch_warnings(record=True) as w:
@@ -1677,8 +1675,7 @@ def test_image_type_deprecation():
         # Verify DeprecationWarning
         assert len(w) == 1
         assert issubclass(w[-1].category, DeprecationWarning)
-        assert ("Argument 'image_type' for operator 'CropMirrorNormalize' is now deprecated. " +
-                "The argument is no longer used and should be removed.") == str(w[-1].message)
+        assert ("The argument ``image_type`` is no longer used and will be removed in a future release." == str(w[-1].message))
 
 @raises(TypeError)
 def test_output_dtype_both_error():
