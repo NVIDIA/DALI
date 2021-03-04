@@ -110,7 +110,7 @@ def _get_kwargs(schema):
             renamed_arg = meta['renamed_to']
             # Renamed and removed arguments won't show full documentation (only warning box)
             skip_full_doc = renamed_arg or meta['removed']
-            # Renamed aliases don't are not fully registered to the schema, that's why we query for the
+            # Renamed aliases are not fully registered to the schema, that's why we query for the
             # info on the renamed_arg name.
             if renamed_arg:
                 dtype = schema.GetArgumentType(renamed_arg)
