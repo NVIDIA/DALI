@@ -145,10 +145,8 @@ Parameters
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads
-        if device_id is None:
-            device_id = types.CPU_ONLY_DEVICE_ID
         self._device_id = device_id
-        self._seed = seed if seed is not None else -1
+        self._seed = seed
         self._exec_pipelined = exec_pipelined
         # When initializing DALI, we do the following in order:
         # * Discover the ops specified in Python, group the ExternalSources (_build_graph())
@@ -183,14 +181,13 @@ Parameters
         self._parallel_input_callbacks = None
         self._seq_input_callbacks = None
         self._enable_memory_stats = enable_memory_stats
+        self._prefetch_queue_depth = prefetch_queue_depth
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
             self._gpu_queue_size = prefetch_queue_depth["gpu_size"]
-            self._prefetch_queue_depth = self._cpu_queue_size  # dummy value, that will be ignored
         elif type(prefetch_queue_depth) is int:
             self._exec_separated = False
-            self._prefetch_queue_depth = prefetch_queue_depth
             self._cpu_queue_size = prefetch_queue_depth
             self._gpu_queue_size = prefetch_queue_depth
         else:
@@ -209,21 +206,78 @@ Parameters
 
     @property
     def num_threads(self):
-        """Number of CPU threads used by the pipeline."""
+        """Number of CPU threads used by this pipeline."""
         return self._num_threads
 
     @property
     def device_id(self):
-        """Id of the GPU used by the pipeline."""
-        return self._device_id
+        """Id of the GPU used by the pipeline or None for CPU-only pipelines."""
+        return None if self._device_id == types.CPU_ONLY_DEVICE_ID else self._device_id
+
+    @property
+    def seed(self):
+        """Random seed used in the pipeline or None, if seed is not fixed."""
+        return self._seed
 
     @property
     def exec_pipelined(self):
+        """If true, pipeline execution model is used."""
         return self._exec_pipelined
 
     @property
     def exec_async(self):
+        """If true, asynchronous execution is used."""
         return self._exec_async
+
+    @property
+    def set_affinity(self):
+        """If True, worker threads are bound to CPU cores."""
+        return self._set_affinity
+
+    @property
+    def max_streams(self):
+        """Reserved for future use."""
+        return self._max_streams
+
+    @property
+    def prefetch_queue_depth(self):
+        """Depth (or depths) of the prefetch queue, as specified in the ``__init__`` arguments."""
+        return self._prefetch_queue_depth
+
+    @property
+    def default_cuda_stream_priority(self):
+        """Default priority of the CUDA streams used by this pipeline."""
+        return self._default_cuda_stream_priority
+
+    @property
+    def enable_memory_stats(self):
+        """If True, memory usage statistics are gathered."""
+        return self._enable_memory_stats
+
+    @property
+    def py_num_workers(self):
+        """The number of Python worker processes used by parallel ```external_source```."""
+        return self._py_num_workers
+
+    @property
+    def py_start_method(self):
+        """The method of launching Python worker processes used by parallel ```external_source```."""
+        return self._py_start_method
+
+    @property
+    def exec_separated(self):
+        """If True, there are separate prefetch queues for CPU and GPU stages."""
+        return self._exec_separated
+
+    @property
+    def cpu_queue_size(self):
+        """The number of iterations processed ahead by the CPU stage."""
+        return self._cpu_queue_size
+
+    @property
+    def gpu_queue_size(self):
+        """The number of iterations processed ahead by the GPU stage."""
+        return self._gpu_queue_size
 
     def epoch_size(self, name = None):
         """Epoch size of a pipeline.
@@ -507,10 +561,10 @@ Parameters
     def _init_pipeline_backend(self):
         self._pipe = b.Pipeline(self._max_batch_size,
                                 self._num_threads,
-                                self._device_id,
-                                self._seed,
+                                self._device_id if self._device_id is not None else types.CPU_ONLY_DEVICE_ID,
+                                self._seed if self._seed is not None else -1,
                                 self._exec_pipelined,
-                                self._prefetch_queue_depth,
+                                self._cpu_queue_size,
                                 self._exec_async,
                                 self._bytes_per_sample,
                                 self._set_affinity,
