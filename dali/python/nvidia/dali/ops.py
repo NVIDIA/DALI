@@ -97,17 +97,43 @@ def _get_kwargs(schema):
     """
     ret = ""
     for arg in schema.GetArgumentNames():
-        allow_tensors = schema.IsTensorArgument(arg)
-        arg_name_doc = arg
-        dtype = schema.GetArgumentType(arg)
-        type_name = _type_name_convert_to_string(dtype, allow_tensors = allow_tensors)
-        if schema.IsArgumentOptional(arg):
-            type_name += ", optional"
-            if schema.HasArgumentDefaultValue(arg):
-                default_value_string = schema.GetArgumentDefaultValueString(arg)
-                default_value = ast.literal_eval(default_value_string)
-                type_name += ", default = {}".format(_default_converter(dtype, default_value))
-        doc = schema.GetArgumentDox(arg)
+        skip_full_doc = False
+        type_name = ""
+        dtype = None
+        doc = ""
+        deprecation_warning = None
+        if schema.IsDeprecatedArg(arg):
+            meta = schema.DeprecatedArgMeta(arg)
+            msg = meta['msg']
+            assert msg is not None
+            deprecation_warning = ".. warning::\n\n    " + msg.replace("\n", "\n    ")
+            renamed_arg = meta['renamed_to']
+            # Renamed and removed arguments won't show full documentation (only warning box)
+            skip_full_doc = renamed_arg or meta['removed']
+            # Renamed aliases are not fully registered to the schema, that's why we query for the
+            # info on the renamed_arg name.
+            if renamed_arg:
+                dtype = schema.GetArgumentType(renamed_arg)
+                type_name = _type_name_convert_to_string(dtype,
+                                                         allow_tensors=schema.IsTensorArgument(renamed_arg))
+        # Try to get dtype only if not set already (renamed args go through a different path, see above)
+        if not dtype:
+            dtype = schema.GetArgumentType(arg)
+            type_name = _type_name_convert_to_string(dtype,
+                                                     allow_tensors=schema.IsTensorArgument(arg))
+        # Add argument documentation if necessary
+        if not skip_full_doc:
+            if schema.IsArgumentOptional(arg):
+                type_name += ", optional"
+                if schema.HasArgumentDefaultValue(arg):
+                    default_value_string = schema.GetArgumentDefaultValueString(arg)
+                    default_value = ast.literal_eval(default_value_string)
+                    type_name += ", default = {}".format(_default_converter(dtype, default_value))
+            doc += schema.GetArgumentDox(arg)
+            if deprecation_warning:
+                doc += "\n\n" + deprecation_warning
+        elif deprecation_warning:
+            doc += deprecation_warning
         ret += _numpydoc_formatter(arg, type_name, doc)
         ret += '\n'
     return ret

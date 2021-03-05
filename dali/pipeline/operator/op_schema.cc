@@ -111,6 +111,16 @@ std::map<std::string, DefaultedArgumentDef> OpSchema::GetOptionalArguments() con
   return ret;
 }
 
+std::map<std::string, DeprecatedArgDef> OpSchema::GetDeprecatedArguments() const {
+  auto ret = deprecated_arguments_;
+  for (const auto &parent_name : parents_) {
+    const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
+    const auto &parent_args = parent.GetDeprecatedArguments();
+    ret.insert(parent_args.begin(), parent_args.end());
+  }
+  return ret;
+}
+
 DLL_PUBLIC bool OpSchema::IsDeprecatedArg(const std::string &arg_name) const {
   if (deprecated_arguments_.find(arg_name) != deprecated_arguments_.end())
     return true;
@@ -188,11 +198,21 @@ std::string OpSchema::GetArgumentDefaultValueString(const std::string &name) con
 
 std::vector<std::string> OpSchema::GetArgumentNames() const {
   std::vector<std::string> ret;
-  for (auto &arg_pair : GetRequiredArguments()) {
+  const auto& required   = GetRequiredArguments();
+  const auto& optional   = GetOptionalArguments();
+  const auto& deprecated = GetDeprecatedArguments();
+  for (auto &arg_pair : required) {
     ret.push_back(arg_pair.first);
   }
-  for (auto &arg_pair : GetOptionalArguments()) {
+  for (auto &arg_pair : optional) {
     ret.push_back(arg_pair.first);
+  }
+  for (auto &arg_pair : deprecated) {
+    // Deprecated aliases only appear in `deprecated` but regular
+    // deprecated arguments appear both in `deprecated` and either `required` or `optional`.
+    if (required.find(arg_pair.first) == required.end() &&
+        optional.find(arg_pair.first) == optional.end())
+      ret.push_back(arg_pair.first);
   }
   return ret;
 }

@@ -97,10 +97,7 @@ Otherwise, the threads can be reassigned to any CPU core by the operating system
   .AddOptionalArg("split_stages",
       R"code(Applies **only** to the ``mixed`` backend type.
 
-If True, the operator will be split into two sub-stages: a CPU and GPU one.
-
-Warning: This argument is now deprecated, and its value will be ignored.
-)code",
+If True, the operator will be split into two sub-stages: a CPU and GPU one.)code",
       false)
   .DeprecateArg("split_stages")  // deprecated in DALI 1.0
   .AddOptionalArg("use_chunk_allocator",
@@ -108,10 +105,7 @@ Warning: This argument is now deprecated, and its value will be ignored.
 
 Uses the chunk pinned memory allocator and allocates a chunk of the
 ``batch_size * prefetch_queue_depth`` size during the construction and suballocates
-them at runtime.
-
-Warning: This argument is now deprecated, and its value will be ignored.
-)code",
+them at runtime.)code",
       false)
   .DeprecateArg("use_chunk_allocator")  // deprecated in DALI 1.0
   .AddOptionalArg("use_fast_idct",
