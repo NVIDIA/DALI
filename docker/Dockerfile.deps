@@ -4,6 +4,7 @@
 #########################################################################################
 ARG FROM_IMAGE_NAME=quay.io/pypa/manylinux2014_x86_64
 ARG BUILDER_EXTRA_DEPS=scratch
+ARG DALI_DEPS_REPO=XXXX
 FROM ${BUILDER_EXTRA_DEPS} as extra_deps
 FROM ${FROM_IMAGE_NAME}
 
@@ -22,102 +23,16 @@ RUN yum remove -y devtoolset* && \
 # Don't want the short-unicode version for Python 2.7
 RUN rm -f /opt/python/cp27-cp27m
 
-#zlib
-COPY third_party/zlib/ /tmp/zlib
-RUN cd /tmp/zlib && \
-    CFLAGS="-fPIC" \
-    CXXFLAGS="-fPIC" \
-    ./configure --prefix=/usr/local && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
-    make install && \
-    cd && \
-    rm -rf /tmp/zlib
-
-# CMake
-COPY third_party/CMake/ /tmp/cmake
-RUN cd /tmp/cmake && \
-    ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l) && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
-    make install && \
-    cd && \
-    rm -rf /tmp/cmake
-
-# protobuf
-COPY third_party/protobuf/ /tmp/protobuf
-RUN cd /tmp/protobuf && \
-    ./autogen.sh && \
-    ./configure CXXFLAGS="-fPIC" --prefix=/usr/local --disable-shared 2>&1 > /dev/null && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 > /dev/null && \
-    make install 2>&1 > /dev/null && \
-    cd && \
-    rm -rf /tmp/protobuf
-
-# LMDB
-COPY docker/Makefile-lmdb.patch /tmp
-COPY third_party/lmdb/ /tmp/lmdb
-RUN cd /tmp/lmdb/libraries/liblmdb && \
-    patch -p3 < /tmp/Makefile-lmdb.patch && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
-    make install && \
-    cd && \
-    rm -f /tmp/Makefile-lmdb.patch && \
-    rm -rf /tmp/lmdb
-
-# libjpeg-turbo
-COPY third_party/libjpeg-turbo/ /tmp/libjpeg-turbo
-RUN cd /tmp/libjpeg-turbo/ && \
-    cmake -G"Unix Makefiles" -DENABLE_SHARED=TRUE -DCMAKE_INSTALL_PREFIX=/usr/local . 2>&1 >/dev/null && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 >/dev/null && \
-    make install 2>&1 >/dev/null && \
-    cd && \
-    rm -rf /tmp/libjpeg-turbo
-
-# zstandard compression library
-COPY third_party/zstd/ /tmp/zstd
-RUN cd /tmp/zstd && \
-      CFLAGS="-fPIC" CXXFLAGS="-fPIC" \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 >/dev/null && \
-    make install 2>&1 >/dev/null && \
-    cd && \
-    rm -rf /tmp/zstd
-
-# libtiff
-COPY third_party/libtiff/ /tmp/libtiff
-RUN cd /tmp/libtiff && \
-    ./autogen.sh && \
-    ./configure --prefix=/usr/local && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
-    make install && \
-    cd && \
-    rm -rf /tmp/libtiff
-
-# OpenJPEG
-COPY third_party/openjpeg/ /tmp/openjpeg
-RUN cd /tmp/openjpeg && \
-    mkdir build && cd build && \
-    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_CODEC=OFF -DCMAKE_INSTALL_PREFIX=/usr/local .. && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
-    make install && \
-    cd && \
-    rm -rf /tmp/openjpeg
-
-# OpenCV
-COPY third_party/opencv/ /tmp/opencv
-RUN cd /tmp/opencv && \
-    mkdir build && cd build && \
-    cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
-          -DBUILD_SHARED_LIBS=OFF \
-          -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \
-          -DBUILD_JPEG=OFF -DWITH_JPEG=ON \
-          -DBUILD_TIFF=OFF -DWITH_TIFF=ON \
-          -DBUILD_JASPER=OFF \
-          -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PNG=ON \
-          -DBUILD_opencv_cudalegacy=OFF -DBUILD_opencv_stitching=OFF \
-          -DWITH_TBB=OFF -DWITH_OPENMP=OFF -DWITH_PTHREADS_PF=OFF -DWITH_CSTRIPES=OFF .. && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    make install && \
-    cd && \
-    rm -rf /opencv
+COPY third_party/ /tmp/dali_deps
+COPY docker/Makefile-lmdb.patch /tmp/dali_deps/
+COPY docker/opencv-qnx.patch /tmp/dali_deps/
+RUN cd /tmp/dali_deps                                          && \
+    export CC_COMP=${CC}                                       && \
+    export CXX_COMP=${CXX}                                     && \
+    export CMAKE_TARGET_ARCH="$(uname -m)"                     && \
+    export OPENCV_TOOLCHAIN_FILE="linux/gnu.toolchain.cmake"   && \
+    export WITH_FFMPEG=1                                       && \
+    ./build_deps.sh && rm -rf /tmp/dali_deps
 
 # Clang, but only for x86_64
 RUN if [ "$(uname -m)" == "x86_64" ]; then \
@@ -127,87 +42,6 @@ RUN if [ "$(uname -m)" == "x86_64" ]; then \
         tar -xJf clang+llvm-*.tar.xz --strip 1 && \
         rm clang+llvm-*.tar.xz; \
     fi
-
-# FFmpeg  https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.3.1.tar.bz2
-COPY third_party/FFmpeg/ /tmp/ffmpeg
-RUN cd /tmp/ffmpeg && \
-    ./configure \
-      --prefix=/usr/local \
-      --disable-static \
-      --disable-programs \
-      --disable-doc \
-      --disable-avdevice \
-      --disable-swresample \
-      --disable-swscale \
-      --disable-postproc \
-      --disable-w32threads \
-      --disable-os2threads \
-      --disable-dct \
-      --disable-dwt \
-      --disable-error-resilience \
-      --disable-lsp \
-      --disable-lzo \
-      --disable-mdct \
-      --disable-rdft \
-      --disable-fft \
-      --disable-faan \
-      --disable-pixelutils \
-      --disable-autodetect \
-      --disable-iconv \
-      --enable-shared \
-      --enable-avformat \
-      --enable-avcodec \
-      --enable-avfilter \
-      --disable-encoders \
-      --disable-hwaccels \
-      --disable-muxers \
-      --disable-protocols \
-      --enable-protocol=file \
-      --disable-indevs \
-      --disable-outdevs  \
-      --disable-devices \
-      --disable-filters \
-      --disable-bsfs \
-      --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
-    cd / && \
-    rm -rf /tmp/ffmpeg
-
-# flac
-COPY third_party/flac/ /tmp/flac
-RUN cd /tmp/flac                                                                     && \
-    ./autogen.sh                                                                     && \
-    ./configure                                                                      && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
-    cd / && \
-    rm -rf /tmp/flac
-
-# libogg
-COPY third_party/ogg/ /tmp/ogg
-RUN cd /tmp/ogg                                                                      && \
-    ./autogen.sh                                                                     && \
-    ./configure                                                                      && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
-    cd / && \
-    rm -rf /tmp/ogg
-
-# libvorbis
-# Install after libogg
-COPY third_party/vorbis/ /tmp/vorbis
-RUN cd /tmp/vorbis                                                                    && \
-    ./autogen.sh                                                                      && \
-    ./configure                                                                       && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                 && \
-    cd / && \
-    rm -rf /tmp/vorbis
-
-# libsnd https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-1.0.28.tar.gz
-COPY third_party/libsndfile/ /tmp/libsndfile
-RUN cd /tmp/libsndfile                                                                && \
-    ./autogen.sh                                                                      && \
-    ./configure && make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install  && \
-    cd / && \
-    rm -rf /tmp/libsndfile
 
 # extra deps
 COPY --from=extra_deps / /

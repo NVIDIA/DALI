@@ -54,209 +54,31 @@ RUN dpkg -i $REPO_DEBS && \
    && rm -rf /var/lib/apt/lists/* \
    && rm -rf /tmp/cuda-packages.txt
 
-#zlib
-COPY third_party/zlib/ /tmp/zlib
-RUN cd /tmp/zlib && \
-      CFLAGS="-fPIC" \
-      CXXFLAGS="-fPIC" \
-      CC=aarch64-unknown-nto-qnx7.0.0-gcc \
-      CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
-    ./configure -prefix=/usr/aarch64-unknown-nto-qnx/aarch64le && \
-    make install -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
-    rm -rf /tmp/zlib
-
-# CMake
-COPY third_party/CMake/ /tmp/cmake
-RUN cd /tmp/cmake && \
-    ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l) && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /tmp/cmake
-
-# protobuf
-COPY third_party/protobuf/ /tmp/protobuf
-RUN cd /tmp/protobuf && \
-    ./autogen.sh && \
-    ./configure CXXFLAGS="-fPIC" --prefix=/usr/local --disable-shared 2>&1 > /dev/null && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 > /dev/null
-
-RUN cd /tmp/protobuf && make clean \
-    ./autogen.sh && ./configure \
-    CC=$QNX_HOST/usr/bin/aarch64-unknown-nto-qnx7.0.0-gcc \
-    CXX=$QNX_HOST/usr/bin/aarch64-unknown-nto-qnx7.0.0-g++ \
-    CXXFLAGS="-fPIC -D__EXT_POSIX1_198808 -I$QNX_TARGET/usr/include -I$QNX_TARGET/usr/include/aarch64 -I$QNX_TARGET/usr/include/c++/v1 -L$QNX_TARGET/aarch64le/lib -D_POSIX_C_SOURCE=200112L -D_QNX_SOURCE -D_FILE_OFFSET_BITS=64" \
-      --host=aarch64-unknown-nto-qnx7.0.0 \
-      --build=x86_64-linux-gnu \
-      --with-sysroot=$QNX_TARGET \
-      --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le \
-      --with-protoc=/usr/local/bin/protoc && make -j$(nproc) install && \
-    rm -rf /tmp/protobuf
-
-# LMDB
-COPY docker/Makefile-lmdb.patch /tmp
-COPY third_party/lmdb/ /tmp/lmdb
-RUN cd /tmp/lmdb/libraries/liblmdb && \
-    patch -p3 < /tmp/Makefile-lmdb.patch && \
-    rm -f /tmp/Makefile-lmdb.patch && \
-      CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc CXX=aarch64-unknown-nto-qnx7.0.0-g++ prefix=/usr/aarch64-unknown-nto-qnx/aarch64le \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /tmp/lmdb
-
-# libjpeg-turbo
-COPY third_party/libjpeg-turbo/ /tmp/libjpeg-turbo
-RUN cd /tmp/libjpeg-turbo/ && \
-    echo "set(CMAKE_SYSTEM_NAME Linux)" > toolchain.cmake && \
-    echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake && \
-    echo "set(CMAKE_C_COMPILER aarch64-unknown-nto-qnx7.0.0-gcc)" >> toolchain.cmake && \
-      CFLAGS="-fPIC" \
-      CXXFLAGS="-fPIC" \
-      CC=aarch64-unknown-nto-qnx7.0.0-gcc \
-      CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
-    cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_INSTALL_PREFIX=/usr/aarch64-unknown-nto-qnx/aarch64le . 2>&1 >/dev/null && \
-      CFLAGS="-fPIC" \
-      CXXFLAGS="-fPIC" \
-      CC=aarch64-unknown-nto-qnx7.0.0-gcc \
-      CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
-    rm -rf /tmp/libjpeg-turbo
-
-# zstandard compression library
-COPY third_party/zstd/ /tmp/zstd
-RUN cd /tmp/zstd && \
-      CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
-      prefix=/usr/aarch64-unknown-nto-qnx/aarch64le \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
-    rm -rf /tmp/zstd
-
-# libtiff
-COPY third_party/libtiff/ /tmp/libtiff
-RUN cd /tmp/libtiff && \
-    ./autogen.sh && \
-    ./configure \
-      CFLAGS="-fPIC" \
-      CXXFLAGS="-fPIC" \
-      CC=aarch64-unknown-nto-qnx7.0.0-gcc \
-      CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
-      --host=aarch64-unknown-nto-qnx7.0.0 \
-      --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le \
-      --with-zstd-include-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/include \
-      --with-zstd-lib-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/lib         \
-      --with-zlib-include-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/include \
-      --with-zlib-lib-dir=/usr/aarch64-unknown-nto-qnx/aarch64le/lib      && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
-    make install && \
-    rm -rf /tmp/libtiff
-
-# OpenJPEG
-COPY third_party/openjpeg/ /tmp/openjpeg
-RUN cd /tmp/openjpeg && \
-    mkdir build && cd build && \
-    echo "set(CMAKE_SYSTEM_NAME  Linux)" > toolchain.cmake && \
-    echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake && \
-    echo "set(CMAKE_C_COMPILER aarch64-unknown-nto-qnx7.0.0-gcc)" >> toolchain.cmake && \
-      CFLAGS="-fPIC" \
-      CXXFLAGS="-fPIC" \
-      CC=aarch64-unknown-nto-qnx7.0.0-gcc \
-      CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
-    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DBUILD_CODEC=OFF \
-          -DCMAKE_INSTALL_PREFIX=/usr/aarch64-unknown-nto-qnx/aarch64le .. && \
-      CFLAGS="-fPIC" \
-      CXXFLAGS="-fPIC" \
-      CC=aarch64-unknown-nto-qnx7.0.0-gcc \
-      CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /tmp/openjpeg
-
-# OpenCV
-COPY docker/opencv-qnx.patch /tmp/opencv-qnx.patch
-COPY third_party/opencv/ /tmp/opencv
-RUN cd /tmp/opencv && \
-    patch -p1 < /tmp/opencv-qnx.patch && \
-    mkdir build && cd build && \
-    cmake -DCMAKE_BUILD_TYPE=Release \
-          -DVIBRANTE_PDK:STRING=/ \
-          -DCMAKE_TOOLCHAIN_FILE=$PWD/../platforms/qnx/aarch64-qnx.toolchain.cmake \
-          -DCMAKE_INSTALL_PREFIX=/usr/aarch64-unknown-nto-qnx/aarch64le  \
-          -DBUILD_SHARED_LIBS=OFF \
-          -DBUILD_LIST=core,improc,imgcodecs \
-          -DBUILD_PNG=ON \
-          -DBUILD_TBB=OFF \
-          -DBUILD_WEBP=OFF \
-          -DBUILD_JPEG=OFF \
-          -DBUILD_TIFF=OFF \
-          -DWITH_JPEG=ON \
-          -DWITH_TIFF=ON \
-          -DBUILD_JASPER=OFF \
-          -DBUILD_ZLIB=ON \
-          -DBUILD_EXAMPLES=OFF \
-          -DBUILD_opencv_java=OFF \
-          -DBUILD_opencv_python2=OFF \
-          -DBUILD_opencv_python3=OFF \
-          -DENABLE_NEON=OFF \
-          -DWITH_PROTOBUF=OFF \
-          -DWITH_PTHREADS_PF=OFF \
-          -DWITH_OPENCL=OFF \
-          -DWITH_OPENMP=OFF \
-          -DWITH_FFMPEG=OFF \
-          -DWITH_GSTREAMER=OFF \
-          -DWITH_GSTREAMER_0_10=OFF \
-          -DWITH_CUDA=OFF \
-          -DWITH_GTK=OFF \
-          -DWITH_VTK=OFF \
-          -DWITH_TBB=OFF \
-          -DWITH_1394=OFF \
-          -DWITH_OPENEXR=OFF \
-          -DINSTALL_C_EXAMPLES=OFF \
-          -DINSTALL_TESTS=OFF \
-          -DVIBRANTE=TRUE \
-          VERBOSE=1 ../ && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /tmp/opencv
-
 ENV PKG_CONFIG_PATH=/usr/aarch64-unknown-nto-qnx/aarch64le/lib/pkgconfig
 
-# flac
-# QNX doesn't support wcswidth as DJGPP, so enabling __DJGPP__ fixes the problem
-COPY third_party/flac/ /tmp/flac
-RUN cd /tmp/flac                                                                     && \
-    ./autogen.sh                                                                     && \
-    ./configure CFLAGS="-fPIC -D__DJGPP__" CXXFLAGS="-fPIC -D__DJGPP__" CC=aarch64-unknown-nto-qnx7.0.0-gcc \
-           CXX=aarch64-unknown-nto-qnx7.0.0-g++ --host=aarch64-unknown-nto-qnx7.0.0 \
-           --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le --disable-ogg             && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
-    rm -rf /tmp/flac
-
-# libogg
-COPY third_party/ogg/ /tmp/ogg
-RUN cd /tmp/ogg                                                                      && \
-    ./autogen.sh                                                                     && \
-    ./configure CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc \
-           CXX=aarch64-unknown-nto-qnx7.0.0-g++ --host=aarch64-unknown-nto-qnx7.0.0 \
-           --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le                           && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
-    rm -rf /tmp/ogg
-
-# libvorbis
-# Install after libogg
-
-COPY third_party/vorbis/ /tmp/vorbis
-RUN cd /tmp/vorbis                                                                    && \
-    ./autogen.sh                                                                      && \
-    ./configure CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc \
-           CXX=aarch64-unknown-nto-qnx7.0.0-g++ --host=aarch64-unknown-nto-qnx7.0.0 \
-           --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le                            && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                 && \
-    rm -rf /tmp/vorbis
-
-# libsnd https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-1.0.28.tar.gz
-# libsnd cannot find /usr/aarch64-unknown-nto-qnx/aarch64le/include for FLAC so add it manually
-COPY third_party/libsndfile/ /tmp/libsndfile
-RUN cd /tmp/libsndfile                                                                                         && \
-    ./autogen.sh                                                                                               && \
-    ./configure CFLAGS="-fPIC -I/usr/aarch64-unknown-nto-qnx/aarch64le/include" CXXFLAGS="-fPIC -I/usr/aarch64-unknown-nto-qnx/aarch64le/include" CC=aarch64-unknown-nto-qnx7.0.0-gcc \
-           CXX=aarch64-unknown-nto-qnx7.0.0-g++ --host=aarch64-unknown-nto-qnx7.0.0 \
-           --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le                                                     && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install                                                  && \
-    rm -rf /tmp/libsndfile
+COPY third_party/ /tmp/dali_deps
+COPY docker/Makefile-lmdb.patch /tmp/dali_deps/
+COPY docker/opencv-qnx.patch /tmp/dali_deps/
+RUN cd /tmp/dali_deps                                              && \
+    export CC_COMP=aarch64-unknown-nto-qnx7.0.0-gcc                && \
+    export CXX_COMP=aarch64-unknown-nto-qnx7.0.0-g++               && \
+    export INSTALL_PREFIX="/usr/aarch64-unknown-nto-qnx/aarch64le" && \
+    export SYSROOT_ARG="--with-sysroot=${QNX_TARGET}"              && \
+    export BUILD_ARCH_OPTION="--build=x86_64-linux-gnu "           && \
+    export HOST_ARCH_OPTION="--host=aarch64-unknown-nto-qnx7.0.0"  && \
+    export CMAKE_TARGET_ARCH=aarch64                               && \
+    export OPENCV_TOOLCHAIN_FILE="qnx/aarch64-qnx.toolchain.cmake" && \
+    export WITH_FFMPEG=0                                           && \
+    export EXTRA_PROTOBUF_FLAGS="-D__EXT_POSIX1_198808 -I$QNX_TARGET/usr/include \
+                                 -I$QNX_TARGET/usr/include/aarch64 \
+                                 -I$QNX_TARGET/usr/include/c++/v1 \
+                                 -L$QNX_TARGET/aarch64le/lib \
+                                 -D_POSIX_C_SOURCE=200112L \
+                                 -D_QNX_SOURCE \
+                                 -D_FILE_OFFSET_BITS=64" && \
+    export EXTRA_FLAC_FLAGS="-D__DJGPP__"                          && \
+    export EXTRA_LIBSND_FLAGS="-I/usr/aarch64-unknown-nto-qnx/aarch64le/include" && \
+    ./build_deps.sh && rm -rf /tmp/dali_deps
 
 VOLUME /dali
 
