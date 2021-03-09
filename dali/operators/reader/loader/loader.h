@@ -158,7 +158,7 @@ class Loader {
       // First part of this condition makes sure that the same number of batches is returned in each
       // shard. Second makes sure that padding is done up to the full batch. For the first sample in
       // the batch is_new_batch is set so it means that padding may be no longer needed
-      if ((returned_sample_counter_  < num_samples(num_shards_, SizeNoLock()) || !is_new_batch) &&
+      if ((returned_sample_counter_  < num_samples(num_shards_, Size()) || !is_new_batch) &&
         pad_last_batch_) {
         ++returned_sample_counter_;
         return last_sample_ptr_tmp;
@@ -227,12 +227,6 @@ class Loader {
   // Give the size of the data accessed through the Loader
   Index Size(bool consider_padding = false) {
     PrepareMetadata();
-    return SizeNoLock(consider_padding);
-  }
-
-  // Give the size of the data accessed through the Loader, it assumes that
-  // PrepareMetadataImpl() was called before
-  Index SizeNoLock(bool consider_padding = false) {
     if (pad_last_batch_ && consider_padding) {
       return num_samples(num_shards_, SizeImpl()) * num_shards_;
     } else {
@@ -271,18 +265,18 @@ class Loader {
 
   // Check if given reader moved to the next shard
   virtual inline bool IsNextShard(Index current_index) {
-     return current_index >= SizeNoLock() ||
+     return current_index >= Size() ||
             (stick_to_shard_ && shard_id_ + 1 < num_shards_ &&
-            current_index >= static_cast<Index>(start_index(shard_id_ + 1, num_shards_, SizeNoLock())));
+            current_index >= static_cast<Index>(start_index(shard_id_ + 1, num_shards_, Size())));
   }
 
   inline bool IsNextShardRelative(Index already_read, int virtual_shard_id) {
      Index current_index = already_read
-                         + static_cast<Index>(start_index(virtual_shard_id, num_shards_, SizeNoLock()));
-     return current_index >= SizeNoLock() ||
+                         + static_cast<Index>(start_index(virtual_shard_id, num_shards_, Size()));
+     return current_index >= Size() ||
             (virtual_shard_id + 1 < num_shards_ &&
               current_index >=
-              static_cast<Index>(start_index(virtual_shard_id + 1, num_shards_, SizeNoLock())));
+              static_cast<Index>(start_index(virtual_shard_id + 1, num_shards_, Size())));
   }
 
   inline void IncreaseReadSampleCounter() {

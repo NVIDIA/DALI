@@ -126,7 +126,7 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
  private:
   void Reset(bool wrap_to_shard) override {
     if (wrap_to_shard) {
-      current_sequence_ = start_index(shard_id_, num_shards_, SizeNoLock());
+      current_sequence_ = start_index(shard_id_, num_shards_, SizeImpl());
     } else {
       current_sequence_ = 0;
     }

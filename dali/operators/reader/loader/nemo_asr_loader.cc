@@ -80,7 +80,7 @@ void NemoAsrLoader::PrepareMetadataImpl() {
   shuffled_indices_.resize(entries_.size());
   std::iota(shuffled_indices_.begin(), shuffled_indices_.end(), 0);
 
-  DALI_ENFORCE(SizeNoLock() > 0, "No files found.");
+  DALI_ENFORCE(SizeImpl() > 0, "No files found.");
   if (shuffle_) {
     // seeded with hardcoded value to get
     // the same sequence on every shard
@@ -91,7 +91,7 @@ void NemoAsrLoader::PrepareMetadataImpl() {
 }
 
 void NemoAsrLoader::Reset(bool wrap_to_shard) {
-  current_index_ = wrap_to_shard ? start_index(shard_id_, num_shards_, SizeNoLock()) : 0;
+  current_index_ = wrap_to_shard ? start_index(shard_id_, num_shards_, SizeImpl()) : 0;
   current_epoch_++;
 
   if (shuffle_after_epoch_) {

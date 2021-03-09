@@ -165,7 +165,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
         DALI_ENFORCE(s.eof(), "Wrong format of file_list: " + file_list_);
       }
     }
-    DALI_ENFORCE(SizeNoLock() > 0, "No files found.");
+    DALI_ENFORCE(SizeImpl() > 0, "No files found.");
 
     if (shuffle_) {
       // seeded with hardcoded value to get
@@ -178,7 +178,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
 
   void Reset(bool wrap_to_shard) override {
     if (wrap_to_shard) {
-      current_index_ = start_index(shard_id_, num_shards_, SizeNoLock());
+      current_index_ = start_index(shard_id_, num_shards_, SizeImpl());
     } else {
       current_index_ = 0;
     }
