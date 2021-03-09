@@ -217,8 +217,8 @@ class Loader {
   void PrepareMetadata() {
     std::lock_guard<std::mutex> l(prepare_metadata_mutex_);
     if (!loading_flag_) {
-      loading_flag_ = true;
       PrepareMetadataImpl();
+      loading_flag_ = true;
     }
   }
 
