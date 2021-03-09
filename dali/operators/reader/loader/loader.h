@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 #include <deque>
+#include <atomic>
 
 #include "dali/core/nvtx.h"
 #include "dali/core/common.h"
@@ -118,9 +119,7 @@ class Loader {
 
   // Get a random read sample
   LoadTargetSharedPtr ReadOne(bool is_new_batch) {
-    if (!loading_flag_) {
-      PrepareMetadata();
-    }
+    PrepareMetadata();
     DomainTimeRange tr("[DALI][Loader] ReadOne", DomainTimeRange::kGreen1);
     // perform an initial buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
@@ -215,18 +214,19 @@ class Loader {
   virtual void ReadSample(LoadTarget& tensor) = 0;
 
   void PrepareMetadata() {
-    std::lock_guard<std::mutex> l(prepare_metadata_mutex_);
     if (!loading_flag_) {
-      loading_flag_ = true;
-      PrepareMetadataImpl();
+      std::lock_guard<std::mutex> l(prepare_metadata_mutex_);
+      if (!loading_flag_) {
+        PrepareMetadataImpl();
+        std::atomic_thread_fence(std::memory_order_release);
+        loading_flag_ = true;
+      }
     }
   }
 
   // Give the size of the data accessed through the Loader
   Index Size(bool consider_padding = false) {
-    if (!loading_flag_) {
-      PrepareMetadata();
-    }
+    PrepareMetadata();
     if (pad_last_batch_ && consider_padding) {
       return num_samples(num_shards_, SizeImpl()) * num_shards_;
     } else {

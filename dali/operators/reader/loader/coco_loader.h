@@ -183,7 +183,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
       ParseJsonAnnotations();
     }
 
-    DALI_ENFORCE(Size() > 0, "No files found.");
+    DALI_ENFORCE(SizeImpl() > 0, "No files found.");
     if (shuffle_) {
       // seeded with hardcoded value to get
       // the same sequence on every shard
