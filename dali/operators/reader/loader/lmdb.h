@@ -222,7 +222,7 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   void Reset(bool wrap_to_shard) override {
     // work out how many entries to move forward to handle sharding
     if (wrap_to_shard) {
-      current_index_ = start_index(shard_id_, num_shards_, Size());
+      current_index_ = start_index(shard_id_, num_shards_, SizeImpl());
     } else {
       current_index_ = 0;
     }
