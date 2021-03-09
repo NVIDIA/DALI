@@ -137,7 +137,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     int64 seek_pos, size;
     size_t file_index;
     if (wrap_to_shard) {
-      current_index_ = start_index(shard_id_, num_shards_, Size());
+      current_index_ = start_index(shard_id_, num_shards_, SizeNoLock());
     } else {
       current_index_ = 0;
     }

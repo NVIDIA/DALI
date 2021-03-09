@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 #include <deque>
+#include <atomic>
 
 #include "dali/core/nvtx.h"
 #include "dali/core/common.h"
@@ -118,9 +119,7 @@ class Loader {
 
   // Get a random read sample
   LoadTargetSharedPtr ReadOne(bool is_new_batch) {
-    if (!loading_flag_) {
-      PrepareMetadata();
-    }
+    PrepareMetadata();
     DomainTimeRange tr("[DALI][Loader] ReadOne", DomainTimeRange::kGreen1);
     // perform an initial buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
@@ -159,7 +158,7 @@ class Loader {
       // First part of this condition makes sure that the same number of batches is returned in each
       // shard. Second makes sure that padding is done up to the full batch. For the first sample in
       // the batch is_new_batch is set so it means that padding may be no longer needed
-      if ((returned_sample_counter_  < num_samples(num_shards_, Size()) || !is_new_batch) &&
+      if ((returned_sample_counter_  < num_samples(num_shards_, SizeNoLock()) || !is_new_batch) &&
         pad_last_batch_) {
         ++returned_sample_counter_;
         return last_sample_ptr_tmp;
@@ -215,18 +214,25 @@ class Loader {
   virtual void ReadSample(LoadTarget& tensor) = 0;
 
   void PrepareMetadata() {
-    std::lock_guard<std::mutex> l(prepare_metadata_mutex_);
     if (!loading_flag_) {
-      PrepareMetadataImpl();
-      loading_flag_ = true;
+      std::lock_guard<std::mutex> l(prepare_metadata_mutex_);
+      if (!loading_flag_) {
+        PrepareMetadataImpl();
+        std::atomic_thread_fence(std::memory_order_release);
+        loading_flag_ = true;
+      }
     }
   }
 
   // Give the size of the data accessed through the Loader
   Index Size(bool consider_padding = false) {
-    if (!loading_flag_) {
-      PrepareMetadata();
-    }
+    PrepareMetadata();
+    return SizeNoLock(consider_padding);
+  }
+
+  // Give the size of the data accessed through the Loader, it assumes that
+  // PrepareMetadataImpl() was called before
+  Index SizeNoLock(bool consider_padding = false) {
     if (pad_last_batch_ && consider_padding) {
       return num_samples(num_shards_, SizeImpl()) * num_shards_;
     } else {
@@ -265,18 +271,18 @@ class Loader {
 
   // Check if given reader moved to the next shard
   virtual inline bool IsNextShard(Index current_index) {
-     return current_index >= Size() ||
+     return current_index >= SizeNoLock() ||
             (stick_to_shard_ && shard_id_ + 1 < num_shards_ &&
-            current_index >= static_cast<Index>(start_index(shard_id_ + 1, num_shards_, Size())));
+            current_index >= static_cast<Index>(start_index(shard_id_ + 1, num_shards_, SizeNoLock())));
   }
 
   inline bool IsNextShardRelative(Index already_read, int virtual_shard_id) {
      Index current_index = already_read
-                         + static_cast<Index>(start_index(virtual_shard_id, num_shards_, Size()));
-     return current_index >= Size() ||
+                         + static_cast<Index>(start_index(virtual_shard_id, num_shards_, SizeNoLock()));
+     return current_index >= SizeNoLock() ||
             (virtual_shard_id + 1 < num_shards_ &&
               current_index >=
-              static_cast<Index>(start_index(virtual_shard_id + 1, num_shards_, Size())));
+              static_cast<Index>(start_index(virtual_shard_id + 1, num_shards_, SizeNoLock())));
   }
 
   inline void IncreaseReadSampleCounter() {

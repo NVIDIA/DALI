@@ -302,7 +302,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
  private:
   void Reset(bool wrap_to_shard) override {
     if (wrap_to_shard) {
-      current_frame_idx_ = start_index(shard_id_, num_shards_, Size());
+      current_frame_idx_ = start_index(shard_id_, num_shards_, SizeNoLock());
     } else {
       current_frame_idx_ = 0;
     }
