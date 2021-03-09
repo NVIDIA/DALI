@@ -107,46 +107,63 @@ received so far.
     def reset(self):
         self.partially_received = {}
         self.scheduled = OrderedDict()
+        # Mapping from batch_i to (excpetion, traceback_str) for failed batches
         self.iter_failed = {}
+        # Mapping from batch_i to set of workers that raised StopIteration
+        self.iter_stopped = {}
 
-    def push_scheduled(self, batch_i, tasks):
+    def push_scheduled(self, batch_i, tasks, worker_task_mapping):
         """Mark batch of given id as scheduled with all passed tasks. Initialize structures
         for receiving the results.
+        Save the mapping from workers to tasks.
         """
         if batch_i in self.scheduled:
             raise RuntimeError("Given batch has already been scheduled")
         self.partially_received[batch_i] = {}
-        self.scheduled[batch_i] = tasks
+        self.scheduled[batch_i] = (tasks, worker_task_mapping)
 
     def pop_scheduled(self):
         return self.scheduled.popitem(last=False)
 
-    def handle_error(self, batch_i):
+    def handle_error(self, batch_i, tasks, worker_task_mapping):
         """Check if given batch notified error and raise it"""
         if batch_i in self.iter_failed:
             exception, traceback_str = self.iter_failed[batch_i]
             del self.iter_failed[batch_i]
             del self.partially_received[batch_i]
-            if isinstance(exception, StopIteration):
-                raise exception
-            else:
-                # Raise new exception propagating the traceback from worker thread as error
-                # message, originating from original exception
-                raise Exception(
-                    "\n\nException traceback received from worker thread:\n\n" + traceback_str) from exception
+            del self.iter_stopped[batch_i]
+            # Raise new exception propagating the traceback from worker thread as error
+            # message, originating from original exception
+            raise Exception(
+                "\n\nException traceback received from worker thread:\n\n" + traceback_str) from exception
+        if batch_i in self.iter_stopped:
+            total_stopped = self._count_stopped(batch_i, worker_task_mapping)
+            if total_stopped != len(tasks):
+                raise RuntimeError(("StopIteration was raised for batch {}. If a sample causes StopIteration, "
+                    "all samples in the given batch are expected to raise as well. Got StopIteration "
+                    "from {} out of {} worker processes, that is for {} samples out of {}.")
+                            .format(batch_i, len(self.iter_stopped[batch_i]), len(worker_task_mapping), total_stopped, len(tasks)))
+            raise StopIteration
 
     def is_error(self, batch_i):
         return batch_i in self.iter_failed
 
-    def set_error(self, batch_i, excpetion, traceback_str):
-        self.iter_failed[batch_i] = (excpetion, traceback_str)
+    def set_error(self, batch_i, worker_id, excpetion, traceback_str):
+        if isinstance(excpetion, StopIteration):
+            if batch_i in self.iter_stopped:
+                self.iter_stopped[batch_i].add(worker_id)
+            else:
+                self.iter_stopped[batch_i] = {worker_id}
+        else:
+            self.iter_failed[batch_i] = (excpetion, traceback_str)
 
     def is_cleared(self, batch_i):
         return batch_i not in self.partially_received
 
-    def is_not_received(self, batch_i, tasks):
+    def is_not_received(self, batch_i, tasks, worker_task_mapping):
         """Check if we didn't receive all results for given tasks and batch_i"""
-        return len(self.partially_received[batch_i]) < len(tasks)
+        total_stopped = self._count_stopped(batch_i, worker_task_mapping)
+        return len(self.partially_received[batch_i]) + total_stopped < len(tasks)
 
     def get_batch(self, batch_i, tasks):
         """Return the full batch, mark it as cleared and consumed"""
@@ -159,6 +176,13 @@ received so far.
         """Obtain the chunk and decode it, add to partially gathered result"""
         worker_batch = self.batch_consumer.load_batch(sock, serialized_batch)
         self.partially_received[batch_i].update(worker_batch)
+
+    def _count_stopped(self, batch_i, worker_task_mapping):
+        total_stopped = 0
+        for stopped_worker in self.iter_stopped.get(batch_i, {}):
+            begin, end = worker_task_mapping[stopped_worker]
+            total_stopped += end - begin
+        return total_stopped
 
 
 class ProcPool:
@@ -390,9 +414,9 @@ class WorkerPool:
             # or failed with error, once user receives batch that raised exception they should reset
             # the context before scheduling new tasks
             return
-        self._distribute(context_i, batch_i, tasks)
+        worker_to_task_id = self._distribute(context_i, batch_i, tasks)
         # TODO check if raising from doubly scheduled task makes sense?
-        context.push_scheduled(batch_i, tasks)
+        context.push_scheduled(batch_i, tasks, worker_to_task_id)
 
     def _distribute(self, context_i, batch_i, tasks):
         num_workers = self.pool.num_workers
@@ -400,6 +424,7 @@ class WorkerPool:
         chunk_size = tasks_no // num_workers
         remainder = tasks_no % num_workers
         queued_no = 0
+        worker_to_task_id = {}
         with self.pool.task_pipes_lock:
             for worker_id in range(num_workers):
                 worker_chunk = chunk_size + (worker_id < remainder)
@@ -409,6 +434,8 @@ class WorkerPool:
                     context_i, batch_i, tasks[queued_no: queued_no + worker_chunk])
                 queued_no += worker_chunk
                 self.pool.send(worker_id, scheduled_tasks)
+                worker_to_task_id[worker_id] = (queued_no, queued_no + worker_chunk)
+        return worker_to_task_id
 
     def receive_batch(self, context_i):
         """Returns the next produced batch (in the order of schedule_batch calls) for the
@@ -422,10 +449,10 @@ class WorkerPool:
         """
         context = self.contexts[context_i]
         assert len(context.scheduled) > 0, "No task has been scheduled"
-        batch_i, tasks = context.pop_scheduled()
-        while context.is_not_received(batch_i, tasks) and not context.is_error(batch_i):
+        batch_i, (tasks, worker_to_tasks) = context.pop_scheduled()
+        while context.is_not_received(batch_i, tasks, worker_to_tasks) and not context.is_error(batch_i):
             self._receive_chunk()
-        context.handle_error(batch_i)
+        context.handle_error(batch_i, tasks, worker_to_tasks)
         res = context.get_batch(batch_i, tasks)
         return res
 
@@ -443,7 +470,8 @@ class WorkerPool:
                 continue
             # iteration failed with exception
             if completed_tasks.is_failed():
-                context.set_error(batch_i, completed_tasks.exception, completed_tasks.traceback_str)
+                context.set_error(batch_i, completed_tasks.worker_id, completed_tasks.exception,
+                                  completed_tasks.traceback_str)
             # received a valid chunk
             else:
                 context.receive_chunk(

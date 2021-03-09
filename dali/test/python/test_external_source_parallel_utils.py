@@ -105,15 +105,15 @@ def check_spawn_with_callback(
         dtypes=[np.float32, np.int32, np.uint8],
         shapes=[(4, 5)],
         random_data=False, random_shape=False):
-    epoch_size = 250
     for shape in shapes:
         for dtype in dtypes:
-            callback = callback_class(shape, epoch_size, dtype,
-                                      random_data=random_data, random_shape=random_shape)
-            callback_ref = callback_ref_class(
-                shape, epoch_size, dtype, random_data=random_data, random_shape=random_shape)
             for workers_num in [1, 4]:
                 for batch_size in [1, 16, 150]:
+                    epoch_size = (250 // batch_size) * batch_size
+                    callback = callback_class(shape, epoch_size, dtype,
+                                            random_data=random_data, random_shape=random_shape)
+                    callback_ref = callback_ref_class(
+                        shape, epoch_size, dtype, random_data=random_data, random_shape=random_shape)
                     pipe_parallel = create_pipe(
                         callback, 'cpu', batch_size, py_num_workers=workers_num,
                         py_start_method='spawn', parallel=True, num_outputs=num_outputs,
@@ -142,7 +142,7 @@ def check_stop_iteration_resume(pipe, batch_size, layout):
         try:
             while True:
                 (r, ) = pipe.run()
-                output.append(r)
+                output.append(r.as_array())
         except StopIteration:
             pipe.reset()
     assert len(outputs_epoch_1) == len(outputs_epoch_2), ("Epochs must have same number of iterations, "

@@ -54,7 +54,7 @@ def test_parallel_no_workers():
 
 @with_setup(setup_function, teardown_function)
 def test_parallel_fork():
-    epoch_size = 250
+    epoch_size = 256
     callback = ExtCallback((4, 5), epoch_size, np.int32)
     pipes = [(
         create_pipe(
@@ -63,7 +63,7 @@ def test_parallel_fork():
         create_pipe(callback, 'cpu', batch_size, parallel=False),
         dtype, batch_size)
         for dtype in [np.float32, np.int16]
-        for num_workers in [1, 3, 4] for batch_size in [1, 16, 150, 250]]
+        for num_workers in [1, 3, 4] for batch_size in [1, 16, 256]]
     for parallel_pipe, _, _, _ in pipes:
         parallel_pipe.start_py_workers()
     for parallel_pipe, pipe, dtype, batch_size in pipes:
@@ -96,9 +96,9 @@ def test_tensor_cpu():
 @with_setup(setup_function, teardown_function)
 def test_exception_propagation():
     for raised, expected in [(StopIteration, StopIteration), (CustomException, Exception)]:
-        callback = ExtCallback((4, 4), 250, np.int32, exception_class=raised)
         for num_workers in [1, 4]:
             for batch_size in [1, 15, 150]:
+                callback = ExtCallback((4, 4), batch_size, np.int32, exception_class=raised)
                 pipe = create_pipe(
                     callback, 'cpu', batch_size, py_num_workers=num_workers,
                     py_start_method='spawn', parallel=True)
@@ -106,20 +106,21 @@ def test_exception_propagation():
 
 @with_setup(setup_function, teardown_function)
 def test_stop_iteration_resume():
-    callback = ExtCallback((4, 4), 250, 'int32')
     layout = "XY"
     for num_workers in [1, 4]:
         for batch_size in [1, 15, 150]:
-            pipe = create_pipe(callback, 'cpu', batch_size, layout=layout,
-                               py_num_workers=num_workers, py_start_method='spawn', parallel=True)
-            yield check_stop_iteration_resume, pipe, batch_size, layout
+            for iters in [1, 3]:
+                callback = ExtCallback((4, 4), batch_size * iters, 'int32')
+                pipe = create_pipe(callback, 'cpu', batch_size, layout=layout,
+                                py_num_workers=num_workers, py_start_method='spawn', parallel=True)
+                yield check_stop_iteration_resume, pipe, batch_size, layout
 
 @with_setup(setup_function, teardown_function)
 def test_layout():
     for layout, dims in zip(["X", "XY", "XYZ"], ((4,), (4, 4), (4, 4, 4))):
-        callback = ExtCallback(dims, 1024, 'int32')
         for num_workers in [1, 4]:
             for batch_size in [1, 256, 600]:
+                callback = ExtCallback(dims, batch_size * 2, 'int32')
                 pipe = create_pipe(
                     callback, 'cpu', batch_size, layout=layout, py_num_workers=num_workers,
                     py_start_method='spawn', parallel=True)

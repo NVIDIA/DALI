@@ -394,7 +394,11 @@ Keyword Args
 
     When ``parallel`` is set to True, ``source`` must return NumPy/MXNet/PyTorch CPU array,
     TensorCPU, or tuple/list of these types with length matching num_outputs.
-    The ``source`` callback must raise StopIteration when the end of data is reached.
+    The ``source`` callback must raise ``StopIteration`` when the end of data is reached.
+
+    .. warning:: ``StopIteration`` must be raised for all samples calculated in a given iteration,
+        so all worker processes can propagate the ``StopIteration`` signal. Producing a partial
+        batch is prohibited.
 
     Setting ``parallel`` to True makes the external source work in per-sample mode.
     If ``batch`` was not set it is set to False.
