@@ -71,13 +71,13 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
       chroma_sh[2] = in_sh[1] >> horz_subsample;
 
       sample_desc.in_size = {in_sh[0], in_sh[1]};
-      sample_desc.in_strides = {sample_desc.in_size[1] * 3, 3};
+      sample_desc.in_strides = {in_sh[1] * 3, 3};
 
       sample_desc.out_y_size = {in_sh[0], in_sh[1]};
-      sample_desc.out_y_strides = {sample_desc.out_y_size[1], 1};
+      sample_desc.out_y_strides = {in_sh[1], 1};
 
       sample_desc.out_chroma_size = {chroma_sh[1], chroma_sh[2]};
-      sample_desc.out_chroma_strides = {sample_desc.out_chroma_size[1], 1};
+      sample_desc.out_chroma_strides = {chroma_sh[2], 1};
 
       auto luma_vol = volume(sample_desc.out_y_size);
       auto chroma_vol = volume(sample_desc.out_chroma_size);
@@ -91,6 +91,7 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
       out_ptr += chroma_vol;
       in_ptr += volume(in_sh);
     }
+    int64_t out_total_len = out_ptr - output_;
 
     block_setup_.SetupBlocks(chroma_shape, true);
     auto blocks_cpu = block_setup_.Blocks();
@@ -108,12 +109,28 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
     dim3 grid_dim = block_setup_.GridDim();
     dim3 block_dim = block_setup_.BlockDim();
     cudaStream_t stream = 0;
+
+    std::cout << "params " << grid_dim.x << " " << grid_dim.y << " " << grid_dim.z << "\n" 
+              << " block_dim " <<  block_dim.x << " " << block_dim.y << " " << block_dim.z << "\n";
     RGBToYCbCrChromaSubsample<horz_subsample, vert_subsample, T>
       <<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
     CUDA_CALL(cudaGetLastError());
     cudaDeviceSynchronize();
 
-    // TODO(janton): Check data correctness
+    std::vector<T> output_host_(out_total_len);
+    CUDA_CALL(cudaMemcpy(output_host_.data(), output_, sizeof(T) * out_total_len,
+                         cudaMemcpyDefault));
+    cudaDeviceSynchronize();
+
+    std::cout << "ref size is " << ref_output_.size() << "\nData:";
+    for (int i = 0; i < ref_output_.size(); i++) std::cout << " " << (int) ref_output_[i]; std::cout << "\n"; 
+    std::cout << "out size is " << output_host_.size() << "\nData:";
+    for (int i = 0; i < output_host_.size(); i++) std::cout << " " << (int) output_host_[i]; std::cout << "\n"; 
+
+//    TensorShape<1> flat_sh{out_total_len};
+//    TensorView<StorageCPU, T> ref_tv(output_host_.data(), flat_sh);
+//    TensorView<StorageCPU, T> out_tv(output_, flat_sh);
+//    Check(out_tv, ref_tv, EqualUlp());
 
     CUDA_CALL(cudaFree(blocks_gpu));
     CUDA_CALL(cudaFree(samples_gpu));
@@ -122,15 +139,71 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
   uint8_t *input_device_;
   T *output_;
   std::vector<uint8_t> input_host_;
-  std::vector<float> ref_output_;
+  std::vector<T> ref_output_;
   std::vector<TensorShape<3>> out_shapes_;
-  std::vector<TensorShape<3>> in_shapes_ = {{40, 50, 3}, {10, 20, 3}};
+  std::vector<TensorShape<3>> in_shapes_ = {{2, 4, 3}, {2, 2, 3}};
 
   BlockSetup<2, 0> block_setup_;
   using BlockDesc = BlockSetup<2, 0>::BlockDesc;
 
   void calc_output() {
-    // TODO(janton)
+    // simplest implementation for test purposes. First convert to YCbCr, then subsample
+    std::vector<uint8_t> out_y, tmp_cb, tmp_cr;
+    int64_t comp_len = input_host_.size() / 3;
+    out_y.reserve(comp_len);
+    tmp_cb.reserve(comp_len);
+    tmp_cr.reserve(comp_len);
+
+    ref_output_.clear();
+    ref_output_.reserve(input_host_.size());  // worst case size
+    for (int sample = 0; sample < in_shapes_.size(); sample++) {
+      out_y.clear();
+      tmp_cb.clear();
+      tmp_cr.clear();
+
+      auto sh = in_shapes_[sample];
+      int64_t chroma_height = sh[0] >> horz_subsample;
+      int64_t chroma_width  = sh[1] >> vert_subsample;
+      int64_t npixels = sh[0] * sh[1];
+      for (int64_t i = 0; i < npixels; i++) {
+        vec<3, uint8_t> rgb{input_host_[i*3], input_host_[i*3+1], input_host_[i*3+2]};
+        out_y[i]  =  0.29900000f * rgb.x + 0.58700000f * rgb.y + 0.11400000f * rgb.z;
+        tmp_cb[i] = -0.16873589f * rgb.x - 0.33126411f * rgb.y + 0.50000000f * rgb.z + 128.0f;
+        tmp_cr[i] =  0.50000000f * rgb.x - 0.41868759f * rgb.y - 0.08131241f * rgb.z + 128.0f;
+
+        ref_output_.push_back(ConvertSat<T>(out_y[i]));
+      }
+
+      auto subsample_f = [&](std::vector<T> &out, const std::vector<uint8_t> &component) {
+        for (int64_t y = 0; y < chroma_height; y++) {
+          for (int64_t x = 0; x < chroma_width; x++) {
+            auto in_y = y << vert_subsample;
+            auto in_x = x << horz_subsample;
+            auto in_offset_1 = in_y * sh[1] + in_x;
+            auto in_offset_2 = in_y * sh[1] + in_x + 1;
+            auto in_offset_3 = (in_y + 1) * sh[1] + in_x;
+            auto in_offset_4 = (in_y + 1) * sh[1] + in_x + 1;
+            int c = component[in_offset_1];
+            if (horz_subsample && vert_subsample) {
+              c += component[in_offset_2];
+              c += component[in_offset_3];
+              c += component[in_offset_4];
+              out.push_back(ConvertSat<T>(c / 4));
+            } else if (horz_subsample) {
+              c += component[in_offset_2];
+              out.push_back(ConvertSat<T>(c / 2));
+            } else if (vert_subsample) {
+              c += component[in_offset_3];
+              out.push_back(ConvertSat<T>(c / 2));
+            } else {
+              out.push_back(ConvertSat<T>(c));
+            }
+          }
+        }
+      };
+      subsample_f(ref_output_, tmp_cb);
+      subsample_f(ref_output_, tmp_cr);
+    }
   }
 
   size_t batch_volume(const std::vector<TensorShape<3>> &shapes) {

@@ -19,6 +19,7 @@
 
 #include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/imgproc/surface.h"
+#include "dali/kernels/imgproc/sampler.h"
 #include "dali/core/geom/vec.h"
 
 namespace dali {
@@ -26,20 +27,20 @@ namespace kernels {
 
 template <typename T = uint8_t>
 struct SampleDesc {
-  const uint8_t *in;
+  const uint8_t *in;  // rgb
   T *out_y, *out_cb, *out_cr;
   vec<2, int> in_size, out_y_size, out_chroma_size;
   vec<2, int64_t> in_strides, out_y_strides, out_chroma_strides;
 };
 
 template <typename T>
-__inline__ __device__ T convert_pixel_rgb_to_y(const vec<3, uint8_t> rgb) {
+__inline__ __device__ T rgb_to_y(const vec<3, uint8_t> rgb) {
   return 0.299f * rgb.x + 0.587f * rgb.y + 0.114f * rgb.z;
 }
 
 template <typename T>
-__inline__ __device__ vec<3, T> convert_pixel_rgb_to_ycbcr(const vec<3, uint8_t> rgb) {
-  float y  =  convert_pixel_rgb_to_y<T>(rgb);
+__inline__ __device__ vec<3, T> rgb_to_ycbcr(const vec<3, uint8_t> rgb) {
+  float y  =  rgb_to_y<T>(rgb);
   float cb = -0.16873589f * rgb.x - 0.33126411f * rgb.y + 0.50000000f * rgb.z + 128.0f;
   float cr =  0.50000000f * rgb.x - 0.41868759f * rgb.y - 0.08131241f * rgb.z + 128.0f;
   cr = clamp<float>(cr, 0, 255);
@@ -49,7 +50,6 @@ __inline__ __device__ vec<3, T> convert_pixel_rgb_to_ycbcr(const vec<3, uint8_t>
 template <bool horz_subsample, bool vert_subsample, typename T = uint8_t, int in_nchannels = 3>
 __global__ void RGBToYCbCrChromaSubsample(const SampleDesc<T> *samples,
                                           const kernels::BlockDesc<2> *blocks) {
-  using RGB = vec<3, uint8_t>;
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
 
@@ -57,6 +57,8 @@ __global__ void RGBToYCbCrChromaSubsample(const SampleDesc<T> *samples,
     sample.in, sample.in_size.x, sample.in_size.y, in_nchannels,
     sample.in_strides.x, sample.in_strides.y, 1
   };
+
+  const auto sampler = make_sampler<DALI_INTERP_LINEAR>(in);
 
   const Surface2D<T> out_y = {
     sample.out_y, sample.out_y_size.x, sample.out_y_size.y, 1,
@@ -78,40 +80,29 @@ __global__ void RGBToYCbCrChromaSubsample(const SampleDesc<T> *samples,
       int64_t in_x = x << horz_subsample;
       int64_t in_y = y << vert_subsample;
 
-      RGB rgb = in(in_x, in_y);
+      u8vec3 rgb[4];
+      sampler(rgb[0].v, ivec2(in_x, in_y), BorderClamp());
+      out_y(x, y) = rgb_to_y<T>(rgb[0]);
+      u8vec3 avg_rgb = rgb[0];
       if (horz_subsample && vert_subsample) {
-        RGB rgb_1 = rgb;
-        RGB rgb_2 = in(in_x + 1, in_y);
-        RGB rgb_3 = in(in_x, in_y + 1);
-        RGB rgb_4 = in(in_x + 1, in_y + 1);
-        out_y(x, y)         = convert_pixel_rgb_to_y<T>(rgb_1);
-        out_y(x + 1, y)     = convert_pixel_rgb_to_y<T>(rgb_2);
-        out_y(x, y + 1)     = convert_pixel_rgb_to_y<T>(rgb_3);
-        out_y(x + 1, y + 1) = convert_pixel_rgb_to_y<T>(rgb_4);
-        rgb.x = (static_cast<int>(rgb_1.x) + rgb_2.x + rgb_3.x + rgb_4.x) / 4;
-        rgb.y = (static_cast<int>(rgb_1.y) + rgb_2.y + rgb_3.y + rgb_4.y) / 4;
-        rgb.z = (static_cast<int>(rgb_1.z) + rgb_2.z + rgb_3.z + rgb_4.z) / 4;
+        sampler(rgb[1].v, ivec2(in_x + 1, in_y), BorderClamp());
+        sampler(rgb[2].v, ivec2(in_x, in_y + 1), BorderClamp());
+        sampler(rgb[3].v, ivec2(in_x + 1, in_y + 1), BorderClamp());
+        out_y(x + 1, y) = rgb_to_y<T>(rgb[1]);
+        out_y(x, y + 1) = rgb_to_y<T>(rgb[2]);
+        out_y(x + 1, y + 1) = rgb_to_y<T>(rgb[3]);
+        sampler(avg_rgb.v, vec2(in_x + 1.0f, in_y + 1.0f), BorderClamp());  // average
       } else if (horz_subsample) {
-        RGB rgb_1 = rgb;
-        RGB rgb_2 = in(in_x + 1, in_y);
-        out_y(x, y)     = convert_pixel_rgb_to_y<T>(rgb_1);
-        out_y(x + 1, y) = convert_pixel_rgb_to_y<T>(rgb_2);
-        rgb.x = (static_cast<int>(rgb_1.x) + rgb_2.x) / 2;
-        rgb.y = (static_cast<int>(rgb_1.y) + rgb_2.y) / 2;
-        rgb.z = (static_cast<int>(rgb_1.z) + rgb_2.z) / 2;
+        sampler(rgb[1].v, ivec2(in_x + 1, in_y), BorderClamp());
+        out_y(x + 1, y) = rgb_to_y<T>(rgb[1]);
+        sampler(avg_rgb.v, vec2(in_x + 1.0f, in_y), BorderClamp());  // average
       } else if (vert_subsample) {
-        RGB rgb_1 = rgb;
-        RGB rgb_2 = in(in_x, in_y + 1);
-        out_y(x, y)     = convert_pixel_rgb_to_y<T>(rgb_1);
-        out_y(x, y + 1) = convert_pixel_rgb_to_y<T>(rgb_2);
-        rgb.x = (static_cast<int>(rgb_1.x) + rgb_2.x) / 2;
-        rgb.y = (static_cast<int>(rgb_1.y) + rgb_2.y) / 2;
-        rgb.z = (static_cast<int>(rgb_1.z) + rgb_2.z) / 2;
-      } else {  // no subsampling
-        out_y(x, y) = convert_pixel_rgb_to_y<T>(rgb);
+        sampler(rgb[2].v, ivec2(in_x, in_y + 1), BorderClamp());
+        out_y(x, y + 1) = rgb_to_y<T>(rgb[2]);
+        sampler(avg_rgb.v, vec2(in_x, in_y + 1.0f), BorderClamp());  // average
       }
 
-      vec<3, T> ycbcr = convert_pixel_rgb_to_ycbcr<T>(rgb);
+      u8vec3 ycbcr = rgb_to_ycbcr<T>(avg_rgb);
       out_cb(x, y) = ycbcr.y;
       out_cr(x, y) = ycbcr.z;
     }
