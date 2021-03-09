@@ -115,6 +115,14 @@ def test_stop_iteration_resume():
                                 py_num_workers=num_workers, py_start_method='spawn', parallel=True)
                 yield check_stop_iteration_resume, pipe, batch_size, layout
 
+@raises(RuntimeError)
+@with_setup(setup_function, teardown_function)
+def test_stop_iteration_mismatch():
+    callback = ExtCallback((4, 4), 299, 'int32')
+    pipe = create_pipe(callback, 'cpu', batch_size=100, layout="XY",
+                    py_num_workers=4, py_start_method='spawn', parallel=True)
+    build_and_run_pipeline(pipe)
+
 @with_setup(setup_function, teardown_function)
 def test_layout():
     for layout, dims in zip(["X", "XY", "XYZ"], ((4,), (4, 4), (4, 4, 4))):
