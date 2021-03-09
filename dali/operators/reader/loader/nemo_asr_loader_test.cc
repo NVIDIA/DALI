@@ -141,7 +141,6 @@ TEST(NemoAsrLoaderTest, ParseManifestContent) {
   {
     NemoAsrLoader loader(spec);
     ASSERT_THROW(loader.PrepareMetadata(), std::runtime_error);
-    EXPECT_EQ(0, loader.Size());
   }
 
   {
@@ -151,7 +150,6 @@ TEST(NemoAsrLoaderTest, ParseManifestContent) {
 
     NemoAsrLoader loader(spec);
     ASSERT_THROW(loader.PrepareMetadata(), std::runtime_error);
-    EXPECT_EQ(0, loader.Size());
   }
 
   {
@@ -161,7 +159,6 @@ TEST(NemoAsrLoaderTest, ParseManifestContent) {
 
     NemoAsrLoader loader(spec);
     ASSERT_THROW(loader.PrepareMetadata(), std::runtime_error);
-    EXPECT_EQ(0, loader.Size());
   }
 
   {
