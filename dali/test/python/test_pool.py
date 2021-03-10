@@ -33,7 +33,7 @@ def create_pool(callbacks, queue_depth=1, num_workers=1, start_method="fork"):
     queue_depths = [queue_depth for _ in callbacks]
     proc_pool = ProcPool(callbacks, queue_depths, num_workers=num_workers,
                          start_method=start_method, initial_chunk_size=1024 * 1024)
-    worker_pool = WorkerPool(len(callbacks), proc_pool)
+    worker_pool = WorkerPool(len(callbacks), queue_depths, proc_pool)
     return worker_pool
 
 def get_pids(worker_pool):
