@@ -22,7 +22,7 @@
 #include "dali/kernels/imgproc/jpeg/chroma_subsample_gpu.cuh"
 
 #define DEBUG_LOGS 0
-#define PERF_RUN 0
+#define PERF_RUN 1
 
 namespace dali {
 namespace kernels {
@@ -116,7 +116,7 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
     }
     int64_t out_total_len = out_ptr - output_;
 
-    block_setup_.SetBlockDim(dim3(32, 32, 1));
+    block_setup_.SetBlockDim(dim3(32, 24, 1));
     block_setup_.SetupBlocks(chroma_shape, true);
     auto blocks_cpu = block_setup_.Blocks();
 
@@ -135,6 +135,8 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
 
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
+    RGBToYCbCrChromaSubsample<horz_subsample, vert_subsample, T>
+      <<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
     CUDA_CALL(cudaEventRecord(start, stream));
 
     RGBToYCbCrChromaSubsample<horz_subsample, vert_subsample, T>

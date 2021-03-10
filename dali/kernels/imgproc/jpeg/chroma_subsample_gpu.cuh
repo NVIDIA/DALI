@@ -16,6 +16,7 @@
 #define DALI_KERNELS_IMGPROC_JPEG_CHROMA_SUBSAMPLE_GPU_H_
 
 #include <cuda_runtime_api.h>
+#include <cuda_fp16.h>
 
 #include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/imgproc/surface.h"
@@ -39,13 +40,28 @@ __inline__ __device__ T rgb_to_y(u8vec3 rgb) {
 }
 
 template <typename T>
-__inline__ __device__ T rgb_to_cb(u8vec3 rgb) {
+__inline__ __device__ T rgb_to_cb(vec<3> rgb) {
   return ConvertSat<T>(-0.16873589f * rgb.x - 0.33126411f * rgb.y + 0.50000000f * rgb.z + 128.0f);
 }
 
 template <typename T>
-__inline__ __device__ T rgb_to_cr(u8vec3 rgb) {
+__inline__ __device__ T rgb_to_cr(vec<3> rgb) {
   return ConvertSat<T>(0.50000000f * rgb.x - 0.41868759f * rgb.y - 0.08131241f * rgb.z + 128.0f);
+}
+
+template <typename T>
+__inline__ __device__ vec<2, T> rgb_to_cb_cr(vec<3> rgb) {
+  return { rgb_to_cb<T>(rgb), rgb_to_cr<T>(rgb) };
+}
+
+template <int N, typename T>
+__device__ vec<N> avg4(vec<N, T> a, vec<N, T> b, vec<N, T> c, vec<N, T> d) {
+  IMPL_VEC_ELEMENTWISE((a[i] + b[i] + c[i] + d[i]) * 0.25f);
+}
+
+template <int N, typename T>
+__device__ vec<N> avg2(vec<N, T> a, vec<N, T> b) {
+  IMPL_VEC_ELEMENTWISE((a[i] + b[i]) * 0.5f);
 }
 
 template <bool horz_subsample, bool vert_subsample, typename T = uint8_t>
@@ -87,27 +103,30 @@ __global__ void RGBToYCbCrChromaSubsample(const SampleDesc<T> *samples,
       u8vec3 rgb[4];
       sampler(rgb[0].v, ivec2(x, y), BorderClamp());
       out_y(x, y) = rgb_to_y<T>(rgb[0]);
-      u8vec3 avg_rgb = rgb[0];
+      vec<3> avg_rgb(rgb[0]);
       if (horz_subsample && vert_subsample) {
         sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
         sampler(rgb[2].v, ivec2(x, y + 1), BorderClamp());
         sampler(rgb[3].v, ivec2(x + 1, y + 1), BorderClamp());
+        avg_rgb = avg4(rgb[0], rgb[1], rgb[2], rgb[3]);
         out_y(x + 1, y) = rgb_to_y<T>(rgb[1]);
         out_y(x, y + 1) = rgb_to_y<T>(rgb[2]);
         out_y(x + 1, y + 1) = rgb_to_y<T>(rgb[3]);
-        sampler(avg_rgb.v, vec2(x + 1.0f, y + 1.0f), BorderClamp());  // average
+        //sampler(avg_rgb.v, vec2(x + 1.0f, y + 1.0f), BorderClamp());  // average*/
       } else if (horz_subsample) {
         sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
         out_y(x + 1, y) = rgb_to_y<T>(rgb[1]);
-        sampler(avg_rgb.v, vec2(x + 1.0f, y + 0.5f), BorderClamp());  // average
+        avg_rgb = avg2(rgb[0], rgb[1]);
       } else if (vert_subsample) {
-        sampler(rgb[2].v, ivec2(x, y + 1), BorderClamp());
-        out_y(x, y + 1) = rgb_to_y<T>(rgb[2]);
-        sampler(avg_rgb.v, vec2(x + 0.5f, y + 1.0f), BorderClamp());  // average
+        sampler(rgb[1].v, ivec2(x, y + 1), BorderClamp());
+        out_y(x, y + 1) = rgb_to_y<T>(rgb[1]);
+        avg_rgb = avg2(rgb[0], rgb[1]);
       }
 
-      out_cb(chroma_x, chroma_y) = rgb_to_cb<T>(avg_rgb);;
-      out_cr(chroma_x, chroma_y) = rgb_to_cr<T>(avg_rgb);;
+      vec<2, T> cbcr = rgb_to_cb_cr<T>(avg_rgb);
+
+      out_cb(chroma_x, chroma_y) = cbcr.x;
+      out_cr(chroma_x, chroma_y) = cbcr.y;
     }
   }
 }
