@@ -63,7 +63,8 @@ If a value is not specified, if number of dimension matches existing layout, the
 layout is preserved. If the number of dimensions does not match, the argument is reset
 to empty. If a value is set, and is not empty, the layout must match the dimensionality
 of the output.)code",
-                  TensorLayout(""));
+                  TensorLayout(""))
+  .AddOptionalArg("src_dims", "", std::vector<int>(), true); // TODO
 
 DALI_SCHEMA(Reinterpret)
   .DocStr(R"(Treats content of the input as if it had a different type, shape, and/or layout.
@@ -89,13 +90,15 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
   bool has_shape_arg = spec.HasArgument("shape") || spec.HasTensorArgument("shape");
   bool has_layout_arg = spec.HasArgument("layout");
   bool has_rel_shape_arg = spec.HasArgument("rel_shape") || spec.HasTensorArgument("rel_shape");
+  bool has_src_dims = spec.HasArgument("src_dims");
+
+  src_dims_ = spec.GetRepeatedArgument<int>("src_dims");
   if (spec.HasArgument("dtype"))
     output_type_id_ = spec.GetArgument<DALIDataType>("dtype");
   DALI_ENFORCE(has_shape_input + has_shape_arg + has_rel_shape_arg <= 1, make_string(OpName(),
     ": shape input, `shape` argument and `rel_shape` argument are mutually exclusive"));
 
-  bool does_reshape = has_shape_input || has_shape_arg || has_rel_shape_arg || has_layout_arg;
-  if (!has_shape_input && !has_shape_arg && !has_rel_shape_arg && !has_layout_arg) {
+  if (!has_shape_input && !has_shape_arg && !has_rel_shape_arg && !has_layout_arg && !has_src_dims) {
     bool can_have_dtype = spec.GetSchema().HasArgument("dtype");
     if (can_have_dtype) {
       DALI_ENFORCE(output_type_id_ != DALI_NO_TYPE, make_string(OpName(),
@@ -169,6 +172,7 @@ bool Reshape<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Wor
       ? &TypeTable::GetTypeInfo(output_type_id_)
       : &ws.template InputRef<Backend>(0).type();
 
+  CheckSrcDims(ws);
   CalculateOutputShape(ws);
   output_desc[0].type = *output_type_;
   output_desc[0].shape = output_shape_;
@@ -188,7 +192,7 @@ void Reshape<Backend>::ShapeFromInput(
     auto shape_tensor = shape[0];
     int N = shape_tensor.shape[0];
     DALI_ENFORCE(N == input_shape_.num_samples(), make_string(OpName(),
-      ": the new shape mush have same number of samples. Got ",
+      ": the new shape must have same number of samples. Got ",
       output_shape_.num_samples(), ", expected ", N));
     int dim = shape_tensor.shape[1];
     output_shape_.resize(N, dim);
@@ -202,7 +206,7 @@ void Reshape<Backend>::ShapeFromInput(
   } else {
     int N = shape.num_samples();
     DALI_ENFORCE(N == input_shape_.num_samples(),
-      make_string(OpName(), ": the new shape mush have same number of samples. Got ",
+      make_string(OpName(), ": the new shape must have same number of samples. Got ",
       output_shape_.num_samples(), ", expected ", N));
     int sample_dim;
     for (int i = 0; i < N; i++) {
@@ -250,7 +254,8 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
         output_shape_.resize(N, rel_uniform_shape_.size());
         for (int i = 0; i < N; i++) {
           for (int d = 0; d < output_shape_.sample_dim(); d++) {
-            int out_e = round_int(rel_uniform_shape_[d] * input_shape_.tensor_shape_span(i)[d]);
+            const int src_d = src_dims_.empty() ? d : src_dims_[d];
+            int out_e = round_int(rel_uniform_shape_[d] * input_shape_.tensor_shape_span(i)[src_d]);
             output_shape_.tensor_shape_span(i)[d] = out_e;
           }
         }
@@ -270,7 +275,13 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
       ShapeFromInput(ws.template InputRef<CPUBackend>(1), false);
       break;
     case ShapeSource::None:
-      output_shape_ = input_shape_;
+      output_shape_.resize(N, src_dims_.empty() ? input_shape_.sample_dim() : src_dims_.size());
+      for (int i = 0; i < N; i++) {
+        for (int d = 0; d < input_shape_.sample_dim(); d++) {
+          const int src_d = src_dims_.empty() ? d : src_dims_[d];
+          output_shape_.tensor_shape_span(i)[d] = input_shape_.tensor_shape_span(i)[src_d];
+        }
+      }
       break;
   }
 
@@ -368,6 +379,21 @@ void Reshape<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     assert(out.raw_tensor(i) == in.raw_tensor(i));
   }
   out.SetLayout(layout);
+}
+
+template <typename Backend>
+void Reshape<Backend>::CheckSrcDims(const Workspace &ws) {
+  if (src_dims_.empty()) {
+    return;
+  }
+
+  const auto &in = ws.template InputRef<Backend>(0);
+  const auto &input_shape = in.shape();
+  const int ndim = input_shape.sample_dim();
+  for (const auto src_dim : src_dims_) {
+    DALI_ENFORCE(src_dim < ndim,
+      make_string(OpName(), ": dimension in src_dims is out of the shape's bounds"));
+  }
 }
 
 DALI_REGISTER_OPERATOR(Reshape, Reshape<CPUBackend>, CPU);
