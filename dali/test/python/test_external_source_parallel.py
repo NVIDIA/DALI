@@ -144,4 +144,4 @@ def test_vs_non_parallel():
         for j in range(bs):
             s = seq.at(j)
             p = par.at(j)
-            assert np.array_equal(s, p):
+            assert np.array_equal(s, p)
