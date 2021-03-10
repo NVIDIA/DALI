@@ -142,7 +142,7 @@ def check_stop_iteration_resume(pipe, batch_size, layout):
         try:
             while True:
                 (r, ) = pipe.run()
-                output.append(r.as_array())
+                output.append(np.copy(r.as_array()))
         except StopIteration:
             pipe.reset()
     assert len(outputs_epoch_1) == len(outputs_epoch_2), ("Epochs must have same number of iterations, "
