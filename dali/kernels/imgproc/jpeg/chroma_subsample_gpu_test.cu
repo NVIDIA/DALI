@@ -116,7 +116,7 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
     }
     int64_t out_total_len = out_ptr - output_;
 
-    block_setup_.SetBlockDim(dim3(32, 8, 1));
+    block_setup_.SetBlockDim(dim3(32, 16, 1));
     block_setup_.SetupBlocks(chroma_shape, true);
     auto blocks_cpu = block_setup_.Blocks();
 
