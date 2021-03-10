@@ -326,18 +326,21 @@ class WorkerPool:
     """"Combines worker processes pool with callback contexts, can be used to schedule batches
     to be run on the workers and to receive resulting batches from the workers."""
 
-    def __init__(self, num_callbacks, pool):
+    def __init__(self, num_callbacks, queue_depths, pool):
         """
         Parameters
         ----------
         `num_callbacks` : int
             Number of callabacks that can be run in the workers, each callback will have separate
             context with dedicated shared memory pool.
+        `queue_depths` : list
+            Depths of per-context shared memory queues
         `pool` : ProcPool
             ProcPool instance enabling basic communication with worker processes.
         """
         self.contexts = [CallbackContext() for _ in range(num_callbacks)]
         self.pool = pool
+        self.queue_depths = queue_depths
         self.rec_pipes = self.pool.get_recv_pipes()
 
     @classmethod
@@ -365,9 +368,9 @@ class WorkerPool:
         callbacks = [group.callback for group in groups]
         queue_depths = [keep_alive_queue_size + group.prefetch_queue_depth for group in groups]
         pool = ProcPool(callbacks, queue_depths, num_workers, start_method, initial_chunk_size)
-        return cls(len(callbacks), pool)
+        return cls(len(callbacks), queue_depths, pool)
 
-    def schedule_batch(self, context_i, batch_i, tasks):
+    def schedule_batch(self, context_i, batch_i, dst_chunk_i, tasks):
         """Distribute `tasks` among workers to run them by calling `context_i`th callaback
 
         Parameters
@@ -377,6 +380,8 @@ class WorkerPool:
             to the order of callbacks passed when constructing WorkerPool.
         `batch_i` : int
             Ordinal of the batch that tasks list corresponds to.
+        `dst_chunk_i` : int
+            Index of the memory chunk in the circular buffer to store the output in
         `tasks` : list of (nvidia.dali.types.SampleInfo,)
             You can think of resulting batch as [callback(*task) for task in tasks] with the exception that
             callbacks will be run in parallel.
@@ -390,11 +395,11 @@ class WorkerPool:
             # or failed with error, once user receives batch that raised exception they should reset
             # the context before scheduling new tasks
             return
-        self._distribute(context_i, batch_i, tasks)
+        self._distribute(context_i, batch_i, dst_chunk_i, tasks)
         # TODO check if raising from doubly scheduled task makes sense?
         context.push_scheduled(batch_i, tasks)
 
-    def _distribute(self, context_i, batch_i, tasks):
+    def _distribute(self, context_i, batch_i, dst_chunk_i, tasks):
         num_workers = self.pool.num_workers
         tasks_no = len(tasks)
         chunk_size = tasks_no // num_workers
@@ -406,7 +411,7 @@ class WorkerPool:
                 if worker_chunk == 0:
                     break
                 scheduled_tasks = ScheduledTasks(
-                    context_i, batch_i, tasks[queued_no: queued_no + worker_chunk])
+                    context_i, batch_i, dst_chunk_i, tasks[queued_no: queued_no + worker_chunk])
                 queued_no += worker_chunk
                 self.pool.send(worker_id, scheduled_tasks)
 

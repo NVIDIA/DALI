@@ -177,16 +177,6 @@ class CallbackContext:
     def __init__(self, callback, mem_chunks):
         self.callback = callback
         self.mem_chunks = mem_chunks
-        self.batch_i = 0
-
-    def _next_batch_i(self):
-        res = self.batch_i
-        self.batch_i = (self.batch_i + 1) % len(self.mem_chunks)
-        return res
-
-    def next_mem_chunk(self):
-        batch_i = self._next_batch_i()
-        return self.mem_chunks[batch_i]
 
     def close(self):
         for chunk in self.mem_chunks:
@@ -248,8 +238,7 @@ def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task
                 tb_str = traceback.format_exc()
                 processed = _ProcessedTasks.failed(scheduled, exception, tb_str)
             else:
-                mem_chunk = context.next_mem_chunk()
-                processed = _ProcessedTasks.done(scheduled, mem_chunk, data_batch)
+                processed = _ProcessedTasks.done(scheduled, context.mem_chunks[scheduled.dst_chunk_i], data_batch)
             batch_dispatcher.dispatch(processed)
     finally:
         batch_dispatcher.dispatch(None)

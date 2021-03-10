@@ -964,8 +964,7 @@ Parameters
         if self._py_pool is None:
             return
         for i, group in enumerate(self._parallel_input_callbacks):
-            for _ in range(group.prefetch_queue_depth):
-                group.schedule_batch(self._py_pool, i, self._max_batch_size)
+            group.prefetch(self._py_pool, i, self._max_batch_size)
 
     def _fill_separated_queues(self):
         """When using separated execution fill each of the prefetch queues

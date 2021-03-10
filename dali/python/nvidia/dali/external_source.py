@@ -86,6 +86,9 @@ class _ExternalSourceGroup(object):
         self.batch = batch
         self.current_iter = 0
         self.current_sample = 0
+        self.flat_iter_idx = 0  # flat index of the next iteration, not affected by reset
+        self.scheduled_job_idx = 0  # sequential index of the parallel job, successful or not
+        self.scheduled_ahead = 0  # number of batches scheduled ahead for parallel ext. src.
         self.parallel = parallel
         self.prefetch_queue_depth = prefetch_queue_depth
         if callback is not None:
@@ -97,32 +100,47 @@ class _ExternalSourceGroup(object):
     def append(self, instance):
         self.instances.append(instance)
 
-    def callback_args(self, idx_in_batch):
+    def callback_args(self, idx_in_batch, batch_size = 0, lead = 0):
         """Generate information to be passed to ES callback.
 
         Args:
             idx_in_batch: Index in batch for per-sample mode, None indicates batch mode where we
             pass only the iteration number.
+            lead: how many batches ahead is this job wrt actual iteration
         """
         if not self.accepts_arg:
             return ()
         if idx_in_batch is not None:
-            arg = nvidia.dali.types.SampleInfo(self.current_sample + idx_in_batch, idx_in_batch, self.current_iter)
+            arg = nvidia.dali.types.SampleInfo(
+                self.current_sample + idx_in_batch + batch_size * lead,
+                idx_in_batch,
+                self.current_iter + lead)
         else:
-            arg = self.current_iter
+            arg = self.current_iter + lead
         return (arg,)
 
     def reset_indices(self):
         self.current_iter = 0
         self.current_sample = 0
+        self.cancel_prefetch()
 
-    def schedule_batch(self, pool, context_i, batch_size):
+    def cancel_prefetch(self):
+        self.scheduled_ahead = 0
+
+    def prefetch(self, pool, context_i, batch_size):
+        print("Prefetch")
+        while self.scheduled_ahead < pool.queue_depths[context_i] - 1:
+            print("Prefetching with lead", self.scheduled_ahead)
+            self.schedule_batch(pool, context_i, self.scheduled_ahead, batch_size)
+            self.scheduled_ahead += 1
+
+    def schedule_batch(self, pool, context_i, lead, batch_size):
         """Schedule computing new batch from source callback by the parallel pool."""
-        pool.schedule_batch(context_i, self.current_iter, [
-            self.callback_args(i) for i in range(batch_size)
+        dst_chunk_i = (self.flat_iter_idx + lead) % pool.queue_depths[context_i]
+        pool.schedule_batch(context_i, self.scheduled_job_idx, dst_chunk_i, [
+            self.callback_args(i, batch_size, lead) for i in range(batch_size)
         ])
-        self.current_sample += batch_size
-        self.current_iter += 1
+        self.scheduled_job_idx += 1
 
     def schedule_and_feed(self, pipeline, pool, context_i, batch_size):
         """Obtain the computed results of calling source callback in parallel pool and feed
@@ -134,7 +152,11 @@ class _ExternalSourceGroup(object):
             context_i (int): Index of the callback (in the list of parallel groups)"""
         try:
             callback_out = pool.receive_batch(context_i)
-            self.schedule_batch(pool, context_i, batch_size)
+            self.scheduled_ahead -= 1
+            self.flat_iter_idx += 1
+            self.current_sample += batch_size
+            self.current_iter += 1
+            self.prefetch(pool, context_i, batch_size)
             self.feed(pipeline, callback_out, batch_size)
         except StopIteration:
             self.reset_indices()
