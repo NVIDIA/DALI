@@ -128,9 +128,9 @@ class _ExternalSourceGroup(object):
         self.scheduled_ahead = 0
 
     def prefetch(self, pool, context_i, batch_size):
-        print("Prefetch")
-        while self.scheduled_ahead < pool.queue_depths[context_i] - 1:
-            print("Prefetching with lead", self.scheduled_ahead)
+        # NOTE We can't schedule more than what's on top of pipeline's prefetch queue, as the
+        # entires in the pipeline are zero-copy and cannot be overwritten.
+        while self.scheduled_ahead < self.prefetch_queue_depth:
             self.schedule_batch(pool, context_i, self.scheduled_ahead, batch_size)
             self.scheduled_ahead += 1
 
