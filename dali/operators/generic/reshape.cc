@@ -251,11 +251,16 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
   switch (shape_source_) {
     case ShapeSource::Arg:
       if (use_rel_shape_) {
-        output_shape_.resize(N, rel_uniform_shape_.size());
+        if (!src_dims_.empty()) {
+          DALI_ENFORCE(rel_uniform_shape_.size() == src_dims_.size(),
+            make_string(OpName(), ": ``src_dims`` and ``rel_shape`` should have the same length when both of them are provided."));
+        }
+    
+        output_shape_.resize(N, std::max(src_dims_.size(), rel_uniform_shape_.size()));
         for (int i = 0; i < N; i++) {
           for (int d = 0; d < output_shape_.sample_dim(); d++) {
             const int src_d = src_dims_.empty() ? d : src_dims_[d];
-            int out_e = round_int(rel_uniform_shape_[d] * input_shape_.tensor_shape_span(i)[src_d]);
+            int out_e = round_int(rel_uniform_shape_[d] * (src_d == -1 ? 1 : input_shape_.tensor_shape_span(i)[src_d]));
             output_shape_.tensor_shape_span(i)[d] = out_e;
           }
         }
@@ -275,11 +280,16 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
       ShapeFromInput(ws.template InputRef<CPUBackend>(1), false);
       break;
     case ShapeSource::None:
-      output_shape_.resize(N, src_dims_.empty() ? input_shape_.sample_dim() : src_dims_.size());
+      if (src_dims_.empty()) {
+        output_shape_ = input_shape_;
+        break;
+      }
+
+      output_shape_.resize(N, src_dims_.size());
       for (int i = 0; i < N; i++) {
         for (int d = 0; d < input_shape_.sample_dim(); d++) {
-          const int src_d = src_dims_.empty() ? d : src_dims_[d];
-          output_shape_.tensor_shape_span(i)[d] = input_shape_.tensor_shape_span(i)[src_d];
+          const int src_d = src_dims_[d];
+          output_shape_.tensor_shape_span(i)[d] = src_d == -1 ? 1 : input_shape_.tensor_shape_span(i)[src_d];
         }
       }
       break;
@@ -391,8 +401,8 @@ void Reshape<Backend>::CheckSrcDims(const Workspace &ws) {
   const auto &input_shape = in.shape();
   const int ndim = input_shape.sample_dim();
   for (const auto src_dim : src_dims_) {
-    DALI_ENFORCE(src_dim < ndim,
-      make_string(OpName(), ": dimension in src_dims is out of the shape's bounds"));
+    DALI_ENFORCE(-1 <= src_dim && src_dim < ndim,
+      make_string(OpName(), ": dimension in src_dims is out of range"));
   }
 }
 
