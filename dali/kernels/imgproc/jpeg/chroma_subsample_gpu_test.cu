@@ -15,12 +15,14 @@
 #include <cuda_runtime_api.h>
 #include <gtest/gtest.h>
 #include <vector>
-
+#include "dali/core/cuda_event.h"
+#include "dali/core/cuda_stream.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/jpeg/chroma_subsample_gpu.cuh"
 
 #define DEBUG_LOGS 0
+#define PERF_RUN 0
 
 namespace dali {
 namespace kernels {
@@ -34,6 +36,12 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
 
  public:
   ChromaSubsampleGPUTest() {
+    in_shapes_ = {{200, 400, 3}, {2000, 20, 3}, {2, 2, 3}};
+#if DEBUG_LOGS
+    in_shapes_ = {{2, 4, 3}, {2, 2, 3}};
+#elif PERF_RUN
+    in_shapes_.resize(64, TensorShape<3>{600, 800, 3});
+#endif
     input_host_.resize(batch_volume(in_shapes_));
   }
 
@@ -60,6 +68,8 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
   }
 
   void RunTest() {
+    CUDAStream stream = CUDAStream::Create(true);
+
     TensorListShape<2> chroma_shape(in_shapes_.size(), 2);
     std::vector<SampleDesc<T>> samples_cpu;
     samples_cpu.resize(in_shapes_.size());
@@ -122,17 +132,29 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
 
     dim3 grid_dim = block_setup_.GridDim();
     dim3 block_dim = block_setup_.BlockDim();
-    cudaStream_t stream = 0;
+
+    CUDAEvent start = CUDAEvent::CreateWithFlags(0);
+    CUDAEvent end = CUDAEvent::CreateWithFlags(0);
+    CUDA_CALL(cudaEventRecord(start, stream));
 
     RGBToYCbCrChromaSubsample<horz_subsample, vert_subsample, T>
       <<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
     CUDA_CALL(cudaGetLastError());
-    cudaDeviceSynchronize();
+
+    CUDA_CALL(cudaEventRecord(end, stream));
+    CUDA_CALL(cudaStreamSynchronize(stream));
+
+#if PERF_RUN
+    float time = 0;
+    CUDA_CALL(cudaEventElapsedTime(&time, start, end));
+    time *= 1e+6;  // to nanoseconds
+    int64_t size = batch_volume(in_shapes_) * sizeof(uint8_t) + out_total_len * sizeof(T);
+    std::cerr << "Throughput: " << size / time << " GB/s\n";
+#endif
 
     std::vector<T> output_host_(out_total_len);
     CUDA_CALL(cudaMemcpy(output_host_.data(), output_, sizeof(T) * out_total_len,
                          cudaMemcpyDefault));
-    cudaDeviceSynchronize();
 
     TensorShape<1> flat_sh{out_total_len};
     TensorView<StorageCPU, T> ref_tv(ref_output_.data(), flat_sh);
@@ -185,12 +207,8 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
   std::vector<uint8_t> input_host_;
   std::vector<T> ref_output_;
   std::vector<TensorShape<3>> out_shapes_;
-
-#if DEBUG_LOGS
-  std::vector<TensorShape<3>> in_shapes_ = {{2, 4, 3}, {2, 2, 3}};
-#else
-  std::vector<TensorShape<3>> in_shapes_ = {{200, 400, 3}, {2000, 20, 3}, {2, 2, 3}};
-#endif
+  CUDAStream stream_;
+  std::vector<TensorShape<3>> in_shapes_;
 
   using BlkSetup = BlockSetup<2, -1>;
   BlkSetup block_setup_;
@@ -305,12 +323,13 @@ using ChromaSubsampleTestParams = ::testing::Types<
 
 TYPED_TEST_SUITE_P(ChromaSubsampleGPUTest);
 
-TYPED_TEST_P(ChromaSubsampleGPUTest, RunKernel) {
+TYPED_TEST_P(ChromaSubsampleGPUTest, Test) {
   this->RunTest();
 }
 
-REGISTER_TYPED_TEST_SUITE_P(ChromaSubsampleGPUTest, RunKernel);
+REGISTER_TYPED_TEST_SUITE_P(ChromaSubsampleGPUTest, Test);
 INSTANTIATE_TYPED_TEST_SUITE_P(ChromaSubsample, ChromaSubsampleGPUTest, ChromaSubsampleTestParams);
+
 
 }  // namespace test
 }  // namespace kernels
