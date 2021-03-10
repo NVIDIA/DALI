@@ -34,20 +34,21 @@ struct SampleDesc {
 };
 
 template <typename T>
-__inline__ __device__ T rgb_to_y(const vec<3, uint8_t> rgb) {
+__inline__ __device__ T rgb_to_y(u8vec3 rgb) {
   return ConvertSat<T>(0.299f * rgb.x + 0.587f * rgb.y + 0.114f * rgb.z);
 }
 
 template <typename T>
-__inline__ __device__ vec<3, T> rgb_to_ycbcr(const vec<3, uint8_t> rgb) {
-  vec<3, T> ycbcr;
-  ycbcr.x = rgb_to_y<T>(rgb);
-  ycbcr.y = ConvertSat<T>(-0.16873589f * rgb.x - 0.33126411f * rgb.y + 0.50000000f * rgb.z + 128.0f);
-  ycbcr.z = ConvertSat<T>(0.50000000f * rgb.x - 0.41868759f * rgb.y - 0.08131241f * rgb.z + 128.0f);
-  return ycbcr;
+__inline__ __device__ T rgb_to_cb(u8vec3 rgb) {
+  return ConvertSat<T>(-0.16873589f * rgb.x - 0.33126411f * rgb.y + 0.50000000f * rgb.z + 128.0f);
 }
 
-template <bool horz_subsample, bool vert_subsample, typename T = uint8_t, int in_nchannels = 3>
+template <typename T>
+__inline__ __device__ T rgb_to_cr(u8vec3 rgb) {
+  return ConvertSat<T>(0.50000000f * rgb.x - 0.41868759f * rgb.y - 0.08131241f * rgb.z + 128.0f);
+}
+
+template <bool horz_subsample, bool vert_subsample, typename T = uint8_t>
 __global__ void RGBToYCbCrChromaSubsample(const SampleDesc<T> *samples,
                                           const kernels::BlockDesc<2> *blocks) {
   const auto &block = blocks[blockIdx.x];
@@ -60,7 +61,7 @@ __global__ void RGBToYCbCrChromaSubsample(const SampleDesc<T> *samples,
   }
 
   const Surface2D<const uint8_t> in = {
-    sample.in, sample.in_size.x, sample.in_size.y, in_nchannels,
+    sample.in, sample.in_size.x, sample.in_size.y, 3,
     sample.in_strides.x, sample.in_strides.y, 1
   };
 
@@ -105,9 +106,8 @@ __global__ void RGBToYCbCrChromaSubsample(const SampleDesc<T> *samples,
         sampler(avg_rgb.v, vec2(x + 0.5f, y + 1.0f), BorderClamp());  // average
       }
 
-      auto ycbcr = rgb_to_ycbcr<T>(avg_rgb);
-      out_cb(chroma_x, chroma_y) = ycbcr.y;
-      out_cr(chroma_x, chroma_y) = ycbcr.z;
+      out_cb(chroma_x, chroma_y) = rgb_to_cb<T>(avg_rgb);;
+      out_cr(chroma_x, chroma_y) = rgb_to_cr<T>(avg_rgb);;
     }
   }
 }
