@@ -22,7 +22,7 @@
 #include "dali/kernels/imgproc/jpeg/chroma_subsample_gpu.cuh"
 
 #define DEBUG_LOGS 0
-#define PERF_RUN 1
+#define PERF_RUN 0
 
 namespace dali {
 namespace kernels {
@@ -135,8 +135,10 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
 
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
+#if PERF_RUN  // warm-up
     RGBToYCbCrChromaSubsample<horz_subsample, vert_subsample, T>
       <<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
+#endif
     CUDA_CALL(cudaEventRecord(start, stream));
 
     RGBToYCbCrChromaSubsample<horz_subsample, vert_subsample, T>
