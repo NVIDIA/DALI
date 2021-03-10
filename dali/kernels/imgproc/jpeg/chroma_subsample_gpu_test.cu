@@ -20,6 +20,8 @@
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/jpeg/chroma_subsample_gpu.cuh"
 
+#define DEBUG_LOGS 0
+
 namespace dali {
 namespace kernels {
 namespace test {
@@ -136,9 +138,43 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
     TensorView<StorageCPU, T> ref_tv(ref_output_.data(), flat_sh);
     TensorView<StorageCPU, T> out_tv(output_host_.data(), flat_sh);
 
+#if DEBUG_LOGS
+    auto print_out = [&](std::vector<T> &outvec) {
+      int off = 0;
+      for (size_t i = 0; i < in_shapes_.size(); i++) {
+        const auto& in_sh = in_shapes_[i];
+        auto width = in_sh[1];
+        auto height = in_sh[0];
+        auto chroma_width = width >> horz_subsample;
+        auto chroma_height = height >> vert_subsample;
+
+        std::cout << "\n\nSample " << i << "Y:\n";
+        for (size_t k = 0; k < width * height; k++) {
+          if (k > 0 && k%width==0) std::cout << "\n";
+          std::cout << " " << (int) outvec[off++];
+        }
+        std::cout << "\nSample " << i << "Cb:\n";
+        for (size_t k = 0; k < chroma_width * chroma_height; k++) {
+          if (k > 0 && k%chroma_width==0) std::cout << "\n";
+          std::cout << " " << (int) outvec[off++];
+        }
+        std::cout << "\nSample " << i << "Cr:\n";
+        for (size_t k = 0; k < chroma_width * chroma_height; k++) {
+          if (k > 0 && k%chroma_width==0) std::cout << "\n";
+          std::cout << " " << (int) outvec[off++];
+        }
+        std::cout << "\n";
+      }
+    };
+    std::cout << "\n\nReference:\n\n";
+    print_out(ref_output_);
+    std::cout << "\n\nOutput:\n\n";
+    print_out(output_host_);
+#endif
+
     // In the kernel we average the RGB values, then converto to YCbCr
     // while here we are first converting and then averaging
-    Check(out_tv, ref_tv, EqualEps(2));
+    Check(out_tv, ref_tv, EqualEps(2.99));
 
     CUDA_CALL(cudaFree(blocks_gpu));
     CUDA_CALL(cudaFree(samples_gpu));
@@ -149,7 +185,12 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
   std::vector<uint8_t> input_host_;
   std::vector<T> ref_output_;
   std::vector<TensorShape<3>> out_shapes_;
-  std::vector<TensorShape<3>> in_shapes_ = {{200, 40, 3}, {2000, 200, 3}, {2, 2, 3}};
+
+#if DEBUG_LOGS
+  std::vector<TensorShape<3>> in_shapes_ = {{2, 4, 3}, {2, 2, 3}};
+#else
+  std::vector<TensorShape<3>> in_shapes_ = {{200, 400, 3}, {2000, 20, 3}, {2, 2, 3}};
+#endif
 
   using BlkSetup = BlockSetup<2, -1>;
   BlkSetup block_setup_;
@@ -172,9 +213,10 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
       tmp_cr.clear();
 
       auto sh = in_shapes_[sample];
-      int64_t chroma_height = sh[0] >> horz_subsample;
-      int64_t chroma_width  = sh[1] >> vert_subsample;
+      int64_t chroma_height = sh[0] >> vert_subsample;
+      int64_t chroma_width  = sh[1] >> horz_subsample;
       int64_t npixels = sh[0] * sh[1];
+
       for (int64_t i = 0; i < npixels; i++) {
         uint8_t r = input_host_[in_offset++];
         uint8_t g = input_host_[in_offset++];
@@ -182,10 +224,28 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
         out_y[i]  =  0.29900000f * r + 0.58700000f * g + 0.11400000f * b;
         tmp_cb[i] = -0.16873589f * r - 0.33126411f * g + 0.50000000f * b + 128.0f;
         tmp_cr[i] =  0.50000000f * r - 0.41868759f * g - 0.08131241f * b + 128.0f;
-
         ref_output_.push_back(ConvertSat<T>(out_y[i]));
       }
 
+#if DEBUG_LOGS
+      std::cout << "\nY ref:\n";
+      for (int64_t i = 0; i < npixels; i++) {
+        if (i > 0 && i%sh[1]==0) std::cout << "\n";
+        std::cout << " " << (int) out_y[i];
+      }
+
+      std::cout << "\nCb ref:\n";
+      for (int64_t i = 0; i < npixels; i++) {
+        if (i > 0 && i%sh[1]==0) std::cout << "\n";
+        std::cout << " " << (int) tmp_cb[i];
+      }
+
+      std::cout << "\nCr ref:\n";
+      for (int64_t i = 0; i < npixels; i++) {
+        if (i > 0 && i%sh[1]==0) std::cout << "\n";
+        std::cout << " " << (int) tmp_cr[i];
+      }
+#endif
       auto subsample_f = [&](std::vector<T> &out, const std::vector<uint8_t> &component) {
         for (int64_t y = 0; y < chroma_height; y++) {
           for (int64_t x = 0; x < chroma_width; x++) {
@@ -234,7 +294,14 @@ struct chroma_subsample_params_t {
   static constexpr bool horz_subsample = h;
 };
 
-using ChromaSubsampleTestParams = ::testing::Types<chroma_subsample_params_t<uint8_t, true, true>>;
+using ChromaSubsampleTestParams = ::testing::Types<
+  chroma_subsample_params_t<uint8_t, true, true>,
+  chroma_subsample_params_t<int32_t, true, true>,
+  chroma_subsample_params_t<float, true, true>,
+  chroma_subsample_params_t<uint8_t, false, true>,
+  chroma_subsample_params_t<uint8_t, true, false>,
+  chroma_subsample_params_t<uint8_t, false, false>
+>;
 
 TYPED_TEST_SUITE_P(ChromaSubsampleGPUTest);
 

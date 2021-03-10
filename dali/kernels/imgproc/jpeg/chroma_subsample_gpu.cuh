@@ -98,14 +98,14 @@ __global__ void RGBToYCbCrChromaSubsample(const SampleDesc<T> *samples,
       } else if (horz_subsample) {
         sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
         out_y(x + 1, y) = rgb_to_y<T>(rgb[1]);
-        sampler(avg_rgb.v, vec2(x + 1.0f, y), BorderClamp());  // average
+        sampler(avg_rgb.v, vec2(x + 1.0f, y + 0.5f), BorderClamp());  // average
       } else if (vert_subsample) {
         sampler(rgb[2].v, ivec2(x, y + 1), BorderClamp());
         out_y(x, y + 1) = rgb_to_y<T>(rgb[2]);
-        sampler(avg_rgb.v, vec2(x, y + 1.0f), BorderClamp());  // average
+        sampler(avg_rgb.v, vec2(x + 0.5f, y + 1.0f), BorderClamp());  // average
       }
 
-      u8vec3 ycbcr = rgb_to_ycbcr<T>(avg_rgb);
+      auto ycbcr = rgb_to_ycbcr<T>(avg_rgb);
       out_cb(chroma_x, chroma_y) = ycbcr.y;
       out_cr(chroma_x, chroma_y) = ycbcr.z;
     }
