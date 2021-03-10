@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/tensor_view.h"
 
@@ -40,6 +41,11 @@ class Reshape : public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   void RunImpl(Workspace &ws) override;
+ 
+ protected:
+  virtual void CalculateOutputShape(const Workspace &ws);
+  std::vector<int> src_dims_;
+  void CheckSrcDims(const Workspace &ws);
 
  private:
   TensorListShape<> input_shape_, output_shape_;
@@ -63,8 +69,6 @@ class Reshape : public Operator<Backend> {
   int wildcard_dim_ = -1;
   DALIDataType output_type_id_ = DALI_NO_TYPE;
   const TypeInfo *output_type_ = nullptr;
-
-  void CalculateOutputShape(const Workspace &ws);
 
   template <typename TensorListLike>
   void ShapeFromInput(const TensorListLike &tl, bool relative);
