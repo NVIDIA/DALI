@@ -22,7 +22,7 @@
 #include "dali/kernels/imgproc/jpeg/chroma_subsample_gpu.cuh"
 
 #define DEBUG_LOGS 0
-#define PERF_RUN 0
+#define PERF_RUN 1
 
 namespace dali {
 namespace kernels {
@@ -117,6 +117,9 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
     int64_t out_total_len = out_ptr - output_;
 
     block_setup_.SetBlockDim(dim3(32, 24, 1));
+    int xblock = 64*(2-horz_subsample);
+    int yblock = 128;
+    block_setup_.SetDefaultBlockSize({xblock, yblock});
     block_setup_.SetupBlocks(chroma_shape, true);
     auto blocks_cpu = block_setup_.Blocks();
 

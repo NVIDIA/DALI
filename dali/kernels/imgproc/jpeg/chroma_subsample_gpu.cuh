@@ -112,7 +112,6 @@ __global__ void RGBToYCbCrChromaSubsample(const SampleDesc<T> *samples,
         out_y(x + 1, y) = rgb_to_y<T>(rgb[1]);
         out_y(x, y + 1) = rgb_to_y<T>(rgb[2]);
         out_y(x + 1, y + 1) = rgb_to_y<T>(rgb[3]);
-        //sampler(avg_rgb.v, vec2(x + 1.0f, y + 1.0f), BorderClamp());  // average*/
       } else if (horz_subsample) {
         sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
         out_y(x + 1, y) = rgb_to_y<T>(rgb[1]);
