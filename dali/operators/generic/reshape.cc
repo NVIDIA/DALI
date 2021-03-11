@@ -66,7 +66,15 @@ of the output.)code",
                   TensorLayout(""))
   .AddOptionalArg("src_dims", R"code(Indicies of dims to keep.
 
-If a -1 value is provided then new dimension will be inserted in that place.)code",
+This argument can be used to manipulate the order of existing dimensions or to remove or
+add dimensions with extent one. A special index value -1 can be used to insert new dimensions
+at any particular position.
+
+For example, reshaping a sample with shape ``[300, 200, 1]`` and a ``src_dims``
+argument ``[-1, 1,  0]`` produces an output shape ``[1, 200, 300]``. A leading dimension with
+extent 1 is inserted at the beginning, followed by the first original dimensions but in reverse
+order. The last dimension is removed.
+All the indices should be in the range of valid dimensions of the input, or -1.)code",
                   std::vector<int>(), true);
 
 DALI_SCHEMA(Reinterpret)
@@ -93,7 +101,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
   bool has_shape_arg = spec.HasArgument("shape") || spec.HasTensorArgument("shape");
   bool has_layout_arg = spec.HasArgument("layout");
   bool has_rel_shape_arg = spec.HasArgument("rel_shape") || spec.HasTensorArgument("rel_shape");
-  bool has_src_dims = spec.HasArgument("src_dims");
+  bool has_src_dims_arg = spec.HasArgument("src_dims");
 
   src_dims_ = spec.GetRepeatedArgument<int>("src_dims");
   if (spec.HasArgument("dtype"))
@@ -102,7 +110,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
     ": shape input, `shape` argument and `rel_shape` argument are mutually exclusive"));
 
   if (!has_shape_input && !has_shape_arg && !has_rel_shape_arg && !has_layout_arg
-      && !has_src_dims) {
+      && !has_src_dims_arg) {
     bool can_have_dtype = spec.GetSchema().HasArgument("dtype");
     if (can_have_dtype) {
       DALI_ENFORCE(output_type_id_ != DALI_NO_TYPE, make_string(OpName(),
@@ -300,8 +308,10 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
             src_d == -1 ? 1 : input_shape_.tensor_shape_span(i)[src_d];
         }
         DALI_ENFORCE(
-          volume(output_shape_.tensor_shape_span(i)) == volume(input_shape_.tensor_shape_span(i)),
-          make_string(OpName(), ": ``src_dims`` should remove only dimensions equal to 1"));
+          output_shape_.tensor_size(i) == input_shape_.tensor_size(i),
+          make_string(OpName(), ": The volume of the new shape should match the"
+          " one of the original shape. Requested a shape with ", output_shape_.tensor_size(i),
+          " elements but the original shape has ", input_shape_.tensor_size(i), " elements."));
       }
       break;
   }
