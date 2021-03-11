@@ -244,7 +244,7 @@ class SharedBatchWriter:
         buffer = memview[offset:(offset + sample_size)]
         shared_array = np.ndarray(
             np_array.shape, dtype=np_array.dtype, buffer=buffer)
-        shared_array[:] = np_array[:]
+        shared_array.ravel()[:] = np_array.ravel()[:]
 
     def _write_batch(self, batch):
         if not batch:

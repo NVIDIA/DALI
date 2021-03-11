@@ -126,17 +126,18 @@ def test_layout():
                 yield check_layout, pipe, layout
 
 class ext_cb():
-    def __init__(self, name):
-        pass
+    def __init__(self, name, shape):
+        self.name = name
+        self.shape = shape
     def __call__(self, sinfo):
-        return np.full([100,100,100], sinfo.idx_in_epoch, dtype=np.int32)
+        return np.full(self.shape, sinfo.idx_in_epoch, dtype=np.int32)
 
-def test_vs_non_parallel():
+def _test_vs_non_parallel(shape):
     bs = 50
     pipe = dali.Pipeline(batch_size=bs, device_id=None, num_threads=5, py_num_workers=14, py_start_method='spawn')
     with pipe:
-        ext_seq = dali.fn.external_source(ext_cb("cb 1"), batch=False, parallel=False)
-        ext_par = dali.fn.external_source(ext_cb("cb 2"), batch=False, parallel=True)
+        ext_seq = dali.fn.external_source(ext_cb("cb 1", shape), batch=False, parallel=False)
+        ext_par = dali.fn.external_source(ext_cb("cb 2", shape), batch=False, parallel=True)
         pipe.set_outputs(ext_seq, ext_par)
     pipe.build()
     for i in range(10):
@@ -145,3 +146,7 @@ def test_vs_non_parallel():
             s = seq.at(j)
             p = par.at(j)
             assert np.array_equal(s, p)
+
+def test_vs_non_parallel():
+    for shape in [[], [10], [100, 100, 100]]:
+        yield _test_vs_non_parallel, shape
