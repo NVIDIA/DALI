@@ -157,7 +157,7 @@ def ext_cb2(sinfo):
 
 def test_discard():
     bs = 5
-    pipe = dali.Pipeline(batch_size=bs, device_id=None, num_threads=5, py_num_workers=4, py_start_method='fork')
+    pipe = dali.Pipeline(batch_size=bs, device_id=None, num_threads=5, py_num_workers=4, py_start_method='spawn')
     with pipe:
         sh = []
         ext1 = dali.fn.external_source([[np.float32(i) for i in range(bs)]]*3, cycle='raise')
