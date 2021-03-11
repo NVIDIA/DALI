@@ -41,11 +41,11 @@ class Reshape : public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   void RunImpl(Workspace &ws) override;
- 
+
  protected:
   virtual void CalculateOutputShape(const Workspace &ws);
   void CheckSrcDims(const Workspace &ws);
-  
+
   std::vector<int> src_dims_;
 
  protected:
