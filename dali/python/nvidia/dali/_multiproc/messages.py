@@ -22,13 +22,16 @@ class ScheduledTasks:
         Index identifying the callback in the order of parallel callbacks passed to pool.
     `batch_i` : int
         Ordinal of the batch that tasks list corresponds to.
+    `dst_chunk_i` : int
+        Index of the memory chunk in the circular buffer to store the output in
     `tasks` : nvidia.dali.types.SampleInfo list
         List of task ordered to be computed.
     """
 
-    def __init__(self, context_i, batch_i, tasks):
+    def __init__(self, context_i, batch_i, dst_chunk_i, tasks):
         self.context_i = context_i
         self.batch_i = batch_i
+        self.dst_chunk_i = dst_chunk_i
         self.tasks = tasks
 
 
