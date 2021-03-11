@@ -26,47 +26,141 @@
 namespace dali {
 namespace kernels {
 
-template <typename T = uint8_t>
 struct SampleDesc {
   const uint8_t *in;  // rgb
-  T *out_y, *out_cb, *out_cr;
-  ivec<2> in_size, out_y_size, out_chroma_size;
-  i64vec<2> in_strides, out_y_strides, out_chroma_strides;
+  uint8_t *out;  // rgb
+  ivec<2> size;
+  i64vec<2> strides;
 };
 
 template <typename T>
-__inline__ __device__ T rgb_to_y(u8vec3 rgb) {
+__inline__ __device__ T rgb_to_y(vec<3, T> rgb) {
   return ConvertSat<T>(0.299f * rgb.x + 0.587f * rgb.y + 0.114f * rgb.z);
 }
 
 template <typename T>
-__inline__ __device__ T rgb_to_cb(vec<3> rgb) {
+__inline__ __device__ T rgb_to_cb(vec<3, T> rgb) {
   return ConvertSat<T>(-0.16873589f * rgb.x - 0.33126411f * rgb.y + 0.50000000f * rgb.z + 128.0f);
 }
 
 template <typename T>
-__inline__ __device__ T rgb_to_cr(vec<3> rgb) {
+__inline__ __device__ T rgb_to_cr(vec<3, T> rgb) {
   return ConvertSat<T>(0.50000000f * rgb.x - 0.41868759f * rgb.y - 0.08131241f * rgb.z + 128.0f);
 }
 
 template <typename T>
-__inline__ __device__ vec<2, T> rgb_to_cb_cr(vec<3> rgb) {
-  return { rgb_to_cb<T>(rgb), rgb_to_cr<T>(rgb) };
+__inline__ __device__ vec<2, T> rgb_to_cb_cr(vec<3, T> rgb) {
+  return {rgb_to_cb<T>(rgb), rgb_to_cr<T>(rgb)};
 }
 
 template <int N, typename T>
-__device__ vec<N> avg4(vec<N, T> a, vec<N, T> b, vec<N, T> c, vec<N, T> d) {
+__inline__ __device__ vec<N> avg4(vec<N, T> a, vec<N, T> b, vec<N, T> c, vec<N, T> d) {
   IMPL_VEC_ELEMENTWISE((a[i] + b[i] + c[i] + d[i]) * 0.25f);
 }
 
 template <int N, typename T>
-__device__ vec<N> avg2(vec<N, T> a, vec<N, T> b) {
+__inline__ __device__ vec<N> avg2(vec<N, T> a, vec<N, T> b) {
   IMPL_VEC_ELEMENTWISE((a[i] + b[i]) * 0.5f);
 }
 
-template <bool horz_subsample, bool vert_subsample, typename T = uint8_t>
-__global__ void RGBToYCbCrChromaSubsample(const SampleDesc<T> *samples,
+template <typename T>
+__inline__ __device__ vec<3, T> ycbcr_to_rgb(const vec<3, T> ycbcr) {
+    float y  = static_cast<float>(ycbcr.x);
+    float cb = static_cast<float>(ycbcr.y) - 128.0f;
+    float cr = static_cast<float>(ycbcr.z) - 128.0f;
+    vec<3, T> rgb;
+    rgb.x = ConvertSat<T>(y + 1.402f * cr);
+    rgb.y = ConvertSat<T>(y - 0.34413629f * cb - 0.71413629f * cr);
+    rgb.z = ConvertSat<T>(y + 1.772f * cb);
+    return rgb;
+}
+
+template <bool horz_subsample, bool vert_subsample, typename T>
+__inline__ __device__ 
+void rgb_to_ycbcr_chroma_subsample(int local_x, int local_y,
+                                   const Surface2D<T>& luma,
+                                   const Surface2D<T>& cb,
+                                   const Surface2D<T>& cr,
+                                   const Surface2D<const uint8_t>& in) {
+  const auto sampler = make_sampler<DALI_INTERP_NN>(in);
+  int chroma_y = local_y;
+  int chroma_x = local_x;
+  int y = chroma_y << vert_subsample;
+  int x = chroma_x << horz_subsample;
+
+  vec<3, T> rgb[4];
+  sampler(rgb[0].v, ivec2(x, y), BorderClamp());
+  luma(x, y) = rgb_to_y<T>(rgb[0]);
+  vec<3, T> avg_rgb(rgb[0]);
+  if (horz_subsample && vert_subsample) {
+    sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
+    sampler(rgb[2].v, ivec2(x, y + 1), BorderClamp());
+    sampler(rgb[3].v, ivec2(x + 1, y + 1), BorderClamp());
+    avg_rgb = avg4(rgb[0], rgb[1], rgb[2], rgb[3]);
+    luma(x + 1, y) = rgb_to_y<T>(rgb[1]);
+    luma(x, y + 1) = rgb_to_y<T>(rgb[2]);
+    luma(x + 1, y + 1) = rgb_to_y<T>(rgb[3]);
+  } else if (horz_subsample) {
+    sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
+    luma(x + 1, y) = rgb_to_y<T>(rgb[1]);
+    avg_rgb = avg2(rgb[0], rgb[1]);
+  } else if (vert_subsample) {
+    sampler(rgb[1].v, ivec2(x, y + 1), BorderClamp());
+    luma(x, y + 1) = rgb_to_y<T>(rgb[1]);
+    avg_rgb = avg2(rgb[0], rgb[1]);
+  }
+
+  vec<2, T> cbcr = rgb_to_cb_cr<T>(avg_rgb);
+  cb(chroma_x, chroma_y) = cbcr.x;
+  cr(chroma_x, chroma_y) = cbcr.y;
+}
+
+template <int N, typename T>
+__inline__ __device__
+void write_vec(T* ptr, vec<N, T> v) {
+  #pragma unroll
+  for (int i = 0; i < N; i++)
+    *ptr++ = v[i];
+}
+
+template <bool horz_subsample, bool vert_subsample, typename T>
+__inline__ __device__ 
+void ycbcr_to_rgb_chroma_subsample(int local_x, int local_y,
+                                   const Surface2D<uint8_t>& out,
+                                   const Surface2D<T>& luma,
+                                   const Surface2D<T>& cb,
+                                   const Surface2D<T>& cr) {
+  int chroma_y = local_y;
+  int chroma_x = local_x;
+  int y = chroma_y << vert_subsample;
+  int x = chroma_x << horz_subsample;
+  T cb_val = cb(chroma_x, chroma_y);
+  T cr_val = cr(chroma_x, chroma_y);
+
+  write_vec(&out(x, y), ycbcr_to_rgb(vec<3, T>(luma(x, y), cb_val, cr_val)));
+  if (horz_subsample && vert_subsample) {
+    write_vec(&out(x + 1, y), ycbcr_to_rgb(vec<3, T>(luma(x + 1, y), cb_val, cr_val)));
+    write_vec(&out(x, y + 1), ycbcr_to_rgb(vec<3, T>(luma(x, y + 1), cb_val, cr_val)));
+    write_vec(&out(x + 1, y + 1), ycbcr_to_rgb(vec<3, T>(luma(x + 1, y + 1), cb_val, cr_val)));
+  } else if (horz_subsample) {
+    write_vec(&out(x + 1, y), ycbcr_to_rgb(vec<3, T>(luma(x + 1, y), cb_val, cr_val)));
+  } else if (vert_subsample) {
+    write_vec(&out(x, y + 1), ycbcr_to_rgb(vec<3, T>(luma(x, y + 1), cb_val, cr_val)));
+  }
+}
+
+
+template <bool horz_subsample, bool vert_subsample>
+__global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
                                           const kernels::BlockDesc<2> *blocks) {
+  using T = uint8_t;
+  constexpr int luma_blk_h = 8 << vert_subsample; 
+  constexpr int luma_blk_w = 8 << horz_subsample; 
+  constexpr ivec<2> luma_blk_sz{luma_blk_w, luma_blk_h};
+  constexpr i64vec<2> luma_blk_strides{1, luma_blk_w};
+  constexpr ivec<2> chroma_blk_sz{8, 8};
+  constexpr i64vec<2> chroma_blk_strides{1, 8};
+
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
 
@@ -76,56 +170,47 @@ __global__ void RGBToYCbCrChromaSubsample(const SampleDesc<T> *samples,
     return;
   }
 
-  const Surface2D<const uint8_t> in = {
-    sample.in, sample.in_size.x, sample.in_size.y, 3,
-    sample.in_strides.x, sample.in_strides.y, 1
+  // Assuming CUDA block has:
+  // - width 32, leads to 4 horizontal blocks of 8
+  // - height 8, so a single block 8x8 fits vertically
+  __shared__ T luma_blk[4][luma_blk_h][luma_blk_w];
+  __shared__ T cb_blk[4][8][8];
+  __shared__ T cr_blk[4][8][8];
+
+  int blk_idx = threadIdx.x / 8;
+  int local_x = threadIdx.x % 8;
+  int local_y = threadIdx.y;
+
+  const Surface2D<T> luma = {
+    &luma_blk[blk_idx][0][0], luma_blk_sz, 1, luma_blk_strides, 1
   };
 
-  const auto sampler = make_sampler<DALI_INTERP_LINEAR>(in);
-
-  const Surface2D<T> out_y = {
-    sample.out_y, sample.out_y_size, 1, sample.out_y_strides, 1
+  const Surface2D<T> cb = {
+    &cb_blk[blk_idx][0][0], chroma_blk_sz, 1, chroma_blk_strides, 1
   };
 
-  const Surface2D<T> out_cb = {
-    sample.out_cb, sample.out_chroma_size, 1, sample.out_chroma_strides, 1
-  };
-
-  const Surface2D<T> out_cr = {
-    sample.out_cr, sample.out_chroma_size, 1, sample.out_chroma_strides, 1
+  const Surface2D<T> cr = {
+    &cr_blk[blk_idx][0][0], chroma_blk_sz, 1, chroma_blk_strides, 1
   };
 
   for (int chroma_y = y_start; chroma_y < block.end.y; chroma_y += blockDim.y) {
     for (int chroma_x = x_start; chroma_x < block.end.x; chroma_x += blockDim.x) {
-      int x = chroma_x << horz_subsample;
       int y = chroma_y << vert_subsample;
+      int x = chroma_x << horz_subsample;
 
-      u8vec3 rgb[4];
-      sampler(rgb[0].v, ivec2(x, y), BorderClamp());
-      out_y(x, y) = rgb_to_y<T>(rgb[0]);
-      vec<3> avg_rgb(rgb[0]);
-      if (horz_subsample && vert_subsample) {
-        sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
-        sampler(rgb[2].v, ivec2(x, y + 1), BorderClamp());
-        sampler(rgb[3].v, ivec2(x + 1, y + 1), BorderClamp());
-        avg_rgb = avg4(rgb[0], rgb[1], rgb[2], rgb[3]);
-        out_y(x + 1, y) = rgb_to_y<T>(rgb[1]);
-        out_y(x, y + 1) = rgb_to_y<T>(rgb[2]);
-        out_y(x + 1, y + 1) = rgb_to_y<T>(rgb[3]);
-      } else if (horz_subsample) {
-        sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
-        out_y(x + 1, y) = rgb_to_y<T>(rgb[1]);
-        avg_rgb = avg2(rgb[0], rgb[1]);
-      } else if (vert_subsample) {
-        sampler(rgb[1].v, ivec2(x, y + 1), BorderClamp());
-        out_y(x, y + 1) = rgb_to_y<T>(rgb[1]);
-        avg_rgb = avg2(rgb[0], rgb[1]);
-      }
+      int64_t offset = y * sample.strides.y + x * sample.strides.x;
 
-      vec<2, T> cbcr = rgb_to_cb_cr<T>(avg_rgb);
+      const Surface2D<const uint8_t> in = {
+        sample.in + offset, luma_blk_sz, 3, sample.strides, 1
+      };
+      rgb_to_ycbcr_chroma_subsample<horz_subsample, vert_subsample>(
+          local_x, local_y, luma, cb, cr, in);
 
-      out_cb(chroma_x, chroma_y) = cbcr.x;
-      out_cr(chroma_x, chroma_y) = cbcr.y;
+      const Surface2D<uint8_t> out = {
+        sample.out + offset, luma_blk_sz, 3, sample.strides, 1
+      };
+      ycbcr_to_rgb_chroma_subsample<horz_subsample, vert_subsample>(
+          local_x, local_y, out, luma, cb, cr);
     }
   }
 }
