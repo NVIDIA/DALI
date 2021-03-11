@@ -289,7 +289,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
 
       output_shape_.resize(N, src_dims_.size());
       for (int i = 0; i < N; i++) {
-        for (int d = 0; d < input_shape_.sample_dim(); d++) {
+        for (size_t d = 0; d < src_dims_.size(); d++) {
           const int src_d = src_dims_[d];
           output_shape_.tensor_shape_span(i)[d] = src_d == -1 ? 1 : input_shape_.tensor_shape_span(i)[src_d];
         }
