@@ -270,7 +270,11 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
             " length when both of them are provided. Got ", src_dims_.size(), " and ",
             rel_uniform_shape_.size(), " elements respectively"));
         }
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> Code review suggestions
         output_shape_.resize(N, rel_uniform_shape_.size());
         for (int i = 0; i < N; i++) {
           for (int d = 0; d < output_shape_.sample_dim(); d++) {
@@ -425,8 +429,13 @@ void Reshape<Backend>::CheckSrcDims(const Workspace &ws) {
   for (size_t d = 0; d < src_dims_.size(); d++) {
     DALI_ENFORCE(-1 <= src_dims_[d] && src_dims_[d] < ndim,
       make_string(OpName(), ": Out of bounds ``src_dims`` index. The indices in ``src_dims``"
+<<<<<<< HEAD
       " should be either a valid dimension index (range 0..ndim-1) or -1 to insert a new dimension."
       " Got: src_dims[", d, "]=", src_dims_[d], ", ndim=", ndim));
+=======
+      " should be either a valid dimension index (range 0..ndim-1) or -1 to insert a new dimension. Got:"
+      " src_dims[", d, "]=", src_dims_[d], ", ndim=", ndim));
+>>>>>>> Code review suggestions
   }
 }
 
