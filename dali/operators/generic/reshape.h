@@ -44,18 +44,24 @@ class Reshape : public Operator<Backend> {
  
  protected:
   virtual void CalculateOutputShape(const Workspace &ws);
-  std::vector<int> src_dims_;
   void CheckSrcDims(const Workspace &ws);
+  
+  std::vector<int> src_dims_;
 
  private:
+  inline const std::string &OpName() const {
+    return this->spec_.name();
+  }
+
   TensorListShape<> input_shape_, output_shape_;
   TensorShape<> uniform_shape_;
   std::vector<float> rel_uniform_shape_;
   TensorLayout layout_;
   bool use_layout_ = false;
-  inline const std::string &OpName() const {
-    return this->spec_.name();
-  }
+  bool use_rel_shape_ = false;
+  int wildcard_dim_ = -1;
+  DALIDataType output_type_id_ = DALI_NO_TYPE;
+  const TypeInfo *output_type_ = nullptr;
 
   enum class ShapeSource {
     None,
@@ -63,12 +69,7 @@ class Reshape : public Operator<Backend> {
     Arg,
     ArgInput
   };
-
   ShapeSource shape_source_ = ShapeSource::None;
-  bool use_rel_shape_ = false;
-  int wildcard_dim_ = -1;
-  DALIDataType output_type_id_ = DALI_NO_TYPE;
-  const TypeInfo *output_type_ = nullptr;
 
   template <typename TensorListLike>
   void ShapeFromInput(const TensorListLike &tl, bool relative);
