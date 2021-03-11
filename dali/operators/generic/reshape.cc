@@ -270,7 +270,6 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
             " length when both of them are provided. Got ", src_dims_.size(), " and ",
             rel_uniform_shape_.size(), " elements respectively"));
         }
-
         output_shape_.resize(N, rel_uniform_shape_.size());
         for (int i = 0; i < N; i++) {
           for (int d = 0; d < output_shape_.sample_dim(); d++) {
