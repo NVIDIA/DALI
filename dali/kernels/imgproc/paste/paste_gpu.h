@@ -100,8 +100,8 @@ void CreateSampleDescriptors(
       }
 
       // When we know how many of those points there are, we know how big our patch patch is
-      int x_patch_cnt = x_points.size() - 1;
-      int y_patch_cnt = y_points.size() - 1;
+      int x_patch_cnt = static_cast<int>(x_points.size()) - 1;
+      int y_patch_cnt = static_cast<int>(y_points.size()) - 1;
 
       // Now lets fill forward and backward mapping of those significant points to patch indices
       vector<int> scaled_x_to_x;
@@ -210,12 +210,16 @@ PasteKernel(const SampleDescriptorGPU<OutputType, InputType, ndims> *samples,
 
   int patch_y = 0;
   int min_patch_x = 0;
-  while (threadIdx.x + block.start.x >= my_patches[min_patch_x].patch_end[1]) min_patch_x++;
+  while (block.start.x + static_cast<int>(threadIdx.x) >= my_patches[min_patch_x].patch_end[1]) {
+    min_patch_x++;
+  }
 
-  for (int y = threadIdx.y + block.start.y; y < block.end.y; y += blockDim.y) {
+  for (int y = block.start.y + static_cast<int>(threadIdx.y);
+       y < block.end.y; y += static_cast<int>(blockDim.y)) {
     while (y >= my_patches[patch_y * sample.patch_counts[1]].patch_end[0]) patch_y++;
     int patch_x = min_patch_x;
-    for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
+    for (int x = block.start.x + static_cast<int>(threadIdx.x);
+         x < block.end.x; x += static_cast<int>(blockDim.x)) {
       while (x >= my_patches[patch_y * sample.patch_counts[1] + patch_x].patch_end[1]) patch_x++;
       const PatchDesc<InputType, ndims> *patch =
               &my_patches[patch_y * sample.patch_counts[1] + patch_x];
