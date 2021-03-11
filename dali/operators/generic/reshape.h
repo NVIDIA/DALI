@@ -44,8 +44,9 @@ class Reshape : public Operator<Backend> {
  
  protected:
   virtual void CalculateOutputShape(const Workspace &ws);
-  std::vector<int> src_dims_;
   void CheckSrcDims(const Workspace &ws);
+  
+  std::vector<int> src_dims_;
 
  protected:
   virtual void CalculateOutputShape(const Workspace &ws);
