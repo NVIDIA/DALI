@@ -299,15 +299,8 @@ def get_data(shapes):
 
 @pipeline_def
 def reshape_pipe(shapes, src_dims=None, rel_shape=None):
-<<<<<<< HEAD
     data = fn.external_source(lambda: get_data(shapes), batch=True, device = "cpu")
     return fn.reshape(data, src_dims=src_dims, rel_shape=rel_shape)
-=======
-    source_fn = partial(get_data, shapes)
-    data = fn.external_source(lambda: get_data(shapes), batch=True, device = "cpu")
-    out = fn.reshape(data, src_dims=src_dims, rel_shape=rel_shape)
-    return out
->>>>>>> Reshape tests
 
 def _testimpl_reshape_src_dims_arg(src_dims, rel_shape, shapes, expected_out_shapes):
     batch_size = len(shapes)
