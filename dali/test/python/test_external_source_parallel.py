@@ -124,3 +124,24 @@ def test_layout():
                     callback, 'cpu', batch_size, layout=layout, py_num_workers=num_workers,
                     py_start_method='spawn', parallel=True)
                 yield check_layout, pipe, layout
+
+class ext_cb():
+    def __init__(self, name):
+        pass
+    def __call__(self, sinfo):
+        return np.full([100,100,100], sinfo.idx_in_epoch, dtype=np.int32)
+
+def test_vs_non_parallel():
+    bs = 50
+    pipe = dali.Pipeline(batch_size=bs, device_id=None, num_threads=5, py_num_workers=14, py_start_method='spawn')
+    with pipe:
+        ext_seq = dali.fn.external_source(ext_cb("cb 1"), batch=False, parallel=False)
+        ext_par = dali.fn.external_source(ext_cb("cb 2"), batch=False, parallel=True)
+        pipe.set_outputs(ext_seq, ext_par)
+    pipe.build()
+    for i in range(10):
+        seq, par = pipe.run()
+        for j in range(bs):
+            s = seq.at(j)
+            p = par.at(j)
+            assert np.array_equal(s, p)
