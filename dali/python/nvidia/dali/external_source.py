@@ -72,6 +72,15 @@ class _CycleGenFunc():
             else:
                 return next(self.it)
 
+class _ExternalDataBatch:
+    def __init__(self, group, pipeline, data, batch_size):
+        self._group = group
+        self._pipepline = pipeline
+        self._data = data
+        self._batch_size = batch_size
+
+    def feed(self):
+        self._group.feed(self._pipepline, self._data, self._batch_size)
 
 class _ExternalSourceGroup(object):
     def __init__(
@@ -142,7 +151,7 @@ class _ExternalSourceGroup(object):
         ])
         self.scheduled_job_idx += 1
 
-    def schedule_and_feed(self, pipeline, pool, context_i, batch_size):
+    def schedule_and_receive(self, pipeline, pool, context_i, batch_size):
         """Obtain the computed results of calling source callback in parallel pool and feed
         the results to the ExternalSource nodes in `pipeline`.
         Schedule the execution of the source callback in the pool to compute next batch.
@@ -157,13 +166,13 @@ class _ExternalSourceGroup(object):
             self.current_sample += batch_size
             self.current_iter += 1
             self.prefetch(pool, context_i, batch_size)
-            self.feed(pipeline, callback_out, batch_size)
+            return _ExternalDataBatch(self, pipeline, callback_out, batch_size)
         except StopIteration:
             self.reset_indices()
             pool.reset_context(context_i)
             raise
 
-    def call_and_feed(self, pipeline, batch_size):
+    def get_batch(self, pipeline, batch_size):
         """Call the source callback and feed the results to the ExternalSource nodes in `pipeline`.
         Used for the sequential ExternalSource variant."""
         try:
@@ -176,7 +185,7 @@ class _ExternalSourceGroup(object):
         except StopIteration:
             self.reset_indices()
             raise
-        self.feed(pipeline, callback_out, batch_size)
+        return _ExternalDataBatch(self, pipeline, callback_out, batch_size)
 
     def feed(self, pipeline, callback_out, batch_size):
         """Feed the `callback_out` data obtained from source to the ExternalSource nodes
