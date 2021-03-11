@@ -64,7 +64,10 @@ layout is preserved. If the number of dimensions does not match, the argument is
 to empty. If a value is set, and is not empty, the layout must match the dimensionality
 of the output.)code",
                   TensorLayout(""))
-  .AddOptionalArg("src_dims", "", std::vector<int>(), true); // TODO
+  .AddOptionalArg("src_dims", R"code(Indicies of dims to keep.
+
+If a -1 value is provided then new dimension will be inserted in that place.)code",
+                  std::vector<int>(), true);
 
 DALI_SCHEMA(Reinterpret)
   .DocStr(R"(Treats content of the input as if it had a different type, shape, and/or layout.
@@ -293,6 +296,8 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
           const int src_d = src_dims_[d];
           output_shape_.tensor_shape_span(i)[d] = src_d == -1 ? 1 : input_shape_.tensor_shape_span(i)[src_d];
         }
+        DALI_ENFORCE(volume(output_shape_.tensor_shape_span(i)) == volume(input_shape_.tensor_shape_span(i)),
+          make_string(OpName(), ": ``src_dims`` should remove only dimensions equal to 1"));
       }
       break;
   }
