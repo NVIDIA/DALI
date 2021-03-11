@@ -101,7 +101,8 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
   DALI_ENFORCE(has_shape_input + has_shape_arg + has_rel_shape_arg <= 1, make_string(OpName(),
     ": shape input, `shape` argument and `rel_shape` argument are mutually exclusive"));
 
-  if (!has_shape_input && !has_shape_arg && !has_rel_shape_arg && !has_layout_arg && !has_src_dims) {
+  if (!has_shape_input && !has_shape_arg && !has_rel_shape_arg && !has_layout_arg
+      && !has_src_dims) {
     bool can_have_dtype = spec.GetSchema().HasArgument("dtype");
     if (can_have_dtype) {
       DALI_ENFORCE(output_type_id_ != DALI_NO_TYPE, make_string(OpName(),
@@ -260,12 +261,13 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
             " length when both of them are provided. Got ", src_dims_.size(), " and ",
             rel_uniform_shape_.size(), " elements respectively"));
         }
-    
+
         output_shape_.resize(N, rel_uniform_shape_.size());
         for (int i = 0; i < N; i++) {
           for (int d = 0; d < output_shape_.sample_dim(); d++) {
             const int src_d = src_dims_.empty() ? d : src_dims_[d];
-            int out_e = round_int(rel_uniform_shape_[d] * (src_d == -1 ? 1 : input_shape_.tensor_shape_span(i)[src_d]));
+            int out_e = round_int(rel_uniform_shape_[d] *
+              (src_d == -1 ? 1 : input_shape_.tensor_shape_span(i)[src_d]));
             output_shape_.tensor_shape_span(i)[d] = out_e;
           }
         }
@@ -294,9 +296,11 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
       for (int i = 0; i < N; i++) {
         for (size_t d = 0; d < src_dims_.size(); d++) {
           const int src_d = src_dims_[d];
-          output_shape_.tensor_shape_span(i)[d] = src_d == -1 ? 1 : input_shape_.tensor_shape_span(i)[src_d];
+          output_shape_.tensor_shape_span(i)[d] =
+            src_d == -1 ? 1 : input_shape_.tensor_shape_span(i)[src_d];
         }
-        DALI_ENFORCE(volume(output_shape_.tensor_shape_span(i)) == volume(input_shape_.tensor_shape_span(i)),
+        DALI_ENFORCE(
+          volume(output_shape_.tensor_shape_span(i)) == volume(input_shape_.tensor_shape_span(i)),
           make_string(OpName(), ": ``src_dims`` should remove only dimensions equal to 1"));
       }
       break;
@@ -410,8 +414,8 @@ void Reshape<Backend>::CheckSrcDims(const Workspace &ws) {
   for (size_t d = 0; d < src_dims_.size(); d++) {
     DALI_ENFORCE(-1 <= src_dims_[d] && src_dims_[d] < ndim,
       make_string(OpName(), ": Out of bounds ``src_dims`` index. The indices in ``src_dims``"
-      " should be either a valid dimension index (range 0..ndim-1) or -1 to insert a new dimension. Got:"
-      " src_dims[", d, "]=", src_dims_[d], ", ndim=", ndim));
+      " should be either a valid dimension index (range 0..ndim-1) or -1 to insert a new dimension."
+      " Got: src_dims[", d, "]=", src_dims_[d], ", ndim=", ndim));
   }
 }
 
