@@ -327,11 +327,11 @@ def test_reshape_src_dims_arg():
 
 def test_reshape_src_dims_throw_error():
     args = [
-        ([2, 0], None, [[20, 10, 20]], []),
-        ([2, 0, 1], [1, -1], [[1, 2, 3]], []),
-        ([0, 1, 3], None, [1, 2, 3], []),
+        ([2, 0], None, [[20, 10, 20]]),
+        ([2, 0, 1], [1, -1], [[1, 2, 3]]),
+        ([0, 1, 3], None, [1, 2, 3]),
     ]
-    for src_dims, rel_shape, shapes, expected_out_shapes in args:
+    for src_dims, rel_shape, shapes in args:
         pipe = reshape_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, src_dims=src_dims, rel_shape=rel_shape)
         pipe.build()
         with assert_raises(RuntimeError):
