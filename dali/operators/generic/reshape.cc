@@ -64,14 +64,14 @@ layout is preserved. If the number of dimensions does not match, the argument is
 to empty. If a value is set, and is not empty, the layout must match the dimensionality
 of the output.)code",
                   TensorLayout(""))
-  .AddOptionalArg("src_dims", R"code(Indicies of dims to keep.
+  .AddOptionalArg("src_dims", R"code(Indices of dimensions to keep.
 
 This argument can be used to manipulate the order of existing dimensions or to remove or
 add dimensions with extent one. A special index value -1 can be used to insert new dimensions
 at any particular position.
 
 For example, reshaping a sample with shape ``[300, 200, 1]`` and a ``src_dims``
-argument ``[-1, 1,  0]`` produces an output shape ``[1, 200, 300]``. A leading dimension with
+argument ``[-1, 1, 0]`` produces an output shape ``[1, 200, 300]``. A leading dimension with
 extent 1 is inserted at the beginning, followed by the first original dimensions but in reverse
 order. The last dimension is removed.
 All the indices should be in the range of valid dimensions of the input, or -1.)code",
