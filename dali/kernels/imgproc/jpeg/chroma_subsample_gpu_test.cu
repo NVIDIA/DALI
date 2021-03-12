@@ -21,7 +21,7 @@
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/jpeg/chroma_subsample_gpu.cuh"
 
-#define DEBUG_LOGS 1
+#define DEBUG_LOGS 0
 #define PERF_RUN 0
 
 namespace dali {
@@ -82,11 +82,12 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
       auto shape_vol = volume(in_sh);
       auto width = in_sh[1];
       auto height = in_sh[0];
-      auto chroma_width = width << horz_subsample;
-      auto chroma_height = height << vert_subsample;
-      chroma_sh[0] = 3;
-      chroma_sh[1] = chroma_height;
-      chroma_sh[2] = chroma_width;
+      auto chroma_width = width >> horz_subsample;
+      auto chroma_height = height >> vert_subsample;
+      // used to generate logical blocks (one thread per chroma pixel)
+      chroma_sh[0] = chroma_height;
+      chroma_sh[1] = chroma_width;
+      chroma_sh[2] = 3;
 
       sample_desc.in = in_ptr;
       sample_desc.out = out_ptr;
@@ -117,7 +118,15 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
 
     dim3 grid_dim = block_setup_.GridDim();
     dim3 block_dim = block_setup_.BlockDim();
-
+#if DEBUG_LOGS
+    std::cout << "\ngrid dim " << grid_dim.x << " " << grid_dim.y << " " << grid_dim.z
+    << "\nblock_dim " << block_dim.x << " " << block_dim.y << " " << block_dim.z << "\n";
+    for (int i = 0; i < blocks_cpu.size(); i++) {
+      auto &blk = blocks_cpu[i];
+      std::cout << "block " << i << " sample idx " << blk.sample_idx
+                << " from " << blk.start << " to " << blk.end << "\n";
+    }
+#endif
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
 #if PERF_RUN  // warm-up
@@ -126,8 +135,6 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
 #endif
     CUDA_CALL(cudaEventRecord(start, stream));
 
-    std::cout << "\ngrid dim " << grid_dim.x << " " << grid_dim.y << " " << grid_dim.z
-              << "\nblock_dim " << block_dim.x << " " << block_dim.y << " " << block_dim.z << "\n";
     ChromaSubsampleDistortion<horz_subsample, vert_subsample>
       <<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
     CUDA_CALL(cudaGetLastError());
@@ -161,10 +168,10 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
         auto height = in_sh[0];
         std::cout << "\nSample " << i << "\n";
         for (size_t k = 0; k < width * height; k++) {
-          if (k > 0 && k%width==0) std::cout << "\n";
-          std::cout << " " << (int)outvec[off++]
-                    << "-" << (int)outvec[off++]
-                    << "-" << (int)outvec[off++];
+          if (k > 0 && k % width == 0) std::cout << "\n";
+          std::cout << " " << static_cast<int>(outvec[off++])
+                    << "-" << static_cast<int>(outvec[off++])
+                    << "-" << static_cast<int>(outvec[off++]);
         }
         std::cout << "\n";
       }
@@ -179,7 +186,7 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
 
     // In the kernel we average the RGB values, then converto to YCbCr
     // while here we are first converting and then averaging
-    Check(out_tv, ref_tv, EqualEps(2.99));
+    Check(out_tv, ref_tv, EqualEps(5.99));
 
     CUDA_CALL(cudaFree(blocks_gpu));
     CUDA_CALL(cudaFree(samples_gpu));
@@ -224,14 +231,16 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
 #if DEBUG_LOGS
       std::cout << "\nYCbCr original ref:\n";
       for (int64_t i = 0; i < npixels; i++) {
-        if (i > 0 && i%sh[1]==0) std::cout << "\n";
-        std::cout << " " << (int) tmp_y[i] << "-" << (int) tmp_cb[i] << "-" << (int) tmp_cr[i];
+        if (i > 0 && i % sh[1] == 0) std::cout << "\n";
+        std::cout << " " << static_cast<int>(tmp_y[i])
+                  << "-" << static_cast<int>(tmp_cb[i])
+                  << "-" << static_cast<int>(tmp_cr[i]);
       }
 #endif
 
       auto subsample_f = [&](std::vector<T> &component) {
-        for (int64_t y = 0; y < sh[0]; y+=(1<<vert_subsample)) {
-          for (int64_t x = 0; x < sh[1]; x+=(1<<horz_subsample)) {
+        for (int64_t y = 0; y < sh[0]; y+=(1 << vert_subsample)) {
+          for (int64_t x = 0; x < sh[1]; x+=(1 << horz_subsample)) {
             auto in_offset_1 = y * sh[1] + x;
             auto in_offset_2 = y * sh[1] + x + 1;
             auto in_offset_3 = (y + 1) * sh[1] + x;
@@ -263,8 +272,10 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
 #if DEBUG_LOGS
       std::cout << "\nYCbCr subsampled ref:\n";
       for (int64_t i = 0; i < npixels; i++) {
-        if (i > 0 && i%sh[1]==0) std::cout << "\n";
-        std::cout << " " << (int) tmp_y[i] << "-" << (int) tmp_cb[i] << "-" << (int) tmp_cr[i];
+        if (i > 0 && i % sh[1] == 0) std::cout << "\n";
+        std::cout << " " << static_cast<int>(tmp_y[i])
+                  << "-" << static_cast<int>(tmp_cb[i])
+                  << "-" << static_cast<int>(tmp_cr[i]);
       }
       std::cout << "\n";
 #endif
@@ -279,8 +290,6 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
         ref_output_.push_back(r);
         ref_output_.push_back(g);
         ref_output_.push_back(b);
-        std::cout << "YCbCr " << (int) y << "-" << (int) cb << "-" << cr << " ---- ";
-        std::cout << "RGB " << (int) r << "-" << (int) g << "-" << (int) b << "\n";
       }
     }
   }
@@ -302,10 +311,10 @@ struct chroma_subsample_params_t {
 };
 
 using ChromaSubsampleTestParams = ::testing::Types<
-  chroma_subsample_params_t<uint8_t, true, true>
-//  chroma_subsample_params_t<uint8_t, false, true>,
-//  chroma_subsample_params_t<uint8_t, true, false>,
-//  chroma_subsample_params_t<uint8_t, false, false>
+  chroma_subsample_params_t<uint8_t, true, true>,
+  chroma_subsample_params_t<uint8_t, false, true>,
+  chroma_subsample_params_t<uint8_t, true, false>,
+  chroma_subsample_params_t<uint8_t, false, false>
 >;
 
 TYPED_TEST_SUITE_P(ChromaSubsampleGPUTest);

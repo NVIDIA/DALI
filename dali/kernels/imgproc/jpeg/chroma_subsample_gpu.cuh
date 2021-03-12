@@ -76,37 +76,40 @@ __inline__ __device__ vec<3, T> ycbcr_to_rgb(const vec<3, T> ycbcr) {
 }
 
 template <bool horz_subsample, bool vert_subsample, typename T>
-__inline__ __device__ 
-void rgb_to_ycbcr_chroma_subsample(int local_x, int local_y,
+__inline__ __device__
+void rgb_to_ycbcr_chroma_subsample(ivec2 blk_offset, ivec2 offset,
                                    const Surface2D<T>& luma,
                                    const Surface2D<T>& cb,
                                    const Surface2D<T>& cr,
                                    const Surface2D<const uint8_t>& in) {
   const auto sampler = make_sampler<DALI_INTERP_NN>(in);
-  int chroma_y = local_y;
-  int chroma_x = local_x;
-  int y = chroma_y << vert_subsample;
-  int x = chroma_x << horz_subsample;
+  int chroma_y = blk_offset.y;
+  int chroma_x = blk_offset.x;
+  int luma_y = chroma_y << vert_subsample;
+  int luma_x = chroma_x << horz_subsample;
+  int y = offset.y;
+  int x = offset.x;
 
   vec<3, T> rgb[4];
   sampler(rgb[0].v, ivec2(x, y), BorderClamp());
-  luma(x, y) = rgb_to_y<T>(rgb[0]);
+  luma(luma_x, luma_y) = rgb_to_y<T>(rgb[0]);
+
   vec<3, T> avg_rgb(rgb[0]);
   if (horz_subsample && vert_subsample) {
     sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
     sampler(rgb[2].v, ivec2(x, y + 1), BorderClamp());
     sampler(rgb[3].v, ivec2(x + 1, y + 1), BorderClamp());
+    luma(luma_x + 1, luma_y) = rgb_to_y<T>(rgb[1]);
+    luma(luma_x, luma_y + 1) = rgb_to_y<T>(rgb[2]);
+    luma(luma_x + 1, luma_y + 1) = rgb_to_y<T>(rgb[3]);
     avg_rgb = avg4(rgb[0], rgb[1], rgb[2], rgb[3]);
-    luma(x + 1, y) = rgb_to_y<T>(rgb[1]);
-    luma(x, y + 1) = rgb_to_y<T>(rgb[2]);
-    luma(x + 1, y + 1) = rgb_to_y<T>(rgb[3]);
   } else if (horz_subsample) {
     sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
-    luma(x + 1, y) = rgb_to_y<T>(rgb[1]);
+    luma(luma_x + 1, luma_y) = rgb_to_y<T>(rgb[1]);
     avg_rgb = avg2(rgb[0], rgb[1]);
   } else if (vert_subsample) {
     sampler(rgb[1].v, ivec2(x, y + 1), BorderClamp());
-    luma(x, y + 1) = rgb_to_y<T>(rgb[1]);
+    luma(luma_x, luma_y + 1) = rgb_to_y<T>(rgb[1]);
     avg_rgb = avg2(rgb[0], rgb[1]);
   }
 
@@ -124,28 +127,36 @@ void write_vec(T* ptr, vec<N, T> v) {
 }
 
 template <bool horz_subsample, bool vert_subsample, typename T>
-__inline__ __device__ 
-void ycbcr_to_rgb_chroma_subsample(int local_x, int local_y,
+__inline__ __device__
+void ycbcr_to_rgb_chroma_subsample(ivec2 blk_offset, ivec2 offset,
                                    const Surface2D<uint8_t>& out,
                                    const Surface2D<T>& luma,
                                    const Surface2D<T>& cb,
                                    const Surface2D<T>& cr) {
-  int chroma_y = local_y;
-  int chroma_x = local_x;
-  int y = chroma_y << vert_subsample;
-  int x = chroma_x << horz_subsample;
+  int chroma_y = blk_offset.y;
+  int chroma_x = blk_offset.x;
+  int luma_y = chroma_y << vert_subsample;
+  int luma_x = chroma_x << horz_subsample;
+  int y = offset.y;
+  int x = offset.x;
   T cb_val = cb(chroma_x, chroma_y);
   T cr_val = cr(chroma_x, chroma_y);
 
-  write_vec(&out(x, y), ycbcr_to_rgb(vec<3, T>(luma(x, y), cb_val, cr_val)));
+  write_vec(&out(x, y),
+            ycbcr_to_rgb(vec<3, T>(luma(luma_x, luma_y), cb_val, cr_val)));
   if (horz_subsample && vert_subsample) {
-    write_vec(&out(x + 1, y), ycbcr_to_rgb(vec<3, T>(luma(x + 1, y), cb_val, cr_val)));
-    write_vec(&out(x, y + 1), ycbcr_to_rgb(vec<3, T>(luma(x, y + 1), cb_val, cr_val)));
-    write_vec(&out(x + 1, y + 1), ycbcr_to_rgb(vec<3, T>(luma(x + 1, y + 1), cb_val, cr_val)));
+    write_vec(&out(x + 1, y),
+              ycbcr_to_rgb(vec<3, T>(luma(luma_x + 1, luma_y), cb_val, cr_val)));
+    write_vec(&out(x, y + 1),
+              ycbcr_to_rgb(vec<3, T>(luma(luma_x, luma_y + 1), cb_val, cr_val)));
+    write_vec(&out(x + 1, y + 1),
+              ycbcr_to_rgb(vec<3, T>(luma(luma_x + 1, luma_y + 1), cb_val, cr_val)));
   } else if (horz_subsample) {
-    write_vec(&out(x + 1, y), ycbcr_to_rgb(vec<3, T>(luma(x + 1, y), cb_val, cr_val)));
+    write_vec(&out(x + 1, y),
+              ycbcr_to_rgb(vec<3, T>(luma(luma_x + 1, luma_y), cb_val, cr_val)));
   } else if (vert_subsample) {
-    write_vec(&out(x, y + 1), ycbcr_to_rgb(vec<3, T>(luma(x, y + 1), cb_val, cr_val)));
+    write_vec(&out(x, y + 1),
+              ycbcr_to_rgb(vec<3, T>(luma(luma_x, luma_y + 1), cb_val, cr_val)));
   }
 }
 
@@ -154,8 +165,8 @@ template <bool horz_subsample, bool vert_subsample>
 __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
                                           const kernels::BlockDesc<2> *blocks) {
   using T = uint8_t;
-  constexpr int luma_blk_h = 8 << vert_subsample; 
-  constexpr int luma_blk_w = 8 << horz_subsample; 
+  constexpr int luma_blk_h = 8 << vert_subsample;
+  constexpr int luma_blk_w = 8 << horz_subsample;
   constexpr ivec<2> luma_blk_sz{luma_blk_w, luma_blk_h};
   constexpr i64vec<2> luma_blk_strides{1, luma_blk_w};
   constexpr ivec<2> chroma_blk_sz{8, 8};
@@ -181,6 +192,14 @@ __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
   int local_x = threadIdx.x % 8;
   int local_y = threadIdx.y;
 
+  const Surface2D<const uint8_t> in = {
+    sample.in, sample.size, 3, sample.strides, 1
+  };
+
+  const Surface2D<uint8_t> out = {
+    sample.out, sample.size, 3, sample.strides, 1
+  };
+
   const Surface2D<T> luma = {
     &luma_blk[blk_idx][0][0], luma_blk_sz, 1, luma_blk_strides, 1
   };
@@ -198,19 +217,16 @@ __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
       int y = chroma_y << vert_subsample;
       int x = chroma_x << horz_subsample;
 
-      int64_t offset = y * sample.strides.y + x * sample.strides.x;
+      ivec2 blk_offset{local_x, local_y};
+      ivec2 offset{x, y};
 
-      const Surface2D<const uint8_t> in = {
-        sample.in + offset, luma_blk_sz, 3, sample.strides, 1
-      };
       rgb_to_ycbcr_chroma_subsample<horz_subsample, vert_subsample>(
-          local_x, local_y, luma, cb, cr, in);
+          blk_offset, offset, luma, cb, cr, in);
 
-      const Surface2D<uint8_t> out = {
-        sample.out + offset, luma_blk_sz, 3, sample.strides, 1
-      };
+      __syncthreads();
+
       ycbcr_to_rgb_chroma_subsample<horz_subsample, vert_subsample>(
-          local_x, local_y, out, luma, cb, cr);
+          blk_offset, offset, out, luma, cb, cr);
     }
   }
 }
