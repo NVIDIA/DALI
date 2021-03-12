@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_JPEG_CHROMA_SUBSAMPLE_GPU_H_
-#define DALI_KERNELS_IMGPROC_JPEG_CHROMA_SUBSAMPLE_GPU_H_
+#ifndef DALI_KERNELS_IMGPROC_JPEG_JPEG_ARTIFACTS_GPU_H_
+#define DALI_KERNELS_IMGPROC_JPEG_JPEG_ARTIFACTS_GPU_H_
 
 #include <cuda_runtime_api.h>
 #include <cuda_fp16.h>
@@ -123,7 +123,7 @@ __inline__ __device__
 void write_vec(T* ptr, vec<N, T> v) {
   #pragma unroll
   for (int i = 0; i < N; i++)
-    *ptr++ = v[i];
+    ptr[i] = v[i];
 }
 
 template <bool horz_subsample, bool vert_subsample, typename T>
@@ -234,4 +234,4 @@ __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_IMGPROC_JPEG_CHROMA_SUBSAMPLE_GPU_H_
+#endif  // DALI_KERNELS_IMGPROC_JPEG_JPEG_ARTIFACTS_GPU_H_

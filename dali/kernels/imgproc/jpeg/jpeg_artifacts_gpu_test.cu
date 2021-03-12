@@ -19,7 +19,7 @@
 #include "dali/core/cuda_stream.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
-#include "dali/kernels/imgproc/jpeg/chroma_subsample_gpu.cuh"
+#include "dali/kernels/imgproc/jpeg/jpeg_artifacts_gpu.cuh"
 
 #define DEBUG_LOGS 0
 #define PERF_RUN 0
@@ -29,13 +29,13 @@ namespace kernels {
 namespace test {
 
 template <typename GTestParams>
-class ChromaSubsampleGPUTest : public ::testing::Test {
+class JpegArtifactTestGPU : public ::testing::Test {
   using T = typename GTestParams::T;
   static constexpr bool vert_subsample = GTestParams::vert_subsample;
   static constexpr bool horz_subsample = GTestParams::horz_subsample;
 
  public:
-  ChromaSubsampleGPUTest() {
+  JpegArtifactTestGPU() {
     in_shapes_ = {{200, 400, 3}, {2000, 20, 3}, {2, 2, 3}};
 #if DEBUG_LOGS
     in_shapes_ = {{2, 4, 3}, {2, 2, 3}};
@@ -66,7 +66,7 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
     CUDA_CALL(cudaFree(output_));
   }
 
-  void RunTest() {
+  void TestChromaSubsampleKernel() {
     CUDAStream stream = CUDAStream::Create(true);
 
     TensorListShape<2> chroma_shape(in_shapes_.size(), 2);
@@ -304,27 +304,27 @@ class ChromaSubsampleGPUTest : public ::testing::Test {
 };
 
 template <typename OutType, bool v, bool h>
-struct chroma_subsample_params_t {
+struct jpeg_artifacts_params_t {
   using T = OutType;
   static constexpr bool vert_subsample = v;
   static constexpr bool horz_subsample = h;
 };
 
-using ChromaSubsampleTestParams = ::testing::Types<
-  chroma_subsample_params_t<uint8_t, true, true>,
-  chroma_subsample_params_t<uint8_t, false, true>,
-  chroma_subsample_params_t<uint8_t, true, false>,
-  chroma_subsample_params_t<uint8_t, false, false>
+using JpegArtifactTestParams = ::testing::Types<
+  jpeg_artifacts_params_t<uint8_t, true, true>,
+  jpeg_artifacts_params_t<uint8_t, false, true>,
+  jpeg_artifacts_params_t<uint8_t, true, false>,
+  jpeg_artifacts_params_t<uint8_t, false, false>
 >;
 
-TYPED_TEST_SUITE_P(ChromaSubsampleGPUTest);
+TYPED_TEST_SUITE_P(JpegArtifactTestGPU);
 
-TYPED_TEST_P(ChromaSubsampleGPUTest, Test) {
-  this->RunTest();
+TYPED_TEST_P(JpegArtifactTestGPU, ChromaSubsample) {
+  this->TestChromaSubsampleKernel();
 }
 
-REGISTER_TYPED_TEST_SUITE_P(ChromaSubsampleGPUTest, Test);
-INSTANTIATE_TYPED_TEST_SUITE_P(ChromaSubsample, ChromaSubsampleGPUTest, ChromaSubsampleTestParams);
+REGISTER_TYPED_TEST_SUITE_P(JpegArtifactTestGPU, ChromaSubsample);
+INSTANTIATE_TYPED_TEST_SUITE_P(JpegArtifact, JpegArtifactTestGPU, JpegArtifactTestParams);
 
 
 }  // namespace test
