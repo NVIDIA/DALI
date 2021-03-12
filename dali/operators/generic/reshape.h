@@ -68,7 +68,10 @@ class Reshape : public Operator<Backend> {
   TensorLayout layout_;
   bool use_layout_ = false;
   bool use_rel_shape_ = false;
+<<<<<<< HEAD
   bool use_src_dims_ = false;
+=======
+>>>>>>> 32f9b2aa... src_dims arg added to reshape
   int wildcard_dim_ = -1;
   DALIDataType output_type_id_ = DALI_NO_TYPE;
 
