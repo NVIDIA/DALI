@@ -28,6 +28,7 @@
 #include "dali/core/format.h"
 #include "dali/util/crop_window.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/kernels/imgproc/paste/paste_gpu_input.h"
 
 
 namespace dali {
@@ -142,12 +143,19 @@ class MultiPasteOp : public Operator<Backend> {
       }
 
       bool found_intersection = false;
-
       for (int j = 0; j < n_paste; j++) {
         auto out_anchor = GetOutAnchors(i, j);
+        auto in_anchor = GetInAnchors(i, j);
         auto j_idx = in_idx_[i].data[j];
-        const auto &shape = GetShape(i, j, Coords(raw_input_size_mem_.data() + 2 * j_idx,
-                                                  dali::TensorShape<>(2)));
+        auto in_shape = Coords(raw_input_size_mem_.data() + 2 * j_idx, dali::TensorShape<>(2));
+        const auto &shape = GetShape(i, j, in_shape);
+        for (int k = 0; k < spatial_ndim; k++) {
+          DALI_ENFORCE(out_anchor.data[k] >= 0 && in_anchor.data[k] >= 0 &&
+                       out_anchor.data[k] + shape.data[k] <= output_size_[i].data[k] &&
+                       in_anchor.data[k] + shape.data[k] <= in_shape.data[k],
+                       "Paste in/out coords should be within inout/output bounds.");
+        }
+
         for (int k = 0; k < j; k++) {
           auto k_idx = in_idx_[i].data[k];
           if (Intersects(out_anchor, shape, GetOutAnchors(i, k), GetShape(
@@ -220,6 +228,30 @@ class MultiPasteCPU : public MultiPasteOp<CPUBackend> {
  private:
   template<typename InputType, typename OutputType>
   void RunImplExplicitlyTyped(workspace_t<CPUBackend> &ws);
+};
+
+class MultiPasteGPU : public MultiPasteOp<GPUBackend> {
+ public:
+  explicit MultiPasteGPU(const OpSpec &spec) : MultiPasteOp(spec) {}
+
+  using Operator<GPUBackend>::RunImpl;
+
+  ~MultiPasteGPU() override = default;
+
+  DISABLE_COPY_MOVE_ASSIGN(MultiPasteGPU);
+
+ protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
+
+  void RunImpl(workspace_t<GPUBackend> &ws) override;
+
+ private:
+  template<typename InputType, typename OutputType>
+  void RunImplExplicitlyTyped(workspace_t<GPUBackend> &ws);
+
+  void FillGPUInput(const workspace_t<GPUBackend> &ws);
+
+  vector<kernels::paste::MultiPasteSampleInput<2>> samples;
 };
 
 }  // namespace dali

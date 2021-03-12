@@ -17,9 +17,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
-import math
 import os
-import cv2
 from test_utils import get_dali_extra_path
 
 
@@ -63,7 +61,11 @@ def prepare_cuts(
         full_input=False,
         in_anchor_top_left=False,
         out_anchor_top_left=False,
+        out_of_bounds_count=0,
 ):
+    # Those two will not work together
+    assert(out_of_bounds_count == 0 or not no_intersections)
+
     in_idx_l = [np.zeros(shape=(0,), dtype=np.int32) for _ in range(batch_size)]
     in_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
     shapes_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
@@ -106,6 +108,25 @@ def prepare_cuts(
             in_anchors_l[out_idx] = np.append(in_anchors_l[out_idx], [in_anchor], axis=0)
             shapes_l[out_idx] = np.append(shapes_l[out_idx], [shape], axis=0)
             out_anchors_l[out_idx] = np.append(out_anchors_l[out_idx], [out_anchor], axis=0)
+    for i in range(out_of_bounds_count):
+        clip_out_idx = np.random.randint(batch_size)
+        while len(in_idx_l[clip_out_idx]) == 0:
+            clip_out_idx = np.random.randint(batch_size)
+        clip_in_idx = np.random.randint(len(in_idx_l[clip_out_idx]))
+        change_in = np.random.randint(2) == 0
+        below_zero = np.random.randint(2) == 0
+        change_dim_idx = np.random.randint(dim)
+        if below_zero:
+            (in_anchors_l if change_in else out_anchors_l)[clip_out_idx][clip_in_idx][change_dim_idx] = \
+                np.int32(np.random.randint(5) - 5)
+        else:
+            (in_anchors_l if change_in else out_anchors_l)[clip_out_idx][clip_in_idx][change_dim_idx] = \
+                np.int32(
+                    (input_size if change_in else output_size)[change_dim_idx] -
+                    shapes_l[clip_out_idx][clip_in_idx][change_dim_idx] +
+                    np.random.randint(5) + 1
+                )
+
     return in_idx_l, in_anchors_l, shapes_l, out_anchors_l
 
 
@@ -119,16 +140,18 @@ def get_pipeline(
         no_intersections=True,
         full_input=False,
         in_anchor_top_left=False,
-        out_anchor_top_left=False
+        out_anchor_top_left=False,
+        use_gpu=False,
+        num_out_of_bounds=0
 ):
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=types.CPU_ONLY_DEVICE_ID)
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
         input, _ = fn.readers.file(file_root=img_dir)
         decoded = fn.decoders.image(input, device='cpu', output_type=types.RGB)
         resized = fn.resize(decoded, resize_x=in_size[1], resize_y=in_size[0])
         in_idx_l, in_anchors_l, shapes_l, out_anchors_l = prepare_cuts(
             k, batch_size, in_size, out_size, even_paste_count,
-            no_intersections, full_input, in_anchor_top_left, out_anchor_top_left)
+            no_intersections, full_input, in_anchor_top_left, out_anchor_top_left, num_out_of_bounds)
         in_idx = fn.external_source(lambda: in_idx_l)
         in_anchors = fn.external_source(lambda: in_anchors_l)
         shapes = fn.external_source(lambda: shapes_l)
@@ -148,9 +171,22 @@ def get_pipeline(
         if not out_anchor_top_left:
             kwargs["out_anchors"] = out_anchors
 
-        pasted = fn.multi_paste(resized, **kwargs)
+        pasted = fn.multi_paste(resized.gpu() if use_gpu else resized, **kwargs)
         pipe.set_outputs(pasted, resized)
     return pipe, in_idx_l, in_anchors_l, shapes_l, out_anchors_l
+
+
+def verify_out_of_bounds(batch_size, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, in_size, out_size):
+    for i in range(batch_size):
+        for j, idx in enumerate(in_idx_l[i]):
+            dim = len(in_anchors_l[i][j])
+            for d in range(dim):
+                if in_anchors_l[i][j][d] < 0 or out_anchors_l[i][j][d] < 0 or \
+                        in_anchors_l[i][j][d] + shapes_l[i][j][d] > in_size[d] or \
+                        out_anchors_l[i][j][d] + shapes_l[i][j][d] > out_size[d]:
+                    return True
+    return False
+
 
 
 def manual_verify(batch_size, inp, output, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, out_size_l, dtype):
@@ -187,7 +223,7 @@ def show_images(batch_size, image_batch):
 
 
 def check_operator_multipaste(bs, pastes, in_size, out_size, even_paste_count, no_intersections, full_input, in_anchor_top_left,
-                  out_anchor_top_left, out_dtype):
+                              out_anchor_top_left, out_dtype, num_out_of_bounds, device):
     pipe, in_idx_l, in_anchors_l, shapes_l, out_anchors_l = get_pipeline(
         batch_size=bs,
         in_size=in_size,
@@ -198,14 +234,23 @@ def check_operator_multipaste(bs, pastes, in_size, out_size, even_paste_count, n
         no_intersections=no_intersections,
         full_input=full_input,
         in_anchor_top_left=in_anchor_top_left,
-        out_anchor_top_left=out_anchor_top_left
+        out_anchor_top_left=out_anchor_top_left,
+        num_out_of_bounds=num_out_of_bounds,
+        use_gpu=device == 'gpu'
     )
     pipe.build()
-    result, input = pipe.run()
-    if SHOW_IMAGES:
-        show_images(bs, result)
-    manual_verify(bs, input, result, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, [out_size + (3,)] * bs, out_dtype)
-
+    try:
+        result, input = pipe.run()
+        r = result.as_cpu() if device == 'gpu' else result
+        if SHOW_IMAGES:
+            show_images(bs, r)
+        assert not verify_out_of_bounds(bs, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, in_size, out_size)
+        manual_verify(bs, input, r, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, [out_size + (3,)] * bs, out_dtype)
+    except RuntimeError as e:
+        if "Paste in/out coords should be within inout/output bounds" in str(e):
+            assert verify_out_of_bounds(bs, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, in_size, out_size)
+        else:
+            assert False
 
 def test_operator_multipaste():
     tests = [
@@ -220,19 +265,24 @@ def test_operator_multipaste():
         # - should "in_anchors" parameter be omitted
         # - should "out_anchors" parameter be omitted
         # - output dtype
-        [4, 2, (128, 256), (128, 128), False, False, False, False, False, types.UINT8],
-        [4, 2, (256, 128), (128, 128), False, True, False, False, False, types.UINT8],
-        [4, 2, (128, 128), (256, 128), True, False, False, False, False, types.UINT8],
-        [4, 2, (128, 128), (128, 256), True, True, False, False, False, types.UINT8],
+        # - backend
+        # - number of out-of-bounds anchor changes
+        [4, 2, (128, 256), (128, 128), False, False, False, False, False, types.UINT8, 0],
+        [4, 2, (256, 128), (128, 128), False, True, False, False, False, types.UINT8, 0],
+        [4, 2, (128, 128), (256, 128), True, False, False, False, False, types.UINT8, 0],
+        [4, 2, (128, 128), (128, 256), True, True, False, False, False, types.UINT8, 0],
 
-        [4, 2, (64, 64), (128, 128), False, False, True, False, False, types.UINT8],
-        [4, 2, (64, 64), (128, 128), False, False, False, True, False, types.UINT8],
-        [4, 2, (64, 64), (128, 128), False, False, False, False, True, types.UINT8],
+        [4, 2, (64, 64), (128, 128), False, False, True, False, False, types.UINT8, 0],
+        [4, 2, (64, 64), (128, 128), False, False, False, True, False, types.UINT8, 0],
+        [4, 2, (64, 64), (128, 128), False, False, False, False, True, types.UINT8, 0],
 
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.UINT8],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT16],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT32],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.FLOAT]
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.UINT8, 0],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT16, 0],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT32, 0],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.FLOAT, 0],
+
+        [4, 2, (128, 256), (128, 128), False, False, False, False, False, types.UINT8, 4],
     ]
     for t in tests:
-        yield (check_operator_multipaste, *t)
+        yield (check_operator_multipaste, *t, "cpu")
+        yield (check_operator_multipaste, *t, "gpu")
