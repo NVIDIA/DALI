@@ -8,7 +8,7 @@ RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.2.2/local_ins
     ./cuda_*.run --silent --no-opengl-libs --toolkit && \
     rm -f cuda_*.run;
 
-RUN NVJPEG2K_VERSION=0.1.0 && \
+RUN NVJPEG2K_VERSION=0.2.0 && \
     apt-get update && \
     apt-get install wget software-properties-common -y && \
     wget -qO - https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub | apt-key add - && \
