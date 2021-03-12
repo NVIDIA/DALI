@@ -48,15 +48,6 @@ class Reshape : public Operator<Backend> {
 
   std::vector<int> src_dims_;
 
-<<<<<<< HEAD
- protected:
-  virtual void CalculateOutputShape(const Workspace &ws);
-  void CheckSrcDims(const Workspace &ws);
-
-  std::vector<int> src_dims_;
-
-=======
->>>>>>> c3b62b6de58399818b864c8c4f3c715f9dffc749
  private:
   inline const std::string &OpName() const {
     return this->spec_.name();
@@ -79,19 +70,6 @@ class Reshape : public Operator<Backend> {
     ArgInput
   };
   ShapeSource shape_source_ = ShapeSource::None;
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-  bool use_rel_shape_ = false;
-  int wildcard_dim_ = -1;
-  DALIDataType output_type_id_ = DALI_NO_TYPE;
-  const TypeInfo *output_type_ = nullptr;
->>>>>>> Adding src_dims to reshape operator
-=======
->>>>>>> Code review suggestions
-=======
->>>>>>> c3b62b6de58399818b864c8c4f3c715f9dffc749
 
   template <typename TensorListLike>
   void ShapeFromInput(const TensorListLike &tl, bool relative);
