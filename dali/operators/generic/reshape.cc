@@ -71,16 +71,9 @@ add dimensions with extent one. A special index value -1 can be used to insert n
 at any particular position.
 
 For example, reshaping a sample with shape ``[300, 200, 1]`` and a ``src_dims``
-<<<<<<< HEAD
 argument ``[-1, 1, 0]`` produces an output shape ``[1, 200, 300]``. A leading dimension with
 extent 1 is inserted at the beginning, followed by the first original dimensions but in reverse
 order. The last dimension is removed.
-
-=======
-argument ``[-1, 1,  0]`` produces an output shape ``[1, 200, 300]``. A leading dimension with
-extent 1 is inserted at the beginning, followed by the first original dimensions but in reverse
-order. The last dimension is removed.
->>>>>>> Code review suggestions
 All the indices should be in the range of valid dimensions of the input, or -1.)code",
                   std::vector<int>(), true);
 
