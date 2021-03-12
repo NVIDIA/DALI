@@ -56,6 +56,7 @@ class Reshape : public Operator<Backend> {
   TensorListShape<> output_shape_;
   const TypeInfo *output_type_ = nullptr;
   std::vector<int> src_dims_;
+  bool use_src_dims_ = false;
 
  private:
   inline const std::string &OpName() const {
@@ -68,7 +69,6 @@ class Reshape : public Operator<Backend> {
   TensorLayout layout_;
   bool use_layout_ = false;
   bool use_rel_shape_ = false;
-  bool use_src_dims_ = false;
   int wildcard_dim_ = -1;
   DALIDataType output_type_id_ = DALI_NO_TYPE;
 

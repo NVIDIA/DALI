@@ -106,9 +106,10 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
   bool has_layout_arg = spec.HasArgument("layout");
   bool has_rel_shape_arg = spec.HasArgument("rel_shape") || spec.HasTensorArgument("rel_shape");
   bool has_src_dims_arg = spec.HasArgument("src_dims");
+  bool has_axes_arg = spec.HasArgument("axes");
+  bool has_axis_names_arg = spec.HasArgument("axis_names");
 
   if (has_src_dims_arg) {
-    use_src_dims_ = true;
     src_dims_ = spec.GetRepeatedArgument<int>("src_dims");
   }
   if (spec.HasArgument("dtype"))
@@ -117,7 +118,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
     ": shape input, `shape` argument and `rel_shape` argument are mutually exclusive"));
 
   if (!has_shape_input && !has_shape_arg && !has_rel_shape_arg && !has_layout_arg
-      && !has_src_dims_arg) {
+      && !has_src_dims_arg && !has_axes_arg && !has_axis_names_arg) {
     bool can_have_dtype = spec.GetSchema().HasArgument("dtype");
     if (can_have_dtype) {
       DALI_ENFORCE(output_type_id_ != DALI_NO_TYPE, make_string(OpName(),
