@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ class Reshape : public Operator<Backend> {
       : &ws.template InputRef<Backend>(0).type();
   }
 
+  std::vector<int> src_dims_;
   TensorListShape<> output_shape_;
   const TypeInfo *output_type_ = nullptr;
   std::vector<int> src_dims_;
@@ -66,10 +67,8 @@ class Reshape : public Operator<Backend> {
   TensorListShape<> input_shape_;
   TensorShape<> uniform_shape_;
   std::vector<float> rel_uniform_shape_;
-  TensorLayout layout_;
   bool use_layout_ = false;
   bool use_rel_shape_ = false;
-  bool use_src_dims_ = false;
   int wildcard_dim_ = -1;
   DALIDataType output_type_id_ = DALI_NO_TYPE;
 

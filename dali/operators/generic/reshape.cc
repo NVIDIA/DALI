@@ -272,7 +272,6 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
             make_string(OpName(), ": ``src_dims`` and ``rel_shape`` have different"
             " lengths: ", src_dims_.size(), " vs ", rel_uniform_shape_.size()));
         }
-
         output_shape_.resize(N, rel_uniform_shape_.size());
         for (int i = 0; i < N; i++) {
           for (int d = 0; d < output_shape_.sample_dim(); d++) {
@@ -302,6 +301,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
         output_shape_ = input_shape_;
         break;
       }
+
       output_shape_.resize(N, src_dims_.size());
       for (int i = 0; i < N; i++) {
         for (size_t d = 0; d < src_dims_.size(); d++) {
