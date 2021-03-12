@@ -70,19 +70,6 @@ class Reshape : public Operator<Backend> {
     ArgInput
   };
   ShapeSource shape_source_ = ShapeSource::None;
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-  bool use_rel_shape_ = false;
-  int wildcard_dim_ = -1;
-  DALIDataType output_type_id_ = DALI_NO_TYPE;
-  const TypeInfo *output_type_ = nullptr;
->>>>>>> Adding src_dims to reshape operator
-=======
->>>>>>> Code review suggestions
-=======
->>>>>>> tidying repo mess
 
   template <typename TensorListLike>
   void ShapeFromInput(const TensorListLike &tl, bool relative);
