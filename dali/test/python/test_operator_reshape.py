@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import pipeline_def
+import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
@@ -20,11 +22,13 @@ from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 import math
 from numpy.testing import assert_array_equal, assert_allclose
+from functools import partial
 import os
 import cv2
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
+from nose.tools import assert_raises
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -289,3 +293,46 @@ def _test_reinterpret_wildcard_shape(device):
 def test_reinterpret_wildcard_shape():
     for device in ["cpu", "gpu"]:
         yield _test_reinterpret_wildcard_shape, device
+
+def get_data(shapes):
+    return [np.empty(shape, dtype = np.uint8) for shape in shapes]
+
+@pipeline_def
+def reshape_pipe(shapes, src_dims=None, rel_shape=None):
+    data = fn.external_source(lambda: get_data(shapes), batch=True, device = "cpu")
+    return fn.reshape(data, src_dims=src_dims, rel_shape=rel_shape)
+
+def _testimpl_reshape_src_dims_arg(src_dims, rel_shape, shapes, expected_out_shapes):
+    batch_size = len(shapes)
+    pipe = reshape_pipe(batch_size=batch_size, num_threads=1, device_id=0, shapes=shapes, src_dims=src_dims, rel_shape=rel_shape)
+    pipe.build()
+    for _ in range(3):
+        outs = pipe.run()
+        for i in range(batch_size):
+            out_arr = np.array(outs[0][i])
+            assert out_arr.shape == expected_out_shapes[i]
+
+def test_reshape_src_dims_arg():
+    # src_dims, rel_shape, shapes, expected_out_shapes
+    args = [
+        ([0, 1], None, [[200, 300, 1], [300, 400, 1]], [(200, 300), (300, 400)]),
+        ([1, 2, 0], None, [[10, 20, 30], [30, 20, 10], [2, 1, 3]], [(20, 30, 10), (20, 10, 30), (1, 3, 2)]),
+        ([1], None, [[1, 2, 1], [1, 3, 1]], [(2,), (3,)]),
+        ([2, -1, 1, 0], None, [[10, 20, 30]], [(30, 1, 20, 10)]),
+        ([-1, 2], None, [[1, 1, 30], [1, 1, 70]], [(1, 30), (1, 70)]),
+        ([2, 0, 1], [0.5, 0.5, -1], [[200, 300, 100]], [(50, 100, 1200)]),
+    ]
+    for src_dims, rel_shape, shapes, expected_out_shapes in args:
+        yield _testimpl_reshape_src_dims_arg, src_dims, rel_shape, shapes, expected_out_shapes
+
+def test_reshape_src_dims_throw_error():
+    args = [
+        ([2, 0], None, [[20, 10, 20]]),
+        ([2, 0, 1], [1, -1], [[1, 2, 3]]),
+        ([0, 1, 3], None, [1, 2, 3]),
+    ]
+    for src_dims, rel_shape, shapes in args:
+        pipe = reshape_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, src_dims=src_dims, rel_shape=rel_shape)
+        pipe.build()
+        with assert_raises(RuntimeError):
+          pipe.run()

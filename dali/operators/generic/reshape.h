@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/tensor_view.h"
 
@@ -41,15 +42,32 @@ class Reshape : public Operator<Backend> {
 
   void RunImpl(Workspace &ws) override;
 
+ protected:
+  virtual void CalculateOutputShape(const Workspace &ws);
+  void CheckSrcDims(const Workspace &ws);
+  inline void SetOutputType(const Workspace &ws) {
+    output_type_ = output_type_id_ != DALI_NO_TYPE
+      ? &TypeTable::GetTypeInfo(output_type_id_)
+      : &ws.template InputRef<Backend>(0).type();
+  }
+
+  TensorListShape<> output_shape_;
+  const TypeInfo *output_type_ = nullptr;
+  std::vector<int> src_dims_;
+
  private:
-  TensorListShape<> input_shape_, output_shape_;
+  inline const std::string &OpName() const {
+    return this->spec_.name();
+  }
+
+  TensorListShape<> input_shape_;
   TensorShape<> uniform_shape_;
   std::vector<float> rel_uniform_shape_;
   TensorLayout layout_;
   bool use_layout_ = false;
-  inline const std::string &OpName() const {
-    return this->spec_.name();
-  }
+  bool use_rel_shape_ = false;
+  int wildcard_dim_ = -1;
+  DALIDataType output_type_id_ = DALI_NO_TYPE;
 
   enum class ShapeSource {
     None,
@@ -57,14 +75,7 @@ class Reshape : public Operator<Backend> {
     Arg,
     ArgInput
   };
-
   ShapeSource shape_source_ = ShapeSource::None;
-  bool use_rel_shape_ = false;
-  int wildcard_dim_ = -1;
-  DALIDataType output_type_id_ = DALI_NO_TYPE;
-  const TypeInfo *output_type_ = nullptr;
-
-  void CalculateOutputShape(const Workspace &ws);
 
   template <typename TensorListLike>
   void ShapeFromInput(const TensorListLike &tl, bool relative);
