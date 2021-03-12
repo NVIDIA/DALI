@@ -150,3 +150,33 @@ def _test_vs_non_parallel(shape):
 def test_vs_non_parallel():
     for shape in [[], [10], [100, 100, 100]]:
         yield _test_vs_non_parallel, shape
+
+
+def ext_cb2(sinfo):
+    return np.array([sinfo.idx_in_epoch, sinfo.idx_in_batch, sinfo.iteration], dtype=np.int32)
+
+def test_discard():
+    bs = 5
+    pipe = dali.Pipeline(batch_size=bs, device_id=None, num_threads=5, py_num_workers=4, py_start_method='spawn')
+    with pipe:
+        sh = []
+        ext1 = dali.fn.external_source([[np.float32(i) for i in range(bs)]]*3, cycle='raise')
+        ext2 = dali.fn.external_source(ext_cb2, batch=False, parallel=True)
+        ext3 = dali.fn.external_source(ext_cb2, batch=False, parallel=False)
+        pipe.set_outputs(ext1, ext2, ext3)
+    pipe.build()
+    sample_in_epoch = 0
+    iteration = 0
+    for i in range(10):
+        try:
+            e1, e2, e3 = pipe.run()
+            for i in range(bs):
+                assert e1.at(i) == i
+                assert np.array_equal(e2.at(i), np.array([sample_in_epoch, i, iteration]))
+                assert np.array_equal(e3.at(i), np.array([sample_in_epoch, i, iteration]))
+                sample_in_epoch += 1
+            iteration += 1
+        except StopIteration:
+            sample_in_epoch = 0
+            iteration = 0
+            pipe.reset()
