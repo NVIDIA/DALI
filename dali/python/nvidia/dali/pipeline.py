@@ -1154,19 +1154,24 @@ Parameters
         if self._input_callbacks is None:
             return
 
+        batches = []   # data from external source callbacks is gathered here
         stop_iter = False
         for i, group in enumerate(self._parallel_input_callbacks):
             try:
-                group.schedule_and_feed(self, self._py_pool, i, self._max_batch_size)
+                batches.append(group.schedule_and_receive(self, self._py_pool, i, self._max_batch_size))
             except StopIteration:
                 stop_iter = True
         for group in self._seq_input_callbacks:
             try:
-                group.call_and_feed(self, self._max_batch_size)
+                batches.append(group.get_batch(self, self._max_batch_size))
             except StopIteration:
                 stop_iter = True
         if stop_iter:
             raise StopIteration()
+
+        # we only fill external source queues when we know that all callbacks succeeded
+        for batch in batches:
+            batch.feed()
 
     def _iter_setup(self):
         self._run_input_callbacks()
