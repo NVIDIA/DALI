@@ -117,7 +117,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
     ": shape input, `shape` argument and `rel_shape` argument are mutually exclusive"));
 
   if (!has_shape_input && !has_shape_arg && !has_rel_shape_arg && !has_layout_arg
-      && !has_src_dims_arg && !has_axes_arg && !has_axis_names_arg) {
+      && !has_src_dims_arg) {
     bool can_have_dtype = spec.GetSchema().HasArgument("dtype");
     if (can_have_dtype) {
       DALI_ENFORCE(output_type_id_ != DALI_NO_TYPE, make_string(OpName(),
