@@ -73,6 +73,7 @@ bool ExpandDims<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const 
 
 template <typename Backend>
 void ExpandDims<Backend>::GenerateSrcDims(const Workspace &ws) {
+  this->use_src_dims_ = true;
   auto &in = ws.template InputRef<Backend>(0);
   const auto &input_shape = in.shape();
   int ndim = input_shape.sample_dim();
