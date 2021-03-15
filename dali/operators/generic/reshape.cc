@@ -108,6 +108,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
   bool has_src_dims_arg = spec.HasArgument("src_dims");
 
   if (has_src_dims_arg) {
+    use_src_dims_ = true;
     src_dims_ = spec.GetRepeatedArgument<int>("src_dims");
   }
   if (spec.HasArgument("dtype"))
