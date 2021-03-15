@@ -47,6 +47,8 @@ Squeeze<Backend>::Squeeze(const OpSpec &spec)
   axes_.erase(std::unique(axes_.begin(), axes_.end()), axes_.end());
 
   axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
+
+  this->use_src_dims_ = true;
 }
 
 template <typename Backend>
@@ -66,7 +68,6 @@ bool Squeeze<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Wor
 
 template <typename Backend>
 void Squeeze<Backend>::GenerateSrcDims(const Workspace &ws) {
-  this->use_src_dims_ = true;
   auto &in = ws.template InputRef<Backend>(0);
   const auto &input_shape = in.shape();
   const int ndim = input_shape.sample_dim();
