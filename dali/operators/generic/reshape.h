@@ -44,7 +44,7 @@ class Reshape : public Operator<Backend> {
 
  protected:
   struct BypassInit {};
-  explicit Reshape(const OpSpec &spec_, BypassInit) : Base(spec_) {};
+  explicit Reshape(const OpSpec &spec_, BypassInit) : Base(spec_) {}
 
   virtual void CalculateOutputShape(const Workspace &ws);
 
