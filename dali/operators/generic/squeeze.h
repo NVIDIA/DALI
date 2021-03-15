@@ -35,7 +35,7 @@ class Squeeze : public Reshape<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
  private:
   void GenerateSrcDims(const Workspace &ws);
-  
+
   std::vector<int> axes_;
   TensorLayout axis_names_;
 };

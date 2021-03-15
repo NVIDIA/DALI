@@ -14,6 +14,7 @@
 
 
 #include <vector>
+#include <set>
 
 #include "dali/core/math_util.h"
 #include "dali/core/static_switch.h"
@@ -37,7 +38,7 @@ DALI_SCHEMA(Squeeze)
   .AddOptionalArg("axis_names", "", TensorLayout(""));
 
 template <typename Backend>
-Squeeze<Backend>::Squeeze(const OpSpec &spec) 
+Squeeze<Backend>::Squeeze(const OpSpec &spec)
     : Reshape<Backend>(spec) {
   axes_ = spec.GetRepeatedArgument<int>("axes");
   std::sort(axes_.begin(), axes_.end());
@@ -68,7 +69,8 @@ void Squeeze<Backend>::GenerateSrcDims(const Workspace &ws) {
   const int ndim = input_shape.sample_dim();
   auto in_layout = in.GetLayout();
   DALI_ENFORCE(in_layout.size() == ndim || in_layout.empty(),
-      make_string("Layout for data has size ", in_layout.size(), " but data has ", ndim, " dimensions."));
+      make_string("Layout for data has size ",
+      in_layout.size(), " but data has ", ndim, " dimensions."));
 
   this->src_dims_.clear();
   std::string out_layout;
