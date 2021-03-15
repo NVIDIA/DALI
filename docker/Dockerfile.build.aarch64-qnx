@@ -56,10 +56,14 @@ RUN dpkg -i $REPO_DEBS && \
 
 ENV PKG_CONFIG_PATH=/usr/aarch64-unknown-nto-qnx/aarch64le/lib/pkgconfig
 
-COPY third_party/ /tmp/dali_deps
-COPY docker/Makefile-lmdb.patch /tmp/dali_deps/
-COPY docker/opencv-qnx.patch /tmp/dali_deps/
-RUN cd /tmp/dali_deps                                              && \
+COPY third_party/build_deps.sh /tmp/
+COPY DALI_DEPS_VERSION /tmp
+RUN DALI_DEPS_VERSION=$(cat /tmp/DALI_DEPS_VERSION)                && \
+    git clone https://github.com/NVIDIA/DALI_deps /tmp/dali_deps   && \
+    cd /tmp/dali_deps                                              && \
+    git submodule init                                             && \
+    git checkout ${DALI_DEPS_VERSION}                              && \
+    git submodule update --depth 1 --recursive                     && \
     export CC_COMP=aarch64-unknown-nto-qnx7.0.0-gcc                && \
     export CXX_COMP=aarch64-unknown-nto-qnx7.0.0-g++               && \
     export INSTALL_PREFIX="/usr/aarch64-unknown-nto-qnx/aarch64le" && \
@@ -78,7 +82,7 @@ RUN cd /tmp/dali_deps                                              && \
                                  -D_FILE_OFFSET_BITS=64" && \
     export EXTRA_FLAC_FLAGS="-D__DJGPP__"                          && \
     export EXTRA_LIBSND_FLAGS="-I/usr/aarch64-unknown-nto-qnx/aarch64le/include" && \
-    ./build_deps.sh && rm -rf /tmp/dali_deps
+    ../build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/build_deps.sh && rm -rf /tmp/DALI_DEPS_VERSION
 
 VOLUME /dali
 

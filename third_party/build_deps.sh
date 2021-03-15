@@ -18,7 +18,7 @@ echo ${EXTRA_FLAC_FLAGS}
 echo ${EXTRA_LIBSND_FLAGS}
 
 #zlib
-pushd zlib                                                                        && \
+pushd third_party/zlib                                                            && \
 CFLAGS="-fPIC" \
 CXXFLAGS="-fPIC" \
 CC=${CC_COMP} \
@@ -29,14 +29,14 @@ make install                                                                    
 popd
 
 # CMake
-pushd CMake                                                                       && \
+pushd third_party/CMake                                                           && \
 ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l)                   && \
 make -j"$(grep ^processor /proc/cpuinfo | wc -l)"                                 && \
 make install                                                                      && \
 popd
 
 # protobuf, make two steps for cross compilation
-pushd protobuf                                                                    && \
+pushd third_party/protobuf                                                        && \
 ./autogen.sh                                                                      && \
 ./configure CXXFLAGS="-fPIC" --prefix=/usr/local --disable-shared 2>&1 > /dev/null && \
 make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 > /dev/null                && \
@@ -54,15 +54,15 @@ make clean                                                                      
 popd
 
 # LMDB
-pushd lmdb/libraries/liblmdb/                                                     && \
-patch -p3 < ${ROOT_DIR}/Makefile-lmdb.patch                                       && \
+pushd third_party/lmdb/libraries/liblmdb/                                         && \
+patch -p3 < ${ROOT_DIR}/patches/Makefile-lmdb.patch                               && \
   CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=${CC_COMP} CXX=${CXX_COMP} prefix=${INSTALL_PREFIX} \
 make -j"$(grep ^processor /proc/cpuinfo | wc -l)"                                 && \
 make install && \
 popd
 
 # libjpeg-turbo
-pushd libjpeg-turbo/                                                              && \
+pushd third_party/libjpeg-turbo/                                                  && \
 echo "set(CMAKE_SYSTEM_NAME Linux)" > toolchain.cmake                             && \
 echo "set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_TARGET_ARCH})" >> toolchain.cmake        && \
 echo "set(CMAKE_C_COMPILER ${CC_COMP})" >> toolchain.cmake                        && \
@@ -80,13 +80,13 @@ make install 2>&1 >/dev/null                                                    
 popd
 
 # zstandard compression library
-pushd zstd                                                                        && \
+pushd third_party/zstd                                                            && \
   CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=${CC_COMP} CXX=${CXX_COMP} prefix=${INSTALL_PREFIX} \
 make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null         && \
 popd
 
 # libtiff
-pushd libtiff                                                                     && \
+pushd third_party/libtiff                                                         && \
 ./autogen.sh                                                                      && \
 ./configure \
   CFLAGS="-fPIC" \
@@ -104,7 +104,7 @@ make install                                                                    
 popd
 
 # OpenJPEG
-pushd openjpeg                                                                    && \
+pushd third_party/openjpeg                                                        && \
 mkdir build && cd build                                                           && \
 echo "set(CMAKE_SYSTEM_NAME Linux)" > toolchain.cmake                             && \
 echo "set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_TARGET_ARCH})" >> toolchain.cmake        && \
@@ -124,8 +124,8 @@ make install                                                                    
 popd
 
 # OpenCV
-pushd opencv                                                                      && \
-patch -p1 < ${ROOT_DIR}/opencv-qnx.patch                                          && \
+pushd third_party/opencv                                                          && \
+patch -p1 < ${ROOT_DIR}/patches/opencv-qnx.patch                                  && \
 mkdir build && cd build                                                           && \
 cmake -DCMAKE_BUILD_TYPE=RELEASE \
       -DVIBRANTE_PDK:STRING=/ \
@@ -173,7 +173,7 @@ popd
 
 if [ $WITH_FFMPEG -gt 0 ]; then
   # FFmpeg  https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.3.1.tar.bz2
-  pushd FFmpeg                                                                    && \
+  pushd third_party/FFmpeg                                                        && \
   ./configure \
     --prefix=${INSTALL_PREFIX} \
     --disable-static \
@@ -217,7 +217,7 @@ if [ $WITH_FFMPEG -gt 0 ]; then
 fi
 
 # flac
-pushd flac                                                                        && \
+pushd third_party/flac                                                            && \
 ./autogen.sh                                                                      && \
 ./configure \
   CFLAGS="-fPIC ${EXTRA_FLAC_FLAGS}" \
@@ -231,7 +231,7 @@ make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install               
 popd
 
 # libogg
-pushd ogg                                                                         && \
+pushd third_party/ogg                                                             && \
 ./autogen.sh                                                                      && \
 ./configure \
   CFLAGS="-fPIC" \
@@ -245,7 +245,7 @@ popd
 
 # libvorbis
 # Install after libogg
-pushd vorbis                                                                      && \
+pushd third_party/vorbis                                                          && \
 ./autogen.sh                                                                      && \
 ./configure \
   CFLAGS="-fPIC" \
@@ -258,7 +258,7 @@ make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install               
 popd
 
 # libsnd https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-1.0.28.tar.gz
-pushd libsndfile                                                                  && \
+pushd third_party/libsndfile                                                      && \
 ./autogen.sh                                                                      && \
 ./configure \
   CFLAGS="-fPIC ${EXTRA_LIBSND_FLAGS}" \
