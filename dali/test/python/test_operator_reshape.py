@@ -310,6 +310,7 @@ def _testimpl_reshape_src_dims_arg(src_dims, rel_shape, shapes, expected_out_sha
         outs = pipe.run()
         for i in range(batch_size):
             out_arr = np.array(outs[0][i])
+            print(out_arr.shape, expected_out_shapes[i])
             assert out_arr.shape == expected_out_shapes[i]
 
 def test_reshape_src_dims_arg():
@@ -321,6 +322,7 @@ def test_reshape_src_dims_arg():
         ([2, -1, 1, 0], None, [[10, 20, 30]], [(30, 1, 20, 10)]),
         ([-1, 2], None, [[1, 1, 30], [1, 1, 70]], [(1, 30), (1, 70)]),
         ([2, 0, 1], [0.5, 0.5, -1], [[200, 300, 100]], [(50, 100, 1200)]),
+        ([], None, [[1]], [()]),
     ]
     for src_dims, rel_shape, shapes, expected_out_shapes in args:
         yield _testimpl_reshape_src_dims_arg, src_dims, rel_shape, shapes, expected_out_shapes

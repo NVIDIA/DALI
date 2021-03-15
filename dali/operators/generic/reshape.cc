@@ -108,6 +108,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
   bool has_src_dims_arg = spec.HasArgument("src_dims");
 
   if (has_src_dims_arg) {
+    use_src_dims_ = true;
     src_dims_ = spec.GetRepeatedArgument<int>("src_dims");
   }
   if (spec.HasArgument("dtype"))
@@ -266,7 +267,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
   switch (shape_source_) {
     case ShapeSource::Arg:
       if (use_rel_shape_) {
-        if (!src_dims_.empty()) {
+        if (use_src_dims_) {
           DALI_ENFORCE(rel_uniform_shape_.size() == src_dims_.size(),
             make_string(OpName(), ": ``src_dims`` and ``rel_shape`` have different"
             " lengths: ", src_dims_.size(), " vs ", rel_uniform_shape_.size()));
@@ -275,7 +276,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
         output_shape_.resize(N, rel_uniform_shape_.size());
         for (int i = 0; i < N; i++) {
           for (int d = 0; d < output_shape_.sample_dim(); d++) {
-            const int src_d = src_dims_.empty() ? d : src_dims_[d];
+            const int src_d = !use_src_dims_ ? d : src_dims_[d];
             int out_e = round_int(rel_uniform_shape_[d] *
               (src_d == -1 ? 1 : input_shape_.tensor_shape_span(i)[src_d]));
             output_shape_.tensor_shape_span(i)[d] = out_e;
@@ -297,7 +298,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
       ShapeFromInput(ws.template InputRef<CPUBackend>(1), false);
       break;
     case ShapeSource::None:
-      if (src_dims_.empty()) {
+      if (!use_src_dims_) {
         output_shape_ = input_shape_;
         break;
       }
@@ -415,7 +416,7 @@ void Reshape<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
 
 template <typename Backend>
 void Reshape<Backend>::CheckSrcDims(const Workspace &ws) {
-  if (src_dims_.empty()) {
+  if (!use_src_dims_) {
     return;
   }
 
