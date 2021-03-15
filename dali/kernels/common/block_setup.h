@@ -37,7 +37,7 @@ struct BlockDesc {
  * @tparam _channel_dim  dimension in which channels are stored; channel dimension does not
  *                       participate in layout calculation \n
  *                       In cases where channel dimension can or should participate in layout
- *                       calaculation, do not specify channel dimenion and treat it as an
+ *                       calculation, do not specify channel dimension and treat it as an
  *                       additional spatial dimension (e.g. for linear operations in CHW layout)\n
  *                       -1 indicates there are only spatial dimensions, all of which
  *                       participate in layout calculation.
