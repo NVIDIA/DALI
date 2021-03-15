@@ -16,8 +16,6 @@
 #define DALI_KERNELS_IMGPROC_JPEG_JPEG_ARTIFACTS_GPU_H_
 
 #include <cuda_runtime_api.h>
-#include <cuda_fp16.h>
-
 #include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/imgproc/surface.h"
 #include "dali/kernels/imgproc/sampler.h"
@@ -226,17 +224,12 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
       ivec2 offset{x, y};
 
       auto ycbcr = rgb_to_ycbcr_subsampled<horz_subsample, vert_subsample, T>(offset, in);
-      luma[luma_y][luma_x] = ycbcr.luma[0];
       cb[chroma_y][chroma_x] = ycbcr.cb;
       cr[chroma_y][chroma_x] = ycbcr.cr;
-      if (horz_subsample && vert_subsample) {
-        luma[luma_y][luma_x + 1] = ycbcr.luma[1];
-        luma[luma_y + 1][luma_x] = ycbcr.luma[2];
-        luma[luma_y + 1][luma_x + 1] = ycbcr.luma[3];
-      } else if (horz_subsample) {
-        luma[luma_y][luma_x + 1] = ycbcr.luma[1];
-      } else if (vert_subsample) {
-        luma[luma_y + 1][luma_x] = ycbcr.luma[1];
+      for (int i = 0, k = 0; i < vert_subsample+1; i++) {
+        for (int j = 0; j < horz_subsample+1; j++, k++) {
+          luma[luma_y + i][luma_x + j] = ycbcr.luma[k];
+        }
       }
 
       __syncthreads();
@@ -244,17 +237,12 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
       // TODO(janton): DCT + quantization + inv DCT
 
       YCbCrSubsampled<T, horz_subsample, vert_subsample> out_ycbcr;
-      out_ycbcr.luma[0] = luma[luma_y][luma_x];
       out_ycbcr.cb = cb[chroma_y][chroma_x];
       out_ycbcr.cr = cr[chroma_y][chroma_x];
-      if (horz_subsample && vert_subsample) {
-        out_ycbcr.luma[1] = luma[luma_y][luma_x + 1];
-        out_ycbcr.luma[2] = luma[luma_y + 1][luma_x];
-        out_ycbcr.luma[3] = luma[luma_y + 1][luma_x + 1];
-      } else if (horz_subsample) {
-        out_ycbcr.luma[1] = luma[luma_y][luma_x + 1];
-      } else if (vert_subsample) {
-        out_ycbcr.luma[1] = luma[luma_y + 1][luma_x];
+      for (int i = 0, k = 0; i < vert_subsample+1; i++) {
+        for (int j = 0; j < horz_subsample+1; j++, k++) {
+          out_ycbcr.luma[k] = luma[luma_y + i][luma_x + j];
+        }
       }
       ycbcr_to_rgb_subsampled<horz_subsample, vert_subsample, T>(offset, out, out_ycbcr);
     }
