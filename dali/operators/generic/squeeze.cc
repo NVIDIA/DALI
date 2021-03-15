@@ -41,7 +41,7 @@ DALI_SCHEMA(Squeeze)
 
 template <typename Backend>
 Squeeze<Backend>::Squeeze(const OpSpec &spec)
-    : Reshape<Backend>(spec) {
+    : Reshape<Backend>(spec, typename Reshape<Backend>::BypassInit()) {
   axes_ = spec.GetRepeatedArgument<int>("axes");
   std::sort(axes_.begin(), axes_.end());
   axes_.erase(std::unique(axes_.begin(), axes_.end()), axes_.end());

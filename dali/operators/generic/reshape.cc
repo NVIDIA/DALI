@@ -106,8 +106,6 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
   bool has_layout_arg = spec.HasArgument("layout");
   bool has_rel_shape_arg = spec.HasArgument("rel_shape") || spec.HasTensorArgument("rel_shape");
   bool has_src_dims_arg = spec.HasArgument("src_dims");
-  bool has_axes_arg = spec.HasArgument("axes");
-  bool has_axis_names_arg = spec.HasArgument("axis_names");
 
   if (has_src_dims_arg) {
     use_src_dims_ = true;
