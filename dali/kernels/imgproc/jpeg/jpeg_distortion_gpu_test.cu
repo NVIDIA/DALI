@@ -19,7 +19,7 @@
 #include "dali/core/cuda_stream.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
-#include "dali/kernels/imgproc/jpeg/jpeg_artifacts_gpu.cuh"
+#include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu.cuh"
 
 #define DEBUG_LOGS 0
 #define PERF_RUN 0
@@ -28,14 +28,16 @@ namespace dali {
 namespace kernels {
 namespace test {
 
+using KernelPtr = void(*)(const SampleDesc *, const kernels::BlockDesc<2> *);
+
 template <typename GTestParams>
-class JpegArtifactTestGPU : public ::testing::Test {
+class JpegDistortionTestGPU : public ::testing::Test {
   using T = typename GTestParams::T;
   static constexpr bool vert_subsample = GTestParams::vert_subsample;
   static constexpr bool horz_subsample = GTestParams::horz_subsample;
 
  public:
-  JpegArtifactTestGPU() {
+  JpegDistortionTestGPU() {
     in_shapes_ = {{200, 400, 3}, {2000, 20, 3}, {2, 2, 3}};
 #if DEBUG_LOGS
     in_shapes_ = {{2, 4, 3}, {2, 2, 3}};
@@ -66,7 +68,7 @@ class JpegArtifactTestGPU : public ::testing::Test {
     CUDA_CALL(cudaFree(output_));
   }
 
-  void TestChromaSubsampleKernel() {
+  void TestKernel(KernelPtr kernel_fn_ptr) {
     CUDAStream stream = CUDAStream::Create(true);
 
     TensorListShape<2> chroma_shape(in_shapes_.size(), 2);
@@ -99,7 +101,7 @@ class JpegArtifactTestGPU : public ::testing::Test {
       in_ptr += shape_vol;
     }
 
-    block_setup_.SetBlockDim(dim3(32, 8, 1));
+    block_setup_.SetBlockDim(dim3(32, 16, 1));
     int xblock = 64*(2-horz_subsample);
     int yblock = 128;
     block_setup_.SetDefaultBlockSize({xblock, yblock});
@@ -130,13 +132,11 @@ class JpegArtifactTestGPU : public ::testing::Test {
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
 #if PERF_RUN  // warm-up
-    ChromaSubsampleDistortion<horz_subsample, vert_subsample>
-      <<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
+    kernel_fn_ptr<<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
 #endif
     CUDA_CALL(cudaEventRecord(start, stream));
 
-    ChromaSubsampleDistortion<horz_subsample, vert_subsample>
-      <<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
+    kernel_fn_ptr<<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
     CUDA_CALL(cudaGetLastError());
 
     CUDA_CALL(cudaEventRecord(end, stream));
@@ -191,17 +191,6 @@ class JpegArtifactTestGPU : public ::testing::Test {
     CUDA_CALL(cudaFree(blocks_gpu));
     CUDA_CALL(cudaFree(samples_gpu));
   }
-
-  uint8_t *input_device_;
-  uint8_t *output_;
-  std::vector<uint8_t> input_host_;
-  std::vector<uint8_t> ref_output_;
-  CUDAStream stream_;
-  std::vector<TensorShape<3>> in_shapes_;
-
-  using BlkSetup = BlockSetup<2, -1>;
-  BlkSetup block_setup_;
-  using BlockDesc = BlkSetup::BlockDesc;
 
   void calc_output() {
     // simplest implementation for test purposes. First convert to YCbCr, then subsample
@@ -294,6 +283,14 @@ class JpegArtifactTestGPU : public ::testing::Test {
     }
   }
 
+  void TestJpegCompressionDistortion() {
+    TestKernel(JpegCompressionDistortion<horz_subsample, vert_subsample>);
+  }
+
+  void TestChromaSubsampleDistortion() {
+    TestKernel(ChromaSubsampleDistortion<horz_subsample, vert_subsample>);
+  }
+
   size_t batch_volume(const std::vector<TensorShape<3>> &shapes) {
     int ret = 0;
     for (auto sh : shapes) {
@@ -301,31 +298,46 @@ class JpegArtifactTestGPU : public ::testing::Test {
     }
     return ret;
   }
+
+  uint8_t *input_device_;
+  uint8_t *output_;
+  std::vector<uint8_t> input_host_;
+  std::vector<uint8_t> ref_output_;
+  CUDAStream stream_;
+  std::vector<TensorShape<3>> in_shapes_;
+
+  using BlkSetup = BlockSetup<2, -1>;
+  BlkSetup block_setup_;
+  using BlockDesc = BlkSetup::BlockDesc;
 };
 
 template <typename OutType, bool v, bool h>
-struct jpeg_artifacts_params_t {
+struct jpeg_distortion_params_t {
   using T = OutType;
   static constexpr bool vert_subsample = v;
   static constexpr bool horz_subsample = h;
 };
 
-using JpegArtifactTestParams = ::testing::Types<
-  jpeg_artifacts_params_t<uint8_t, true, true>,
-  jpeg_artifacts_params_t<uint8_t, false, true>,
-  jpeg_artifacts_params_t<uint8_t, true, false>,
-  jpeg_artifacts_params_t<uint8_t, false, false>
+using TestParams = ::testing::Types<
+  jpeg_distortion_params_t<uint8_t, true, true>,
+  jpeg_distortion_params_t<uint8_t, false, true>,
+  jpeg_distortion_params_t<uint8_t, true, false>,
+  jpeg_distortion_params_t<uint8_t, false, false>
 >;
 
-TYPED_TEST_SUITE_P(JpegArtifactTestGPU);
+TYPED_TEST_SUITE_P(JpegDistortionTestGPU);
 
-TYPED_TEST_P(JpegArtifactTestGPU, ChromaSubsample) {
-  this->TestChromaSubsampleKernel();
+TYPED_TEST_P(JpegDistortionTestGPU, ChromaSubsampleDistortion) {
+  this->TestChromaSubsampleDistortion();
 }
 
-REGISTER_TYPED_TEST_SUITE_P(JpegArtifactTestGPU, ChromaSubsample);
-INSTANTIATE_TYPED_TEST_SUITE_P(JpegArtifact, JpegArtifactTestGPU, JpegArtifactTestParams);
+TYPED_TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion) {
+  this->TestJpegCompressionDistortion();
+}
 
+REGISTER_TYPED_TEST_SUITE_P(JpegDistortionTestGPU, ChromaSubsampleDistortion,
+                                                   JpegCompressionDistortion);
+INSTANTIATE_TYPED_TEST_SUITE_P(JpegDistortionSuite, JpegDistortionTestGPU, TestParams);
 
 }  // namespace test
 }  // namespace kernels
