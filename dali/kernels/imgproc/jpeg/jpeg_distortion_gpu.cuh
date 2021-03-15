@@ -75,41 +75,48 @@ __inline__ __device__ vec<3, T> ycbcr_to_rgb(const vec<3, T> ycbcr) {
     return rgb;
 }
 
+
+template <typename T, bool horz_subsample, bool vert_subsample>
+struct YCbCrSubsampled {
+  static constexpr int kLumaLen = (1+horz_subsample)*(1+vert_subsample);
+  T luma[kLumaLen];
+  T cb, cr;
+};
+
 template <bool horz_subsample, bool vert_subsample, typename T>
 __inline__ __device__
-void rgb_to_ycbcr_chroma_subsample(ivec2 luma_offset, ivec2 chroma_offset, ivec2 offset,
-                                   const Surface2D<T>& luma,
-                                   const Surface2D<T>& cb,
-                                   const Surface2D<T>& cr,
-                                   const Surface2D<const uint8_t>& in) {
+YCbCrSubsampled<T, horz_subsample, vert_subsample>
+rgb_to_ycbcr_subsampled(ivec2 offset, const Surface2D<const uint8_t>& in) {
   const auto sampler = make_sampler<DALI_INTERP_NN>(in);
+  YCbCrSubsampled<T, horz_subsample, vert_subsample> out;
   int y = offset.y;
   int x = offset.x;
   vec<3, T> rgb[4];
   sampler(rgb[0].v, ivec2(x, y), BorderClamp());
-  luma(luma_offset.x, luma_offset.y) = rgb_to_y<T>(rgb[0]);
+  out.luma[0] = rgb_to_y<T>(rgb[0]);
   vec<3, T> avg_rgb(rgb[0]);
   if (horz_subsample && vert_subsample) {
     sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
     sampler(rgb[2].v, ivec2(x, y + 1), BorderClamp());
     sampler(rgb[3].v, ivec2(x + 1, y + 1), BorderClamp());
-    luma(luma_offset.x + 1, luma_offset.y) = rgb_to_y<T>(rgb[1]);
-    luma(luma_offset.x, luma_offset.y + 1) = rgb_to_y<T>(rgb[2]);
-    luma(luma_offset.x + 1, luma_offset.y + 1) = rgb_to_y<T>(rgb[3]);
+    out.luma[1] = rgb_to_y<T>(rgb[1]);
+    out.luma[2] = rgb_to_y<T>(rgb[2]);
+    out.luma[3] = rgb_to_y<T>(rgb[3]);
     avg_rgb = avg4(rgb[0], rgb[1], rgb[2], rgb[3]);
   } else if (horz_subsample) {
     sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
-    luma(luma_offset.x + 1, luma_offset.y) = rgb_to_y<T>(rgb[1]);
+    out.luma[1] = rgb_to_y<T>(rgb[1]);
     avg_rgb = avg2(rgb[0], rgb[1]);
   } else if (vert_subsample) {
     sampler(rgb[1].v, ivec2(x, y + 1), BorderClamp());
-    luma(luma_offset.x, luma_offset.y + 1) = rgb_to_y<T>(rgb[1]);
+    out.luma[1] = rgb_to_y<T>(rgb[1]);
     avg_rgb = avg2(rgb[0], rgb[1]);
   }
 
   vec<2, T> cbcr = rgb_to_cb_cr<T>(avg_rgb);
-  cb(chroma_offset.x, chroma_offset.y) = cbcr.x;
-  cr(chroma_offset.x, chroma_offset.y) = cbcr.y;
+  out.cb = cbcr.x;
+  out.cr = cbcr.y;
+  return out;
 }
 
 template <int N, typename T>
@@ -122,81 +129,21 @@ void write_vec(T* ptr, vec<N, T> v) {
 
 template <bool horz_subsample, bool vert_subsample, typename T>
 __inline__ __device__
-void ycbcr_to_rgb_chroma_subsample(ivec2 luma_offset, ivec2 chroma_offset, ivec2 offset,
-                                   const Surface2D<uint8_t>& out,
-                                   const Surface2D<T>& luma,
-                                   const Surface2D<T>& cb,
-                                   const Surface2D<T>& cr) {
+void ycbcr_to_rgb_subsampled(ivec2 offset, const Surface2D<uint8_t>& out,
+                             YCbCrSubsampled<T, horz_subsample, vert_subsample> ycbcr) {
   int y = offset.y;
   int x = offset.x;
-  T cb_val = cb(chroma_offset.x, chroma_offset.y);
-  T cr_val = cr(chroma_offset.x, chroma_offset.y);
-  write_vec(&out(x, y),
-            ycbcr_to_rgb(vec<3, T>(luma(luma_offset.x, luma_offset.y), cb_val, cr_val)));
+  write_vec(&out(x, y), ycbcr_to_rgb(vec<3, T>(ycbcr.luma[0], ycbcr.cb, ycbcr.cr)));
   if (horz_subsample && vert_subsample) {
-    write_vec(&out(x + 1, y),
-              ycbcr_to_rgb(vec<3, T>(luma(luma_offset.x + 1, luma_offset.y), cb_val, cr_val)));
-    write_vec(&out(x, y + 1),
-              ycbcr_to_rgb(vec<3, T>(luma(luma_offset.x, luma_offset.y + 1), cb_val, cr_val)));
-    write_vec(&out(x + 1, y + 1),
-              ycbcr_to_rgb(vec<3, T>(luma(luma_offset.x + 1, luma_offset.y + 1), cb_val, cr_val)));
+    write_vec(&out(x + 1, y), ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
+    write_vec(&out(x, y + 1), ycbcr_to_rgb(vec<3, T>(ycbcr.luma[2], ycbcr.cb, ycbcr.cr)));
+    write_vec(&out(x + 1, y + 1), ycbcr_to_rgb(vec<3, T>(ycbcr.luma[3], ycbcr.cb, ycbcr.cr)));
   } else if (horz_subsample) {
-    write_vec(&out(x + 1, y),
-              ycbcr_to_rgb(vec<3, T>(luma(luma_offset.x + 1, luma_offset.y), cb_val, cr_val)));
+    write_vec(&out(x + 1, y), ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
   } else if (vert_subsample) {
-    write_vec(&out(x, y + 1),
-              ycbcr_to_rgb(vec<3, T>(luma(luma_offset.x, luma_offset.y + 1), cb_val, cr_val)));
+    write_vec(&out(x, y + 1), ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
   }
 }
-
-template <bool horz_subsample, bool vert_subsample>
-__inline__ __device__
-void rgb_to_ycbcr_to_rgb_chroma_subsample(ivec2 offset,
-                                          const Surface2D<uint8_t>& out,
-                                          const Surface2D<const uint8_t>& in) {
-  using T = uint8_t;
-  const auto sampler = make_sampler<DALI_INTERP_NN>(in);
-  int y = offset.y;
-  int x = offset.x;
-  vec<3, T> rgb[4];
-  sampler(rgb[0].v, ivec2(x, y), BorderClamp());
-  if (horz_subsample && vert_subsample) {
-    sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
-    sampler(rgb[2].v, ivec2(x, y + 1), BorderClamp());
-    sampler(rgb[3].v, ivec2(x + 1, y + 1), BorderClamp());
-    vec<3, T> avg_rgb = avg4(rgb[0], rgb[1], rgb[2], rgb[3]);
-    vec<2, T> cbcr = rgb_to_cb_cr<T>(avg_rgb);
-    write_vec(&out(x, y),
-              ycbcr_to_rgb(vec<3, T>(rgb_to_y<T>(rgb[0]), cbcr.x, cbcr.y)));
-    write_vec(&out(x + 1, y),
-              ycbcr_to_rgb(vec<3, T>(rgb_to_y<T>(rgb[1]), cbcr.x, cbcr.y)));
-    write_vec(&out(x, y + 1),
-              ycbcr_to_rgb(vec<3, T>(rgb_to_y<T>(rgb[2]), cbcr.x, cbcr.y)));
-    write_vec(&out(x + 1, y + 1),
-              ycbcr_to_rgb(vec<3, T>(rgb_to_y<T>(rgb[3]), cbcr.x, cbcr.y)));
-  } else if (horz_subsample) {
-    sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
-    vec<3, T> avg_rgb = avg2(rgb[0], rgb[1]);
-    vec<2, T> cbcr = rgb_to_cb_cr<T>(avg_rgb);
-    write_vec(&out(x, y),
-              ycbcr_to_rgb(vec<3, T>(rgb_to_y<T>(rgb[0]), cbcr.x, cbcr.y)));
-    write_vec(&out(x + 1, y),
-              ycbcr_to_rgb(vec<3, T>(rgb_to_y<T>(rgb[1]), cbcr.x, cbcr.y)));
-  } else if (vert_subsample) {
-    sampler(rgb[1].v, ivec2(x, y + 1), BorderClamp());
-    vec<3, T> avg_rgb = avg2(rgb[0], rgb[1]);
-    vec<2, T> cbcr = rgb_to_cb_cr<T>(avg_rgb);
-    write_vec(&out(x, y),
-              ycbcr_to_rgb(vec<3, T>(rgb_to_y<T>(rgb[0]), cbcr.x, cbcr.y)));
-    write_vec(&out(x, y + 1),
-              ycbcr_to_rgb(vec<3, T>(rgb_to_y<T>(rgb[1]), cbcr.x, cbcr.y)));
-  } else {
-    vec<2, T> cbcr = rgb_to_cb_cr<T>(rgb[0]);
-    write_vec(&out(x, y),
-              ycbcr_to_rgb(vec<3, T>(rgb_to_y<T>(rgb[0]), cbcr.x, cbcr.y)));
-  }
-}
-
 
 template <bool horz_subsample, bool vert_subsample>
 __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
@@ -219,11 +166,12 @@ __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
     sample.out, sample.size, 3, sample.strides, 1
   };
 
-  for (int chroma_y = y_start; chroma_y < block.end.y; chroma_y += blockDim.y) {
-    for (int chroma_x = x_start; chroma_x < block.end.x; chroma_x += blockDim.x) {
-      int y = chroma_y << vert_subsample;
-      int x = chroma_x << horz_subsample;
-      rgb_to_ycbcr_to_rgb_chroma_subsample<horz_subsample, vert_subsample>(ivec2{x, y}, out, in);
+  for (int pos_y = y_start; pos_y < block.end.y; pos_y += blockDim.y) {
+    for (int pos_x = x_start; pos_x < block.end.x; pos_x += blockDim.x) {
+      int y = pos_y << vert_subsample;
+      int x = pos_x << horz_subsample;
+      auto ycbcr = rgb_to_ycbcr_subsampled<horz_subsample, vert_subsample, T>(ivec2{x, y}, in);
+      ycbcr_to_rgb_subsampled<horz_subsample, vert_subsample, T>(ivec2{x, y}, out, ycbcr);
     }
   }
 }
@@ -234,9 +182,6 @@ template <bool horz_subsample, bool vert_subsample>
 __global__ void JpegCompressionDistortion(const SampleDesc *samples,
                                           const kernels::BlockDesc<2> *blocks) {
   using T = uint8_t;
-  constexpr ivec<2> blk_sz{8, 8};
-  constexpr i64vec<2> blk_strides{1, 8};
-
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
 
@@ -252,15 +197,15 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
   __shared__ T cb_blk[2][4][8][9];  // 8+1 to reduce bank conflicts
   __shared__ T cr_blk[2][4][8][9];  // 8+1 to reduce bank conflicts
 
-  int chroma_x = threadIdx.x;
-  int chroma_y = threadIdx.y;
-  ivec2 chroma_blk_idx{chroma_x >> 3, chroma_y >> 3};  // / 8
-  ivec2 chroma_offset{chroma_x & 7, chroma_y & 7};  // % 8
+  int chroma_x = threadIdx.x & 7;  // % 8
+  int chroma_y = threadIdx.y & 7;  // % 8
+  ivec2 chroma_blk_idx{threadIdx.x >> 3, threadIdx.y >> 3};  // / 8
 
   int luma_x = threadIdx.x << horz_subsample;
   int luma_y = threadIdx.y << vert_subsample;
   ivec2 luma_blk_idx{luma_x >> 3, luma_y >> 3};  // / 8
-  ivec2 luma_offset{luma_x & 7, luma_y & 7};  // % 8
+  luma_x = luma_x & 7;  // % 8
+  luma_y = luma_y & 7;  // % 8
 
   const Surface2D<const uint8_t> in = {
     sample.in, sample.size, 3, sample.strides, 1
@@ -270,33 +215,48 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
     sample.out, sample.size, 3, sample.strides, 1
   };
 
-  const Surface2D<T> luma = {
-    &luma_blk[luma_blk_idx.y][luma_blk_idx.x][0][0], blk_sz, 1, blk_strides, 1
-  };
+  T (&luma)[8][9] = luma_blk[luma_blk_idx.y][luma_blk_idx.x];
+  T (&cb)[8][9] = cb_blk[chroma_blk_idx.y][chroma_blk_idx.x];
+  T (&cr)[8][9] = cr_blk[chroma_blk_idx.y][chroma_blk_idx.x];
 
-  const Surface2D<T> cb = {
-    &cb_blk[chroma_blk_idx.y][chroma_blk_idx.x][0][0], blk_sz, 1, blk_strides, 1
-  };
-
-  const Surface2D<T> cr = {
-    &cr_blk[chroma_blk_idx.y][chroma_blk_idx.x][0][0], blk_sz, 1, blk_strides, 1
-  };
-
-  for (int chroma_y = y_start; chroma_y < block.end.y; chroma_y += blockDim.y) {
-    for (int chroma_x = x_start; chroma_x < block.end.x; chroma_x += blockDim.x) {
-      int y = chroma_y << vert_subsample;
-      int x = chroma_x << horz_subsample;
+  for (int pos_y = y_start; pos_y < block.end.y; pos_y += blockDim.y) {
+    for (int pos_x = x_start; pos_x < block.end.x; pos_x += blockDim.x) {
+      int y = pos_y << vert_subsample;
+      int x = pos_x << horz_subsample;
       ivec2 offset{x, y};
 
-      rgb_to_ycbcr_chroma_subsample<horz_subsample, vert_subsample>(
-          luma_offset, chroma_offset, offset, luma, cb, cr, in);
+      auto ycbcr = rgb_to_ycbcr_subsampled<horz_subsample, vert_subsample, T>(offset, in);
+      luma[luma_y][luma_x] = ycbcr.luma[0];
+      cb[chroma_y][chroma_x] = ycbcr.cb;
+      cr[chroma_y][chroma_x] = ycbcr.cr;
+      if (horz_subsample && vert_subsample) {
+        luma[luma_y][luma_x + 1] = ycbcr.luma[1];
+        luma[luma_y + 1][luma_x] = ycbcr.luma[2];
+        luma[luma_y + 1][luma_x + 1] = ycbcr.luma[3];
+      } else if (horz_subsample) {
+        luma[luma_y][luma_x + 1] = ycbcr.luma[1];
+      } else if (vert_subsample) {
+        luma[luma_y + 1][luma_x] = ycbcr.luma[1];
+      }
 
       __syncthreads();
 
       // TODO(janton): DCT + quantization + inv DCT
 
-      ycbcr_to_rgb_chroma_subsample<horz_subsample, vert_subsample>(
-          luma_offset, chroma_offset, offset, out, luma, cb, cr);
+      YCbCrSubsampled<T, horz_subsample, vert_subsample> out_ycbcr;
+      out_ycbcr.luma[0] = luma[luma_y][luma_x];
+      out_ycbcr.cb = cb[chroma_y][chroma_x];
+      out_ycbcr.cr = cr[chroma_y][chroma_x];
+      if (horz_subsample && vert_subsample) {
+        out_ycbcr.luma[1] = luma[luma_y][luma_x + 1];
+        out_ycbcr.luma[2] = luma[luma_y + 1][luma_x];
+        out_ycbcr.luma[3] = luma[luma_y + 1][luma_x + 1];
+      } else if (horz_subsample) {
+        out_ycbcr.luma[1] = luma[luma_y][luma_x + 1];
+      } else if (vert_subsample) {
+        out_ycbcr.luma[1] = luma[luma_y + 1][luma_x];
+      }
+      ycbcr_to_rgb_subsampled<horz_subsample, vert_subsample, T>(offset, out, out_ycbcr);
     }
   }
 }
