@@ -74,6 +74,7 @@ bool Squeeze<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Wor
 
 template <typename Backend>
 void Squeeze<Backend>::GenerateSrcDims(const Workspace &ws) {
+  this->use_src_dims_ = true;
   auto &in = ws.template InputRef<Backend>(0);
   const auto &input_shape = in.shape();
   const int ndim = input_shape.sample_dim();
