@@ -54,6 +54,7 @@ class Reshape : public Operator<Backend> {
   }
 
   std::vector<int> src_dims_;
+  bool use_src_dims_ = false;
   TensorListShape<> output_shape_;
   const TypeInfo *output_type_ = nullptr;
   std::vector<int> src_dims_;

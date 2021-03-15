@@ -26,7 +26,9 @@
 namespace dali {
 
 DALI_SCHEMA(Squeeze)
-  .DocStr("") // TODO CAŁA SCHEMA
+  .DocStr("Collapses the dimensions given as axes or axis_names. "
+    "It's an error to collapse dims that would cause the volume to change "
+    "(we can collapse a non-unit dim if a non-collapsed dim is 0).")
   .NumInput(1, 2)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be squeezed")
@@ -64,6 +66,7 @@ bool Squeeze<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Wor
 
 template <typename Backend>
 void Squeeze<Backend>::GenerateSrcDims(const Workspace &ws) {
+  this->use_src_dims_ = true;
   auto &in = ws.template InputRef<Backend>(0);
   const auto &input_shape = in.shape();
   const int ndim = input_shape.sample_dim();

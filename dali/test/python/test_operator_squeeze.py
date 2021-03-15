@@ -46,6 +46,7 @@ def test_squeeze():
         ([1, 2], None, "XYZ", [[300, 1, 1], [10, 1, 1]], [(300,), (10,)], "X"),
         (None, "Z", "XYZ", [[300, 1, 1], [10, 1, 1]], [(300, 1), (10, 1)], "XY"),
         (None, "ZY", "XYZ", [[300, 1, 1], [10, 1, 1]], [(300,), (10,)], "X"),
+        ([0], None, "X", [[1]], [()], ""),
     ]
     for axes, axis_names, layout, shapes, expected_out_shapes, expected_layout in args:
         yield _testimpl_squeeze, axes, axis_names, layout, shapes, expected_out_shapes, expected_layout
