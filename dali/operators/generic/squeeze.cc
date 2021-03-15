@@ -14,6 +14,7 @@
 
 
 #include <vector>
+#include <set>
 
 #include "dali/core/math_util.h"
 #include "dali/core/static_switch.h"
