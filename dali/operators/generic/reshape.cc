@@ -67,15 +67,18 @@ of the output.)code",
   .AddOptionalArg("src_dims", R"code(Indices of dimensions to keep.
 
 This argument can be used to manipulate the order of existing dimensions or to remove or
-add dimensions with extent one. A special index value -1 can be used to insert new dimensions
-at any particular position.
+add dimension. A special index value -1 can be used to insert new dimensions.
 
 For example, reshaping a sample with shape ``[300, 200, 1]`` and a ``src_dims``
 argument ``[-1, 1, 0]`` produces an output shape ``[1, 200, 300]``. A leading dimension with
 extent 1 is inserted at the beginning, followed by the first original dimensions but in reverse
 order. The last dimension is removed.
 
-All the indices should be in the range of valid dimensions of the input, or -1.)code",
+The `src_dims` argument can be used together with `rel_shape`, in which case the relative
+extents in `rel_shape` describe to the target dimensions. In the example above, specifying
+``rel_shape = [-1, 0.5, 2]`` would result in the output shape ``[1, 100, 600]``.
+
+All indices must be in the range of valid dimensions of the input, or -1.)code",
                   std::vector<int>(), true);
 
 DALI_SCHEMA(Reinterpret)
@@ -103,8 +106,6 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
   bool has_layout_arg = spec.HasArgument("layout");
   bool has_rel_shape_arg = spec.HasArgument("rel_shape") || spec.HasTensorArgument("rel_shape");
   bool has_src_dims_arg = spec.HasArgument("src_dims");
-  bool has_axes_arg = spec.HasArgument("axes");
-  bool has_axis_names_arg = spec.HasArgument("axis_names");
 
   if (has_src_dims_arg) {
     src_dims_ = spec.GetRepeatedArgument<int>("src_dims");
@@ -115,7 +116,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
     ": shape input, `shape` argument and `rel_shape` argument are mutually exclusive"));
 
   if (!has_shape_input && !has_shape_arg && !has_rel_shape_arg && !has_layout_arg
-      && !has_src_dims_arg && !has_axes_arg && !has_axis_names_arg) {
+      && !has_src_dims_arg) {
     bool can_have_dtype = spec.GetSchema().HasArgument("dtype");
     if (can_have_dtype) {
       DALI_ENFORCE(output_type_id_ != DALI_NO_TYPE, make_string(OpName(),
@@ -267,9 +268,8 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
       if (use_rel_shape_) {
         if (!src_dims_.empty()) {
           DALI_ENFORCE(rel_uniform_shape_.size() == src_dims_.size(),
-            make_string(OpName(), ": ``src_dims`` and ``rel_shape`` should have the same"
-            " length when both of them are provided. Got ", src_dims_.size(), " and ",
-            rel_uniform_shape_.size(), " elements respectively"));
+            make_string(OpName(), ": ``src_dims`` and ``rel_shape`` have different"
+            " lengths: ", src_dims_.size(), " vs ", rel_uniform_shape_.size()));
         }
 
         output_shape_.resize(N, rel_uniform_shape_.size());
@@ -424,9 +424,9 @@ void Reshape<Backend>::CheckSrcDims(const Workspace &ws) {
   const int ndim = input_shape.sample_dim();
   for (size_t d = 0; d < src_dims_.size(); d++) {
     DALI_ENFORCE(-1 <= src_dims_[d] && src_dims_[d] < ndim,
-      make_string(OpName(), ": Out of bounds ``src_dims`` index. The indices in ``src_dims``"
-      " should be either a valid dimension index (range 0..ndim-1) or -1 to insert a new dimension."
-      " Got: src_dims[", d, "]=", src_dims_[d], ", ndim=", ndim));
+      make_string(OpName(), ": ``src_dims[", d, "]`` == ", src_dims_[d], " is out of bounds.\n"
+      "The indices in ``src_dims`` should be either valid dimension indices in range [0..", ndim-1, "] "
+      "or -1 to insert a new dimension."));
   }
 }
 

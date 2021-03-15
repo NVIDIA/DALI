@@ -44,7 +44,9 @@ class Reshape : public Operator<Backend> {
 
  protected:
   virtual void CalculateOutputShape(const Workspace &ws);
+
   void CheckSrcDims(const Workspace &ws);
+  
   inline void SetOutputType(const Workspace &ws) {
     output_type_ = output_type_id_ != DALI_NO_TYPE
       ? &TypeTable::GetTypeInfo(output_type_id_)
