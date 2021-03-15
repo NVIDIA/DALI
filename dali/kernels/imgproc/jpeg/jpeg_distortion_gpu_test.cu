@@ -50,7 +50,6 @@ class JpegDistortionTestGPU : public ::testing::Test {
   void SetUp() final {
     std::mt19937_64 rng;
     UniformRandomFill(input_host_, rng, 0., 255.);
-    calc_output();
 
     int64_t nbytes = input_host_.size() * sizeof(uint8_t);
     CUDA_CALL(cudaMalloc(&input_device_, nbytes));
@@ -192,7 +191,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
     CUDA_CALL(cudaFree(samples_gpu));
   }
 
-  void calc_output() {
+  void CalcOut_ChromaSubsampleDistortion() {
     // simplest implementation for test purposes. First convert to YCbCr, then subsample
 
     ref_output_.clear();
@@ -202,7 +201,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
     std::vector<T> tmp_cb;
     std::vector<T> tmp_cr;
     int64_t in_offset = 0;
-    for (int sample = 0; sample < in_shapes_.size(); sample++) {
+    for (size_t sample = 0; sample < in_shapes_.size(); sample++) {
       auto sh = in_shapes_[sample];
       int64_t npixels = sh[0] * sh[1];
       tmp_y.resize(npixels);
@@ -283,11 +282,18 @@ class JpegDistortionTestGPU : public ::testing::Test {
     }
   }
 
+  void CalcOut_JpegCompressionDistortion() {
+    // TODO(janton): Implement JPEG encode/decode to produce the reference
+    CalcOut_ChromaSubsampleDistortion();
+  }
+
   void TestJpegCompressionDistortion() {
+    CalcOut_JpegCompressionDistortion();
     TestKernel(JpegCompressionDistortion<horz_subsample, vert_subsample>);
   }
 
   void TestChromaSubsampleDistortion() {
+    CalcOut_ChromaSubsampleDistortion();
     TestKernel(ChromaSubsampleDistortion<horz_subsample, vert_subsample>);
   }
 
