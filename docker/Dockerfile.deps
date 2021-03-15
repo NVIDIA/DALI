@@ -144,8 +144,6 @@ RUN if [ "$(uname -m)" == "x86_64" ]; then \
         rm clang+llvm-*.tar.xz; \
     fi
 
-ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
-
 # FFmpeg
 RUN FFMPEG_VERSION=4.3.1 && \
     cd /tmp && \
