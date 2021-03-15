@@ -425,8 +425,8 @@ void Reshape<Backend>::CheckSrcDims(const Workspace &ws) {
   for (size_t d = 0; d < src_dims_.size(); d++) {
     DALI_ENFORCE(-1 <= src_dims_[d] && src_dims_[d] < ndim,
       make_string(OpName(), ": ``src_dims[", d, "]`` == ", src_dims_[d], " is out of bounds.\n"
-      "The indices in ``src_dims`` should be either valid dimension indices in range [0..", ndim-1, "] "
-      "or -1 to insert a new dimension."));
+      "The indices in ``src_dims`` should be either valid dimension indices in "
+      "range [0..", ndim-1, "] or -1 to insert a new dimension."));
   }
 }
 
