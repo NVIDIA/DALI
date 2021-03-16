@@ -28,10 +28,9 @@ namespace dali {
 DALI_SCHEMA(ExpandDims)
   .DocStr(R"code(Insert new dimension[s] of extent 1 and inserts new entries in "
     "the layout (new_axis_names) at these indices in the layout.)code")
-  .NumInput(1, 2)
+  .NumInput(1)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be expanded")
-  .InputDox(1, "shape_input", "1D TensorList of integers", "Same as ``shape`` keyword argument")
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
@@ -48,7 +47,7 @@ ExpandDims<Backend>::ExpandDims(const OpSpec &spec)
   axes_ = spec.GetRepeatedArgument<int>("axes");
   DALI_ENFORCE(!axes_.empty(), make_string("Axes can't be empty"));
   for (auto axis : axes_) {
-    DALI_ENFORCE(0 <= axis, make_string("axis number can't be negative"));
+    DALI_ENFORCE(0 <= axis, make_string("Axis value can't be negative"));
   }
 
   std::sort(axes_.begin(), axes_.end());
