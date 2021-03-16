@@ -37,8 +37,14 @@ It's an error to collapse dim that would cause the volume to change
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg<int>("axes", "", std::vector<int>(), true)
-  .AddOptionalArg("axis_names", "", TensorLayout(""));
+  .AddOptionalArg<int>("axes", R"code(Indices of dimensions which should be removed.
+
+All squeezed dimensions should have size 1.
+All indices must be in the range of valid dimensions of the input)code", std::vector<int>(), true)
+  .AddOptionalArg("axis_names", R"code(Layout columns which should be removed.
+  
+All squeezed dimensions should have size 1 and 
+all layout names should be present in data layout.)code", TensorLayout(""));
 
 template <typename Backend>
 Squeeze<Backend>::Squeeze(const OpSpec &spec)
@@ -47,7 +53,7 @@ Squeeze<Backend>::Squeeze(const OpSpec &spec)
   axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
 
   DALI_ENFORCE(!axes_.empty() + !axis_names_.empty() <= 1,
-    make_string("Provided axes and axis_names argument"));
+    make_string("Provided both axes and axis_names argument"));
 
   this->use_src_dims_ = true;
 }
