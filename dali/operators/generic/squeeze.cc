@@ -25,9 +25,9 @@
 namespace dali {
 
 DALI_SCHEMA(Squeeze)
-  .DocStr(R"code(Collapses the dimensions given as axes or axis_names.
+  .DocStr(R"code(Removes the dimensions given as ``axes`` or ``axis_names``.
 
-It's an error to collapse a dimension that would cause the total volume to change.)code")
+It's an error to remove a dimension that would cause the total volume to change.)code")
   .NumInput(1)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be squeezed")
@@ -36,11 +36,11 @@ It's an error to collapse a dimension that would cause the total volume to chang
   .SupportVolumetric()
   .AddOptionalArg<int>("axes", R"code(Indices of dimensions which should be removed.
 
-All squeezed dimensions should have size 1.
-All indices must be in the range of valid dimensions of the input)code", std::vector<int>(), true)
+All squeezed dimensions should have size 1 and 
+all indices must be in the range of valid dimensions of the input)code", std::vector<int>(), true)
   .AddOptionalArg("axis_names", R"code(Layout columns which should be removed.
   
-All squeezed dimensions should have size 1 and 
+All squeezed dimensions should have size 1 unless the total volume of the tensor is 0 before and after squeeze.
 all layout names should be present in data layout.)code", TensorLayout(""));
 
 template <typename Backend>
