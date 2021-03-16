@@ -30,7 +30,7 @@ if (DALI_BUILD_FLAVOR)
   set(DALI_VERSION "${DALI_VERSION}.${TIMESTAMP}")
 endif()
 
-# Add the COPYRIGHT, LICENSE, and Acknowledgements
+# Add the COPYRIGHT, LICENSE, and Acknowledgements (and README.ijg for libjpeg-turbo copyright)
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/dali/python/nvidia" "${PROJECT_BINARY_DIR}/dali/python")
 configure_file("${PROJECT_SOURCE_DIR}/dali/python/__init__.py.in" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/__init__.py")
 configure_file("${PROJECT_SOURCE_DIR}/dali/python/setup.py.in" "${PROJECT_BINARY_DIR}/stage/setup.py")
@@ -39,6 +39,7 @@ copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/dali/python/MANIFEST.in" "${P
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/tools/rec2idx.py" "${PROJECT_BINARY_DIR}/dali/python")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/tools/tfrecord2idx" "${PROJECT_BINARY_DIR}/dali/python")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/Acknowledgements.txt" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
+copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/README.ijg" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/COPYRIGHT" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/tools/find_dali.cmake" "${PROJECT_BINARY_DIR}/dali/cmake")

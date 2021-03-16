@@ -15,6 +15,7 @@ ENV NVIDIA_BUILD_ID ${NVIDIA_BUILD_ID:-0}
 RUN mkdir /dali_tf_sdist && chmod 0777 /dali_tf_sdist
 
 COPY Acknowledgements.txt .
+COPY README.ijg .
 COPY COPYRIGHT .
 COPY LICENSE .
 COPY VERSION .

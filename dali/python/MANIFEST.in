@@ -1,4 +1,4 @@
-global-include Acknowledgements.txt LICENSE COPYRIGHT
+global-include Acknowledgements.txt README.ijg LICENSE COPYRIGHT
 recursive-include nvidia/dali/include *.h
 recursive-include nvidia/dali/include *.hpp
 recursive-include nvidia/dali/include *.cuh

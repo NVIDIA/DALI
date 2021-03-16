@@ -45,6 +45,7 @@ install(FILES "dali_tf_plugin_install_tool.py" DESTINATION "${PROJECT_BINARY_DIR
 install(FILES "dali_tf_plugin_utils.py" DESTINATION "${PROJECT_BINARY_DIR}")
 install(FILES "${PROJECT_SOURCE_DIR}/MANIFEST.in" DESTINATION "${PROJECT_BINARY_DIR}")
 install(FILES "${DALI_ROOT}/Acknowledgements.txt" DESTINATION "${PROJECT_BINARY_DIR}/nvidia/dali_tf_plugin")
+install(FILES "${DALI_ROOT}/README.ijg" DESTINATION "${PROJECT_BINARY_DIR}/nvidia/dali_tf_plugin")
 install(FILES "${DALI_ROOT}/COPYRIGHT" DESTINATION "${PROJECT_BINARY_DIR}/nvidia/dali_tf_plugin")
 install(FILES "${DALI_ROOT}/LICENSE" DESTINATION "${PROJECT_BINARY_DIR}/nvidia/dali_tf_plugin")
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/prebuilt" DESTINATION "${PROJECT_BINARY_DIR}" OPTIONAL)
