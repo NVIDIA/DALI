@@ -44,21 +44,22 @@ If argument won't be provided new dimensions will have layout '?')code", TensorL
 
 template <typename Backend>
 ExpandDims<Backend>::ExpandDims(const OpSpec &spec)
-    : Reshape<Backend>(spec) {
+    : Reshape<Backend>(spec, typename Reshape<Backend>::BypassInit()) {
   axes_ = spec.GetRepeatedArgument<int>("axes");
+  DALI_ENFORCE(!axes_.empty(), make_string("Axes can't be empty"));
   for (auto axis : axes_) {
     DALI_ENFORCE(0 <= axis, make_string("axis number can't be negative"));
   }
 
   std::sort(axes_.begin(), axes_.end());
   axes_.erase(std::unique(axes_.begin(), axes_.end()), axes_.end());
-  DALI_ENFORCE(!axes_.empty(), make_string("Axes can't be empty"));
 
   new_axis_names_ = spec.GetArgument<TensorLayout>("new_axis_names");
   if (!new_axis_names_.empty()) {
     DALI_ENFORCE(new_axis_names_.size() == axes_.size(), make_string("Specified ", axes_.size(),
       " new dimensions, but layout specify ", new_axis_names_.size(), " new names"));
   }
+  this->use_src_dims_ = true;
 }
 
 template <typename Backend>
@@ -78,7 +79,6 @@ bool ExpandDims<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const 
 
 template <typename Backend>
 void ExpandDims<Backend>::GenerateSrcDims(const Workspace &ws) {
-  this->use_src_dims_ = true;
   auto &in = ws.template InputRef<Backend>(0);
   const auto &input_shape = in.shape();
   int ndim = input_shape.sample_dim();
