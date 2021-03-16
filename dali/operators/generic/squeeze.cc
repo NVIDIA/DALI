@@ -49,7 +49,7 @@ Squeeze<Backend>::Squeeze(const OpSpec &spec)
   axes_ = spec.GetRepeatedArgument<int>("axes");
   axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
 
-  DALI_ENFORCE(!axes_.empty() + !axis_names_.empty() <= 1,
+  DALI_ENFORCE(spec.HasArgument("axes") + spec.HasArgument("axis_names") == 1,
     make_string("Provided both axes and axis_names argument"));
 
   this->use_src_dims_ = true;
