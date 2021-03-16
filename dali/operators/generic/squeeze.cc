@@ -27,12 +27,10 @@ namespace dali {
 DALI_SCHEMA(Squeeze)
   .DocStr(R"code(Collapses the dimensions given as axes or axis_names.
 
-It's an error to collapse dim that would cause the volume to change
-(we can collapse a non-unit dim if a non-collapsed dim is 0).)code")
-  .NumInput(1, 2)
+It's an error to collapse a dimension that would cause the total volume to change.)code")
+  .NumInput(1)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be squeezed")
-  .InputDox(1, "shape_input", "1D TensorList of integers", "Same as ``shape`` keyword argument")
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
