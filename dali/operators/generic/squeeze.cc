@@ -49,8 +49,9 @@ Squeeze<Backend>::Squeeze(const OpSpec &spec)
   axes_ = spec.GetRepeatedArgument<int>("axes");
   axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
 
-  DALI_ENFORCE(spec.HasArgument("axes") + spec.HasArgument("axis_names") == 1,
-    make_string("Provided both axes and axis_names argument"));
+    DALI_ENFORCE(spec.HasArgument("axes") + spec.HasArgument("axis_names") == 1,
+      spec.HasArgument("axes") ? "Provided both ``axes`` and ``axis_names`` arguments"
+                               : "Missing argument ``axes`` or ``axis_names``." );
 
   this->use_src_dims_ = true;
 }
@@ -61,7 +62,7 @@ bool Squeeze<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Wor
   this->SetOutputType(ws);
 
   GenerateSrcDims(ws);
-  Reshape<Backend>::CalculateOutputShape(ws);
+  this->CalculateOutputShape(ws);
 
   output_desc[0].type = *(this->output_type_);
   output_desc[0].shape = this->output_shape_;
@@ -76,14 +77,12 @@ void Squeeze<Backend>::GenerateSrcDims(const Workspace &ws) {
   const auto &input_shape = in.shape();
   const int ndim = input_shape.sample_dim();
   auto in_layout = in.GetLayout();
-  DALI_ENFORCE(in_layout.size() == ndim || in_layout.empty(),
-      make_string("Layout for data has ",
-      in_layout.size(), " elements but data has ", ndim, " dimensions."));
 
   this->src_dims_.clear();
-  auto axes = axis_names_.empty() ? axes_ : GetDimIndices(in_layout, axis_names_).to_vector();
+  auto axes = axis_names_.empty() ? axes_ : GetDimIndices(in_layout, axis_names_);
   std::sort(axes.begin(), axes.end());
-  axes.erase(std::unique(axes.begin(), axes.end()), axes.end());
+  DALI_ENFORCE(std::adjacent_find(axes.begin(), axes.end()) == axes.end(),
+    make_string("Specified at least twice same dimension to remove."));
   TensorLayout out_layout;
   size_t axis_ind = 0;
   for (int d = 0; d < ndim; d++) {

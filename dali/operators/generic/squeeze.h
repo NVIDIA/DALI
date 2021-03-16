@@ -36,7 +36,7 @@ class Squeeze : public Reshape<Backend> {
  private:
   void GenerateSrcDims(const Workspace &ws);
 
-  std::vector<int> axes_;
+  SmallVector<int, 6> axes_;
   TensorLayout axis_names_;
 };
 

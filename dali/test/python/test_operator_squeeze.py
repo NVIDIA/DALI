@@ -63,6 +63,7 @@ def test_squeeze_throw_error():
         (None, "Z", "XYZ", [(1, 1, 10)]),
         ([2], "Z", "XYZ", [[1, 1, 10]]),
         ([2, 1], None, "XYZ", [(100, 0, 0)]),
+        ([1, 1], None, "XYZ", [(300, 1, 200), (10, 1, 10)]),
     ]
     for axes, axis_names, layout, shapes in args:
         pipe = squeeze_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, axes=axes, axis_names=axis_names, layout=layout)
