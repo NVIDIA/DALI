@@ -42,23 +42,26 @@ def _testimpl_squeeze(axes, axis_names, layout, shapes, expected_out_shapes, exp
 def test_squeeze():
     # axes, axis_names, layout, shapes, expected_out_shapes, expected_layout
     args = [
-        ([1], None, "XYZ", [[300, 1, 200], [10, 1, 10]], [(300, 200), (10, 10)], "XZ"),
-        ([1, 2], None, "XYZ", [[300, 1, 1], [10, 1, 1]], [(300,), (10,)], "X"),
-        (None, "Z", "XYZ", [[300, 1, 1], [10, 1, 1]], [(300, 1), (10, 1)], "XY"),
-        (None, "ZY", "XYZ", [[300, 1, 1], [10, 1, 1]], [(300,), (10,)], "X"),
-        ([0], None, "X", [[1]], [()], ""),
+        ([1], None, "XYZ", [(300, 1, 200), (10, 1, 10)], [(300, 200), (10, 10)], "XZ"),
+        ([1, 2], None, "XYZ", [(300, 1, 1), (10, 1, 1)], [(300,), (10,)], "X"),
+        ([0, 2], None, "XYZ", [(1, 300, 1), (1, 10, 1)], [(300,), (10,)], "Y"),
+        ([0, 2], None, "ABCD", [(1, 1, 1, 1), (1, 1, 1, 1)], [(1, 1,), (1, 1)], "BD"),
+        (None, "Z", "XYZ", [(300, 1, 1), (10, 1, 1)], [(300, 1), (10, 1)], "XY"),
+        (None, "ZY", "XYZ", [(300, 1, 1), (10, 1, 1)], [(300,), (10,)], "X"),
+        ([0], None, "X", [(1)], [()], ""),
     ]
     for axes, axis_names, layout, shapes, expected_out_shapes, expected_layout in args:
         yield _testimpl_squeeze, axes, axis_names, layout, shapes, expected_out_shapes, expected_layout
 
 def test_squeeze_throw_error():
     args = [
-        ([1], None, None, [[300, 1, 200], [10, 10, 10]]),
-        (None, "C", "XYZ", [[2, 3, 4], [4, 2, 3]]),
-        (None, "Z", "XYZ", [[1, 1, 10]]),
+        ([1], None, None, [(300, 1, 200), (10, 10, 10)]),
+        (None, "C", "XYZ", [(2, 3, 4), (4, 2, 3)]),
+        (None, "Z", "XYZ", [(1, 1, 10)]),
+        ([2], "Z", "XYZ", [[1, 1, 10]]),
     ]
     for axes, axis_names, layout, shapes in args:
         pipe = squeeze_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, axes=axes, axis_names=axis_names, layout=layout)
-        pipe.build()
         with assert_raises(RuntimeError):
-          pipe.run()
+            pipe.build()
+            pipe.run()

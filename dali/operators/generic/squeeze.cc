@@ -26,13 +26,14 @@
 namespace dali {
 
 DALI_SCHEMA(Squeeze)
-  .DocStr("Collapses the dimensions given as axes or axis_names. "
-    "It's an error to collapse dims that would cause the volume to change "
-    "(we can collapse a non-unit dim if a non-collapsed dim is 0).")
+  .DocStr(R"code(Collapses the dimensions given as axes or axis_names.
+
+It's an error to collapse dim that would cause the volume to change
+(we can collapse a non-unit dim if a non-collapsed dim is 0).)code")
   .NumInput(1, 2)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be squeezed")
-  .InputDox(1, "shape_input", "1D TensorList of integers", "Same as `shape` keyword argument")
+  .InputDox(1, "shape_input", "1D TensorList of integers", "Same as ``shape`` keyword argument")
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
@@ -43,10 +44,10 @@ template <typename Backend>
 Squeeze<Backend>::Squeeze(const OpSpec &spec)
     : Reshape<Backend>(spec, typename Reshape<Backend>::BypassInit()) {
   axes_ = spec.GetRepeatedArgument<int>("axes");
-  std::sort(axes_.begin(), axes_.end());
-  axes_.erase(std::unique(axes_.begin(), axes_.end()), axes_.end());
-
   axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
+
+  DALI_ENFORCE(!axes_.empty() + !axis_names_.empty() <= 1,
+    make_string("Provided axes and axis_names argument"));
 
   this->use_src_dims_ = true;
 }
@@ -73,45 +74,24 @@ void Squeeze<Backend>::GenerateSrcDims(const Workspace &ws) {
   const int ndim = input_shape.sample_dim();
   auto in_layout = in.GetLayout();
   DALI_ENFORCE(in_layout.size() == ndim || in_layout.empty(),
-      make_string("Layout for data has size ",
-      in_layout.size(), " but data has ", ndim, " dimensions."));
+      make_string("Layout for data has ",
+      in_layout.size(), " elements but data has ", ndim, " dimensions."));
 
   this->src_dims_.clear();
-  std::string out_layout;
-  if (axes_.empty()) {
-    std::set<char> axis_names_set(axis_names_.begin(), axis_names_.end());
-    std::set<char> in_layout_set(in_layout.begin(), in_layout.end());
-    for (auto axes : axis_names_set) {
-      DALI_ENFORCE(in_layout_set.count(axes),
-        make_string("Provided ", axes, " in ``axis_names``, but it's not present in data layout"));
+  auto axes = axis_names_.empty() ? axes_ : GetDimIndices(in_layout, axis_names_).to_vector();
+  std::sort(axes.begin(), axes.end());
+  axes.erase(std::unique(axes.begin(), axes.end()), axes.end());
+  TensorLayout out_layout;
+  size_t axis_ind = 0;
+  for (int d = 0; d < ndim; d++) {
+    if (axis_ind < axes.size() && axes[axis_ind] == d) {
+      axis_ind++;
+      continue;
     }
 
-    for (size_t i = 0; i < in_layout.size(); i++) {
-      auto layout_let = in_layout[i];
-      if (axis_names_set.count(layout_let)) {
-        continue;
-      }
-
-      out_layout.push_back(layout_let);
-      this->src_dims_.push_back(i);
-    }
-  } else {
-    for (auto axis : axes_) {
-      DALI_ENFORCE(axis < ndim,
-        make_string("Dimension passed in axes is out of the bounds"));
-    }
-
-    size_t axis_ind = 0;
-    for (int d = 0; d < ndim; d++) {
-      if (axis_ind < axes_.size() && axes_[axis_ind] == d) {
-        axis_ind++;
-        continue;
-      }
-
-      this->src_dims_.push_back(d);
-      if (!in_layout.empty()) {
-        out_layout.push_back(in_layout[d]);
-      }
+    this->src_dims_.push_back(d);
+    if (!in_layout.empty()) {
+      out_layout += in_layout[d];
     }
   }
   this->layout_ = out_layout;
