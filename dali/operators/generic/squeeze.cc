@@ -36,12 +36,12 @@ It's an error to remove a dimension that would cause the total volume to change.
   .SupportVolumetric()
   .AddOptionalArg<int>("axes", R"code(Indices of dimensions which should be removed.
 
-All squeezed dimensions should have size 1 and 
-all indices must be in the range of valid dimensions of the input)code", std::vector<int>(), true)
+All squeezed dimensions should have size 1, unless the total volume of the tensor is 0 before and after squeeze.
+All indices must be in the range of valid dimensions of the input)code", std::vector<int>(), true)
   .AddOptionalArg("axis_names", R"code(Layout columns which should be removed.
   
 All squeezed dimensions should have size 1 unless the total volume of the tensor is 0 before and after squeeze.
-all layout names should be present in data layout.)code", TensorLayout(""));
+All layout names should be present in data layout.)code", TensorLayout(""));
 
 template <typename Backend>
 Squeeze<Backend>::Squeeze(const OpSpec &spec)
