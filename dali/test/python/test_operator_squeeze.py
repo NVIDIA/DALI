@@ -49,6 +49,8 @@ def test_squeeze():
         (None, "Z", "XYZ", [(300, 1, 1), (10, 1, 1)], [(300, 1), (10, 1)], "XY"),
         (None, "ZY", "XYZ", [(300, 1, 1), (10, 1, 1)], [(300,), (10,)], "X"),
         ([0], None, "X", [(1)], [()], ""),
+        ([1], None, "XYZ", [(100, 0, 0)], [(100, 0)], "XZ"),
+        (None, "Z", "XYZ", [(100, 0, 0)], [(100, 0)], "XY"),
     ]
     for axes, axis_names, layout, shapes, expected_out_shapes, expected_layout in args:
         yield _testimpl_squeeze, axes, axis_names, layout, shapes, expected_out_shapes, expected_layout
@@ -59,6 +61,7 @@ def test_squeeze_throw_error():
         (None, "C", "XYZ", [(2, 3, 4), (4, 2, 3)]),
         (None, "Z", "XYZ", [(1, 1, 10)]),
         ([2], "Z", "XYZ", [[1, 1, 10]]),
+        ([2, 1], None, "XYZ", [(100, 0, 0)]),
     ]
     for axes, axis_names, layout, shapes in args:
         pipe = squeeze_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, axes=axes, axis_names=axis_names, layout=layout)
