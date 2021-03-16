@@ -19,6 +19,7 @@
 #include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/imgproc/surface.h"
 #include "dali/kernels/imgproc/sampler.h"
+#include "dali/kernels/imgproc/jpeg/dct_8x8_gpu.cuh"
 #include "dali/core/geom/vec.h"
 
 namespace dali {
@@ -143,6 +144,7 @@ void ycbcr_to_rgb_subsampled(ivec2 offset, const Surface2D<uint8_t>& out,
   }
 }
 
+
 template <bool horz_subsample, bool vert_subsample>
 __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
                                           const kernels::BlockDesc<2> *blocks) {
@@ -191,9 +193,9 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
 
   // Assuming CUDA block is 32x16, leading to a 2x4 grid of chroma blocks
   // and up to 4x8 blocks of luma.
-  __shared__ T luma_blk[2 << vert_subsample][4 << horz_subsample][8][9];
-  __shared__ T cb_blk[2][4][8][9];  // 8+1 to reduce bank conflicts
-  __shared__ T cr_blk[2][4][8][9];  // 8+1 to reduce bank conflicts
+  __shared__ float luma_blk[2 << vert_subsample][4 << horz_subsample][8][9];
+  __shared__ float cb_blk[2][4][8][9];  // 8+1 to reduce bank conflicts
+  __shared__ float cr_blk[2][4][8][9];  // 8+1 to reduce bank conflicts
 
   int chroma_x = threadIdx.x & 7;  // % 8
   int chroma_y = threadIdx.y & 7;  // % 8
@@ -213,9 +215,9 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
     sample.out, sample.size, 3, sample.strides, 1
   };
 
-  T (&luma)[8][9] = luma_blk[luma_blk_idx.y][luma_blk_idx.x];
-  T (&cb)[8][9] = cb_blk[chroma_blk_idx.y][chroma_blk_idx.x];
-  T (&cr)[8][9] = cr_blk[chroma_blk_idx.y][chroma_blk_idx.x];
+  float (&luma)[8][9] = luma_blk[luma_blk_idx.y][luma_blk_idx.x];
+  float (&cb)[8][9] = cb_blk[chroma_blk_idx.y][chroma_blk_idx.x];
+  float (&cr)[8][9] = cr_blk[chroma_blk_idx.y][chroma_blk_idx.x];
 
   for (int pos_y = y_start; pos_y < block.end.y; pos_y += blockDim.y) {
     for (int pos_x = x_start; pos_x < block.end.x; pos_x += blockDim.x) {
@@ -224,24 +226,71 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
       ivec2 offset{x, y};
 
       auto ycbcr = rgb_to_ycbcr_subsampled<horz_subsample, vert_subsample, T>(offset, in);
-      cb[chroma_y][chroma_x] = ycbcr.cb;
-      cr[chroma_y][chroma_x] = ycbcr.cr;
+      // Shifting to [-128, 128] before the DCT.
+      cb[chroma_y][chroma_x] = ycbcr.cb - 128.0f;
+      cr[chroma_y][chroma_x] = ycbcr.cr - 128.0f;
       for (int i = 0, k = 0; i < vert_subsample+1; i++) {
         for (int j = 0; j < horz_subsample+1; j++, k++) {
-          luma[luma_y + i][luma_x + j] = ycbcr.luma[k];
+          luma[luma_y + i][luma_x + j] = ycbcr.luma[k] - 128.0f;
         }
       }
 
       __syncthreads();
 
-      // TODO(janton): DCT + quantization + inv DCT
+      static constexpr int col_stride = 1;
+      static constexpr int row_stride = 9;
+
+      if (chroma_x <= vert_subsample) {  // 1 or 2 rows depending on vertical subsampling
+        dct_fwd_8x8_1d<col_stride>(&luma[luma_y + chroma_x][0]);
+      }
+
+      if (chroma_x == 0) {  // once per row
+        dct_fwd_8x8_1d<col_stride>(&cb[chroma_y][0]);
+        dct_fwd_8x8_1d<col_stride>(&cr[chroma_y][0]);
+      }
+
+      __syncthreads();
+
+      if (chroma_y <= horz_subsample) {  // 1 or 2 columns depending on horizontal subsampling
+        dct_fwd_8x8_1d<row_stride>(&luma[0][luma_x + chroma_y]);
+      }
+      if (chroma_y == 0) {  // once per column
+        dct_fwd_8x8_1d<row_stride>(&cb[0][chroma_x]);
+        dct_fwd_8x8_1d<row_stride>(&cr[0][chroma_x]);
+      }
+
+      __syncthreads();
+
+      // TODO(janton): Add quantization
+
+      if (chroma_x <= vert_subsample) {  // 1 or 2 rows depending on vertical subsampling
+        dct_inv_8x8_1d<col_stride>(&luma[luma_y + chroma_x][0]);
+      }
+
+      if (chroma_x == 0) {  // once per row
+        dct_inv_8x8_1d<col_stride>(&cb[chroma_y][0]);
+        dct_inv_8x8_1d<col_stride>(&cr[chroma_y][0]);
+      }
+
+      __syncthreads();
+
+      if (chroma_y <= horz_subsample) {  // 1 or 2 columns depending on horizontal subsample
+        dct_inv_8x8_1d<row_stride>(&luma[0][luma_x + chroma_y]);
+      }
+      if (chroma_y == 0) {  // once per column
+        dct_inv_8x8_1d<row_stride>(&cb[0][chroma_x]);
+        dct_inv_8x8_1d<row_stride>(&cr[0][chroma_x]);
+      }
+
+      __syncthreads();
 
       YCbCrSubsampled<T, horz_subsample, vert_subsample> out_ycbcr;
-      out_ycbcr.cb = cb[chroma_y][chroma_x];
-      out_ycbcr.cr = cr[chroma_y][chroma_x];
+       // Shifting to [0, 255] after the inverse DCT.
+      out_ycbcr.cb = ConvertSat<T>(cb[chroma_y][chroma_x] + 128.0f);
+      out_ycbcr.cr = ConvertSat<T>(cr[chroma_y][chroma_x] + 128.0f);
       for (int i = 0, k = 0; i < vert_subsample+1; i++) {
         for (int j = 0; j < horz_subsample+1; j++, k++) {
-          out_ycbcr.luma[k] = luma[luma_y + i][luma_x + j];
+          out_ycbcr.luma[k] = ConvertSat<T>(luma[luma_y + i][luma_x + j] + 128.0f);
         }
       }
       ycbcr_to_rgb_subsampled<horz_subsample, vert_subsample, T>(offset, out, out_ycbcr);
