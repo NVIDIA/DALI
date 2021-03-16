@@ -60,7 +60,7 @@ do_once() {
     export HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu
     export HOROVOD_NCCL_LINK=SHARED
     export HOROVOD_WITHOUT_PYTORCH=1
-    pip install horovod==0.21.0
+    pip install horovod==0.21.3
 
     for file in $(ls /data/imagenet/train-val-tfrecord-480-subset);
     do
