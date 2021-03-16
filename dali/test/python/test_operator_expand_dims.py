@@ -45,7 +45,7 @@ def test_expand_dims():
         ([0, 2], "AB", "XYZ", [[10, 20, 30]], [(1, 10, 20, 1, 30)], "AXYBZ"),
         ([0, 2], None, "XYZ", [[10, 20, 30]], [(1, 10, 20, 1, 30)], "?XY?Z"),
         ([3], None, "XYZ", [[10, 20, 30], [100, 200, 300]], [(10, 20, 30, 1), (100, 200, 300, 1)], "XYZ?"),
-        ([4, 3], None, "XYZ", [[10, 20, 30], [100, 200, 300]], [(10, 20, 30, 1, 1), (100, 200, 300, 1, 1)], "XYZ??")
+        ([4, 3], None, "XYZ", [[10, 20, 30], [100, 200, 300]], [(10, 20, 30, 1, 1), (100, 200, 300, 1, 1)], "XYZ??"),
     ]
     for axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout in args:
         yield _testimpl_expand_dims, axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout
@@ -54,6 +54,7 @@ def test_expand_dims_throw_error():
     args = [
         ([4], None, None, [[10, 20, 30]]),
         ([0, -1], None, None, [[10, 20, 30]]),
+        ([2, 0, 2], "AB", "XYZ", [[10, 20, 30]]),
     ]
     for axes, new_axis_names, layout, shapes in args:
         pipe = expand_dims_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, axes=axes, new_axis_names=new_axis_names, layout=layout)

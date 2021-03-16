@@ -45,13 +45,13 @@ template <typename Backend>
 ExpandDims<Backend>::ExpandDims(const OpSpec &spec)
     : Reshape<Backend>(spec, typename Reshape<Backend>::BypassInit()) {
   axes_ = spec.GetRepeatedArgument<int>("axes");
-  DALI_ENFORCE(!axes_.empty(), make_string("Axes can't be empty"));
+  DALI_ENFORCE(spec.HasArgument("axes"), make_string("``axes`` argument should be provided."));
   for (auto axis : axes_) {
     DALI_ENFORCE(0 <= axis, make_string("Axis value can't be negative"));
   }
-
   std::sort(axes_.begin(), axes_.end());
-  axes_.erase(std::unique(axes_.begin(), axes_.end()), axes_.end());
+  DALI_ENFORCE(std::adjacent_find(axes_.begin(), axes_.end()) == axes_.end(),
+    make_string("Specified at least twice same index to add new dimension."));
 
   new_axis_names_ = spec.GetArgument<TensorLayout>("new_axis_names");
   if (!new_axis_names_.empty()) {
@@ -67,7 +67,7 @@ bool ExpandDims<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const 
   this->SetOutputType(ws);
 
   GenerateSrcDims(ws);
-  Reshape<Backend>::CalculateOutputShape(ws);
+  this->CalculateOutputShape(ws);
 
   output_desc[0].type = *(this->output_type_);
   output_desc[0].shape = this->output_shape_;

@@ -36,7 +36,7 @@ class ExpandDims : public Reshape<Backend> {
  private:
   void GenerateSrcDims(const Workspace &ws);
 
-  std::vector<int> axes_;
+  SmallVector<int, 6> axes_;
   TensorLayout new_axis_names_;
 };
 
