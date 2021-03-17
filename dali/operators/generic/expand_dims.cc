@@ -26,19 +26,23 @@
 namespace dali {
 
 DALI_SCHEMA(ExpandDims)
-  .DocStr(R"code(Insert new dimension[s] of extent 1 and inserts new entries in "
-    "the layout (new_axis_names) at these indices in the layout.)code")
+    .DocStr(R"code(Insert new dimension(s) with extent 1 to the data shape.
+The new dimensions are inserted at the positions specified by ``axes``.
+  
+If ``new_axis_names`` is provided, the new dimension names will be inserted in the data layout, 
+at the positions specified by ``axes``. If ``new_axis_names`` is not provided, the output data 
+layout will be empty.")code")
   .NumInput(1)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be expanded")
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg<int>("axes", R"code(Indices where to put new dimensions of size 1.)code",
+  .AddOptionalArg<int>("axes", R"code(Indices at which the new dimensions are inserted.)code",
     std::vector<int>(), true)
-  .AddOptionalArg("new_axis_names", R"code(Names of new dimensions in data layout.
+  .AddOptionalArg("new_axis_names", R"code(Names of the new dimensions in the data layout.
   
-Size of ``new_axis_names`` should be equal to ``axe``s size. 
+The length of ``new_axis_names`` must match the length of ``axes``.
 If argument won't be provided new dimensions will have layout '?')code", TensorLayout(""));
 
 template <typename Backend>
@@ -53,10 +57,12 @@ ExpandDims<Backend>::ExpandDims(const OpSpec &spec)
   DALI_ENFORCE(std::adjacent_find(axes_.begin(), axes_.end()) == axes_.end(),
     make_string("Specified at least twice same index to add new dimension."));
 
+  use_new_axis_names_arg_ = spec.HasArgument("new_axis_names");
   new_axis_names_ = spec.GetArgument<TensorLayout>("new_axis_names");
   if (!new_axis_names_.empty()) {
     DALI_ENFORCE(new_axis_names_.size() == axes_.size(), make_string("Specified ", axes_.size(),
-      " new dimensions, but layout specify ", new_axis_names_.size(), " new names"));
+      " new dimensions, but layout contains only ",
+      new_axis_names_.size(), " new dimension names"));
   }
   this->use_src_dims_ = true;
 }
@@ -82,31 +88,34 @@ void ExpandDims<Backend>::GenerateSrcDims(const Workspace &ws) {
   const auto &input_shape = in.shape();
   int ndim = input_shape.sample_dim();
   auto in_layout = in.GetLayout();
+  if (in_layout.empty() && ndim) {
+    DALI_ENFORCE(!use_new_axis_names_arg_,
+      make_string("Specifying ``new_axis_names`` requires an input with a proper layuout."));
+  }
   DALI_ENFORCE(in_layout.size() == ndim || in_layout.empty(),
     make_string("Layout for data has size ",
     in_layout.size(), " but data has ", ndim, " dimensions."));
 
+  this->src_dims_.clear();
   TensorLayout out_layout;
   size_t axes_ind = 0;
-  this->src_dims_.clear();
-  for (int d = 0; d < ndim; d++) {
-    if (axes_[axes_ind] == d) {
+  int out_ndim = ndim + axes_.size();
+  for (int i = 0, d = 0; i < out_ndim; i++) {
+    if (axes_ind < axes_.size() && axes_[axes_ind] == i) {
       this->src_dims_.push_back(-1);
-      out_layout += new_axis_names_.empty() ? '?' : new_axis_names_[axes_ind];
+      out_layout += use_new_axis_names_arg_ ? new_axis_names_[axes_ind] : 0;
       axes_ind++;
+      continue;
     }
-    out_layout += in_layout.empty() ? '?' : in_layout[d];
-    this->src_dims_.push_back(d);
-  }
 
-  while (axes_ind < axes_.size()) {
-    DALI_ENFORCE(axes_[axes_ind] <= ndim, make_string("ERROR"));
-    this->src_dims_.push_back(-1);
-    out_layout += new_axis_names_.empty() ? '?' : new_axis_names_[axes_ind];
-    ndim++;
-    axes_ind++;
+    DALI_ENFORCE(d < ndim,
+      make_string("Data has not enough dimensions to add new axes at specified indices."));
+    out_layout += in_layout.empty() ? 0 : in_layout[d];
+    this->src_dims_.push_back(d++);
   }
-  this->layout_ = out_layout;
+  if (!in_layout.empty()) {
+    this->layout_ = use_new_axis_names_arg_ ? out_layout : TensorLayout();
+  }
 }
 
 DALI_REGISTER_OPERATOR(ExpandDims, ExpandDims<CPUBackend>, CPU);

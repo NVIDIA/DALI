@@ -38,6 +38,7 @@ class ExpandDims : public Reshape<Backend> {
 
   SmallVector<int, 6> axes_;
   TensorLayout new_axis_names_;
+  bool use_new_axis_names_arg_;
 };
 
 }  // namespace dali
