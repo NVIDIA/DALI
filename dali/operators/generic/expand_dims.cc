@@ -14,7 +14,7 @@
 
 
 #include <vector>
-#include <set>
+#include <utility>
 
 #include "dali/core/math_util.h"
 #include "dali/core/static_switch.h"
@@ -27,6 +27,7 @@ namespace dali {
 
 DALI_SCHEMA(ExpandDims)
     .DocStr(R"code(Insert new dimension(s) with extent 1 to the data shape.
+
 The new dimensions are inserted at the positions specified by ``axes``.
   
 If ``new_axis_names`` is provided, the new dimension names will be inserted in the data layout, 
@@ -38,33 +39,45 @@ layout will be empty.")code")
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg<int>("axes", R"code(Indices at which the new dimensions are inserted.)code",
-    std::vector<int>(), true)
+  .AddArg("axes", R"code(Indices at which the new dimensions are inserted.)code",
+    DALI_INT_VEC, true)
   .AddOptionalArg("new_axis_names", R"code(Names of the new dimensions in the data layout.
   
 The length of ``new_axis_names`` must match the length of ``axes``.
-If argument won't be provided layout will be cleared.)code", TensorLayout(""));
+If argument isn't be provided, the layout will be cleared.)code", TensorLayout(""));
 
 template <typename Backend>
 ExpandDims<Backend>::ExpandDims(const OpSpec &spec)
     : Reshape<Backend>(spec, typename Reshape<Backend>::BypassInit()) {
-  axes_ = spec.GetRepeatedArgument<int>("axes");
+  SmallVector<int, 6> axes = spec.GetRepeatedArgument<int>("axes");
   DALI_ENFORCE(spec.HasArgument("axes"), make_string("``axes`` argument should be provided."));
-  for (auto axis : axes_) {
+  for (auto axis : axes) {
     DALI_ENFORCE(0 <= axis, make_string("Axis value can't be negative"));
   }
-  std::sort(axes_.begin(), axes_.end());
-  DALI_ENFORCE(std::adjacent_find(axes_.begin(), axes_.end()) == axes_.end(),
-    make_string("Specified at least twice same index to add new dimension."));
 
   use_new_axis_names_arg_ = spec.HasArgument("new_axis_names");
-  new_axis_names_ = spec.GetArgument<TensorLayout>("new_axis_names");
-  if (!new_axis_names_.empty()) {
-    DALI_ENFORCE(new_axis_names_.size() == axes_.size(), make_string("Specified ", axes_.size(),
+  auto new_axis_names = spec.GetArgument<TensorLayout>("new_axis_names");
+  if (!new_axis_names.empty()) {
+    DALI_ENFORCE(new_axis_names.size() == axes.size(), make_string("Specified ", axes.size(),
       " new dimensions, but layout contains only ",
-      new_axis_names_.size(), " new dimension names"));
+      new_axis_names.size(), " new dimension names"));
   }
   this->use_src_dims_ = true;
+
+  SmallVector<std::pair<int, char>, 6> ind_with_layout;
+  for (size_t i = 0; i < axes.size(); i++) {
+    ind_with_layout.push_back({axes[i], new_axis_names.empty() ? 0 : new_axis_names[i]});
+  }
+  std::sort(ind_with_layout.begin(), ind_with_layout.end());
+
+  for (size_t i = 0; i < ind_with_layout.size(); i++) {
+    axes_.push_back(ind_with_layout[i].first);
+    if (ind_with_layout[i].second != 0) {
+      new_axis_names_ += ind_with_layout[i].second;
+    }
+  }
+  DALI_ENFORCE(std::adjacent_find(axes_.begin(), axes_.end()) == axes_.end(),
+    make_string("Duplicate axis index found."));
 }
 
 template <typename Backend>

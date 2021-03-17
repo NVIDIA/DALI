@@ -50,6 +50,7 @@ def test_expand_dims():
         ([], "", "HW", [(10, 20)], [(10, 20)], "HW"),
         ([0, 1], "", "", [()], [(1, 1)], ""),
         ([0], "", "HW", [(10, 20)], [(1, 10, 20)], ""),
+        ([4, 3], "AB", "XYZ", [(10, 20, 30)], [(10, 20, 30, 1, 1)], "XYZBA"),
     ]
     for axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout in args:
         yield _testimpl_expand_dims, axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout
