@@ -43,7 +43,7 @@ layout will be empty.")code")
   .AddOptionalArg("new_axis_names", R"code(Names of the new dimensions in the data layout.
   
 The length of ``new_axis_names`` must match the length of ``axes``.
-If argument won't be provided new dimensions will have layout '?')code", TensorLayout(""));
+If argument won't be provided layout will be cleared.)code", TensorLayout(""));
 
 template <typename Backend>
 ExpandDims<Backend>::ExpandDims(const OpSpec &spec)
