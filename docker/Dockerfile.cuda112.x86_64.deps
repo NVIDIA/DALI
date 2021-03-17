@@ -19,6 +19,3 @@ RUN NVJPEG2K_VERSION=0.2.0 && \
     cp /usr/include/nvjpeg2k* /usr/local/cuda/include/ && \
     cp /usr/lib/x86_64-linux-gnu/libnvjpeg2k* /usr/local/cuda/lib64/ && \
     rm -rf /var/lib/apt/lists/*
-
-FROM scratch
-COPY --from=cuda /usr/local/cuda /usr/local/cuda

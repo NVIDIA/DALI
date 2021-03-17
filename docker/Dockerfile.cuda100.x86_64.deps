@@ -24,6 +24,3 @@ RUN CUDA_VERSION=10.0 && \
     mv /usr/local/cuda/include /usr/local/cuda/targets/x86_64-linux && \
     ln -s targets/x86_64-linux/lib /usr/local/cuda/lib64 && \
     ln -s targets/x86_64-linux/include /usr/local/cuda/include
-
-FROM scratch
-COPY --from=cuda /usr/local/cuda /usr/local/cuda
