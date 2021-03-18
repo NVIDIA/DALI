@@ -241,11 +241,6 @@ __device__ __inline__ float quantize(float value, float Q_coeff) {
 /**
  * @brief Produces JPEG compression artifacts by running the lossy part of
  * JPEG compression and decompression.
- * @param samples Sample descriptors
- * @param blocks Logical block descriptors
- * @param quality_factor Number between 1 (lowest quality) and 100 (highest quality)
- * used to determine the scaling applied to the quantization matrices.
- * Note: quality_factor==100 does not mean lossless compression.
  */
 template <bool horz_subsample, bool vert_subsample, bool quantization = true>
 __global__ void JpegCompressionDistortion(const SampleDesc *samples,
@@ -303,8 +298,6 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
 
   for (int blk_pos_y = aligned_start_y; blk_pos_y < aligned_end_y; blk_pos_y += blockDim.y) {
     for (int blk_pos_x = aligned_start_x; blk_pos_x < aligned_end_x; blk_pos_x += blockDim.x) {
-      __syncthreads();
-
       int pos_x = blk_pos_x + threadIdx.x;
       int pos_y = blk_pos_y + threadIdx.y;
       int y = pos_y << vert_subsample;
