@@ -1,6 +1,6 @@
 import numpy as np
 import os
-from numba import cfunc, types, carray, objmode
+from numba import cfunc, types, carray
 
 from nvidia.dali import pipeline_def
 import nvidia.dali as dali
@@ -15,7 +15,6 @@ fun1_sig = types.void(types.CPointer(types.uint8),
                     types.int64)
 @cfunc(fun1_sig, nopython=True)
 def set_all_values_to_255(out_ptr, in_ptr, size):
-    in_arr = carray(in_ptr, size)
     out_arr = carray(out_ptr, size)
     out_arr[:] = 255
 
@@ -24,7 +23,6 @@ fun2_sig = types.void(types.CPointer(types.float32),
                     types.int64)
 @cfunc(fun2_sig, nopython=True)
 def set_all_values_to_float(out_ptr, in_ptr, size):
-    in_arr = carray(in_ptr, size)
     out_arr = carray(out_ptr, size)
     out_arr[:] = 0.5
 
