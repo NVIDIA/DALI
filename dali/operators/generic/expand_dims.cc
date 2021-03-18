@@ -50,7 +50,6 @@ template <typename Backend>
 ExpandDims<Backend>::ExpandDims(const OpSpec &spec)
     : Reshape<Backend>(spec, typename Reshape<Backend>::BypassInit()) {
   SmallVector<int, 6> axes = spec.GetRepeatedArgument<int>("axes");
-  DALI_ENFORCE(spec.HasArgument("axes"), make_string("``axes`` argument should be provided."));
   for (auto axis : axes) {
     DALI_ENFORCE(0 <= axis, make_string("Axis value can't be negative"));
   }
@@ -103,7 +102,7 @@ void ExpandDims<Backend>::GenerateSrcDims(const Workspace &ws) {
   auto in_layout = in.GetLayout();
   if (in_layout.empty() && ndim) {
     DALI_ENFORCE(!use_new_axis_names_arg_,
-      make_string("Specifying ``new_axis_names`` requires an input with a proper layuout."));
+      make_string("Specifying ``new_axis_names`` requires an input with a proper layout."));
   }
   DALI_ENFORCE(in_layout.size() == ndim || in_layout.empty(),
     make_string("Layout for data has size ",
