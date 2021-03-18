@@ -30,9 +30,7 @@ class NumbaFunc : public Operator<Backend> {
   explicit NumbaFunc(const OpSpec &spec_);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
+  bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &in = ws.template InputRef<Backend>(0);
@@ -41,7 +39,10 @@ class NumbaFunc : public Operator<Backend> {
     return true;
   }
 
-  void RunImpl(dali::Workspace<Backend> &ws) override;
+  void RunImpl(Workspace &ws) override;
+
+ private:
+  uint64_t fn_ptr_;
 };
 
 }  // namespace dali
