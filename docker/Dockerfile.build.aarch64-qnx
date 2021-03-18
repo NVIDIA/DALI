@@ -58,8 +58,12 @@ ENV PKG_CONFIG_PATH=/usr/aarch64-unknown-nto-qnx/aarch64le/lib/pkgconfig
 
 COPY third_party/build_deps.sh /tmp/
 COPY DALI_DEPS_VERSION /tmp
+
+ARG DALI_DEPS_REPO=https://github.com/NVIDIA/DALI_deps
+ENV DALI_DEPS_REPO=${DALI_DEPS_REPO}
+
 RUN DALI_DEPS_VERSION=$(cat /tmp/DALI_DEPS_VERSION)                && \
-    git clone https://github.com/NVIDIA/DALI_deps /tmp/dali_deps   && \
+    git clone ${DALI_DEPS_REPO} /tmp/dali_deps                     && \
     cd /tmp/dali_deps                                              && \
     git submodule init                                             && \
     git checkout ${DALI_DEPS_VERSION}                              && \
