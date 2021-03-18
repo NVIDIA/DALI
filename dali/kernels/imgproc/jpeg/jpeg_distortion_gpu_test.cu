@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <cstdlib>
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream.h"
 #include "dali/pipeline/data/tensor_list.h"
@@ -41,15 +42,15 @@ class JpegDistortionTestGPU : public ::testing::Test {
   static constexpr bool horz_subsample = GTestParams::horz_subsample;
   static constexpr bool use_real_images = true;
   static constexpr bool perf_run = false;
-  static constexpr bool dump_images = true;
+  static constexpr bool dump_images = false;
 
  public:
   void SetUp() final {
     if (use_real_images) {
       std::vector<std::string> paths{
-        dali_extra_path() + "/db/single/bmp/0/cat-3591348_645.bmp",
         dali_extra_path() + "/db/single/bmp/0/cat-111793_640_palette_8bit.bmp",
         dali_extra_path() + "/db/single/bmp/0/cat-1046544_640.bmp",
+        dali_extra_path() + "/db/single/bmp/0/cat-3591348_640.bmp",
       };
       in_shapes_.resize(paths.size(), 3);
       std::vector<cv::Mat> images(paths.size());
@@ -217,6 +218,15 @@ class JpegDistortionTestGPU : public ::testing::Test {
       cv::Mat diff;
       cv::absdiff(out_mat, out_ref, diff);
 
+      // Sanity check. Checking that the average pixel difference is small
+      // It is always best to compare the diff image visually to look for
+      // artifacts.
+      auto mean = cv::mean(diff);
+      // different subsampling -> bigger error
+      int avg_diff_max = horz_subsample && vert_subsample ? 2 : 6;
+      for (int d = 0; d < 3; d++)
+        ASSERT_LT(mean[d], avg_diff_max);
+
       if (dump_images) {
         std::stringstream ss1, ss2, ss3, ss4;
         ss1 << "jpeg_distortion_test_" << i << "_in.bmp";
@@ -343,14 +353,15 @@ class JpegDistortionTestGPU : public ::testing::Test {
     for (size_t i = 0; i < in_shapes_.size(); i++) {
       auto sh = in_shapes_[i];
       cv::Mat in_mat(sh[0], sh[1], CV_8UC3, (void *) in_view_cpu[i].data);
-      std::string fname = std::tmpnam(nullptr);
-      fname += ".jpg";
+
+      std::vector<uint8_t> encoded;
+
       cv::cvtColor(in_mat, in_mat, cv::COLOR_RGB2BGR);
-      cv::imwrite(fname, in_mat, {cv::IMWRITE_JPEG_QUALITY, ConvertSat<int>(quality_factor)});
+      cv::imencode(".jpg", in_mat, encoded, {cv::IMWRITE_JPEG_QUALITY, ConvertSat<int>(quality_factor)});
       cv::cvtColor(in_mat, in_mat, cv::COLOR_BGR2RGB);
 
-      auto out_ref = cv::imread(fname);
-      std::cout << "Reference " << fname << "\n";
+      cv::Mat encoded_mat(1, encoded.size(), CV_8UC1, encoded.data());
+      auto out_ref = cv::imdecode(encoded_mat, cv::IMREAD_COLOR);
       cv::cvtColor(out_ref, out_ref, cv::COLOR_BGR2RGB);
       std::memcpy(out_ref_view[i].data, out_ref.data,
                   in_shapes_.tensor_size(i) * sizeof(uint8_t));
@@ -371,6 +382,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
   }
 
   void TestChromaSubsampleDistortion() {
+    quality_factor = 99;
     CalcOut_ChromaSubsampleDistortion();
     TestKernel(
       [](dim3 gridDim, dim3 blockDim, cudaStream_t stream,
@@ -403,18 +415,16 @@ struct jpeg_distortion_params_t {
 };
 
 using TestParams = ::testing::Types<
-  jpeg_distortion_params_t<uint8_t, true, true>
-//  jpeg_distortion_params_t<uint8_t, true, true>,
-//  jpeg_distortion_params_t<uint8_t, false, true>,
-//  jpeg_distortion_params_t<uint8_t, true, false>,
-//  jpeg_distortion_params_t<uint8_t, false, false>
+  jpeg_distortion_params_t<uint8_t, true, true>,
+  jpeg_distortion_params_t<uint8_t, false, true>,
+  jpeg_distortion_params_t<uint8_t, true, false>,
+  jpeg_distortion_params_t<uint8_t, false, false>
 >;
 
 TYPED_TEST_SUITE_P(JpegDistortionTestGPU);
 
 TYPED_TEST_P(JpegDistortionTestGPU, ChromaSubsampleDistortion) {
-  return;
-//  this->TestChromaSubsampleDistortion();
+  this->TestChromaSubsampleDistortion();
 }
 
 TYPED_TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion) {

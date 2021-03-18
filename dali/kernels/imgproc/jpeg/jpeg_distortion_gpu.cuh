@@ -205,6 +205,9 @@ __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
 
+  int aligned_end_y = align_up(block.end.y, 1 + vert_subsample);
+  int aligned_end_x = align_up(block.end.x, 1 + horz_subsample);
+
   int y_start = threadIdx.y + block.start.y;
   int x_start = threadIdx.x + block.start.x;
   if (y_start >= block.end.y || x_start >= block.end.x) {
@@ -219,8 +222,8 @@ __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
     sample.out, sample.size, 3, sample.strides, 1
   };
 
-  for (int pos_y = y_start; pos_y < block.end.y; pos_y += blockDim.y) {
-    for (int pos_x = x_start; pos_x < block.end.x; pos_x += blockDim.x) {
+  for (int pos_y = y_start; pos_y < aligned_end_y; pos_y += blockDim.y) {
+    for (int pos_x = x_start; pos_x < aligned_end_x; pos_x += blockDim.x) {
       int y = pos_y << vert_subsample;
       int x = pos_x << horz_subsample;
       auto ycbcr = rgb_to_ycbcr_subsampled<horz_subsample, vert_subsample, T>(ivec2{x, y}, in);
