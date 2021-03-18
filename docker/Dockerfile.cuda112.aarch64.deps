@@ -8,6 +8,3 @@ RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.2.2/local_ins
     chmod +x cuda_*.run && \
     ./cuda_*.run --silent --no-opengl-libs --toolkit && \
     rm -f cuda_*.run;
-
-FROM scratch
-COPY --from=cuda /usr/local/cuda /usr/local/cuda
