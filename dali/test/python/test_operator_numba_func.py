@@ -1,5 +1,4 @@
 import numpy as np
-import time
 import os
 from numba import cfunc, types, carray, objmode
 
