@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/core/util.h"
 #include "dali/core/mm/detail/align.h"
 #include "dali/core/mm/detail/aux_alloc.h"
+#include "dali/core/mm/detail/aux_collections.h"
 
 namespace dali {
 namespace mm {
@@ -522,10 +523,8 @@ class free_tree {
   }
 
  protected:
-  using by_addr_alloc = detail::object_pool_allocator<std::pair<char *const, size_t>, true>;
-  using by_size_alloc = detail::object_pool_allocator<std::pair<size_t, char *>, true>;
-  std::map<char *, size_t, std::less<char*>, by_addr_alloc> by_addr_;
-  std::set<std::pair<size_t, char *>, std::less<std::pair<size_t, char *>>, by_size_alloc> by_size_;
+  pooled_map<char *, size_t, true> by_addr_;
+  pooled_set<std::pair<size_t, char *>, true> by_addr_;
 };
 
 }  // namespace mm
