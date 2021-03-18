@@ -21,6 +21,7 @@
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/imgproc/jpeg/dct_8x8_gpu.cuh"
 #include "dali/core/geom/vec.h"
+#include "dali/core/geom/box.h"
 #include "dali/core/util.h"
 
 namespace dali {
@@ -200,12 +201,7 @@ __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
 }
 
 __device__ __inline__ float quantize(float value, float Q_coeff) {
-  // Here we are shifting the negative numbers to the positive range,
-  // so that the rounded quotient is the closest integer, also for negative numbers.
-  // For uint8_t pixels (range 0..255), all DCT coefficients should be
-  // below 2048.
-  float rounded_quotient = static_cast<int>((value / Q_coeff) + 2048.5f) - 2048.0f;
-  return Q_coeff * rounded_quotient;
+  return Q_coeff * roundf(value * __frcp_rn(Q_coeff));
 }
 
 /**
@@ -227,14 +223,10 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
 
   static constexpr int align_y = 8 << vert_subsample;
   static constexpr int align_x = 8 << horz_subsample;
+  int aligned_start_x = block.start.x & -align_x;
+  int aligned_start_y = block.start.y & -align_y;
   int aligned_end_y = align_up(block.end.y, align_y);
   int aligned_end_x = align_up(block.end.x, align_x);
-
-  int y_start = threadIdx.y + block.start.y;
-  int x_start = threadIdx.x + block.start.x;
-  if (y_start >= aligned_end_y || x_start >= aligned_end_x) {
-    return;
-  }
 
   // Assuming CUDA block is 32x16, leading to a 2x4 grid of chroma blocks
   // and up to 4x8 blocks of luma.
@@ -282,8 +274,13 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
   const int tid = threadIdx.x + blockDim.x * threadIdx.y;
   const int block_size = blockDim.x * blockDim.y;
 
-  for (int pos_y = y_start; pos_y < aligned_end_y; pos_y += blockDim.y) {
-    for (int pos_x = x_start; pos_x < aligned_end_x; pos_x += blockDim.x) {
+  ivec2 luma_shift = { horz_subsample, vert_subsample };
+  Box<2, int> roi = { block.start << luma_shift, block.end << luma_shift };
+
+  for (int blk_pos_y = aligned_start_y; blk_pos_y + blockDim.y <= aligned_end_y; blk_pos_y += blockDim.y) {
+    for (int blk_pos_x = aligned_start_x; blk_pos_x + blockDim.x <= aligned_end_x; blk_pos_x += blockDim.x) {
+      int pos_x = blk_pos_x + threadIdx.x;
+      int pos_y = blk_pos_y + threadIdx.y;
       int y = pos_y << vert_subsample;
       int x = pos_x << horz_subsample;
       ivec2 offset{x, y};
@@ -385,7 +382,7 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
       __syncthreads();
 
       // If we are in the out-of-bounds region, skip
-      if (offset.x >= sample.size.x || offset.y >= sample.size.y) {
+      if (!roi.contains(offset)) {
         continue;
       }
 
