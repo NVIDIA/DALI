@@ -836,8 +836,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                                       jpeg_streams_[jpeg_stream_idx], stream),
                      file_name);
 
-      NVJPEG_CALL_EX(nvjpegDecodeJpegDevice(handle_, decoder, state, &nvjpeg_image, stream),
-                     file_name);
+      ret = nvjpegDecodeJpegDevice(handle_, decoder, state, &nvjpeg_image, stream);
+      // if nvJPEG fails try HostDecoder
+      if (ret != NVJPEG_STATUS_SUCCESS) {
+        HostFallback<StorageGPU>(input_data, in_size, output_image_type_, output_data,
+                                stream, file_name, data.roi, use_fast_idct_);
+        return;
+      }
       CUDA_CALL(cudaEventRecord(decode_events_[thread_id], stream));
     }
   }
