@@ -227,10 +227,8 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
 
   static constexpr int align_y = 8 << vert_subsample;
   static constexpr int align_x = 8 << horz_subsample;
-  int padding_y = align_up(sample.size.y, align_y) - sample.size.y;
-  int padding_x = align_up(sample.size.x, align_x) - sample.size.x;
-  int aligned_end_y = block.end.y < sample.size.y ? block.end.y : block.end.y + padding_y;
-  int aligned_end_x = block.end.x < sample.size.x ? block.end.x : block.end.x + padding_x;
+  int aligned_end_y = align_up(block.end.y, align_y);
+  int aligned_end_x = align_up(block.end.x, align_x);
 
   int y_start = threadIdx.y + block.start.y;
   int x_start = threadIdx.x + block.start.x;
