@@ -105,8 +105,8 @@ class JpegDistortionTestGPU : public ::testing::Test {
       auto shape_vol = volume(in_sh);
       auto width = in_sh[1];
       auto height = in_sh[0];
-      auto chroma_width = width >> horz_subsample;
-      auto chroma_height = height >> vert_subsample;
+      auto chroma_width = div_ceil(width, 1 + horz_subsample);
+      auto chroma_height = div_ceil(height, 1 + vert_subsample);
       // used to generate logical blocks (one thread per chroma pixel)
       chroma_sh[0] = chroma_height;
       chroma_sh[1] = chroma_width;
@@ -207,23 +207,37 @@ class JpegDistortionTestGPU : public ::testing::Test {
 
     // In the kernel we average the RGB values, then converto to YCbCr
     // while here we are first converting and then averaging
-    Check(out_view_cpu, out_ref_cpu, EqualEps(5.99));
+    // Check(out_view_cpu, out_ref_cpu, EqualEps(40));
 
-    if (dump_images) {
-      for (size_t i = 0; i < in_shapes_.size(); i++) {
-        auto sh = in_shapes_[i];
-        cv::Mat in_mat(sh[0], sh[1], CV_8UC3, (void *) in_view_cpu[i].data);
-        cv::Mat out_mat(sh[0], sh[1], CV_8UC3, (void *) out_view_cpu[i].data);
-        std::stringstream ss1, ss2, ss3;
+    for (size_t i = 0; i < in_shapes_.size(); i++) {
+      auto sh = in_shapes_[i];
+      cv::Mat in_mat(sh[0], sh[1], CV_8UC3, (void *) in_view_cpu[i].data);
+      cv::Mat out_mat(sh[0], sh[1], CV_8UC3, (void *) out_view_cpu[i].data);
+      cv::Mat out_ref(sh[0], sh[1], CV_8UC3, (void *) out_ref_cpu[i].data);
+      cv::Mat diff;
+      cv::absdiff(out_mat, out_ref, diff);
+
+      if (dump_images) {
+        std::stringstream ss1, ss2, ss3, ss4;
         ss1 << "jpeg_distortion_test_" << i << "_in.bmp";
         ss2 << "jpeg_distortion_test_" << i << "_out_ref.jpg";
         ss3 << "jpeg_distortion_test_" << i << "_out.bmp";
-        cv::cvtColor(in_mat, in_mat, cv::COLOR_BGR2RGB);
+        ss4 << "jpeg_distortion_test_" << i << "_diff.bmp";
+        cv::cvtColor(in_mat, in_mat, cv::COLOR_RGB2BGR);
         cv::imwrite(ss1.str(), in_mat);
-        cv::imwrite(ss2.str(), in_mat, {cv::IMWRITE_JPEG_QUALITY, ConvertSat<int>(quality_factor)});
+        cv::cvtColor(in_mat, in_mat, cv::COLOR_BGR2RGB);
 
-        cv::cvtColor(out_mat, out_mat, cv::COLOR_BGR2RGB);
+        cv::cvtColor(out_ref, out_ref, cv::COLOR_RGB2BGR);
+        cv::imwrite(ss2.str(), out_ref);
+        cv::cvtColor(out_ref, out_ref, cv::COLOR_BGR2RGB);
+
+        cv::cvtColor(out_mat, out_mat, cv::COLOR_RGB2BGR);
         cv::imwrite(ss3.str(), out_mat);
+        cv::cvtColor(out_mat, out_mat, cv::COLOR_BGR2RGB);
+
+        cv::cvtColor(diff, diff, cv::COLOR_RGB2BGR);
+        cv::imwrite(ss4.str(), diff);
+        cv::cvtColor(diff, diff, cv::COLOR_BGR2RGB);
       }
     }
 
@@ -323,18 +337,36 @@ class JpegDistortionTestGPU : public ::testing::Test {
   }
 
   void CalcOut_JpegCompressionDistortion() {
-    // TODO(janton): Implement JPEG encode/decode to produce the reference
-    CalcOut_ChromaSubsampleDistortion();
+    out_ref_.reshape(in_shapes_);
+    auto out_ref_view = out_ref_.cpu();
+    auto in_view_cpu = in_.cpu();
+    for (size_t i = 0; i < in_shapes_.size(); i++) {
+      auto sh = in_shapes_[i];
+      cv::Mat in_mat(sh[0], sh[1], CV_8UC3, (void *) in_view_cpu[i].data);
+      std::string fname = std::tmpnam(nullptr);
+      fname += ".jpg";
+      cv::cvtColor(in_mat, in_mat, cv::COLOR_RGB2BGR);
+      cv::imwrite(fname, in_mat, {cv::IMWRITE_JPEG_QUALITY, ConvertSat<int>(quality_factor)});
+      cv::cvtColor(in_mat, in_mat, cv::COLOR_BGR2RGB);
+
+      auto out_ref = cv::imread(fname);
+      std::cout << "Reference " << fname << "\n";
+      cv::cvtColor(out_ref, out_ref, cv::COLOR_BGR2RGB);
+      std::memcpy(out_ref_view[i].data, out_ref.data,
+                  in_shapes_.tensor_size(i) * sizeof(uint8_t));
+    }
   }
 
   void TestJpegCompressionDistortion() {
-    this->quality_factor = 5;
+    quality_factor = 5;
+    luma_table = GetLumaQuantizationTable(quality_factor);
+    chroma_table = GetChromaQuantizationTable(quality_factor);
     CalcOut_JpegCompressionDistortion();
     TestKernel(
       [this](dim3 gridDim, dim3 blockDim, cudaStream_t stream,
-                        const SampleDesc* samples, const kernels::BlockDesc<2>* blocks) {
+             const SampleDesc* samples, const kernels::BlockDesc<2>* blocks) {
         JpegCompressionDistortion<horz_subsample, vert_subsample>
-          <<<gridDim, blockDim, 0, stream>>>(samples, blocks, quality_factor);
+          <<<gridDim, blockDim, 0, stream>>>(samples, blocks, luma_table, chroma_table);
       });
   }
 
@@ -359,6 +391,8 @@ class JpegDistortionTestGPU : public ::testing::Test {
   using BlockDesc = BlkSetup::BlockDesc;
 
   float quality_factor = 20.0f;
+  DeviceArray<uint8_t, 64> luma_table;
+  DeviceArray<uint8_t, 64> chroma_table;
 };
 
 template <typename OutType, bool v, bool h>

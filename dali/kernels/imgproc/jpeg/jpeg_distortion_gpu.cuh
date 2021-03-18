@@ -27,28 +27,54 @@
 namespace dali {
 namespace kernels {
 
-// Quantization table coefficients that are suggested in the Annex of the JPEG standard.
-__constant__ uint8_t Q_luma[8][8] = {
-    {16, 11, 10, 16, 24, 40, 51, 61},
-    {12, 12, 14, 19, 26, 58, 60, 55},
-    {14, 13, 16, 24, 40, 57, 69, 56},
-    {14, 17, 22, 29, 51, 87, 80, 62},
-    {18, 22, 37, 56, 68, 109, 103, 77},
-    {24, 35, 55, 64, 81, 104, 113, 92},
-    {49, 64, 78, 87, 103, 121, 120, 101},
-    {72, 92, 95, 98, 112, 100, 103, 99}
-};
+float GetQualityFactorScale(int quality) {
+  quality = clamp<int>(quality, 1, 99);
+  float q_scale = 1.0f;
+  if (1 <= quality && quality < 50) {
+    q_scale = 50.0f / quality;
+  } else if (50 <= quality && quality < 100) {
+    q_scale = 2.0f - (2 * quality / 100.0f);
+  }
+  return q_scale;
+}
 
-__constant__ uint8_t Q_chroma[8][8] = {
-    {17, 18, 24, 47, 99, 99, 99, 99},
-    {18, 21, 26, 66, 99, 99, 99, 99},
-    {24, 26, 56, 99, 99, 99, 99, 99},
-    {47, 66, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-};
+// Quantization table coefficients that are suggested in the Annex of the JPEG standard.
+
+DeviceArray<uint8_t, 64> GetLumaQuantizationTable(int quality) {
+  std::array<uint8_t, 64> table = {
+    16, 11, 10, 16, 24, 40, 51, 61,
+    12, 12, 14, 19, 26, 58, 60, 55,
+    14, 13, 16, 24, 40, 57, 69, 56,
+    14, 17, 22, 29, 51, 87, 80, 62,
+    18, 22, 37, 56, 68, 109, 103, 77,
+    24, 35, 55, 64, 81, 104, 113, 92,
+    49, 64, 78, 87, 103, 121, 120, 101,
+    72, 92, 95, 98, 112, 100, 103, 99
+  };
+  auto scale = GetQualityFactorScale(quality);
+  for (auto &elem : table) {
+    elem = ConvertSat<uint8_t>(scale * elem);
+  }
+  return DeviceArray<uint8_t, 64>(table);
+}
+
+DeviceArray<uint8_t, 64> GetChromaQuantizationTable(int quality) {
+  std::array<uint8_t, 64> table = {
+      17, 18, 24, 47, 99, 99, 99, 99,
+      18, 21, 26, 66, 99, 99, 99, 99,
+      24, 26, 56, 99, 99, 99, 99, 99,
+      47, 66, 99, 99, 99, 99, 99, 99,
+      99, 99, 99, 99, 99, 99, 99, 99,
+      99, 99, 99, 99, 99, 99, 99, 99,
+      99, 99, 99, 99, 99, 99, 99, 99,
+      99, 99, 99, 99, 99, 99, 99, 99
+  };
+  auto scale = GetQualityFactorScale(quality);
+  for (auto &elem : table) {
+    elem = ConvertSat<uint8_t>(scale * elem);
+  }
+  return DeviceArray<uint8_t, 64>(table);
+}
 
 struct SampleDesc {
   const uint8_t *in;  // rgb
@@ -201,6 +227,8 @@ __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
 }
 
 __device__ __inline__ float quantize(float value, float Q_coeff) {
+  if (Q_coeff < 1)
+    Q_coeff = 1;
   return Q_coeff * roundf(value * __frcp_rn(Q_coeff));
 }
 
@@ -216,7 +244,8 @@ __device__ __inline__ float quantize(float value, float Q_coeff) {
 template <bool horz_subsample, bool vert_subsample, bool quantization = true>
 __global__ void JpegCompressionDistortion(const SampleDesc *samples,
                                           const kernels::BlockDesc<2> *blocks,
-                                          int quality_factor) {
+                                          DeviceArray<uint8_t, 64> luma_quant_table,
+                                          DeviceArray<uint8_t, 64> chroma_quant_table) {
   using T = uint8_t;
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
@@ -259,17 +288,9 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
     sample.out, sample.size, 3, sample.strides, 1
   };
 
-  float (&cb)[8][9] = flat_blocks[                    chroma_block_idx];
-  float (&cr)[8][9] = flat_blocks[chroma_blocks     + chroma_block_idx];
-  float (&luma)[8][9] = flat_blocks[chroma_blocks*2 + luma_block_idx];
-
-  float q_scale = 1.0f;
-  quality_factor = clamp<float>(quality_factor, 1.0f, 99.0f);
-  if (1 <= quality_factor && quality_factor < 50) {
-    q_scale = 50.0f / quality_factor;
-  } else if (50 <= quality_factor && quality_factor < 100) {
-    q_scale = 2.0f - (2 * quality_factor / 100.0f);
-  }
+  float (&cb)[8][9]   = flat_blocks[                    chroma_block_idx];
+  float (&cr)[8][9]   = flat_blocks[chroma_blocks     + chroma_block_idx];
+  float (&luma)[8][9] = flat_blocks[chroma_blocks * 2 + luma_block_idx];
 
   const int tid = threadIdx.x + blockDim.x * threadIdx.y;
   const int block_size = blockDim.x * blockDim.y;
@@ -297,87 +318,40 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
 
       __syncthreads();
 
-      if (blockIdx.x == 0 && threadIdx.x==0 && threadIdx.y==0) {
-        printf("Luma before DCT:\n");
-        for (int i = 0; i < 8; i++) {
-          printf("[%d, %d, %d, %d, %d, %d, %d, %d]\n",
-                 (int) luma[i][0]+ 128, (int) luma[i][1]+ 128, (int) luma[i][2]+ 128, (int) luma[i][3]+ 128,
-                 (int) luma[i][4]+ 128, (int) luma[i][5]+ 128, (int) luma[i][6]+ 128, (int) luma[i][7]+ 128);
-        }
-        printf("\n");
-      }
-      __syncthreads();
-
       static constexpr int col_stride = 1;
       static constexpr int row_stride = 9;
-
       const int num_dct_slices = total_blocks * 8;
 
       for (int slice_id = tid; slice_id < num_dct_slices; slice_id += block_size) {
         dct_fwd_8x8_1d<col_stride>(&flat_blocks[slice_id >> 3][slice_id & 7][0]);
       }
       __syncthreads();
+
       for (int slice_id = tid; slice_id < num_dct_slices; slice_id += block_size) {
         dct_fwd_8x8_1d<row_stride>(&flat_blocks[slice_id >> 3][0][slice_id & 7]);
       }
       __syncthreads();
 
-      if (blockIdx.x == 0 && threadIdx.x==0 && threadIdx.y==0) {
-        printf("Luma before quantization:\n");
-        for (int i = 0; i < 8; i++) {
-          printf("[%d, %d, %d, %d, %d, %d, %d, %d]\n",
-                 (int) luma[i][0], (int) luma[i][1], (int) luma[i][2], (int) luma[i][3],
-                 (int) luma[i][4], (int) luma[i][5], (int) luma[i][6], (int) luma[i][7]);
-        }
-        printf("\n");
-      }
-      __syncthreads();
-
       if (quantization) {
-        float q_chroma_coeff = ConvertSat<int>(q_scale * Q_chroma[chroma_y][chroma_x]);
-        if (q_chroma_coeff < 1)
-          q_chroma_coeff = 1;
+        auto q_chroma_coeff = ConvertSat<float>(chroma_quant_table[chroma_y * 8 + chroma_x]);
         cb[chroma_y][chroma_x] = quantize(cb[chroma_y][chroma_x], q_chroma_coeff);
         cr[chroma_y][chroma_x] = quantize(cr[chroma_y][chroma_x], q_chroma_coeff);
         for (int i = 0, k = 0; i < vert_subsample+1; i++) {
           for (int j = 0; j < horz_subsample+1; j++, k++) {
-            float q_coeff_luma = ConvertSat<int>(q_scale * Q_luma[luma_y + i][luma_x + j]);
-            if (q_coeff_luma < 1)
-              q_coeff_luma = 1;
-            luma[luma_y + i][luma_x + j] = quantize(luma[luma_y + i][luma_x + j], q_coeff_luma);
+            auto q_luma_coeff = ConvertSat<float>(luma_quant_table[(luma_y + i) * 8 + luma_x + j]);
+            luma[luma_y + i][luma_x + j] = quantize(luma[luma_y + i][luma_x + j], q_luma_coeff);
           }
         }
       }
       __syncthreads();
 
-      if (blockIdx.x == 0 && threadIdx.x==0 && threadIdx.y==0) {
-        printf("Luma after quantization:\n");
-        for (int i = 0; i < 8; i++) {
-          printf("[%d, %d, %d, %d, %d, %d, %d, %d]\n",
-                 (int) luma[i][0], (int) luma[i][1], (int) luma[i][2], (int) luma[i][3],
-                 (int) luma[i][4], (int) luma[i][5], (int) luma[i][6], (int) luma[i][7]);
-        }
-        printf("\n");
-      }
-
-
       for (int slice_id = tid; slice_id < num_dct_slices; slice_id += block_size) {
         dct_inv_8x8_1d<row_stride>(&flat_blocks[slice_id >> 3][0][slice_id & 7]);
       }
       __syncthreads();
+
       for (int slice_id = tid; slice_id < num_dct_slices; slice_id += block_size) {
         dct_inv_8x8_1d<col_stride>(&flat_blocks[slice_id >> 3][slice_id & 7][0]);
-      }
-      __syncthreads();
-
-      if (blockIdx.x == 0 && threadIdx.x==0 && threadIdx.y==0) {
-        printf("Luma after IDCT:\n");
-        for (int i = 0; i < 8; i++) {
-          printf("[%d, %d, %d, %d, %d, %d, %d, %d]\n",
-                 (int) luma[i][0]+ 128, (int) luma[i][1]+ 128, (int) luma[i][2]+ 128, (int) luma[i][3]+ 128,
-                 (int) luma[i][4]+ 128, (int) luma[i][5]+ 128, (int) luma[i][6]+ 128, (int) luma[i][7]+ 128);
-        }
-        printf("\n");
       }
       __syncthreads();
 
