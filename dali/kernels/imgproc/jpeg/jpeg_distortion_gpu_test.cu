@@ -47,9 +47,9 @@ class JpegDistortionTestGPU : public ::testing::Test {
   void SetUp() final {
     if (use_real_images) {
       std::vector<std::string> paths{
+        dali_extra_path() + "/db/single/bmp/0/cat-3591348_645.bmp",
         dali_extra_path() + "/db/single/bmp/0/cat-111793_640_palette_8bit.bmp",
         dali_extra_path() + "/db/single/bmp/0/cat-1046544_640.bmp",
-        dali_extra_path() + "/db/single/bmp/0/cat-3591348_640.bmp"
       };
       in_shapes_.resize(paths.size(), 3);
       std::vector<cv::Mat> images(paths.size());

@@ -169,12 +169,15 @@ rgb_to_ycbcr_subsampled(ivec2 offset, const Surface2D<const uint8_t>& in) {
   return out;
 }
 
-template <int N, typename T>
+template <int N, typename T, int ndim>
 __inline__ __device__
-void write_vec(T* ptr, vec<N, T> v) {
-  #pragma unroll
-  for (int i = 0; i < N; i++)
-    ptr[i] = v[i];
+void write_vec(const Surface<ndim, T> &surf, ivec<ndim> pos, vec<N, T> v) {
+  if (all_coords(pos >= 0) && all_coords(pos < surf.size)) {
+    T *pixel = &surf(pos);
+    #pragma unroll
+    for (int i = 0; i < N; i++)
+      pixel[i] = v[i];
+  }
 }
 
 template <bool horz_subsample, bool vert_subsample, typename T>
@@ -183,15 +186,15 @@ void ycbcr_to_rgb_subsampled(ivec2 offset, const Surface2D<uint8_t>& out,
                              YCbCrSubsampled<T, horz_subsample, vert_subsample> ycbcr) {
   int y = offset.y;
   int x = offset.x;
-  write_vec(&out(x, y), ycbcr_to_rgb(vec<3, T>(ycbcr.luma[0], ycbcr.cb, ycbcr.cr)));
+  write_vec(out, {x, y}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[0], ycbcr.cb, ycbcr.cr)));
   if (horz_subsample && vert_subsample) {
-    write_vec(&out(x + 1, y), ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
-    write_vec(&out(x, y + 1), ycbcr_to_rgb(vec<3, T>(ycbcr.luma[2], ycbcr.cb, ycbcr.cr)));
-    write_vec(&out(x + 1, y + 1), ycbcr_to_rgb(vec<3, T>(ycbcr.luma[3], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x + 1, y}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x, y + 1}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[2], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x + 1, y + 1}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[3], ycbcr.cb, ycbcr.cr)));
   } else if (horz_subsample) {
-    write_vec(&out(x + 1, y), ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x + 1, y}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
   } else if (vert_subsample) {
-    write_vec(&out(x, y + 1), ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x, y + 1}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
   }
 }
 
@@ -250,9 +253,9 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
 
-  static constexpr int align_y = 8 << vert_subsample;
-  static constexpr int align_x = 8 << horz_subsample;
-  int aligned_start_x = block.start.x & -align_x;
+  static constexpr int align_y = 8;
+  static constexpr int align_x = 8;
+  int aligned_start_x = block.start.x & -align_x;  // align down
   int aligned_start_y = block.start.y & -align_y;
   int aligned_end_y = align_up(block.end.y, align_y);
   int aligned_end_x = align_up(block.end.x, align_x);
@@ -295,11 +298,10 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
   const int tid = threadIdx.x + blockDim.x * threadIdx.y;
   const int block_size = blockDim.x * blockDim.y;
 
-  ivec2 luma_shift = { horz_subsample, vert_subsample };
-  Box<2, int> roi = { block.start << luma_shift, block.end << luma_shift };
+  for (int blk_pos_y = aligned_start_y; blk_pos_y < aligned_end_y; blk_pos_y += blockDim.y) {
+    for (int blk_pos_x = aligned_start_x; blk_pos_x < aligned_end_x; blk_pos_x += blockDim.x) {
+      __syncthreads();
 
-  for (int blk_pos_y = aligned_start_y; blk_pos_y + blockDim.y <= aligned_end_y; blk_pos_y += blockDim.y) {
-    for (int blk_pos_x = aligned_start_x; blk_pos_x + blockDim.x <= aligned_end_x; blk_pos_x += blockDim.x) {
       int pos_x = blk_pos_x + threadIdx.x;
       int pos_y = blk_pos_y + threadIdx.y;
       int y = pos_y << vert_subsample;
@@ -356,7 +358,7 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
       __syncthreads();
 
       // If we are in the out-of-bounds region, skip
-      if (!roi.contains(offset)) {
+      if (any_coord(offset >= sample.size)) {
         continue;
       }
 
