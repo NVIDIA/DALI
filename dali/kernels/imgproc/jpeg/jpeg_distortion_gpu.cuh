@@ -240,17 +240,24 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
 
   // Assuming CUDA block is 32x16, leading to a 2x4 grid of chroma blocks
   // and up to 4x8 blocks of luma.
-  __shared__ float luma_blk[2 << vert_subsample][4 << horz_subsample][8][9];
-  __shared__ float cb_blk[2][4][8][9];  // 8+1 to reduce bank conflicts
-  __shared__ float cr_blk[2][4][8][9];  // 8+1 to reduce bank conflicts
+  const int vert_chroma_blocks = 2;
+  const int vert_luma_blocks = vert_chroma_blocks << vert_subsample;
+  const int horz_chroma_blocks = 4;
+  const int horz_luma_blocks = horz_chroma_blocks << horz_subsample;
+  const int chroma_blocks = vert_chroma_blocks * horz_chroma_blocks;
+  const int luma_blocks = vert_luma_blocks * horz_luma_blocks;
+  const int total_blocks = 2 * chroma_blocks + luma_blocks;
+  __shared__ float flat_blocks[total_blocks][8][9];
 
   int chroma_x = threadIdx.x & 7;  // % 8
   int chroma_y = threadIdx.y & 7;  // % 8
-  ivec2 chroma_blk_idx{threadIdx.x >> 3, threadIdx.y >> 3};  // / 8
+  ivec2 chroma_blk_xy{threadIdx.x >> 3, threadIdx.y >> 3};  // / 8
+  int chroma_block_idx = chroma_blk_xy.y * horz_chroma_blocks + chroma_blk_xy.x;
 
   int luma_x = threadIdx.x << horz_subsample;
   int luma_y = threadIdx.y << vert_subsample;
-  ivec2 luma_blk_idx{luma_x >> 3, luma_y >> 3};  // / 8
+  ivec2 luma_blk_xy{luma_x >> 3, luma_y >> 3};  // / 8
+  int luma_block_idx = luma_blk_xy.y * horz_luma_blocks + luma_blk_xy.x;
   luma_x = luma_x & 7;  // % 8
   luma_y = luma_y & 7;  // % 8
 
@@ -262,9 +269,9 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
     sample.out, sample.size, 3, sample.strides, 1
   };
 
-  float (&luma)[8][9] = luma_blk[luma_blk_idx.y][luma_blk_idx.x];
-  float (&cb)[8][9] = cb_blk[chroma_blk_idx.y][chroma_blk_idx.x];
-  float (&cr)[8][9] = cr_blk[chroma_blk_idx.y][chroma_blk_idx.x];
+  float (&cb)[8][9] = flat_blocks[                    chroma_block_idx];
+  float (&cr)[8][9] = flat_blocks[chroma_blocks     + chroma_block_idx];
+  float (&luma)[8][9] = flat_blocks[chroma_blocks*2 + luma_block_idx];
 
   float q_scale = 1.0f;
   quality_factor = clamp<float>(quality_factor, 1.0f, 99.0f);
@@ -273,6 +280,9 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
   } else if (50 <= quality_factor && quality_factor < 100) {
     q_scale = 2.0f - (2 * quality_factor / 100.0f);
   }
+
+  const int tid = threadIdx.x + blockDim.x * threadIdx.y;
+  const int block_size = blockDim.x * blockDim.y;
 
   for (int pos_y = y_start; pos_y < aligned_end_y; pos_y += blockDim.y) {
     for (int pos_x = x_start; pos_x < aligned_end_x; pos_x += blockDim.x) {
@@ -306,25 +316,15 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
       static constexpr int col_stride = 1;
       static constexpr int row_stride = 9;
 
-      if (chroma_x <= vert_subsample) {  // 1 or 2 rows depending on vertical subsampling
-        dct_fwd_8x8_1d<col_stride>(&luma[luma_y + chroma_x][0]);
-      }
+      const int num_dct_slices = total_blocks * 8;
 
-      if (chroma_x == 0) {  // once per row
-        dct_fwd_8x8_1d<col_stride>(&cb[chroma_y][0]);
-        dct_fwd_8x8_1d<col_stride>(&cr[chroma_y][0]);
+      for (int slice_id = tid; slice_id < num_dct_slices; slice_id += block_size) {
+        dct_fwd_8x8_1d<col_stride>(&flat_blocks[slice_id >> 3][slice_id & 7][0]);
       }
-
       __syncthreads();
-
-      if (chroma_y <= horz_subsample) {  // 1 or 2 columns depending on horizontal subsampling
-        dct_fwd_8x8_1d<row_stride>(&luma[0][luma_x + chroma_y]);
+      for (int slice_id = tid; slice_id < num_dct_slices; slice_id += block_size) {
+        dct_fwd_8x8_1d<row_stride>(&flat_blocks[slice_id >> 3][0][slice_id & 7]);
       }
-      if (chroma_y == 0) {  // once per column
-        dct_fwd_8x8_1d<row_stride>(&cb[0][chroma_x]);
-        dct_fwd_8x8_1d<row_stride>(&cr[0][chroma_x]);
-      }
-
       __syncthreads();
 
       if (blockIdx.x == 0 && threadIdx.x==0 && threadIdx.y==0) {
@@ -364,27 +364,15 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
         }
         printf("\n");
       }
+
+
+      for (int slice_id = tid; slice_id < num_dct_slices; slice_id += block_size) {
+        dct_inv_8x8_1d<row_stride>(&flat_blocks[slice_id >> 3][0][slice_id & 7]);
+      }
       __syncthreads();
-
-      if (chroma_y <= horz_subsample) {  // 1 or 2 columns depending on horizontal subsample
-        dct_inv_8x8_1d<row_stride>(&luma[0][luma_x + chroma_y]);
+      for (int slice_id = tid; slice_id < num_dct_slices; slice_id += block_size) {
+        dct_inv_8x8_1d<col_stride>(&flat_blocks[slice_id >> 3][slice_id & 7][0]);
       }
-      if (chroma_y == 0) {  // once per column
-        dct_inv_8x8_1d<row_stride>(&cb[0][chroma_x]);
-        dct_inv_8x8_1d<row_stride>(&cr[0][chroma_x]);
-      }
-
-      __syncthreads();
-
-      if (chroma_x <= vert_subsample) {  // 1 or 2 rows depending on vertical subsampling
-        dct_inv_8x8_1d<col_stride>(&luma[luma_y + chroma_x][0]);
-      }
-
-      if (chroma_x == 0) {  // once per row
-        dct_inv_8x8_1d<col_stride>(&cb[chroma_y][0]);
-        dct_inv_8x8_1d<col_stride>(&cr[chroma_y][0]);
-      }
-
       __syncthreads();
 
       if (blockIdx.x == 0 && threadIdx.x==0 && threadIdx.y==0) {

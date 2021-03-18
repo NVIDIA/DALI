@@ -61,7 +61,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
       in_.reshape(in_shapes_);
       auto in_cpu = in_.cpu();
       for (size_t i = 0; i < paths.size(); i++) {
-        std::memcpy(in_cpu[i].data, images[i].data, 
+        std::memcpy(in_cpu[i].data, images[i].data,
                     in_shapes_.tensor_size(i) * sizeof(uint8_t));
       }
     } else {
@@ -323,7 +323,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
 
   void TestJpegCompressionDistortion(int quality_factory = 5) {
     CalcOut_JpegCompressionDistortion();
-    TestKernel( 
+    TestKernel(
       [quality_factory](dim3 gridDim, dim3 blockDim, cudaStream_t stream,
                         const SampleDesc* samples, const kernels::BlockDesc<2>* blocks) {
         JpegCompressionDistortion<horz_subsample, vert_subsample>
