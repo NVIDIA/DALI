@@ -55,6 +55,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
       std::vector<cv::Mat> images(paths.size());
       for (size_t i = 0; i < paths.size(); i++) {
         images[i] = cv::imread(paths[i]);
+        cv::cvtColor(images[i], images[i], cv::COLOR_BGR2RGB);
         TensorShape<> sh{images[i].rows, images[i].cols, images[i].channels()};
         in_shapes_.set_tensor_shape(i, sh);
       }
@@ -213,11 +214,16 @@ class JpegDistortionTestGPU : public ::testing::Test {
         auto sh = in_shapes_[i];
         cv::Mat in_mat(sh[0], sh[1], CV_8UC3, (void *) in_view_cpu[i].data);
         cv::Mat out_mat(sh[0], sh[1], CV_8UC3, (void *) out_view_cpu[i].data);
-        std::stringstream ss1, ss2;
+        std::stringstream ss1, ss2, ss3;
         ss1 << "jpeg_distortion_test_" << i << "_in.bmp";
-        ss2 << "jpeg_distortion_test_" << i << "_out.bmp";
+        ss2 << "jpeg_distortion_test_" << i << "_out_ref.jpg";
+        ss3 << "jpeg_distortion_test_" << i << "_out.bmp";
+        cv::cvtColor(in_mat, in_mat, cv::COLOR_BGR2RGB);
         cv::imwrite(ss1.str(), in_mat);
-        cv::imwrite(ss2.str(), out_mat);
+        cv::imwrite(ss2.str(), in_mat, {cv::IMWRITE_JPEG_QUALITY, ConvertSat<int>(quality_factor)});
+
+        cv::cvtColor(out_mat, out_mat, cv::COLOR_BGR2RGB);
+        cv::imwrite(ss3.str(), out_mat);
       }
     }
 
@@ -321,13 +327,14 @@ class JpegDistortionTestGPU : public ::testing::Test {
     CalcOut_ChromaSubsampleDistortion();
   }
 
-  void TestJpegCompressionDistortion(int quality_factory = 5) {
+  void TestJpegCompressionDistortion() {
+    this->quality_factor = 5;
     CalcOut_JpegCompressionDistortion();
     TestKernel(
-      [quality_factory](dim3 gridDim, dim3 blockDim, cudaStream_t stream,
+      [this](dim3 gridDim, dim3 blockDim, cudaStream_t stream,
                         const SampleDesc* samples, const kernels::BlockDesc<2>* blocks) {
         JpegCompressionDistortion<horz_subsample, vert_subsample>
-          <<<gridDim, blockDim, 0, stream>>>(samples, blocks, quality_factory);
+          <<<gridDim, blockDim, 0, stream>>>(samples, blocks, quality_factor);
       });
   }
 
@@ -350,6 +357,8 @@ class JpegDistortionTestGPU : public ::testing::Test {
   using BlkSetup = BlockSetup<2, -1>;
   BlkSetup block_setup_;
   using BlockDesc = BlkSetup::BlockDesc;
+
+  float quality_factor = 20.0f;
 };
 
 template <typename OutType, bool v, bool h>
