@@ -21,9 +21,33 @@
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/imgproc/jpeg/dct_8x8_gpu.cuh"
 #include "dali/core/geom/vec.h"
+#include "dali/core/util.h"
 
 namespace dali {
 namespace kernels {
+
+// Quantization table coefficients that are suggested in the Annex of the JPEG standard.
+__constant__ uint8_t Q_luma[8][8] = {
+    {16, 11, 10, 16, 24, 40, 51, 61},
+    {12, 12, 14, 19, 26, 58, 60, 55},
+    {14, 13, 16, 24, 40, 57, 69, 56},
+    {14, 17, 22, 29, 51, 87, 80, 62},
+    {18, 22, 37, 56, 68, 109, 103, 77},
+    {24, 35, 55, 64, 81, 104, 113, 92},
+    {49, 64, 78, 87, 103, 121, 120, 101},
+    {72, 92, 95, 98, 112, 100, 103, 99}
+};
+
+__constant__ uint8_t Q_chroma[8][8] = {
+    {17, 18, 24, 47, 99, 99, 99, 99},
+    {18, 21, 26, 66, 99, 99, 99, 99},
+    {24, 26, 56, 99, 99, 99, 99, 99},
+    {47, 66, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+};
 
 struct SampleDesc {
   const uint8_t *in;  // rgb
@@ -144,7 +168,6 @@ void ycbcr_to_rgb_subsampled(ivec2 offset, const Surface2D<uint8_t>& out,
   }
 }
 
-
 template <bool horz_subsample, bool vert_subsample>
 __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
                                           const kernels::BlockDesc<2> *blocks) {
@@ -176,18 +199,42 @@ __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
   }
 }
 
+__device__ __inline__ float quantize(float value, float Q_coeff) {
+  // Here we are shifting the negative numbers to the positive range,
+  // so that the rounded quotient is the closest integer, also for negative numbers.
+  // For uint8_t pixels (range 0..255), all DCT coefficients should be
+  // below 2048.
+  float rounded_quotient = static_cast<int>((value / Q_coeff) + 2048.5f) - 2048.0f;
+  return Q_coeff * rounded_quotient;
+}
 
-
-template <bool horz_subsample, bool vert_subsample>
+/**
+ * @brief Produces JPEG compression artifacts by running the lossy part of
+ * JPEG compression and decompression.
+ * @param samples Sample descriptors
+ * @param blocks Logical block descriptors
+ * @param quality_factor Number between 1 (lowest quality) and 100 (highest quality)
+ * used to determine the scaling applied to the quantization matrices.
+ * Note: quality_factor==100 does not mean lossless compression.
+ */
+template <bool horz_subsample, bool vert_subsample, bool quantization = true>
 __global__ void JpegCompressionDistortion(const SampleDesc *samples,
-                                          const kernels::BlockDesc<2> *blocks) {
+                                          const kernels::BlockDesc<2> *blocks,
+                                          int quality_factor) {
   using T = uint8_t;
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
 
+  static constexpr int align_y = 8 << vert_subsample;
+  static constexpr int align_x = 8 << horz_subsample;
+  int padding_y = align_up(sample.size.y, align_y) - sample.size.y;
+  int padding_x = align_up(sample.size.x, align_x) - sample.size.x;
+  int aligned_end_y = block.end.y < sample.size.y ? block.end.y : block.end.y + padding_y;
+  int aligned_end_x = block.end.x < sample.size.x ? block.end.x : block.end.x + padding_x;
+
   int y_start = threadIdx.y + block.start.y;
   int x_start = threadIdx.x + block.start.x;
-  if (y_start >= block.end.y || x_start >= block.end.x) {
+  if (y_start >= aligned_end_y || x_start >= aligned_end_x) {
     return;
   }
 
@@ -219,8 +266,16 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
   float (&cb)[8][9] = cb_blk[chroma_blk_idx.y][chroma_blk_idx.x];
   float (&cr)[8][9] = cr_blk[chroma_blk_idx.y][chroma_blk_idx.x];
 
-  for (int pos_y = y_start; pos_y < block.end.y; pos_y += blockDim.y) {
-    for (int pos_x = x_start; pos_x < block.end.x; pos_x += blockDim.x) {
+  float q_scale = 1.0f;
+  quality_factor = clamp<float>(quality_factor, 1.0f, 99.0f);
+  if (1 <= quality_factor && quality_factor < 50) {
+    q_scale = 50.0f / quality_factor;
+  } else if (50 <= quality_factor && quality_factor < 100) {
+    q_scale = 2.0f - (2 * quality_factor / 100.0f);
+  }
+
+  for (int pos_y = y_start; pos_y < aligned_end_y; pos_y += blockDim.y) {
+    for (int pos_x = x_start; pos_x < aligned_end_x; pos_x += blockDim.x) {
       int y = pos_y << vert_subsample;
       int x = pos_x << horz_subsample;
       ivec2 offset{x, y};
@@ -235,6 +290,17 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
         }
       }
 
+      __syncthreads();
+
+      if (blockIdx.x == 0 && threadIdx.x==0 && threadIdx.y==0) {
+        printf("Luma before DCT:\n");
+        for (int i = 0; i < 8; i++) {
+          printf("[%d, %d, %d, %d, %d, %d, %d, %d]\n",
+                 (int) luma[i][0]+ 128, (int) luma[i][1]+ 128, (int) luma[i][2]+ 128, (int) luma[i][3]+ 128,
+                 (int) luma[i][4]+ 128, (int) luma[i][5]+ 128, (int) luma[i][6]+ 128, (int) luma[i][7]+ 128);
+        }
+        printf("\n");
+      }
       __syncthreads();
 
       static constexpr int col_stride = 1;
@@ -261,7 +327,54 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
 
       __syncthreads();
 
-      // TODO(janton): Add quantization
+      if (blockIdx.x == 0 && threadIdx.x==0 && threadIdx.y==0) {
+        printf("Luma before quantization:\n");
+        for (int i = 0; i < 8; i++) {
+          printf("[%d, %d, %d, %d, %d, %d, %d, %d]\n",
+                 (int) luma[i][0], (int) luma[i][1], (int) luma[i][2], (int) luma[i][3],
+                 (int) luma[i][4], (int) luma[i][5], (int) luma[i][6], (int) luma[i][7]);
+        }
+        printf("\n");
+      }
+      __syncthreads();
+
+      if (quantization) {
+        float q_chroma_coeff = ConvertSat<int>(q_scale * Q_chroma[chroma_y][chroma_x]);
+        if (q_chroma_coeff < 1)
+          q_chroma_coeff = 1;
+        cb[chroma_y][chroma_x] = quantize(cb[chroma_y][chroma_x], q_chroma_coeff);
+        cr[chroma_y][chroma_x] = quantize(cr[chroma_y][chroma_x], q_chroma_coeff);
+        for (int i = 0, k = 0; i < vert_subsample+1; i++) {
+          for (int j = 0; j < horz_subsample+1; j++, k++) {
+            float q_coeff_luma = ConvertSat<int>(q_scale * Q_luma[luma_y + i][luma_x + j]);
+            if (q_coeff_luma < 1)
+              q_coeff_luma = 1;
+            luma[luma_y + i][luma_x + j] = quantize(luma[luma_y + i][luma_x + j], q_coeff_luma);
+          }
+        }
+      }
+      __syncthreads();
+
+      if (blockIdx.x == 0 && threadIdx.x==0 && threadIdx.y==0) {
+        printf("Luma after quantization:\n");
+        for (int i = 0; i < 8; i++) {
+          printf("[%d, %d, %d, %d, %d, %d, %d, %d]\n",
+                 (int) luma[i][0], (int) luma[i][1], (int) luma[i][2], (int) luma[i][3],
+                 (int) luma[i][4], (int) luma[i][5], (int) luma[i][6], (int) luma[i][7]);
+        }
+        printf("\n");
+      }
+      __syncthreads();
+
+      if (chroma_y <= horz_subsample) {  // 1 or 2 columns depending on horizontal subsample
+        dct_inv_8x8_1d<row_stride>(&luma[0][luma_x + chroma_y]);
+      }
+      if (chroma_y == 0) {  // once per column
+        dct_inv_8x8_1d<row_stride>(&cb[0][chroma_x]);
+        dct_inv_8x8_1d<row_stride>(&cr[0][chroma_x]);
+      }
+
+      __syncthreads();
 
       if (chroma_x <= vert_subsample) {  // 1 or 2 rows depending on vertical subsampling
         dct_inv_8x8_1d<col_stride>(&luma[luma_y + chroma_x][0]);
@@ -274,15 +387,21 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
 
       __syncthreads();
 
-      if (chroma_y <= horz_subsample) {  // 1 or 2 columns depending on horizontal subsample
-        dct_inv_8x8_1d<row_stride>(&luma[0][luma_x + chroma_y]);
+      if (blockIdx.x == 0 && threadIdx.x==0 && threadIdx.y==0) {
+        printf("Luma after IDCT:\n");
+        for (int i = 0; i < 8; i++) {
+          printf("[%d, %d, %d, %d, %d, %d, %d, %d]\n",
+                 (int) luma[i][0]+ 128, (int) luma[i][1]+ 128, (int) luma[i][2]+ 128, (int) luma[i][3]+ 128,
+                 (int) luma[i][4]+ 128, (int) luma[i][5]+ 128, (int) luma[i][6]+ 128, (int) luma[i][7]+ 128);
+        }
+        printf("\n");
       }
-      if (chroma_y == 0) {  // once per column
-        dct_inv_8x8_1d<row_stride>(&cb[0][chroma_x]);
-        dct_inv_8x8_1d<row_stride>(&cr[0][chroma_x]);
-      }
-
       __syncthreads();
+
+      // If we are in the out-of-bounds region, skip
+      if (offset.x >= sample.size.x || offset.y >= sample.size.y) {
+        continue;
+      }
 
       YCbCrSubsampled<T, horz_subsample, vert_subsample> out_ycbcr;
        // Shifting to [0, 255] after the inverse DCT.
