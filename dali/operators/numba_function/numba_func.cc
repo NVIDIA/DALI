@@ -24,16 +24,24 @@ DALI_SCHEMA(NumbaFunc)
   .AddArg("fn_ptr", R"code(Pointer to function which should be invoked.)code", DALI_INT64);
 
 template <typename Backend>
-NumbaFunc<Backend>::NumbaFunc(const OpSpec &spec) : Base(spec) {}
+NumbaFunc<Backend>::NumbaFunc(const OpSpec &spec) : Base(spec) {
+  fn_ptr_ = spec.GetArgument<uint64_t>("fn_ptr");
+}
 
 template <>
-void NumbaFunc<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  const auto &in = ws.Input<CPUBackend>(0);
-  auto &out = ws.Output<CPUBackend>(0);
+void NumbaFunc<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+  const auto &in = ws.InputRef<CPUBackend>(0);
+  auto &out = ws.OutputRef<CPUBackend>(0);
+  auto out_shape = out.shape();
+  auto& tp = ws.GetThreadPool();
 
-  auto fn_ptr = this->spec_.GetArgument<uint64_t>("fn_ptr");
-  ((void (*)(void*, const void*, uint64_t))fn_ptr)(
-    out.raw_mutable_data(), in.raw_data(), in.size());
+  for (int sample_id = 0; sample_id < in.shape().num_samples(); sample_id++) {
+    tp.AddWork([&, fn_ptr = fn_ptr_, sample_id](int thread_id) {
+      ((void (*)(void*, const void*, uint64_t))fn_ptr)(
+        out[sample_id].raw_mutable_data(), in[sample_id].raw_data(), in[sample_id].size());
+    }, out_shape.tensor_size(sample_id));
+  }
+  tp.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(NumbaFunc, NumbaFunc<CPUBackend>, CPU);
