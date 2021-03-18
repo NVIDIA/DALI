@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_GENERIC_NUMBA_FUNC_H_
-#define DALI_OPERATORS_GENERIC_NUMBA_FUNC_H_
+#ifndef DALI_OPERATORS_NUMBA_FUNCTION_NUMBA_FUNC_H_
+#define DALI_OPERATORS_NUMBA_FUNCTION_NUMBA_FUNC_H_
 
-#include <string>
 #include <vector>
 
-#include "dali/core/tensor_view.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -31,7 +29,7 @@ class NumbaFunc : public Operator<Backend> {
 
   explicit NumbaFunc(const OpSpec &spec_);
 
-protected:
+ protected:
   bool CanInferOutputs() const override {
     return true;
   }
@@ -43,9 +41,9 @@ protected:
     return true;
   }
 
-  void RunImpl(Workspace &ws) override;
+  void RunImpl(dali::Workspace<Backend> &ws) override;
 };
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_GENERIC_NUMBA_FUNC_H_
+#endif  // DALI_OPERATORS_NUMBA_FUNCTION_NUMBA_FUNC_H_

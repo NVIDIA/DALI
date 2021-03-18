@@ -13,15 +13,12 @@
 // limitations under the License.
 
 
-#include "dali/core/math_util.h"
-#include "dali/core/static_switch.h"
 #include "dali/operators/numba_function/numba_func.h"
-#include "dali/pipeline/data/views.h"
 
 namespace dali {
 
 DALI_SCHEMA(NumbaFunc)
-  .DocStr("") // TODO
+  .DocStr("")
   .NumInput(1)
   .NumOutput(1)
   .AddArg("fn_ptr", R"code(Pointer to function which should be invoked.)code", DALI_INT64);
@@ -29,16 +26,16 @@ DALI_SCHEMA(NumbaFunc)
 template <typename Backend>
 NumbaFunc<Backend>::NumbaFunc(const OpSpec &spec) : Base(spec) {}
 
-template <typename Backend>
-void NumbaFunc<Backend>::RunImpl(Workspace &ws) {
-  auto &in = ws.template InputRef<Backend>(0);
-  auto &out = ws.template OutputRef<Backend>(0);
+template <>
+void NumbaFunc<CPUBackend>::RunImpl(SampleWorkspace &ws) {
+  const auto &in = ws.Input<CPUBackend>(0);
+  auto &out = ws.Output<CPUBackend>(0);
 
   auto fn_ptr = this->spec_.GetArgument<uint64_t>("fn_ptr");
-  auto fn = std::function<void(void*, const void*, long)>(fn_ptr);
-  fn(out.raw_mutable_data(), in.raw_mutable_data(), in.size());
+  ((void (*)(void*, const void*, uint64_t))fn_ptr)(
+    out.raw_mutable_data(), in.raw_data(), in.size());
 }
 
 DALI_REGISTER_OPERATOR(NumbaFunc, NumbaFunc<CPUBackend>, CPU);
 
-} // namespace dali
+}  // namespace dali
