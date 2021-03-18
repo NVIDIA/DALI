@@ -18,7 +18,9 @@
 namespace dali {
 
 DALI_SCHEMA(NumbaFunc)
-  .DocStr("")
+  .DocStr(R"code(Invokes numba function passes as ``fn_ptr``.
+  
+This feature is experimental. Note that API for it may change in future.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddArg("fn_ptr", R"code(Pointer to function which should be invoked.)code", DALI_INT64);
