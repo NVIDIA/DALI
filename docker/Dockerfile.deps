@@ -1,12 +1,10 @@
 #########################################################################################
-##  Stage 1: build DALI dependencies
-##     DALI is based on "manylinux2014", official page https://github.com/pypa/manylinux
+##  Build DALI dependencies on top of manylinux2014
+##  DALI is based on "manylinux2014", official page https://github.com/pypa/manylinux
 #########################################################################################
 ARG FROM_IMAGE_NAME=quay.io/pypa/manylinux2014_x86_64
-ARG CUDA_IMAGE
 ARG BUILDER_EXTRA_DEPS=scratch
 FROM ${BUILDER_EXTRA_DEPS} as extra_deps
-FROM ${CUDA_IMAGE} as cuda
 FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
@@ -146,8 +144,6 @@ RUN if [ "$(uname -m)" == "x86_64" ]; then \
         rm clang+llvm-*.tar.xz; \
     fi
 
-ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
-
 # FFmpeg
 RUN FFMPEG_VERSION=4.3.1 && \
     cd /tmp && \
@@ -242,9 +238,6 @@ RUN LIBSND_VERSION=1.0.28 && cd /tmp                                            
     ./configure && make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                           && \
     cd / && \
     rm -rf /tmp/libsndfile-$LIBSND_VERSION
-
-# CUDA
-COPY --from=cuda /usr/local/cuda /usr/local/cuda
 
 # extra deps
 COPY --from=extra_deps / /

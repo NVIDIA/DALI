@@ -69,8 +69,9 @@ export DALI_BUILD_DIR=${DALI_BUILD_DIR:-build-docker-${CMAKE_BUILD_TYPE}-${CUDA_
 export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux2014_${ARCH}}
 #################################
 export BASE_NAME=quay.io/pypa/manylinux2014_${ARCH}
-export DEPS_IMAGE=nvidia/dali:cu${CUDA_VER}_${ARCH}.deps
-export CUDA_DEPS_IMAGE=nvidia/dali:cuda${CUDA_VER}_${ARCH}.toolkit
+export DEPS_IMAGE=nvidia/dali:${ARCH}.deps
+export CUDA_DEPS_IMAGE=nvidia/dali:cu${CUDA_VER}_${ARCH}.deps
+export CUDA_TOOLKIT_IMAGE=nvidia/dali:cuda${CUDA_VER}_${ARCH}.toolkit
 export BUILDER=nvidia/dali:cu${CUDA_VER}_${ARCH}.build
 export BUILDER_EXTRA_DEPS=${BUILDER_EXTRA_DEPS:-scratch}
 export BUILDER_WHL=nvidia/dali:cu${CUDA_VER}_${ARCH}.build_whl
@@ -105,16 +106,22 @@ set -o errexit
 
 pushd ../
 # build deps image if needed
-if [[ "$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${DEPS_IMAGE} 2> /dev/null)" == "" || "$(docker images -q ${CUDA_DEPS_IMAGE} 2> /dev/null)" == "" ]]; then
+if [[ "$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${DEPS_IMAGE} 2> /dev/null)" == "" ]]; then
     echo "Build deps: " ${DEPS_IMAGE}
-    docker build -t ${CUDA_DEPS_IMAGE} -f docker/Dockerfile.cuda${CUDA_VER}.${ARCH}.deps .
-    docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=${BASE_NAME} --build-arg "CUDA_IMAGE=${CUDA_DEPS_IMAGE}" --build-arg "BUILDER_EXTRA_DEPS=${BUILDER_EXTRA_DEPS}" -f docker/Dockerfile.deps .
+    docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=${BASE_NAME}  --build-arg "BUILDER_EXTRA_DEPS=${BUILDER_EXTRA_DEPS}" -f docker/Dockerfile.deps .
+fi
+
+# add cuda to deps if needed
+if [[ "$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${CUDA_DEPS_IMAGE} 2> /dev/null)" == "" || "$(docker images -q ${CUDA_TOOLKIT_IMAGE} 2> /dev/null)" == "" ]]; then
+    echo "Build deps: " ${CUDA_DEPS_IMAGE}
+    docker build -t ${CUDA_TOOLKIT_IMAGE} -f docker/Dockerfile.cuda${CUDA_VER}.${ARCH}.deps .
+    docker build -t ${CUDA_DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=${DEPS_IMAGE} --build-arg "CUDA_IMAGE=${CUDA_TOOLKIT_IMAGE}" -f docker/Dockerfile.cuda.deps .
 fi
 
 # build builder image if needed
 if [[ "$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${BUILDER} 2> /dev/null)" == "" ]]; then
     echo "Build light image:" ${BUILDER}
-    docker build -t ${BUILDER} --build-arg "DEPS_IMAGE_NAME=${DEPS_IMAGE}" --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
+    docker build -t ${BUILDER} --build-arg "DEPS_IMAGE_NAME=${CUDA_DEPS_IMAGE}" --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
                                --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" --build-arg "GIT_SHA=${GIT_SHA}" --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
                                --build-arg "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}" --target builder -f docker/Dockerfile .
 fi
@@ -169,7 +176,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         cp /wheelhouse/* ./"
 else
     echo "Build image:" ${BUILDER_WHL}
-    docker build -t ${BUILDER_WHL} --build-arg "DEPS_IMAGE_NAME=${DEPS_IMAGE}"             \
+    docker build -t ${BUILDER_WHL} --build-arg "DEPS_IMAGE_NAME=${CUDA_DEPS_IMAGE}"        \
                                    --build-arg "ARCH=${ARCH}"                              \
                                    --build-arg "WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME}"    \
                                    --build-arg "CUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}"    \
