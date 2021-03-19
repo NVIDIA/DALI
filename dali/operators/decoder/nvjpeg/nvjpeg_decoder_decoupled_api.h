@@ -839,6 +839,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       ret = nvjpegDecodeJpegDevice(handle_, decoder, state, &nvjpeg_image, stream);
       // if nvJPEG fails try HostDecoder
       if (ret != NVJPEG_STATUS_SUCCESS) {
+        auto warning_msg = make_string("NVJPEG error \"", static_cast<int>(ret), "\" : ",
+                           nvjpeg_parse_error_code(ret), " ", file_name);
+        DALI_WARN(warning_msg);
         HostFallback<StorageGPU>(input_data, in_size, output_image_type_, output_data,
                                 stream, file_name, data.roi, use_fast_idct_);
         return;
