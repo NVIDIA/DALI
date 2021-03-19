@@ -32,17 +32,16 @@ class NumbaFunc : public Operator<Backend> {
  protected:
   bool CanInferOutputs() const override { return true; }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    const auto &in = ws.template InputRef<Backend>(0);
-    output_desc.resize(1);
-    output_desc[0] = {in.shape(), in.type()};
-    return true;
-  }
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   void RunImpl(Workspace &ws) override;
 
  private:
+  void RunUserSetupFunc(std::vector<OutputDesc> &output_desc, const Workspace &ws);
+
   uint64_t fn_ptr_;
+  uint64_t setup_fn_;
+  bool use_setup_fn_;
 };
 
 }  // namespace dali

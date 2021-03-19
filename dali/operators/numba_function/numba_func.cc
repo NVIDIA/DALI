@@ -17,35 +17,75 @@
 
 namespace dali {
 
-DALI_SCHEMA(NumbaFunc)
+DALI_SCHEMA(experimental__NumbaFunc)
   .DocStr(R"code(Invokes numba function passes as ``fn_ptr``.
   
 This feature is experimental. Note that API for it may change in future.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddArg("fn_ptr", R"code(Pointer to function which should be invoked.)code", DALI_INT64);
+  .AddArg("fn_ptr", R"code(Pointer to function which should be invoked.)code", DALI_INT64)
+  .AddOptionalArg<int>("setup_fn", R"code(Pointer to function which should return output shape.)code", DALI_INT64);
 
 template <typename Backend>
 NumbaFunc<Backend>::NumbaFunc(const OpSpec &spec) : Base(spec) {
   fn_ptr_ = spec.GetArgument<uint64_t>("fn_ptr");
+  use_setup_fn_ = spec.HasArgument("setup_fn");
+  setup_fn_ = spec.GetArgument<uint64_t>("setup_fn");
+}
+
+template<>
+void NumbaFunc<CPUBackend>::RunUserSetupFunc(std::vector<OutputDesc> &output_desc,
+    const workspace_t<CPUBackend> &ws) {
+  const auto &in = ws.InputRef<CPUBackend>(0);
+  if (!use_setup_fn_) {
+    output_desc[0] = {in.shape(), in.type()};
+    return;
+  }
+
+  auto in_shape = in.shape();
+  auto N = in_shape.num_samples();
+  auto ndim = in_shape.sample_dim();
+  TensorListShape<> output_shape;
+  output_shape.resize(N, ndim);
+  DALIDataType out_type = DALIDataType::DALI_NO_TYPE;
+  DALIDataType in_type = in.type().id();
+  ((void (*)(void*, const void*, int64_t, int64_t, void*, const void*, int64_t, int64_t))setup_fn_)(
+    output_shape.tensor_shape_span(0).begin(), in_shape.tensor_shape_span(0).begin(),
+    N, ndim, &out_type, &in_type, 1, 1);
+
+  output_desc[0].type = dali::TypeTable::GetTypeInfo(out_type);
+  output_desc[0].shape = output_shape;
+}
+
+template <>
+bool NumbaFunc<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+    const workspace_t<CPUBackend> &ws) {
+  const auto &in = ws.InputRef<CPUBackend>(0);
+  output_desc.resize(1);
+  RunUserSetupFunc(output_desc, ws);
+  return true;
 }
 
 template <>
 void NumbaFunc<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &in = ws.InputRef<CPUBackend>(0);
+  auto in_shape = in.shape();
   auto &out = ws.OutputRef<CPUBackend>(0);
   auto out_shape = out.shape();
   auto& tp = ws.GetThreadPool();
 
   for (int sample_id = 0; sample_id < in.shape().num_samples(); sample_id++) {
     tp.AddWork([&, fn_ptr = fn_ptr_, sample_id](int thread_id) {
-      ((void (*)(void*, const void*, uint64_t))fn_ptr)(
-        out[sample_id].raw_mutable_data(), in[sample_id].raw_data(), in[sample_id].size());
+      ((void (*)(void*, const void*, const void*, const void*, uint64_t))fn_ptr)(
+        out[sample_id].raw_mutable_data(), in[sample_id].raw_data(),
+        out_shape.tensor_shape_span(sample_id).begin(),
+        in_shape.tensor_shape_span(sample_id).begin(),
+        out_shape.sample_dim());
     }, out_shape.tensor_size(sample_id));
   }
   tp.RunAll();
 }
 
-DALI_REGISTER_OPERATOR(NumbaFunc, NumbaFunc<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(experimental__NumbaFunc, NumbaFunc<CPUBackend>, CPU);
 
 }  // namespace dali
