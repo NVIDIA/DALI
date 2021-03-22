@@ -82,6 +82,8 @@ export BUILDER_DALI_TF_SDIST=nvidia/dali:cu${CUDA_VER}_${ARCH}.build_tf_sdist
 export RUN_IMG=nvidia/dali:py${PYV}_cu${CUDA_VER}.run
 export GIT_SHA=$(git rev-parse HEAD)
 export DALI_TIMESTAMP=$(date +%Y%m%d)
+export DALI_DEPS_REPO=${DALI_DEPS_REPO}
+export DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA}
 
 # Find out which CLI options to use for NVIDIA Container Toolkit needed for TF PLUGIN build
 if [[ "$BUILD_TF_PLUGIN" = "YES" ]]; then
@@ -108,7 +110,8 @@ pushd ../
 # build deps image if needed
 if [[ "$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${DEPS_IMAGE} 2> /dev/null)" == "" ]]; then
     echo "Build deps: " ${DEPS_IMAGE}
-    docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=${BASE_NAME}  --build-arg "BUILDER_EXTRA_DEPS=${BUILDER_EXTRA_DEPS}" -f docker/Dockerfile.deps .
+    docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=${BASE_NAME}  --build-arg "BUILDER_EXTRA_DEPS=${BUILDER_EXTRA_DEPS}"
+                 --build-arg "DALI_DEPS_REPO=${DALI_DEPS_REPO}" --build-arg "DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION}" -f docker/Dockerfile.deps .
 fi
 
 # add cuda to deps if needed
