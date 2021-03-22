@@ -56,7 +56,7 @@ RUN dpkg -i $REPO_DEBS && \
 
 ENV PKG_CONFIG_PATH=/usr/aarch64-unknown-nto-qnx/aarch64le/lib/pkgconfig
 
-COPY third_party/build_deps.sh /tmp/
+COPY third_party/build_scripts /tmp/build_scripts
 COPY DALI_DEPS_VERSION /tmp
 
 ARG DALI_DEPS_REPO=https://github.com/NVIDIA/DALI_deps
@@ -86,7 +86,7 @@ RUN DALI_DEPS_VERSION=$(cat /tmp/DALI_DEPS_VERSION)                && \
                                  -D_FILE_OFFSET_BITS=64" && \
     export EXTRA_FLAC_FLAGS="-D__DJGPP__"                          && \
     export EXTRA_LIBSND_FLAGS="-I/usr/aarch64-unknown-nto-qnx/aarch64le/include" && \
-    /tmp/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/build_deps.sh && rm -rf /tmp/DALI_DEPS_VERSION
+    /tmp/build_scripts/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/build_scripts && rm -rf /tmp/DALI_DEPS_VERSION
 
 VOLUME /dali
 

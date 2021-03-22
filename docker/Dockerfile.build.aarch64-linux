@@ -54,7 +54,7 @@ RUN dpkg -i *.deb && \
 
 ENV PKG_CONFIG_PATH=/usr/aarch64-linux-gnu/lib/pkgconfig
 
-COPY third_party/build_deps.sh /tmp/
+COPY third_party/build_scripts /tmp/build_scripts
 COPY DALI_DEPS_VERSION /tmp
 
 ARG DALI_DEPS_REPO=https://github.com/NVIDIA/DALI_deps
@@ -73,7 +73,7 @@ RUN DALI_DEPS_VERSION=$(cat /tmp/DALI_DEPS_VERSION)                  && \
     export CMAKE_TARGET_ARCH=aarch64                                 && \
     export OPENCV_TOOLCHAIN_FILE="linux/aarch64-gnu.toolchain.cmake" && \
     export WITH_FFMPEG=0                                             && \
-    /tmp/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/build_deps.sh && rm -rf /tmp/DALI_DEPS_VERSION
+    /tmp/build_scripts/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/build_scripts && rm -rf /tmp/DALI_DEPS_VERSION
 
 # hack - install cross headers in the default python paths, so host python3-config would point to them
 RUN export PYVERS="3.6.9 3.7.8 3.8.5 3.9.0" && \
