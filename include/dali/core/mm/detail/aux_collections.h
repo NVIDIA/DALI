@@ -32,8 +32,10 @@ using pooled_map = std::map<
 
 template <typename T, bool thread_local_pool = false, typename Cmp = std::less<T>>
 using pooled_set = std::set<
-    T, Cmp, object_pool_allocator<T>, thread_local_pool>>;
+    T, Cmp, object_pool_allocator<T, thread_local_pool>>;
 
 }  // namespace detail
 }  // namespace mm
 }  // namespace dali
+
+#endif  // DALI_CORE_MM_DETAIL_AUX_COLLECTIONS_H_

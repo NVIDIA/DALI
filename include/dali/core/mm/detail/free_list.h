@@ -523,8 +523,8 @@ class free_tree {
   }
 
  protected:
-  pooled_map<char *, size_t, true> by_addr_;
-  pooled_set<std::pair<size_t, char *>, true> by_addr_;
+  detail::pooled_map<char *, size_t, true> by_addr_;
+  detail::pooled_set<std::pair<size_t, char *>, true> by_size_;
 };
 
 }  // namespace mm
