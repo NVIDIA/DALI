@@ -86,7 +86,7 @@ RUN DALI_DEPS_VERSION=$(cat /tmp/DALI_DEPS_VERSION)                && \
                                  -D_FILE_OFFSET_BITS=64" && \
     export EXTRA_FLAC_FLAGS="-D__DJGPP__"                          && \
     export EXTRA_LIBSND_FLAGS="-I/usr/aarch64-unknown-nto-qnx/aarch64le/include" && \
-    ../build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/build_deps.sh && rm -rf /tmp/DALI_DEPS_VERSION
+    /tmp/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/build_deps.sh && rm -rf /tmp/DALI_DEPS_VERSION
 
 VOLUME /dali
 

@@ -18,76 +18,81 @@ echo ${EXTRA_FLAC_FLAGS}
 echo ${EXTRA_LIBSND_FLAGS}
 
 #zlib
-pushd third_party/zlib                                                            && \
+pushd third_party/zlib
 CFLAGS="-fPIC" \
 CXXFLAGS="-fPIC" \
 CC=${CC_COMP} \
 CXX=${CXX_COMP} \
-./configure --prefix=${INSTALL_PREFIX}                                            && \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)"                                 && \
-make install                                                                      && \
+./configure --prefix=${INSTALL_PREFIX}
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+make install
 popd
 
 # CMake
-pushd third_party/CMake                                                           && \
-./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l)                   && \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)"                                 && \
-make install                                                                      && \
+pushd third_party/CMake
+./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l)
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+make install
 popd
 
 # protobuf, make two steps for cross compilation
-pushd third_party/protobuf                                                        && \
-./autogen.sh                                                                      && \
-./configure CXXFLAGS="-fPIC" --prefix=/usr/local --disable-shared 2>&1 > /dev/null && \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 > /dev/null                && \
-make install 2>&1 > /dev/null                                                     && \
-make clean                                                                        && \
-    ./autogen.sh && ./configure \
-    CXXFLAGS="-fPIC ${EXTRA_PROTOBUF_FLAGS}" \
-    CC=${CC_COMP} \
-    CXX=${CXX_COMP} \
-    ${HOST_ARCH_OPTION} \
-    ${BUILD_ARCH_OPTION} \
-    ${SYSROOT_ARG} \
-    --with-protoc=/usr/local/bin/protoc \
-    --prefix=${INSTALL_PREFIX} && make -j$(nproc) install                         && \
+pushd third_party/protobuf
+./autogen.sh
+./configure CXXFLAGS="-fPIC" --prefix=/usr/local --disable-shared 2>&1 > /dev/null
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 > /dev/null
+make install 2>&1 > /dev/null
+# only when cross compiling
+if [ "${CC_COMP}" != "gcc" ]; then
+  make clean
+      ./autogen.sh
+      ./configure \
+      CXXFLAGS="-fPIC ${EXTRA_PROTOBUF_FLAGS}" \
+      CC=${CC_COMP} \
+      CXX=${CXX_COMP} \
+      ${HOST_ARCH_OPTION} \
+      ${BUILD_ARCH_OPTION} \
+      ${SYSROOT_ARG} \
+      --with-protoc=/usr/local/bin/protoc \
+      --prefix=${INSTALL_PREFIX}
+  make -j$(nproc) install
+fi
 popd
 
 # LMDB
-pushd third_party/lmdb/libraries/liblmdb/                                         && \
-patch -p3 < ${ROOT_DIR}/patches/Makefile-lmdb.patch                               && \
+pushd third_party/lmdb/libraries/liblmdb/
+patch -p3 < ${ROOT_DIR}/patches/Makefile-lmdb.patch
   CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=${CC_COMP} CXX=${CXX_COMP} prefix=${INSTALL_PREFIX} \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)"                                 && \
-make install && \
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+make install
 popd
 
 # libjpeg-turbo
-pushd third_party/libjpeg-turbo/                                                  && \
-echo "set(CMAKE_SYSTEM_NAME Linux)" > toolchain.cmake                             && \
-echo "set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_TARGET_ARCH})" >> toolchain.cmake        && \
-echo "set(CMAKE_C_COMPILER ${CC_COMP})" >> toolchain.cmake                        && \
+pushd third_party/libjpeg-turbo/
+echo "set(CMAKE_SYSTEM_NAME Linux)" > toolchain.cmake
+echo "set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_TARGET_ARCH})" >> toolchain.cmake
+echo "set(CMAKE_C_COMPILER ${CC_COMP})" >> toolchain.cmake
   CFLAGS="-fPIC" \
   CXXFLAGS="-fPIC" \
   CC=${CC_COMP} \
   CXX=${CXX_COMP} \
-cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DENABLE_SHARED=TRUE -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} . 2>&1 >/dev/null && \
+cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DENABLE_SHARED=TRUE -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} . 2>&1 >/dev/null
   CFLAGS="-fPIC" \
   CXXFLAGS="-fPIC" \
   CC=${CC_COMP} \
   CXX=${CXX_COMP} \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 >/dev/null                 && \
-make install 2>&1 >/dev/null                                                      && \
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)" 2>&1 >/dev/null
+make install 2>&1 >/dev/null
 popd
 
 # zstandard compression library
-pushd third_party/zstd                                                            && \
+pushd third_party/zstd
   CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=${CC_COMP} CXX=${CXX_COMP} prefix=${INSTALL_PREFIX} \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null         && \
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null
 popd
 
 # libtiff
-pushd third_party/libtiff                                                         && \
-./autogen.sh                                                                      && \
+pushd third_party/libtiff
+./autogen.sh
 ./configure \
   CFLAGS="-fPIC" \
   CXXFLAGS="-fPIC" \
@@ -98,35 +103,37 @@ pushd third_party/libtiff                                                       
   --with-zstd-lib-dir=${INSTALL_PREFIX}/lib         \
   --with-zlib-include-dir=${INSTALL_PREFIX}/include \
   --with-zlib-lib-dir=${INSTALL_PREFIX}/lib         \
-  --prefix=${INSTALL_PREFIX}                                                      && \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)"                                 && \
-make install                                                                      && \
+  --prefix=${INSTALL_PREFIX}
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+make install
 popd
 
 # OpenJPEG
-pushd third_party/openjpeg                                                        && \
-mkdir build && cd build                                                           && \
-echo "set(CMAKE_SYSTEM_NAME Linux)" > toolchain.cmake                             && \
-echo "set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_TARGET_ARCH})" >> toolchain.cmake        && \
-echo "set(CMAKE_C_COMPILER ${CC_COMP})" >> toolchain.cmake                        && \
+pushd third_party/openjpeg
+mkdir build
+cd build
+echo "set(CMAKE_SYSTEM_NAME Linux)" > toolchain.cmake
+echo "set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_TARGET_ARCH})" >> toolchain.cmake
+echo "set(CMAKE_C_COMPILER ${CC_COMP})" >> toolchain.cmake
   CFLAGS="-fPIC" \
   CXXFLAGS="-fPIC" \
   CC=${CC_COMP} \
   CXX=${CXX_COMP} \
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DBUILD_CODEC=OFF \
-          -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} ..                             && \
+          -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} ..
   CFLAGS="-fPIC" \
   CXXFLAGS="-fPIC" \
   CC=${CC_COMP} \
   CXX=${CXX_COMP} \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)"                                 && \
-make install                                                                      && \
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+make install
 popd
 
 # OpenCV
-pushd third_party/opencv                                                          && \
-patch -p1 < ${ROOT_DIR}/patches/opencv-qnx.patch                                  && \
-mkdir build && cd build                                                           && \
+pushd third_party/opencv
+patch -p1 < ${ROOT_DIR}/patches/opencv-qnx.patch
+mkdir build
+cd build
 cmake -DCMAKE_BUILD_TYPE=RELEASE \
       -DVIBRANTE_PDK:STRING=/ \
       -DCMAKE_TOOLCHAIN_FILE=$PWD/../platforms/${OPENCV_TOOLCHAIN_FILE} \
@@ -166,14 +173,14 @@ cmake -DCMAKE_BUILD_TYPE=RELEASE \
       -DINSTALL_TESTS=OFF \
       -DVIBRANTE=TRUE \
       -DWITH_CSTRIPES=OFF \
-      VERBOSE=1 .. && \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-make install && \
+      VERBOSE=1 ..
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install
+make install
 popd
 
-if [ $WITH_FFMPEG -gt 0 ]; then
+if [ ${WITH_FFMPEG} -gt 0 ]; then
   # FFmpeg  https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.3.1.tar.bz2
-  pushd third_party/FFmpeg                                                        && \
+  pushd third_party/FFmpeg
   ./configure \
     --prefix=${INSTALL_PREFIX} \
     --disable-static \
@@ -211,14 +218,15 @@ if [ $WITH_FFMPEG -gt 0 ]; then
     --disable-devices \
     --disable-filters \
     --disable-bsfs \
-    --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes           && \
-  make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install               && \
+    --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes
+  make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+  make install
   popd
 fi
 
 # flac
-pushd third_party/flac                                                            && \
-./autogen.sh                                                                      && \
+pushd third_party/flac
+./autogen.sh
 ./configure \
   CFLAGS="-fPIC ${EXTRA_FLAC_FLAGS}" \
   CXXFLAGS="-fPIC ${EXTRA_FLAC_FLAGS}" \
@@ -226,46 +234,50 @@ pushd third_party/flac                                                          
   CXX=${CXX_COMP} \
   ${HOST_ARCH_OPTION} \
   --prefix=${INSTALL_PREFIX} \
-  --disable-ogg                                                                   && \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                 && \
+  --disable-ogg
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+make install
 popd
 
 # libogg
-pushd third_party/ogg                                                             && \
-./autogen.sh                                                                      && \
+pushd third_party/ogg
+./autogen.sh
 ./configure \
   CFLAGS="-fPIC" \
   CXXFLAGS="-fPIC" \
   CC=${CC_COMP} \
   CXX=${CXX_COMP} \
   ${HOST_ARCH_OPTION} \
-  --prefix=${INSTALL_PREFIX}                                                      && \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                 && \
+  --prefix=${INSTALL_PREFIX}
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+make install
 popd
 
 # libvorbis
 # Install after libogg
-pushd third_party/vorbis                                                          && \
-./autogen.sh                                                                      && \
+pushd third_party/vorbis
+./autogen.sh
 ./configure \
   CFLAGS="-fPIC" \
   CXXFLAGS="-fPIC" \
   CC=${CC_COMP} \
   CXX=${CXX_COMP} \
   ${HOST_ARCH_OPTION} \
-  --prefix=${INSTALL_PREFIX}                                                      && \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                 && \
+  --prefix=${INSTALL_PREFIX}
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+make install
 popd
 
 # libsnd https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-1.0.28.tar.gz
-pushd third_party/libsndfile                                                      && \
-./autogen.sh                                                                      && \
+pushd third_party/libsndfile
+./autogen.sh
 ./configure \
   CFLAGS="-fPIC ${EXTRA_LIBSND_FLAGS}" \
   CXXFLAGS="-fPIC ${EXTRA_LIBSND_FLAGS}" \
   CC=${CC_COMP} \
   CXX=${CXX_COMP} \
   ${HOST_ARCH_OPTION} \
-  --prefix=${INSTALL_PREFIX}                                                      && \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                 && \
+  --prefix=${INSTALL_PREFIX}
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+make install
 popd

@@ -39,7 +39,7 @@ RUN DALI_DEPS_VERSION=$(cat /tmp/DALI_DEPS_VERSION)              && \
     export CMAKE_TARGET_ARCH="$(uname -m)"                       && \
     export OPENCV_TOOLCHAIN_FILE="linux/gnu.toolchain.cmake"     && \
     export WITH_FFMPEG=1                                         && \
-    ../build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/build_deps.sh && rm -rf /tmp/DALI_DEPS_VERSION
+    /tmp/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/build_deps.sh && rm -rf /tmp/DALI_DEPS_VERSION
 
 # Clang, but only for x86_64
 RUN if [ "$(uname -m)" == "x86_64" ]; then \
