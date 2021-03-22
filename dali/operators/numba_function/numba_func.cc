@@ -81,7 +81,7 @@ void NumbaFunc<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   auto out_shape = out.shape();
   auto& tp = ws.GetThreadPool();
 
-  for (int sample_id = 0; sample_id < in.shape().num_samples(); sample_id++) {
+  for (int sample_id = 0; sample_id < in_shape.num_samples(); sample_id++) {
     tp.AddWork([&, fn_ptr = fn_ptr_, sample_id](int thread_id) {
       ((void (*)(void*, const void*, const void*, const void*, uint64_t))fn_ptr)(
         out[sample_id].raw_mutable_data(), in[sample_id].raw_data(),
