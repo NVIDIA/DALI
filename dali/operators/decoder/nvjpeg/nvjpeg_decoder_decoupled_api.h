@@ -814,10 +814,15 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
 
     // If image is somehow not supported try host decoder
-    if (ret == NVJPEG_STATUS_JPEG_NOT_SUPPORTED || ret == NVJPEG_STATUS_BAD_JPEG) {
+    if (ret != NVJPEG_STATUS_SUCCESS) {
       data.method = DecodeMethod::Host;
       HostFallback<StorageGPU>(input_data, in_size, output_image_type_, output_data,
                                stream, file_name, data.roi, use_fast_idct_);
+      if (ret != NVJPEG_STATUS_JPEG_NOT_SUPPORTED && ret != NVJPEG_STATUS_BAD_JPEG) {
+         auto warning_msg = make_string("NVJPEG error \"", static_cast<int>(ret), "\" : ",
+                            nvjpeg_parse_error_code(ret), " ", file_name);
+         DALI_WARN(warning_msg);
+      }
       return;
     }
     NVJPEG_CALL_EX(ret, file_name);
@@ -836,8 +841,16 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                                       jpeg_streams_[jpeg_stream_idx], stream),
                      file_name);
 
-      NVJPEG_CALL_EX(nvjpegDecodeJpegDevice(handle_, decoder, state, &nvjpeg_image, stream),
-                     file_name);
+      ret = nvjpegDecodeJpegDevice(handle_, decoder, state, &nvjpeg_image, stream);
+      // if nvJPEG fails try HostDecoder
+      if (ret != NVJPEG_STATUS_SUCCESS) {
+        auto warning_msg = make_string("NVJPEG error \"", static_cast<int>(ret), "\" : ",
+                           nvjpeg_parse_error_code(ret), " ", file_name);
+        DALI_WARN(warning_msg);
+        HostFallback<StorageGPU>(input_data, in_size, output_image_type_, output_data,
+                                stream, file_name, data.roi, use_fast_idct_);
+        return;
+      }
       CUDA_CALL(cudaEventRecord(decode_events_[thread_id], stream));
     }
   }
