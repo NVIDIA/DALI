@@ -75,6 +75,23 @@ class pool_resource_base : public memory_resource<kind, Context> {
     free_list_.clear();
   }
 
+  /**
+   * @brief Tries to obtain a block from the internal free list.
+   *
+   * Allocates `bytes` memory from the free list. If a block that satisifies
+   * the size or alignment requirements is not found, the function returns
+   * nullptr withoug allocating from upstream.
+   */
+  void *try_allocate_from_free(size_t bytes, size_t alignment) {
+    if (!bytes)
+      return nullptr;
+
+    {
+      lock_guard guard(lock_);
+      return free_list_.get(bytes, alignment);
+    }
+  }
+
  protected:
   void *do_allocate(size_t bytes, size_t alignment) override {
     if (!bytes)
