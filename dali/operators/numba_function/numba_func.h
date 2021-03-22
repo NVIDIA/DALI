@@ -40,8 +40,7 @@ class NumbaFunc : public Operator<Backend> {
   void RunUserSetupFunc(std::vector<OutputDesc> &output_desc, const Workspace &ws);
 
   uint64_t fn_ptr_;
-  uint64_t setup_fn_;
-  bool use_setup_fn_;
+  uint64_t setup_fn_ = 0;
 };
 
 }  // namespace dali
