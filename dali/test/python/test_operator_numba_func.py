@@ -86,8 +86,8 @@ def _testimpl_numba_func(shapes, dtype, fn_ptr, setup_fn, expected_out):
 def test_numba_func():
     # shape, dtype, func address, expected_out
     args = [
-        # ([(10, 10, 10)], np.uint8, set_all_values_to_255.address, None, np.full((10, 10, 10), 255, dtype=np.uint8)),
-        # ([(10, 10, 10)], np.float32, set_all_values_to_float.address, None, np.full((10, 10, 10), 0.5, dtype=np.float32)),
+        ([(10, 10, 10)], np.uint8, set_all_values_to_255.address, None, [np.full((10, 10, 10), 255, dtype=np.uint8)]),
+        ([(10, 10, 10)], np.float32, set_all_values_to_float.address, None, [np.full((10, 10, 10), 0.5, dtype=np.float32)]),
         ([(10, 20, 30), (20, 10, 30)], np.int64, fun3.address, setup_fn1.address, [np.full((20, 30, 10), 42, dtype=np.int32), np.full((30, 20, 10), 42, dtype=np.int32)]),
     ]
 
