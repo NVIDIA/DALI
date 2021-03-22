@@ -53,6 +53,13 @@ void NumbaFunc<CPUBackend>::RunUserSetupFunc(std::vector<OutputDesc> &output_des
     output_shape.tensor_shape_span(0).begin(), in_shape.tensor_shape_span(0).begin(),
     N, ndim, &out_type, &in_type, 1, 1);
 
+  DALI_ENFORCE(out_type != DALIDataType::DALI_NO_TYPE, make_string("Output type should be set."));
+  for (int i = 0; i < N; i++) {
+    for (int d = 0; d < ndim; d++) {
+      DALI_ENFORCE(output_shape.tensor_shape_span(i)[d] >= 0,
+        make_string(d, "-th", " shape for ", i, " is negative."));
+    }
+  }
   output_desc[0].type = dali::TypeTable::GetTypeInfo(out_type);
   output_desc[0].shape = output_shape;
 }
