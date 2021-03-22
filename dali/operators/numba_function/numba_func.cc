@@ -53,7 +53,7 @@ void NumbaFunc<CPUBackend>::RunUserSetupFunc(std::vector<OutputDesc> &output_des
   DALIDataType out_type = DALIDataType::DALI_NO_TYPE;
   DALIDataType in_type = in.type().id();
   ((void (*)(void*, const void*, int32_t, int32_t, void*, const void*, int64_t, int64_t))setup_fn_)(
-    output_shape.tensor_shape_span(0).begin(), in_shape.tensor_shape_span(0).begin(),
+    output_shape.tensor_shape_span(0).data(), in_shape.tensor_shape_span(0).data(),
     N, ndim, &out_type, &in_type, 1, 1);
 
   DALI_ENFORCE(out_type != DALIDataType::DALI_NO_TYPE, "Output type was not set by the custom setup function.");
