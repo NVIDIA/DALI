@@ -37,7 +37,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
   static constexpr bool horz_subsample = GTestParams::horz_subsample;
 
  public:
-  JpegDistortionTestGPU() {
+  JpegDistortionTestGPU() : input_device_(nullptr), output_(nullptr) {
     in_shapes_ = {{200, 400, 3}, {2000, 20, 3}, {2, 2, 3}};
 #if DEBUG_LOGS
     in_shapes_ = {{2, 4, 3}, {2, 2, 3}};
