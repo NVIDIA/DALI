@@ -27,11 +27,11 @@ DALI_SCHEMA(experimental__NumbaFunc)
   
 The function should be a Numba C callback function (annotated with cfunc) with the following function signature::
 types.void(
-  types.CPointer(OUTPUT_DTYPE), # pointer to output sample
-  types.CPointer(types.int64),  # pointer to output sample shape
-  types.CPointer(INPUT_DTYPE),  # pointer to input sample
-  types.CPointer(types.int64),  # pointer to input sample shape
-  types.int32                   # number of sample dimensions
+  types.CPointer(OUTPUT_DTYPE), # Pointer to output sample
+  types.CPointer(types.int64),  # Pointer to output sample shape
+  types.CPointer(INPUT_DTYPE),  # Pointer to input sample
+  types.CPointer(types.int64),  # Pointer to input sample shape
+  types.int32                   # Number of sample dimensions
 )
 )code", DALI_INT64)
   .AddOptionalArg<int>("setup_fn", R"code(Pointer to function which should return output shape.
