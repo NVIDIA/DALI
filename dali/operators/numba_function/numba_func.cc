@@ -25,10 +25,30 @@ DALI_SCHEMA(experimental__NumbaFunc)
   .NumOutput(1)
   .AddArg("fn_ptr", R"code(Numba function pointer.
   
-The function should be a Numba C callback function (annotated with cfunc) with the following function signature
-<insert expected function signature>.
+The function should be a Numba C callback function (annotated with cfunc) with the following function signature::
+types.void(
+  types.CPointer(OUTPUT_DTYPE), # pointer to output sample
+  types.CPointer(types.int64),  # pointer to output sample shape
+  types.CPointer(INPUT_DTYPE),  # pointer to input sample
+  types.CPointer(types.int64),  # pointer to input sample shape
+  types.int32                   # number of sample dimensions
+)
 )code", DALI_INT64)
-  .AddOptionalArg<int>("setup_fn", R"code(Pointer to function which should return output shape.)code", DALI_INT64);
+  .AddOptionalArg<int>("setup_fn", R"code(Pointer to function which should return output shape.
+  
+The function should be a Numba C callback function (annotated with cfunc) with the following function signature::
+types.void(
+  types.CPointer(types.int64), # Output batch shape pointer
+  types.int32,                 # Number of dimensions in output shape
+  types.CPointer(types.int32), # Output dtype pointer
+  types.CPointer(types.int64), # Input batch shape pointer
+  types.int32,                 # Number of dimensions in input shape
+  types.int32,                 # Input dtype
+  types.int32,                 # Number of samples in the batch
+  types.int32,                 # Number of outputs
+  types.int32                  # Number of inputs
+)
+)code", 0);
 
 template <typename Backend>
 NumbaFunc<Backend>::NumbaFunc(const OpSpec &spec) : Base(spec) {
@@ -52,11 +72,13 @@ void NumbaFunc<CPUBackend>::RunUserSetupFunc(std::vector<OutputDesc> &output_des
   output_shape.resize(N, ndim);
   DALIDataType out_type = DALIDataType::DALI_NO_TYPE;
   DALIDataType in_type = in.type().id();
-  ((void (*)(void*, const void*, int32_t, int32_t, void*, const void*, int64_t, int64_t))setup_fn_)(
-    output_shape.tensor_shape_span(0).data(), in_shape.tensor_shape_span(0).data(),
-    N, ndim, &out_type, &in_type, 1, 1);
+  ((void (*)(void*, int32_t, void*, const void*, int32_t,
+    int32_t, int32_t, int64_t, int64_t))setup_fn_)(
+      output_shape.tensor_shape_span(0).data(), ndim, &out_type,
+      in_shape.tensor_shape_span(0).data(), ndim, in_type, N, 1, 1);
 
-  DALI_ENFORCE(out_type != DALIDataType::DALI_NO_TYPE, "Output type was not set by the custom setup function.");
+  DALI_ENFORCE(out_type != DALIDataType::DALI_NO_TYPE,
+    "Output type was not set by the custom setup function.");
   for (int i = 0; i < N; i++) {
     for (int d = 0; d < ndim; d++) {
       DALI_ENFORCE(output_shape.tensor_shape_span(i)[d] >= 0,
@@ -86,10 +108,9 @@ void NumbaFunc<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
 
   for (int sample_id = 0; sample_id < in_shape.num_samples(); sample_id++) {
     tp.AddWork([&, fn_ptr = fn_ptr_, sample_id](int thread_id) {
-      ((void (*)(void*, const void*, const void*, const void*, uint64_t))fn_ptr)(
-        out[sample_id].raw_mutable_data(), in[sample_id].raw_data(),
-        out_shape.tensor_shape_span(sample_id).data(),
-        in_shape.tensor_shape_span(sample_id).data(),
+      ((void (*)(void*, const void*, const void*, const void*, int32_t))fn_ptr)(
+        out[sample_id].raw_mutable_data(), out_shape.tensor_shape_span(sample_id).data(),
+        in[sample_id].raw_data(), in_shape.tensor_shape_span(sample_id).data(),
         out_shape.sample_dim());
     }, out_shape.tensor_size(sample_id));
   }
