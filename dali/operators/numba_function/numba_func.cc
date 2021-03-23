@@ -19,6 +19,7 @@ namespace dali {
 
 DALI_SCHEMA(experimental__NumbaFunc)
   .DocStr(R"code(Invokes a compiled Numba function passed as a pointer.
+
 .. note::
     This operator is experimental and its API might change without notice.)code")
   .NumInput(1)
@@ -26,28 +27,28 @@ DALI_SCHEMA(experimental__NumbaFunc)
   .AddArg("fn_ptr", R"code(Numba function pointer.
   
 The function should be a Numba C callback function (annotated with cfunc) with the following function signature::
-types.void(
-  types.CPointer(OUTPUT_DTYPE), # Pointer to output sample
-  types.CPointer(types.int64),  # Pointer to output sample shape
-  types.CPointer(INPUT_DTYPE),  # Pointer to input sample
-  types.CPointer(types.int64),  # Pointer to input sample shape
-  types.int32                   # Number of sample dimensions
-)
+  types.void(
+    types.CPointer(OUTPUT_DTYPE), # Pointer to output sample
+    types.CPointer(types.int64),  # Pointer to output sample shape
+    types.CPointer(INPUT_DTYPE),  # Pointer to input sample
+    types.CPointer(types.int64),  # Pointer to input sample shape
+    types.int32                   # Number of sample dimensions
+  )
 )code", DALI_INT64)
   .AddOptionalArg<int>("setup_fn", R"code(Pointer to function which should return output shape.
   
 The function should be a Numba C callback function (annotated with cfunc) with the following function signature::
-types.void(
-  types.CPointer(types.int64), # Output batch shape pointer
-  types.int32,                 # Number of dimensions in output shape
-  types.CPointer(types.int32), # Output dtype pointer
-  types.CPointer(types.int64), # Input batch shape pointer
-  types.int32,                 # Number of dimensions in input shape
-  types.int32,                 # Input dtype
-  types.int32,                 # Number of samples in the batch
-  types.int32,                 # Number of outputs
-  types.int32                  # Number of inputs
-)
+  types.void(
+    types.CPointer(types.int64), # Output batch shape pointer
+    types.int32,                 # Number of dimensions in output shape
+    types.CPointer(types.int32), # Output dtype pointer
+    types.CPointer(types.int64), # Input batch shape pointer
+    types.int32,                 # Number of dimensions in input shape
+    types.int32,                 # Input dtype
+    types.int32,                 # Number of samples in the batch
+    types.int32,                 # Number of outputs
+    types.int32                  # Number of inputs
+  )
 )code", 0);
 
 template <typename Backend>
