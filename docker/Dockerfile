@@ -22,7 +22,7 @@ RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
 # in aarch64 pip install libclang will fail
 RUN pip install future setuptools wheel clang && \
-    pip install libclang || true && \
+    pip install libclang || test "$(uname -m)" == "aarch64" && \
     rm -rf /root/.cache/pip/
 
 # install clang for aarch64 from llvm-toolset-7.0, and patch clang pip package to use it
