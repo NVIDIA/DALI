@@ -70,8 +70,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
       if (perf_run) {
         in_shapes_ = uniform_list_shape(64, TensorShape<3>{600, 800, 3});
       } else {
-        // TODO(janton): Fix blocks not aligned to 16 length
-        in_shapes_ = {{16, 16, 3}, {16, 16, 3}};
+        in_shapes_ = {{7, 9, 3}, {8, 16, 3}};
       }
       in_.reshape(in_shapes_);
       std::mt19937_64 rng;
@@ -84,10 +83,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
   void TearDown() final {
   }
 
-  using KernelLaunchFn = std::function<
-    void(dim3, dim3, cudaStream_t, const SampleDesc*, const kernels::BlockDesc<2>*)>;
-
-  void TestKernel(KernelLaunchFn kernel_launch_fn) {
+  void TestKernel(KernelPtr kernel_fn) {
     CUDAStream stream = CUDAStream::Create(true);
 
     TensorListShape<2> chroma_shape(in_shapes_.size(), 2);
@@ -119,6 +115,8 @@ class JpegDistortionTestGPU : public ::testing::Test {
       sample_desc.size.y = height;
       sample_desc.strides.x = 3;
       sample_desc.strides.y = width * 3;
+      sample_desc.luma_Q_table = luma_table;
+      sample_desc.chroma_Q_table = chroma_table;
     }
 
     block_setup_.SetBlockDim(dim3(32, 16, 1));
@@ -153,11 +151,11 @@ class JpegDistortionTestGPU : public ::testing::Test {
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
 
     if (perf_run)  // warm up
-      kernel_launch_fn(grid_dim, block_dim, stream, samples_gpu, blocks_gpu);
+      kernel_fn<<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
 
     CUDA_CALL(cudaEventRecord(start, stream));
 
-    kernel_launch_fn(grid_dim, block_dim, stream, samples_gpu, blocks_gpu);
+    kernel_fn<<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
     CUDA_CALL(cudaGetLastError());
 
     CUDA_CALL(cudaEventRecord(end, stream));
@@ -176,36 +174,6 @@ class JpegDistortionTestGPU : public ::testing::Test {
     auto in_view_cpu = in_.cpu();
     auto out_ref_cpu = out_ref_.cpu();
 
-#if DEBUG_LOGS
-    auto print_out = [&](TensorListView<StorageCPU, uint8_t, 3> view) {
-      int off = 0;
-      auto shape = view.shape;
-      auto nsamples = shape.size();
-      for (size_t i = 0; i < nsamples; i++) {
-        auto sample_view = view[i];
-        auto sample_sh = sample_view.shape;
-        auto width = sample_sh[1];
-        auto height = sample_sh[0];
-        assert(sample_sh[2] == 3);
-        std::cout << "\nSample " << i << "\n";
-        for (size_t k = 0; k < width * height; k++) {
-          if (k > 0 && k % width == 0) std::cout << "\n";
-          std::cout << " " << static_cast<int>(sample_view.data[off++])
-                    << "-" << static_cast<int>(sample_view.data[off++])
-                    << "-" << static_cast<int>(sample_view.data[off++]);
-        }
-        std::cout << "\n";
-      }
-    };
-
-    std::cout << "\nInput:";
-    print_out(in_view_cpu);
-    std::cout << "\nReference:";
-    print_out(out_ref_cpu);
-    std::cout << "\nOutput:";
-    print_out(out_view_cpu);
-#endif
-
     // In the kernel we average the RGB values, then converto to YCbCr
     // while here we are first converting and then averaging
     // Check(out_view_cpu, out_ref_cpu, EqualEps(40));
@@ -218,14 +186,12 @@ class JpegDistortionTestGPU : public ::testing::Test {
       cv::Mat diff;
       cv::absdiff(out_mat, out_ref, diff);
 
-      // Sanity check. Checking that the average pixel difference is small
-      // It is always best to compare the diff image visually to look for
-      // artifacts.
-      auto mean = cv::mean(diff);
-      // different subsampling -> bigger error
-      int avg_diff_max = horz_subsample && vert_subsample ? 2 : 6;
-      for (int d = 0; d < 3; d++)
-        ASSERT_LT(mean[d], avg_diff_max);
+#if DEBUG_LOGS
+      std::cout << "input:\n" << in_mat << "\n";
+      std::cout << "output:\n" << out_mat << "\n";
+      std::cout << "reference:\n" << out_ref << "\n";
+      std::cout << "abs(output - reference):\n" << diff << "\n";
+#endif
 
       if (dump_images) {
         std::stringstream ss1, ss2, ss3, ss4;
@@ -249,6 +215,15 @@ class JpegDistortionTestGPU : public ::testing::Test {
         cv::imwrite(ss4.str(), diff);
         cv::cvtColor(diff, diff, cv::COLOR_BGR2RGB);
       }
+
+      // Sanity check. Checking that the maximum pixel difference is small enough.
+      // It is always best to compare the diff image visually to look for artifacts.
+      auto mean = cv::mean(diff);
+      double min_val, max_val;
+      cv::minMaxLoc(diff, &min_val, &max_val);
+      EXPECT_LE(max_val, max_abs_error);
+      for (int d=0; d<3; d++)
+        EXPECT_LE(mean[d], max_avg_error);
     }
 
     CUDA_CALL(cudaFree(blocks_gpu));
@@ -279,23 +254,20 @@ class JpegDistortionTestGPU : public ::testing::Test {
         tmp_cr[i] =  0.50000000f * r - 0.41868759f * g - 0.08131241f * b + 128.0f;
       }
 
-#if DEBUG_LOGS
-      std::cout << "\nYCbCr original ref:\n";
-      for (int64_t i = 0; i < npixels; i++) {
-        if (i > 0 && i % sh[1] == 0) std::cout << "\n";
-        std::cout << " " << static_cast<int>(tmp_y[i])
-                  << "-" << static_cast<int>(tmp_cb[i])
-                  << "-" << static_cast<int>(tmp_cr[i]);
-      }
-#endif
-
       auto subsample_f = [&](std::vector<T> &component) {
         for (int64_t y = 0; y < sh[0]; y+=(1 << vert_subsample)) {
+          bool edge_y = vert_subsample && (y == (sh[0] - 1));
           for (int64_t x = 0; x < sh[1]; x+=(1 << horz_subsample)) {
-            auto in_offset_1 = y * sh[1] + x;
-            auto in_offset_2 = y * sh[1] + x + 1;
-            auto in_offset_3 = (y + 1) * sh[1] + x;
-            auto in_offset_4 = (y + 1) * sh[1] + x + 1;
+            bool edge_x = horz_subsample && (x == (sh[1] - 1));
+            size_t in_offset_1 = y * sh[1] + x;
+            size_t in_offset_2 = !edge_x ? y * sh[1] + x + 1 : in_offset_1;
+            size_t in_offset_3 = !edge_y ? (y + 1) * sh[1] + x : in_offset_1;
+            size_t in_offset_4;
+            if (edge_x && edge_y)  in_offset_4 = in_offset_1;
+            else if (edge_x)       in_offset_4 = in_offset_3;
+            else if (edge_y)       in_offset_4 = in_offset_2;
+            else                   in_offset_4 = (y + 1) * sh[1] + x + 1;
+
             if (horz_subsample && vert_subsample) {
               T avg = ConvertSat<T>(0.25f * (component[in_offset_1] + component[in_offset_2] +
                                              component[in_offset_3] + component[in_offset_4]));
@@ -319,17 +291,6 @@ class JpegDistortionTestGPU : public ::testing::Test {
         subsample_f(tmp_cb);
         subsample_f(tmp_cr);
       }
-
-#if DEBUG_LOGS
-      std::cout << "\nYCbCr subsampled ref:\n";
-      for (int64_t i = 0; i < npixels; i++) {
-        if (i > 0 && i % sh[1] == 0) std::cout << "\n";
-        std::cout << " " << static_cast<int>(tmp_y[i])
-                  << "-" << static_cast<int>(tmp_cb[i])
-                  << "-" << static_cast<int>(tmp_cr[i]);
-      }
-      std::cout << "\n";
-#endif
 
       auto* sample_data = out_ref_view[sample].data;
       for (int64_t i = 0; i < npixels; i++) {
@@ -370,26 +331,19 @@ class JpegDistortionTestGPU : public ::testing::Test {
 
   void TestJpegCompressionDistortion() {
     quality_factor = 5;
+    max_abs_error = vert_subsample && horz_subsample ? 80 : 100;
+    max_avg_error = vert_subsample && horz_subsample ? 3 : 10;
     luma_table = GetLumaQuantizationTable(quality_factor);
     chroma_table = GetChromaQuantizationTable(quality_factor);
     CalcOut_JpegCompressionDistortion();
-    TestKernel(
-      [this](dim3 gridDim, dim3 blockDim, cudaStream_t stream,
-             const SampleDesc* samples, const kernels::BlockDesc<2>* blocks) {
-        JpegCompressionDistortion<horz_subsample, vert_subsample>
-          <<<gridDim, blockDim, 0, stream>>>(samples, blocks, luma_table, chroma_table);
-      });
+    TestKernel(JpegCompressionDistortion<horz_subsample, vert_subsample>);
   }
 
   void TestChromaSubsampleDistortion() {
-    quality_factor = 99;
+    max_abs_error = 5;
+    max_avg_error = 3;
     CalcOut_ChromaSubsampleDistortion();
-    TestKernel(
-      [](dim3 gridDim, dim3 blockDim, cudaStream_t stream,
-         const SampleDesc* samples, const kernels::BlockDesc<2>* blocks) {
-        ChromaSubsampleDistortion<horz_subsample, vert_subsample>
-          <<<gridDim, blockDim, 0, stream>>>(samples, blocks);
-      });
+    TestKernel(ChromaSubsampleDistortion<horz_subsample, vert_subsample>);
   }
 
   CUDAStream stream_;
@@ -403,8 +357,11 @@ class JpegDistortionTestGPU : public ::testing::Test {
   using BlockDesc = BlkSetup::BlockDesc;
 
   float quality_factor = 20.0f;
-  DeviceArray<uint8_t, 64> luma_table;
-  DeviceArray<uint8_t, 64> chroma_table;
+  mat<8, 8, uint8_t> luma_table;
+  mat<8, 8, uint8_t> chroma_table;
+
+  int max_abs_error = 100;
+  int max_avg_error = 10;
 };
 
 template <typename OutType, bool v, bool h>

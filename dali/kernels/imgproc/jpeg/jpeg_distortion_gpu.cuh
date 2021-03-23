@@ -21,6 +21,7 @@
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/imgproc/jpeg/dct_8x8_gpu.cuh"
 #include "dali/core/geom/vec.h"
+#include "dali/core/geom/mat.h"
 #include "dali/core/geom/box.h"
 #include "dali/core/util.h"
 
@@ -38,42 +39,46 @@ float GetQualityFactorScale(int quality) {
   return q_scale;
 }
 
-// Quantization table coefficients that are suggested in the Annex of the JPEG standard.
+// Quantization table coefficients that are suggested in the Annex K of the JPEG standard.
 
-DeviceArray<uint8_t, 64> GetLumaQuantizationTable(int quality) {
-  std::array<uint8_t, 64> table = {
-    16, 11, 10, 16, 24, 40, 51, 61,
-    12, 12, 14, 19, 26, 58, 60, 55,
-    14, 13, 16, 24, 40, 57, 69, 56,
-    14, 17, 22, 29, 51, 87, 80, 62,
-    18, 22, 37, 56, 68, 109, 103, 77,
-    24, 35, 55, 64, 81, 104, 113, 92,
-    49, 64, 78, 87, 103, 121, 120, 101,
-    72, 92, 95, 98, 112, 100, 103, 99
-  };
+mat<8, 8, uint8_t> GetLumaQuantizationTable(int quality) {
+  mat<8, 8, uint8_t> table = {{
+    {16, 11, 10, 16, 24, 40, 51, 61},
+    {12, 12, 14, 19, 26, 58, 60, 55},
+    {14, 13, 16, 24, 40, 57, 69, 56},
+    {14, 17, 22, 29, 51, 87, 80, 62},
+    {18, 22, 37, 56, 68, 109, 103, 77},
+    {24, 35, 55, 64, 81, 104, 113, 92},
+    {49, 64, 78, 87, 103, 121, 120, 101},
+    {72, 92, 95, 98, 112, 100, 103, 99}
+  }};
   auto scale = GetQualityFactorScale(quality);
-  for (auto &elem : table) {
-    elem = ConvertSat<uint8_t>(scale * elem);
+  for (int i = 0; i < 8; i++) {
+    for (int j = 0; j < 8; j++) {
+      table(i, j) = ConvertSat<uint8_t>(scale * table(i, j));
+    }
   }
-  return DeviceArray<uint8_t, 64>(table);
+  return table;
 }
 
-DeviceArray<uint8_t, 64> GetChromaQuantizationTable(int quality) {
-  std::array<uint8_t, 64> table = {
-      17, 18, 24, 47, 99, 99, 99, 99,
-      18, 21, 26, 66, 99, 99, 99, 99,
-      24, 26, 56, 99, 99, 99, 99, 99,
-      47, 66, 99, 99, 99, 99, 99, 99,
-      99, 99, 99, 99, 99, 99, 99, 99,
-      99, 99, 99, 99, 99, 99, 99, 99,
-      99, 99, 99, 99, 99, 99, 99, 99,
-      99, 99, 99, 99, 99, 99, 99, 99
-  };
+mat<8, 8, uint8_t> GetChromaQuantizationTable(int quality) {
+  mat<8, 8, uint8_t> table = {{
+    {17, 18, 24, 47, 99, 99, 99, 99},
+    {18, 21, 26, 66, 99, 99, 99, 99},
+    {24, 26, 56, 99, 99, 99, 99, 99},
+    {47, 66, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99}
+  }};
   auto scale = GetQualityFactorScale(quality);
-  for (auto &elem : table) {
-    elem = ConvertSat<uint8_t>(scale * elem);
+  for (int i = 0; i < 8; i++) {
+    for (int j = 0; j < 8; j++) {
+      table(i, j) = ConvertSat<uint8_t>(scale * table(i, j));
+    }
   }
-  return DeviceArray<uint8_t, 64>(table);
+  return table;
 }
 
 struct SampleDesc {
@@ -81,6 +86,8 @@ struct SampleDesc {
   uint8_t *out;  // rgb
   ivec<2> size;
   i64vec<2> strides;
+  mat<8, 8, uint8_t> luma_Q_table = GetLumaQuantizationTable(95);
+  mat<8, 8, uint8_t> chroma_Q_table = GetChromaQuantizationTable(95);
 };
 
 template <typename T>
@@ -244,12 +251,12 @@ __device__ __inline__ float quantize(float value, float Q_coeff) {
  */
 template <bool horz_subsample, bool vert_subsample, bool quantization = true>
 __global__ void JpegCompressionDistortion(const SampleDesc *samples,
-                                          const kernels::BlockDesc<2> *blocks,
-                                          DeviceArray<uint8_t, 64> luma_quant_table,
-                                          DeviceArray<uint8_t, 64> chroma_quant_table) {
+                                          const kernels::BlockDesc<2> *blocks) {
   using T = uint8_t;
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
+  const auto &luma_Q_table = sample.luma_Q_table;
+  const auto &chroma_Q_table = sample.chroma_Q_table;
 
   static constexpr int align_y = 8;
   static constexpr int align_x = 8;
@@ -331,12 +338,12 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
       __syncthreads();
 
       if (quantization) {
-        auto q_chroma_coeff = ConvertSat<float>(chroma_quant_table[chroma_y * 8 + chroma_x]);
+        auto q_chroma_coeff = ConvertSat<float>(chroma_Q_table(chroma_y, chroma_x));
         cb[chroma_y][chroma_x] = quantize(cb[chroma_y][chroma_x], q_chroma_coeff);
         cr[chroma_y][chroma_x] = quantize(cr[chroma_y][chroma_x], q_chroma_coeff);
         for (int i = 0, k = 0; i < vert_subsample+1; i++) {
           for (int j = 0; j < horz_subsample+1; j++, k++) {
-            auto q_luma_coeff = ConvertSat<float>(luma_quant_table[(luma_y + i) * 8 + luma_x + j]);
+            auto q_luma_coeff = ConvertSat<float>(luma_Q_table(luma_y + i, luma_x + j));
             luma[luma_y + i][luma_x + j] = quantize(luma[luma_y + i][luma_x + j], q_luma_coeff);
           }
         }
