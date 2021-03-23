@@ -110,7 +110,7 @@ pushd ../
 # build deps image if needed
 if [[ "$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${DEPS_IMAGE} 2> /dev/null)" == "" ]]; then
     echo "Build deps: " ${DEPS_IMAGE}
-    docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=${BASE_NAME}  --build-arg "BUILDER_EXTRA_DEPS=${BUILDER_EXTRA_DEPS}"
+    docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=${BASE_NAME}  --build-arg "BUILDER_EXTRA_DEPS=${BUILDER_EXTRA_DEPS}" \
                  --build-arg "DALI_DEPS_REPO=${DALI_DEPS_REPO}" --build-arg "DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION}" -f docker/Dockerfile.deps .
 fi
 
