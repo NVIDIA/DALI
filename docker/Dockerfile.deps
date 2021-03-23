@@ -30,15 +30,16 @@ ENV DALI_DEPS_REPO=${DALI_DEPS_REPO:-https://github.com/NVIDIA/DALI_deps}
 ARG DALI_DEPS_VERSION_SHA
 ENV DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA}
 
-RUN DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI_DEPS_VERSION)} && \
-    git clone ${DALI_DEPS_REPO} /tmp/dali_deps                   && \
-    cd /tmp/dali_deps                                            && \
-    git submodule init                                           && \
-    git checkout ${DALI_DEPS_VERSION_SHA}                        && \
-    git submodule update --depth 1 --recursive                   && \
-    export CC_COMP=${CC}                                         && \
-    export CXX_COMP=${CXX}                                       && \
-    /tmp/dali_deps/build_scripts/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/DALI_DEPS_VERSION
+# run in /bin/bash to have more advanced features supported like list
+RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI_DEPS_VERSION)}    && \
+    git clone ${DALI_DEPS_REPO} /tmp/dali_deps                                                     && \
+    cd /tmp/dali_deps                                                                              && \
+    git submodule init                                                                             && \
+    git checkout ${DALI_DEPS_VERSION_SHA}                                                          && \
+    git submodule update --depth 1 --recursive                                                     && \
+    export CC_COMP=${CC}                                                                           && \
+    export CXX_COMP=${CXX}                                                                         && \
+    /tmp/dali_deps/build_scripts/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/DALI_DEPS_VERSION'
 
 # Clang, but only for x86_64
 RUN if [ "$(uname -m)" == "x86_64" ]; then \
