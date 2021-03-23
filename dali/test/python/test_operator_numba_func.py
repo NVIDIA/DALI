@@ -5,6 +5,7 @@ from numba import cfunc, types, carray
 from nvidia.dali import pipeline_def
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
+import nvidia.dali.types as dali_types
 from test_utils import get_dali_extra_path
 
 test_data_root = get_dali_extra_path()
@@ -96,14 +97,14 @@ def test_numba_func():
         yield _testimpl_numba_func, shape, dtype, fn_ptr, setup_fn, expected_out
 
 @pipeline_def
-def numba_func_image_pipe(fn_ptr=None):
+def numba_func_image_pipe(fn_ptr=None, setup_fn=None):
     files, _ = dali.fn.readers.caffe(path=lmdb_folder)
     images_in = dali.fn.decoders.image(files, device="cpu")
-    images_out = dali.fn.experimental.numba_func(images_in, fn_ptr=fn_ptr)
+    images_out = dali.fn.experimental.numba_func(images_in, fn_ptr=fn_ptr, setup_fn=setup_fn)
     return images_in, images_out
 
-def _testimpl_numba_func_image(fn_ptr, transform):
-    pipe = numba_func_image_pipe(batch_size=8, num_threads=1, device_id=0, fn_ptr=fn_ptr)
+def _testimpl_numba_func_image(fn_ptr, setup_fn, transform):
+    pipe = numba_func_image_pipe(batch_size=8, num_threads=1, device_id=0, fn_ptr=fn_ptr, setup_fn=setup_fn)
     pipe.build()
     for _ in range(3):
         images_in, images_out = pipe.run()
@@ -119,9 +120,31 @@ def reverse_col(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
     out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
     out_arr[:] = 255 - in_arr[:]
 
+@cfunc(fun1_sig, nopython=False)
+def rot_image(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
+    out_shape = carray(out_shape_ptr, ndim)
+    in_shape = carray(in_shape_ptr, ndim)
+    in_arr = carray(in_ptr, (in_shape[0], in_shape[1], in_shape[2]))
+    out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
+    for i in range(out_shape[0]):
+        for j in range(out_shape[1]):
+            out_arr[i][j] = in_arr[j][out_shape[0] - i - 1]
+
+@cfunc(setup1_sig, nopython=True)
+def rot_image_setup(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples, num_outputs, num_inputs):
+    in_arr = carray(in_shape_ptr, num_samples * out1_ndim)
+    out_arr = carray(out_shape_ptr, num_samples * in1_ndim)
+    out_type = carray(out_dtype, 1)
+    out_type[0] = in_dtype
+    for i in range(0, num_samples * out1_ndim, 3):
+        out_arr[i] = in_arr[i + 1]
+        out_arr[i + 1] = in_arr[i]
+        out_arr[i + 2] = in_arr[i + 2]
+
 def test_numba_func_image():
     args = [
-        (reverse_col.address, lambda x: 255 - x),
+        (reverse_col.address, None, lambda x: 255 - x),
+        (rot_image.address, rot_image_setup.address, lambda x: np.rot90(x)),
     ]
-    for fn_ptr, transform in args:
-        yield _testimpl_numba_func_image, fn_ptr, transform
+    for fn_ptr, setup_fn, transform in args:
+        yield _testimpl_numba_func_image, fn_ptr, setup_fn, transform
