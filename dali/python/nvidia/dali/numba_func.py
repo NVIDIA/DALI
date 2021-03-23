@@ -11,3 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+def dali_numba_setup_fn_sig(num_outputs, num_inputs, ndim, output_dtypes, input_dtypes):
+    assert num_inputs == len(input_dtypes)
+    assert num_outputs == len(output_dtypes)
+
+    
