@@ -116,24 +116,24 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   };
 
   struct PerStreamFreeBlocks {
-    using size_addr = std::pair<size_t, char *>;
+    using size_pending = std::pair<size_t, pending_free *>;
 
-    detail::pooled_map<char *, pending_free*, true> by_addr;
-    detail::pooled_set<size_addr, true> by_size;
+    detail::pooled_set<size_pending, true> by_size;
     PendingFreeList free_list;
   };
 
   void *try_allocate(PerStreamFreeBlocks &from, size_t bytes, size_t alignment) {
     for (auto it = from.by_size.lower_bound({ bytes, nullptr }); it != from.by_size.end(); ++it) {
       size_t block_size = it->first;
-      char *base = it->second;
+      pending_free *f = it->second;
+      char *base = f->addr;
       char *aligned = detail::align_ptr(base, alignment);
       size_t front_padding = aligned - base;
       assert(static_cast<ptrdiff_t>(front_padding) >= 0);
       // NOTE: block_size - front_padding >= size  can overflow and fail - meh, unsigned size_t
       if (block_size >= bytes + front_padding) {
         from.by_size.erase(it);
-        remove_pending_free(from, base, false);
+        remove_pending_free(from, f, false);
         if (block_size != bytes) {
           padded_[aligned] = { block_size,
                                static_cast<int>(front_padding),
@@ -218,8 +218,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     //print(std::cerr, "deallocate_async_impl ", (void*)ptr, " ", bytes, " ", alignment, "\n");
     auto *pending = add_pending_free(free.free_list, ptr, bytes, alignment, stream);
     try {
-      free.by_size.insert({bytes, ptr});
-      free.by_addr.insert({ptr, pending});
+      free.by_size.insert({bytes, pending});
     } catch (...) {
       remove_pending_free(free.free_list, pending);
       throw;
@@ -261,25 +260,10 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     return f;
   }
 
-  void remove_pending_free(PerStreamFreeBlocks &free, char *base, bool remove_by_size = true) {
-    auto it = free.by_addr.find(base);
-    assert(it != free.by_addr.end());
+  pending_free *remove_pending_free(PerStreamFreeBlocks &free, pending_free *f,
+                                    bool remove_by_size = true) {
     if (remove_by_size)
-      free.by_size.erase({ it->second->bytes, base });
-    remove_pending_free(free.free_list, it->second);
-    free.by_addr.erase(it);
-  }
-
-  void remove_pending_free(PendingFreeList &free, char *base) {
-    auto it = free.by_addr.find(base);
-    assert(it != free.by_addr.end());
-    pending_free *f = it->second;
-    remove_pending_free(free, f);
-  }
-
-  pending_free *remove_pending_free(PerStreamFreeBlocks &free, pending_free *f) {
-    free.by_addr.erase(f->addr);
-    free.by_size.erase({ f->bytes, f->addr });
+      free.by_size.erase({ f->bytes, f });
     return remove_pending_free(free.free_list, f);
   }
 
