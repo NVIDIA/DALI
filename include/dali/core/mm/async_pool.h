@@ -25,8 +25,6 @@
 namespace dali {
 namespace mm {
 
-
-
 template <memory_kind kind, class FreeList, class LockType, class Upstream = memory_resource<kind>>
 class async_pool_base : public stream_aware_memory_resource<kind> {
  public:
@@ -34,11 +32,13 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   }
  private:
   void *do_allocate(size_t bytes, size_t alignment) override {
+    adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
     return global_pool_.allocate(bytes, alignment);
   }
 
   void do_deallocate(void *mem, size_t bytes, size_t alignment) override {
+    adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
     return global_pool_.deallocate(mem, bytes, alignment);
   }
@@ -61,6 +61,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
    * may be sufficient
    */
   void *do_allocate_async(size_t bytes, size_t alignment, stream_view stream) override {
+    adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
     auto it = stream_free_.find(stream.value());
     void *ptr;
@@ -69,30 +70,45 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
       if (ptr)
         return ptr;
     }
-    if (num_pending_frees_ == 0)
-      return global_pool_.allocate(bytes, alignment);
+    if (num_pending_frees_ == 0) {
+      ptr = global_pool_.allocate(bytes, alignment);
+    }
     ptr = global_pool_.try_allocate_from_free(bytes, alignment);
     if (ptr)
       return ptr;
     for (auto &kv : stream_free_)
       free_pending(kv.second);
-    return global_pool_.allocate(bytes, alignment);
+    ptr = global_pool_.allocate(bytes, alignment);
+    return ptr;
   }
 
   void do_deallocate_async(void *mem, size_t bytes, size_t alignment, stream_view stream) override {
+    adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char*>(mem);
     restore_original_params(ptr, bytes, alignment);
     deallocate_async_impl(stream_free_[stream.value()], ptr, bytes, alignment, stream.value());
   }
 
+  static void adjust_size_and_alignment(size_t &size, size_t &alignment) {
+    if (size == 0)
+      return;
+    int l = ilog2(size);
+    size_t min_align = (1 << (l >> 1));  // 2^(l/2)
+    if (min_align > 256)
+      min_align = 256;
+    if (min_align > alignment)
+      alignment = min_align;
+    size = align_up(size, alignment);
+  }
+
   /// @brief Information about a pending `free` operation
   struct pending_free {
-    char           *addr;
-    size_t          bytes;
-    size_t          alignment;
+    char           *addr = nullptr;
+    size_t          bytes = 0;
+    size_t          alignment = alignof(std::max_align_t);
     CUDAEvent       event;
-    pending_free   *prev, *next;
+    pending_free   *prev = nullptr, *next = nullptr;
   };
 
   struct PendingFreeList {
@@ -118,11 +134,9 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
       if (block_size >= bytes + front_padding) {
         from.by_size.erase(it);
         remove_pending_free(from, base, false);
-        size_t back_padding = block_size - bytes - front_padding;
-        assert(static_cast<ptrdiff_t>(back_padding) >= 0);
-        if (front_padding || back_padding) {
+        if (block_size != bytes) {
           padded_[aligned] = { block_size,
-                               static_cast<int>(aligned-base),
+                               static_cast<int>(front_padding),
                                static_cast<int>(alignment) };
         }
         return aligned;
@@ -148,6 +162,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   }
 
   pending_free *find_first_ready(PerStreamFreeBlocks &free) {
+    //print(std::cerr, "Find first ready\n");
     SmallVector<pending_free *, 128> pending;
     int step = 1;
     pending_free *f = free.free_list.head;
@@ -162,14 +177,24 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
         pending.push_back(f);
       }
     }
-    if (pending.empty())
+    if (pending.empty()) {
+      if (f) {
+        assert(ready(f->event));
+        assert(!f->prev || !ready(f->prev->event));
+      }
       return f;
+    }
     auto it = std::partition_point(pending.begin(), pending.end(), [&](pending_free *f) {
       return !ready(f->event);
     });
-    if (it == pending.end())
+    if (it == pending.end()) {
+      assert(!free.free_list.tail || !ready(free.free_list.tail->event));
       return nullptr;
-    return *it;
+    }
+    f = *it;
+    assert(ready(f->event));
+    assert(!f->prev || !ready(f->prev->event));
+    return f;
   }
 
   void free_pending(PerStreamFreeBlocks &free) {
@@ -183,16 +208,22 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     }
     while (f) {
       global_pool_.deallocate(f->addr, f->bytes, f->alignment);
-      f = remove_pending_free(free.free_list, f);
+      f = remove_pending_free(free, f);
     }
 
   }
 
   void deallocate_async_impl(PerStreamFreeBlocks &free, char *ptr, size_t bytes, size_t alignment,
                              cudaStream_t stream) {
+    //print(std::cerr, "deallocate_async_impl ", (void*)ptr, " ", bytes, " ", alignment, "\n");
     auto *pending = add_pending_free(free.free_list, ptr, bytes, alignment, stream);
-    free.by_size.insert({bytes, ptr});
-    free.by_addr.insert({ptr, pending});
+    try {
+      free.by_size.insert({bytes, ptr});
+      free.by_addr.insert({ptr, pending});
+    } catch (...) {
+      remove_pending_free(free.free_list, pending);
+      throw;
+    }
   }
 
   void restore_original_params(char *&p, size_t &bytes, size_t &alignment) {
@@ -202,6 +233,8 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
         throw std::invalid_argument("The deallocated memory points to a block that's smaller than "
           "the size being freed. Check the size of the memory region being freed.");
       }
+      //print(std::cerr, "Restoring original parameters:\n"
+      //  "   current:  ", (void*)p, " ", bytes, " ", alignment, "\n");
       p -= it->second.front_padding;
       bytes = it->second.bytes;
       alignment = it->second.alignment;
@@ -212,11 +245,14 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   auto *add_pending_free(PendingFreeList &free, char *base, size_t bytes, size_t alignment,
                          cudaStream_t stream) {
     pending_free *f = FreeDescAlloc::allocate(1);
-    new (f)pending_free();
+    f = new (f)pending_free();
     f->addr = base;
     f->bytes = bytes;
     f->alignment = alignment;
+    f->prev = nullptr;
     f->next = free.head;
+    if (f->next)
+      f->next->prev = f;
     free.head = f;
     if (!free.tail) free.tail = f;
     f->event = event_pool_.Get();
@@ -243,7 +279,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
 
   pending_free *remove_pending_free(PerStreamFreeBlocks &free, pending_free *f) {
     free.by_addr.erase(f->addr);
-    free.by_size.erase(f->bytes);
+    free.by_size.erase({ f->bytes, f->addr });
     return remove_pending_free(free.free_list, f);
   }
 
@@ -258,6 +294,16 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     if (prev) prev->next = next;
     if (next) next->prev = prev;
     *f = {};
+#if 0  // check list consistency
+    assert(!free.head || !free.head->prev);
+    assert(!free.tail || !free.tail->next);
+    for (auto *x = free.head; x; x = x->next) {
+      assert(!x->next || x->next->prev == x);
+      assert(!x->prev || x->prev->next == x);
+      assert(x != f);
+      assert(x->next || x == free.tail);
+    }
+#endif
     f->~pending_free();
     FreeDescAlloc::deallocate(f, 1);
     num_pending_frees_--;
@@ -271,7 +317,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     int alignment;
   };
 
-  detail::pooled_map<char *, padded_block> padded_;
+  detail::pooled_map<char *, padded_block, true> padded_;
 
   std::unordered_map<cudaStream_t, PerStreamFreeBlocks> stream_free_;
   int num_pending_frees_ = 0;
