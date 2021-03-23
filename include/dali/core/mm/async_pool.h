@@ -118,6 +118,9 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   struct PerStreamFreeBlocks {
     using size_pending = std::pair<size_t, pending_free *>;
 
+    PerStreamFreeBlocks() = default;
+    PerStreamFreeBlocks(const PerStreamFreeBlocks &) = delete;
+
     detail::pooled_set<size_pending, true> by_size;
     PendingFreeList free_list;
   };
@@ -162,7 +165,6 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   }
 
   pending_free *find_first_ready(PerStreamFreeBlocks &free) {
-    //print(std::cerr, "Find first ready\n");
     SmallVector<pending_free *, 128> pending;
     int step = 1;
     pending_free *f = free.free_list.head;
@@ -215,7 +217,6 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
 
   void deallocate_async_impl(PerStreamFreeBlocks &free, char *ptr, size_t bytes, size_t alignment,
                              cudaStream_t stream) {
-    //print(std::cerr, "deallocate_async_impl ", (void*)ptr, " ", bytes, " ", alignment, "\n");
     auto *pending = add_pending_free(free.free_list, ptr, bytes, alignment, stream);
     try {
       free.by_size.insert({bytes, pending});
@@ -232,8 +233,6 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
         throw std::invalid_argument("The deallocated memory points to a block that's smaller than "
           "the size being freed. Check the size of the memory region being freed.");
       }
-      //print(std::cerr, "Restoring original parameters:\n"
-      //  "   current:  ", (void*)p, " ", bytes, " ", alignment, "\n");
       p -= it->second.front_padding;
       bytes = it->second.bytes;
       alignment = it->second.alignment;
