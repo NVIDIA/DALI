@@ -27,6 +27,7 @@ DALI_SCHEMA(experimental__NumbaFunc)
   .AddArg("fn_ptr", R"code(Numba function pointer.
   
 The function should be a Numba C callback function (annotated with cfunc) with the following function signature::
+
   types.void(
     types.CPointer(OUTPUT_DTYPE), # Pointer to output sample
     types.CPointer(types.int64),  # Pointer to output sample shape
@@ -34,10 +35,12 @@ The function should be a Numba C callback function (annotated with cfunc) with t
     types.CPointer(types.int64),  # Pointer to input sample shape
     types.int32                   # Number of sample dimensions
   )
+
 )code", DALI_INT64)
   .AddOptionalArg<int>("setup_fn", R"code(Pointer to function which should return output shape.
   
 The function should be a Numba C callback function (annotated with cfunc) with the following function signature::
+
   types.void(
     types.CPointer(types.int64), # Output batch shape pointer
     types.int32,                 # Number of dimensions in output shape
@@ -49,6 +52,7 @@ The function should be a Numba C callback function (annotated with cfunc) with t
     types.int32,                 # Number of outputs
     types.int32                  # Number of inputs
   )
+
 )code", 0);
 
 template <typename Backend>
