@@ -24,6 +24,7 @@ def set_all_values_to_float(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
     out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
     out_arr[:] = 0.5
 
+dali_int32 = int(dali_types.INT32)
 @cfunc(dali_numba.setup_fn_sig(1, 1, [types.int64], [types.int64]), nopython=True)
 def setup_fn1(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples, num_outputs, num_inputs):
     in_arr = carray(in_shape_ptr, num_samples * out1_ndim)
@@ -32,7 +33,7 @@ def setup_fn1(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dt
     for i in range(len(out_arr)):
         out_arr[i] = in_arr[perm[i]]
     out_type = carray(out_dtype, 1)
-    out_type[0] = 6
+    out_type[0] = dali_int32
 
 @cfunc(dali_numba.run_fn_sig(1, 1, [types.int32], [types.int64]), nopython=True)
 def change_out_shape(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
