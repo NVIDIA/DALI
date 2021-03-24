@@ -17,6 +17,8 @@ from numba import types
 
 def _populate_setup_args(types_list, is_input_args=False):
     ret = []
+
+    types_list = [types_list] if not isinstance(types_list, list) else types_list
     for type in types_list:
         ret.append(types.CPointer(type))
         ret.append(types.int32)
