@@ -21,6 +21,7 @@
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/cuda_event_pool.h"
+#include "dali/core/cuda_stream.h"
 
 namespace dali {
 namespace mm {
@@ -30,6 +31,34 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
  public:
   async_pool_base(Upstream *upstream) : global_pool_(upstream) {
   }
+  ~async_pool_base() {
+    try {
+      synchronize();
+    } catch (const CUDAError &e) {
+      if ((e.is_rt_api() && e.rt_error() != cudaErrorCudartUnloading) ||
+          (e.is_drv_api() && e.drv_error() != CUDA_ERROR_DEINITIALIZED))
+        std::terminate();
+    }
+  }
+
+  /**
+   * @brief Waits until all pending frees are finished.
+   */
+  void synchronize() {
+    {
+      std::lock_guard<LockType> guard(lock_);
+      for (auto &kv : stream_free_) {
+        if (!kv.second.free_list.head)
+          continue;
+        if (!sync_stream_)
+          sync_stream_ = CUDAStream::Create(true);
+        CUDA_DTOR_CALL(cudaStreamWaitEvent(sync_stream_, kv.second.free_list.head->event, 0));
+      }
+    }
+    CUDA_DTOR_CALL(cudaStreamSynchronize(sync_stream_));
+
+  }
+
  private:
   void *do_allocate(size_t bytes, size_t alignment) override {
     adjust_size_and_alignment(bytes, alignment);
@@ -310,6 +339,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   LockType lock_;
 
   CUDAEventPool event_pool_;
+  CUDAStream sync_stream_;
 
   pool_resource_base<kind, any_context, FreeList, detail::dummy_lock> global_pool_;
 };
