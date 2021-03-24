@@ -13,20 +13,20 @@ test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
 @cfunc(dali_numba.run_fn_sig([types.uint8], [types.uint8]), nopython=True)
-def set_all_values_to_255(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
-    out_shape = carray(out_shape_ptr, ndim)
+def set_all_values_to_255(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
+    out_shape = carray(out_shape_ptr, ndim_out)
     out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
     out_arr[:] = 255
 
 @cfunc(dali_numba.run_fn_sig([types.float32], [types.float32]), nopython=True)
-def set_all_values_to_float(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
-    out_shape = carray(out_shape_ptr, ndim)
+def set_all_values_to_float(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
+    out_shape = carray(out_shape_ptr, ndim_out)
     out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
     out_arr[:] = 0.5
 
 dali_int32 = int(dali_types.INT32)
 @cfunc(dali_numba.setup_fn_sig([types.int64], [types.int64]), nopython=True)
-def setup_fn1(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples, num_outputs, num_inputs):
+def setup_fn1(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples):
     in_arr = carray(in_shape_ptr, num_samples * out1_ndim)
     out_arr = carray(out_shape_ptr, num_samples * in1_ndim)
     perm = [1, 2, 0, 5, 3, 4]
@@ -36,8 +36,8 @@ def setup_fn1(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dt
     out_type[0] = dali_int32
 
 @cfunc(dali_numba.run_fn_sig([types.int32], [types.int64]), nopython=True)
-def change_out_shape(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
-    out_shape = carray(out_shape_ptr, ndim)
+def change_out_shape(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
+    out_shape = carray(out_shape_ptr, ndim_out)
     out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
     out_arr[:] = 42
 
@@ -87,17 +87,17 @@ def _testimpl_numba_func_image(fn_ptr, setup_fn, transform):
             assert np.array_equal(image_in_transformed, images_out.at(i))
 
 @cfunc(dali_numba.run_fn_sig([types.uint8], [types.uint8]), nopython=True)
-def reverse_col(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
-    out_shape = carray(out_shape_ptr, ndim)
-    in_shape = carray(in_shape_ptr, ndim)
+def reverse_col(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
+    out_shape = carray(out_shape_ptr, ndim_out)
+    in_shape = carray(in_shape_ptr, ndim_in)
     in_arr = carray(in_ptr, (in_shape[0], in_shape[1], in_shape[2]))
     out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
     out_arr[:] = 255 - in_arr[:]
 
 @cfunc(dali_numba.run_fn_sig([types.uint8], [types.uint8]), nopython=False)
-def rot_image(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
-    out_shape = carray(out_shape_ptr, ndim)
-    in_shape = carray(in_shape_ptr, ndim)
+def rot_image(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
+    out_shape = carray(out_shape_ptr, ndim_out)
+    in_shape = carray(in_shape_ptr, ndim_in)
     in_arr = carray(in_ptr, (in_shape[0], in_shape[1], in_shape[2]))
     out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
     for i in range(out_shape[0]):
@@ -105,7 +105,7 @@ def rot_image(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
             out_arr[i][j] = in_arr[j][out_shape[0] - i - 1]
 
 @cfunc(dali_numba.setup_fn_sig([types.int64], [types.int64]), nopython=True)
-def rot_image_setup(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples, num_outputs, num_inputs):
+def rot_image_setup(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples):
     in_arr = carray(in_shape_ptr, num_samples * out1_ndim)
     out_arr = carray(out_shape_ptr, num_samples * in1_ndim)
     out_type = carray(out_dtype, 1)

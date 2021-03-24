@@ -21,13 +21,15 @@ DALI_SCHEMA(experimental__NumbaFunc)
   .DocStr(R"code(Invokes a compiled Numba function passed as a pointer.
 
 .. note::
-    This operator is experimental and its API might change without notice.)code")
+    This operator is experimental and its API might change without notice.
+    
+)code")
   .NumInput(1)
   .NumOutput(1)
   .Unserializable()
   .AddArg("fn_ptr", R"code(Numba function pointer.
   
-The function should be a Numba C callback function (annotated with cfunc) with the following function signature::
+The function should be a Numba C callback function (annotated with cfunc)
 
   types.void(
     types.CPointer(OUTPUT_DTYPE), # Pointer to output sample
@@ -80,10 +82,9 @@ void NumbaFunc<CPUBackend>::RunUserSetupFunc(std::vector<OutputDesc> &output_des
   output_shape.resize(N, ndim);
   DALIDataType out_type = DALIDataType::DALI_NO_TYPE;
   DALIDataType in_type = in.type().id();
-  ((void (*)(void*, int32_t, void*, const void*, int32_t,
-    int32_t, int32_t, int64_t, int64_t))setup_fn_)(
+  ((void (*)(void*, int32_t, void*, const void*, int32_t, int32_t, int32_t))setup_fn_)(
       output_shape.tensor_shape_span(0).data(), ndim, &out_type,
-      in_shape.tensor_shape_span(0).data(), ndim, in_type, N, 1, 1);
+      in_shape.tensor_shape_span(0).data(), ndim, in_type, N);
 
   DALI_ENFORCE(out_type != DALIDataType::DALI_NO_TYPE,
     "Output type was not set by the custom setup function.");
@@ -116,10 +117,13 @@ void NumbaFunc<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
 
   for (int sample_id = 0; sample_id < in_shape.num_samples(); sample_id++) {
     tp.AddWork([&, fn_ptr = fn_ptr_, sample_id](int thread_id) {
-      ((void (*)(void*, const void*, const void*, const void*, int32_t))fn_ptr)(
-        out[sample_id].raw_mutable_data(), out_shape.tensor_shape_span(sample_id).data(),
-        in[sample_id].raw_data(), in_shape.tensor_shape_span(sample_id).data(),
-        out_shape.sample_dim());
+      ((void (*)(void*, const void*, int32_t, const void*, const void*, int32_t))fn_ptr)(
+        out[sample_id].raw_mutable_data(),
+        out_shape.tensor_shape_span(sample_id).data(),
+        out_shape.sample_dim(),
+        in[sample_id].raw_data(),
+        in_shape.tensor_shape_span(sample_id).data(),
+        in_shape.sample_dim());
     }, out_shape.tensor_size(sample_id));
   }
   tp.RunAll();

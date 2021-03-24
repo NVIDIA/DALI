@@ -26,8 +26,7 @@ def _populate_setup_args(types_list, is_input_args=False):
 def setup_fn_sig(output_dtypes, input_dtypes):
     args_list = _populate_setup_args(output_dtypes)
     args_list += _populate_setup_args(input_dtypes, True)
-    for i in range(3):
-        args_list.append(types.int32)
+    args_list.append(types.int32)
     return types.void(*args_list)
 
 def _populate_run_args(types_list):
@@ -35,10 +34,10 @@ def _populate_run_args(types_list):
     for type in types_list:
         ret.append(types.CPointer(type))
         ret.append(types.CPointer(types.int64))
+        ret.append(types.int32)
     return ret
 
 def run_fn_sig(output_dtypes, input_dtypes):
     args_list = _populate_run_args(output_dtypes)
     args_list += _populate_run_args(input_dtypes)
-    args_list.append(types.int32)
     return types.void(*args_list)
