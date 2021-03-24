@@ -15,7 +15,7 @@
 
 from numba import types
 
-def _populate_args(types_list, is_input_args=False):
+def _populate_setup_args(types_list, is_input_args=False):
     ret = []
     for type in types_list:
         ret.append(types.CPointer(type))
@@ -23,12 +23,28 @@ def _populate_args(types_list, is_input_args=False):
         ret.append(types.int32 if is_input_args else types.CPointer(types.int32))
     return ret
 
-def dali_numba_setup_fn_sig(num_outputs, output_dtypes, num_inputs, input_dtypes):
+def setup_fn_sig(num_outputs, num_inputs, output_dtypes, input_dtypes):
     assert num_outputs == len(output_dtypes)
     assert num_inputs == len(input_dtypes)
     
-    args_list = _populate_args(output_dtypes)
-    args_list += _populate_args(input_dtypes, True)
+    args_list = _populate_setup_args(output_dtypes)
+    args_list += _populate_setup_args(input_dtypes, True)
     for i in range(3):
         args_list.append(types.int32)
+    return types.void(*args_list)
+
+def _populate_run_args(types_list):
+    ret = []
+    for type in types_list:
+        ret.append(types.CPointer(type))
+        ret.append(types.CPointer(types.int64))
+    return ret
+
+def run_fn_sig(num_outputs, num_inputs, output_dtypes, input_dtypes):
+    assert num_outputs == len(output_dtypes)
+    assert num_inputs == len(input_dtypes)
+
+    args_list = _populate_run_args(output_dtypes)
+    args_list += _populate_run_args(input_dtypes)
+    args_list.append(types.int32)
     return types.void(*args_list)
