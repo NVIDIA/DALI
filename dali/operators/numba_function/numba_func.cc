@@ -20,45 +20,35 @@ namespace dali {
 DALI_SCHEMA(experimental__NumbaFunc)
   .DocStr(R"code(Invokes a compiled Numba function passed as a pointer.
 
+The run function should be a Numba C callback function (annotated with cfunc) with the following definition:
+
+.. code-block:: python
+
+    @cfunc(run_fn_sig([out_numba_types], [in_numba_types]), nopython=True)
+    def callback_func(out1_ptr, out1_shape_ptr, out1_shape_ndim, in1_ptr, in1_shape_ptr, in1_shape_ndim)
+
+Additionally, an optional setup function with the following definition:
+
+.. code-block:: python
+
+    @cfunc(setup_fn_sig([out_numba_types], [in_numba_types]), nopython=True)
+    def callback_func(out1_shape_ptr, out1_ndim, out_dtype_ptr, in1_shape_ptr, in1_ndim, in1_dtype, num_samples)
+
+Setup function is If no setup function provided, the output shape and data type will be the same as the input.
+
+``out_numba_types`` and ``in_numba_types`` refer to the numba data types (numba.types) 
+of the output and input, respectively.
+
 .. note::
     This operator is experimental and its API might change without notice.
-    
+
 )code")
   .NumInput(1)
   .NumOutput(1)
   .Unserializable()
-  .AddArg("fn_ptr", R"code(Numba function pointer.
-  
-The function should be a Numba C callback function (annotated with cfunc)
-
-  types.void(
-    types.CPointer(OUTPUT_DTYPE), # Pointer to output sample
-    types.CPointer(types.int64),  # Pointer to output sample shape
-    types.CPointer(INPUT_DTYPE),  # Pointer to input sample
-    types.CPointer(types.int64),  # Pointer to input sample shape
-    types.int32                   # Number of sample dimensions
-  )
-
-)code", DALI_INT64)
-  .AddOptionalArg<int>("setup_fn", R"code(Pointer to function which should return output shape.
-
-If the setup function isn't provided then it's assumed output shape and type is the same as input.
-  
-The function should be a Numba C callback function (annotated with cfunc) with the following function signature::
-
-  types.void(
-    types.CPointer(types.int64), # Output batch shape pointer
-    types.int32,                 # Number of dimensions in output shape
-    types.CPointer(types.int32), # Output dtype pointer
-    types.CPointer(types.int64), # Input batch shape pointer
-    types.int32,                 # Number of dimensions in input shape
-    types.int32,                 # Input dtype
-    types.int32,                 # Number of samples in the batch
-    types.int32,                 # Number of outputs
-    types.int32                  # Number of inputs
-  )
-
-)code", 0);
+  .AddArg("fn_ptr", R"code(Numba function pointer.)code", DALI_INT64)
+  .AddOptionalArg<int>("setup_fn", R"code(Pointer to a function used to determine the 
+output shape and data type based on the input.)code", 0);
 
 template <typename Backend>
 NumbaFunc<Backend>::NumbaFunc(const OpSpec &spec) : Base(spec) {
