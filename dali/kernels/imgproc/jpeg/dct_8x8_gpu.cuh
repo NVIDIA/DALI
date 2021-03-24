@@ -25,13 +25,13 @@ namespace kernels {
 // https://docs.nvidia.com/cuda/samples/3_Imaging/dct8x8/doc/dct8x8.pdf
 
 
-static constexpr float a = 1.387039845322148f; // sqrt(2) * cos(    pi / 16);
-static constexpr float b = 1.306562964876377f; // sqrt(2) * cos(    pi /  8);
-static constexpr float c = 1.175875602419359f; // sqrt(2) * cos(3 * pi / 16);
-static constexpr float d = 0.785694958387102f; // sqrt(2) * cos(5 * pi / 16);
-static constexpr float e = 0.541196100146197f; // sqrt(2) * cos(3 * pi /  8);
-static constexpr float f = 0.275899379282943f; // sqrt(2) * cos(7 * pi / 16);
-static constexpr float norm_factor = 0.3535533905932737f; // 1 / sqrt(8)
+static constexpr float a = 1.387039845322148f;             // sqrt(2) * cos(    pi / 16);
+static constexpr float b = 1.306562964876377f;             // sqrt(2) * cos(    pi /  8);
+static constexpr float c = 1.175875602419359f;             // sqrt(2) * cos(3 * pi / 16);
+static constexpr float d = 0.785694958387102f;             // sqrt(2) * cos(5 * pi / 16);
+static constexpr float e = 0.541196100146197f;             // sqrt(2) * cos(3 * pi /  8);
+static constexpr float f = 0.275899379282943f;             // sqrt(2) * cos(7 * pi / 16);
+static constexpr float norm_factor = 0.3535533905932737f;  // 1 / sqrt(8)
 
 template <int stride>
 __inline__ __device__
@@ -45,30 +45,30 @@ void dct_fwd_8x8_1d(float* data) {
   float x6 = data[6 * stride];
   float x7 = data[7 * stride];
 
-  float x07p = x0 + x7;
-  float x16p = x1 + x6;
-  float x25p = x2 + x5;
-  float x34p = x3 + x4;
+  float tmp0 = x0 + x7;
+  float tmp1 = x1 + x6;
+  float tmp2 = x2 + x5;
+  float tmp3 = x3 + x4;
 
-  float x07m = x0 - x7;
-  float x61m = x6 - x1;
-  float x25m = x2 - x5;
-  float x43m = x4 - x3;
+  float tmp4 = x0 - x7;
+  float tmp5 = x6 - x1;
+  float tmp6 = x2 - x5;
+  float tmp7 = x4 - x3;
 
-  float x07p34pp = x07p + x34p;
-  float x07p34pm = x07p - x34p;
-  float x16p25pp = x16p + x25p;
-  float x16p25pm = x16p - x25p;
+  float tmp8 = tmp0 + tmp3;
+  float tmp9 = tmp0 - tmp3;
+  float tmp10 = tmp1 + tmp2;
+  float tmp11 = tmp1 - tmp2;
 
-  x0 = norm_factor * (x07p34pp + x16p25pp);
-  x2 = norm_factor * (b * x07p34pm + e * x16p25pm);
-  x4 = norm_factor * (x07p34pp - x16p25pp);
-  x6 = norm_factor * (e * x07p34pm - b * x16p25pm);
+  x0 = norm_factor * (tmp8 + tmp10);
+  x2 = norm_factor * (b * tmp9 + e * tmp11);
+  x4 = norm_factor * (tmp8 - tmp10);
+  x6 = norm_factor * (e * tmp9 - b * tmp11);
 
-  x1 = norm_factor * (a * x07m - c * x61m + d * x25m - f * x43m);
-  x3 = norm_factor * (c * x07m + f * x61m - a * x25m + d * x43m);
-  x5 = norm_factor * (d * x07m + a * x61m + f * x25m - c * x43m);
-  x7 = norm_factor * (f * x07m + d * x61m + c * x25m + a * x43m);
+  x1 = norm_factor * (a * tmp4 - c * tmp5 + d * tmp6 - f * tmp7);
+  x3 = norm_factor * (c * tmp4 + f * tmp5 - a * tmp6 + d * tmp7);
+  x5 = norm_factor * (d * tmp4 + a * tmp5 + f * tmp6 - c * tmp7);
+  x7 = norm_factor * (f * tmp4 + d * tmp5 + c * tmp6 + a * tmp7);
 
   data[0 * stride] = x0;
   data[1 * stride] = x1;
@@ -82,7 +82,7 @@ void dct_fwd_8x8_1d(float* data) {
 
 template <int stride>
 __inline__ __device__
- void dct_inv_8x8_1d(float *data) {
+void dct_inv_8x8_1d(float *data) {
   float x0 = data[0 * stride];
   float x1 = data[1 * stride];
   float x2 = data[2 * stride];
@@ -92,31 +92,31 @@ __inline__ __device__
   float x6 = data[6 * stride];
   float x7 = data[7 * stride];
 
-  float x04p   = x0 + x4;
-  float x2b6ep = b * x2 + e * x6;
+  float tmp0 = x0 + x4;
+  float tmp1 = b * x2 + e * x6;
 
-  float x04p2b6epp = x04p + x2b6ep;
-  float x04p2b6epm = x04p - x2b6ep;
-  float x7f1ap3c5dpp = f * x7 + a * x1 + c * x3 + d * x5;
-  float x7a1fm3d5cmp = a * x7 - f * x1 + d * x3 - c * x5;
+  float tmp2 = tmp0 + tmp1;
+  float tmp3 = tmp0 - tmp1;
+  float tmp4 = f * x7 + a * x1 + c * x3 + d * x5;
+  float tmp5 = a * x7 - f * x1 + d * x3 - c * x5;
 
-  float x04m   = x0 - x4;
-  float x2e6bm = e * x2 - b * x6;
+  float tmp6 = x0 - x4;
+  float tmp7 = e * x2 - b * x6;
 
-  float x04m2e6bmp = x04m + x2e6bm;
-  float x04m2e6bmm = x04m - x2e6bm;
-  float x1c7dm3f5apm = c * x1 - d * x7 - f * x3 - a * x5;
-  float x1d7cp3a5fmm = d * x1 + c * x7 - a * x3 + f * x5;
+  float tmp8 = tmp6 + tmp7;
+  float tmp9 = tmp6 - tmp7;
+  float tmp10 = c * x1 - d * x7 - f * x3 - a * x5;
+  float tmp11 = d * x1 + c * x7 - a * x3 + f * x5;
 
-  x0 = norm_factor * (x04p2b6epp + x7f1ap3c5dpp);
-  x7 = norm_factor * (x04p2b6epp - x7f1ap3c5dpp);
-  x4 = norm_factor * (x04p2b6epm + x7a1fm3d5cmp);
-  x3 = norm_factor * (x04p2b6epm - x7a1fm3d5cmp);
+  x0 = norm_factor * (tmp2 + tmp4);
+  x7 = norm_factor * (tmp2 - tmp4);
+  x4 = norm_factor * (tmp3 + tmp5);
+  x3 = norm_factor * (tmp3 - tmp5);
 
-  x1 = norm_factor * (x04m2e6bmp + x1c7dm3f5apm);
-  x5 = norm_factor * (x04m2e6bmm - x1d7cp3a5fmm);
-  x2 = norm_factor * (x04m2e6bmm + x1d7cp3a5fmm);
-  x6 = norm_factor * (x04m2e6bmp - x1c7dm3f5apm);
+  x1 = norm_factor * (tmp8 + tmp10);
+  x5 = norm_factor * (tmp9 - tmp11);
+  x2 = norm_factor * (tmp9 + tmp11);
+  x6 = norm_factor * (tmp8 - tmp10);
 
   data[0 * stride] = x0;
   data[1 * stride] = x1;

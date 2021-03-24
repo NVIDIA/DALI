@@ -14,17 +14,19 @@
 
 #include <cuda_runtime_api.h>
 #include <gtest/gtest.h>
-#include <opencv2/opencv.hpp>
-#include <vector>
 #include <cstdlib>
+#include <opencv2/opencv.hpp>
+#include <string>
+#include <vector>
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream.h"
+#include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu.cuh"
+#include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/pipeline/data/tensor_list.h"
+#include "dali/test/dali_test_config.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
-#include "dali/test/dali_test_config.h"
-#include "dali/kernels/test/kernel_test_utils.h"
-#include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu.cuh"
+#include "dali/util/image.h"
 
 #define DEBUG_LOGS 0
 
@@ -34,6 +36,16 @@ namespace test {
 
 using KernelPtr = void(*)(const SampleDesc *, const kernels::BlockDesc<2> *);
 using testing::dali_extra_path;
+
+cv::Mat rgb2bgr(const cv::Mat& img) {
+  cv::Mat bgr;
+  cv::cvtColor(img, bgr, cv::COLOR_RGB2BGR);
+  return bgr;
+}
+
+cv::Mat bgr2rgb(const cv::Mat& img) {
+  return rgb2bgr(img);
+}
 
 template <typename GTestParams>
 class JpegDistortionTestGPU : public ::testing::Test {
@@ -47,16 +59,12 @@ class JpegDistortionTestGPU : public ::testing::Test {
  public:
   void SetUp() final {
     if (use_real_images) {
-      std::vector<std::string> paths{
-        dali_extra_path() + "/db/single/bmp/0/cat-111793_640_palette_8bit.bmp",
-        dali_extra_path() + "/db/single/bmp/0/cat-1046544_640.bmp",
-        dali_extra_path() + "/db/single/bmp/0/cat-3591348_640.bmp",
-      };
+      std::vector<std::string> paths = ImageList(
+        testing::dali_extra_path() + "/db/single/bmp", {".bmp"}, 3);
       in_shapes_.resize(paths.size(), 3);
       std::vector<cv::Mat> images(paths.size());
       for (size_t i = 0; i < paths.size(); i++) {
-        images[i] = cv::imread(paths[i]);
-        cv::cvtColor(images[i], images[i], cv::COLOR_BGR2RGB);
+        images[i] = bgr2rgb(cv::imread(paths[i]));
         TensorShape<> sh{images[i].rows, images[i].cols, images[i].channels()};
         in_shapes_.set_tensor_shape(i, sh);
       }
@@ -115,8 +123,8 @@ class JpegDistortionTestGPU : public ::testing::Test {
       sample_desc.size.y = height;
       sample_desc.strides.x = 3;
       sample_desc.strides.y = width * 3;
-      sample_desc.luma_Q_table = luma_table;
-      sample_desc.chroma_Q_table = chroma_table;
+      sample_desc.luma_Q_table = luma_table_;
+      sample_desc.chroma_Q_table = chroma_table_;
     }
 
     block_setup_.SetBlockDim(dim3(32, 16, 1));
@@ -174,15 +182,11 @@ class JpegDistortionTestGPU : public ::testing::Test {
     auto in_view_cpu = in_.cpu();
     auto out_ref_cpu = out_ref_.cpu();
 
-    // In the kernel we average the RGB values, then converto to YCbCr
-    // while here we are first converting and then averaging
-    // Check(out_view_cpu, out_ref_cpu, EqualEps(40));
-
     for (size_t i = 0; i < in_shapes_.size(); i++) {
       auto sh = in_shapes_[i];
-      cv::Mat in_mat(sh[0], sh[1], CV_8UC3, (void *) in_view_cpu[i].data);
-      cv::Mat out_mat(sh[0], sh[1], CV_8UC3, (void *) out_view_cpu[i].data);
-      cv::Mat out_ref(sh[0], sh[1], CV_8UC3, (void *) out_ref_cpu[i].data);
+      cv::Mat in_mat(sh[0], sh[1], CV_8UC3, static_cast<void *>(in_view_cpu[i].data));
+      cv::Mat out_mat(sh[0], sh[1], CV_8UC3, static_cast<void *>out_view_cpu[i].data));
+      cv::Mat out_ref(sh[0], sh[1], CV_8UC3, static_cast<void *>out_ref_cpu[i].data));
       cv::Mat diff;
       cv::absdiff(out_mat, out_ref, diff);
 
@@ -199,21 +203,10 @@ class JpegDistortionTestGPU : public ::testing::Test {
         ss2 << "jpeg_distortion_test_" << i << "_out_ref.jpg";
         ss3 << "jpeg_distortion_test_" << i << "_out.bmp";
         ss4 << "jpeg_distortion_test_" << i << "_diff.bmp";
-        cv::cvtColor(in_mat, in_mat, cv::COLOR_RGB2BGR);
-        cv::imwrite(ss1.str(), in_mat);
-        cv::cvtColor(in_mat, in_mat, cv::COLOR_BGR2RGB);
-
-        cv::cvtColor(out_ref, out_ref, cv::COLOR_RGB2BGR);
-        cv::imwrite(ss2.str(), out_ref);
-        cv::cvtColor(out_ref, out_ref, cv::COLOR_BGR2RGB);
-
-        cv::cvtColor(out_mat, out_mat, cv::COLOR_RGB2BGR);
-        cv::imwrite(ss3.str(), out_mat);
-        cv::cvtColor(out_mat, out_mat, cv::COLOR_BGR2RGB);
-
-        cv::cvtColor(diff, diff, cv::COLOR_RGB2BGR);
-        cv::imwrite(ss4.str(), diff);
-        cv::cvtColor(diff, diff, cv::COLOR_BGR2RGB);
+        cv::imwrite(ss1.str(), rgb2bgr(in_mat));
+        cv::imwrite(ss2.str(), rgb2bgr(out_ref));
+        cv::imwrite(ss3.str(), rgb2bgr(out_mat));
+        cv::imwrite(ss4.str(), rgb2bgr(diff));
       }
 
       // Sanity check. Checking that the maximum pixel difference is small enough.
@@ -221,9 +214,9 @@ class JpegDistortionTestGPU : public ::testing::Test {
       auto mean = cv::mean(diff);
       double min_val, max_val;
       cv::minMaxLoc(diff, &min_val, &max_val);
-      EXPECT_LE(max_val, max_abs_error);
-      for (int d=0; d<3; d++)
-        EXPECT_LE(mean[d], max_avg_error);
+      EXPECT_LE(max_val, max_abs_error_);
+      for (int d = 0; d < 3; d++)
+        EXPECT_LE(mean[d], max_avg_error_);
     }
 
     CUDA_CALL(cudaFree(blocks_gpu));
@@ -313,35 +306,36 @@ class JpegDistortionTestGPU : public ::testing::Test {
     auto in_view_cpu = in_.cpu();
     for (size_t i = 0; i < in_shapes_.size(); i++) {
       auto sh = in_shapes_[i];
-      cv::Mat in_mat(sh[0], sh[1], CV_8UC3, (void *) in_view_cpu[i].data);
+      cv::Mat in_mat(sh[0], sh[1], CV_8UC3, static_cast<void *>(in_view_cpu[i].data));
 
       std::vector<uint8_t> encoded;
-
-      cv::cvtColor(in_mat, in_mat, cv::COLOR_RGB2BGR);
-      cv::imencode(".jpg", in_mat, encoded, {cv::IMWRITE_JPEG_QUALITY, ConvertSat<int>(quality_factor)});
-      cv::cvtColor(in_mat, in_mat, cv::COLOR_BGR2RGB);
+      cv::imencode(".jpg", rgb2bgr(in_mat), encoded,
+                   {cv::IMWRITE_JPEG_QUALITY, ConvertSat<int>(quality_factor)});
 
       cv::Mat encoded_mat(1, encoded.size(), CV_8UC1, encoded.data());
-      auto out_ref = cv::imdecode(encoded_mat, cv::IMREAD_COLOR);
-      cv::cvtColor(out_ref, out_ref, cv::COLOR_BGR2RGB);
+      auto out_ref = bgr2rgb(cv::imdecode(encoded_mat, cv::IMREAD_COLOR));
       std::memcpy(out_ref_view[i].data, out_ref.data,
                   in_shapes_.tensor_size(i) * sizeof(uint8_t));
     }
   }
 
-  void TestJpegCompressionDistortion() {
-    quality_factor = 5;
-    max_abs_error = vert_subsample && horz_subsample ? 80 : 100;
-    max_avg_error = vert_subsample && horz_subsample ? 3 : 10;
-    luma_table = GetLumaQuantizationTable(quality_factor);
-    chroma_table = GetChromaQuantizationTable(quality_factor);
+  void TestJpegCompressionDistortion(int quality) {
+    quality_factor = quality;
+    max_abs_error_ = vert_subsample && horz_subsample ? 80 : 128;
+    max_avg_error_ = vert_subsample && horz_subsample ? 3 : 10;
+    luma_table_ = GetLumaQuantizationTable(quality_factor);
+    chroma_table_ = GetChromaQuantizationTable(quality_factor);
     CalcOut_JpegCompressionDistortion();
     TestKernel(JpegCompressionDistortion<horz_subsample, vert_subsample>);
   }
 
+  void TestJpegCompressionDistortion_NoQuantization() {
+    // Chroma subsampling + DCT + IDCT (no quantization step)
+    CalcOut_ChromaSubsampleDistortion();
+    TestKernel(JpegCompressionDistortion<horz_subsample, vert_subsample, false>);
+  }
+
   void TestChromaSubsampleDistortion() {
-    max_abs_error = 5;
-    max_avg_error = 3;
     CalcOut_ChromaSubsampleDistortion();
     TestKernel(ChromaSubsampleDistortion<horz_subsample, vert_subsample>);
   }
@@ -357,11 +351,11 @@ class JpegDistortionTestGPU : public ::testing::Test {
   using BlockDesc = BlkSetup::BlockDesc;
 
   float quality_factor = 20.0f;
-  mat<8, 8, uint8_t> luma_table;
-  mat<8, 8, uint8_t> chroma_table;
+  mat<8, 8, uint8_t> luma_table_;
+  mat<8, 8, uint8_t> chroma_table_;
 
-  int max_abs_error = 100;
-  int max_avg_error = 10;
+  int max_abs_error_ = 5;
+  int max_avg_error_ = 3;
 };
 
 template <typename OutType, bool v, bool h>
@@ -384,12 +378,22 @@ TYPED_TEST_P(JpegDistortionTestGPU, ChromaSubsampleDistortion) {
   this->TestChromaSubsampleDistortion();
 }
 
-TYPED_TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion) {
-  this->TestJpegCompressionDistortion();
+TYPED_TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion_LowQuality) {
+  this->TestJpegCompressionDistortion(5);
+}
+
+TYPED_TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion_HighQuality) {
+  this->TestJpegCompressionDistortion(95);
+}
+
+TYPED_TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion_NoQuantization) {
+  this->TestJpegCompressionDistortion_NoQuantization();
 }
 
 REGISTER_TYPED_TEST_SUITE_P(JpegDistortionTestGPU, ChromaSubsampleDistortion,
-                                                   JpegCompressionDistortion);
+                                                   JpegCompressionDistortion_LowQuality,
+                                                   JpegCompressionDistortion_HighQuality,
+                                                   JpegCompressionDistortion_NoQuantization);
 INSTANTIATE_TYPED_TEST_SUITE_P(JpegDistortionSuite, JpegDistortionTestGPU, TestParams);
 
 }  // namespace test

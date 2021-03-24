@@ -31,9 +31,9 @@ namespace kernels {
 float GetQualityFactorScale(int quality) {
   quality = clamp<int>(quality, 1, 99);
   float q_scale = 1.0f;
-  if (1 <= quality && quality < 50) {
+  if (quality < 50) {
     q_scale = 50.0f / quality;
-  } else if (50 <= quality && quality < 100) {
+  } else {
     q_scale = 2.0f - (2 * quality / 100.0f);
   }
   return q_scale;
@@ -319,9 +319,7 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
   const int ystep = num_pages * vert_chroma_blocks * 8;
   for (int blk_pos_y = aligned_start_y; blk_pos_y < aligned_end_y; blk_pos_y += ystep) {
     for (int blk_pos_x = aligned_start_x; blk_pos_x < aligned_end_x; blk_pos_x += blockDim.x) {
-
       for (int page = 0; page < num_pages; page++) {
-
         int pos_x = blk_pos_x + threadIdx.x;
         int pos_y = blk_pos_y + threadIdx.y + page * vert_chroma_blocks * 8;
         int y = pos_y << vert_subsample;
