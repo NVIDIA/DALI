@@ -24,6 +24,7 @@ DALI_SCHEMA(experimental__NumbaFunc)
     This operator is experimental and its API might change without notice.)code")
   .NumInput(1)
   .NumOutput(1)
+  .Unserializable()
   .AddArg("fn_ptr", R"code(Numba function pointer.
   
 The function should be a Numba C callback function (annotated with cfunc) with the following function signature::
@@ -38,6 +39,8 @@ The function should be a Numba C callback function (annotated with cfunc) with t
 
 )code", DALI_INT64)
   .AddOptionalArg<int>("setup_fn", R"code(Pointer to function which should return output shape.
+
+If the setup function isn't provided then it's assumed output shape and type is the same as input.
   
 The function should be a Numba C callback function (annotated with cfunc) with the following function signature::
 

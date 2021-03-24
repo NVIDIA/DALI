@@ -11,29 +11,30 @@ from test_utils import get_dali_extra_path
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
-fun1_sig = types.void(types.CPointer(types.uint8),  # Pointer to output sample
-                    types.CPointer(types.int64),    # Pointer to output sample shape
-                    types.CPointer(types.uint8),    # Pointer to input sample
-                    types.CPointer(types.int64),    # Pointer to input sample shape
-                    types.int32)                    # number of sample dimensions
-@cfunc(fun1_sig, nopython=True)
+int8_fn_sig = types.void(types.CPointer(types.uint8),  # Pointer to output sample
+                    types.CPointer(types.int64),       # Pointer to output sample shape
+                    types.CPointer(types.uint8),       # Pointer to input sample
+                    types.CPointer(types.int64),       # Pointer to input sample shape
+                    types.int32)                       # number of sample dimensions
+@cfunc(int8_fn_sig, nopython=True)
 def set_all_values_to_255(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
     out_shape = carray(out_shape_ptr, ndim)
     out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
     out_arr[:] = 255
 
-fun2_sig = types.void(types.CPointer(types.float32),    # Pointer to output sample
-                    types.CPointer(types.int64),        # Pointer to output sample shape
-                    types.CPointer(types.float32),      # Pointer to input sample
-                    types.CPointer(types.int64),        # Pointer to input sample shape
-                    types.int32)                        # number of sample dimensions
-@cfunc(fun2_sig, nopython=True)
+set_all_values_to_float_fun_sig = \
+                    types.void(types.CPointer(types.float32),   # Pointer to output sample
+                    types.CPointer(types.int64),                # Pointer to output sample shape
+                    types.CPointer(types.float32),              # Pointer to input sample
+                    types.CPointer(types.int64),                # Pointer to input sample shape
+                    types.int32)                                # number of sample dimensions
+@cfunc(set_all_values_to_float_fun_sig, nopython=True)
 def set_all_values_to_float(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
     out_shape = carray(out_shape_ptr, ndim)
     out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
     out_arr[:] = 0.5
 
-setup1_sig = types.void(
+setup_fn_sig = types.void(
                 types.CPointer(types.int64),    # Output batch shape pointer
                 types.int32,                    # Number of dimensions in output shape
                 types.CPointer(types.int32),    # Output dtype pointer
@@ -43,16 +44,13 @@ setup1_sig = types.void(
                 types.int32,                    # Number of samples in the batch
                 types.int32,                    # Number of outputs
                 types.int32)                    # Number of inputs
-@cfunc(setup1_sig, nopython=True)
+@cfunc(setup_fn_sig, nopython=True)
 def setup_fn1(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples, num_outputs, num_inputs):
     in_arr = carray(in_shape_ptr, num_samples * out1_ndim)
     out_arr = carray(out_shape_ptr, num_samples * in1_ndim)
-    out_arr[0] = in_arr[1]
-    out_arr[1] = in_arr[2]
-    out_arr[2] = in_arr[0]
-    out_arr[3] = in_arr[5]
-    out_arr[4] = in_arr[3]
-    out_arr[5] = in_arr[4]
+    perm = [1, 2, 0, 5, 3, 4]
+    for i in range(len(out_arr)):
+        out_arr[i] = in_arr[perm[i]]
     out_type = carray(out_dtype, 1)
     out_type[0] = 6
 
@@ -112,7 +110,7 @@ def _testimpl_numba_func_image(fn_ptr, setup_fn, transform):
             image_in_transformed = transform(images_in.at(i))
             assert np.array_equal(image_in_transformed, images_out.at(i))
 
-@cfunc(fun1_sig, nopython=True)
+@cfunc(int8_fn_sig, nopython=True)
 def reverse_col(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
     out_shape = carray(out_shape_ptr, ndim)
     in_shape = carray(in_shape_ptr, ndim)
@@ -120,7 +118,7 @@ def reverse_col(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
     out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
     out_arr[:] = 255 - in_arr[:]
 
-@cfunc(fun1_sig, nopython=False)
+@cfunc(int8_fn_sig, nopython=False)
 def rot_image(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
     out_shape = carray(out_shape_ptr, ndim)
     in_shape = carray(in_shape_ptr, ndim)
@@ -130,7 +128,7 @@ def rot_image(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
         for j in range(out_shape[1]):
             out_arr[i][j] = in_arr[j][out_shape[0] - i - 1]
 
-@cfunc(setup1_sig, nopython=True)
+@cfunc(setup_fn_sig, nopython=True)
 def rot_image_setup(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples, num_outputs, num_inputs):
     in_arr = carray(in_shape_ptr, num_samples * out1_ndim)
     out_arr = carray(out_shape_ptr, num_samples * in1_ndim)
