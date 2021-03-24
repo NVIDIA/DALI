@@ -255,8 +255,6 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
   using T = uint8_t;
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
-  const auto &luma_Q_table = sample.luma_Q_table;
-  const auto &chroma_Q_table = sample.chroma_Q_table;
 
   static constexpr int align_y = 8;
   static constexpr int align_x = 8;
@@ -268,25 +266,37 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
   // Assuming CUDA block is 32x16, leading to a 2x4 grid of chroma blocks
   // and up to 4x8 blocks of luma.
   const int vert_chroma_blocks = 2;
+  const int num_pages = horz_subsample ? vert_subsample ? 2 : 3 : 4;
   const int vert_luma_blocks = vert_chroma_blocks << vert_subsample;
   const int horz_chroma_blocks = 4;
   const int horz_luma_blocks = horz_chroma_blocks << horz_subsample;
-  const int chroma_blocks = vert_chroma_blocks * horz_chroma_blocks;
-  const int luma_blocks = vert_luma_blocks * horz_luma_blocks;
+  const int chroma_page = vert_chroma_blocks * horz_chroma_blocks;
+  const int chroma_blocks = chroma_page * num_pages;
+  const int luma_page = vert_luma_blocks * horz_luma_blocks;
+  const int luma_blocks = luma_page * num_pages;
   const int total_blocks = 2 * chroma_blocks + luma_blocks;
   __shared__ float flat_blocks[total_blocks][8][9];
 
   int chroma_x = threadIdx.x & 7;  // % 8
   int chroma_y = threadIdx.y & 7;  // % 8
   ivec2 chroma_blk_xy{threadIdx.x >> 3, threadIdx.y >> 3};  // / 8
-  int chroma_block_idx = chroma_blk_xy.y * horz_chroma_blocks + chroma_blk_xy.x;
 
   int luma_x = threadIdx.x << horz_subsample;
   int luma_y = threadIdx.y << vert_subsample;
   ivec2 luma_blk_xy{luma_x >> 3, luma_y >> 3};  // / 8
-  int luma_block_idx = luma_blk_xy.y * horz_luma_blocks + luma_blk_xy.x;
   luma_x = luma_x & 7;  // % 8
   luma_y = luma_y & 7;  // % 8
+
+  float luma_q[1 + vert_subsample][1 + horz_subsample];
+  #pragma unroll
+  for (int i = 0; i < 1 + vert_subsample; i++) {
+    #pragma unroll
+    for (int j = 0; j < 1 + horz_subsample; j++)
+      luma_q[i][j] = __ldg(&sample.luma_Q_table(luma_y + i, luma_x + j));
+  }
+
+  float chroma_q = __ldg(&sample.chroma_Q_table(chroma_y, chroma_x));
+
 
   const Surface2D<const uint8_t> in = {
     sample.in, sample.size, 3, sample.strides, 1
@@ -296,28 +306,36 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
     sample.out, sample.size, 3, sample.strides, 1
   };
 
-  float (&cb)[8][9]   = flat_blocks[                    chroma_block_idx];
-  float (&cr)[8][9]   = flat_blocks[chroma_blocks     + chroma_block_idx];
-  float (&luma)[8][9] = flat_blocks[chroma_blocks * 2 + luma_block_idx];
-
   const int tid = threadIdx.x + blockDim.x * threadIdx.y;
   const int block_size = blockDim.x * blockDim.y;
 
-  for (int blk_pos_y = aligned_start_y; blk_pos_y < aligned_end_y; blk_pos_y += blockDim.y) {
-    for (int blk_pos_x = aligned_start_x; blk_pos_x < aligned_end_x; blk_pos_x += blockDim.x) {
-      int pos_x = blk_pos_x + threadIdx.x;
-      int pos_y = blk_pos_y + threadIdx.y;
-      int y = pos_y << vert_subsample;
-      int x = pos_x << horz_subsample;
-      ivec2 offset{x, y};
+  int chroma_block_idx = chroma_blk_xy.y * horz_chroma_blocks + chroma_blk_xy.x;
+  int luma_block_idx = luma_blk_xy.y * horz_luma_blocks + luma_blk_xy.x;
+  float (*cb)[8][9]   = &flat_blocks[                    chroma_block_idx];
+  float (*cr)[8][9]   = &flat_blocks[chroma_blocks     + chroma_block_idx];
+  float (*luma)[8][9] = &flat_blocks[chroma_blocks * 2 + luma_block_idx];
 
-      auto ycbcr = rgb_to_ycbcr_subsampled<horz_subsample, vert_subsample, T>(offset, in);
-      // Shifting to [-128, 128] before the DCT.
-      cb[chroma_y][chroma_x] = ycbcr.cb - 128.0f;
-      cr[chroma_y][chroma_x] = ycbcr.cr - 128.0f;
-      for (int i = 0, k = 0; i < vert_subsample+1; i++) {
-        for (int j = 0; j < horz_subsample+1; j++, k++) {
-          luma[luma_y + i][luma_x + j] = ycbcr.luma[k] - 128.0f;
+
+  const int ystep = num_pages * vert_chroma_blocks * 8;
+  for (int blk_pos_y = aligned_start_y; blk_pos_y < aligned_end_y; blk_pos_y += ystep) {
+    for (int blk_pos_x = aligned_start_x; blk_pos_x < aligned_end_x; blk_pos_x += blockDim.x) {
+
+      for (int page = 0; page < num_pages; page++) {
+
+        int pos_x = blk_pos_x + threadIdx.x;
+        int pos_y = blk_pos_y + threadIdx.y + page * vert_chroma_blocks * 8;
+        int y = pos_y << vert_subsample;
+        int x = pos_x << horz_subsample;
+        ivec2 offset{x, y};
+
+        auto ycbcr = rgb_to_ycbcr_subsampled<horz_subsample, vert_subsample, T>(offset, in);
+        // Shifting to [-128, 128] before the DCT.
+        cb[page * chroma_page][chroma_y][chroma_x] = ycbcr.cb - 128.0f;
+        cr[page * chroma_page][chroma_y][chroma_x] = ycbcr.cr - 128.0f;
+        for (int i = 0, k = 0; i < vert_subsample+1; i++) {
+          for (int j = 0; j < horz_subsample+1; j++, k++) {
+            luma[page * luma_page][luma_y + i][luma_x + j] = ycbcr.luma[k] - 128.0f;
+          }
         }
       }
 
@@ -338,13 +356,18 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
       __syncthreads();
 
       if (quantization) {
-        auto q_chroma_coeff = ConvertSat<float>(chroma_Q_table(chroma_y, chroma_x));
-        cb[chroma_y][chroma_x] = quantize(cb[chroma_y][chroma_x], q_chroma_coeff);
-        cr[chroma_y][chroma_x] = quantize(cr[chroma_y][chroma_x], q_chroma_coeff);
-        for (int i = 0, k = 0; i < vert_subsample+1; i++) {
-          for (int j = 0; j < horz_subsample+1; j++, k++) {
-            auto q_luma_coeff = ConvertSat<float>(luma_Q_table(luma_y + i, luma_x + j));
-            luma[luma_y + i][luma_x + j] = quantize(luma[luma_y + i][luma_x + j], q_luma_coeff);
+        for (int page = 0; page < num_pages; page++) {
+          int cofs = chroma_page * page;
+          int lofs = luma_page * page;
+          cb[cofs][chroma_y][chroma_x] = quantize(cb[cofs][chroma_y][chroma_x], chroma_q);
+          cr[cofs][chroma_y][chroma_x] = quantize(cr[cofs][chroma_y][chroma_x], chroma_q);
+          #pragma unroll
+          for (int i = 0, k = 0; i < vert_subsample+1; i++) {
+            #pragma unroll
+            for (int j = 0; j < horz_subsample+1; j++, k++) {
+              float Y = luma[lofs][luma_y + i][luma_x + j];
+              luma[lofs][luma_y + i][luma_x + j] = quantize(Y, luma_q[i][j]);
+            }
           }
         }
       }
@@ -361,20 +384,29 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
       __syncthreads();
 
       // If we are in the out-of-bounds region, skip
-      if (any_coord(offset >= sample.size)) {
-        continue;
-      }
+      for (int page = 0; page < num_pages; page++) {
+        int pos_x = blk_pos_x + threadIdx.x;
+        int pos_y = blk_pos_y + threadIdx.y + page * vert_chroma_blocks * 8;
+        int y = pos_y << vert_subsample;
+        int x = pos_x << horz_subsample;
+        ivec2 offset{x, y};
 
-      YCbCrSubsampled<T, horz_subsample, vert_subsample> out_ycbcr;
-       // Shifting to [0, 255] after the inverse DCT.
-      out_ycbcr.cb = ConvertSat<T>(cb[chroma_y][chroma_x] + 128.0f);
-      out_ycbcr.cr = ConvertSat<T>(cr[chroma_y][chroma_x] + 128.0f);
-      for (int i = 0, k = 0; i < vert_subsample+1; i++) {
-        for (int j = 0; j < horz_subsample+1; j++, k++) {
-          out_ycbcr.luma[k] = ConvertSat<T>(luma[luma_y + i][luma_x + j] + 128.0f);
+        if (any_coord(offset >= sample.size)) {
+          continue;
         }
+
+        YCbCrSubsampled<T, horz_subsample, vert_subsample> out_ycbcr;
+        // Shifting to [0, 255] after the inverse DCT.
+        out_ycbcr.cb = ConvertSat<T>(cb[page * chroma_page][chroma_y][chroma_x] + 128.0f);
+        out_ycbcr.cr = ConvertSat<T>(cr[page * chroma_page][chroma_y][chroma_x] + 128.0f);
+        for (int i = 0, k = 0; i < vert_subsample+1; i++) {
+          for (int j = 0; j < horz_subsample+1; j++, k++) {
+            float Y = luma[page * luma_page][luma_y + i][luma_x + j];
+            out_ycbcr.luma[k] = ConvertSat<T>(Y + 128.0f);
+          }
+        }
+        ycbcr_to_rgb_subsampled<horz_subsample, vert_subsample, T>(offset, out, out_ycbcr);
       }
-      ycbcr_to_rgb_subsampled<horz_subsample, vert_subsample, T>(offset, out, out_ycbcr);
     }
   }
 }
