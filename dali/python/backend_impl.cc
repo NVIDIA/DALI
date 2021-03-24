@@ -276,7 +276,8 @@ void ExposeTensor(py::module &m) {
             // do not consume capsule
             auto dlm_tensor_ptr = DLMTensorRawPtrFromCapsule(capsule, false);
             const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
-            list.append(dl_tensor.device.device_type == kDLGPU || dl_tensor.device.device_type == kDLCPU);
+            list.append(dl_tensor.device.device_type == kDLGPU ||
+                        dl_tensor.device.device_type == kDLCPU);
             list.append(dl_tensor.device.device_type == kDLGPU);
           } else {
             list.append(false);
