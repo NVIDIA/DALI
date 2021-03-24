@@ -6,6 +6,7 @@ from nvidia.dali import pipeline_def
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as dali_types
+import nvidia.dali.numba_func as dali_numba
 from test_utils import get_dali_extra_path
 
 test_data_root = get_dali_extra_path()
@@ -34,17 +35,7 @@ def set_all_values_to_float(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
     out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
     out_arr[:] = 0.5
 
-setup_fn_sig = types.void(
-                types.CPointer(types.int64),    # Output batch shape pointer
-                types.int32,                    # Number of dimensions in output shape
-                types.CPointer(types.int32),    # Output dtype pointer
-                types.CPointer(types.int64),    # Input batch shape pointer
-                types.int32,                    # Number of dimensions in input shape
-                types.int32,                    # Input dtype
-                types.int32,                    # Number of samples in the batch
-                types.int32,                    # Number of outputs
-                types.int32)                    # Number of inputs
-@cfunc(setup_fn_sig, nopython=True)
+@cfunc(dali_numba.dali_numba_setup_fn_sig(1, [types.int64], 1, [types.int64]), nopython=True)
 def setup_fn1(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples, num_outputs, num_inputs):
     in_arr = carray(in_shape_ptr, num_samples * out1_ndim)
     out_arr = carray(out_shape_ptr, num_samples * in1_ndim)
@@ -128,7 +119,7 @@ def rot_image(out_ptr, out_shape_ptr, in_ptr, in_shape_ptr, ndim):
         for j in range(out_shape[1]):
             out_arr[i][j] = in_arr[j][out_shape[0] - i - 1]
 
-@cfunc(setup_fn_sig, nopython=True)
+@cfunc(dali_numba.dali_numba_setup_fn_sig(1, [types.int64], 1, [types.int64]), nopython=True)
 def rot_image_setup(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples, num_outputs, num_inputs):
     in_arr = carray(in_shape_ptr, num_samples * out1_ndim)
     out_arr = carray(out_shape_ptr, num_samples * in1_ndim)

@@ -12,8 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-def dali_numba_setup_fn_sig(num_outputs, num_inputs, ndim, output_dtypes, input_dtypes):
-    assert num_inputs == len(input_dtypes)
-    assert num_outputs == len(output_dtypes)
 
+from numba import types
+
+def _populate_args(types_list, is_input_args=False):
+    ret = []
+    for type in types_list:
+        ret.append(types.CPointer(type))
+        ret.append(types.int32)
+        ret.append(types.int32 if is_input_args else types.CPointer(types.int32))
+    return ret
+
+def dali_numba_setup_fn_sig(num_outputs, output_dtypes, num_inputs, input_dtypes):
+    assert num_outputs == len(output_dtypes)
+    assert num_inputs == len(input_dtypes)
     
+    args_list = _populate_args(output_dtypes)
+    args_list += _populate_args(input_dtypes, True)
+    for i in range(3):
+        args_list.append(types.int32)
+    return types.void(*args_list)
