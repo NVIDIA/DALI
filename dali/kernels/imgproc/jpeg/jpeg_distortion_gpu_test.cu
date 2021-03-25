@@ -305,8 +305,8 @@ class JpegDistortionTestGPU : public ::testing::Test {
     return ret;
   }
 
-  uint8_t *input_device_;
-  uint8_t *output_;
+  uint8_t *input_device_ = nullptr;
+  uint8_t *output_ = nullptr;
   std::vector<uint8_t> input_host_;
   std::vector<uint8_t> ref_output_;
   CUDAStream stream_;

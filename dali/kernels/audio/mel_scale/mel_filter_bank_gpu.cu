@@ -243,7 +243,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
   std::vector<int64_t> nframes_;
   std::vector<int64_t> nwindows_;
   std::vector<BlockDesc<T>> block_descs_;
-  int64_t fft_dim_;
+  int64_t fft_dim_ = 0;
   bool inner_fft_ = false;
   USE_MEL_FILTER_IMPL_MEMBERS(T);
 };

@@ -158,8 +158,8 @@ operator!=(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateTyp
 template <int ndims, typename CoordinateType>
 std::ostream &operator<<(std::ostream &os, const Box<ndims, CoordinateType> &box) {
   auto print_corner = [&os](const typename Box<ndims, CoordinateType>::corner_t &c) {
-      for (size_t i = 0; i < ndims; i++)
-        os << (i ? ", " : "(") << c[i];
+      for (int i = 0; i < ndims; i++)
+        os << (i == 0 ? ", " : "(") << c[i];
       os << ")";
   };
   os << "{";
