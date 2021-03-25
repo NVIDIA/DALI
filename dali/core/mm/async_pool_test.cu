@@ -80,6 +80,7 @@ struct block {
   void *ptr;
   size_t size;
   uint8_t fill;
+  cudaStream_t stream;
 };
 
 template <typename Pool, typename Mutex>
@@ -100,6 +101,7 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
     hog.init();
   int hogs = 0;
   int max_hogs = sync_dist(rng);
+  CUDAEvent event = CUDAEvent::Create();
   for (int i = 0; i < max_iters; i++) {
     if (use_hog && hog_dist(rng)) {
       if (hogs++ > max_hogs) {
@@ -111,11 +113,11 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
     if (action_dist(rng) || blocks.empty()) {
       size_t size = size_dist(rng);
       uint8_t fill = fill_dist(rng);
-      void *ptr = pool.allocate_async(size, sv);
+      void *ptr = stream ? pool.allocate_async(size, sv) : pool.allocate(size);
       CUDA_CALL(cudaMemsetAsync(ptr, fill, size, stream));
       {
         std::lock_guard<Mutex> guard(mtx);
-        blocks.push_back({ ptr, size, fill });
+        blocks.push_back({ ptr, size, fill, stream });
       }
     } else {
       block blk;
@@ -128,9 +130,22 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
         blk = blocks.back();
         blocks.pop_back();
       }
+      if (blk.stream && blk.stream != stream) {
+        if (stream) {
+          CUDA_CALL(cudaEventRecord(event, blk.stream));
+          CUDA_CALL(cudaStreamWaitEvent(stream, event, 0));
+        } else {
+          CUDA_CALL(cudaStreamSynchronize(blk.stream));
+        }
+      }
       Check<<<div_ceil(blk.size, 1024), 1024, 0, stream>>>(
             blk.ptr, blk.size, blk.fill, failure_buf);
-      pool.deallocate_async(blk.ptr, blk.size, sv);
+      if (stream) {
+        pool.deallocate_async(blk.ptr, blk.size, sv);
+      } else {
+        cudaStreamSynchronize(stream);
+        pool.deallocate(blk.ptr, blk.size);
+      }
     }
   }
   copyD2H<int>(&failures, failure_buf, 1, stream);
@@ -260,6 +275,34 @@ TEST(MMAsyncPool, MultiStreamRandomWithGPUHogs) {
   }
   upstream.check_leaks();
 }
+
+
+TEST(MMAsyncPool, CrossStream) {
+  mm::test::test_device_resource upstream;
+  {
+    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+
+    vector<std::thread> threads;
+    vector<CUDAStream> streams;
+
+    vector<block> blocks;
+    std::mutex mtx;
+
+    const int N = 10;
+    streams.resize(N);
+    for (int t = 0; t < N; t++) {
+      streams[t] = CUDAStream::Create(true);
+      threads.push_back(std::thread([&, t]() {
+        AsyncPoolTest(pool, blocks, mtx, streams[t]);
+        CUDA_CALL(cudaStreamSynchronize(streams[t]));
+      }));
+    }
+    for (auto &t : threads)
+      t.join();
+  }
+  upstream.check_leaks();
+}
+
 
 
 
