@@ -20,27 +20,63 @@ namespace dali {
 DALI_SCHEMA(experimental__NumbaFunc)
   .DocStr(R"code(Invokes a compiled Numba function passed as a pointer.
 
-The run function should be a Numba C callback function (annotated with cfunc) with the following definition:
+The run function should be a Numba C callback function (annotated with cfunc). This function is run per
+sample and should have following definition:
 
 .. code-block:: python
 
     @cfunc(run_fn_sig([out_numba_types], [in_numba_types]), nopython=True)
-    def callback_func(out1_ptr, out1_shape_ptr, out1_shape_ndim, in1_ptr, in1_shape_ptr, in1_shape_ndim)
+    def callback_run_func(out1_ptr, out1_shape_ptr, out1_shape_ndim, in1_ptr, in1_shape_ptr, in1_shape_ndim)
 
 Additionally, an optional setup function with the following definition:
 
 .. code-block:: python
 
     @cfunc(setup_fn_sig([out_numba_types], [in_numba_types]), nopython=True)
-    def callback_func(out1_shape_ptr, out1_ndim, out_dtype_ptr, in1_shape_ptr, in1_ndim, in1_dtype, num_samples)
+    def callback_setup_func(out1_shape_ptr, out1_ndim, out_dtype_ptr, in1_shape_ptr, in1_ndim, in1_dtype, num_samples)
 
-Setup function is If no setup function provided, the output shape and data type will be the same as the input.
+Setup function is invoked per batch. If no setup function provided, the output shape and data type
+will be the same as the input.
 
 ``out_numba_types`` and ``in_numba_types`` refer to the numba data types (numba.types) 
 of the output and input, respectively.
 
 .. note::
     This operator is experimental and its API might change without notice.
+
+**Example 1:**
+
+We will show how to write easy setup function which reorders shapes of input.
+
+.. code-block:: python
+
+    dali_int32 = int(dali_types.INT32)
+    @cfunc(setup_fn_sig(types.int64, types.int64), nopython=True)
+    def setup_change_out_shape(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples):
+        in_arr = carray(in_shape_ptr, num_samples * out1_ndim) # get input array from pointer
+        out_arr = carray(out_shape_ptr, num_samples * in1_ndim) # get output array from pointer
+        perm = [1, 2, 0, 5, 3, 4]
+        for i in range(len(out_arr)):
+            out_arr[i] = in_arr[perm[i]] # reorder shapes
+        out_type = carray(out_dtype, 1)
+        out_type[0] = dali_int32  # set output type
+
+That's the definition of setup function. As setup function is running per batch, we are assuming that every batch
+will contain two samples. For ``shapes`` = [(10, 20, 30), (20, 10, 30)] it will produce output with 
+``shapes`` = [(20, 30, 10), (30, 20, 10)].
+
+Also lets provide run function:
+
+.. code-block:: python
+
+    @cfunc(dali_numba.run_fn_sig(types.int32, types.int64), nopython=True)
+    def change_out_shape(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
+        out_shape = carray(out_shape_ptr, ndim_out) # get output shape form pointer
+        out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2])) # get output array from pointer
+        out_arr[:] = 42 
+
+Run function is running per sample so we don't need to handle whole batch in it. Notice that we are passing ``int32`` as an output type.
+The same which we set in setup function for output.
 
 )code")
   .NumInput(1)
@@ -56,13 +92,15 @@ NumbaFunc<Backend>::NumbaFunc(const OpSpec &spec) : Base(spec) {
   setup_fn_ = spec.GetArgument<uint64_t>("setup_fn");
 }
 
-template<>
-void NumbaFunc<CPUBackend>::RunUserSetupFunc(std::vector<OutputDesc> &output_desc,
+template <>
+bool NumbaFunc<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     const workspace_t<CPUBackend> &ws) {
   const auto &in = ws.InputRef<CPUBackend>(0);
+  output_desc.resize(1);
+
   if (!setup_fn_) {
     output_desc[0] = {in.shape(), in.type()};
-    return;
+    return true;
   }
 
   auto in_shape = in.shape();
@@ -86,14 +124,7 @@ void NumbaFunc<CPUBackend>::RunUserSetupFunc(std::vector<OutputDesc> &output_des
   }
   output_desc[0].type = dali::TypeTable::GetTypeInfo(out_type);
   output_desc[0].shape = output_shape;
-}
 
-template <>
-bool NumbaFunc<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-    const workspace_t<CPUBackend> &ws) {
-  const auto &in = ws.InputRef<CPUBackend>(0);
-  output_desc.resize(1);
-  RunUserSetupFunc(output_desc, ws);
   return true;
 }
 
