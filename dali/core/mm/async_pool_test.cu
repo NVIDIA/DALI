@@ -130,7 +130,7 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
         blk = blocks.back();
         blocks.pop_back();
       }
-      if (blk.stream && blk.stream != stream) {
+      if (blk.stream != stream) {
         if (stream) {
           CUDA_CALL(cudaEventRecord(event, blk.stream));
           CUDA_CALL(cudaStreamWaitEvent(stream, event, 0));
@@ -291,7 +291,8 @@ TEST(MMAsyncPool, CrossStream) {
     const int N = 10;
     streams.resize(N);
     for (int t = 0; t < N; t++) {
-      streams[t] = CUDAStream::Create(true);
+      if (t != 0)  // keep empty stream at index 0 to mix sync/async allocations
+        streams[t] = CUDAStream::Create(true);
       threads.push_back(std::thread([&, t]() {
         AsyncPoolTest(pool, blocks, mtx, streams[t]);
         CUDA_CALL(cudaStreamSynchronize(streams[t]));

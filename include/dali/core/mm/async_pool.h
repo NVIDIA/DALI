@@ -64,13 +64,15 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   void *do_allocate(size_t bytes, size_t alignment) override {
     adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
-    return global_pool_.allocate(bytes, alignment);
+    return allocate_from_global_pool(bytes, alignment);
   }
 
   void do_deallocate(void *mem, size_t bytes, size_t alignment) override {
     adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
-    return global_pool_.deallocate(mem, bytes, alignment);
+    char *ptr = static_cast<char *>(mem);
+    restore_original_params(ptr, bytes, alignment);
+    return global_pool_.deallocate(ptr, bytes, alignment);
   }
 
   /**
@@ -100,8 +102,14 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
       if (ptr)
         return ptr;
     }
+    return allocate_from_global_pool(bytes, alignment);
+  }
+
+  void *allocate_from_global_pool(size_t bytes, size_t alignment) {
+    void *ptr;
     if (num_pending_frees_ == 0) {
       ptr = global_pool_.allocate(bytes, alignment);
+      return ptr;
     }
     ptr = global_pool_.try_allocate_from_free(bytes, alignment);
     if (ptr)
@@ -138,7 +146,26 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     size_t          bytes = 0;
     size_t          alignment = alignof(std::max_align_t);
     CUDAEvent       event;
+    bool            is_ready = false;
     pending_free   *prev = nullptr, *next = nullptr;
+
+    bool ready() {
+      if (is_ready)
+        return true;
+      cudaError_t e = cudaEventQuery(event);
+      switch (e) {
+        case cudaSuccess:
+          return is_ready = true;
+        case cudaErrorNotReady:
+          return false;
+        case cudaErrorCudartUnloading:
+          cudaGetLastError();
+          return true;
+        default:
+          cudaGetLastError();
+          throw CUDAError(e);
+      }
+    }
   };
 
   struct PendingFreeList {
@@ -178,28 +205,12 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     return nullptr;
   }
 
-  static bool ready(cudaEvent_t event) {
-    cudaError_t e = cudaEventQuery(event);
-    switch (e) {
-      case cudaSuccess:
-        return true;
-      case cudaErrorNotReady:
-        return false;
-      case cudaErrorCudartUnloading:
-        cudaGetLastError();
-        return true;
-      default:
-        cudaGetLastError();
-        throw CUDAError(e);
-    }
-  }
-
   pending_free *find_first_ready(PerStreamFreeBlocks &free) {
     SmallVector<pending_free *, 128> pending;
     int step = 1;
     pending_free *f = free.free_list.head;
     while (f) {
-      if (ready(f->event))
+      if (f->ready())
         break;
       pending.clear();
       for (int i = 0; i < step; i++) {
@@ -211,20 +222,20 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     }
     if (pending.empty()) {
       if (f) {
-        assert(ready(f->event));
-        assert(!f->prev || !ready(f->prev->event));
+        assert(f->ready());
+        assert(!f->prev || !f->ready());
       }
       return f;
     }
     auto it = std::partition_point(pending.begin(), pending.end(), [&](pending_free *f) {
-      return !ready(f->event);
+      return !f->ready();
     });
     if (it == pending.end()) {
-      assert(!free.free_list.tail || !ready(free.free_list.tail->event));
+      assert(!free.free_list.tail || !free.free_list.tail->ready());
       return nullptr;
     }
     f = *it;
-    assert(ready(f->event));
+    assert(f->ready());
     return f;
   }
 
