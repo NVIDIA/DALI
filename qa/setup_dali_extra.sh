@@ -6,7 +6,7 @@ export DALI_EXTRA_URL=${DALI_EXTRA_URL:-"https://github.com/NVIDIA/DALI_extra.gi
 
 DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )
 DALI_EXTRA_VERSION_PATH="${DIR}/../DALI_EXTRA_VERSION"
-read -r DALI_EXTRA_VERSION < ${DALI_EXTRA_VERSION_PATH}
+DALI_EXTRA_VERSION=${DALI_EXTRA_VERSION_SHA:-$(cat ${DALI_EXTRA_VERSION_PATH})}
 echo "Using DALI_EXTRA_VERSION = ${DALI_EXTRA_VERSION}"
 if [ ! -d "$DALI_EXTRA_PATH" ] ; then
     git clone "$DALI_EXTRA_URL" "$DALI_EXTRA_PATH"
