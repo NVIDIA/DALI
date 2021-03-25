@@ -172,17 +172,34 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     pending_free *head = nullptr, *tail = nullptr;
   };
 
+  /// @brief Non-coalescing free blocks deallocated on a stream
   struct PerStreamFreeBlocks {
     using size_pending = std::pair<size_t, pending_free *>;
 
     PerStreamFreeBlocks() = default;
     PerStreamFreeBlocks(const PerStreamFreeBlocks &) = delete;
 
+    /// @brief A map that associates block size with the free block; used for best-fit allocation
     detail::pooled_set<size_pending, true> by_size;
+
+    /**
+     * @brief List of free blocks, stored in deallocation order, head being most recent.
+     *
+     * The items in the list are kept in the order there were deallocated. Since we're using
+     * stream-ordered deallocation and all list items were deallocated on the same stream, this
+     * list has a well defined transition point from pending to complete deallocations - this
+     * is exploited when returning complete deallocations to the global pool.
+     */
     PendingFreeList free_list;
   };
 
+  /**
+   * @brief Try to allocate a block from per-stream free memory
+   *
+   * If the allocation fails, the function returns nullptr.
+   */
   void *try_allocate(PerStreamFreeBlocks &from, size_t bytes, size_t alignment) {
+    int max_padding = std::min<size_t>(std::max<size_t>(bytes / 16, 16), (1 << 20));
     for (auto it = from.by_size.lower_bound({ bytes, nullptr }); it != from.by_size.end(); ++it) {
       size_t block_size = it->first;
       pending_free *f = it->second;
@@ -192,6 +209,8 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
       assert(static_cast<ptrdiff_t>(front_padding) >= 0);
       // NOTE: block_size - front_padding >= size  can overflow and fail - meh, unsigned size_t
       if (block_size >= bytes + front_padding) {
+        if (block_size - bytes - front_padding > max_padding)
+          return nullptr;  // no point in continuing - the map is sorted
         from.by_size.erase(it);
         remove_pending_free(from, f, false);
         if (block_size != bytes) {
@@ -205,6 +224,9 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     return nullptr;
   }
 
+  /**
+   * @brief Searches per-stream free blocks to find the most recently freed one.
+   */
   pending_free *find_first_ready(PerStreamFreeBlocks &free) {
     SmallVector<pending_free *, 128> pending;
     int step = 1;
@@ -258,6 +280,10 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     }
   }
 
+  /**
+   * @brief Restores original block parameters (address, size and alignment) of a block
+   *        that was used for allocating a smaller block, possibly with stricter alignment.
+   */
   void restore_original_params(char *&p, size_t &bytes, size_t &alignment) {
     auto it = padded_.find(p);
     if (it != padded_.end()) {
