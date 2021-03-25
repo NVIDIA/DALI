@@ -33,6 +33,7 @@ def setup_fn_sig(output_dtypes, input_dtypes):
 
 def _populate_run_args(types_list):
     ret = []
+    types_list = [types_list] if not isinstance(types_list, list) else types_list
     for type in types_list:
         ret.append(types.CPointer(type))
         ret.append(types.CPointer(types.int64))

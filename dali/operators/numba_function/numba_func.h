@@ -37,8 +37,6 @@ class NumbaFunc : public Operator<Backend> {
   void RunImpl(Workspace &ws) override;
 
  private:
-  void RunUserSetupFunc(std::vector<OutputDesc> &output_desc, const Workspace &ws);
-
   uint64_t fn_ptr_;
   uint64_t setup_fn_;
 };
