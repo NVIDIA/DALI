@@ -15,19 +15,17 @@
 
 from numba import types
 
-def _populate_setup_args(types_list, is_input_args=False):
+def _populate_setup_args(args_no, is_input_args=False):
     ret = []
-
-    types_list = [types_list] if not isinstance(types_list, list) else types_list
-    for type in types_list:
-        ret.append(types.CPointer(type))
+    for _ in range(args_no):
+        ret.append(types.CPointer(types.int64))
         ret.append(types.int32)
         ret.append(types.int32 if is_input_args else types.CPointer(types.int32))
     return ret
 
-def setup_fn_sig(output_dtypes, input_dtypes):
-    args_list = _populate_setup_args(output_dtypes)
-    args_list += _populate_setup_args(input_dtypes, True)
+def setup_fn_sig(num_outputs, num_inputs):
+    args_list = _populate_setup_args(num_outputs)
+    args_list += _populate_setup_args(num_inputs, True)
     args_list.append(types.int32)
     return types.void(*args_list)
 

@@ -25,13 +25,14 @@ def set_all_values_to_float(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_p
     out_arr[:] = 0.5
 
 dali_int32 = int(dali_types.INT32)
-@cfunc(dali_numba.setup_fn_sig(types.int64, types.int64), nopython=True)
+@cfunc(dali_numba.setup_fn_sig(1, 1), nopython=True)
 def setup_change_out_shape(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples):
-    in_arr = carray(in_shape_ptr, num_samples * out1_ndim)
-    out_arr = carray(out_shape_ptr, num_samples * in1_ndim)
-    perm = [1, 2, 0, 5, 3, 4]
-    for i in range(len(out_arr)):
-        out_arr[i] = in_arr[perm[i]]
+    in_shapes = carray(in_shape_ptr, (num_samples, in1_ndim))
+    out_shapes = carray(out_shape_ptr, (num_samples, out1_ndim))
+    perm = [1, 2, 0]
+    for sample_idx in range(num_samples):
+        for d in range(len(perm)):
+            out_shapes[sample_idx][d] = in_shapes[sample_idx][perm[d]]
     out_type = carray(out_dtype, 1)
     out_type[0] = dali_int32
 
@@ -64,7 +65,7 @@ def test_numba_func():
     args = [
         ([(10, 10, 10)], np.uint8, set_all_values_to_255.address, None, [np.full((10, 10, 10), 255, dtype=np.uint8)]),
         ([(10, 10, 10)], np.float32, set_all_values_to_float.address, None, [np.full((10, 10, 10), 0.5, dtype=np.float32)]),
-        ([(10, 20, 30), (20, 10, 30)], np.int64, change_out_shape.address, setup_change_out_shape.address, [np.full((20, 30, 10), 42, dtype=np.int32), np.full((30, 20, 10), 42, dtype=np.int32)]),
+        ([(10, 20, 30), (20, 10, 30)], np.int64, change_out_shape.address, setup_change_out_shape.address, [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)]),
     ]
 
     for shape, dtype, fn_ptr, setup_fn, expected_out in args:
@@ -104,7 +105,7 @@ def rot_image(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
         for j in range(out_shape[1]):
             out_arr[i][j] = in_arr[j][out_shape[0] - i - 1]
 
-@cfunc(dali_numba.setup_fn_sig(types.int64, types.int64), nopython=True)
+@cfunc(dali_numba.setup_fn_sig(1, 1), nopython=True)
 def rot_image_setup(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples):
     in_arr = carray(in_shape_ptr, num_samples * out1_ndim)
     out_arr = carray(out_shape_ptr, num_samples * in1_ndim)

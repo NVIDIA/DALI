@@ -20,50 +20,51 @@ namespace dali {
 DALI_SCHEMA(experimental__NumbaFunc)
   .DocStr(R"code(Invokes a compiled Numba function passed as a pointer.
 
-The run function should be a Numba C callback function (annotated with cfunc). This function is run per
-sample and should have following definition:
+The run function should be a Numba C callback function (annotated with cfunc). This function is run on a 
+per-sample basis and should have the following definition:
 
 .. code-block:: python
 
     @cfunc(run_fn_sig([out_numba_types], [in_numba_types]), nopython=True)
     def callback_run_func(out1_ptr, out1_shape_ptr, out1_shape_ndim, in1_ptr, in1_shape_ptr, in1_shape_ndim)
 
+``out_numba_types`` and ``in_numba_types`` refer to the numba data types (numba.types) 
+of the output and input, respectively.
+
 Additionally, an optional setup function with the following definition:
 
 .. code-block:: python
 
-    @cfunc(setup_fn_sig([out_numba_types], [in_numba_types]), nopython=True)
+    @cfunc(setup_fn_sig(num_outputs, num_inputs), nopython=True)
     def callback_setup_func(out1_shape_ptr, out1_ndim, out_dtype_ptr, in1_shape_ptr, in1_ndim, in1_dtype, num_samples)
 
-Setup function is invoked per batch. If no setup function provided, the output shape and data type
-will be the same as the input.
+The setup function is invoked once for the whole batch.
 
-``out_numba_types`` and ``in_numba_types`` refer to the numba data types (numba.types) 
-of the output and input, respectively.
+If no setup function provided, the output shape and data type will be the same as the input.
 
 .. note::
     This operator is experimental and its API might change without notice.
 
 **Example 1:**
 
-We will show how to write easy setup function which reorders shapes of input.
+The following example shows a simple setup function which permutes the order of dimensions in the shape and sets the output type to int32
 
 .. code-block:: python
 
     dali_int32 = int(dali_types.INT32)
-    @cfunc(setup_fn_sig(types.int64, types.int64), nopython=True)
+    @cfunc(dali_numba.setup_fn_sig(1, 1), nopython=True)
     def setup_change_out_shape(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples):
-        in_arr = carray(in_shape_ptr, num_samples * out1_ndim) # get input array from pointer
-        out_arr = carray(out_shape_ptr, num_samples * in1_ndim) # get output array from pointer
-        perm = [1, 2, 0, 5, 3, 4]
-        for i in range(len(out_arr)):
-            out_arr[i] = in_arr[perm[i]] # reorder shapes
+        in_shapes = carray(in_shape_ptr, (num_samples, in1_ndim))
+        out_shapes = carray(out_shape_ptr, (num_samples, out1_ndim))
+        perm = [1, 0, 2]
+        for sample_idx in range(num_samples):
+            for d in range(len(perm)):
+                out_shapes[sample_idx][d] = in_shapes[sample_idx][perm[d]]
         out_type = carray(out_dtype, 1)
-        out_type[0] = dali_int32  # set output type
+        out_type[0] = dali_int32
 
-That's the definition of setup function. As setup function is running per batch, we are assuming that every batch
-will contain two samples. For ``shapes`` = [(10, 20, 30), (20, 10, 30)] it will produce output with 
-``shapes`` = [(20, 30, 10), (30, 20, 10)].
+Since the setup function is running for the whole batch, we need to iterate and permute each sample's shape individually. 
+For ``shapes`` = ``[(10, 20, 30), (20, 10, 30)]`` it will produce output with ``shapes`` = ``[(20, 10, 30), (10, 20, 30)]``.
 
 Also lets provide run function:
 
@@ -71,12 +72,16 @@ Also lets provide run function:
 
     @cfunc(dali_numba.run_fn_sig(types.int32, types.int64), nopython=True)
     def change_out_shape(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
-        out_shape = carray(out_shape_ptr, ndim_out) # get output shape form pointer
-        out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2])) # get output array from pointer
-        out_arr[:] = 42 
+        out_shape = carray(out_shape_ptr, ndim_out)
+        out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
+        in_shape = carray(in_shape_ptr, ndim_in)
+        in_arr = carray(in_ptr, (in_shape[0], in_shape[1], in_shape[2]))
+        for i in range(in_shape[0]):
+            for j in range(in_shape[1]):
+                out_arr[j, i] = in_arr[i, j]
 
-Run function is running per sample so we don't need to handle whole batch in it. Notice that we are passing ``int32`` as an output type.
-The same which we set in setup function for output.
+The run function works on a per-sample basis, so we only need to handle one sample.
+Notice that we are passing ``int32`` as the output data type, which we set in the setup function body.
 
 )code")
   .NumInput(1)
