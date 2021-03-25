@@ -17,6 +17,8 @@
 
 #include <map>
 #include <set>
+#include <functional>
+#include <utility>
 #include "dali/core/mm/detail/aux_alloc.h"
 
 namespace dali {

@@ -15,8 +15,10 @@
 #ifndef DALI_CORE_MM_ASYNC_POOL_H_
 #define DALI_CORE_MM_ASYNC_POOL_H_
 
-#include <mutex>
 #include <algorithm>
+#include <mutex>
+#include <unordered_map>
+#include <utility>
 #include "dali/core/mm/pool_resource.h"
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
@@ -29,7 +31,7 @@ namespace mm {
 template <memory_kind kind, class FreeList, class LockType, class Upstream = memory_resource<kind>>
 class async_pool_base : public stream_aware_memory_resource<kind> {
  public:
-  async_pool_base(Upstream *upstream) : global_pool_(upstream) {
+  explicit async_pool_base(Upstream *upstream) : global_pool_(upstream) {
   }
   ~async_pool_base() {
     try {
@@ -56,7 +58,6 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
       }
     }
     CUDA_DTOR_CALL(cudaStreamSynchronize(sync_stream_));
-
   }
 
  private:
@@ -224,24 +225,15 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     }
     f = *it;
     assert(ready(f->event));
-    assert(!f->prev || !ready(f->prev->event));
     return f;
   }
 
   void free_pending(PerStreamFreeBlocks &free) {
     auto *f = find_first_ready(free);
-    if (f == free.free_list.head) {
-      free.free_list.head = nullptr;
-      free.free_list.tail = nullptr;
-    } else {
-      free.free_list.tail = f->prev;
-      f->prev->next = nullptr;
-    }
     while (f) {
       global_pool_.deallocate(f->addr, f->bytes, f->alignment);
       f = remove_pending_free(free, f);
     }
-
   }
 
   void deallocate_async_impl(PerStreamFreeBlocks &free, char *ptr, size_t bytes, size_t alignment,
