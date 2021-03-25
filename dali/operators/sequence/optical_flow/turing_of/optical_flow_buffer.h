@@ -18,7 +18,7 @@
 #include <sstream>
 #include "dali/core/error_handling.h"
 #include "dali/operators/sequence/optical_flow/turing_of/utils.h"
-#include <nvOpticalFlowCuda.h>
+#include "dali/operators/sequence/optical_flow/turing_of/nvOpticalFlowCuda.h"
 
 namespace dali {
 namespace optical_flow {

@@ -30,7 +30,7 @@ TEST(DLMTensorPtr, CPU) {
   ASSERT_EQ(dlm_tensor->dl_tensor.data, tensor.raw_data());
   ASSERT_EQ(dlm_tensor->dl_tensor.dtype.code, kDLFloat);
   ASSERT_EQ(dlm_tensor->dl_tensor.dtype.bits, sizeof(float) * 8);
-  ASSERT_EQ(dlm_tensor->dl_tensor.ctx.device_type, kDLCPU);
+  ASSERT_EQ(dlm_tensor->dl_tensor.device.device_type, kDLCPU);
   ASSERT_EQ(dlm_tensor->dl_tensor.byte_offset, 0);
 }
 
@@ -46,8 +46,8 @@ TEST(DLMTensorPtr, GPU) {
   ASSERT_EQ(dlm_tensor->dl_tensor.data, tensor.raw_data());
   ASSERT_EQ(dlm_tensor->dl_tensor.dtype.code, kDLInt);
   ASSERT_EQ(dlm_tensor->dl_tensor.dtype.bits, sizeof(int) * 8);
-  ASSERT_EQ(dlm_tensor->dl_tensor.ctx.device_type, kDLGPU);
-  ASSERT_EQ(dlm_tensor->dl_tensor.ctx.device_id, tensor.device_id());
+  ASSERT_EQ(dlm_tensor->dl_tensor.device.device_type, kDLGPU);
+  ASSERT_EQ(dlm_tensor->dl_tensor.device.device_id, tensor.device_id());
   ASSERT_EQ(dlm_tensor->dl_tensor.byte_offset, 0);
 }
 
@@ -63,7 +63,7 @@ TEST(DLMTensorPtr, CPUList) {
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.data, tlist.raw_tensor(0));
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.dtype.code, kDLFloat);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.dtype.bits, sizeof(double) * 8);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.ctx.device_type, kDLCPU);
+  ASSERT_EQ(dlm_tensors[0]->dl_tensor.device.device_type, kDLCPU);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.byte_offset, 0);
 
   ASSERT_EQ(tlist.tensor_shape(1).size(), 3);
@@ -74,7 +74,7 @@ TEST(DLMTensorPtr, CPUList) {
   ASSERT_EQ(dlm_tensors[1]->dl_tensor.data, tlist.raw_tensor(1));
   ASSERT_EQ(dlm_tensors[1]->dl_tensor.dtype.code, kDLFloat);
   ASSERT_EQ(dlm_tensors[1]->dl_tensor.dtype.bits, sizeof(double) * 8);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.ctx.device_type, kDLCPU);
+  ASSERT_EQ(dlm_tensors[1]->dl_tensor.device.device_type, kDLCPU);
   ASSERT_EQ(dlm_tensors[1]->dl_tensor.byte_offset, 0);
 }
 
@@ -90,9 +90,9 @@ TEST(DLMTensorPtr, GPUList) {
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.data, tlist.raw_tensor(0));
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.dtype.code, kDLUInt);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.dtype.bits, sizeof(uint8) * 8);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.ctx.device_type, kDLGPU);
+  ASSERT_EQ(dlm_tensors[0]->dl_tensor.device.device_type, kDLGPU);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.byte_offset, 0);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.ctx.device_id, tlist.device_id());
+  ASSERT_EQ(dlm_tensors[0]->dl_tensor.device.device_id, tlist.device_id());
 
   ASSERT_EQ(dlm_tensors[1]->dl_tensor.ndim, 3);
   ASSERT_EQ(dlm_tensors[1]->dl_tensor.shape[0], 50);
@@ -101,9 +101,9 @@ TEST(DLMTensorPtr, GPUList) {
   ASSERT_EQ(dlm_tensors[1]->dl_tensor.data, tlist.raw_tensor(1));
   ASSERT_EQ(dlm_tensors[1]->dl_tensor.dtype.code, kDLUInt);
   ASSERT_EQ(dlm_tensors[1]->dl_tensor.dtype.bits, sizeof(uint8) * 8);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.ctx.device_type, kDLGPU);
+  ASSERT_EQ(dlm_tensors[1]->dl_tensor.device.device_type, kDLGPU);
   ASSERT_EQ(dlm_tensors[1]->dl_tensor.byte_offset, 0);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.ctx.device_id, tlist.device_id());
+  ASSERT_EQ(dlm_tensors[1]->dl_tensor.device.device_id, tlist.device_id());
 }
 
 struct TestDLTensorResource: public DLTensorResource {
