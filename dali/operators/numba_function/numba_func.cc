@@ -31,7 +31,8 @@ per-sample basis and should have the following definition:
 ``out_numba_types`` and ``in_numba_types`` refer to the numba data types (numba.types) 
 of the output and input, respectively.
 
-Additionally, an optional setup function with the following definition:
+Additionally, an optional setup function calculating the shape of the output so DALI can allocate memory 
+for the output with the following definition:
 
 .. code-block:: python
 
@@ -64,7 +65,7 @@ The following example shows a simple setup function which permutes the order of 
         out_type[0] = dali_int32
 
 Since the setup function is running for the whole batch, we need to iterate and permute each sample's shape individually. 
-For ``shapes`` = ``[(10, 20, 30), (20, 10, 30)]`` it will produce output with ``shapes`` = ``[(20, 10, 30), (10, 20, 30)]``.
+For ``shapes = [(10, 20, 30), (20, 10, 30)]`` it will produce output with ``shapes = [(20, 10, 30), (10, 20, 30)]``.
 
 Also lets provide run function:
 
