@@ -276,7 +276,11 @@ class EnumDocumenter(ClassDocumenter):
         the ones we're interested in.
         We can do the sorting here based on the values, and pass through in self.sort_members()
         """
-        filtered = super().filter_members(members, want_all)
+        # Since pybind11 https://github.com/pybind/pybind11/pull/2739 there is an extra `value` member
+        # returned by get_object_members(). Here we are filtering the list, to keep only enum members
+        filtered = [member for member in members if member[0] in self.object.__members__.keys()]
+
+        filtered = super().filter_members(filtered, want_all)
 
         # sort by the actual value of enum - this is a tuple of (name, value, boolean)
         def get_member_value(member_desc):
