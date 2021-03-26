@@ -188,7 +188,7 @@ TEST(MMAsyncPool, MultiThreadedSingleStreamRandom) {
     vector<std::thread> threads;
 
     for (int t = 0; t < 10; t++) {
-      threads.push_back(std::thread([&, t]() {
+      threads.push_back(std::thread([&]() {
         AsyncPoolTest(pool, blocks, mtx, stream);
       }));
     }
@@ -209,7 +209,7 @@ TEST(MMAsyncPool, MultiThreadedMultiStreamRandom) {
     vector<std::thread> threads;
 
     for (int t = 0; t < 10; t++) {
-      threads.push_back(std::thread([&, t]() {
+      threads.push_back(std::thread([&]() {
         CUDAStream stream = CUDAStream::Create(true);
         vector<block> blocks;
         detail::dummy_lock mtx;
@@ -275,7 +275,7 @@ TEST(MMAsyncPool, MultiStreamRandomWithGPUHogs) {
     vector<std::thread> threads;
 
     for (int t = 0; t < 10; t++) {
-      threads.push_back(std::thread([&, t]() {
+      threads.push_back(std::thread([&]() {
         CUDAStream stream = CUDAStream::Create(true);
         vector<block> blocks;
         detail::dummy_lock mtx;
