@@ -216,9 +216,9 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
    * If the allocation fails, the function returns nullptr.
    */
   void *try_allocate(PerStreamFreeBlocks &from, size_t bytes, size_t alignment) {
-    int max_padding = std::min<size_t>(std::max<size_t>(bytes / 16, 16), (1 << 20));
-    const int remainder_alignment = 16;
-    const int min_split_remainder = 16;
+    unsigned max_padding = std::min<size_t>(std::max<size_t>(bytes / 16, 16), (1 << 20));
+    const unsigned remainder_alignment = 16;
+    const unsigned min_split_remainder = 16;
     for (auto it = from.by_size.lower_bound({ bytes, nullptr }); it != from.by_size.end(); ++it) {
       size_t block_size = it->first;
       pending_free *f = it->second;
