@@ -152,9 +152,9 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
   auto dlm_tensor_ptr = DLMTensorPtrFromCapsule(capsule);
   const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
   DALI_ENFORCE((std::is_same<SrcBackend, GPUBackend>::value &&
-                  dl_tensor.ctx.device_type == kDLGPU) ||
+                  dl_tensor.device.device_type == kDLGPU) ||
                (std::is_same<SrcBackend, CPUBackend>::value &&
-                  dl_tensor.ctx.device_type == kDLCPU),
+                  dl_tensor.device.device_type == kDLCPU),
                "DLPack device type doesn't match Tensor type");
 
   auto dali_type = TypeTable::GetTypeInfo(DLToDALIType(dl_tensor.dtype));
@@ -175,15 +175,15 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
                                     bytes, typed_shape, dali_type);
 
   // according to the docs kDLCPUPinned = kDLCPU | kDLGPU so test it as a the first option
-  if (dl_tensor.ctx.device_type == kDLCPUPinned) {
+  if (dl_tensor.device.device_type == kDLCPUPinned) {
     batch->set_device_id(-1);
     batch->set_pinned(true);
-  } else if (dl_tensor.ctx.device_type == kDLCPU) {
+  } else if (dl_tensor.device.device_type == kDLCPU) {
     batch->set_device_id(-1);
-  } else if (dl_tensor.ctx.device_type == kDLGPU) {
-    batch->set_device_id(dl_tensor.ctx.device_id);
+  } else if (dl_tensor.device.device_type == kDLGPU) {
+    batch->set_device_id(dl_tensor.device.device_id);
   } else {
-    DALI_FAIL(make_string("Not supported DLPack device type: ", dl_tensor.ctx.device_type, "."));
+    DALI_FAIL(make_string("Not supported DLPack device type: ", dl_tensor.device.device_type, "."));
   }
 
   batch->SetLayout(layout);
@@ -276,8 +276,9 @@ void ExposeTensor(py::module &m) {
             // do not consume capsule
             auto dlm_tensor_ptr = DLMTensorRawPtrFromCapsule(capsule, false);
             const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
-            list.append(dl_tensor.ctx.device_type == kDLGPU || dl_tensor.ctx.device_type == kDLCPU);
-            list.append(dl_tensor.ctx.device_type == kDLGPU);
+            list.append(dl_tensor.device.device_type == kDLGPU ||
+                        dl_tensor.device.device_type == kDLCPU);
+            list.append(dl_tensor.device.device_type == kDLGPU);
           } else {
             list.append(false);
             list.append(false);

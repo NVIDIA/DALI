@@ -56,14 +56,14 @@ std::vector<DLMTensorPtr> CastToDLTensorList(py::list &list, Index exp_size, Ind
                  "should return a list of DLPack tensors.");
     auto caps = py::cast<py::capsule>(list[0]);
     result.push_back(DLMTensorPtrFromCapsule(caps));
-    DALI_ENFORCE(result[0]->dl_tensor.ctx.device_type == Backend2DLDevice<Backend>(),
+    DALI_ENFORCE(result[0]->dl_tensor.device.device_type == Backend2DLDevice<Backend>(),
         "Wrong output backend");
     auto dtype = result[0]->dl_tensor.dtype;
     auto ndim = result[0]->dl_tensor.ndim;
     for (Index i = 1; i < exp_size; ++i) {
       auto caps = py::cast<py::capsule>(list[i]);
       result.push_back(DLMTensorPtrFromCapsule(caps));
-      DALI_ENFORCE(result[i]->dl_tensor.ctx.device_type == Backend2DLDevice<Backend>(),
+      DALI_ENFORCE(result[i]->dl_tensor.device.device_type == Backend2DLDevice<Backend>(),
                    "Wrong output backend.");
       DALI_ENFORCE(DLToDALIType(result[i]->dl_tensor.dtype) == DLToDALIType(dtype),
                    "Output DLPack tensor list should have consistent data type.");

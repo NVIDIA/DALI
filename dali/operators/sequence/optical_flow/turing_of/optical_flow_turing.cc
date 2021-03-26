@@ -152,6 +152,7 @@ void OpticalFlowTuring::CalcOpticalFlow(
 
 
 void OpticalFlowTuring::SetInitParams(dali::optical_flow::OpticalFlowParams api_params) {
+  init_params_ = {};
   init_params_.width = static_cast<uint32_t>(width_);
   init_params_.height = static_cast<uint32_t>(height_);
 
@@ -178,6 +179,7 @@ void OpticalFlowTuring::SetInitParams(dali::optical_flow::OpticalFlowParams api_
   init_params_.enableExternalHints = of_params_.enable_external_hints ? NV_OF_TRUE : NV_OF_FALSE;
   init_params_.enableOutputCost = NV_OF_FALSE;
   init_params_.hPrivData = NULL;
+  init_params_.disparityRange = NV_OF_STEREO_DISPARITY_RANGE_UNDEFINED;
 }
 
 

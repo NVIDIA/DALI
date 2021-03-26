@@ -56,9 +56,9 @@ DLMTensorPtr MakeDLTensor(void* data, const TypeInfo& type,
     dl_tensor.strides = resource->strides.data();
   }
   if (device) {
-    dl_tensor.ctx = {kDLGPU, device_id};
+    dl_tensor.device = {kDLGPU, device_id};
   } else {
-    dl_tensor.ctx = {kDLCPU, 0};
+    dl_tensor.device = {kDLCPU, 0};
   }
   dl_tensor.dtype = GetDLType(type);
   dlm_tensor_ptr->deleter = &DLManagedTensorDeleter;

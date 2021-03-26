@@ -148,16 +148,18 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<ComputeGPU> {
 
   const std::string kInitSymbol = "NvOFAPICreateInstanceCuda";
 
-  const size_t width_, height_, channels_;
-  int device_id_;
-  CUcontext context_;
-  cudaStream_t stream_;
-  NvOFHandle of_handle_;
-  NV_OF_CUDA_API_FUNCTION_LIST turing_of_;
-  NV_OF_INIT_PARAMS init_params_;
+  size_t width_                 = 0;
+  size_t height_                = 0;
+  size_t channels_              = 3;
+  int device_id_                = -1;
+  CUcontext context_            = nullptr;
+  cudaStream_t stream_          = 0;
+  NvOFHandle of_handle_         = nullptr;
+  NV_OF_CUDA_API_FUNCTION_LIST turing_of_ = {};
+  NV_OF_INIT_PARAMS init_params_ = {};
   std::unique_ptr<OpticalFlowBuffer> inbuf_, refbuf_, outbuf_, hintsbuf_;
-  DALIImageType image_type_;
-  ofDriverHandle lib_handle_;
+  DALIImageType image_type_     = DALI_RGB;
+  ofDriverHandle lib_handle_    = nullptr;
 };
 
 }  // namespace optical_flow
