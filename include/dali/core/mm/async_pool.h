@@ -200,6 +200,8 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
    */
   void *try_allocate(PerStreamFreeBlocks &from, size_t bytes, size_t alignment) {
     int max_padding = std::min<size_t>(std::max<size_t>(bytes / 16, 16), (1 << 20));
+    const int remainder_alignment = 16;
+    const int min_split_remainder = 16;
     for (auto it = from.by_size.lower_bound({ bytes, nullptr }); it != from.by_size.end(); ++it) {
       size_t block_size = it->first;
       pending_free *f = it->second;
@@ -209,12 +211,29 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
       assert(static_cast<ptrdiff_t>(front_padding) >= 0);
       // NOTE: block_size - front_padding >= size  can overflow and fail - meh, unsigned size_t
       if (block_size >= bytes + front_padding) {
-        if (block_size - bytes - front_padding > max_padding)
+        if (!supports_splitting && block_size - bytes - front_padding > max_padding)
           return nullptr;  // no point in continuing - the map is sorted
+
         from.by_size.erase(it);
-        remove_pending_free(from, f, false);
-        if (block_size != bytes) {
-          padded_[aligned] = { block_size,
+        char *block_end = base + block_size;
+        char *remainder = detail::align_ptr(aligned + bytes, remainder_alignment);
+        bool split = supports_splitting && remainder + min_split_remainder < block_end;
+        size_t split_size = block_size;
+        if (split) {
+          // Adjust the pending free `f` so that it contains only what remains after
+          // the block was split.
+          size_t remainder_size = block_end - remainder;
+          f->addr = remainder;
+          f->bytes = remainder_size;
+          f->alignment = remainder_alignment;
+          from.by_size.insert({ remainder_size, f });
+          // The block taken out from the free list is now reduced
+          split_size = remainder - base;
+        } else {
+          remove_pending_free(from, f, false);
+        }
+        if (split_size != bytes) {
+          padded_[aligned] = { split_size,
                                static_cast<int>(front_padding),
                                static_cast<int>(alignment) };
         }
@@ -370,6 +389,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   CUDAEventPool event_pool_;
   CUDAStream sync_stream_;
 
+  static constexpr bool supports_splitting = detail::can_merge<FreeList>::value;
   pool_resource_base<kind, any_context, FreeList, detail::dummy_lock> global_pool_;
 };
 
@@ -377,4 +397,3 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
 }  // namespace dali
 
 #endif  // DALI_CORE_MM_ASYNC_POOL_H_
-

@@ -527,6 +527,17 @@ class free_tree {
   detail::pooled_set<std::pair<size_t, char *>, true> by_size_;
 };
 
+namespace detail {
+template <typename FreeList>
+struct can_merge : std::false_type {};
+
+template <>
+struct can_merge<coalescing_free_list> : std::true_type {};
+
+template <>
+struct can_merge<free_tree> : std::true_type {};
+}  // namespace detail
+
 }  // namespace mm
 }  // namespace dali
 

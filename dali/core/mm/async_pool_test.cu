@@ -159,14 +159,17 @@ TEST(MMAsyncPool, SingleStreamRandom) {
   CUDAStream stream = CUDAStream::Create(true);
   test::test_device_resource upstream;
 
-  vector<block> blocks;
-
-  async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
-  detail::dummy_lock mtx;
-  AsyncPoolTest(pool, blocks, mtx, stream);
-
+  {
+    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    vector<block> blocks;
+    detail::dummy_lock mtx;
+    AsyncPoolTest(pool, blocks, mtx, stream);
+  }
 
   CUDA_CALL(cudaStreamSynchronize(stream));
+  std::cerr << "Peak consumption:     " << upstream.get_peak_size() << " bytes\n";
+  std::cerr << "Upstream allocations: " << upstream.get_num_allocs() << std::endl;
+  upstream.check_leaks();
 }
 
 TEST(MMAsyncPool, MultiThreadedSingleStreamRandom) {
@@ -189,6 +192,8 @@ TEST(MMAsyncPool, MultiThreadedSingleStreamRandom) {
       t.join();
   }
   CUDA_CALL(cudaStreamSynchronize(stream));
+  std::cerr << "Peak consumption:     " << upstream.get_peak_size() << " bytes\n";
+  std::cerr << "Upstream allocations: " << upstream.get_num_allocs() << std::endl;
   upstream.check_leaks();
 }
 
@@ -211,6 +216,8 @@ TEST(MMAsyncPool, MultiThreadedMultiStreamRandom) {
     for (auto &t : threads)
       t.join();
   }
+  std::cerr << "Peak consumption:     " << upstream.get_peak_size() << " bytes\n";
+  std::cerr << "Upstream allocations: " << upstream.get_num_allocs() << std::endl;
   upstream.check_leaks();
 }
 
@@ -251,6 +258,8 @@ TEST(MMAsyncPool, TwoStream) {
     success++;
     cudaStreamSynchronize(s2);
   }
+  std::cerr << "Peak consumption:     " << upstream.get_peak_size() << " bytes\n";
+  std::cerr << "Upstream allocations: " << upstream.get_num_allocs() << std::endl;
   upstream.check_leaks();
 }
 
@@ -273,6 +282,8 @@ TEST(MMAsyncPool, MultiStreamRandomWithGPUHogs) {
     for (auto &t : threads)
       t.join();
   }
+  std::cerr << "Peak consumption:     " << upstream.get_peak_size() << " bytes\n";
+  std::cerr << "Upstream allocations: " << upstream.get_num_allocs() << std::endl;
   upstream.check_leaks();
 }
 
@@ -301,11 +312,10 @@ TEST(MMAsyncPool, CrossStream) {
     for (auto &t : threads)
       t.join();
   }
+  std::cerr << "Peak consumption:     " << upstream.get_peak_size() << " bytes\n";
+  std::cerr << "Upstream allocations: " << upstream.get_num_allocs() << std::endl;
   upstream.check_leaks();
 }
-
-
-
 
 }  // namespace mm
 }  // namespace dali
