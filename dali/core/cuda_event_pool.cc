@@ -33,7 +33,7 @@ CUDAEventPool::CUDAEventPool(unsigned event_flags) {
 
 CUDAEvent CUDAEventPool::Get(int device_id) {
   if (device_id == -1)
-    cudaGetDevice(&device_id);
+    CUDA_CALL(cudaGetDevice(&device_id));
 
   CUDAEvent ev = GetFromPool(device_id);
   if (!ev)

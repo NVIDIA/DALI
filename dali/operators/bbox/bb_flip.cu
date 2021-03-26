@@ -115,9 +115,9 @@ void BbFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
       assert(horz_view.is_contiguous());
       assert(horz_view.shape.num_elements() == nsamples);
       horz_gpu_.Resize({nsamples});
-      cudaMemcpyAsync(horz_gpu_.mutable_data<int>(), horz_view.data[0],
+      CUDA_CALL(cudaMemcpyAsync(horz_gpu_.mutable_data<int>(), horz_view.data[0],
                       nsamples * sizeof(int),
-                      cudaMemcpyHostToDevice, stream);
+                      cudaMemcpyHostToDevice, stream));
       per_sample_horz = horz_gpu_.data<int>();
     }
 
@@ -126,9 +126,9 @@ void BbFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
       assert(vert_view.is_contiguous());
       assert(vert_view.shape.num_elements() == nsamples);
       vert_gpu_.Resize({nsamples});
-      cudaMemcpyAsync(vert_gpu_.mutable_data<int>(), vert_view.data[0],
+      CUDA_CALL(cudaMemcpyAsync(vert_gpu_.mutable_data<int>(), vert_view.data[0],
                       nsamples * sizeof(int),
-                      cudaMemcpyHostToDevice, stream);
+                      cudaMemcpyHostToDevice, stream));
       per_sample_vert = vert_gpu_.data<int>();
     }
     sample_idx = idx2sample_.data<int>();

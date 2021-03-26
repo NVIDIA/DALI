@@ -37,7 +37,7 @@ curand_states::curand_states(uint64_t seed, size_t len) : len_(len) {
   static constexpr int kBlockSize = 256;
   int grid = div_ceil(len_, kBlockSize);
   detail::init_states<<<grid, kBlockSize, 0, tmp_stream>>>(len_, seed, states_);
-  cudaStreamSynchronize(tmp_stream);
+  CUDA_CALL(cudaStreamSynchronize(tmp_stream));
 }
 
 }  // namespace dali
