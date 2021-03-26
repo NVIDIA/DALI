@@ -88,7 +88,8 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
                    int max_iters = 100000, bool use_hog = false) {
   stream_view sv(stream);
   std::mt19937_64 rng(12345);
-  std::uniform_int_distribution<> size_dist(100, 10000);
+  std::poisson_distribution<> size_dist(1024);
+  const int max_size = 1<<20;
   std::uniform_int_distribution<> sync_dist(10, 10);
   std::bernoulli_distribution action_dist;
   std::bernoulli_distribution hog_dist(0.05f);
@@ -111,7 +112,10 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
       hog.run(stream);
     }
     if (action_dist(rng) || blocks.empty()) {
-      size_t size = size_dist(rng);
+      size_t size;
+      do {
+        size = size_dist(rng);
+      } while (size > max_size);
       uint8_t fill = fill_dist(rng);
       void *ptr = stream ? pool.allocate_async(size, sv) : pool.allocate(size);
       CUDA_CALL(cudaMemsetAsync(ptr, fill, size, stream));
