@@ -76,7 +76,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   }
 
   /**
-   * @brief Tries to recycle per-stream free memory or allocates from global pool.
+   * @brief Tries to recycle per-stream free memory or allocates from the global pool.
    *
    * There are four cases:
    * (1) Attempt to allocate from stream-specific free list - a smallest suitable block is used,
@@ -90,7 +90,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
    *     an allocation is made from the global pool.
    *
    * Per-stream frees are not coalesced - therefore, even if the total memory freed on a stream
-   * may be sufficient
+   * may be sufficient, there may be no satisfactory block.
    */
   void *do_allocate_async(size_t bytes, size_t alignment, stream_view stream) override {
     adjust_size_and_alignment(bytes, alignment);
@@ -105,6 +105,14 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     return allocate_from_global_pool(bytes, alignment);
   }
 
+  /**
+   * @brief Allocates from a global pool, possibly releasing per-stream memory to the global pool.
+   *
+   * If the global pool can't allocate enough memory without allocating upstream blocks,
+   * and there are some per-stream pending frees, the completed per-streem frees are returned
+   * to the global pool.
+   * Then, another request to the global pool is made, this time allowing allocation from upstream.
+   */
   void *allocate_from_global_pool(size_t bytes, size_t alignment) {
     void *ptr;
     if (num_pending_frees_ == 0) {
@@ -128,6 +136,15 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     deallocate_async_impl(stream_free_[stream.value()], ptr, bytes, alignment, stream.value());
   }
 
+  /**
+   * @brief Increases minimum alignment based on size and quantizes the size to a multiple
+   *        of the alignment.
+   *
+   * If the alignment requirements are low compared to the size, the alignment requirement is
+   * increased, which improves reusability of the block. Further, the block size is aligned
+   * to a next multiple of the (new) alignment, reducing the need for block splitting in case
+   * of multiple allocations of similarly-sized blocks.
+   */
   static void adjust_size_and_alignment(size_t &size, size_t &alignment) {
     if (size == 0)
       return;
@@ -389,7 +406,19 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   CUDAEventPool event_pool_;
   CUDAStream sync_stream_;
 
+  /**
+   * @brief Whether the global pool supports splitting
+   *
+   * In general, `memory_resource` requires that the a pointer being deallocated
+   * was returned from a previous allocation on the same resource, with the same size.
+   * However, a specific implementation of a memory resource (i.e. pool_resource_base with
+   * certain FreeList types) can concatenate the deallocated memory segments.
+   * This propert is used for partial recycling of stream-bound free blocks - we might
+   * reuse a part of the block on the same stream and return the rest to the global pool, with
+   * the hope of reducing the number of calls to upstream and overall memory consumption.
+   */
   static constexpr bool supports_splitting = detail::can_merge<FreeList>::value;
+
   pool_resource_base<kind, any_context, FreeList, detail::dummy_lock> global_pool_;
 };
 
