@@ -103,7 +103,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
     out_.invalidate_cpu();
     CUDA_CALL(cudaStreamSynchronize(stream));
 
-    for (size_t i = 0; i < in_shapes_.size(); i++) {
+    for (int i = 0; i < in_shapes_.size(); i++) {
       auto &sample_desc = samples_cpu[i];
       const auto& in_sh = in_shapes_[i];
       auto chroma_sh = chroma_shape.tensor_shape_span(i);
@@ -182,11 +182,11 @@ class JpegDistortionTestGPU : public ::testing::Test {
     auto in_view_cpu = in_.cpu();
     auto out_ref_cpu = out_ref_.cpu();
 
-    for (size_t i = 0; i < in_shapes_.size(); i++) {
+    for (int i = 0; i < in_shapes_.size(); i++) {
       auto sh = in_shapes_[i];
       cv::Mat in_mat(sh[0], sh[1], CV_8UC3, static_cast<void *>(in_view_cpu[i].data));
-      cv::Mat out_mat(sh[0], sh[1], CV_8UC3, static_cast<void *>out_view_cpu[i].data));
-      cv::Mat out_ref(sh[0], sh[1], CV_8UC3, static_cast<void *>out_ref_cpu[i].data));
+      cv::Mat out_mat(sh[0], sh[1], CV_8UC3, static_cast<void *>(out_view_cpu[i].data));
+      cv::Mat out_ref(sh[0], sh[1], CV_8UC3, static_cast<void *>(out_ref_cpu[i].data));
       cv::Mat diff;
       cv::absdiff(out_mat, out_ref, diff);
 
@@ -232,7 +232,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
     std::vector<T> tmp_cb;
     std::vector<T> tmp_cr;
     auto in_view = in_.cpu();
-    for (size_t sample = 0; sample < in_shapes_.size(); sample++) {
+    for (int sample = 0; sample < in_shapes_.size(); sample++) {
       auto sh = in_shapes_[sample];
       int64_t npixels = sh[0] * sh[1];
       tmp_y.resize(npixels);
@@ -304,7 +304,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
     out_ref_.reshape(in_shapes_);
     auto out_ref_view = out_ref_.cpu();
     auto in_view_cpu = in_.cpu();
-    for (size_t i = 0; i < in_shapes_.size(); i++) {
+    for (int i = 0; i < in_shapes_.size(); i++) {
       auto sh = in_shapes_[i];
       cv::Mat in_mat(sh[0], sh[1], CV_8UC3, static_cast<void *>(in_view_cpu[i].data));
 
