@@ -102,7 +102,7 @@ Currently, DALI supports the following operations:
     :rtype: TensorList of the type that is calculated based on the type promotion rules.
 
 
-Mathematical Funcions
+Mathematical Functions
 ---------------------
 
 Similarly to arithmetic expressions, one can use selected mathematical functions in the Pipeline
