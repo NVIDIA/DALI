@@ -57,7 +57,8 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
         CUDA_DTOR_CALL(cudaStreamWaitEvent(sync_stream_, kv.second.free_list.head->event, 0));
       }
     }
-    CUDA_DTOR_CALL(cudaStreamSynchronize(sync_stream_));
+    if (sync_stream_)
+      CUDA_DTOR_CALL(cudaStreamSynchronize(sync_stream_));
   }
 
  private:
@@ -71,7 +72,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char *>(mem);
-    restore_original_params(ptr, bytes, alignment);
+    pop_block_padding(ptr, bytes, alignment);
     return global_pool_.deallocate(ptr, bytes, alignment);
   }
 
@@ -132,7 +133,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char*>(mem);
-    restore_original_params(ptr, bytes, alignment);
+    pop_block_padding(ptr, bytes, alignment);
     deallocate_async_impl(stream_free_[stream.value()], ptr, bytes, alignment, stream.value());
   }
 
@@ -148,8 +149,8 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   static void adjust_size_and_alignment(size_t &size, size_t &alignment) {
     if (size == 0)
       return;
-    int l = ilog2(size);
-    size_t min_align = (1 << (l >> 1));  // 2^(l/2)
+    int log2size = ilog2(size);
+    size_t min_align = (1 << (log2size >> 1));  // 2^(log2size/2)
     if (min_align > 256)
       min_align = 256;
     if (min_align > alignment)
@@ -317,16 +318,18 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   }
 
   /**
-   * @brief Restores original block parameters (address, size and alignment) of a block
-   *        that was used for allocating a smaller block, possibly with stricter alignment.
+   * @brief Applies block padding and removes padding info.
+   *
+   * Applies block padding (adjusts address, size and alignment) of a block that was
+   * truncated/split for allocating a smaller block (possibly with stricter alignment)
+   * and removes padding from `padded_` map.
    */
-  void restore_original_params(char *&p, size_t &bytes, size_t &alignment) {
+  void pop_block_padding(char *&p, size_t &bytes, size_t &alignment) {
     auto it = padded_.find(p);
     if (it != padded_.end()) {
-      if (it->second.front_padding + bytes > it->second.bytes) {
-        throw std::invalid_argument("The deallocated memory points to a block that's smaller than "
-          "the size being freed. Check the size of the memory region being freed.");
-      }
+      assert(it->second.front_padding + bytes <= it->second.bytes &&
+        "The deallocated memory points to a block that's smaller than "
+        "the size being freed. Check the size of the memory region being freed.");
       p -= it->second.front_padding;
       bytes = it->second.bytes;
       alignment = it->second.alignment;
