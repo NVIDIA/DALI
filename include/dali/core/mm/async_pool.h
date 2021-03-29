@@ -95,16 +95,10 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   /**
    * @brief Tries to recycle per-stream free memory or allocates from the global pool.
    *
-   * There are four cases:
+   * There are two main cases:
    * (1) Attempt to allocate from stream-specific free list - a smallest suitable block is used,
    *     padding is applied, if necessary, and recorded.
-   * (2) If (1) fails and there are no pending per-stream free operations, the requested memory
-   *     is allocated from the global pool.
-   * (3) If (1) fails and there are free pending per-stream operations, an attempt is made to get
-   *     memory from the free list of the underlying global pool, without using upstream resource.
-   *     If this allocation succeeds, the memory allocated this way is returned.
-   * (4) If (3) fails, the pending per-stream frees are collected to the global pool and then
-   *     an allocation is made from the global pool.
+   * (2) Otherwise, the requested memory is allocated from global pool.
    *
    * Per-stream frees are not coalesced - therefore, even if the total memory freed on a stream
    * may be sufficient, there may be no satisfactory block.
@@ -127,10 +121,14 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   /**
    * @brief Allocates from a global pool, possibly releasing per-stream memory to the global pool.
    *
-   * If the global pool can't allocate enough memory without allocating upstream blocks,
-   * and there are some per-stream pending frees, the completed per-streem frees are returned
-   * to the global pool.
-   * Then, another request to the global pool is made, this time allowing allocation from upstream.
+   * (1) If the global pool can't allocate enough memory without allocating upstream blocks,
+   *     and there are some per-stream pending frees, the completed per-streem frees are returned
+   *     to the global pool.
+   * (2) Then, if there are still some pending frees and `avoid_upstream` option was selected at
+   *     construction
+   * (3)    Try to allocate, again avoiding upstream - on failure
+   * (4)    Synchronize and reclaim pending frees
+   * (5) Allocate from the global pool.
    */
   void *allocate_from_global_pool(size_t bytes, size_t alignment) {
     void *ptr;
