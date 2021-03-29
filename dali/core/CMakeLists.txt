@@ -78,7 +78,7 @@ list(FILTER DALI_CORE_SRCS EXCLUDE REGEX ".*dynlink_cufile.cc")
 
 adjust_source_file_language_property("${DALI_CORE_SRCS}")
 add_library(dali_core ${LIBTYPE} ${DALI_CORE_SRCS})
-# target_include_directories(dali_core SYSTEM PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+target_include_directories(dali_core SYSTEM PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 target_link_libraries(dali_core PRIVATE dynlink_cuda ${CUDART_LIB})
 if (BUILD_CUFILE)
     target_link_libraries(dali_core PRIVATE dynlink_cufile)
