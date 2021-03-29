@@ -34,7 +34,7 @@ TEST(ExtractWindowsGPU, NonBatchedKernel) {
   int step = 10;
   int length = windows * step - 100;;
   int center = 5;
-  bool reflect = false;
+  const bool reflect = false;
   cudaMalloc(&in_gpu, sizeof(float)*length);
   cudaMalloc(&out_gpu, sizeof(float)*windows*outwinlen);
   std::vector<float> in(length), out(windows*outwinlen);

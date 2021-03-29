@@ -224,7 +224,7 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
   int max_d = -1;
   int64_t max_result = 0;
   for (int d = 0; d < simplified_ndim; d++) {
-    int mul = d == simplified_ndim - 1 ? 1 : 2;  // it's less efficient to slice last dim
+    int mul = (d == (simplified_ndim - 1) ? 1 : 2);  // it's less efficient to slice last dim
     int64_t result = in.size[d] * mul;
     if (result > max_result) {
       max_d = d;
