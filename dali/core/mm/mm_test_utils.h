@@ -204,7 +204,8 @@ class test_resource_wrapper<owning, security_check, stream_aware_memory_resource
     }, bytes, alignment, strm_vw);
   }
 
-  void do_deallocate_async(void *ptr, size_t bytes, size_t alignment, stream_view strm_vw) override {
+  void do_deallocate_async(
+    void *ptr, size_t bytes, size_t alignment, stream_view strm_vw) override {
     return this->do_deallocate_impl([&](void *p, size_t b, size_t a, stream_view sv) {
       return this->upstream_->deallocate_async(p, b, a, sv);
     }, ptr, bytes, alignment, strm_vw);
