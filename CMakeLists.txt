@@ -341,6 +341,16 @@ add_custom_target("check")
 add_custom_target("check-gtest")
 add_dependencies("check" "check-gtest")
 
+message("-----------------------")
+message("C++ FLAGS  = ${CMAKE_CXX_FLAGS}")
+message("CUDA FLAGS = ${CMAKE_CUDA_FLAGS}")
+get_property(tmp_include_dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+list(REMOVE_ITEM tmp_include_dirs "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES ${tmp_include_dirs})
+include_directories(SYSTEM "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+message("Include directories = ${tmp_include_dirs}")
+
+
 # Project build
 add_subdirectory(dali)
 
