@@ -307,7 +307,6 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     if (pending.empty()) {
       if (f) {
         assert(f->ready());
-        assert(!f->prev || !f->ready());
       }
       return f;
     }
