@@ -32,7 +32,13 @@ namespace mm {
 template <memory_kind kind, class FreeList, class LockType, class Upstream = memory_resource<kind>>
 class async_pool_base : public stream_aware_memory_resource<kind> {
  public:
-  explicit async_pool_base(Upstream *upstream) : global_pool_(upstream) {
+  /**
+   * @param upstream       Upstream resource, used by the global pool
+   * @param avoid_upstream If true, synchronize with outstanding deallocations before
+   *                       using upstream.
+   */
+  explicit async_pool_base(Upstream *upstream, bool avoid_upstream = true)
+  : global_pool_(upstream), avoid_upstream_(avoid_upstream) {
   }
   ~async_pool_base() {
     try {
@@ -48,9 +54,16 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
    * @brief Waits until all pending frees are finished.
    */
   void synchronize() {
+    DeviceGuard dg(device_id_);
+    synchronize_impl(true);
+  }
+
+ private:
+  void synchronize_impl(bool lock) {
     {
-      DeviceGuard dg(device_id_);
-      std::lock_guard<LockType> guard(lock_);
+      std::unique_lock<std::mutex> ulock(lock_, std::defer_lock);
+      if (lock)
+        ulock.lock();
       for (auto &kv : stream_free_) {
         if (!kv.second.free_list.head)
           continue;
@@ -63,7 +76,6 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
       CUDA_DTOR_CALL(cudaStreamSynchronize(sync_stream_));
   }
 
- private:
   void *do_allocate(size_t bytes, size_t alignment) override {
     if (device_id_ == -1)
       CUDA_CALL(cudaGetDevice(&device_id_));
@@ -131,6 +143,14 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
       return ptr;
     for (auto &kv : stream_free_)
       free_pending(kv.second);
+    if (avoid_upstream_ && num_pending_frees_ > 0) {
+      ptr = global_pool_.try_allocate_from_free(bytes, alignment);
+      if (ptr)
+        return ptr;
+      synchronize_impl(false);
+      for (auto &kv : stream_free_)
+        free_pending(kv.second);
+    }
     ptr = global_pool_.allocate(bytes, alignment);
     return ptr;
   }
@@ -406,7 +426,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   detail::pooled_map<char *, padded_block, true> padded_;
 
   std::unordered_map<cudaStream_t, PerStreamFreeBlocks> stream_free_;
-  int num_pending_frees_ = 0;
+  int     num_pending_frees_ = 0;
 
   using FreeDescAlloc = detail::object_pool_allocator<pending_free>;
 
@@ -415,6 +435,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   CUDAEventPool event_pool_;
   CUDAStream sync_stream_;
   int device_id_ = -1;
+  bool avoid_upstream_ = true;
 
   /**
    * @brief Whether the global pool supports splitting

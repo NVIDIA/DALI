@@ -269,7 +269,7 @@ TEST(MMAsyncPool, MultiThreadedMultiStreamRandom) {
 TEST(MMAsyncPool, MultiStreamRandomWithGPUHogs) {
   mm::test::test_device_resource upstream;
   {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream, false);
 
     vector<std::thread> threads;
 
@@ -294,7 +294,7 @@ TEST(MMAsyncPool, MultiStreamRandomWithGPUHogs) {
 TEST(MMAsyncPool, CrossStream) {
   mm::test::test_device_resource upstream;
   {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream, false);
 
     vector<std::thread> threads;
     vector<CUDAStream> streams;
