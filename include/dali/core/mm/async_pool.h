@@ -24,6 +24,7 @@
 #include "dali/core/small_vector.h"
 #include "dali/core/cuda_event_pool.h"
 #include "dali/core/cuda_stream.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 namespace mm {
@@ -48,6 +49,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
    */
   void synchronize() {
     {
+      DeviceGuard dg(device_id_);
       std::lock_guard<LockType> guard(lock_);
       for (auto &kv : stream_free_) {
         if (!kv.second.free_list.head)
@@ -63,6 +65,8 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
 
  private:
   void *do_allocate(size_t bytes, size_t alignment) override {
+    if (device_id_ == -1)
+      CUDA_CALL(cudaGetDevice(&device_id_));
     adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
     return allocate_from_global_pool(bytes, alignment);
@@ -94,6 +98,8 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
    * may be sufficient, there may be no satisfactory block.
    */
   void *do_allocate_async(size_t bytes, size_t alignment, stream_view stream) override {
+    if (device_id_ == -1)
+      CUDA_CALL(cudaGetDevice(&device_id_));
     adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
     auto it = stream_free_.find(stream.value());
@@ -408,6 +414,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
 
   CUDAEventPool event_pool_;
   CUDAStream sync_stream_;
+  int device_id_ = -1;
 
   /**
    * @brief Whether the global pool supports splitting

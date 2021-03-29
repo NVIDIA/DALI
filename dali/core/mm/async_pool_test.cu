@@ -66,6 +66,49 @@ TEST(MMAsyncPool, SingleStreamReuse) {
   EXPECT_EQ(ptr, p2);
 }
 
+TEST(MMAsyncPool, TwoStream) {
+  mm::test::test_device_resource upstream;
+  CUDAStream s1 = CUDAStream::Create(true);
+  CUDAStream s2 = CUDAStream::Create(true);
+  stream_view sv1(s1);
+  stream_view sv2(s2);
+
+  GPUHog hog;
+  hog.init();
+  const int min_success = 10;
+  const int max_not_busy = 100;
+  int stream_not_busy = 0;
+  int success = 0;
+  while (success < min_success) {
+    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    void *p1 = pool.allocate_async(1000, sv1);
+    hog.run(s1);
+    pool.deallocate_async(p1, 1000, sv1);
+    void *p2 = pool.allocate_async(1000, sv2);
+    void *p3 = pool.allocate_async(1000, sv1);
+    cudaError_t e = cudaStreamQuery(s1);
+    if (e != cudaErrorNotReady) {
+      std::cerr << "Stream s1 finished before attempt to allocate on s2 was made - retrying\n";
+      CUDA_CALL(cudaGetLastError());
+      if (++stream_not_busy > max_not_busy) {
+        FAIL() << "Stream s1 finished - test unreliable.";
+      }
+      continue;
+    }
+    stream_not_busy = 0;
+    ASSERT_NE(p1, p2);
+    ASSERT_EQ(p1, p3);
+    CUDA_CALL(cudaStreamSynchronize(s1));
+    success++;
+    CUDA_CALL(cudaStreamSynchronize(s2));
+  }
+  std::cerr << "Peak consumption:     " << upstream.get_peak_size() << " bytes\n";
+  std::cerr << "Upstream allocations: " << upstream.get_num_allocs() << std::endl;
+  upstream.check_leaks();
+}
+
+namespace {
+
 __global__ void Check(const void *ptr, size_t size, uint8_t fill, int *failures) {
   size_t idx = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (idx < size) {
@@ -73,8 +116,6 @@ __global__ void Check(const void *ptr, size_t size, uint8_t fill, int *failures)
       atomicAdd(failures, 1);
   }
 }
-
-namespace {
 
 struct block {
   void *ptr;
@@ -85,11 +126,11 @@ struct block {
 
 template <typename Pool, typename Mutex>
 void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &stream,
-                   int max_iters = 100000, bool use_hog = false) {
+                   int max_iters = 20000, bool use_hog = false) {
   stream_view sv(stream);
   std::mt19937_64 rng(12345);
   std::poisson_distribution<> size_dist(1024);
-  const int max_size = 1<<20;
+  const int max_size = 1 << 20;
   std::uniform_int_distribution<> sync_dist(10, 10);
   std::bernoulli_distribution action_dist;
   std::bernoulli_distribution hog_dist(0.05f);
@@ -147,13 +188,13 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
       if (stream) {
         pool.deallocate_async(blk.ptr, blk.size, sv);
       } else {
-        cudaStreamSynchronize(stream);
+        CUDA_CALL(cudaStreamSynchronize(stream));
         pool.deallocate(blk.ptr, blk.size);
       }
     }
   }
   copyD2H<int>(&failures, failure_buf, 1, stream);
-  cudaStreamSynchronize(stream);
+  CUDA_CALL(cudaStreamSynchronize(stream));
   ASSERT_EQ(failures, 0);
 }
 
@@ -225,48 +266,6 @@ TEST(MMAsyncPool, MultiThreadedMultiStreamRandom) {
   upstream.check_leaks();
 }
 
-
-TEST(MMAsyncPool, TwoStream) {
-  mm::test::test_device_resource upstream;
-  CUDAStream s1 = CUDAStream::Create(true);
-  CUDAStream s2 = CUDAStream::Create(true);
-  stream_view sv1(s1);
-  stream_view sv2(s2);
-
-  GPUHog hog;
-  hog.init();
-  const int min_success = 10;
-  const int max_not_busy = 100;
-  int stream_not_busy = 0;
-  int success = 0;
-  while (success < min_success) {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
-    void *p1 = pool.allocate_async(1000, sv1);
-    hog.run(s1);
-    pool.deallocate_async(p1, 1000, sv1);
-    void *p2 = pool.allocate_async(1000, sv2);
-    void *p3 = pool.allocate_async(1000, sv1);
-    cudaError_t e = cudaStreamQuery(s1);
-    if (e != cudaErrorNotReady) {
-      std::cerr << "Stream s1 finished before attempt to allocate on s2 was made - retrying\n";
-      CUDA_CALL(cudaGetLastError());
-      if (++stream_not_busy > max_not_busy) {
-        FAIL() << "Stream s1 finished - test unreliable.";
-      }
-      continue;
-    }
-    stream_not_busy = 0;
-    ASSERT_NE(p1, p2);
-    ASSERT_EQ(p1, p3);
-    cudaStreamSynchronize(s1);
-    success++;
-    cudaStreamSynchronize(s2);
-  }
-  std::cerr << "Peak consumption:     " << upstream.get_peak_size() << " bytes\n";
-  std::cerr << "Upstream allocations: " << upstream.get_num_allocs() << std::endl;
-  upstream.check_leaks();
-}
-
 TEST(MMAsyncPool, MultiStreamRandomWithGPUHogs) {
   mm::test::test_device_resource upstream;
   {
@@ -310,6 +309,35 @@ TEST(MMAsyncPool, CrossStream) {
         streams[t] = CUDAStream::Create(true);
       threads.push_back(std::thread([&, t]() {
         AsyncPoolTest(pool, blocks, mtx, streams[t]);
+        CUDA_CALL(cudaStreamSynchronize(streams[t]));
+      }));
+    }
+    for (auto &t : threads)
+      t.join();
+  }
+  std::cerr << "Peak consumption:     " << upstream.get_peak_size() << " bytes\n";
+  std::cerr << "Upstream allocations: " << upstream.get_num_allocs() << std::endl;
+  upstream.check_leaks();
+}
+
+TEST(MMAsyncPool, CrossStreamWithHogs) {
+  mm::test::test_device_resource upstream;
+  {
+    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+
+    vector<std::thread> threads;
+    vector<CUDAStream> streams;
+
+    vector<block> blocks;
+    std::mutex mtx;
+
+    const int N = 10;
+    streams.resize(N);
+    for (int t = 0; t < N; t++) {
+      if (t != 0)  // keep empty stream at index 0 to mix sync/async allocations
+        streams[t] = CUDAStream::Create(true);
+      threads.push_back(std::thread([&, t]() {
+        AsyncPoolTest(pool, blocks, mtx, streams[t], 10000, true);
         CUDA_CALL(cudaStreamSynchronize(streams[t]));
       }));
     }
