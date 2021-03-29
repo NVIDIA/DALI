@@ -302,6 +302,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
           break;
         pending.push_back(f);
       }
+      step += step;
     }
     if (pending.empty()) {
       if (f) {
