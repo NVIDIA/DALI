@@ -26,6 +26,10 @@
 #include "dali/core/cuda_stream.h"
 #include "dali/core/device_guard.h"
 
+#ifndef DEBUG_ASYNC_POOL_CHECK_CONSISTENCY
+#define DEBUG_ASYNC_POOL_CHECK_CONSISTENCY 0
+#endif
+
 namespace dali {
 namespace mm {
 
@@ -241,6 +245,9 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
    * If the allocation fails, the function returns nullptr.
    */
   void *try_allocate(PerStreamFreeBlocks &from, size_t bytes, size_t alignment) {
+    // This value is only used when not splitting - it limits how much memory
+    // can be wasted for padding - the allowed padding is 1/16 of the allocated size,
+    // clamped to between 16 bytes and 1 MiB.
     unsigned max_padding = std::min<size_t>(std::max<size_t>(bytes / 16, 16), (1 << 20));
     const unsigned remainder_alignment = 16;
     const unsigned min_split_remainder = 16;
@@ -306,7 +313,8 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     }
     if (pending.empty()) {
       if (f) {
-        assert(f->ready());
+        assert(f->is_ready);
+        assert(!f->prev || !f->is_ready);
       }
       return f;
     }
@@ -314,11 +322,12 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
       return !f->ready();
     });
     if (it == pending.end()) {
-      assert(!free.free_list.tail || !free.free_list.tail->ready());
+      assert(!free.free_list.tail || !free.free_list.tail->is_ready);
       return nullptr;
     }
     f = *it;
     assert(f->ready());
+    assert(!f->prev || !f->prev->is_ready);
     return f;
   }
 
@@ -374,7 +383,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
       f->next->prev = f;
     free.head = f;
     if (!free.tail) free.tail = f;
-    f->event = event_pool_.Get();
+    f->event = CUDAEventPool::instance().Get(device_id_);
     cudaEventRecord(f->event, stream);
     num_pending_frees_++;
     return f;
@@ -388,7 +397,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   }
 
   pending_free *remove_pending_free(PendingFreeList &free, pending_free *f) {
-    event_pool_.Put(std::move(f->event));
+    CUDAEventPool::instance().Put(std::move(f->event), device_id_);
     auto *prev = f->prev;
     auto *next = f->next;
     if (free.head == f)
@@ -398,7 +407,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     if (prev) prev->next = next;
     if (next) next->prev = prev;
     *f = {};
-#if 0  // check list consistency
+#if DEBUG_ASYNC_POOL_CHECK_CONSISTENCY
     assert(!free.head || !free.head->prev);
     assert(!free.tail || !free.tail->next);
     for (auto *x = free.head; x; x = x->next) {
@@ -424,31 +433,30 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   detail::pooled_map<char *, padded_block, true> padded_;
 
   std::unordered_map<cudaStream_t, PerStreamFreeBlocks> stream_free_;
-  int     num_pending_frees_ = 0;
 
   using FreeDescAlloc = detail::object_pool_allocator<pending_free>;
 
   LockType lock_;
-
-  CUDAEventPool event_pool_;
   CUDAStream sync_stream_;
-  int device_id_ = -1;
-  bool avoid_upstream_ = true;
 
   /**
-   * @brief Whether the global pool supports splitting
+   * @brief Indicates whether the global pool supports splitting
    *
    * In general, `memory_resource` requires that the a pointer being deallocated
    * was returned from a previous allocation on the same resource, with the same size.
    * However, a specific implementation of a memory resource (i.e. pool_resource_base with
    * certain FreeList types) can concatenate the deallocated memory segments.
-   * This propert is used for partial recycling of stream-bound free blocks - we might
+   * This property is used for partial recycling of stream-bound free blocks - we might
    * reuse a part of the block on the same stream and return the rest to the global pool, with
    * the hope of reducing the number of calls to upstream and overall memory consumption.
    */
   static constexpr bool supports_splitting = detail::can_merge<FreeList>::value;
 
   pool_resource_base<kind, any_context, FreeList, detail::dummy_lock> global_pool_;
+
+  int device_id_ = -1;
+  int num_pending_frees_ = 0;
+  bool avoid_upstream_ = true;
 };
 
 }  // namespace mm
