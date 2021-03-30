@@ -76,8 +76,8 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<GPUBackend> &ws) {
       blockdesc_max_sz = block_sz;
   }
 
-  cudaMemcpyAsync(blocks_gpu, blocks_cpu,
-                  sizeof(BlockDesc) * blockdesc_count, cudaMemcpyHostToDevice, ws.stream());
+  CUDA_CALL(cudaMemcpyAsync(blocks_gpu, blocks_cpu,
+                  sizeof(BlockDesc) * blockdesc_count, cudaMemcpyHostToDevice, ws.stream()));
 
   auto &dists_cpu = backend_data_.dists_cpu_;
   auto &dists_gpu = backend_data_.dists_gpu_;

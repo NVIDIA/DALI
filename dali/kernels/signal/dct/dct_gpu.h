@@ -131,7 +131,7 @@ class DLL_PUBLIC Dct1DGpu {
   std::vector<SampleDesc> sample_descs_{};
   int64_t max_cos_table_size_ = 0;
   int axis_ = -1;
-  bool inner_axis_;
+  bool inner_axis_ = false;
   CUDAEvent buffer_events_[2];
 };
 

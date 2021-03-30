@@ -249,9 +249,9 @@ class JpegDistortionTestGPU : public ::testing::Test {
 
       auto subsample_f = [&](std::vector<T> &component) {
         for (int64_t y = 0; y < sh[0]; y+=(1 << vert_subsample)) {
-          bool edge_y = vert_subsample && (y == (sh[0] - 1));
+          const bool edge_y = vert_subsample && (y == (sh[0] - 1));
           for (int64_t x = 0; x < sh[1]; x+=(1 << horz_subsample)) {
-            bool edge_x = horz_subsample && (x == (sh[1] - 1));
+            const bool edge_x = horz_subsample && (x == (sh[1] - 1));
             size_t in_offset_1 = y * sh[1] + x;
             size_t in_offset_2 = !edge_x ? y * sh[1] + x + 1 : in_offset_1;
             size_t in_offset_3 = !edge_y ? (y + 1) * sh[1] + x : in_offset_1;

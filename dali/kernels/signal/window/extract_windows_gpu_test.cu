@@ -34,7 +34,6 @@ TEST(ExtractWindowsGPU, NonBatchedKernel) {
   int step = 10;
   int length = windows * step - 100;;
   int center = 5;
-  bool reflect = false;
   cudaMalloc(&in_gpu, sizeof(float)*length);
   cudaMalloc(&out_gpu, sizeof(float)*windows*outwinlen);
   std::vector<float> in(length), out(windows*outwinlen);
@@ -43,40 +42,42 @@ TEST(ExtractWindowsGPU, NonBatchedKernel) {
     in[i] = i + 1000;
   }
 
-  cudaMemcpy(in_gpu, in.data(), sizeof(float)*length, cudaMemcpyHostToDevice);
-  cudaMemset(out_gpu, 0xff, sizeof(float)*windows*outwinlen);
-  int xblocks = div_ceil(length, 32);
-  int yblocks = div_ceil(winlen, 32);
-  window::ExtractVerticalWindowsKernel<<<dim3(xblocks, yblocks), dim3(32, 32)>>>(
-    out_gpu, windows, stride, in_gpu, length, nullptr, winlen, outwinlen, center, step, reflect);
-  cudaMemcpy(out.data(), out_gpu, sizeof(float)*winlen*windows, cudaMemcpyDeviceToHost);
-  cudaDeviceSynchronize();
+  for (bool reflect : {true, false}) {
+    cudaMemcpy(in_gpu, in.data(), sizeof(float)*length, cudaMemcpyHostToDevice);
+    cudaMemset(out_gpu, 0xff, sizeof(float)*windows*outwinlen);
+    int xblocks = div_ceil(length, 32);
+    int yblocks = div_ceil(winlen, 32);
+    window::ExtractVerticalWindowsKernel<<<dim3(xblocks, yblocks), dim3(32, 32)>>>(
+      out_gpu, windows, stride, in_gpu, length, nullptr, winlen, outwinlen, center, step, reflect);
+    cudaMemcpy(out.data(), out_gpu, sizeof(float)*winlen*windows, cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize();
 
-  for (int w = 0; w < windows; w++) {
-    for (int i = 0; i < winlen; i++) {
-      int idx = w * step + i - center;
-      if (reflect)
-        idx = boundary::idx_reflect_101(idx, 0, length);
+    for (int w = 0; w < windows; w++) {
+      for (int i = 0; i < winlen; i++) {
+        int idx = w * step + i - center;
+        if (reflect)
+          idx = boundary::idx_reflect_101(idx, 0, length);
 
-      float ref = idx >= 0 && idx < length ? in[idx] : 0;
-      EXPECT_EQ(out[w + i*stride], ref)
-        << "@ window = " << w << ", index = " << i;
-    }
-    for (int i = winlen; i < outwinlen; i++) {
-      EXPECT_EQ(out[w + i*stride], 0)
-        << "padding @ window = " << w << ", index = " << i;
-    }
-  }
-
-  if (HasFailure()) {
-    std::cout << "Debug: Extract window actual output:\n";
-    for (int i = 0; i < outwinlen; i++) {
-      for (int j = 0; j < windows; j++) {
-        std::cout << out[i*stride+j] << " ";
+        float ref = idx >= 0 && idx < length ? in[idx] : 0;
+        EXPECT_EQ(out[w + i*stride], ref)
+          << "@ window = " << w << ", index = " << i;
       }
-      std::cout << "\n";
+      for (int i = winlen; i < outwinlen; i++) {
+        EXPECT_EQ(out[w + i*stride], 0)
+          << "padding @ window = " << w << ", index = " << i;
+      }
     }
-    std::cout << std::flush;
+
+    if (HasFailure()) {
+      std::cout << "Debug: Extract window actual output:\n";
+      for (int i = 0; i < outwinlen; i++) {
+        for (int j = 0; j < windows; j++) {
+          std::cout << out[i*stride+j] << " ";
+        }
+        std::cout << "\n";
+      }
+      std::cout << std::flush;
+    }
   }
 
   cudaFree(in_gpu);
