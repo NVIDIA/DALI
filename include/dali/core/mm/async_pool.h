@@ -123,36 +123,34 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   }
 
   /**
-   * @brief Allocates from a global pool, possibly releasing per-stream memory to the global pool.
-   *
-   * (1) If the global pool can't allocate enough memory without allocating upstream blocks,
-   *     and there are some per-stream pending frees, the completed per-streem frees are returned
-   *     to the global pool.
-   * (2) Then, if there are still some pending frees and `avoid_upstream` option was selected at
-   *     construction
-   * (3)    Try to allocate, again avoiding upstream - on failure
-   * (4)    Synchronize and reclaim pending frees
-   * (5) Allocate from the global pool.
+   * @brief Allocates from the global pool, possibly releasing per-stream memory to the global pool.
    */
   void *allocate_from_global_pool(size_t bytes, size_t alignment) {
     void *ptr;
     if (num_pending_frees_ == 0) {
+      // There are no pending per-stream frees - there's no hope of reclaiming anything.
       ptr = global_pool_.allocate(bytes, alignment);
       return ptr;
     }
+    // Try to allocate from the global pool, without using upstream
     ptr = global_pool_.try_allocate_from_free(bytes, alignment);
     if (ptr)
       return ptr;
+    // Try to reclaim some memory from completed pending frees.
     for (auto &kv : stream_free_)
-      free_pending(kv.second);
+      free_ready(kv.second);
     if (avoid_upstream_ && num_pending_frees_ > 0) {
+      // AVOIDING UPSTREAM
+      // Try to allocate from the global pool again...
       ptr = global_pool_.try_allocate_from_free(bytes, alignment);
       if (ptr)
         return ptr;
+      // Synchronize - this will wait for pending frees to complete.
       synchronize_impl(false);
       for (auto &kv : stream_free_)
-        free_pending(kv.second);
+        free_ready(kv.second);
     }
+    // Finally, allocate from the global pool, this time allowing fallback to the upstream.
     ptr = global_pool_.allocate(bytes, alignment);
     return ptr;
   }
@@ -252,6 +250,33 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     const unsigned remainder_alignment = 16;
     const unsigned min_split_remainder = 16;
     for (auto it = from.by_size.lower_bound({ bytes, nullptr }); it != from.by_size.end(); ++it) {
+      /*
+      base - start of the existing free block
+      aligned - base of the block, aligned to meet requested alignment
+      remainder - base of the new free block when splitting
+      block_end - pointer to the first byte not in the block
+
+      block_size - size of the block before splitting
+      bytes - the requested allocation size
+      remainder_size - the size of the new free block, left after splitting
+      front_padding - padding applied to the base to meet requested alignment
+      rem_pad - padding applied to the remainder to meet remainder_alignment
+
+      |<-------------------------- block_size ----------------------------->|
+      |<------------ split_size ------------------->|                       |
+      v                                             v                       v
+      ^                   ^                         ^                       ^
+      |<- front_padding ->|<- bytes -> <- rem_pad-> |<-- remainder_size --> |
+      |                   |                         |                       |
+      |___ base           |__aligned                |__remainder            |__ block_end
+
+
+      Threshold values:
+      min_split_remainder - minimum remainder we care about to add to split list (as opposed to
+                            simply wasting it as padding)
+      max_padding         - maximum allowed wasted size when _not splitting_
+      */
+
       size_t block_size = it->first;
       pending_free *f = it->second;
       char *base = f->addr;
@@ -331,7 +356,10 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     return f;
   }
 
-  void free_pending(PerStreamFreeBlocks &free) {
+  /**
+   * @brief Returns the memory from completed deallocations to the global pool.
+   */
+  void free_ready(PerStreamFreeBlocks &free) {
     auto *f = find_first_ready(free);
     while (f) {
       global_pool_.deallocate(f->addr, f->bytes, f->alignment);
