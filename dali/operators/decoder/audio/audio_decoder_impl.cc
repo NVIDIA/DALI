@@ -65,7 +65,9 @@ void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio, AudioDecode
     assert(meta.channels == (audio.shape.size() == 1 ? 1 : audio.shape[1]) &&
            "Number of channels should match the metadata.");
     int64_t ret = decoder.DecodeFrames(audio.data, audio.shape[0]);
-    DALI_ENFORCE(ret == audio.shape[0], make_string("Error decoding audio file ", audio_filepath));
+    DALI_ENFORCE(ret == audio.shape[0],
+      make_string("Error decoding audio file ", audio_filepath, ". Requested ",
+                  audio.shape[0], " samples but got ", ret, " samples."));
     return;
   }
 

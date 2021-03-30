@@ -201,3 +201,24 @@ def test_nemo_asr_reader_alias():
                 new_pipe = nemo_pipe(fn.readers.nemo_asr, [nemo_asr_manifest], read_sr, read_text, dtype, downmix)
                 legacy_pipe = nemo_pipe(fn.nemo_asr_reader, [nemo_asr_manifest], read_sr, read_text, dtype, downmix)
                 compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
+
+
+def test_nemo_asr_reader_pad_last_batch():
+  batch_size = 128
+  @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+  def nemo_asr_pad_last_batch_pipe():
+    audio = fn.readers.nemo_asr(manifest_filepaths=[nemo_asr_manifest], pad_last_batch=True,
+                                read_sample_rate = False, read_text = False)
+    return audio
+  pipe = nemo_asr_pad_last_batch_pipe()
+  pipe.build()
+
+  dataset_len = len(names)
+  assert dataset_len < batch_size
+  # Checking that the decoding doesn't fail due to race conditions
+  for _ in range(10):
+    audio = pipe.run()[0]
+    last_sample = np.array(audio[dataset_len])
+    for i in range(dataset_len+1, batch_size):
+      padded_sample = np.array(audio[i])
+      np.testing.assert_array_equal(padded_sample, last_sample)
