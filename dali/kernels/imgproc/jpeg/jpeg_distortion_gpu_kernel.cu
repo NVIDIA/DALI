@@ -1,0 +1,135 @@
+// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu_kernel.h"
+#include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu_impl.cuh"
+
+namespace dali {
+namespace kernels {
+namespace jpeg {
+
+template <bool horz_subsample, bool vert_subsample>
+KernelRequirements JpegCompressionDistortionGPU<horz_subsample, vert_subsample>::Setup(
+    KernelContext &ctx, const TensorListShape<3> &in_shape) {
+  KernelRequirements req;
+  ScratchpadEstimator se;
+  int nsamples = in_shape.num_samples();
+  se.add<SampleDesc>(AllocType::Host, nsamples);
+  se.add<SampleDesc>(AllocType::GPU, nsamples);
+
+  chroma_shape_.resize(nsamples);
+  for (int i = 0; i < nsamples; i++) {
+    auto chroma_sh = chroma_shape_.tensor_shape_span(i);
+    auto sh = in_shape.tensor_shape_span(i);
+    // used to generate logical blocks (one thread per chroma pixel)
+    chroma_sh[0] = div_ceil(sh[0], 1 + vert_subsample);
+    chroma_sh[1] = div_ceil(sh[1], 1 + horz_subsample);
+  }
+
+  block_setup_.SetBlockDim(dim3(32, 16, 1));
+  int xblock = 64*(2-horz_subsample);
+  int yblock = 128;
+  block_setup_.SetDefaultBlockSize({xblock, yblock});
+  block_setup_.SetupBlocks(chroma_shape_, true);
+  int nblocks = block_setup_.Blocks().size();
+  se.add<BlockDesc>(AllocType::GPU, nblocks);
+
+  req.scratch_sizes = se.sizes;
+  req.output_shapes = {in_shape};
+  return req;
+}
+
+template <bool horz_subsample, bool vert_subsample>
+void JpegCompressionDistortionGPU<horz_subsample, vert_subsample>::SetupSampleDescs(
+    const OutListGPU<uint8_t, 3> &out, const InListGPU<uint8_t, 3> &in, span<const int> quality) {
+  const auto &in_shape = in.shape;
+  int nsamples = in_shape.num_samples();
+  sample_descs_.resize(nsamples);
+  for (int i = 0; i < nsamples; i++) {
+    auto &sample_desc = sample_descs_[i];
+    auto in_sh = in_shape.tensor_shape_span(i);
+    auto width = in_sh[1];
+    auto height = in_sh[0];
+    sample_desc.in = in[i].data;
+    sample_desc.out = out[i].data;
+    sample_desc.size.x = width;
+    sample_desc.size.y = height;
+    sample_desc.strides.x = 3;
+    sample_desc.strides.y = width * 3;
+    int q;
+    if (quality_.empty()) {
+      q = 95;
+    } else if (quality_.size() == 1) {
+      q = quality_[0];
+    } else {
+      q = quality_[i];
+    }
+    sample_desc.luma_Q_table = GetLumaQuantizationTable(q);
+    sample_desc.chroma_Q_table = GetChromaQuantizationTable(q);
+  }
+}
+
+template <bool horz_subsample, bool vert_subsample>
+void JpegCompressionDistortionGPU<horz_subsample, vert_subsample>::Run(
+    KernelContext &ctx, const OutListGPU<uint8_t, 3> &out, const InListGPU<uint8_t, 3> &in,
+    span<const int> quality) {
+  const auto &in_shape = in.shape;
+  int nsamples = in_shape.num_samples();
+  if (quality.size() > 1 && quality.size() != nsamples) {
+    throw std::invalid_argument(make_string("Received ", quality.size(),
+                                            " quality values but the batch contains ", nsamples,
+                                            " samples."));
+  }
+  SetupSampleDescs(out, in, quality);
+  SampleDesc *samples_gpu;
+  BlockDesc *blocks_gpu;
+  std::tie(samples_gpu, blocks_gpu) = ctx.scratchpad->ToContiguousGPU(
+      ctx.gpu.stream, make_cspan(sample_descs_), block_setup_.Blocks());
+  dim3 grid_dim = block_setup_.GridDim();
+  dim3 block_dim = block_setup_.BlockDim();
+  JpegCompressionDistortion<horz_subsample, vert_subsample>
+      <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples_gpu, blocks_gpu);
+  CUDA_CALL(cudaGetLastError());
+}
+
+
+template <bool horz_subsample, bool vert_subsample>
+void ChromaSubsampleDistortionGPU<horz_subsample, vert_subsample>::Run(
+    KernelContext &ctx, const OutListGPU<uint8_t, 3> &out, const InListGPU<uint8_t, 3> &in) {
+  this->SetupSampleDescs(out, in);
+  SampleDesc *samples_gpu;
+  using BlockDesc = BlockSetup<2, -1>::BlockDesc;
+  BlockDesc *blocks_gpu;
+  std::tie(samples_gpu, blocks_gpu) = ctx.scratchpad->ToContiguousGPU(
+      ctx.gpu.stream, make_cspan(this->sample_descs_), this->block_setup_.Blocks());
+  dim3 grid_dim = this->block_setup_.GridDim();
+  dim3 block_dim = this->block_setup_.BlockDim();
+  ChromaSubsampleDistortion<horz_subsample, vert_subsample>
+      <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples_gpu, blocks_gpu);
+  CUDA_CALL(cudaGetLastError());
+}
+
+template class JpegCompressionDistortionGPU<true,  true>;
+template class JpegCompressionDistortionGPU<false, true>;
+template class JpegCompressionDistortionGPU<true,  false>;
+template class JpegCompressionDistortionGPU<false, false>;
+
+template class ChromaSubsampleDistortionGPU<true,  true>;
+template class ChromaSubsampleDistortionGPU<false, true>;
+template class ChromaSubsampleDistortionGPU<true,  false>;
+template class ChromaSubsampleDistortionGPU<false, false>;
+
+}  // namespace jpeg
+}  // namespace kernels
+}  // namespace dali

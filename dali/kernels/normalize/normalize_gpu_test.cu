@@ -248,7 +248,7 @@ class NormalizeImplGPUTest<std::pair<Out, In>> : public ::testing::Test {
     KernelContext ctx;
     for (int iter = 0; iter < 3; iter++) {
       auto req = kmgr_.Setup<Kernel>(0, ctx, data_shape_, param_shape_,
-                                    use_scalar_base_, use_scalar_scale_, scale_is_stddev_);
+                                     use_scalar_base_, use_scalar_scale_, scale_is_stddev_);
       ASSERT_EQ(req.output_shapes.size(), 1u);
       ASSERT_EQ(req.output_shapes[0], data_shape_);
       out_.reshape(data_shape_);

@@ -20,7 +20,8 @@
 #include <vector>
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream.h"
-#include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu.cuh"
+#include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu_kernel.h"
+#include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/test/dali_test_config.h"
@@ -32,6 +33,7 @@
 
 namespace dali {
 namespace kernels {
+namespace jpeg {
 namespace test {
 
 using KernelPtr = void(*)(const SampleDesc *, const kernels::BlockDesc<2> *);
@@ -65,7 +67,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
       std::vector<cv::Mat> images(paths.size());
       for (size_t i = 0; i < paths.size(); i++) {
         images[i] = bgr2rgb(cv::imread(paths[i]));
-        TensorShape<> sh{images[i].rows, images[i].cols, images[i].channels()};
+        TensorShape<3> sh{images[i].rows, images[i].cols, images[i].channels()};
         in_shapes_.set_tensor_shape(i, sh);
       }
       in_.reshape(in_shapes_);
@@ -78,7 +80,8 @@ class JpegDistortionTestGPU : public ::testing::Test {
       if (perf_run) {
         in_shapes_ = uniform_list_shape(64, TensorShape<3>{600, 800, 3});
       } else {
-        in_shapes_ = {{7, 9, 3}, {8, 16, 3}};
+        TensorListShape<> shapes = {{7, 9, 3}, {8, 16, 3}};
+        in_shapes_ = shapes.to_static<3>();
       }
       in_.reshape(in_shapes_);
       std::mt19937_64 rng;
@@ -91,79 +94,29 @@ class JpegDistortionTestGPU : public ::testing::Test {
   void TearDown() final {
   }
 
-  void TestKernel(KernelPtr kernel_fn) {
+  template <typename Kernel, typename... Args>
+  void TestKernel(const Args&... args) {
     CUDAStream stream = CUDAStream::Create(true);
-
-    TensorListShape<2> chroma_shape(in_shapes_.size(), 2);
-    std::vector<SampleDesc> samples_cpu;
-    samples_cpu.resize(in_shapes_.size());
-
-    auto in_view_gpu = in_.gpu(stream);
-    auto out_view_gpu = out_.gpu(stream);
+    auto in_view = in_.gpu(stream).to_static<3>();
+    auto out_view = out_.gpu(stream).to_static<3>();
     out_.invalidate_cpu();
     CUDA_CALL(cudaStreamSynchronize(stream));
 
-    for (int i = 0; i < in_shapes_.size(); i++) {
-      auto &sample_desc = samples_cpu[i];
-      const auto& in_sh = in_shapes_[i];
-      auto chroma_sh = chroma_shape.tensor_shape_span(i);
-      auto shape_vol = volume(in_sh);
-      auto width = in_sh[1];
-      auto height = in_sh[0];
-      auto chroma_width = div_ceil(width, 1 + horz_subsample);
-      auto chroma_height = div_ceil(height, 1 + vert_subsample);
-      // used to generate logical blocks (one thread per chroma pixel)
-      chroma_sh[0] = chroma_height;
-      chroma_sh[1] = chroma_width;
-      chroma_sh[2] = 3;
-
-      sample_desc.in = in_view_gpu[i].data;
-      sample_desc.out = out_view_gpu[i].data;
-      sample_desc.size.x = width;
-      sample_desc.size.y = height;
-      sample_desc.strides.x = 3;
-      sample_desc.strides.y = width * 3;
-      sample_desc.luma_Q_table = luma_table_;
-      sample_desc.chroma_Q_table = chroma_table_;
-    }
-
-    block_setup_.SetBlockDim(dim3(32, 16, 1));
-    int xblock = 64*(2-horz_subsample);
-    int yblock = 128;
-    block_setup_.SetDefaultBlockSize({xblock, yblock});
-    block_setup_.SetupBlocks(chroma_shape, true);
-    auto blocks_cpu = block_setup_.Blocks();
-
-    SampleDesc *samples_gpu;
-    CUDA_CALL(cudaMalloc(&samples_gpu, sizeof(SampleDesc) * samples_cpu.size()));
-    CUDA_CALL(cudaMemcpy(samples_gpu, samples_cpu.data(),
-                         sizeof(SampleDesc) * samples_cpu.size(),
-                         cudaMemcpyDefault));
-    BlockDesc *blocks_gpu;
-    CUDA_CALL(cudaMalloc(&blocks_gpu, sizeof(BlockDesc) * blocks_cpu.size()));
-    CUDA_CALL(cudaMemcpy(blocks_gpu, blocks_cpu.data(), sizeof(BlockDesc) * blocks_cpu.size(),
-                         cudaMemcpyDefault));
-
-    dim3 grid_dim = block_setup_.GridDim();
-    dim3 block_dim = block_setup_.BlockDim();
-#if DEBUG_LOGS
-    std::cout << "\ngrid dim " << grid_dim.x << " " << grid_dim.y << " " << grid_dim.z
-    << "\nblock_dim " << block_dim.x << " " << block_dim.y << " " << block_dim.z << "\n";
-    for (size_t i = 0; i < blocks_cpu.size(); i++) {
-      auto &blk = blocks_cpu[i];
-      std::cout << "block " << i << " sample idx " << blk.sample_idx
-                << " from " << blk.start << " to " << blk.end << "\n";
-    }
-#endif
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
 
+    kmgr_.Initialize<Kernel>();
+    kmgr_.Resize<Kernel>(1, 1);
+
+    KernelContext ctx;
+    ctx.gpu.stream = stream;
+    auto req = kmgr_.Setup<Kernel>(0, ctx, in_view.shape);
     if (perf_run)  // warm up
-      kernel_fn<<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
+      kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, args...);
 
     CUDA_CALL(cudaEventRecord(start, stream));
 
-    kernel_fn<<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
+    kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, args...);
     CUDA_CALL(cudaGetLastError());
 
     CUDA_CALL(cudaEventRecord(end, stream));
@@ -218,9 +171,6 @@ class JpegDistortionTestGPU : public ::testing::Test {
       for (int d = 0; d < 3; d++)
         EXPECT_LE(mean[d], max_avg_error_);
     }
-
-    CUDA_CALL(cudaFree(blocks_gpu));
-    CUDA_CALL(cudaFree(samples_gpu));
   }
 
   void CalcOut_ChromaSubsampleDistortion() {
@@ -308,9 +258,10 @@ class JpegDistortionTestGPU : public ::testing::Test {
       auto sh = in_shapes_[i];
       cv::Mat in_mat(sh[0], sh[1], CV_8UC3, static_cast<void *>(in_view_cpu[i].data));
 
+      int q = quality_.size() == 1 ? quality_[0] : quality_[i];
       std::vector<uint8_t> encoded;
       cv::imencode(".jpg", rgb2bgr(in_mat), encoded,
-                   {cv::IMWRITE_JPEG_QUALITY, ConvertSat<int>(quality_factor)});
+                   {cv::IMWRITE_JPEG_QUALITY, q});
 
       cv::Mat encoded_mat(1, encoded.size(), CV_8UC1, encoded.data());
       auto out_ref = bgr2rgb(cv::imdecode(encoded_mat, cv::IMREAD_COLOR));
@@ -320,40 +271,33 @@ class JpegDistortionTestGPU : public ::testing::Test {
   }
 
   void TestJpegCompressionDistortion(int quality) {
-    quality_factor = quality;
+    quality_.resize(1, quality);
     max_abs_error_ = vert_subsample && horz_subsample ? 80 : 128;
     max_avg_error_ = vert_subsample && horz_subsample ? 3 : 10;
-    luma_table_ = GetLumaQuantizationTable(quality_factor);
-    chroma_table_ = GetChromaQuantizationTable(quality_factor);
+    luma_table_   = GetLumaQuantizationTable(quality);
+    chroma_table_ = GetChromaQuantizationTable(quality);
     CalcOut_JpegCompressionDistortion();
-    TestKernel(JpegCompressionDistortion<horz_subsample, vert_subsample>);
-  }
-
-  void TestJpegCompressionDistortion_NoQuantization() {
-    // Chroma subsampling + DCT + IDCT (no quantization step)
-    CalcOut_ChromaSubsampleDistortion();
-    TestKernel(JpegCompressionDistortion<horz_subsample, vert_subsample, false>);
+    using Kernel = JpegCompressionDistortionGPU<horz_subsample, vert_subsample>;
+    TestKernel<Kernel>(make_cspan(quality_));
   }
 
   void TestChromaSubsampleDistortion() {
     CalcOut_ChromaSubsampleDistortion();
-    TestKernel(ChromaSubsampleDistortion<horz_subsample, vert_subsample>);
+    using Kernel = ChromaSubsampleDistortionGPU<horz_subsample, vert_subsample>;
+    TestKernel<Kernel>();
   }
 
   CUDAStream stream_;
-  TensorListShape<> in_shapes_;
+  TensorListShape<3> in_shapes_;
   TestTensorList<uint8_t> in_;
   TestTensorList<uint8_t>out_;
   TestTensorList<uint8_t> out_ref_;
 
-  using BlkSetup = BlockSetup<2, -1>;
-  BlkSetup block_setup_;
-  using BlockDesc = BlkSetup::BlockDesc;
-
-  float quality_factor = 20.0f;
+  std::vector<int> quality_ = {95};
   mat<8, 8, uint8_t> luma_table_;
   mat<8, 8, uint8_t> chroma_table_;
 
+  kernels::KernelManager kmgr_;
   int max_abs_error_ = 5;
   int max_avg_error_ = 3;
 };
@@ -386,17 +330,13 @@ TYPED_TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion_HighQuality) {
   this->TestJpegCompressionDistortion(95);
 }
 
-TYPED_TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion_NoQuantization) {
-  this->TestJpegCompressionDistortion_NoQuantization();
-}
-
 REGISTER_TYPED_TEST_SUITE_P(JpegDistortionTestGPU, ChromaSubsampleDistortion,
                                                    JpegCompressionDistortion_LowQuality,
-                                                   JpegCompressionDistortion_HighQuality,
-                                                   JpegCompressionDistortion_NoQuantization);
+                                                   JpegCompressionDistortion_HighQuality);
 INSTANTIATE_TYPED_TEST_SUITE_P(JpegDistortionSuite, JpegDistortionTestGPU, TestParams);
 
 }  // namespace test
+}  // namespace jpeg
 }  // namespace kernels
 }  // namespace dali
 
