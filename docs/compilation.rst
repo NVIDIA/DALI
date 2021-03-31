@@ -115,7 +115,7 @@ Bare Metal build
 Prerequisites
 ^^^^^^^^^^^^^
 
-For the recommended dependencies versions please check https://github.com/NVIDIA/DALI_deps.
+For the recommended dependency versions please check https://github.com/NVIDIA/DALI_deps.
 
 .. |cuda link| replace:: **NVIDIA CUDA 10.0**
 .. _cuda link: https://developer.nvidia.com/cuda-downloads
@@ -429,9 +429,8 @@ Cross-compiling for aarch64 Jetson Linux (Docker)
 
 .. note::
 
-  Support for aarch64 Linux platform is experimental. Some of the features are available only for
-  x86-64 target and they are turned off in this build. Some Operators may not work as intended due
-  to x86-64 specific implementations.
+  Support for aarch64 Jetson Linux platform is experimental. Some of the features are available only for
+  x86-64 target and they are turned off in this build.
 
 Setup
 ^^^^^
@@ -459,13 +458,3 @@ From the root of the DALI source tree
     docker run -v $(pwd):/dali nvidia/dali:builder_aarch64-linux
 
 The relevant python wheel will be in ``dali_root_dir/wheelhouse``
-
-Compile
-^^^^^^^
-From the root of the DALI source tree
-
-.. code-block:: bash
-
-    docker run -v $(pwd):/dali nvidia/dali:builder_aarch64-qnx
-
-The relevant Python wheel will be inside ``$(pwd)/wheelhouse``.
