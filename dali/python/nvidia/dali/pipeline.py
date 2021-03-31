@@ -1276,15 +1276,18 @@ def pipeline_def(fn=None, **pipeline_kwargs):
         Pipeline constructor. Code written this way would cease to work with future versions of DALI
         when new parameters are added to the Pipeline constructor.
 
-    To obtain a value of the argument added and consumed by the ``@pipeline_def`` the user need to
-    to use :meth:`nvidia.dali.Pipeline.current()` and query for the required value::
+    To access any pipeline arguments within the body of a ``@pipeline_def`` function, the function
+    :meth:`nvidia.dali.Pipeline.current()` can be used::
 
-        @pipeline_def(batch_size=42, num_threads=3)
-        def my_pipe(flip_vertical, flip_horizontal):
+        @pipeline_def()
+        def my_pipe():
             pipe = Pipeline.current()
-            x = pipe.batch_size
-            y = pipe.num_threads
+            batch_size = pipe.batch_size
+            num_threads = pipe.num_threads
             ...
+
+        pipe = my_pipe(batch_size=42, num_threads=3)
+        ...
     """
     def actual_decorator(func):
         @functools.wraps(func)
