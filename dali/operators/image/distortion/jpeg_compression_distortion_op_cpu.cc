@@ -27,9 +27,9 @@ The level of degradation of the image can be controlled with the ``quality`` arg
     .InputLayout(0, "HWC")
     .NumOutput(1)
     .AddOptionalArg("quality",
-        R"code(JPEG compression quality from 1 (lowest quality) to 99 (highest quality).
+        R"code(JPEG compression quality from 1 (lowest quality) to 100 (highest quality).
 
-Any values outside the range 1-99 will be clamped.)code",
+Any values outside the range 1-100 will be clamped.)code",
                     95, true);
 
 class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend> {
