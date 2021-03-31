@@ -14,14 +14,17 @@
 
 #include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu_kernel.h"
 #include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu_impl.cuh"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 namespace kernels {
 namespace jpeg {
 
-template <bool horz_subsample, bool vert_subsample>
-KernelRequirements JpegCompressionDistortionGPU<horz_subsample, vert_subsample>::Setup(
-    KernelContext &ctx, const TensorListShape<3> &in_shape) {
+KernelRequirements JpegDistortionBaseGPU::Setup(KernelContext &ctx,
+                                                const TensorListShape<3> &in_shape,
+                                                bool horz_subsample, bool vert_subsample) {
+  horz_subsample_ = horz_subsample;
+  vert_subsample_ = vert_subsample;
   KernelRequirements req;
   ScratchpadEstimator se;
   int nsamples = in_shape.num_samples();
@@ -33,12 +36,12 @@ KernelRequirements JpegCompressionDistortionGPU<horz_subsample, vert_subsample>:
     auto chroma_sh = chroma_shape_.tensor_shape_span(i);
     auto sh = in_shape.tensor_shape_span(i);
     // used to generate logical blocks (one thread per chroma pixel)
-    chroma_sh[0] = div_ceil(sh[0], 1 + vert_subsample);
-    chroma_sh[1] = div_ceil(sh[1], 1 + horz_subsample);
+    chroma_sh[0] = div_ceil(sh[0], 1 + vert_subsample_);
+    chroma_sh[1] = div_ceil(sh[1], 1 + horz_subsample_);
   }
 
   block_setup_.SetBlockDim(dim3(32, 16, 1));
-  int xblock = 64*(2-horz_subsample);
+  int xblock = 64*(2-horz_subsample_);
   int yblock = 128;
   block_setup_.SetDefaultBlockSize({xblock, yblock});
   block_setup_.SetupBlocks(chroma_shape_, true);
@@ -50,9 +53,9 @@ KernelRequirements JpegCompressionDistortionGPU<horz_subsample, vert_subsample>:
   return req;
 }
 
-template <bool horz_subsample, bool vert_subsample>
-void JpegCompressionDistortionGPU<horz_subsample, vert_subsample>::SetupSampleDescs(
-    const OutListGPU<uint8_t, 3> &out, const InListGPU<uint8_t, 3> &in, span<const int> quality) {
+void JpegDistortionBaseGPU::SetupSampleDescs(const OutListGPU<uint8_t, 3> &out,
+                                             const InListGPU<uint8_t, 3> &in,
+                                             span<const int> quality) {
   const auto &in_shape = in.shape;
   int nsamples = in_shape.num_samples();
   sample_descs_.resize(nsamples);
@@ -80,10 +83,8 @@ void JpegCompressionDistortionGPU<horz_subsample, vert_subsample>::SetupSampleDe
   }
 }
 
-template <bool horz_subsample, bool vert_subsample>
-void JpegCompressionDistortionGPU<horz_subsample, vert_subsample>::Run(
-    KernelContext &ctx, const OutListGPU<uint8_t, 3> &out, const InListGPU<uint8_t, 3> &in,
-    span<const int> quality) {
+void JpegCompressionDistortionGPU::Run(KernelContext &ctx, const OutListGPU<uint8_t, 3> &out,
+                                       const InListGPU<uint8_t, 3> &in, span<const int> quality) {
   const auto &in_shape = in.shape;
   int nsamples = in_shape.num_samples();
   if (quality.size() > 1 && quality.size() != nsamples) {
@@ -98,37 +99,32 @@ void JpegCompressionDistortionGPU<horz_subsample, vert_subsample>::Run(
       ctx.gpu.stream, make_cspan(sample_descs_), block_setup_.Blocks());
   dim3 grid_dim = block_setup_.GridDim();
   dim3 block_dim = block_setup_.BlockDim();
-  JpegCompressionDistortion<horz_subsample, vert_subsample>
-      <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples_gpu, blocks_gpu);
+  VALUE_SWITCH(horz_subsample_ ? 1 : 0, HorzSubsample, (false, true), (
+    VALUE_SWITCH(vert_subsample_ ? 1 : 0, VertSubsample, (false, true), (
+      JpegCompressionDistortion<HorzSubsample, VertSubsample>
+          <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples_gpu, blocks_gpu);
+    ), ());  // NOLINT
+  ), ());  // NOLINT
   CUDA_CALL(cudaGetLastError());
 }
 
-
-template <bool horz_subsample, bool vert_subsample>
-void ChromaSubsampleDistortionGPU<horz_subsample, vert_subsample>::Run(
-    KernelContext &ctx, const OutListGPU<uint8_t, 3> &out, const InListGPU<uint8_t, 3> &in) {
-  this->SetupSampleDescs(out, in);
+void ChromaSubsampleDistortionGPU::Run(KernelContext &ctx, const OutListGPU<uint8_t, 3> &out,
+                                       const InListGPU<uint8_t, 3> &in) {
+  SetupSampleDescs(out, in);
   SampleDesc *samples_gpu;
-  using BlockDesc = BlockSetup<2, -1>::BlockDesc;
   BlockDesc *blocks_gpu;
   std::tie(samples_gpu, blocks_gpu) = ctx.scratchpad->ToContiguousGPU(
-      ctx.gpu.stream, make_cspan(this->sample_descs_), this->block_setup_.Blocks());
-  dim3 grid_dim = this->block_setup_.GridDim();
-  dim3 block_dim = this->block_setup_.BlockDim();
-  ChromaSubsampleDistortion<horz_subsample, vert_subsample>
-      <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples_gpu, blocks_gpu);
+      ctx.gpu.stream, make_cspan(sample_descs_), block_setup_.Blocks());
+  dim3 grid_dim = block_setup_.GridDim();
+  dim3 block_dim = block_setup_.BlockDim();
+  VALUE_SWITCH(horz_subsample_ ? 1 : 0, HorzSubsample, (false, true), (
+    VALUE_SWITCH(vert_subsample_ ? 1 : 0, VertSubsample, (false, true), (
+      ChromaSubsampleDistortion<HorzSubsample, VertSubsample>
+          <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples_gpu, blocks_gpu);
+    ), ());  // NOLINT
+  ), ());  // NOLINT
   CUDA_CALL(cudaGetLastError());
 }
-
-template class JpegCompressionDistortionGPU<true,  true>;
-template class JpegCompressionDistortionGPU<false, true>;
-template class JpegCompressionDistortionGPU<true,  false>;
-template class JpegCompressionDistortionGPU<false, false>;
-
-template class ChromaSubsampleDistortionGPU<true,  true>;
-template class ChromaSubsampleDistortionGPU<false, true>;
-template class ChromaSubsampleDistortionGPU<true,  false>;
-template class ChromaSubsampleDistortionGPU<false, false>;
 
 }  // namespace jpeg
 }  // namespace kernels

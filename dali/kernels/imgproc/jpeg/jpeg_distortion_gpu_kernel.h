@@ -30,7 +30,7 @@ namespace kernels {
 namespace jpeg {
 
 inline float GetQualityFactorScale(int quality) {
-  quality = clamp<int>(quality, 1, 99);
+  quality = clamp<int>(quality, 1, 100);
   float q_scale = 1.0f;
   if (quality < 50) {
     q_scale = 50.0f / quality;
@@ -56,7 +56,7 @@ inline mat<8, 8, uint8_t> GetLumaQuantizationTable(int quality) {
   auto scale = GetQualityFactorScale(quality);
   for (int i = 0; i < 8; i++) {
     for (int j = 0; j < 8; j++) {
-      table(i, j) = ConvertSat<uint8_t>(scale * table(i, j));
+      table(i, j) = std::max<uint8_t>(ConvertSat<uint8_t>(scale * table(i, j)), 1);
     }
   }
   return table;
@@ -76,7 +76,7 @@ inline mat<8, 8, uint8_t> GetChromaQuantizationTable(int quality) {
   auto scale = GetQualityFactorScale(quality);
   for (int i = 0; i < 8; i++) {
     for (int j = 0; j < 8; j++) {
-      table(i, j) = ConvertSat<uint8_t>(scale * table(i, j));
+      table(i, j) = std::max<uint8_t>(ConvertSat<uint8_t>(scale * table(i, j)), 1);
     }
   }
   return table;
@@ -91,12 +91,10 @@ struct SampleDesc {
   mat<8, 8, uint8_t> chroma_Q_table;
 };
 
-template <bool horz_subsample, bool vert_subsample>
-class DLL_PUBLIC JpegCompressionDistortionGPU {
+class DLL_PUBLIC JpegDistortionBaseGPU {
  public:
-  KernelRequirements Setup(KernelContext &ctx, const TensorListShape<3> &in_shape);
-  void Run(KernelContext &ctx, const OutListGPU<uint8_t, 3> &out, const InListGPU<uint8_t, 3> &in,
-           span<const int> quality);
+  KernelRequirements Setup(KernelContext &ctx, const TensorListShape<3> &in_shape,
+                           bool horz_subsample, bool vert_subsample);
 
  protected:
   void SetupSampleDescs(const OutListGPU<uint8_t, 3> &out, const InListGPU<uint8_t, 3> &in,
@@ -109,14 +107,34 @@ class DLL_PUBLIC JpegCompressionDistortionGPU {
   TensorListShape<2> chroma_shape_;
   std::vector<SampleDesc> sample_descs_;
   std::vector<int> quality_;
+  bool horz_subsample_ = true;
+  bool vert_subsample_ = true;
 };
 
-template <bool horz_subsample, bool vert_subsample>
-class DLL_PUBLIC ChromaSubsampleDistortionGPU
-    : public JpegCompressionDistortionGPU<horz_subsample, vert_subsample> {
+class DLL_PUBLIC JpegCompressionDistortionGPU : public JpegDistortionBaseGPU {
  public:
-  void Run(KernelContext &ctx, const OutListGPU<uint8_t, 3> &out,
-           const InListGPU<uint8_t, 3> &in);
+  void Run(KernelContext &ctx, const OutListGPU<uint8_t, 3> &out, const InListGPU<uint8_t, 3> &in,
+           span<const int> quality);
+
+ private:
+  using Base = JpegDistortionBaseGPU;
+  using BlockDesc = typename Base::BlockDesc;
+  using Base::SetupSampleDescs;
+  using Base::block_setup_;
+  using Base::sample_descs_;
+  using Base::quality_;
+};
+
+class DLL_PUBLIC ChromaSubsampleDistortionGPU : public JpegDistortionBaseGPU {
+ public:
+  void Run(KernelContext &ctx, const OutListGPU<uint8_t, 3> &out, const InListGPU<uint8_t, 3> &in);
+
+ private:
+  using Base = JpegDistortionBaseGPU;
+  using BlockDesc = typename Base::BlockDesc;
+  using Base::SetupSampleDescs;
+  using Base::block_setup_;
+  using Base::sample_descs_;
 };
 
 }  // namespace jpeg

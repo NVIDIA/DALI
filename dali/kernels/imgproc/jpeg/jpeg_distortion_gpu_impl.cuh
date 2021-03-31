@@ -180,8 +180,6 @@ __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
 }
 
 __device__ __inline__ float quantize(float value, float Q_coeff) {
-  if (Q_coeff < 1)
-    Q_coeff = 1;
   return Q_coeff * roundf(value * __frcp_rn(Q_coeff));
 }
 

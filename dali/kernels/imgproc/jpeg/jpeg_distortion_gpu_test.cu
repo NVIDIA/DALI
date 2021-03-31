@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <opencv2/opencv.hpp>
 #include <string>
+#include <tuple>
 #include <vector>
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream.h"
@@ -49,16 +50,18 @@ cv::Mat bgr2rgb(const cv::Mat& img) {
   return rgb2bgr(img);
 }
 
-template <typename GTestParams>
-class JpegDistortionTestGPU : public ::testing::Test {
-  using T = typename GTestParams::T;
-  static constexpr bool vert_subsample = GTestParams::vert_subsample;
-  static constexpr bool horz_subsample = GTestParams::horz_subsample;
-  static constexpr bool use_real_images = true;
-  static constexpr bool perf_run = false;
-  static constexpr bool dump_images = false;
+class JpegDistortionTestGPU : public ::testing::TestWithParam<std::tuple<bool, bool>> {
+  using T = uint8_t;
+  const bool horz_subsample;
+  const bool vert_subsample;
+  const bool use_real_images = true;
+  const bool perf_run = false;
+  const bool dump_images = false;
 
  public:
+  JpegDistortionTestGPU()
+      : horz_subsample(std::get<0>(GetParam())), vert_subsample(std::get<0>(GetParam())) {}
+
   void SetUp() final {
     if (use_real_images) {
       std::vector<std::string> paths = ImageList(
@@ -110,7 +113,7 @@ class JpegDistortionTestGPU : public ::testing::Test {
 
     KernelContext ctx;
     ctx.gpu.stream = stream;
-    auto req = kmgr_.Setup<Kernel>(0, ctx, in_view.shape);
+    auto req = kmgr_.Setup<Kernel>(0, ctx, in_view.shape, horz_subsample, vert_subsample);
     if (perf_run)  // warm up
       kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, args...);
 
@@ -277,14 +280,12 @@ class JpegDistortionTestGPU : public ::testing::Test {
     luma_table_   = GetLumaQuantizationTable(quality);
     chroma_table_ = GetChromaQuantizationTable(quality);
     CalcOut_JpegCompressionDistortion();
-    using Kernel = JpegCompressionDistortionGPU<horz_subsample, vert_subsample>;
-    TestKernel<Kernel>(make_cspan(quality_));
+    TestKernel<JpegCompressionDistortionGPU>(make_cspan(quality_));
   }
 
   void TestChromaSubsampleDistortion() {
     CalcOut_ChromaSubsampleDistortion();
-    using Kernel = ChromaSubsampleDistortionGPU<horz_subsample, vert_subsample>;
-    TestKernel<Kernel>();
+    TestKernel<ChromaSubsampleDistortionGPU>();
   }
 
   CUDAStream stream_;
@@ -302,38 +303,30 @@ class JpegDistortionTestGPU : public ::testing::Test {
   int max_avg_error_ = 3;
 };
 
-template <typename OutType, bool v, bool h>
-struct jpeg_distortion_params_t {
-  using T = OutType;
-  static constexpr bool vert_subsample = v;
-  static constexpr bool horz_subsample = h;
-};
-
-using TestParams = ::testing::Types<
-  jpeg_distortion_params_t<uint8_t, true, true>,
-  jpeg_distortion_params_t<uint8_t, false, true>,
-  jpeg_distortion_params_t<uint8_t, true, false>,
-  jpeg_distortion_params_t<uint8_t, false, false>
->;
-
-TYPED_TEST_SUITE_P(JpegDistortionTestGPU);
-
-TYPED_TEST_P(JpegDistortionTestGPU, ChromaSubsampleDistortion) {
+TEST_P(JpegDistortionTestGPU, ChromaSubsampleDistortion) {
   this->TestChromaSubsampleDistortion();
 }
 
-TYPED_TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion_LowQuality) {
+TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion_LowestQuality) {
+  this->TestJpegCompressionDistortion(1);
+}
+
+TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion_LowQuality) {
   this->TestJpegCompressionDistortion(5);
 }
 
-TYPED_TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion_HighQuality) {
+TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion_HighQuality) {
   this->TestJpegCompressionDistortion(95);
 }
 
-REGISTER_TYPED_TEST_SUITE_P(JpegDistortionTestGPU, ChromaSubsampleDistortion,
-                                                   JpegCompressionDistortion_LowQuality,
-                                                   JpegCompressionDistortion_HighQuality);
-INSTANTIATE_TYPED_TEST_SUITE_P(JpegDistortionSuite, JpegDistortionTestGPU, TestParams);
+TEST_P(JpegDistortionTestGPU, JpegCompressionDistortion_HighestQuality) {
+  this->TestJpegCompressionDistortion(100);
+}
+
+INSTANTIATE_TEST_SUITE_P(JpegDistortionTestGPU, JpegDistortionTestGPU, ::testing::Combine(
+  ::testing::Values(false, true),  // horz_subsample
+  ::testing::Values(false, true)   // vert_subsample
+));  // NOLINT
 
 }  // namespace test
 }  // namespace jpeg
