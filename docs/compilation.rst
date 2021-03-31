@@ -115,30 +115,32 @@ Bare Metal build
 Prerequisites
 ^^^^^^^^^^^^^
 
+For the recommended dependency versions please check https://github.com/NVIDIA/DALI_deps.
+
 .. |cuda link| replace:: **NVIDIA CUDA 10.0**
 .. _cuda link: https://developer.nvidia.com/cuda-downloads
 .. |nvjpeg link| replace:: **nvJPEG library**
 .. _nvjpeg link: https://developer.nvidia.com/nvjpeg
 .. |protobuf link| replace:: **protobuf**
-.. _protobuf link: https://github.com/google/protobuf
-.. |cmake link| replace:: **CMake 3.13**
-.. _cmake link: https://cmake.org
-.. |jpegturbo link| replace:: **libjpeg-turbo 2.0.4 (2.0.3 for conda due to availability)**
-.. _jpegturbo link: https://github.com/libjpeg-turbo/libjpeg-turbo
-.. |libtiff link| replace:: **libtiff 4.1.0**
-.. _libtiff link: http://libtiff.org/
-.. |ffmpeg link| replace:: **FFmpeg 4.2.2**
-.. _ffmpeg link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.2.tar.bz2
-.. |libsnd link| replace:: **libsnd 1.0.28**
-.. _libsnd link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-1.0.28.tar.gz
-.. |opencv link| replace:: **OpenCV 4**
-.. _opencv link: https://opencv.org
-.. |lmdb link| replace:: **liblmdb 0.9.x**
-.. _lmdb link: https://github.com/LMDB/lmdb
-.. |gcc link| replace:: **GCC 5.3.1**
+.. _protobuf link: https://github.com/NVIDIA/DALI_deps
+.. |cmake link| replace:: **CMake**
+.. _cmake link: https://github.com/NVIDIA/DALI_deps
+.. |jpegturbo link| replace:: **libjpeg-turbo**
+.. _jpegturbo link: https://github.com/NVIDIA/DALI_deps
+.. |libtiff link| replace:: **libtiff**
+.. _libtiff link: https://github.com/NVIDIA/DALI_deps
+.. |ffmpeg link| replace:: **FFmpeg**
+.. _ffmpeg link: https://github.com/NVIDIA/DALI_deps
+.. |libsnd link| replace:: **libsnd**
+.. _libsnd link: https://github.com/NVIDIA/DALI_deps
+.. |opencv link| replace:: **OpenCV**
+.. _opencv link: https://github.com/NVIDIA/DALI_deps
+.. |lmdb link| replace:: **liblmdb**
+.. _lmdb link: https://github.com/NVIDIA/DALI_deps
+.. |gcc link| replace:: **GCC**
 .. _gcc link: https://www.gnu.org/software/gcc/
-.. |boost link| replace:: **Boost 1.66**
-.. _boost link: https://www.boost.org/
+.. |boost link| replace:: **Boost**
+.. _boost link: https://github.com/NVIDIA/DALI_deps
 
 .. |mxnet link| replace:: **MXNet 1.5**
 .. _mxnet link: http://mxnet.incubator.apache.org
@@ -422,14 +424,13 @@ Following CMake parameters could be helpful in setting the right paths:
 * protobuf options can be obtained from |protobuf_cmake link|_
 
 
-Cross-compiling for aarch64 Linux (Docker)
-------------------------------------------
+Cross-compiling for aarch64 Jetson Linux (Docker)
+-------------------------------------------------
 
 .. note::
 
-  Support for aarch64 Linux platform is experimental. Some of the features are available only for
-  x86-64 target and they are turned off in this build. There is no support for DALI Python library
-  on aarch64 yet. Some Operators may not work as intended due to x86-64 specific implementations.
+  Support for aarch64 Jetson Linux platform is experimental. Some of the features are available only for
+  x86-64 target and they are turned off in this build.
 
 Setup
 ^^^^^
@@ -440,8 +441,8 @@ Then select CUDA for the host. After download process has been completed move
 ``cuda-repo-cross-aarch64-10-2-local-10.2.89_1.0-1_all.deb`` from the download folder
 to main DALI folder (they are required for cross build).
 
-Build the aarch64 Linux Build Container
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Build the aarch64 Jetson Linux Build Container
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
 
@@ -457,40 +458,3 @@ From the root of the DALI source tree
     docker run -v $(pwd):/dali nvidia/dali:builder_aarch64-linux
 
 The relevant python wheel will be in ``dali_root_dir/wheelhouse``
-
-Cross-compiling for aarch64 QNX (Docker)
-----------------------------------------
-
-.. note::
-
-  Support for aarch64 QNX platform is experimental. Some of the features are available only for
-  x86-64 target and they are turned off in this build. There is no support for DALI Python library
-  on aarch64 yet. Some Operators may not work as intended due to x86-64 specific implementations.
-
-Setup
-^^^^^
-After aquiring the QNX Toolchain, place it in a directory called ``qnx`` in the root of the DALI tree.
-Then using the SDK Manager for NVIDIA DRIVE, select **QNX** as the *Target Operating System*
-and select **DRIVE OS 5.1.0.0 SDK**.
-
-In STEP 02 under **Download & Install Options**, select *Download Now. Install Later*.
-and agree to the Terms and Conditions. Once downloaded move the **cuda-repo-cross-qnx**
-debian package into the ``qnx`` directory you created in the DALI tree.
-
-Build the aarch64 Build Container
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. code-block:: bash
-
-    docker build -t nvidia/dali:tools_aarch64-qnx -f docker/Dockerfile.cuda_qnx.deps .
-    docker build -t nvidia/dali:builder_aarch64-qnx --build-arg "QNX_CUDA_TOOL_IMAGE_NAME=nvidia/dali:tools_aarch64-qnx" -f docker/Dockerfile.build.aarch64-qnx .
-
-Compile
-^^^^^^^
-From the root of the DALI source tree
-
-.. code-block:: bash
-
-    docker run -v $(pwd):/dali nvidia/dali:builder_aarch64-qnx
-
-The relevant Python wheel will be inside ``$(pwd)/wheelhouse``.
