@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy opencv-python pillow librosa scipy nvidia-ml-py==11.450.51"
+pip_packages="nose numpy opencv-python pillow librosa scipy nvidia-ml-py==11.450.51 numba"
 target_dir=./dali/test/python
 
 test_body() {
