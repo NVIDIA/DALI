@@ -50,6 +50,8 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
   // prefetch_depth * batch_size set of buffers that we reuse to decode audio
   using TensorVectorPtr = std::unique_ptr<TensorVector<CPUBackend>>;
   std::vector<TensorVectorPtr> prefetched_decoded_audio_;
+
+  std::unordered_map<void*, int> decoded_map_;
 };
 
 }  // namespace dali

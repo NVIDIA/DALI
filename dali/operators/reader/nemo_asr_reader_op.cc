@@ -154,9 +154,15 @@ void NemoAsrReader::Prefetch() {
   audio_batch.Resize(shape, TypeTable::GetTypeInfo(dtype_));
 
   // Waiting until all the audio samples are ready to be consumed
+  decoded_map_.clear();
   for (int i = 0; i < nsamples; i++) {
     auto &sample = *curr_batch[i];
     auto &audio = audio_batch[i];
+
+    if (decoded_map_.find(&sample) != decoded_map_.end())
+      continue;
+    decoded_map_[&sample] = i;
+
     const auto &audio_meta = sample.audio_meta();
     int64_t priority = audio_meta.length * audio_meta.channels;
     thread_pool_.AddWork(
@@ -165,6 +171,15 @@ void NemoAsrReader::Prefetch() {
       }, priority);
   }
   thread_pool_.RunAll();
+
+  if (decoded_map_.size() < static_cast<size_t>(nsamples)) {  // there are repeated samples
+    for (int i = 0; i < nsamples; i++) {
+      auto it = decoded_map_.find(curr_batch[i].get());
+      if (it != decoded_map_.end() && it->second != i) {
+        audio_batch[i].ShareData(&audio_batch[it->second]);
+      }
+    }
+  }
 }
 
 void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
