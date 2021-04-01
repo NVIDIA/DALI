@@ -41,7 +41,7 @@ KernelRequirements JpegDistortionBaseGPU::Setup(KernelContext &ctx,
   }
 
   block_setup_.SetBlockDim(dim3(32, 16, 1));
-  int xblock = 64*(2-horz_subsample_);
+  int xblock = 64 * (2 - horz_subsample_);
   int yblock = 128;
   block_setup_.SetDefaultBlockSize({xblock, yblock});
   block_setup_.SetupBlocks(chroma_shape_, true);
@@ -88,9 +88,11 @@ void JpegCompressionDistortionGPU::Run(KernelContext &ctx, const OutListGPU<uint
   const auto &in_shape = in.shape;
   int nsamples = in_shape.num_samples();
   if (quality.size() > 1 && quality.size() != nsamples) {
-    throw std::invalid_argument(make_string("Received ", quality.size(),
-                                            " quality values but the batch contains ", nsamples,
-                                            " samples."));
+    throw std::invalid_argument(
+      make_string("Unexpected number of elements in ``quality`` argument. "
+                  "The argument could contain a single value (used for the whole batch), "
+                  "one value per sample, o no values (a default is used). Received ",
+                  quality.size(), " values but batch size is ", nsamples, "."));
   }
   SetupSampleDescs(out, in, quality);
   SampleDesc *samples_gpu;

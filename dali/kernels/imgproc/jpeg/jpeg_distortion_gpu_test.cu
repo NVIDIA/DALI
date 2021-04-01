@@ -60,7 +60,7 @@ class JpegDistortionTestGPU : public ::testing::TestWithParam<std::tuple<bool, b
 
  public:
   JpegDistortionTestGPU()
-      : horz_subsample(std::get<0>(GetParam())), vert_subsample(std::get<0>(GetParam())) {}
+      : horz_subsample(std::get<0>(GetParam())), vert_subsample(std::get<1>(GetParam())) {}
 
   void SetUp() final {
     if (use_real_images) {
