@@ -15,10 +15,6 @@ You can define a DALI Pipeline in the following ways:
 #. By instantiating :class:`Pipeline` object directly, building the graph and setting the pipeline outputs with :meth:`Pipeline.set_outputs`.
 #. By inheriting from :class:`Pipeline` class and overriding :meth:`Pipeline.define_graph` (this is the legacy way of defining DALI Pipelines).
 
-.. autoclass:: Pipeline
-   :members:
-   :special-members: __enter__, __exit__
-
 Data Processing Graphs
 ----------------------
 

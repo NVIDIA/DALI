@@ -353,6 +353,7 @@ Parameters
 
     @staticmethod
     def current():
+        """Returns the instance of the current pipeline set by :meth:`push_current`."""
         return getattr(pipeline_tls, 'current_pipeline', None)
 
     @staticmethod
@@ -1237,7 +1238,7 @@ def pipeline_def(fn=None, **pipeline_kwargs):
         # pipe.build()  # the pipeline is not configured properly yet
 
     A pipeline requires additional parameters such as batch size, number of worker threads,
-    GPU device id and so on (see :meth:`Pipeline.__init__` for a complete list of pipeline parameters).
+    GPU device id and so on (see :meth:`nvidia.dali.Pipeline()` for a complete list of pipeline parameters).
     These parameters can be supplied as additional keyword arguments, passed to the decorated function::
 
         pipe = my_pipe(True, False, batch_size=32, num_threads=1, device_id=0)
@@ -1274,6 +1275,19 @@ def pipeline_def(fn=None, **pipeline_kwargs):
         They may result in unwanted, silent hijacking of some arguments of the same name by
         Pipeline constructor. Code written this way would cease to work with future versions of DALI
         when new parameters are added to the Pipeline constructor.
+
+    To access any pipeline arguments within the body of a ``@pipeline_def`` function, the function
+    :meth:`nvidia.dali.Pipeline.current()` can be used::
+
+        @pipeline_def()
+        def my_pipe():
+            pipe = Pipeline.current()
+            batch_size = pipe.batch_size
+            num_threads = pipe.num_threads
+            ...
+
+        pipe = my_pipe(batch_size=42, num_threads=3)
+        ...
     """
     def actual_decorator(func):
         @functools.wraps(func)
