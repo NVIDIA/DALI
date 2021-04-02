@@ -32,25 +32,13 @@ class JpegCompressionDistortionGPU : public JpegCompressionDistortion<GPUBackend
   DISABLE_COPY_MOVE_ASSIGN(JpegCompressionDistortionGPU);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<GPUBackend> &ws) override;
   void RunImpl(workspace_t<GPUBackend> &ws) override;
 
  private:
-  using JpegDistortionKernel = kernels::jpeg::JpegCompressionDistortionGPU<true, true>;
+  using JpegDistortionKernel = kernels::jpeg::JpegCompressionDistortionGPU;
   kernels::KernelManager kmgr_;
   std::vector<int> quality_;
 };
-
-bool JpegCompressionDistortionGPU::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                             const workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.InputRef<GPUBackend>(0);
-  auto in_view = view<const uint8_t, 3>(input);
-  kernels::KernelContext ctx;
-  auto req = kmgr_.Setup<JpegDistortionKernel>(0, ctx, in_view.shape);
-  output_desc = {{req.output_shapes[0], input.type()}};
-  return true;
-}
 
 void JpegCompressionDistortionGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.InputRef<GPUBackend>(0);
@@ -65,6 +53,7 @@ void JpegCompressionDistortionGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   }
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
+  auto req = kmgr_.Setup<JpegDistortionKernel>(0, ctx, in_view.shape, true, true);
   kmgr_.Run<JpegDistortionKernel>(0, 0, ctx, out_view, in_view, make_cspan(quality_));
 }
 
