@@ -83,12 +83,13 @@ The extent in each dimension must match the value of the input or be equal to 1.
 extent is 1, the value will be broadcast in this dimension. If the value is not specified, the
 mean is calculated from the input. A non-scalar mean cannot be used when batch argument
 is set to True.)code",
-    0.0f, true)
+    nullptr, true)
   .AddOptionalArg<float>("stddev", R"code(Standard deviation value to scale the data.
 
 See ``mean`` argument for more information about shape constraints. If a value is not specified,
 the standard deviation is calculated from the input. A non-scalar ``stddev`` cannot be used when
-``batch`` argument is set to True.)code", 0.0f, true)
+``batch`` argument is set to True.)code",
+    nullptr, true)
   .AddOptionalArg("axes", R"code(Indices of dimensions along which the input is normalized.
 
 By default, all axes are used, and the axes can also be specified by name.
