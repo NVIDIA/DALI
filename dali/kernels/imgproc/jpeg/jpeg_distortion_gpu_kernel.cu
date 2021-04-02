@@ -91,7 +91,7 @@ void JpegCompressionDistortionGPU::Run(KernelContext &ctx, const OutListGPU<uint
     throw std::invalid_argument(
       make_string("Unexpected number of elements in ``quality`` argument. "
                   "The argument could contain a single value (used for the whole batch), "
-                  "one value per sample, o no values (a default is used). Received ",
+                  "one value per sample, or no values (a default is used). Received ",
                   quality.size(), " values but batch size is ", nsamples, "."));
   }
   SetupSampleDescs(out, in, quality);
