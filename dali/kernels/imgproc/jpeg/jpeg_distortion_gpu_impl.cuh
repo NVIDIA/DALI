@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_JPEG_JPEG_ARTIFACTS_GPU_H_
-#define DALI_KERNELS_IMGPROC_JPEG_JPEG_ARTIFACTS_GPU_H_
+#ifndef DALI_KERNELS_IMGPROC_JPEG_JPEG_DISTORTION_GPU_IMPL_CUH_
+#define DALI_KERNELS_IMGPROC_JPEG_JPEG_DISTORTION_GPU_IMPL_CUH_
 
 #include <cuda_runtime_api.h>
+#include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu_kernel.h"
 #include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/imgproc/surface.h"
 #include "dali/kernels/imgproc/sampler.h"
@@ -27,68 +28,7 @@
 
 namespace dali {
 namespace kernels {
-
-float GetQualityFactorScale(int quality) {
-  quality = clamp<int>(quality, 1, 99);
-  float q_scale = 1.0f;
-  if (quality < 50) {
-    q_scale = 50.0f / quality;
-  } else {
-    q_scale = 2.0f - (2 * quality / 100.0f);
-  }
-  return q_scale;
-}
-
-// Quantization table coefficients that are suggested in the Annex K of the JPEG standard.
-
-mat<8, 8, uint8_t> GetLumaQuantizationTable(int quality) {
-  mat<8, 8, uint8_t> table = {{
-    {16, 11, 10, 16, 24, 40, 51, 61},
-    {12, 12, 14, 19, 26, 58, 60, 55},
-    {14, 13, 16, 24, 40, 57, 69, 56},
-    {14, 17, 22, 29, 51, 87, 80, 62},
-    {18, 22, 37, 56, 68, 109, 103, 77},
-    {24, 35, 55, 64, 81, 104, 113, 92},
-    {49, 64, 78, 87, 103, 121, 120, 101},
-    {72, 92, 95, 98, 112, 100, 103, 99}
-  }};
-  auto scale = GetQualityFactorScale(quality);
-  for (int i = 0; i < 8; i++) {
-    for (int j = 0; j < 8; j++) {
-      table(i, j) = ConvertSat<uint8_t>(scale * table(i, j));
-    }
-  }
-  return table;
-}
-
-mat<8, 8, uint8_t> GetChromaQuantizationTable(int quality) {
-  mat<8, 8, uint8_t> table = {{
-    {17, 18, 24, 47, 99, 99, 99, 99},
-    {18, 21, 26, 66, 99, 99, 99, 99},
-    {24, 26, 56, 99, 99, 99, 99, 99},
-    {47, 66, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99}
-  }};
-  auto scale = GetQualityFactorScale(quality);
-  for (int i = 0; i < 8; i++) {
-    for (int j = 0; j < 8; j++) {
-      table(i, j) = ConvertSat<uint8_t>(scale * table(i, j));
-    }
-  }
-  return table;
-}
-
-struct SampleDesc {
-  const uint8_t *in;  // rgb
-  uint8_t *out;  // rgb
-  ivec<2> size;
-  i64vec<2> strides;
-  mat<8, 8, uint8_t> luma_Q_table = GetLumaQuantizationTable(95);
-  mat<8, 8, uint8_t> chroma_Q_table = GetChromaQuantizationTable(95);
-};
+namespace jpeg {
 
 template <typename T>
 __inline__ __device__ T rgb_to_y(vec<3, T> rgb) {
@@ -240,8 +180,6 @@ __global__ void ChromaSubsampleDistortion(const SampleDesc *samples,
 }
 
 __device__ __inline__ float quantize(float value, float Q_coeff) {
-  if (Q_coeff < 1)
-    Q_coeff = 1;
   return Q_coeff * roundf(value * __frcp_rn(Q_coeff));
 }
 
@@ -409,7 +347,8 @@ __global__ void JpegCompressionDistortion(const SampleDesc *samples,
   }
 }
 
+}  // namespace jpeg
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_IMGPROC_JPEG_JPEG_ARTIFACTS_GPU_H_
+#endif  // DALI_KERNELS_IMGPROC_JPEG_JPEG_DISTORTION_GPU_IMPL_CUH_
