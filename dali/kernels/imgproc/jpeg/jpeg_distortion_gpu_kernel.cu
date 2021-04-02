@@ -71,12 +71,12 @@ void JpegDistortionBaseGPU::SetupSampleDescs(const OutListGPU<uint8_t, 3> &out,
     sample_desc.strides.x = 3;
     sample_desc.strides.y = width * 3;
     int q;
-    if (quality_.empty()) {
+    if (quality.empty()) {
       q = 95;
-    } else if (quality_.size() == 1) {
-      q = quality_[0];
+    } else if (quality.size() == 1) {
+      q = quality[0];
     } else {
-      q = quality_[i];
+      q = quality[i];
     }
     sample_desc.luma_Q_table = GetLumaQuantizationTable(q);
     sample_desc.chroma_Q_table = GetChromaQuantizationTable(q);

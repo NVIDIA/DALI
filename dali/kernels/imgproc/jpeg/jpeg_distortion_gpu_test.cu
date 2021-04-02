@@ -274,11 +274,9 @@ class JpegDistortionTestGPU : public ::testing::TestWithParam<std::tuple<bool, b
   }
 
   void TestJpegCompressionDistortion(int quality) {
-    quality_.resize(1, quality);
+    quality_ = {quality};
     max_abs_error_ = vert_subsample && horz_subsample ? 80 : 128;
     max_avg_error_ = vert_subsample && horz_subsample ? 3 : 10;
-    luma_table_   = GetLumaQuantizationTable(quality);
-    chroma_table_ = GetChromaQuantizationTable(quality);
     CalcOut_JpegCompressionDistortion();
     TestKernel<JpegCompressionDistortionGPU>(make_cspan(quality_));
   }
@@ -295,9 +293,6 @@ class JpegDistortionTestGPU : public ::testing::TestWithParam<std::tuple<bool, b
   TestTensorList<uint8_t> out_ref_;
 
   std::vector<int> quality_ = {95};
-  mat<8, 8, uint8_t> luma_table_;
-  mat<8, 8, uint8_t> chroma_table_;
-
   kernels::KernelManager kmgr_;
   int max_abs_error_ = 5;
   int max_avg_error_ = 3;
