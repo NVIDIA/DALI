@@ -106,7 +106,6 @@ class DLL_PUBLIC JpegDistortionBaseGPU {
 
   TensorListShape<2> chroma_shape_;
   std::vector<SampleDesc> sample_descs_;
-  std::vector<int> quality_;
   bool horz_subsample_ = true;
   bool vert_subsample_ = true;
 };
@@ -122,7 +121,6 @@ class DLL_PUBLIC JpegCompressionDistortionGPU : public JpegDistortionBaseGPU {
   using Base::SetupSampleDescs;
   using Base::block_setup_;
   using Base::sample_descs_;
-  using Base::quality_;
 };
 
 class DLL_PUBLIC ChromaSubsampleDistortionGPU : public JpegDistortionBaseGPU {
