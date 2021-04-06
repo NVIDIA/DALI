@@ -17,7 +17,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(experimental__NumbaFunc)
+DALI_SCHEMA(experimental__NumbaFuncImpl)
   .DocStr(R"code(Invokes a compiled Numba function passed as a pointer.
 
 The run function should be a Numba C callback function (annotated with cfunc). This function is run on a 
@@ -88,74 +88,101 @@ Notice that we are passing ``int32`` as the output data type, which we set in th
   .NumInput(1)
   .NumOutput(1)
   .Unserializable()
-  .AddArg("fn_ptr", R"code(Numba function pointer.)code", DALI_INT64)
+  .AddArg("run_fn", R"code(Numba function pointer.)code", DALI_INT64)
+  .AddArg("out_types", R"code()code", DALI_INT_VEC)
+  .AddArg("in_types", R"code()code", DALI_INT_VEC)
   .AddOptionalArg<int>("setup_fn", R"code(Pointer to a function used to determine the 
-output shape and data type based on the input.)code", 0);
+output shape and data type based on the input.)code", 0)
+  .AddOptionalArg<int>("outs_ndim", R"code()code", std::vector<int>(), false);
 
 template <typename Backend>
-NumbaFunc<Backend>::NumbaFunc(const OpSpec &spec) : Base(spec) {
-  fn_ptr_ = spec.GetArgument<uint64_t>("fn_ptr");
+NumbaFuncImpl<Backend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
+  run_fn_ = spec.GetArgument<uint64_t>("run_fn");
   setup_fn_ = spec.GetArgument<uint64_t>("setup_fn");
+
+  out_types_ = spec.GetRepeatedArgument<int>("out_types");
+  DALI_ENFORCE(!out_types_.empty(), "");
+  in_types_ = spec.GetRepeatedArgument<int>("in_types");
+  DALI_ENFORCE(!in_types_.empty(), "");
+
+  outs_ndim_ = spec.GetRepeatedArgument<int>("outs_ndim");
+  if (!setup_fn_) {
+    DALI_ENFORCE(out_types_.size() == in_types_.size(), "");
+  } else {
+    DALI_ENFORCE(outs_ndim_.size() == out_types_.size(), "");
+  }
+
+  ins_ndim_.resize(in_types_.size());
 }
 
 template <>
-bool NumbaFunc<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     const workspace_t<CPUBackend> &ws) {
-  const auto &in = ws.InputRef<CPUBackend>(0);
-  output_desc.resize(1);
+  output_desc.resize(out_types_.size());
 
   if (!setup_fn_) {
-    output_desc[0] = {in.shape(), in.type()};
+    for (size_t i = 0; i < out_types_.size(); i++) {
+      const auto &in = ws.InputRef<CPUBackend>(i);
+      output_desc[i] = {in.shape(), in.type()};
+    }
     return true;
   }
 
-  auto in_shape = in.shape();
-  auto N = in_shape.num_samples();
-  auto ndim = in_shape.sample_dim();
-  TensorListShape<> output_shape;
-  output_shape.resize(N, ndim);
-  DALIDataType out_type = DALIDataType::DALI_NO_TYPE;
-  DALIDataType in_type = in.type().id();
-  ((void (*)(void*, int32_t, void*, const void*, int32_t, int32_t, int32_t))setup_fn_)(
-      output_shape.tensor_shape_span(0).data(), ndim, &out_type,
-      in_shape.tensor_shape_span(0).data(), ndim, in_type, N);
+  vector<TensorListShape<-1>> in_shapes;
+  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+    in_shapes.push_back(ws.InputRef<CPUBackend>(in_id).shape());
+    ins_ndim_[in_id] = in_shapes[in_id].size();
+  }
+  auto N = in_shapes[0].num_samples();
+  for (size_t i = 0; i < out_types_.size(); i++) {
+    output_desc[i].shape.resize(N, outs_ndim_[i]);
+    output_desc[i].type = dali::TypeTable::GetTypeInfo(static_cast<DALIDataType>(out_types_[i]));
+  }
 
-  DALI_ENFORCE(out_type != DALIDataType::DALI_NO_TYPE,
-    "Output type was not set by the custom setup function.");
+  output_shapes_.resize(N * out_types_.size());
+  input_shapes_.resize(N * in_types_.size());  
   for (int i = 0; i < N; i++) {
-    for (int d = 0; d < ndim; d++) {
-      DALI_ENFORCE(output_shape.tensor_shape_span(i)[d] >= 0,
-        make_string(d, "-th", " dimension of ", i, "-th sample's shape is negative."));
+    for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
+      output_shapes_[N * i + out_id] = output_desc[out_id].shape.tensor_shape_span(i).data();
+    }
+    for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+      input_shapes_[N * i + in_id] = in_shapes[in_id].tensor_shape_span(i).data();
     }
   }
-  output_desc[0].type = dali::TypeTable::GetTypeInfo(out_type);
-  output_desc[0].shape = output_shape;
+
+  ((void (*)(void*, const void*, int32_t, const void*, const void*, int32_t, int32_t))setup_fn_)(
+    &output_shapes_, &outs_ndim_, outs_ndim_.size(), &input_shapes_, &ins_ndim_, ins_ndim_.size(), N);
+
+  // TODO VALIDATION OF DATA?
 
   return true;
 }
 
 template <>
-void NumbaFunc<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &in = ws.InputRef<CPUBackend>(0);
-  auto in_shape = in.shape();
-  auto &out = ws.OutputRef<CPUBackend>(0);
-  auto out_shape = out.shape();
-  auto& tp = ws.GetThreadPool();
+void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+  auto N = ws.InputRef<CPUBackend>(0).shape().num_samples();
 
-  for (int sample_id = 0; sample_id < in_shape.num_samples(); sample_id++) {
-    tp.AddWork([&, fn_ptr = fn_ptr_, sample_id](int thread_id) {
-      ((void (*)(void*, const void*, int32_t, const void*, const void*, int32_t))fn_ptr)(
-        out[sample_id].raw_mutable_data(),
-        out_shape.tensor_shape_span(sample_id).data(),
-        out_shape.sample_dim(),
-        in[sample_id].raw_data(),
-        in_shape.tensor_shape_span(sample_id).data(),
-        in_shape.sample_dim());
-    }, out_shape.tensor_size(sample_id));
+  std::vector<void*> out_ptrs;
+  std::vector<const void*> in_ptrs;
+  out_ptrs.resize(N * out_types_.size());
+  in_ptrs.resize(N * in_types_.size());
+  for (int i = 0; i < N; i++) {
+    for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
+      auto& out = ws.OutputRef<CPUBackend>(out_id);
+      out_ptrs[N * i + out_id] = out[i].raw_mutable_data();
+    }
+    for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+      const auto &in = ws.InputRef<CPUBackend>(in_id);
+      in_ptrs[N * i + in_id] = in[i].raw_data();
+    }
   }
-  tp.RunAll();
+  
+  ((void (*)(void*, const void*, const void*, const void*, int32_t,
+    const void*, const void*, const void*, const void*, int32_t, int32_t))run_fn_)(
+      &out_ptrs, &out_types_, &output_shapes_, &outs_ndim_, outs_ndim_.size(),
+      &in_ptrs, &in_types_, &input_shapes_, &ins_ndim_, ins_ndim_.size(), N);
 }
 
-DALI_REGISTER_OPERATOR(experimental__NumbaFunc, NumbaFunc<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(experimental__NumbaFuncImpl, NumbaFuncImpl<CPUBackend>, CPU);
 
 }  // namespace dali

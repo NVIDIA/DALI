@@ -1217,6 +1217,8 @@ def register_gpu_op(name):
 from nvidia.dali.external_source import ExternalSource
 ExternalSource.__module__ = __name__
 
+from nvidia.dali.plugin.numba import NumbaFunc
+
 class _CompoundOp:
     def __init__(self, op_list):
         self._ops = []

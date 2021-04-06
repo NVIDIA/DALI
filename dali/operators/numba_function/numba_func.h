@@ -22,12 +22,12 @@
 namespace dali {
 
 template <typename Backend>
-class NumbaFunc : public Operator<Backend> {
+class NumbaFuncImpl : public Operator<Backend> {
  public:
   using Base = Operator<Backend>;
   using Workspace = workspace_t<Backend>;
 
-  explicit NumbaFunc(const OpSpec &spec_);
+  explicit NumbaFuncImpl(const OpSpec &spec_);
 
  protected:
   bool CanInferOutputs() const override { return true; }
@@ -37,8 +37,14 @@ class NumbaFunc : public Operator<Backend> {
   void RunImpl(Workspace &ws) override;
 
  private:
-  uint64_t fn_ptr_;
+  uint64_t run_fn_;
   uint64_t setup_fn_;
+  SmallVector<int, 6> out_types_;
+  SmallVector<int, 6> in_types_;
+  SmallVector<int, 6> outs_ndim_;
+  SmallVector<int, 6> ins_ndim_;
+  std::vector<int64_t*> output_shapes_;
+  std::vector<int64_t*> input_shapes_;
 };
 
 }  // namespace dali
