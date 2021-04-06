@@ -535,19 +535,24 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           data.method = DecodeMethod::NvjpegCuda;
           samples_single_.push_back(&data);
         }
+        if (output_image_type_ != DALI_ANY_DATA) {
+          data.shape[2] = NumberOfChannels(output_image_type_);
+        } else {
+          data.shape[2] = 3;  // just output RGB
+        }
       } else if (crop_generator || !ParseNvjpeg2k(data, span<const uint8_t>(input_data, in_size))) {
         try {
           data.method = DecodeMethod::Host;
           auto image = ImageFactory::CreateImage(input_data, in_size, output_image_type_);
           data.shape = image->PeekShape();
+          if (output_image_type_ != DALI_ANY_DATA) {
+            data.shape[2] = NumberOfChannels(output_image_type_);
+          }
           samples_host_.push_back(&data);
         } catch (const std::runtime_error &e) {
           DALI_FAIL(e.what() + ". File: " + data.file_name);
         }
       }
-
-      if (output_image_type_ != DALI_ANY_DATA)
-        data.shape[2] = NumberOfChannels(output_image_type_);
 
       if (crop_generator) {
         TensorShape<> dims{data.shape[0], data.shape[1]};
@@ -611,6 +616,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #if NVJPEG2K_ENABLED
   void DecodeJpeg2k(uint8_t* output_data, const SampleData *sample,
                     span<const uint8_t> input_data) {
+    if (output_image_type_ != DALI_ANY_DATA) {
+      auto requested_channel_num = NumberOfChannels(output_image_type_);
+      DALI_ENFORCE(requested_channel_num == sample->shape[2],
+                   make_string("Requested number of output channels ", requested_channel_num,
+                   ", but the image ", sample->file_name, " has ", sample->shape[2], "."));
+    }
     CUDA_CALL(cudaEventSynchronize(nvjpeg2k_decode_event_));
     bool single_channel = sample->shape[2] == 1;
     auto &buffer = nvjpeg2k_intermediate_buffer_;

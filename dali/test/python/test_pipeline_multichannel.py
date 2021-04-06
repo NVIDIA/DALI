@@ -24,9 +24,11 @@ from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 import cv2
+import glob
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
-multichannel_tiff_root = os.path.join(test_data_root, 'db', 'single', 'tiff', 'multichannel')
+multichannel_tiff_root = os.path.join(test_data_root, 'db', 'single', 'multichannel', 'tiff_multichannel')
+multichannel_tiff_file = glob.glob(multichannel_tiff_root + "/*.tif*")
 
 def crop_func_help(image, layout, crop_y = 0.2, crop_x = 0.3, crop_h = 220, crop_w = 224):
     if layout == "FHWC":
@@ -182,7 +184,7 @@ class MultichannelPipeline(Pipeline):
         super(MultichannelPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
 
-        self.reader = ops.readers.File(file_root=multichannel_tiff_root)
+        self.reader = ops.readers.File(files = multichannel_tiff_file)
 
         decoder_device = 'mixed' if self.device == 'gpu' else 'cpu'
         self.decoder = ops.decoders.Image(device = decoder_device, output_type = types.ANY_DATA)
@@ -221,7 +223,7 @@ class MultichannelPythonOpPipeline(Pipeline):
                                                            device_id,
                                                            exec_async=False,
                                                            exec_pipelined=False)
-        self.reader = ops.readers.File(file_root=multichannel_tiff_root)
+        self.reader = ops.readers.File(files = multichannel_tiff_file)
         self.decoder = ops.decoders.Image(device = 'cpu', output_type = types.ANY_DATA)
         self.oper = ops.PythonFunction(function=function, output_layouts="HWC")
 
@@ -239,7 +241,6 @@ def check_full_pipe_multichannel_vs_numpy(device, batch_size):
                       eps = 1e-03)
 
 def test_full_pipe_multichannel_vs_numpy():
-    # TODO(janton): enable 'cpu' when we provide a Transpose operator for it
-    for device in {'gpu'}:
+    for device in {'cpu', 'gpu'}:
         for batch_size in {1, 3}:
             yield check_full_pipe_multichannel_vs_numpy, device, batch_size
