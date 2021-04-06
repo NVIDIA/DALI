@@ -18,8 +18,10 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import os
 import numpy as np
+import glob
 
 from nose import SkipTest
+from nose.tools import assert_raises
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
@@ -124,12 +126,32 @@ def test_image_decoder_memory_stats():
 batch_size_alias_test=16
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+def decoder_pipe_multi(device, out_type, files):
+    encoded, _ = fn.readers.file(files=files)
+    decoded = fn.decoders.image(encoded, device=device, output_type=out_type)
+    return decoded
+
+def test_image_decoder_multi():
+    files = glob.glob(os.path.join(test_data_root, "db/single/multichannel/tiff_multichannel") + "/*.tif*")
+    compare_pipelines(decoder_pipe_multi("cpu", out_type=types.ANY_DATA, files=files),
+                      decoder_pipe_multi("mixed", out_type=types.ANY_DATA, files=files),
+                      batch_size=batch_size_alias_test, N_iterations=10,
+                      eps = 1e-03)
+
+def test_image_decoder_multi_fail():
+    files = glob.glob(os.path.join(test_data_root, "db/single/multichannel/with_alpha") + "/*.[!txt]*")
+    p = decoder_pipe_multi("mixed", out_type=types.RGB, files=files)
+    p.build()
+    # the way DALI uses OpenCV for image decoding doesn't support anything beyond RGB or GRAY
+    with assert_raises(RuntimeError):
+        p.run()
+
+@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def decoder_pipe(decoder_op, file_root, device, use_fast_idct):
-    encoded, labels = fn.readers.file(file_root=file_root)
+    encoded, _ = fn.readers.file(file_root=file_root)
     decoded = decoder_op(encoded, device=device, output_type=types.RGB, use_fast_idct=use_fast_idct,
                          seed=42)
     return decoded
-
 
 def check_image_decoder_alias(new_op, old_op, file_root, device, use_fast_idct):
     new_pipe = decoder_pipe(new_op, file_root, device, use_fast_idct)
