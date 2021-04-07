@@ -558,7 +558,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         TensorShape<> dims{data.shape[0], data.shape[1]};
         data.roi = crop_generator(dims, "HW");
         DALI_ENFORCE(data.roi.IsInRange(dims));
-        output_shape_.set_tensor_shape(i, {data.roi.shape[0], data.roi.shape[1], data.req_nchannels});
+        output_shape_.set_tensor_shape(
+          i, {data.roi.shape[0], data.roi.shape[1], data.req_nchannels});
         NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, data.roi.anchor[1], data.roi.anchor[0],
                                              data.roi.shape[1], data.roi.shape[0]));
       } else {
@@ -639,7 +640,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                               jpeg2k_stream, &output_image, nvjpeg2k_cu_stream_);
     if (ret == NVJPEG2K_STATUS_SUCCESS) {
       if (need_processing) {  // Converting to interleaved, dropping alpha channel if needed
-        PermuteToInterleaved(output_data, decoder_out, comp_size, sample->req_nchannels, nvjpeg2k_cu_stream_);
+        PermuteToInterleaved(output_data, decoder_out, comp_size, sample->req_nchannels,
+                             nvjpeg2k_cu_stream_);
       }
       CUDA_CALL(cudaEventRecord(nvjpeg2k_decode_event_, nvjpeg2k_cu_stream_));
     } else if (ret == NVJPEG2K_STATUS_BAD_JPEG || ret == NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED) {
