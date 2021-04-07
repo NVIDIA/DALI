@@ -25,8 +25,8 @@
 
 namespace dali {
 
-template <>
-struct RNGBaseFields<CPUBackend> {
+template <bool NeedsInput>
+struct RNGBaseFields<CPUBackend, NeedsInput> {
   RNGBaseFields(int64_t seed, int nsamples) {}
 
   std::vector<uint8_t> dists_cpu_;
@@ -36,9 +36,9 @@ struct RNGBaseFields<CPUBackend> {
   }
 };
 
-template <typename Backend, typename Impl>
+template <typename Backend, typename Impl, bool NeedsInput>
 template <typename T, typename Dist>
-void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<CPUBackend> &ws) {
+void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<CPUBackend> &ws) {
   // Should never be called for Backend != CPUBackend
   static_assert(std::is_same<Backend, CPUBackend>::value, "Invalid backend");
   auto &output = ws.OutputRef<CPUBackend>(0);

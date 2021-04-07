@@ -26,7 +26,7 @@
 namespace dali {
 
 template <typename Backend>
-class NormalDistribution : public RNGBase<Backend, NormalDistribution<Backend>> {
+class NormalDistribution : public RNGBase<Backend, NormalDistribution<Backend>, false> {
  public:
   template <typename T>
   struct Dist {
@@ -41,7 +41,7 @@ class NormalDistribution : public RNGBase<Backend, NormalDistribution<Backend>> 
   };
 
   explicit NormalDistribution(const OpSpec &spec)
-      : RNGBase<Backend, NormalDistribution<Backend>>(spec),
+      : RNGBase<Backend, NormalDistribution<Backend>, false>(spec),
         mean_("mean", spec),
         stddev_("stddev", spec) {
     if (mean_.IsDefined() || stddev_.IsDefined()) {
@@ -69,7 +69,7 @@ class NormalDistribution : public RNGBase<Backend, NormalDistribution<Backend>> 
     return true;
   }
 
-  using RNGBase<Backend, NormalDistribution<Backend>>::RunImpl;
+  using RNGBase<Backend, NormalDistribution<Backend>, false>::RunImpl;
   void RunImpl(workspace_t<Backend> &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, DALI_NORMDIST_TYPES, (
       using Dist = typename Dist<T>::type;
@@ -79,8 +79,8 @@ class NormalDistribution : public RNGBase<Backend, NormalDistribution<Backend>> 
 
  protected:
   using Operator<Backend>::max_batch_size_;
-  using RNGBase<Backend, NormalDistribution<Backend>>::dtype_;
-  using RNGBase<Backend, NormalDistribution<Backend>>::backend_data_;
+  using RNGBase<Backend, NormalDistribution<Backend>, false>::dtype_;
+  using RNGBase<Backend, NormalDistribution<Backend>, false>::backend_data_;
 
   ArgValue<float> mean_;
   ArgValue<float> stddev_;

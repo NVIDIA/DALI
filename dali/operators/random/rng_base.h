@@ -25,10 +25,10 @@
 
 namespace dali {
 
-template <typename Backend>
+template <typename Backend, bool NeedsInput>
 struct RNGBaseFields;
 
-template <typename Backend, typename Impl>
+template <typename Backend, typename Impl, bool NeedsInput>
 class RNGBase : public Operator<Backend> {
  protected:
   explicit RNGBase(const OpSpec &spec)
@@ -53,6 +53,8 @@ class RNGBase : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const workspace_t<Backend> &ws) override {
+    if (NeedsInput)
+      dtype_ = ws.template InputRef<Backend>(0).type().id();
     if (!spec_.TryGetArgument(dtype_, "dtype"))
       dtype_ = This().DefaultDataType();
 
@@ -62,7 +64,9 @@ class RNGBase : public Operator<Backend> {
     DALI_ENFORCE(!(has_shape && has_shape_like),
       "Providing argument \"shape\" is incompatible with providing a shape-like input");
 
-    if (has_shape_like) {
+    if (NeedsInput) {
+      shape_ = ws.template InputRef<Backend>(0).shape();
+    } else if (has_shape_like) {
       if (ws.template InputIsType<Backend>(0)) {
         shape_ = ws.template InputRef<Backend>(0).shape();
       } else if (std::is_same<GPUBackend, Backend>::value &&
@@ -97,8 +101,7 @@ class RNGBase : public Operator<Backend> {
   DALIDataType dtype_ = DALI_NO_TYPE;
   BatchRNG<std::mt19937_64> rng_;
   TensorListShape<> shape_;
-
-  RNGBaseFields<Backend> backend_data_;
+  RNGBaseFields<Backend, NeedsInput> backend_data_;
 };
 
 }  // namespace dali
