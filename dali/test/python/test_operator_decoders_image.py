@@ -131,20 +131,19 @@ def decoder_pipe_multi(device, out_type, files):
     decoded = fn.decoders.image(encoded, device=device, output_type=out_type)
     return decoded
 
-def test_image_decoder_multi():
+def test_image_decoder_multichannel_tiff():
     files = glob.glob(os.path.join(test_data_root, "db/single/multichannel/tiff_multichannel") + "/*.tif*")
     compare_pipelines(decoder_pipe_multi("cpu", out_type=types.ANY_DATA, files=files),
                       decoder_pipe_multi("mixed", out_type=types.ANY_DATA, files=files),
                       batch_size=batch_size_alias_test, N_iterations=10,
                       eps = 1e-03)
 
-def test_image_decoder_multi_fail():
+def test_image_decoder_multichannel_png_with_alpha():
     files = glob.glob(os.path.join(test_data_root, "db/single/multichannel/with_alpha") + "/*.[!txt]*")
-    p = decoder_pipe_multi("mixed", out_type=types.RGB, files=files)
-    p.build()
-    # the way DALI uses OpenCV for image decoding doesn't support anything beyond RGB or GRAY
-    with assert_raises(RuntimeError):
-        p.run()
+    compare_pipelines(decoder_pipe_multi("cpu", out_type=types.RGB, files=files),
+                      decoder_pipe_multi("mixed", out_type=types.RGB, files=files),
+                      batch_size=batch_size_alias_test, N_iterations=10,
+                      eps = 1e-03)
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def decoder_pipe(decoder_op, file_root, device, use_fast_idct):
