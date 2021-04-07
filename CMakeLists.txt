@@ -310,6 +310,7 @@ if (NOT CUDA_targeted_archs)
       " is supported by ${USED_CUDA_COMPILER}, use one or more of: ${CUDA_supported_archs}")
 endif()
 
+
 # Add gpu-arch and toolkit flags for clang when compiling cuda (if used)
 if (DALI_CLANG_ONLY)
   CUDA_get_gencode_args(CUDA_gencode_flags_clang ${USED_CUDA_COMPILER} ${CUDA_targeted_archs})
@@ -340,6 +341,8 @@ include_directories(
 add_custom_target("check")
 add_custom_target("check-gtest")
 add_dependencies("check" "check-gtest")
+
+CUDA_move_toolkit_include_dirs_to_end()
 
 # Project build
 add_subdirectory(dali)

@@ -118,7 +118,7 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |thrust| replace:: Thrust
 .. _thrust: https://github.com/NVIDIA/thrust
-.. |thrustver| replace:: 1.10.0
-.. _thrustver: https://github.com/NVIDIA/thrust/releases/tag/1.10.0
+.. |thrustver| replace:: 1.12.0
+.. _thrustver: https://github.com/NVIDIA/thrust/releases/tag/1.12.0
 .. |thrustlic| replace:: Apache License 2.0
 .. _thrustlic: https://github.com/NVIDIA/thrust/blob/main/LICENSE

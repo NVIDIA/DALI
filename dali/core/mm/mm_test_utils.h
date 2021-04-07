@@ -40,6 +40,10 @@ class test_resource_wrapper_impl {
  protected:
   using sentinel_t = uint32_t;
 
+  size_t alloc_curr_ = 0;
+  size_t alloc_peak_ = 0;
+  size_t num_allocs_ = 0;
+
   template <typename UpstreamAlloc, typename... Extra>
   void *do_allocate_impl(UpstreamAlloc &&ua, size_t bytes, size_t alignment, Extra&&... extra) {
     if (simulate_oom_)
@@ -59,6 +63,10 @@ class test_resource_wrapper_impl {
           << "The allocator returned the same address twice for non-empty allocations.", ret;
       }
       it_ins.first->second = { bytes, alignment };
+      alloc_curr_ += bytes;
+      num_allocs_++;
+      if (alloc_curr_ > alloc_peak_)
+        alloc_peak_ = alloc_curr_;
     }
     return ret;
   }
@@ -66,6 +74,7 @@ class test_resource_wrapper_impl {
   template <typename UpstreamDealloc, typename... Extra>
   void do_deallocate_impl(UpstreamDealloc &&ud, void *ptr, size_t bytes, size_t alignment,
                           Extra&&... extra) {
+    ASSERT_GE(alloc_curr_, bytes);
     ASSERT_EQ(freed_.count(ptr), 0u) << "Double free of " << ptr;
     auto it = allocated_.find(ptr);
     ASSERT_NE(it, allocated_.end())
@@ -75,6 +84,7 @@ class test_resource_wrapper_impl {
     if (security_check) {
       ASSERT_TRUE(detail::check_sentinel<sentinel_t>(ptr, bytes)) << "Memory corruption detected";
     }
+    alloc_curr_ -= bytes;
     freed_.insert(ptr);
     allocated_.erase(ptr);
     if (security_check)
@@ -100,6 +110,14 @@ class test_resource_wrapper_impl {
   }
 
  public:
+  size_t get_peak_size() const {
+    return alloc_peak_;
+  }
+
+  size_t get_num_allocs() const {
+    return num_allocs_;
+  }
+
   void simulate_out_of_memory(bool enable) {
     simulate_oom_ = enable;
   }
@@ -119,6 +137,9 @@ class test_resource_wrapper_impl {
     upstream_ = upstream;
     allocated_.clear();
     freed_.clear();
+    alloc_curr_ = 0;
+    alloc_peak_ = 0;
+    num_allocs_ = 0;
   }
 
 

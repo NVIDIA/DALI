@@ -19,8 +19,6 @@
 CUDA_find_library(CUDART_LIB cudart_static)
 list(APPEND DALI_EXCLUDES libcudart_static.a)
 
-include_directories(SYSTEM ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
-
 # For NVJPEG
 if (BUILD_NVJPEG)
   find_package(NVJPEG 9.0 REQUIRED)
@@ -134,3 +132,5 @@ list(APPEND DALI_EXCLUDES libsupc++.a;libstdc++.a;libstdc++_nonshared.a;)
 if(BUILD_NVOF)
   include_directories(${PROJECT_SOURCE_DIR}/third_party/turing_of)
 endif()
+
+include_directories(SYSTEM ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})

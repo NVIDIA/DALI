@@ -187,9 +187,7 @@ endif()
 ##################################################################
 # CUTLASS
 ##################################################################
-set(CUTLASS_ENABLE_HEADERS_ONLY ON CACHE BOOL "Enable only the header library")
-check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/cutlass)
-list(APPEND DALI_LIBS CUTLASS)
+include_directories(SYSTEM third_party/cutlass/include)
 
 ##################################################################
 # CocoAPI
