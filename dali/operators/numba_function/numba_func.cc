@@ -17,7 +17,18 @@
 
 namespace dali {
 
-DALI_SCHEMA(experimental__NumbaFuncImpl)
+DALI_SCHEMA(NumbaFunc)
+  .DocStr(R"code()code")
+  .NumInput(1, 256)
+  .AllowSequences()
+  .Unserializable()
+  .AddArg("run_fn", R"code()code", DALI_INT64)
+  .AddArg("out_types", R"code()code", DALI_INT_VEC)
+  .AddArg("in_types", R"code()code", DALI_INT_VEC)
+  .AddOptionalArg<int>("setup_fn", R"code()code", 0)
+  .AddOptionalArg<int>("outs_ndim", R"code()code", std::vector<int>(), false);
+
+DALI_SCHEMA(NumbaFuncImpl)
   .DocStr(R"code(Invokes a compiled Numba function passed as a pointer.
 
 The run function should be a Numba C callback function (annotated with cfunc). This function is run on a 
@@ -85,15 +96,9 @@ The run function works on a per-sample basis, so we only need to handle one samp
 Notice that we are passing ``int32`` as the output data type, which we set in the setup function body.
 
 )code")
-  .NumInput(1)
-  .NumOutput(1)
+  .NumInput(1, 256)
   .Unserializable()
-  .AddArg("run_fn", R"code(Numba function pointer.)code", DALI_INT64)
-  .AddArg("out_types", R"code()code", DALI_INT_VEC)
-  .AddArg("in_types", R"code()code", DALI_INT_VEC)
-  .AddOptionalArg<int>("setup_fn", R"code(Pointer to a function used to determine the 
-output shape and data type based on the input.)code", 0)
-  .AddOptionalArg<int>("outs_ndim", R"code()code", std::vector<int>(), false);
+  .AddParent("NumbaFunc");
 
 template <typename Backend>
 NumbaFuncImpl<Backend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
@@ -183,6 +188,6 @@ void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
       &in_ptrs, &in_types_, &input_shapes_, &ins_ndim_, ins_ndim_.size(), N);
 }
 
-DALI_REGISTER_OPERATOR(experimental__NumbaFuncImpl, NumbaFuncImpl<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(NumbaFuncImpl, NumbaFuncImpl<CPUBackend>, CPU);
 
 }  // namespace dali

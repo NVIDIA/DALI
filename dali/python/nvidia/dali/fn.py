@@ -110,5 +110,3 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
 
 from nvidia.dali.external_source import external_source
 external_source.__module__ = __name__
-
-from nvidia.dali.plugin.numba import numba_func
