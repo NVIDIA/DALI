@@ -149,6 +149,12 @@ if (BUILD_PYTHON)
 
   add_custom_command(
     TARGET check-python
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/qa/TL0_python-self-test-readers-decoders/
+    COMMAND PYTHONPATH=${PYTHONPATH} ${PROJECT_SOURCE_DIR}/qa/TL0_python-self-test-readers-decoders/test_no_setup.sh
+  )
+
+  add_custom_command(
+    TARGET check-python
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/qa/TL0_python-self-test-operators/
     COMMAND PYTHONPATH=${PYTHONPATH} ${PROJECT_SOURCE_DIR}/qa/TL0_python-self-test-operators/test_no_setup.sh
   )
