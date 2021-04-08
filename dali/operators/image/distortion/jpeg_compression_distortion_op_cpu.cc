@@ -35,10 +35,7 @@ Any values outside the range 1-100 will be clamped.)code",
 class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend> {
  public:
   explicit JpegCompressionDistortionCPU(const OpSpec &spec) : JpegCompressionDistortion(spec) {}
-
   using Operator<CPUBackend>::RunImpl;
-  ~JpegCompressionDistortionCPU() override = default;
-  DISABLE_COPY_MOVE_ASSIGN(JpegCompressionDistortionCPU);
 
  protected:
   void RunImpl(workspace_t<CPUBackend> &ws) override;
@@ -46,7 +43,6 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
  private:
   struct ThreadCtx {
     std::vector<uint8_t> encoded;
-    cv::Mat tmp;
   };
   std::vector<ThreadCtx> thread_ctx_;
 };
@@ -69,10 +65,10 @@ void JpegCompressionDistortionCPU::RunImpl(workspace_t<CPUBackend> &ws) {
         auto sh = in_shape.tensor_shape_span(sample_idx);
         cv::Mat in_mat(sh[0], sh[1], CV_8UC3, (void*) in_view[sample_idx].data);  // NOLINT
         cv::Mat out_mat(sh[0], sh[1], CV_8UC3, (void*) out_view[sample_idx].data);  // NOLINT
-        cv::cvtColor(in_mat, ctx.tmp, cv::COLOR_RGB2BGR);
-        cv::imencode(".jpg", ctx.tmp, ctx.encoded, {cv::IMWRITE_JPEG_QUALITY, quality});
-        cv::imdecode(ctx.encoded, cv::IMREAD_COLOR, &ctx.tmp);
-        cv::cvtColor(ctx.tmp, out_mat, cv::COLOR_BGR2RGB);
+        cv::cvtColor(in_mat, out_mat, cv::COLOR_RGB2BGR);
+        cv::imencode(".jpg", out_mat, ctx.encoded, {cv::IMWRITE_JPEG_QUALITY, quality});
+        cv::imdecode(ctx.encoded, cv::IMREAD_COLOR, &out_mat);
+        cv::cvtColor(out_mat, out_mat, cv::COLOR_BGR2RGB);
       }, in_shape.tensor_size(sample_idx));
   }
   thread_pool.RunAll();

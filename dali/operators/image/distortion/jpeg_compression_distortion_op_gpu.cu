@@ -28,8 +28,6 @@ class JpegCompressionDistortionGPU : public JpegCompressionDistortion<GPUBackend
   }
 
   using Operator<GPUBackend>::RunImpl;
-  ~JpegCompressionDistortionGPU() override = default;
-  DISABLE_COPY_MOVE_ASSIGN(JpegCompressionDistortionGPU);
 
  protected:
   void RunImpl(workspace_t<GPUBackend> &ws) override;

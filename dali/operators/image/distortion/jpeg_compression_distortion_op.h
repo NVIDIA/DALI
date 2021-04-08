@@ -27,11 +27,6 @@ namespace dali {
 
 template <typename Backend>
 class JpegCompressionDistortion : public Operator<Backend> {
- public:
-  ~JpegCompressionDistortion() override = default;
-
-  DISABLE_COPY_MOVE_ASSIGN(JpegCompressionDistortion);
-
  protected:
   explicit JpegCompressionDistortion(const OpSpec &spec)
       : Operator<Backend>(spec),
@@ -46,7 +41,7 @@ class JpegCompressionDistortion : public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     const auto &input = ws.template InputRef<Backend>(0);
     output_desc.resize(1);
-    auto in_sh = input.shape();
+    const auto &in_sh = input.shape();
     assert(in_sh.sample_dim() == 3);  // should be check by the layout
     for (int s = 0; s < in_sh.num_samples(); s++) {
       DALI_ENFORCE(in_sh.tensor_shape_span(s)[2] == 3,
