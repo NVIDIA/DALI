@@ -278,9 +278,7 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
   if (!CanDecode(image_type)) {
     return GenericImage::DecodeImpl(image_type, encoded_buffer, length);
   }
-
   const int64_t H = shape_[0], W = shape_[1], C = shape_[2];
-
   auto roi_generator = GetCropWindowGenerator();
 
   int64_t roi_x = 0, roi_y = 0;

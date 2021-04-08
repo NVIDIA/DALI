@@ -22,20 +22,24 @@ GenericImage::GenericImage(const uint8_t *encoded_buffer, size_t length, DALIIma
         Image(encoded_buffer, length, image_type) {
 }
 
-
 std::pair<std::shared_ptr<uint8_t>, Image::Shape>
 GenericImage::DecodeImpl(DALIImageType image_type,
                          const uint8_t *encoded_buffer,
                          size_t length) const {
-  DALI_ENFORCE(image_type != DALI_ANY_DATA, "Host decoder doesn't support ANY_DATA image type for "
-                                            "this image");
+  const auto shape = PeekShapeImpl(encoded_buffer, length);
+  if (image_type == DALI_ANY_DATA)
+    image_type = shape[2] == 1 ? DALI_GRAY : DALI_RGB;
+  const auto C = IsColor(image_type) ? 3 : 1;
+
   // Decode image to tmp cv::Mat
   cv::Mat decoded_image = cv::imdecode(
-    cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),         //NOLINT
+    cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),  //NOLINT
     IsColor(image_type) ? cv::IMREAD_COLOR : cv::IMREAD_GRAYSCALE | cv::IMREAD_IGNORE_ORIENTATION);
 
   int W = decoded_image.cols;
   int H = decoded_image.rows;
+  assert(shape[0] == H);
+  assert(shape[1] == W);
 
   DALI_ENFORCE(decoded_image.data != nullptr, "Unsupported image type.");
 
@@ -64,8 +68,6 @@ GenericImage::DecodeImpl(DALIImageType image_type,
     OpenCvColorConversion(DALI_BGR, decoded_image, image_type, decoded_image);
   }
 
-  const int c = IsColor(image_type) ? 3 : 1;
-
   std::shared_ptr<uint8_t> decoded_img_ptr(
           decoded_image.ptr(),
           [decoded_image](decltype(decoded_image.ptr()) ptr) {
@@ -78,7 +80,7 @@ GenericImage::DecodeImpl(DALIImageType image_type,
               // It will be freed, when last shared_ptr is deleted.
           });
 
-  return {decoded_img_ptr, {H, W, c}};
+  return {decoded_img_ptr, {H, W, C}};
 }
 
 
