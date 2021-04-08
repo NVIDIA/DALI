@@ -463,8 +463,11 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                   height, ", ", width, "}"));
       }
       data.shape = {height, width, image_info.num_components};
-      data.req_nchannels =
-          output_image_type_ != DALI_ANY_DATA ? NumberOfChannels(output_image_type_) : 3;
+      if (output_image_type_ == DALI_ANY_DATA) {
+        data.req_nchannels = data.shape[2] == 1 ? 1 : 3;
+      } else {
+        data.req_nchannels = NumberOfChannels(output_image_type_);
+      }
       data.method = DecodeMethod::Nvjpeg2k;
       samples_jpeg2k_.push_back(&data);
       return true;
@@ -546,8 +549,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           data.method = DecodeMethod::Host;
           auto image = ImageFactory::CreateImage(input_data, in_size, output_image_type_);
           data.shape = image->PeekShape();
-          data.req_nchannels =
-              output_image_type_ != DALI_ANY_DATA ? NumberOfChannels(output_image_type_) : 3;
+          data.req_nchannels = output_image_type_ != DALI_ANY_DATA ?
+              NumberOfChannels(output_image_type_) : data.shape[2];
           samples_host_.push_back(&data);
         } catch (const std::runtime_error &e) {
           DALI_FAIL(e.what() + ". File: " + data.file_name);
@@ -616,7 +619,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #if NVJPEG2K_ENABLED
   void DecodeJpeg2k(uint8_t* output_data, const SampleData *sample,
                     span<const uint8_t> input_data) {
-    bool need_processing = sample->shape[2] != 1 || sample->req_nchannels != sample->shape[2];
+    bool need_processing = sample->shape[2] > 1;
     int64_t comp_size = sample->shape[0] * sample->shape[1];
     CUDA_CALL(cudaEventSynchronize(nvjpeg2k_decode_event_));
     auto &buffer = nvjpeg2k_intermediate_buffer_;
@@ -639,9 +642,16 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     auto ret = nvjpeg2kDecode(nvjpeg2k_handle_, nvjpeg2k_decoder_,
                               jpeg2k_stream, &output_image, nvjpeg2k_cu_stream_);
     if (ret == NVJPEG2K_STATUS_SUCCESS) {
-      if (need_processing) {  // Converting to interleaved, dropping alpha channel if needed
-        PermuteToInterleaved(output_data, decoder_out, comp_size, sample->req_nchannels,
-                             nvjpeg2k_cu_stream_);
+      if (need_processing) {
+        if (sample->req_nchannels == 1) {
+          // Converting to Gray, dropping extra channels if needed
+          assert(sample->shape[2] >= 3);
+          PlanarRGBToGray(output_data, decoder_out, comp_size, nvjpeg2k_cu_stream_);
+        } else {
+          // Converting to interleaved, dropping extra channels if needed
+          PlanarToInterleaved(output_data, decoder_out, comp_size, sample->req_nchannels,
+                              nvjpeg2k_cu_stream_);
+        }
       }
       CUDA_CALL(cudaEventRecord(nvjpeg2k_decode_event_, nvjpeg2k_cu_stream_));
     } else if (ret == NVJPEG2K_STATUS_BAD_JPEG || ret == NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED) {
