@@ -106,10 +106,17 @@ math_function_operations = [
 
 sane_operations = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x * y), "*"),
-                   (((lambda x, y: x ** y), (lambda x, y: np.float(x) ** y)), "**"),
-                   (((lambda x, y: math.pow(x, y)), (lambda x, y: np.pow(np.float(x), y))), "pow"),
                    (((lambda x, y: math.min(x, y)), (lambda x, y: np.minimum(x, y))), "min"),
                    (((lambda x, y: math.max(x, y)), (lambda x, y: np.maximum(x, y))), "max")]
+
+floaty_operations = [(((lambda x, y: x / y), (lambda x, y: x / y)), "/"),]
+# TODO(klecki): ADJUST TESTS/SEMANTICS FOR POW?
+# >>> type(2 ** 2)
+# <class 'int'>
+# >>> type(2 ** -2)
+# <class 'float'>
+                    #  (((lambda x, y: x ** y), (lambda x, y: x ** y)), "**"),
+                    #  (((lambda x, y: math.pow(x, y)), (lambda x, y: np.pow(x, y))), "pow")]
 
 bitwise_operations = [((lambda x, y: x & y), "&"), ((lambda x, y: x | y), "|"),
                       ((lambda x, y: x ^ y), "^")]
@@ -526,37 +533,44 @@ def test_comparison_ops():
                 yield check_comparsion_op, kinds, types_in, op, shape_small, op_desc
 
 # The div operator that always returns floating point values
-def check_arithm_fdiv(kinds, types, shape):
+def check_arithm_binary_float(kinds, types, op, shape, _):
+    if isinstance(op, tuple):
+        dali_op, numpy_op = op
+    else:
+        dali_op = numpy_op = op
     left_type, right_type = types
     target_type = div_promote(left_type, right_type)
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds, (False, True)))
-    pipe = ExprOpPipeline(kinds, types, iterator, (lambda x, y : x / y), batch_size = batch_size,
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size = batch_size,
             num_threads = 2, device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
-        np.testing.assert_allclose(out, l_np / r_np,
+        np.testing.assert_allclose(out, numpy_op(l_np, r_np),
             rtol=1e-07 if target_type != np.float16 else 0.005, err_msg="{} op\n{} =\n{}".format(l_np, r_np, out))
 
-def test_arithmetic_float_big():
+def test_arithmetic_binary_float_big():
     for kinds in bin_input_kinds:
         for types_in in [(np.int8, np.int8)]:
-            yield check_arithm_fdiv, kinds, types_in, shape_big
+            for (op, op_desc) in floaty_operations:
+                yield check_arithm_binary_float, kinds, types_in, op, shape_big, op_desc
 
-def test_arithmetic_float_division_selected():
+def test_arithmetic_binary_float_selected():
     for kinds in selected_bin_input_kinds:
         for types_in in itertools.product(selected_input_types, selected_input_types):
-            if types_in != (np.bool_, np.bool_):
-                yield check_arithm_fdiv, kinds, types_in, shape_small
+            for (op, op_desc) in floaty_operations:
+                if types_in != (np.bool_, np.bool_):
+                    yield check_arithm_binary_float, kinds, types_in, op, shape_small, op_desc
 
 @attr('slow')
-def test_arithmetic_float_division():
+def test_arithmetic_binary_float():
     for kinds in bin_input_kinds:
         for types_in in itertools.product(input_types, input_types):
-            if types_in != (np.bool_, np.bool_):
-                yield check_arithm_fdiv, kinds, types_in, shape_small
+            for (op, op_desc) in floaty_operations:
+                if types_in != (np.bool_, np.bool_):
+                    yield check_arithm_binary_float, kinds, types_in, op, shape_small, op_desc
 
 # The div operator behaves like C/C++ one
 def check_arithm_div(kinds, types, shape):
