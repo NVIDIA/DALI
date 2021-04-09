@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/decoder/nvjpeg/permute_layout.h"
+#include "dali/core/error_handling.h"
+#include "dali/core/format.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/util.h"
-#include "dali/core/format.h"
-#include "dali/core/error_handling.h"
-
+#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.cuh"
+#include "dali/operators/decoder/nvjpeg/permute_layout.h"
 
 namespace dali {
 
@@ -38,7 +38,7 @@ __global__ void planar_rgb_to_gray(T *output, const T *input, int64_t comp_size)
   auto r = input[tid];
   auto g = input[tid + comp_size];
   auto b = input[tid + 2 * comp_size];
-  output[tid] = 0.299f * r + 0.587f * g + 0.114f * b;
+  output[tid] = kernels::rgb_to_y<T>({r, g, b});
 }
 
 void PlanarToInterleaved(uint8_t *output, const uint8_t *input,

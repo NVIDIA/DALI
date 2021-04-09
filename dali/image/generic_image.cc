@@ -26,9 +26,10 @@ std::pair<std::shared_ptr<uint8_t>, Image::Shape>
 GenericImage::DecodeImpl(DALIImageType image_type,
                          const uint8_t *encoded_buffer,
                          size_t length) const {
-  const auto shape = PeekShapeImpl(encoded_buffer, length);
-  if (image_type == DALI_ANY_DATA)
+  if (image_type == DALI_ANY_DATA) {
+    auto shape = PeekShapeImpl(encoded_buffer, length);
     image_type = shape[2] == 1 ? DALI_GRAY : DALI_RGB;
+  }
   const auto C = IsColor(image_type) ? 3 : 1;
 
   // Decode image to tmp cv::Mat
@@ -38,8 +39,6 @@ GenericImage::DecodeImpl(DALIImageType image_type,
 
   int W = decoded_image.cols;
   int H = decoded_image.rows;
-  assert(shape[0] == H);
-  assert(shape[1] == W);
 
   DALI_ENFORCE(decoded_image.data != nullptr, "Unsupported image type.");
 
