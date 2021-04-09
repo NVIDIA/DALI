@@ -81,11 +81,33 @@ bench_ternary_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
 
 unary_operations = [((lambda x: +x), "+"), ((lambda x: -x), "-")]
 
-math_function_operations = [((lambda x: math.exp(x)), (lambda x: np.exp(x)), "exp"),
-                            ((lambda x: math.log(x)), (lambda x: np.log(x)), "log")]
+math_function_operations = [
+    ((lambda x: math.sqrt(x)), (lambda x: np.sqrt(x)), "sqrt"),
+    ((lambda x: math.cbrt(x)), (lambda x: np.cbrt(x)), "cbrt"),
+    ((lambda x: math.exp(x)), (lambda x: np.exp(x)), "exp"),
+    ((lambda x: math.log(x)), (lambda x: np.log(x)), "log"),
+    ((lambda x: math.log2(x)), (lambda x: np.log2(x)), "log2"),
+    ((lambda x: math.log10(x)), (lambda x: np.log10(x)), "log10"),
+    ((lambda x: math.fabs(x)), (lambda x: np.fabs(x)), "fabs"),
+    ((lambda x: math.floor(x)), (lambda x: np.floor(x)), "floor"),
+    ((lambda x: math.ceil(x)), (lambda x: np.ceil(x)), "ceil"),
+    ((lambda x: math.sin(x)), (lambda x: np.sin(x)), "sin"),
+    ((lambda x: math.cos(x)), (lambda x: np.cos(x)), "cos"),
+    ((lambda x: math.tan(x)), (lambda x: np.tan(x)), "tan"),
+    ((lambda x: math.asin(x)), (lambda x: np.arcsin(x)), "asin"),
+    ((lambda x: math.acos(x)), (lambda x: np.arccos(x)), "acos"),
+    ((lambda x: math.atan(x)), (lambda x: np.arctan(x)), "atan"),
+    ((lambda x: math.sinh(x)), (lambda x: np.sinh(x)), "sinh"),
+    ((lambda x: math.cosh(x)), (lambda x: np.cosh(x)), "cosh"),
+    ((lambda x: math.tanh(x)), (lambda x: np.tanh(x)), "tanh"),
+    ((lambda x: math.asinh(x)), (lambda x: np.arcsinh(x)), "asinh"),
+    ((lambda x: math.acosh(x)), (lambda x: np.arccosh(x)), "acosh"),
+    ((lambda x: math.atanh(x)), (lambda x: np.arctanh(x)), "atanh")]
 
 sane_operations = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x * y), "*"),
+                   (((lambda x, y: x ** y), (lambda x, y: np.float(x) ** y)), "**"),
+                   (((lambda x, y: math.pow(x, y)), (lambda x, y: np.pow(np.float(x), y))), "pow"),
                    (((lambda x, y: math.min(x, y)), (lambda x, y: np.minimum(x, y))), "min"),
                    (((lambda x, y: math.max(x, y)), (lambda x, y: np.maximum(x, y))), "max")]
 

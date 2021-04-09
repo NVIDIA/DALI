@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/operators/math/expressions/math_overloads.h"
 
 namespace dali {
 
@@ -44,8 +45,29 @@ enum class ArithmeticOp : int {
   // Unary arithmetic ops
   plus,
   minus,
+  sqrt,
+  cbrt,
   exp,
   log,
+  log2,
+  log10,
+  abs,
+  fabs,
+  floor,
+  ceil,
+  // Trigonometric functions
+  sin,
+  cos,
+  tan,
+  asin,
+  acos,
+  atan,
+  sinh,
+  cosh,
+  tanh,
+  asinh,
+  acosh,
+  atanh,
   // Binary arithmetic ops
   add,
   sub,
@@ -55,6 +77,7 @@ enum class ArithmeticOp : int {
   mod,
   min,
   max,
+  pow,
   // Binary comparisons
   eq,   // ==
   neq,  // !=
@@ -73,8 +96,28 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
   switch (op) {
     case ArithmeticOp::plus:
     case ArithmeticOp::minus:
+    case ArithmeticOp::sqrt:
+    case ArithmeticOp::cbrt:
     case ArithmeticOp::exp:
     case ArithmeticOp::log:
+    case ArithmeticOp::log2:
+    case ArithmeticOp::log10:
+    case ArithmeticOp::abs:
+    case ArithmeticOp::fabs:
+    case ArithmeticOp::floor:
+    case ArithmeticOp::ceil:
+    case ArithmeticOp::sin:
+    case ArithmeticOp::cos:
+    case ArithmeticOp::tan:
+    case ArithmeticOp::asin:
+    case ArithmeticOp::acos:
+    case ArithmeticOp::atan:
+    case ArithmeticOp::sinh:
+    case ArithmeticOp::cosh:
+    case ArithmeticOp::tanh:
+    case ArithmeticOp::asinh:
+    case ArithmeticOp::acosh:
+    case ArithmeticOp::atanh:
       return 1;
     case ArithmeticOp::add:
     case ArithmeticOp::sub:
@@ -84,6 +127,7 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
     case ArithmeticOp::mod:
     case ArithmeticOp::min:
     case ArithmeticOp::max:
+    case ArithmeticOp::pow:
     case ArithmeticOp::eq:
     case ArithmeticOp::neq:
     case ArithmeticOp::lt:
@@ -106,9 +150,29 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
  */
 DALI_HOST_DEV constexpr bool IsIntToFloatResult(ArithmeticOp op) {
   switch (op) {
+    case ArithmeticOp::fdiv:
+    case ArithmeticOp::sqrt:
+    case ArithmeticOp::cbrt:
     case ArithmeticOp::exp:
     case ArithmeticOp::log:
-    case ArithmeticOp::fdiv:
+    case ArithmeticOp::log2:
+    case ArithmeticOp::log10:
+    case ArithmeticOp::fabs:
+    case ArithmeticOp::floor:
+    case ArithmeticOp::ceil:
+    case ArithmeticOp::sin:
+    case ArithmeticOp::cos:
+    case ArithmeticOp::tan:
+    case ArithmeticOp::asin:
+    case ArithmeticOp::acos:
+    case ArithmeticOp::atan:
+    case ArithmeticOp::sinh:
+    case ArithmeticOp::cosh:
+    case ArithmeticOp::tanh:
+    case ArithmeticOp::asinh:
+    case ArithmeticOp::acosh:
+    case ArithmeticOp::atanh:
+    case ArithmeticOp::pow:
       return true;
     default:
       return false;
@@ -120,8 +184,28 @@ DALI_HOST_DEV constexpr bool IsArithmetic(ArithmeticOp op) {
   switch (op) {
     case ArithmeticOp::plus:
     case ArithmeticOp::minus:
+    case ArithmeticOp::sqrt:
+    case ArithmeticOp::cbrt:
     case ArithmeticOp::exp:
     case ArithmeticOp::log:
+    case ArithmeticOp::log2:
+    case ArithmeticOp::log10:
+    case ArithmeticOp::abs:
+    case ArithmeticOp::fabs:
+    case ArithmeticOp::floor:
+    case ArithmeticOp::ceil:
+    case ArithmeticOp::sin:
+    case ArithmeticOp::cos:
+    case ArithmeticOp::tan:
+    case ArithmeticOp::asin:
+    case ArithmeticOp::acos:
+    case ArithmeticOp::atan:
+    case ArithmeticOp::sinh:
+    case ArithmeticOp::cosh:
+    case ArithmeticOp::tanh:
+    case ArithmeticOp::asinh:
+    case ArithmeticOp::acosh:
+    case ArithmeticOp::atanh:
     case ArithmeticOp::add:
     case ArithmeticOp::sub:
     case ArithmeticOp::mul:
@@ -130,6 +214,7 @@ DALI_HOST_DEV constexpr bool IsArithmetic(ArithmeticOp op) {
     case ArithmeticOp::mod:
     case ArithmeticOp::min:
     case ArithmeticOp::max:
+    case ArithmeticOp::pow:
     case ArithmeticOp::clamp:
       return true;
     default:
@@ -369,63 +454,75 @@ struct arithm_meta;
 REGISTER_UNARY_IMPL(ArithmeticOp::plus, +);
 REGISTER_UNARY_IMPL(ArithmeticOp::minus, -);
 
-DALI_NO_EXEC_CHECK
-template <typename T>
-DALI_HOST_DEV inline T math_exp(T x) {
-#ifdef __CUDA_ARCH__
-  return exp(x);
-#else
-  return std::exp(x);
-#endif
-}
 
-template <typename Backend>
-struct arithm_meta<ArithmeticOp::exp, Backend> {
-template <typename T>
-    using result_t = std::conditional_t<!is_fp_or_half<T>::value, float, T>;
+#define REGISTER_UNARY_FUNC_IMPL(MATH_FUNC)                                         \
+  template <typename Backend>                                                       \
+  struct arithm_meta<ArithmeticOp::MATH_FUNC, Backend> {                            \
+    template <typename T>                                                           \
+    using result_t = T;                                                             \
+                                                                                    \
+    template <typename T>                                                           \
+    DALI_HOST_DEV static constexpr result_t<T> impl(T v) {                          \
+      static_assert(GetOpArity(ArithmeticOp::MATH_FUNC) == 1,                       \
+                    "Registered operation arity does not match the requirements."); \
+      auto v_ = static_cast<result_t<T>>(v);                                        \
+      return math_##MATH_FUNC(v_);                                                  \
+    }                                                                               \
+                                                                                    \
+    static inline std::string to_string() {                                         \
+      return #MATH_FUNC;                                                            \
+    }                                                                               \
+                                                                                    \
+    static constexpr int num_inputs = 1;                                            \
+    static constexpr int num_outputs = 1;                                           \
+  }
 
-    template <typename T>
-    DALI_HOST_DEV static constexpr result_t<T> impl(T v) {
-      auto v_ = static_cast<result_t<T>>(v);
-      return math_exp(v_);
-    }
 
-    static inline std::string to_string() {
-      return "exp";
-    }
+REGISTER_UNARY_FUNC_IMPL(abs);
 
-    static constexpr int num_inputs = 1;
-    static constexpr int num_outputs = 1;
-};
 
-DALI_NO_EXEC_CHECK
-template <typename T>
-DALI_HOST_DEV inline T math_log(T x) {
-#ifdef __CUDA_ARCH__
-  return log(x);
-#else
-  return std::log(x);
-#endif
-}
+#define REGISTER_UNARY_FUNC_FLOAT_IMPL(MATH_FUNC)                            \
+  template <typename Backend>                                                \
+  struct arithm_meta<ArithmeticOp::MATH_FUNC, Backend> {                     \
+    template <typename T>                                                    \
+    using result_t = std::conditional_t<!is_fp_or_half<T>::value, float, T>; \
+                                                                             \
+    template <typename T>                                                    \
+    DALI_HOST_DEV static constexpr result_t<T> impl(T v) {                   \
+      auto v_ = static_cast<result_t<T>>(v);                                 \
+      return math_##MATH_FUNC(v_);                                           \
+    }                                                                        \
+                                                                             \
+    static inline std::string to_string() {                                  \
+      return #MATH_FUNC;                                                     \
+    }                                                                        \
+                                                                             \
+    static constexpr int num_inputs = 1;                                     \
+    static constexpr int num_outputs = 1;                                    \
+  };
 
-template <typename Backend>
-struct arithm_meta<ArithmeticOp::log, Backend> {
-template <typename T>
-    using result_t = std::conditional_t<!is_fp_or_half<T>::value, float, T>;
+REGISTER_UNARY_FUNC_FLOAT_IMPL(sqrt);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(cbrt);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(exp);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(log);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(log2);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(log10);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(fabs);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(floor);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(ceil);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(sin);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(cos);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(tan);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(asin);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(acos);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(atan);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(sinh);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(cosh);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(tanh);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(asinh);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(acosh);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(atanh);
 
-    template <typename T>
-    DALI_HOST_DEV static constexpr result_t<T> impl(T v) {
-      auto v_ = static_cast<result_t<T>>(v);
-      return math_log(v_);
-    }
-
-    static inline std::string to_string() {
-      return "log";
-    }
-
-    static constexpr int num_inputs = 1;
-    static constexpr int num_outputs = 1;
-};
 
 #define REGISTER_BINARY_IMPL_BACKEND(OP, EXPRESSION, BACKEND)                       \
   template <>                                                                       \
@@ -498,6 +595,26 @@ struct arithm_meta<ArithmeticOp::max, Backend> {
   static constexpr int num_outputs = 1;
 };
 
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::pow, Backend> {
+  template <typename L, typename R>
+  using result_t = std::conditional_t<!is_fp_or_half<L>::value && !is_fp_or_half<R>::value, float,
+                                      binary_result_t<L, R>>;
+
+  template <typename L, typename R>
+  DALI_HOST_DEV static constexpr result_t<L, R> impl(L l, R r) {
+    auto l_ = static_cast<result_t<L, R>>(l);
+    auto r_ = static_cast<result_t<L, R>>(r);
+    return math_pow(l_, r_);
+  }
+
+  static inline std::string to_string() {
+    return "pow";
+  }
+
+  static constexpr int num_inputs = 2;
+  static constexpr int num_outputs = 1;
+};
 
 template <typename Backend>
 struct arithm_meta<ArithmeticOp::clamp, Backend> {
@@ -792,12 +909,18 @@ struct arithm_meta<ArithmeticOp::mod, GPUBackend> {
 inline std::string to_string(ArithmeticOp op) {
   std::string result;
   VALUE_SWITCH(op, op_static,
-               (ArithmeticOp::plus, ArithmeticOp::minus, ArithmeticOp::exp, ArithmeticOp::log,
+               (ArithmeticOp::plus, ArithmeticOp::minus,  ArithmeticOp::sqrt, ArithmeticOp::cbrt,
+                ArithmeticOp::exp,  ArithmeticOp::log, ArithmeticOp::log2, ArithmeticOp::log10,
+                ArithmeticOp::abs, ArithmeticOp::fabs, ArithmeticOp::floor, ArithmeticOp::ceil,
+                ArithmeticOp::sin, ArithmeticOp::cos, ArithmeticOp::tan, ArithmeticOp::asin,
+                ArithmeticOp::acos, ArithmeticOp::atan, ArithmeticOp::sinh, ArithmeticOp::cosh,
+                ArithmeticOp::tanh, ArithmeticOp::asinh, ArithmeticOp::acosh, ArithmeticOp::atanh,
                 ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div,
-                ArithmeticOp::mod, ArithmeticOp::min, ArithmeticOp::max, ArithmeticOp::eq,
-                ArithmeticOp::neq, ArithmeticOp::lt, ArithmeticOp::leq, ArithmeticOp::gt,
-                ArithmeticOp::geq, ArithmeticOp::bit_and, ArithmeticOp::bit_or,
-                ArithmeticOp::bit_xor, ArithmeticOp::clamp),
+                ArithmeticOp::mod, ArithmeticOp::min, ArithmeticOp::max, ArithmeticOp::pow,
+                ArithmeticOp::eq, ArithmeticOp::neq, ArithmeticOp::lt, ArithmeticOp::leq,
+                ArithmeticOp::gt, ArithmeticOp::geq,
+                ArithmeticOp::bit_and, ArithmeticOp::bit_or, ArithmeticOp::bit_xor,
+                ArithmeticOp::clamp),
                (result = arithm_meta<op_static, CPUBackend>::to_string();),
                (result = "InvalidOp";));  // NOLINT(whitespace/parens)
   return result;
@@ -818,7 +941,27 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
       {"plus",   ArithmeticOp::plus},
       {"minus",  ArithmeticOp::minus},
       {"exp",    ArithmeticOp::exp},
+      {"sqrt",   ArithmeticOp::sqrt},
+      {"cbrt",   ArithmeticOp::cbrt},
       {"log",    ArithmeticOp::log},
+      {"log2",   ArithmeticOp::log2},
+      {"log10",  ArithmeticOp::log10},
+      {"abs",    ArithmeticOp::abs},
+      {"fabs",   ArithmeticOp::fabs},
+      {"floor",  ArithmeticOp::floor},
+      {"ceil",   ArithmeticOp::ceil},
+      {"sin",    ArithmeticOp::sin},
+      {"cos",    ArithmeticOp::cos},
+      {"tan",    ArithmeticOp::tan},
+      {"asin",   ArithmeticOp::asin},
+      {"acos",   ArithmeticOp::acos},
+      {"atan",   ArithmeticOp::atan},
+      {"sinh",   ArithmeticOp::sinh},
+      {"cosh",   ArithmeticOp::cosh},
+      {"tanh",   ArithmeticOp::tanh},
+      {"asinh",  ArithmeticOp::asinh},
+      {"acosh",  ArithmeticOp::acosh},
+      {"atanh",  ArithmeticOp::atanh},
       {"add",    ArithmeticOp::add},
       {"sub",    ArithmeticOp::sub},
       {"mul",    ArithmeticOp::mul},
@@ -827,6 +970,7 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
       {"mod",    ArithmeticOp::mod},
       {"min",    ArithmeticOp::min},
       {"max",    ArithmeticOp::max},
+      {"pow",    ArithmeticOp::pow},
       {"eq",     ArithmeticOp::eq},
       {"neq",    ArithmeticOp::neq},
       {"lt",     ArithmeticOp::lt},

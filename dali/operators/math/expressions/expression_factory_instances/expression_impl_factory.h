@@ -190,13 +190,13 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp(const ExprFunc &expr) {
 #define IMPLEMENT_OP_FACTORY_CPU_TERNARY(OP)                                                  \
   std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, CPUBackend> op,       \
                                           const ExprFunc &expr) {                             \
-    return ExprImplFactoryTernaryOp<ArithmeticOp::OP, CPUBackend, ExprImplCpuTernary>(expr); \
+    return ExprImplFactoryTernaryOp<ArithmeticOp::OP, CPUBackend, ExprImplCpuTernary>(expr);  \
   }
 
 #define IMPLEMENT_OP_FACTORY_GPU_TERNARY(OP)                                                  \
   std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, GPUBackend> op,       \
                                           const ExprFunc &expr) {                             \
-    return ExprImplFactoryTernaryOp<ArithmeticOp::OP, GPUBackend, ExprImplGpuTernary>(expr); \
+    return ExprImplFactoryTernaryOp<ArithmeticOp::OP, GPUBackend, ExprImplGpuTernary>(expr);  \
   }
 
 /**
@@ -216,6 +216,22 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::minus, CPUBack
                                         const ExprFunc &expr);
 
 /**
+ * @brief Factory function returning proper variant of implementation for `sqrt`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::sqrt, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `cbrt`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::cbrt, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
  * @brief Factory function returning proper variant of implementation for `exp`
  *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
  *        specified in `expr`.
@@ -224,12 +240,158 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::exp, CPUBacken
                                         const ExprFunc &expr);
 
 /**
-  * @brief Factory function returning proper variant of implementation for `log`
-  *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
-  *        specified in `expr`.
-  */
+ * @brief Factory function returning proper variant of implementation for `log`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::log, CPUBackend>,
                                         const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `log2`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::log2, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `log10`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::log10, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `abs`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::abs, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `fabs`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::fabs, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `floor`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::floor, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `ceil`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::ceil, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `sin`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::sin, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `cos`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::cos, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `tan`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::tan, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `asin`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::asin, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `acos`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::acos, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `atan`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::atan, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `sinh`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::sinh, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `cosh`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::cosh, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `tanh`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::tanh, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `asinh`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::asinh, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `acosh`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::acosh, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `atanh`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::atanh, CPUBackend>,
+                                        const ExprFunc &expr);
+
+
 
 /**
  * @brief Factory function returning proper variant of implementation for `add`
@@ -287,7 +449,6 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::mod, CPUBacken
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::min, CPUBackend>,
                                         const ExprFunc &expr);
 
-
 /**
  * @brief Factory function returning proper variant of implementation for `max`
  *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
@@ -296,6 +457,13 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::min, CPUBacken
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::max, CPUBackend>,
                                         const ExprFunc &expr);
 
+/**
+ * @brief Factory function returning proper variant of implementation for `pow`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::pow, CPUBackend>,
+                                        const ExprFunc &expr);
 
 /**
  * @brief Factory function returning proper variant of implementation for `eq`
@@ -397,6 +565,22 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::minus, GPUBack
                                         const ExprFunc &expr);
 
 /**
+ * @brief Factory function returning proper variant of implementation for `sqrt`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::sqrt, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `cbrt`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::cbrt, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
  * @brief Factory function returning proper variant of implementation for `exp`
  *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
  *        specified in `expr`.
@@ -405,12 +589,158 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::exp, GPUBacken
                                         const ExprFunc &expr);
 
 /**
-  * @brief Factory function returning proper variant of implementation for `log`
-  *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
-  *        specified in `expr`.
-  */
+ * @brief Factory function returning proper variant of implementation for `log`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::log, GPUBackend>,
                                         const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `log2`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::log2, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `log10`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::log10, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `abs`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::abs, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `fabs`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::fabs, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `floor`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::floor, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `ceil`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::ceil, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `sin`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::sin, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `cos`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::cos, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `tan`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::tan, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `asin`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::asin, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `acos`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::acos, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `atan`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::atan, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `sinh`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::sinh, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `cosh`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::cosh, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `tanh`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::tanh, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `asinh`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::asinh, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `acosh`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::acosh, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `atanh`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::atanh, GPUBackend>,
+                                        const ExprFunc &expr);
+
+
 
 /**
  * @brief Factory function returning proper variant of implementation for `add`
@@ -468,13 +798,20 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::mod, GPUBacken
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::min, GPUBackend>,
                                         const ExprFunc &expr);
 
-
 /**
  * @brief Factory function returning proper variant of implementation for `max`
  *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
  *        specified in `expr`.
  */
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::max, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `pow`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::pow, GPUBackend>,
                                         const ExprFunc &expr);
 
 /**
@@ -548,7 +885,6 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_or, GPUBac
  */
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_xor, GPUBackend>,
                                         const ExprFunc &expr);
-
 /**
  * @brief Factory function returning proper variant of implementation for `clamp`
  *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),

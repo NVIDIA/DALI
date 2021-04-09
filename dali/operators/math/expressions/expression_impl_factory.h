@@ -33,13 +33,18 @@
 
 namespace dali {
 
-#define ALLOWED_UN_OPS \
-  (ArithmeticOp::plus, ArithmeticOp::minus, ArithmeticOp::exp, ArithmeticOp::log)
+#define ALLOWED_UN_OPS                                                              \
+  (ArithmeticOp::plus, ArithmeticOp::minus, ArithmeticOp::exp, ArithmeticOp::sqrt,  \
+  ArithmeticOp::cbrt, ArithmeticOp::log, ArithmeticOp::log2, ArithmeticOp::log10,   \
+  ArithmeticOp::abs, ArithmeticOp::fabs, ArithmeticOp::floor, ArithmeticOp::ceil,   \
+  ArithmeticOp::sin, ArithmeticOp::cos, ArithmeticOp::tan, ArithmeticOp::asin,      \
+  ArithmeticOp::acos, ArithmeticOp::atan, ArithmeticOp::sinh, ArithmeticOp::cosh,   \
+  ArithmeticOp::tanh, ArithmeticOp::asinh, ArithmeticOp::acosh, ArithmeticOp::atanh)
 
 #define ALLOWED_BIN_OPS                                                                            \
   (ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::fdiv, \
-  ArithmeticOp::mod, ArithmeticOp::min, ArithmeticOp::max, ArithmeticOp::eq, ArithmeticOp::neq,    \
-  ArithmeticOp::lt, ArithmeticOp::leq, ArithmeticOp::gt, ArithmeticOp::geq,                        \
+  ArithmeticOp::mod, ArithmeticOp::min, ArithmeticOp::max, ArithmeticOp::pow, ArithmeticOp::eq,    \
+  ArithmeticOp::neq, ArithmeticOp::lt, ArithmeticOp::leq, ArithmeticOp::gt, ArithmeticOp::geq,     \
   ArithmeticOp::bit_and, ArithmeticOp::bit_or, ArithmeticOp::bit_xor)
 
 #define ALLOWED_TERNARY_OPS \

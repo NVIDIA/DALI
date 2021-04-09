@@ -1,4 +1,3 @@
-
 // Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,5 +20,4 @@
 namespace dali {
 
 IMPLEMENT_OP_FACTORY_GPU_BINARY(bit_xor);
-
 }  // namespace dali
