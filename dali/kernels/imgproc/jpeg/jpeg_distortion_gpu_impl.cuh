@@ -16,15 +16,16 @@
 #define DALI_KERNELS_IMGPROC_JPEG_JPEG_DISTORTION_GPU_IMPL_CUH_
 
 #include <cuda_runtime_api.h>
-#include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu_kernel.h"
-#include "dali/kernels/common/block_setup.h"
-#include "dali/kernels/imgproc/surface.h"
-#include "dali/kernels/imgproc/sampler.h"
-#include "dali/kernels/imgproc/jpeg/dct_8x8_gpu.cuh"
-#include "dali/core/geom/vec.h"
-#include "dali/core/geom/mat.h"
 #include "dali/core/geom/box.h"
+#include "dali/core/geom/mat.h"
+#include "dali/core/geom/vec.h"
 #include "dali/core/util.h"
+#include "dali/kernels/common/block_setup.h"
+#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.cuh"
+#include "dali/kernels/imgproc/jpeg/dct_8x8_gpu.cuh"
+#include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu_kernel.h"
+#include "dali/kernels/imgproc/sampler.h"
+#include "dali/kernels/imgproc/surface.h"
 
 namespace dali {
 namespace kernels {
