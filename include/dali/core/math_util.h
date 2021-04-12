@@ -195,7 +195,9 @@ float sinc(float x) {
 /// @brief Calculates power for integer arguments
 template <typename X, typename Y>
 DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<X>::value && std::is_integral<Y>::value, decltype(std::declval<X>() * std::declval<Y>())> ipow(X x, Y y) {
+std::enable_if_t<std::is_integral<X>::value && std::is_integral<Y>::value,
+                  decltype(std::declval<X>() * std::declval<Y>())>
+ipow(X x, Y y) {
   decltype(std::declval<X>() * std::declval<Y>()) acc = 1;
   decltype(std::declval<X>() * std::declval<Y>()) pow_acc = x;
   if (y < 0) {
@@ -210,7 +212,6 @@ std::enable_if_t<std::is_integral<X>::value && std::is_integral<Y>::value, declt
   }
   return acc;
 }
-
 
 
 }  // namespace dali

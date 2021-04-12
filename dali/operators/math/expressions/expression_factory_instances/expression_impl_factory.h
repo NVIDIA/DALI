@@ -224,6 +224,14 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::sqrt, CPUBacke
                                         const ExprFunc &expr);
 
 /**
+ * @brief Factory function returning proper variant of implementation for `rsqrt`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::rsqrt, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
  * @brief Factory function returning proper variant of implementation for `cbrt`
  *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
  *        specified in `expr`.
@@ -466,6 +474,22 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::pow, CPUBacken
                                         const ExprFunc &expr);
 
 /**
+ * @brief Factory function returning proper variant of implementation for `fpow`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::fpow, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `atan2`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::atan2, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
  * @brief Factory function returning proper variant of implementation for `eq`
  *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
  *        specified in `expr`.
@@ -570,6 +594,14 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::minus, GPUBack
  *        specified in `expr`.
  */
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::sqrt, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `rsqrt`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::rsqrt, GPUBackend>,
                                         const ExprFunc &expr);
 
 /**
@@ -812,6 +844,22 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::max, GPUBacken
  *        specified in `expr`.
  */
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::pow, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `fpow`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::fpow, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `atan2`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::atan2, GPUBackend>,
                                         const ExprFunc &expr);
 
 /**

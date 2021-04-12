@@ -50,6 +50,12 @@ DALI_HOST_DEV inline T math_sqrt(T x) {
 
 DALI_NO_EXEC_CHECK
 template <typename T>
+DALI_HOST_DEV inline T math_rsqrt(T x) {
+  return rsqrt(x);
+}
+
+DALI_NO_EXEC_CHECK
+template <typename T>
 DALI_HOST_DEV inline T math_cbrt(T x) {
 #ifdef __CUDA_ARCH__
   return cbrt(x);
@@ -262,7 +268,9 @@ DALI_HOST_DEV inline T math_atanh(T x) {
 
 DALI_NO_EXEC_CHECK
 template <typename X, typename Y>
-DALI_HOST_DEV inline auto math_pow(X x, Y y) {
+DALI_HOST_DEV inline auto math_pow(
+    X x, Y y,
+    std::enable_if_t<!std::is_integral<X>::value || !std::is_integral<Y>::value>* = nullptr) {
 #ifdef __CUDA_ARCH__
   return pow(x, y);
 #else
@@ -270,13 +278,23 @@ DALI_HOST_DEV inline auto math_pow(X x, Y y) {
 #endif
 }
 
+DALI_NO_EXEC_CHECK
+template <typename X, typename Y>
+DALI_HOST_DEV std::enable_if_t<std::is_integral<X>::value && std::is_integral<Y>::value,
+                               decltype(std::declval<X>() * std::declval<Y>())>
+math_pow(X x, Y y) {
+  return ipow(x, y);
+}
 
-// DALI_NO_EXEC_CHECK
-// DALI_HOST_DEV inline int32_t math_pow(int32_t x, int32_t y) {
-
-// }
-
-
+DALI_NO_EXEC_CHECK
+template <typename X, typename Y>
+DALI_HOST_DEV inline auto math_atan2(X x, Y y) {
+#ifdef __CUDA_ARCH__
+  return atan2(x, y);
+#else
+  return std::atan2(x, y);
+#endif
+}
 
 
 }  // namespace dali

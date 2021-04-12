@@ -46,6 +46,7 @@ enum class ArithmeticOp : int {
   plus,
   minus,
   sqrt,
+  rsqrt,
   cbrt,
   exp,
   log,
@@ -78,6 +79,8 @@ enum class ArithmeticOp : int {
   min,
   max,
   pow,
+  fpow,
+  atan2,
   // Binary comparisons
   eq,   // ==
   neq,  // !=
@@ -97,6 +100,7 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
     case ArithmeticOp::plus:
     case ArithmeticOp::minus:
     case ArithmeticOp::sqrt:
+    case ArithmeticOp::rsqrt:
     case ArithmeticOp::cbrt:
     case ArithmeticOp::exp:
     case ArithmeticOp::log:
@@ -128,6 +132,8 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
     case ArithmeticOp::min:
     case ArithmeticOp::max:
     case ArithmeticOp::pow:
+    case ArithmeticOp::fpow:
+    case ArithmeticOp::atan2:
     case ArithmeticOp::eq:
     case ArithmeticOp::neq:
     case ArithmeticOp::lt:
@@ -152,6 +158,7 @@ DALI_HOST_DEV constexpr bool IsIntToFloatResult(ArithmeticOp op) {
   switch (op) {
     case ArithmeticOp::fdiv:
     case ArithmeticOp::sqrt:
+    case ArithmeticOp::rsqrt:
     case ArithmeticOp::cbrt:
     case ArithmeticOp::exp:
     case ArithmeticOp::log:
@@ -172,7 +179,8 @@ DALI_HOST_DEV constexpr bool IsIntToFloatResult(ArithmeticOp op) {
     case ArithmeticOp::asinh:
     case ArithmeticOp::acosh:
     case ArithmeticOp::atanh:
-    case ArithmeticOp::pow:
+    case ArithmeticOp::fpow:
+    case ArithmeticOp::atan2:
       return true;
     default:
       return false;
@@ -185,6 +193,7 @@ DALI_HOST_DEV constexpr bool IsArithmetic(ArithmeticOp op) {
     case ArithmeticOp::plus:
     case ArithmeticOp::minus:
     case ArithmeticOp::sqrt:
+    case ArithmeticOp::rsqrt:
     case ArithmeticOp::cbrt:
     case ArithmeticOp::exp:
     case ArithmeticOp::log:
@@ -215,6 +224,8 @@ DALI_HOST_DEV constexpr bool IsArithmetic(ArithmeticOp op) {
     case ArithmeticOp::min:
     case ArithmeticOp::max:
     case ArithmeticOp::pow:
+    case ArithmeticOp::fpow:
+    case ArithmeticOp::atan2:
     case ArithmeticOp::clamp:
       return true;
     default:
@@ -502,6 +513,7 @@ REGISTER_UNARY_FUNC_IMPL(abs);
   };
 
 REGISTER_UNARY_FUNC_FLOAT_IMPL(sqrt);
+REGISTER_UNARY_FUNC_FLOAT_IMPL(rsqrt);
 REGISTER_UNARY_FUNC_FLOAT_IMPL(cbrt);
 REGISTER_UNARY_FUNC_FLOAT_IMPL(exp);
 REGISTER_UNARY_FUNC_FLOAT_IMPL(log);
@@ -598,8 +610,7 @@ struct arithm_meta<ArithmeticOp::max, Backend> {
 template <typename Backend>
 struct arithm_meta<ArithmeticOp::pow, Backend> {
   template <typename L, typename R>
-  using result_t = std::conditional_t<!is_fp_or_half<L>::value && !is_fp_or_half<R>::value, float,
-                                      binary_result_t<L, R>>;
+  using result_t = binary_result_t<L, R>;
 
   template <typename L, typename R>
   DALI_HOST_DEV static constexpr result_t<L, R> impl(L l, R r) {
@@ -615,6 +626,49 @@ struct arithm_meta<ArithmeticOp::pow, Backend> {
   static constexpr int num_inputs = 2;
   static constexpr int num_outputs = 1;
 };
+
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::fpow, Backend> {
+  template <typename L, typename R>
+  using result_t = std::conditional_t<!is_fp_or_half<L>::value && !is_fp_or_half<R>::value, float,
+                                      binary_result_t<L, R>>;
+
+  template <typename L, typename R>
+  DALI_HOST_DEV static constexpr result_t<L, R> impl(L l, R r) {
+    auto l_ = static_cast<result_t<L, R>>(l);
+    auto r_ = static_cast<result_t<L, R>>(r);
+    return math_pow(l_, r_);
+  }
+
+  static inline std::string to_string() {
+    return "fpow";
+  }
+
+  static constexpr int num_inputs = 2;
+  static constexpr int num_outputs = 1;
+};
+
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::atan2, Backend> {
+  template <typename L, typename R>
+  using result_t = std::conditional_t<!is_fp_or_half<L>::value && !is_fp_or_half<R>::value, float,
+                                      binary_result_t<L, R>>;
+
+  template <typename L, typename R>
+  DALI_HOST_DEV static constexpr result_t<L, R> impl(L l, R r) {
+    auto l_ = static_cast<result_t<L, R>>(l);
+    auto r_ = static_cast<result_t<L, R>>(r);
+    return math_atan2(l_, r_);
+  }
+
+  static inline std::string to_string() {
+    return "atan2";
+  }
+
+  static constexpr int num_inputs = 2;
+  static constexpr int num_outputs = 1;
+};
+
 
 template <typename Backend>
 struct arithm_meta<ArithmeticOp::clamp, Backend> {
@@ -909,14 +963,16 @@ struct arithm_meta<ArithmeticOp::mod, GPUBackend> {
 inline std::string to_string(ArithmeticOp op) {
   std::string result;
   VALUE_SWITCH(op, op_static,
-               (ArithmeticOp::plus, ArithmeticOp::minus,  ArithmeticOp::sqrt, ArithmeticOp::cbrt,
-                ArithmeticOp::exp,  ArithmeticOp::log, ArithmeticOp::log2, ArithmeticOp::log10,
-                ArithmeticOp::abs, ArithmeticOp::fabs, ArithmeticOp::floor, ArithmeticOp::ceil,
+               (ArithmeticOp::plus, ArithmeticOp::minus,  ArithmeticOp::sqrt, ArithmeticOp::rsqrt,
+                ArithmeticOp::cbrt, ArithmeticOp::exp,  ArithmeticOp::log, ArithmeticOp::log2,
+                ArithmeticOp::log10, ArithmeticOp::abs, ArithmeticOp::fabs, ArithmeticOp::floor,
+                ArithmeticOp::ceil,
                 ArithmeticOp::sin, ArithmeticOp::cos, ArithmeticOp::tan, ArithmeticOp::asin,
                 ArithmeticOp::acos, ArithmeticOp::atan, ArithmeticOp::sinh, ArithmeticOp::cosh,
                 ArithmeticOp::tanh, ArithmeticOp::asinh, ArithmeticOp::acosh, ArithmeticOp::atanh,
                 ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div,
                 ArithmeticOp::mod, ArithmeticOp::min, ArithmeticOp::max, ArithmeticOp::pow,
+                ArithmeticOp::fpow, ArithmeticOp::atan2,
                 ArithmeticOp::eq, ArithmeticOp::neq, ArithmeticOp::lt, ArithmeticOp::leq,
                 ArithmeticOp::gt, ArithmeticOp::geq,
                 ArithmeticOp::bit_and, ArithmeticOp::bit_or, ArithmeticOp::bit_xor,
@@ -942,6 +998,7 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
       {"minus",  ArithmeticOp::minus},
       {"exp",    ArithmeticOp::exp},
       {"sqrt",   ArithmeticOp::sqrt},
+      {"rsqrt",  ArithmeticOp::rsqrt},
       {"cbrt",   ArithmeticOp::cbrt},
       {"log",    ArithmeticOp::log},
       {"log2",   ArithmeticOp::log2},
@@ -971,6 +1028,8 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
       {"min",    ArithmeticOp::min},
       {"max",    ArithmeticOp::max},
       {"pow",    ArithmeticOp::pow},
+      {"fpow",   ArithmeticOp::fpow},
+      {"atan2",  ArithmeticOp::atan2},
       {"eq",     ArithmeticOp::eq},
       {"neq",    ArithmeticOp::neq},
       {"lt",     ArithmeticOp::lt},
