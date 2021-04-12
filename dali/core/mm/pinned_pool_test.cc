@@ -22,7 +22,6 @@
 #include "dali/core/cuda_stream.h"
 #include "rmm/mr/host/pinned_memory_resource.hpp"
 #include "dali/test/tensor_test_utils.h"
-#include "dali/core/dev_buffer.h"
 
 namespace dali {
 namespace mm {
@@ -30,26 +29,29 @@ namespace test {
 
 TEST(MMPinnedAlloc, StageCopy) {
   test_pinned_resource upstream;
-  CUDAStream stream;
-  stream = CUDAStream::Create(true);
-  stream_view sv(stream);
-  async_pool_base<memory_kind::pinned> pool(&upstream);
-  std::mt19937_64 rng;
-  const int N = 1<<20;
-  vector<uint8_t> pattern(N), copy_back(N);
-  DeviceBuffer<uint8_t> dev_buf;
-  dev_buf.resize(N);
-  UniformRandomFill(pattern, rng, 0, 255);
-  void *mem1 = pool.allocate(N);
-  memcpy(mem1, pattern.data(), N);
-  CUDA_CALL(cudaMemcpyAsync(dev_buf, mem1, N, cudaMemcpyHostToDevice, stream));
-  pool.deallocate_async(mem1, N, sv);
-  void *mem2 = pool.allocate_async(N, sv);
-  EXPECT_EQ(mem1, mem2);
-  CUDA_CALL(cudaMemcpyAsync(copy_back.data(), dev_buf, N, cudaMemcpyDeviceToHost, stream));
-  CUDA_CALL(cudaStreamSynchronize(stream));
-  pool.deallocate_async(mem1, N, sv);
-  EXPECT_EQ(pattern, copy_back);
+  {
+    CUDAStream stream;
+    stream = CUDAStream::Create(true);
+    stream_view sv(stream);
+    async_pool_base<memory_kind::pinned> pool(&upstream);
+    std::mt19937_64 rng;
+    const int N = 1<<20;
+    vector<uint8_t> pattern(N), copy_back(N);
+    DeviceBuffer<uint8_t> dev_buf;
+    dev_buf.resize(N);
+    UniformRandomFill(pattern, rng, 0, 255);
+    void *mem1 = pool.allocate(N);
+    memcpy(mem1, pattern.data(), N);
+    CUDA_CALL(cudaMemcpyAsync(dev_buf, mem1, N, cudaMemcpyHostToDevice, stream));
+    pool.deallocate_async(mem1, N, sv);
+    void *mem2 = pool.allocate_async(N, sv);
+    EXPECT_EQ(mem1, mem2);
+    CUDA_CALL(cudaMemcpyAsync(copy_back.data(), dev_buf, N, cudaMemcpyDeviceToHost, stream));
+    CUDA_CALL(cudaStreamSynchronize(stream));
+    pool.deallocate_async(mem1, N, sv);
+    EXPECT_EQ(pattern, copy_back);
+  }
+  upstream.check_leaks();
 }
 
 TEST(MMPinnedAlloc, SyncAndSteal) {
