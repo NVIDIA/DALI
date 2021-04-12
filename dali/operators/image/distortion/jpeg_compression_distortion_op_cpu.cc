@@ -19,9 +19,18 @@
 namespace dali {
 
 DALI_SCHEMA(JpegCompressionDistortion)
-    .DocStr(R"code(Produces JPEG-like distortion in RGB images.
+    .DocStr(R"code(Introduces JPEG compression artifacts to RGB images.
 
-The level of degradation of the image can be controlled with the ``quality`` argument,
+JPEG is a lossy compression format which exploits characteristics of natural
+images and human visual system to achieve high compression ratios. The information
+loss originates from sampling the color information at a lower spatial resolution
+than the brightness and from representing high frequency components of the image
+with a lower effective bit depth. The conversion to frequency domain and quantization
+is applied independently to 8x8 pixel blocks, which introduces additional artifacts
+at block boundaries.
+
+This operation produces images by subjecting the input to a transformation that
+mimics JPEG compression with given ``quality`` factor followed by decompression.
 )code")
     .NumInput(1)
     .InputLayout(0, "HWC")
@@ -63,8 +72,8 @@ void JpegCompressionDistortionCPU::RunImpl(workspace_t<CPUBackend> &ws) {
       [&, sample_idx, quality = quality_arg_[sample_idx].data[0]](int thread_id) {
         auto &ctx = thread_ctx_[thread_id];
         auto sh = in_shape.tensor_shape_span(sample_idx);
-        cv::Mat in_mat(sh[0], sh[1], CV_8UC3, (void*) in_view[sample_idx].data);  // NOLINT
-        cv::Mat out_mat(sh[0], sh[1], CV_8UC3, (void*) out_view[sample_idx].data);  // NOLINT
+        cv::Mat in_mat(sh[0], sh[1], CV_8UC3, const_cast<unsigned char*>(in_view[sample_idx].data));
+        cv::Mat out_mat(sh[0], sh[1], CV_8UC3, out_view[sample_idx].data);
         cv::cvtColor(in_mat, out_mat, cv::COLOR_RGB2BGR);
         cv::imencode(".jpg", out_mat, ctx.encoded, {cv::IMWRITE_JPEG_QUALITY, quality});
         cv::imdecode(ctx.encoded, cv::IMREAD_COLOR, &out_mat);
