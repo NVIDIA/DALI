@@ -49,7 +49,8 @@ struct BlockDesc<true> {
 
 template <bool NeedsInput>
 struct RNGBaseFields<GPUBackend, NeedsInput> {
-  RNGBaseFields<GPUBackend, NeedsInput>(int64_t seed, int max_batch_size, int64_t static_sample_size = -1)
+  RNGBaseFields<GPUBackend, NeedsInput>(int64_t seed, int max_batch_size,
+                                        int64_t static_sample_size = -1)
       : block_size_(static_sample_size < 0 ? 256 : std::min<int64_t>(static_sample_size, 256)),
         max_blocks_(static_sample_size < 0 ?
                         1024 :
@@ -108,7 +109,9 @@ std::pair<std::vector<int>, int> DistributeBlocksPerSample(
 
 template <typename T>
 int64_t SetupBlockDescs(BlockDesc<false> *blocks, int64_t block_sz, int64_t max_nblocks,
-                        TensorListView<StorageGPU, T> &output) {
+                        TensorListView<StorageGPU, T> &output,
+                        TensorListView<StorageGPU, const T> &input) {
+  (void) input;
   std::vector<int> blocks_per_sample;
   int64_t blocks_num;
   auto &shape = output.shape;
@@ -143,7 +146,7 @@ int64_t SetupBlockDescs(BlockDesc<true> *blocks, int64_t block_sz, int64_t max_n
   int64_t block = 0;
   for (int s = 0; s < shape.size(); s++) {
     T *sample_out = static_cast<T*>(output[s].data);
-    T *sample_in = static_cast<const T*>(input[s].data);
+    const T *sample_in = static_cast<const T*>(input[s].data);
     auto sample_size = volume(shape[s]);
     if (sample_size == 0)
       continue;

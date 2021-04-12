@@ -55,7 +55,7 @@ class RNGBase : public Operator<Backend> {
                  const workspace_t<Backend> &ws) override {
     if (NeedsInput)
       dtype_ = ws.template InputRef<Backend>(0).type().id();
-    if (!spec_.TryGetArgument(dtype_, "dtype"))
+    else if (!spec_.TryGetArgument(dtype_, "dtype"))
       dtype_ = This().DefaultDataType();
 
     bool has_shape = spec_.ArgumentDefined("shape");

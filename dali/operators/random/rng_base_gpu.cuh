@@ -30,18 +30,19 @@ namespace {
 
 template <typename T, typename Dist>
 __device__ __inline__ void Generate(BlockDesc<true> desc,
-                                    const Dist& dist,
+                                    Dist& dist,
                                     curandState* __restrict__ rng) {
   auto out = static_cast<T*>(desc.output);
   auto in = static_cast<const T*>(desc.input);
-  for (auto idx = desc.offset + threadIdx.x; idx < desc.size; idx += blockDim.x) {
+  auto idx_end = desc.offset + desc.size;
+  for (auto idx = desc.offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
     out[idx] = ConvertSat<T>(dist(in[idx], rng));
   }
 }
 
 template <typename T, typename Dist>
 __device__ __inline__ void Generate(BlockDesc<false> desc,
-                                    const Dist& dist,
+                                    Dist& dist,
                                     curandState* __restrict__ rng) {
   auto start = static_cast<T*>(desc.start);
   auto block_end = start + desc.size;
@@ -50,7 +51,7 @@ __device__ __inline__ void Generate(BlockDesc<false> desc,
   }
 }
 
-template <typename T, typename Dist, bool DefaultDist = false, bool NeedsInput = false>
+template <typename T, typename Dist, bool NeedsInput, bool DefaultDist>
 __global__ void RNGKernel(BlockDesc<NeedsInput>* __restrict__ block_descs,
                           curandState* __restrict__ states,
                           const Dist* __restrict__ dists, int nblocks) {
@@ -74,7 +75,8 @@ template <typename T, typename Dist>
 void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<GPUBackend> &ws) {
   using Block = BlockDesc<NeedsInput>;
   static_assert(std::is_same<Backend, GPUBackend>::value, "Unexpected backend");
-  auto out_view = view<T>(ws.template OutputRef<GPUBackend>(0));
+  auto &output = ws.template OutputRef<GPUBackend>(0);
+  auto out_view = view<T>(output);
   int nsamples = out_view.shape.size();
   auto blocks_cpu = backend_data_.block_descs_cpu_.get();
   auto blocks_gpu = backend_data_.block_descs_gpu_.get();
@@ -82,8 +84,14 @@ void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<GPUBackend> &w
   int block_sz = backend_data_.block_size_;
   int max_nblocks = backend_data_.max_blocks_;
   int blockdesc_count = -1;
+  TensorListView<StorageGPU, const T> in_view;
+  if (NeedsInput) {
+    const auto& input = ws.template InputRef<GPUBackend>(0);
+    in_view = view<const T>(input);
+    output.SetLayout(input.GetLayout());
+  }
   blockdesc_count = SetupBlockDescs(
-    blocks_cpu, block_sz, max_nblocks, out_view);
+    blocks_cpu, block_sz, max_nblocks, out_view, in_view);
   if (blockdesc_count == 0) {
     return;
   }
@@ -117,10 +125,10 @@ void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<GPUBackend> &w
   gridDim.y = div_ceil(blockdesc_count, blockDim.y);
 
   if (use_default_dist) {
-    RNGKernel<T, Dist, true>
+    RNGKernel<T, Dist, NeedsInput, true>
       <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, nullptr, blockdesc_count);
   } else {
-    RNGKernel<T, Dist, false>
+    RNGKernel<T, Dist, NeedsInput, false>
       <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, dists, blockdesc_count);
   }
 }
