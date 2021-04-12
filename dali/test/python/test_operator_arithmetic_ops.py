@@ -81,28 +81,48 @@ bench_ternary_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
 
 unary_operations = [((lambda x: +x), "+"), ((lambda x: -x), "-")]
 
+
+# For math functions we used limited ranges to not have too many NaNs or exceptions in the test.
+def pos_range(type):
+    if np.issubdtype(type, np.integer):
+        return (1, 20)
+    else:
+        return (0.5, 20.0)
+
+# The range that is supposed to be [-1, 1], but we extend it a bit.
+def one_range(type):
+    if np.issubdtype(type, np.integer):
+        return (-2, 2)
+    else:
+        return (-1.5, 1.5)
+
+# Limit the range so we do not end with comparing just the infinities in results.
+def sym_range(type):
+    return -30, 30
+
+
 math_function_operations = [
-    ((lambda x: math.sqrt(x)), (lambda x: np.sqrt(x)), "sqrt"),
-    ((lambda x: math.cbrt(x)), (lambda x: np.cbrt(x)), "cbrt"),
-    ((lambda x: math.exp(x)), (lambda x: np.exp(x)), "exp"),
-    ((lambda x: math.log(x)), (lambda x: np.log(x)), "log"),
-    ((lambda x: math.log2(x)), (lambda x: np.log2(x)), "log2"),
-    ((lambda x: math.log10(x)), (lambda x: np.log10(x)), "log10"),
-    ((lambda x: math.fabs(x)), (lambda x: np.fabs(x)), "fabs"),
-    ((lambda x: math.floor(x)), (lambda x: np.floor(x)), "floor"),
-    ((lambda x: math.ceil(x)), (lambda x: np.ceil(x)), "ceil"),
-    ((lambda x: math.sin(x)), (lambda x: np.sin(x)), "sin"),
-    ((lambda x: math.cos(x)), (lambda x: np.cos(x)), "cos"),
-    ((lambda x: math.tan(x)), (lambda x: np.tan(x)), "tan"),
-    ((lambda x: math.asin(x)), (lambda x: np.arcsin(x)), "asin"),
-    ((lambda x: math.acos(x)), (lambda x: np.arccos(x)), "acos"),
-    ((lambda x: math.atan(x)), (lambda x: np.arctan(x)), "atan"),
-    ((lambda x: math.sinh(x)), (lambda x: np.sinh(x)), "sinh"),
-    ((lambda x: math.cosh(x)), (lambda x: np.cosh(x)), "cosh"),
-    ((lambda x: math.tanh(x)), (lambda x: np.tanh(x)), "tanh"),
-    ((lambda x: math.asinh(x)), (lambda x: np.arcsinh(x)), "asinh"),
-    ((lambda x: math.acosh(x)), (lambda x: np.arccosh(x)), "acosh"),
-    ((lambda x: math.atanh(x)), (lambda x: np.arctanh(x)), "atanh")]
+    ((lambda x: math.sqrt(x)), (lambda x: np.sqrt(x)), "sqrt", pos_range),
+    ((lambda x: math.cbrt(x)), (lambda x: np.cbrt(x)), "cbrt", sym_range),
+    ((lambda x: math.exp(x)), (lambda x: np.exp(x)), "exp", sym_range),
+    ((lambda x: math.log(x)), (lambda x: np.log(x)), "log", pos_range),
+    ((lambda x: math.log2(x)), (lambda x: np.log2(x)), "log2", pos_range),
+    ((lambda x: math.log10(x)), (lambda x: np.log10(x)), "log10", pos_range),
+    ((lambda x: math.fabs(x)), (lambda x: np.fabs(x)), "fabs", sym_range),
+    ((lambda x: math.floor(x)), (lambda x: np.floor(x)), "floor", sym_range),
+    ((lambda x: math.ceil(x)), (lambda x: np.ceil(x)), "ceil", sym_range),
+    ((lambda x: math.sin(x)), (lambda x: np.sin(x)), "sin", sym_range),
+    ((lambda x: math.cos(x)), (lambda x: np.cos(x)), "cos", sym_range),
+    ((lambda x: math.tan(x)), (lambda x: np.tan(x)), "tan", sym_range),
+    ((lambda x: math.asin(x)), (lambda x: np.arcsin(x)), "asin", one_range),
+    ((lambda x: math.acos(x)), (lambda x: np.arccos(x)), "acos", one_range),
+    ((lambda x: math.atan(x)), (lambda x: np.arctan(x)), "atan", sym_range),
+    ((lambda x: math.sinh(x)), (lambda x: np.sinh(x)), "sinh", sym_range),
+    ((lambda x: math.cosh(x)), (lambda x: np.cosh(x)), "cosh", sym_range),
+    ((lambda x: math.tanh(x)), (lambda x: np.tanh(x)), "tanh", sym_range),
+    ((lambda x: math.asinh(x)), (lambda x: np.arcsinh(x)), "asinh", sym_range),
+    ((lambda x: math.acosh(x)), (lambda x: np.arccosh(x)), "acosh", pos_range),
+    ((lambda x: math.atanh(x)), (lambda x: np.arctanh(x)), "atanh", one_range)]
 
 sane_operations = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x * y), "*"),
@@ -372,13 +392,10 @@ def test_unary_arithmetic_ops():
                 if types_in != np.bool_:
                     yield check_unary_op, kinds, types_in, op, shape_small, op_desc
 
-def check_math_function_op(kind, type, op, np_op, shape, op_desc):
+def check_math_function_op(kind, type, op, np_op, shape, get_range, op_desc):
     is_integer = type not in [np.float16, np.float32, np.float64]
-    if op_desc == "log":
-        limited_range = (1 if is_integer else 0.5, 20)
-    else:
-        limited_range = (-10, 10)
-    iterator = iter(ExternalInputIterator(batch_size, shape, type, kind, limited_range=limited_range))
+    limted_range = get_range(type)
+    iterator = iter(ExternalInputIterator(batch_size, shape, type, kind, limited_range=limted_range))
     pipe = ExprOpPipeline(kind, type, iterator, op, batch_size = batch_size, num_threads = 2,
             device_id = 0)
     pipe.build()
@@ -386,15 +403,16 @@ def check_math_function_op(kind, type, op, np_op, shape, op_desc):
     out_type = np.float32 if is_integer else type
     for sample in range(batch_size):
         in_np, out = extract_un_data(pipe_out, sample, kind, out_type)
+        print(in_np, out, np_op(in_np.astype(out_type)))
         np.testing.assert_allclose(out, np_op(in_np.astype(out_type)),
                 rtol=1e-06 if type != np.float16 else 0.005)
 
 def test_math_function_ops():
     for kinds in unary_input_kinds:
-        for (op, np_op, op_desc) in math_function_operations:
+        for (op, np_op, op_desc, get_range) in math_function_operations:
             for types_in in input_types:
                 if types_in != np.bool_:
-                    yield check_math_function_op, kinds, types_in, op, np_op, shape_small, op_desc
+                    yield check_math_function_op, kinds, types_in, op, np_op, shape_small, get_range, op_desc
 
 # Regular arithmetic ops that can be validated as straight numpy
 def check_arithm_op(kinds, types, op, shape, _):

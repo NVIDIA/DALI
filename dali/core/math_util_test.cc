@@ -45,4 +45,60 @@ TEST(MathUtil, fast_rsqrtd) {
   EXPECT_NEAR(fast_rsqrt(16.0), 0.25, 0.25 * rel_err);
 }
 
+TEST(MathUtil, IpowAnyZero) {
+  EXPECT_EQ(ipow(100, 0), 1);
+  EXPECT_EQ(ipow(1, 0), 1);
+  EXPECT_EQ(ipow(0, 0), 1);
+  EXPECT_EQ(ipow(-1, 0), 1);
+  EXPECT_EQ(ipow(-100, 0), 1);
+}
+
+TEST(MathUtil, IpowAnyNeg) {
+  EXPECT_EQ(ipow(100, -1), 0);
+  EXPECT_EQ(ipow(1, -1), 0);
+  EXPECT_EQ(ipow(0, -1), 0);
+  EXPECT_EQ(ipow(-1, -1), 0);
+  EXPECT_EQ(ipow(-100, -1), 0);
+}
+
+TEST(MathUtil, IpowNeg) {
+  EXPECT_EQ(ipow(-1, -1), 0);
+  EXPECT_EQ(ipow(-1, 0), 1);
+  EXPECT_EQ(ipow(-1, 1), -1);
+  EXPECT_EQ(ipow(-1, 2), 1);
+  EXPECT_EQ(ipow(-1, 3), -1);
+  EXPECT_EQ(ipow(-1, 4), 1);
+}
+
+TEST(MathUtil, Ipow) {
+  EXPECT_EQ(ipow(2, 1), 2);
+  EXPECT_EQ(ipow(2, 2), 4);
+  EXPECT_EQ(ipow(2, 3), 8);
+  EXPECT_EQ(ipow(2, 4), 16);
+  EXPECT_EQ(ipow(2, 5), 32);
+  EXPECT_EQ(ipow(2, 6), 64);
+  EXPECT_EQ(ipow(2, 7), 128);
+  EXPECT_EQ(ipow(2, 8), 256);
+  EXPECT_EQ(ipow(2, 9), 512);
+  EXPECT_EQ(ipow(2, 10), 1024);
+  EXPECT_EQ(ipow(-2, 1), -2);
+  EXPECT_EQ(ipow(-2, 2), 4);
+  EXPECT_EQ(ipow(-2, 3), -8);
+  EXPECT_EQ(ipow(-2, 4), 16);
+  EXPECT_EQ(ipow(-2, 5), -32);
+  EXPECT_EQ(ipow(-2, 6), 64);
+  EXPECT_EQ(ipow(-2, 7), -128);
+  EXPECT_EQ(ipow(-2, 8), 256);
+  EXPECT_EQ(ipow(-2, 9), -512);
+  EXPECT_EQ(ipow(-2, 10), 1024);
+}
+
+TEST(MathUtil, IpowUnsigned) {
+  EXPECT_EQ(ipow(2, 0u), 1u);
+  EXPECT_EQ(ipow(2u, 0), 1u);
+  EXPECT_EQ(ipow(2u, 2), 4u);
+  EXPECT_EQ(ipow(2, 2u), 4u);
+  EXPECT_EQ(ipow(2u, 2u), 4u);
+}
+
 }  // namespace dali

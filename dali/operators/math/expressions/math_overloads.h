@@ -270,6 +270,15 @@ DALI_HOST_DEV inline auto math_pow(X x, Y y) {
 #endif
 }
 
+
+// DALI_NO_EXEC_CHECK
+// DALI_HOST_DEV inline int32_t math_pow(int32_t x, int32_t y) {
+
+// }
+
+
+
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_MATH_OVERLOADS_H_
