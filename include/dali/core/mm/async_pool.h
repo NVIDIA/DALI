@@ -33,7 +33,8 @@
 namespace dali {
 namespace mm {
 
-template <memory_kind kind, class FreeList, class LockType, class Upstream = memory_resource<kind>>
+template <memory_kind kind, typename FreeList = free_tree,
+          typename LockType = std::mutex, typename Upstream = memory_resource<kind>>
 class async_pool_base : public stream_aware_memory_resource<kind> {
  public:
   /**

@@ -20,6 +20,7 @@
 
 #include <rmm/mr/memory_resource.hpp>
 #include <rmm/mr/host/host_memory_resource.hpp>
+#include <rmm/mr/host/pinned_memory_resource.hpp>
 #include <rmm/mr/device/device_memory_resource.hpp>
 
 namespace dali {
@@ -42,6 +43,8 @@ using rmm::mr::memory_resource;
 using rmm::mr::host_memory_resource;
 using rmm::mr::device_memory_resource;
 using rmm::mr::memory_kind;
+using pinned_memory_resource = memory_resource<memory_kind::pinned>;
+using pinned_malloc_memory_resource = rmm::mr::pinned_memory_resource;
 using stream_view = rmm::cuda_stream_view;
 using rmm::mr::any_context;
 
