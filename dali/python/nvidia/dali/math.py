@@ -235,12 +235,12 @@ def fpow(base, exponent):
     return _arithm_op("fpow", base, exponent)
 
 def atan2(x, y):
-    """Computes arcus tangent of x / y.
+    """Computes arcus tangent of corresponding values in  x / y.
 
     :rtype: TensorList of atan2(x, y). If all inputs are integers, the result will be float,
             otherwise the type is preserved.
     """
-    return _arithm_op("atan2", base, exponent)
+    return _arithm_op("atan2", x, y)
 
 def clamp(value, lo, hi):
     """Produces a tensor of values from ``value`` clamped to the range ``[lo, hi]``.

@@ -39,7 +39,7 @@ shape_big = [(1024, 1024)] * batch_size
 shape_small = [(42, 3), (4, 16), (8, 2), (1, 64)]
 
 # A number used to test constant inputs
-magic_number = 42
+magic_number = 7
 
 unary_input_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "cpu_scalar_legacy", "gpu_scalar_legacy"]
 
@@ -141,9 +141,8 @@ sane_operations = [((lambda x, y: x + y), "+", default_range),
                    (((lambda x, y: math.max(x, y)), (lambda x, y: np.maximum(x, y))), "max", default_range)]
 
 floaty_operations = [(((lambda x, y: x / y), (lambda x, y: x / y)), "/", default_range),
-                     (((lambda x, y: math.fpow(x, y)), sane_pow), "fpow", pow_range)]
-                    #  (((lambda x, y: x ** y), (lambda x, y: x ** y)), "**"),
-                    #  (((lambda x, y: math.pow(x, y)), (lambda x, y: np.pow(x, y))), "pow")]
+                     (((lambda x, y: math.fpow(x, y)), sane_pow), "fpow", pow_range),
+                     (((lambda x, y: math.atan2(x, y)), (lambda x, y: np.arctan2(x, y))), "atan2", default_range)]
 
 bitwise_operations = [((lambda x, y: x & y), "&"), ((lambda x, y: x | y), "|"),
                       ((lambda x, y: x ^ y), "^")]
