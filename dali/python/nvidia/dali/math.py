@@ -227,7 +227,7 @@ def pow(base, exponent):
     return _arithm_op("pow", base, exponent)
 
 def fpow(base, exponent):
-    """Computes base to the power of exponents, that is base ** exponent.
+    """Computes base to the power of exponents as floating point numbers.
 
     :rtype: TensorList of pow(base, exponent). If all inputs are integers, the result will be float,
             otherwise the type is preserved.

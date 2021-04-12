@@ -69,10 +69,10 @@ Currently, DALI supports the following operations:
 
     :rtype: TensorList of the same type
 
-.. function:: Binary arithmetic operations: +, -, *, /, //
+.. function:: Binary arithmetic operations: +, -, *, /, //, **
 
-    Binary operators that implement ``__add__``, ``__sub__``, ``__mul__``, ``__truediv__``
-    and ``__floordiv__`` respectively.
+    Binary operators that implement ``__add__``, ``__sub__``, ``__mul__``, ``__truediv__``,
+    ``__floordiv__`` and ``__pow__`` respectively.
 
     The result of an arithmetic operation between two operands is described
     :ref:`above <type promotions>`, with the exception of ``/``, the ``__truediv__`` operation,
@@ -110,5 +110,44 @@ graph definition. They also accept :class:`nvidia.dali.pipeline.DataNode`,
 :meth:`nvidia.dali.types.Constant` or regular Python value of type ``bool``, ``int``, or ``float``
 as arguments. At least one of the inputs must be the output of other DALI Operator.
 
-.. automodule:: nvidia.dali.math
-   :members:
+.. autofunction:: nvidia.dali.math.abs
+.. autofunction:: nvidia.dali.math.fabs
+.. autofunction:: nvidia.dali.math.floor
+.. autofunction:: nvidia.dali.math.ceil
+.. autofunction:: nvidia.dali.math.pow
+.. autofunction:: nvidia.dali.math.fpow
+.. autofunction:: nvidia.dali.math.min
+.. autofunction:: nvidia.dali.math.max
+.. autofunction:: nvidia.dali.math.clamp
+
+Exponents and logarithms
+========================
+
+.. autofunction:: nvidia.dali.math.sqrt
+.. autofunction:: nvidia.dali.math.rsqrt
+.. autofunction:: nvidia.dali.math.cbrt
+.. autofunction:: nvidia.dali.math.exp
+.. autofunction:: nvidia.dali.math.log
+.. autofunction:: nvidia.dali.math.log2
+.. autofunction:: nvidia.dali.math.log10
+
+Trigonometric Functions
+=======================
+
+.. autofunction:: nvidia.dali.math.sin
+.. autofunction:: nvidia.dali.math.cos
+.. autofunction:: nvidia.dali.math.tan
+.. autofunction:: nvidia.dali.math.asin
+.. autofunction:: nvidia.dali.math.acos
+.. autofunction:: nvidia.dali.math.atan
+.. autofunction:: nvidia.dali.math.atan2
+
+Hyperbolic Functions
+=======================
+
+.. autofunction:: nvidia.dali.math.sinh
+.. autofunction:: nvidia.dali.math.cosh
+.. autofunction:: nvidia.dali.math.tanh
+.. autofunction:: nvidia.dali.math.asinh
+.. autofunction:: nvidia.dali.math.acosh
+.. autofunction:: nvidia.dali.math.atanh
