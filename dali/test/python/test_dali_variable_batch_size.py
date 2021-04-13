@@ -222,6 +222,7 @@ ops_image_default_args = [
     fn.dump_image,
     fn.hsv,
     fn.hue,
+    fn.jpeg_compression_distortion,
     fn.old_color_twist,
     fn.reductions.mean,
     fn.reductions.mean_square,
@@ -682,7 +683,6 @@ def test_python_function():
         return pipe
 
     check_pipeline(generate_data(31, 13, image_like_shape_generator), pipe, devices=['cpu'])
-
 
 def test_reinterpret():
     def pipe(max_batch_size, input_data, device, input_layout):

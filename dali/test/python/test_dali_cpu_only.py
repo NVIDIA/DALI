@@ -171,6 +171,9 @@ def test_crop_mirror_normalize_cpu():
 def test_flip_cpu():
     check_single_input(fn.flip, horizontal = True)
 
+def test_jpeg_compression_distortion_cpu():
+    check_single_input(fn.jpeg_compression_distortion, quality = 10)
+
 def test_image_decoder_crop_device():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
