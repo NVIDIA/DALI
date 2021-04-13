@@ -143,6 +143,19 @@ struct curand_bernoulli_dist {
   float probability_ = 0.5f;
 };
 
+struct curand_poisson_dist {
+ public:
+  explicit DALI_HOST_DEV curand_poisson_dist(float lambda)
+    : lambda_(lambda) {}
+
+  __device__ inline unsigned int operator()(curandState *state) const {
+    return curand_poisson(state, lambda_);
+  }
+
+ private:
+  float lambda_ = 0.0f;
+};
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_UTIL_RANDOMIZER_CUH_
