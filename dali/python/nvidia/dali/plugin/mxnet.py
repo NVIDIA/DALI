@@ -185,7 +185,9 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 exactly 'size' entries.
     last_batch_policy : default = FILL
                 What to do with the last batch when there is no enough samples in the epoch
-                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
+                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`.
+                Both ``FILL`` and ``PARTIAL`` would return a full batch but the ``pad`` property
+                value of the returned array would differ.
     last_batch_padded : bool, optional, default = False
                 Whether the last batch provided by DALI is padded with the last sample
                 or it just wraps up. In the conjunction with ``last_batch_policy`` it tells
@@ -204,13 +206,13 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    last_batch_policy = PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = PARTIAL, last_batch_padded = True  -> last batch = ``[7, 7]`` and MXNet array property ``.pad=1``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+    last_batch_policy = PARTIAL, last_batch_padded = False -> last batch = ``[7, 1]`` and MXNet array property ``.pad=1``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = FILL, last_batch_padded = True   -> last batch = ``[7, 7]`` and MXNet array property ``.pad=0``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+    last_batch_policy = FILL, last_batch_padded = False  -> last batch = ``[7, 1]`` and MXNet array property ``.pad=0``, next iteration will return ``[2, 3]``
 
     last_batch_policy = DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
 
@@ -474,7 +476,9 @@ class DALIClassificationIterator(DALIGenericIterator):
                 exactly 'size' entries.
     last_batch_policy : default = FILL
                 What to do with the last batch when there is no enough samples in the epoch
-                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
+                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`.
+                Both ``FILL`` and ``PARTIAL`` would return a full batch but the ``pad`` property
+                value of the returned array would differ.
     last_batch_padded : bool, optional, default = False
                 Whether the last batch provided by DALI is padded with the last sample
                 or it just wraps up. In the conjunction with ``last_batch_policy`` it tells
@@ -494,13 +498,13 @@ class DALIClassificationIterator(DALIGenericIterator):
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    last_batch_policy = PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = PARTIAL, last_batch_padded = True  -> last batch = ``[7, 7]`` and MXNet array property ``.pad=1``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+    last_batch_policy = PARTIAL, last_batch_padded = False -> last batch = ``[7, 1]`` and MXNet array property ``.pad=1``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = FILL, last_batch_padded = True   -> last batch = ``[7, 7]`` and MXNet array property ``.pad=0``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+    last_batch_policy = FILL, last_batch_padded = False  -> last batch = ``[7, 1]`` and MXNet array property ``.pad=0``, next iteration will return ``[2, 3]``
 
     last_batch_policy = DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
 
