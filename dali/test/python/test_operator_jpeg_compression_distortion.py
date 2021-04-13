@@ -66,5 +66,5 @@ def _testimpl_jpeg_compression_distortion(batch_size, device, quality):
 def test_jpeg_compression_distortion():
   for batch_size in [1, 15]:
     for device in ['cpu', 'gpu']:
-      for quality in [2, None, 95]:
+      for quality in [2, None, 50]:
         yield _testimpl_jpeg_compression_distortion, batch_size, device, quality

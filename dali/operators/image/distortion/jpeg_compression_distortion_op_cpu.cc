@@ -39,7 +39,7 @@ mimics JPEG compression with given ``quality`` factor followed by decompression.
         R"code(JPEG compression quality from 1 (lowest quality) to 100 (highest quality).
 
 Any values outside the range 1-100 will be clamped.)code",
-                    95, true);
+                    50, true);
 
 class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend> {
  public:
