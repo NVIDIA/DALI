@@ -145,13 +145,15 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   }
 
   output_shapes_.resize(N * out_types_.size());
-  input_shapes_.resize(N * in_types_.size());  
-  for (int i = 0; i < N; i++) {
-    for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
-      output_shapes_[N * i + out_id] = output_desc[out_id].shape.tensor_shape_span(i).data();
+  input_shapes_.resize(N * in_types_.size());
+  for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
+    for (int i = 0; i < N; i++) {
+      output_shapes_[out_types_.size() * out_id + i] = output_desc[out_id].shape.tensor_shape_span(i).data();
     }
-    for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-      input_shapes_[N * i + in_id] = in_shapes[in_id].tensor_shape_span(i).data();
+  }
+  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+    for (int i = 0; i < N; i++) {
+      input_shapes_[in_types_.size() * in_id + i] = in_shapes[in_id].tensor_shape_span(i).data();
     }
   }
 
@@ -171,14 +173,16 @@ void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   std::vector<const void*> in_ptrs;
   out_ptrs.resize(N * out_types_.size());
   in_ptrs.resize(N * in_types_.size());
-  for (int i = 0; i < N; i++) {
-    for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
-      auto& out = ws.OutputRef<CPUBackend>(out_id);
-      out_ptrs[N * i + out_id] = out[i].raw_mutable_data();
+  for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
+    auto& out = ws.OutputRef<CPUBackend>(out_id);
+    for (int i = 0; i < N; i++) {
+      out_ptrs[out_types_.size() * out_id + i] = out[i].raw_mutable_data();
     }
-    for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-      const auto &in = ws.InputRef<CPUBackend>(in_id);
-      in_ptrs[N * i + in_id] = in[i].raw_data();
+  }
+  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+    const auto &in = ws.InputRef<CPUBackend>(in_id);
+    for (int i = 0; i < N; i++) {
+      in_ptrs[in_types_.size() * in_id + i] = in[i].raw_data();
     }
   }
   

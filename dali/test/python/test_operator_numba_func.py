@@ -27,7 +27,8 @@ from nvidia.dali.plugin.numba.fn import numba_func
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
-def set_all_values_to_255(out, ins):
+def set_all_values_to_255(*args):
+    out = args[0]
     out[:] = 255
 
 @cfunc(dali_numba.run_fn_sig(types.float32, types.float32), nopython=True)
@@ -58,14 +59,14 @@ def get_data(shapes, dtype):
     return [np.empty(shape, dtype = dtype) for shape in shapes]
 
 @pipeline_def
-def numba_func_pipe(shapes, dtype, fn_ptr=None, out_types=None, in_types=None, setup_fn=None):
+def numba_func_pipe(shapes, dtype, fn_ptr=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None):
     data = fn.external_source(lambda: get_data(shapes, dtype), batch=True, device = "cpu")
-    return numba_func(data, run_fn=fn_ptr, out_types=out_types, in_types=in_types, setup_fn=setup_fn)
+    return numba_func(data, run_fn=fn_ptr, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn)
 
-def _testimpl_numba_func(shapes, dtype, fn_ptr, out_types, in_types, setup_fn, expected_out):
+def _testimpl_numba_func(shapes, dtype, fn_ptr, out_types, in_types, outs_ndim, ins_ndim, setup_fn, expected_out):
     batch_size = len(shapes)
     pipe = numba_func_pipe(batch_size=batch_size, num_threads=1, device_id=0, shapes=shapes, dtype=dtype,
-        fn_ptr=fn_ptr, setup_fn=setup_fn, out_types=out_types, in_types=in_types)
+        fn_ptr=fn_ptr, setup_fn=setup_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim)
     pipe.build()
     outs = pipe.run()
     for _ in range(3):
@@ -79,11 +80,11 @@ def test_numba_func():
         # ([(10, 10, 10)], np.uint8, set_all_values_to_255.address, None, [np.full((10, 10, 10), 255, dtype=np.uint8)]),
         # ([(10, 10, 10)], np.float32, set_all_values_to_float.address, None, [np.full((10, 10, 10), 0.5, dtype=np.float32)]),
         # ([(10, 20, 30), (20, 10, 30)], np.int64, change_out_shape.address, setup_change_out_shape.address, [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)]),
-        ([(10, 10, 10)], np.uint8, set_all_values_to_255, [dali_types.UINT8], [dali_types.UINT8], None, [np.full((10, 10, 10), 255, dtype=np.uint8)])
+        ([(10, 10, 10)], np.uint8, set_all_values_to_255, [dali_types.UINT8], [dali_types.UINT8], [3], [3], None, [np.full((10, 10, 10), 255, dtype=np.uint8)])
     ]
 
-    for shape, dtype, fn_ptr, out_types, in_types, setup_fn, expected_out in args:
-        yield _testimpl_numba_func, shape, dtype, fn_ptr, out_types, in_types, setup_fn, expected_out
+    for shape, dtype, fn_ptr, out_types, in_types, outs_ndim, ins_ndim, setup_fn, expected_out in args:
+        yield _testimpl_numba_func, shape, dtype, fn_ptr, out_types, in_types, outs_ndim, ins_ndim, setup_fn, expected_out
 
 @pipeline_def
 def numba_func_image_pipe(fn_ptr=None, setup_fn=None):

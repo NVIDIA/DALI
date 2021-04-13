@@ -1271,6 +1271,66 @@ example, ``Compose`` automatically arranges copying the data to GPU memory.
 """
     return op_list[0] if len(op_list) == 1 else _CompoundOp(op_list)
 
+class NumbaFunctionBase(metaclass=_DaliOperatorMeta):
+    def __init__(self, impl_name, run_fn, out_types, in_types, outs_ndim, num_outputs=1, device='cpu', **kwargs):
+        self._schema = _b.GetSchema(impl_name)
+        self._spec = _b.OpSpec(impl_name)
+        self._device = device
+        self._impl_name = impl_name
+
+        kwargs, self._call_args = _separate_kwargs(kwargs)
+
+        for key, value in kwargs.items():
+            self._spec.AddArg(key, value)
+
+        self.run_fn = run_fn
+        self.out_types = out_types 
+        self.in_types = in_types 
+        self.outs_ndim = outs_ndim 
+        self._preserve = True
+
+    @property
+    def spec(self):
+        return self._spec
+
+    @property
+    def schema(self):
+        return self._schema
+
+    @property
+    def device(self):
+        return self._device
+
+    @property
+    def preserve(self):
+        return self._preserve
+
+    def __call__(self, *inputs, **kwargs):
+        inputs = _preprocess_inputs(inputs, self._impl_name, self._device, None)
+        pipeline = _Pipeline.current()
+        if pipeline is None:
+            _Pipeline._raise_pipeline_required("NumbaFunction operator")
+        if (len(inputs) > self._schema.MaxNumInput() or
+                len(inputs) < self._schema.MinNumInput()):
+            raise ValueError(
+                ("Operator {} expects from {} to " +
+                 "{} inputs, but received {}.")
+                .format(type(self).__name__,
+                        self._schema.MinNumInput(),
+                        self._schema.MaxNumInput(),
+                        len(inputs)))
+        for inp in inputs:
+            if not isinstance(inp, _DataNode):
+                raise TypeError(
+                      ("Expected inputs of type `DataNode`. Received input of type '{}'. " +
+                       "Python Operators do not support Multiple Input Sets.")
+                      .format(type(inp).__name__))
+        op_instance = _OperatorInstance(inputs, self, **kwargs)
+        op_instance.spec.AddArg("run_fn", self.run_fn)
+        op_instance.spec.AddArg("out_types", self.out_types)
+        op_instance.spec.AddArg("in_types", self.in_types)
+        op_instance.spec.AddArg("device", self.device)
+
 _cpu_ops = _cpu_ops.union({"Compose"})
 _gpu_ops = _gpu_ops.union({"Compose"})
 
