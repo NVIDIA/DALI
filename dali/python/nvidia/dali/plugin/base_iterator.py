@@ -170,10 +170,7 @@ class _DaliBaseIterator(object):
 
         self._reader_name = reader_name
         self._extract_from_reader_and_validate()
-
-        # We need data about the batches (like shape information),
-        # so we need to run a single batch as part of setup to get that info
-        self._schedule_runs(False)
+        self._ever_scheduled = False
 
     def _calculate_shard_sizes(self, shard_nums):
         shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num).astype(np.int)
@@ -245,6 +242,9 @@ class _DaliBaseIterator(object):
         """
         Checks iterator stop condition, gets DALI outputs and perform reset in case of StopIteration
         """
+        # if pipeline was not scheduled ever do it here
+        if not self._ever_scheduled:
+            self._schedule_runs(False)
         if self._size > 0 and self._counter >= self._size:
             self._end_iteration()
 
@@ -281,9 +281,11 @@ class _DaliBaseIterator(object):
         """
         Schedule DALI runs
         """
+        self._ever_scheduled = True
         for p in self._pipes:
             with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                p.release_outputs()
+                if release_outputs:
+                    p.release_outputs()
                 p.schedule_run()
 
     def _advance_and_check_drop_last(self):
