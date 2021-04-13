@@ -19,6 +19,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 #include "dali/core/mm/pool_resource.h"
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
@@ -33,7 +34,8 @@
 namespace dali {
 namespace mm {
 
-template <memory_kind kind, class FreeList, class LockType, class Upstream = memory_resource<kind>>
+template <memory_kind kind, typename FreeList = free_tree,
+          typename LockType = std::mutex, typename Upstream = memory_resource<kind>>
 class async_pool_base : public stream_aware_memory_resource<kind> {
  public:
   /**
@@ -58,7 +60,6 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
    * @brief Waits until all pending frees are finished.
    */
   void synchronize() {
-    DeviceGuard dg(device_id_);
     synchronize_impl(true);
   }
 
@@ -71,18 +72,20 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
       for (auto &kv : stream_free_) {
         if (!kv.second.free_list.head)
           continue;
-        if (!sync_stream_)
-          sync_stream_ = CUDAStream::Create(true);
-        CUDA_DTOR_CALL(cudaStreamWaitEvent(sync_stream_, kv.second.free_list.head->event, 0));
+
+        ContextScope scope(kv.second.free_list.head->ctx);
+        int dev = 0;
+        CUDA_DTOR_CALL(cudaGetDevice(&dev));
+        CUDA_DTOR_CALL(cudaStreamWaitEvent(GetSyncStream(dev), kv.second.free_list.head->event, 0));
       }
     }
-    if (sync_stream_)
-      CUDA_DTOR_CALL(cudaStreamSynchronize(sync_stream_));
+    for (int dev = 0; dev < static_cast<int>(sync_streams_.size()); dev++) {
+      if (sync_streams_[dev])
+        CUDA_DTOR_CALL(cudaStreamSynchronize(sync_streams_[dev]));
+    }
   }
 
   void *do_allocate(size_t bytes, size_t alignment) override {
-    if (device_id_ == -1)
-      CUDA_CALL(cudaGetDevice(&device_id_));
     adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
     return allocate_from_global_pool(bytes, alignment);
@@ -108,8 +111,6 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
    * may be sufficient, there may be no satisfactory block.
    */
   void *do_allocate_async(size_t bytes, size_t alignment, stream_view stream) override {
-    if (device_id_ == -1)
-      CUDA_CALL(cudaGetDevice(&device_id_));
     adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
     auto it = stream_free_.find(stream.value());
@@ -190,6 +191,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
     size_t          bytes = 0;
     size_t          alignment = alignof(std::max_align_t);
     CUDAEvent       event;
+    CUcontext       ctx = nullptr;
     bool            is_ready = false;
     pending_free   *prev = nullptr, *next = nullptr;
 
@@ -400,6 +402,8 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
 
   auto *add_pending_free(PendingFreeList &free, char *base, size_t bytes, size_t alignment,
                          cudaStream_t stream) {
+    if (!cuInitChecked())
+      throw std::runtime_error("Cannot load CUDA driver API library");
     pending_free *f = FreeDescAlloc::allocate(1);
     f = new (f)pending_free();
     f->addr = base;
@@ -411,8 +415,10 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
       f->next->prev = f;
     free.head = f;
     if (!free.tail) free.tail = f;
-    f->event = CUDAEventPool::instance().Get(device_id_);
-    cudaEventRecord(f->event, stream);
+    CUDA_CALL(cuStreamGetCtx(stream, &f->ctx));
+    ContextScope scope(f->ctx);
+    f->event = CUDAEventPool::instance().Get();
+    CUDA_CALL(cudaEventRecord(f->event, stream));
     num_pending_frees_++;
     return f;
   }
@@ -425,7 +431,8 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   }
 
   pending_free *remove_pending_free(PendingFreeList &free, pending_free *f) {
-    CUDAEventPool::instance().Put(std::move(f->event), device_id_);
+    ContextScope scope(f->ctx);
+    CUDAEventPool::instance().Put(std::move(f->event));
     auto *prev = f->prev;
     auto *next = f->next;
     if (free.head == f)
@@ -465,7 +472,44 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   using FreeDescAlloc = detail::object_pool_allocator<pending_free>;
 
   LockType lock_;
-  CUDAStream sync_stream_;
+  vector<CUDAStream> sync_streams_;
+  CUDAStream &GetSyncStream(int device_id) {
+    int ndev = sync_streams_.size();
+    if (sync_streams_.empty()) {
+      CUDA_CALL(cudaGetDeviceCount(&ndev));
+      sync_streams_.resize(ndev);
+    }
+    assert(device_id >= 0 && device_id < ndev);
+    if (!sync_streams_[device_id])
+      sync_streams_[device_id] = CUDAStream::Create(true, device_id);
+    return sync_streams_[device_id];
+  }
+
+  /**
+   * @brief Sets a new context for the lifetime of the object
+   *
+   * Unlike DeviceGuard, which focuses on restoring the old context upon destruction,
+   * this object is optimized to reduce the number of API calls and doesn't restore
+   * the old context if the new context and current context are the same at construction.
+   */
+  struct ContextScope {
+    explicit ContextScope(CUcontext new_ctx) {
+      CUDA_CALL(cuCtxGetCurrent(&old_ctx));
+      if (old_ctx == new_ctx) {
+        old_ctx = nullptr;
+      } else {
+        CUDA_CALL(cuCtxSetCurrent(new_ctx));
+      }
+    }
+    ~ContextScope() {
+      if (old_ctx) {
+        CUDA_DTOR_CALL(cuCtxSetCurrent(old_ctx));
+      }
+    }
+
+   private:
+    CUcontext old_ctx;
+  };
 
   /**
    * @brief Indicates whether the global pool supports splitting
@@ -482,7 +526,6 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
 
   pool_resource_base<kind, any_context, FreeList, detail::dummy_lock> global_pool_;
 
-  int device_id_ = -1;
   int num_pending_frees_ = 0;
   bool avoid_upstream_ = true;
 };

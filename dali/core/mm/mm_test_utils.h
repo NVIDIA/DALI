@@ -238,6 +238,16 @@ struct test_host_resource
   test_host_resource() : test_resource_wrapper(&malloc_memory_resource::instance()) {}
 };
 
+struct test_pinned_resource
+: public test_resource_wrapper<false, true, pinned_memory_resource, pinned_memory_resource> {
+  test_pinned_resource() : test_resource_wrapper(&upstream_instance()) {}
+
+  static pinned_malloc_memory_resource &upstream_instance() {
+    static pinned_malloc_memory_resource inst;
+    return inst;
+  }
+};
+
 struct test_device_resource
 : public test_resource_wrapper<false, false,
   memory_resource<memory_kind::device>, memory_resource<memory_kind::device>> {
