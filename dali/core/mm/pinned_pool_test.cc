@@ -72,7 +72,7 @@ TEST(MMPinnedAlloc, SyncAndSteal) {
     // not just some streams.
     void *mem2 = pool.allocate_async(N, sv2);
     auto e = cudaStreamQuery(s1);
-    EXPECT_NE(e, cudaErrorNotReady) << "Syncrhonization should have occurred";
+    EXPECT_NE(e, cudaErrorNotReady) << "Synchronization should have occurred";
     if (e != cudaErrorNotReady) {
       CUDA_CALL(cudaGetLastError());
     }
@@ -108,7 +108,7 @@ TEST(MMPinnedAlloc, SyncCrossDevice) {
     // not just some streams.
     void *mem2 = pool.allocate_async(N, sv2);
     auto e = cudaStreamQuery(s1);
-    EXPECT_NE(e, cudaErrorNotReady) << "Syncrhonization should have occurred";
+    EXPECT_NE(e, cudaErrorNotReady) << "Synchronization should have occurred";
     if (e != cudaErrorNotReady) {
       CUDA_CALL(cudaGetLastError());
     }

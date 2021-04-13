@@ -498,7 +498,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
       if (old_ctx == new_ctx) {
         old_ctx = nullptr;
       } else {
-        cuCtxSetCurrent(new_ctx);
+        CUDA_CALL(cuCtxSetCurrent(new_ctx));
       }
     }
     ~ContextScope() {
