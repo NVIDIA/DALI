@@ -1425,3 +1425,58 @@ def test_paddle_external_source_variable_size_fail():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     assert_raises(AssertionError, check_external_source_variable_size, PaddleIterator, output_map=[
                   "data"], to_np=lambda x: np.array(x["data"]), iter_size=5, dynamic_shape=True)
+
+def check_prepare_first_batch(Iterator, *args, to_np=None, **kwargs):
+    max_batch_size = 4
+    iter_limit = 4
+    runs = 3
+    test_data_shape = [2, 3, 4]
+    i = 0
+    dataset = [[[np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
+                 for _ in range(max_batch_size)]] for _ in range(iter_limit)]
+
+    def get_data():
+        nonlocal i
+        if i == iter_limit:
+            i = 0
+            raise StopIteration
+        out = dataset[i]
+        i += 1
+        return out
+
+    pipe = Pipeline(batch_size=max_batch_size, num_threads=1, device_id=0)
+    with pipe:
+        outs = fn.external_source(source=get_data, num_outputs=1)
+    pipe.set_outputs(*outs)
+
+    it = Iterator([pipe], *args, auto_reset=True, prepare_first_batch=False, **kwargs)
+    counter = 0
+    for r in range(runs):
+        if r == 0:
+            # when prepare_first_batch=False pipeline should not be run until first call to next(it)
+            assert i == 0, "external_source should not be run yet"
+        for j, data in enumerate(it):
+            assert (to_np(data[0]) == np.concatenate(dataset[j])).all()
+            counter += 1
+    assert counter == iter_limit * runs
+
+def test_mxnet_prepare_first_batch():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+    check_prepare_first_batch(MXNetIterator, [("data", MXNetIterator.DATA_TAG)],
+                              to_np=lambda x: x.data[0].asnumpy(), dynamic_shape=True)
+
+
+def test_gluon_prepare_first_batch():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    check_prepare_first_batch(GluonIterator, output_types=[GluonIterator.DENSE_TAG],
+                              to_np=lambda x: x[0].asnumpy())
+
+def test_pytorch_prepare_first_batch():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    check_prepare_first_batch(PyTorchIterator, output_map=["data"],
+                              to_np=lambda x: x["data"].numpy())
+
+def test_paddle_prepare_first_batch():
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+    check_prepare_first_batch(PaddleIterator, output_map=["data"],
+                              to_np=lambda x: np.array(x["data"]))
