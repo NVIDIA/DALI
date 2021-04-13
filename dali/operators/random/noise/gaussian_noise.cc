@@ -23,15 +23,14 @@ DALI_SCHEMA(noise__Gaussian)
 
 The shape and data type of the output will match the input.
 )code")
-    .NumInput(0, 1)
+    .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg<float>("mean",
       R"code(Mean of the distribution.)code",
       0.f, true)
     .AddOptionalArg<float>("stddev",
       R"code(Standard deviation of the distribution.)code",
-      1.f, true)
-    .AddParent("RNGAttr");
+      1.f, true);
 
 DALI_REGISTER_OPERATOR(noise__Gaussian, GaussianNoise<CPUBackend>, CPU);
 
