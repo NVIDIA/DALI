@@ -661,9 +661,13 @@ def check_raises_te(kinds, types, op, shape, _):
 
 # Arithmetic operations between booleans that are not allowed
 bool_disallowed = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
-                   ((lambda x, y: x / y), "/"), ((lambda x, y: x / y), "//")]
+                   ((lambda x, y: x / y), "/"), ((lambda x, y: x / y), "//"),
+                   ((lambda x, y: x ** y), "**")]
 
 def test_bool_disallowed():
+    for kinds in unary_input_kinds:
+        for (op, np_op, op_desc, _) in math_function_operations:
+            yield check_raises_re, kinds, np.bool_, op, shape_small, op_desc
     for kinds in bin_input_kinds:
         for (op, op_desc) in bool_disallowed:
             yield check_raises_re, kinds, (np.bool_, np.bool_), op, shape_small, op_desc

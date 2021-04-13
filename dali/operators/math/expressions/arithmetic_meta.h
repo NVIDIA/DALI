@@ -885,7 +885,7 @@ struct arithm_meta<ArithmeticOp::fdiv, Backend> {
   }
 
   static inline std::string to_string() {
-    return "/";
+    return "//";
   }
 
   static constexpr int num_inputs = 2;
@@ -971,8 +971,8 @@ inline std::string to_string(ArithmeticOp op) {
                 ArithmeticOp::acos, ArithmeticOp::atan, ArithmeticOp::sinh, ArithmeticOp::cosh,
                 ArithmeticOp::tanh, ArithmeticOp::asinh, ArithmeticOp::acosh, ArithmeticOp::atanh,
                 ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div,
-                ArithmeticOp::mod, ArithmeticOp::min, ArithmeticOp::max, ArithmeticOp::pow,
-                ArithmeticOp::fpow, ArithmeticOp::atan2,
+                ArithmeticOp::fdiv, ArithmeticOp::mod, ArithmeticOp::min, ArithmeticOp::max,
+                ArithmeticOp::pow, ArithmeticOp::fpow, ArithmeticOp::atan2,
                 ArithmeticOp::eq, ArithmeticOp::neq, ArithmeticOp::lt, ArithmeticOp::leq,
                 ArithmeticOp::gt, ArithmeticOp::geq,
                 ArithmeticOp::bit_and, ArithmeticOp::bit_or, ArithmeticOp::bit_xor,

@@ -195,31 +195,12 @@ float sinc(float x) {
 /// @brief Calculates power for integer arguments
 template <typename X, typename Y>
 DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<X>::value && std::is_unsigned<Y>::value,
-                  decltype(std::declval<X>() * std::declval<Y>())>
+std::enable_if_t<std::is_integral<X>::value && std::is_integral<Y>::value,
+                  decltype(std::declval<X>() * std::declval<X>())>
 ipow(X x, Y y) {
-  decltype(std::declval<X>() * std::declval<Y>()) acc = 1;
-  decltype(std::declval<X>() * std::declval<Y>()) pow_acc = x;
-  while (y > 0) {
-    if (y & 1) {
-      acc *= pow_acc;
-    }
-    pow_acc *= pow_acc;
-    y = y >> 1;
-  }
-  return acc;
-}
-
-/// @brief Calculates power for integer arguments
-template <typename X, typename Y>
-DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<
-    std::is_integral<X>::value && std::is_integral<Y>::value && std::is_signed<Y>::value,
-    decltype(std::declval<X>() * std::declval<Y>())>
-ipow(X x, Y y) {
-  decltype(std::declval<X>() * std::declval<Y>()) acc = 1;
-  decltype(std::declval<X>() * std::declval<Y>()) pow_acc = x;
-  if (y < 0) {
+  decltype(std::declval<X>() * std::declval<X>()) acc = 1;
+  decltype(std::declval<X>() * std::declval<X>()) pow_acc = x;
+  if (std::is_signed<Y>::value && std::make_signed_t<Y>(y) < 0) {
     return 0;
   }
   while (y > 0) {
@@ -231,7 +212,6 @@ ipow(X x, Y y) {
   }
   return acc;
 }
-
 
 }  // namespace dali
 

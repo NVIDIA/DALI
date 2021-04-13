@@ -281,9 +281,20 @@ DALI_HOST_DEV inline auto math_pow(
 DALI_NO_EXEC_CHECK
 template <typename X, typename Y>
 DALI_HOST_DEV std::enable_if_t<std::is_integral<X>::value && std::is_integral<Y>::value,
-                               decltype(std::declval<X>() * std::declval<Y>())>
+                               decltype(std::declval<X>() * std::declval<X>())>
 math_pow(X x, Y y) {
   return ipow(x, y);
+}
+
+// Template special case
+DALI_NO_EXEC_CHECK
+template <typename X>
+DALI_HOST_DEV std::enable_if_t<std::is_integral<X>::value, X>
+math_pow(X x, bool y) {
+  if (y) {
+    return x;
+  }
+  return 1;
 }
 
 DALI_NO_EXEC_CHECK
