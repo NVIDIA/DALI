@@ -39,7 +39,7 @@ shape_big = [(1024, 1024)] * batch_size
 shape_small = [(42, 3), (4, 16), (8, 2), (1, 64)]
 
 # A number used to test constant inputs
-magic_number = 42
+magic_number = 7
 
 unary_input_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "cpu_scalar_legacy", "gpu_scalar_legacy"]
 
@@ -81,13 +81,68 @@ bench_ternary_input_kinds = [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"),
 
 unary_operations = [((lambda x: +x), "+"), ((lambda x: -x), "-")]
 
-math_function_operations = [((lambda x: math.exp(x)), (lambda x: np.exp(x)), "exp"),
-                            ((lambda x: math.log(x)), (lambda x: np.log(x)), "log")]
 
-sane_operations = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
-                   ((lambda x, y: x * y), "*"),
-                   (((lambda x, y: math.min(x, y)), (lambda x, y: np.minimum(x, y))), "min"),
-                   (((lambda x, y: math.max(x, y)), (lambda x, y: np.maximum(x, y))), "max")]
+def sane_pow(x, y):
+    if np.issubdtype(x.dtype, np.integer) and np.issubdtype(y.dtype, np.integer):
+        # numpy likes to rise errors, we prefer to have integers to negative powers result in 0.
+        return np.where(y >= 0, np.power(x, y, where=y >= 0), 0)
+    else:
+        return np.power(x, y)
+
+# For math functions we used limited ranges to not have too many NaNs or exceptions in the test.
+def pos_range(*types):
+    return [(1, 20) if np.issubdtype(t, np.integer) else (0.5, 20.0) for t in types]
+
+# The range that is supposed to be [-1, 1], but we extend it a bit.
+def one_range(*types):
+    return [(-2, 2) if np.issubdtype(t, np.integer) else (-1.5, 1.5) for t in types]
+
+# Limit the range so we do not end with comparing just the infinities in results.
+def limited_range(*types):
+    return [(-30, 30) for _ in types]
+
+def pow_range(*_):
+    return [(-15, 15), (-4, 4)]
+
+def default_range(*types):
+    return [None for _ in types]
+
+math_function_operations = [
+    ((lambda x: math.sqrt(x)), (lambda x: np.sqrt(x)), "sqrt", pos_range),
+    ((lambda x: math.rsqrt(x)), (lambda x: 1.0 / np.sqrt(x)), "rsqrt", pos_range),
+    ((lambda x: math.cbrt(x)), (lambda x: np.cbrt(x)), "cbrt", default_range),
+    ((lambda x: math.exp(x)), (lambda x: np.exp(x)), "exp", limited_range),
+    ((lambda x: math.log(x)), (lambda x: np.log(x)), "log", pos_range),
+    ((lambda x: math.log2(x)), (lambda x: np.log2(x)), "log2", pos_range),
+    ((lambda x: math.log10(x)), (lambda x: np.log10(x)), "log10", pos_range),
+    ((lambda x: math.fabs(x)), (lambda x: np.fabs(x)), "fabs", default_range),
+    ((lambda x: math.floor(x)), (lambda x: np.floor(x)), "floor", default_range),
+    ((lambda x: math.ceil(x)), (lambda x: np.ceil(x)), "ceil", default_range),
+    ((lambda x: math.sin(x)), (lambda x: np.sin(x)), "sin", default_range),
+    ((lambda x: math.cos(x)), (lambda x: np.cos(x)), "cos", default_range),
+    ((lambda x: math.tan(x)), (lambda x: np.tan(x)), "tan", default_range),
+    ((lambda x: math.asin(x)), (lambda x: np.arcsin(x)), "asin", one_range),
+    ((lambda x: math.acos(x)), (lambda x: np.arccos(x)), "acos", one_range),
+    ((lambda x: math.atan(x)), (lambda x: np.arctan(x)), "atan", default_range),
+    ((lambda x: math.sinh(x)), (lambda x: np.sinh(x)), "sinh", default_range),
+    ((lambda x: math.cosh(x)), (lambda x: np.cosh(x)), "cosh", default_range),
+    ((lambda x: math.tanh(x)), (lambda x: np.tanh(x)), "tanh", default_range),
+    ((lambda x: math.asinh(x)), (lambda x: np.arcsinh(x)), "asinh", limited_range),
+    ((lambda x: math.acosh(x)), (lambda x: np.arccosh(x)), "acosh", pos_range),
+    ((lambda x: math.atanh(x)), (lambda x: np.arctanh(x)), "atanh", one_range)]
+
+
+sane_operations = [((lambda x, y: x + y), "+", default_range),
+                   ((lambda x, y: x - y), "-", default_range),
+                   ((lambda x, y: x * y), "*", default_range),
+                   (((lambda x, y: x ** y), sane_pow), "**", pow_range),
+                   (((lambda x, y: math.pow(x, y)), sane_pow), "pow", pow_range),
+                   (((lambda x, y: math.min(x, y)), (lambda x, y: np.minimum(x, y))), "min", default_range),
+                   (((lambda x, y: math.max(x, y)), (lambda x, y: np.maximum(x, y))), "max", default_range)]
+
+floaty_operations = [(((lambda x, y: x / y), (lambda x, y: x / y)), "/", default_range),
+                     (((lambda x, y: math.fpow(x, y)), sane_pow), "fpow", pow_range),
+                     (((lambda x, y: math.atan2(x, y)), (lambda x, y: np.arctan2(x, y))), "atan2", default_range)]
 
 bitwise_operations = [((lambda x, y: x & y), "&"), ((lambda x, y: x | y), "|"),
                       ((lambda x, y: x ^ y), "^")]
@@ -212,12 +267,14 @@ class ExternalInputIterator(object):
             self.length = 1
         if not disallow_zeros:
             disallow_zeros = (False,) * self.length
+        if limited_range is None:
+            limited_range = (None,) * self.length
         self.batch_size = batch_size
         self.types = types
         self.gens = []
         self.shapes = []
         for i in range(self.length):
-            self.gens += [self.get_generator(self.types[i], disallow_zeros[i], limited_range)]
+            self.gens += [self.get_generator(self.types[i], disallow_zeros[i], limited_range[i])]
             if "scalar" not in kinds[i]:
                 self.shapes += [shape]
             elif "scalar_legacy" in kinds[i]:
@@ -343,13 +400,10 @@ def test_unary_arithmetic_ops():
                 if types_in != np.bool_:
                     yield check_unary_op, kinds, types_in, op, shape_small, op_desc
 
-def check_math_function_op(kind, type, op, np_op, shape, op_desc):
+def check_math_function_op(kind, type, op, np_op, shape, get_range, op_desc):
     is_integer = type not in [np.float16, np.float32, np.float64]
-    if op_desc == "log":
-        limited_range = (1 if is_integer else 0.5, 20)
-    else:
-        limited_range = (-10, 10)
-    iterator = iter(ExternalInputIterator(batch_size, shape, type, kind, limited_range=limited_range))
+    limted_range = get_range(type)
+    iterator = iter(ExternalInputIterator(batch_size, shape, type, kind, limited_range=limted_range))
     pipe = ExprOpPipeline(kind, type, iterator, op, batch_size = batch_size, num_threads = 2,
             device_id = 0)
     pipe.build()
@@ -362,20 +416,20 @@ def check_math_function_op(kind, type, op, np_op, shape, op_desc):
 
 def test_math_function_ops():
     for kinds in unary_input_kinds:
-        for (op, np_op, op_desc) in math_function_operations:
+        for (op, np_op, op_desc, get_range) in math_function_operations:
             for types_in in input_types:
                 if types_in != np.bool_:
-                    yield check_math_function_op, kinds, types_in, op, np_op, shape_small, op_desc
+                    yield check_math_function_op, kinds, types_in, op, np_op, shape_small, get_range, op_desc
 
 # Regular arithmetic ops that can be validated as straight numpy
-def check_arithm_op(kinds, types, op, shape, _):
+def check_arithm_op(kinds, types, op, shape, get_range, op_desc):
     if isinstance(op, tuple):
         dali_op, numpy_op = op
     else:
         dali_op = numpy_op = op
     left_type, right_type = types
     target_type = bin_promote(left_type, right_type)
-    iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
+    iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds, limited_range=get_range(left_type, right_type)))
     pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2,
                           device_id=0)
     pipe.build()
@@ -385,7 +439,7 @@ def check_arithm_op(kinds, types, op, shape, _):
         assert_equals(out.dtype, target_type)
         if 'f' in np.dtype(target_type).kind:
             np.testing.assert_allclose(out, numpy_op(l_np, r_np),
-                rtol=1e-07 if target_type != np.float16 else 0.005)
+                rtol=1e-06 if target_type != np.float16 else 0.005)
         else:
             np.testing.assert_array_equal(out, numpy_op(l_np, r_np))
 
@@ -412,24 +466,24 @@ def check_ternary_op(kinds, types, op, shape, _):
 
 def test_arithmetic_ops_big():
     for kinds in bin_input_kinds:
-        for (op, op_desc) in sane_operations:
+        for (op, op_desc, get_range) in sane_operations:
             for types_in in [(np.int8, np.int8)]:
-                yield check_arithm_op, kinds, types_in, op, shape_big, op_desc
+                yield check_arithm_op, kinds, types_in, op, shape_big, get_range, op_desc
 
 def test_arithmetic_ops_selected():
     for kinds in selected_bin_input_kinds:
-        for (op, op_desc) in sane_operations:
+        for (op, op_desc, get_range) in sane_operations:
             for types_in in itertools.product(selected_input_types, selected_input_types):
                 if types_in != (np.bool_, np.bool_) or op_desc == "*":
-                    yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
+                    yield check_arithm_op, kinds, types_in, op, shape_small, get_range, op_desc
 
 @attr('slow')
 def test_arithmetic_ops():
     for kinds in bin_input_kinds:
-        for (op, op_desc) in sane_operations:
+        for (op, op_desc, get_range) in sane_operations:
             for types_in in itertools.product(input_types, input_types):
                 if types_in != (np.bool_, np.bool_) or op_desc == "*":
-                    yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
+                    yield check_arithm_op, kinds, types_in, op, shape_small, get_range, op_desc
 
 def test_ternary_ops_big():
     for kinds in selected_ternary_input_kinds:
@@ -466,7 +520,7 @@ def test_bitwise_ops_selected():
         for (op, op_desc) in bitwise_operations:
             for types_in in itertools.product(selected_input_types, selected_input_types):
                 if types_in[0] in integer_types and types_in[1] in integer_types:
-                    yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
+                    yield check_arithm_op, kinds, types_in, op, shape_small, default_range, op_desc
 
 @attr('slow')
 def test_bitwise_ops():
@@ -474,7 +528,7 @@ def test_bitwise_ops():
         for (op, op_desc) in bitwise_operations:
             for types_in in itertools.product(input_types, input_types):
                 if types_in[0] in integer_types and types_in[1] in integer_types:
-                    yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
+                    yield check_arithm_op, kinds, types_in, op, shape_small, default_range, op_desc
 
 # Comparisons - should always return bool
 def check_comparsion_op(kinds, types, op, shape, _):
@@ -504,37 +558,44 @@ def test_comparison_ops():
                 yield check_comparsion_op, kinds, types_in, op, shape_small, op_desc
 
 # The div operator that always returns floating point values
-def check_arithm_fdiv(kinds, types, shape):
+def check_arithm_binary_float(kinds, types, op, shape, get_range, _):
+    if isinstance(op, tuple):
+        dali_op, numpy_op = op
+    else:
+        dali_op = numpy_op = op
     left_type, right_type = types
     target_type = div_promote(left_type, right_type)
-    iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds, (False, True)))
-    pipe = ExprOpPipeline(kinds, types, iterator, (lambda x, y : x / y), batch_size = batch_size,
+    iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds, (False, True), limited_range=get_range(left_type, right_type)))
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size = batch_size,
             num_threads = 2, device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
-        np.testing.assert_allclose(out, l_np / r_np,
-            rtol=1e-07 if target_type != np.float16 else 0.005, err_msg="{} op\n{} =\n{}".format(l_np, r_np, out))
+        np.testing.assert_allclose(out, numpy_op(l_np, r_np),
+            rtol=1e-06 if target_type != np.float16 else 0.005, err_msg="{} op\n{} =\n{}".format(l_np, r_np, out))
 
-def test_arithmetic_float_big():
+def test_arithmetic_binary_float_big():
     for kinds in bin_input_kinds:
         for types_in in [(np.int8, np.int8)]:
-            yield check_arithm_fdiv, kinds, types_in, shape_big
+            for (op, op_desc, get_range) in floaty_operations:
+                yield check_arithm_binary_float, kinds, types_in, op, shape_big, get_range, op_desc
 
-def test_arithmetic_float_division_selected():
+def test_arithmetic_binary_float_selected():
     for kinds in selected_bin_input_kinds:
         for types_in in itertools.product(selected_input_types, selected_input_types):
-            if types_in != (np.bool_, np.bool_):
-                yield check_arithm_fdiv, kinds, types_in, shape_small
+            for (op, op_desc, get_range) in floaty_operations:
+                if types_in != (np.bool_, np.bool_):
+                    yield check_arithm_binary_float, kinds, types_in, op, shape_small, get_range, op_desc
 
 @attr('slow')
-def test_arithmetic_float_division():
+def test_arithmetic_binary_float():
     for kinds in bin_input_kinds:
         for types_in in itertools.product(input_types, input_types):
-            if types_in != (np.bool_, np.bool_):
-                yield check_arithm_fdiv, kinds, types_in, shape_small
+            for (op, op_desc, get_range) in floaty_operations:
+                if types_in != (np.bool_, np.bool_):
+                    yield check_arithm_binary_float, kinds, types_in, op, shape_small, get_range, op_desc
 
 # The div operator behaves like C/C++ one
 def check_arithm_div(kinds, types, shape):
@@ -600,9 +661,13 @@ def check_raises_te(kinds, types, op, shape, _):
 
 # Arithmetic operations between booleans that are not allowed
 bool_disallowed = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
-                   ((lambda x, y: x / y), "/"), ((lambda x, y: x / y), "//")]
+                   ((lambda x, y: x / y), "/"), ((lambda x, y: x / y), "//"),
+                   ((lambda x, y: x ** y), "**")]
 
 def test_bool_disallowed():
+    for kinds in unary_input_kinds:
+        for (op, np_op, op_desc, _) in math_function_operations:
+            yield check_raises_re, kinds, np.bool_, op, shape_small, op_desc
     for kinds in bin_input_kinds:
         for (op, op_desc) in bool_disallowed:
             yield check_raises_re, kinds, (np.bool_, np.bool_), op, shape_small, op_desc

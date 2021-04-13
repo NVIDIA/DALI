@@ -59,6 +59,11 @@ class DataNode(object):
     def __rmul__(self, other):
         return _arithm_op("mul", other, self)
 
+    def __pow__(self, other):
+        return _arithm_op("pow", self, other)
+    def __rpow__(self, other):
+        return _arithm_op("pow", other, self)
+
     def __truediv__(self, other):
         return _arithm_op("fdiv", self, other)
     def __rtruediv__(self, other):
