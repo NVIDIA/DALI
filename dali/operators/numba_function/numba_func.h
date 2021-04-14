@@ -43,8 +43,9 @@ class NumbaFuncImpl : public Operator<Backend> {
   SmallVector<int, 6> in_types_;
   SmallVector<int, 6> outs_ndim_;
   SmallVector<int, 6> ins_ndim_;
-  std::vector<int64_t*> output_shapes_;
-  std::vector<int64_t*> input_shapes_;
+  std::vector<int64_t> output_shapes_;
+  std::vector<int64_t> input_shapes_;
+  vector<TensorListShape<-1>> in_shapes_;
 };
 
 }  // namespace dali

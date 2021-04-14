@@ -7,18 +7,6 @@ import numpy as np
 import numba as nb
 import ctypes
 
-@njit
-def _get_shape_view(shapes_ptr, ndims_ptr, num_dims, num_samples):
-    ndims = carray(ndims_ptr, num_dims)
-    samples = carray(shapes_ptr, (num_dims, num_samples))
-    l = []
-    for sample, size in zip(samples, ndims):
-        d = []
-        for shape_ptr in sample:
-            d.append(carray(shape_ptr, size))
-        l.append(d)
-    return l
-
 @nb.extending.intrinsic
 def address_as_void_pointer(typingctx, src):
     from numba.core import types, cgutils
@@ -27,6 +15,19 @@ def address_as_void_pointer(typingctx, src):
     def codegen(cgctx, builder, sig, args):
         return builder.inttoptr(args[0], cgutils.voidptr_t)
     return sig, codegen
+
+@njit
+def _get_shape_view(test, shapes_ptr, ndims_ptr, num_dims, num_samples):
+    ndims = carray(address_as_void_pointer(ndims_ptr), num_dims, dtype=np.int32)
+    samples = carray(address_as_void_pointer(shapes_ptr), (num_dims, num_samples), dtype=np.uint64)
+    test[0] = samples[0][0]
+    l = []
+    for sample, size in zip(samples, ndims):
+        d = []
+        for shape_ptr in sample:
+            d.append(carray(address_as_void_pointer(test[0]), size, dtype=np.int64))
+        l.append(d)
+    return l
 
 class NumbaFunc(ops.NumbaFunctionBase):
     ops.register_cpu_op('NumbaFunc')
@@ -42,15 +43,16 @@ class NumbaFunc(ops.NumbaFunctionBase):
     def _run_fn_sig(self):
         sig_types = []
         sig_types.append(numba_types.CPointer(numba_types.int64))
-        sig_types.append(numba_types.CPointer(numba_types.int64))
-        sig_types.append(numba_types.CPointer(numba_types.CPointer(numba_types.int64)))
-        sig_types.append(numba_types.CPointer(numba_types.int64))
+        sig_types.append(numba_types.int64)
+        sig_types.append(numba_types.int64)
+        sig_types.append(numba_types.int64)
+        sig_types.append(numba_types.int64)
         sig_types.append(numba_types.int32)
 
-        sig_types.append(numba_types.CPointer(numba_types.int64))
-        sig_types.append(numba_types.CPointer(numba_types.int64))
-        sig_types.append(numba_types.CPointer(numba_types.CPointer(numba_types.int64)))
-        sig_types.append(numba_types.CPointer(numba_types.int64))
+        sig_types.append(numba_types.int64)
+        sig_types.append(numba_types.int32)
+        sig_types.append(numba_types.int64)
+        sig_types.append(numba_types.int64)
         sig_types.append(numba_types.int32)
 
         sig_types.append(numba_types.int32)
@@ -87,9 +89,13 @@ class NumbaFunc(ops.NumbaFunctionBase):
         in0_get_carray = self._get_carray_eval_lambda(in_types[0], ins_ndim[0])
         run_fn = njit(run_fn)
         @cfunc(self._run_fn_sig(), nopython=True)
-        def run_cfunc(out_ptr, out_types_ptr, out_shapes_ptr, out_ndims_ptr, num_outs, in_ptr, in_types_ptr, in_shapes_ptr, in_ndims_ptr, num_ins, num_samples):
+        def run_cfunc(test, out_ptr, out_types_ptr, out_shapes_ptr, out_ndims_ptr, num_outs, in_ptr, in_types_ptr, in_shapes_ptr, in_ndims_ptr, num_ins, num_samples):
             out0 = out1 = out2 = out3 = out4 = out5 = None
-            out_shapes_np = _get_shape_view(out_shapes_ptr, out_ndims_ptr, num_outs, num_samples)
+            testc = carray(test, 1)
+            s = carray(address_as_void_pointer(out_shapes_ptr), 1, dtype=np.uint64)
+            testc[0] = s[0]
+            return
+            out_shapes_np = _get_shape_view(testc, out_shapes_ptr, out_ndims_ptr, num_outs, num_samples)
             out_types = carray(out_types_ptr, num_outs)
             out_arr = carray(out_ptr, (num_outs, num_samples))
             out0 = out0_get_carray(address_as_void_pointer(out_arr[0][0]), out_shapes_np[0][0])
@@ -105,7 +111,7 @@ class NumbaFunc(ops.NumbaFunctionBase):
         super(NumbaFunc, self).__init__(impl_name="NumbaFuncImpl",
                                                 setup_fn=setup_fn_address, run_fn=run_cfunc.address,
                                                 out_types=out_types, in_types=in_types, outs_ndim=outs_ndim,
-                                                device=device, batch_processing=batch_processing, **kwargs)
+                                                device=device, **kwargs)
 
 @njit
 def invoke_run_fn(run_fn, out0, out1, out2, out3, out4, out5, in0, in1, in2, in3, in4, in5, num_ins, num_outs):

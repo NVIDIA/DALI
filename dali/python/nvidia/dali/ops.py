@@ -1287,6 +1287,7 @@ class NumbaFunctionBase(metaclass=_DaliOperatorMeta):
         self.out_types = out_types 
         self.in_types = in_types 
         self.outs_ndim = outs_ndim 
+        self.num_outputs = len(out_types)
         self._preserve = True
 
     @property
@@ -1330,6 +1331,25 @@ class NumbaFunctionBase(metaclass=_DaliOperatorMeta):
         op_instance.spec.AddArg("out_types", self.out_types)
         op_instance.spec.AddArg("in_types", self.in_types)
         op_instance.spec.AddArg("device", self.device)
+
+        if self.num_outputs == 0:
+            t_name = self._impl_name + "_id_" + str(op_instance.id) + "_sink"
+            t = _DataNode(t_name, self._device, op_instance)
+            pipeline.add_sink(t)
+            return
+        outputs = []
+
+
+        for i in range(self.num_outputs):
+            t_name = op_instance._name
+            if self.num_outputs > 1:
+                t_name += "[{}]".format(i)
+            t = _DataNode(t_name, self._device, op_instance)
+            op_instance.spec.AddOutput(t.name, t.device)
+            op_instance.append_output(t)
+            pipeline.add_sink(t)
+            outputs.append(t)
+        return outputs[0] if len(outputs) == 1 else outputs
 
 _cpu_ops = _cpu_ops.union({"Compose"})
 _gpu_ops = _gpu_ops.union({"Compose"})

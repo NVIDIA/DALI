@@ -19,7 +19,8 @@ namespace dali {
 
 DALI_SCHEMA(NumbaFunc)
   .DocStr(R"code()code")
-  .NumInput(1, 256)
+  .NumInput(1, 6)
+  .OutputFn([](const OpSpec &spec) { return spec.GetRepeatedArgument<int>("out_types").size(); })
   .AllowSequences()
   .Unserializable()
   .AddArg("run_fn", R"code()code", DALI_INT64)
@@ -96,7 +97,8 @@ The run function works on a per-sample basis, so we only need to handle one samp
 Notice that we are passing ``int32`` as the output data type, which we set in the setup function body.
 
 )code")
-  .NumInput(1, 256)
+  .NumInput(1, 6)
+  .OutputFn([](const OpSpec &spec) { return spec.GetRepeatedArgument<int>("out_types").size(); })
   .Unserializable()
   .AddParent("NumbaFunc");
 
@@ -112,6 +114,7 @@ NumbaFuncImpl<Backend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
 
   outs_ndim_ = spec.GetRepeatedArgument<int>("outs_ndim");
   if (!setup_fn_) {
+    DALI_ENFORCE(!spec.HasArgument("outs_ndim"), "");
     DALI_ENFORCE(out_types_.size() == in_types_.size(), "");
   } else {
     DALI_ENFORCE(outs_ndim_.size() == out_types_.size(), "");
@@ -124,36 +127,41 @@ template <>
 bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     const workspace_t<CPUBackend> &ws) {
   output_desc.resize(out_types_.size());
+  cout << make_string("setup :: ", out_types_.size(), " ", in_types_.size()) << endl;
+  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+    in_shapes_.push_back(ws.InputRef<CPUBackend>(in_id).shape());
+    ins_ndim_[in_id] = in_shapes_[in_id].size();
+    cout << "ES " << ins_ndim_[in_id] << " " << endl;
+  }
+  auto N = in_shapes_[0].num_samples();
+  input_shapes_.resize(N * in_types_.size());
+  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+    for (int i = 0; i < N; i++) {
+      input_shapes_[in_types_.size() * in_id + i] = (int64_t)in_shapes_[in_id].tensor_shape_span(i).data();
+      cout << "WPISUJE DO " << in_types_.size() * in_id + i << " " << (int64_t)input_shapes_.back() << endl;
+    }
+  }
 
   if (!setup_fn_) {
+    outs_ndim_.resize(out_types_.size());
     for (size_t i = 0; i < out_types_.size(); i++) {
       const auto &in = ws.InputRef<CPUBackend>(i);
       output_desc[i] = {in.shape(), in.type()};
+      outs_ndim_[i] = in.shape().tensor_shape_span(0).size();
     }
+    output_shapes_ = input_shapes_;
     return true;
   }
 
-  vector<TensorListShape<-1>> in_shapes;
-  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-    in_shapes.push_back(ws.InputRef<CPUBackend>(in_id).shape());
-    ins_ndim_[in_id] = in_shapes[in_id].size();
-  }
-  auto N = in_shapes[0].num_samples();
   for (size_t i = 0; i < out_types_.size(); i++) {
     output_desc[i].shape.resize(N, outs_ndim_[i]);
     output_desc[i].type = dali::TypeTable::GetTypeInfo(static_cast<DALIDataType>(out_types_[i]));
   }
 
   output_shapes_.resize(N * out_types_.size());
-  input_shapes_.resize(N * in_types_.size());
   for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
     for (int i = 0; i < N; i++) {
-      output_shapes_[out_types_.size() * out_id + i] = output_desc[out_id].shape.tensor_shape_span(i).data();
-    }
-  }
-  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-    for (int i = 0; i < N; i++) {
-      input_shapes_[in_types_.size() * in_id + i] = in_shapes[in_id].tensor_shape_span(i).data();
+      output_shapes_[out_types_.size() * out_id + i] = (int64_t)output_desc[out_id].shape.tensor_shape_span(i).data();
     }
   }
 
@@ -167,31 +175,36 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 template <>
 void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+  cout << "RUN" << endl;
   auto N = ws.InputRef<CPUBackend>(0).shape().num_samples();
 
-  std::vector<void*> out_ptrs;
-  std::vector<const void*> in_ptrs;
+  std::vector<int64_t> out_ptrs;
+  std::vector<int64_t> in_ptrs;
   out_ptrs.resize(N * out_types_.size());
   in_ptrs.resize(N * in_types_.size());
   for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
     auto& out = ws.OutputRef<CPUBackend>(out_id);
     for (int i = 0; i < N; i++) {
-      out_ptrs[out_types_.size() * out_id + i] = out[i].raw_mutable_data();
+      out_ptrs[out_types_.size() * out_id + i] = reinterpret_cast<int64_t>(out[i].raw_mutable_data());
     }
   }
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-    const auto &in = ws.InputRef<CPUBackend>(in_id);
+    auto& in = ws.InputRef<CPUBackend>(in_id);
     for (int i = 0; i < N; i++) {
-      in_ptrs[in_types_.size() * in_id + i] = in[i].raw_data();
+      in_ptrs[in_types_.size() * in_id + i] = reinterpret_cast<int64_t>(in[i].raw_mutable_data());
     }
   }
   
-  ((void (*)(void*, const void*, const void*, const void*, int32_t,
+  int64_t test = output_shapes_[0];
+  cout << "WYSWIETL :: " << (int64_t)output_shapes_[0] << " " << output_shapes_.size() << " " << outs_ndim_[0] << " " << outs_ndim_.size() << " " << endl;
+  ((void (*)(void*, void*, const void*, const void*, const void*, int32_t,
     const void*, const void*, const void*, const void*, int32_t, int32_t))run_fn_)(
-      &out_ptrs, &out_types_, &output_shapes_, &outs_ndim_, outs_ndim_.size(),
+      &test, &out_ptrs, &out_types_, &output_shapes_, &outs_ndim_, outs_ndim_.size(),
       &in_ptrs, &in_types_, &input_shapes_, &ins_ndim_, ins_ndim_.size(), N);
+  cout << "WYSWIETL :: " << " " << (int64_t)output_shapes_[0] << " " << (int64_t)&output_shapes_ << " " << test << endl;
 }
 
 DALI_REGISTER_OPERATOR(NumbaFuncImpl, NumbaFuncImpl<CPUBackend>, CPU);
 
 }  // namespace dali
+
