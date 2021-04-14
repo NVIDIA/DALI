@@ -34,7 +34,7 @@ struct BlockDesc;
 template <>
 struct BlockDesc<false> {
   int sample_idx;
-  void* start;
+  void* output;
   size_t size;
 };
 
@@ -126,7 +126,7 @@ int64_t SetupBlockDescs(BlockDesc<false> *blocks, int64_t block_sz, int64_t max_
     int64_t offset = 0;
     for (int b = 0; b < blocks_per_sample[s]; ++b, ++block) {
       blocks[block].sample_idx = s;
-      blocks[block].start = sample_data + offset;
+      blocks[block].output = sample_data + offset;
       blocks[block].size = std::min(work_per_block, sample_size - offset);
       offset += blocks[block].size;
     }

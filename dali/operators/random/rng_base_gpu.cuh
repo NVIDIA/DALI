@@ -44,9 +44,9 @@ template <typename T, typename Dist>
 __device__ __inline__ void Generate(BlockDesc<false> desc,
                                     Dist& dist,
                                     curandState* __restrict__ rng) {
-  auto start = static_cast<T*>(desc.start);
-  auto block_end = start + desc.size;
-  for (auto out = start + threadIdx.x; out < block_end; out += blockDim.x) {
+  auto block_start = static_cast<T*>(desc.output);
+  auto block_end = block_start + desc.size;
+  for (auto out = block_start + threadIdx.x; out < block_end; out += blockDim.x) {
     *out = ConvertSat<T>(dist(rng));
   }
 }
