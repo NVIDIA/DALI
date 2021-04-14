@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TENSORFLOW_TFALLOCATOR_H_
-#define DALI_TENSORFLOW_TFALLOCATOR_H_
+#ifndef DALI_TF_PLUGIN_TFALLOCATOR_H_
+#define DALI_TF_PLUGIN_TFALLOCATOR_H_
 
 #include <cstdint>
 #include <memory>
@@ -130,4 +130,4 @@ void UpdateTFAllocaterContext(Ctx* context, int device_id) {
   CUDA_CALL(cudaSetDevice(dev));
 }
 
-#endif  // DALI_TENSORFLOW_TFALLOCATOR_H_
+#endif  // DALI_TF_PLUGIN_TFALLOCATOR_H_

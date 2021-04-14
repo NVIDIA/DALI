@@ -81,6 +81,8 @@ def gen_cmd(dali_root_dir, file_list, process_includes=False):
     """
     Command for calling cpplint.py
     """
+    if not file_list:
+        return ["true"]
     cmd = ["python",
            os.path.join(dali_root_dir, "third_party", "cpplint.py"),
            "--quiet",
@@ -125,13 +127,20 @@ def main(dali_root_dir, n_subproc=1, file_list=None):
         os.path.join(dali_root_dir, "include"),
         ["*.h", "*.cuh", "*.inc", "*.inl"] if file_list is None else file_list,
         negative_filters)
+    tf_plugin_files = gather_files(
+        os.path.join(dali_root_dir, "dali_tf_plugin"),
+        ["*.cc", "*.h", "*.cu", "*.cuh"] if file_list is None else file_list,
+        negative_filters)
 
     cc_code = lint(dali_root_dir=dali_root_dir, file_list=cc_files, process_includes=False,
                    n_subproc=n_subproc)
     inc_code = lint(dali_root_dir=dali_root_dir, file_list=inc_files, process_includes=True,
                     n_subproc=n_subproc)
 
-    if cc_code != 0 or inc_code != 0:
+    tf_plugin_code = lint(dali_root_dir=dali_root_dir, file_list=tf_plugin_files,
+                          process_includes=False, n_subproc=n_subproc)
+
+    if cc_code != 0 or inc_code != 0 or tf_plugin_code != 0:
         sys.exit(1)
     sys.exit(0)
 
