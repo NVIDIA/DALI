@@ -115,8 +115,18 @@ inline bool IsColor(DALIImageType type) {
   return type == DALI_RGB || type == DALI_BGR || type == DALI_YCbCr;
 }
 
-inline int NumberOfChannels(DALIImageType type) {
-  return IsColor(type) ? 3 : 1;
+inline int NumberOfChannels(DALIImageType type, int orig_nchannels = -1) {
+  switch (type) {
+    case DALI_GRAY:
+      return 1;
+    case DALI_RGB:
+    case DALI_BGR:
+    case DALI_YCbCr:
+      return 3;
+    case DALI_ANY_DATA:
+    default:
+      return orig_nchannels;
+  }
 }
 
 // Helper to delete copy constructor & copy-assignment operator

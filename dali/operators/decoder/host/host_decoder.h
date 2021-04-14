@@ -29,7 +29,6 @@ class HostDecoder : public Operator<CPUBackend> {
   explicit inline HostDecoder(const OpSpec &spec) :
       Operator<CPUBackend>(spec),
       output_type_(spec.GetArgument<DALIImageType>("output_type")),
-      c_(IsColor(output_type_) ? 3 : 1),
       use_fast_idct_(spec.GetArgument<bool>("use_fast_idct"))
   {}
 
@@ -48,7 +47,6 @@ class HostDecoder : public Operator<CPUBackend> {
   }
 
   DALIImageType output_type_;
-  int c_;
   bool use_fast_idct_ = false;
 };
 

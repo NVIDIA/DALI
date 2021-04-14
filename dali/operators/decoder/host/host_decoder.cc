@@ -42,6 +42,11 @@ void HostDecoder::RunImpl(SampleWorkspace &ws) {
   }
   const auto decoded = img->GetImage();
   const auto shape = img->GetShape();
+  auto expected_shape = img->PeekShape();
+  expected_shape[2] = NumberOfChannels(output_type_, expected_shape[2]);
+  DALI_ENFORCE(shape == expected_shape,
+               make_string("The shape of the decoded image is different than expected. Expected ",
+                           expected_shape, " but got ", shape));
   output.Resize(shape);
   output.SetLayout("HWC");
   unsigned char *out_data = output.mutable_data<unsigned char>();

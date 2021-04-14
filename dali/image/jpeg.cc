@@ -65,7 +65,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
   const auto w = shape[1];
   if (type == DALI_ANY_DATA)
     type = shape[2] == 1 ? DALI_GRAY : DALI_RGB;
-  const auto c = IsColor(type) ? 3 : 1;
+  const auto c = NumberOfChannels(type);
 
   DALI_ENFORCE(jpeg != nullptr);
   DALI_ENFORCE(length > 0);

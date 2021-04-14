@@ -26,16 +26,20 @@ std::pair<std::shared_ptr<uint8_t>, Image::Shape>
 GenericImage::DecodeImpl(DALIImageType image_type,
                          const uint8_t *encoded_buffer,
                          size_t length) const {
+  auto shape = PeekShapeImpl(encoded_buffer, length);
+  int C = NumberOfChannels(image_type, shape[2]);
+  int flags = 0;
   if (image_type == DALI_ANY_DATA) {
-    auto shape = PeekShapeImpl(encoded_buffer, length);
-    image_type = shape[2] == 1 ? DALI_GRAY : DALI_RGB;
+    flags = cv::IMREAD_UNCHANGED;
+  } else if (IsColor(image_type)) {
+    flags = cv::IMREAD_COLOR;
+  } else {
+    flags = cv::IMREAD_GRAYSCALE;
   }
-  const auto C = IsColor(image_type) ? 3 : 1;
 
   // Decode image to tmp cv::Mat
   cv::Mat decoded_image = cv::imdecode(
-    cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),  //NOLINT
-    IsColor(image_type) ? cv::IMREAD_COLOR : cv::IMREAD_GRAYSCALE | cv::IMREAD_IGNORE_ORIENTATION);
+    cv::Mat(1, length, CV_8UC1, const_cast<unsigned char*>(encoded_buffer)), flags);
 
   int W = decoded_image.cols;
   int H = decoded_image.rows;

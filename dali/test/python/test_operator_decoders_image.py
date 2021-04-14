@@ -182,6 +182,33 @@ def decoder_pipe(decoder_op, file_root, device, use_fast_idct):
                          seed=42)
     return decoded
 
+
+def test_image_decoder_tiff_with_alpha_16bit():
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(device, out_type, files):
+        encoded, _ = fn.readers.file(files=files)
+        decoded = fn.decoders.image(encoded, device=device, output_type=out_type)
+        peeked_shape = fn.peek_image_shape(encoded)
+        return decoded, peeked_shape
+
+    def _testimpl(device, out_type):
+        files = get_img_files(os.path.join(test_data_root, "db/single/multichannel/with_alpha_16bit"), ext='tif', subdir='')
+        pipe0 = pipe(device, out_type=out_type, files=files)
+        pipe0.build()
+        out0, shape0 = pipe0.run()
+        if device == 'mixed':
+            out0 = out0.as_cpu()
+        out0 = np.array(out0[0])
+        shape0 = np.array(shape0[0])
+        print(out0.shape)
+        expected_channels = shape0[2] if out_type == types.ANY_DATA else 1 if out_type == types.GRAY else 3
+        assert out0.shape[2] == expected_channels, \
+            f"Expected {expected_channels} but got {out0.shape[2]}"
+        assert shape0[2] == 4
+    for device in ['cpu', 'mixed']:
+        for out_type in [types.RGB, types.BGR, types.YCbCr, types.ANY_DATA]:
+            yield _testimpl, device, out_type
+
 def check_image_decoder_alias(new_op, old_op, file_root, device, use_fast_idct):
     new_pipe = decoder_pipe(new_op, file_root, device, use_fast_idct)
     legacy_pipe = decoder_pipe(old_op, file_root, device, use_fast_idct)

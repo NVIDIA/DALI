@@ -463,11 +463,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                   height, ", ", width, "}"));
       }
       data.shape = {height, width, image_info.num_components};
-      if (output_image_type_ == DALI_ANY_DATA) {
-        data.req_nchannels = data.shape[2] == 1 ? 1 : 3;
-      } else {
-        data.req_nchannels = NumberOfChannels(output_image_type_);
-      }
+      data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
       data.method = DecodeMethod::Nvjpeg2k;
       samples_jpeg2k_.push_back(&data);
       return true;
@@ -533,10 +529,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
         data.shape = {heights[0], widths[0], c};
         data.subsampling = subsampling;
-        // Limiting to 3 channels, when the image type is not ANY_DATA
-        // to be consistent with what we do with OpenCV.
-        data.req_nchannels =
-            output_image_type_ != DALI_ANY_DATA ? NumberOfChannels(output_image_type_) : 3;
+        data.req_nchannels = NumberOfChannels(output_image_type_, c);
         if (hw_decode) {
           data.method = DecodeMethod::NvjpegHw;
           samples_hw_batched_.push_back(&data);
@@ -549,8 +542,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           data.method = DecodeMethod::Host;
           auto image = ImageFactory::CreateImage(input_data, in_size, output_image_type_);
           data.shape = image->PeekShape();
-          data.req_nchannels = output_image_type_ != DALI_ANY_DATA ?
-              NumberOfChannels(output_image_type_) : data.shape[2];
+          data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
           samples_host_.push_back(&data);
         } catch (const std::runtime_error &e) {
           DALI_FAIL(e.what() + ". File: " + data.file_name);
@@ -864,7 +856,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                            nvjpeg_parse_error_code(ret), " ", file_name);
         DALI_WARN(warning_msg);
         HostFallback<StorageGPU>(input_data, in_size, output_image_type_, output_data,
-                                stream, file_name, data.roi, use_fast_idct_);
+                                 stream, file_name, data.roi, use_fast_idct_);
         return;
       }
       CUDA_CALL(cudaEventRecord(decode_events_[thread_id], stream));

@@ -86,15 +86,16 @@ inline nvjpegJpegState_t GetNvjpegState(const StateNvJPEG& state) {
 
 inline nvjpegOutputFormat_t GetFormat(DALIImageType type) {
   switch (type) {
-    case DALI_ANY_DATA:  // doesn't matter (will fallback to host decoder)
     case DALI_RGB:
       return NVJPEG_OUTPUT_RGBI;
     case DALI_BGR:
       return NVJPEG_OUTPUT_BGRI;
     case DALI_GRAY:
       return NVJPEG_OUTPUT_Y;
+    case DALI_ANY_DATA:
+    case DALI_YCbCr:
     default:
-      DALI_FAIL("Unknown output format");
+      return NVJPEG_OUTPUT_FORMAT_MAX;  // doesn't matter (will fallback to host decoder)
   }
 }
 
@@ -166,8 +167,12 @@ void HostFallback(const uint8_t *data, int size, DALIImageType image_type, uint8
   }
   const auto decoded = img->GetImage();
   const auto shape = img->GetShape();
-  kernels::copy<StorageType, StorageCPU>(
-    output_buffer, decoded.get(), volume(shape), stream);
+  auto expected_shape = img->PeekShape();
+  expected_shape[2] = NumberOfChannels(image_type, expected_shape[2]);
+  DALI_ENFORCE(shape == expected_shape,
+               make_string("The shape of the decoded image is different than expected. Expected ",
+                           expected_shape, " but got ", shape));
+  kernels::copy<StorageType, StorageCPU>(output_buffer, decoded.get(), volume(shape), stream);
 }
 
 }  // namespace dali
