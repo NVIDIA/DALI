@@ -221,21 +221,22 @@ def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps=1e-07, max_all
 
 
 class RandomDataIterator(object):
-    def __init__(self, batch_size, shape=(10, 600, 800, 3), dtype=None):
+    def __init__(self, batch_size, shape=(10, 600, 800, 3), dtype=None, seed=0):
         import_numpy()
         # to avoid any numpy reference in the interface
         if dtype is None:
             dtype = np.uint8
         self.batch_size = batch_size
         self.test_data = []
+        self.np_rng = np.random.default_rng(seed=seed)
         for _ in range(self.batch_size):
             np.random.seed(0)
             if dtype == np.float32:
                 self.test_data.append(
-                    np.array(np.random.rand(*shape) * (1.0), dtype=dtype) - 0.5)
+                    np.array(self.np_rng.rand(*shape) * (1.0), dtype=dtype) - 0.5)
             else:
                 self.test_data.append(
-                    np.array(np.random.rand(*shape) * 255, dtype=dtype))
+                    np.array(self.np_rng.rand(*shape) * 255, dtype=dtype))
 
     def __iter__(self):
         self.i = 0
@@ -264,6 +265,8 @@ class RandomlyShapedDataIterator(object):
         self.max_shape = max_shape
         self.dtype = dtype
         self.seed = seed
+        self.np_rng = np.random.default_rng(seed=seed)
+        self.rng = random.Random(seed)
 
     def __iter__(self):
         self.i = 0
@@ -272,28 +275,25 @@ class RandomlyShapedDataIterator(object):
 
     def __next__(self):
         import_numpy()
-        np.random.seed(self.seed)
-        random.seed(self.seed)
         self.test_data = []
         for _ in range(self.batch_size):
             # Scale between 0.5 and 1.0
             if self.min_shape is None:
                 shape = [
-                    int(self.max_shape[dim] * (0.5 + random.random() * 0.5))
+                    int(self.max_shape[dim] * (0.5 + self.rng.random() * 0.5))
                     for dim in range(len(self.max_shape))]
             else:
-                shape = [random.randint(min_s, max_s)
+                shape = [self.rng.randint(min_s, max_s)
                          for min_s, max_s in zip(self.min_shape, self.max_shape)]
             if self.dtype == np.float32:
                 self.test_data.append(
-                    np.array(np.random.rand(*shape) * (1.0), dtype=self.dtype) - 0.5)
+                    np.array(self.np_rng.random(shape) * (1.0), dtype=self.dtype) - 0.5)
             else:
                 self.test_data.append(
-                    np.array(np.random.rand(*shape) * 255, dtype=self.dtype))
+                    np.array(self.np_rng.random(shape) * 255, dtype=self.dtype))
 
         batch = self.test_data
         self.i = (self.i + 1) % self.n
-        self.seed = self.seed + 12345678
         return (batch)
 
     next = __next__

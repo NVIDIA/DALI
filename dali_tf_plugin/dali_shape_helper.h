@@ -72,6 +72,39 @@ static tensorflow::DataType DaliToTfType(dali_data_type_t dali_type) {
 }
 
 
+static dali_data_type_t TfToDaliType(tensorflow::DataType tf_type) {
+  switch (tf_type) {
+    case tensorflow::DT_UINT8:
+      return DALI_UINT8;
+    case tensorflow::DT_UINT16:
+      return DALI_UINT16;
+    case tensorflow::DT_UINT32:
+      return DALI_UINT32;
+    case tensorflow::DT_UINT64:
+      return DALI_UINT64;
+    case tensorflow::DT_INT8:
+      return DALI_INT8;
+    case tensorflow::DT_INT16:
+      return DALI_INT16;
+    case tensorflow::DT_INT32:
+      return DALI_INT32;
+    case tensorflow::DT_INT64:
+      return DALI_INT64;
+    case tensorflow::DT_HALF:
+      return DALI_FLOAT16;
+    case tensorflow::DT_FLOAT:
+      return DALI_FLOAT;
+    case tensorflow::DT_DOUBLE:
+      return DALI_FLOAT64;
+    case tensorflow::DT_BOOL:
+      return DALI_BOOL;
+    default:
+      return DALI_NO_TYPE;
+  }
+}
+
+
+
 }  // namespace dali_tf_impl
 
 

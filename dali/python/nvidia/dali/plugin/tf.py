@@ -164,13 +164,20 @@ if dataset_compatible_tensorflow():
 
         return options
 
-    class _DALIDatasetV2(dataset_ops.DatasetSource):
+    class _DALIDatasetV2(dataset_ops.DatasetV2):
         def __init__(self,
                      pipeline,
                      output_dtypes=None,
                      output_shapes=None,
                      fail_on_device_mismatch=True,
                      *,
+                     # using kwargs for inputs allow us to add more kinds of parameters
+                     # TODO(klecki): consider alternative zipped representation for inputs?
+                     input_datasets=None,
+                     input_names=None,
+                     input_devices=None,
+                     input_layouts=None,
+                     input_batch=False,
                      batch_size=1,
                      num_threads=4,
                      device_id=0,
@@ -184,7 +191,7 @@ if dataset_compatible_tensorflow():
             output_shapes = self._handle_deprecation(output_shapes, shapes, "shapes")
             output_dtypes = self._handle_deprecation(output_dtypes, dtypes, "dtypes")
 
-            if not self._check_output_dtypes(output_dtypes):
+            if not self._check_dtypes(output_dtypes, tf.DType):
                 raise TypeError(("`output_dtypes` should be provided as single tf.DType value " +
                     "or a tuple of tf.DType values. Got value `{}` of type `{}`.") \
                         .format(output_dtypes, type(output_dtypes)))
@@ -201,6 +208,69 @@ if dataset_compatible_tensorflow():
                 output_shapes = (output_shapes, )
 
             output_classes = nest.map_structure(lambda _: ops.Tensor, output_dtypes)
+
+            # TODO does it work for None??
+            nest.assert_same_structure(input_datasets, input_names)
+            if input_datasets is not None:
+                if not self._check_dtypes(input_datasets, dataset_ops.DatasetV2):
+                    raise TypeError(("`input_datasets` should be provided as single input " +
+                        "tf.data.Dataset object or a tuple of Datasets. Got `{}` of type `{}`.") \
+                        .format(input_datasets, type(input_datasets)))
+
+                if not self._check_dtypes(input_names, str):
+                    raise TypeError(("`input_names` should be provided as single str or a tuple of str. " +
+                        "Got `{}` of type `{}`.") \
+                        .format(input_names, type(input_names)))
+
+                if input_devices is not None:
+                    nest.assert_same_structure(input_devices, input_datasets)
+                    if not self._check_dtypes(input_devices, str):
+                        raise TypeError(("`input_devices` should be provided as single str " +
+                            "or a tuple of str. Got `{}` of type `{}`.") \
+                            .format(input_devices, type(input_devices)))
+                    def assert_cpu_or_gpu(dev):
+                        if dev != "cpu" and dev != "gpu":
+                            raise ValueError(
+                                ("Expected all input_devices to be either 'cpu' or 'gpu'," +
+                                 " found '{}'.").format(dev))
+                    nest.map_structure(assert_cpu_or_gpu, input_devices)
+                else:
+                    input_devices = nest.map_structure(lambda _: "cpu", input_datasets)
+                # TODO(klecki): we can possibly add a syntactic sugar and allow only one layout to be
+                # specified for all inputs uniformly
+                if input_layouts is not None:
+                    nest.assert_same_structure(input_layouts, input_datasets)
+                    if not self._check_dtypes(input_layouts, str):
+                        raise TypeError(("`input_layouts` should be provided as single str " +
+                            "or a tuple of str. Got `{}` of type `{}`.") \
+                            .format(input_layouts, type(input_layouts)))
+                else:
+                    input_layouts = nest.map_structure(lambda _: "", input_datasets)
+            else:
+                # Make them explicitly empty for the internal representations
+                input_datasets = ()
+                input_names = ()
+                input_devices = ()
+                input_layouts = ()
+
+            if not isinstance(input_datasets, tuple):
+                input_datasets = (input_datasets, )
+                input_names = (input_names, )
+                input_devices = (input_devices, )
+                input_layouts = (input_layouts, )
+
+            self._input_datasets = input_datasets
+            self._input_names = input_names
+            self._input_devices = input_devices
+            self._input_layouts = input_layouts
+
+            if input_batch != False:
+                raise NotImplementedError(
+                    ("Inputs to dataset can work only in per-sample mode, " +
+                     " that is for `input_batch = False`. Got `input_batch = {}`."
+                     ).format(input_batch))
+
+            self._input_batch = input_batch
 
             self._pipeline = serialize_pipeline(pipeline)
             self._batch_size = batch_size
@@ -222,12 +292,14 @@ if dataset_compatible_tensorflow():
 
             super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
 
-        def _check_output_dtypes(self, output_dtypes):
-            """Check whether output_dtypes is instance of tf.DType or tuple of tf.DType"""
-            if isinstance(output_dtypes, tf.DType):
+        def _check_dtypes(self, provided_nest, expected_elem_type, allow_single=True):
+            """Check whether `provided_nest` is instance of `expected_elem_type`
+            or tuple of `expected_elem_type`. TF doesn't treat list as a nesting type, but as a Tensor.
+            """
+            if allow_single and isinstance(provided_nest, expected_elem_type):
                 return True
-            elif isinstance(output_dtypes, tuple) \
-                and all(isinstance(dtype, tf.DType) for dtype in output_dtypes):
+            elif isinstance(provided_nest, tuple) \
+                and all(isinstance(elem, expected_elem_type) for elem in provided_nest):
                 return True
             else:
                 return False
@@ -257,8 +329,19 @@ if dataset_compatible_tensorflow():
         def _element_structure(self):
             return self._structure
 
+        def _inputs(self):
+            # Apparently here TF is happy with a list
+            return nest.flatten(self._input_datasets)
+
         def _as_variant_tensor(self):
+            # TODO(klecki): consider zip(_input_datasets, _input_names) ?
             return _dali_tf_module.dali_dataset(
+                nest.map_structure(lambda d: d._variant_tensor, self._input_datasets),
+                # TODO(klecki): We may need input types, we may need to disallow num_outputs in ExternalSource
+                input_names=self._input_names,
+                input_devices=self._input_devices, # TODO(klecki): take this from input dataset placements?
+                input_layouts=self._input_layouts,
+                input_batch=self._input_batch,
                 pipeline=self._pipeline,
                 batch_size=self._batch_size,
                 num_threads=self._num_threads,
@@ -332,6 +415,29 @@ DALIDataset.__doc__ = """Creates a `DALIDataset` compatible with tf.data.Dataset
         In case of `batch_size = 1` it can be omitted in the shape.
         DALI Dataset will try to match requested shape by squeezing 1-sized dimensions
         from shape obtained from Pipeline.
+    `input_datasets` : `tf.data.Dataset` or `tuple` of `tf.data.Dataset`, optional, default = None
+        input datasets to the DALI Pipeline. When provided, user must specify the `input_names`
+        as well to provide the mapping of input datasets to `External Source` nodes.
+    `input_names` : `str` or `tuple of `str`, optional, default = None
+        names of inputs to the DALI Pipeline. Must match arity of the `input_datasets`.
+        `input_datasets[i]` will be provided to `External Source` of the name `input_names[i]`.
+    `input_devices` : `str` or `tuple of `str`, optional, default = None
+        devices of inputs to the DALI Pipeline. Must match arity of the `input_datasets`.
+        `input_datasets[i]` will be expected to be placed of given device. Allowed only 'cpu'
+         or 'gpu'. The input will be fed to `External Source` as memory of given kind.
+    `input_layouts` : `str` or `tuple of `str`, optional, default = None
+        layouts of inputs to the DALI Pipeline. Must match arity of the `input_datasets`.
+        `input_layouts[i]` will be set for `input_datasets[i]` provided to `External Source`
+        of the name `input_names[i]`.
+        If not provided while specifying the input_datasets, empty layout string will be used.
+    `input_batch` : bool, optional, default = False
+        batch mode for the input datasets. Only the default - sample mode - is supported,
+        that is `input_batch = False`.
+        Sample mode means that every input dataset is treated as if providing individual samples.
+        DALIDataset will query the inputs dataset `batch_size`-times to build a batch that would
+        be fed into the DALI Pipeline.
+        In sample mode, each sample produced by the input dataset can have different shape,
+        but not number of dimensions.
     `fail_on_device_mismatch` : bool, optional, default = True
         When set to `True` runtime check will be performed to ensure DALI device and TF device are
         both CPU or both GPU. In some contexts this check might be inaccurate. When set to `False`

@@ -138,7 +138,7 @@ def main(dali_root_dir, n_subproc=1, file_list=None):
                     n_subproc=n_subproc)
 
     tf_plugin_code = lint(dali_root_dir=dali_root_dir, file_list=tf_plugin_files,
-                          process_includes=False, n_subproc=n_subproc)
+                          process_includes=True, n_subproc=n_subproc)
 
     if cc_code != 0 or inc_code != 0 or tf_plugin_code != 0:
         sys.exit(1)

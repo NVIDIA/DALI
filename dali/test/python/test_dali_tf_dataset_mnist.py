@@ -19,7 +19,7 @@ import numpy as np
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-from test_utils_tensorflow import *
+from test_utils_tensorflow import skip_for_incompatible_tf, num_available_gpus
 from shutil import rmtree as remove_directory
 from nose.tools import with_setup
 import tensorflow as tf

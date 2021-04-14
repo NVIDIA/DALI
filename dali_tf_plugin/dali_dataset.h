@@ -54,9 +54,13 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
         is_gpu_device_(context->device_type() == "GPU"),
         context_(context) {
     FillPipelineDef(context, pipeline_def_);
-    OP_REQUIRES_OK(context, context->GetAttr("output_shapes", &shapes_));
-    OP_REQUIRES_OK(context, context->GetAttr("output_dtypes", &dtypes_));
-    OP_REQUIRES_OK(context, context->GetAttr("fail_on_device_mismatch", &fail_on_device_mismatch_));
+    OP_REQUIRES_OK(context, context->GetAttr(kInputNames, &input_names_));
+    OP_REQUIRES_OK(context, context->GetAttr(kInputDevices, &input_devices_));
+    OP_REQUIRES_OK(context, context->GetAttr(kInputLayouts, &input_layouts_));
+    OP_REQUIRES_OK(context, context->GetAttr(kInputBatch, &input_batch_));
+    OP_REQUIRES_OK(context, context->GetAttr(kOutputShapes, &shapes_));
+    OP_REQUIRES_OK(context, context->GetAttr(kOutputDtypes, &dtypes_));
+    OP_REQUIRES_OK(context, context->GetAttr(kDeviceMismatch, &fail_on_device_mismatch_));
   }
 
   void MakeDataset(tensorflow::OpKernelContext* context,
@@ -75,6 +79,20 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
     bool enable_memory_stats;
   };
 
+  // Arguments describing inputs
+  static constexpr const char* const kInputNames = "input_names";
+  static constexpr const char* const kInputDevices = "input_devices";
+  static constexpr const char* const kInputLayouts = "input_layouts";
+  static constexpr const char* const kInputBatch = "input_batch";
+
+  // Arguments describing outputs
+  static constexpr const char* const kOutputShapes = "output_shapes";
+  static constexpr const char* const kOutputDtypes = "output_dtypes";
+
+  // DatasetOp-specific arguments
+  static constexpr const char* const kDeviceMismatch = "fail_on_device_mismatch";
+
+  // DALI Pipeline arguments
   static constexpr const char* const kPipeline = "pipeline";
   static constexpr const char* const kBatchSize = "batch_size";
   static constexpr const char* const kNumThreads = "num_threads";
@@ -88,6 +106,10 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
   void FillPipelineDef(tensorflow::OpKernelConstruction* context, PipelineDef& def);
 
   PipelineDef pipeline_def_;
+  std::vector<std::string> input_names_;
+  std::vector<std::string> input_devices_;
+  std::vector<std::string> input_layouts_;
+  bool input_batch_;
   std::vector<tensorflow::PartialTensorShape> shapes_;
   tensorflow::DataTypeVector dtypes_;
   bool is_gpu_device_;
