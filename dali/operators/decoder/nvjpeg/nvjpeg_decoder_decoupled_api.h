@@ -36,6 +36,7 @@
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/dev_buffer.h"
+#include "dali/core/static_switch.h"
 #include "dali/operators/decoder/nvjpeg/permute_layout.h"
 
 
@@ -311,6 +312,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     std::string file_name;
     TensorShape<> shape;
     int req_nchannels = -1;
+    int bpp = 8;  // currently used for jpeg2k only
     CropWindow roi;
     DecodeMethod method = DecodeMethod::Host;
     nvjpegDecodeParams_t params;
@@ -455,6 +457,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       NVJPEG2K_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, 0));
       uint32_t height = comp.component_height;
       uint32_t width = comp.component_width;
+      data.bpp = std::max<int>(data.bpp, comp.precision);
       for (uint32_t c = 1; c < image_info.num_components; ++c) {
         NVJPEG2K_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, c));
         DALI_ENFORCE(height == comp.component_height &&
@@ -466,6 +469,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
       data.shape = {height, width, image_info.num_components};
       data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
+      data.bpp = std::max<int>(data.bpp, comp.precision);
       data.method = DecodeMethod::Nvjpeg2k;
       samples_jpeg2k_.push_back(&data);
       return true;
@@ -613,25 +617,30 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #if NVJPEG2K_ENABLED
   void DecodeJpeg2k(uint8_t* output_data, const SampleData *sample,
                     span<const uint8_t> input_data) {
-    bool need_processing = sample->shape[2] > 1;
-    int64_t comp_size = sample->shape[0] * sample->shape[1];
+    assert(sample->bpp == 8 || sample->bpp == 16);
+    bool need_processing = sample->shape[2] > 1 || sample->bpp == 16;
+    int pixel_sz = sample->bpp == 16 ? sizeof(uint16_t) : sizeof(uint8_t);
+    int64_t npixels = sample->shape[0] * sample->shape[1];
+    int64_t comp_size = npixels * pixel_sz;
     CUDA_CALL(cudaEventSynchronize(nvjpeg2k_decode_event_));
     auto &buffer = nvjpeg2k_intermediate_buffer_;
     buffer.clear();
-    if (need_processing)
-      buffer.resize(volume(sample->shape), nvjpeg2k_cu_stream_);
+    if (need_processing) {
+      buffer.resize(volume(sample->shape) * pixel_sz);
+    }
     const auto &jpeg2k_stream = nvjpeg2k_streams_[sample->sample_idx];
     void *pixel_data[NVJPEG_MAX_COMPONENT] = {};
     size_t pitch_in_bytes[NVJPEG_MAX_COMPONENT] = {};
     auto *decoder_out = !need_processing ? output_data : buffer.data();
     for (uint32_t c = 0; c < sample->shape[2]; ++c) {
       pixel_data[c] = decoder_out + c * comp_size;
-      pitch_in_bytes[c] = sample->shape[1];
+      pitch_in_bytes[c] = sample->shape[1] * pixel_sz;
     }
     nvjpeg2kImage_t output_image;
     output_image.pixel_data = pixel_data;
     output_image.pitch_in_bytes = pitch_in_bytes;
-    output_image.pixel_type = NVJPEG2K_UINT8;
+    DALIDataType pixel_type = sample->bpp == 16 ? DALI_UINT16 : DALI_UINT8;
+    output_image.pixel_type = sample->bpp == 16 ? NVJPEG2K_UINT16 : NVJPEG2K_UINT8;
     output_image.num_components = sample->shape[2];
     auto ret = nvjpeg2kDecode(nvjpeg2k_handle_, nvjpeg2k_decoder_,
                               jpeg2k_stream, &output_image, nvjpeg2k_cu_stream_);
@@ -640,12 +649,20 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         if (output_image_type_ == DALI_GRAY) {
           // Converting to Gray, dropping extra channels if needed
           assert(sample->shape[2] >= 3);
-          PlanarRGBToGray(output_data, decoder_out, comp_size, nvjpeg2k_cu_stream_);
+          TYPE_SWITCH(pixel_type, type2id, Input, (uint8_t, uint16_t), (
+            PlanarRGBToGray<uint8_t, Input>(
+              output_data, reinterpret_cast<Input*>(decoder_out), npixels,
+              pixel_type, nvjpeg2k_cu_stream_);
+          ), DALI_FAIL(make_string("Unsupported input type: ", pixel_type)))  // NOLINT
         } else {
           // Converting to interleaved, dropping extra channels if needed
           assert(sample->shape[2] >= 3);
-          PlanarToInterleaved(output_data, decoder_out, comp_size, sample->req_nchannels,
-                              output_image_type_, nvjpeg2k_cu_stream_);
+          TYPE_SWITCH(pixel_type, type2id, Input, (uint8_t, uint16_t), (
+            PlanarToInterleaved<uint8_t, Input>(
+              output_data, reinterpret_cast<Input*>(decoder_out), npixels,
+              sample->req_nchannels,
+              output_image_type_, pixel_type, nvjpeg2k_cu_stream_);
+          ), DALI_FAIL(make_string("Unsupported input type: ", pixel_type)))  // NOLINT
         }
       }
       CUDA_CALL(cudaEventRecord(nvjpeg2k_decode_event_, nvjpeg2k_cu_stream_));

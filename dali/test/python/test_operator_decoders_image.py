@@ -142,19 +142,19 @@ def img_decoder_pipe(device, out_type, files):
     decoded = fn.decoders.image(encoded, device=device, output_type=out_type)
     return decoded
 
-def test_image_decoder_consistency():
-    def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir='*', ext=None):
-        eps = 1
-        if file_fmt == 'jpeg' or file_fmt == 'mixed':
-            eps = 4
-        if ((file_fmt == 'jpeg2k' or file_fmt == 'mixed') and img_out_type == types.YCbCr):
-            eps = 6
-        files = get_img_files(os.path.join(test_data_root, path), subdir=subdir, ext=ext)
-        compare_pipelines(img_decoder_pipe("cpu", out_type=img_out_type, files=files),
-                          img_decoder_pipe("mixed", out_type=img_out_type, files=files),
-                          batch_size=batch_size_test, N_iterations=3,
-                          eps = eps)
+def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir='*', ext=None):
+    eps = 1
+    if file_fmt == 'jpeg' or file_fmt == 'mixed':
+        eps = 4
+    if ((file_fmt == 'jpeg2k' or file_fmt == 'mixed') and img_out_type == types.YCbCr):
+        eps = 6
+    files = get_img_files(os.path.join(test_data_root, path), subdir=subdir, ext=ext)
+    compare_pipelines(img_decoder_pipe("cpu", out_type=img_out_type, files=files),
+                      img_decoder_pipe("mixed", out_type=img_out_type, files=files),
+                      batch_size=batch_size_test, N_iterations=3,
+                      eps = eps)
 
+def test_image_decoder_consistency():
     for out_img_type in [types.RGB, types.BGR, types.YCbCr, types.GRAY, types.ANY_DATA]:
         for file_fmt in test_good_path:
             path = os.path.join(good_path, file_fmt)
@@ -167,19 +167,7 @@ def test_image_decoder_consistency():
             subdir = ''  # In those paths the images are not organized in subdirs
             yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path, subdir, ext
 
-def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir='*', ext=None):
-        eps = 1
-        if file_fmt == 'jpeg' or file_fmt == 'mixed':
-            eps = 4
-        if ((file_fmt == 'jpeg2k' or file_fmt == 'mixed') and img_out_type == types.YCbCr):
-            eps = 6
-        files = get_img_files(os.path.join(test_data_root, path), subdir=subdir, ext=ext)
-        compare_pipelines(img_decoder_pipe("cpu", out_type=img_out_type, files=files),
-                          img_decoder_pipe("mixed", out_type=img_out_type, files=files),
-                          batch_size=batch_size_test, N_iterations=3,
-                          eps = eps)
-
-def test_image_decoder_tiff_with_alpha_16bit():
+def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
     @pipeline_def(batch_size=1, device_id=0, num_threads=1)
     def pipe(device, out_type, files):
         encoded, _ = fn.readers.file(files=files)
@@ -187,27 +175,26 @@ def test_image_decoder_tiff_with_alpha_16bit():
         peeked_shape = fn.peek_image_shape(encoded)
         return decoded, peeked_shape
 
-    def _testimpl(device, out_type, path, ext):
-        files = get_img_files(os.path.join(test_data_root, path), ext=ext, subdir='')
-        pipe0 = pipe(device, out_type=out_type, files=files)
-        pipe0.build()
-        out0, shape0 = pipe0.run()
-        if device == 'mixed':
-            out0 = out0.as_cpu()
-        out0 = np.array(out0[0])
-        shape0 = np.array(shape0[0])
-        expected_channels = 4 if out_type == types.ANY_DATA else \
-                            1 if out_type == types.GRAY else \
-                            3
-        assert out0.shape[2] == expected_channels, \
-            f"Expected {expected_channels} but got {out0.shape[2]}"
+    files = get_img_files(os.path.join(test_data_root, path), ext=ext, subdir='')
+    pipe0 = pipe(device, out_type=out_type, files=files)
+    pipe0.build()
+    out0, shape0 = pipe0.run()
+    if device == 'mixed':
+        out0 = out0.as_cpu()
+    out0 = np.array(out0[0])
+    shape0 = np.array(shape0[0])
+    expected_channels = 4 if out_type == types.ANY_DATA else \
+                        1 if out_type == types.GRAY else \
+                        3
+    assert out0.shape[2] == expected_channels, \
+        f"Expected {expected_channels} but got {out0.shape[2]}"
+
+def test_image_decoder_tiff_with_alpha_16bit():
     for device in ['cpu', 'mixed']:
         for out_type in [types.RGB, types.BGR, types.YCbCr, types.ANY_DATA]:
             path = "db/single/multichannel/with_alpha_16bit"
-            path = 'db/single/jpeg2k/0'
             for ext in [("png", "tiff", "jp2")]:
-                # yield _testimpl, device, out_type, path, ext
-                _testimpl(device, types.RGB, 'db/single/jpeg2k/0', "16bit.jp2")
+                yield _testimpl_image_decoder_tiff_with_alpha_16bit, device, out_type, path, ext
 
 @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
 def decoder_pipe(decoder_op, file_root, device, use_fast_idct):
