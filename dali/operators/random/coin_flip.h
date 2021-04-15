@@ -26,7 +26,7 @@
 namespace dali {
 
 template <typename Backend>
-class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>> {
+class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>, false> {
  public:
   template <typename T>
   struct Dist {
@@ -37,7 +37,7 @@ class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>> {
   };
 
   explicit CoinFlip(const OpSpec &spec)
-      : RNGBase<Backend, CoinFlip<Backend>>(spec),
+      : RNGBase<Backend, CoinFlip<Backend>, false>(spec),
         probability_("probability", spec) {
     backend_data_.ReserveDistsData(sizeof(typename Dist<double>::type) * max_batch_size_);
   }
@@ -58,7 +58,7 @@ class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>> {
     return true;
   }
 
-  using RNGBase<Backend, CoinFlip<Backend>>::RunImpl;
+  using RNGBase<Backend, CoinFlip<Backend>, false>::RunImpl;
   void RunImpl(workspace_t<Backend> &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, DALI_COINFLIP_TYPES, (
       using Dist = typename Dist<T>::type;
@@ -68,8 +68,8 @@ class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>> {
 
  protected:
   using Operator<Backend>::max_batch_size_;
-  using RNGBase<Backend, CoinFlip<Backend>>::dtype_;
-  using RNGBase<Backend, CoinFlip<Backend>>::backend_data_;
+  using RNGBase<Backend, CoinFlip<Backend>, false>::dtype_;
+  using RNGBase<Backend, CoinFlip<Backend>, false>::backend_data_;
 
   ArgValue<float> probability_;
 };

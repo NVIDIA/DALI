@@ -25,8 +25,8 @@
 
 namespace dali {
 
-template <>
-struct RNGBaseFields<CPUBackend> {
+template <bool NeedsInput>
+struct RNGBaseFields<CPUBackend, NeedsInput> {
   RNGBaseFields(int64_t seed, int nsamples) {}
 
   std::vector<uint8_t> dists_cpu_;
@@ -36,9 +36,39 @@ struct RNGBaseFields<CPUBackend> {
   }
 };
 
-template <typename Backend, typename Impl>
+template <bool NeedsInput>
+struct DistGen;
+
+template <>
+struct DistGen<false> {
+  template <typename T, typename Dist, typename RNG>
+  inline void gen(span<T> out, span<const T> in, Dist& dist, RNG &rng) const {
+    (void) in;
+    for (auto &x : out)
+      x = ConvertSat<T>(dist(rng));
+  }
+};
+
+template <>
+struct DistGen<true> {
+  template <typename T, typename Dist, typename RNG>
+  inline void gen(span<T> out, span<const T> in, Dist& dist, RNG &rng) const {
+    assert(out.size() == in.size());
+    for (int64_t k = 0; k < out.size(); k++)
+      out[k] = ConvertSat<T>(dist(in[k], rng));
+  }
+};
+
+template <typename T>
+inline span<T> get_chunk(span<T> data, int c, int chunks) {
+  T* start = data.begin() + data.size() * c / chunks;
+  T* end = data.begin() + data.size() * (c + 1) / chunks;
+  return make_span(start, end - start);
+}
+
+template <typename Backend, typename Impl, bool NeedsInput>
 template <typename T, typename Dist>
-void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<CPUBackend> &ws) {
+void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<CPUBackend> &ws) {
   // Should never be called for Backend != CPUBackend
   static_assert(std::is_same<Backend, CPUBackend>::value, "Invalid backend");
   auto &output = ws.OutputRef<CPUBackend>(0);
@@ -50,28 +80,43 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<CPUBackend> &ws) {
   constexpr size_t kNumChunkSeeds = 16;
   int nsamples = output.shape().size();
 
+  TensorListView<detail::storage_tag_map_t<Backend>, const T, DynamicDimensions> in_view;
+  if (NeedsInput) {
+    const auto &input = ws.InputRef<CPUBackend>(0);
+    in_view = view<const T>(input);
+    output.SetLayout(input.GetLayout());
+  }
+
   auto &dists_cpu = backend_data_.dists_cpu_;
   dists_cpu.resize(sizeof(Dist) * nsamples);  // memory was already reserved in the constructor
   Dist* dists = reinterpret_cast<Dist*>(dists_cpu.data());
   bool use_default_dist = !This().template SetupDists<T>(dists, nsamples);
 
+  DistGen<NeedsInput> dist_gen_;
   for (int sample_id = 0; sample_id < nsamples; ++sample_id) {
     auto sample_sz = out_shape.tensor_size(sample_id);
     span<T> out_span{out_view[sample_id].data, sample_sz};
+    span<const T> in_span;
+    if (NeedsInput) {
+      assert(sample_sz == in_view.shape.tensor_size(sample_id));
+      in_span = {in_view[sample_id].data, sample_sz};
+    }
     if (sample_sz < kThreshold) {
       tp.AddWork(
         [=](int thread_id) {
           auto dist = use_default_dist ? Dist() : dists[sample_id];
-          for (auto &x : out_span)
-            x = ConvertSat<T>(dist(rng_[sample_id]));
+          dist_gen_.template gen<T>(out_span, in_span, dist, rng_[sample_id]);
         }, sample_sz);
     } else {
       int chunks = div_ceil(out_span.size(), kChunkSize);
       std::array<uint32_t, kNumChunkSeeds> seed;
       for (int c = 0; c < chunks; c++) {
-        auto start = out_span.begin() + out_span.size() * c / chunks;
-        auto end = out_span.begin() + out_span.size() * (c + 1) / chunks;
-        auto chunk = make_span(start, end - start);
+        auto out_chunk = get_chunk<T>(out_span, c, chunks);
+        span<const T> in_chunk;
+        if (NeedsInput) {
+          in_chunk = get_chunk<const T>(in_span, c, chunks);
+          assert(out_chunk.size() == in_chunk.size());
+        }
         for (auto &s : seed)
           s = rng_[sample_id]();
         tp.AddWork(
@@ -79,9 +124,8 @@ void RNGBase<Backend, Impl>::RunImplTyped(workspace_t<CPUBackend> &ws) {
             std::seed_seq seq(seed.begin(), seed.end());
             std::mt19937_64 chunk_rng(seq);
             auto dist = use_default_dist ? Dist() : dists[sample_id];
-            for (auto &x : chunk)
-              x = ConvertSat<T>(dist(chunk_rng));
-          }, chunk.size());
+            dist_gen_.template gen<T>(out_chunk, in_chunk, dist, chunk_rng);
+          }, out_chunk.size());
       }
     }
   }

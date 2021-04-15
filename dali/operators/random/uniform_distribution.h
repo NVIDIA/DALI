@@ -79,7 +79,7 @@ class uniform_int_values_dist {
 };
 
 template <typename Backend>
-class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>> {
+class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>, false> {
  public:
   template <typename T>
   struct DistContinuous {
@@ -103,7 +103,7 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
   };
 
   explicit UniformDistribution(const OpSpec &spec)
-      : RNGBase<Backend, UniformDistribution<Backend>>(spec),
+      : RNGBase<Backend, UniformDistribution<Backend>, false>(spec),
         values_("values", spec),
         range_("range", spec) {
     int size_dist = values_.IsDefined() ? sizeof(typename DistDiscrete<double>::type)
@@ -175,7 +175,7 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
 
   template <typename T>
   void RunImplTyped(workspace_t<Backend> &ws) {
-    using Base = RNGBase<Backend, UniformDistribution<Backend>>;
+    using Base = RNGBase<Backend, UniformDistribution<Backend>, false>;
     if (values_.IsDefined()) {
       using Dist = typename DistDiscrete<T>::type;
       Base::template RunImplTyped<T, Dist>(ws);
@@ -193,8 +193,8 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
 
  protected:
   using Operator<Backend>::max_batch_size_;
-  using RNGBase<Backend, UniformDistribution<Backend>>::dtype_;
-  using RNGBase<Backend, UniformDistribution<Backend>>::backend_data_;
+  using RNGBase<Backend, UniformDistribution<Backend>, false>::dtype_;
+  using RNGBase<Backend, UniformDistribution<Backend>, false>::backend_data_;
 
   ArgValue<float, 1> values_;
   ArgValue<float, 1> range_;
@@ -204,7 +204,6 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
   std::vector<const float*> per_sample_values_;
   std::vector<int64_t> per_sample_nvalues_;
 };
-
 
 }  // namespace dali
 
