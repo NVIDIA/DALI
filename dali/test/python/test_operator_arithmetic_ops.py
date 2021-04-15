@@ -108,28 +108,28 @@ def default_range(*types):
     return [None for _ in types]
 
 math_function_operations = [
-    ((lambda x: math.sqrt(x)), (lambda x: np.sqrt(x)), "sqrt", pos_range),
-    ((lambda x: math.rsqrt(x)), (lambda x: 1.0 / np.sqrt(x)), "rsqrt", pos_range),
-    ((lambda x: math.cbrt(x)), (lambda x: np.cbrt(x)), "cbrt", default_range),
-    ((lambda x: math.exp(x)), (lambda x: np.exp(x)), "exp", limited_range),
-    ((lambda x: math.log(x)), (lambda x: np.log(x)), "log", pos_range),
-    ((lambda x: math.log2(x)), (lambda x: np.log2(x)), "log2", pos_range),
-    ((lambda x: math.log10(x)), (lambda x: np.log10(x)), "log10", pos_range),
-    ((lambda x: math.fabs(x)), (lambda x: np.fabs(x)), "fabs", default_range),
-    ((lambda x: math.floor(x)), (lambda x: np.floor(x)), "floor", default_range),
-    ((lambda x: math.ceil(x)), (lambda x: np.ceil(x)), "ceil", default_range),
-    ((lambda x: math.sin(x)), (lambda x: np.sin(x)), "sin", default_range),
-    ((lambda x: math.cos(x)), (lambda x: np.cos(x)), "cos", default_range),
-    ((lambda x: math.tan(x)), (lambda x: np.tan(x)), "tan", default_range),
-    ((lambda x: math.asin(x)), (lambda x: np.arcsin(x)), "asin", one_range),
-    ((lambda x: math.acos(x)), (lambda x: np.arccos(x)), "acos", one_range),
-    ((lambda x: math.atan(x)), (lambda x: np.arctan(x)), "atan", default_range),
-    ((lambda x: math.sinh(x)), (lambda x: np.sinh(x)), "sinh", default_range),
-    ((lambda x: math.cosh(x)), (lambda x: np.cosh(x)), "cosh", default_range),
-    ((lambda x: math.tanh(x)), (lambda x: np.tanh(x)), "tanh", default_range),
-    ((lambda x: math.asinh(x)), (lambda x: np.arcsinh(x)), "asinh", limited_range),
-    ((lambda x: math.acosh(x)), (lambda x: np.arccosh(x)), "acosh", pos_range),
-    ((lambda x: math.atanh(x)), (lambda x: np.arctanh(x)), "atanh", one_range)]
+    ((lambda x: math.sqrt(x)), (lambda x: np.sqrt(x)), "sqrt", pos_range, 1e-6),
+    ((lambda x: math.rsqrt(x)), (lambda x: 1.0 / np.sqrt(x)), "rsqrt", pos_range, 1e-5),
+    ((lambda x: math.cbrt(x)), (lambda x: np.cbrt(x)), "cbrt", default_range, 1e-6),
+    ((lambda x: math.exp(x)), (lambda x: np.exp(x)), "exp", limited_range, 1e-6),
+    ((lambda x: math.log(x)), (lambda x: np.log(x)), "log", pos_range, 1e-6),
+    ((lambda x: math.log2(x)), (lambda x: np.log2(x)), "log2", pos_range, 1e-6),
+    ((lambda x: math.log10(x)), (lambda x: np.log10(x)), "log10", pos_range, 1e-6),
+    ((lambda x: math.fabs(x)), (lambda x: np.fabs(x)), "fabs", default_range, 1e-6),
+    ((lambda x: math.floor(x)), (lambda x: np.floor(x)), "floor", default_range, 1e-6),
+    ((lambda x: math.ceil(x)), (lambda x: np.ceil(x)), "ceil", default_range, 1e-6),
+    ((lambda x: math.sin(x)), (lambda x: np.sin(x)), "sin", default_range, 1e-6),
+    ((lambda x: math.cos(x)), (lambda x: np.cos(x)), "cos", default_range, 1e-6),
+    ((lambda x: math.tan(x)), (lambda x: np.tan(x)), "tan", default_range, 1e-6),
+    ((lambda x: math.asin(x)), (lambda x: np.arcsin(x)), "asin", one_range, 1e-6),
+    ((lambda x: math.acos(x)), (lambda x: np.arccos(x)), "acos", one_range, 1e-6),
+    ((lambda x: math.atan(x)), (lambda x: np.arctan(x)), "atan", default_range, 1e-6),
+    ((lambda x: math.sinh(x)), (lambda x: np.sinh(x)), "sinh", default_range, 1e-6),
+    ((lambda x: math.cosh(x)), (lambda x: np.cosh(x)), "cosh", default_range, 1e-6),
+    ((lambda x: math.tanh(x)), (lambda x: np.tanh(x)), "tanh", default_range, 1e-6),
+    ((lambda x: math.asinh(x)), (lambda x: np.arcsinh(x)), "asinh", limited_range, 1e-6),
+    ((lambda x: math.acosh(x)), (lambda x: np.arccosh(x)), "acosh", pos_range, 1e-6),
+    ((lambda x: math.atanh(x)), (lambda x: np.arctanh(x)), "atanh", one_range, 1e-6)]
 
 
 sane_operations = [((lambda x, y: x + y), "+", default_range),
@@ -400,7 +400,7 @@ def test_unary_arithmetic_ops():
                 if types_in != np.bool_:
                     yield check_unary_op, kinds, types_in, op, shape_small, op_desc
 
-def check_math_function_op(kind, type, op, np_op, shape, get_range, op_desc):
+def check_math_function_op(kind, type, op, np_op, shape, get_range, op_desc, eps):
     is_integer = type not in [np.float16, np.float32, np.float64]
     limted_range = get_range(type)
     iterator = iter(ExternalInputIterator(batch_size, shape, type, kind, limited_range=limted_range))
@@ -412,14 +412,14 @@ def check_math_function_op(kind, type, op, np_op, shape, get_range, op_desc):
     for sample in range(batch_size):
         in_np, out = extract_un_data(pipe_out, sample, kind, out_type)
         np.testing.assert_allclose(out, np_op(in_np.astype(out_type)),
-                rtol=1e-06 if type != np.float16 else 0.005)
+                rtol=eps if type != np.float16 else 0.005)
 
 def test_math_function_ops():
     for kinds in unary_input_kinds:
-        for (op, np_op, op_desc, get_range) in math_function_operations:
+        for (op, np_op, op_desc, get_range, eps) in math_function_operations:
             for types_in in input_types:
                 if types_in != np.bool_:
-                    yield check_math_function_op, kinds, types_in, op, np_op, shape_small, get_range, op_desc
+                    yield check_math_function_op, kinds, types_in, op, np_op, shape_small, get_range, op_desc, eps
 
 # Regular arithmetic ops that can be validated as straight numpy
 def check_arithm_op(kinds, types, op, shape, get_range, op_desc):
@@ -666,7 +666,7 @@ bool_disallowed = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
 
 def test_bool_disallowed():
     for kinds in unary_input_kinds:
-        for (op, np_op, op_desc, _) in math_function_operations:
+        for (op, np_op, op_desc, _, _) in math_function_operations:
             yield check_raises_re, kinds, np.bool_, op, shape_small, op_desc
     for kinds in bin_input_kinds:
         for (op, op_desc) in bool_disallowed:
