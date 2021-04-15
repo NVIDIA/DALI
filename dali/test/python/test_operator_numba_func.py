@@ -98,51 +98,86 @@ def _testimpl_numba_func_image(run_fn, out_types, in_types, outs_ndim, ins_ndim,
     pipe = numba_func_image_pipe(batch_size=8, num_threads=1, device_id=0, run_fn=run_fn, setup_fn=setup_fn,
         out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, batch_processing=batch_processing)
     pipe.build()
-    for _ in range(1):
+    for _ in range(3):
         images_in, images_out = pipe.run()
         for i in range(len(images_in)):
-            print(i)
             image_in_transformed = transform(images_in.at(i))
-            # assert np.array_equal(image_in_transformed, images_out.at(i))
+            assert np.array_equal(image_in_transformed, images_out.at(i))
 
 def reverse_col_batch(out0, in0):
-    # out0[0][:] = 255 - in0[0][:]
-    # out0[1][:] = 255 - in0[1][:]
-    # out0[2][:] = 255 - in0[2][:]
-    # out0[3][:] = 255 - in0[3][:]
-    # out0[4][:] = 255 - in0[4][:]
-    # out0[5][:] = 255 - in0[5][:]
-    # out0[6][:] = 255 - in0[6][:]
-    out0[7][:] = 255 - in0[7][:]
+    for sample_id in range(len(out0)):
+        out0[sample_id][:] = 255 - in0[sample_id][:]
 
-    # for sample_id in range(len(out0)):
-    #     out0[sample_id][:] = 255 - in0[sample_id][:]
+def reverse_col_sample(out0, in0):
+    out0[:] = 255 - in0[:]
 
-@cfunc(dali_numba.run_fn_sig(types.uint8, types.uint8), nopython=False)
-def rot_image(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
-    out_shape = carray(out_shape_ptr, ndim_out)
-    in_shape = carray(in_shape_ptr, ndim_in)
-    in_arr = carray(in_ptr, (in_shape[0], in_shape[1], in_shape[2]))
-    out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
-    for i in range(out_shape[0]):
-        for j in range(out_shape[1]):
-            out_arr[i][j] = in_arr[j][out_shape[0] - i - 1]
+def rot_image_batch(out0, in0):
+    for out_sample, in_sample in zip(out0, in0):
+        for i in range(out_sample.shape[0]):
+            for j in range(out_sample.shape[1]):
+                out_sample[i][j] = in_sample[j][out_sample.shape[0] - i - 1]
 
-@cfunc(dali_numba.setup_fn_sig(1, 1), nopython=True)
-def rot_image_setup(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples):
-    in_arr = carray(in_shape_ptr, num_samples * out1_ndim)
-    out_arr = carray(out_shape_ptr, num_samples * in1_ndim)
-    out_type = carray(out_dtype, 1)
-    out_type[0] = in_dtype
-    for i in range(0, num_samples * out1_ndim, 3):
-        out_arr[i] = in_arr[i + 1]
-        out_arr[i + 1] = in_arr[i]
-        out_arr[i + 2] = in_arr[i + 2]
+def rot_image_sample(out0, in0):
+    for i in range(out0.shape[0]):
+        for j in range(out0.shape[1]):
+            out0[i][j] = in0[j][out0.shape[0] - i - 1]
+
+def rot_image_setup(outs, ins):
+    out0 = outs[0]
+    in0 = ins[0]
+    for sample_id in range(len(out0)):
+        out0[sample_id][0] = in0[sample_id][1]
+        out0[sample_id][1] = in0[sample_id][0]
+        out0[sample_id][2] = in0[sample_id][2]
 
 def test_numba_func_image():
     args = [
-        (reverse_col_batch, [dali_types.UINT8], [dali_types.UINT8], [3], [3], None, True, lambda x: 255 - x),
-        # (rot_image.address, rot_image_setup.address, lambda x: np.rot90(x)),
+        # (reverse_col_batch, [dali_types.UINT8], [dali_types.UINT8], [3], [3], None, True, lambda x: 255 - x),
+        # (reverse_col_sample, [dali_types.UINT8], [dali_types.UINT8], [3], [3], None, None, lambda x: 255 - x),
+        # (rot_image_batch, [dali_types.UINT8], [dali_types.UINT8], [3], [3], rot_image_setup, True, lambda x: np.rot90(x)),
+        # (rot_image_sample, [dali_types.UINT8], [dali_types.UINT8], [3], [3], rot_image_setup, None, lambda x: np.rot90(x)),
     ]
     for run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, transform in args:
         yield _testimpl_numba_func_image, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, transform
+
+@pipeline_def
+def numba_func_image_pipe_multiple_outs(run_fn=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None, batch_processing=None):
+    files, _ = dali.fn.readers.caffe(path=lmdb_folder)
+    images_in = dali.fn.decoders.image(files, device="cpu")
+    out = numba_func(images_in, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
+    return images_in, out
+
+def split_images_col_sample(out0, out1, out2, in0):
+    for i in range(in0.shape[0]):
+        for j in range(in0.shape[1]):
+            out0[i][j] = in0[i][j][0]
+            out1[i][j] = in0[i][j][1]
+            out2[i][j] = in0[i][j][2]
+
+def setup_split_images_col(outs, ins):
+    out0 = outs[0]
+    out1 = outs[1]
+    out2 = outs[2]
+    for sample_id in range(len(out0)):
+        out0[sample_id][0] = ins[0][sample_id][0]
+        out0[sample_id][1] = ins[0][sample_id][1]
+        out1[sample_id][0] = ins[0][sample_id][0]
+        out1[sample_id][1] = ins[0][sample_id][1]
+        out1[sample_id][0] = ins[0][sample_id][0]
+        out1[sample_id][1] = ins[0][sample_id][1]
+
+@pipeline_def
+def numba_func_split_image_pipe(run_fn=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None, batch_processing=None):
+    files, _ = dali.fn.readers.caffe(path=lmdb_folder)
+    images_in = dali.fn.decoders.image(files, device="cpu")
+    images_out = numba_func(images_in, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
+    return images_in, images_out
+
+def test_split_images_col():
+    pipe = numba_func_split_image_pipe(batch_size=8, num_threads=1, device_id=0, run_fn=split_images_col_sample, setup_fn=setup_split_images_col,
+        out_types=[dali_types.UINT8 for i in range(3)], in_types=[dali_types.UINT8], outs_ndim=[2, 2, 2], ins_ndim=[3])
+    pipe.build()
+    for _ in range(3):
+        images_in, R, G, B = pipe.run()
+        for i in range(len(images_in)):
+            assert np.array_equal(images_in.at(i), np.stack([R.at(i), G.at(i), B.at(i)], axis=2))

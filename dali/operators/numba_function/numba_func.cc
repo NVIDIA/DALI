@@ -129,8 +129,9 @@ template <>
 bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     const workspace_t<CPUBackend> &ws) {
   output_desc.resize(out_types_.size());
+  in_shapes_.resize(in_types_.size());
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-    in_shapes_.push_back(ws.InputRef<CPUBackend>(in_id).shape());
+    in_shapes_[in_id] = ws.InputRef<CPUBackend>(in_id).shape();
   }
   auto N = in_shapes_[0].num_samples();
   input_shapes_.resize(N * in_types_.size());
@@ -190,13 +191,11 @@ void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   }
   
   if (batch_processing_) {
-    cout << make_string("SIEMA :: ", outs_ndim_.size(), ", ", N) << endl;
     ((void (*)(void*, const void*, const void*, const void*, int32_t,
       const void*, const void*, const void*, const void*, int32_t, int32_t))run_fn_)(
         out_ptrs.data(), out_types_.data(), (setup_fn_ ? output_shapes_.data() : input_shapes_.data()),
         outs_ndim_.data(), outs_ndim_.size(),
         in_ptrs.data(), in_types_.data(), input_shapes_.data(), ins_ndim_.data(), ins_ndim_.size(), N);
-    cout << "PO RUN FN" << endl;
     return;
   }
 

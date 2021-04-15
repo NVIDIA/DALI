@@ -1272,7 +1272,7 @@ example, ``Compose`` automatically arranges copying the data to GPU memory.
     return op_list[0] if len(op_list) == 1 else _CompoundOp(op_list)
 
 class NumbaFunctionBase(metaclass=_DaliOperatorMeta):
-    def __init__(self, impl_name, run_fn, out_types, in_types, outs_ndim, ins_ndim, num_outputs=1, batch_processing=False, device='cpu', **kwargs):
+    def __init__(self, impl_name, run_fn, out_types, in_types, outs_ndim, ins_ndim, batch_processing=False, device='cpu', **kwargs):
         self._schema = _b.GetSchema(impl_name)
         self._spec = _b.OpSpec(impl_name)
         self._device = device
