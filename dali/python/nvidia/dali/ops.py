@@ -1272,7 +1272,7 @@ example, ``Compose`` automatically arranges copying the data to GPU memory.
     return op_list[0] if len(op_list) == 1 else _CompoundOp(op_list)
 
 class NumbaFunctionBase(metaclass=_DaliOperatorMeta):
-    def __init__(self, impl_name, run_fn, out_types, in_types, outs_ndim, num_outputs=1, device='cpu', **kwargs):
+    def __init__(self, impl_name, run_fn, out_types, in_types, outs_ndim, ins_ndim, num_outputs=1, batch_processing=False, device='cpu', **kwargs):
         self._schema = _b.GetSchema(impl_name)
         self._spec = _b.OpSpec(impl_name)
         self._device = device
@@ -1287,7 +1287,9 @@ class NumbaFunctionBase(metaclass=_DaliOperatorMeta):
         self.out_types = out_types 
         self.in_types = in_types 
         self.outs_ndim = outs_ndim 
+        self.ins_ndim = ins_ndim
         self.num_outputs = len(out_types)
+        self.batch_processing = batch_processing
         self._preserve = True
 
     @property
@@ -1330,7 +1332,10 @@ class NumbaFunctionBase(metaclass=_DaliOperatorMeta):
         op_instance.spec.AddArg("run_fn", self.run_fn)
         op_instance.spec.AddArg("out_types", self.out_types)
         op_instance.spec.AddArg("in_types", self.in_types)
+        op_instance.spec.AddArg("outs_ndim", self.outs_ndim)
+        op_instance.spec.AddArg("ins_ndim", self.ins_ndim)
         op_instance.spec.AddArg("device", self.device)
+        op_instance.spec.AddArg("batch_processing", self.batch_processing)
 
         if self.num_outputs == 0:
             t_name = self._impl_name + "_id_" + str(op_instance.id) + "_sink"

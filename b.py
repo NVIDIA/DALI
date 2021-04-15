@@ -2,6 +2,7 @@ from numba import njit, carray, cfunc
 from numba import types as numba_types
 import numpy as np
 import numba as nb
+from nvidia.dali import types as dali_types
 import ctypes
 
 @nb.extending.intrinsic
@@ -38,12 +39,41 @@ cc = np.array(x.shape, dtype=np.int64)
 y = np.array([cc.ctypes.data])
 ndim = np.array([3], dtype=np.int64)
 
-@cfunc(_run_fn_sig(), nopython=True)
-def help(a, b, c, d):
-    x = _get_shape_view(a, b, c, d)
-    x[0][0][1] = 30
-    # y = address_as_void_pointer(a)
+def _get_carray_eval_lambda(n, m):
+        eval_string = "lambda "
+        for i in range(n):
+            eval_string += "out{}".format(i)
+            eval_string += ", "
+        for i in range(m):
+            eval_string += "in{}".format(i)
+            eval_string += ", " if i + 1 != m else ": "
 
-print(y, cc.ctypes.data)
-help(y.ctypes.data, ndim.ctypes.data, 1, 1)
-print(cc)
+        eval_string += "run_fn(["
+        for i in range(n):
+            eval_string += "out{}".format(i)
+            eval_string += ", " if i + 1 != n else  "], "
+        eval_string += "["
+        for i in range(m):
+            eval_string += "in{}".format(i)
+            eval_string += ", " if i + 1 != n else  "]"
+        eval_string += ")"
+        print(eval_string)
+        return njit(eval(eval_string))
+
+def _get_carray_eval_lambda(dtype, ndim):
+    eval_string = "lambda ptr, shape: carray(ptr, ("
+    for i in range(ndim):
+        eval_string += "shape[{}]".format(i)
+        eval_string += ", " if i + 1 != ndim else "), "
+    eval_string += "dtype=np.{})".format(dtype.name.lower())
+    return njit(eval(eval_string))
+
+def _get_pass_lambda():
+    eval_string = "lambda x, y: x"
+    return njit(eval(eval_string))
+
+def _get_carrays_eval_lambda(types, ndim):
+    return tuple([_get_carray_eval_lambda(dtype, ndim) for dtype, ndim in zip(types, ndim)] + [njit(eval(("lambda x, y: 0"))) for i in range(6 - len(types))])
+
+out0_lambda, out1_lambda, out2_lambda, out3_lambda, out4_lambda, out5_lambda = _get_carrays_eval_lambda([dali_types.INT8], [3])
+print(out1_lambda)

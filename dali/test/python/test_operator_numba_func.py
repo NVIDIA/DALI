@@ -27,89 +27,96 @@ from nvidia.dali.plugin.numba.fn import numba_func
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
-def set_all_values_to_255(*args):
-    pass
+def set_all_values_to_255_batch(out0, in0):
+    out0[0][:] = 255
 
-@cfunc(dali_numba.run_fn_sig(types.float32, types.float32), nopython=True)
-def set_all_values_to_float(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
-    out_shape = carray(out_shape_ptr, ndim_out)
-    out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
-    out_arr[:] = 0.5
+def set_all_values_to_255_sample(out0, in0):
+    out0[:] = 255
 
-dali_int32 = int(dali_types.INT32)
-@cfunc(dali_numba.setup_fn_sig(1, 1), nopython=True)
-def setup_change_out_shape(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples):
-    in_shapes = carray(in_shape_ptr, (num_samples, in1_ndim))
-    out_shapes = carray(out_shape_ptr, (num_samples, out1_ndim))
+def set_all_values_to_float_batch(out0, in0):
+    out0[0][:] = 0.5
+
+def set_all_values_to_float_sample(out0, in0):
+    out0[:] = 0.5
+
+def setup_change_out_shape(out_shape, in_shape):
+    out0_shape = out_shape[0]
+    in0_shape = in_shape[0]
     perm = [1, 2, 0]
-    for sample_idx in range(num_samples):
+    for sample_idx in range(len(out0_shape)):
         for d in range(len(perm)):
-            out_shapes[sample_idx][d] = in_shapes[sample_idx][perm[d]]
-    out_type = carray(out_dtype, 1)
-    out_type[0] = dali_int32
+            out0_shape[sample_idx][d] = in0_shape[sample_idx][perm[d]]
 
-@cfunc(dali_numba.run_fn_sig(types.int32, types.int64), nopython=True)
-def change_out_shape(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
-    out_shape = carray(out_shape_ptr, ndim_out)
-    out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
-    out_arr[:] = 42
+def change_out_shape_batch(out0, in0):
+    for sample_id in range(len(out0)):
+        out0[sample_id][:] = 42
+
+def change_out_shape_sample(out0, in0):
+    out0[:] = 42
 
 def get_data(shapes, dtype):
     return [np.empty(shape, dtype = dtype) for shape in shapes]
 
 @pipeline_def
-def numba_func_pipe(shapes, dtype, fn_ptr=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None):
+def numba_func_pipe(shapes, dtype, run_fn=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None, batch_processing=None):
     data = fn.external_source(lambda: get_data(shapes, dtype), batch=True, device = "cpu")
-    return numba_func(data, run_fn=fn_ptr, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn)
+    return numba_func(data, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
 
-def _testimpl_numba_func(shapes, dtype, fn_ptr, out_types, in_types, outs_ndim, ins_ndim, setup_fn, expected_out):
-    print("TU")
+def _testimpl_numba_func(shapes, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, expected_out):
     batch_size = len(shapes)
     pipe = numba_func_pipe(batch_size=batch_size, num_threads=1, device_id=0, shapes=shapes, dtype=dtype,
-        fn_ptr=fn_ptr, setup_fn=setup_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim)
+        run_fn=run_fn, setup_fn=setup_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, batch_processing=batch_processing)
     pipe.build()
-    for _ in range(1): # todo
-        print("TU2")
+    for _ in range(3): # todo
         outs = pipe.run()
         for i in range(batch_size):
             out_arr = np.array(outs[0][i])
-            # assert np.array_equal(out_arr, expected_out[i])
+            assert np.array_equal(out_arr, expected_out[i])
 
 def test_numba_func():
-    # shape, dtype, func address, expected_out
+    # shape, dtype, run_fn, out_types, in_types, out_ndim, in_ndim, setup_fn, batch_processing, expected_out
     args = [
-        # ([(10, 10, 10)], np.uint8, set_all_values_to_255.address, None, [np.full((10, 10, 10), 255, dtype=np.uint8)]),
-        # ([(10, 10, 10)], np.float32, set_all_values_to_float.address, None, [np.full((10, 10, 10), 0.5, dtype=np.float32)]),
-        # ([(10, 20, 30), (20, 10, 30)], np.int64, change_out_shape.address, setup_change_out_shape.address, [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)]),
-        ([(10, 10, 10)], np.uint8, set_all_values_to_255, [dali_types.UINT8], [dali_types.UINT8], [3], [3], None, [np.full((10, 10, 10), 255, dtype=np.uint8)])
+        # ([(10, 10, 10)], np.uint8, set_all_values_to_255_batch, [dali_types.UINT8], [dali_types.UINT8], [3], [3], None, True, [np.full((10, 10, 10), 255, dtype=np.uint8)]),
+        # ([(10, 10, 10)], np.uint8, set_all_values_to_255_sample, [dali_types.UINT8], [dali_types.UINT8], [3], [3], None, None, [np.full((10, 10, 10), 255, dtype=np.uint8)]),
+        # ([(10, 10, 10)], np.float32, set_all_values_to_float_batch, [dali_types.FLOAT], [dali_types.FLOAT], [3], [3], None, True, [np.full((10, 10, 10), 0.5, dtype=np.float32)]),
+        # ([(10, 10, 10)], np.float32, set_all_values_to_float_sample, [dali_types.FLOAT], [dali_types.FLOAT], [3], [3], None, None, [np.full((10, 10, 10), 0.5, dtype=np.float32)]),
+        # ([(10, 20, 30), (20, 10, 30)], np.int64, change_out_shape_batch, [dali_types.INT64], [dali_types.INT64], [3], [3], setup_change_out_shape, True, [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)]),
+        # ([(10, 20, 30), (20, 10, 30)], np.int64, change_out_shape_sample, [dali_types.INT64], [dali_types.INT64], [3], [3], setup_change_out_shape, None, [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)]),
     ]
 
-    for shape, dtype, fn_ptr, out_types, in_types, outs_ndim, ins_ndim, setup_fn, expected_out in args:
-        yield _testimpl_numba_func, shape, dtype, fn_ptr, out_types, in_types, outs_ndim, ins_ndim, setup_fn, expected_out
+    for shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, expected_out in args:
+        yield _testimpl_numba_func, shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, expected_out
 
 @pipeline_def
-def numba_func_image_pipe(fn_ptr=None, setup_fn=None):
+def numba_func_image_pipe(run_fn=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None, batch_processing=None):
     files, _ = dali.fn.readers.caffe(path=lmdb_folder)
     images_in = dali.fn.decoders.image(files, device="cpu")
-    images_out = dali.fn.experimental.numba_func(images_in, fn_ptr=fn_ptr, setup_fn=setup_fn)
+    images_out = numba_func(images_in, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
     return images_in, images_out
 
-def _testimpl_numba_func_image(fn_ptr, setup_fn, transform):
-    pipe = numba_func_image_pipe(batch_size=8, num_threads=1, device_id=0, fn_ptr=fn_ptr, setup_fn=setup_fn)
+def _testimpl_numba_func_image(run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, transform):
+    pipe = numba_func_image_pipe(batch_size=8, num_threads=1, device_id=0, run_fn=run_fn, setup_fn=setup_fn,
+        out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, batch_processing=batch_processing)
     pipe.build()
-    for _ in range(3):
+    for _ in range(1):
         images_in, images_out = pipe.run()
         for i in range(len(images_in)):
+            print(i)
             image_in_transformed = transform(images_in.at(i))
-            assert np.array_equal(image_in_transformed, images_out.at(i))
+            # assert np.array_equal(image_in_transformed, images_out.at(i))
 
-@cfunc(dali_numba.run_fn_sig(types.uint8, types.uint8), nopython=True)
-def reverse_col(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
-    out_shape = carray(out_shape_ptr, ndim_out)
-    in_shape = carray(in_shape_ptr, ndim_in)
-    in_arr = carray(in_ptr, (in_shape[0], in_shape[1], in_shape[2]))
-    out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
-    out_arr[:] = 255 - in_arr[:]
+def reverse_col_batch(out0, in0):
+    # out0[0][:] = 255 - in0[0][:]
+    # out0[1][:] = 255 - in0[1][:]
+    # out0[2][:] = 255 - in0[2][:]
+    # out0[3][:] = 255 - in0[3][:]
+    # out0[4][:] = 255 - in0[4][:]
+    # out0[5][:] = 255 - in0[5][:]
+    # out0[6][:] = 255 - in0[6][:]
+    out0[7][:] = 255 - in0[7][:]
+
+    # for sample_id in range(len(out0)):
+    #     out0[sample_id][:] = 255 - in0[sample_id][:]
 
 @cfunc(dali_numba.run_fn_sig(types.uint8, types.uint8), nopython=False)
 def rot_image(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
@@ -134,8 +141,8 @@ def rot_image_setup(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim,
 
 def test_numba_func_image():
     args = [
-        # (reverse_col.address, None, lambda x: 255 - x),
+        (reverse_col_batch, [dali_types.UINT8], [dali_types.UINT8], [3], [3], None, True, lambda x: 255 - x),
         # (rot_image.address, rot_image_setup.address, lambda x: np.rot90(x)),
     ]
-    for fn_ptr, setup_fn, transform in args:
-        yield _testimpl_numba_func_image, fn_ptr, setup_fn, transform
+    for run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, transform in args:
+        yield _testimpl_numba_func_image, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, transform

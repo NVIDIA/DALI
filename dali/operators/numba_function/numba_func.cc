@@ -26,8 +26,10 @@ DALI_SCHEMA(NumbaFunc)
   .AddArg("run_fn", R"code()code", DALI_INT64)
   .AddArg("out_types", R"code()code", DALI_INT_VEC)
   .AddArg("in_types", R"code()code", DALI_INT_VEC)
+  .AddArg("outs_ndim", R"code()code", DALI_INT_VEC)
+  .AddArg("ins_ndim", R"code()code", DALI_INT_VEC)
   .AddOptionalArg<int>("setup_fn", R"code()code", 0)
-  .AddOptionalArg<int>("outs_ndim", R"code()code", std::vector<int>(), false);
+  .AddOptionalArg("batch_processing", R"code()code", false);
 
 DALI_SCHEMA(NumbaFuncImpl)
   .DocStr(R"code(Invokes a compiled Numba function passed as a pointer.
@@ -106,6 +108,7 @@ template <typename Backend>
 NumbaFuncImpl<Backend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
   run_fn_ = spec.GetArgument<uint64_t>("run_fn");
   setup_fn_ = spec.GetArgument<uint64_t>("setup_fn");
+  batch_processing_ = spec.GetArgument<bool>("batch_processing");
 
   out_types_ = spec.GetRepeatedArgument<int>("out_types");
   DALI_ENFORCE(!out_types_.empty(), "");
@@ -114,42 +117,34 @@ NumbaFuncImpl<Backend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
 
   outs_ndim_ = spec.GetRepeatedArgument<int>("outs_ndim");
   if (!setup_fn_) {
-    DALI_ENFORCE(!spec.HasArgument("outs_ndim"), "");
     DALI_ENFORCE(out_types_.size() == in_types_.size(), "");
   } else {
     DALI_ENFORCE(outs_ndim_.size() == out_types_.size(), "");
   }
 
-  ins_ndim_.resize(in_types_.size());
+  ins_ndim_ = spec.GetRepeatedArgument<int>("ins_ndim");
 }
 
 template <>
 bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     const workspace_t<CPUBackend> &ws) {
   output_desc.resize(out_types_.size());
-  cout << make_string("setup :: ", out_types_.size(), " ", in_types_.size()) << endl;
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
     in_shapes_.push_back(ws.InputRef<CPUBackend>(in_id).shape());
-    ins_ndim_[in_id] = in_shapes_[in_id].size();
-    cout << "ES " << ins_ndim_[in_id] << " " << endl;
   }
   auto N = in_shapes_[0].num_samples();
   input_shapes_.resize(N * in_types_.size());
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
     for (int i = 0; i < N; i++) {
-      input_shapes_[in_types_.size() * in_id + i] = (int64_t)in_shapes_[in_id].tensor_shape_span(i).data();
-      cout << "WPISUJE DO " << in_types_.size() * in_id + i << " " << (int64_t)input_shapes_.back() << endl;
+      input_shapes_[N * in_id + i] = (uint64_t)in_shapes_[in_id].tensor_shape_span(i).data();
     }
   }
 
   if (!setup_fn_) {
-    outs_ndim_.resize(out_types_.size());
     for (size_t i = 0; i < out_types_.size(); i++) {
       const auto &in = ws.InputRef<CPUBackend>(i);
       output_desc[i] = {in.shape(), in.type()};
-      outs_ndim_[i] = in.shape().tensor_shape_span(0).size();
     }
-    output_shapes_ = input_shapes_;
     return true;
   }
 
@@ -161,12 +156,12 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_shapes_.resize(N * out_types_.size());
   for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
     for (int i = 0; i < N; i++) {
-      output_shapes_[out_types_.size() * out_id + i] = (int64_t)output_desc[out_id].shape.tensor_shape_span(i).data();
+      output_shapes_[N * out_id + i] = (uint64_t)output_desc[out_id].shape.tensor_shape_span(i).data();
     }
   }
 
   ((void (*)(void*, const void*, int32_t, const void*, const void*, int32_t, int32_t))setup_fn_)(
-    &output_shapes_, &outs_ndim_, outs_ndim_.size(), &input_shapes_, &ins_ndim_, ins_ndim_.size(), N);
+    output_shapes_.data(), outs_ndim_.data(), outs_ndim_.size(), input_shapes_.data(), ins_ndim_.data(), ins_ndim_.size(), N);
 
   // TODO VALIDATION OF DATA?
 
@@ -175,33 +170,69 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 template <>
 void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
-  cout << "RUN" << endl;
   auto N = ws.InputRef<CPUBackend>(0).shape().num_samples();
 
-  std::vector<int64_t> out_ptrs;
-  std::vector<int64_t> in_ptrs;
+  std::vector<uint64_t> out_ptrs;
+  std::vector<uint64_t> in_ptrs;
   out_ptrs.resize(N * out_types_.size());
   in_ptrs.resize(N * in_types_.size());
   for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
     auto& out = ws.OutputRef<CPUBackend>(out_id);
     for (int i = 0; i < N; i++) {
-      out_ptrs[out_types_.size() * out_id + i] = reinterpret_cast<int64_t>(out[i].raw_mutable_data());
+      out_ptrs[N * out_id + i] = reinterpret_cast<uint64_t>(out[i].raw_mutable_data());
     }
   }
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
     auto& in = ws.InputRef<CPUBackend>(in_id);
     for (int i = 0; i < N; i++) {
-      in_ptrs[in_types_.size() * in_id + i] = reinterpret_cast<int64_t>(in[i].raw_mutable_data());
+      in_ptrs[N * in_id + i] = reinterpret_cast<uint64_t>(in[i].raw_mutable_data());
     }
   }
   
-  int64_t test = output_shapes_[0];
-  cout << "WYSWIETL :: " << (int64_t)output_shapes_[0] << " " << output_shapes_.size() << " " << outs_ndim_[0] << " " << outs_ndim_.size() << " " << endl;
-  ((void (*)(void*, void*, const void*, const void*, const void*, int32_t,
-    const void*, const void*, const void*, const void*, int32_t, int32_t))run_fn_)(
-      &test, &out_ptrs, &out_types_, &output_shapes_, &outs_ndim_, outs_ndim_.size(),
-      &in_ptrs, &in_types_, &input_shapes_, &ins_ndim_, ins_ndim_.size(), N);
-  cout << "WYSWIETL :: " << " " << (int64_t)output_shapes_[0] << " " << (int64_t)&output_shapes_ << " " << test << endl;
+  if (batch_processing_) {
+    cout << make_string("SIEMA :: ", outs_ndim_.size(), ", ", N) << endl;
+    ((void (*)(void*, const void*, const void*, const void*, int32_t,
+      const void*, const void*, const void*, const void*, int32_t, int32_t))run_fn_)(
+        out_ptrs.data(), out_types_.data(), (setup_fn_ ? output_shapes_.data() : input_shapes_.data()),
+        outs_ndim_.data(), outs_ndim_.size(),
+        in_ptrs.data(), in_types_.data(), input_shapes_.data(), ins_ndim_.data(), ins_ndim_.size(), N);
+    cout << "PO RUN FN" << endl;
+    return;
+  }
+
+  auto &out = ws.OutputRef<CPUBackend>(0);
+  auto out_shape = out.shape();
+  auto &tp = ws.GetThreadPool();
+  for (int sample_id = 0; sample_id < N; sample_id++) {
+    tp.AddWork([&, sample_id](int thread_id) {
+      std::vector<uint64_t> out_ptrs_per_sample(out_types_.size());
+      std::vector<uint64_t> out_shapes_per_sample(out_types_.size());
+      for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
+        out_ptrs_per_sample[out_id] = out_ptrs[N * out_id + sample_id];
+        out_shapes_per_sample[out_id] = (setup_fn_ ? output_shapes_[N * out_id + sample_id] : input_shapes_[N * out_id + sample_id]);
+      }
+      std::vector<uint64_t> in_ptrs_per_sample(in_types_.size());
+      std::vector<uint64_t> in_shapes_per_sample(in_types_.size());
+      for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+        in_ptrs_per_sample[in_id] = in_ptrs[N * in_id + sample_id];
+        in_shapes_per_sample[in_id] = input_shapes_[N * in_id + sample_id];
+      }
+
+      ((void (*)(void*, const void*, const void*, const void*, int32_t,
+      const void*, const void*, const void*, const void*, int32_t))run_fn_)(
+        out_ptrs_per_sample.data(),
+        out_types_.data(),
+        out_shapes_per_sample.data(),
+        outs_ndim_.data(),
+        outs_ndim_.size(),
+        in_ptrs_per_sample.data(),
+        in_types_.data(),
+        in_shapes_per_sample.data(),
+        ins_ndim_.data(),
+        ins_ndim_.size());
+    }, out_shape.tensor_size(sample_id));
+  }
+  tp.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(NumbaFuncImpl, NumbaFuncImpl<CPUBackend>, CPU);
