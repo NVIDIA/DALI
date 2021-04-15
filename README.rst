@@ -110,7 +110,7 @@ Additional Resources
 - GPU Technology Conference 2020; **Fast Data Pre-Processing with NVIDIA Data Loading Library (DALI)**; Albert Wolant, Joaquin Anton Guirao |recording4|_.
 - GPU Technology Conference 2019; **Fast AI data pre-preprocessing with DALI**; Janusz Lisiecki, Michał Zientkiewicz: |slides2|_, |recording2|_.
 - GPU Technology Conference 2019; **Integration of DALI with TensorRT on Xavier**; Josh Park and Anurag Dixit: |slides3|_, |recording3|_.
-- GPU Technology Conference 2018; **Fast data pipeline for deep learning training**, T. Gale, S. Layton and P. Trędak: |slides1|_, |recording2|_.
+- GPU Technology Conference 2018; **Fast data pipeline for deep learning training**, T. Gale, S. Layton and P. Trędak: |slides1|_, |recording1|_.
 - `Developer Page <https://developer.nvidia.com/DALI>`_.
 - `Blog Posts <https://developer.nvidia.com/blog/tag/dali/>`_.
 
