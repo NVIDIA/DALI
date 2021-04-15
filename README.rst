@@ -117,7 +117,7 @@ Additional Resources
 .. |slides1| replace:: slides
 .. _slides1:  http://on-demand.gputechconf.com/gtc/2018/presentation/s8906-fast-data-pipelines-for-deep-learning-training.pdf
 .. |recording1| replace:: recording
-.. _recording1| https://www.nvidia.com/en-us/on-demand/session/gtcsiliconvalley2018-s8906/
+.. _recording1: https://www.nvidia.com/en-us/on-demand/session/gtcsiliconvalley2018-s8906/
 .. |slides2| replace:: slides
 .. _slides2:  https://developer.download.nvidia.com/video/gputechconf/gtc/2019/presentation/s9925-fast-ai-data-pre-processing-with-nvidia-dali.pdf
 .. |recording2| replace:: recording
