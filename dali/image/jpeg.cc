@@ -63,8 +63,10 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
   const auto shape = PeekShapeImpl(jpeg, length);
   const auto h = shape[0];
   const auto w = shape[1];
-  if (type == DALI_ANY_DATA)
-    type = shape[2] == 1 ? DALI_GRAY : DALI_RGB;
+  assert(shape[2] <= 3);  // peek shape should clamp to 3 channels
+  if (type == DALI_ANY_DATA) {
+    type = shape[2] == 3 ? DALI_RGB : DALI_GRAY;
+  }
   const auto c = NumberOfChannels(type);
 
   DALI_ENFORCE(jpeg != nullptr);
@@ -135,6 +137,9 @@ Image::Shape JpegImage::PeekShapeImpl(const uint8_t *encoded_buffer,
 #else
   DALI_ENFORCE(get_jpeg_size(encoded_buffer, length, &height, &width, &components));
 #endif
+
+  if (components > 3)  // We support only 1 or 3 channels
+    components = 3;
   return {height, width, components};
 }
 

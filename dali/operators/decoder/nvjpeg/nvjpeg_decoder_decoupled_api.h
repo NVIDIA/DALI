@@ -31,11 +31,13 @@
 #include "dali/kernels/alloc.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
+#include "dali/util/npp.h"
 #include "dali/image/image_factory.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/dev_buffer.h"
 #include "dali/operators/decoder/nvjpeg/permute_layout.h"
+
 
 namespace dali {
 
@@ -445,7 +447,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
     const auto &jpeg2k_stream = nvjpeg2k_streams_[data.sample_idx];
     auto ret = nvjpeg2kStreamParse(nvjpeg2k_handle_, input.data(), input.size(),
-                                  0, 0, jpeg2k_stream);
+                                   0, 0, jpeg2k_stream);
     if (ret == NVJPEG2K_STATUS_SUCCESS) {
       nvjpeg2kImageInfo_t image_info;
       NVJPEG2K_CALL(nvjpeg2kStreamGetImageInfo(jpeg2k_stream, &image_info));
@@ -457,10 +459,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         NVJPEG2K_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, c));
         DALI_ENFORCE(height == comp.component_height &&
                      width  == comp.component_width,
-                      make_string("Components dimensions do not match: "
-                                  "component 0 has a shape of {", comp.component_height, ", ",
-                                  comp.component_width, "} and component ", c, " has a shape of {",
-                                  height, ", ", width, "}"));
+                     make_string("Components dimensions do not match: "
+                                 "component 0 has a shape of {", comp.component_height, ", ",
+                                 comp.component_width, "} and component ", c, " has a shape of {",
+                                 height, ", ", width, "}"));
       }
       data.shape = {height, width, image_info.num_components};
       data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
@@ -635,14 +637,15 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                               jpeg2k_stream, &output_image, nvjpeg2k_cu_stream_);
     if (ret == NVJPEG2K_STATUS_SUCCESS) {
       if (need_processing) {
-        if (sample->req_nchannels == 1) {
+        if (output_image_type_ == DALI_GRAY) {
           // Converting to Gray, dropping extra channels if needed
           assert(sample->shape[2] >= 3);
           PlanarRGBToGray(output_data, decoder_out, comp_size, nvjpeg2k_cu_stream_);
         } else {
           // Converting to interleaved, dropping extra channels if needed
+          assert(sample->shape[2] >= 3);
           PlanarToInterleaved(output_data, decoder_out, comp_size, sample->req_nchannels,
-                              nvjpeg2k_cu_stream_);
+                              output_image_type_, nvjpeg2k_cu_stream_);
         }
       }
       CUDA_CALL(cudaEventRecord(nvjpeg2k_decode_event_, nvjpeg2k_cu_stream_));

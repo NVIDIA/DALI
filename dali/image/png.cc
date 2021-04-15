@@ -70,8 +70,9 @@ int ReadNumberOfChannels(const uint8_t *data) {
       return 1;
     case PNG_COLOR_TYPE_RGB:
     case PNG_COLOR_TYPE_PALETTE:  // 1 byte but it's converted to 3-channel BGR by OpenCV
-    case PNG_COLOR_TYPE_RGBA:     // RGBA is converted to 3-channel BGR by OpenCV
       return 3;
+    case PNG_COLOR_TYPE_RGBA:
+      return 4;
     default:
       DALI_FAIL("color type not supported: " + std::to_string(color_type));
   }
