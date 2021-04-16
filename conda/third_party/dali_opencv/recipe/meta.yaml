@@ -21,7 +21,7 @@
   source:
     fn: opencv-4.5.1.tar.gz
     url: https://github.com/opencv/opencv/archive/refs/tags/4.5.1.tar.gz
-    sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    sha256: e27fe5b168918ab60d58d7ace2bd82dd14a4d0bd1d3ae182952c2113f5637513
 
   build:
     number: 0
