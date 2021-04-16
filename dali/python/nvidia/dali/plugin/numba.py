@@ -5,7 +5,6 @@ from numba import types as numba_types
 from numba import njit, cfunc, carray
 import numpy as np
 import numba as nb
-import ctypes
 
 _to_numpy = {
     dali_types.UINT8 : "uint8",
@@ -114,13 +113,11 @@ class NumbaFunc(ops.NumbaFunctionBase):
         in0_lambda, in1_lambda, in2_lambda, in3_lambda, in4_lambda, in5_lambda = self._get_carrays_eval_lambda(in_types, ins_ndim)
         run_fn = njit(run_fn)
         run_fn_lambda = self._get_run_fn_lambda(len(out_types), len(in_types))
-        run_cfunc_address = None
         if batch_processing:
             @cfunc(self._run_fn_sig(True), nopython=True)
-            def run_cfunc(out_ptr, out_types_ptr, out_shapes_ptr, out_ndims_ptr, num_outs, in_ptr, in_types_ptr, in_shapes_ptr, in_ndims_ptr, num_ins, num_samples):
+            def run_cfunc(out_ptr, out_shapes_ptr, out_ndims_ptr, num_outs, in_ptr, in_shapes_ptr, in_ndims_ptr, num_ins, num_samples):
                 out0 = out1 = out2 = out3 = out4 = out5 = None
                 out_shapes_np = _get_shape_view(out_shapes_ptr, out_ndims_ptr, num_outs, num_samples)
-                out_types = carray(address_as_void_pointer(out_types_ptr), num_outs, dtype=np.int32)
                 out_arr = carray(address_as_void_pointer(out_ptr), (num_outs, num_samples), dtype=np.int64)
                 if num_outs >= 1:
                     out0 = [out0_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(out_arr[0], out_shapes_np[0])]
@@ -137,7 +134,6 @@ class NumbaFunc(ops.NumbaFunctionBase):
 
                 in0 = in1 = in2 = in3 = in4 = in5 = None
                 in_shapes_np = _get_shape_view(in_shapes_ptr, in_ndims_ptr, num_ins, num_samples)
-                in_types = carray(address_as_void_pointer(in_types_ptr), num_ins, dtype=np.int32)
                 in_arr = carray(address_as_void_pointer(in_ptr), (num_ins, num_samples), dtype=np.int64)
                 if num_ins >= 1:
                     in0 = [in0_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(in_arr[0], in_shapes_np[0])]

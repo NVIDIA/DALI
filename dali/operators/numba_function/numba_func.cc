@@ -250,15 +250,13 @@ void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
         in_shapes_per_sample[in_id] = input_shape_ptrs_[N * in_id + sample_id];
       }
 
-      ((void (*)(void*, const void*, const void*, const void*, int32_t,
-      const void*, const void*, const void*, const void*, int32_t))run_fn_)(
+      ((void (*)(void*, const void*, const void*, int32_t,
+      const void*, const void*, const void*, int32_t))run_fn_)(
         out_ptrs_per_sample.data(),
-        out_types_.data(),
         out_shapes_per_sample.data(),
         outs_ndim_.data(),
         outs_ndim_.size(),
         in_ptrs_per_sample.data(),
-        in_types_.data(),
         in_shapes_per_sample.data(),
         ins_ndim_.data(),
         ins_ndim_.size());
