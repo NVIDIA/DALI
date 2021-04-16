@@ -108,7 +108,7 @@ __device__ void ResampleHorz_Channels(
     }
     norm = 1.0f / norm;
 
-    for (int i = threadIdx.y + lo.y; i < hi.y; i+=blockDim.y) {
+    for (int i = threadIdx.y + lo.y; i < hi.y; i += blockDim.y) {
       const Src *in_row = &in[i * in_stride];
       Dst *out_row = &out[i * out_stride];
 
@@ -121,7 +121,7 @@ __device__ void ResampleHorz_Channels(
             int xsample = x < 0 ? 0 : x >= in_w-1 ? in_w-1 : x;
             float flt = coeffs[coeff_idx];
             Src px = __ldg(in_row + channels * xsample + c);
-            tmp += fmaf(px, flt, tmp);
+            tmp = fmaf(px, flt, tmp);
           }
 
           out_row[channels * dx + c] = ConvertSat<Dst>(tmp * norm);
