@@ -1021,8 +1021,8 @@ Parameters
         if define_graph is not None and not callable(define_graph):
             raise TypeError(
                 "Provided `define_graph` argument is not callable." +
-                " Didn't you want to write `.serialize(filename=...)`?"
-                if isinstance(define_graph, str) else "")
+                (" Didn't you want to write `.serialize(filename=...)`?"
+                if isinstance(define_graph, str) else ""))
         if not self._py_graph_built:
             self._build_graph(define_graph)
         if not self._backend_prepared:
