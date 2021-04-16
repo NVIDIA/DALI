@@ -18,65 +18,46 @@
 namespace dali {
 
 DALI_SCHEMA(NumbaFunc)
-  .DocStr(R"code()code")
-  .NumInput(1, 6)
-  .OutputFn([](const OpSpec &spec) { return spec.GetRepeatedArgument<int>("out_types").size(); })
-  .AllowSequences()
-  .Unserializable()
-  .AddArg("run_fn", R"code()code", DALI_INT64)
-  .AddArg("out_types", R"code()code", DALI_INT_VEC)
-  .AddArg("in_types", R"code()code", DALI_INT_VEC)
-  .AddArg("outs_ndim", R"code()code", DALI_INT_VEC)
-  .AddArg("ins_ndim", R"code()code", DALI_INT_VEC)
-  .AddOptionalArg<int>("setup_fn", R"code()code", 0)
-  .AddOptionalArg("batch_processing", R"code()code", false);
+  .DocStr(R"code(Invokes a compiled Numba function passed as a function in argument.
 
-DALI_SCHEMA(NumbaFuncImpl)
-  .DocStr(R"code(Invokes a compiled Numba function passed as a pointer.
-
-The run function should be a Numba C callback function (annotated with cfunc). This function is run on a 
-per-sample basis and should have the following definition:
+The run function should be a python function which can be compilled in Numba ``nopython`` mode. This function 
+for ``1`` output and ``1`` input should have the following definition:
 
 .. code-block:: python
 
-    @cfunc(run_fn_sig([out_numba_types], [in_numba_types]), nopython=True)
-    def callback_run_func(out1_ptr, out1_shape_ptr, out1_shape_ndim, in1_ptr, in1_shape_ptr, in1_shape_ndim)
+    def run_fn(out0, in0)
 
-``out_numba_types`` and ``in_numba_types`` refer to the numba data types (numba.types) 
-of the output and input, respectively.
+``out0`` and ``in0`` are a numpy array view on data. If operator is running in batch mode, then the first dimension of 
+``out0`` and ``in0`` is the sample number. 
+
+Note that function can take at most ``6`` inputs or outputs.
 
 Additionally, an optional setup function calculating the shape of the output so DALI can allocate memory 
 for the output with the following definition:
 
 .. code-block:: python
 
-    @cfunc(setup_fn_sig(num_outputs, num_inputs), nopython=True)
-    def callback_setup_func(out1_shape_ptr, out1_ndim, out_dtype_ptr, in1_shape_ptr, in1_ndim, in1_dtype, num_samples)
+    def setup_fn(outs, ins)
 
-The setup function is invoked once for the whole batch.
+The setup function is invoked once for the whole batch. The first dimension of ``outs``, ``ins`` is 
+respectively number of output/input. The second dimension is sample. So the second output of the first sample will 
+be accessed ``outs[1][0]``.
 
 If no setup function provided, the output shape and data type will be the same as the input.
 
-.. note::
-    This operator is experimental and its API might change without notice.
-
 **Example 1:**
 
-The following example shows a simple setup function which permutes the order of dimensions in the shape and sets the output type to int32
+The following example shows a simple setup function which permutes the order of dimensions in the shape.
 
 .. code-block:: python
 
-    dali_int32 = int(dali_types.INT32)
-    @cfunc(dali_numba.setup_fn_sig(1, 1), nopython=True)
-    def setup_change_out_shape(out_shape_ptr, out1_ndim, out_dtype, in_shape_ptr, in1_ndim, in_dtype, num_samples):
-        in_shapes = carray(in_shape_ptr, (num_samples, in1_ndim))
-        out_shapes = carray(out_shape_ptr, (num_samples, out1_ndim))
+    def setup_change_out_shape(outs, ins):
+        out0 = outs[0]
+        in0 = ins[0]
         perm = [1, 0, 2]
-        for sample_idx in range(num_samples):
+        for sample_idx in range(len(out0)):
             for d in range(len(perm)):
-                out_shapes[sample_idx][d] = in_shapes[sample_idx][perm[d]]
-        out_type = carray(out_dtype, 1)
-        out_type[0] = dali_int32
+                out0[sample_idx][d] = in0[sample_idx][perm[d]]
 
 Since the setup function is running for the whole batch, we need to iterate and permute each sample's shape individually. 
 For ``shapes = [(10, 20, 30), (20, 10, 30)]`` it will produce output with ``shapes = [(20, 10, 30), (10, 20, 30)]``.
@@ -85,20 +66,41 @@ Also lets provide run function:
 
 .. code-block:: python
 
-    @cfunc(dali_numba.run_fn_sig(types.int32, types.int64), nopython=True)
-    def change_out_shape(out_ptr, out_shape_ptr, ndim_out, in_ptr, in_shape_ptr, ndim_in):
-        out_shape = carray(out_shape_ptr, ndim_out)
-        out_arr = carray(out_ptr, (out_shape[0], out_shape[1], out_shape[2]))
-        in_shape = carray(in_shape_ptr, ndim_in)
-        in_arr = carray(in_ptr, (in_shape[0], in_shape[1], in_shape[2]))
-        for i in range(in_shape[0]):
-            for j in range(in_shape[1]):
-                out_arr[j, i] = in_arr[i, j]
+    def run_fn(out0, in0):
+        for i in range(in0.shape[0]):
+            for j in range(in0.shape[1]):
+                out0[j, i] = in0[i, j]
 
-The run function works on a per-sample basis, so we only need to handle one sample.
-Notice that we are passing ``int32`` as the output data type, which we set in the setup function body.
+The run function works on a per-sample basis, so we only need to handle one sample. Although it's 
+possible to run it per batch (just specify ``batch_processing`` argument in operator). The run function per-batch
+may look like this:
 
+.. code-block:: python
+
+    def run_fn(out0_samples, in0_samples):
+        for sample_id in range(len(out0_samples)):
+            out0 = out0_samples[sample_id]
+            in0 = in0_samples[sample_id]
+            for i in range(in0.shape[0]):
+                for j in range(in0.shape[1]):
+                    out0[j, i] = in0[i, j]
 )code")
+  .NumInput(1, 6)
+  .OutputFn([](const OpSpec &spec) { return spec.GetRepeatedArgument<int>("out_types").size(); })
+  .AllowSequences()
+  .Unserializable()
+  .AddArg("run_fn", R"code(Function to be invoked.)code", DALI_INT64)
+  .AddArg("out_types", R"code(Dali types of outputs.)code", DALI_INT_VEC)
+  .AddArg("in_types", R"code(Dali types of inputs.)code", DALI_INT_VEC)
+  .AddArg("outs_ndim", R"code(Number of dimensions which outputs shapes should have.)code", DALI_INT_VEC)
+  .AddArg("ins_ndim", R"code(Number of dimensions which inputs shapes should have.)code", DALI_INT_VEC)
+  .AddOptionalArg<int>("setup_fn", R"code(Setup function setting shapes for outputs. 
+This function is invoked once per batch.)code", 0)
+  .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked once per batch or
+separately for every sample in the batch.)code", false);
+
+DALI_SCHEMA(NumbaFuncImpl)
+  .DocStr("")
   .NumInput(1, 6)
   .OutputFn([](const OpSpec &spec) { return spec.GetRepeatedArgument<int>("out_types").size(); })
   .Unserializable()
@@ -111,18 +113,35 @@ NumbaFuncImpl<Backend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
   batch_processing_ = spec.GetArgument<bool>("batch_processing");
 
   out_types_ = spec.GetRepeatedArgument<int>("out_types");
-  DALI_ENFORCE(!out_types_.empty(), "");
+  DALI_ENFORCE(out_types_.size() <= 6,
+    make_string("Trying to specify ", out_types_.size(), " outputs. "
+    "This operator can have at most 6 outputs."));
   in_types_ = spec.GetRepeatedArgument<int>("in_types");
-  DALI_ENFORCE(!in_types_.empty(), "");
+  DALI_ENFORCE(in_types_.size() <= 6,
+    make_string("Trying to specify ", in_types_.size(), " inputs. "
+      "This operator can have at most 6 inputs."));
 
   outs_ndim_ = spec.GetRepeatedArgument<int>("outs_ndim");
+  DALI_ENFORCE(outs_ndim_.size() == out_types_.size(), make_string("Size of `outs_ndim` "
+    "should match size of `out_types`."));
+  for (size_t i = 0; i < outs_ndim_.size(); i++) {
+    DALI_ENFORCE(outs_ndim_[i] >= 0, make_string(
+      "All dimensions should be non negative. Value specified in `outs_ndim` at index ",
+        i, " is negative."));
+  }
   if (!setup_fn_) {
-    DALI_ENFORCE(out_types_.size() == in_types_.size(), "");
-  } else {
-    DALI_ENFORCE(outs_ndim_.size() == out_types_.size(), "");
+    DALI_ENFORCE(out_types_.size() == in_types_.size(),
+      "Size of `out_types` should match size of `in_types` when `setup_fn` isn't provided.");
   }
 
   ins_ndim_ = spec.GetRepeatedArgument<int>("ins_ndim");
+  DALI_ENFORCE(ins_ndim_.size() == in_types_.size(), make_string(
+    "Size of `ins_dnim` should match size of `in_types`."));
+  for (size_t i = 0; i < ins_ndim_.size(); i++) {
+    DALI_ENFORCE(ins_ndim_[i] >= 0, make_string(
+      "All dimensions should be non negative. Value specified in "
+      "`ins_ndim` at index ", i, " is negative."));
+  }
 }
 
 template <>
@@ -134,10 +153,10 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     in_shapes_[in_id] = ws.InputRef<CPUBackend>(in_id).shape();
   }
   auto N = in_shapes_[0].num_samples();
-  input_shapes_.resize(N * in_types_.size());
+  input_shape_ptrs_.resize(N * in_types_.size());
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
     for (int i = 0; i < N; i++) {
-      input_shapes_[N * in_id + i] = (uint64_t)in_shapes_[in_id].tensor_shape_span(i).data();
+      input_shape_ptrs_[N * in_id + i] = (uint64_t)in_shapes_[in_id].tensor_shape_span(i).data();
     }
   }
 
@@ -157,15 +176,26 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_shapes_.resize(N * out_types_.size());
   for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
     for (int i = 0; i < N; i++) {
-      output_shapes_[N * out_id + i] = (uint64_t)output_desc[out_id].shape.tensor_shape_span(i).data();
+      output_shapes_[N * out_id + i] =
+        (uint64_t)output_desc[out_id].shape.tensor_shape_span(i).data();
     }
   }
 
   ((void (*)(void*, const void*, int32_t, const void*, const void*, int32_t, int32_t))setup_fn_)(
-    output_shapes_.data(), outs_ndim_.data(), outs_ndim_.size(), input_shapes_.data(), ins_ndim_.data(), ins_ndim_.size(), N);
+    output_shapes_.data(), outs_ndim_.data(), outs_ndim_.size(),
+    input_shape_ptrs_.data(), ins_ndim_.data(), ins_ndim_.size(), N);
 
-  // TODO VALIDATION OF DATA?
-
+  for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
+    for (int i = 0; i < N; i++) {
+      auto out_shape_span = output_desc[out_id].shape.tensor_shape_span(i);
+      for (int d = 0; d < outs_ndim_[out_id]; d++) {
+        DALI_ENFORCE(out_shape_span[d] >= 0, make_string(
+          "Shape of data should be non negative. ",
+          "After setup function shape for output number ",
+          out_id, " in sample ", i, " at dimension ", d, " is negative."));
+      }
+    }
+  }
   return true;
 }
 
@@ -189,13 +219,15 @@ void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
       in_ptrs[N * in_id + i] = reinterpret_cast<uint64_t>(in[i].raw_mutable_data());
     }
   }
-  
+
   if (batch_processing_) {
     ((void (*)(void*, const void*, const void*, const void*, int32_t,
       const void*, const void*, const void*, const void*, int32_t, int32_t))run_fn_)(
-        out_ptrs.data(), out_types_.data(), (setup_fn_ ? output_shapes_.data() : input_shapes_.data()),
+        out_ptrs.data(), out_types_.data(),
+        (setup_fn_ ? output_shapes_.data() : input_shape_ptrs_.data()),
         outs_ndim_.data(), outs_ndim_.size(),
-        in_ptrs.data(), in_types_.data(), input_shapes_.data(), ins_ndim_.data(), ins_ndim_.size(), N);
+        in_ptrs.data(), in_types_.data(), input_shape_ptrs_.data(),
+        ins_ndim_.data(), ins_ndim_.size(), N);
     return;
   }
 
@@ -208,13 +240,14 @@ void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
       std::vector<uint64_t> out_shapes_per_sample(out_types_.size());
       for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
         out_ptrs_per_sample[out_id] = out_ptrs[N * out_id + sample_id];
-        out_shapes_per_sample[out_id] = (setup_fn_ ? output_shapes_[N * out_id + sample_id] : input_shapes_[N * out_id + sample_id]);
+        out_shapes_per_sample[out_id] = (setup_fn_ ? output_shapes_[N * out_id + sample_id]
+                                        : input_shape_ptrs_[N * out_id + sample_id]);
       }
       std::vector<uint64_t> in_ptrs_per_sample(in_types_.size());
       std::vector<uint64_t> in_shapes_per_sample(in_types_.size());
       for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
         in_ptrs_per_sample[in_id] = in_ptrs[N * in_id + sample_id];
-        in_shapes_per_sample[in_id] = input_shapes_[N * in_id + sample_id];
+        in_shapes_per_sample[in_id] = input_shape_ptrs_[N * in_id + sample_id];
       }
 
       ((void (*)(void*, const void*, const void*, const void*, int32_t,
