@@ -57,10 +57,8 @@ class NumbaFunc(ops.NumbaFunctionBase):
         sig_types.append(numba_types.uint64)
         sig_types.append(numba_types.uint64)
         sig_types.append(numba_types.uint64)
-        sig_types.append(numba_types.uint64)
         sig_types.append(numba_types.int32)
 
-        sig_types.append(numba_types.uint64)
         sig_types.append(numba_types.uint64)
         sig_types.append(numba_types.uint64)
         sig_types.append(numba_types.uint64)
@@ -151,10 +149,9 @@ class NumbaFunc(ops.NumbaFunctionBase):
                 run_fn_lambda(run_fn, out0, out1, out2, out3, out4, out5, in0, in1, in2, in3, in4, in5)
         else:
             @cfunc(self._run_fn_sig(), nopython=True)
-            def run_cfunc(out_ptr, out_types_ptr, out_shapes_ptr, out_ndims_ptr, num_outs, in_ptr, in_types_ptr, in_shapes_ptr, in_ndims_ptr, num_ins):
+            def run_cfunc(out_ptr, out_shapes_ptr, out_ndims_ptr, num_outs, in_ptr, in_shapes_ptr, in_ndims_ptr, num_ins):
                 out0 = out1 = out2 = out3 = out4 = out5 = None
                 out_shapes_np = _get_shape_view(out_shapes_ptr, out_ndims_ptr, num_outs, 1)
-                out_types = carray(address_as_void_pointer(out_types_ptr), num_outs, dtype=np.int32)
                 out_arr = carray(address_as_void_pointer(out_ptr), num_outs, dtype=np.int64)
                 if num_outs >= 1:
                     out0 = out0_lambda(address_as_void_pointer(out_arr[0]), out_shapes_np[0][0])
@@ -171,7 +168,6 @@ class NumbaFunc(ops.NumbaFunctionBase):
                 
                 in0 = in1 = in2 = in3 = in4 = in5 = None
                 in_shapes_np = _get_shape_view(in_shapes_ptr, in_ndims_ptr, num_ins, 1)
-                in_types = carray(address_as_void_pointer(in_types_ptr), num_ins, dtype=np.int32)
                 in_arr = carray(address_as_void_pointer(in_ptr), num_ins, dtype=np.int64)
                 if num_ins >= 1:
                     in0 = in0_lambda(address_as_void_pointer(in_arr[0]), in_shapes_np[0][0])

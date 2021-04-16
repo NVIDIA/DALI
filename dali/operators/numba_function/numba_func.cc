@@ -221,12 +221,12 @@ void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   }
 
   if (batch_processing_) {
-    ((void (*)(void*, const void*, const void*, const void*, int32_t,
-      const void*, const void*, const void*, const void*, int32_t, int32_t))run_fn_)(
-        out_ptrs.data(), out_types_.data(),
+    ((void (*)(void*, const void*, const void*, int32_t,
+      const void*, const void*, const void*, int32_t, int32_t))run_fn_)(
+        out_ptrs.data(),
         (setup_fn_ ? output_shapes_.data() : input_shape_ptrs_.data()),
         outs_ndim_.data(), outs_ndim_.size(),
-        in_ptrs.data(), in_types_.data(), input_shape_ptrs_.data(),
+        in_ptrs.data(), input_shape_ptrs_.data(),
         ins_ndim_.data(), ins_ndim_.size(), N);
     return;
   }
