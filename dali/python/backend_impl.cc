@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cuda_runtime_api.h>
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
 #if SHM_WRAPPER_ENABLED
@@ -38,6 +39,8 @@
 namespace dali {
 namespace python {
 
+
+#if (CUDART_VERSION >= 10200 && CUDART_VERSION < 11100)
 // add this alignment to work around a patchelf bug/feature which
 // changes TLS alignment and break DALI interoperability with CUDA RT
 alignas(0x1000) thread_local volatile bool __backend_impl_force_tls_align;
@@ -45,6 +48,10 @@ alignas(0x1000) thread_local volatile bool __backend_impl_force_tls_align;
 void __backend_impl_force_tls_align_fun(void) {
   __backend_impl_force_tls_align = 0;
 }
+#else
+void __backend_impl_force_tls_align_fun(void) {}
+#endif
+
 
 using namespace pybind11::literals; // NOLINT
 

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cuda_runtime_api.h>
 #include <gtest/gtest.h>
 
 #include "dali/pipeline/init.h"
@@ -21,6 +22,7 @@
 #include "dali/test/dali_test_config.h"
 #include "dali/operators.h"
 
+#if (CUDART_VERSION >= 10200 && CUDART_VERSION < 11100)
 // add this alignment to work around a patchelf bug/feature which
 // changes TLS alignment and break DALI interoperability with CUDA RT
 alignas(0x1000) thread_local volatile bool __dali_test_force_tls_align;
@@ -28,6 +30,9 @@ alignas(0x1000) thread_local volatile bool __dali_test_force_tls_align;
 void __dali_test_force_tls_align_fun(void) {
   __dali_test_force_tls_align = 0;
 }
+#else
+void __dali_test_force_tls_align_fun(void) {}
+#endif
 
 int main(int argc, char **argv) {
   __dali_test_force_tls_align_fun();

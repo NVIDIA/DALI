@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/benchmark/dali_bench.h"
+#include <cuda_runtime_api.h>
 
 #include <benchmark/benchmark.h>
 
@@ -22,6 +23,8 @@
 #include "dali/operators.h"
 #include "dali/pipeline/operator/op_spec.h"
 
+
+#if (CUDART_VERSION >= 10200 && CUDART_VERSION < 11100)
 // add this alignment to work around a patchelf bug/feature which
 // changes TLS alignment and break DALI interoperability with CUDA RT
 alignas(0x1000) thread_local volatile bool __dali_bench_force_tls_align;
@@ -29,6 +32,9 @@ alignas(0x1000) thread_local volatile bool __dali_bench_force_tls_align;
 void __dali_bench_force_tls_align_fun(void) {
   __dali_bench_force_tls_align = 0;
 }
+#else
+void __dali_bench_force_tls_align_fun(void) {}
+#endif
 
 int main(int argc, char **argv) {
   __dali_bench_force_tls_align_fun();

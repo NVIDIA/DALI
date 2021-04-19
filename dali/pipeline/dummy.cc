@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cuda_runtime_api.h>
 #include "dali/core/api_helper.h"
 
 namespace dali {
 
+#if (CUDART_VERSION >= 10200 && CUDART_VERSION < 11100)
 // add this alignment to work around a patchelf bug/feature which
 // changes TLS alignment and break DALI interoperability with CUDA RT
 alignas(0x1000) thread_local volatile bool __dali_pipeline_force_tls_align;
@@ -23,5 +25,8 @@ alignas(0x1000) thread_local volatile bool __dali_pipeline_force_tls_align;
 DLL_PUBLIC void __dali_pipeline_force_tls_align_fun(void) {
   __dali_pipeline_force_tls_align = 0;
 }
+#else
+DLL_PUBLIC void __dali_pipeline_force_tls_align_fun(void) {}
+#endif
 
 }  // namespace dali
