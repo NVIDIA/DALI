@@ -120,8 +120,6 @@ template <
     bool SplitKSerial,
     /// Operation performed by GEMM
     typename Operator,
-    /// Beta is zero or not
-    bool IsBetaZero = false,
     /// If the convolution is computed in the innermost or outer dimension
     bool IsInnerConv = true>
 struct DefaultConv {
@@ -129,12 +127,12 @@ struct DefaultConv {
       DefaultGemm<ElementCastA, LayoutA, kAlignmentA, ElementCastB, LayoutB, kAlignmentB, ElementC,
                   layout::RowMajor, ElementAccumulator, OperatorClass, ArchTag, ThreadblockShape,
                   WarpShape, InstructionShape, EpilogueOutputOp, ThreadblockSwizzle, Stages,
-                  SplitKSerial, Operator, IsBetaZero>;
+                  SplitKSerial, Operator>;
 
   using Mma = typename cutlass::gemm::threadblock::SpecializedConvMma<
       ElementA, ElementCastA, LayoutA, kAlignmentA, ElementB, ElementCastB, LayoutB, kAlignmentB,
       ConvWindowConfiguration, ElementAccumulator, LayoutC, OperatorClass, ArchTag,
-      ThreadblockShape, WarpShape, InstructionShape, Stages, Operator, IsBetaZero,
+      ThreadblockShape, WarpShape, InstructionShape, Stages, Operator, false,
       IsInnerConv>::ThreadblockMma;
 
   /// Define the epilogue
