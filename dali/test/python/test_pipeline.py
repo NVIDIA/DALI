@@ -19,6 +19,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import nvidia.dali as dali
+from nvidia.dali import pipeline_def
 from nvidia.dali.backend_impl import TensorListGPU
 from timeit import default_timer as timer
 import numpy as np
@@ -1785,11 +1786,28 @@ def test_properties():
         assert pipe.exec_async == True
         assert pipe.set_affinity == True
         assert pipe.max_streams == -1
-        assert pipe.prefetch_queue_depth == {"cpu_size":3, "gpu_size":2}
+        assert pipe.prefetch_queue_depth == {"cpu_size": 3, "gpu_size": 2}
         assert pipe.cpu_queue_size == 3
         assert pipe.gpu_queue_size == 2
         assert pipe.py_num_workers == 3
         assert pipe.py_start_method == "fork"
         assert pipe.enable_memory_stats == False
-        return np.float32([1,2,3])
+        return np.float32([1, 2, 3])
+
     p = my_pipe(device_id=0, seed=1234, num_threads=3, set_affinity=True, py_num_workers=3)
+
+
+@pipeline_def(batch_size=1, num_threads=1, device_id=0)
+def _identity_pipe():
+    x = fn.external_source(device="gpu", name="identity_input")
+    return x
+
+
+@raises(TypeError)
+def test_invoke_serialize_error_handling_string():
+    _identity_pipe().serialize("any_string")
+
+
+@raises(TypeError)
+def test_invoke_serialize_error_handling_not_string():
+    _identity_pipe().serialize(42)
