@@ -28,7 +28,7 @@ __global__ void planar_to_interleaved(Output *output, const Input *input, int64_
   if (tid >= npixels) return;
   Output *out = output + C * tid;
   for (int c = 0; c < C; ++c) {
-    out[c] = input[c * npixels + tid];
+    out[c] = ConvertNorm<Output>(input[c * npixels + tid]);
   }
 }
 
@@ -49,23 +49,25 @@ template <typename Output, typename Input>
 __global__ void planar_rgb_to_ycbcr(Output *output, const Input *input, int64_t npixels) {
   auto tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid >= npixels) return;
-  auto r = input[tid];
-  auto g = input[tid + npixels];
-  auto b = input[tid + 2 * npixels];
+  vec<3, float> rgb = {
+    ConvertNorm<float>(input[tid]),
+    ConvertNorm<float>(input[tid + npixels]),
+    ConvertNorm<float>(input[tid + 2 * npixels])};
   Output *out = output + 3 * tid;
-  out[0] = ConvertNorm<Output>(kernels::rgb_to_y<Input>({r, g, b}));
-  out[1] = ConvertNorm<Output>(kernels::rgb_to_cb<Input>({r, g, b}));
-  out[2] = ConvertNorm<Output>(kernels::rgb_to_cr<Input>({r, g, b}));
+  out[0] = kernels::rgb_to_y<Output>(rgb);
+  out[1] = kernels::rgb_to_cb<Output>(rgb);
+  out[2] = kernels::rgb_to_cr<Output>(rgb);
 }
 
 template <typename Output, typename Input>
 __global__ void planar_rgb_to_gray(Output *output, const Input *input, int64_t npixels) {
   auto tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid >= npixels) return;
-  auto r = input[tid];
-  auto g = input[tid + npixels];
-  auto b = input[tid + 2 * npixels];
-  output[tid] = ConvertNorm<Output>(kernels::rgb_to_y<Input>({r, g, b}));
+  vec<3, float> rgb = {
+    ConvertNorm<float>(input[tid]),
+    ConvertNorm<float>(input[tid + npixels]),
+    ConvertNorm<float>(input[tid + 2 * npixels])};
+  output[tid] = kernels::rgb_to_y<Output>(rgb);
 }
 
 template <typename Output, typename Input>

@@ -16,7 +16,9 @@ from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import math
 import os
+import random
 import numpy as np
 import glob
 
@@ -68,30 +70,26 @@ test_missnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
 def run_decode(data_path, batch, device, threads, memory_stats=False):
     pipe = DecoderPipeline(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, memory_stats=memory_stats)
     pipe.build()
-    iters = pipe.epoch_size("Reader")
+    iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for _ in range(iters):
         pipe.run()
 
 def test_image_decoder():
+    def log(img_type, size, device, threads):
+        pass
     for device in {'cpu', 'mixed'}:
-        for threads in {1, 2, 3, 4}:
-            for size in {1, 10}:
-                for img_type in test_good_path:
+        for batch_size in {1, 10}:
+            for img_type in test_good_path:
+                for threads in {1, random.choice([2, 3, 4])}:
                     data_path = os.path.join(test_data_root, good_path, img_type)
-                    run_decode(data_path, size, device, threads)
-                    yield check, img_type, size, device, threads
-
-def test_missnamed_host_decoder():
-    for decoder in {'cpu', 'mixed'}:
-        for threads in {1, 2, 3, 4}:
-            for size in {1, 10}:
-                for img_type in test_missnamed_path:
+                    run_decode(data_path, batch_size, device, threads)
+                    yield log, img_type, batch_size, device, threads
+            for img_type in test_missnamed_path:
+                for threads in {1, random.choice([2, 3, 4])}:
                     data_path = os.path.join(test_data_root, missnamed_path, img_type)
-                    run_decode(data_path, size, decoder, threads)
-                    yield check, img_type, size, decoder, threads
+                    run_decode(data_path, batch_size, device, threads)
+                    yield log, img_type, batch_size, device, threads
 
-def check(img_type, size, device, threads):
-    pass
 
 class DecoderPipelineFastIDC(Pipeline):
     def __init__(self, data_path, batch_size, num_threads, use_fast_idct=False):
@@ -133,8 +131,8 @@ def test_image_decoder_memory_stats():
         with check_output_pattern(pattern):
             run_decode(data_path, size, device, threads, memory_stats=True)
 
-    for threads in {1, 2, 3, 4}:
-        for size in {1, 10}:
+    for size in {1, 10}:
+        for threads in {1, random.choice([2, 3, 4])}:
             yield check, img_type, size, device, threads
 
 batch_size_test = 16
@@ -164,7 +162,6 @@ def test_image_decoder_consistency():
 
         for file_fmt, path, ext in [("tiff", "db/single/multichannel/tiff_multichannel", 'tif'),
                                     ("jpeg2k", "db/single/multichannel/with_alpha", 'jp2'),
-                                    ("jpeg2k", "db/single/16bit", 'jp2'),
                                     ("png", "db/single/multichannel/with_alpha", 'png')]:
             subdir = None  # In those paths the images are not organized in subdirs
             yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path, subdir, ext

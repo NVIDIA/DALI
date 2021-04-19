@@ -22,24 +22,45 @@
 namespace dali {
 namespace kernels {
 
-template <typename T>
-__inline__ __device__ T rgb_to_y(vec<3, T> rgb) {
-  return ConvertSat<T>(0.299f * rgb.x + 0.587f * rgb.y + 0.114f * rgb.z);
+namespace {
+
+template <typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE vec<3, float> norm(vec<3, Input> rgb) {
+  return vec<3, float>{ConvertNorm<float>(rgb.x), ConvertNorm<float>(rgb.y),
+                       ConvertNorm<float>(rgb.z)};
 }
 
-template <typename T>
-__inline__ __device__ T rgb_to_cb(vec<3, T> rgb) {
-  return ConvertSat<T>(-0.16873589f * rgb.x - 0.33126411f * rgb.y + 0.50000000f * rgb.z + 128.0f);
+template <>
+DALI_HOST_DEV DALI_FORCEINLINE vec<3, float> norm(vec<3, float> rgb) {
+  return rgb;
 }
 
-template <typename T>
-__inline__ __device__ T rgb_to_cr(vec<3, T> rgb) {
-  return ConvertSat<T>(0.50000000f * rgb.x - 0.41868759f * rgb.y - 0.08131241f * rgb.z + 128.0f);
+}  // namespace
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_y(vec<3, Input> rgb_in) {
+  auto rgb = norm(rgb_in);
+  return ConvertNorm<Output>(0.299f * rgb.x + 0.587f * rgb.y + 0.114f * rgb.z);
 }
 
-template <typename T>
-__inline__ __device__ vec<2, T> rgb_to_cb_cr(vec<3, T> rgb) {
-  return {rgb_to_cb<T>(rgb), rgb_to_cr<T>(rgb)};
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cb(vec<3, Input> rgb_in) {
+  auto rgb = norm(rgb_in);
+  return ConvertNorm<Output>(-0.16873589f * rgb.x - 0.33126411f * rgb.y + 0.50000000f * rgb.z +
+                             0.5f);
+}
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cr(vec<3, Input> rgb_in) {
+  auto rgb = norm(rgb_in);
+  return ConvertNorm<Output>(0.50000000f * rgb.x - 0.41868759f * rgb.y - 0.08131241f * rgb.z +
+                             0.5f);
+}
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE vec<2, Output> rgb_to_cb_cr(vec<3, Input> rgb_in) {
+  auto rgb = norm(rgb_in);
+  return {rgb_to_cb<Output>(rgb), rgb_to_cr<Output>(rgb)};
 }
 
 }  // namespace kernels

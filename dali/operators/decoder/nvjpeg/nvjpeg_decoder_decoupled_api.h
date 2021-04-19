@@ -336,6 +336,16 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
     }
 
+    void clear() {
+      encoded_length = 0;
+      bpp = 8;
+      selected_decoder = nullptr;
+      is_progressive = false;
+      req_nchannels = -1;
+      method = DecodeMethod::Host;
+      subsampling = NVJPEG_CSS_UNKNOWN;
+    }
+
     ~SampleData() {
       try {
         NVJPEG_CALL(nvjpegDecodeParamsDestroy(params));
@@ -495,10 +505,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       const auto in_size = in.size();
 
       SampleData &data = sample_data_[i];
-      data.file_name = in.GetSourceInfo();
+      data.clear();
       assert(data.sample_idx == i);
+      data.file_name = in.GetSourceInfo();
       data.encoded_length = in_size;
-      data.selected_decoder = nullptr;
 
       auto cached_shape = CacheImageShape(data.file_name);
       if (volume(cached_shape) > 0) {
@@ -630,7 +640,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     const auto &jpeg2k_stream = nvjpeg2k_streams_[sample->sample_idx];
     void *pixel_data[NVJPEG_MAX_COMPONENT] = {};
     size_t pitch_in_bytes[NVJPEG_MAX_COMPONENT] = {};
-    auto *decoder_out = !need_processing ? output_data : buffer.data();
+    uint8_t *decoder_out = !need_processing ? output_data : buffer.data();
     for (uint32_t c = 0; c < sample->shape[2]; ++c) {
       pixel_data[c] = decoder_out + c * comp_size;
       pitch_in_bytes[c] = sample->shape[1] * pixel_sz;
