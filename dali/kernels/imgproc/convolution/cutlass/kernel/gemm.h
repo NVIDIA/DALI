@@ -245,11 +245,13 @@ struct Conv {
     // Compute threadblock location
     ThreadblockSwizzle threadblock_swizzle;
 
-    cutlass::gemm::GemmCoord threadblock_tile_offset = threadblock_swizzle.get_tile_offset();
-
-    int sample_idx = threadblock_tile_offset.k();
+    // we index into samples via the z coordinate, should match sample_grid_tiled_shape.k()
+    int sample_idx = threadblock::RematerializeBlockIdxZ();
 
     SampleParams params = params_vec.params[sample_idx];
+
+    cutlass::gemm::GemmCoord threadblock_tile_offset =
+        threadblock_swizzle.get_tile_offset(params.sample_grid_tiled_shape);
 
     for (int plane_batch = 0; plane_batch < params.planes; plane_batch++) {
       // Early exit if CTA is out of range
@@ -360,7 +362,7 @@ struct Conv {
       // Masked tile iterators constructed from members
       //
 
-      threadblock_tile_offset = threadblock_swizzle.get_tile_offset();
+      threadblock_tile_offset = threadblock_swizzle.get_tile_offset(params.sample_grid_tiled_shape);
 
       // assume identity swizzle
       MatrixCoord threadblock_offset(threadblock_tile_offset.m() * Mma::Shape::kM,
