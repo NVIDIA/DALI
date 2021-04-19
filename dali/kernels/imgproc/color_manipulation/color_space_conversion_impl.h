@@ -17,50 +17,48 @@
 
 #include <cuda_runtime_api.h>
 #include "dali/core/geom/vec.h"
+#include "dali/core/geom/mat.h"
 #include "dali/core/convert.h"
 
 namespace dali {
 namespace kernels {
 
-namespace {
+namespace detail {
 
-template <typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE vec<3, float> norm(vec<3, Input> rgb) {
-  return vec<3, float>{ConvertNorm<float>(rgb.x), ConvertNorm<float>(rgb.y),
-                       ConvertNorm<float>(rgb.z)};
+template <int N, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE vec<N, float> norm(vec<N, Input> x) {
+  vec<N, float> out;
+  for (int i = 0; i < N; i++)
+    out[i] = ConvertNorm<float>(x[i]);
+  return out;
 }
 
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE vec<3, float> norm(vec<3, float> rgb) {
-  return rgb;
+template <int N>
+DALI_HOST_DEV DALI_FORCEINLINE vec<N, float> norm(vec<N, float> x) {
+  return x;
 }
 
-}  // namespace
+}  // namespace detail
 
 template <typename Output, typename Input>
 DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_y(vec<3, Input> rgb_in) {
-  auto rgb = norm(rgb_in);
-  return ConvertNorm<Output>(0.299f * rgb.x + 0.587f * rgb.y + 0.114f * rgb.z);
+  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
+  constexpr vec3 coeffs(0.299f, 0.587f, 0.114f);
+  return ConvertSatNorm<Output>(dot(coeffs, rgb));
 }
 
 template <typename Output, typename Input>
 DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cb(vec<3, Input> rgb_in) {
-  auto rgb = norm(rgb_in);
-  return ConvertNorm<Output>(-0.16873589f * rgb.x - 0.33126411f * rgb.y + 0.50000000f * rgb.z +
-                             0.5f);
+  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
+  constexpr vec3 coeffs(-0.16873589f, -0.33126411f, 0.5f);
+  return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.5f);
 }
 
 template <typename Output, typename Input>
 DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cr(vec<3, Input> rgb_in) {
-  auto rgb = norm(rgb_in);
-  return ConvertNorm<Output>(0.50000000f * rgb.x - 0.41868759f * rgb.y - 0.08131241f * rgb.z +
-                             0.5f);
-}
-
-template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE vec<2, Output> rgb_to_cb_cr(vec<3, Input> rgb_in) {
-  auto rgb = norm(rgb_in);
-  return {rgb_to_cb<Output>(rgb), rgb_to_cr<Output>(rgb)};
+  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
+  constexpr vec3 coeffs(0.5f, -0.41868759f, -0.08131241f);
+  return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.5f);
 }
 
 }  // namespace kernels

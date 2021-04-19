@@ -17,7 +17,7 @@
 #include "dali/core/format.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/util.h"
-#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.cuh"
+#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 #include "dali/operators/decoder/nvjpeg/permute_layout.h"
 
 namespace dali {
@@ -28,7 +28,7 @@ __global__ void planar_to_interleaved(Output *output, const Input *input, int64_
   if (tid >= npixels) return;
   Output *out = output + C * tid;
   for (int c = 0; c < C; ++c) {
-    out[c] = ConvertNorm<Output>(input[c * npixels + tid]);
+    out[c] = ConvertSatNorm<Output>(input[c * npixels + tid]);
   }
 }
 
@@ -36,9 +36,9 @@ template <typename Output, typename Input>
 __global__ void planar_rgb_to_bgr(Output *output, const Input *input, int64_t npixels) {
   auto tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid >= npixels) return;
-  Output r = ConvertNorm<Output>(input[tid]);
-  Output g = ConvertNorm<Output>(input[tid + npixels]);
-  Output b = ConvertNorm<Output>(input[tid + 2 * npixels]);
+  Output r = ConvertSatNorm<Output>(input[tid]);
+  Output g = ConvertSatNorm<Output>(input[tid + npixels]);
+  Output b = ConvertSatNorm<Output>(input[tid + 2 * npixels]);
   Output *out = output + 3 * tid;
   out[0] = b;
   out[1] = g;
@@ -49,10 +49,8 @@ template <typename Output, typename Input>
 __global__ void planar_rgb_to_ycbcr(Output *output, const Input *input, int64_t npixels) {
   auto tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid >= npixels) return;
-  vec<3, float> rgb = {
-    ConvertNorm<float>(input[tid]),
-    ConvertNorm<float>(input[tid + npixels]),
-    ConvertNorm<float>(input[tid + 2 * npixels])};
+  vec<3, float> rgb = {ConvertNorm<float>(input[tid]), ConvertNorm<float>(input[tid + npixels]),
+                       ConvertNorm<float>(input[tid + 2 * npixels])};
   Output *out = output + 3 * tid;
   out[0] = kernels::rgb_to_y<Output>(rgb);
   out[1] = kernels::rgb_to_cb<Output>(rgb);
@@ -63,10 +61,8 @@ template <typename Output, typename Input>
 __global__ void planar_rgb_to_gray(Output *output, const Input *input, int64_t npixels) {
   auto tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid >= npixels) return;
-  vec<3, float> rgb = {
-    ConvertNorm<float>(input[tid]),
-    ConvertNorm<float>(input[tid + npixels]),
-    ConvertNorm<float>(input[tid + 2 * npixels])};
+  vec<3, float> rgb = {ConvertNorm<float>(input[tid]), ConvertNorm<float>(input[tid + npixels]),
+                       ConvertNorm<float>(input[tid + 2 * npixels])};
   output[tid] = kernels::rgb_to_y<Output>(rgb);
 }
 

@@ -21,7 +21,6 @@
 #include "dali/core/geom/vec.h"
 #include "dali/core/util.h"
 #include "dali/kernels/common/block_setup.h"
-#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.cuh"
 #include "dali/kernels/imgproc/jpeg/dct_8x8_gpu.cuh"
 #include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu_kernel.h"
 #include "dali/kernels/imgproc/sampler.h"
@@ -30,6 +29,10 @@
 namespace dali {
 namespace kernels {
 namespace jpeg {
+
+// TODO(janton): Purposedly not using the color space conversion utils here.
+// We need better color space conversion utilities and we are risking performance
+// using the conversion functions in color_space_conversion_impl.h
 
 template <typename T>
 __inline__ __device__ T rgb_to_y(vec<3, T> rgb) {
