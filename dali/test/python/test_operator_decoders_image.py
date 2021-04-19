@@ -30,6 +30,8 @@ from test_utils import get_dali_extra_path
 from test_utils import check_output_pattern
 
 def get_img_files(data_path, subdir='*', ext=None):
+    if subdir is None:
+        subdir = ''
     if ext:
         if isinstance(ext, (list, tuple)):
             files = []
@@ -152,7 +154,7 @@ def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir='*'
     compare_pipelines(img_decoder_pipe("cpu", out_type=img_out_type, files=files),
                       img_decoder_pipe("mixed", out_type=img_out_type, files=files),
                       batch_size=batch_size_test, N_iterations=3,
-                      eps = eps)
+                      eps=eps)
 
 def test_image_decoder_consistency():
     for out_img_type in [types.RGB, types.BGR, types.YCbCr, types.GRAY, types.ANY_DATA]:
@@ -164,7 +166,7 @@ def test_image_decoder_consistency():
                                     ("jpeg2k", "db/single/multichannel/with_alpha", 'jp2'),
                                     ("jpeg2k", "db/single/16bit", 'jp2'),
                                     ("png", "db/single/multichannel/with_alpha", 'png')]:
-            subdir = ''  # In those paths the images are not organized in subdirs
+            subdir = None  # In those paths the images are not organized in subdirs
             yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path, subdir, ext
 
 def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
@@ -175,7 +177,7 @@ def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
         peeked_shape = fn.peek_image_shape(encoded)
         return decoded, peeked_shape
 
-    files = get_img_files(os.path.join(test_data_root, path), ext=ext, subdir='')
+    files = get_img_files(os.path.join(test_data_root, path), ext=ext, subdir=None)
     pipe0 = pipe(device, out_type=out_type, files=files)
     pipe0.build()
     out0, shape0 = pipe0.run()

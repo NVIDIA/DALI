@@ -49,23 +49,23 @@ template <typename Output, typename Input>
 __global__ void planar_rgb_to_ycbcr(Output *output, const Input *input, int64_t npixels) {
   auto tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid >= npixels) return;
-  Output r = ConvertNorm<Output>(input[tid]);
-  Output g = ConvertNorm<Output>(input[tid + npixels]);
-  Output b = ConvertNorm<Output>(input[tid + 2 * npixels]);
+  auto r = input[tid];
+  auto g = input[tid + npixels];
+  auto b = input[tid + 2 * npixels];
   Output *out = output + 3 * tid;
-  out[0] = kernels::rgb_to_y<Output>({r, g, b});
-  out[1] = kernels::rgb_to_cb<Output>({r, g, b});
-  out[2] = kernels::rgb_to_cr<Output>({r, g, b});
+  out[0] = ConvertNorm<Output>(kernels::rgb_to_y<Input>({r, g, b}));
+  out[1] = ConvertNorm<Output>(kernels::rgb_to_cb<Input>({r, g, b}));
+  out[2] = ConvertNorm<Output>(kernels::rgb_to_cr<Input>({r, g, b}));
 }
 
 template <typename Output, typename Input>
 __global__ void planar_rgb_to_gray(Output *output, const Input *input, int64_t npixels) {
   auto tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid >= npixels) return;
-  auto r = ConvertNorm<Output>(input[tid]);
-  auto g = ConvertNorm<Output>(input[tid + npixels]);
-  auto b = ConvertNorm<Output>(input[tid + 2 * npixels]);
-  output[tid] = kernels::rgb_to_y<Output>({r, g, b});
+  auto r = input[tid];
+  auto g = input[tid + npixels];
+  auto b = input[tid + 2 * npixels];
+  output[tid] = ConvertNorm<Output>(kernels::rgb_to_y<Input>({r, g, b}));
 }
 
 template <typename Output, typename Input>

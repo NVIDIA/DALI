@@ -466,10 +466,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                  "component 0 has a shape of {", comp.component_height, ", ",
                                  comp.component_width, "} and component ", c, " has a shape of {",
                                  height, ", ", width, "}"));
+        data.bpp = std::max<int>(data.bpp, comp.precision);
       }
       data.shape = {height, width, image_info.num_components};
       data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
-      data.bpp = std::max<int>(data.bpp, comp.precision);
       data.method = DecodeMethod::Nvjpeg2k;
       samples_jpeg2k_.push_back(&data);
       return true;
@@ -535,7 +535,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
         data.shape = {heights[0], widths[0], c};
         data.subsampling = subsampling;
-        data.req_nchannels = NumberOfChannels(output_image_type_, c);
         if (hw_decode) {
           data.method = DecodeMethod::NvjpegHw;
           samples_hw_batched_.push_back(&data);
@@ -548,12 +547,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           data.method = DecodeMethod::Host;
           auto image = ImageFactory::CreateImage(input_data, in_size, output_image_type_);
           data.shape = image->PeekShape();
-          data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
           samples_host_.push_back(&data);
         } catch (const std::runtime_error &e) {
           DALI_FAIL(e.what() + ". File: " + data.file_name);
         }
       }
+      data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
 
       if (crop_generator) {
         TensorShape<> dims{data.shape[0], data.shape[1]};

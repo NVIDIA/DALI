@@ -28,16 +28,16 @@ GenericImage::DecodeImpl(DALIImageType image_type,
                          size_t length) const {
   auto shape = PeekShapeImpl(encoded_buffer, length);
   int C = NumberOfChannels(image_type, shape[2]);
-  int flags = 0;
+  int flags = cv::IMREAD_IGNORE_ORIENTATION;
   if (image_type == DALI_ANY_DATA && C <= 3) {
     image_type = C == 3 ? DALI_RGB : DALI_GRAY;
   }
   if (image_type == DALI_ANY_DATA) {
-    flags = cv::IMREAD_UNCHANGED;
+    flags |= cv::IMREAD_UNCHANGED;
   } else if (image_type == DALI_GRAY) {
-    flags = cv::IMREAD_GRAYSCALE;
+    flags |= cv::IMREAD_GRAYSCALE;
   } else {
-    flags = cv::IMREAD_COLOR;
+    flags |= cv::IMREAD_COLOR;
   }
 
   // Decode image to tmp cv::Mat
