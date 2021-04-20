@@ -176,7 +176,7 @@ class NumbaFunc(metaclass=ops._DaliOperatorMeta):
         run_fn = njit(run_fn)
         run_fn_lambda = self._get_run_fn_lambda(len(out_types), len(in_types))
         if batch_processing:
-            @cfunc(self._run_fn_sig(True), nopython=True)
+            @cfunc(self._run_fn_sig(batch_processing=True), nopython=True)
             def run_cfunc(out_ptr, out_shapes_ptr, out_ndims_ptr, num_outs, in_ptr, in_shapes_ptr, in_ndims_ptr, num_ins, num_samples):
                 out0 = out1 = out2 = out3 = out4 = out5 = None
                 out_shapes_np = _get_shape_view(out_shapes_ptr, out_ndims_ptr, num_outs, num_samples)
@@ -212,7 +212,7 @@ class NumbaFunc(metaclass=ops._DaliOperatorMeta):
 
                 run_fn_lambda(run_fn, out0, out1, out2, out3, out4, out5, in0, in1, in2, in3, in4, in5)
         else:
-            @cfunc(self._run_fn_sig(), nopython=True)
+            @cfunc(self._run_fn_sig(batch_processing=False), nopython=True)
             def run_cfunc(out_ptr, out_shapes_ptr, out_ndims_ptr, num_outs, in_ptr, in_shapes_ptr, in_ndims_ptr, num_ins):
                 out0 = out1 = out2 = out3 = out4 = out5 = None
                 out_shapes_np = _get_shape_view(out_shapes_ptr, out_ndims_ptr, num_outs, 1)

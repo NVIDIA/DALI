@@ -56,6 +56,9 @@ def change_out_shape_sample(out0, in0):
 def get_data(shapes, dtype):
     return [np.empty(shape, dtype = dtype) for shape in shapes]
 
+def get_data_zeros(shapes, dtype):
+    return [np.zeros(shape, dtype = dtype) for shape in shapes]
+
 @pipeline_def
 def numba_func_pipe(shapes, dtype, run_fn=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None, batch_processing=None):
     data = fn.external_source(lambda: get_data(shapes, dtype), batch=True, device = "cpu")
@@ -94,7 +97,7 @@ def numba_func_image_pipe(run_fn=None, out_types=None, in_types=None, outs_ndim=
     return images_in, images_out
 
 def _testimpl_numba_func_image(run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, transform):
-    pipe = numba_func_image_pipe(batch_size=8, num_threads=1, device_id=0, run_fn=run_fn, setup_fn=setup_fn,
+    pipe = numba_func_image_pipe(batch_size=8, num_threads=3, device_id=0, run_fn=run_fn, setup_fn=setup_fn,
         out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, batch_processing=batch_processing)
     pipe.build()
     for _ in range(3):
@@ -173,3 +176,37 @@ def test_split_images_col():
         images_in, R, G, B = pipe.run()
         for i in range(len(images_in)):
             assert np.array_equal(images_in.at(i), np.stack([R.at(i), G.at(i), B.at(i)], axis=2))
+
+def multiple_ins_setup(outs, ins):
+    out0 = outs[0]
+    in0 = ins[0]
+    for sample_id in range(len(out0)):
+        out0[sample_id][0] = in0[sample_id][0]
+        out0[sample_id][1] = in0[sample_id][1]
+        out0[sample_id][2] = 3
+
+def multiple_ins_run(out0, in0, in1, in2):
+    for i in range(out0.shape[0]):
+        for j in range(out0.shape[1]):
+            out0[i][j][0] = 0
+            out0[i][j][1] = 0
+            out0[i][j][2] = 0
+
+@pipeline_def
+def numba_multiple_ins_pipe(shapes, dtype, run_fn=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None, batch_processing=None):
+    data0 = fn.external_source(lambda: get_data_zeros(shapes, dtype), batch=True, device = "cpu")
+    data1 = fn.external_source(lambda: get_data_zeros(shapes, dtype), batch=True, device = "cpu")
+    data2 = fn.external_source(lambda: get_data_zeros(shapes, dtype), batch=True, device = "cpu")
+    return numba_func(data0, data1, data2, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
+
+    out = numba_func(images_in, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
+    return images_in, out0, out1, out2
+
+def test_multiple_ins():
+    pipe = numba_multiple_ins_pipe(shapes=(10, 10), dtype=np.uint8, batch_size=8, num_threads=1, device_id=0, run_fn=multiple_ins_run, setup_fn=multiple_ins_setup,
+        out_types=[dali_types.UINT8], in_types=[dali_types.UINT8 for i in range(3)], outs_ndim=[3], ins_ndim=[2, 2, 2])
+    pipe.build()
+    for _ in range(3):
+        outs = pipe.run()
+        out_arr = np.array(outs[0][0])
+        assert np.array_equal(out_arr, np.zeros((10, 10, 3), dtype=np.uint8))
