@@ -306,7 +306,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   };
 
   struct SampleData {
-    int sample_idx;
+    int sample_idx = -1;
     int64_t encoded_length = 0;
     bool is_progressive = false;
     std::string file_name;
@@ -337,6 +337,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
 
     void clear() {
+      // TODO(janton): Separate SampleData from SampleContext (nvjpeg handles, etc)
+      sample_idx = -1;
       encoded_length = 0;
       bpp = 8;
       selected_decoder = nullptr;
@@ -467,16 +469,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       NVJPEG2K_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, 0));
       uint32_t height = comp.component_height;
       uint32_t width = comp.component_width;
-      data.bpp = std::max<int>(data.bpp, comp.precision);
+      data.bpp = comp.precision;
       for (uint32_t c = 1; c < image_info.num_components; ++c) {
         NVJPEG2K_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, c));
-        DALI_ENFORCE(height == comp.component_height &&
-                     width  == comp.component_width,
-                     make_string("Components dimensions do not match: "
-                                 "component 0 has a shape of {", comp.component_height, ", ",
-                                 comp.component_width, "} and component ", c, " has a shape of {",
-                                 height, ", ", width, "}"));
-        data.bpp = std::max<int>(data.bpp, comp.precision);
+        if (height != comp.component_height ||
+            width != comp.component_width ||
+            data.bpp != comp.precision) {
+          return false;  // We will try OpenCV with this sample
+        }
       }
       data.shape = {height, width, image_info.num_components};
       data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
@@ -506,7 +506,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
       SampleData &data = sample_data_[i];
       data.clear();
-      assert(data.sample_idx == i);
+      data.sample_idx = i;
       data.file_name = in.GetSourceInfo();
       data.encoded_length = in_size;
 
@@ -648,15 +648,21 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     nvjpeg2kImage_t output_image;
     output_image.pixel_data = pixel_data;
     output_image.pitch_in_bytes = pitch_in_bytes;
-    DALIDataType pixel_type = sample->bpp == 16 ? DALI_UINT16 : DALI_UINT8;
-    output_image.pixel_type = sample->bpp == 16 ? NVJPEG2K_UINT16 : NVJPEG2K_UINT8;
+    DALIDataType pixel_type;
+    if (sample->bpp == 16) {
+      pixel_type = DALI_UINT16;
+      output_image.pixel_type = NVJPEG2K_UINT16;
+    } else {
+      pixel_type = DALI_UINT8;
+      output_image.pixel_type = NVJPEG2K_UINT8;
+    }
     output_image.num_components = sample->shape[2];
     auto ret = nvjpeg2kDecode(nvjpeg2k_handle_, nvjpeg2k_decoder_,
                               jpeg2k_stream, &output_image, nvjpeg2k_cu_stream_);
     if (ret == NVJPEG2K_STATUS_SUCCESS) {
       if (need_processing) {
         if (output_image_type_ == DALI_GRAY) {
-          // Converting to Gray, dropping extra channels if needed
+          // Converting to Gray, dropping alpha channels if needed
           assert(sample->shape[2] >= 3);
           TYPE_SWITCH(pixel_type, type2id, Input, (uint8_t, uint16_t), (
             PlanarRGBToGray<uint8_t, Input>(
@@ -664,7 +670,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
               pixel_type, nvjpeg2k_cu_stream_);
           ), DALI_FAIL(make_string("Unsupported input type: ", pixel_type)))  // NOLINT
         } else {
-          // Converting to interleaved, dropping extra channels if needed
+          // Converting to interleaved, dropping alpha channels if needed
           assert(sample->shape[2] >= 3);
           TYPE_SWITCH(pixel_type, type2id, Input, (uint8_t, uint16_t), (
             PlanarToInterleaved<uint8_t, Input>(

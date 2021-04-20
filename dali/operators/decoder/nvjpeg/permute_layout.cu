@@ -52,9 +52,9 @@ __global__ void planar_rgb_to_ycbcr(Output *output, const Input *input, int64_t 
   vec<3, float> rgb = {ConvertNorm<float>(input[tid]), ConvertNorm<float>(input[tid + npixels]),
                        ConvertNorm<float>(input[tid + 2 * npixels])};
   Output *out = output + 3 * tid;
-  out[0] = kernels::rgb_to_y<Output>(rgb);
-  out[1] = kernels::rgb_to_cb<Output>(rgb);
-  out[2] = kernels::rgb_to_cr<Output>(rgb);
+  out[0] = kernels::color::itu_r_bt_601::rgb_to_y<Output>(rgb);
+  out[1] = kernels::color::itu_r_bt_601::rgb_to_cb<Output>(rgb);
+  out[2] = kernels::color::itu_r_bt_601::rgb_to_cr<Output>(rgb);
 }
 
 template <typename Output, typename Input>
@@ -63,7 +63,7 @@ __global__ void planar_rgb_to_gray(Output *output, const Input *input, int64_t n
   if (tid >= npixels) return;
   vec<3, float> rgb = {ConvertNorm<float>(input[tid]), ConvertNorm<float>(input[tid + npixels]),
                        ConvertNorm<float>(input[tid + 2 * npixels])};
-  output[tid] = kernels::rgb_to_y<Output>(rgb);
+  output[tid] = kernels::color::rgb_to_gray<Output>(rgb);
 }
 
 template <typename Output, typename Input>

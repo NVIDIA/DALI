@@ -22,6 +22,7 @@
 
 namespace dali {
 namespace kernels {
+namespace color {
 
 namespace detail {
 
@@ -40,27 +41,103 @@ DALI_HOST_DEV DALI_FORCEINLINE vec<N, float> norm(vec<N, float> x) {
 
 }  // namespace detail
 
+// Y, Cb, Cr definition from ITU-R BT.601, with values in the range 16-235, allowing for
+// footroom and headroom
+namespace itu_r_bt_601 {
+
 template <typename Output, typename Input>
 DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_y(vec<3, Input> rgb_in) {
+  constexpr vec3 coeffs(0.257f, 0.504f, 0.098f);
   auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
-  constexpr vec3 coeffs(0.299f, 0.587f, 0.114f);
-  return ConvertSatNorm<Output>(dot(coeffs, rgb));
+  return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.0625f);
+}
+
+template <>
+DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_y(vec<3, uint8_t> rgb) {
+  constexpr vec3 coeffs(0.257f, 0.504f, 0.098f);
+  return static_cast<uint8_t>(dot(coeffs, rgb) + 16.0f);
 }
 
 template <typename Output, typename Input>
 DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cb(vec<3, Input> rgb_in) {
+  constexpr vec3 coeffs(-0.148f, -0.291f, 0.439f);
   auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
-  constexpr vec3 coeffs(-0.16873589f, -0.33126411f, 0.5f);
   return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.5f);
+}
+
+template <>
+DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_cb(vec<3, uint8_t> rgb) {
+  constexpr vec3 coeffs(-0.148f, -0.291f, 0.439f);
+  if (rgb.x == rgb.y && rgb.x == rgb.z) return 128;
+  return static_cast<uint8_t>(dot(coeffs, rgb) + 128.0f);
 }
 
 template <typename Output, typename Input>
 DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cr(vec<3, Input> rgb_in) {
+  constexpr vec3 coeffs(0.439f, -0.368f, -0.071f);
   auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
-  constexpr vec3 coeffs(0.5f, -0.41868759f, -0.08131241f);
   return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.5f);
 }
 
+template <>
+DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_cr(vec<3, uint8_t> rgb) {
+  constexpr vec3 coeffs(0.439f, -0.368f, -0.071f);
+  if (rgb.x == rgb.y && rgb.x == rgb.z) return 128;
+  return static_cast<uint8_t>(dot(coeffs, rgb) + 128.0f);
+}
+
+}  // namespace itu_r_bt_601
+
+// Y, Cb, Cr formulas used in JPEG, using the whole dynamic range of the type.
+namespace jpeg {
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_y(vec<3, Input> rgb_in) {
+  constexpr vec3 coeffs(0.299f, 0.587f, 0.114f);
+  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
+  return ConvertSatNorm<Output>(dot(coeffs, rgb));
+}
+
+template <>
+DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_y(vec<3, uint8_t> rgb) {
+  constexpr vec3 coeffs(0.299f, 0.587f, 0.114f);
+  return static_cast<uint8_t>(dot(coeffs, rgb));
+}
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cb(vec<3, Input> rgb_in) {
+  constexpr vec3 coeffs(-0.16873589f, -0.33126411f, 0.5f);
+  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
+  return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.5f);
+}
+
+template <>
+DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_cb(vec<3, uint8_t> rgb) {
+  constexpr vec3 coeffs(-0.16873589f, -0.33126411f, 0.5f);
+  return static_cast<uint8_t>(dot(coeffs, rgb) + 128.0f);
+}
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cr(vec<3, Input> rgb_in) {
+  constexpr vec3 coeffs(0.5f, -0.41868759f, -0.08131241f);
+  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
+  return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.5f);
+}
+
+template <>
+DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_cr(vec<3, uint8_t> rgb) {
+  constexpr vec3 coeffs(0.5f, -0.41868759f, -0.08131241f);
+  return static_cast<uint8_t>(dot(coeffs, rgb) + 128.0f);
+}
+
+}  // namespace jpeg
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_gray(vec<3, Input> rgb) {
+  return jpeg::rgb_to_y<Output>(rgb);
+}
+
+}  // namespace color
 }  // namespace kernels
 }  // namespace dali
 

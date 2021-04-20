@@ -175,18 +175,18 @@ def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
         return decoded, peeked_shape
 
     files = get_img_files(os.path.join(test_data_root, path), ext=ext, subdir=None)
-    pipe0 = pipe(device, out_type=out_type, files=files)
-    pipe0.build()
-    out0, shape0 = pipe0.run()
+    pipe = pipe(device, out_type=out_type, files=files)
+    pipe.build()
+    out, shape = pipe.run()
     if device == 'mixed':
-        out0 = out0.as_cpu()
-    out0 = np.array(out0[0])
-    shape0 = np.array(shape0[0])
+        out = out.as_cpu()
+    out = np.array(out[0])
+    shape = np.array(shape[0])
     expected_channels = 4 if out_type == types.ANY_DATA else \
                         1 if out_type == types.GRAY else \
                         3
-    assert out0.shape[2] == expected_channels, \
-        f"Expected {expected_channels} but got {out0.shape[2]}"
+    assert out.shape[2] == expected_channels, \
+        f"Expected {expected_channels} but got {out.shape[2]}"
 
 def test_image_decoder_tiff_with_alpha_16bit():
     for device in ['cpu', 'mixed']:

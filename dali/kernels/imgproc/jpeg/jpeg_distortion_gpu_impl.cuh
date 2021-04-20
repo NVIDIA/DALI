@@ -23,36 +23,13 @@
 #include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/imgproc/jpeg/dct_8x8_gpu.cuh"
 #include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu_kernel.h"
+#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/imgproc/surface.h"
 
 namespace dali {
 namespace kernels {
 namespace jpeg {
-
-// TODO(janton): Purposedly not using the color space conversion utils here.
-// We need better color space conversion utilities and we are risking performance
-// using the conversion functions in color_space_conversion_impl.h
-
-template <typename T>
-__inline__ __device__ T rgb_to_y(vec<3, T> rgb) {
-  return ConvertSat<T>(0.299f * rgb.x + 0.587f * rgb.y + 0.114f * rgb.z);
-}
-
-template <typename T>
-__inline__ __device__ T rgb_to_cb(vec<3, T> rgb) {
-  return ConvertSat<T>(-0.16873589f * rgb.x - 0.33126411f * rgb.y + 0.50000000f * rgb.z + 128.0f);
-}
-
-template <typename T>
-__inline__ __device__ T rgb_to_cr(vec<3, T> rgb) {
-  return ConvertSat<T>(0.50000000f * rgb.x - 0.41868759f * rgb.y - 0.08131241f * rgb.z + 128.0f);
-}
-
-template <typename T>
-__inline__ __device__ vec<2, T> rgb_to_cb_cr(vec<3, T> rgb) {
-  return {rgb_to_cb<T>(rgb), rgb_to_cr<T>(rgb)};
-}
 
 template <int N, typename T>
 __inline__ __device__ vec<N, T> avg4(vec<N, T> a, vec<N, T> b, vec<N, T> c, vec<N, T> d) {
@@ -94,29 +71,28 @@ rgb_to_ycbcr_subsampled(ivec2 offset, const Surface2D<const uint8_t>& in) {
   int x = offset.x;
   vec<3, T> rgb[4];
   sampler(rgb[0].v, ivec2(x, y), BorderClamp());
-  out.luma[0] = rgb_to_y<T>(rgb[0]);
+  out.luma[0] = color::jpeg::rgb_to_y<T>(rgb[0]);
   vec<3, T> avg_rgb(rgb[0]);
   if (horz_subsample && vert_subsample) {
     sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
     sampler(rgb[2].v, ivec2(x, y + 1), BorderClamp());
     sampler(rgb[3].v, ivec2(x + 1, y + 1), BorderClamp());
-    out.luma[1] = rgb_to_y<T>(rgb[1]);
-    out.luma[2] = rgb_to_y<T>(rgb[2]);
-    out.luma[3] = rgb_to_y<T>(rgb[3]);
+    out.luma[1] = color::jpeg::rgb_to_y<T>(rgb[1]);
+    out.luma[2] = color::jpeg::rgb_to_y<T>(rgb[2]);
+    out.luma[3] = color::jpeg::rgb_to_y<T>(rgb[3]);
     avg_rgb = avg4(rgb[0], rgb[1], rgb[2], rgb[3]);
   } else if (horz_subsample) {
     sampler(rgb[1].v, ivec2(x + 1, y), BorderClamp());
-    out.luma[1] = rgb_to_y<T>(rgb[1]);
+    out.luma[1] = color::jpeg::rgb_to_y<T>(rgb[1]);
     avg_rgb = avg2(rgb[0], rgb[1]);
   } else if (vert_subsample) {
     sampler(rgb[1].v, ivec2(x, y + 1), BorderClamp());
-    out.luma[1] = rgb_to_y<T>(rgb[1]);
+    out.luma[1] = color::jpeg::rgb_to_y<T>(rgb[1]);
     avg_rgb = avg2(rgb[0], rgb[1]);
   }
 
-  vec<2, T> cbcr = rgb_to_cb_cr<T>(avg_rgb);
-  out.cb = cbcr.x;
-  out.cr = cbcr.y;
+  out.cb = color::jpeg::rgb_to_cb<T>(avg_rgb);
+  out.cr = color::jpeg::rgb_to_cr<T>(avg_rgb);
   return out;
 }
 

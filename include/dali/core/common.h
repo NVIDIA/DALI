@@ -16,6 +16,7 @@
 #define DALI_CORE_COMMON_H_
 
 #include <array>
+#include <cassert>
 #include <cstdint>
 #include <iostream>
 #include <memory>
@@ -125,6 +126,7 @@ inline int NumberOfChannels(DALIImageType type, int orig_nchannels = -1) {
       return 3;
     case DALI_ANY_DATA:
     default:
+      assert(orig_nchannels > 0);
       return orig_nchannels;
   }
 }

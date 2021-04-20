@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <tuple>
 #include "dali/core/error_handling.h"
-#include "dali/util/color_space_conversion_utils.h"
+#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 
 namespace dali {
 
@@ -72,22 +72,18 @@ void custom_conversion_pixel(const uint8_t* input, uint8_t* output);
 
 template <>
 inline void custom_conversion_pixel<DALI_RGB, DALI_YCbCr>(const uint8_t* input, uint8_t* output) {
-  const auto r = input[0];
-  const auto g = input[1];
-  const auto b = input[2];
-  output[0] = Y<uint8_t>(r, g, b);
-  output[1] = Cb<uint8_t>(r, g, b);
-  output[2] = Cr<uint8_t>(r, g, b);
+  vec<3, uint8_t> rgb = {input[0], input[1], input[2]};
+  output[0] = kernels::color::itu_r_bt_601::rgb_to_y<uint8_t>(rgb);
+  output[1] = kernels::color::itu_r_bt_601::rgb_to_cb<uint8_t>(rgb);
+  output[2] = kernels::color::itu_r_bt_601::rgb_to_cr<uint8_t>(rgb);
 }
 
 template <>
 inline void custom_conversion_pixel<DALI_BGR, DALI_YCbCr>(const uint8_t* input, uint8_t* output) {
-  const auto b = input[0];
-  const auto g = input[1];
-  const auto r = input[2];
-  output[0] = Y<uint8_t>(r, g, b);
-  output[1] = Cb<uint8_t>(r, g, b);
-  output[2] = Cr<uint8_t>(r, g, b);
+  vec<3, uint8_t> rgb = {input[2], input[1], input[0]};
+  output[0] = kernels::color::itu_r_bt_601::rgb_to_y<uint8_t>(rgb);
+  output[1] = kernels::color::itu_r_bt_601::rgb_to_cb<uint8_t>(rgb);
+  output[2] = kernels::color::itu_r_bt_601::rgb_to_cr<uint8_t>(rgb);
 }
 
 inline static uint8_t clip(float x, float max = 255.0f) {
