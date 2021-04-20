@@ -16,16 +16,36 @@ from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import math
 import os
+import random
 import numpy as np
+import glob
 
 from nose import SkipTest
+from nose.tools import assert_raises
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
 from test_utils import check_output_pattern
+
+def get_img_files(data_path, subdir='*', ext=None):
+    if subdir is None:
+        subdir = ''
+    if ext:
+        if isinstance(ext, (list, tuple)):
+            files = []
+            for e in ext:
+                files += glob.glob(data_path + f"/{subdir}/*.{e}")
+        else:
+            files = glob.glob(data_path + f"/{subdir}/*.{ext}")
+        return files
+    else:
+        files = glob.glob(data_path  + f"/{subdir}/*.*")
+        txt_files = glob.glob(data_path  + f"/{subdir}/*.txt")
+        return list(set(files) - set(txt_files))
 
 class DecoderPipeline(Pipeline):
     def __init__(self, data_path, batch_size, num_threads, device_id, device, use_fast_idct=False, memory_stats=False):
@@ -50,30 +70,26 @@ test_missnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
 def run_decode(data_path, batch, device, threads, memory_stats=False):
     pipe = DecoderPipeline(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, memory_stats=memory_stats)
     pipe.build()
-    iters = pipe.epoch_size("Reader")
+    iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for _ in range(iters):
         pipe.run()
 
 def test_image_decoder():
+    def log(img_type, size, device, threads):
+        pass
     for device in {'cpu', 'mixed'}:
-        for threads in {1, 2, 3, 4}:
-            for size in {1, 10}:
-                for img_type in test_good_path:
+        for batch_size in {1, 10}:
+            for img_type in test_good_path:
+                for threads in {1, random.choice([2, 3, 4])}:
                     data_path = os.path.join(test_data_root, good_path, img_type)
-                    run_decode(data_path, size, device, threads)
-                    yield check, img_type, size, device, threads
-
-def test_missnamed_host_decoder():
-    for decoder in {'cpu', 'mixed'}:
-        for threads in {1, 2, 3, 4}:
-            for size in {1, 10}:
-                for img_type in test_missnamed_path:
+                    run_decode(data_path, batch_size, device, threads)
+                    yield log, img_type, batch_size, device, threads
+            for img_type in test_missnamed_path:
+                for threads in {1, random.choice([2, 3, 4])}:
                     data_path = os.path.join(test_data_root, missnamed_path, img_type)
-                    run_decode(data_path, size, decoder, threads)
-                    yield check, img_type, size, decoder, threads
+                    run_decode(data_path, batch_size, device, threads)
+                    yield log, img_type, batch_size, device, threads
 
-def check(img_type, size, device, threads):
-    pass
 
 class DecoderPipelineFastIDC(Pipeline):
     def __init__(self, data_path, batch_size, num_threads, use_fast_idct=False):
@@ -115,26 +131,81 @@ def test_image_decoder_memory_stats():
         with check_output_pattern(pattern):
             run_decode(data_path, size, device, threads, memory_stats=True)
 
-    for threads in {1, 2, 3, 4}:
-        for size in {1, 10}:
+    for size in {1, 10}:
+        for threads in {1, random.choice([2, 3, 4])}:
             yield check, img_type, size, device, threads
 
+batch_size_test = 16
+@pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
+def img_decoder_pipe(device, out_type, files):
+    encoded, _ = fn.readers.file(files=files)
+    decoded = fn.decoders.image(encoded, device=device, output_type=out_type)
+    return decoded
 
+def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir='*', ext=None):
+    eps = 1
+    if file_fmt == 'jpeg' or file_fmt == 'mixed':
+        eps = 4
+    if ((file_fmt == 'jpeg2k' or file_fmt == 'mixed') and img_out_type == types.YCbCr):
+        eps = 6
+    files = get_img_files(os.path.join(test_data_root, path), subdir=subdir, ext=ext)
+    compare_pipelines(img_decoder_pipe("cpu", out_type=img_out_type, files=files),
+                      img_decoder_pipe("mixed", out_type=img_out_type, files=files),
+                      batch_size=batch_size_test, N_iterations=3,
+                      eps=eps)
 
-batch_size_alias_test=16
+def test_image_decoder_consistency():
+    for out_img_type in [types.RGB, types.BGR, types.YCbCr, types.GRAY, types.ANY_DATA]:
+        for file_fmt in test_good_path:
+            path = os.path.join(good_path, file_fmt)
+            yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path
 
-@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+        for file_fmt, path, ext in [("tiff", "db/single/multichannel/tiff_multichannel", 'tif'),
+                                    ("jpeg2k", "db/single/multichannel/with_alpha", 'jp2'),
+                                    ("png", "db/single/multichannel/with_alpha", 'png')]:
+            subdir = None  # In those paths the images are not organized in subdirs
+            yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path, subdir, ext
+
+def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(device, out_type, files):
+        encoded, _ = fn.readers.file(files=files)
+        decoded = fn.decoders.image(encoded, device=device, output_type=out_type)
+        peeked_shape = fn.peek_image_shape(encoded)
+        return decoded, peeked_shape
+
+    files = get_img_files(os.path.join(test_data_root, path), ext=ext, subdir=None)
+    pipe = pipe(device, out_type=out_type, files=files)
+    pipe.build()
+    out, shape = pipe.run()
+    if device == 'mixed':
+        out = out.as_cpu()
+    out = np.array(out[0])
+    shape = np.array(shape[0])
+    expected_channels = 4 if out_type == types.ANY_DATA else \
+                        1 if out_type == types.GRAY else \
+                        3
+    assert out.shape[2] == expected_channels, \
+        f"Expected {expected_channels} but got {out.shape[2]}"
+
+def test_image_decoder_tiff_with_alpha_16bit():
+    for device in ['cpu', 'mixed']:
+        for out_type in [types.RGB, types.BGR, types.YCbCr, types.ANY_DATA]:
+            path = "db/single/multichannel/with_alpha_16bit"
+            for ext in [("png", "tiff", "jp2")]:
+                yield _testimpl_image_decoder_tiff_with_alpha_16bit, device, out_type, path, ext
+
+@pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
 def decoder_pipe(decoder_op, file_root, device, use_fast_idct):
-    encoded, labels = fn.readers.file(file_root=file_root)
+    encoded, _ = fn.readers.file(file_root=file_root)
     decoded = decoder_op(encoded, device=device, output_type=types.RGB, use_fast_idct=use_fast_idct,
                          seed=42)
     return decoded
 
-
 def check_image_decoder_alias(new_op, old_op, file_root, device, use_fast_idct):
     new_pipe = decoder_pipe(new_op, file_root, device, use_fast_idct)
     legacy_pipe = decoder_pipe(old_op, file_root, device, use_fast_idct)
-    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
+    compare_pipelines(new_pipe, legacy_pipe, batch_size=batch_size_test, N_iterations=3)
 
 
 def test_image_decoder_alias():
@@ -146,7 +217,7 @@ def test_image_decoder_alias():
             for use_fast_idct in [True, False]:
                 yield check_image_decoder_alias, new_op, old_op, data_path, device, use_fast_idct
 
-@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+@pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
 def decoder_slice_pipe(decoder_op, file_root, device, use_fast_idct):
     encoded, labels = fn.readers.file(file_root=file_root)
     start = types.Constant(np.array([0., 0.]))
@@ -159,7 +230,7 @@ def decoder_slice_pipe(decoder_op, file_root, device, use_fast_idct):
 def check_image_decoder_slice_alias(new_op, old_op, file_root, device, use_fast_idct):
     new_pipe = decoder_slice_pipe(new_op, file_root, device, use_fast_idct)
     legacy_pipe = decoder_slice_pipe(old_op, file_root, device, use_fast_idct)
-    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
+    compare_pipelines(new_pipe, legacy_pipe, batch_size=batch_size_test, N_iterations=3)
 
 def test_image_decoder_slice_alias():
     data_path = os.path.join(test_data_root, good_path, "jpeg")

@@ -65,7 +65,7 @@
 #include <string>
 #include <utility>
 #include <memory>
-#include "dali/util/color_space_conversion_utils.h"
+#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 #include "dali/core/convert.h"
 #include "dali/core/span.h"
 
@@ -165,21 +165,21 @@ void ConvertLineFromRGBX(OutType *out_row, int64_t out_C, const InType *in_row, 
     }
   } else {
     for (; out < out_row_end; out += out_C, in += in_C) {
-      const auto R = in[0], G = in[1], B = in[2];
+      vec<3, InType> rgb{in[0], in[1], in[2]};
       if (out_img_type == DALI_GRAY) {
-        out[0] = GrayScale<OutType>(R, G, B);
+        out[0] = kernels::color::rgb_to_gray<OutType>(rgb);
       } else if (out_img_type == DALI_YCbCr) {
-        out[0] = Y<OutType>(R, G, B);
-        out[1] = Cb<OutType>(R, G, B);
-        out[2] = Cr<OutType>(R, G, B);
+        out[0] = kernels::color::itu_r_bt_601::rgb_to_y<OutType>(rgb);
+        out[1] = kernels::color::itu_r_bt_601::rgb_to_cb<OutType>(rgb);
+        out[2] = kernels::color::itu_r_bt_601::rgb_to_cr<OutType>(rgb);
       } else if (out_img_type == DALI_RGB) {
-        out[0] = ConvertSatNorm<OutType>(R);
-        out[1] = ConvertSatNorm<OutType>(G);
-        out[2] = ConvertSatNorm<OutType>(B);
+        out[0] = ConvertSatNorm<OutType>(rgb.x);
+        out[1] = ConvertSatNorm<OutType>(rgb.y);
+        out[2] = ConvertSatNorm<OutType>(rgb.z);
       } else if (out_img_type == DALI_BGR) {
-        out[0] = ConvertSatNorm<OutType>(B);
-        out[1] = ConvertSatNorm<OutType>(G);
-        out[2] = ConvertSatNorm<OutType>(R);
+        out[0] = ConvertSatNorm<OutType>(rgb.z);
+        out[1] = ConvertSatNorm<OutType>(rgb.y);
+        out[2] = ConvertSatNorm<OutType>(rgb.x);
       } else {
         DALI_FAIL("Image type not supported" + std::to_string(out_img_type));
       }
@@ -278,9 +278,7 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
   if (!CanDecode(image_type)) {
     return GenericImage::DecodeImpl(image_type, encoded_buffer, length);
   }
-
   const int64_t H = shape_[0], W = shape_[1], C = shape_[2];
-
   auto roi_generator = GetCropWindowGenerator();
 
   int64_t roi_x = 0, roi_y = 0;

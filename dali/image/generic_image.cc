@@ -22,20 +22,38 @@ GenericImage::GenericImage(const uint8_t *encoded_buffer, size_t length, DALIIma
         Image(encoded_buffer, length, image_type) {
 }
 
-
 std::pair<std::shared_ptr<uint8_t>, Image::Shape>
 GenericImage::DecodeImpl(DALIImageType image_type,
                          const uint8_t *encoded_buffer,
                          size_t length) const {
+  auto shape = PeekShapeImpl(encoded_buffer, length);
+  int C = NumberOfChannels(image_type, shape[2]);
+  int flags = 0;
+  if (image_type == DALI_ANY_DATA && C <= 3) {
+    image_type = C == 3 ? DALI_RGB : DALI_GRAY;
+  }
+  if (image_type == DALI_ANY_DATA) {
+    // Note: IMREAD_UNCHANGED always ignores orientation
+    flags |= cv::IMREAD_UNCHANGED;
+  } else if (image_type == DALI_GRAY) {
+    flags |= cv::IMREAD_GRAYSCALE | cv::IMREAD_IGNORE_ORIENTATION;
+  } else {
+    flags |= cv::IMREAD_COLOR | cv::IMREAD_IGNORE_ORIENTATION;
+  }
+
   // Decode image to tmp cv::Mat
   cv::Mat decoded_image = cv::imdecode(
-    cv::Mat(1, length, CV_8UC1, (void *) (encoded_buffer)),         //NOLINT
-    IsColor(image_type) ? cv::IMREAD_COLOR : cv::IMREAD_GRAYSCALE | cv::IMREAD_IGNORE_ORIENTATION);
+    cv::Mat(1, length, CV_8UC1, const_cast<unsigned char*>(encoded_buffer)), flags);
 
   int W = decoded_image.cols;
   int H = decoded_image.rows;
-
   DALI_ENFORCE(decoded_image.data != nullptr, "Unsupported image type.");
+
+  dali::Image::Shape expected_shape{shape[0], shape[1], C};
+  dali::Image::Shape decoded_shape{H, W, decoded_image.channels()};
+  DALI_ENFORCE(expected_shape == decoded_shape,
+    make_string("The shape of the decoded image is different than expected. Expected ",
+                expected_shape, " but got ", decoded_shape));
 
   // If required, crop the image
   auto crop_generator = GetCropWindowGenerator();
@@ -57,12 +75,14 @@ GenericImage::DecodeImpl(DALIImageType image_type,
       DALI_ENFORCE(H == newH);
   }
 
-  // if different image type needed (e.g. RGB), permute from BGR
-  if (IsColor(image_type) && image_type != DALI_BGR) {
+  if (image_type == DALI_ANY_DATA && decoded_image.channels() == 4) {
+    // Special case for ANY_DATA and 4 channels -> Convert to RGBA
+    // Note: ANY_DATA with 1 or 3 channels is already forced to DALI_GRAY and DALI_RGB respectively.
+    cv::cvtColor(decoded_image, decoded_image, cv::COLOR_BGRA2RGBA);
+  } else if (image_type == DALI_RGB || image_type == DALI_YCbCr) {
+    // if different image type needed (e.g. RGB), permute from BGR
     OpenCvColorConversion(DALI_BGR, decoded_image, image_type, decoded_image);
   }
-
-  const int c = IsColor(image_type) ? 3 : 1;
 
   std::shared_ptr<uint8_t> decoded_img_ptr(
           decoded_image.ptr(),
@@ -76,7 +96,7 @@ GenericImage::DecodeImpl(DALIImageType image_type,
               // It will be freed, when last shared_ptr is deleted.
           });
 
-  return {decoded_img_ptr, {H, W, c}};
+  return {decoded_img_ptr, {H, W, C}};
 }
 
 

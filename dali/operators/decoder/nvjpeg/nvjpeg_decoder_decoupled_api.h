@@ -31,11 +31,14 @@
 #include "dali/kernels/alloc.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
+#include "dali/util/npp.h"
 #include "dali/image/image_factory.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/dev_buffer.h"
+#include "dali/core/static_switch.h"
 #include "dali/operators/decoder/nvjpeg/permute_layout.h"
+
 
 namespace dali {
 
@@ -303,11 +306,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   };
 
   struct SampleData {
-    int sample_idx;
+    int sample_idx = -1;
     int64_t encoded_length = 0;
     bool is_progressive = false;
     std::string file_name;
     TensorShape<> shape;
+    int req_nchannels = -1;
+    int bpp = 8;  // currently used for jpeg2k only
     CropWindow roi;
     DecodeMethod method = DecodeMethod::Host;
     nvjpegDecodeParams_t params;
@@ -329,6 +334,18 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         NVJPEG_CALL(nvjpegDecoderCreate(handle, backend, &decoder));
         NVJPEG_CALL(nvjpegDecoderStateCreate(handle, decoder, &decoders[backend].state));
       }
+    }
+
+    void clear() {
+      // TODO(janton): Separate SampleData from SampleContext (nvjpeg handles, etc)
+      sample_idx = -1;
+      encoded_length = 0;
+      bpp = 8;
+      selected_decoder = nullptr;
+      is_progressive = false;
+      req_nchannels = -1;
+      method = DecodeMethod::Host;
+      subsampling = NVJPEG_CSS_UNKNOWN;
     }
 
     ~SampleData() {
@@ -444,7 +461,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
     const auto &jpeg2k_stream = nvjpeg2k_streams_[data.sample_idx];
     auto ret = nvjpeg2kStreamParse(nvjpeg2k_handle_, input.data(), input.size(),
-                                  0, 0, jpeg2k_stream);
+                                   0, 0, jpeg2k_stream);
     if (ret == NVJPEG2K_STATUS_SUCCESS) {
       nvjpeg2kImageInfo_t image_info;
       NVJPEG2K_CALL(nvjpeg2kStreamGetImageInfo(jpeg2k_stream, &image_info));
@@ -452,16 +469,17 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       NVJPEG2K_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, 0));
       uint32_t height = comp.component_height;
       uint32_t width = comp.component_width;
+      data.bpp = comp.precision;
       for (uint32_t c = 1; c < image_info.num_components; ++c) {
         NVJPEG2K_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, c));
-        DALI_ENFORCE(height == comp.component_height &&
-                      width == comp.component_width,
-                      make_string("Components dimensions do not match: "
-                                  "component 0 has a shape of {", comp.component_height, ", ",
-                                  comp.component_width, "} and component ", c, " has a shape of {",
-                                  height, ", ", width, "}"));
+        if (height != comp.component_height ||
+            width != comp.component_width ||
+            data.bpp != comp.precision) {
+          return false;  // We will try OpenCV with this sample
+        }
       }
       data.shape = {height, width, image_info.num_components};
+      data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
       data.method = DecodeMethod::Nvjpeg2k;
       samples_jpeg2k_.push_back(&data);
       return true;
@@ -487,10 +505,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       const auto in_size = in.size();
 
       SampleData &data = sample_data_[i];
+      data.clear();
+      data.sample_idx = i;
       data.file_name = in.GetSourceInfo();
-      assert(data.sample_idx == i);
       data.encoded_length = in_size;
-      data.selected_decoder = nullptr;
 
       auto cached_shape = CacheImageShape(data.file_name);
       if (volume(cached_shape) > 0) {
@@ -527,7 +545,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
         data.shape = {heights[0], widths[0], c};
         data.subsampling = subsampling;
-
         if (hw_decode) {
           data.method = DecodeMethod::NvjpegHw;
           samples_hw_batched_.push_back(&data);
@@ -545,20 +562,18 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           DALI_FAIL(e.what() + ". File: " + data.file_name);
         }
       }
-
-      if (output_image_type_ != DALI_ANY_DATA)
-        data.shape[2] = NumberOfChannels(output_image_type_);
+      data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
 
       if (crop_generator) {
         TensorShape<> dims{data.shape[0], data.shape[1]};
-        int nchannels = data.shape[2];
         data.roi = crop_generator(dims, "HW");
         DALI_ENFORCE(data.roi.IsInRange(dims));
-        output_shape_.set_tensor_shape(i, {data.roi.shape[0], data.roi.shape[1], nchannels});
+        output_shape_.set_tensor_shape(
+          i, {data.roi.shape[0], data.roi.shape[1], data.req_nchannels});
         NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, data.roi.anchor[1], data.roi.anchor[0],
                                              data.roi.shape[1], data.roi.shape[0]));
       } else {
-        output_shape_.set_tensor_shape(i, data.shape);
+        output_shape_.set_tensor_shape(i, {data.shape[0], data.shape[1], data.req_nchannels});
         NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, 0, 0, -1, -1));
       }
 
@@ -611,37 +626,65 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #if NVJPEG2K_ENABLED
   void DecodeJpeg2k(uint8_t* output_data, const SampleData *sample,
                     span<const uint8_t> input_data) {
+    assert(sample->bpp == 8 || sample->bpp == 16);
+    bool need_processing = sample->shape[2] > 1 || sample->bpp == 16;
+    int pixel_sz = sample->bpp == 16 ? sizeof(uint16_t) : sizeof(uint8_t);
+    int64_t npixels = sample->shape[0] * sample->shape[1];
+    int64_t comp_size = npixels * pixel_sz;
     CUDA_CALL(cudaEventSynchronize(nvjpeg2k_decode_event_));
-    bool single_channel = sample->shape[2] == 1;
     auto &buffer = nvjpeg2k_intermediate_buffer_;
     buffer.clear();
-    if (!single_channel)
-      buffer.resize(volume(sample->shape), nvjpeg2k_cu_stream_);
+    if (need_processing) {
+      buffer.resize(volume(sample->shape) * pixel_sz);
+    }
     const auto &jpeg2k_stream = nvjpeg2k_streams_[sample->sample_idx];
     void *pixel_data[NVJPEG_MAX_COMPONENT] = {};
     size_t pitch_in_bytes[NVJPEG_MAX_COMPONENT] = {};
-    auto i_out = single_channel ? output_data : buffer.data();
+    uint8_t *decoder_out = !need_processing ? output_data : buffer.data();
     for (uint32_t c = 0; c < sample->shape[2]; ++c) {
-      pixel_data[c] = i_out + c * sample->shape[0] * sample->shape[1];
-      pitch_in_bytes[c] = sample->shape[1];
+      pixel_data[c] = decoder_out + c * comp_size;
+      pitch_in_bytes[c] = sample->shape[1] * pixel_sz;
     }
     nvjpeg2kImage_t output_image;
     output_image.pixel_data = pixel_data;
     output_image.pitch_in_bytes = pitch_in_bytes;
-    output_image.pixel_type = NVJPEG2K_UINT8;
+    DALIDataType pixel_type;
+    if (sample->bpp == 16) {
+      pixel_type = DALI_UINT16;
+      output_image.pixel_type = NVJPEG2K_UINT16;
+    } else {
+      pixel_type = DALI_UINT8;
+      output_image.pixel_type = NVJPEG2K_UINT8;
+    }
     output_image.num_components = sample->shape[2];
     auto ret = nvjpeg2kDecode(nvjpeg2k_handle_, nvjpeg2k_decoder_,
                               jpeg2k_stream, &output_image, nvjpeg2k_cu_stream_);
     if (ret == NVJPEG2K_STATUS_SUCCESS) {
-      if (!single_channel) {
-        auto comp_size = sample->shape[0] * sample->shape[1];
-        PermuteToInterleaved(output_data, i_out, comp_size, sample->shape[2], nvjpeg2k_cu_stream_);
+      if (need_processing) {
+        if (output_image_type_ == DALI_GRAY) {
+          // Converting to Gray, dropping alpha channels if needed
+          assert(sample->shape[2] >= 3);
+          TYPE_SWITCH(pixel_type, type2id, Input, (uint8_t, uint16_t), (
+            PlanarRGBToGray<uint8_t, Input>(
+              output_data, reinterpret_cast<Input*>(decoder_out), npixels,
+              pixel_type, nvjpeg2k_cu_stream_);
+          ), DALI_FAIL(make_string("Unsupported input type: ", pixel_type)))  // NOLINT
+        } else {
+          // Converting to interleaved, dropping alpha channels if needed
+          assert(sample->shape[2] >= 3);
+          TYPE_SWITCH(pixel_type, type2id, Input, (uint8_t, uint16_t), (
+            PlanarToInterleaved<uint8_t, Input>(
+              output_data, reinterpret_cast<Input*>(decoder_out), npixels,
+              sample->req_nchannels,
+              output_image_type_, pixel_type, nvjpeg2k_cu_stream_);
+          ), DALI_FAIL(make_string("Unsupported input type: ", pixel_type)))  // NOLINT
+        }
       }
       CUDA_CALL(cudaEventRecord(nvjpeg2k_decode_event_, nvjpeg2k_cu_stream_));
     } else if (ret == NVJPEG2K_STATUS_BAD_JPEG || ret == NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED) {
       HostFallback<StorageGPU>(input_data.data(), input_data.size(), output_image_type_,
-                                output_data, nvjpeg2k_cu_stream_, sample->file_name,
-                                sample->roi, use_fast_idct_);
+                               output_data, nvjpeg2k_cu_stream_, sample->file_name,
+                               sample->roi, use_fast_idct_);
 
     } else {
       NVJPEG2K_CALL_EX(ret, sample->file_name);
@@ -848,7 +891,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                            nvjpeg_parse_error_code(ret), " ", file_name);
         DALI_WARN(warning_msg);
         HostFallback<StorageGPU>(input_data, in_size, output_image_type_, output_data,
-                                stream, file_name, data.roi, use_fast_idct_);
+                                 stream, file_name, data.roi, use_fast_idct_);
         return;
       }
       CUDA_CALL(cudaEventRecord(decode_events_[thread_id], stream));

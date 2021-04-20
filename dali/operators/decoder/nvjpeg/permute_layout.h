@@ -17,16 +17,27 @@
 
 #include <cuda_runtime.h>
 #include <stdint.h>
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
 
 /**
  * @brief Permute data in planar layout to interleaved layout.
- * @param comp_size - volume of a single component
+ * @param npixels - volume of a single component in number of pixels
  * @param comp_count - number of components (channels)
  */
-void PermuteToInterleaved(uint8_t *output, const uint8_t *input,
-                          int64_t comp_size, int64_t comp_count, cudaStream_t stream);
+template <typename Output, typename Input>
+void PlanarToInterleaved(Output *output, const Input *input, int64_t npixels, int64_t comp_count,
+                         DALIImageType out_img_type, DALIDataType pixel_type, cudaStream_t stream);
+
+/**
+ * @brief Permute data in RGB planar layout to grayscale.
+ * @param npixels - volume of a single component in number of pixels
+ */
+template <typename Output, typename Input>
+void PlanarRGBToGray(Output *output, const Input *input,
+                     int64_t npixels, DALIDataType pixel_type, cudaStream_t stream);
+
 
 }  // namespace dali
 
