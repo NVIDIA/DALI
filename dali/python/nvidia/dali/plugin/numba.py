@@ -1,4 +1,6 @@
+from nvidia.dali import backend as _b
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali import ops
 from nvidia.dali import types as dali_types
 from numba import types as numba_types
@@ -41,8 +43,24 @@ def _get_shape_view(shapes_ptr, ndims_ptr, num_dims, num_samples):
         l.append(d)
     return l
 
-class NumbaFunc(ops.NumbaFunctionBase):
+class NumbaFunc(metaclass=ops._DaliOperatorMeta):
     ops.register_cpu_op('NumbaFunc')
+
+    @property
+    def spec(self):
+        return self._spec
+
+    @property
+    def schema(self):
+        return self._schema
+
+    @property
+    def device(self):
+        return self._device
+
+    @property
+    def preserve(self):
+        return self._preserve
 
     def _setup_fn_sig(self):
         return numba_types.void(numba_types.uint64,
@@ -94,7 +112,53 @@ class NumbaFunc(ops.NumbaFunctionBase):
         pipeline = Pipeline.current()
         if pipeline is None:
             Pipeline._raise_no_current_pipeline("NumbaFunc")
-        return super(NumbaFunc, self).__call__(*inputs, **kwargs)
+        inputs = ops._preprocess_inputs(inputs, self._impl_name, self._device, None)
+        if pipeline is None:
+            Pipeline._raise_pipeline_required("NumbaFunction operator")
+        if (len(inputs) > self._schema.MaxNumInput() or
+                len(inputs) < self._schema.MinNumInput()):
+            raise ValueError(
+                ("Operator {} expects from {} to " +
+                 "{} inputs, but received {}.")
+                .format(type(self).__name__,
+                        self._schema.MinNumInput(),
+                        self._schema.MaxNumInput(),
+                        len(inputs)))
+        for inp in inputs:
+            if not isinstance(inp, _DataNode):
+                raise TypeError(
+                      ("Expected inputs of type `DataNode`. Received input of type '{}'. " +
+                       "Python Operators do not support Multiple Input Sets.")
+                      .format(type(inp).__name__))
+        op_instance = ops._OperatorInstance(inputs, self, **kwargs)
+        op_instance.spec.AddArg("run_fn", self.run_fn)
+        if self.setup_fn != None:
+            op_instance.spec.AddArg("setup_fn", self.setup_fn)
+        op_instance.spec.AddArg("out_types", self.out_types)
+        op_instance.spec.AddArg("in_types", self.in_types)
+        op_instance.spec.AddArg("outs_ndim", self.outs_ndim)
+        op_instance.spec.AddArg("ins_ndim", self.ins_ndim)
+        op_instance.spec.AddArg("device", self.device)
+        op_instance.spec.AddArg("batch_processing", self.batch_processing)
+
+        if self.num_outputs == 0:
+            t_name = self._impl_name + "_id_" + str(op_instance.id) + "_sink"
+            t = _DataNode(t_name, self._device, op_instance)
+            pipeline.add_sink(t)
+            return
+        outputs = []
+
+
+        for i in range(self.num_outputs):
+            t_name = op_instance._name
+            if self.num_outputs > 1:
+                t_name += "[{}]".format(i)
+            t = _DataNode(t_name, self._device, op_instance)
+            op_instance.spec.AddOutput(t.name, t.device)
+            op_instance.append_output(t)
+            pipeline.add_sink(t)
+            outputs.append(t)
+        return outputs[0] if len(outputs) == 1 else outputs
 
     def __init__(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn=None, device='cpu', batch_processing=False, **kwargs):
         setup_fn_address = None
@@ -183,11 +247,25 @@ class NumbaFunc(ops.NumbaFunctionBase):
                     in5 = in5_lambda(address_as_void_pointer(in_arr[5]), in_shapes_np[5][0])
 
                 run_fn_lambda(run_fn, out0, out1, out2, out3, out4, out5, in0, in1, in2, in3, in4, in5)
+        
+        self._impl_name = "NumbaFuncImpl"
+        self._schema = _b.GetSchema(self._impl_name)
+        self._spec = _b.OpSpec(self._impl_name)
+        self._device = device
 
-        super(NumbaFunc, self).__init__(impl_name="NumbaFuncImpl",
-                                        setup_fn=setup_fn_address, run_fn=run_cfunc.address,
-                                        out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim,
-                                        batch_processing=batch_processing, device=device, **kwargs)
+        kwargs, self._call_args = ops._separate_kwargs(kwargs)
 
+        for key, value in kwargs.items():
+            self._spec.AddArg(key, value)
+
+        self.run_fn = run_cfunc.address
+        self.setup_fn = setup_fn_address
+        self.out_types = out_types 
+        self.in_types = in_types 
+        self.outs_ndim = outs_ndim 
+        self.ins_ndim = ins_ndim
+        self.num_outputs = len(out_types)
+        self.batch_processing = batch_processing
+        self._preserve = True
 
 ops._wrap_op(NumbaFunc, "fn.experimental", __name__)
