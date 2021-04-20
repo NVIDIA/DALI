@@ -45,6 +45,9 @@ be accessed ``outs[1][0]``.
 
 If no setup function provided, the output shape and data type will be the same as the input.
 
+.. note::
+    This operator is experimental and its API might change without notice.
+
 **Example 1:**
 
 The following example shows a simple setup function which permutes the order of dimensions in the shape.
@@ -78,9 +81,7 @@ may look like this:
 .. code-block:: python
 
     def run_fn(out0_samples, in0_samples):
-        for sample_id in range(len(out0_samples)):
-            out0 = out0_samples[sample_id]
-            in0 = in0_samples[sample_id]
+        for out0, in0 in zip(out0_samples, in0_samples):
             for i in range(in0.shape[0]):
                 for j in range(in0.shape[1]):
                     out0[j, i] = in0[i, j]
@@ -89,6 +90,7 @@ may look like this:
   .OutputFn([](const OpSpec &spec) { return spec.GetRepeatedArgument<int>("out_types").size(); })
   .AllowSequences()
   .Unserializable()
+  .NoPrune()
   .AddArg("run_fn", R"code(Function to be invoked.)code", DALI_INT64)
   .AddArg("out_types", R"code(Dali types of outputs.)code", DALI_INT_VEC)
   .AddArg("in_types", R"code(Dali types of inputs.)code", DALI_INT_VEC)
@@ -103,6 +105,7 @@ DALI_SCHEMA(NumbaFuncImpl)
   .DocStr("")
   .NumInput(1, 6)
   .OutputFn([](const OpSpec &spec) { return spec.GetRepeatedArgument<int>("out_types").size(); })
+  .MakeInternal()
   .Unserializable()
   .AddParent("NumbaFunc");
 

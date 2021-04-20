@@ -185,9 +185,9 @@ class NumbaFunc(ops.NumbaFunctionBase):
                 run_fn_lambda(run_fn, out0, out1, out2, out3, out4, out5, in0, in1, in2, in3, in4, in5)
 
         super(NumbaFunc, self).__init__(impl_name="NumbaFuncImpl",
-                                                setup_fn=setup_fn_address, run_fn=run_cfunc.address,
-                                                out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim,
-                                                batch_processing=batch_processing, device=device, **kwargs)
+                                        setup_fn=setup_fn_address, run_fn=run_cfunc.address,
+                                        out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim,
+                                        batch_processing=batch_processing, device=device, **kwargs)
 
 
-ops._wrap_op(NumbaFunc, "fn", __name__)
+ops._wrap_op(NumbaFunc, "fn.experimental", __name__)

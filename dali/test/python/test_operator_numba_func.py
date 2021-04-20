@@ -20,9 +20,8 @@ from nvidia.dali import pipeline_def
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as dali_types
-import nvidia.dali.numba_func as dali_numba
 from test_utils import get_dali_extra_path
-from nvidia.dali.plugin.numba.fn import numba_func
+from nvidia.dali.plugin.numba.fn.experimental import numba_func
 
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -67,7 +66,7 @@ def _testimpl_numba_func(shapes, dtype, run_fn, out_types, in_types, outs_ndim, 
     pipe = numba_func_pipe(batch_size=batch_size, num_threads=1, device_id=0, shapes=shapes, dtype=dtype,
         run_fn=run_fn, setup_fn=setup_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, batch_processing=batch_processing)
     pipe.build()
-    for _ in range(3): # todo
+    for _ in range(3):
         outs = pipe.run()
         for i in range(batch_size):
             out_arr = np.array(outs[0][i])
