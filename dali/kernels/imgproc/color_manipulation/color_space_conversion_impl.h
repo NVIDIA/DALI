@@ -101,7 +101,7 @@ DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_y(vec<3, Input> rgb_in) {
 template <>
 DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_y(vec<3, uint8_t> rgb) {
   constexpr vec3 coeffs(0.299f, 0.587f, 0.114f);
-  return static_cast<uint8_t>(dot(coeffs, rgb));
+  return ConvertSat<uint8_t>(dot(coeffs, rgb));
 }
 
 template <typename Output, typename Input>
@@ -114,7 +114,7 @@ DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cb(vec<3, Input> rgb_in) {
 template <>
 DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_cb(vec<3, uint8_t> rgb) {
   constexpr vec3 coeffs(-0.16873589f, -0.33126411f, 0.5f);
-  return static_cast<uint8_t>(dot(coeffs, rgb) + 128.0f);
+  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128.0f);
 }
 
 template <typename Output, typename Input>
@@ -127,7 +127,7 @@ DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cr(vec<3, Input> rgb_in) {
 template <>
 DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_cr(vec<3, uint8_t> rgb) {
   constexpr vec3 coeffs(0.5f, -0.41868759f, -0.08131241f);
-  return static_cast<uint8_t>(dot(coeffs, rgb) + 128.0f);
+  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128.0f);
 }
 
 }  // namespace jpeg
