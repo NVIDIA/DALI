@@ -40,7 +40,7 @@ class shot_noise_impl {
   DALI_HOST_DEV inline T operator()(T in_val, Generator& g) {
     float norm = ConvertNorm<float>(in_val);
     Dist dist(peak_ * norm);
-    return ConvertNorm<T>(dist(g) / peak_);
+    return ConvertSatNorm<T>(dist(g) / peak_);
   }
 
  private:
@@ -103,4 +103,4 @@ class ShotNoise : public RNGBase<Backend, ShotNoise<Backend>, true> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_RANDOM_NOISE_GAUSSIAN_NOISE_H_
+#endif  // DALI_OPERATORS_RANDOM_NOISE_SHOT_NOISE_H_

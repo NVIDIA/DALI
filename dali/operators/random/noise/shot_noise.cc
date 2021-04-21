@@ -35,7 +35,7 @@ Only integer inputs are allowed. The shape and data type of the output will matc
     .NumOutput(1)
     .AddOptionalArg<float>("peak",
       R"code(Peak parameter.)code",
-      0.f, true);
+      12.f, true);
 
 DALI_REGISTER_OPERATOR(noise__Shot, ShotNoise<CPUBackend>, CPU);
 

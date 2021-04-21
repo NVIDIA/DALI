@@ -223,6 +223,7 @@ ops_image_default_args = [
     fn.hsv,
     fn.hue,
     fn.jpeg_compression_distortion,
+    fn.noise.shot,
     fn.old_color_twist,
     fn.reductions.mean,
     fn.reductions.mean_square,
