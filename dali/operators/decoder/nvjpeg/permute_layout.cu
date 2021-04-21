@@ -71,7 +71,8 @@ void PlanarToInterleaved(Output *output, const Input *input, int64_t npixels,
                          int64_t comp_count, DALIImageType out_img_type, DALIDataType pixel_type,
                          cudaStream_t stream) {
   if (comp_count < 2) {
-    cudaMemcpyAsync(output, input, npixels * comp_count, cudaMemcpyDeviceToDevice, stream);
+    CUDA_CALL(
+      cudaMemcpyAsync(output, input, npixels * comp_count, cudaMemcpyDeviceToDevice, stream));
     return;
   }
   int num_blocks = div_ceil(npixels, 1024);
