@@ -75,11 +75,8 @@ requirements:
     - boost >=1.67
     - lmdb >=0.9.28
     - libtiff >=4.2.0
-    # libsndfile 1.0.28 is the last one that doesn't require the latest libvorbis
-    # and works with unpinned versions
-    - libsndfile >=1.0.28
-    # 1.3.6 doesn't work well now due to linking issue - conda-forge/libvorbis-feedstock#14
-    - libvorbis =1.3.5
+    - libsndfile >=1.0.31
+    - libvorbis =1.3.7
     # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
     # we link it statically so it doesn't carry the dependency, so we need to add it manually
     - libwebp-base
@@ -93,9 +90,8 @@ requirements:
     - tensorboard =2.2.2
     - lmdb >=0.9.28
     - libtiff >=4.2.0
-    - libsndfile >=1.0.28
-    # 1.3.6 doesn't work well now due to linking issue - conda-forge/libvorbis-feedstock#14
-    - libvorbis =1.3.5
+    - libsndfile >=1.0.31
+    - libvorbis =1.3.7
     # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
     # we link it statically so it doesn't carry the dependency, so we need to add it manually
     - libwebp-base
