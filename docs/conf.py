@@ -52,7 +52,7 @@ release = str(version_long)
 
 # generate table of supported operators and their devices
 # mock torch required by supported_op_devices
-with mock(["torch"]):
+with mock(["torch", "numba"]):
     sys.path.insert(0, os.path.abspath('./'))
     import operations_table
     operations_table.operations_table("fn_table")
