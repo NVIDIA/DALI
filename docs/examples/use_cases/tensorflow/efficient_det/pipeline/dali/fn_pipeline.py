@@ -59,13 +59,15 @@ class EfficientDetPipeline():
             images, bboxes, classes = ops.random_crop_resize_2(self._device, images, bboxes, classes, self._image_size)
 
             enc_bboxes, enc_classes = dali.fn.box_encoder(bboxes, classes, anchors = self._boxes, offset = True)
+            to_01 = dali.fn.cast(enc_bboxes != 0, dtype=dali.types.FLOAT)
+            num_positives = dali.fn.reductions.max(dali.fn.reductions.sum(dali.fn.reshape(to_01, [-1, 4]), axes = 0))
             # split into layers by size
             enc_bboxes_layers, enc_classes_layers = self._unpack_labels(enc_bboxes, enc_classes)
 
             # interleave enc_bboxes_layers and enc_classes_layers
             enc_layers = [item for pair in zip(enc_classes_layers, enc_bboxes_layers) for item in pair]
 
-            self._pipe.set_outputs(images, *enc_layers)
+            self._pipe.set_outputs(images, *enc_layers, num_positives)
 
 
     def _unpack_labels(self, enc_bboxes, enc_classes):
@@ -97,19 +99,6 @@ class EfficientDetPipeline():
         return enc_bboxes_layers, enc_classes_layers
 
 
-    def _format_data(self, batch_size, images, *cls_box_args):
-        labels = {}
-
-        for level in range(self._anchors.min_level, self._anchors.max_level + 1):
-            i = 2 * (level - self._anchors.min_level)
-            labels['cls_targets_%d' % level] = cls_box_args[i]
-            labels['box_targets_%d' % level] = cls_box_args[i + 1]
-
-        labels['mean_num_positives'] = 0.0
-
-        return images, labels
-
-
     def __call__(self, params):
         output_shapes = [(self._batch_size, self._image_size[0], self._image_size[1], 3)]
         output_dtypes = [tf.float32]
@@ -123,17 +112,16 @@ class EfficientDetPipeline():
             output_dtypes.append(tf.int32)
             output_dtypes.append(tf.float32)
 
+        output_shapes.append((self._batch_size,))
+        output_dtypes.append(tf.float32)
+
         dataset = dali_tf.DALIDataset(
             pipeline = self._pipe,
             batch_size = self._batch_size,
             output_shapes=tuple(output_shapes),
             output_dtypes=tuple(output_dtypes)
         )
-        dataset = dataset.map(
-            lambda *args: self._format_data(self._batch_size, *args))
-
         return dataset
-
 
 
     def build(self):

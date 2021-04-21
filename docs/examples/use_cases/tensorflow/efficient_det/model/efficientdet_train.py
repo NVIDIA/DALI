@@ -458,9 +458,19 @@ class EfficientDetTrain(efficientdet_net.EfficientDetNet):
     ])
 
   def train_step(self, inputs):
-      features, labels = inputs
+      features = inputs[0]
+      labels = {}
       #config = copy.deepcopy(self.config) 
       config = self.config
+
+      for level in range(config.min_level, config.max_level + 1):
+          i = 2 * (level - config.min_level)
+          labels['cls_targets_%d' % level] = inputs[i + 1]
+          labels['box_targets_%d' % level] = inputs[i + 2]
+      mean_batch = tf.reduce_mean(inputs[-1])
+      labels['mean_num_positives'] = tf.reshape(
+          tf.tile(tf.expand_dims(mean_batch, 0), [config.batch_size]),
+          [config.batch_size, 1])
 
       if config.img_summary_steps:
         utils.image('input_image', features)

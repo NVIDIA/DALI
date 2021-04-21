@@ -159,7 +159,7 @@ def main(_):
     strategy = tf.distribute.MirroredStrategy(devices=["/gpu:2"])
 
     if FLAGS.use_dali:
-      from DALI.fn_pipeline import EfficientDetPipeline
+      from pipeline.dali.fn_pipeline import EfficientDetPipeline
       logging.info("Using DALI pipeline with GPU")
       
       file_pattern = FLAGS.training_file_pattern
@@ -175,7 +175,7 @@ def main(_):
             batch_size, image_size, seed,
             num_threads=4, device_id=device_id)
 
-      input_options = tf2.distribute.InputOptions(
+      input_options = tf.distribute.InputOptions(
         experimental_place_dataset_on_device = True,
         experimental_prefetch_to_device = False,
         experimental_replication_mode = tf.distribute.InputReplicationMode.PER_REPLICA)
