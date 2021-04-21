@@ -32,7 +32,7 @@ TEST(MMPinnedAlloc, StageCopy) {
   {
     CUDAStream stream = CUDAStream::Create(true);
     stream_view sv(stream);
-    async_pool_base<memory_kind::pinned> pool(&upstream);
+    async_pool_resource<memory_kind::pinned> pool(&upstream);
     std::mt19937_64 rng;
     const int N = 1<<20;
     vector<uint8_t> pattern(N), copy_back(N);
@@ -61,7 +61,7 @@ TEST(MMPinnedAlloc, SyncAndSteal) {
     s2 = CUDAStream::Create(true);
     stream_view sv1(s1), sv2(s2);
     const int N = 1<<24;
-    async_pool_base<memory_kind::pinned> pool(&upstream, true);
+    async_pool_resource<memory_kind::pinned> pool(&upstream, true);
     void *mem1 = pool.allocate_async(N, sv1);
     CUDA_CALL(cudaMemsetAsync(mem1, 0, N, s1));
     pool.deallocate_async(mem1, N, sv1);
@@ -97,7 +97,7 @@ TEST(MMPinnedAlloc, SyncCrossDevice) {
     cudaSetDevice(0);
     stream_view sv1(s1), sv2(s2);
     const int N = 1<<24;
-    async_pool_base<memory_kind::pinned> pool(&upstream, true);
+    async_pool_resource<memory_kind::pinned> pool(&upstream, true);
     void *mem1 = pool.allocate_async(N, sv1);
     CUDA_CALL(cudaMemsetAsync(mem1, 0, N, s1));
     pool.deallocate_async(mem1, N, sv1);
@@ -133,7 +133,7 @@ TEST(MMPinnedAlloc, FreeOnAnotherDevice) {
     cudaSetDevice(0);
     stream_view sv1(s1), sv2(s2);
     const int N = 1<<24;
-    async_pool_base<memory_kind::pinned> pool(&upstream, true);
+    async_pool_resource<memory_kind::pinned> pool(&upstream, true);
     void *mem1 = pool.allocate_async(N, sv1);
     CUDA_CALL(cudaMemsetAsync(mem1, 0, N, s1));
     cudaStreamSynchronize(s1);

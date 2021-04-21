@@ -42,7 +42,7 @@ class DLL_PUBLIC CUDAEventPool {
    * @brief Place an event for given device in the pool.
    *
    * @param event     CUDA event wrapper object. The caller relinquishes ownership of the event.
-   * @param device_d  CUDA runtime API device ordinal of the device for which the event was
+   * @param device_id CUDA runtime API device ordinal of the device for which the event was
    *                  created. If negative, calling thread's current device is used.
    *
    * @remarks It is an error to misstate the device_id. Placing an event with improper deviceid

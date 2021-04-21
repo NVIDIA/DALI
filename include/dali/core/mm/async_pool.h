@@ -36,17 +36,17 @@ namespace mm {
 
 template <memory_kind kind, typename FreeList = free_tree,
           typename LockType = std::mutex, typename Upstream = memory_resource<kind>>
-class async_pool_base : public stream_aware_memory_resource<kind> {
+class async_pool_resource : public async_memory_resource<kind> {
  public:
   /**
    * @param upstream       Upstream resource, used by the global pool
    * @param avoid_upstream If true, synchronize with outstanding deallocations before
    *                       using upstream.
    */
-  explicit async_pool_base(Upstream *upstream, bool avoid_upstream = true)
+  explicit async_pool_resource(Upstream *upstream, bool avoid_upstream = true)
   : global_pool_(upstream), avoid_upstream_(avoid_upstream) {
   }
-  ~async_pool_base() {
+  ~async_pool_resource() {
     try {
       synchronize();
     } catch (const CUDAError &e) {

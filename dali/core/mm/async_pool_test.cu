@@ -55,7 +55,7 @@ TEST(MMAsyncPool, SingleStreamReuse) {
   CUDAStream stream = CUDAStream::Create(true);
   test::test_device_resource upstream;
 
-  async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+  async_pool_resource<memory_kind::device, free_tree, std::mutex> pool(&upstream);
   stream_view sv(stream);
   int size1 = 1<<20;
   void *ptr = pool.allocate_async(size1, sv);
@@ -80,7 +80,7 @@ TEST(MMAsyncPool, TwoStream) {
   int stream_not_busy = 0;
   int success = 0;
   while (success < min_success) {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    async_pool_resource<memory_kind::device, free_tree, std::mutex> pool(&upstream);
     void *p1 = pool.allocate_async(1000, sv1);
     hog.run(s1);
     pool.deallocate_async(p1, 1000, sv1);
@@ -205,7 +205,7 @@ TEST(MMAsyncPool, SingleStreamRandom) {
   test::test_device_resource upstream;
 
   {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    async_pool_resource<memory_kind::device, free_tree, std::mutex> pool(&upstream);
     vector<block> blocks;
     detail::dummy_lock mtx;
     AsyncPoolTest(pool, blocks, mtx, stream);
@@ -224,7 +224,7 @@ TEST(MMAsyncPool, MultiThreadedSingleStreamRandom) {
     vector<block> blocks;
     std::mutex mtx;
 
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    async_pool_resource<memory_kind::device, free_tree, std::mutex> pool(&upstream);
 
     vector<std::thread> threads;
 
@@ -245,7 +245,7 @@ TEST(MMAsyncPool, MultiThreadedSingleStreamRandom) {
 TEST(MMAsyncPool, MultiThreadedMultiStreamRandom) {
   mm::test::test_device_resource upstream;
   {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    async_pool_resource<memory_kind::device, free_tree, std::mutex> pool(&upstream);
 
     vector<std::thread> threads;
 
@@ -269,7 +269,7 @@ TEST(MMAsyncPool, MultiThreadedMultiStreamRandom) {
 TEST(MMAsyncPool, MultiStreamRandomWithGPUHogs) {
   mm::test::test_device_resource upstream;
   {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream, false);
+    async_pool_resource<memory_kind::device, free_tree, std::mutex> pool(&upstream, false);
 
     vector<std::thread> threads;
 
@@ -294,7 +294,7 @@ TEST(MMAsyncPool, MultiStreamRandomWithGPUHogs) {
 TEST(MMAsyncPool, CrossStream) {
   mm::test::test_device_resource upstream;
   {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream, false);
+    async_pool_resource<memory_kind::device, free_tree, std::mutex> pool(&upstream, false);
 
     vector<std::thread> threads;
     vector<CUDAStream> streams;
@@ -323,7 +323,7 @@ TEST(MMAsyncPool, CrossStream) {
 TEST(MMAsyncPool, CrossStreamWithHogs) {
   mm::test::test_device_resource upstream;
   {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    async_pool_resource<memory_kind::device, free_tree, std::mutex> pool(&upstream);
 
     vector<std::thread> threads;
     vector<CUDAStream> streams;
