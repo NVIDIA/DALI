@@ -161,6 +161,17 @@ class NumbaFunc(metaclass=ops._DaliOperatorMeta):
         return outputs[0] if len(outputs) == 1 else outputs
 
     def __init__(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn=None, device='cpu', batch_processing=False, **kwargs):
+        assert len(in_types) == len(ins_ndim), "Number of input types and input dimensions should match."
+        assert len(out_types) == len(outs_ndim), "Number of output types and output dimensions should match."
+        if not isinstance(outs_ndim, list):
+            outs_ndim = [outs_ndim]
+        if not isinstance(ins_ndim, list):
+            ins_ndim = [ins_ndim]
+        if not isinstance(out_types, list):
+            out_types = [out_types]
+        if not isinstance(in_types, list):
+            in_types = [in_types]
+
         setup_fn_address = None
         if setup_fn != None:
             setup_fn = njit(setup_fn)

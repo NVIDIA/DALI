@@ -1,6 +1,7 @@
 from nvidia.dali import backend as b
 import nvidia.dali.ops as ops
 import nvidia.dali.plugin.pytorch
+import nvidia.dali.plugin.numba
 import sys
 import inspect
 
