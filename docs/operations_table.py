@@ -2,17 +2,20 @@ from nvidia.dali import backend as b
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.plugin.pytorch
+import nvidia.dali.plugin.numba
 import sys
 
 # Dictionary with modules that can have registered Ops
 ops_modules = {
     'nvidia.dali.ops': nvidia.dali.ops,
-    'nvidia.dali.plugin.pytorch': nvidia.dali.plugin.pytorch
+    'nvidia.dali.plugin.pytorch': nvidia.dali.plugin.pytorch,
+    'nvidia.dali.plugin.numba': nvidia.dali.plugin.numba
 }
 
 # Some operators might have a different module for the fn wrapper
 module_mapping = {
-    'nvidia.dali.plugin.pytorch' : 'nvidia.dali.plugin.pytorch.fn'
+    'nvidia.dali.plugin.pytorch' : 'nvidia.dali.plugin.pytorch.fn',
+    'nvidia.dali.plugin.numba' : 'nvidia.dali.plugin.numba.fn'
 }
 
 cpu_ops = ops.cpu_ops()

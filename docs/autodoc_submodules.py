@@ -16,8 +16,7 @@ exclude_ops_members = {
 
 fn_modules = {
     'nvidia.dali.fn': nvidia.dali.fn,
-    'nvidia.dali.plugin.pytorch.fn': nvidia.dali.plugin.pytorch.fn,
-    'nvidia.dali.plugin.numba.fn': nvidia.dali.plugin.numba.fn
+    'nvidia.dali.plugin': nvidia.dali.plugin
 }
 
 exclude_fn_members = {
