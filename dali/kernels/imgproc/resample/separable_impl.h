@@ -186,7 +186,7 @@ struct SeparableResamplingGPUImpl : Interface {
         tmp_buffers,
         out.tensor_data(i));
     }
-    
+
     CUDA_CALL(cudaMemcpyAsync(
         descs_gpu,
         setup.sample_descs.data(),
