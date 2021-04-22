@@ -104,8 +104,8 @@ A run function working per-sample may look like this:
   .SupportVolumetric()
   .AddArg("run_fn", R"code(Function to be invoked.
 This function must work in Numba ``nopython`` mode.)code", DALI_PYTHON_OBJECT)
-  .AddArg("out_types", R"code(Dali types of outputs.)code", DALI_PYTHON_OBJECT)
-  .AddArg("in_types", R"code(Dali types of inputs.)code", DALI_PYTHON_OBJECT)
+  .AddArg("out_types", R"code(Dali types of outputs.)code", DALI_DATA_TYPE_VEC)
+  .AddArg("in_types", R"code(Dali types of inputs.)code", DALI_DATA_TYPE_VEC)
   .AddArg("outs_ndim", R"code(Number of dimensions which outputs shapes should have.)code", DALI_INT_VEC)
   .AddArg("ins_ndim", R"code(Number of dimensions which inputs shapes should have.)code", DALI_INT_VEC)
   .AddOptionalArg("setup_fn", R"code(Setup function setting shapes for outputs. 
@@ -123,8 +123,8 @@ DALI_SCHEMA(NumbaFuncImpl)
   .AllowSequences()
   .SupportVolumetric()
   .AddArg("run_fn", R"code(Address of function to be invoked.)code", DALI_INT64)
-  .AddArg("out_types", R"code(Dali types of outputs.)code", DALI_INT_VEC)
-  .AddArg("in_types", R"code(Dali types of inputs.)code", DALI_INT_VEC)
+  .AddArg("out_types", R"code(Dali types of outputs.)code", DALI_DATA_TYPE_VEC)
+  .AddArg("in_types", R"code(Dali types of inputs.)code", DALI_DATA_TYPE_VEC)
   .AddArg("outs_ndim", R"code(Number of dimensions which outputs shapes should have.)code", DALI_INT_VEC)
   .AddArg("ins_ndim", R"code(Number of dimensions which inputs shapes should have.)code", DALI_INT_VEC)
   .AddOptionalArg<int>("setup_fn", R"code(Address of setup function setting shapes for outputs. 
