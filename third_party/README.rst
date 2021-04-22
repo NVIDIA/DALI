@@ -41,8 +41,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |preprocessor| replace:: Boost Preprocessor
 .. _preprocessor: https://github.com/boostorg/preprocessor
-.. |preprocessorver| replace:: 1.75.0
-.. _preprocessorver: https://github.com/boostorg/preprocessor/releases/tag/boost-1.75.0
+.. |preprocessorver| replace:: 1.76.0
+.. _preprocessorver: https://github.com/boostorg/preprocessor/releases/tag/boost-1.76.0
 .. |preprocessorlic| replace:: Boost Software License 1.0
 .. _preprocessorlic: https://github.com/boostorg/boost/blob/master/LICENSE_1_0.txt
 
@@ -55,8 +55,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |cutlass| replace:: CUTLASS
 .. _cutlass: https://github.com/NVIDIA/cutlass
-.. |cutlassver| replace:: 2.2.0
-.. _cutlassver: https://github.com/NVIDIA/cutlass/releases/tag/v2.2.0
+.. |cutlassver| replace:: 2.5.0
+.. _cutlassver: https://github.com/NVIDIA/cutlass/releases/tag/v2.5.0
 .. |cutlasslic| replace:: BSD 3-Clause License
 .. _cutlasslic: https://github.com/NVIDIA/cutlass/blob/master/LICENSE.txt
 
@@ -97,8 +97,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |rapidjson| replace:: RapidJSON
 .. _rapidjson: https://github.com/Tencent/rapidjson
-.. |rapidjsonver| replace:: Top-of-tree (Mar 2, 2021)
-.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/1c2c8e085a8b2561dff17bedb689d2eb0609b689
+.. |rapidjsonver| replace:: Top-of-tree (Apr 8, 2021)
+.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/47b837e14ab5712fade68e0b00768ff95c120966
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt
 
@@ -111,8 +111,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |spdlog| replace:: spdlog
 .. _spdlog: https://github.com/gabime/spdlog
-.. |spdlogver| replace:: 1.8.2
-.. _spdlogver: https://github.com/gabime/spdlog/releases/tag/v1.8.2
+.. |spdlogver| replace:: 1.8.5
+.. _spdlogver: https://github.com/gabime/spdlog/releases/tag/v1.8.5
 .. |spdloglic| replace:: MIT License
 .. _spdloglic: https://github.com/gabime/spdlog/blob/v1.x/LICENSE
 
