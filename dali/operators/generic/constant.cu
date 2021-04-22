@@ -74,8 +74,9 @@ void FillTensorList(
       int to_copy = copied;
       if (copied + to_copy > N)
         to_copy = N - copied;
-      cudaMemcpyAsync(dst.mutable_tensor<Dst>(copied), dst.mutable_tensor<Dst>(0), n * to_copy,
-                      cudaMemcpyDeviceToDevice, stream);
+      CUDA_CALL(
+        cudaMemcpyAsync(dst.mutable_tensor<Dst>(copied), dst.mutable_tensor<Dst>(0), n * to_copy,
+                        cudaMemcpyDeviceToDevice, stream));
       copied += to_copy;
     }
   }
