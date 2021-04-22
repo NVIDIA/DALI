@@ -200,12 +200,10 @@ def numba_multiple_ins_pipe(shapes, dtype, run_fn=None, out_types=None, in_types
     return numba_func(data0, data1, data2, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
 
 def test_multiple_ins():
-    pipe = numba_multiple_ins_pipe(shapes=(10, 10), dtype=np.uint8, batch_size=8, num_threads=1, device_id=0, run_fn=multiple_ins_run, setup_fn=multiple_ins_setup,
+    pipe = numba_multiple_ins_pipe(shapes=[(10, 10)], dtype=np.uint8, batch_size=8, num_threads=1, device_id=0, run_fn=multiple_ins_run, setup_fn=multiple_ins_setup,
         out_types=[dali_types.UINT8], in_types=[dali_types.UINT8 for i in range(3)], outs_ndim=[3], ins_ndim=[2, 2, 2])
     pipe.build()
     for _ in range(3):
         outs = pipe.run()
         out_arr = np.array(outs[0][0])
         assert np.array_equal(out_arr, np.zeros((10, 10, 3), dtype=np.uint8))
-
-test_multiple_ins()
