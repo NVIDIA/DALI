@@ -188,9 +188,9 @@ def multiple_ins_setup(outs, ins):
 def multiple_ins_run(out0, in0, in1, in2):
     for i in range(out0.shape[0]):
         for j in range(out0.shape[1]):
-            out0[i][j][0] = 0
-            out0[i][j][1] = 0
-            out0[i][j][2] = 0
+            out0[i][j][0] = in0[i][j]
+            out0[i][j][1] = in1[i][j]
+            out0[i][j][2] = in2[i][j]
 
 @pipeline_def
 def numba_multiple_ins_pipe(shapes, dtype, run_fn=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None, batch_processing=None):
@@ -198,9 +198,6 @@ def numba_multiple_ins_pipe(shapes, dtype, run_fn=None, out_types=None, in_types
     data1 = fn.external_source(lambda: get_data_zeros(shapes, dtype), batch=True, device = "cpu")
     data2 = fn.external_source(lambda: get_data_zeros(shapes, dtype), batch=True, device = "cpu")
     return numba_func(data0, data1, data2, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
-
-    out = numba_func(images_in, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
-    return images_in, out0, out1, out2
 
 def test_multiple_ins():
     pipe = numba_multiple_ins_pipe(shapes=(10, 10), dtype=np.uint8, batch_size=8, num_threads=1, device_id=0, run_fn=multiple_ins_run, setup_fn=multiple_ins_setup,
@@ -210,3 +207,5 @@ def test_multiple_ins():
         outs = pipe.run()
         out_arr = np.array(outs[0][0])
         assert np.array_equal(out_arr, np.zeros((10, 10, 3), dtype=np.uint8))
+
+test_multiple_ins()

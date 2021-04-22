@@ -179,6 +179,20 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     in_shapes_[in_id] = ws.InputRef<CPUBackend>(in_id).shape();
   }
   auto N = in_shapes_[0].num_samples();
+  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+    std::cout << "Shape input " << in_id << ": " << ws.InputRef<CPUBackend>(in_id).shape() << "\n";
+    std::cout << "nsamples input " << in_id << ": " << ws.InputRef<CPUBackend>(in_id).shape().num_samples() << "\n";
+  }
+  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+    cout << "INPUT :: " << in_id << endl;
+    for (int i = 0; i < N; i++) {
+      auto out_shape_span = in_shapes_[in_id].tensor_shape_span(i);
+      cout << "SAMPLE :: " << i << endl;
+      for (int d = 0; d < ins_ndim_[in_id]; d++) {
+        cout << "SHAPE :: " << out_shape_span[d] << endl;
+      }
+    }
+  }
   input_shape_ptrs_.resize(N * in_types_.size());
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
     for (int i = 0; i < N; i++) {
@@ -195,16 +209,18 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     return true;
   }
 
+  out_shapes_.resize(out_types_.size());
   for (size_t i = 0; i < out_types_.size(); i++) {
-    output_desc[i].shape.resize(N, outs_ndim_[i]);
+    out_shapes_[i].resize(N, outs_ndim_[i]);
     output_desc[i].type = dali::TypeTable::GetTypeInfo(static_cast<DALIDataType>(out_types_[i]));
   }
-
+  
+  cout << "TUTAJ" << endl;
   output_shape_ptrs_.resize(N * out_types_.size());
   for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
     for (int i = 0; i < N; i++) {
       output_shape_ptrs_[N * out_id + i] =
-        reinterpret_cast<uint64_t>(output_desc[out_id].shape.tensor_shape_span(i).data());
+        reinterpret_cast<uint64_t>(out_shapes_[out_id].tensor_shape_span(i).data());
     }
   }
 
@@ -213,14 +229,19 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     input_shape_ptrs_.data(), ins_ndim_.data(), ins_ndim_.size(), N);
 
   for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
+    output_desc[out_id].shape = out_shapes_[out_id];
+    cout << "OUT ID :: " << out_id << " ";
     for (int i = 0; i < N; i++) {
       auto out_shape_span = output_desc[out_id].shape.tensor_shape_span(i);
+      cout << "SAMPLE :: " << i << endl;
       for (int d = 0; d < outs_ndim_[out_id]; d++) {
+        cout << out_shape_span[d] << " " << endl;
         DALI_ENFORCE(out_shape_span[d] >= 0, make_string(
           "Shape of data should be non negative. ",
           "After setup function shape for output number ",
           out_id, " in sample ", i, " at dimension ", d, " is negative."));
       }
+      cout << endl;
     }
   }
   return true;
@@ -228,6 +249,7 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 template <>
 void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+  cout << "SETUP " << setup_fn_ << endl;
   auto N = ws.InputRef<CPUBackend>(0).shape().num_samples();
 
   std::vector<uint64_t> out_ptrs;
