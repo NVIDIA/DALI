@@ -21,7 +21,7 @@
 #include "dali/operators/random/rng_base_cpu.h"
 
 #define DALI_SHOT_NOISE_TYPES \
-  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t)
+  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)
 
 namespace dali {
 
@@ -33,18 +33,20 @@ class shot_noise_impl {
                                   curand_poisson_dist,
                                   std::poisson_distribution<uint32_t>>;
 
-  DALI_HOST_DEV explicit shot_noise_impl(float peak = 12)
-      : peak_{peak} {}
+  DALI_HOST_DEV explicit shot_noise_impl(float factor = 12)
+      : factor_{factor}, inv_factor_{1.0f / factor_} {}
 
   template <typename Generator>
   DALI_HOST_DEV inline T operator()(T in_val, Generator& g) {
-    float norm = ConvertNorm<float>(in_val);
-    Dist dist(peak_ * norm);
-    return ConvertSatNorm<T>(dist(g) / peak_);
+    if (factor_ == 0.0f)
+      return in_val;
+    Dist dist(cuda_max<float>(0.0f, in_val * inv_factor_));
+    return ConvertSat<T>(dist(g) * factor_);
   }
 
  private:
-  float peak_;
+  float factor_;
+  float inv_factor_;
 };
 
 template <typename Backend>
@@ -58,15 +60,10 @@ class ShotNoise : public RNGBase<Backend, ShotNoise<Backend>, true> {
 
   explicit ShotNoise(const OpSpec &spec)
       : BaseImpl(spec),
-        peak_("peak", spec) {}
+        factor_("factor", spec) {}
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
-    peak_.Acquire(spec, ws, nsamples, true);
-    for (int s = 0; s < nsamples; s++) {
-      DALI_ENFORCE(
-          peak_[s].data[0] > 0.0f,
-          make_string("``peak`` argument must be greater than 0.0. Got: ", peak_[s].data[0]));
-    }
+    factor_.Acquire(spec, ws, nsamples, true);
   }
 
   DALIDataType DefaultDataType() const {
@@ -76,11 +73,11 @@ class ShotNoise : public RNGBase<Backend, ShotNoise<Backend>, true> {
 
   template <typename T>
   bool SetupDists(typename Dist<T>::type* dists_data, int nsamples) {
-    if (!peak_.IsDefined()) {
+    if (!factor_.IsDefined()) {
       return false;
     }
     for (int s = 0; s < nsamples; s++) {
-      dists_data[s] = typename Dist<T>::type{peak_[s].data[0]};
+      dists_data[s] = typename Dist<T>::type{factor_[s].data[0]};
     }
     return true;
   }
@@ -98,7 +95,7 @@ class ShotNoise : public RNGBase<Backend, ShotNoise<Backend>, true> {
   using BaseImpl::dtype_;
   using BaseImpl::backend_data_;
 
-  ArgValue<float> peak_;
+  ArgValue<float> factor_;
 };
 
 }  // namespace dali
