@@ -120,9 +120,8 @@ TEST(MMCompositeResource, InterfacePropagation) {
 TEST(MMCompositeResource, Lifetime) {
   auto alive = std::make_shared<IsAlive>();
   auto rsrc = std::make_shared<DummyResource<memory_kind::host>>(alive.get());
-  auto cr = make_shared_composite_resource(rsrc, std::move(alive));
-  rsrc.reset();
-  cr.reset();
+  auto cr = make_shared_composite_resource(std::move(rsrc), std::move(alive));
+  cr.reset();  // the GTEST conditions are in the resource destructor
 }
 
 }  // namespace test
