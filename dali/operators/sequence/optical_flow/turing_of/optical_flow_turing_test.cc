@@ -55,7 +55,7 @@ class OpticalFlowTuringKernelTest : public ::testing::Test {
     auto p = Grayscale ? pitch_gray_ : pitch_;
 
     cc(input, tested, p, w, h, 0);
-    cudaDeviceSynchronize();
+    CUDA_CALL(cudaDeviceSynchronize());
 
     for (size_t i = 0; i < reference_data.size(); i++) {
       EXPECT_EQ(reference_data[i], tested[i]) << "Failed on index: " << i;
@@ -147,7 +147,7 @@ TEST_F(OpticalFlowTuringKernelTest, FlowVectorTest) {
           cudaMemcpy(input, test_data.data(), test_data.size() * sizeof(float), cudaMemcpyDefault));
 
   optical_flow::kernel::EncodeFlowComponents(input, tested, pitch, width, height, 0);
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
 
   for (size_t i = 0; i < reference_data.size(); i++) {
     EXPECT_EQ(reference_data[i], tested[i]) << "Failed on index: " << i;

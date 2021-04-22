@@ -62,13 +62,13 @@ TEST(KernelAlloc, HostDevice) {
   int count = 1;
   cudaGetDeviceCount(&count);
   if (count > 1)
-    cudaSetDevice(1);
+    CUDA_CALL(cudaSetDevice(1));
   EXPECT_EQ(cudaGetLastError(), 0);
   pinned_deallocator(pinned);
   host_deallocator(plain);
   gpu_deallocator(gpu);
   EXPECT_EQ(cudaGetLastError(), 0);
-  cudaSetDevice(0);
+  CUDA_CALL(cudaSetDevice(0));
 }
 
 TEST(KernelAlloc, Unique) {

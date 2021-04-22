@@ -92,9 +92,9 @@ TEST(MMPinnedAlloc, SyncCrossDevice) {
     CUDAStream s1, s2;
     DeviceGuard dg(0);
     s1 = CUDAStream::Create(true);
-    cudaSetDevice(1);
+    CUDA_CALL(cudaSetDevice(1));
     s2 = CUDAStream::Create(true);
-    cudaSetDevice(0);
+    CUDA_CALL(cudaSetDevice(0));
     stream_view sv1(s1), sv2(s2);
     const int N = 1<<24;
     async_pool_base<memory_kind::pinned> pool(&upstream, true);
@@ -128,9 +128,9 @@ TEST(MMPinnedAlloc, FreeOnAnotherDevice) {
     CUDAStream s1, s2;
     DeviceGuard dg(0);
     s1 = CUDAStream::Create(true);
-    cudaSetDevice(1);
+    CUDA_CALL(cudaSetDevice(1));
     s2 = CUDAStream::Create(true);
-    cudaSetDevice(0);
+    CUDA_CALL(cudaSetDevice(0));
     stream_view sv1(s1), sv2(s2);
     const int N = 1<<24;
     async_pool_base<memory_kind::pinned> pool(&upstream, true);
@@ -140,7 +140,7 @@ TEST(MMPinnedAlloc, FreeOnAnotherDevice) {
     // don't set device - it should be inferred from the stream
     pool.deallocate_async(mem1, N, sv2);
     // now set the device and allocate
-    cudaSetDevice(1);
+    CUDA_CALL(cudaSetDevice(1));
     void *mem2 = pool.allocate_async(N, sv2);
     EXPECT_EQ(mem1, mem2) << "Memory should have been moved to stream2 on another device.";
     pool.deallocate_async(mem2, N, sv2);

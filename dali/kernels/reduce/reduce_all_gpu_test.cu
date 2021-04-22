@@ -154,7 +154,7 @@ void ReduceAllGPUTest<Reduction>::TestReduceBatched() {
   // warm-up
   ReduceAllBatchedKernel<float><<<1, block>>>(
       out_data.get(), gpu_dev_ptrs.get(), gpu_sizes.get(), R);
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
   auto start = CUDAEvent::CreateWithFlags(0);
   auto end =   CUDAEvent::CreateWithFlags(0);
   CUDA_CALL(cudaEventRecord(start));
@@ -242,7 +242,7 @@ void ReduceAllGPUTest<Reduction>::TestReduceAllKernel(int min_size, int max_size
 
   kernel.Run(ctx, out_view_gpu, in_view_gpu);
 
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
 
   auto in_view_cpu = in.cpu();
   auto out_view_cpu = out.cpu();

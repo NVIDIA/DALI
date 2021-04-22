@@ -94,7 +94,7 @@ void WarpGPU_Affine_Transpose(bool force_variable) {
   warp.Run(ctx, out.gpu(0), in_list, mappings, out_shapes_hw, {&interp, 1});
 
   auto cpu_out = out.cpu(0)[0];
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
   ASSERT_EQ(cpu_out.shape[0], img_tensor.shape[1]);
   ASSERT_EQ(cpu_out.shape[1], img_tensor.shape[0]);
   ASSERT_EQ(cpu_out.shape[2], 3);
@@ -185,7 +185,7 @@ TEST(WarpGPU, Affine_RotateScale_Single) {
   warp.Run(ctx, out.gpu(0), in_list, mappings, out_shapes_hw, {&interp, 1}, 255);
 
   auto cpu_out = out.cpu(0)[0];
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
   ASSERT_EQ(cpu_out.shape[0], out_shapes_hw[0][0]);
   ASSERT_EQ(cpu_out.shape[1], out_shapes_hw[0][1]);
   ASSERT_EQ(cpu_out.shape[2], 3);
@@ -252,7 +252,7 @@ TEST(WarpGPU, Affine_RotateScale_Uniform) {
   auto scratchpad = scratch_alloc.GetScratchpad();
   ctx.scratchpad = &scratchpad;
   warp.Run(ctx, out.gpu(0), in_list, mappings, make_span(out_shapes_hw), {&interp, 1}, 255);
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
 
   for (int i = 0; i < samples; i++) {
     auto cpu_out = out.cpu(0)[i];
