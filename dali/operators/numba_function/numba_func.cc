@@ -20,7 +20,7 @@ namespace dali {
 DALI_SCHEMA(NumbaFunc)
   .DocStr(R"code(Invokes a njit compiled Numba function.
 
-The run function should be a python function that can be compiled in Numba ``nopython`` mode. 
+The run function should be a Python function that can be compiled in Numba ``nopython`` mode. 
 A function taking a single input and producing a single output should follow the following definition:
 
 .. code-block:: python
@@ -30,7 +30,7 @@ A function taking a single input and producing a single output should follow the
 where ``out0`` and ``in0`` are numpy array views of the input and output tensors. 
 If the operator is configured to run in batch mode, then the first dimension of the arrays is the sample index.
 
-Note that the function can take at most 6 inputs or outputs.
+Note that the function can take at most 6 inputs and 6 outputs.
 
 Additionally, an optional setup function calculating the shape of the output so DALI can allocate memory 
 for the output with the following definition:
