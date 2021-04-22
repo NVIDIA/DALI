@@ -186,10 +186,12 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     auto& in = ws.InputRef<CPUBackend>(in_id);
     in_shapes_[in_id] = in.shape();
     DALI_ENFORCE(in_shapes_[in_id].sample_dim() == ins_ndim_[in_id], make_string(
-      "Dimension passed in `ins_ndim` at index ", in_id,
-      " doesn't match dimension of input data."));
+      "Number of dimensions passed in `ins_ndim` at index ", in_id,
+      " the number of dimensions of the input data: ",
+      in_shapes_[in_id].sample_dim(), " != ", ins_ndim_[in_id]));
     DALI_ENFORCE(in.type().id() == in_types_[in_id], make_string(
-      "Type passed in `in_types` at index ", in_id, " doesn't match type of input data."));
+      "Data type passed in `in_types` at index ", in_id, " doesn't match type of the input data: ",
+      in.type().id(), " != ", in_types_[in_id]));
   }
   auto N = in_shapes_[0].num_samples();
   input_shape_ptrs_.resize(N * ninputs);
