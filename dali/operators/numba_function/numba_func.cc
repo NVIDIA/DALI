@@ -138,11 +138,11 @@ NumbaFuncImpl<Backend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
   setup_fn_ = spec.GetArgument<uint64_t>("setup_fn");
   batch_processing_ = spec.GetArgument<bool>("batch_processing");
 
-  out_types_ = spec.GetRepeatedArgument<int>("out_types");
+  out_types_ = spec.GetRepeatedArgument<DALIDataType>("out_types");
   DALI_ENFORCE(out_types_.size() <= 6,
     make_string("Trying to specify ", out_types_.size(), " outputs. "
     "This operator can have at most 6 outputs."));
-  in_types_ = spec.GetRepeatedArgument<int>("in_types");
+  in_types_ = spec.GetRepeatedArgument<DALIDataType>("in_types");
   DALI_ENFORCE(in_types_.size() <= 6,
     make_string("Trying to specify ", in_types_.size(), " inputs. "
       "This operator can have at most 6 inputs."));
