@@ -173,14 +173,29 @@ NumbaFuncImpl<Backend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
 template <>
 bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     const workspace_t<CPUBackend> &ws) {
+  int ninputs = ws.NumInput();
+  int noutputs = out_types_.size();
+  DALI_ENFORCE(in_types_.size() == static_cast<size_t>(ninputs), make_string(
+    "Expected ", in_types_.size(), " inputs (basing on `in_types`), but got ", ninputs));
+  DALI_ENFORCE(ins_ndim_.size() == static_cast<size_t>(ninputs), make_string(
+    "Expected ", ins_ndim_.size(), " inputs (basing on `ins_ndim`), but got ", ninputs));
+
   output_desc.resize(out_types_.size());
-  in_shapes_.resize(in_types_.size());
-  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-    in_shapes_[in_id] = ws.InputRef<CPUBackend>(in_id).shape();
+  in_shapes_.resize(ninputs);
+  for (int in_id = 0; in_id < ninputs; in_id++) {
+    auto& in = ws.InputRef<CPUBackend>(in_id);
+    in_shapes_[in_id] = in.shape();
+    DALI_ENFORCE(in_shapes_[in_id].sample_dim() == ins_ndim_[in_id], make_string(
+      "Number of dimensions passed in `ins_ndim` at index ", in_id,
+      " doesn't match the number of dimensions of the input data: ",
+      in_shapes_[in_id].sample_dim(), " != ", ins_ndim_[in_id]));
+    DALI_ENFORCE(in.type().id() == in_types_[in_id], make_string(
+      "Data type passed in `in_types` at index ", in_id, " doesn't match type of the input data: ",
+      in.type().id(), " != ", in_types_[in_id]));
   }
   auto N = in_shapes_[0].num_samples();
-  input_shape_ptrs_.resize(N * in_types_.size());
-  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+  input_shape_ptrs_.resize(N * ninputs);
+  for (int in_id = 0; in_id < ninputs; in_id++) {
     for (int i = 0; i < N; i++) {
       input_shape_ptrs_[N * in_id + i] =
         reinterpret_cast<uint64_t>(in_shapes_[in_id].tensor_shape_span(i).data());
@@ -188,31 +203,33 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   }
 
   if (!setup_fn_) {
-    for (size_t i = 0; i < out_types_.size(); i++) {
+    for (int i = 0; i < noutputs; i++) {
       const auto &in = ws.InputRef<CPUBackend>(i);
       output_desc[i] = {in.shape(), in.type()};
     }
     return true;
   }
 
-  for (size_t i = 0; i < out_types_.size(); i++) {
-    output_desc[i].shape.resize(N, outs_ndim_[i]);
+  out_shapes_.resize(noutputs);
+  for (int i = 0; i < noutputs; i++) {
+    out_shapes_[i].resize(N, outs_ndim_[i]);
     output_desc[i].type = dali::TypeTable::GetTypeInfo(static_cast<DALIDataType>(out_types_[i]));
   }
 
-  output_shape_ptrs_.resize(N * out_types_.size());
-  for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
+  output_shape_ptrs_.resize(N * noutputs);
+  for (int out_id = 0; out_id < noutputs; out_id++) {
     for (int i = 0; i < N; i++) {
       output_shape_ptrs_[N * out_id + i] =
-        reinterpret_cast<uint64_t>(output_desc[out_id].shape.tensor_shape_span(i).data());
+        reinterpret_cast<uint64_t>(out_shapes_[out_id].tensor_shape_span(i).data());
     }
   }
 
   ((void (*)(void*, const void*, int32_t, const void*, const void*, int32_t, int32_t))setup_fn_)(
-    output_shape_ptrs_.data(), outs_ndim_.data(), outs_ndim_.size(),
-    input_shape_ptrs_.data(), ins_ndim_.data(), ins_ndim_.size(), N);
+    output_shape_ptrs_.data(), outs_ndim_.data(), noutputs,
+    input_shape_ptrs_.data(), ins_ndim_.data(), ninputs, N);
 
-  for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
+  for (int out_id = 0; out_id < noutputs; out_id++) {
+    output_desc[out_id].shape = out_shapes_[out_id];
     for (int i = 0; i < N; i++) {
       auto out_shape_span = output_desc[out_id].shape.tensor_shape_span(i);
       for (int d = 0; d < outs_ndim_[out_id]; d++) {

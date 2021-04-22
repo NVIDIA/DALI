@@ -49,6 +49,7 @@ class NumbaFuncImpl : public Operator<Backend> {
   std::vector<uint64_t> output_shape_ptrs_;
   std::vector<uint64_t> input_shape_ptrs_;
   vector<TensorListShape<-1>> in_shapes_;
+  vector<TensorListShape<-1>> out_shapes_;
 };
 
 
