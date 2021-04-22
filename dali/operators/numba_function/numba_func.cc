@@ -187,7 +187,7 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     in_shapes_[in_id] = in.shape();
     DALI_ENFORCE(in_shapes_[in_id].sample_dim() == ins_ndim_[in_id], make_string(
       "Number of dimensions passed in `ins_ndim` at index ", in_id,
-      " the number of dimensions of the input data: ",
+      " doesn't match the number of dimensions of the input data: ",
       in_shapes_[in_id].sample_dim(), " != ", ins_ndim_[in_id]));
     DALI_ENFORCE(in.type().id() == in_types_[in_id], make_string(
       "Data type passed in `in_types` at index ", in_id, " doesn't match type of the input data: ",
