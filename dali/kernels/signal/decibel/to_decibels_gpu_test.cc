@@ -103,14 +103,14 @@ TEST_P(ToDecibelsGpuTest, ToDecibelsGpuTest) {
       }
     }
     max_values_gpu = memory::alloc_unique<T>(AllocType::GPU, batch_size);
-    cudaMemcpy(max_values_gpu.get(), max_values.data(), batch_size * sizeof(T),
-               cudaMemcpyHostToDevice);
+    CUDA_CALL(cudaMemcpy(max_values_gpu.get(), max_values.data(), batch_size * sizeof(T),
+                         cudaMemcpyHostToDevice));
     max_values_arg = {max_values_gpu.get(),
                       TensorListShape<0>(batch_size)};
   }
 
   kernel.Run(ctx, out.gpu(), in_.gpu(), args, max_values_arg);
-  cudaStreamSynchronize(0);
+  CUDA_CALL(cudaStreamSynchronize(0));
   auto out_view_cpu = out.cpu();
   for (int b = 0; b < batch_size; ++b) {
     int64_t sz = volume(data_shape_[b]);

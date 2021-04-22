@@ -62,26 +62,26 @@ TEST(LifterCoeffsGPU, correctness) {
   lifter = 1.234f;
   coeffs.Calculate(10, lifter);
   coeffs_cpu.resize(coeffs.size());
-  cudaMemcpy(coeffs_cpu.data(), coeffs.data(),
-             coeffs.size() * sizeof(float), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(coeffs_cpu.data(), coeffs.data(),
+                       coeffs.size() * sizeof(float), cudaMemcpyDeviceToHost));
   check_lifter_coeffs(make_cspan(coeffs_cpu), lifter, coeffs.size());
 
   coeffs.Calculate(20, lifter);
   coeffs_cpu.resize(coeffs.size());
-  cudaMemcpy(coeffs_cpu.data(), coeffs.data(),
-             coeffs.size() * sizeof(float), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(coeffs_cpu.data(), coeffs.data(),
+                       coeffs.size() * sizeof(float), cudaMemcpyDeviceToHost));
   check_lifter_coeffs(make_cspan(coeffs_cpu), lifter, coeffs.size());
 
   coeffs.Calculate(10, lifter);
   coeffs_cpu.resize(coeffs.size());
-  cudaMemcpy(coeffs_cpu.data(), coeffs.data(),
-             coeffs.size() * sizeof(float), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(coeffs_cpu.data(), coeffs.data(),
+                       coeffs.size() * sizeof(float), cudaMemcpyDeviceToHost));
   check_lifter_coeffs(make_cspan(coeffs_cpu), lifter, coeffs.size());
 
   coeffs.Calculate(5, lifter);
   coeffs_cpu.resize(coeffs.size());
-  cudaMemcpy(coeffs_cpu.data(), coeffs.data(),
-             coeffs.size() * sizeof(float), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(coeffs_cpu.data(), coeffs.data(),
+                       coeffs.size() * sizeof(float), cudaMemcpyDeviceToHost));
   check_lifter_coeffs(make_cspan(coeffs_cpu), lifter, coeffs.size());
 }
 

@@ -66,7 +66,8 @@ void FillTensorList(
 
     int n = tmp.size() * sizeof(Dst);
     int N = shape.num_samples();
-    cudaMemcpyAsync(dst.mutable_tensor<Dst>(0), tmp.data(), n, cudaMemcpyHostToDevice, stream);
+    CUDA_CALL(
+      cudaMemcpyAsync(dst.mutable_tensor<Dst>(0), tmp.data(), n, cudaMemcpyHostToDevice, stream));
     int copied = 1;
     // this loop doubles the data in GPU memory, so that there are log2(N) memcpys at most
     while (copied < N) {

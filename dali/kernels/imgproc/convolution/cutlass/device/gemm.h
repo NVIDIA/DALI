@@ -469,8 +469,9 @@ class Conv {
     }
 
     size_t params_sizeof = host_params_.size() * sizeof(SampleParams);
-    cudaMemcpyAsync(params_.params, host_params_.data(), params_sizeof, cudaMemcpyHostToDevice,
-                    stream);
+    CUDA_CALL(
+      cudaMemcpyAsync(params_.params, host_params_.data(), params_sizeof, cudaMemcpyHostToDevice,
+                      stream));
 
     cutlass::Kernel<ConvKernel><<<grid, block, smem_size, stream>>>(params_);
 

@@ -57,7 +57,7 @@ class SliceGPUTest : public SliceTest<TestArgs> {
     OutListGPU<OutputType, Dims> out_tlv = output_data.gpu();
 
     kernel.Run(ctx, out_tlv, test_data.gpu(), slice_args);
-    cudaStreamSynchronize(ctx.gpu.stream);
+    CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
 
     TestTensorList<OutputType, Dims> expected_output;
     this->PrepareExpectedOutput(test_data, slice_args, expected_output);

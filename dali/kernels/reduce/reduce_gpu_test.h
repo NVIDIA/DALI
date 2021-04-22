@@ -59,7 +59,8 @@ struct ReductionKernelTest {
 
   void FillData(In min_value, In max_value) {
     UniformRandomFill(in.cpu(), rng, 0, 255);
-    cudaMemsetAsync(out.gpu().data[0], -1, sizeof(Out) * out.gpu().num_elements(), stream());
+    CUDA_CALL(
+      cudaMemsetAsync(out.gpu().data[0], -1, sizeof(Out) * out.gpu().num_elements(), stream()));
   }
 
   template <typename... Args>

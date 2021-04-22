@@ -457,7 +457,7 @@ void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
                    stream, use_copy_kernel);
   }
   if (sync) {
-    cudaStreamSynchronize(stream);
+    CUDA_CALL(cudaStreamSynchronize(stream));
   }
 }
 
@@ -482,7 +482,7 @@ void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int out
                    stream, use_copy_kernel);
   }
   if (sync) {
-    cudaStreamSynchronize(stream);
+    CUDA_CALL(cudaStreamSynchronize(stream));
   }
 }
 

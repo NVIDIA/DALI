@@ -47,10 +47,13 @@ TEST(Scratchpad, ToContiguous) {
   std::vector<char> chars2(chars.size());
   std::vector<float> floats2(floats.size());
   std::vector<int16_t> shorts2(shorts.size());
-  cudaDeviceSynchronize();
-  cudaMemcpy(chars2.data(), std::get<0>(ptrs), size_bytes(chars2), cudaMemcpyDeviceToHost);
-  cudaMemcpy(floats2.data(), std::get<1>(ptrs), size_bytes(floats2), cudaMemcpyDeviceToHost);
-  cudaMemcpy(shorts2.data(), std::get<2>(ptrs), size_bytes(shorts2), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaDeviceSynchronize());
+  CUDA_CALL(
+    cudaMemcpy(chars2.data(), std::get<0>(ptrs), size_bytes(chars2), cudaMemcpyDeviceToHost));
+  CUDA_CALL(
+    cudaMemcpy(floats2.data(), std::get<1>(ptrs), size_bytes(floats2), cudaMemcpyDeviceToHost));
+  CUDA_CALL(
+    cudaMemcpy(shorts2.data(), std::get<2>(ptrs), size_bytes(shorts2), cudaMemcpyDeviceToHost));
 
   EXPECT_EQ(chars, chars);
   EXPECT_EQ(floats, floats2);

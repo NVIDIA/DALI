@@ -111,9 +111,9 @@ class ReduceInnerGPUTest : public ::testing::Test {
     auto start = CUDAEvent::CreateWithFlags(0);
     auto end =   CUDAEvent::CreateWithFlags(0);
     gpu_descs.from_host(cpu_descs);
-    cudaEventRecord(start);
+    CUDA_CALL(cudaEventRecord(start));
     ReduceInnerKernel<float><<<grid, block>>>(gpu_descs.data(), reduction);
-    cudaEventRecord(end);
+    CUDA_CALL(cudaEventRecord(end));
     CUDA_CALL(cudaDeviceSynchronize());
     float t = 0;
     cudaEventElapsedTime(&t, start, end);
@@ -252,13 +252,13 @@ class ReduceMiddleGPUTest : public ::testing::Test {
     dim3 block(32, 24);
     auto start = CUDAEvent::CreateWithFlags(0);
     auto end =   CUDAEvent::CreateWithFlags(0);
-    cudaEventRecord(start);
+    CUDA_CALL(cudaEventRecord(start));
     ReduceMiddleKernel<float><<<grid, block, sizeof(float)*32*33>>>(gpu_descs.data(), reduction);
     CUDA_CALL(cudaGetLastError());
-    cudaEventRecord(end);
+    CUDA_CALL(cudaEventRecord(end));
     CUDA_CALL(cudaDeviceSynchronize());
     float t = 0;
-    cudaEventElapsedTime(&t, start, end);
+    CUDA_CALL(cudaEventElapsedTime(&t, start, end));
     t /= 1000;  // convert to seconds
     int64_t read = gpu_in.num_elements() * sizeof(float);
     int64_t written = gpu_out.num_elements() * sizeof(float);
@@ -377,12 +377,12 @@ TEST(ReduceSamples, Sum) {
   auto start = CUDAEvent::CreateWithFlags(0);
   auto end =   CUDAEvent::CreateWithFlags(0);
   sample_ptrs.from_host(gpu_in.data);
-  cudaEventRecord(start);
+  CUDA_CALL(cudaEventRecord(start));
   ReduceSamplesKernel<float><<<256, 1024>>>(gpu_out.data[0], sample_ptrs.data(), n, N, R);
-  cudaEventRecord(end);
+  CUDA_CALL(cudaEventRecord(end));
   auto cpu_out = out.cpu();
   float t = 0;
-  cudaEventElapsedTime(&t, start, end);
+  CUDA_CALL(cudaEventElapsedTime(&t, start, end));
   t /= 1000;  // convert to seconds
   int64_t read = sizeof(float) * in_shape.num_elements();
   int64_t written = sizeof(float) * out_shape.num_elements();

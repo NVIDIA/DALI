@@ -112,13 +112,14 @@ void ScatterGatherGPU::Run(cudaStream_t stream, bool reset, ScatterGatherGPU::Me
 
   if (use_memcpy) {
     for (auto &r : ranges_) {
-      cudaMemcpyAsync(r.dst, r.src, r.size, memcpyKind, stream);
+      CUDA_CALL(cudaMemcpyAsync(r.dst, r.src, r.size, memcpyKind, stream));
     }
   } else {
     MakeBlocks();
     ReserveGPUBlocks();
-    cudaMemcpyAsync(blocks_dev_.get(), blocks_.data(), blocks_.size() * sizeof(blocks_[0]),
-      cudaMemcpyHostToDevice, stream);
+    CUDA_CALL(
+      cudaMemcpyAsync(blocks_dev_.get(), blocks_.data(), blocks_.size() * sizeof(blocks_[0]),
+                      cudaMemcpyHostToDevice, stream));
 
     dim3 grid(blocks_.size());
     dim3 block(std::min<size_t>(size_per_block_, 1024));

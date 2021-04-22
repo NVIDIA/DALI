@@ -139,7 +139,9 @@ struct TensorJoinGPUTest : public ::testing::Test {
 
   void ClearOutput(cudaStream_t stream) {
     auto out_tl = out.gpu(stream);
-    cudaMemsetAsync(out_tl.data[0], 0, sizeof(out_tl.data[0][0]) * out_tl.num_elements(), stream);
+    CUDA_CALL(
+      cudaMemsetAsync(out_tl.data[0], 0, sizeof(out_tl.data[0][0]) * out_tl.num_elements(),
+                      stream));
   }
 
   void FillInputs(cudaStream_t stream) {

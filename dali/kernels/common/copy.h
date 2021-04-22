@@ -31,16 +31,16 @@ void copy(void* out, const void* in, std::size_t N, cudaStream_t stream = 0) {
   if (!is_gpu_accessible<StorageOut>::value) {
     if (is_cpu_accessible<StorageIn>::value) {
       if (is_gpu_accessible<StorageIn>::value)
-        cudaStreamSynchronize(stream);  // or cudaDeviceSynchronize?
+        CUDA_CALL(cudaStreamSynchronize(stream));  // or cudaDeviceSynchronize?
       std::memcpy(out, in, N);
     } else {
-      cudaMemcpyAsync(out, in, N, cudaMemcpyDeviceToHost, stream);
+      CUDA_CALL(cudaMemcpyAsync(out, in, N, cudaMemcpyDeviceToHost, stream));
     }
   } else {
     if (is_gpu_accessible<StorageIn>::value) {
-      cudaMemcpyAsync(out, in, N, cudaMemcpyDeviceToDevice, stream);
+      CUDA_CALL(cudaMemcpyAsync(out, in, N, cudaMemcpyDeviceToDevice, stream));
     } else {
-      cudaMemcpyAsync(out, in, N, cudaMemcpyHostToDevice, stream);
+      CUDA_CALL(cudaMemcpyAsync(out, in, N, cudaMemcpyHostToDevice, stream));
     }
   }
 }

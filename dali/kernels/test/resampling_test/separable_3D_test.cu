@@ -431,7 +431,8 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
       ASSERT_EQ(req.output_shapes.size(), 1u) << "Expected only 1 output";
       ASSERT_EQ(req.output_shapes[0], out_shape) << "Unexpected output shape";
       out.reshape(out_shape);
-      cudaMemsetAsync(out.gpu(stream).data[0], 0, sizeof(Out)*out_shape.num_elements(), stream);
+      CUDA_CALL(
+        cudaMemsetAsync(out.gpu(stream).data[0], 0, sizeof(Out)*out_shape.num_elements(), stream));
 
       sa.Reserve(req.scratch_sizes);
       auto scratchpad = sa.GetScratchpad();

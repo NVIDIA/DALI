@@ -66,21 +66,23 @@ void ReduceAllGPUTest<Reduction>::TestReduceAll() {
     x = dist(rng);
   double ref_value = ref_reduce(make_cspan(in_cpu));
 
-  cudaMemcpy(in_data.get(), in_cpu.data(), n_in * sizeof(*in_data), cudaMemcpyHostToDevice);
+  CUDA_CALL(
+    cudaMemcpy(in_data.get(), in_cpu.data(), n_in * sizeof(*in_data), cudaMemcpyHostToDevice));
 
   dim3 grid = n_out0;
   ReduceAllKernel<float><<<1, block>>>(out_data.get(), in_data.get(), n_in);
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
   auto start = CUDAEvent::CreateWithFlags(0);
   auto end =   CUDAEvent::CreateWithFlags(0);
-  cudaEventRecord(start);
+  CUDA_CALL(cudaEventRecord(start));
   ReduceAllKernel<float><<<grid, block>>>(out_data.get() + 1, in_data.get(), n_in, R);
   ReduceAllKernel<float><<<1, block>>>(out_data.get(), out_data.get() + 1, n_out0, R);
-  cudaEventRecord(end);
-  cudaMemcpy(out_cpu.data(), out_data.get(), n_out * sizeof(*out_data), cudaMemcpyDeviceToHost);
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaEventRecord(end));
+  CUDA_CALL(
+    cudaMemcpy(out_cpu.data(), out_data.get(), n_out * sizeof(*out_data), cudaMemcpyDeviceToHost));
+    CUDA_CALL(cudaDeviceSynchronize());
   float t = 0;
-  cudaEventElapsedTime(&t, start, end);
+  CUDA_CALL(cudaEventElapsedTime(&t, start, end));
   double out_value = out_cpu[0];
   double out_partial = ref_reduce(make_cspan(&out_cpu[1], n_out0));
   if (IsAccurate(R)) {
@@ -138,12 +140,16 @@ void ReduceAllGPUTest<Reduction>::TestReduceBatched() {
   }
 
   // data
-  cudaMemcpy(in_data.get(), in_cpu.data(), n_in * sizeof(*in_data), cudaMemcpyHostToDevice);
+  CUDA_CALL(
+    cudaMemcpy(in_data.get(), in_cpu.data(), n_in * sizeof(*in_data), cudaMemcpyHostToDevice));
   // pointers to sample data
-  cudaMemcpy(gpu_dev_ptrs.get(), cpu_dev_ptrs.data(), samples * sizeof(*gpu_dev_ptrs),
-             cudaMemcpyHostToDevice);
+  CUDA_CALL(
+    cudaMemcpy(gpu_dev_ptrs.get(), cpu_dev_ptrs.data(), samples * sizeof(*gpu_dev_ptrs),
+               cudaMemcpyHostToDevice));
   // sample sizes
-  cudaMemcpy(gpu_sizes.get(), sizes.data(), samples * sizeof(*gpu_sizes), cudaMemcpyHostToDevice);
+  CUDA_CALL(
+    cudaMemcpy(gpu_sizes.get(), sizes.data(), samples * sizeof(*gpu_sizes),
+               cudaMemcpyHostToDevice));
 
   // warm-up
   ReduceAllBatchedKernel<float><<<1, block>>>(
@@ -151,7 +157,7 @@ void ReduceAllGPUTest<Reduction>::TestReduceBatched() {
   cudaDeviceSynchronize();
   auto start = CUDAEvent::CreateWithFlags(0);
   auto end =   CUDAEvent::CreateWithFlags(0);
-  cudaEventRecord(start);
+  CUDA_CALL(cudaEventRecord(start));
   ReduceAllBatchedKernel<float><<<grid, block>>>(out_data.get() + samples,
                                                  gpu_dev_ptrs.get(), gpu_sizes.get(), R);
 
@@ -159,11 +165,12 @@ void ReduceAllGPUTest<Reduction>::TestReduceBatched() {
   ReduceAllBlockwiseKernel<float><<<grid2, block>>>(out_data.get(),
                                                     out_data.get() + samples, n_out_per_sample,
                                                     R);
-  cudaEventRecord(end);
-  cudaMemcpy(out_cpu.data(), out_data.get(), n_out * sizeof(*out_data), cudaMemcpyDeviceToHost);
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaEventRecord(end));
+  CUDA_CALL(
+    cudaMemcpy(out_cpu.data(), out_data.get(), n_out * sizeof(*out_data), cudaMemcpyDeviceToHost));
+  CUDA_CALL(cudaDeviceSynchronize());
   float t = 0;
-  cudaEventElapsedTime(&t, start, end);
+  CUDA_CALL(cudaEventElapsedTime(&t, start, end));
 
   offset = 0;
   for (int i = 0; i < samples; i++) {

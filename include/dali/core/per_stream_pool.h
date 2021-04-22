@@ -165,7 +165,7 @@ class PerStreamPool {
   friend class ObjectLease;
 
   void Release(std::unique_ptr<ListNode> node) {
-    cudaEventRecord(node->event, node->stream);
+    CUDA_CALL(cudaEventRecord(node->event, node->stream));
     std::lock_guard<mutex_type> guard(lock_);
     node->next = std::move(pending_);
     pending_ = std::move(node);

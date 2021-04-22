@@ -16,6 +16,7 @@
 #include "dali/core/span.h"
 #include "dali/kernels/alloc.h"
 #include "dali/core/util.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 namespace kernels {
@@ -59,19 +60,19 @@ TEST(TestGPUSpan, Test1) {
   ASSERT_EQ(cudaGetLastError(), cudaSuccess);
 
   auto gpumem = memory::alloc_unique<int>(AllocType::GPU, N);
-  cudaMemcpy(gpumem.get(), array, sizeof(array), cudaMemcpyHostToDevice);
+  CUDA_CALL(cudaMemcpy(gpumem.get(), array, sizeof(array), cudaMemcpyHostToDevice));
   span<int> dyn_span = { gpumem.get(), N };
   TestSpanKernel<<<grid, block>>>(dyn_span);
-  cudaMemcpy(out, gpumem.get(), sizeof(array), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(out, gpumem.get(), sizeof(array), cudaMemcpyDeviceToHost));
   ASSERT_EQ(cudaGetLastError(), cudaSuccess);
   for (int i = 0; i < N; i++) {
     EXPECT_EQ(out[i], array[i] + 1 + i);
   }
 
-  cudaMemcpy(gpumem.get(), array, sizeof(array), cudaMemcpyHostToDevice);
+  CUDA_CALL(cudaMemcpy(gpumem.get(), array, sizeof(array), cudaMemcpyHostToDevice));
   span<int, N> static_span = { gpumem.get() };
   TestSpanKernel<<<grid, block>>>(static_span);
-  cudaMemcpy(out, gpumem.get(), sizeof(array), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(out, gpumem.get(), sizeof(array), cudaMemcpyDeviceToHost));
   ASSERT_EQ(cudaGetLastError(), cudaSuccess);
 
   for (int i = 0; i < N; i++) {

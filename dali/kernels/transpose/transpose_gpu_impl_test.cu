@@ -139,19 +139,19 @@ TEST(TransposeTiled, AllPerm4DInnermost) {
 
     std::cerr << "Testing permutation "
       << perm[0] << " " << perm[1] << " " << perm[2] << " " << perm[3] << "\n";
-    cudaMemset(out_gpu, 0xff, size*sizeof(int));
+    CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
 
     TiledTransposeDesc<int> desc;
     memset(&desc, 0xCC, sizeof(desc));
     InitTiledTranspose(desc, shape, make_span(perm), out_gpu, in_gpu, grid_size);
-    cudaEventRecord(start);
+    CUDA_CALL(cudaEventRecord(start));
     TransposeTiledSingle<<<grid_size, dim3(32, 16), kTiledTransposeMaxSharedMem>>>(desc);
-    cudaEventRecord(end);
+    CUDA_CALL(cudaEventRecord(end));
     copyD2H(out_cpu.data(), out_gpu.data(), size);
     testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm, 4);
 
     float time;
-    cudaEventElapsedTime(&time, start, end);
+    CUDA_CALL(cudaEventElapsedTime(&time, start, end));
     time *= 1e+6;
     std::cerr << 2*size*sizeof(int) / time << " GB/s" << "\n";
 
@@ -170,7 +170,7 @@ TEST(TransposeTiled, BuildDescVectorized) {
   DeviceBuffer<int> in_gpu, out_gpu;
   in_gpu.resize(size);
   out_gpu.resize(size);
-  cudaMemset(out_gpu, 0xff, size*sizeof(int));
+  CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
   copyH2D(in_gpu.data(), in_cpu.data(), size);
 
   SmallVector<int, 6> perm = { 1, 2, 0, 3 };
@@ -216,19 +216,19 @@ TEST(TransposeDeinterleave, AllPerm4DInnermost) {
 
     std::cerr << "Testing permutation "
       << perm[0] << " " << perm[1] << " " << perm[2] << " " << perm[3] << "\n";
-    cudaMemset(out_gpu, 0xff, size*sizeof(int));
+      CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
 
     DeinterleaveDesc<int> desc;
     memset(&desc, 0xCC, sizeof(desc));
     InitDeinterleave(desc, shape, make_span(perm), out_gpu, in_gpu);
-    cudaEventRecord(start);
+    CUDA_CALL(cudaEventRecord(start));
     TransposeDeinterleaveSingle<<<grid_size, block_size>>>(desc);
-    cudaEventRecord(end);
+    CUDA_CALL(cudaEventRecord(end));
     copyD2H(out_cpu.data(), out_gpu.data(), size);
     testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm, 4);
 
     float time;
-    cudaEventElapsedTime(&time, start, end);
+    CUDA_CALL(cudaEventElapsedTime(&time, start, end));
     time *= 1e+6;
     std::cerr << 2*size*sizeof(int) / time << " GB/s" << "\n";
 
@@ -257,7 +257,7 @@ TEST(TransposeGeneric, AllPerm4D) {
     std::cerr << "Testing permutation "
       << perm[0] << " " << perm[1] << " " << perm[2] << " " << perm[3] << "  input shape "
       << shape << "\n";
-    cudaMemset(out_gpu, 0xff, size*sizeof(int));
+      CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
 
     GenericTransposeDesc<int> desc;
     memset(&desc, 0xCC, sizeof(desc));
@@ -289,7 +289,7 @@ TEST(TransposeGeneric, AllPerm4D) {
     std::cerr << " input shape " << simplified_shape << "\n";
 
     memset(&desc, 0xCC, sizeof(desc));
-    cudaMemset(out_gpu, 0xff, size*sizeof(int));
+    CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
     InitGenericTranspose(desc, simplified_shape, make_span(simplified_perm), out_gpu, in_gpu);
     TransposeGenericSingle<<<grid_size, block_size>>>(desc);
     copyD2H(out_cpu.data(), out_gpu.data(), size);

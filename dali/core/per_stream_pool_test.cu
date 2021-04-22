@@ -21,6 +21,7 @@
 #include <thread>
 #include <vector>
 #include "dali/core/cuda_stream.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 
@@ -44,23 +45,23 @@ TEST(PerStreamPool, SingleStream) {
     p1 = lease;
   }
 
-  cudaLaunchHostFunc(ssync, wait_func, &flag);
-  cudaEventRecord(e, ssync);  // this event is recorded, but not reached, because this stream is
-                              // waiting for a spinning host function
+  CUDA_CALL(cudaLaunchHostFunc(ssync, wait_func, &flag));
+  CUDA_CALL(cudaEventRecord(e, ssync));  // this event is recorded, but not reached, because this
+                                         // stream is waiting for a spinning host function
 
-  cudaStreamSynchronize(s1);  // make sure that stream has completed its job
+  CUDA_CALL(cudaStreamSynchronize(s1));  // make sure that stream has completed its job
   if (auto lease = pool.Get(s1)) {
     p2 = lease;
     EXPECT_EQ(p2, p1) << "Expected to get the same object.";
-    cudaStreamWaitEvent(s1, e, 0);  // block s1
+    CUDA_CALL(cudaStreamWaitEvent(s1, e, 0));  // block s1
   }
   if (auto lease = pool.Get(s1)) {
     p2 = lease;
     EXPECT_EQ(p2, p1) << "Expected to get the same object, even if job is still pending.";
   }
   flag.clear();  // unblock stream ssync
-  cudaStreamSynchronize(ssync);
-  cudaStreamSynchronize(s1);
+  CUDA_CALL(cudaStreamSynchronize(ssync));
+  CUDA_CALL(cudaStreamSynchronize(s1));
   if (auto lease = pool.Get(s1)) {
     p2 = lease;
     EXPECT_EQ(p2, p1) << "Expected to get the same object.";
@@ -79,23 +80,23 @@ TEST(PerDevicePool, SingleStreamNoReuse) {
   if (auto lease = pool.Get(s1)) {
     p1 = lease;
   }
-  cudaLaunchHostFunc(ssync, wait_func, &flag);
-  cudaEventRecord(e, ssync);  // this event is recorded, but not reached, because this stream is
-                              // waiting for a spinning host function
+  CUDA_CALL(cudaLaunchHostFunc(ssync, wait_func, &flag));
+  CUDA_CALL(cudaEventRecord(e, ssync));  // this event is recorded, but not reached, because this
+                                         // stream is waiting for a spinning host function
 
-  cudaStreamSynchronize(s1);  // make sure that stream has completed its job
+  CUDA_CALL(cudaStreamSynchronize(s1));  // make sure that stream has completed its job
   if (auto lease = pool.Get(s1)) {
     p2 = lease;
     EXPECT_EQ(p2, p1) << "Expected to get the same object.";
-    cudaStreamWaitEvent(s1, e, 0);  // block s1
+    CUDA_CALL(cudaStreamWaitEvent(s1, e, 0));  // block s1
   }
   if (auto lease = pool.Get(s1)) {
     p2 = lease;
     EXPECT_NE(p2, p1) << "Expected to get a new object - job is still pending and reuse disabled.";
   }
   flag.clear();  // unblock stream ssync
-  cudaStreamSynchronize(ssync);
-  cudaStreamSynchronize(s1);
+  CUDA_CALL(cudaStreamSynchronize(ssync));
+  CUDA_CALL(cudaStreamSynchronize(s1));
   if (auto lease = pool.Get(s1)) {
     p3 = lease;
     EXPECT_TRUE(p3 == p1 || p3 == p2) << "Expected to get one of the previous objects.";
@@ -116,15 +117,15 @@ TEST(PerStreamPool, MultiStream) {
     p1 = lease;
   }
 
-  cudaLaunchHostFunc(ssync, wait_func, &flag);
-  cudaEventRecord(e, ssync);  // this event is recorded, but not reached, because this stream is
-                              // waiting for a spinning host function
+  CUDA_CALL(cudaLaunchHostFunc(ssync, wait_func, &flag));
+  CUDA_CALL(cudaEventRecord(e, ssync));  // this event is recorded, but not reached, because this
+                                         // stream is waiting for a spinning host function
 
-  cudaStreamSynchronize(s1);  // make sure that stream has completed its job
+  CUDA_CALL(cudaStreamSynchronize(s1));  // make sure that stream has completed its job
   if (auto lease = pool.Get(s1)) {
     p2 = lease;
     EXPECT_EQ(p2, p1) << "Expected to get the same object.";
-    cudaStreamWaitEvent(s1, e, 0);  // block s1
+    CUDA_CALL(cudaStreamWaitEvent(s1, e, 0));  // block s1
   }
   if (auto lease = pool.Get(s1)) {
     p2 = lease;
@@ -135,29 +136,29 @@ TEST(PerStreamPool, MultiStream) {
     EXPECT_NE(p3, p1) << "Expected to get a new object, job on s1 is still pending.";
   }
   flag.clear();  // unblock stream ssync
-  cudaStreamSynchronize(ssync);
-  cudaStreamSynchronize(s1);
-  cudaStreamSynchronize(s2);
+  CUDA_CALL(cudaStreamSynchronize(ssync));
+  CUDA_CALL(cudaStreamSynchronize(s1));
+  CUDA_CALL(cudaStreamSynchronize(s2));
   if (auto lease = pool.Get(s1)) {
     p3 = lease;
     EXPECT_TRUE(p3 == p1 || p3 == p2) << "Expected to get one of the previously objects.";
   }
 
-  cudaLaunchHostFunc(ssync, wait_func, &flag);
-  cudaEventRecord(e, ssync);  // this event is recorded, but not reached, because this stream is
-                              // waiting for a spinning host function
+  CUDA_CALL(cudaLaunchHostFunc(ssync, wait_func, &flag));
+  CUDA_CALL(cudaEventRecord(e, ssync));  // this event is recorded, but not reached, because this
+                                         // stream is waiting for a spinning host function
 
   if (auto lease = pool.Get(s1)) {
     p4 = lease;
     EXPECT_TRUE(p4 == p3) << "Expected to get one of the previously objects.";
-    cudaStreamWaitEvent(s1, e, 0);  // block s1
+    CUDA_CALL(cudaStreamWaitEvent(s1, e, 0));  // block s1
   }
   if (auto lease = pool.Get(s2)) {
     p4 = lease;
     EXPECT_TRUE(p4 != p3) << "Expected to get a different object.";
   }
   flag.clear();
-  cudaStreamSynchronize(ssync);
+  CUDA_CALL(cudaStreamSynchronize(ssync));
 }
 
 
@@ -178,9 +179,9 @@ TEST(PerStreamPool, Massive) {
   CUDAEvent e = CUDAEvent::Create();
   PerStreamPool<int> pool;
 
-  cudaLaunchHostFunc(ssync, wait_func, &flag);
-  cudaEventRecord(e, ssync);  // this event is recorded, but not reached, because this stream is
-                              // waiting for a spinning host function
+  CUDA_CALL(cudaLaunchHostFunc(ssync, wait_func, &flag));
+  CUDA_CALL(cudaEventRecord(e, ssync));  // this event is recorded, but not reached, because this
+                                         // stream is waiting for a spinning host function
 
   volatile bool failure = false;
   std::vector<std::thread> t(N);
@@ -190,7 +191,7 @@ TEST(PerStreamPool, Massive) {
         if (auto lease = pool.Get(s[i])) {
           if (j == 0) {
             p1[i] = lease;
-          cudaStreamWaitEvent(s[i], e, 0);  // block s[i]
+            CUDA_CALL(cudaStreamWaitEvent(s[i], e, 0));  // block s[i]
           } else {
             if (lease != p1[i]) {
               std::cerr << "Failure in worker thread " << i
@@ -209,27 +210,27 @@ TEST(PerStreamPool, Massive) {
   EXPECT_FALSE(failure) << "Failure in worker thread";
 
   flag.clear();
-  cudaStreamSynchronize(ssync);
+  CUDA_CALL(cudaStreamSynchronize(ssync));
 
   std::sort(p1.begin(), p1.end());
   for (int i = 1; i < N; i++)
     EXPECT_NE(p1[i], p1[i-1]) << "Duplicate object found - this shouldn't have happened";
 
   for (int i = 0; i < N; i++)
-    cudaStreamSynchronize(s[i]);
+  CUDA_CALL(cudaStreamSynchronize(s[i]));
 
-  cudaLaunchHostFunc(ssync, wait_func, &flag);
-  cudaEventRecord(e, ssync);  // this event is recorded, but not reached, because this stream is
-                              // waiting for a spinning host function
+  CUDA_CALL(cudaLaunchHostFunc(ssync, wait_func, &flag));
+  CUDA_CALL(cudaEventRecord(e, ssync));  // this event is recorded, but not reached, because this
+                                         // stream is waiting for a spinning host function
 
   for (int i = 0; i < N; i++) {
     auto lease = pool.Get(s[i]);
-    cudaStreamWaitEvent(s[i], e, 0);  // block s[i]
+    CUDA_CALL(cudaStreamWaitEvent(s[i], e, 0));  // block s[i]
     p2[i] = lease;
   }
 
   flag.clear();
-  cudaStreamSynchronize(ssync);
+  CUDA_CALL(cudaStreamSynchronize(ssync));
 
   std::sort(p2.begin(), p2.end());
   EXPECT_EQ(p1, p2) << "Should reuse all objects";

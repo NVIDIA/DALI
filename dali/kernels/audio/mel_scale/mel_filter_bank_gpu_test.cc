@@ -156,7 +156,7 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
   auto out_view = out.gpu();
   kmgr.Run<Kernel>(0, 0, ctx, out_view, in_view);
   auto out_view_cpu = out.cpu();
-  cudaStreamSynchronize(0);
+  CUDA_CALL(cudaStreamSynchronize(0));
   for (int b = 0; b < batch_size; ++b) {
     for (int idx = 0; idx < out_sizes[b]; idx++) {
       ASSERT_NEAR(expected_out[b][idx], out_view_cpu.tensor_data(b)[idx], 1e-5) <<

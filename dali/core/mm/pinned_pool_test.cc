@@ -136,7 +136,7 @@ TEST(MMPinnedAlloc, FreeOnAnotherDevice) {
     async_pool_base<memory_kind::pinned> pool(&upstream, true);
     void *mem1 = pool.allocate_async(N, sv1);
     CUDA_CALL(cudaMemsetAsync(mem1, 0, N, s1));
-    cudaStreamSynchronize(s1);
+    CUDA_CALL(cudaStreamSynchronize(s1));
     // don't set device - it should be inferred from the stream
     pool.deallocate_async(mem1, N, sv2);
     // now set the device and allocate

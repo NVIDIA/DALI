@@ -120,14 +120,14 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
 
-    cudaEventRecord(start, stream);
+    CUDA_CALL(cudaEventRecord(start, stream));
     constexpr int kIters = 100;
     for (int i = 0; i < kIters; i++) {
       ExecuteTiledBinOp<TestConfig::op, Result, Left, Right, TestConfig::IsLeftTensor,
                         TestConfig::IsRightTensor><<<grid, block, 0, stream>>>(tiles_gpu);
     }
-    cudaEventRecord(end, stream);
-    cudaDeviceSynchronize();
+    CUDA_CALL(cudaEventRecord(end, stream));
+    CUDA_CALL(cudaDeviceSynchronize());
     float time;
     CUDA_CALL(cudaEventElapsedTime(&time, start, end));
 

@@ -41,8 +41,8 @@ class Dct1DGpuTest : public ::testing::TestWithParam<
           FillLifter();
           lifter_coeffs_gpu_buffer.resize(max_ndct);
           lifter_coeffs_gpu_ = make_tensor_gpu<1>(lifter_coeffs_gpu_buffer.data(), {max_ndct});
-          cudaMemcpy(lifter_coeffs_gpu_.data, lifter_coeffs_.data(),
-                    lifter_coeffs_.size() * sizeof(float), cudaMemcpyHostToDevice);
+          CUDA_CALL(cudaMemcpy(lifter_coeffs_gpu_.data, lifter_coeffs_.data(),
+                               lifter_coeffs_.size() * sizeof(float), cudaMemcpyHostToDevice));
         }
         while (args_.size() < static_cast<size_t>(batch_size_) * axes_.size()) {
           for (auto dct : dct_type) {
@@ -134,7 +134,7 @@ TEST_P(Dct1DGpuTest, DctTest) {
     ttl_out_.reshape(out_shape);
     auto out_view = ttl_out_.gpu();
     kmgr.Run<Kernel>(0, 0, ctx, out_view, in_view, lifter_coeffs_gpu_);
-    cudaStreamSynchronize(ctx.gpu.stream);
+    CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
     auto cpu_in_view = ttl_in_.cpu();
     auto cpu_out_view = ttl_out_.cpu();
     for (int s = 0; s < batch_size_; ++s) {
@@ -267,12 +267,12 @@ TEST_P(Dct1DGpuPerfTest, DISABLED_PerfTest) {
     auto out_view_gpu = output.gpu();
     int axis = inner_ ? 2 : 1;
     auto req = kmgr.Setup<Kernel>(0, ctx, in_view_gpu, make_cspan(args_batch_), axis);
-    cudaEventRecord(start);
+    CUDA_CALL(cudaEventRecord(start));
     kmgr.Run<Kernel>(0, 0, ctx, out_view_gpu, in_view_gpu, InTensorGPU<float, 1>{});
-    cudaEventRecord(end);
+    CUDA_CALL(cudaEventRecord(end));
     CUDA_CALL(cudaDeviceSynchronize());
     float time;
-    cudaEventElapsedTime(&time, start, end);
+    CUDA_CALL(cudaEventElapsedTime(&time, start, end));
     if (i > 0) {
       tops += in_elems * ndct_ / static_cast<double>(time) * 1e-6 / (n_iters - 1);
       mem += static_cast<double>(mem_size) / (static_cast<double>(time) * 1e6) / (n_iters - 1);
