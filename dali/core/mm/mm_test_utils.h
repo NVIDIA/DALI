@@ -193,8 +193,8 @@ class test_resource_wrapper<owning, security_check, memory_resource<kind, Contex
 
 template <memory_kind kind, bool owning, bool security_check,
           typename Upstream>
-class test_resource_wrapper<owning, security_check, stream_aware_memory_resource<kind>, Upstream>
-: public stream_aware_memory_resource<kind>
+class test_resource_wrapper<owning, security_check, async_memory_resource<kind>, Upstream>
+: public async_memory_resource<kind>
 , public test_resource_wrapper_impl<owning, security_check, Upstream> {
   static_assert(!security_check || kind != memory_kind::device,
                 "Cannot place a security cookie in device memory");
@@ -231,6 +231,8 @@ class test_resource_wrapper<owning, security_check, stream_aware_memory_resource
       return this->upstream_->deallocate_async(p, b, a, sv);
     }, ptr, bytes, alignment, strm_vw);
   }
+
+ public:
 };
 
 struct test_host_resource
@@ -254,9 +256,9 @@ struct test_device_resource
   test_device_resource() : test_resource_wrapper(&cuda_malloc_memory_resource::instance()) {}
 };
 
-template <memory_kind kind, bool owning, typename Upstream = stream_aware_memory_resource<kind>>
+template <memory_kind kind, bool owning, typename Upstream = async_memory_resource<kind>>
 using test_stream_resource = test_resource_wrapper<
-    owning, detail::is_host_memory(kind), stream_aware_memory_resource<kind>, Upstream>;
+    owning, detail::is_host_memory(kind), async_memory_resource<kind>, Upstream>;
 
 
 class test_dev_pool_resource : public test_stream_resource<memory_kind::device, true> {
