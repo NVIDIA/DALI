@@ -20,27 +20,27 @@ namespace dali {
 DALI_SCHEMA(NumbaFunc)
   .DocStr(R"code(Invokes a njit compiled Numba function.
 
-The run function should be a Python function that can be compiled in Numba ``nopython`` mode. 
+The run function should be a Python function that can be compiled in Numba ``nopython`` mode.
 A function taking a single input and producing a single output should follow the following definition:
 
 .. code-block:: python
 
     def run_fn(out0, in0)
 
-where ``out0`` and ``in0`` are numpy array views of the input and output tensors. 
+where ``out0`` and ``in0`` are numpy array views of the input and output tensors.
 If the operator is configured to run in batch mode, then the first dimension of the arrays is the sample index.
 
 Note that the function can take at most 6 inputs and 6 outputs.
 
-Additionally, an optional setup function calculating the shape of the output so DALI can allocate memory 
+Additionally, an optional setup function calculating the shape of the output so DALI can allocate memory
 for the output with the following definition:
 
 .. code-block:: python
 
     def setup_fn(outs, ins)
 
-The setup function is invoked once for the whole batch. The first dimension of ``outs``, ``ins`` is the number of 
-outputs/inputs, respectively. The second dimension is the sample index. For example, the first sample on the second 
+The setup function is invoked once for the whole batch. The first dimension of ``outs``, ``ins`` is the number of
+outputs/inputs, respectively. The second dimension is the sample index. For example, the first sample on the second
 output can be accessed by ``outs[1][0]``.
 
 If no setup function provided, the output shape and data type will be the same as the input.
@@ -62,7 +62,7 @@ The following example shows a simple setup function which permutes the order of 
             for d in range(len(perm)):
                 out0[sample_idx][d] = in0[sample_idx][perm[d]]
 
-Since the setup function is running for the whole batch, we need to iterate and permute each sample's shape individually. 
+Since the setup function is running for the whole batch, we need to iterate and permute each sample's shape individually.
 For ``shapes = [(10, 20, 30), (20, 10, 30)]`` it will produce output with ``shapes = [(20, 10, 30), (10, 20, 30)]``.
 
 Also lets provide run function:
@@ -108,8 +108,9 @@ This function must work in Numba ``nopython`` mode.)code", DALI_PYTHON_OBJECT)
   .AddArg("in_types", R"code(Types of inputs.)code", DALI_DATA_TYPE_VEC)
   .AddArg("outs_ndim", R"code(Number of dimensions which outputs shapes should have.)code", DALI_INT_VEC)
   .AddArg("ins_ndim", R"code(Number of dimensions which inputs shapes should have.)code", DALI_INT_VEC)
-  .AddOptionalArg("setup_fn", R"code(Setup function setting shapes for outputs. 
-This function is invoked once per batch. Also this function must work in Numba ``nopython`` mode.)code", DALI_PYTHON_OBJECT)
+  .AddOptionalArg("setup_fn", R"code(Setup function setting shapes for outputs.
+This function is invoked once per batch. Also this function must work in Numba ``nopython`` mode.)code",
+                  DALI_PYTHON_OBJECT, nullptr)
   .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked once per batch or
 separately for every sample in the batch.)code", false);
 
@@ -127,7 +128,7 @@ DALI_SCHEMA(NumbaFuncImpl)
   .AddArg("in_types", R"code(DALI types of inputs.)code", DALI_DATA_TYPE_VEC)
   .AddArg("outs_ndim", R"code(Number of dimensions which outputs shapes should have.)code", DALI_INT_VEC)
   .AddArg("ins_ndim", R"code(Number of dimensions which inputs shapes should have.)code", DALI_INT_VEC)
-  .AddOptionalArg<int>("setup_fn", R"code(Address of setup function setting shapes for outputs. 
+  .AddOptionalArg<int>("setup_fn", R"code(Address of setup function setting shapes for outputs.
 This function is invoked once per batch.)code", 0)
   .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked once per batch or
 separately for every sample in the batch.)code", false);
