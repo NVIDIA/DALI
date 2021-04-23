@@ -50,10 +50,26 @@ class InstallerHelper:
         # Can install prebuilt if both conditions apply:
         # - we know the compiler used to build TF
         # - we have prebuilt artifacts for that compiler version
+        # - We have an exact match with the TF version major.minor or an exact match of the
+        #   major version and the minor version in the prebuilt plugin is lower than the requested one.
         self.can_install_prebuilt = not self.always_build and \
             bool(self.tf_compiler) and \
             self.tf_compiler in self.prebuilt_compilers and \
             self.is_compatible_with_prebuilt_bin
+        self.prebuilt_plugins_available = []
+        self.prebuilt_plugin_best_match = None
+        self.plugin_name = None
+        if self.can_install_prebuilt:
+            prebuilt_path = os.path.join(self.prebuilt_dir, self.tf_compiler)
+            self.prebuilt_plugins_available = find('libdali_tf_*.so', prebuilt_path)
+            best_version = find_available_prebuilt_tf(self.tf_version, self.prebuilt_plugins_available)
+            if best_version is None:
+                self.can_install_prebuilt = False
+            else:
+                tf_version_underscore = best_version.replace('.', '_')
+                self.plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
+                self.prebuilt_plugin_best_match = os.path.join(prebuilt_path, self.plugin_name)
+
         # Allow to compile if either condition apply
         # - The default C++ compiler version matches the one used to build TF
         # - The compiler used to build TF is unknown
@@ -73,40 +89,29 @@ class InstallerHelper:
         s += "\n TF path:                              {}".format(self.tf_path or "Not Installed")
         s += "\n DALI TF plugin destination directory: {}".format(self.plugin_dest_dir)
         s += "\n Is Conda environment?                 {}".format("Yes" if self.is_conda else "No")
-        s += "\n Using compiler:                       \"{}\", version {}".format(self.cpp_compiler, self.default_cpp_version or "Empty")
-        s += "\n TF version installed:                 {}".format(self.tf_version or "Empty")
+        s += "\n Using compiler:                       \"{}\", version {}".format(self.cpp_compiler, self.default_cpp_version or "Unknown")
+        s += "\n TF version installed:                 {}".format(self.tf_version or "Unknown")
         if self.tf_version:
-            s += "\n g++ version used to compile TF:       {}".format(self.tf_compiler or "Empty")
+            s += "\n g++ version used to compile TF:       {}".format(self.tf_compiler or "Unknown")
             s += "\n Prebuilt plugins available for g++:   \"{}\"".format(" ".join(self.prebuilt_compilers))
             s += "\n Is {} present in the system?     {}".format(self.alt_compiler, "Yes" if self.has_alt_compiler else "No")
             s += "\n Can install prebuilt plugin?          {}".format("Yes" if self.can_install_prebuilt else "No")
+            s += "\n Prebuilt plugin path:                 {}".format(self.prebuilt_plugin_best_match or "N/A")
+            s += "\n Prebuilt plugins available:           {}".format(", ".join(self.prebuilt_plugins_available) or "N/A")
             s += "\n Can compile with default compiler?    {}".format("Yes" if self.can_default_compile else "No")
             s += "\n Can compile with alt compiler?        {}".format("Yes" if self.has_alt_compiler else "No")
         s += "\n---------------------------------------------------------------------------------------------------------"
+
         return s
 
     def install_prebuilt(self):
         assert(self.can_install_prebuilt)
-        tf_version_underscore = self.tf_version.replace('.', '_')
-        plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
-        prebuilt_path = os.path.join(self.prebuilt_dir, self.tf_compiler)
-        prebuilt_plugin = os.path.join(prebuilt_path, plugin_name)
+        assert(self.prebuilt_plugin_best_match is not None)
+        assert(self.plugin_name is not None)
         print("Tensorflow was built with g++ {}, providing prebuilt plugin".format(self.tf_compiler))
-        if not os.path.isfile(prebuilt_plugin):
-            available_files = find('libdali_tf_*.so', prebuilt_path)
-            best_version = find_available_prebuilt_tf(self.tf_version, available_files)
-            if best_version is None:
-                error_msg = "Installation error:"
-                error_msg += '\n Prebuilt DALI TF plugin version {} is not present. Available files: {}'.format(prebuilt_plugin, ', '.join(available_files))
-                error_msg += '\n' + self.debug_str()
-                raise ImportError(error_msg)
-            print("Prebuilt DALI TF plugin version {} is not present. Best match is {}".format(self.tf_version, best_version))
-            tf_version_underscore = best_version.replace('.', '_')
-            plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
-            prebuilt_plugin =  os.path.join(prebuilt_path, plugin_name)
-        plugin_dest =  os.path.join(self.plugin_dest_dir, plugin_name)
-        print("Copy {} to {}".format(prebuilt_plugin, self.plugin_dest_dir))
-        copyfile(prebuilt_plugin, plugin_dest)
+        plugin_dest =  os.path.join(self.plugin_dest_dir, self.plugin_name)
+        print("Copy {} to {}".format(self.prebuilt_plugin_best_match, self.plugin_dest_dir))
+        copyfile(self.prebuilt_plugin_best_match, plugin_dest)
 
     def install(self):
         print("Checking build environment for DALI TF plugin ...")
