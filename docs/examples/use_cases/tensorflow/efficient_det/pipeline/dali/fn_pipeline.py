@@ -65,9 +65,9 @@ class EfficientDetPipeline():
             enc_bboxes_layers, enc_classes_layers = self._unpack_labels(enc_bboxes, enc_classes)
 
             # interleave enc_bboxes_layers and enc_classes_layers
-            enc_layers = [item for pair in zip(enc_classes_layers, enc_bboxes_layers) for item in pair]
+            enc_layers = [item.gpu() for pair in zip(enc_classes_layers, enc_bboxes_layers) for item in pair]
 
-            self._pipe.set_outputs(images, *enc_layers, num_positives)
+            self._pipe.set_outputs(images.gpu(), *enc_layers, num_positives.gpu())
 
 
     def _unpack_labels(self, enc_bboxes, enc_classes):

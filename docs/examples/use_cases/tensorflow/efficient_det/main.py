@@ -156,7 +156,10 @@ def main(_):
       max_instances_per_image=max_instances_per_image)
 
   if FLAGS.strategy == 'gpus':
-    strategy = tf.distribute.MirroredStrategy(devices=["/gpu:2"])
+    if tf.config.list_physical_devices('GPU'):
+      strategy = tf.distribute.MirroredStrategy()
+    else:
+      raise ValueError('No GPUs have been detected - cannot use option strategy=gpus')
 
     if FLAGS.use_dali:
       from pipeline.dali.fn_pipeline import EfficientDetPipeline
@@ -183,67 +186,69 @@ def main(_):
       train_input_fn = strategy.distribute_datasets_from_function(dali_dataset_fn, input_options)
       eval_input_fn = strategy.distribute_datasets_from_function(dali_dataset_fn, input_options)
 
-      with tf.device('/gpu:2'):
-        train_input_fn = eval_input_fn = EfficientDetPipeline(
-            file_pattern,
-            batch_size, image_size, seed, num_threads=1, device_id=0)
   else:
-    strategy = None
+    strategy = tf.distribute.get_strategy()
 
     if FLAGS.use_dali:
       from pipeline.dali.fn_pipeline import EfficientDetPipeline
-      logging.info("Using DALI pipeline with CPU")
       
       file_pattern = FLAGS.training_file_pattern
       batch_size = FLAGS.train_batch_size
       image_size = params["image_size"]
       seed = int.from_bytes(os.urandom(4), 'little')
       
-      with tf.device('/cpu:0'):
+      if tf.config.list_physical_devices('GPU'):
+        logging.info("Using DALI pipeline with single GPU")
+        device='/gpu:0'
+        device_id=0
+      else:
+        logging.info("Using DALI pipeline with single CPU")
+        device='/cpu:0'
+        device_id=None
+      
+      with tf.device(device):
         train_input_fn = eval_input_fn = EfficientDetPipeline(
             file_pattern,
-            batch_size, image_size, seed)
+            batch_size, image_size, seed, device_id=device_id)
   
   #params['num_shards'] = getattr(strategy, 'num_replicas_in_sync', 1)
   params['batch_size'] = FLAGS.train_batch_size // params['num_shards']
   #params['nms_configs']['max_nms_inputs'] = anchors.MAX_DETECTION_POINTS
 
-    #(FLAGS.eval_batch_size)
-
-  #with strategy.scope():
+  with strategy.scope():
   #  session = Session(config=config_proto)
   #  set_session(session)
     
-  model = efficientdet_train.EfficientDetTrain(params=params)
-  model.compile(optimizer=efficientdet_train.get_optimizer(params))
+    model = efficientdet_train.EfficientDetTrain(params=params)
+    model.compile(optimizer=efficientdet_train.get_optimizer(params))
 
-  model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-     filepath=os.path.join(model_dir, 'model.{epoch:02d}.hdf5'),
-     save_freq='epoch', #FLAGS.save_checkpoints_steps,
-     options=tf.saved_model.SaveOptions(experimental_io_device=True))
-  
-  callbacks = [model_checkpoint_callback]
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+       filepath=os.path.join(model_dir, 'model.{epoch:02d}.hdf5'),
+       save_freq='epoch', #FLAGS.save_checkpoints_steps,
+       options=tf.saved_model.SaveOptions(experimental_io_device=True))
+    
+    callbacks = [model_checkpoint_callback]
 
-  if FLAGS.tensorboard_dir:
-    tensorboard_dir = FLAGS.tensorboard_dir
-    if not tf.io.gfile.exists(tensorboard_dir):
-      tf.io.gfile.makedirs(tensorboard_dir)
-    callbacks.append(tf.keras.callbacks.TensorBoard(
-            log_dir=tensorboard_dir,
-            update_freq='epoch'
-        ))
+    if FLAGS.tensorboard_dir:
+      tensorboard_dir = FLAGS.tensorboard_dir
+      if not tf.io.gfile.exists(tensorboard_dir):
+        tf.io.gfile.makedirs(tensorboard_dir)
+      callbacks.append(tf.keras.callbacks.TensorBoard(
+              log_dir=tensorboard_dir,
+              update_freq='epoch'
+          ))
 
-  train_steps = params["num_examples_per_epoch"] // params["batch_size"] 
+    train_steps = params["num_examples_per_epoch"] // params["batch_size"] 
 
-  # start train/eval flow.
-  if FLAGS.mode == 'train':
-    model.fit(train_input_fn(params), epochs=params["num_epochs"], batch_size=params["batch_size"], steps_per_epoch=train_steps, callbacks=callbacks)
-  elif FLAGS.mode == 'eval':
-    raise ValueError('eval mode is not available yet :<')
-  elif FLAGS.mode == 'train_and_eval':
-    raise ValueError('train_and_eval mode is not available yet :<')
-  else:
-    logging.info('Invalid mode: %s', FLAGS.mode)
+    # start train/eval flow.
+    if FLAGS.mode == 'train':
+      model.fit(train_input_fn(params), epochs=params["num_epochs"], batch_size=params["batch_size"], steps_per_epoch=train_steps, callbacks=callbacks)
+    elif FLAGS.mode == 'eval':
+      raise ValueError('eval mode is not available yet :<')
+    elif FLAGS.mode == 'train_and_eval':
+      raise ValueError('train_and_eval mode is not available yet :<')
+    else:
+      logging.info('Invalid mode: %s', FLAGS.mode)
 
 
 if __name__ == '__main__':

@@ -45,19 +45,6 @@ def normalize_flip(device, images, bboxes, p = 0.5):
     bboxes =  dali.fn.bb_flip(bboxes, horizontal = flip, ltrb = True, device='cpu')
     return images, bboxes
 
-def random_crop_resize(images, bboxes, classes, output_size, scaling=[0.1, 2.0]):
-
-    anchors, shapes, bboxes, classes = dali.fn.random_bbox_crop(
-        bboxes, classes,
-        scaling = scaling,
-        bbox_layout = "xyXY",
-        allow_no_crop = False
-    )
-    images = dali.fn.slice(images, anchors, shapes, out_of_bounds_policy = 'pad')
-    images = dali.fn.resize(images, resize_x = output_size[0], resize_y = output_size[1])
-
-    return images, bboxes, classes
-
 def random_crop_resize_2(device, images, bboxes, classes, output_size, scaling=[0.1, 2.0]):
 
     scale_factor = dali.fn.random.uniform(range=scaling)
@@ -72,7 +59,7 @@ def random_crop_resize_2(device, images, bboxes, classes, output_size, scaling=[
     scaled_width = width * image_scale
     scaled_height = height * image_scale
 
-    images = dali.fn.resize(images, resize_x = scaled_width, resize_y = scaled_height, device=device)
+    images = dali.fn.resize(images, resize_x = scaled_width, resize_y = scaled_height, device='cpu')
 
     crop_shape = dali.fn.constant(idata = output_size, device='cpu')
 
