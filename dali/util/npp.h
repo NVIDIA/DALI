@@ -334,6 +334,16 @@ static const char *nppErrorString(NppStatus error) {
   return "<unknown>";
 }
 
+template <typename T>
+NppiSize ToNppiSize(const T& size) {
+  NppiSize out;
+  out.width = size.width;
+  out.height = size.height;
+  return out;
+}
+
+DLL_PUBLIC NppStreamContext GetNppContext(cudaStream_t stream);
+
 }  // namespace dali
 
 // For checking npp return errors in dali library functions
@@ -345,17 +355,9 @@ static const char *nppErrorString(NppStatus error) {
       dali::string line = std::to_string(__LINE__);       \
       dali::string error = "[" + file + ":" + line +      \
         "]: NPP error \"" +                               \
-        nppErrorString(status) + "\"";                    \
+        dali::nppErrorString(status) + "\"";              \
       DALI_FAIL(error);                                   \
     }                                                     \
   } while (0)
-
-template <typename T>
-NppiSize ToNppiSize(const T& size) {
-  NppiSize out;
-  out.width = size.width;
-  out.height = size.height;
-  return out;
-}
 
 #endif  // DALI_UTIL_NPP_H_

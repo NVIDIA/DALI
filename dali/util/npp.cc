@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #include "dali/util/npp.h"
-
 #include "dali/core/error_handling.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 
@@ -33,6 +33,42 @@ int NPPInterpForDALIInterp(DALIInterpType type, NppiInterpolationMode *npp_type)
     return DALIError;
   }
   return DALISuccess;
+}
+
+namespace {
+
+NppStreamContext GetNppContextImpl() {
+  NppStreamContext ctx;
+  ctx.hStream = nullptr;
+  CUDA_CALL(cudaGetDevice(&ctx.nCudaDeviceId));
+  int driver_ver, runtime_ver;
+  cudaDriverGetVersion(&driver_ver);
+  cudaRuntimeGetVersion(&runtime_ver);
+
+  CUDA_CALL(cudaDeviceGetAttribute(&ctx.nCudaDevAttrComputeCapabilityMajor,
+                                   cudaDevAttrComputeCapabilityMajor, ctx.nCudaDeviceId));
+
+  CUDA_CALL(cudaDeviceGetAttribute(&ctx.nCudaDevAttrComputeCapabilityMinor,
+                                   cudaDevAttrComputeCapabilityMinor, ctx.nCudaDeviceId));
+
+  CUDA_CALL(cudaStreamGetFlags(ctx.hStream, &ctx.nStreamFlags));
+  cudaDeviceProp dev_prop;
+  CUDA_CALL(cudaGetDeviceProperties(&dev_prop, ctx.nCudaDeviceId));
+
+  ctx.nMultiProcessorCount = dev_prop.multiProcessorCount;
+  ctx.nMaxThreadsPerMultiProcessor = dev_prop.maxThreadsPerMultiProcessor;
+  ctx.nMaxThreadsPerBlock = dev_prop.maxThreadsPerBlock;
+  ctx.nSharedMemPerBlock = dev_prop.sharedMemPerBlock;
+  return ctx;
+}
+
+}  // namespace
+
+NppStreamContext GetNppContext(cudaStream_t stream) {
+  static NppStreamContext ctx = GetNppContextImpl();
+  auto ret_ctx = ctx;
+  ret_ctx.hStream = stream;
+  return ret_ctx;
 }
 
 }  // namespace dali

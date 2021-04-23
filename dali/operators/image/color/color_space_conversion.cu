@@ -98,8 +98,9 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
   auto layout = input.GetLayout();
   output.SetLayout(layout);
-
   TensorList<CPUBackend> attr_output_cpu;
+  auto stream = ws.stream();
+  auto npp_ctx = GetNppContext(stream);
 
   int input_C = NumberOfChannels(input_type_);
   int output_C = NumberOfChannels(output_type_);
@@ -114,10 +115,6 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   }
   output.Resize(output_shape);
   output.set_type(input.type());
-
-  cudaStream_t old_stream = nppGetStream();
-  auto stream = ws.stream();
-  DALI_CHECK_NPP(nppSetStream(stream));
 
   if (layout == "HWC") {
     // RGB -> BGR || BGR -> RGB
@@ -164,8 +161,8 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
       } else if (conversion == kRGB_TO_YCbCr) {
         // RGB -> YCbCr
         DALI_CHECK_NPP(
-          nppiRGBToYCbCr_8u_C3R(
-            input_data, nStepInput, output_data, nStepOutput, size));
+          nppiRGBToYCbCr_8u_C3R_Ctx(
+            input_data, nStepInput, output_data, nStepOutput, size, npp_ctx));
       } else if (conversion == kBGR_TO_YCbCr) {
         // BGR -> YCbCr
         // First from BGR to RGB
@@ -173,32 +170,32 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
           input_data, output_data, total_size);
         // Then from RGB to YCbCr
         DALI_CHECK_NPP(
-          nppiRGBToYCbCr_8u_C3R(
-            output_data, nStepOutput, output_data, nStepOutput, size));
+          nppiRGBToYCbCr_8u_C3R_Ctx(
+            output_data, nStepOutput, output_data, nStepOutput, size, npp_ctx));
       } else if (conversion == kRGB_TO_GRAY) {
         // RGB -> GRAY
         DALI_CHECK_NPP(
-          nppiRGBToGray_8u_C3C1R(
-            input_data, nStepInput, output_data, nStepOutput, size));
+          nppiRGBToGray_8u_C3C1R_Ctx(
+            input_data, nStepInput, output_data, nStepOutput, size, npp_ctx));
       } else if (conversion == kBGR_TO_GRAY) {
         // BGR -> GRAY
         const Npp32f aCoefs[3] = {0.114f, 0.587f, 0.299f};
         DALI_CHECK_NPP(
-          nppiColorToGray_8u_C3C1R(
-            input_data, nStepInput, output_data, nStepOutput, size, aCoefs));
+          nppiColorToGray_8u_C3C1R_Ctx(
+            input_data, nStepInput, output_data, nStepOutput, size, aCoefs, npp_ctx));
       } else if (conversion == kYCbCr_TO_BGR) {
         // First from YCbCr to RGB
         DALI_CHECK_NPP(
-          nppiYCbCrToRGB_8u_C3R(
-            input_data, nStepInput, output_data, nStepOutput, size));
+          nppiYCbCrToRGB_8u_C3R_Ctx(
+            input_data, nStepInput, output_data, nStepOutput, size, npp_ctx));
         // Then from RGB to BGR
         detail::ConvertRGBToBGR8uKernel<<<grid, block, 0, stream>>>(
           output_data, output_data, total_size);
       } else if (conversion == kYCbCr_TO_RGB) {
         // First from YCbCr to RGB
         DALI_CHECK_NPP(
-          nppiYCbCrToRGB_8u_C3R(
-            input_data, nStepInput, output_data, nStepOutput, size));
+          nppiYCbCrToRGB_8u_C3R_Ctx(
+            input_data, nStepInput, output_data, nStepOutput, size, npp_ctx));
       } else if (conversion == kGRAY_TO_BGR || conversion == kGRAY_TO_RGB) {
         // GRAY -> RGB / BGR
         detail::ConvertGrayToRGB8uKernel<<<grid, block, 0, stream>>>(
@@ -216,8 +213,6 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
       }
     }
   }
-
-  DALI_CHECK_NPP(nppSetStream(old_stream));
 }
 
 DALI_REGISTER_OPERATOR(ColorSpaceConversion, ColorSpaceConversion<GPUBackend>, GPU);
