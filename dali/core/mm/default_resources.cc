@@ -192,7 +192,7 @@ void SetDefaultResource<memory_kind::pinned>(pinned_async_resource *resource, bo
 }
 
 
-device_async_resource *GetDeviceResource(int device_id) {
+device_async_resource *GetDefaultDeviceResource(int device_id) {
   if (device_id < 0) {
     CUDA_CALL(cudaGetDevice(&device_id));
   }
@@ -216,7 +216,7 @@ device_async_resource *GetDeviceResource(int device_id) {
 
 template <>
 device_async_resource *GetDefaultResource<memory_kind::device>() {
-  return GetDeviceResource(-1);
+  return GetDefaultDeviceResource(-1);
 }
 
 void SetDefaultDeviceResource(int device_id, std::shared_ptr<device_async_resource> resource) {

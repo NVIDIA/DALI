@@ -18,6 +18,7 @@
 #include "dali/core/cuda_stream.h"
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 namespace mm {
@@ -88,6 +89,31 @@ TEST(MMDefaultResource, Device) {
     EXPECT_EQ(back_copy[i], static_cast<char>(i + 42));
 
   CUDA_CALL(cudaFreeHost(stage));
+}
+
+TEST(MMDefaultResource, MultiDevice) {
+  int ndev = 0;
+  CUDA_CALL(cudaGetDeviceCount(&ndev));
+  if (ndev < 2) {
+    GTEST_SKIP() << "At least 2 devices needed for the test\n";
+  } else {
+    DeviceGuard dg;
+
+    vector<async_memory_resource<memory_kind::device>*> resources(ndev, nullptr);
+    for (int i = 0; i < ndev; i++) {
+      resources[i] = GetDefaultDeviceResource(i);
+      for (int j = 0; j < i; j++) {
+        EXPECT_NE(resources[i], resources[j]) << "Got the same resource for different devices";
+      }
+    }
+
+    for (int i = 0; i < ndev; i++) {
+      cudaSetDevice(i);
+      auto *rsrc = GetDefaultResource<memory_kind::device>();
+      EXPECT_EQ(rsrc, resources[i]) << "Got different default resource when asked for a specific "
+                                       "device than for current device.";
+    }
+  }
 }
 
 }  // namespace test

@@ -73,7 +73,7 @@ DLL_PUBLIC void SetDefaultResource(std::shared_ptr<default_memory_resource_t<kin
  *
  * @param device_id Device index; if negative, current device is used.
  */
-DLL_PUBLIC device_async_resource *GetDeviceResource(int device_id = -1);
+DLL_PUBLIC device_async_resource *GetDefaultDeviceResource(int device_id = -1);
 
 /**
  * @brief Sets the device host memory resource for a specific device, optionally granting ownership.
