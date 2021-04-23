@@ -20,7 +20,7 @@ namespace dali {
 DALI_SCHEMA(NumbaFunc)
   .DocStr(R"code(Invokes a njit compiled Numba function.
 
-The run function should be a python function that can be compiled in Numba ``nopython`` mode. 
+The run function should be a Python function that can be compiled in Numba ``nopython`` mode. 
 A function taking a single input and producing a single output should follow the following definition:
 
 .. code-block:: python
@@ -30,7 +30,7 @@ A function taking a single input and producing a single output should follow the
 where ``out0`` and ``in0`` are numpy array views of the input and output tensors. 
 If the operator is configured to run in batch mode, then the first dimension of the arrays is the sample index.
 
-Note that the function can take at most 6 inputs or outputs.
+Note that the function can take at most 6 inputs and 6 outputs.
 
 Additionally, an optional setup function calculating the shape of the output so DALI can allocate memory 
 for the output with the following definition:
@@ -104,8 +104,8 @@ A run function working per-sample may look like this:
   .SupportVolumetric()
   .AddArg("run_fn", R"code(Function to be invoked.
 This function must work in Numba ``nopython`` mode.)code", DALI_PYTHON_OBJECT)
-  .AddArg("out_types", R"code(Dali types of outputs.)code", DALI_PYTHON_OBJECT)
-  .AddArg("in_types", R"code(Dali types of inputs.)code", DALI_PYTHON_OBJECT)
+  .AddArg("out_types", R"code(Types of outputs.)code", DALI_DATA_TYPE_VEC)
+  .AddArg("in_types", R"code(Types of inputs.)code", DALI_DATA_TYPE_VEC)
   .AddArg("outs_ndim", R"code(Number of dimensions which outputs shapes should have.)code", DALI_INT_VEC)
   .AddArg("ins_ndim", R"code(Number of dimensions which inputs shapes should have.)code", DALI_INT_VEC)
   .AddOptionalArg("setup_fn", R"code(Setup function setting shapes for outputs. 
@@ -123,8 +123,8 @@ DALI_SCHEMA(NumbaFuncImpl)
   .AllowSequences()
   .SupportVolumetric()
   .AddArg("run_fn", R"code(Address of function to be invoked.)code", DALI_INT64)
-  .AddArg("out_types", R"code(Dali types of outputs.)code", DALI_INT_VEC)
-  .AddArg("in_types", R"code(Dali types of inputs.)code", DALI_INT_VEC)
+  .AddArg("out_types", R"code(DALI types of outputs.)code", DALI_DATA_TYPE_VEC)
+  .AddArg("in_types", R"code(DALI types of inputs.)code", DALI_DATA_TYPE_VEC)
   .AddArg("outs_ndim", R"code(Number of dimensions which outputs shapes should have.)code", DALI_INT_VEC)
   .AddArg("ins_ndim", R"code(Number of dimensions which inputs shapes should have.)code", DALI_INT_VEC)
   .AddOptionalArg<int>("setup_fn", R"code(Address of setup function setting shapes for outputs. 
@@ -138,11 +138,11 @@ NumbaFuncImpl<Backend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
   setup_fn_ = spec.GetArgument<uint64_t>("setup_fn");
   batch_processing_ = spec.GetArgument<bool>("batch_processing");
 
-  out_types_ = spec.GetRepeatedArgument<int>("out_types");
+  out_types_ = spec.GetRepeatedArgument<DALIDataType>("out_types");
   DALI_ENFORCE(out_types_.size() <= 6,
     make_string("Trying to specify ", out_types_.size(), " outputs. "
     "This operator can have at most 6 outputs."));
-  in_types_ = spec.GetRepeatedArgument<int>("in_types");
+  in_types_ = spec.GetRepeatedArgument<DALIDataType>("in_types");
   DALI_ENFORCE(in_types_.size() <= 6,
     make_string("Trying to specify ", in_types_.size(), " inputs. "
       "This operator can have at most 6 inputs."));

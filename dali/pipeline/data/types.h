@@ -118,6 +118,7 @@ enum DALIDataType : int {
   DALI_TENSOR_LAYOUT     = 23,
   DALI_PYTHON_OBJECT     = 24,
   DALI_TENSOR_LAYOUT_VEC = 25,
+  DALI_DATA_TYPE_VEC     = 26,
   DALI_DATATYPE_END      = 1000
 };
 
@@ -206,6 +207,8 @@ inline std::ostream &operator<<(std::ostream &os, DALIDataType t) {
     case DALI_TENSOR_LAYOUT_VEC:
       os << "list of TensorLayout";
       break;
+    case DALI_DATA_TYPE_VEC:
+      os << "list of DALIDataType";
     case DALI_DATATYPE_END:  // fall through
     default:
       os << "Unknown type (type id " << static_cast<int>(t) << ")";
@@ -556,6 +559,7 @@ DALI_REGISTER_TYPE(std::vector<int>, DALI_INT_VEC);
 DALI_REGISTER_TYPE(std::vector<std::string>, DALI_STRING_VEC);
 DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
 DALI_REGISTER_TYPE(std::vector<TensorLayout>, DALI_TENSOR_LAYOUT_VEC);
+DALI_REGISTER_TYPE(std::vector<DALIDataType>, DALI_DATA_TYPE_VEC);
 
 /**
  * @brief Easily instantiate templates for all types

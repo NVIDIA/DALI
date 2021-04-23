@@ -42,8 +42,8 @@ class NumbaFuncImpl : public Operator<Backend> {
   NumbaPtr run_fn_;
   NumbaPtr setup_fn_;
   bool batch_processing_;
-  SmallVector<int, 6> out_types_;
-  SmallVector<int, 6> in_types_;
+  SmallVector<DALIDataType, 6> out_types_;
+  SmallVector<DALIDataType, 6> in_types_;
   SmallVector<int, 6> outs_ndim_;
   SmallVector<int, 6> ins_ndim_;
   std::vector<uint64_t> output_shape_ptrs_;
