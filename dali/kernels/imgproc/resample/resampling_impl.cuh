@@ -495,6 +495,18 @@ __device__ void ResampleDepth_Channels(
     const Src *__restrict__ in, ptrdiff_vec<1> in_strides, ivec2 in_shape, int dynamic_channels,
     ResamplingFilter filter, int support) {
   // Unreachable code - no assert to avoid excessive register pressure.
+  (void) lo;
+  (void) hi;
+  (void) src_z0;
+  (void) scale;
+  (void) out;
+  (void) out_strides;
+  (void) in;
+  (void) in_strides;
+  (void) in_shape;
+  (void) dynamic_channels;
+  (void) filter;
+  (void) support;
 }
 
 /**
