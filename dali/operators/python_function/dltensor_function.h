@@ -144,7 +144,7 @@ class StreamSynchronizer<GPUBackend> {
  public:
   StreamSynchronizer(DeviceWorkspace &ws, bool synchronize): previous_(GetCurrentStream()) {
     SetCurrentStream(ws.stream());
-    if (synchronize) cudaStreamSynchronize(ws.stream());
+    if (synchronize) CUDA_CALL(cudaStreamSynchronize(ws.stream()));
   }
 
   ~StreamSynchronizer() {

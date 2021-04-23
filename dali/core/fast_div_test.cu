@@ -287,20 +287,20 @@ TYPED_TEST(FastDivPerf, Perf) {
   T d3 = std::max(dist(rng), T(1));
 
   FastDivMod<T><<<1000, 1024>>>(m, d1, d2, d3);
-  cudaEventRecord(start, 0);
+  CUDA_CALL(cudaEventRecord(start, 0));
   FastDivMod<T><<<N, 1024>>>(m, d1, d2, d3);
-  cudaEventRecord(end, 0);
+  CUDA_CALL(cudaEventRecord(end, 0));
   CUDA_CALL(cudaDeviceSynchronize());
   float t_fast = 0;
-  cudaEventElapsedTime(&t_fast, start, end);
+  CUDA_CALL(cudaEventElapsedTime(&t_fast, start, end));
 
   NormalDivMod<<<1000, 1024>>>(m + 1024, d1, d2, d3);
-  cudaEventRecord(start, 0);
+  CUDA_CALL(cudaEventRecord(start, 0));
   NormalDivMod<<<N, 1024>>>(m + 1024, d1, d2, d3);
-  cudaEventRecord(end, 0);
+  CUDA_CALL(cudaEventRecord(end, 0));
   CUDA_CALL(cudaDeviceSynchronize());
   float t_norm = 0;
-  cudaEventElapsedTime(&t_norm, start, end);
+  CUDA_CALL(cudaEventElapsedTime(&t_norm, start, end));
 
   t_norm *= 1e+6;
   t_fast *= 1e+6;

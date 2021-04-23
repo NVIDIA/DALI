@@ -145,7 +145,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
       }
       vt_gpu_[j].Copy(tensor, 0);
     }
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
     src_op->SetDataSource(vt_gpu_);
   }
 
@@ -180,7 +180,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
       }
       tl_gpu_.Copy(tensor_list, 0);
     }
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
     src_op->SetDataSource(tl_gpu_);
   }
 
@@ -196,7 +196,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     auto &tensor_gpu_list = ws.Output<GPUBackend>(0);
     TensorList<CPUBackend> tensor_cpu_list;
     tensor_cpu_list.Copy(tensor_gpu_list, (ws.has_stream() ? ws.stream() : 0));
-    cudaStreamSynchronize(ws.has_stream() ? ws.stream() : 0);
+    CUDA_CALL(cudaStreamSynchronize(ws.has_stream() ? ws.stream() : 0));
 
     for (int j = 0; j < this->batch_size_; ++j) {
       auto data = tensor_cpu_list.template mutable_tensor<int>(j);

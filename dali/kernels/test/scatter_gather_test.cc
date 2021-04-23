@@ -16,6 +16,7 @@
 #include <vector>
 #include <algorithm>
 #include "dali/kernels/common/scatter_gather.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 namespace kernels {
@@ -98,8 +99,8 @@ TEST(ScatterGather, Copy) {
   std::random_shuffle(ranges.begin(), ranges.end());
   std::random_shuffle(back_ranges.begin(), back_ranges.end());
 
-  cudaMemcpy(in_ptr.get(), in.data(), in.size(), cudaMemcpyHostToDevice);
-  cudaMemset(out_ptr.get(), 0, out.size());
+  CUDA_CALL(cudaMemcpy(in_ptr.get(), in.data(), in.size(), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemset(out_ptr.get(), 0, out.size()));
 
   ScatterGatherGPU sg(64);
   // copy
@@ -108,11 +109,11 @@ TEST(ScatterGather, Copy) {
   sg.Run(0, true, ScatterGatherGPU::Method::Kernel);
 
   // copy back
-  cudaMemset(in_ptr.get(), 0, in.size());
+  CUDA_CALL(cudaMemset(in_ptr.get(), 0, in.size()));
   for (auto &r : back_ranges)
     sg.AddCopy(r.dst, r.src, r.size);
   sg.Run(0, true, ScatterGatherGPU::Method::Memcpy);
-  cudaMemcpy(out.data(), in_ptr.get(), in.size(), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(out.data(), in_ptr.get(), in.size(), cudaMemcpyDeviceToHost));
 
   EXPECT_EQ(in, out);
 }

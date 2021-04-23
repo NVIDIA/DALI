@@ -199,11 +199,11 @@ DLL_PUBLIC void Dct1DGpu<OutputType, InputType>::Run(KernelContext &ctx,
     int n;
     DctArgs arg;
     std::tie(n, arg) = table_entry.first;
-    cudaEventSynchronize(buffer_event);
+    CUDA_CALL(cudaEventSynchronize(buffer_event));
     FillCosineTable(cpu_table, n, arg);
     table_entry.second = ctx.scratchpad->ToGPU(ctx.gpu.stream,
                                                span<OutputType>(cpu_table, n * arg.ndct));
-    cudaEventRecord(buffer_event, ctx.gpu.stream);
+    CUDA_CALL(cudaEventRecord(buffer_event, ctx.gpu.stream));
     ++i;
   }
   sample_descs_.clear();

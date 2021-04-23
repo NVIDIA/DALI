@@ -101,8 +101,8 @@ void InitFilters(ResamplingFilters &filters, AllocType alloc) {
 
   if (alloc == AllocType::GPU) {
     auto filter_data_gpu = memory::alloc_unique<float>(AllocType::GPU, total_size);
-    cudaMemcpy(filter_data_gpu.get(), filters.filter_data.get(),
-               total_size * sizeof(float), cudaMemcpyHostToDevice);
+    CUDA_CALL(cudaMemcpy(filter_data_gpu.get(), filters.filter_data.get(),
+                         total_size * sizeof(float), cudaMemcpyHostToDevice));
     ptrdiff_t  diff = filter_data_gpu.get() - filters.filter_data.get();
     filters.filter_data = std::move(filter_data_gpu);
     for (auto &f : filters.filters)

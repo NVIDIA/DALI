@@ -620,7 +620,7 @@ void Clear(Tensor<CPUBackend>& tensor) {
 
 template <>
 void Clear(Tensor<GPUBackend>& tensor) {
-  cudaMemset(tensor.raw_mutable_data(), 0, tensor.nbytes());
+  CUDA_CALL(cudaMemset(tensor.raw_mutable_data(), 0, tensor.nbytes()));
 }
 
 

@@ -151,7 +151,7 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
 
   TensorList<CPUBackend> labels_cpu;
   labels_cpu.Copy(labels_output, 0);
-  cudaStreamSynchronize(0);
+  CUDA_CALL(cudaStreamSynchronize(0));
   labels_cpu.set_type(TypeInfo::Create<int>());
   const int *labels = static_cast<const int *>(labels_cpu.raw_data());
 
@@ -326,7 +326,7 @@ TEST_F(VideoReaderTest, FrameLabels) {
     labels_cpu.Copy(label_gpu, 0);
     TensorList<CPUBackend> frame_num_cpu;
     frame_num_cpu.Copy(frame_num_gpu, 0);
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
 
     const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
     const int *label = static_cast<const int *>(labels_cpu.raw_data());
@@ -373,7 +373,7 @@ TEST_F(VideoReaderTest, FrameLabelsFilenames) {
     labels_cpu.Copy(label_gpu, 0);
     TensorList<CPUBackend> frame_num_cpu;
     frame_num_cpu.Copy(frame_num_gpu, 0);
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
 
     const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
     const int *label = static_cast<const int *>(labels_cpu.raw_data());
@@ -421,7 +421,7 @@ TEST_F(VideoReaderTest, LabelsFilenames) {
     labels_cpu.Copy(label_gpu, 0);
     TensorList<CPUBackend> frame_num_cpu;
     frame_num_cpu.Copy(frame_num_gpu, 0);
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
 
     const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
     const int *label = static_cast<const int *>(labels_cpu.raw_data());
@@ -472,7 +472,7 @@ TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
     frame_num_cpu.Copy(frame_num_gpu, 0);
     TensorList<CPUBackend> timestamps_cpu;
     timestamps_cpu.Copy(timestamp_gpu, 0);
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
 
     const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
     const int *label = static_cast<const int *>(labels_cpu.raw_data());
@@ -535,7 +535,7 @@ TEST_F(VideoReaderTest, TimestampLabels) {
     timestamps_cpu.Copy(timestamp_gpu, 0);
     TensorList<CPUBackend> frame_num_cpu;
     frame_num_cpu.Copy(frame_num_gpu, 0);
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
 
     const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
     const int *label = static_cast<const int *>(labels_cpu.raw_data());
@@ -580,7 +580,7 @@ TEST_F(VideoReaderTest, StartEndLabels) {
     labels_cpu.Copy(label_gpu, 0);
     TensorList<CPUBackend> timestamps_cpu;
     timestamps_cpu.Copy(frame_num_gpu, 0);
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
 
     const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
     const int *label = static_cast<const int *>(labels_cpu.raw_data());

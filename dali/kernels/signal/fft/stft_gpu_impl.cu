@@ -311,7 +311,7 @@ void StftImplGPU::ExtractWindows(ExecutionContext &ctx) {
   int64_t pad = num_temp_windows() * transform_in_size() - ofs;
 
   // 0-pad to avoid running FFT on garbage
-  cudaMemsetAsync(fft_in + ofs, 0, pad*sizeof(float), ctx.stream());
+  CUDA_CALL(cudaMemsetAsync(fft_in + ofs, 0, pad*sizeof(float), ctx.stream()));
 }
 
 }  // namespace fft

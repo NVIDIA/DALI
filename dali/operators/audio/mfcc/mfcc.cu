@@ -40,8 +40,9 @@ DLL_PUBLIC  void LifterCoeffs<GPUBackend>::Calculate(int64_t target_length, floa
     coeffs_.resize(target_length, stream);
     std::vector<float> new_coeffs(added_length);
     CalculateCoeffs(new_coeffs.data(), start_idx, added_length);
-    cudaMemcpyAsync(&coeffs_.data()[start_idx], new_coeffs.data(), added_length * sizeof(float),
-                    cudaMemcpyHostToDevice, stream);
+    CUDA_CALL(
+      cudaMemcpyAsync(&coeffs_.data()[start_idx], new_coeffs.data(), added_length * sizeof(float),
+                      cudaMemcpyHostToDevice, stream));
   }
 }
 

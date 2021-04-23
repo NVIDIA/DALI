@@ -287,13 +287,14 @@ class NormalizeImplGPUTest<std::pair<Out, In>> : public ::testing::Test {
 
 
     auto out_gpu = out_.gpu();
-    cudaMemsetAsync(out_gpu.data[0], 0, sizeof(Out) * out_gpu.num_elements(), ctx.gpu.stream);
+    CUDA_CALL(
+      cudaMemsetAsync(out_gpu.data[0], 0, sizeof(Out) * out_gpu.num_elements(), ctx.gpu.stream));
     Launch(ctx);
-    cudaEventRecord(start, ctx.gpu.stream);
+    CUDA_CALL(cudaEventRecord(start, ctx.gpu.stream));
     Launch(ctx);
-    cudaEventRecord(end, ctx.gpu.stream);
+    CUDA_CALL(cudaEventRecord(end, ctx.gpu.stream));
     float time;
-    cudaDeviceSynchronize();
+    CUDA_CALL(cudaDeviceSynchronize());
     CUDA_CALL(cudaEventElapsedTime(&time, start, end));
     time *= 1e+6f;  // convert to nanoseconds
     int64_t out_size = data_shape_.num_elements() * sizeof(Out);

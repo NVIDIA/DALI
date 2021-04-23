@@ -128,7 +128,7 @@ TEST_F(ImageCacheLargestTest, ReadWorks) {
 
   std::vector<uint8_t> dst(4, 0x00);
   cache_->Read("4", &dst[0], 0);
-  cudaStreamSynchronize(0);
+  CUDA_CALL(cudaStreamSynchronize(0));
   EXPECT_EQ(data_[4].second, dst);
 }
 
@@ -144,7 +144,7 @@ TEST_F(ImageCacheLargestTest, GetWorks) {
   auto dev = cache_->Get("4");
   TensorView<StorageCPU, uint8_t, 3> host(dst.data(), dev.shape);
   kernels::copy(host, dev);
-  cudaStreamSynchronize(0);
+  CUDA_CALL(cudaStreamSynchronize(0));
   EXPECT_EQ(data_[4].second, dst);
 }
 

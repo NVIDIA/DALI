@@ -61,13 +61,13 @@ TEST(CopyWithStrideTest, OneDimGPU) {
   Index stride = 2 * sizeof(float);
   Index shape = 3;
   float *data;
-  cudaMalloc(reinterpret_cast<void**>(&data), sizeof(float) * 6);
-  cudaMemcpy(data, h_data, sizeof(float) * 6, cudaMemcpyHostToDevice);
+  CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&data), sizeof(float) * 6));
+  CUDA_CALL(cudaMemcpy(data, h_data, sizeof(float) * 6, cudaMemcpyHostToDevice));
   float *out;
-  cudaMalloc(reinterpret_cast<void**>(&out), sizeof(float) * 3);
+  CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&out), sizeof(float) * 3));
   CopyWithStride<GPUBackend>(out, data, &stride, &shape, 1, sizeof(float));
   std::array<float, 3> h_out;
-  cudaMemcpy(h_out.data(), out, 3 * sizeof(float), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(h_out.data(), out, 3 * sizeof(float), cudaMemcpyDeviceToHost));
   ASSERT_TRUE((h_out == std::array<float, 3>{1, 3, 5}));
 }
 
@@ -79,13 +79,13 @@ TEST(CopyWithStrideTest, TwoDimsGPU) {
   Index stride[] = {8 * sizeof(size_t), sizeof(size_t)};
   Index shape[] = {2, 4};
   size_t *data;
-  cudaMalloc(reinterpret_cast<void**>(&data), sizeof(size_t) * 16);
-  cudaMemcpy(data, h_data, sizeof(size_t) * 16, cudaMemcpyHostToDevice);
+  CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&data), sizeof(size_t) * 16));
+  CUDA_CALL(cudaMemcpy(data, h_data, sizeof(size_t) * 16, cudaMemcpyHostToDevice));
   size_t *out;
-  cudaMalloc(reinterpret_cast<void**>(&out), sizeof(size_t) * 8);
+  CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&out), sizeof(size_t) * 8));
   CopyWithStride<GPUBackend>(out, data, stride, shape, 2, sizeof(size_t));
   std::array<size_t , 8> h_out;
-  cudaMemcpy(h_out.data(), out, 8 * sizeof(size_t), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(h_out.data(), out, 8 * sizeof(size_t), cudaMemcpyDeviceToHost));
   ASSERT_TRUE((h_out == std::array<size_t, 8>{11, 12, 13, 14,
                                               31, 32, 33, 34}));
 }
@@ -99,13 +99,13 @@ TEST(CopyWithStrideTest, SimpleCopyGPU) {
   Index stride[] = {4, 2, 1};
   Index shape[] = {2, 2, 2};
   uint8 *data;
-  cudaMalloc(reinterpret_cast<void**>(&data), sizeof(uint8) * 8);
-  cudaMemcpy(data, h_data, sizeof(uint8) * 8, cudaMemcpyHostToDevice);
+  CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&data), sizeof(uint8) * 8));
+  CUDA_CALL(cudaMemcpy(data, h_data, sizeof(uint8) * 8, cudaMemcpyHostToDevice));
   uint8 *out;
-  cudaMalloc(reinterpret_cast<void**>(&out), sizeof(uint8) * 8);
+  CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&out), sizeof(uint8) * 8));
   CopyWithStride<GPUBackend>(out, data, stride, shape, 3, sizeof(uint8));
   std::array<uint8 , 8> h_out;
-  cudaMemcpy(h_out.data(), out, 8 * sizeof(uint8), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(h_out.data(), out, 8 * sizeof(uint8), cudaMemcpyDeviceToHost));
   ASSERT_TRUE((h_out == std::array<uint8, 8>{1, 2,
                                              3, 4,
 

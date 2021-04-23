@@ -90,7 +90,7 @@ TEST(Sampler2D_GPU, NN) {
   RunSampler2D<<<grid, block>>>(out_surf, sampler, border_value, dx, dy, x0, y0);
   Surface2D<uint8_t> out_cpu = { out_mem_cpu.data(), { w, h }, c, { c, w*c }, 1 };
 
-  cudaMemcpy(out_cpu.data, out_surf.data, w*h*c, cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(out_cpu.data, out_surf.data, w*h*c, cudaMemcpyDeviceToHost));
 
   for (int oy = 0; oy < h; oy++) {
     float y = oy * dy + y0;
@@ -149,7 +149,7 @@ TEST(Sampler3D_GPU, NN) {
   RunSampler3D<<<grid, block>>>(out_surf, sampler, border_value, dx, dy, dz, x0, y0, z0);
   Surface3D<uint8_t> out_cpu = { out_mem_cpu.data(), { w, h, d }, c, { c, w*c, h*w*c }, 1 };
 
-  cudaMemcpy(out_cpu.data, out_surf.data, w*h*d*c, cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(out_cpu.data, out_surf.data, w*h*d*c, cudaMemcpyDeviceToHost));
 
   for (int oz = 0; oz < d; oz++) {
     float z = oz * dz + z0;
@@ -212,7 +212,7 @@ TEST(Sampler2D_GPU, Linear) {
   RunSampler2D<<<grid, block>>>(out_surf, sampler, border_value, dx, dy, x0, y0);
   Surface2D<uint8_t> out_cpu = { out_mem_cpu.data(), { w, h }, c, { c, w*c }, 1 };
 
-  cudaMemcpy(out_cpu.data, out_surf.data, w*h*c, cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(out_cpu.data, out_surf.data, w*h*c, cudaMemcpyDeviceToHost));
 
   const float eps = 0.50000025f;  // 0.5 + 4 ULP
 
@@ -270,7 +270,7 @@ TEST(Sampler3D_GPU, Linear) {
   RunSampler3D<<<grid, block>>>(out_surf, sampler, border_value, dx, dy, dz, x0, y0, z0);
   Surface3D<uint8_t> out_cpu = { out_mem_cpu.data(), { w, h, d }, c, { c, w*c, h*w*c }, 1 };
 
-  cudaMemcpy(out_cpu.data, out_surf.data, w*h*d*c, cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(out_cpu.data, out_surf.data, w*h*d*c, cudaMemcpyDeviceToHost));
 
   const float eps = 0.50000025f;  // 0.5 + 4 ULP
 

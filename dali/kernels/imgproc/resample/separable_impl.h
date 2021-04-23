@@ -187,12 +187,12 @@ struct SeparableResamplingGPUImpl : Interface {
         out.tensor_data(i));
     }
 
-    cudaMemcpyAsync(
+    CUDA_CALL(cudaMemcpyAsync(
         descs_gpu,
         setup.sample_descs.data(),
         setup.sample_descs.size()*sizeof(SampleDesc),
         cudaMemcpyHostToDevice,
-        stream);
+        stream));
 
     RunPasses(descs_gpu, pass_lookup, stream, std::integral_constant<int, spatial_ndim>());
   }

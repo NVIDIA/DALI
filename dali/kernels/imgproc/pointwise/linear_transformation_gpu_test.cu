@@ -58,7 +58,7 @@ class LinearTransformationGpuTest : public ::testing::Test {
     CUDA_CALL(cudaMemcpy(input_device_, input_host_.data(), input_host_.size() * sizeof(In),
                          cudaMemcpyDefault));
     CUDA_CALL(cudaMalloc(&output_, dataset_size(out_shapes_) * sizeof(Out)));
-    cudaDeviceSynchronize();
+    CUDA_CALL(cudaDeviceSynchronize());
   }
 
   void TearDown() final {
@@ -164,7 +164,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test) {
           this->output_, reqs.output_shapes[0].template to_static<kNDims>());
 
   kernel.Run(c, out, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
 
   auto res = copy<AllocType::Host>(out[0]);
   auto ref_tv = TensorView<StorageCPU, typename TypeParam::Out>(this->ref_output_.data(),
@@ -191,7 +191,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test_with_roi) {
           this->output_, reqs.output_shapes[0].template to_static<kNDims>());
 
   kernel.Run(c, out, in, make_cspan(this->vmat_), make_cspan(this->vvec_), make_cspan(this->rois_));
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
 
   auto res = copy<AllocType::Host>(out[0]);
   auto mat = testing::copy_to_mat<kNChannelsOut>(
