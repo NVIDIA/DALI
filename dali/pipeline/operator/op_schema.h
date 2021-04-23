@@ -458,19 +458,30 @@ graph even if its outputs are not used.)code", false);
     return input_layouts_[input_idx];
   }
 
+
+  /**
+   * @brief Adds an optional non-vector argument without default to op
+   *        The type can be specified as enum, nullptr_t is used for overload resolution
+   */
+  DLL_PUBLIC inline OpSchema &AddOptionalArg(const std::string &s, const std::string &doc,
+                                             DALIDataType dtype, std::nullptr_t,
+                                             bool enable_tensor_input = false) {
+    CheckArgument(s);
+    optional_arguments_[s] = {doc, dtype, nullptr};
+    if (enable_tensor_input) {
+      tensor_arguments_.insert(s);
+    }
+    return *this;
+  }
+
+
   /**
    * @brief Adds an optional non-vector argument without default to op
    */
   template <typename T>
-  DLL_PUBLIC inline OpSchema& AddOptionalArg(const std::string &s,
-                                     const std::string &doc,
-                                     std::nullptr_t,
-                                     bool enable_tensor_input = false) {
-    CheckArgument(s);
-    optional_arguments_[s] = {doc, type2id<T>::value, nullptr};
-    if (enable_tensor_input) {
-      tensor_arguments_.insert(s);
-    }
+  DLL_PUBLIC inline OpSchema &AddOptionalArg(const std::string &s, const std::string &doc,
+                                             std::nullptr_t, bool enable_tensor_input = false) {
+    AddOptionalArg(s, doc, type2id<T>::value, nullptr, enable_tensor_input);
     return *this;
   }
 
