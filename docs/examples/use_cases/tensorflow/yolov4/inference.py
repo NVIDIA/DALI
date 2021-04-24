@@ -1,26 +1,28 @@
-from utils import decode_layer
 import numpy as np
+import tensorflow as tf
+
+import utils
 
 
 def infer(model, cls_names, input):
 
-    # TODO: implement as a tf function
     pred_boxes = [[] for i in range(len(cls_names))]
-    output = [decode_layer(layer, i) for i, layer in enumerate(model.predict(input))]
-    for i, preds in enumerate(output):
+    output = [utils.decode_layer(layer, i) for i, layer in enumerate(model.predict(input))]
+
+    for preds in output:
         xywh, obj, conf = preds
-        gw, gh = xywh.shape[1:3]
-        for ix in range(gw):
-            for iy in range(gh):
-                for ir in range(3):
-                    x, y, w, h = xywh[0, ix, iy, ir]
+        ltrb = utils.xywh_to_ltrb(xywh)
 
-                    cls = np.argmax(conf[0, ix, iy, ir])
-                    objectness = conf[0, ix, iy, ir, cls] * obj[0, ix, iy, ir]
+        objectness = tf.math.reduce_max(conf, axis=-1) * obj
+        clss = tf.argmax(conf, axis=-1)
 
-                    if objectness > 0.25:
-                        l, t, r, b = x - 0.5 * w, y - 0.5 * h, x + 0.5 * w, y + 0.5 * h
-                        pred_boxes[cls].append((objectness.numpy(), [l, t, r, b]))
+        detected = tf.where(objectness > 0.25)
+        for idx in detected:
+            batch, ix, iy, ir = idx
+            score = objectness[batch, ix, iy, ir].numpy()
+            cls = clss[batch, ix, iy, ir]
+            box = ltrb[batch, ix, iy, ir]
+            pred_boxes[cls].append((score, box))
 
     # nms
     def iou(box1, box2):
