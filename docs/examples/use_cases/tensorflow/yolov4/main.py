@@ -42,7 +42,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="action")
     subparsers.required = True
-    
+
     parser_infer = subparsers.add_parser("infer")
     parser_infer.add_argument("--weights", "-w", nargs="?", default="yolov4.weights")
     parser_infer.add_argument("--classes", "-c", nargs="?", default="coco-labels.txt")
@@ -75,7 +75,7 @@ if __name__ == "__main__":
         run_training(
             args.file_root, args.annotations, batch_size, epochs, steps,
             output=args.output,
-            use_gpu=bool(args.use_gpu),
+            use_gpu=bool(args.dali_use_gpu),
             log_dir=args.log_dir,
             ckpt_dir=args.ckpt_dir,
             start_weights=args.start_weights
