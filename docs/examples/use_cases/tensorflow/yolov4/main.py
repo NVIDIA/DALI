@@ -11,20 +11,24 @@ import sys
 
 def run_infer(weights_file, labels_file, image_path, out_filename):
 
+    cls_names = open(labels_file, "r").read().split("\n")
+
     model = YOLOv4Model()
     model.load_weights(weights_file)
 
     img, input = read_img(image_path, 608)
 
-    cls_names = open(labels_file, "r").read().split("\n")
+    prediction = model.predict(input)
+    boxes, scores, labels = inference.decode_prediction(prediction, len(cls_names))
 
-    boxes, scores, labels = inference.infer(model, cls_names, input)
+    labels = [cls_names[cls] for cls in labels]
 
     pixels = add_bboxes(img, boxes, scores, labels)
     if out_filename:
         save_img(out_filename, pixels)
     else:
         draw_img(pixels)
+
 
 def run_training(file_root, annotations, batch_size, epochs, steps_per_epoch, **kwargs):
 

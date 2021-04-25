@@ -13,8 +13,7 @@ def read_img(path, size):
 def add_bboxes(pixels, boxes, scores, classes):
     (h, w, _) = pixels.shape
     for i in range(len(boxes)):
-        (_x, _y, _w, _h) = boxes[i]
-        (x1, y1, x2, y2) = (_x - _w / 2, _y - _h / 2, _x + _w / 2, _y + _h / 2)
+        x1, y1, x2, y2 = boxes[i]
         p1 = (int(x1 * w), int(y1 * h))
         p2 = (int(x2 * w), int(y2 * h))
         pixels = cv2.rectangle(pixels, p1, p2, (255, 0, 0), 2)

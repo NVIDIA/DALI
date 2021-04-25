@@ -4,13 +4,12 @@ import tensorflow as tf
 import utils
 
 
-def infer(model, cls_names, input):
+def decode_prediction(prediction, num_classes):
 
-    pred_boxes = [[] for i in range(len(cls_names))]
-    output = [utils.decode_layer(layer, i) for i, layer in enumerate(model.predict(input))]
+    pred_boxes = [[] for i in range(num_classes)]
 
-    for preds in output:
-        xywh, obj, conf = preds
+    for i, layer in enumerate(prediction):
+        xywh, obj, conf = utils.decode_layer(layer, i)
         ltrb = utils.xywh_to_ltrb(xywh)
 
         objectness = tf.math.reduce_max(conf, axis=-1) * obj
@@ -37,14 +36,13 @@ def infer(model, cls_names, input):
     boxes = []
     scores = []
     labels = []
-    for cls in range(len(cls_names)):
+    for cls in range(num_classes):
         cls_preds = sorted(pred_boxes[cls])
         while len(cls_preds) > 0:
             score, box = cls_preds[-1]
-            box_xywh = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2, box[2] - box[0], box[3] - box[1]
-            boxes.append(box_xywh)
+            boxes.append(box)
             scores.append(score)
-            labels.append(cls_names[cls])
+            labels.append(cls)
             rem = []
             for score2, box2 in cls_preds:
                 if iou(box, box2) < 0.213:
