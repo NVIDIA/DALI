@@ -32,6 +32,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/operators/reader/nvdecoder/imgproc.h"
 #include "dali/core/device_guard.h"
+#include "dali/util/nvml.h"
 
 namespace dali {
 
@@ -46,7 +47,7 @@ NvDecoder::NvDecoder(int device_id,
                      int max_height,
                      int max_width,
                      int additional_decode_surfaces)
-    : device_id_(device_id), stream_(CUDAStream::Create(true, device_id)),
+    : device_id_(device_id),
       rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
       device_(), parser_(), decoder_(max_height, max_width, additional_decode_surfaces),
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
@@ -56,6 +57,37 @@ NvDecoder::NvDecoder(int device_id,
   DALI_ENFORCE(cuInitChecked(),
     "Failed to load libcuda.so. "
     "Check your library paths and if NVIDIA driver is installed correctly.");
+
+
+  // This is a workaround for an issue with nvcuvid in drivers >460 where concurrent
+  // use on default context and non-default streams may lead to memory corruption.
+  // TODO(michalz): add an upper bound when the problem is fixed
+  bool use_default_stream = false;
+#if NVML_ENABLED
+  {
+    static float driver_version = []()->float {
+      char version[80];
+      CUDA_CALL(nvmlInitChecked());
+      CUDA_CALL(nvmlSystemGetDriverVersion(version, sizeof version));
+
+      return std::stof(version);
+    }();
+    if (driver_version > 460)
+      use_default_stream = true;
+  }
+#else
+  {
+    int driver_cuda_version = 0;
+    CUDA_CALL(cuDriverGetVersion(&driver_cuda_version));
+    if (driver_cuda_version >= 11030)
+      use_default_stream = true;
+  }
+#endif
+  if (use_default_stream) {
+    stream_.reset(0);
+  } else {
+    stream_ = CUDAStream::Create(true, device_id);
+  }
 
   CUDA_CALL(cuDeviceGet(&device_, device_id_));
 
