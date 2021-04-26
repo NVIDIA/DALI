@@ -57,7 +57,11 @@ add_library(dali_operators ${LIBTYPE} ${DALI_OPERATOR_SRCS} ${DALI_OPERATOR_OBJ}
 set_target_properties(dali_operators PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 target_link_libraries(dali_operators PUBLIC dali dali_kernels dali_core)
-target_link_libraries(dali_operators PRIVATE dynlink_cuda dynlink_nvml ${DALI_LIBS})
+target_link_libraries(dali_operators PRIVATE dynlink_cuda ${DALI_LIBS})
+if (BUILD_NVML)
+  target_link_libraries(dali_operators PRIVATE $<TARGET_OBJECTS:dynlink_nvml>)
+endif(BUILD_NVML)
+
 if (BUILD_CUFILE)
   target_link_libraries(dali_operators PRIVATE dynlink_cufile)
 endif()
