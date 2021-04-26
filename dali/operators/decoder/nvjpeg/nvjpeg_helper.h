@@ -171,6 +171,8 @@ void HostFallback(const uint8_t *data, int size, DALIImageType image_type, uint8
   kernels::copy<StorageType, StorageCPU>(output_buffer, decoded.get(), volume(shape), stream);
 }
 
+void ConvertRGBToYCbCr(uint8_t* data, int64_t h, int64_t w, cudaStream_t stream);
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_HELPER_H_

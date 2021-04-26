@@ -778,12 +778,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           int i = sample->sample_idx;
           auto data = output.mutable_tensor<uint8_t>(i);
           auto sh = output_shape_.tensor_shape(i);
-          NppiSize size;
-          size.height = sh[0];
-          size.width = sh[1];
-          int step = sh[1] * 3;
-          DALI_CHECK_NPP(nppiRGBToYCbCr_8u_C3R_Ctx(data, step, data, step, size,
-                                                   GetNppContext(hw_decode_stream_)));
+          ConvertRGBToYCbCr(data, sh[0], sh[1], hw_decode_stream_);
         }
       }
 
@@ -918,12 +913,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         // We don't directly to YCbCr, since we want to control the YCbCr definition,
         // which is different between general color conversion libraries (OpenCV) and
         // what JPEG uses.
-        NppiSize size;
-        size.height = out_shape[0];
-        size.width = out_shape[1];
-        int step = out_shape[1] * 3;
-        DALI_CHECK_NPP(nppiRGBToYCbCr_8u_C3R_Ctx(output_data, step, output_data, step, size,
-                                                 GetNppContext(stream)));
+        ConvertRGBToYCbCr(output_data, out_shape[0], out_shape[1], stream);
       }
 
       CacheStore(file_name, output_data, out_shape, stream);

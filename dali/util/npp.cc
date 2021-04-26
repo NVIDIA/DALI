@@ -39,7 +39,7 @@ namespace {
 
 NppStreamContext GetNppContextImpl() {
   NppStreamContext ctx;
-  ctx.hStream = nullptr;
+  ctx.hStream = 0;
   CUDA_CALL(cudaGetDevice(&ctx.nCudaDeviceId));
   int driver_ver, runtime_ver;
   cudaDriverGetVersion(&driver_ver);
