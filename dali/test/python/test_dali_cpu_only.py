@@ -174,6 +174,9 @@ def test_flip_cpu():
 def test_jpeg_compression_distortion_cpu():
     check_single_input(fn.jpeg_compression_distortion, quality = 10)
 
+def test_noise_shot_cpu():
+    check_single_input(fn.noise.shot)
+
 def test_image_decoder_crop_device():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
