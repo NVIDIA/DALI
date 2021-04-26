@@ -103,7 +103,7 @@ def decode_layer(layer, layer_id):
 
 
 # probably slow and works only in eager mode
-def calc_mAP(predictions, gt_boxes):
+def calc_mAP(predictions, gt_boxes, num_classes):
 
     def iou(box1, box2):
         l = max(box1[0], box2[0])
@@ -122,7 +122,7 @@ def calc_mAP(predictions, gt_boxes):
     stats = []
     for batch_idx in range(batch_size):
         prediction = tuple(p[batch_idx : batch_idx + 1, ...] for p in predictions)
-        pred_boxes, scores, pred_classes = decode_prediction(prediction, 80)
+        pred_boxes, scores, pred_classes = decode_prediction(prediction, num_classes)
 
         boxes = gt_boxes[batch_idx, :, : 4]
         classes = gt_boxes[batch_idx, :, 4]
