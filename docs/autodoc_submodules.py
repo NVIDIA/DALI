@@ -8,6 +8,7 @@ import inspect
 # Dictionary with modules that can have registered Ops
 ops_modules = {
     'nvidia.dali.ops': nvidia.dali.ops,
+    'nvidia.dali.plugin.numba.experimental': nvidia.dali.plugin.numba.experimental,
 }
 
 exclude_ops_members = {
@@ -16,7 +17,8 @@ exclude_ops_members = {
 
 fn_modules = {
     'nvidia.dali.fn': nvidia.dali.fn,
-    'nvidia.dali.plugin': nvidia.dali.plugin
+    'nvidia.dali.plugin.pytorch.fn': nvidia.dali.plugin.pytorch.fn,
+    'nvidia.dali.plugin.numba.fn.experimental': nvidia.dali.plugin.numba.fn.experimental,
 }
 
 exclude_fn_members = {

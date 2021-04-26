@@ -103,7 +103,7 @@ Currently, DALI supports the following operations:
 
 
 Mathematical Functions
----------------------
+----------------------
 
 Similarly to arithmetic expressions, one can use selected mathematical functions in the Pipeline
 graph definition. They also accept :class:`nvidia.dali.pipeline.DataNode`,

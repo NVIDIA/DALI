@@ -21,7 +21,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as dali_types
 from test_utils import get_dali_extra_path
-from nvidia.dali.plugin.numba.fn.experimental import numba_func
+from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -62,7 +62,7 @@ def get_data_zeros(shapes, dtype):
 @pipeline_def
 def numba_func_pipe(shapes, dtype, run_fn=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None, batch_processing=None):
     data = fn.external_source(lambda: get_data(shapes, dtype), batch=True, device = "cpu")
-    return numba_func(data, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
+    return numba_function(data, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
 
 def _testimpl_numba_func(shapes, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, expected_out):
     batch_size = len(shapes)
@@ -93,7 +93,7 @@ def test_numba_func():
 def numba_func_image_pipe(run_fn=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None, batch_processing=None):
     files, _ = dali.fn.readers.caffe(path=lmdb_folder)
     images_in = dali.fn.decoders.image(files, device="cpu")
-    images_out = numba_func(images_in, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
+    images_out = numba_function(images_in, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
     return images_in, images_out
 
 def _testimpl_numba_func_image(run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, transform):
@@ -165,7 +165,7 @@ def setup_split_images_col(outs, ins):
 def numba_func_split_image_pipe(run_fn=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None, batch_processing=None):
     files, _ = dali.fn.readers.caffe(path=lmdb_folder)
     images_in = dali.fn.decoders.image(files, device="cpu")
-    out0, out1, out2 = numba_func(images_in, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
+    out0, out1, out2 = numba_function(images_in, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
     return images_in, out0, out1, out2
 
 def test_split_images_col():
@@ -197,7 +197,7 @@ def numba_multiple_ins_pipe(shapes, dtype, run_fn=None, out_types=None, in_types
     data0 = fn.external_source(lambda: get_data_zeros(shapes, dtype), batch=True, device = "cpu")
     data1 = fn.external_source(lambda: get_data_zeros(shapes, dtype), batch=True, device = "cpu")
     data2 = fn.external_source(lambda: get_data_zeros(shapes, dtype), batch=True, device = "cpu")
-    return numba_func(data0, data1, data2, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
+    return numba_function(data0, data1, data2, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing)
 
 def test_multiple_ins():
     pipe = numba_multiple_ins_pipe(shapes=[(10, 10)], dtype=np.uint8, batch_size=8, num_threads=1, device_id=0, run_fn=multiple_ins_run, setup_fn=multiple_ins_setup,
