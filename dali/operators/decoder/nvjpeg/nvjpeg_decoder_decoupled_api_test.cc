@@ -183,6 +183,19 @@ TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode4T) {
 }
 
 #if NVJPEG_VER_MAJOR >= 11
+void PrintDeviceInfo() {
+  unsigned int device_count;
+  CUDA_CALL(nvmlDeviceGetCount_v2(&device_count));
+  for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
+    auto info = nvml::GetDeviceInfo(device_idx);
+    std::cerr << "Device " << device_idx
+              << " brand " << info.type
+              << " cc_M " << info.cap_major
+              << " cc_m " << info.cap_minor
+              << std::endl;
+  }
+}
+
 class HwDecoderUtilizationTest : public ::testing::Test {
  public:
   void SetUp() final {
@@ -207,6 +220,7 @@ class HwDecoderUtilizationTest : public ::testing::Test {
 
     auto node = pipeline_.GetOperatorNode(decoder_name_);
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+      PrintDeviceInfo();
       if (nvml::isHWDecoderSupported()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
       }
@@ -322,6 +336,7 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
 
     auto node = pipeline_.GetOperatorNode(decoder_name_);
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+      PrintDeviceInfo();
       if (nvml::isHWDecoderSupported()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
       }
@@ -354,25 +369,6 @@ class HwDecoderCropUtilizationTest : public ::testing::Test {
   void SetUp() final {
     dali::string list_root(testing::dali_extra_path() + "/db/single/jpeg");
 
-    auto shape = uniform_list_shape(batch_size_, {2});
-    TensorList<CPUBackend> begin_data;
-    begin_data.set_type(TypeInfo::Create<float>());
-    begin_data.Resize(shape);
-    float crop_x = 0.25f, crop_y = 0.124f;
-    for (int k = 0; k < batch_size_; k++) {
-      begin_data.mutable_tensor<float>(k)[0] = crop_x;
-      begin_data.mutable_tensor<float>(k)[1] = crop_y;
-    }
-
-    TensorList<CPUBackend> crop_data;
-    float crop_w = 0.5f, crop_h = 0.25f;
-    crop_data.set_type(TypeInfo::Create<float>());
-    crop_data.Resize(shape);
-    for (int k = 0; k < batch_size_; k++) {
-      crop_data.mutable_tensor<float>(k)[0] = crop_w;
-      crop_data.mutable_tensor<float>(k)[1] = crop_h;
-    }
-
     pipeline_.AddOperator(
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
@@ -393,6 +389,7 @@ class HwDecoderCropUtilizationTest : public ::testing::Test {
 
     auto node = pipeline_.GetOperatorNode(decoder_name_);
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+      PrintDeviceInfo();
       if (nvml::isHWDecoderSupported()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
       }
@@ -426,25 +423,6 @@ class HwDecoderRandomCropUtilizationTest : public ::testing::Test {
   void SetUp() final {
     dali::string list_root(testing::dali_extra_path() + "/db/single/jpeg");
 
-    auto shape = uniform_list_shape(batch_size_, {2});
-    TensorList<CPUBackend> begin_data;
-    begin_data.set_type(TypeInfo::Create<float>());
-    begin_data.Resize(shape);
-    float crop_x = 0.25f, crop_y = 0.124f;
-    for (int k = 0; k < batch_size_; k++) {
-      begin_data.mutable_tensor<float>(k)[0] = crop_x;
-      begin_data.mutable_tensor<float>(k)[1] = crop_y;
-    }
-
-    TensorList<CPUBackend> crop_data;
-    float crop_w = 0.5f, crop_h = 0.25f;
-    crop_data.set_type(TypeInfo::Create<float>());
-    crop_data.Resize(shape);
-    for (int k = 0; k < batch_size_; k++) {
-      crop_data.mutable_tensor<float>(k)[0] = crop_w;
-      crop_data.mutable_tensor<float>(k)[1] = crop_h;
-    }
-
     pipeline_.AddOperator(
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
@@ -464,6 +442,7 @@ class HwDecoderRandomCropUtilizationTest : public ::testing::Test {
 
     auto node = pipeline_.GetOperatorNode(decoder_name_);
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+      PrintDeviceInfo();
       if (nvml::isHWDecoderSupported()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
       }

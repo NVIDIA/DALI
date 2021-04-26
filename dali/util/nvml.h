@@ -312,19 +312,7 @@ inline bool HasCuda11NvmlFunctions() {
 
 inline bool isHWDecoderSupported() {
   if (nvml::HasCuda11NvmlFunctions()) {
-    unsigned int device_count;
-    CUDA_CALL(nvmlDeviceGetCount_v2(&device_count));
-    for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
-      auto info = nvml::GetDeviceInfo(device_idx);
-      std::cerr << "Device " << device_idx
-                << " brand " << info.type
-                << " cc_M " << info.cap_major
-                << " cc_m " << info.cap_minor
-                << std::endl;
-    }
-    if (nvml::HasHwDecoder()) {
-      return true;
-    }
+    return nvml::HasHwDecoder();
   }
   return false;
 }

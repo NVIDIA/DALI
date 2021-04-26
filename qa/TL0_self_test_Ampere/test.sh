@@ -30,7 +30,7 @@ test_body() {
   done
 
   # test decoders on A100 as well
-  nosetests --verbose --attr '!slow' test_operator_decoder.py
+  nosetests --verbose --attr '!slow' test_operator_decoders_image.py
 }
 
 pushd ../..

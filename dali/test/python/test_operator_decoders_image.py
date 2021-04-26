@@ -16,7 +16,6 @@ from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-from nvidia.dali.backend_impl import TensorGPU
 import math
 import os
 import random
@@ -31,6 +30,7 @@ from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
 from test_utils import check_output_pattern
+from test_utils import to_array
 
 def get_img_files(data_path, subdir='*', ext=None):
     if subdir is None:
@@ -49,7 +49,7 @@ def get_img_files(data_path, subdir='*', ext=None):
         return list(set(files) - set(txt_files))
 
 @pipeline_def
-def create_decoder(data_path, device, use_fast_idct=False, memory_stats=False):
+def decoder_pipe(data_path, device, use_fast_idct=False, memory_stats=False):
     inputs, labels = fn.readers.file(file_root = data_path,
                                      shard_id = 0,
                                      num_shards = 1,
@@ -59,11 +59,6 @@ def create_decoder(data_path, device, use_fast_idct=False, memory_stats=False):
 
     return decoded, labels
 
-def to_array(dali_out):
-    if isinstance(dali_out, TensorGPU):
-        dali_out = dali_out.as_cpu()
-    return np.array(dali_out)
-
 test_data_root = get_dali_extra_path()
 good_path = 'db/single'
 missnamed_path = 'db/single/missnamed'
@@ -71,7 +66,7 @@ test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k'}
 test_missnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
 
 def run_decode(data_path, batch, device, threads, memory_stats=False):
-    pipe = create_decoder(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, memory_stats=memory_stats, prefetch_queue_depth=1)
+    pipe = decoder_pipe(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, memory_stats=memory_stats, prefetch_queue_depth=1)
     pipe.build()
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for _ in range(iters):
@@ -93,7 +88,7 @@ def test_image_decoder():
                     run_decode(data_path, batch_size, device, threads)
                     yield log, img_type, batch_size, device, threads
 
-# ToDo - check padding behavior
+# TODO(januszl): check padding behavior
 @pipeline_def
 def create_decoder_slice_pipeline(data_path, device):
     jpegs, _ = fn.readers.file(file_root = data_path,
@@ -101,17 +96,16 @@ def create_decoder_slice_pipeline(data_path, device):
                                num_shards = 1,
                                name = "Reader")
 
+    anchor = fn.random.uniform(range=[0.05, 0.15], shape=(2,))
+    shape = fn.random.uniform(range=[0.5, 0.7], shape=(2,))
     # ToDo make window random?
     images_sliced_1 = fn.decoders.image_slice(jpegs,
-                                              [0.1, 0.1],
-                                              [0.6, 0.6],
+                                              anchor,
+                                              shape,
                                               device = device,
                                               hw_decoder_load = 0.7,
                                               output_type = types.RGB,
-                                              normalized_anchor=True,
-                                              normalized_shape=True,
-                                              axis_names = None,
-                                              axes = None)
+                                              axes = (0, 1))
 
     images = fn.decoders.image(jpegs,
                                device = device,
@@ -119,33 +113,11 @@ def create_decoder_slice_pipeline(data_path, device):
                                output_type = types.RGB)
     # ToDo make window random?
     images_sliced_2 = fn.slice(images,
-                               [0.1, 0.1],
-                               [0.6, 0.6],
-                               normalized_anchor=True,
-                               normalized_shape=True,
-                               axis_names = None,
-                               axes = None)
+                               anchor,
+                               shape,
+                               axes = (0, 1))
 
     return images_sliced_1, images_sliced_2
-
-def run_decode_slice(path, img_type, batch, device, threads):
-    data_path = os.path.join(test_data_root, path, img_type)
-    pipe = create_decoder_slice_pipeline(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, prefetch_queue_depth=1)
-    pipe.build()
-    iters = math.ceil(pipe.epoch_size("Reader") / batch)
-    for _ in range(iters):
-        out_1, out_2 = pipe.run()
-        for img_1, img_2 in zip(out_1, out_2):
-            img_1 = to_array(img_1)
-            img_2 = to_array(img_2)
-            assert np.allclose(img_1, img_2)
-
-def test_image_decoder_slice():
-    for device in {'cpu', 'mixed'}:
-        for threads in {4}:
-            for size in {10}:
-                for img_type in test_good_path:
-                    yield run_decode_slice, good_path, img_type, size, device, threads
 
 # ToDo - check padding behavior
 @pipeline_def
@@ -176,26 +148,6 @@ def create_decoder_crop_pipeline(data_path, device):
 
     return images_crop_1, images_crop_2
 
-def run_decode_crop(path, img_type, batch, device, threads):
-    data_path = os.path.join(test_data_root, path, img_type)
-    pipe = create_decoder_crop_pipeline(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, prefetch_queue_depth=1)
-    pipe.build()
-    iters = math.ceil(pipe.epoch_size("Reader") / batch)
-    for _ in range(iters):
-        out_1, out_2 = pipe.run()
-        for img_1, img_2 in zip(out_1, out_2):
-            img_1 = to_array(img_1)
-            img_2 = to_array(img_2)
-            assert np.allclose(img_1, img_2)
-
-def test_image_decoder_crop():
-    for device in {'cpu', 'mixed'}:
-        for threads in {4}:
-            for size in {10}:
-                for img_type in test_good_path:
-                    yield run_decode_crop, good_path, img_type, size, device, threads
-
-
 @pipeline_def
 def create_decoder_random_crop_pipeline(data_path, device):
     seed = 1234
@@ -219,9 +171,9 @@ def create_decoder_random_crop_pipeline(data_path, device):
 
     return images_random_crop_1, images_random_crop_2
 
-def run_decode_random_crop(path, img_type, batch, device, threads):
+def run_decode_fused(test_fun, path, img_type, batch, device, threads, validation_fun):
     data_path = os.path.join(test_data_root, path, img_type)
-    pipe = create_decoder_random_crop_pipeline(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, prefetch_queue_depth=1)
+    pipe = test_fun(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device, prefetch_queue_depth=1)
     pipe.build()
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for _ in range(iters):
@@ -231,21 +183,29 @@ def run_decode_random_crop(path, img_type, batch, device, threads):
             img_2 = to_array(img_2)
             # random_resized_crop can properly handle border as it has pixels that are cropped out, while
             # plain resize folowing image_decoder_random_crop cannot do that and must duplicate the border pixels
-            assert np.mean(np.abs(img_1 - img_2) < 0.5)
+            #assert np.mean(np.abs(img_1 - img_2) < 0.5)
+            assert validation_fun(img_1, img_2)
 
-def test_image_decoder_random_crop():
-    for device in {'cpu', 'mixed'}:
-        for threads in {4}:
-            for size in {10}:
-                for img_type in test_good_path:
-                    yield run_decode_random_crop, good_path, img_type, size, device, threads
+def test_image_decoder_fused():
+    for test_fun in [create_decoder_slice_pipeline, create_decoder_crop_pipeline, create_decoder_random_crop_pipeline]:
+        if test_fun == create_decoder_random_crop_pipeline:
+            # random_resized_crop can properly handle border as it has pixels that are cropped out, while
+            # plain resize folowing image_decoder_random_crop cannot do that and must duplicate the border pixels
+            validation_fun = lambda x, y: np.mean(np.abs(x - y) < 0.5)
+        else:
+            validation_fun = lambda x, y: np.allclose(x, y)
+        for device in {'cpu', 'mixed'}:
+            threads = 4
+            batch_size = 10
+            for img_type in test_good_path:
+                yield run_decode_fused, test_fun, good_path, img_type, batch_size, device, threads, validation_fun
 
 def check_FastDCT_body(batch_size, img_type, device):
     data_path = os.path.join(test_data_root, good_path, img_type)
-    compare_pipelines(create_decoder(data_path=data_path, batch_size=batch_size, num_threads=3,
-                                     device_id=0, device=device, use_fast_idct=False),
-                      create_decoder(data_path=data_path, batch_size=batch_size, num_threads=3,
-                                     device_id=0, device='cpu', use_fast_idct=True),
+    compare_pipelines(decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
+                                   device_id=0, device=device, use_fast_idct=False),
+                      decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
+                                   device_id=0, device='cpu', use_fast_idct=True),
                       # average difference should be no bigger by off-by-3
                       batch_size=batch_size, N_iterations=3, eps=3)
 
@@ -332,15 +292,15 @@ def test_image_decoder_tiff_with_alpha_16bit():
                 yield _testimpl_image_decoder_tiff_with_alpha_16bit, device, out_type, path, ext
 
 @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
-def decoder_pipe(decoder_op, file_root, device, use_fast_idct):
+def decoder_pipe_with_name(decoder_op, file_root, device, use_fast_idct):
     encoded, _ = fn.readers.file(file_root=file_root)
     decoded = decoder_op(encoded, device=device, output_type=types.RGB, use_fast_idct=use_fast_idct,
                          seed=42)
     return decoded
 
 def check_image_decoder_alias(new_op, old_op, file_root, device, use_fast_idct):
-    new_pipe = decoder_pipe(new_op, file_root, device, use_fast_idct)
-    legacy_pipe = decoder_pipe(old_op, file_root, device, use_fast_idct)
+    new_pipe = decoder_pipe_with_name(new_op, file_root, device, use_fast_idct)
+    legacy_pipe = decoder_pipe_with_name(old_op, file_root, device, use_fast_idct)
     compare_pipelines(new_pipe, legacy_pipe, batch_size=batch_size_test, N_iterations=3)
 
 
@@ -355,7 +315,7 @@ def test_image_decoder_alias():
 
 @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
 def decoder_slice_pipe(decoder_op, file_root, device, use_fast_idct):
-    encoded, labels = fn.readers.file(file_root=file_root)
+    encoded, _ = fn.readers.file(file_root=file_root)
     start = types.Constant(np.array([0., 0.]))
     end = types.Constant(np.array([0.5, 0.5]))
     decoded = decoder_op(encoded, start, end, device=device,
