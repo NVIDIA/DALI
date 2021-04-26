@@ -17,7 +17,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(NumbaFunc)
+DALI_SCHEMA(NumbaFunction)
   .DocStr(R"code(Invokes a njit compiled Numba function.
 
 The run function should be a Python function that can be compiled in Numba ``nopython`` mode.

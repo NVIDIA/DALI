@@ -58,8 +58,8 @@ def _get_shape_view(shapes_ptr, ndims_ptr, num_dims, num_samples):
         l.append(d)
     return l
 
-class NumbaFunc(metaclass=ops._DaliOperatorMeta):
-    ops.register_cpu_op('NumbaFunc')
+class NumbaFunction(metaclass=ops._DaliOperatorMeta):
+    ops.register_cpu_op('NumbaFunction')
 
     @property
     def spec(self):
@@ -84,7 +84,7 @@ class NumbaFunc(metaclass=ops._DaliOperatorMeta):
                         numba_types.uint64,
                         numba_types.uint64,
                         numba_types.int32, numba_types.int32)
-                
+
     def _run_fn_sig(self, batch_processing=False):
         sig_types = []
         sig_types.append(numba_types.uint64)
@@ -126,7 +126,7 @@ class NumbaFunc(metaclass=ops._DaliOperatorMeta):
     def __call__(self, *inputs, **kwargs):
         pipeline = Pipeline.current()
         if pipeline is None:
-            Pipeline._raise_no_current_pipeline("NumbaFunc")
+            Pipeline._raise_no_current_pipeline("NumbaFunction")
         inputs = ops._preprocess_inputs(inputs, self._impl_name, self._device, None)
         if pipeline is None:
             Pipeline._raise_pipeline_required("NumbaFunction operator")
@@ -255,7 +255,7 @@ class NumbaFunc(metaclass=ops._DaliOperatorMeta):
                     out4 = out4_lambda(address_as_void_pointer(out_arr[4]), out_shapes_np[4][0])
                 if num_outs >= 6:
                     out5 = out5_lambda(address_as_void_pointer(out_arr[5]), out_shapes_np[5][0])
-                
+
                 in0 = in1 = in2 = in3 = in4 = in5 = None
                 in_shapes_np = _get_shape_view(in_shapes_ptr, in_ndims_ptr, num_ins, 1)
                 in_arr = carray(address_as_void_pointer(in_ptr), num_ins, dtype=np.int64)
@@ -273,7 +273,7 @@ class NumbaFunc(metaclass=ops._DaliOperatorMeta):
                     in5 = in5_lambda(address_as_void_pointer(in_arr[5]), in_shapes_np[5][0])
 
                 run_fn_lambda(run_fn, out0, out1, out2, out3, out4, out5, in0, in1, in2, in3, in4, in5)
-        
+
         self._impl_name = "NumbaFuncImpl"
         self._schema = _b.GetSchema(self._impl_name)
         self._spec = _b.OpSpec(self._impl_name)
@@ -286,12 +286,12 @@ class NumbaFunc(metaclass=ops._DaliOperatorMeta):
 
         self.run_fn = run_cfunc.address
         self.setup_fn = setup_fn_address
-        self.out_types = out_types 
-        self.in_types = in_types 
-        self.outs_ndim = outs_ndim 
+        self.out_types = out_types
+        self.in_types = in_types
+        self.outs_ndim = outs_ndim
         self.ins_ndim = ins_ndim
         self.num_outputs = len(out_types)
         self.batch_processing = batch_processing
         self._preserve = True
 
-ops._wrap_op(NumbaFunc, "fn.experimental", __name__)
+ops._wrap_op(NumbaFunction, "fn.experimental", "nvidia.dali.plugin.numba")
