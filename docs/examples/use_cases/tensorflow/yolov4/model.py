@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+
 from layers import Mish, ScaledRandomUniform
 import utils
 
@@ -90,6 +91,7 @@ class YOLOv4Model(tf.keras.Model):
         self.lr_end = 1e-6
         self.loss_tracker = tf.keras.metrics.Mean(name="loss")
         self.lr_tracker = tf.keras.metrics.Mean(name="lr")
+        self.mAP_tracker = tf.keras.metrics.Mean(name="mAP")
 
 
     def fit(self, dataset, **kwargs):
@@ -126,10 +128,18 @@ class YOLOv4Model(tf.keras.Model):
 
         return {"loss" : self.loss_tracker.result(), "lr" : self.lr_tracker.result()}
 
+    def test_step(self, data):
+
+        input, gt_boxes = data
+        prediction = self(input, training=False)
+        self.mAP_tracker.update_state(utils.calc_mAP(prediction, gt_boxes, self.classes_num))
+
+        return {"mAP" : self.mAP_tracker.result()}
+
 
     @property
     def metrics(self):
-        return [self.loss_tracker, self.lr_tracker]
+        return [self.loss_tracker, self.lr_tracker, self.mAP_tracker]
 
 
 

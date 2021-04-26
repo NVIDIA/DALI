@@ -7,8 +7,9 @@ import ops
 # TODO: sharding
 # TODO: verify with darknet
 class YOLOv4Pipeline:
+    # TODO: clean up __init__ args
     def __init__(
-        self, file_root, annotations_file, batch_size, image_size, num_threads, device_id, seed, use_gpu
+        self, file_root, annotations_file, batch_size, image_size, num_threads, device_id, seed, use_gpu, is_training
     ):
         self._use_gpu = use_gpu
         self._batch_size = batch_size
@@ -18,6 +19,7 @@ class YOLOv4Pipeline:
 
         self._num_threads = num_threads
         self._device_id = device_id
+        self._is_training = is_training
 
         self._pipe = dali.pipeline.Pipeline(
             batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed=seed
@@ -33,7 +35,8 @@ class YOLOv4Pipeline:
                 images, resize_x=self._image_size[0], resize_y=self._image_size[1]
             )
 
-            images, bboxes, classes = ops.mosaic_new(images, bboxes, classes, self._image_size)
+            if self._is_training:
+                images, bboxes, classes = ops.mosaic_new(images, bboxes, classes, self._image_size)
 
             bboxes = ops.ltrb_to_xywh(bboxes)
 

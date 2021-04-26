@@ -20,7 +20,7 @@ def decode_prediction(prediction, num_classes):
             batch, ix, iy, ir = idx
             score = objectness[batch, ix, iy, ir].numpy()
             cls = clss[batch, ix, iy, ir]
-            box = ltrb[batch, ix, iy, ir]
+            box = list(ltrb[batch, ix, iy, ir].numpy())
             pred_boxes[cls].append((score, box))
 
     # nms

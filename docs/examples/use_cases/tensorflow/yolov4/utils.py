@@ -100,3 +100,70 @@ def decode_layer(layer, layer_id):
     return (tf.stack(output_xywh, axis=-2),
             tf.stack(output_obj, axis=-1),
             tf.stack(output_cls, axis=-2))
+
+
+# probably slow and works only in eager mode
+def calc_mAP(predictions, gt_boxes):
+
+    def iou(box1, box2):
+        l = max(box1[0], box2[0])
+        t = max(box1[1], box2[1])
+        r = min(box1[2], box2[2])
+        b = min(box1[3], box2[3])
+        i = max(0, r - l) * max(0, b - t)
+        u = (box1[2] - box1[0]) * (box1[3] - box1[1]) + (box2[2] - box2[0]) * (box2[3] - box2[1]) - i
+        return i / u
+
+    batch_size = predictions[0].shape[0]
+    num_pred_boxes = 0
+    num_gt_boxes = 0
+    num_true_positives = 0
+
+    stats = []
+    for batch_idx in range(batch_size):
+        prediction = tuple(p[batch_idx : batch_idx + 1, ...] for p in predictions)
+        pred_boxes, scores, pred_classes = decode_prediction(prediction, 80)
+
+        boxes = gt_boxes[batch_idx, :, : 4]
+        classes = gt_boxes[batch_idx, :, 4]
+
+        gt_used_idx = []
+        num_pred_boxes += len(pred_boxes)
+        num_gt_boxes += len(classes)
+
+        for pred_idx, (pred_box, pred_class) in enumerate(zip(pred_boxes, pred_classes)):
+            found = False
+            for gt_idx, (gt_box, gt_class) in enumerate(zip(boxes, classes)):
+
+                if gt_idx in gt_used_idx:
+                    continue
+
+                if pred_class != gt_class:
+                    continue
+
+                gt_ltrb = (gt_box[0] - gt_box[2] / 2, gt_box[1] - gt_box[3] / 2,
+                    gt_box[0] + gt_box[2] / 2, gt_box[1] + gt_box[3] / 2)
+                if iou(pred_box, gt_ltrb) < 0.5:
+                    continue
+
+                found = True
+                num_true_positives += 1
+                break
+
+            stats.append((scores[pred_idx], found))
+
+    if num_pred_boxes == 0:
+        return 0.0
+
+    ap = 0.0
+    max_prec = num_true_positives / num_pred_boxes
+    for _, found in sorted(stats):
+        if found:
+            ap += max_prec / num_gt_boxes
+            num_true_positives -= 1
+        num_pred_boxes -= 1
+        if num_pred_boxes == 0:
+            break
+        max_prec = max(max_prec, num_true_positives / num_pred_boxes)
+
+    return ap

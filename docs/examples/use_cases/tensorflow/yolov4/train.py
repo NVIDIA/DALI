@@ -49,7 +49,7 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
     seed = int.from_bytes(os.urandom(4), "little")
 
     pipeline = YOLOv4Pipeline(
-        file_root, annotations_file, batch_size, image_size, num_threads, device_id, seed, use_gpu
+        file_root, annotations_file, batch_size, image_size, num_threads, device_id, seed, use_gpu, True
     )
     dataset = pipeline.dataset()
 
