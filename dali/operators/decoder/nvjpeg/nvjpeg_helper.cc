@@ -42,7 +42,4 @@ const char* nvjpeg_parse_error_code(nvjpegStatus_t code) {
   }
 }
 
-
-
-
 }  // namespace dali

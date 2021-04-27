@@ -60,11 +60,7 @@ DALI_HOST_DEV struct Gray_to_RGB_Converter {
   static constexpr int out_pixel_sz = 3;
   static constexpr int in_pixel_sz = 1;
   static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> gray) {
-    vec<out_pixel_sz, Out> out;
-    out[0] = gray[0];
-    out[1] = gray[0];
-    out[2] = gray[0];
-    return out;
+    return vec<out_pixel_sz, Out>(gray[0]);
   }
 };
 
