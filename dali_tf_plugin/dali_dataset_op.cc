@@ -26,48 +26,46 @@
 
 #define EIGEN_USE_GPU
 
+#include "tensorflow/core/framework/common_shape_fns.h"
 #include "tensorflow/core/framework/dataset.h"
-#include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/op.h"
+#include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/partial_tensor_shape.h"
-#include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/framework/register_types.h"
+#include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/framework/types.h"
-#include "tensorflow/core/framework/common_shape_fns.h"
 
 #include "tensorflow/core/framework/tensor.h"
 
+#include "dali/c_api.h"
 #include "dali/core/common.h"
 #include "dali/core/format.h"
-#include "dali/c_api.h"
 #include "dali_tf_plugin/dali_shape_helper.h"
 
 #include "dali_tf_plugin/dali_dataset.h"
 
-#define TF_DALI_CALL(FUNC)                                                 \
-do {                                                                       \
-  try {                                                                    \
-    FUNC;                                                                  \
-  } catch (std::exception &e) {                                            \
-    std::string error = "DALI " + std::string(#FUNC)                       \
-                        + " failed: " + std::string(e.what());             \
-    std::cout << error << std::endl;                                       \
-    return ::tensorflow::errors::Internal(error);                          \
-  }                                                                        \
-} while (0)
+#define TF_DALI_CALL(FUNC)                                                                    \
+  do {                                                                                        \
+    try {                                                                                     \
+      FUNC;                                                                                   \
+    } catch (std::exception & e) {                                                            \
+      std::string error = "DALI " + std::string(#FUNC) + " failed: " + std::string(e.what()); \
+      std::cout << error << std::endl;                                                        \
+      return ::tensorflow::errors::Internal(error);                                           \
+    }                                                                                         \
+  } while (0)
 
-using namespace tensorflow;  // NOLINT(build/namespaces)
+using namespace tensorflow;        // NOLINT(build/namespaces)
 using namespace tensorflow::data;  // NOLINT(build/namespaces)
 
 namespace dali_tf_impl {
 
 class DALIDatasetOp::Dataset : public DatasetBase {
  public:
-  explicit Dataset(OpKernelContext *context,
-                    const PipelineDef pipeline_def, const std::vector<PartialTensorShape> &shapes,
-                    const DataTypeVector &dtypes, const bool is_gpu_device,
-                    const bool fail_on_device_mismatch)
+  explicit Dataset(OpKernelContext *context, const PipelineDef pipeline_def,
+                   const std::vector<PartialTensorShape> &shapes, const DataTypeVector &dtypes,
+                   const bool is_gpu_device, const bool fail_on_device_mismatch)
       : DatasetBase(DatasetContext(context)),
         pipeline_def_(pipeline_def),
         shapes_(shapes),
@@ -90,9 +88,12 @@ class DALIDatasetOp::Dataset : public DatasetBase {
   }
 
   string DebugString() const override {
-    return "DALI::DatasetOp()::Dataset"; }
+    return "DALI::DatasetOp()::Dataset";
+  }
 
-  tensorflow::int64 Cardinality() const override { return data::kInfiniteCardinality; }
+  tensorflow::int64 Cardinality() const override {
+    return data::kInfiniteCardinality;
+  }
 
  protected:
   PipelineDef pipeline_def_;
@@ -125,8 +126,8 @@ class DALIDatasetOp::Dataset : public DatasetBase {
 
  private:
   /**
-  * @brief Append the AttrValue created from `filed` under `name` to `attrs` vector
-  */
+   * @brief Append the AttrValue created from `filed` under `name` to `attrs` vector
+   */
   template <typename T>
   void SerializeField(std::vector<std::pair<StringPiece, AttrValue>> &attrs,
                       DatasetGraphDefBuilder *b, const StringPiece &name, const T &field) const {
@@ -154,23 +155,17 @@ class DALIDatasetOp::Dataset : public DatasetBase {
 
   Status InitPipeline(daliPipelineHandle *pipeline_handle) const {
     TF_DALI_CALL(daliCreatePipeline(
-      pipeline_handle,
-      pipeline_def_.pipeline.c_str(),
-      pipeline_def_.pipeline.length(),
-      pipeline_def_.batch_size,
-      pipeline_def_.num_threads,
-      pipeline_def_.device_id,
-      pipeline_def_.exec_separated,
-      pipeline_def_.prefetch_queue_depth,
-      pipeline_def_.cpu_prefetch_queue_depth,
-      pipeline_def_.gpu_prefetch_queue_depth,
-      pipeline_def_.enable_memory_stats));
+        pipeline_handle, pipeline_def_.pipeline.c_str(), pipeline_def_.pipeline.length(),
+        pipeline_def_.batch_size, pipeline_def_.num_threads, pipeline_def_.device_id,
+        pipeline_def_.exec_separated, pipeline_def_.prefetch_queue_depth,
+        pipeline_def_.cpu_prefetch_queue_depth, pipeline_def_.gpu_prefetch_queue_depth,
+        pipeline_def_.enable_memory_stats));
 
     if (!pipeline_def_.exec_separated) {
       TF_DALI_CALL(daliPrefetchUniform(pipeline_handle, pipeline_def_.prefetch_queue_depth));
     } else {
       TF_DALI_CALL(daliPrefetchSeparate(pipeline_handle, pipeline_def_.cpu_prefetch_queue_depth,
-                                      pipeline_def_.gpu_prefetch_queue_depth));
+                                        pipeline_def_.gpu_prefetch_queue_depth));
     }
     return Status::OK();
   }
@@ -183,31 +178,28 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
  public:
   explicit Iterator(const Params &params, daliPipelineHandle pipeline_handle,
                     bool enable_memory_stats = false)
-      : DatasetIterator<Dataset>(params), pipeline_handle_(pipeline_handle),
+      : DatasetIterator<Dataset>(params),
+        pipeline_handle_(pipeline_handle),
         enable_memory_stats_(enable_memory_stats) {}
 
-  Status Initialize(IteratorContext* context) override {
+  Status Initialize(IteratorContext *context) override {
     return CheckOutputDevices();
   }
 
   Status CheckOutputDevices() {
     auto num_outputs = daliGetNumOutput(&pipeline_handle_);
-    for (auto i  = 0; i < num_outputs; ++i) {
+    for (auto i = 0; i < num_outputs; ++i) {
       auto dali_device_type = daliGetOutputDevice(&pipeline_handle_, i);
 
       if (dali_device_type != dataset()->device_type_) {
         auto msg = dali::make_string(
-          "TF device and DALI device mismatch. TF device: ",
-          (dataset()->device_type_ == device_type_t::CPU ? "CPU" : "GPU"),
-          ", DALI device: ",
-          (dali_device_type == device_type_t::CPU ? "CPU" : "GPU"),
-          " for output ",
-          i);
+            "TF device and DALI device mismatch. TF device: ",
+            (dataset()->device_type_ == device_type_t::CPU ? "CPU" : "GPU"),
+            ", DALI device: ", (dali_device_type == device_type_t::CPU ? "CPU" : "GPU"),
+            " for output ", i);
 
         if (dataset()->fail_on_device_mismatch_) {
-          return Status(
-            tensorflow::error::Code::INTERNAL,
-            msg);
+          return Status(tensorflow::error::Code::INTERNAL, msg);
         }
         LOG(WARNING) << "DALI LOG: CheckOutputDevice: " << msg;
       }
@@ -216,7 +208,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
   }
 
   Status GetNextInternal(IteratorContext *context, std::vector<Tensor> *out_tensors,
-                          bool *end_of_sequence) override {
+                         bool *end_of_sequence) override {
     tensorflow::mutex_lock l(mu_);
 
     TF_DALI_CALL(daliShareOutput(&pipeline_handle_));
@@ -228,8 +220,8 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       TensorShape output_shape;
 
       auto dali_shape = DaliToShape(AutoCPtr<int64_t>(daliShapeAt(&pipeline_handle_, out_id)));
-      auto status = GetCompatibleShape(output_shape, dataset()->shapes_[out_id],
-          dali_shape, dataset()->pipeline_def_.batch_size, out_id);
+      auto status = GetCompatibleShape(output_shape, dataset()->shapes_[out_id], dali_shape,
+                                       dataset()->pipeline_def_.batch_size, out_id);
       if (status != Status::OK()) {
         return status;
       }
@@ -240,14 +232,13 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       if (tf_type != dataset()->dtypes_[out_id]) {
         std::stringstream ss;
         ss << "The type provided for output `" << out_id << "` is not compatible with "
-            << "the type returned by DALI Pipeline. Expected (output_types[" << out_id
-            << "]): " << DataTypeString(dataset()->dtypes_[out_id]) << ", got from Pipeline: "
-            << DataTypeString(tf_type) << ".";
+           << "the type returned by DALI Pipeline. Expected (output_types[" << out_id
+           << "]): " << DataTypeString(dataset()->dtypes_[out_id])
+           << ", got from Pipeline: " << DataTypeString(tf_type) << ".";
         return errors::InvalidArgument(ss.str());
       }
 
-      out_tensors->emplace_back(context->allocator({}), dataset()->dtypes_[out_id],
-                                output_shape);
+      out_tensors->emplace_back(context->allocator({}), dataset()->dtypes_[out_id], output_shape);
       tensorflow::Tensor &output = out_tensors->operator[](out_id);
 
       void *dst = nullptr;
@@ -290,8 +281,8 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
           break;
         default:
           return errors::InvalidArgument(
-              "Unsupported type: " + DataTypeString(dataset()->dtypes_[out_id]) +
-              " for tensor " + std::to_string(out_id));
+              "Unsupported type: " + DataTypeString(dataset()->dtypes_[out_id]) + " for tensor " +
+              std::to_string(out_id));
       }
 
       TF_DALI_CALL(daliOutputCopy(&pipeline_handle_, dst, out_id, dataset()->device_type_,
@@ -311,15 +302,13 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       size_t N;
       daliExecutorMetadata *meta;
       daliGetExecutorMetadata(&pipeline_handle_, &meta, &N);
-      std::cout << "DALI operator memory statistics: "  << std::endl;
+      std::cout << "DALI operator memory statistics: " << std::endl;
       for (size_t i = 0; i < N; ++i) {
         std::cout << "Operator " << meta[i].operator_name;
         for (size_t j = 0; j < meta[i].out_num; ++j) {
-          std::cout << "   output [ " << j << " ] : "
-                    << meta[i].real_size[j] << "B allocated "
-                    << meta[i].max_real_size[j] << "B max allocated "
-                    << meta[i].reserved[j] << "B reserved"
-                    << meta[i].max_reserved[j] << "B max reserved";
+          std::cout << "   output [ " << j << " ] : " << meta[i].real_size[j] << "B allocated "
+                    << meta[i].max_real_size[j] << "B max allocated " << meta[i].reserved[j]
+                    << "B reserved" << meta[i].max_reserved[j] << "B max reserved";
           if (j != meta[i].out_num - 1) {
             std::cout << ",";
           }
@@ -332,15 +321,13 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
   }
 
 #if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3
-Status SaveInternal(
-  SerializationContext* ctx, IteratorStateWriter* writer) override {
-  return errors::Unimplemented("SaveInternal is not supported for DALI dataset.");
-}
+  Status SaveInternal(SerializationContext *ctx, IteratorStateWriter *writer) override {
+    return errors::Unimplemented("SaveInternal is not supported for DALI dataset.");
+  }
 
-Status RestoreInternal(
-  IteratorContext* ctx, IteratorStateReader* reader) override {
-  return errors::Unimplemented("RestoreInternal is not supported for DALI dataset");
-}
+  Status RestoreInternal(IteratorContext *ctx, IteratorStateReader *reader) override {
+    return errors::Unimplemented("RestoreInternal is not supported for DALI dataset");
+  }
 #endif
 
  private:
@@ -366,8 +353,8 @@ Status RestoreInternal(
     if (required_shape.dims() >= dali_shape.dims()) {
       std::stringstream ss;
       ss << "The shape provided for output `" << output_idx << "` is not compatible with "
-          << "the shape returned by DALI Pipeline. Expected (output_shapes[" << output_idx
-          << "]): " << required_shape << ", got from Pipeline: " << dali_shape << ".";
+         << "the shape returned by DALI Pipeline. Expected (output_shapes[" << output_idx
+         << "]): " << required_shape << ", got from Pipeline: " << dali_shape << ".";
       return errors::InvalidArgument(ss.str());
     }
     for (int i = 0; i < required_shape.dims(); i++) {
@@ -379,19 +366,19 @@ Status RestoreInternal(
       if (dali_shape.dim_size(0) != batch_size) {
         std::stringstream ss;
         ss << "The shape returned by DALI Pipeline for output `" << output_idx
-            << "` has different `batch_size` than the one specified in `DALIDataset`. "
-            << "Specified `batch_size`: " << batch_size
-            << ", got from Pipeline: " << dali_shape.dim_size(0) << " in shape: "
-            << dali_shape << ".";
+           << "` has different `batch_size` than the one specified in `DALIDataset`. "
+           << "Specified `batch_size`: " << batch_size
+           << ", got from Pipeline: " << dali_shape.dim_size(0) << " in shape: " << dali_shape
+           << ".";
         return errors::InvalidArgument(ss.str());
       }
       // It's easier to check it in C++ as in Python the structure is a bit convoluted
       if (!DimSizeMatch(required_shape.dim_size(0), batch_size)) {
         std::stringstream ss;
         ss << "The shape provided for output `" << output_idx << "` is not compatible with "
-            << "the `batch_size` argument that was specified in `DALIDataset`. "
-            << "Specified `batch_size`: " << batch_size << ", got: "
-            << required_shape.dim_size(0) << " in shape: " << required_shape << ".";
+           << "the `batch_size` argument that was specified in `DALIDataset`. "
+           << "Specified `batch_size`: " << batch_size << ", got: " << required_shape.dim_size(0)
+           << " in shape: " << required_shape << ".";
         return errors::InvalidArgument(ss.str());
       }
     }
@@ -407,9 +394,8 @@ Status RestoreInternal(
     if (matches != 1) {
       std::stringstream ss;
       ss << "The shape provided for output `" << output_idx << "` is not compatible with "
-          << "the shape returned by DALI Pipeline in an umabigous way. Expected (output_shapes["
-          << output_idx << "]): " << required_shape << ", got from Pipeline: "
-          << dali_shape << ".";
+         << "the shape returned by DALI Pipeline in an umabigous way. Expected (output_shapes["
+         << output_idx << "]): " << required_shape << ", got from Pipeline: " << dali_shape << ".";
       return errors::InvalidArgument(ss.str());
     }
     return Status::OK();
@@ -470,11 +456,11 @@ Status RestoreInternal(
 };
 
 void DALIDatasetOp::MakeDataset(OpKernelContext *context, DatasetBase **output) {
-  *output = new Dataset(
-    context, pipeline_def_, shapes_, dtypes_, is_gpu_device_, fail_on_device_mismatch_);
+  *output = new Dataset(context, pipeline_def_, shapes_, dtypes_, is_gpu_device_,
+                        fail_on_device_mismatch_);
 }
 
-void DALIDatasetOp::FillPipelineDef(OpKernelConstruction* context, PipelineDef &def) {
+void DALIDatasetOp::FillPipelineDef(OpKernelConstruction *context, PipelineDef &def) {
   OP_REQUIRES_OK(context, context->GetAttr(kPipeline, &def.pipeline));
   OP_REQUIRES_OK(context, context->GetAttr(kBatchSize, &def.batch_size));
   OP_REQUIRES_OK(context, context->GetAttr(kNumThreads, &def.num_threads));
@@ -492,39 +478,34 @@ std::unique_ptr<IteratorBase> DALIDatasetOp::Dataset::MakeIteratorInternal(
   TF_CHECK_OK(InitPipeline(&pipeline_handle));
 
   return absl::make_unique<Iterator>(Iterator::Params{this, strings::StrCat(prefix, "::DALI")},
-                                      pipeline_handle, pipeline_def_.enable_memory_stats);
+                                     pipeline_handle, pipeline_def_.enable_memory_stats);
 }
 
 
 // Regestrations
-REGISTER_KERNEL_BUILDER(
-  Name("DALIDataset").Device(tensorflow::DEVICE_CPU),
-  DALIDatasetOp);
+REGISTER_KERNEL_BUILDER(Name("DALIDataset").Device(tensorflow::DEVICE_CPU), DALIDatasetOp);
 
-REGISTER_KERNEL_BUILDER(
-  Name("DALIDataset")
-    .Device(DEVICE_GPU)
-    .HostMemory("handle"),
-  DALIDatasetOp);
+REGISTER_KERNEL_BUILDER(Name("DALIDataset").Device(DEVICE_GPU).HostMemory("handle"), DALIDatasetOp);
 
 REGISTER_OP("DALIDataset")
-  .Output("handle: variant")
-  .Attr("pipeline: string")
-  .Attr("batch_size: int")
-  .Attr("num_threads: int")
-  .Attr("device_id: int")
-  .Attr("exec_separated: bool")
-  .Attr("prefetch_queue_depth: int")
-  .Attr("cpu_prefetch_queue_depth: int")
-  .Attr("gpu_prefetch_queue_depth: int")
-  .Attr("enable_memory_stats: bool = false")
-  .Attr("output_shapes: list(shape) >= 1")
-  .Attr("output_dtypes: "
+    .Output("handle: variant")
+    .Attr("pipeline: string")
+    .Attr("batch_size: int")
+    .Attr("num_threads: int")
+    .Attr("device_id: int")
+    .Attr("exec_separated: bool")
+    .Attr("prefetch_queue_depth: int")
+    .Attr("cpu_prefetch_queue_depth: int")
+    .Attr("gpu_prefetch_queue_depth: int")
+    .Attr("enable_memory_stats: bool = false")
+    .Attr("output_shapes: list(shape) >= 1")
+    .Attr(
+        "output_dtypes: "
         "list({bool, half, float, uint8, uint16, uint32, uint64, int8, int16, int32, int64}) >= 1")
-  .Attr("fail_on_device_mismatch: bool = true")
-  .SetIsStateful()
-  .SetShapeFn(shape_inference::ScalarShape)
-  .Doc(R"doc(
+    .Attr("fail_on_device_mismatch: bool = true")
+    .SetIsStateful()
+    .SetShapeFn(shape_inference::ScalarShape)
+    .Doc(R"doc(
 DALI Dataset plugin
 Creates a DALI dataset compatible with tf.data.Dataset from a DALI pipeline.
 `output_shapes` must match the shape of the corresponding DALI Pipeline output tensor shape.

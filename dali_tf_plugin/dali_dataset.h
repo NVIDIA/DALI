@@ -31,15 +31,15 @@
 
 #define EIGEN_USE_GPU
 
+#include "tensorflow/core/framework/common_shape_fns.h"
 #include "tensorflow/core/framework/dataset.h"
-#include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/op.h"
+#include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/partial_tensor_shape.h"
 #include "tensorflow/core/framework/shape_inference.h"
+#include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/framework/types.h"
-#include "tensorflow/core/framework/common_shape_fns.h"
-#include "tensorflow/core/framework/tensor.h"
 
 
 #include "dali/core/common.h"
@@ -49,8 +49,9 @@ namespace dali_tf_impl {
 
 class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
  public:
-  explicit DALIDatasetOp(tensorflow::OpKernelConstruction *context)
-      : DatasetOpKernel(context), is_gpu_device_(context->device_type() == "GPU"),
+  explicit DALIDatasetOp(tensorflow::OpKernelConstruction* context)
+      : DatasetOpKernel(context),
+        is_gpu_device_(context->device_type() == "GPU"),
         context_(context) {
     FillPipelineDef(context, pipeline_def_);
     OP_REQUIRES_OK(context, context->GetAttr("output_shapes", &shapes_));
@@ -84,14 +85,14 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
   static constexpr const char* const kGpuPrefetchQueueDepth = "gpu_prefetch_queue_depth";
   static constexpr const char* const kGpuMemoryStats = "enable_memory_stats";
 
-  void FillPipelineDef(tensorflow::OpKernelConstruction* context, PipelineDef &def);
+  void FillPipelineDef(tensorflow::OpKernelConstruction* context, PipelineDef& def);
 
   PipelineDef pipeline_def_;
   std::vector<tensorflow::PartialTensorShape> shapes_;
   tensorflow::DataTypeVector dtypes_;
   bool is_gpu_device_;
   bool fail_on_device_mismatch_;
-  tensorflow::OpKernelConstruction *context_;
+  tensorflow::OpKernelConstruction* context_;
 
   class Dataset;
 };
