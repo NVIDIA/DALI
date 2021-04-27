@@ -17,6 +17,7 @@
 #include <vector>
 #include "dali/operators/image/color/color_space_conversion.h"
 #include "dali/util/npp.h"
+#include "dali/core/dev_buffer.h"
 
 namespace dali {
 
@@ -102,6 +103,22 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto stream = ws.stream();
   auto npp_ctx = GetNppContext(stream);
 
+  using ImageTypePair = std::pair<DALIImageType, DALIImageType>;
+  ImageTypePair conversion { input_type_, output_type_};
+
+  const ImageTypePair kRGB_TO_BGR { DALI_RGB, DALI_BGR };
+  const ImageTypePair kBGR_TO_RGB { DALI_BGR, DALI_RGB };
+  const ImageTypePair kRGB_TO_YCbCr { DALI_RGB, DALI_YCbCr };
+  const ImageTypePair kBGR_TO_YCbCr { DALI_BGR, DALI_YCbCr };
+  const ImageTypePair kRGB_TO_GRAY { DALI_RGB, DALI_GRAY };
+  const ImageTypePair kBGR_TO_GRAY { DALI_BGR, DALI_GRAY };
+  const ImageTypePair kYCbCr_TO_BGR { DALI_YCbCr, DALI_BGR };
+  const ImageTypePair kYCbCr_TO_RGB { DALI_YCbCr, DALI_RGB };
+  const ImageTypePair kYCbCr_TO_GRAY { DALI_YCbCr, DALI_GRAY };
+  const ImageTypePair kGRAY_TO_RGB { DALI_GRAY, DALI_RGB };
+  const ImageTypePair kGRAY_TO_BGR { DALI_GRAY, DALI_BGR };
+  const ImageTypePair kGRAY_TO_YCbCr { DALI_GRAY, DALI_YCbCr };
+
   int input_C = NumberOfChannels(input_type_);
   int output_C = NumberOfChannels(output_type_);
   const auto& input_shape = input.shape();
@@ -116,13 +133,25 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   output.Resize(output_shape);
   output.set_type(input.type());
 
+  if (conversion == kBGR_TO_YCbCr || conversion == kYCbCr_TO_BGR) {
+    int64_t scratch_sz = volume(scratch_.shape());
+    for (int i = 0; i < output_shape.num_samples(); i++) {
+      auto sz = output_shape.tensor_size(i);
+      if (sz > scratch_sz)
+        scratch_sz = sz;
+    }
+    scratch_.set_type(input.type());
+    scratch_.Resize({scratch_sz});
+  }
+
   if (layout == "HWC") {
     // RGB -> BGR || BGR -> RGB
     for (unsigned int i = 0; i < input.ntensor(); ++i) {
+      auto sample_sh = input_shape.tensor_shape_span(i);
       // image dimensions
       NppiSize size;
-      size.height = input_shape.tensor_shape_span(i)[0];
-      size.width = input_shape.tensor_shape_span(i)[1];
+      size.height = sample_sh[0];
+      size.width = sample_sh[1];
 
       // For CUDA kernel
       const unsigned int total_size = size.height * size.width;
@@ -137,22 +166,6 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
       const uint8_t* input_data = input.tensor<uint8_t>(i);
       uint8_t* output_data = output.mutable_tensor<uint8_t>(i);
 
-      using ImageTypePair = std::pair<DALIImageType, DALIImageType>;
-      ImageTypePair conversion { input_type_, output_type_};
-
-      const ImageTypePair kRGB_TO_BGR { DALI_RGB, DALI_BGR };
-      const ImageTypePair kBGR_TO_RGB { DALI_BGR, DALI_RGB };
-      const ImageTypePair kRGB_TO_YCbCr { DALI_RGB, DALI_YCbCr };
-      const ImageTypePair kBGR_TO_YCbCr { DALI_BGR, DALI_YCbCr };
-      const ImageTypePair kRGB_TO_GRAY { DALI_RGB, DALI_GRAY };
-      const ImageTypePair kBGR_TO_GRAY { DALI_BGR, DALI_GRAY };
-      const ImageTypePair kYCbCr_TO_BGR { DALI_YCbCr, DALI_BGR };
-      const ImageTypePair kYCbCr_TO_RGB { DALI_YCbCr, DALI_RGB };
-      const ImageTypePair kYCbCr_TO_GRAY { DALI_YCbCr, DALI_GRAY };
-      const ImageTypePair kGRAY_TO_RGB { DALI_GRAY, DALI_RGB };
-      const ImageTypePair kGRAY_TO_BGR { DALI_GRAY, DALI_BGR };
-      const ImageTypePair kGRAY_TO_YCbCr { DALI_GRAY, DALI_YCbCr };
-
       if (conversion == kRGB_TO_BGR || conversion == kBGR_TO_RGB) {
         // RGB -> BGR
         // BGR -> RGB
@@ -166,12 +179,13 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
       } else if (conversion == kBGR_TO_YCbCr) {
         // BGR -> YCbCr
         // First from BGR to RGB
+        auto scratch = scratch_.mutable_data<uint8_t>();
         detail::ConvertBGRToRGB8uKernel<<<grid, block, 0, stream>>>(
-          input_data, output_data, total_size);
+          input_data, scratch, total_size);
         // Then from RGB to YCbCr
         DALI_CHECK_NPP(
           nppiRGBToYCbCr_8u_C3R_Ctx(
-            output_data, nStepOutput, output_data, nStepOutput, size, npp_ctx));
+            scratch, nStepInput, output_data, nStepOutput, size, npp_ctx));
       } else if (conversion == kRGB_TO_GRAY) {
         // RGB -> GRAY
         DALI_CHECK_NPP(
@@ -185,12 +199,13 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
             input_data, nStepInput, output_data, nStepOutput, size, aCoefs, npp_ctx));
       } else if (conversion == kYCbCr_TO_BGR) {
         // First from YCbCr to RGB
+        auto scratch = scratch_.mutable_data<uint8_t>();
         DALI_CHECK_NPP(
           nppiYCbCrToRGB_8u_C3R_Ctx(
-            input_data, nStepInput, output_data, nStepOutput, size, npp_ctx));
+            input_data, nStepInput, scratch, nStepOutput, size, npp_ctx));
         // Then from RGB to BGR
         detail::ConvertRGBToBGR8uKernel<<<grid, block, 0, stream>>>(
-          output_data, output_data, total_size);
+          scratch, output_data, total_size);
       } else if (conversion == kYCbCr_TO_RGB) {
         // First from YCbCr to RGB
         DALI_CHECK_NPP(

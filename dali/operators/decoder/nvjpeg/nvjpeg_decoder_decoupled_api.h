@@ -62,6 +62,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     nvjpeg2k_streams_(max_batch_size_),
 #endif  // NVJPEG2K_ENABLED
     device_buffers_(num_threads_),
+    color_conv_tmp_(num_threads_),
     streams_(num_threads_),
     decode_events_(num_threads_),
     thread_page_ids_(num_threads_),
@@ -761,7 +762,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
 
       CUDA_CALL(cudaEventSynchronize(hw_decode_event_));
-      // it is H2H copy so the stream doesn't metter much as we don't use cudaMemcpy but
+      // it is H2H copy so the stream doesn't matter much as we don't use cudaMemcpy but
       // maybe someday...
       hw_decoder_images_staging_.Copy(tv, hw_decode_stream_);
       for (size_t k = 0; k < samples_hw_batched_.size(); ++k) {
@@ -771,14 +772,18 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                       nvjpeg_destinations_.data(), hw_decode_stream_));
 
       if (output_image_type_ == DALI_YCbCr) {
-        // We don't directly to YCbCr, since we want to control the YCbCr definition,
+        // We don't decode directly to YCbCr, since we want to control the YCbCr definition,
         // which is different between general color conversion libraries (OpenCV) and
         // what JPEG uses.
         for (auto *sample : samples_hw_batched_) {
           int i = sample->sample_idx;
           auto data = output.mutable_tensor<uint8_t>(i);
           auto sh = output_shape_.tensor_shape(i);
-          ConvertRGBToYCbCr(data, sh[0], sh[1], hw_decode_stream_);
+          auto sz = volume(sh);
+          hw_decode_color_conv_tmp_.resize(sz);
+          auto *tmp = hw_decode_color_conv_tmp_.data();
+          copyD2D(tmp, data, sz, hw_decode_stream_);
+          ConvertRGBToYCbCr(data, tmp, sh[0], sh[1], hw_decode_stream_);
         }
       }
 
@@ -910,10 +915,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
 
       if (output_image_type_ == DALI_YCbCr) {
-        // We don't directly to YCbCr, since we want to control the YCbCr definition,
+        // We don't decode directly to YCbCr, since we want to control the YCbCr definition,
         // which is different between general color conversion libraries (OpenCV) and
         // what JPEG uses.
-        ConvertRGBToYCbCr(output_data, out_shape[0], out_shape[1], stream);
+        auto sz = volume(out_shape);
+        color_conv_tmp_[thread_id].resize(sz);
+        auto *tmp = color_conv_tmp_[thread_id].data();
+        copyD2D(tmp, output_data, sz, stream);
+        ConvertRGBToYCbCr(output_data, tmp, out_shape[0], out_shape[1], stream);
       }
 
       CacheStore(file_name, output_data, out_shape, stream);
@@ -955,6 +964,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   // GPU
   // Per thread
   std::vector<nvjpegBufferDevice_t> device_buffers_;
+  vector<DeviceBuffer<uint8_t>> color_conv_tmp_;
+  DeviceBuffer<uint8_t> hw_decode_color_conv_tmp_;
   std::vector<cudaStream_t> streams_;
   cudaStream_t hw_decode_stream_;
   std::vector<cudaEvent_t> decode_events_;

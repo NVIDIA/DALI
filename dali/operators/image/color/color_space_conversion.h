@@ -43,6 +43,8 @@ class ColorSpaceConversion : public Operator<Backend> {
 
   const DALIImageType input_type_;
   const DALIImageType output_type_;
+
+  Tensor<Backend> scratch_;
 };
 
 }  // namespace dali
