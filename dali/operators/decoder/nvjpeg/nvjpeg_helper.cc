@@ -14,7 +14,6 @@
 
 #include <string>
 #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
-#include "dali/util/npp.h"
 
 namespace dali {
 
@@ -43,12 +42,7 @@ const char* nvjpeg_parse_error_code(nvjpegStatus_t code) {
   }
 }
 
-void ConvertRGBToYCbCr(uint8_t* out, const uint8_t* in, int64_t h, int64_t w, cudaStream_t stream) {
-  int step = w * 3;
-  NppiSize size;
-  size.height = h;
-  size.width = w;
-  DALI_CHECK_NPP(nppiRGBToYCbCr_8u_C3R_Ctx(in, step, out, step, size, GetNppContext(stream)));
-}
+
+
 
 }  // namespace dali
