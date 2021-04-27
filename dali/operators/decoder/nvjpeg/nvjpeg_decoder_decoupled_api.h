@@ -747,10 +747,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
       in_data_.resize(samples_hw_batched_.size());
       in_lengths_.resize(samples_hw_batched_.size());
+      nvjpeg_destinations_.clear();
       nvjpeg_destinations_.resize(samples_hw_batched_.size());
+      nvjpeg_params_.clear();
       nvjpeg_params_.resize(samples_hw_batched_.size());
-      memset(nvjpeg_destinations_.data(), 0, nvjpeg_destinations_.size() * sizeof(nvjpegImage_t));
-      memset(nvjpeg_params_.data(), 0, nvjpeg_params_.size() * sizeof(nvjpegDecodeParams_t));
 
       int j = 0;
       TensorVector<CPUBackend> tv(samples_hw_batched_.size());

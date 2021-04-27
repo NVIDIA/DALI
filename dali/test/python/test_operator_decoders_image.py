@@ -127,8 +127,8 @@ def create_decoder_crop_pipeline(data_path, device):
 
     crop_pos_x = fn.random.uniform(range=[0.1, 0.9])
     crop_pos_y = fn.random.uniform(range=[0.1, 0.9])
-    w = random.randint(100, 250)
-    h = random.randint(100, 250)
+    w = 242
+    h = 230
 
     images_crop_1 = fn.decoders.image_crop(jpegs,
                                            device = device,
@@ -158,8 +158,8 @@ def create_decoder_random_crop_pipeline(data_path, device):
                                num_shards = 1,
                                name = "Reader")
 
-    w = random.randint(100, 300)
-    h = random.randint(100, 300)
+    w = 242
+    h = 230
     images_random_crop_1 = fn.decoders.image_random_crop(jpegs,
                                                          device = device,
                                                          output_type = types.RGB,
