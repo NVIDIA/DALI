@@ -185,6 +185,10 @@ TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode4T) {
 #if NVJPEG_VER_MAJOR >= 11
 void PrintDeviceInfo() {
   unsigned int device_count;
+  if (!nvmlIsInitialized()) {
+    nvml::Init();
+    return;
+  }
   CUDA_CALL(nvmlDeviceGetCount_v2(&device_count));
   for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
     auto info = nvml::GetDeviceInfo(device_idx);
