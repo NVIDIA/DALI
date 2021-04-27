@@ -18,6 +18,7 @@ import json
 import os
 
 from paddle import fluid
+import paddle
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
@@ -51,6 +52,9 @@ def create_video_pipe(video_files, sequence_length=8, target_size=224,stride=30)
 def build(seg_num=8, target_size=224):
     image_shape = [seg_num, 3, target_size, target_size]
 
+    # In PaddlePaddle 2.x, we turn on dynamic graph mode by default, and 'data()' is only supported in static graph mode.
+    # So if you want to use this api, please call 'paddle.enable_static()' before this api to enter static graph mode.
+    paddle.enable_static()
     image = fluid.layers.data(
         name='image', shape=image_shape, dtype='float32')
 

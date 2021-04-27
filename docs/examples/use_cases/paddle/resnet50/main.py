@@ -22,6 +22,7 @@ import time
 import numpy as np
 
 from paddle import fluid
+import paddle
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
@@ -98,6 +99,9 @@ def build():
     from resnet import ResNet
     model = ResNet(FLAGS.depth, num_classes=1000)
 
+    # In PaddlePaddle 2.x, we turn on dynamic graph mode by default, and 'data()' is only supported in static graph mode.
+    # So if you want to use this api, please call 'paddle.enable_static()' before this api to enter static graph mode.
+    paddle.enable_static()
     image = fluid.layers.data(name='data', shape=[3, 224, 224],
                               dtype='float32')
     label = fluid.layers.data(name='label', shape=[1], dtype='int32')
