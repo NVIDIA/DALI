@@ -84,6 +84,7 @@ NvDecoder::NvDecoder(int device_id,
   }
 #endif
   if (use_default_stream) {
+    DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
     stream_.reset(0);
   } else {
     stream_ = CUDAStream::Create(true, device_id);
