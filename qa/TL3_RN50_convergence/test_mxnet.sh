@@ -9,7 +9,7 @@ NUM_GPUS=`nvidia-smi -L | wc -l`
 sed -i "s/nvJPEGDecoder/ImageDecoder/" /opt/mxnet/example/image-classification/common/dali.py
 
 python /opt/mxnet/example/image-classification/train_imagenet_runner \
-       --data-root=/data/imagenet/train-val-recordio-passthrough/ -b 180 \
+       --data-root=/data/imagenet/train-val-recordio-passthrough/ -b 208 \
        -n $NUM_GPUS --seed 42 2>&1 | tee dali.log
 
 cat dali.log  | grep -o "Validation-accuracy=0\.[0-9]*" > tmp2.log
