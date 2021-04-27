@@ -98,7 +98,6 @@ def create_decoder_slice_pipeline(data_path, device):
 
     anchor = fn.random.uniform(range=[0.05, 0.15], shape=(2,))
     shape = fn.random.uniform(range=[0.5, 0.7], shape=(2,))
-    # ToDo make window random?
     images_sliced_1 = fn.decoders.image_slice(jpegs,
                                               anchor,
                                               shape,
@@ -111,7 +110,6 @@ def create_decoder_slice_pipeline(data_path, device):
                                device = device,
                                hw_decoder_load = 0.7,
                                output_type = types.RGB)
-    # ToDo make window random?
     images_sliced_2 = fn.slice(images,
                                anchor,
                                shape,
@@ -119,7 +117,7 @@ def create_decoder_slice_pipeline(data_path, device):
 
     return images_sliced_1, images_sliced_2
 
-# ToDo - check padding behavior
+# TODO(januszl): check padding behavior
 @pipeline_def
 def create_decoder_crop_pipeline(data_path, device):
     jpegs, _ = fn.readers.file(file_root = data_path,
@@ -127,24 +125,28 @@ def create_decoder_crop_pipeline(data_path, device):
                                num_shards = 1,
                                name = "Reader")
 
-    # ToDo make window random?
+    crop_pos_x = fn.random.uniform(range=[0.1, 0.9])
+    crop_pos_y = fn.random.uniform(range=[0.1, 0.9])
+    w = random.randint(100, 300)
+    h = random.randint(100, 300)
+
     images_crop_1 = fn.decoders.image_crop(jpegs,
                                            device = device,
                                            output_type = types.RGB,
                                            hw_decoder_load = 0.7,
-                                           crop = (224, 224),
-                                           crop_pos_x = 0.3,
-                                           crop_pos_y = 0.2)
+                                           crop = (w, h),
+                                           crop_pos_x = crop_pos_x,
+                                           crop_pos_y = crop_pos_y)
 
     images = fn.decoders.image(jpegs,
                                device = device,
                                hw_decoder_load = 0.7,
                                output_type = types.RGB)
-    # ToDo make window random?
+
     images_crop_2 = fn.crop(images,
-                            crop = (224, 224),
-                            crop_pos_x = 0.3,
-                            crop_pos_y = 0.2)
+                            crop = (w, h),
+                            crop_pos_x = crop_pos_x,
+                            crop_pos_y = crop_pos_y)
 
     return images_crop_1, images_crop_2
 
@@ -156,18 +158,20 @@ def create_decoder_random_crop_pipeline(data_path, device):
                                num_shards = 1,
                                name = "Reader")
 
+    w = random.randint(100, 300)
+    h = random.randint(100, 300)
     images_random_crop_1 = fn.decoders.image_random_crop(jpegs,
                                                          device = device,
                                                          output_type = types.RGB,
                                                          hw_decoder_load = 0.7,
                                                          seed = seed)
-    images_random_crop_1 = fn.resize(images_random_crop_1, size = (224,224))
+    images_random_crop_1 = fn.resize(images_random_crop_1, size = (w, h))
 
     images = fn.decoders.image(jpegs,
                                device = device,
                                hw_decoder_load = 0.7,
                                output_type = types.RGB)
-    images_random_crop_2 = fn.random_resized_crop(images, size = (224,224), seed = seed)
+    images_random_crop_2 = fn.random_resized_crop(images, size = (w, h), seed = seed)
 
     return images_random_crop_1, images_random_crop_2
 
@@ -181,12 +185,11 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
         for img_1, img_2 in zip(out_1, out_2):
             img_1 = to_array(img_1)
             img_2 = to_array(img_2)
-            # random_resized_crop can properly handle border as it has pixels that are cropped out, while
-            # plain resize folowing image_decoder_random_crop cannot do that and must duplicate the border pixels
-            #assert np.mean(np.abs(img_1 - img_2) < 0.5)
             assert validation_fun(img_1, img_2)
 
 def test_image_decoder_fused():
+    threads = 4
+    batch_size = 10
     for test_fun in [create_decoder_slice_pipeline, create_decoder_crop_pipeline, create_decoder_random_crop_pipeline]:
         if test_fun == create_decoder_random_crop_pipeline:
             # random_resized_crop can properly handle border as it has pixels that are cropped out, while
@@ -195,8 +198,6 @@ def test_image_decoder_fused():
         else:
             validation_fun = lambda x, y: np.allclose(x, y)
         for device in {'cpu', 'mixed'}:
-            threads = 4
-            batch_size = 10
             for img_type in test_good_path:
                 yield run_decode_fused, test_fun, good_path, img_type, batch_size, device, threads, validation_fun
 
