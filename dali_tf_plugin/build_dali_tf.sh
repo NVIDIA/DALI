@@ -11,7 +11,7 @@ DALI_STUB_SRC="${DALI_STUB_DIR}/dali_stub.cc"
 DALI_STUB_LIB="${DALI_STUB_DIR}/libdali.so"
 $PYTHON ../tools/stubgen.py ../include/dali/c_api.h --output "${DALI_STUB_SRC}"
 
-DALI_CFLAGS="-I../include"
+DALI_CFLAGS="-I../include -I.."
 DALI_LFLAGS="-L${DALI_STUB_DIR} -ldali"
 
 $COMPILER -std=c++11 -DNDEBUG -O2 -shared -fPIC ${DALI_STUB_SRC} -o ${DALI_STUB_LIB} ${INCL_DIRS} ${DALI_CFLAGS}

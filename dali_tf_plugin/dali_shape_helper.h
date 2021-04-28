@@ -25,7 +25,7 @@
 namespace dali_tf_impl {
 
 struct CDeleter {
-  void operator()(void *p) {
+  void operator()(void* p) {
     free(p);
   }
 };
