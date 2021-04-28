@@ -87,30 +87,19 @@ class YOLOv4Model(tf.keras.Model):
         output = self.YOLOHead()(output)
         super().__init__(input, output)
 
-        self.lr_init = 1e-3
-        self.lr_end = 1e-6
         self.loss_tracker = tf.keras.metrics.Mean(name="loss")
-        self.lr_tracker = tf.keras.metrics.Mean(name="lr")
         self.mAP_tracker = tf.keras.metrics.Mean(name="mAP")
 
 
     def fit(self, dataset, **kwargs):
 
         start_step = 1 + kwargs['steps_per_epoch'] * kwargs['initial_epoch']
-        self.global_steps = tf.Variable(start_step, trainable=False, dtype=tf.int32)
+        self.current_step = tf.Variable(start_step, trainable=False, dtype=tf.int32)
         self.total_steps = kwargs['epochs'] * kwargs['steps_per_epoch']
-        self.warmup_steps = int(0.3 * self.total_steps)
         super().fit(dataset, **kwargs)
 
 
     def train_step(self, data):
-
-        lr_warmup = self.global_steps / self.warmup_steps * self.lr_init
-        lr_main = self.lr_end + 0.5 * (self.lr_init - self.lr_end) * (
-            (1 + tf.cos((self.global_steps - self.warmup_steps) / (self.total_steps - self.warmup_steps) * np.pi))
-        )
-        lr = tf.cond(self.global_steps < self.warmup_steps, lambda: lr_warmup, lambda: lr_main)
-        self.optimizer.lr.assign(tf.cast(lr, dtype=tf.float32))
 
         input, gt_boxes = data
         with tf.GradientTape() as tape:
@@ -123,10 +112,9 @@ class YOLOv4Model(tf.keras.Model):
             self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
 
         self.loss_tracker.update_state(total_loss)
-        self.lr_tracker.update_state(self.optimizer.lr)
-        self.global_steps.assign_add(1)
+        self.current_step.assign_add(1)
 
-        return {"loss" : self.loss_tracker.result(), "lr" : self.lr_tracker.result()}
+        return {"loss" : self.loss_tracker.result()}
 
     def test_step(self, data):
 
@@ -139,7 +127,7 @@ class YOLOv4Model(tf.keras.Model):
 
     @property
     def metrics(self):
-        return [self.loss_tracker, self.lr_tracker, self.mAP_tracker]
+        return [self.loss_tracker, self.mAP_tracker]
 
 
 
@@ -217,7 +205,7 @@ class YOLOv4Model(tf.keras.Model):
             )(x)
 
             if batch_norm:
-                x = tf.keras.layers.BatchNormalization(moving_variance_initializer="zeros", momentum = 0.5)(x)
+                x = tf.keras.layers.BatchNormalization(moving_variance_initializer="zeros", momentum = 0.9)(x)
 
             if activate:
                 if activation == "mish":

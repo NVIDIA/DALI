@@ -63,7 +63,7 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
         callbacks.append(SaveWeightsCallback(ckpt_dir))
 
     model.compile(
-        optimizer=tf.keras.optimizers.Adam()
+        optimizer=tf.keras.optimizers.Adam(lr=1e-4)
     )
 
     model.fit(

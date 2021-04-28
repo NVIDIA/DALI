@@ -44,10 +44,11 @@ class YOLOv4Pipeline:
             classes = dali.fn.cast(
                 dali.fn.transpose(dali.fn.stack(classes), perm=[1, 0]),
                 dtype=dali.types.FLOAT
-            )
+            ) - 1 # subtract one to be consistent with darknet's pretrained model weights
 
             labels = dali.fn.cat(bboxes, classes, axis=1)
-            labels = dali.fn.pad(labels, fill_value=-1)
+            labels = dali.fn.pad(labels, fill_value=-1) 
+            labels = dali.fn.pad(labels, fill_value=-1, shape=(1, 5))
 
             self._pipe.set_outputs(images.gpu(), labels.gpu())
 
