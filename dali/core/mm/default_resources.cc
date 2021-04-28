@@ -150,14 +150,14 @@ inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
 }  // namespace
 
 template <> DLL_PUBLIC
-host_memory_resource *GetDefaultResource<memory_kind::host>() {
+const std::shared_ptr<host_memory_resource> &GetDefaultResource<memory_kind::host>() {
   if (!g_resources.host)
     g_resources.host = CreateDefaultHostResource();
-  return g_resources.host.get();
+  return g_resources.host;
 }
 
 template <> DLL_PUBLIC
-pinned_async_resource *GetDefaultResource<memory_kind::pinned>() {
+const std::shared_ptr<pinned_async_resource> &GetDefaultResource<memory_kind::pinned>() {
   if (!g_resources.pinned_async) {
     static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
     static auto cleanup = AtExit([] {
@@ -165,7 +165,7 @@ pinned_async_resource *GetDefaultResource<memory_kind::pinned>() {
     });
     g_resources.pinned_async = CreateDefaultPinnedResource();
   }
-  return g_resources.pinned_async.get();
+  return g_resources.pinned_async;
 }
 
 template <> DLL_PUBLIC
@@ -192,7 +192,7 @@ void SetDefaultResource<memory_kind::pinned>(pinned_async_resource *resource, bo
 }
 
 
-device_async_resource *GetDefaultDeviceResource(int device_id) {
+const std::shared_ptr<device_async_resource> &GetDefaultDeviceResource(int device_id) {
   if (device_id < 0) {
     CUDA_CALL(cudaGetDevice(&device_id));
   }
@@ -211,11 +211,11 @@ device_async_resource *GetDefaultDeviceResource(int device_id) {
     });
     g_resources.device[device_id] = CreateDefaultDeviceResource();
   }
-  return g_resources.device[device_id].get();
+  return g_resources.device[device_id];
 }
 
 template <> DLL_PUBLIC
-device_async_resource *GetDefaultResource<memory_kind::device>() {
+const std::shared_ptr<device_async_resource> &GetDefaultResource<memory_kind::device>() {
   return GetDefaultDeviceResource(-1);
 }
 

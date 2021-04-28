@@ -25,7 +25,7 @@ namespace mm {
 namespace test {
 
 TEST(MMDefaultResource, Host) {
-  auto *rsrc = GetDefaultResource<memory_kind::host>();
+  const auto &rsrc = GetDefaultResource<memory_kind::host>();
   ASSERT_NE(rsrc, nullptr);
   char *mem = static_cast<char*>(rsrc->allocate(1000, 32));
   ASSERT_NE(mem, nullptr);
@@ -38,7 +38,7 @@ TEST(MMDefaultResource, Pinned) {
   char *dev = nullptr;
   CUDA_CALL(cudaMalloc(&dev, 1000));
   CUDA_CALL(cudaMemset(dev, 0, 1000));
-  auto *rsrc = GetDefaultResource<memory_kind::pinned>();
+  const auto &rsrc = GetDefaultResource<memory_kind::pinned>();
   CUDAStream stream = CUDAStream::Create(true);
   ASSERT_NE(rsrc, nullptr);
   char *mem = static_cast<char*>(rsrc->allocate(1000, 32));
@@ -69,7 +69,7 @@ TEST(MMDefaultResource, Device) {
   for (int i = 0; i < 1000; i++)
     stage[i] = i + 42;
 
-  auto *rsrc = GetDefaultResource<memory_kind::device>();
+  const auto &rsrc = GetDefaultResource<memory_kind::device>();
 
   CUDAStream stream = CUDAStream::Create(true);
   ASSERT_NE(rsrc, nullptr);
@@ -101,7 +101,7 @@ TEST(MMDefaultResource, MultiDevice) {
 
     vector<async_memory_resource<memory_kind::device>*> resources(ndev, nullptr);
     for (int i = 0; i < ndev; i++) {
-      resources[i] = GetDefaultDeviceResource(i);
+      resources[i] = GetDefaultDeviceResource(i).get();
       for (int j = 0; j < i; j++) {
         EXPECT_NE(resources[i], resources[j]) << "Got the same resource for different devices";
       }
@@ -109,11 +109,57 @@ TEST(MMDefaultResource, MultiDevice) {
 
     for (int i = 0; i < ndev; i++) {
       cudaSetDevice(i);
-      auto *rsrc = GetDefaultResource<memory_kind::device>();
+      auto *rsrc = GetDefaultResource<memory_kind::device>().get();
       EXPECT_EQ(rsrc, resources[i]) << "Got different default resource when asked for a specific "
                                        "device than for current device.";
     }
   }
+}
+
+template <memory_kind kind, bool async = (kind != memory_kind::host)>
+class DummyResource : public memory_resource<kind> {
+  void *do_allocate(size_t, size_t) override {
+    return nullptr;
+  }
+
+  void do_deallocate(void *, size_t, size_t) override {
+  }
+};
+
+template <memory_kind kind>
+class DummyResource<kind, true> : public async_memory_resource<kind> {
+  void *do_allocate(size_t, size_t) override {
+    return nullptr;
+  }
+  void *do_allocate_async(size_t, size_t, stream_view) override {
+    return nullptr;
+  }
+
+  void do_deallocate(void *, size_t, size_t) override {
+  }
+  void do_deallocate_async(void *, size_t, size_t, stream_view) override {
+  }
+};
+
+template <memory_kind kind>
+void TestSetDefaultResource() {
+  DummyResource<kind> dummy;
+  SetDefaultResource<kind>(&dummy, false);
+  EXPECT_EQ(GetDefaultResource<kind>().get(), &dummy);
+  SetDefaultResource<kind>(nullptr, false);
+}
+
+// TODO(michalz): When memory_kind is a tag type, switch to TYPED_TEST
+TEST(MMDefaultResource, SetResource_Host) {
+  TestSetDefaultResource<memory_kind::host>();
+}
+
+TEST(MMDefaultResource, SetResource_Pinned) {
+  TestSetDefaultResource<memory_kind::pinned>();
+}
+
+TEST(MMDefaultResource, SetResource_Device) {
+  TestSetDefaultResource<memory_kind::device>();
 }
 
 }  // namespace test
