@@ -132,6 +132,8 @@ def main(_):
       profile=FLAGS.profile,
       mode=FLAGS.mode)
   logging.info(params)
+  params['batch_size'] = FLAGS.train_batch_size // params['num_shards']
+  fit_batch_size = params['batch_size']
   
   config_proto = ConfigProto(
       allow_soft_placement=True, log_device_placement=False)
@@ -142,18 +144,21 @@ def main(_):
   else:
     eval_steps = None
 
+  physical_devices = tf.config.list_physical_devices('GPU')
+  for gpu_instance in physical_devices:
+    tf.config.experimental.set_memory_growth(gpu_instance, True)
 
   max_instances_per_image = params["max_instances_per_image"]
   train_input_fn = dataloader.InputReader(
       FLAGS.training_file_pattern,
       is_training=True,
       use_fake_data=FLAGS.use_fake_data,
-      max_instances_per_image=max_instances_per_image)
+      max_instances_per_image=max_instances_per_image)(params)
   eval_input_fn = dataloader.InputReader(
       FLAGS.validation_file_pattern,
       is_training=False,
       use_fake_data=FLAGS.use_fake_data,
-      max_instances_per_image=max_instances_per_image)
+      max_instances_per_image=max_instances_per_image)(params)
 
   if FLAGS.strategy == 'gpus':
     if tf.config.list_physical_devices('GPU'):
@@ -163,20 +168,20 @@ def main(_):
 
     if FLAGS.use_dali:
       from pipeline.dali.fn_pipeline import EfficientDetPipeline
-      logging.info("Using DALI pipeline with GPU")
+      logging.info("Using DALI pipeline with multiple GPUs")
       
-      file_pattern = FLAGS.training_file_pattern
-      batch_size = FLAGS.train_batch_size
-      image_size = params["image_size"]
-      seed = int.from_bytes(os.urandom(4), 'little')
-
       def dali_dataset_fn(input_context):
         with tf.device("/gpu:{}".format(input_context.input_pipeline_id)):
           device_id = input_context.input_pipeline_id
+          num_threads = input_context.num_input_pipelines
+          file_pattern = FLAGS.training_file_pattern
+          batch_size = params["batch_size"]
+          image_size = params["image_size"]
+          seed = int.from_bytes(os.urandom(4), 'little')
           return EfficientDetPipeline(
             file_pattern,
             batch_size, image_size, seed,
-            num_threads=4, device_id=device_id)
+            num_threads=num_threads, device_id=device_id)(params)
 
       input_options = tf.distribute.InputOptions(
         experimental_place_dataset_on_device = True,
@@ -185,6 +190,7 @@ def main(_):
 
       train_input_fn = strategy.distribute_datasets_from_function(dali_dataset_fn, input_options)
       eval_input_fn = strategy.distribute_datasets_from_function(dali_dataset_fn, input_options)
+      fit_batch_size=None
 
   else:
     strategy = tf.distribute.get_strategy()
@@ -193,7 +199,7 @@ def main(_):
       from pipeline.dali.fn_pipeline import EfficientDetPipeline
       
       file_pattern = FLAGS.training_file_pattern
-      batch_size = FLAGS.train_batch_size
+      batch_size = params["batch_size"]
       image_size = params["image_size"]
       seed = int.from_bytes(os.urandom(4), 'little')
       
@@ -209,10 +215,9 @@ def main(_):
       with tf.device(device):
         train_input_fn = eval_input_fn = EfficientDetPipeline(
             file_pattern,
-            batch_size, image_size, seed, device_id=device_id)
+            batch_size, image_size, seed, device_id=device_id)(params)
   
   #params['num_shards'] = getattr(strategy, 'num_replicas_in_sync', 1)
-  params['batch_size'] = FLAGS.train_batch_size // params['num_shards']
   #params['nms_configs']['max_nms_inputs'] = anchors.MAX_DETECTION_POINTS
 
   with strategy.scope():
@@ -242,7 +247,7 @@ def main(_):
 
     # start train/eval flow.
     if FLAGS.mode == 'train':
-      model.fit(train_input_fn(params), epochs=params["num_epochs"], batch_size=params["batch_size"], steps_per_epoch=train_steps, callbacks=callbacks)
+      model.fit(train_input_fn, epochs=params["num_epochs"], batch_size=fit_batch_size, steps_per_epoch=train_steps, callbacks=callbacks)
     elif FLAGS.mode == 'eval':
       raise ValueError('eval mode is not available yet :<')
     elif FLAGS.mode == 'train_and_eval':
