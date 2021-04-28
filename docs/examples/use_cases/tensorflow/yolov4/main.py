@@ -82,6 +82,7 @@ if __name__ == "__main__":
     parser_train.add_argument("--log_dir", "-l", default=None)
     parser_train.add_argument("--ckpt_dir", "-c", default=None)
     parser_train.add_argument("--start_weights", "-w", default=None)
+    parser_train.add_argument("--multigpu", "-m", default="False")
 
     parser_eval = subparsers.add_parser("eval")
     parser_eval.add_argument("file_root")
@@ -101,10 +102,11 @@ if __name__ == "__main__":
         run_training(
             args.file_root, args.annotations, batch_size, epochs, steps,
             output=args.output,
-            use_gpu=bool(args.dali_use_gpu),
+            use_gpu=args.dali_use_gpu == "True",
             log_dir=args.log_dir,
             ckpt_dir=args.ckpt_dir,
-            start_weights=args.start_weights
+            start_weights=args.start_weights,
+            multigpu=args.multigpu == "True"
         )
     elif args.action == "eval":
         batch_size = int(args.batch_size)
