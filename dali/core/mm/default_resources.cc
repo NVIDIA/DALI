@@ -149,14 +149,14 @@ inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
 
 }  // namespace
 
-template <>
+template <> DLL_PUBLIC
 host_memory_resource *GetDefaultResource<memory_kind::host>() {
   if (!g_resources.host)
     g_resources.host = CreateDefaultHostResource();
   return g_resources.host.get();
 }
 
-template <>
+template <> DLL_PUBLIC
 pinned_async_resource *GetDefaultResource<memory_kind::pinned>() {
   if (!g_resources.pinned_async) {
     static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
@@ -168,25 +168,25 @@ pinned_async_resource *GetDefaultResource<memory_kind::pinned>() {
   return g_resources.pinned_async.get();
 }
 
-template <>
+template <> DLL_PUBLIC
 void SetDefaultResource<memory_kind::host>(shared_ptr<host_memory_resource> resource) {
   g_resources.host = std::move(resource);
 }
 
 
-template <>
+template <> DLL_PUBLIC
 void SetDefaultResource<memory_kind::host>(host_memory_resource *resource, bool own) {
   SetDefaultResource<memory_kind::host>(wrap(resource, own));
 }
 
 
-template <>
+template <> DLL_PUBLIC
 void SetDefaultResource<memory_kind::pinned>(shared_ptr<pinned_async_resource> resource) {
   g_resources.pinned_async = std::move(resource);
 }
 
 
-template <>
+template <> DLL_PUBLIC
 void SetDefaultResource<memory_kind::pinned>(pinned_async_resource *resource, bool own) {
   SetDefaultResource<memory_kind::pinned>(wrap(resource, own));
 }
@@ -214,7 +214,7 @@ device_async_resource *GetDefaultDeviceResource(int device_id) {
   return g_resources.device[device_id].get();
 }
 
-template <>
+template <> DLL_PUBLIC
 device_async_resource *GetDefaultResource<memory_kind::device>() {
   return GetDefaultDeviceResource(-1);
 }
@@ -232,14 +232,14 @@ void SetDefaultDeviceResource(int device_id, device_async_resource *resource, bo
   SetDefaultDeviceResource(device_id, wrap(resource, own));
 }
 
-template <>
+template <> DLL_PUBLIC
 void SetDefaultResource<memory_kind::device>(std::shared_ptr<device_async_resource> resource) {
   int dev = 0;
   CUDA_CALL(cudaGetDevice(&dev));
   SetDefaultDeviceResource(dev, std::move(resource));
 }
 
-template <>
+template <> DLL_PUBLIC
 void SetDefaultResource<memory_kind::device>(device_async_resource *resource, bool own) {
   SetDefaultResource<memory_kind::device>(wrap(resource, own));
 }
