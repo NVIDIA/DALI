@@ -16,6 +16,7 @@
 #define DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_COLOR_SPACE_CONVERSION_KERNEL_CUH_
 
 #include <cuda_runtime_api.h>
+#include <utility>
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 
 namespace dali {
@@ -50,8 +51,7 @@ DALI_HOST_DEV struct BGR_to_Gray_Converter {
   static constexpr int in_pixel_sz = 3;
   static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> bgr) {
     return RGB_to_Gray_Converter<Out, In>::convert(
-      RGB_to_BGR_Converter<In, In>::convert(bgr)
-    );
+      RGB_to_BGR_Converter<In, In>::convert(bgr));
   }
 };
 
@@ -107,8 +107,7 @@ DALI_HOST_DEV struct BGR_to_YCbCr_Converter {
   static constexpr int in_pixel_sz = 3;
   static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> bgr) {
     return RGB_to_YCbCr_Converter<Out, In>::convert(
-      RGB_to_BGR_Converter<In, In>::convert(bgr)
-    );
+      RGB_to_BGR_Converter<In, In>::convert(bgr));
   }
 };
 
@@ -127,8 +126,7 @@ DALI_HOST_DEV struct YCbCr_to_BGR_Converter {
   static constexpr int in_pixel_sz = 3;
   static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> ycbcr) {
     return RGB_to_BGR_Converter<Out, In>::convert(
-      YCbCr_to_RGB_Converter<Out, Out>::convert(ycbcr)
-    );
+      YCbCr_to_RGB_Converter<Out, Out>::convert(ycbcr));
   }
 };
 

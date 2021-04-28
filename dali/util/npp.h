@@ -342,8 +342,6 @@ NppiSize ToNppiSize(const T& size) {
   return out;
 }
 
-DLL_PUBLIC NppStreamContext GetNppContext(cudaStream_t stream);
-
 }  // namespace dali
 
 // For checking npp return errors in dali library functions
