@@ -22,41 +22,20 @@
 
 namespace dali {
 
-
 template<>
 void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  const auto &input = ws.Input<GPUBackend>(0);
-  DALI_ENFORCE(IsType<uint8_t>(input.type()),
-      "Color space conversion accept only uint8 tensors");
-  auto &output = ws.Output<GPUBackend>(0);
-  auto layout = input.GetLayout();
-  output.SetLayout(layout);
+  const auto& input = ws.InputRef<GPUBackend>(0);
+  auto& output = ws.OutputRef<GPUBackend>(0);
+  output.SetLayout(input.GetLayout());
+  auto in_view = view<const uint8_t>(input);
+  auto out_view = view<uint8_t>(output);
+  const auto &in_sh = in_view.shape;
+  int nsamples = in_sh.num_samples();
   auto stream = ws.stream();
-
-  int input_C = NumberOfChannels(input_type_);
-  int output_C = NumberOfChannels(output_type_);
-  const auto& input_shape = input.shape();
-  auto output_shape = input_shape;
-  if (input_C != output_C) {
-    for (unsigned int i = 0; i < input.ntensor(); ++i) {
-      DALI_ENFORCE(input_shape.tensor_shape_span(i)[2] == input_C,
-        "Wrong number of channels for input");
-      output_shape.tensor_shape_span(i)[2] = output_C;
-    }
-  }
-  output.Resize(output_shape);
-  output.set_type(input.type());
-
-  DALI_ENFORCE(layout == "HWC" || (layout.empty() && output_shape.sample_dim() == 3),
-               make_string("Unexpected layout: ", layout, " shape: ", output_shape,
-                           ". Expected data in HWC layout."));
-  for (unsigned int i = 0; i < input.ntensor(); ++i) {
-    auto sample_sh = input_shape.tensor_shape_span(i);
-    // input/output
-    const uint8_t* input_data = input.tensor<uint8_t>(i);
-    uint8_t* output_data = output.mutable_tensor<uint8_t>(i);
-    int64_t npixels = sample_sh[0] * sample_sh[1];
-    kernels::color::RunColorSpaceConversionKernel(output_data, input_data, output_type_,
+  for (unsigned int i = 0; i < nsamples; ++i) {
+    auto sample_sh = in_sh.tensor_shape_span(i);
+    int64_t npixels = volume(sample_sh.begin(), sample_sh.end() - 1);
+    kernels::color::RunColorSpaceConversionKernel(out_view[i].data, in_view[i].data, output_type_,
                                                   input_type_, npixels, stream);
   }
 }
