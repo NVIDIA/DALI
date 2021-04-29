@@ -86,26 +86,52 @@ DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_cr(vec<3, uint8_t> rgb) {
   return static_cast<uint8_t>(dot(coeffs, rgb) + 128.0f);
 }
 
+// Gray uses the full dynamic range of the type (e.g. 0..255)
+// while ITU-R BT.601 uses a reduced range to allow for floorroom and footroom (e.g. 16..235)
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE Output y_to_gray(Input gray_in) {
+  auto gray = detail::norm(gray_in);  // TODO(janton): optimize number of multiplications
+  return ConvertSatNorm<Output>(1.164f * (gray - 0.0625f));
+}
+
+template <>
+DALI_HOST_DEV DALI_FORCEINLINE uint8_t y_to_gray(uint8_t gray) {
+  return static_cast<uint8_t>(1.164f * (gray - 16));
+}
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE Output gray_to_y(Input y_in) {
+  auto y = detail::norm(y_in);  // TODO(janton): optimize number of multiplications
+  constexpr float scale = 1 / 1.164f;
+  return ConvertSatNorm<Output>(y * scale + 0.0625f);
+}
+
+template <>
+DALI_HOST_DEV DALI_FORCEINLINE uint8_t gray_to_y(uint8_t y) {
+  constexpr float scale = 1 / 1.164f;
+  return static_cast<uint8_t>(y * scale + 0.0625f);
+}
+
 template <typename Output, typename Input>
 DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr_in) {
   auto ycbcr = detail::norm(ycbcr_in);  // TODO(janton): optimize number of multiplications
-  float tmp_y = 1.164f * (ycbcr.x - 0.0625f);
-  float tmp_b = ycbcr.y - 0.5f;
-  float tmp_r = ycbcr.z - 0.5f;
-  auto r = ConvertSatNorm<Output>(tmp_y + 1.596f * tmp_r);
-  auto g = ConvertSatNorm<Output>(tmp_y - 0.813f * tmp_r - 0.392f * tmp_b, 0, 255);
-  auto b = ConvertSatNorm<Output>(tmp_y + 2.017f * tmp_b);
+  auto gray = y_to_gray<float>(ycbcr.x);
+  auto tmp_b = ycbcr.y - 0.5f;
+  auto tmp_r = ycbcr.z - 0.5f;
+  auto r = ConvertSatNorm<Output>(gray + 1.596f * tmp_r);
+  auto g = ConvertSatNorm<Output>(gray - 0.813f * tmp_r - 0.392f * tmp_b, 0, 255);
+  auto b = ConvertSatNorm<Output>(gray + 2.017f * tmp_b);
   return {r, g, b};
 }
 
 template <>
 DALI_HOST_DEV DALI_FORCEINLINE vec<3, uint8_t> ycbcr_to_rgb(vec<3, uint8_t> ycbcr) {
-  float tmp_y = 1.164f * (ycbcr.x - 16);
-  float tmp_b = ycbcr.y - 128;
-  float tmp_r = ycbcr.z - 128;
-  auto r = clamp<uint8_t>(tmp_y + 1.596f * tmp_r, 0, 255);
-  auto g = clamp<uint8_t>(tmp_y - 0.813f * tmp_r - 0.392f * tmp_b, 0, 255);
-  auto b = clamp<uint8_t>(tmp_y + 2.017f * tmp_b, 0, 255);
+  auto gray = y_to_gray<uint8_t>(ycbcr.x);
+  auto tmp_b = ycbcr.y - 128;
+  auto tmp_r = ycbcr.z - 128;
+  auto r = clamp<uint8_t>(gray + 1.596f * tmp_r, 0, 255);
+  auto g = clamp<uint8_t>(gray - 0.813f * tmp_r - 0.392f * tmp_b, 0, 255);
+  auto b = clamp<uint8_t>(gray + 2.017f * tmp_b, 0, 255);
   return {r, g, b};
 }
 

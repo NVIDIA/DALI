@@ -70,7 +70,7 @@ DALI_HOST_DEV struct Gray_to_YCbCr_Converter {
   static constexpr int in_pixel_sz = 1;
   static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> gray) {
     vec<out_pixel_sz, Out> out;
-    out[0] = ConvertSatNorm<Out>(gray[0]);
+    out[0] = itu_r_bt_601::gray_to_y<Out>(gray[0]);
     out[1] = ConvertNorm<Out>(0.5f);
     out[2] = ConvertNorm<Out>(0.5f);
     return out;
@@ -83,7 +83,7 @@ DALI_HOST_DEV struct YCbCr_to_Gray_Converter {
   static constexpr int in_pixel_sz = 3;
   static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> ycbcr) {
     vec<out_pixel_sz, Out> out;
-    out[0] = ConvertSatNorm<Out>(ycbcr[0]);
+    out[0] = itu_r_bt_601::y_to_gray<Out>(ycbcr[0]);;
     return out;
   }
 };
