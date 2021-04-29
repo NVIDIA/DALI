@@ -27,12 +27,12 @@
 
 #define USE_TF_ALLOCATOR 0
 #if USE_TF_ALLOCATOR
-#include "tfallocator.h"
+#include "dali_tf_plugin/tfallocator.h"
 #endif
 
 #include "dali/c_api.h"
 #include "dali/core/common.h"
-#include "dali_shape_helper.h"
+#include "dali_tf_plugin/dali_shape_helper.h"
 
 typedef std::chrono::high_resolution_clock Clock;
 
@@ -42,7 +42,7 @@ namespace tf = tensorflow;
     do {                                                                           \
       try {                                                                        \
         FUNC;                                                                      \
-      } catch (std::exception &e) {                                            \
+      } catch (std::exception &e) {                                                \
         std::string error = "DALI " + std::string(#FUNC)                           \
                             + " failed: " + std::string(e.what());                 \
         std::cout << error << std::endl;                                           \
@@ -321,7 +321,8 @@ class DaliOp : public tf::OpKernel {
           break;
       }
 
-      TF_DALI_CALL(daliOutputCopy(&pipe_handle_, dst, i, this->device_type_, stream, DALI_ext_default));
+      TF_DALI_CALL(
+          daliOutputCopy(&pipe_handle_, dst, i, this->device_type_, stream, DALI_ext_default));
       if (should_be_sparse_tensor) {
         ++j;
         // copy out shape
