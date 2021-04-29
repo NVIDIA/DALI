@@ -186,17 +186,14 @@ def default_detection_configs():
   h.autoaugment_policy = None
   h.grid_mask = False
   h.sample_image = None
-  h.map_freq = 5  # AP eval frequency in epochs.
 
   # dataset specific parameters
   # TODO(tanmingxing): update this to be 91 for COCO, and 21 for pascal.
   h.num_classes = 90  # 1+ actual classes, 0 is reserved for background.
-  h.seg_num_classes = 3  # segmentation classes
 
   h.skip_crowd_during_training = True
   h.label_map = None  # a dict or a string of 'coco', 'voc', 'waymo'.
   h.max_instances_per_image = 100  # Default to 100 for COCO.
-  h.regenerate_source_id = False
 
   # model architecture
   h.min_level = 3
@@ -205,8 +202,6 @@ def default_detection_configs():
   # ratio w/h: 2.0 means w=1.4, h=0.7. Can be computed with k-mean per dataset.
   h.aspect_ratios = [1.0, 2.0, 0.5]  #[[0.7, 1.4], [1.0, 1.0], [1.4, 0.7]]
   h.anchor_scale = 4.0
-  # is batchnorm training mode
-  h.is_training_bn = True
   # optimization
   h.momentum = 0.9
   h.optimizer = 'sgd'  # can be 'adam' or 'sgd'.
@@ -217,7 +212,6 @@ def default_detection_configs():
   h.second_lr_drop_epoch = 250.0
   h.poly_lr_power = 0.9
   h.clip_gradients_norm = 10.0
-  h.num_epochs = 300
   h.data_format = 'channels_last'
 
   # classification loss
@@ -292,7 +286,7 @@ def default_detection_configs():
 efficientdet_model_param_dict = {
     'efficientdet-d0':
         dict(
-            name='efficientdet-d0',
+            model_name='efficientdet-d0',
             backbone_name='efficientnet-b0',
             image_size=512,
             fpn_num_filters=64,
@@ -301,7 +295,7 @@ efficientdet_model_param_dict = {
         ),
     'efficientdet-d1':
         dict(
-            name='efficientdet-d1',
+            model_name='efficientdet-d1',
             backbone_name='efficientnet-b1',
             image_size=640,
             fpn_num_filters=88,
@@ -310,7 +304,7 @@ efficientdet_model_param_dict = {
         ),
     'efficientdet-d2':
         dict(
-            name='efficientdet-d2',
+            model_name='efficientdet-d2',
             backbone_name='efficientnet-b2',
             image_size=768,
             fpn_num_filters=112,
@@ -328,7 +322,7 @@ efficientdet_model_param_dict = {
         ),
     'efficientdet-d4':
         dict(
-            name='efficientdet-d4',
+            model_name='efficientdet-d4',
             backbone_name='efficientnet-b4',
             image_size=1024,
             fpn_num_filters=224,
@@ -337,7 +331,7 @@ efficientdet_model_param_dict = {
         ),
     'efficientdet-d5':
         dict(
-            name='efficientdet-d5',
+            model_name='efficientdet-d5',
             backbone_name='efficientnet-b5',
             image_size=1280,
             fpn_num_filters=288,
@@ -346,7 +340,7 @@ efficientdet_model_param_dict = {
         ),
     'efficientdet-d6':
         dict(
-            name='efficientdet-d6',
+            model_name='efficientdet-d6',
             backbone_name='efficientnet-b6',
             image_size=1280,
             fpn_num_filters=384,
@@ -356,7 +350,7 @@ efficientdet_model_param_dict = {
         ),
     'efficientdet-d7':
         dict(
-            name='efficientdet-d7',
+            model_name='efficientdet-d7',
             backbone_name='efficientnet-b6',
             image_size=1536,
             fpn_num_filters=384,
@@ -367,7 +361,7 @@ efficientdet_model_param_dict = {
         ),
     'efficientdet-d7x':
         dict(
-            name='efficientdet-d7x',
+            model_name='efficientdet-d7x',
             backbone_name='efficientnet-b7',
             image_size=1536,
             fpn_num_filters=384,
@@ -383,7 +377,7 @@ efficientdet_lite_param_dict = {
     # lite models are in progress and subject to changes.
     'efficientdet-lite0':
         dict(
-            name='efficientdet-lite0',
+            model_name='efficientdet-lite0',
             backbone_name='efficientnet-lite0',
             image_size=320,
             fpn_num_filters=64,
@@ -395,7 +389,7 @@ efficientdet_lite_param_dict = {
         ),
     'efficientdet-lite1':
         dict(
-            name='efficientdet-lite1',
+            model_name='efficientdet-lite1',
             backbone_name='efficientnet-lite1',
             image_size=384,
             fpn_num_filters=88,
@@ -407,7 +401,7 @@ efficientdet_lite_param_dict = {
         ),
     'efficientdet-lite2':
         dict(
-            name='efficientdet-lite2',
+            model_name='efficientdet-lite2',
             backbone_name='efficientnet-lite2',
             image_size=448,
             fpn_num_filters=112,
@@ -419,7 +413,7 @@ efficientdet_lite_param_dict = {
         ),
     'efficientdet-lite3':
         dict(
-            name='efficientdet-lite3',
+            model_name='efficientdet-lite3',
             backbone_name='efficientnet-lite3',
             image_size=512,
             fpn_num_filters=160,
@@ -430,7 +424,7 @@ efficientdet_lite_param_dict = {
         ),
     'efficientdet-lite4':
         dict(
-            name='efficientdet-lite4',
+            model_name='efficientdet-lite4',
             backbone_name='efficientnet-lite4',
             image_size=512,
             fpn_num_filters=224,
@@ -446,17 +440,11 @@ def get_efficientdet_config(model_name='efficientdet-d1'):
   """Get the default config for EfficientDet based on model name."""
   h = default_detection_configs()
   if model_name in efficientdet_model_param_dict:
-    h.override(efficientdet_model_param_dict[model_name])
+    h.override(efficientdet_model_param_dict[model_name], allow_new_keys=True)
   elif model_name in efficientdet_lite_param_dict:
-    h.override(efficientdet_lite_param_dict[model_name])
+    h.override(efficientdet_lite_param_dict[model_name], allow_new_keys=True)
   else:
     raise ValueError('Unknown model name: {}'.format(model_name))
 
   return h
 
-
-def get_detection_config(model_name):
-  if model_name.startswith('efficientdet'):
-    return get_efficientdet_config(model_name)
-  else:
-    raise ValueError('model name must start with efficientdet.')

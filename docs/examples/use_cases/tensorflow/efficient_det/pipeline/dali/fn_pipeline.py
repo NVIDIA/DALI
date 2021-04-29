@@ -1,5 +1,4 @@
 import nvidia.dali as dali
-
 import nvidia.dali.plugin.tf as dali_tf
 import tensorflow as tf
 
@@ -11,25 +10,25 @@ from . import ops
 
 
 class EfficientDetPipeline():
-    def __init__(self, file_pattern,
-                 batch_size, image_size, seed,
-                 num_threads=1, device_id=None):
+    def __init__(self, params, batch_size, file_pattern,
+                 num_shards=1, device_id=0, cpu_only=False):
 
-        self._batch_size = batch_size
-        self._image_size = image_size
+        self._batch_size = batch_size 
+        self._image_size = params["image_size"]
         self._tfrecord_files = glob(file_pattern)
         self._tfrecord_idxs = [filename + "_idx" for filename in self._tfrecord_files]
        
-        self._num_shards = num_threads
-        self._shard_id = 0 if device_id is None else device_id
-        self._device = "cpu" if device_id is None else "gpu"
+        self._num_shards = num_shards
+        self._shard_id = None if cpu_only else device_id
+        self._device = "cpu" if cpu_only else "gpu"
 
-        self._anchors = anchors.Anchors(3, 7, 3, [1.0, 2.0, 0.5], 4.0, image_size)
+        self._anchors = anchors.Anchors(3, 7, 3, [1.0, 2.0, 0.5], 4.0, params["image_size"])
         self._boxes = self._get_boxes()
+        seed = params["seed"] or -1
 
         self._pipe = dali.pipeline.Pipeline(
-            batch_size = batch_size,
-            num_threads = num_threads,
+            batch_size = self._batch_size,
+            num_threads = self._num_shards,
             device_id = device_id,
             seed = seed
         )
@@ -103,7 +102,7 @@ class EfficientDetPipeline():
         return enc_bboxes_layers, enc_classes_layers
 
 
-    def __call__(self, params):
+    def get_dataset(self):
         output_shapes = [(self._batch_size, self._image_size[0], self._image_size[1], 3)]
         output_dtypes = [tf.float32]
 
@@ -130,7 +129,6 @@ class EfficientDetPipeline():
 
     def build(self):
         self._pipe.build()
-
 
     def run(self):
         return self._pipe.run()

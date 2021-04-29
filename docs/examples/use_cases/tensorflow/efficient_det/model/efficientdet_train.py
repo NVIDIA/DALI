@@ -25,9 +25,9 @@ from . import efficientdet_net
 
 _DEFAULT_BATCH_SIZE = 64
 
-def get_optimizer(params):
+def get_optimizer(params, *args):
   """Get optimizer."""
-  learning_rate = learning_rate_schedule(params)
+  learning_rate = learning_rate_schedule(params, *args)
   if params['optimizer'].lower() == 'sgd':
     logging.info('Use SGD optimizer')
     optimizer = tf.keras.optimizers.SGD(learning_rate, momentum=params["momentum"])
@@ -47,33 +47,27 @@ def get_optimizer(params):
   return optimizer
 
 
-def update_learning_rate_schedule_parameters(params):
+def update_learning_rate_schedule_parameters(params, epochs, global_batch_size, steps_per_epoch):
   """Updates params that are related to the learning rate schedule."""
-  # params['batch_size'] is per-shard within model_fn if strategy=tpu.
-  batch_size = (
-      params['batch_size'] * params['num_shards']
-      if params['strategy'] == 'gpus' else params['batch_size'])
   # Learning rate is proportional to the batch size
   params['adjusted_learning_rate'] = (
-      params['learning_rate'] * batch_size / _DEFAULT_BATCH_SIZE)
+      params['learning_rate'] * global_batch_size / _DEFAULT_BATCH_SIZE)
 
   if 'lr_warmup_init' in params:
     params['adjusted_lr_warmup_init'] = (
-        params['lr_warmup_init'] * batch_size / _DEFAULT_BATCH_SIZE)
+        params['lr_warmup_init'] * global_batch_size / _DEFAULT_BATCH_SIZE)
 
-  steps_per_epoch = params['num_examples_per_epoch'] / batch_size
   params['lr_warmup_step'] = int(params['lr_warmup_epoch'] * steps_per_epoch)
   params['first_lr_drop_step'] = int(params['first_lr_drop_epoch'] *
                                      steps_per_epoch)
   params['second_lr_drop_step'] = int(params['second_lr_drop_epoch'] *
                                       steps_per_epoch)
-  params['total_steps'] = int(params['num_epochs'] * steps_per_epoch)
-  params['steps_per_epoch'] = steps_per_epoch
+  params['total_steps'] = epochs * steps_per_epoch
 
 
-def learning_rate_schedule(params):
+def learning_rate_schedule(params, *args):
   """Learning rate schedule based on global step."""
-  update_learning_rate_schedule_parameters(params)
+  update_learning_rate_schedule_parameters(params, *args)
   lr_decay_method = params['lr_decay_method']
   if lr_decay_method == 'stepwise':
     return StepwiseLrSchedule(params['adjusted_learning_rate'],
@@ -457,10 +451,10 @@ class EfficientDetTrain(efficientdet_net.EfficientDetNet):
         tf.nn.l2_loss(v) for v in self.trainable_variables if var_match.match(v.name)
     ])
 
+
   def train_step(self, inputs):
       features = inputs[0]
       labels = {}
-      #config = copy.deepcopy(self.config) 
       config = self.config
 
       for level in range(config.min_level, config.max_level + 1):

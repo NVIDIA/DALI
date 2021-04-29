@@ -265,58 +265,6 @@ def batch_normalization(inputs, training=False, strategy=None, **kwargs):
   return bn_layer(inputs, training=training)
 
 
-def batch_norm_act(inputs,
-                   is_training_bn: bool,
-                   act_type: Union[Text, None],
-                   init_zero: bool = False,
-                   data_format: Text = 'channels_last',
-                   momentum: float = 0.99,
-                   epsilon: float = 1e-3,
-                   strategy: Text = None,
-                   name: Text = None):
-  """Performs a batch normalization followed by a non-linear activation.
-
-  Args:
-    inputs: `Tensor` of shape `[batch, channels, ...]`.
-    is_training_bn: `bool` for whether the model is training.
-    act_type: non-linear relu function type. If None, omits the relu operation.
-    init_zero: `bool` if True, initializes scale parameter of batch
-      normalization with 0 instead of 1 (default).
-    data_format: `str` either "channels_first" for `[batch, channels, height,
-      width]` or "channels_last for `[batch, height, width, channels]`.
-    momentum: `float`, momentume of batch norm.
-    epsilon: `float`, small value for numerical stability.
-    strategy: string to specify training strategy for TPU/GPU/CPU.
-    name: the name of the batch normalization layer
-
-  Returns:
-    A normalized `Tensor` with the same `data_format`.
-  """
-  if init_zero:
-    gamma_initializer = tf.zeros_initializer()
-  else:
-    gamma_initializer = tf.ones_initializer()
-
-  if data_format == 'channels_first':
-    axis = 1
-  else:
-    axis = 3
-
-  inputs = batch_normalization(
-      inputs=inputs,
-      axis=axis,
-      momentum=momentum,
-      epsilon=epsilon,
-      center=True,
-      scale=True,
-      training=is_training_bn,
-      strategy=strategy,
-      gamma_initializer=gamma_initializer,
-      name=name)
-
-  if act_type:
-    inputs = activation_fn(inputs, act_type)
-  return inputs
 
 
 def drop_connect(inputs, is_training, survival_prob):
