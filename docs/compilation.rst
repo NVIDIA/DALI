@@ -256,6 +256,7 @@ For the recommended dependency versions please check https://github.com/NVIDIA/D
     --disable-filters \
     --disable-bsfs \
     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes && \
+    sed -i 's/\$\$(M)sed '\''s\/MAJOR\/\$(lib$(NAME)_VERSION_MAJOR)\/'\'' \$\$< | \$(VERSION_SCRIPT_POSTPROCESS_CMD) > \$\$\@/\$\$(M)sed '\''s\/MAJOR\/\$(lib$(NAME)_VERSION_MAJOR)\/'\'' \$\$< | sed '\''s\/\\(\.*{\\)\/DALI_\\1\/'\'' | \$(VERSION_SCRIPT_POSTPROCESS_CMD) > \$\$\@/' ffbuild/library.mak \
     make
 
 .. note::
