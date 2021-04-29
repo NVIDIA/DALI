@@ -25,7 +25,7 @@ namespace mm {
 namespace test {
 
 TEST(MMDefaultResource, Host) {
-  const auto &rsrc = GetDefaultResource<memory_kind::host>();
+  auto *rsrc = GetDefaultResource<memory_kind::host>();
   ASSERT_NE(rsrc, nullptr);
   char *mem = static_cast<char*>(rsrc->allocate(1000, 32));
   ASSERT_NE(mem, nullptr);
@@ -38,9 +38,11 @@ TEST(MMDefaultResource, Pinned) {
   char *dev = nullptr;
   CUDA_CALL(cudaMalloc(&dev, 1000));
   CUDA_CALL(cudaMemset(dev, 0, 1000));
-  const auto &rsrc = GetDefaultResource<memory_kind::pinned>();
-  CUDAStream stream = CUDAStream::Create(true);
+
+  auto *rsrc = GetDefaultResource<memory_kind::pinned>();
   ASSERT_NE(rsrc, nullptr);
+
+  CUDAStream stream = CUDAStream::Create(true);
   char *mem = static_cast<char*>(rsrc->allocate(1000, 32));
   ASSERT_NE(mem, nullptr);
   EXPECT_TRUE(mm::detail::is_aligned(mem, 32));
@@ -69,10 +71,10 @@ TEST(MMDefaultResource, Device) {
   for (int i = 0; i < 1000; i++)
     stage[i] = i + 42;
 
-  const auto &rsrc = GetDefaultResource<memory_kind::device>();
+  auto *rsrc = GetDefaultResource<memory_kind::device>();
+  ASSERT_NE(rsrc, nullptr);
 
   CUDAStream stream = CUDAStream::Create(true);
-  ASSERT_NE(rsrc, nullptr);
   char *mem = static_cast<char*>(rsrc->allocate(1000, 32));
   ASSERT_NE(mem, nullptr);
 
@@ -101,7 +103,7 @@ TEST(MMDefaultResource, MultiDevice) {
 
     vector<async_memory_resource<memory_kind::device>*> resources(ndev, nullptr);
     for (int i = 0; i < ndev; i++) {
-      resources[i] = GetDefaultDeviceResource(i).get();
+      resources[i] = GetDefaultDeviceResource(i);
       for (int j = 0; j < i; j++) {
         EXPECT_NE(resources[i], resources[j]) << "Got the same resource for different devices";
       }
@@ -109,7 +111,7 @@ TEST(MMDefaultResource, MultiDevice) {
 
     for (int i = 0; i < ndev; i++) {
       cudaSetDevice(i);
-      auto *rsrc = GetDefaultResource<memory_kind::device>().get();
+      auto *rsrc = GetDefaultResource<memory_kind::device>();
       EXPECT_EQ(rsrc, resources[i]) << "Got different default resource when asked for a specific "
                                        "device than for current device.";
     }
@@ -145,7 +147,7 @@ template <memory_kind kind>
 void TestSetDefaultResource() {
   DummyResource<kind> dummy;
   SetDefaultResource<kind>(&dummy, false);
-  EXPECT_EQ(GetDefaultResource<kind>().get(), &dummy);
+  EXPECT_EQ(GetDefaultResource<kind>(), &dummy);
   SetDefaultResource<kind>(nullptr, false);
 }
 

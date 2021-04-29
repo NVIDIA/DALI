@@ -147,17 +147,18 @@ inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
   return make_shared_composite_resource(std::move(rsrc), std::move(upstream));
 }
 
-}  // namespace
+template <memory_kind kind>
+const std::shared_ptr<default_memory_resource_t<kind>> &ShareDefaultResourceImpl();
 
-template <> DLL_PUBLIC
-const std::shared_ptr<host_memory_resource> &GetDefaultResource<memory_kind::host>() {
+template <>
+const std::shared_ptr<host_memory_resource> &ShareDefaultResourceImpl<memory_kind::host>() {
   if (!g_resources.host)
     g_resources.host = CreateDefaultHostResource();
   return g_resources.host;
 }
 
-template <> DLL_PUBLIC
-const std::shared_ptr<pinned_async_resource> &GetDefaultResource<memory_kind::pinned>() {
+template <>
+const std::shared_ptr<pinned_async_resource> &ShareDefaultResourceImpl<memory_kind::pinned>() {
   if (!g_resources.pinned_async) {
     static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
     static auto cleanup = AtExit([] {
@@ -167,6 +168,36 @@ const std::shared_ptr<pinned_async_resource> &GetDefaultResource<memory_kind::pi
   }
   return g_resources.pinned_async;
 }
+
+const std::shared_ptr<device_async_resource> &ShareDefaultDeviceResourceImpl(int device_id) {
+  if (device_id < 0) {
+    CUDA_CALL(cudaGetDevice(&device_id));
+  }
+  if (g_resources.device.empty()) {
+    int ndevs = 0;
+    CUDA_CALL(cudaGetDeviceCount(&ndevs));
+    g_resources.device.resize(ndevs);
+  }
+  if (static_cast<size_t>(device_id) >= g_resources.device.size())
+    throw std::out_of_range(make_string(device_id, " is not a valid CUDA device index."));
+  if (!g_resources.device[device_id]) {
+    DeviceGuard devg(device_id);
+    static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
+    static auto cleanup = AtExit([] {
+      g_resources.ReleaseDevice();
+    });
+    g_resources.device[device_id] = CreateDefaultDeviceResource();
+  }
+  return g_resources.device[device_id];
+}
+
+template <>
+const std::shared_ptr<device_async_resource> &ShareDefaultResourceImpl<memory_kind::device>() {
+  return ShareDefaultDeviceResourceImpl(-1);
+}
+
+}  // namespace
+
 
 template <> DLL_PUBLIC
 void SetDefaultResource<memory_kind::host>(shared_ptr<host_memory_resource> resource) {
@@ -192,33 +223,6 @@ void SetDefaultResource<memory_kind::pinned>(pinned_async_resource *resource, bo
 }
 
 
-const std::shared_ptr<device_async_resource> &GetDefaultDeviceResource(int device_id) {
-  if (device_id < 0) {
-    CUDA_CALL(cudaGetDevice(&device_id));
-  }
-  if (g_resources.device.empty()) {
-    int ndevs = 0;
-    CUDA_CALL(cudaGetDeviceCount(&ndevs));
-    g_resources.device.resize(ndevs);
-  }
-  if (static_cast<size_t>(device_id) >= g_resources.device.size())
-    throw std::out_of_range(make_string(device_id, " is not a valid CUDA device index."));
-  if (!g_resources.device[device_id]) {
-    DeviceGuard devg(device_id);
-    static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
-    static auto cleanup = AtExit([] {
-      g_resources.ReleaseDevice();
-    });
-    g_resources.device[device_id] = CreateDefaultDeviceResource();
-  }
-  return g_resources.device[device_id];
-}
-
-template <> DLL_PUBLIC
-const std::shared_ptr<device_async_resource> &GetDefaultResource<memory_kind::device>() {
-  return GetDefaultDeviceResource(-1);
-}
-
 void SetDefaultDeviceResource(int device_id, std::shared_ptr<device_async_resource> resource) {
   int ndevs = 0;
   CUDA_CALL(cudaGetDeviceCount(&ndevs));
@@ -242,6 +246,34 @@ void SetDefaultResource<memory_kind::device>(std::shared_ptr<device_async_resour
 template <> DLL_PUBLIC
 void SetDefaultResource<memory_kind::device>(device_async_resource *resource, bool own) {
   SetDefaultResource<memory_kind::device>(wrap(resource, own));
+}
+
+template <memory_kind kind> DLL_PUBLIC
+std::shared_ptr<default_memory_resource_t<kind>> ShareDefaultResource() {
+  return ShareDefaultResourceImpl<kind>();
+}
+
+template <memory_kind kind> DLL_PUBLIC
+default_memory_resource_t<kind> *GetDefaultResource() {
+  return ShareDefaultResourceImpl<kind>().get();
+}
+
+#define INSTANTIATE_DEFAULT_RESOURCE_GETTERS(kind) \
+template DLL_PUBLIC std::shared_ptr<default_memory_resource_t<kind>> ShareDefaultResource<kind>(); \
+template DLL_PUBLIC default_memory_resource_t<kind> *GetDefaultResource<kind>();
+
+INSTANTIATE_DEFAULT_RESOURCE_GETTERS(memory_kind::host);
+INSTANTIATE_DEFAULT_RESOURCE_GETTERS(memory_kind::pinned);
+INSTANTIATE_DEFAULT_RESOURCE_GETTERS(memory_kind::device);
+
+DLL_PUBLIC
+std::shared_ptr<device_async_resource> ShareDefaultDeviceResource(int device_id) {
+  return ShareDefaultDeviceResourceImpl(device_id);
+}
+
+DLL_PUBLIC
+device_async_resource *GetDefaultDeviceResource(int device_id) {
+  return ShareDefaultDeviceResourceImpl(device_id).get();
 }
 
 }  // namespace mm

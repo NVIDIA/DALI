@@ -46,10 +46,16 @@ using default_memory_resource_t = typename DefaultMemoryResourceType<kind>::type
 
 
 /**
- * @brief Gets current memory resource for allocating memory of given kind.
+ * @brief Gets a shared poitner to the current memory resource for allocating memory of given kind.
  */
 template <memory_kind kind>
-DLL_PUBLIC const std::shared_ptr<default_memory_resource_t<kind>> &GetDefaultResource();
+DLL_PUBLIC std::shared_ptr<default_memory_resource_t<kind>> ShareDefaultResource();
+
+/**
+ * @brief Gets a pointer to the current memory resource for allocating memory of given kind.
+ */
+template <memory_kind kind>
+DLL_PUBLIC default_memory_resource_t<kind> *GetDefaultResource();
 
 /**
  * @brief Sets current memory resource for allocating memory of given kind.
@@ -68,24 +74,33 @@ template <memory_kind kind>
 DLL_PUBLIC void SetDefaultResource(std::shared_ptr<default_memory_resource_t<kind>> resource);
 
 /**
+ * @brief Gets a shared pointer to a memory resource.
+ *
+ * @param device_id Device index; if negative, current device is used.
+ */
+DLL_PUBLIC
+std::shared_ptr<device_async_resource> ShareDefaultDeviceResource(int device_id = -1);
+
+/**
  * @brief Gets device memory resource.
  *
  * @param device_id Device index; if negative, current device is used.
  */
 DLL_PUBLIC
-const std::shared_ptr<device_async_resource> &GetDefaultDeviceResource(int device_id = -1);
+device_async_resource *GetDefaultDeviceResource(int device_id = -1);
 
 /**
- * @brief Sets the device host memory resource for a specific device, optionally granting ownership.
+ * @brief Sets the device memory resource for a specific device, optionally granting ownership.
  *
- * If `own` is true, the resource will be managed by the library. If an exception is thrown
- * inside this function, the memory resource will be deleted.
+ * If `own` is true, the resource will be managed by the library.
+ * The ownership is assumed as soon as the function is called - if an exception happens inside,
+ * the resource will be deleted.
  */
 DLL_PUBLIC
 void SetDefaultDeviceResource(int device_id, device_async_resource *resource, bool own);
 
 /**
- * @brief Sets the device host memory resource for a specific device.
+ * @brief Sets the device memory resource for a specific device.
  */
 DLL_PUBLIC
 void SetDefaultDeviceResource(int device_id, std::shared_ptr<device_async_resource> resource);
