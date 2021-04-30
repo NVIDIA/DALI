@@ -613,9 +613,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       auto i = sample->sample_idx;
       auto *output_data = output.mutable_tensor<uint8_t>(i);
       const auto &in = ws.Input<CPUBackend>(0, i);
-      ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
       thread_pool_.AddWork(
-        [this, sample, &in, output_data, shape](int tid) {
+        [this, sample, &in, output_data](int tid) {
           SampleWorker(sample->sample_idx, sample->file_name, in.size(), tid,
             in.data<uint8_t>(), output_data, streams_[tid]);
         }, task_priority_seq_--);  // FIFO order, since the samples were already ordered

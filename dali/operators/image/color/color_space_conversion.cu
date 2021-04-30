@@ -32,7 +32,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   const auto &in_sh = in_view.shape;
   int nsamples = in_sh.num_samples();
   auto stream = ws.stream();
-  for (unsigned int i = 0; i < nsamples; ++i) {
+  for (int i = 0; i < nsamples; ++i) {
     auto sample_sh = in_sh.tensor_shape_span(i);
     int64_t npixels = volume(sample_sh.begin(), sample_sh.end() - 1);
     kernels::color::RunColorSpaceConversionKernel(out_view[i].data, in_view[i].data, output_type_,

@@ -24,10 +24,10 @@ namespace kernels {
 namespace color {
 
 template <typename Out, typename In>
-DALI_HOST_DEV struct RGB_to_BGR_Converter {
+struct RGB_to_BGR_Converter {
   static constexpr int out_pixel_sz = 3;
   static constexpr int in_pixel_sz = 3;
-  static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> rgb) {
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> rgb) {
     vec<out_pixel_sz, Out> out;
     out[0] = ConvertSatNorm<Out>(rgb[2]);
     out[1] = ConvertSatNorm<Out>(rgb[1]);
@@ -37,38 +37,38 @@ DALI_HOST_DEV struct RGB_to_BGR_Converter {
 };
 
 template <typename Out, typename In>
-DALI_HOST_DEV struct RGB_to_Gray_Converter {
+struct RGB_to_Gray_Converter {
   static constexpr int out_pixel_sz = 1;
   static constexpr int in_pixel_sz = 3;
-  static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> rgb) {
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> rgb) {
     return rgb_to_gray<Out>(rgb);
   }
 };
 
 template <typename Out, typename In>
-DALI_HOST_DEV struct BGR_to_Gray_Converter {
+struct BGR_to_Gray_Converter {
   static constexpr int out_pixel_sz = 1;
   static constexpr int in_pixel_sz = 3;
-  static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> bgr) {
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> bgr) {
     return RGB_to_Gray_Converter<Out, In>::convert(
       RGB_to_BGR_Converter<In, In>::convert(bgr));
   }
 };
 
 template <typename Out, typename In>
-DALI_HOST_DEV struct Gray_to_RGB_Converter {
+struct Gray_to_RGB_Converter {
   static constexpr int out_pixel_sz = 3;
   static constexpr int in_pixel_sz = 1;
-  static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> gray) {
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> gray) {
     return vec<out_pixel_sz, Out>(gray[0]);
   }
 };
 
 template <typename Out, typename In>
-DALI_HOST_DEV struct Gray_to_YCbCr_Converter {
+struct Gray_to_YCbCr_Converter {
   static constexpr int out_pixel_sz = 3;
   static constexpr int in_pixel_sz = 1;
-  static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> gray) {
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> gray) {
     vec<out_pixel_sz, Out> out;
     out[0] = itu_r_bt_601::gray_to_y<Out>(gray[0]);
     out[1] = ConvertNorm<Out>(0.5f);
@@ -78,21 +78,21 @@ DALI_HOST_DEV struct Gray_to_YCbCr_Converter {
 };
 
 template <typename Out, typename In>
-DALI_HOST_DEV struct YCbCr_to_Gray_Converter {
+struct YCbCr_to_Gray_Converter {
   static constexpr int out_pixel_sz = 1;
   static constexpr int in_pixel_sz = 3;
-  static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> ycbcr) {
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> ycbcr) {
     vec<out_pixel_sz, Out> out;
-    out[0] = itu_r_bt_601::y_to_gray<Out>(ycbcr[0]);;
+    out[0] = itu_r_bt_601::y_to_gray<Out>(ycbcr[0]);
     return out;
   }
 };
 
 template <typename Out, typename In>
-DALI_HOST_DEV struct RGB_to_YCbCr_Converter {
+struct RGB_to_YCbCr_Converter {
   static constexpr int out_pixel_sz = 3;
   static constexpr int in_pixel_sz = 3;
-  static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> rgb) {
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> rgb) {
     vec<out_pixel_sz, Out> out;
     out[0] = itu_r_bt_601::rgb_to_y<Out>(rgb);
     out[1] = itu_r_bt_601::rgb_to_cb<Out>(rgb);
@@ -102,47 +102,47 @@ DALI_HOST_DEV struct RGB_to_YCbCr_Converter {
 };
 
 template <typename Out, typename In>
-DALI_HOST_DEV struct BGR_to_YCbCr_Converter {
+struct BGR_to_YCbCr_Converter {
   static constexpr int out_pixel_sz = 3;
   static constexpr int in_pixel_sz = 3;
-  static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> bgr) {
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> bgr) {
     return RGB_to_YCbCr_Converter<Out, In>::convert(
       RGB_to_BGR_Converter<In, In>::convert(bgr));
   }
 };
 
 template <typename Out, typename In>
-DALI_HOST_DEV struct YCbCr_to_RGB_Converter {
+struct YCbCr_to_RGB_Converter {
   static constexpr int out_pixel_sz = 3;
   static constexpr int in_pixel_sz = 3;
-  static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> ycbcr) {
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> ycbcr) {
     return itu_r_bt_601::ycbcr_to_rgb<Out>(ycbcr);
   }
 };
 
 template <typename Out, typename In>
-DALI_HOST_DEV struct YCbCr_to_BGR_Converter {
+struct YCbCr_to_BGR_Converter {
   static constexpr int out_pixel_sz = 3;
   static constexpr int in_pixel_sz = 3;
-  static DALI_HOST_DEV vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> ycbcr) {
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> ycbcr) {
     return RGB_to_BGR_Converter<Out, In>::convert(
       YCbCr_to_RGB_Converter<Out, Out>::convert(ycbcr));
   }
 };
 
-template<typename Converter, typename Out, typename In>
+template <typename Converter, typename Out, typename In>
 __global__ void ColorSpaceConvKernel(Out *output, const In *input, int64_t sz) {
   int64_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= sz) {
     return;
   }
   vec<Converter::in_pixel_sz, In> pixel;
-  #pragma unroll
+#pragma unroll
   for (int c = 0; c < Converter::in_pixel_sz; c++) {
     pixel[c] = input[idx * Converter::in_pixel_sz + c];
   }
   auto out_pixel = Converter::convert(pixel);
-  #pragma unroll
+#pragma unroll
   for (int c = 0; c < Converter::out_pixel_sz; c++) {
     output[idx * Converter::out_pixel_sz + c] = out_pixel[c];
   }
@@ -150,27 +150,26 @@ __global__ void ColorSpaceConvKernel(Out *output, const In *input, int64_t sz) {
 
 // TODO(janton): Write a generic batched color space conversion kernel template
 template <typename Out, typename In>
-void RunColorSpaceConversionKernel(Out *output, const In *input,
-                                   DALIImageType out_type, DALIImageType in_type,
-                                   int64_t npixels, cudaStream_t stream) {
+void RunColorSpaceConversionKernel(Out *output, const In *input, DALIImageType out_type,
+                                   DALIImageType in_type, int64_t npixels, cudaStream_t stream) {
   // For CUDA kernel
   const unsigned int block = npixels < 1024 ? npixels : 1024;
   const unsigned int grid = (npixels + block - 1) / block;
 
   using ImageTypePair = std::pair<DALIImageType, DALIImageType>;
-  ImageTypePair conversion {in_type, out_type};
-  const ImageTypePair kRGB_TO_BGR { DALI_RGB, DALI_BGR };
-  const ImageTypePair kBGR_TO_RGB { DALI_BGR, DALI_RGB };
-  const ImageTypePair kRGB_TO_YCbCr { DALI_RGB, DALI_YCbCr };
-  const ImageTypePair kBGR_TO_YCbCr { DALI_BGR, DALI_YCbCr };
-  const ImageTypePair kRGB_TO_GRAY { DALI_RGB, DALI_GRAY };
-  const ImageTypePair kBGR_TO_GRAY { DALI_BGR, DALI_GRAY };
-  const ImageTypePair kYCbCr_TO_BGR { DALI_YCbCr, DALI_BGR };
-  const ImageTypePair kYCbCr_TO_RGB { DALI_YCbCr, DALI_RGB };
-  const ImageTypePair kYCbCr_TO_GRAY { DALI_YCbCr, DALI_GRAY };
-  const ImageTypePair kGRAY_TO_RGB { DALI_GRAY, DALI_RGB };
-  const ImageTypePair kGRAY_TO_BGR { DALI_GRAY, DALI_BGR };
-  const ImageTypePair kGRAY_TO_YCbCr { DALI_GRAY, DALI_YCbCr };
+  ImageTypePair conversion{in_type, out_type};
+  const ImageTypePair kRGB_TO_BGR{DALI_RGB, DALI_BGR};
+  const ImageTypePair kBGR_TO_RGB{DALI_BGR, DALI_RGB};
+  const ImageTypePair kRGB_TO_YCbCr{DALI_RGB, DALI_YCbCr};
+  const ImageTypePair kBGR_TO_YCbCr{DALI_BGR, DALI_YCbCr};
+  const ImageTypePair kRGB_TO_GRAY{DALI_RGB, DALI_GRAY};
+  const ImageTypePair kBGR_TO_GRAY{DALI_BGR, DALI_GRAY};
+  const ImageTypePair kYCbCr_TO_BGR{DALI_YCbCr, DALI_BGR};
+  const ImageTypePair kYCbCr_TO_RGB{DALI_YCbCr, DALI_RGB};
+  const ImageTypePair kYCbCr_TO_GRAY{DALI_YCbCr, DALI_GRAY};
+  const ImageTypePair kGRAY_TO_RGB{DALI_GRAY, DALI_RGB};
+  const ImageTypePair kGRAY_TO_BGR{DALI_GRAY, DALI_BGR};
+  const ImageTypePair kGRAY_TO_YCbCr{DALI_GRAY, DALI_YCbCr};
 
   if (conversion == kRGB_TO_BGR || conversion == kBGR_TO_RGB) {
     ColorSpaceConvKernel<RGB_to_BGR_Converter<Out, In>, Out, In>

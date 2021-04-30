@@ -35,6 +35,7 @@ class ColorSpaceConversion : public Operator<Backend> {
 
  protected:
   bool CanInferOutputs() const override { return true; }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const workspace_t<Backend> &ws) override {
     output_desc.resize(1);
@@ -43,11 +44,9 @@ class ColorSpaceConversion : public Operator<Backend> {
     auto ndim = in_sh.sample_dim();
     int nsamples = in_sh.num_samples();
     auto in_layout = input.GetLayout();
-    int channel_dim = ndim - 1;
+    int channel_dim = in_layout.find('C');
+    assert(channel_dim == ndim - 1);  // shoulb be enforced by input layouts
     DALI_ENFORCE(IsType<uint8_t>(input.type()), "Color space conversion accept only uint8 tensors");
-    DALI_ENFORCE(
-        in_layout.empty() || in_layout.find('C') == channel_dim,
-        make_string("Channel dimension should be the last in the layout. Got ", in_layout));
     auto out_sh = in_sh;
     for (int i = 0; i < in_sh.num_samples(); i++) {
       int c = in_sh.tensor_shape_span(i)[channel_dim];
