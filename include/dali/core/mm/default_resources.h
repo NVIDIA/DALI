@@ -46,7 +46,7 @@ using default_memory_resource_t = typename DefaultMemoryResourceType<kind>::type
 
 
 /**
- * @brief Gets a shared poitner to the current memory resource for allocating memory of given kind.
+ * @brief Gets a shared pointer to the current memory resource for allocating memory of given kind.
  */
 template <memory_kind kind>
 DLL_PUBLIC std::shared_ptr<default_memory_resource_t<kind>> ShareDefaultResource();
@@ -58,7 +58,8 @@ template <memory_kind kind>
 DLL_PUBLIC default_memory_resource_t<kind> *GetDefaultResource();
 
 /**
- * @brief Sets current memory resource for allocating memory of given kind.
+ * @brief Sets current memory resource for allocating memory of given kind,
+ *        optionally granting ownership.
  *
  * If `own` is true, the resource will be managed by the library.
  * The ownership is assumed as soon as the function is called - if an exception happens inside,
@@ -90,7 +91,8 @@ DLL_PUBLIC
 device_async_resource *GetDefaultDeviceResource(int device_id = -1);
 
 /**
- * @brief Sets the device memory resource for a specific device, optionally granting ownership.
+ * @brief Sets the default device memory resource for a specific device,
+ *        optionally granting ownership.
  *
  * If `own` is true, the resource will be managed by the library.
  * The ownership is assumed as soon as the function is called - if an exception happens inside,
