@@ -242,6 +242,16 @@ inline void Shutdown() {
   CUDA_CALL(nvmlShutdown());
 }
 
+/**
+ * Checks, whether CUDA11-proper NVML functions have been successfully loaded
+ */
+inline bool HasCuda11NvmlFunctions() {
+  if (!nvmlIsInitialized()) {
+    return false;
+  }
+  return nvmlHasCuda11NvmlFunctions();
+}
+
 #if (CUDART_VERSION >= 11000)
 
 /**
@@ -301,17 +311,6 @@ inline bool HasHwDecoder() {
   }
   return false;
 }
-#endif
-
-/**
- * Checks, whether CUDA11-proper NVML functions have been successfully loaded
- */
-inline bool HasCuda11NvmlFunctions() {
-  if (!nvmlIsInitialized()) {
-    return false;
-  }
-  return nvmlHasCuda11NvmlFunctions();
-}
 
 inline bool isHWDecoderSupported() {
   if (nvml::HasCuda11NvmlFunctions()) {
@@ -319,6 +318,13 @@ inline bool isHWDecoderSupported() {
   }
   return false;
 }
+#else
+
+inline bool isHWDecoderSupported()  {
+  return false;
+}
+
+#endif
 
 }  // namespace nvml
 }  // namespace dali
