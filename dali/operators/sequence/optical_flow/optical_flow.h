@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <vector>
+#include "dali/core/cuda_event.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/operator.h"
@@ -66,6 +67,7 @@ class OpticalFlow : public Operator<Backend> {
     DALI_ENFORCE((enable_external_hints_ && spec.NumInput() == 2) || !enable_external_hints_,
                  "Incorrect number of inputs. Expected: 2, Obtained: " +
                  std::to_string(spec.NumInput()));
+    sync_ = CUDAEvent::Create(device_id_);
   }
 
   ~OpticalFlow() = default;
@@ -170,6 +172,7 @@ class OpticalFlow : public Operator<Backend> {
   int frames_width_ = -1, frames_height_ = -1, depth_ = -1, nsequences_ = -1;
   int hints_width_ = -1, hints_height_ = -1, hints_depth_ = -1;
   std::vector<int> sequence_sizes_;
+  CUDAEvent sync_;
 };
 
 }  // namespace dali
