@@ -270,6 +270,6 @@ def check_container(cont):
     for _ in range(iter_num):
         pipe.run()
 
-def check_container():
+def test_container():
     for cont in video_types:
-        yield test_container, cont
+        yield check_container, cont
