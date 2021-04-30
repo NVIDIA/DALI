@@ -22,6 +22,7 @@ import time
 import numpy as np
 
 from paddle import fluid
+import paddle
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
@@ -304,4 +305,7 @@ if __name__ == '__main__':
     FLAGS = parser.parse_args()
     assert FLAGS.data, "error: must provide data path"
 
+    # In PaddlePaddle 2.x, we turn on dynamic graph mode by default, and 'data()' is only supported in static graph mode.
+    # So if you want to use this api, please call 'paddle.enable_static()' before this api to enter static graph mode.
+    paddle.enable_static()
     main()

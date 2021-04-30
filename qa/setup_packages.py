@@ -352,11 +352,11 @@ class CudaHttpPackage(CudaPackage):
 
 all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
                 CudaPackage("cupy",
-                        { "100" : ["8.0.0"],
-                          "110" : ["8.0.0"] },
+                        { "100" : ["8.6.0"],
+                          "110" : ["8.6.0"] },
                         "cupy-cuda{cuda_v}"),
                 CudaPackage("mxnet",
-                        { "100" : ["1.7.0"] },
+                        { "100" : ["1.8.0.post0"] },
                         "mxnet-cu{cuda_v}"),
                 CudaPackage("tensorflow-gpu",
                         { "100" : [
@@ -366,15 +366,15 @@ all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
                               PckgVer("1.15.4",  python_max_ver="3.7"),
                               "2.3.1",
                               "2.4.1",
-                              PckgVer("1.15.5+nv21.02", python_min_ver="3.8", python_max_ver="3.8", alias="nvidia-tensorflow")]
+                              PckgVer("1.15.5+nv21.04", python_min_ver="3.8", python_max_ver="3.8", alias="nvidia-tensorflow")]
                         }),
                 CudaHttpPackage("torch",
                         { "100" : ["http://download.pytorch.org/whl/cu{cuda_v}/torch-1.4.0+cu{cuda_v}-{platform}.whl"] }),
                 CudaHttpPackage("torchvision",
                         { "100" : ["https://download.pytorch.org/whl/cu{cuda_v}/torchvision-0.5.0+cu{cuda_v}-{platform}.whl"] }),
                 CudaPackage("paddlepaddle-gpu",
-                        { "100" : ["1.8.5.post107"],
-                          "110" : ["1.8.5.post107"]})
+                        { "100" : ["2.0.2"],
+                          "110" : ["2.0.2"]})
                ]
 
 all_packages_keys = [pckg.key for pckg in all_packages]
