@@ -26,97 +26,102 @@ from dataset import create_pascal_tfrecord
 
 
 class CreatePascalTFRecordTest(tf.test.TestCase):
+    def _assertProtoEqual(self, proto_field, expectation):
+        """Helper function to assert if a proto field equals some value.
 
-  def _assertProtoEqual(self, proto_field, expectation):
-    """Helper function to assert if a proto field equals some value.
+        Args:
+          proto_field: The protobuf field to compare.
+          expectation: The expected value of the protobuf field.
+        """
+        proto_list = [p for p in proto_field]
+        self.assertListEqual(proto_list, expectation)
 
-    Args:
-      proto_field: The protobuf field to compare.
-      expectation: The expected value of the protobuf field.
-    """
-    proto_list = [p for p in proto_field]
-    self.assertListEqual(proto_list, expectation)
+    def test_dict_to_tf_example(self):
+        image_file_name = "2012_12.jpg"
+        image_data = np.random.rand(256, 256, 3)
+        save_path = os.path.join(self.get_temp_dir(), image_file_name)
+        image = PIL.Image.fromarray(image_data, "RGB")
+        image.save(save_path)
 
-  def test_dict_to_tf_example(self):
-    image_file_name = '2012_12.jpg'
-    image_data = np.random.rand(256, 256, 3)
-    save_path = os.path.join(self.get_temp_dir(), image_file_name)
-    image = PIL.Image.fromarray(image_data, 'RGB')
-    image.save(save_path)
-
-    data = {
-        'folder': '',
-        'filename': image_file_name,
-        'size': {
-            'height': 256,
-            'width': 256,
-        },
-        'object': [
-            {
-                'difficult': 1,
-                'bndbox': {
-                    'xmin': 64,
-                    'ymin': 64,
-                    'xmax': 192,
-                    'ymax': 192,
-                },
-                'name': 'person',
-                'truncated': 0,
-                'pose': '',
+        data = {
+            "folder": "",
+            "filename": image_file_name,
+            "size": {
+                "height": 256,
+                "width": 256,
             },
-        ],
-    }
+            "object": [
+                {
+                    "difficult": 1,
+                    "bndbox": {
+                        "xmin": 64,
+                        "ymin": 64,
+                        "xmax": 192,
+                        "ymax": 192,
+                    },
+                    "name": "person",
+                    "truncated": 0,
+                    "pose": "",
+                },
+            ],
+        }
 
-    label_map_dict = {
-        'background': 0,
-        'person': 1,
-        'notperson': 2,
-    }
+        label_map_dict = {
+            "background": 0,
+            "person": 1,
+            "notperson": 2,
+        }
 
-    example = create_pascal_tfrecord.dict_to_tf_example(
-        data, self.get_temp_dir(), label_map_dict, image_subdirectory='')
-    self._assertProtoEqual(
-        example.features.feature['image/height'].int64_list.value, [256])
-    self._assertProtoEqual(
-        example.features.feature['image/width'].int64_list.value, [256])
-    self._assertProtoEqual(
-        example.features.feature['image/filename'].bytes_list.value,
-        [six.b(image_file_name)])
-    self._assertProtoEqual(
-        example.features.feature['image/source_id'].bytes_list.value,
-        [six.b(str(1))])
-    self._assertProtoEqual(
-        example.features.feature['image/format'].bytes_list.value,
-        [six.b('jpeg')])
-    self._assertProtoEqual(
-        example.features.feature['image/object/bbox/xmin'].float_list.value,
-        [0.25])
-    self._assertProtoEqual(
-        example.features.feature['image/object/bbox/ymin'].float_list.value,
-        [0.25])
-    self._assertProtoEqual(
-        example.features.feature['image/object/bbox/xmax'].float_list.value,
-        [0.75])
-    self._assertProtoEqual(
-        example.features.feature['image/object/bbox/ymax'].float_list.value,
-        [0.75])
-    self._assertProtoEqual(
-        example.features.feature['image/object/class/text'].bytes_list.value,
-        [six.b('person')])
-    self._assertProtoEqual(
-        example.features.feature['image/object/class/label'].int64_list.value,
-        [1])
-    self._assertProtoEqual(
-        example.features.feature['image/object/difficult'].int64_list.value,
-        [1])
-    self._assertProtoEqual(
-        example.features.feature['image/object/truncated'].int64_list.value,
-        [0])
-    self._assertProtoEqual(
-        example.features.feature['image/object/view'].bytes_list.value,
-        [six.b('')])
+        example = create_pascal_tfrecord.dict_to_tf_example(
+            data, self.get_temp_dir(), label_map_dict, image_subdirectory=""
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/height"].int64_list.value, [256]
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/width"].int64_list.value, [256]
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/filename"].bytes_list.value,
+            [six.b(image_file_name)],
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/source_id"].bytes_list.value,
+            [six.b(str(1))],
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/format"].bytes_list.value, [six.b("jpeg")]
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/object/bbox/xmin"].float_list.value, [0.25]
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/object/bbox/ymin"].float_list.value, [0.25]
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/object/bbox/xmax"].float_list.value, [0.75]
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/object/bbox/ymax"].float_list.value, [0.75]
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/object/class/text"].bytes_list.value,
+            [six.b("person")],
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/object/class/label"].int64_list.value, [1]
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/object/difficult"].int64_list.value, [1]
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/object/truncated"].int64_list.value, [0]
+        )
+        self._assertProtoEqual(
+            example.features.feature["image/object/view"].bytes_list.value, [six.b("")]
+        )
 
 
-if __name__ == '__main__':
-  logging.set_verbosity(logging.WARNING)
-  tf.test.main()
+if __name__ == "__main__":
+    logging.set_verbosity(logging.WARNING)
+    tf.test.main()

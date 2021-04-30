@@ -37,170 +37,171 @@ import tensorflow.compat.v1 as tf
 
 
 class BoxList(object):
-  """Box collection."""
+    """Box collection."""
 
-  def __init__(self, boxes):
-    """Constructs box collection.
+    def __init__(self, boxes):
+        """Constructs box collection.
 
-    Args:
-      boxes: a tensor of shape [N, 4] representing box corners
+        Args:
+          boxes: a tensor of shape [N, 4] representing box corners
 
-    Raises:
-      ValueError: if invalid dimensions for bbox data or if bbox data is not in
-          float32 format.
-    """
-    if len(boxes.get_shape()) != 2 or boxes.get_shape()[-1] != 4:
-      raise ValueError('Invalid dimensions for box data.')
-    if boxes.dtype != tf.float32:
-      raise ValueError('Invalid tensor type: should be tf.float32')
-    self.data = {'boxes': boxes}
+        Raises:
+          ValueError: if invalid dimensions for bbox data or if bbox data is not in
+              float32 format.
+        """
+        if len(boxes.get_shape()) != 2 or boxes.get_shape()[-1] != 4:
+            raise ValueError("Invalid dimensions for box data.")
+        if boxes.dtype != tf.float32:
+            raise ValueError("Invalid tensor type: should be tf.float32")
+        self.data = {"boxes": boxes}
 
-  def num_boxes(self):
-    """Returns number of boxes held in collection.
+    def num_boxes(self):
+        """Returns number of boxes held in collection.
 
-    Returns:
-      a tensor representing the number of boxes held in the collection.
-    """
-    return tf.shape(self.data['boxes'])[0]
+        Returns:
+          a tensor representing the number of boxes held in the collection.
+        """
+        return tf.shape(self.data["boxes"])[0]
 
-  def num_boxes_static(self):
-    """Returns number of boxes held in collection.
+    def num_boxes_static(self):
+        """Returns number of boxes held in collection.
 
-    This number is inferred at graph construction time rather than run-time.
+        This number is inferred at graph construction time rather than run-time.
 
-    Returns:
-      Number of boxes held in collection (integer) or None if this is not
-        inferable at graph construction time.
-    """
-    return self.data['boxes'].get_shape().as_list()[0]
+        Returns:
+          Number of boxes held in collection (integer) or None if this is not
+            inferable at graph construction time.
+        """
+        return self.data["boxes"].get_shape().as_list()[0]
 
-  def get_all_fields(self):
-    """Returns all fields."""
-    return self.data.keys()
+    def get_all_fields(self):
+        """Returns all fields."""
+        return self.data.keys()
 
-  def get_extra_fields(self):
-    """Returns all non-box fields (i.e., everything not named 'boxes')."""
-    return [k for k in self.data.keys() if k != 'boxes']
+    def get_extra_fields(self):
+        """Returns all non-box fields (i.e., everything not named 'boxes')."""
+        return [k for k in self.data.keys() if k != "boxes"]
 
-  def add_field(self, field, field_data):
-    """Add field to box list.
+    def add_field(self, field, field_data):
+        """Add field to box list.
 
-    This method can be used to add related box data such as
-    weights/labels, etc.
+        This method can be used to add related box data such as
+        weights/labels, etc.
 
-    Args:
-      field: a string key to access the data via `get`
-      field_data: a tensor containing the data to store in the BoxList
-    """
-    self.data[field] = field_data
+        Args:
+          field: a string key to access the data via `get`
+          field_data: a tensor containing the data to store in the BoxList
+        """
+        self.data[field] = field_data
 
-  def has_field(self, field):
-    return field in self.data
+    def has_field(self, field):
+        return field in self.data
 
-  def get(self):
-    """Convenience function for accessing box coordinates.
+    def get(self):
+        """Convenience function for accessing box coordinates.
 
-    Returns:
-      a tensor with shape [N, 4] representing box coordinates.
-    """
-    return self.get_field('boxes')
+        Returns:
+          a tensor with shape [N, 4] representing box coordinates.
+        """
+        return self.get_field("boxes")
 
-  def set(self, boxes):
-    """Convenience function for setting box coordinates.
+    def set(self, boxes):
+        """Convenience function for setting box coordinates.
 
-    Args:
-      boxes: a tensor of shape [N, 4] representing box corners
+        Args:
+          boxes: a tensor of shape [N, 4] representing box corners
 
-    Raises:
-      ValueError: if invalid dimensions for bbox data
-    """
-    if len(boxes.get_shape()) != 2 or boxes.get_shape()[-1] != 4:
-      raise ValueError('Invalid dimensions for box data.')
-    self.data['boxes'] = boxes
+        Raises:
+          ValueError: if invalid dimensions for bbox data
+        """
+        if len(boxes.get_shape()) != 2 or boxes.get_shape()[-1] != 4:
+            raise ValueError("Invalid dimensions for box data.")
+        self.data["boxes"] = boxes
 
-  def get_field(self, field):
-    """Accesses a box collection and associated fields.
+    def get_field(self, field):
+        """Accesses a box collection and associated fields.
 
-    This function returns specified field with object; if no field is specified,
-    it returns the box coordinates.
+        This function returns specified field with object; if no field is specified,
+        it returns the box coordinates.
 
-    Args:
-      field: this optional string parameter can be used to specify
-        a related field to be accessed.
+        Args:
+          field: this optional string parameter can be used to specify
+            a related field to be accessed.
 
-    Returns:
-      a tensor representing the box collection or an associated field.
+        Returns:
+          a tensor representing the box collection or an associated field.
 
-    Raises:
-      ValueError: if invalid field
-    """
-    if not self.has_field(field):
-      raise ValueError('field ' + str(field) + ' does not exist')
-    return self.data[field]
+        Raises:
+          ValueError: if invalid field
+        """
+        if not self.has_field(field):
+            raise ValueError("field " + str(field) + " does not exist")
+        return self.data[field]
 
-  def set_field(self, field, value):
-    """Sets the value of a field.
+    def set_field(self, field, value):
+        """Sets the value of a field.
 
-    Updates the field of a box_list with a given value.
+        Updates the field of a box_list with a given value.
 
-    Args:
-      field: (string) name of the field to set value.
-      value: the value to assign to the field.
+        Args:
+          field: (string) name of the field to set value.
+          value: the value to assign to the field.
 
-    Raises:
-      ValueError: if the box_list does not have specified field.
-    """
-    if not self.has_field(field):
-      raise ValueError('field %s does not exist' % field)
-    self.data[field] = value
+        Raises:
+          ValueError: if the box_list does not have specified field.
+        """
+        if not self.has_field(field):
+            raise ValueError("field %s does not exist" % field)
+        self.data[field] = value
 
-  def get_center_coordinates_and_sizes(self, scope=None):
-    """Computes the center coordinates, height and width of the boxes.
+    def get_center_coordinates_and_sizes(self, scope=None):
+        """Computes the center coordinates, height and width of the boxes.
 
-    Args:
-      scope: name scope of the function.
+        Args:
+          scope: name scope of the function.
 
-    Returns:
-      a list of 4 1-D tensors [ycenter, xcenter, height, width].
-    """
-    with tf.name_scope(scope, 'get_center_coordinates_and_sizes'):
-      box_corners = self.get()
-      ymin, xmin, ymax, xmax = tf.unstack(tf.transpose(box_corners))
-      width = xmax - xmin
-      height = ymax - ymin
-      ycenter = ymin + height / 2.
-      xcenter = xmin + width / 2.
-      return [ycenter, xcenter, height, width]
+        Returns:
+          a list of 4 1-D tensors [ycenter, xcenter, height, width].
+        """
+        with tf.name_scope(scope, "get_center_coordinates_and_sizes"):
+            box_corners = self.get()
+            ymin, xmin, ymax, xmax = tf.unstack(tf.transpose(box_corners))
+            width = xmax - xmin
+            height = ymax - ymin
+            ycenter = ymin + height / 2.0
+            xcenter = xmin + width / 2.0
+            return [ycenter, xcenter, height, width]
 
-  def transpose_coordinates(self, scope=None):
-    """Transpose the coordinate representation in a boxlist.
+    def transpose_coordinates(self, scope=None):
+        """Transpose the coordinate representation in a boxlist.
 
-    Args:
-      scope: name scope of the function.
-    """
-    with tf.name_scope(scope, 'transpose_coordinates'):
-      y_min, x_min, y_max, x_max = tf.split(
-          value=self.get(), num_or_size_splits=4, axis=1)
-      self.set(tf.concat([x_min, y_min, x_max, y_max], 1))
+        Args:
+          scope: name scope of the function.
+        """
+        with tf.name_scope(scope, "transpose_coordinates"):
+            y_min, x_min, y_max, x_max = tf.split(
+                value=self.get(), num_or_size_splits=4, axis=1
+            )
+            self.set(tf.concat([x_min, y_min, x_max, y_max], 1))
 
-  def as_tensor_dict(self, fields=None):
-    """Retrieves specified fields as a dictionary of tensors.
+    def as_tensor_dict(self, fields=None):
+        """Retrieves specified fields as a dictionary of tensors.
 
-    Args:
-      fields: (optional) list of fields to return in the dictionary.
-        If None (default), all fields are returned.
+        Args:
+          fields: (optional) list of fields to return in the dictionary.
+            If None (default), all fields are returned.
 
-    Returns:
-      tensor_dict: A dictionary of tensors specified by fields.
+        Returns:
+          tensor_dict: A dictionary of tensors specified by fields.
 
-    Raises:
-      ValueError: if specified field is not contained in boxlist.
-    """
-    tensor_dict = {}
-    if fields is None:
-      fields = self.get_all_fields()
-    for field in fields:
-      if not self.has_field(field):
-        raise ValueError('boxlist must contain all specified fields')
-      tensor_dict[field] = self.get_field(field)
-    return tensor_dict
+        Raises:
+          ValueError: if specified field is not contained in boxlist.
+        """
+        tensor_dict = {}
+        if fields is None:
+            fields = self.get_all_fields()
+        for field in fields:
+            if not self.has_field(field):
+                raise ValueError("boxlist must contain all specified fields")
+            tensor_dict[field] = self.get_field(field)
+        return tensor_dict
