@@ -613,12 +613,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       auto i = sample->sample_idx;
       auto *output_data = output.mutable_tensor<uint8_t>(i);
       const auto &in = ws.Input<CPUBackend>(0, i);
-      ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
       thread_pool_.AddWork(
-        [this, sample, &in, output_data, shape](int tid) {
+        [this, sample, &in, output_data](int tid) {
           SampleWorker(sample->sample_idx, sample->file_name, in.size(), tid,
             in.data<uint8_t>(), output_data, streams_[tid]);
-          CacheStore(sample->file_name, output_data, shape, streams_[tid]);
         }, task_priority_seq_--);  // FIFO order, since the samples were already ordered
     }
   }
@@ -762,7 +760,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
 
       CUDA_CALL(cudaEventSynchronize(hw_decode_event_));
-      // it is H2H copy so the stream doesn't metter much as we don't use cudaMemcpy but
+      // it is H2H copy so the stream doesn't matter much as we don't use cudaMemcpy but
       // maybe someday...
       hw_decoder_images_staging_.Copy(tv, hw_decode_stream_);
       for (size_t k = 0; k < samples_hw_batched_.size(); ++k) {
@@ -770,6 +768,20 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
       NVJPEG_CALL(nvjpegDecodeBatched(handle_, state, in_data_.data(), in_lengths_.data(),
                                       nvjpeg_destinations_.data(), hw_decode_stream_));
+
+      if (output_image_type_ == DALI_YCbCr) {
+        // We don't decode directly to YCbCr, since we want to control the YCbCr definition,
+        // which is different between general color conversion libraries (OpenCV) and
+        // what JPEG uses.
+        for (auto *sample : samples_hw_batched_) {
+          int i = sample->sample_idx;
+          auto data = output.mutable_tensor<uint8_t>(i);
+          auto sh = output_shape_.tensor_shape(i);
+          int64_t npixels = sh[0] * sh[1];
+          Convert_RGB_to_YCbCr(data, data, npixels, hw_decode_stream_);
+        }
+      }
+
       for (auto *sample : samples_hw_batched_) {
         int i = sample->sample_idx;
         CacheStore(sample->file_name, output.mutable_tensor<uint8_t>(i),
@@ -862,9 +874,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       HostFallback<StorageGPU>(input_data, in_size, output_image_type_, output_data,
                                stream, file_name, data.roi, use_fast_idct_);
       if (ret != NVJPEG_STATUS_JPEG_NOT_SUPPORTED && ret != NVJPEG_STATUS_BAD_JPEG) {
-         auto warning_msg = make_string("NVJPEG error \"", static_cast<int>(ret), "\" : ",
-                            nvjpeg_parse_error_code(ret), " ", file_name);
-         DALI_WARN(warning_msg);
+        auto warning_msg = make_string("NVJPEG error \"", static_cast<int>(ret),
+                                       "\" : ", nvjpeg_parse_error_code(ret), " ", file_name);
+        DALI_WARN(warning_msg);
       }
       return;
     }
@@ -874,6 +886,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     if (data.method == DecodeMethod::NvjpegCuda) {
       const auto &out_shape = output_shape_.tensor_shape(sample_idx);
       nvjpegImage_t nvjpeg_image;
+      // For interleaved, nvjpeg expects a single channel but 3x bigger
       nvjpeg_image.channel[0] = output_data;
       nvjpeg_image.pitch[0] = out_shape[1] * out_shape[2];
 
@@ -885,15 +898,26 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                      file_name);
 
       ret = nvjpegDecodeJpegDevice(handle_, decoder, state, &nvjpeg_image, stream);
+
       // if nvJPEG fails try HostDecoder
       if (ret != NVJPEG_STATUS_SUCCESS) {
-        auto warning_msg = make_string("NVJPEG error \"", static_cast<int>(ret), "\" : ",
-                           nvjpeg_parse_error_code(ret), " ", file_name);
+        auto warning_msg = make_string("NVJPEG error \"", static_cast<int>(ret),
+                                       "\" : ", nvjpeg_parse_error_code(ret), " ", file_name);
         DALI_WARN(warning_msg);
         HostFallback<StorageGPU>(input_data, in_size, output_image_type_, output_data,
                                  stream, file_name, data.roi, use_fast_idct_);
         return;
       }
+
+      if (output_image_type_ == DALI_YCbCr) {
+        // We don't decode directly to YCbCr, since we want to control the YCbCr definition,
+        // which is different between general color conversion libraries (OpenCV) and
+        // what JPEG uses.
+        int64_t npixels = out_shape[0] * out_shape[1];
+        Convert_RGB_to_YCbCr(output_data, output_data, npixels, stream);
+      }
+
+      CacheStore(file_name, output_data, out_shape, stream);
       CUDA_CALL(cudaEventRecord(decode_events_[thread_id], stream));
     }
   }

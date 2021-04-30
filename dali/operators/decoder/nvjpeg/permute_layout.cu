@@ -17,7 +17,7 @@
 #include "dali/core/format.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/util.h"
-#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
+#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_kernel.cuh"
 #include "dali/operators/decoder/nvjpeg/permute_layout.h"
 
 namespace dali {
@@ -100,6 +100,14 @@ void PlanarRGBToGray(Output *output, const Input *input, int64_t npixels,
   planar_rgb_to_gray<<<num_blocks, block_size, 0, stream>>>(output, input, npixels);
 }
 
+template <typename Output, typename Input>
+void Convert_RGB_to_YCbCr(Output *out_data, const Input *in_data, int64_t npixels,
+                          cudaStream_t stream) {
+  kernels::color::RunColorSpaceConversionKernel(out_data, in_data, DALI_YCbCr, DALI_RGB, npixels,
+                                                stream);
+}
+
+
 template void PlanarToInterleaved<uint8_t, uint16_t>(uint8_t *, const uint16_t *, int64_t, int64_t,
                                                      DALIImageType, DALIDataType, cudaStream_t);
 template void PlanarToInterleaved<uint8_t, uint8_t>(uint8_t *, const uint8_t *, int64_t, int64_t,
@@ -108,5 +116,7 @@ template void PlanarRGBToGray<uint8_t, uint16_t>(uint8_t *, const uint16_t *, in
                                                  cudaStream_t);
 template void PlanarRGBToGray<uint8_t, uint8_t>(uint8_t *, const uint8_t *, int64_t, DALIDataType,
                                                 cudaStream_t);
+template void Convert_RGB_to_YCbCr<uint8_t, uint8_t>(uint8_t *, const uint8_t *, int64_t,
+                                                     cudaStream_t);
 
 }  // namespace dali

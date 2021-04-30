@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #include "dali/util/npp.h"
-
 #include "dali/core/error_handling.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 

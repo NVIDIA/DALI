@@ -24,7 +24,11 @@ DALI_SCHEMA(ImageDecoderAttr)
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("output_type",
-      R"code(The color space of the output image.)code",
+      R"code(The color space of the output image.
+
+Note: When decoding to YCbCr, the image will be decoded to RGB and then converted to YCbCr,
+following the YCbCr definition from ITU-R BT.601.
+)code",
       DALI_RGB)
   .AddOptionalArg("hybrid_huffman_threshold",
       R"code(Applies **only** to the ``mixed`` backend type.

@@ -86,60 +86,34 @@ inline void custom_conversion_pixel<DALI_BGR, DALI_YCbCr>(const uint8_t* input, 
   output[2] = kernels::color::itu_r_bt_601::rgb_to_cr<uint8_t>(rgb);
 }
 
-inline static uint8_t clip(float x, float max = 255.0f) {
-  return static_cast<uint8_t>( std::min(std::max(x, 0.0f), max) );
-}
-
-inline static std::tuple<uint8_t, uint8_t, uint8_t> RGB(uint8_t y, uint8_t cb, uint8_t cr) {
-  const float nY = 1.164f * (static_cast<float>(y) - 16.0f);
-  float nR = (static_cast<float>(cr) - 128.0f);
-  float nB = (static_cast<float>(cb) - 128.0f);
-  float nG = nY - 0.813f * nR - 0.392f * nB;
-  nG = std::min(nG, 255.0f);
-  nR = nY + 1.596f * nR;
-  nR = std::min(nR, 255.0f);
-  nB = nY + 2.017f * nB;
-  nB = std::min(nB, 255.0f);
-  const uint8_t r = clip(nR);
-  const uint8_t g = clip(nG);
-  const uint8_t b = clip(nB);
-  return std::tuple<uint8_t, uint8_t, uint8_t>{ r, g, b };
-}
-
 template <>
 inline void custom_conversion_pixel<DALI_YCbCr, DALI_RGB>(const uint8_t* input, uint8_t* output) {
-  const auto y   = input[0];
-  const auto cb  = input[1];
-  const auto cr  = input[2];
-  const auto rgb = RGB(y, cb, cr);
-  output[0] = std::get<0>(rgb);
-  output[1] = std::get<1>(rgb);
-  output[2] = std::get<2>(rgb);
+  vec<3, uint8_t> ycbcr{input[0], input[1], input[2]};
+  auto rgb = kernels::color::itu_r_bt_601::ycbcr_to_rgb<uint8_t>(ycbcr);
+  output[0] = rgb[0];
+  output[1] = rgb[1];
+  output[2] = rgb[2];
 }
 
 template <>
 inline void custom_conversion_pixel<DALI_YCbCr, DALI_BGR>(const uint8_t* input, uint8_t* output) {
-  const auto y   = input[0];
-  const auto cb  = input[1];
-  const auto cr  = input[2];
-  const auto rgb = RGB(y, cb, cr);
-  output[0] = std::get<2>(rgb);
-  output[1] = std::get<1>(rgb);
-  output[2] = std::get<0>(rgb);
+  vec<3, uint8_t> ycbcr{input[0], input[1], input[2]};
+  auto rgb = kernels::color::itu_r_bt_601::ycbcr_to_rgb<uint8_t>(ycbcr);
+  output[0] = rgb[2];
+  output[1] = rgb[1];
+  output[2] = rgb[0];
 }
 
 template <>
 inline void custom_conversion_pixel<DALI_GRAY, DALI_YCbCr>(const uint8_t* input, uint8_t* output) {
-  const auto y = input[0];
-  output[0] = y;
+  output[0] = kernels::color::itu_r_bt_601::gray_to_y<uint8_t>(input[0]);
   output[1] = 128;
   output[2] = 128;
 }
 
 template <>
 inline void custom_conversion_pixel<DALI_YCbCr, DALI_GRAY>(const uint8_t* input, uint8_t* output) {
-  const auto y = input[0];
-  output[0] = y;
+  output[0] = kernels::color::itu_r_bt_601::y_to_gray<uint8_t>(input[0]);
 }
 
 template <DALIImageType input_type, DALIImageType output_type>

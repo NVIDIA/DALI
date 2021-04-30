@@ -38,6 +38,12 @@ template <typename Output, typename Input>
 void PlanarRGBToGray(Output *output, const Input *input,
                      int64_t npixels, DALIDataType pixel_type, cudaStream_t stream);
 
+/**
+ * @brief Convert interleaved RGB data to interleaved YCbCr .
+ */
+template <typename Output, typename Input>
+void Convert_RGB_to_YCbCr(Output *output, const Input *input, int64_t npixels, cudaStream_t stream);
+
 
 }  // namespace dali
 
