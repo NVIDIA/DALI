@@ -12,7 +12,7 @@ for built in data loaders and data iterators in popular deep learning frameworks
 
 Deep learning applications require complex, multi-stage data processing pipelines
 that include loading, decoding, cropping, resizing, and many other augmentations.
-These data processing pipelines, which are currently executed on the CPU, have become a 
+These data processing pipelines, which are currently executed on the CPU, have become a
 bottleneck, limiting the performance and scalability of training and inference.
 
 DALI addresses the problem of the CPU bottleneck by offloading data preprocessing to the
@@ -23,11 +23,11 @@ are handled transparently for the user.
 In addition, the deep learning frameworks have multiple data pre-processing implementations,
 resulting in challenges such as portability of training and inference workflows, and code
 maintainability. Data processing pipelines implemented using DALI are portable because they
-can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle. 
+can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle.
 
 .. image:: /dali.png
     :width: 800
-    :align: center 
+    :align: center
     :alt: DALI Diagram
 
 Highlights
@@ -64,7 +64,7 @@ To install the latest DALI release for the latest CUDA version (11.x)::
 
     pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda110
 
-DALI comes preinstalled in the TensorFlow, PyTorch, and MXNet containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_ 
+DALI comes preinstalled in the TensorFlow, PyTorch, and MXNet containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_
 (versions 18.07 and later).
 
 For other installation paths (TensorFlow plugin, older CUDA version, nightly and weekly builds, etc),

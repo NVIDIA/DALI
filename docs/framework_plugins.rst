@@ -1,3 +1,6 @@
+
+.. _DL Framework Plugins
+
 DL Framework Plugins
 ====================
 
