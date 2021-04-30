@@ -224,11 +224,13 @@ void SetDefaultResource<memory_kind::pinned>(pinned_async_resource *resource, bo
 
 
 void SetDefaultDeviceResource(int device_id, std::shared_ptr<device_async_resource> resource) {
-  int ndevs = 0;
-  CUDA_CALL(cudaGetDeviceCount(&ndevs));
+  int ndevs = g_resources.device.size();
+  if (ndevs == 0) {
+    CUDA_CALL(cudaGetDeviceCount(&ndevs));
+    g_resources.device.resize(ndevs);
+  }
   if (device_id < 0 || device_id >= ndevs)
     throw std::out_of_range(make_string(device_id, " is not a valid CUDA device index."));
-  g_resources.device.resize(ndevs);
   g_resources.device[device_id] = std::move(resource);
 }
 

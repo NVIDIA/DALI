@@ -146,9 +146,9 @@ class DummyResource<kind, true> : public async_memory_resource<kind> {
 template <memory_kind kind>
 void TestSetDefaultResource() {
   DummyResource<kind> dummy;
-  SetDefaultResource<kind>(&dummy, false);
+  SetDefaultResource<kind>(&dummy);
   EXPECT_EQ(GetDefaultResource<kind>(), &dummy);
-  SetDefaultResource<kind>(nullptr, false);
+  SetDefaultResource<kind>(nullptr);
 }
 
 // TODO(michalz): When memory_kind is a tag type, switch to TYPED_TEST
@@ -162,6 +162,19 @@ TEST(MMDefaultResource, SetResource_Pinned) {
 
 TEST(MMDefaultResource, SetResource_Device) {
   TestSetDefaultResource<memory_kind::device>();
+}
+
+TEST(MMDefaultResource, SetDeviceResource_MultipleDevices) {
+  int ndev = 0;
+  CUDA_CALL(cudaGetDeviceCount(&ndev));
+  if (ndev < 2)
+    GTEST_SKIP() << "This test requires at least 2 CUDA devices";
+  std::vector<DummyResource<memory_kind::device>> resources(ndev);
+  for (int i = 0; i < ndev; i++) {
+    SetDefaultDeviceResource(i, &resources[i]);
+    EXPECT_EQ(&resources[i], GetDefaultDeviceResource(i));
+    SetDefaultDeviceResource(i, nullptr);
+  }
 }
 
 }  // namespace test

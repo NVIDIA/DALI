@@ -66,7 +66,7 @@ DLL_PUBLIC default_memory_resource_t<kind> *GetDefaultResource();
  * the resource will be deleted.
  */
 template <memory_kind kind>
-DLL_PUBLIC void SetDefaultResource(default_memory_resource_t<kind> *resource, bool own);
+DLL_PUBLIC void SetDefaultResource(default_memory_resource_t<kind> *resource, bool own = false);
 
 /**
  * @brief Sets current memory resource for allocating memory of given kind.
@@ -99,7 +99,7 @@ device_async_resource *GetDefaultDeviceResource(int device_id = -1);
  * the resource will be deleted.
  */
 DLL_PUBLIC
-void SetDefaultDeviceResource(int device_id, device_async_resource *resource, bool own);
+void SetDefaultDeviceResource(int device_id, device_async_resource *resource, bool own = false);
 
 /**
  * @brief Sets the device memory resource for a specific device.
