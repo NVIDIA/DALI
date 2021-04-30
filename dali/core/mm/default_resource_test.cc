@@ -24,7 +24,7 @@ namespace dali {
 namespace mm {
 namespace test {
 
-TEST(MMDefaultResource, Host) {
+TEST(MMDefaultResource, GetResource_Host) {
   auto *rsrc = GetDefaultResource<memory_kind::host>();
   ASSERT_NE(rsrc, nullptr);
   char *mem = static_cast<char*>(rsrc->allocate(1000, 32));
@@ -34,7 +34,7 @@ TEST(MMDefaultResource, Host) {
   rsrc->deallocate(mem, 1000, 32);
 }
 
-TEST(MMDefaultResource, Pinned) {
+TEST(MMDefaultResource, GetResource_Pinned) {
   char *dev = nullptr;
   CUDA_CALL(cudaMalloc(&dev, 1000));
   CUDA_CALL(cudaMemset(dev, 0, 1000));
@@ -63,7 +63,7 @@ TEST(MMDefaultResource, Pinned) {
   CUDA_CALL(cudaFree(dev));
 }
 
-TEST(MMDefaultResource, Device) {
+TEST(MMDefaultResource, GetResource_Device) {
   char *stage = nullptr;
   CUDA_CALL(cudaMallocHost(&stage, 2000));
   char *back_copy = stage + 1000;
@@ -93,7 +93,7 @@ TEST(MMDefaultResource, Device) {
   CUDA_CALL(cudaFreeHost(stage));
 }
 
-TEST(MMDefaultResource, MultiDevice) {
+TEST(MMDefaultResource, GetResource_MultiDevice) {
   int ndev = 0;
   CUDA_CALL(cudaGetDeviceCount(&ndev));
   if (ndev < 2) {
@@ -164,7 +164,7 @@ TEST(MMDefaultResource, SetResource_Device) {
   TestSetDefaultResource<memory_kind::device>();
 }
 
-TEST(MMDefaultResource, SetDeviceResource_MultipleDevices) {
+TEST(MMDefaultResource, SetResource_MultiDevice) {
   int ndev = 0;
   CUDA_CALL(cudaGetDeviceCount(&ndev));
   if (ndev < 2)

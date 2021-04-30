@@ -108,7 +108,7 @@ struct CUDARTLoader {
   CUDARTLoader() {
     int device_id = 0;
     CUDA_CALL(cudaGetDevice(&device_id));
-    CUDA_CALL(cudaSetDevice(device_id));
+    DeviceGuard dg(device_id);
   }
 };
 
