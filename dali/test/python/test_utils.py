@@ -16,7 +16,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
-from nvidia.dali.backend_impl import TensorListGPU
+from nvidia.dali.backend_impl import TensorListGPU, TensorGPU, TensorListCPU
 
 import tempfile
 import subprocess
@@ -508,3 +508,12 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+
+def to_array(dali_out):
+    import_numpy()
+    if isinstance(dali_out, (TensorGPU, TensorListGPU)):
+        dali_out = dali_out.as_cpu()
+    if isinstance(dali_out, TensorListCPU):
+        dali_out = dali_out.as_array()
+    return np.array(dali_out)

@@ -20,10 +20,10 @@ from math import ceil, sqrt
 import numpy as np
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-from nvidia.dali.backend_impl import TensorListGPU
 from nvidia.dali.pipeline import Pipeline
 from PIL import Image
 from test_utils import get_dali_extra_path
+from test_utils import to_array
 
 test_data_root = get_dali_extra_path()
 
@@ -322,13 +322,6 @@ def set_iters(args, dataset_size):
             dataset_size / (args.batch_size * args.num_gpus)))
 
 
-def to_array(dali_out):
-    if isinstance(dali_out, TensorListGPU):
-        dali_out = dali_out.as_cpu()
-
-    return np.squeeze(dali_out.as_array())
-
-
 def compare(val_1, val_2, reference=None):
     test = np.allclose(val_1, val_2)
     if reference is not None:
@@ -387,7 +380,7 @@ def run_for_dataset(args, dataset):
                 encoded_offset_boxes_cpu, encoded_offset_boxes_gpu, \
                 encoded_offset_labels_cpu, encoded_offset_labels_gpu, \
                 image_decode_crop_gpu, image_gpu_slice_gpu = \
-                [to_array(out) for out in pipe.run()]
+                [np.squeeze(to_array(out)) for out in pipe.run()]
             # Check reader
             labels = ((labels > 0) & (labels <= 80)).all()
 

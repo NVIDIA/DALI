@@ -278,8 +278,11 @@ inline bool HasHwDecoder(int device_idx) {
     return false;
   }
   auto info = GetDeviceInfo(device_idx);
-  const int kAmpereComputeCapability = 8;
-  return info.type == NVML_BRAND_TESLA && info.cap_major >= kAmpereComputeCapability;
+  const int kAmpereComputeCapabilityMajor = 8;
+  const int kAmpereComputeCapabilityMinor = 0;
+  return info.type == NVML_BRAND_TESLA &&
+         info.cap_major == kAmpereComputeCapabilityMajor &&
+         info.cap_minor == kAmpereComputeCapabilityMinor;
 }
 
 /**
@@ -308,6 +311,13 @@ inline bool HasCuda11NvmlFunctions() {
     return false;
   }
   return nvmlHasCuda11NvmlFunctions();
+}
+
+inline bool isHWDecoderSupported() {
+  if (nvml::HasCuda11NvmlFunctions()) {
+    return nvml::HasHwDecoder();
+  }
+  return false;
 }
 
 }  // namespace nvml
