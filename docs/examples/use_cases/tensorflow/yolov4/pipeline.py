@@ -4,8 +4,6 @@ import tensorflow as tf
 import ops
 
 
-# TODO: sharding
-# TODO: verify with darknet
 class YOLOv4Pipeline:
     # TODO: clean up __init__ args
     def __init__(
@@ -36,7 +34,19 @@ class YOLOv4Pipeline:
             )
 
             if self._is_training:
-                images, bboxes, classes = ops.mosaic_new(images, bboxes, classes, self._image_size)
+                images = ops.color_twist(images)
+                images, bboxes = ops.flip(images, bboxes)
+
+                do_mosaic = dali.fn.random.coin_flip()
+                images_m, bboxes_m, classes_m = ops.mosaic_new(images, bboxes, classes, self._image_size)
+
+                images = images * (1.0 - do_mosaic) + images_m * do_mosaic
+                bboxes = ops.select(do_mosaic, bboxes_m, bboxes)
+                classes = dali.fn.squeeze(ops.select(
+                    do_mosaic,
+                    dali.fn.expand_dims(classes_m, axes=1),
+                    dali.fn.expand_dims(classes, axes=1)
+                ), axes=1)
 
             bboxes = ops.ltrb_to_xywh(bboxes)
 
@@ -47,7 +57,7 @@ class YOLOv4Pipeline:
             ) - 1 # subtract one to be consistent with darknet's pretrained model weights
 
             labels = dali.fn.cat(bboxes, classes, axis=1)
-            labels = dali.fn.pad(labels, fill_value=-1) 
+            labels = dali.fn.pad(labels, fill_value=-1)
             labels = dali.fn.pad(labels, fill_value=-1, shape=(1, 5))
 
             self._pipe.set_outputs(images.gpu(), labels.gpu())
@@ -60,7 +70,7 @@ class YOLOv4Pipeline:
             batch_size=self._batch_size,
             output_shapes=output_shapes,
             output_dtypes=output_dtypes,
-            device_id=0
+            device_id=self._device_id
         )
 
     def build(self):

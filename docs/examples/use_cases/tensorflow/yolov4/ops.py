@@ -1,5 +1,7 @@
 import nvidia.dali as dali
 
+# TODO: clean up
+
 def input(file_root, annotations_file, device_id, num_threads, device, random_shuffle=True):
     inputs, bboxes, classes = dali.fn.readers.coco(
         file_root=file_root,
@@ -30,25 +32,11 @@ def generate_tiles(images, bboxes, labels, shape_x, shape_y, image_size):
         labels,
         crop_shape=dali.fn.stack(shape_x, shape_y),
         input_shape=image_size,
-        bbox_layout="xyWH",
-        thresholds=[0.0]
+        allow_no_crop=False,
+        total_num_attempts=64
     )
     images = dali.fn.slice(images, crop_anchor, crop_shape, normalized_anchor=False, normalized_shape=False)
     return images, bboxes, labels
-
-def xywh_to_ltrb(bboxes):
-    Z = dali.types.Constant(0.0)
-    H = dali.types.Constant(0.5)
-    MH = dali.types.Constant(-0.5)
-    O = dali.types.Constant(1.0)
-
-    M = dali.fn.stack(
-            dali.fn.stack(O, Z, MH, Z),
-            dali.fn.stack(Z, O, Z, MH),
-            dali.fn.stack(O, Z, H, Z),
-            dali.fn.stack(Z, O, Z, H)
-        )
-    return dali.fn.coord_transform(bboxes, M=M)
 
 
 def ltrb_to_xywh(bboxes):
@@ -82,14 +70,49 @@ def bbox_adjust_xywh(bboxes, shape_x, shape_y, pos_x, pos_y):
 def bbox_adjust_ltrb(bboxes, shape_x, shape_y, pos_x, pos_y):
     sx, sy, ex, ey = pos_x, pos_y, shape_x + pos_x, shape_y + pos_y
     MT = dali.fn.transforms.crop(
-        to_start=dali.fn.stack(sx, sy, sx, sy), to_end=dali.fn.stack(ex, ey, ex, ey)
+        to_start=dali.fn.stack(sx, sy, sx, sy),
+        to_end=dali.fn.stack(ex, ey, ex, ey)
     )
     return dali.fn.coord_transform(bboxes, MT=MT)
 
 
+# Works for 2D tensors with equal second dimension size
+def select(bool_TL, if_true, if_false):
+    true_shape = dali.fn.cast(dali.fn.shapes(if_true), dtype=dali.types.DALIDataType.INT32)
+    false_shape = dali.fn.cast(dali.fn.shapes(if_false), dtype=dali.types.DALIDataType.INT32)
+
+    joined = dali.fn.cat(if_true, if_false)
+    sh = bool_TL * true_shape + (1 - bool_TL) * false_shape
+
+    st = dali.fn.cat(
+            dali.fn.slice(true_shape * (1 - bool_TL), start=[0], shape=[1], axes=[0]),
+            dali.fn.slice(true_shape * 0, start=[1], shape=[1], axes=[0])
+        )
+
+    return dali.fn.slice(joined, start=st, shape=sh, axes=[0,1])
+
+
+def color_twist(images):
+    def random_value():
+        value = dali.fn.random.uniform(range=(1, 1.5))
+        coin = dali.fn.random.coin_flip()
+        return coin * value + (1.0 - coin) * (1.0 / value)
+
+    return dali.fn.color_twist(images,
+        hue=dali.fn.random.uniform(range=(-18.0, 18.0)),
+        brightness=random_value(),
+        contrast=random_value()
+    )
+
+def flip(images, bboxes):
+    coin = dali.fn.random.coin_flip()
+    images = dali.fn.flip(images, horizontal=coin)
+    bboxes = dali.fn.bb_flip(bboxes, horizontal=coin, ltrb=True)
+    return images, bboxes
+
 def mosaic(images, bboxes, labels, image_size):
-    prob_x = dali.fn.uniform(range=(0.2, 0.8))
-    prob_y = dali.fn.uniform(range=(0.2, 0.8))
+    prob_x = dali.fn.random.uniform(range=(0.2, 0.8))
+    prob_y = dali.fn.random.uniform(range=(0.2, 0.8))
 
     pix0_x = dali.fn.cast(prob_x * image_size[0], dtype=dali.types.INT32)
     pix0_y = dali.fn.cast(prob_y * image_size[1], dtype=dali.types.INT32)
@@ -113,18 +136,12 @@ def mosaic(images, bboxes, labels, image_size):
     images = dali.fn.cat(images0, images1, axis=1)
 
     zeros = dali.types.Constant(0.0)
-    #bboxes00 = bbox_adjust_lrtb(bboxes00, prob_x, prob_y, zeros, zeros)
-    #bboxes01 = bbox_adjust_lrtb(bboxes01, prob_x, 1.0 - prob_y, zeros, prob_y)
-    #bboxes10 = bbox_adjust_lrtb(bboxes10, 1.0 - prob_x, prob_y, prob_x, zeros)
-    #bboxes11 = bbox_adjust_lrtb(bboxes11, 1.0 - prob_x, 1.0 - prob_y, prob_x, prob_y)
-    #bboxes = lrtb_to_xywh(dali.fn.cat(bboxes00, bboxes01, bboxes10, bboxes11))
 
-    bboxes00 = bbox_adjust_xywh(bboxes00, prob_x, prob_y, zeros, zeros)
-    bboxes01 = bbox_adjust_xywh(bboxes01, prob_x, 1.0 - prob_y, zeros, prob_y)
-    bboxes10 = bbox_adjust_xywh(bboxes10, 1.0 - prob_x, prob_y, prob_x, zeros)
-    bboxes11 = bbox_adjust_xywh(bboxes11, 1.0 - prob_x, 1.0 - prob_y, prob_x, prob_y)
+    bboxes00 = bbox_adjust_ltrb(bboxes00, prob_x, prob_y, zeros, zeros)
+    bboxes01 = bbox_adjust_ltrb(bboxes01, prob_x, 1.0 - prob_y, zeros, prob_y)
+    bboxes10 = bbox_adjust_ltrb(bboxes10, 1.0 - prob_x, prob_y, prob_x, zeros)
+    bboxes11 = bbox_adjust_ltrb(bboxes11, 1.0 - prob_x, 1.0 - prob_y, prob_x, prob_y)
     bboxes = dali.fn.cat(bboxes00, bboxes01, bboxes10, bboxes11)
-
 
     labels = dali.fn.cat(labels00, labels01, labels10, labels11)
 
@@ -150,7 +167,6 @@ def mosaic_new(images, bboxes, labels, image_size):
             permuted_labels,
             input_shape=image_size,
             crop_shape=shape,
-            bbox_layout="xyXY",
             shape_layout="HW",
             allow_no_crop=False,
             total_num_attempts=64
