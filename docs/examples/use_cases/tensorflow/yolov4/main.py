@@ -74,43 +74,40 @@ if __name__ == "__main__":
     parser_train = subparsers.add_parser("train")
     parser_train.add_argument("file_root")
     parser_train.add_argument("annotations")
-    parser_train.add_argument("--batch_size", "-b", default="8")
-    parser_train.add_argument("--epochs", "-e", default="5")
-    parser_train.add_argument("--steps", "-s", default="1000")
+    parser_train.add_argument("--batch_size", "-b", default=8, type=int)
+    parser_train.add_argument("--epochs", "-e", default=5, type=int)
+    parser_train.add_argument("--steps", "-s", default=1000, type=int)
     parser_train.add_argument("--output", "-o", default="output.h5")
-    parser_train.add_argument("--dali_use_gpu", "-g", default="True")
-    parser_train.add_argument("--log_dir", "-l", default=None)
-    parser_train.add_argument("--ckpt_dir", "-c", default=None)
     parser_train.add_argument("--start_weights", "-w", default=None)
-    parser_train.add_argument("--multigpu", "-m", default="False")
+    parser_train.add_argument("--dali_use_gpu", action="store_true")
+    parser_train.add_argument("--multigpu", action="store_true")
+    parser_train.add_argument("--log_dir", default=None)
+    parser_train.add_argument("--ckpt_dir", default=None)
+    parser_train.add_argument("--seed", default=None, type=int)
 
     parser_eval = subparsers.add_parser("eval")
     parser_eval.add_argument("file_root")
     parser_eval.add_argument("annotations")
     parser_eval.add_argument("--weights", "-w", nargs="?", default="yolov4.weights")
-    parser_eval.add_argument("--batch_size", "-b", default="8")
-    parser_eval.add_argument("--steps", "-s", default="1000")
+    parser_eval.add_argument("--batch_size", "-b", default=1, type=int)
+    parser_eval.add_argument("--steps", "-s", default=1000, type=int)
 
     args = parser.parse_args()
 
     if args.action == "infer":
         run_infer(args.weights, args.classes, args.image, args.output)
     elif args.action == "train":
-        batch_size = int(args.batch_size)
-        epochs = int(args.epochs)
-        steps = int(args.steps)
         run_training(
-            args.file_root, args.annotations, batch_size, epochs, steps,
+            args.file_root, args.annotations, args.batch_size, args.epochs, args.steps,
             output=args.output,
-            use_gpu=args.dali_use_gpu == "True",
+            dali_use_gpu=args.dali_use_gpu,
             log_dir=args.log_dir,
             ckpt_dir=args.ckpt_dir,
             start_weights=args.start_weights,
-            multigpu=args.multigpu == "True"
+            multigpu=args.multigpu,
+            seed=args.seed
         )
     elif args.action == "eval":
-        batch_size = int(args.batch_size)
-        steps = int(args.steps)
-        run_eval(args.file_root, args.annotations, args.weights, batch_size, steps)
+        run_eval(args.file_root, args.annotations, args.weights, args.batch_size, args.steps)
     else:
         print("The " + args.action + " action is not yet implemented :<")

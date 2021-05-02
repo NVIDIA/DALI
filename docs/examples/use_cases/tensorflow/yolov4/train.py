@@ -8,6 +8,7 @@ import utils
 
 import math
 import os
+import random
 
 
 SET_MEMORY_GROWTH = False
@@ -26,17 +27,31 @@ class SaveWeightsCallback(tf.keras.callbacks.Callback):
 # TODO: fix nan loss issue
 def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kwargs):
 
+    seed = kwargs.get("seed")
+    if not seed:
+        seed = int.from_bytes(os.urandom(4), "little")
+    else:
+        os.environ['PYTHONHASHSEED']=str(seed)
+        tf.random.set_seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+
+        os.environ['TF_DETERMINISTIC_OPS'] = '1'
+        os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
+
+
     if SET_MEMORY_GROWTH:
         physical_devices = tf.config.list_physical_devices('GPU')
         tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-    use_gpu = kwargs.get("use_gpu", True)
+    dali_use_gpu = kwargs.get("dali_use_gpu")
     log_dir = kwargs.get("log_dir")
     ckpt_dir = kwargs.get("ckpt_dir")
     start_weights = kwargs.get("start_weights")
+
     initial_epoch = 0
 
-    multigpu = kwargs.get("multigpu", False)
+    multigpu = kwargs.get("multigpu")
     strategy = tf.distribute.MirroredStrategy() if multigpu else tf.distribute.get_strategy()
 
     with strategy.scope():
@@ -57,10 +72,9 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
             device_id = input_context.input_pipeline_id
             num_threads = input_context.num_input_pipelines
             image_size = (608, 608)
-            seed = int.from_bytes(os.urandom(4), "little")
 
             pipeline = YOLOv4Pipeline(
-                file_root, annotations_file, batch_size, image_size, num_threads, device_id, seed, use_gpu, True
+                file_root, annotations_file, batch_size, image_size, num_threads, device_id, seed, dali_use_gpu, True
             )
             return pipeline.dataset()
 
