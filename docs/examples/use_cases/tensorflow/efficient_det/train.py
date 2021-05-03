@@ -128,12 +128,17 @@ def run_training(args):
                 params,
                 args.train_batch_size,
                 args.train_file_pattern,
+                is_training=True,
                 cpu_only=cpu_only,
             ).get_dataset()
 
             if eval_file_pattern:
                 eval_dataset = EfficientDetPipeline(
-                    params, args.eval_batch_size, eval_file_pattern, cpu_only=cpu_only
+                    params,
+                    args.eval_batch_size,
+                    eval_file_pattern,
+                    is_training=False,
+                    cpu_only=cpu_only
                 ).get_dataset()
 
     # TODO: decide if necessary -> params['nms_configs']['max_nms_inputs'] = anchors.MAX_DETECTION_POINTS
