@@ -15,6 +15,7 @@ class EfficientDetPipeline:
         params,
         batch_size,
         file_pattern,
+        is_training=True,
         num_shards=1,
         device_id=0,
         cpu_only=False,
@@ -22,9 +23,11 @@ class EfficientDetPipeline:
 
         self._batch_size = batch_size
         self._image_size = params["image_size"]
+        self._gridmask = "grid_mask" in params
         self._tfrecord_files = glob(file_pattern)
         self._tfrecord_idxs = [filename + "_idx" for filename in self._tfrecord_files]
 
+        self._is_training = is_training
         self._num_shards = num_shards
         self._shard_id = None if cpu_only else device_id
         self._device = "cpu" if cpu_only else "gpu"
@@ -61,10 +64,17 @@ class EfficientDetPipeline:
                 num_shards=self._num_shards,
             )
 
-            images, bboxes = ops.normalize_flip(self._device, images, bboxes)
-            images, bboxes, classes = ops.random_crop_resize_2(
-                self._device, images, bboxes, classes, self._image_size
-            )
+            if self._gridmask:
+                p = dali.fn.random.coin_flip()
+                images = images * (1 - p) + dali.fn.grid_mask(images) * p
+
+            if self._is_training:
+                images, bboxes = ops.normalize_flip(self._device, images, bboxes)
+                images, bboxes, classes = ops.random_crop_resize_2(
+                    self._device, images, bboxes, classes, self._image_size
+                )
+            else:
+                images, bboxes = ops.normalize_flip(self._device, images, bboxes, 0.0)
 
             enc_bboxes, enc_classes = dali.fn.box_encoder(
                 bboxes, classes, anchors=self._boxes, offset=True

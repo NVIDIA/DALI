@@ -96,6 +96,7 @@ def run_training(args):
                     params,
                     batch_size,
                     file_pattern,
+                    is_training=True,
                     num_shards=num_shards,
                     device_id=device_id,
                 ).get_dataset()
