@@ -78,7 +78,10 @@ def random_crop_resize_2(
     device, images, bboxes, classes, output_size, scaling=[0.1, 2.0]
 ):
 
-    scale_factor = dali.fn.random.uniform(range=scaling)
+    if scaling is None:
+        scale_factor = 1.0
+    else:
+        scale_factor = dali.fn.random.uniform(range=scaling)
     scaled_x = scale_factor * output_size[0]
     scaled_y = scale_factor * output_size[1]
 

@@ -370,7 +370,7 @@ class InputReader:
         if params["data_format"] == "channels_first":
             images = tf.transpose(images, [0, 3, 1, 2])
 
-        data = [images]
+        data = [images, num_positives]
         for level in range(params["min_level"], params["max_level"] + 1):
             cls = cls_targets[level]
             box = box_targets[level]
@@ -379,7 +379,6 @@ class InputReader:
                 box = tf.transpose(box, [0, 3, 1, 2])
             data.append(cls)
             data.append(box)
-        data.append(num_positives)
 
         # Concatenate groundtruth annotations to a tensor.
         # groundtruth_data = tf.concat([boxes, is_crowds, areas, classes], axis=2)

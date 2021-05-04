@@ -95,7 +95,7 @@ def run_training(args):
                 "dali_cpu pipeline is not compatible with mulit_gpu mode :<"
             )
 
-        def dali_dataset_fn(batch_size, file_pattern, input_context):
+        def dali_dataset_fn(batch_size, file_pattern, input_context, is_training):
             with tf.device(f"/gpu:{input_context.input_pipeline_id}"):
                 device_id = input_context.input_pipeline_id
                 num_shards = input_context.num_input_pipelines
@@ -103,6 +103,7 @@ def run_training(args):
                     params,
                     batch_size,
                     file_pattern,
+                    is_training=is_training,
                     num_shards=num_shards,
                     device_id=device_id,
                 ).get_dataset()
@@ -114,13 +115,13 @@ def run_training(args):
         )
 
         train_dataset = strategy.distribute_datasets_from_function(
-            partial(dali_dataset_fn, args.train_batch_size, args.train_file_pattern),
+            partial(dali_dataset_fn, args.train_batch_size, args.train_file_pattern, True),
             input_options,
         )
 
         if eval_file_pattern:
             eval_dataset = strategy.distribute_datasets_from_function(
-                partial(dali_dataset_fn, args.eval_batch_size, eval_file_pattern),
+                partial(dali_dataset_fn, args.eval_batch_size, eval_file_pattern, False),
                 input_options,
             )
 
@@ -134,12 +135,17 @@ def run_training(args):
                 params,
                 args.train_batch_size,
                 args.train_file_pattern,
+                is_training=True,
                 cpu_only=cpu_only,
             ).get_dataset()
 
             if eval_file_pattern:
                 eval_dataset = EfficientDetPipeline(
-                    params, args.eval_batch_size, eval_file_pattern, cpu_only=cpu_only
+                    params,
+                    args.eval_batch_size,
+                    eval_file_pattern,
+                    is_training=False,
+                    cpu_only=cpu_only
                 ).get_dataset()
 
     # TODO: decide if necessary -> params['nms_configs']['max_nms_inputs'] = anchors.MAX_DETECTION_POINTS

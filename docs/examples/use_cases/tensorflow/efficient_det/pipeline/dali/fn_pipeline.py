@@ -15,6 +15,7 @@ class EfficientDetPipeline:
         params,
         batch_size,
         file_pattern,
+        is_training=True,
         num_shards=1,
         device_id=0,
         cpu_only=False,
@@ -22,9 +23,11 @@ class EfficientDetPipeline:
 
         self._batch_size = batch_size
         self._image_size = params["image_size"]
+        self._gridmask = params["grid_mask"]
         self._tfrecord_files = glob(file_pattern)
         self._tfrecord_idxs = [filename + "_idx" for filename in self._tfrecord_files]
 
+        self._is_training = is_training
         self._num_shards = num_shards
         self._shard_id = None if cpu_only else device_id
         self._device = "cpu" if cpu_only else "gpu"
@@ -44,10 +47,10 @@ class EfficientDetPipeline:
         self._define_pipeline()
 
     def _get_boxes(self):
-        boxes_l = self._anchors.boxes[:, 0] / self._image_size[0]
-        boxes_t = self._anchors.boxes[:, 1] / self._image_size[1]
-        boxes_r = self._anchors.boxes[:, 2] / self._image_size[0]
-        boxes_b = self._anchors.boxes[:, 3] / self._image_size[1]
+        boxes_t = self._anchors.boxes[:, 0] / self._image_size[0]
+        boxes_l = self._anchors.boxes[:, 1] / self._image_size[1]
+        boxes_b = self._anchors.boxes[:, 2] / self._image_size[0]
+        boxes_r = self._anchors.boxes[:, 3] / self._image_size[1]
         boxes = tf.transpose(tf.stack([boxes_l, boxes_t, boxes_r, boxes_b]))
         return tf.reshape(boxes, boxes.shape[0] * 4).numpy().tolist()
 
@@ -59,11 +62,23 @@ class EfficientDetPipeline:
                 device=self._device,
                 shard_id=self._shard_id,
                 num_shards=self._num_shards,
+                random_shuffle=self._is_training,
             )
 
-            images, bboxes = ops.normalize_flip(self._device, images, bboxes)
+            if self._is_training and self._gridmask:
+                p = dali.fn.random.coin_flip()
+                images = images * (1 - p) + dali.fn.grid_mask(images) * p
+
+            if self._is_training:
+                propab = 0.5
+                scaling = [0.1, 2.0]
+            else:
+                propab = 0.0
+                scaling = None
+
+            images, bboxes = ops.normalize_flip(self._device, images, bboxes, propab)
             images, bboxes, classes = ops.random_crop_resize_2(
-                self._device, images, bboxes, classes, self._image_size
+                self._device, images, bboxes, classes, self._image_size, scaling
             )
 
             enc_bboxes, enc_classes = dali.fn.box_encoder(
@@ -73,6 +88,14 @@ class EfficientDetPipeline:
                 dali.fn.cast(enc_classes != 0, dtype=dali.types.FLOAT)
             )
             enc_classes -= 1
+
+            # convert to tlbr
+            enc_bboxes = dali.fn.coord_transform(enc_bboxes, M=[
+                0, 1, 0, 0,
+                1, 0, 0, 0,
+                0, 0, 0, 1,
+                0, 0, 1, 0])
+
             # split into layers by size
             enc_bboxes_layers, enc_classes_layers = self._unpack_labels(
                 enc_bboxes, enc_classes
@@ -90,7 +113,7 @@ class EfficientDetPipeline:
                 enc_layers = [item.gpu() for item in enc_layers]
                 num_positives = num_positives.gpu()
 
-            self._pipe.set_outputs(images, *enc_layers, num_positives)
+            self._pipe.set_outputs(images, num_positives, *enc_layers)
 
     def _unpack_labels(self, enc_bboxes, enc_classes):
         # from keras/anchors.py
@@ -126,9 +149,10 @@ class EfficientDetPipeline:
 
     def get_dataset(self):
         output_shapes = [
-            (self._batch_size, self._image_size[0], self._image_size[1], 3)
+            (self._batch_size, self._image_size[0], self._image_size[1], 3),
+            (self._batch_size,)
         ]
-        output_dtypes = [tf.float32]
+        output_dtypes = [tf.float32, tf.float32]
 
         for level in range(self._anchors.min_level, self._anchors.max_level + 1):
             feat_size = self._anchors.feat_sizes[level]
@@ -150,9 +174,6 @@ class EfficientDetPipeline:
             )
             output_dtypes.append(tf.int32)
             output_dtypes.append(tf.float32)
-
-        output_shapes.append((self._batch_size,))
-        output_dtypes.append(tf.float32)
 
         dataset = dali_tf.DALIDataset(
             pipeline=self._pipe,
