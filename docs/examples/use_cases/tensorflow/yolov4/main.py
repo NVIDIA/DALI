@@ -49,7 +49,9 @@ def run_eval(file_root, annotations_file, weights_file, batch_size, steps):
     seed = int.from_bytes(os.urandom(4), "little")
 
     pipeline = YOLOv4Pipeline(
-        file_root, annotations_file, batch_size, (608, 608), 1, 0, seed, True, False
+        file_root, annotations_file, batch_size, (608, 608), 1, 0, seed,
+        dali_use_gpu=True,
+        is_training=False
     )
     dataset = pipeline.dataset()
 
@@ -79,8 +81,10 @@ if __name__ == "__main__":
     parser_train.add_argument("--steps", "-s", default=1000, type=int)
     parser_train.add_argument("--output", "-o", default="output.h5")
     parser_train.add_argument("--start_weights", "-w", default=None)
+    parser_train.add_argument("--learning_rate", default=1e-4, type=float)
     parser_train.add_argument("--dali_use_gpu", action="store_true")
     parser_train.add_argument("--multigpu", action="store_true")
+    parser_train.add_argument("--use_mosaic", action="store_true")
     parser_train.add_argument("--log_dir", default=None)
     parser_train.add_argument("--ckpt_dir", default=None)
     parser_train.add_argument("--seed", default=None, type=int)
@@ -100,11 +104,13 @@ if __name__ == "__main__":
         run_training(
             args.file_root, args.annotations, args.batch_size, args.epochs, args.steps,
             output=args.output,
+            lr=args.learning_rate,
             dali_use_gpu=args.dali_use_gpu,
             log_dir=args.log_dir,
             ckpt_dir=args.ckpt_dir,
             start_weights=args.start_weights,
             multigpu=args.multigpu,
+            use_mosaic=args.use_mosaic,
             seed=args.seed
         )
     elif args.action == "eval":

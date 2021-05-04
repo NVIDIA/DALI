@@ -23,7 +23,6 @@ class SaveWeightsCallback(tf.keras.callbacks.Callback):
         self.model.save_weights(self.ckpt_dir + '/epoch_' + str(epoch) + '.h5')
 
 
-# TODO: add multigpu strategy
 # TODO: fix nan loss issue
 def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kwargs):
 
@@ -45,9 +44,11 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
         tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
     dali_use_gpu = kwargs.get("dali_use_gpu")
+    use_mosaic = kwargs.get("use_mosaic")
     log_dir = kwargs.get("log_dir")
     ckpt_dir = kwargs.get("ckpt_dir")
     start_weights = kwargs.get("start_weights")
+    lr = kwargs.get("lr")
 
     initial_epoch = 0
 
@@ -57,7 +58,7 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
     with strategy.scope():
         model = YOLOv4Model()
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(lr=1e-4)
+            optimizer=tf.keras.optimizers.Adam(lr=lr)
         )
 
     if start_weights:
@@ -74,7 +75,11 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
             image_size = (608, 608)
 
             pipeline = YOLOv4Pipeline(
-                file_root, annotations_file, batch_size, image_size, num_threads, device_id, seed, dali_use_gpu, True
+                file_root, annotations_file,
+                batch_size, image_size, num_threads, device_id, seed,
+                dali_use_gpu=dali_use_gpu,
+                is_training=True,
+                use_mosaic=use_mosaic
             )
             return pipeline.dataset()
 

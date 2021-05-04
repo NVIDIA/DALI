@@ -89,7 +89,7 @@ def select(bool_TL, if_true, if_false):
             dali.fn.slice(true_shape * 0, start=[1], shape=[1], axes=[0])
         )
 
-    return dali.fn.slice(joined, start=st, shape=sh, axes=[0,1])
+    return dali.fn.slice(joined, start=st, shape=sh, axes=[0,1], out_of_bounds_policy="trim_to_shape")
 
 
 def color_twist(images):

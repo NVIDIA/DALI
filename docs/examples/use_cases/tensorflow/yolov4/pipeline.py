@@ -5,19 +5,22 @@ import ops
 
 
 class YOLOv4Pipeline:
-    # TODO: clean up __init__ args
     def __init__(
-        self, file_root, annotations_file, batch_size, image_size, num_threads, device_id, seed, use_gpu, is_training
+        self, file_root, annotations_file,
+        batch_size, image_size, num_threads, device_id, seed,
+        **kwargs
     ):
-        self._use_gpu = use_gpu
-        self._batch_size = batch_size
-        self._image_size = image_size
         self._file_root = file_root
         self._annotations_file = annotations_file
 
+        self._batch_size = batch_size
+        self._image_size = image_size
         self._num_threads = num_threads
         self._device_id = device_id
-        self._is_training = is_training
+
+        self._use_gpu = kwargs.get('use_gpu', False)
+        self._is_training = kwargs.get('is_training', False)
+        self._use_mosaic = kwargs.get('use_mosaic', False)
 
         self._pipe = dali.pipeline.Pipeline(
             batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed=seed
@@ -37,16 +40,17 @@ class YOLOv4Pipeline:
                 images = ops.color_twist(images)
                 images, bboxes = ops.flip(images, bboxes)
 
-                do_mosaic = dali.fn.random.coin_flip()
-                images_m, bboxes_m, classes_m = ops.mosaic_new(images, bboxes, classes, self._image_size)
+                if self._use_mosaic:
+                    do_mosaic = dali.fn.random.coin_flip()
+                    images_m, bboxes_m, classes_m = ops.mosaic_new(images, bboxes, classes, self._image_size)
 
-                images = images * (1.0 - do_mosaic) + images_m * do_mosaic
-                bboxes = ops.select(do_mosaic, bboxes_m, bboxes)
-                classes = dali.fn.squeeze(ops.select(
-                    do_mosaic,
-                    dali.fn.expand_dims(classes_m, axes=1),
-                    dali.fn.expand_dims(classes, axes=1)
-                ), axes=1)
+                    images = images * (1.0 - do_mosaic) + images_m * do_mosaic
+                    bboxes = ops.select(do_mosaic, bboxes_m, bboxes)
+                    classes = dali.fn.squeeze(ops.select(
+                        do_mosaic,
+                        dali.fn.expand_dims(classes_m, axes=1),
+                        dali.fn.expand_dims(classes, axes=1)
+                    ), axes=1)
 
             bboxes = ops.ltrb_to_xywh(bboxes)
 
