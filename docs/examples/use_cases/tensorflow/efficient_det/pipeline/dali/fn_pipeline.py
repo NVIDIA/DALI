@@ -1,6 +1,7 @@
 import nvidia.dali as dali
 import nvidia.dali.plugin.tf as dali_tf
 import tensorflow as tf
+import math
 
 from absl import logging
 from glob import glob
@@ -66,8 +67,20 @@ class EfficientDetPipeline:
             )
 
             if self._is_training and self._gridmask:
+                input_shape = dali.fn.shapes(images)
+                w = dali.fn.slice(input_shape, 1, 1, axes=[0])
+                h = dali.fn.slice(input_shape, 0, 1, axes=[0])
+
+                ratio = 0.4
+                angle = dali.fn.random.normal(mean=-1, stddev=1) * 10.0 * (math.pi / 180.0)
+                l = dali.math.min(0.5 * h, 0.3 * w)
+                r = dali.math.max(0.5 * h, 0.3 * w)
+                tile = dali.fn.random.uniform(range=[0.0, 1.0]) * (r - l) + l
+                tile = dali.fn.cast(tile, dtype=dali.types.INT32)
+                gridmask = dali.fn.grid_mask(images, ratio=ratio, angle=angle, tile=tile)
+
                 p = dali.fn.random.coin_flip()
-                images = images * (1 - p) + dali.fn.grid_mask(images) * p
+                images = images * (1 - p) + gridmask * p
 
             if self._is_training:
                 propab = 0.5
