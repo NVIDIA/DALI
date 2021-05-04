@@ -1,9 +1,9 @@
 import multiprocessing
-import os
 from absl import logging
 import numpy as np
 import tensorflow as tf
 import re
+import os
 
 from collections import namedtuple
 from enum import Enum
@@ -20,9 +20,9 @@ class PipelineType(Enum):
     dali_gpu = 3
 
 
-def dict_to_namedtuple(词典):
-    Arguments = namedtuple("Arguments", 词典.keys())
-    return Arguments._make(词典.values())
+def dict_to_namedtuple(字典):
+    Arguments = namedtuple("Arguments", 字典.keys())
+    return Arguments._make(字典.values())
 
 
 def run_training(args):
@@ -38,7 +38,9 @@ def run_training(args):
     config.override(args.hparams, allow_new_keys=True)
     config.image_size = utils.parse_image_size(config.image_size)
 
-    params = dict(config.as_dict(), seed=args.seed, batch_size=args.train_batch_size)
+    params = dict(
+        config.as_dict(), seed=args.seed, train_batch_size=args.train_batch_size
+    )
 
     logging.info(params)
 
@@ -84,9 +86,14 @@ def run_training(args):
                 eval_file_pattern,
             ).get_dataset(args.eval_batch_size)
 
-    elif use_mirrored_strategy and (pipeline == PipelineType.dali_gpu):
+    elif use_mirrored_strategy:
         from pipeline.dali.fn_pipeline import EfficientDetPipeline
         from functools import partial
+
+        if pipeline == PipelineType.dali_cpu:
+            raise ValueError(
+                "dali_cpu pipeline is not compatible with mulit_gpu mode :<"
+            )
 
         def dali_dataset_fn(batch_size, file_pattern, input_context):
             with tf.device(f"/gpu:{input_context.input_pipeline_id}"):
@@ -113,7 +120,7 @@ def run_training(args):
 
         if eval_file_pattern:
             eval_dataset = strategy.distribute_datasets_from_function(
-                partial(dali_dataset_fn, eval_batch_size, eval_file_pattern),
+                partial(dali_dataset_fn, args.eval_batch_size, eval_file_pattern),
                 input_options,
             )
 
@@ -214,10 +221,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval_batch_size", type=int, default=64)
     parser.add_argument("--eval_steps", type=int)
     parser.add_argument("--eval_freq", type=int, default=1)
-    parser.add_argument(
-        "--eval_after_training", dest="eval_after_training", action="store_true"
-    )
-    parser.set_defaults(feature=False)
+    parser.add_argument("--eval_after_training", action="store_true")
     parser.add_argument("--pipeline", action=enum_action(PipelineType), required=True)
     parser.add_argument("--multi_gpu", nargs="*", type=int)
     parser.add_argument("--seed", type=int)
@@ -229,5 +233,7 @@ if __name__ == "__main__":
     parser.add_argument("--ckpt_dir")
 
     args = parser.parse_args()
+
+    print(args)
 
     run_training(vars(args))

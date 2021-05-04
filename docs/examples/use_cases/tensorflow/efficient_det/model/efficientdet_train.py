@@ -524,29 +524,21 @@ class EfficientDetTrain(efficientdet_net.EfficientDetNet):
             labels["box_targets_%d" % level] = inputs[i + 2]
         mean_batch = tf.reduce_mean(inputs[-1])
         labels["mean_num_positives"] = tf.reshape(
-            tf.tile(tf.expand_dims(mean_batch, 0), [config.batch_size]),
-            [config.batch_size, 1],
+            tf.tile(tf.expand_dims(mean_batch, 0), [config.train_batch_size]),
+            [config.train_batch_size, 1],
         )
 
         if config.img_summary_steps:
             utils.image("input_image", features)
 
         with tf.GradientTape() as tape:
-
-            def predictions(features):
-                cls_out_list, box_out_list = self.call(features, training=True)
-                cls_outputs, box_outputs = {}, {}
-                min_level = config.min_level
-                max_level = config.max_level
-                for i in range(min_level, max_level + 1):
-                    cls_outputs[i] = cls_out_list[i - min_level]
-                    box_outputs[i] = box_out_list[i - min_level]
-                return cls_outputs, box_outputs
-
-            precision = utils.get_precision(config.strategy, config.mixed_precision)
-            cls_outputs, box_outputs = utils.build_model_with_precision(
-                precision, predictions, features, training=True
-            )
+            cls_out_list, box_out_list = self.call(features, training=True)
+            cls_outputs, box_outputs = {}, {}
+            min_level = config.min_level
+            max_level = config.max_level
+            for i in range(min_level, max_level + 1):
+                cls_outputs[i] = cls_out_list[i - min_level]
+                box_outputs[i] = box_out_list[i - min_level]
 
             levels = cls_outputs.keys()
             for level in levels:

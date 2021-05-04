@@ -22,16 +22,6 @@ from . import efficientnet_lite_builder
 from . import efficientnet_model
 
 
-def get_model_builder(model_name):
-    """Get the model_builder module for a given model name."""
-    if model_name.startswith("efficientnet-lite"):
-        return efficientnet_lite_builder
-    elif model_name.startswith("efficientnet-"):
-        return efficientnet_builder
-    else:
-        raise ValueError("Unknown model name {}".format(model_name))
-
-
 def get_model(model_name, override_params=None, model_dir=None):
     """A helper function to create and return model.
 

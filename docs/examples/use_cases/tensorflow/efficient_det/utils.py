@@ -178,89 +178,6 @@ def get_ckpt_var_map(ckpt_path, ckpt_scope, var_scope, skip_mismatch=None):
     return var_map
 
 
-class TpuBatchNormalization(tf.keras.layers.BatchNormalization):
-    """Cross replica batch normalization."""
-
-    def __init__(self, fused=False, **kwargs):
-        if not kwargs.get("name", None):
-            kwargs["name"] = "tpu_batch_normalization"
-        if fused in (True, None):
-            raise ValueError("TpuBatchNormalization does not support fused=True.")
-        super().__init__(fused=fused, **kwargs)
-
-    def _moments(self, inputs, reduction_axes, keep_dims):
-        """Compute the mean and variance: it overrides the original _moments."""
-        shard_mean, shard_variance = super()._moments(
-            inputs, reduction_axes, keep_dims=keep_dims
-        )
-
-        num_shards = tpu_function.get_tpu_context().number_of_shards or 1
-        num_shards_per_group = min(32, num_shards)  # aggregate up to 32 cores.
-        logging.info(
-            "TpuBatchNormalization with num_shards_per_group {}".format(
-                num_shards_per_group
-            )
-        )
-        if num_shards_per_group > 1:
-            # Compute variance using: Var[X]= E[X^2] - E[X]^2.
-            shard_square_of_mean = tf.math.square(shard_mean)
-            shard_mean_of_square = shard_variance + shard_square_of_mean
-            group_mean = cross_replica_mean(shard_mean, num_shards_per_group)
-            group_mean_of_square = cross_replica_mean(
-                shard_mean_of_square, num_shards_per_group
-            )
-            group_variance = group_mean_of_square - tf.math.square(group_mean)
-            return (group_mean, group_variance)
-        else:
-            return (shard_mean, shard_variance)
-
-    def call(self, inputs, training=None):
-        outputs = super().call(inputs, training)
-        # A temporary hack for tf1 compatibility with keras batch norm.
-        for u in self.updates:
-            tf.add_to_collection(tf.GraphKeys.UPDATE_OPS, u)
-        return outputs
-
-
-class SyncBatchNormalization(tf.keras.layers.BatchNormalization):
-    """Cross replica batch normalization."""
-
-    def __init__(self, fused=False, **kwargs):
-        if not kwargs.get("name", None):
-            kwargs["name"] = "tpu_batch_normalization"
-        if fused in (True, None):
-            raise ValueError("SyncBatchNormalization does not support fused=True.")
-        super().__init__(fused=fused, **kwargs)
-
-    def _moments(self, inputs, reduction_axes, keep_dims):
-        """Compute the mean and variance: it overrides the original _moments."""
-        shard_mean, shard_variance = super()._moments(
-            inputs, reduction_axes, keep_dims=keep_dims
-        )
-
-        replica_context = tf.distribute.get_replica_context()
-        num_shards = replica_context.num_replicas_in_sync or 1
-
-        if num_shards > 1:
-            # Compute variance using: Var[X]= E[X^2] - E[X]^2.
-            shard_square_of_mean = tf.math.square(shard_mean)
-            shard_mean_of_square = shard_variance + shard_square_of_mean
-            group_mean, group_mean_of_square = replica_context.all_reduce(
-                tf.distribute.ReduceOp.MEAN, [shard_mean, shard_mean_of_square]
-            )
-            group_variance = group_mean_of_square - tf.math.square(group_mean)
-            return (group_mean, group_variance)
-        else:
-            return (shard_mean, shard_variance)
-
-    def call(self, inputs, training=None):
-        outputs = super().call(inputs, training)
-        # A temporary hack for tf1 compatibility with keras batch norm.
-        for u in self.updates:
-            tf.add_to_collection(tf.GraphKeys.UPDATE_OPS, u)
-        return outputs
-
-
 class BatchNormalization(tf.keras.layers.BatchNormalization):
     """Fixed default name of BatchNormalization to match TpuBatchNormalization."""
 
@@ -275,21 +192,6 @@ class BatchNormalization(tf.keras.layers.BatchNormalization):
         for u in self.updates:
             tf.add_to_collection(tf.GraphKeys.UPDATE_OPS, u)
         return outputs
-
-
-def batch_norm_class(strategy=None):
-    if strategy == "gpus":
-        # TODO(fsx950223): use SyncBatchNorm after TF bug is fixed (incorrect nccl
-        # all_reduce). See https://github.com/tensorflow/tensorflow/issues/41980
-        return BatchNormalization
-    else:
-        return BatchNormalization
-
-
-def batch_normalization(inputs, training=False, strategy=None, **kwargs):
-    """A wrapper for TpuBatchNormalization."""
-    bn_layer = batch_norm_class(strategy)(**kwargs)
-    return bn_layer(inputs, training=training)
 
 
 def drop_connect(inputs, is_training, survival_prob):
@@ -484,23 +386,6 @@ def verify_feats_size(
             )
 
 
-def get_precision(strategy: str, mixed_precision: bool = False):
-    """Get the precision policy for a given strategy."""
-    if mixed_precision:
-        if strategy == "tpu":
-            return "mixed_bfloat16"
-
-        if tf.config.experimental.list_physical_devices("GPU"):
-            return "mixed_float16"
-
-        # TODO(fsx950223): Fix CPU float16 inference
-        # https://github.com/google/automl/issues/504
-        logging.warning("float16 is not supported for CPU, use float32 instead")
-        return "float32"
-
-    return "float32"
-
-
 @contextlib.contextmanager
 def float16_scope():
     """Scope class for float16."""
@@ -519,70 +404,6 @@ def float16_scope():
 
     with tf.variable_scope("", custom_getter=_custom_getter) as varscope:
         yield varscope
-
-
-def set_precision_policy(policy_name: Text = None, loss_scale: bool = False):
-    """Set precision policy according to the name.
-
-    Args:
-      policy_name: precision policy name, one of 'float32', 'mixed_float16',
-        'mixed_bfloat16', or None.
-      loss_scale: whether to use loss scale (only for training).
-    """
-    if not policy_name:
-        return
-
-    assert policy_name in ("mixed_float16", "mixed_bfloat16", "float32")
-    logging.info("use mixed precision policy name %s", policy_name)
-    tf.compat.v1.keras.layers.enable_v2_dtype_behavior()
-    # mixed_float16 training is not supported for now, so disable loss_scale.
-    # float32 and mixed_bfloat16 do not need loss scale for training.
-    if loss_scale:
-        policy = tf2.keras.mixed_precision.experimental.Policy(policy_name)
-    else:
-        policy = tf2.keras.mixed_precision.experimental.Policy(
-            policy_name, loss_scale=None
-        )
-    tf2.keras.mixed_precision.experimental.set_policy(policy)
-
-
-def build_model_with_precision(pp, mm, ii, training=False, *args, **kwargs):
-    """Build model with its inputs/params for a specified precision context.
-
-    This is highly specific to this codebase, and not intended to be general API.
-    Advanced users only. DO NOT use it if you don't know what it does.
-    NOTE: short argument names are intended to avoid conficts with kwargs.
-
-    Args:
-      pp: A string, precision policy name, such as "mixed_float16".
-      mm: A function, for rmodel builder.
-      ii: A tensor, for model inputs.
-      tt: A bool, If true, it is for training; otherwise, it is for eval.
-      *args: A list of model arguments.
-      **kwargs: A dict, extra model parameters.
-
-    Returns:
-      the output of mm model.
-    """
-    if pp == "mixed_bfloat16":
-        set_precision_policy(pp)
-        inputs = tf.cast(ii, tf.bfloat16)
-        with tf.tpu.bfloat16_scope():
-            outputs = mm(inputs, *args, **kwargs)
-        set_precision_policy("float32")
-    elif pp == "mixed_float16":
-        set_precision_policy(pp, loss_scale=tt)
-        inputs = tf.cast(ii, tf.float16)
-        with float16_scope():
-            outputs = mm(inputs, *args, **kwargs)
-        set_precision_policy("float32")
-    elif not pp or pp == "float32":
-        outputs = mm(ii, *args, **kwargs)
-    else:
-        raise ValueError("Unknow precision name {}".format(pp))
-
-    # Users are responsible to convert the dtype of all outputs.
-    return outputs
 
 
 def _recompute_grad(f):

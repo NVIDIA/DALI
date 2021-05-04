@@ -25,7 +25,6 @@ def build_batch_norm(
     data_format: Text = "channels_last",
     momentum: float = 0.99,
     epsilon: float = 1e-3,
-    strategy: Text = None,
     name: Text = "tpu_batch_normalization",
 ):
     """Build a batch normalization layer.
@@ -37,16 +36,14 @@ def build_batch_norm(
         width]` or "channels_last for `[batch, height, width, channels]`.
       momentum: `float`, momentume of batch norm.
       epsilon: `float`, small value for numerical stability.
-      strategy: `str`, whether to use tpu, gpus or other version of batch norm.
       name: the name of the batch normalization layer
 
     Returns:
       A normalized `Tensor` with the same `data_format`.
     """
     axis = 1 if data_format == "channels_first" else -1
-    batch_norm_class = utils.batch_norm_class(strategy)
 
-    bn_layer = batch_norm_class(
+    bn_layer = utils.BatchNormalization(
         axis=axis,
         momentum=momentum,
         epsilon=epsilon,
