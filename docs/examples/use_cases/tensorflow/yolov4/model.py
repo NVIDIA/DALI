@@ -88,6 +88,7 @@ class YOLOv4Model(tf.keras.Model):
         super().__init__(input, output)
 
         self.loss_tracker = tf.keras.metrics.Mean(name="loss")
+        self.lr_tracker = tf.keras.metrics.Mean(name="lr")
         self.mAP_tracker = tf.keras.metrics.Mean(name="mAP")
 
 
@@ -112,9 +113,10 @@ class YOLOv4Model(tf.keras.Model):
             self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
 
         self.loss_tracker.update_state(total_loss)
+        self.lr_tracker.update_state(self.optimizer.lr(self.current_step))
         self.current_step.assign_add(1)
 
-        return {"loss" : self.loss_tracker.result()}
+        return {"loss" : self.loss_tracker.result(), "lr": self.lr_tracker.result()}
 
     def test_step(self, data):
 
@@ -127,7 +129,7 @@ class YOLOv4Model(tf.keras.Model):
 
     @property
     def metrics(self):
-        return [self.loss_tracker, self.mAP_tracker]
+        return [self.loss_tracker, self.mAP_tracker, self.lr_tracker]
 
 
 

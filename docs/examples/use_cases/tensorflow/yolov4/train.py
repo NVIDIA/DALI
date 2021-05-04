@@ -48,7 +48,13 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
     log_dir = kwargs.get("log_dir")
     ckpt_dir = kwargs.get("ckpt_dir")
     start_weights = kwargs.get("start_weights")
-    lr = kwargs.get("lr")
+
+    total_steps = epochs * steps_per_epoch
+    initial_lr = kwargs.get("lr")
+    lr_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
+        [int(0.3 * total_steps), int(0.5 * total_steps)],
+        [initial_lr, 0.1 * initial_lr, 0.01 * initial_lr]
+    )
 
     initial_epoch = 0
 
@@ -58,7 +64,7 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
     with strategy.scope():
         model = YOLOv4Model()
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(lr=lr)
+            optimizer=tf.keras.optimizers.Adam(learning_rate=lr_fn)
         )
 
     if start_weights:
