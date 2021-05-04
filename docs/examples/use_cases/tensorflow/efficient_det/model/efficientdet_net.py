@@ -24,7 +24,6 @@ from .backbone import backbone_factory
 from .backbone import efficientnet_builder
 from .model_utils import fpn_configs
 from .model_utils import postprocess
-from .model_utils import tfmot
 from .model_utils import util_keras
 
 # pylint: disable=arguments-differ  # fo keras layers.
@@ -45,7 +44,6 @@ class FNode(tf.keras.layers.Layer):
         act_type,
         weight_method,
         data_format,
-        model_optimizations,
         name="fnode",
     ):
         super().__init__(name=name)
@@ -61,7 +59,6 @@ class FNode(tf.keras.layers.Layer):
         self.conv_bn_act_pattern = conv_bn_act_pattern
         self.resample_layers = []
         self.vars = []
-        self.model_optimizations = model_optimizations
 
     def fuse_features(self, nodes):
         """Fuse features from different resolutions and return a weighted sum.
@@ -135,7 +132,6 @@ class FNode(tf.keras.layers.Layer):
                     self.apply_bn_for_resampling,
                     self.conv_after_downsample,
                     data_format=self.data_format,
-                    model_optimizations=self.model_optimizations,
                     name=name,
                 )
             )
@@ -155,7 +151,6 @@ class FNode(tf.keras.layers.Layer):
             self.fpn_num_filters,
             self.act_type,
             self.data_format,
-            self.model_optimizations,
             name="op_after_combine{}".format(len(feats_shape)),
         )
         self.built = True
@@ -182,7 +177,6 @@ class OpAfterCombine(tf.keras.layers.Layer):
         fpn_num_filters,
         act_type,
         data_format,
-        model_optimizations,
         name="op_after_combine",
     ):
         super().__init__(name=name)
@@ -206,9 +200,6 @@ class OpAfterCombine(tf.keras.layers.Layer):
             data_format=self.data_format,
             name="conv",
         )
-        if model_optimizations:
-            for method in model_optimizations.keys():
-                self.conv_op = tfmot.get_method(method)(self.conv_op)
         self.bn = util_keras.build_batch_norm(data_format=self.data_format, name="bn")
 
     def call(self, new_node, training):
@@ -233,7 +224,6 @@ class ResampleFeatureMap(tf.keras.layers.Layer):
         data_format=None,
         pooling_type=None,
         upsampling_type=None,
-        model_optimizations=None,
         name="resample_p0",
     ):
         super().__init__(name=name)
@@ -252,9 +242,6 @@ class ResampleFeatureMap(tf.keras.layers.Layer):
             data_format=self.data_format,
             name="conv2d",
         )
-        if model_optimizations:
-            for method in model_optimizations.keys():
-                self.conv2d = tfmot.get_method(method)(self.conv2d)
         self.bn = util_keras.build_batch_norm(data_format=self.data_format, name="bn")
 
     def _pool2d(self, inputs, height, width, target_height, target_width):
@@ -673,7 +660,6 @@ class FPNCell(tf.keras.layers.Layer):
                 config.act_type,
                 weight_method=self.fpn_config.weight_method,
                 data_format=config.data_format,
-                model_optimizations=config.model_optimizations,
                 name="fnode%d" % i,
             )
             self.fnodes.append(fnode)
@@ -735,7 +721,6 @@ class EfficientDetNet(tf.keras.Model):
                     apply_bn=config.apply_bn_for_resampling,
                     conv_after_downsample=config.conv_after_downsample,
                     data_format=config.data_format,
-                    model_optimizations=config.model_optimizations,
                     name="resample_p%d" % level,
                 )
             )

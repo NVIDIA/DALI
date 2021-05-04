@@ -235,7 +235,6 @@ def default_detection_configs():
     # regularization l2 loss.
     h.weight_decay = 4e-5
     h.loss_scale = None  # set to 2**16 enables dynamic loss scale
-    h.model_optimizations = {}  # 'prune':{}
 
     # For detection.
     h.box_class_repeats = 3

@@ -95,7 +95,7 @@ def run_training(args):
                 "dali_cpu pipeline is not compatible with mulit_gpu mode :<"
             )
 
-        def dali_dataset_fn(batch_size, file_pattern, input_context, is_training):
+        def dali_dataset_fn(batch_size, file_pattern, is_training, input_context):
             with tf.device(f"/gpu:{input_context.input_pipeline_id}"):
                 device_id = input_context.input_pipeline_id
                 num_shards = input_context.num_input_pipelines
