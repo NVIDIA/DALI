@@ -124,7 +124,7 @@ class DetectionPipeline(Pipeline):
         self.decode_crop = ops.decoders.ImageSlice(device="cpu", output_type=types.RGB)
 
         self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB, hw_decoder_load=0)
-        self.decode_gpu_crop = ops.decoders.ImageSlice(device="mixed", output_type=types.RGB)
+        self.decode_gpu_crop = ops.decoders.ImageSlice(device="mixed", output_type=types.RGB, hw_decoder_load=0)
 
         self.ssd_crop = ops.SSDRandomCrop(
             device="cpu", num_attempts=1, seed=args.seed)
