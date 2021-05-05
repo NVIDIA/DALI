@@ -74,7 +74,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     nvjpeg2k_thread_(1,
                      spec.GetArgument<int>("device_id"),
                      spec.GetArgument<bool>("affine")) {
-#if NVJPEG_VER_MAJOR >= 11
+#if NVJPEG_VER_MAJOR > 11 || (NVJPEG_VER_MAJOR == 11 && NVJPEG_VER_MINOR >= 1)
     // if hw_decoder_load is not present in the schema (crop/sliceDecoder) then it is not supported
     bool try_init_hw_decoder = false;
     if (spec_.GetSchema().HasArgument("hw_decoder_load")) {
@@ -558,7 +558,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
       // only when we have ROI info check if nvjpegDecodeBatchedSupportedEx supports it
       if (nvjpeg_decode) {
-#if NVJPEG_VER_MAJOR >= 11
+#if NVJPEG_VER_MAJOR > 11 || (NVJPEG_VER_MAJOR == 11 && NVJPEG_VER_MINOR >= 1)
         if (state_hw_batched_ != nullptr) {
           NVJPEG_CALL(nvjpegJpegStreamParseHeader(handle_, input_data, in_size,
                                                   hw_decoder_jpeg_stream_));
@@ -734,6 +734,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   void ProcessImagesHw(MixedWorkspace &ws) {
+#if NVJPEG_VER_MAJOR > 11 || (NVJPEG_VER_MAJOR == 11 && NVJPEG_VER_MINOR >= 1)
     auto& output = ws.Output<GPUBackend>(0);
     if (!samples_hw_batched_.empty()) {
       nvjpegJpegState_t &state = state_hw_batched_;
@@ -799,6 +800,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
       CUDA_CALL(cudaEventRecord(hw_decode_event_, hw_decode_stream_));
     }
+#endif
   }
 
   void ProcessImages(MixedWorkspace &ws) {
