@@ -362,14 +362,10 @@ int Executor<WorkspacePolicy, QueuePolicy>::InferBatchSize(
     for (auto &bsp : bsps) {
       bsp->Advance();
     }
-  } catch (const std::runtime_error &e) {
+  } catch (const std::exception &e) {
     DALI_FAIL(
-        make_string("Failed to acquire the next batch size. Make sure, that DALI Pipeline is fed "
+        make_string("Failed to acquire the next batch. Make sure, that DALI Pipeline is fed "
                     "with sufficient amount of data. ", e.what()));
-  } catch (const std::out_of_range &e) {
-    DALI_FAIL(
-        make_string("No more batches in cache left. Make sure, that DALI Pipeline is fed with "
-                    "sufficient amount of data. ", e.what()));
   }
   return batch_size;
 }
