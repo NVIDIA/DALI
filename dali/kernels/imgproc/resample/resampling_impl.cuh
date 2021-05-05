@@ -489,11 +489,12 @@ __device__ void ResampleVert_Channels(
 
 template <int static_channels = -1, typename Dst, typename Src>
 __device__ void ResampleDepth_Channels(
-    ivec2 lo, ivec2 hi,
-    float src_z0, float scale,
-    Dst *__restrict__ out, ptrdiff_vec<1> out_strides,
-    const Src *__restrict__ in, ptrdiff_vec<1> in_strides, ivec2 in_shape, int dynamic_channels,
-    ResamplingFilter filter, int support) {
+    ivec2 /*lo*/, ivec2 /*hi*/,
+    float /*src_z0*/, float /*scale*/,
+    Dst *__restrict__ /*out*/, ptrdiff_vec<1> /*out_strides*/,
+    const Src *__restrict__ /*in*/, ptrdiff_vec<1> /*in_strides*/, ivec2 /*in_shape*/,
+    int /*dynamic_channels*/,
+    ResamplingFilter /*filter*/, int /*support*/) {
   // Unreachable code - no assert to avoid excessive register pressure.
 }
 
