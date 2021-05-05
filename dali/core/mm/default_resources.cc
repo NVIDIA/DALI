@@ -136,15 +136,15 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   using resource_type = mm::async_pool_resource<mm::memory_kind::device>;
   static auto upstream = std::make_shared<mm::cuda_malloc_memory_resource>();
   auto rsrc = std::make_shared<resource_type>(upstream.get());
-  return make_shared_composite_resource(std::move(rsrc), std::move(upstream));
+  return make_shared_composite_resource(std::move(rsrc), upstream);
 #endif
 }
 
 inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
   using resource_type = mm::async_pool_resource<mm::memory_kind::pinned>;
-  auto upstream = std::make_shared<rmm::mr::pinned_memory_resource>();
+  static auto upstream = std::make_shared<rmm::mr::pinned_memory_resource>();
   auto rsrc = std::make_shared<resource_type>(upstream.get());
-  return make_shared_composite_resource(std::move(rsrc), std::move(upstream));
+  return make_shared_composite_resource(std::move(rsrc), upstream);
 }
 
 template <memory_kind kind>
