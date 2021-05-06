@@ -70,21 +70,21 @@ struct DefaultResources {
   template <typename Ptr>
   void Release(Ptr &p) noexcept(false) {
     if (cudaGetLastError() == cudaErrorCudartUnloading) {
-      abandon(p);
+      Abandon(p);
     } else {
       p = {};
     }
   }
 
   template <typename T>
-  void abandon(std::vector<T> &v) {
+  void Abandon(std::vector<T> &v) {
     for (auto &x : v)
-      abandon(x);
+      Abandon(x);
     v.clear();
   }
 
   template <typename T>
-  void abandon(std::shared_ptr<T> &p) {
+  void Abandon(std::shared_ptr<T> &p) {
     // shared_ptr doesn't have a release() function like one in unique_ptr so we could
     // safely abandon the pointer.
     // What happens here: we create (by placement new) a shared pointer and move the original
@@ -113,7 +113,7 @@ struct CUDARTLoader {
 };
 
 
-template <class Callable>
+template <typename Callable>
 struct CallAtExit {
   explicit CallAtExit(Callable &&c) : callable(std::move(c)) {}
   ~CallAtExit() {
@@ -178,8 +178,10 @@ const std::shared_ptr<device_async_resource> &ShareDefaultDeviceResourceImpl(int
     CUDA_CALL(cudaGetDeviceCount(&ndevs));
     g_resources.device.resize(ndevs);
   }
-  if (static_cast<size_t>(device_id) >= g_resources.device.size())
-    throw std::out_of_range(make_string(device_id, " is not a valid CUDA device index."));
+  if (static_cast<size_t>(device_id) >= g_resources.device.size()) {
+    throw std::out_of_range(make_string(device_id, " is not a valid CUDA device index. "
+      "Shoud be 0 <= device_id < ", g_resources.device.size(), " or negative for current device."));
+  }
   if (!g_resources.device[device_id]) {
     DeviceGuard devg(device_id);
     static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
@@ -200,7 +202,7 @@ const std::shared_ptr<device_async_resource> &ShareDefaultResourceImpl<memory_ki
 
 
 template <> DLL_PUBLIC
-void SetDefaultResource<memory_kind::host>(shared_ptr<host_memory_resource> resource) {
+void SetDefaultResource<memory_kind::host>(std::shared_ptr<host_memory_resource> resource) {
   g_resources.host = std::move(resource);
 }
 
@@ -212,7 +214,7 @@ void SetDefaultResource<memory_kind::host>(host_memory_resource *resource, bool 
 
 
 template <> DLL_PUBLIC
-void SetDefaultResource<memory_kind::pinned>(shared_ptr<pinned_async_resource> resource) {
+void SetDefaultResource<memory_kind::pinned>(std::shared_ptr<pinned_async_resource> resource) {
   g_resources.pinned_async = std::move(resource);
 }
 
@@ -224,13 +226,18 @@ void SetDefaultResource<memory_kind::pinned>(pinned_async_resource *resource, bo
 
 
 void SetDefaultDeviceResource(int device_id, std::shared_ptr<device_async_resource> resource) {
+  if (device_id < 0) {
+    CUDA_CALL(cudaGetDevice(&device_id));
+  }
   int ndevs = g_resources.device.size();
   if (ndevs == 0) {
     CUDA_CALL(cudaGetDeviceCount(&ndevs));
     g_resources.device.resize(ndevs);
   }
-  if (device_id < 0 || device_id >= ndevs)
-    throw std::out_of_range(make_string(device_id, " is not a valid CUDA device index."));
+  if (device_id < 0 || device_id >= ndevs) {
+    throw std::out_of_range(make_string(device_id, " is not a valid CUDA device index. "
+      "Shoud be 0 <= device_id < ", g_resources.device.size(), " or negative for current device."));
+  }
   g_resources.device[device_id] = std::move(resource);
 }
 

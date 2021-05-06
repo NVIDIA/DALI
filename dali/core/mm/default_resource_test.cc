@@ -177,6 +177,30 @@ TEST(MMDefaultResource, SetResource_MultiDevice) {
   }
 }
 
+TEST(MMDefaultResource, SetResource_Current) {
+  int device_id = 0;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  DummyResource<memory_kind::device> dummy;
+  EXPECT_NO_THROW(SetDefaultDeviceResource(-1, &dummy));
+  EXPECT_EQ(GetDefaultDeviceResource(device_id), &dummy);
+  EXPECT_EQ(GetDefaultDeviceResource(-1), &dummy);
+  SetDefaultDeviceResource(-1, nullptr);
+}
+
+TEST(MMDefaultResource, GetResource_Device_RangeCheck) {
+  int ndev = 0;
+  CUDA_CALL(cudaGetDeviceCount(&ndev));
+  EXPECT_NO_THROW(GetDefaultDeviceResource(-1));
+  int current_dev;
+  CUDA_CALL(cudaGetDevice(&current_dev));
+  EXPECT_EQ(GetDefaultDeviceResource(-1), GetDefaultDeviceResource(current_dev));
+  for (int i = 0; i < ndev; i++) {
+    EXPECT_NO_THROW(GetDefaultDeviceResource(i));
+  }
+  EXPECT_THROW(GetDefaultDeviceResource(ndev), std::out_of_range);
+  EXPECT_THROW(GetDefaultDeviceResource(ndev+100), std::out_of_range);
+}
+
 }  // namespace test
 }  // namespace mm
 }  // namespace dali
