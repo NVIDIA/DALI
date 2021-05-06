@@ -356,8 +356,9 @@ int Executor<WorkspacePolicy, QueuePolicy>::InferBatchSize(
     DALI_ENFORCE(bsps[0]->NextBatchSize() == bsps[i]->NextBatchSize(),
                  "Batch size must be uniform across an iteration");
   }
+  int batch_size;
   try {
-    auto batch_size = bsps[0]->NextBatchSize();
+    batch_size = bsps[0]->NextBatchSize();
     assert(batch_size > 0);
     for (auto &bsp : bsps) {
       bsp->Advance();
