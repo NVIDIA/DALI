@@ -37,8 +37,6 @@ class CUFileDriverHandle{
  public:
   explicit CUFileDriverHandle(const int& device = 0) {
     dali::DeviceGuard g(device);
-    // make sure library is opened
-    cufileInit();
     CUDA_CALL(cuFileDriverOpen());
   }
 

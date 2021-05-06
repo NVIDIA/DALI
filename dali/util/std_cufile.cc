@@ -77,9 +77,6 @@ static void cufile_open(cufile::CUFileHandle& fh, size_t& length, const char* pa
 namespace dali {
 
 StdCUFileStream::StdCUFileStream(const std::string& path) : CUFileStream(path) {
-  // make sure lib is loaded
-  cufileInit();
-
   // open file
   cufile_open(f_, length_, path.c_str());
 

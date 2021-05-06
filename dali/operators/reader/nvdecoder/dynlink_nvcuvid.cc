@@ -41,22 +41,15 @@ CUVIDDRIVER loadNvcuvidLibrary() {
   return ret;
 }
 
-void *LoadSymbol(const char *name) {
+}  // namespace
+
+void *NvcuvidLoadSymbol(const char *name) {
   static CUVIDDRIVER nvcuvidDrvLib = loadNvcuvidLibrary();
   void *ret = nvcuvidDrvLib ? dlsym(nvcuvidDrvLib, name) : nullptr;
   return ret;
 }
 
-}  // namespace
-
-// it is defined in the generated file
-typedef void *tLoadSymbol(const char *name);
-void NvcuvidSetSymbolLoader(tLoadSymbol loader_func);
-
 bool cuvidInitChecked() {
-  static std::once_flag cuvid_once;
-  std::call_once(cuvid_once, NvcuvidSetSymbolLoader, LoadSymbol);
-
   static CUVIDDRIVER nvcuvidDrvLib = loadNvcuvidLibrary();
   return nvcuvidDrvLib != nullptr;
 }
@@ -67,7 +60,7 @@ bool cuvidIsSymbolAvailable(const char *name) {
   std::lock_guard<std::mutex> lock(symbol_mutex);
   auto it = symbol_map.find(name);
   if (it == symbol_map.end()) {
-    auto *ptr = LoadSymbol(name);
+    auto *ptr = NvcuvidLoadSymbol(name);
     symbol_map.insert({name, ptr});
     return ptr != nullptr;
   }

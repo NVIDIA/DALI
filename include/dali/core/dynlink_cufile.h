@@ -131,6 +131,4 @@ inline void cudaResultCheck<CUfileError_t>(CUfileError_t status) {
 
 }  // namespace dali
 
-void cufileInit();
-
 #endif  // DALI_CORE_DYNLINK_CUFILE_H_
