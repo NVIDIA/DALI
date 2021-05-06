@@ -39,6 +39,10 @@
 #include "dali/core/static_switch.h"
 #include "dali/operators/decoder/nvjpeg/permute_layout.h"
 
+#define IF_HW_DECODER_COMPATIBLE \
+        NVJPEG_VER_MAJOR > 11 || \
+        (NVJPEG_VER_MAJOR == 11 && (NVJPEG_VER_MINOR > 4 || \
+                                   (NVJPEG_VER_MINOR == 4 && NVJPEG_VER_PATCH >= 1)))
 
 namespace dali {
 
@@ -74,9 +78,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     nvjpeg2k_thread_(1,
                      spec.GetArgument<int>("device_id"),
                      spec.GetArgument<bool>("affine")) {
-#if NVJPEG_VER_MAJOR > 11 || \
-    (NVJPEG_VER_MAJOR == 11 && (NVJPEG_VER_MINOR > 4 || \
-                               (NVJPEG_VER_MINOR == 4 && NVJPEG_VER_PATCH >= 1)))
+#if IF_HW_DECODER_COMPATIBLE
     // if hw_decoder_load is not present in the schema (crop/sliceDecoder) then it is not supported
     bool try_init_hw_decoder = false;
     if (spec_.GetSchema().HasArgument("hw_decoder_load")) {
@@ -560,9 +562,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
       // only when we have ROI info check if nvjpegDecodeBatchedSupportedEx supports it
       if (nvjpeg_decode) {
-#if NVJPEG_VER_MAJOR > 11 || \
-    (NVJPEG_VER_MAJOR == 11 && (NVJPEG_VER_MINOR > 4 || \
-                               (NVJPEG_VER_MINOR == 4 && NVJPEG_VER_PATCH >= 1)))
+#if IF_HW_DECODER_COMPATIBLE
         if (state_hw_batched_ != nullptr) {
           NVJPEG_CALL(nvjpegJpegStreamParseHeader(handle_, input_data, in_size,
                                                   hw_decoder_jpeg_stream_));
@@ -738,9 +738,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   void ProcessImagesHw(MixedWorkspace &ws) {
-#if NVJPEG_VER_MAJOR > 11 || \
-    (NVJPEG_VER_MAJOR == 11 && (NVJPEG_VER_MINOR > 4 || \
-                               (NVJPEG_VER_MINOR == 4 && NVJPEG_VER_PATCH >= 1)))
+#if IF_HW_DECODER_COMPATIBLE
     auto& output = ws.Output<GPUBackend>(0);
     if (!samples_hw_batched_.empty()) {
       nvjpegJpegState_t &state = state_hw_batched_;
