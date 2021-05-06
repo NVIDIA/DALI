@@ -41,21 +41,10 @@ CUFILE loadCufileLibrary() {
   return ret;
 }
 
-void *LoadSymbol(const char *name) {
+}  // namespace
+
+void *CufileLoadSymbol(const char *name) {
   static CUFILE cufileDrvLib = loadCufileLibrary();
   void *ret = cufileDrvLib ? dlsym(cufileDrvLib, name) : nullptr;
   return ret;
-}
-
-}  // namespace
-
-// it is defined in the generated file
-typedef void *tLoadSymbol(const char *name);
-void CufileSetSymbolLoader(tLoadSymbol loader_func);
-
-void cufileInit() {
-#if CUFILE_ENABLED
-  static std::once_flag cufile_once;
-  std::call_once(cufile_once, CufileSetSymbolLoader, LoadSymbol);
-#endif
 }

@@ -44,36 +44,27 @@ NVMLRIVER loadNvmlLibrary() {
   return ret;
 }
 
-void *LoadSymbol(const char *name) {
+std::atomic_bool initialized{false};
+
+}  // namespace
+
+void *NvmlLoadSymbol(const char *name) {
   static NVMLRIVER nvmlDrvLib = loadNvmlLibrary();
   void *ret = nvmlDrvLib ? dlsym(nvmlDrvLib, name) : nullptr;
   return ret;
 }
 
-}  // namespace
-
-std::atomic_bool symbolsLoaded{false};
-
-// it is defined in the generated file
-typedef void *tLoadSymbol(const char *name);
-void NvmlSetSymbolLoader(tLoadSymbol loader_func);
-
 nvmlReturn_t nvmlInitChecked() {
-  // set symbol loader for this library
-#if !LINK_DRIVER_ENABLED
-  static std::once_flag nvml_once;
-  std::call_once(nvml_once, NvmlSetSymbolLoader, LoadSymbol);
-#endif
-  symbolsLoaded = true;
   nvmlReturn_t ret = nvmlInit();
   if (ret != NVML_SUCCESS) {
     DALI_WARN("nvmlInitChecked failed: ", nvmlErrorString(ret));
   }
+  initialized = true;
   return ret;
 }
 
 bool nvmlIsInitialized(void) {
-  return symbolsLoaded;
+  return initialized;
 }
 
 bool nvmlIsSymbolAvailable(const char *name) {
@@ -82,7 +73,7 @@ bool nvmlIsSymbolAvailable(const char *name) {
   std::lock_guard<std::mutex> lock(symbol_mutex);
   auto it = symbol_map.find(name);
   if (it == symbol_map.end()) {
-    auto *ptr = LoadSymbol(name);
+    auto *ptr = NvmlLoadSymbol(name);
     symbol_map.insert({name, ptr});
     return ptr != nullptr;
   }

@@ -48,20 +48,18 @@ def main():
 
 {0} {{
   using FuncPtr = {return_type} (%s *)({2});
-  static auto func_ptr = reinterpret_cast<FuncPtr>(load_symbol_func("{1}")) ?
-                           reinterpret_cast<FuncPtr>(load_symbol_func("{1}")) :
+  static auto func_ptr = reinterpret_cast<FuncPtr>(LOAD_SYMBOL_FUNC("{1}")) ?
+                           reinterpret_cast<FuncPtr>(LOAD_SYMBOL_FUNC("{1}")) :
                            {1}NotFound;
   return func_ptr({3});
 }}\n""" % (config['calling_conv'], config['calling_conv'])
 
     prolog = """
-typedef void *tLoadSymbol(const char *name);
+void *{0}LoadSymbol(const char *name);
 
-static tLoadSymbol *load_symbol_func;
+#define LOAD_SYMBOL_FUNC {0}##LoadSymbol
 
-void {0}SetSymbolLoader(tLoadSymbol *loader_func) {{
-  load_symbol_func = loader_func;
-}}\n"""
+"""
 
     index = clang.cindex.Index.create()
     header = args.header
