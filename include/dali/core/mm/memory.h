@@ -22,8 +22,17 @@
 namespace dali {
 namespace mm {
 
-static const cudaStream_t host_sync = ((cudaStream_t)42);  // NOLINT
+/**
+ * @brief Special value that's not a valid CUDA stream handle and indicates that an operation
+ *        should be performed in host order rather than stream order.
+ */
+static const cudaStream_t host_sync = ((cudaStream_t)4321);  // NOLINT
 
+/**
+ * @brief A deleter that disposes of raw memory allocated from a specific memory resource.
+ *
+ * @remarks This deleter employs type erasure to allow for interchangeability of memory kinds.
+ */
 struct Deleter {
   void *resource;
   size_t size, alignment;
@@ -34,6 +43,12 @@ struct Deleter {
   }
 };
 
+/**
+ * @brief A deleter that disposes of raw memory allocated from a specific memory resource
+ *        in stream order.
+ *
+ * @remarks This deleter employs type erasure to allow for interchangeability of memory kinds.
+ */
 struct AsyncDeleter {
   void *resource;
   size_t size, alignment;
@@ -45,6 +60,9 @@ struct AsyncDeleter {
   }
 };
 
+/**
+ * @brief Obtains a type-erased deleter for given memory resource and allocation parameters.
+ */
 template <memory_kind kind, typename Context>
 Deleter GetDeleter(memory_resource<kind, Context> *resource, size_t size, size_t alignment) {
   Deleter del;
@@ -57,6 +75,10 @@ Deleter GetDeleter(memory_resource<kind, Context> *resource, size_t size, size_t
   return del;
 }
 
+/**
+ * @brief Obtains a type-erased asynchonous deleter for given memory resource,
+ *        allocation parameters and stream.
+ */
 template <memory_kind kind>
 AsyncDeleter GetDeleter(async_memory_resource<kind> *resource,
                    size_t size, size_t alignment, cudaStream_t stream) {
@@ -76,9 +98,16 @@ AsyncDeleter GetDeleter(async_memory_resource<kind> *resource,
   return del;
 }
 
+/**
+ * @brief A unique pointer with a deleter that holds a pointer to a memory resource.
+ */
 template <typename T>
 using DALIUniquePtr = std::unique_ptr<T, Deleter>;
 
+/**
+ * @brief A unique pointer with a deleter that holds a pointer to a memory resource and
+ *        a stream which defines the order of deallocation.
+ */
 template <typename T>
 using DALIAsyncUniquePtr = std::unique_ptr<T, AsyncDeleter>;
 
@@ -92,6 +121,7 @@ void set_dealloc_stream(DALIAsyncUniquePtr<T> &ptr, cudaStream_t stream) {
  *
  * The memory is obtained from memory resource `mr`.
  * The return value is a pointer-deleter pair that can be used for building smart pointers.
+ * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
  * @param mr        Memory resources to allocate the memory from.
  * @param bytes     Size, in bytes, of the memory being allocated
@@ -110,13 +140,13 @@ std::pair<void*, Deleter> alloc_raw(memory_resource<kind, Context> *mr,
 /**
  * @brief Allocates uninitialized storage of size `bytes` with requested `alignment`.
  *
- * The memory is obtained from memory resource `mr`.
+ * The memory is obtained from the default memory resource of given `kind`.
  * The return value is a pointer-deleter pair that can be used for building smart pointers.
+ * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
  * @param bytes     Size, in bytes, of the memory being allocated
  * @param alignment Alignment of the requested memory
  * @tparam kind     The kind of requested memory.
- * @tparam Context  The execution context in which the memory will be available.
  */
 template <memory_kind kind>
 std::pair<void*, Deleter> alloc_raw(size_t bytes, size_t alignment) {
@@ -134,6 +164,7 @@ std::pair<void*, Deleter> alloc_raw(size_t bytes, size_t alignment) {
  * The size of memory is at least sizeof(T) * count and the alignment is at least alignof(T).
  * The return value is a unique pointer with a deleter that will safely dispose of the allocated
  * buffer, but does not call destructors of the objects.
+ * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
  * @param mr        Memory resources to allocate the memory from.
  * @param count     Number of objects for which the storage should suffice.
@@ -152,15 +183,15 @@ DALIUniquePtr<T> alloc_raw_unique(memory_resource<kind, Context> *mr, size_t cou
 /**
  * @brief Allocates uninitialized storage for `count` objects of type `T`
  *
- * The memory is obtained from default memory resource.
+ * The memory is obtained from the default memory resource of given `kind`.
  * The size of memory is at least sizeof(T) * count and the alignment is at least alignof(T).
  * The return value is a unique pointer with a deleter that will safely dispose of the allocated
  * buffer, but does not call destructors of the objects.
+ * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
  * @param count     Number of objects for which the storage should suffice.
  * @tparam T        Type of the object for which the storage is allocated.
  * @tparam kind     The kind of requested memory.
- * @tparam Context  The execution context in which the memory will be available.
  */
 template <typename T, memory_kind kind>
 auto alloc_raw_unique(size_t count) {
@@ -176,6 +207,7 @@ auto alloc_raw_unique(size_t count) {
  * The size of memory is at least sizeof(T) * count and the alignment is at least alignof(T).
  * The return value is a shared pointer with a deleter that will safely dispose of the allocated
  * buffer, but does not call destructors of the objects.
+ * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
  * @param mr        Memory resources to allocate the memory from.
  * @param count     Number of objects for which the storage should suffice.
@@ -194,15 +226,15 @@ std::shared_ptr<T> alloc_raw_shared(memory_resource<kind, Context> *mr, size_t c
 /**
  * @brief Allocates uninitialized storage for `count` objects of type `T`
  *
- * The memory is obtained from default memory resource.
+ * The memory is obtained from the default memory resource of given `kind`.
  * The size of memory is at least sizeof(T) * count and the alignment is at least alignof(T).
  * The return value is a shared pointer with a deleter that will safely dispose of the allocated
  * buffer, but does not call destructors of the objects.
+ * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
  * @param count     Number of objects for which the storage should suffice.
  * @tparam T        Type of the object for which the storage is allocated.
  * @tparam kind     The kind of requested memory.
- * @tparam Context  The execution context in which the memory will be available.
  */
 template <typename T, memory_kind kind>
 auto alloc_raw_shared(size_t count) {
@@ -222,11 +254,12 @@ auto alloc_raw_shared(size_t count) {
  * returned by this function is freed. Use `host_sync` for host-synchronous execution.
  *
  * The memory is obtained from memory resource `mr` with stream semantics.
- * The return value is a unique pointer with a deleter that will safely dispose of the allocated
- * buffer, but does not call destructors of the objects.
+ * The return value is a pointer-deleter pair.
+ * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
  * @param mr              Memory resources to allocate the memory from
- * @param count           Number of objects for which the storage should suffice
+ * @param bytes     Size, in bytes, of the memory being allocated
+ * @param alignment Alignment of the requested memory
  * @param alloc_stream    The CUDA stream on which the memory is immediately usable
  * @param dealloc_stream  The CUDA stream which is guaranteed to finish all work scheduled
  *                        before the deallocation of the memory.
@@ -244,6 +277,30 @@ std::pair<void*, AsyncDeleter> alloc_raw_async(async_memory_resource<kind> *mr,
   return { mem, GetDeleter(mr, bytes, alignment, dealloc_stream) };
 }
 
+/**
+ * @brief Allocates uninitialized storage of size `bytes` with requested `alignment`
+ *        with stream-ordered semantics
+ *
+ * This function allocates memory with stream-ordered semantics. The `alloc_stream` denotes
+ * the stream on which the memory can be safely used without additional synchronization.
+ * Use the value `host_sync` if the memory needs to be accessible on all streams or on host as
+ * soon as the function returns.
+ * `dealloc_stream` denotest the stream for deallocation. Stream-ordered semantics guarantee,
+ * that if there's still some work pending on `dealloc_stream`, it will finish before the memory
+ * returned by this function is freed. Use `host_sync` for host-synchronous execution.
+ *
+ * The memory is obtained from the default resource of given `kind` with stream semantics.
+ * The return value is a pointer-deleter pair.
+ * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
+ *
+ * @param mr              Memory resources to allocate the memory from
+ * @param bytes     Size, in bytes, of the memory being allocated
+ * @param alignment Alignment of the requested memory
+ * @param alloc_stream    The CUDA stream on which the memory is immediately usable
+ * @param dealloc_stream  The CUDA stream which is guaranteed to finish all work scheduled
+ *                        before the deallocation of the memory.
+ * @tparam kind           The kind of requested memory.
+ */
 template <memory_kind kind>
 auto alloc_raw_async(size_t bytes,
                      size_t alignment,
@@ -270,6 +327,7 @@ auto alloc_raw_async(size_t bytes,
  * The size of memory is at least sizeof(T) * count and the alignment is at least alignof(T).
  * The return value is a unique pointer with a deleter that will safely dispose of the allocated
  * buffer, but does not call destructors of the objects.
+ * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
  * @param mr              Memory resources to allocate the memory from
  * @param count           Number of objects for which the storage should suffice
@@ -303,10 +361,11 @@ DALIAsyncUniquePtr<T> alloc_raw_async_unique(async_memory_resource<kind> *resour
  * returned by this function is freed. Use `host_sync` for host-synchronous execution.
  *
  * This function allocates raw memory with suitable size and alignment to accommodate `count`
- * object of type `T`. The memory is obtained from memory resource `mr` with stream semantics.
+ * object of type `T`. The memory is obtained from the default memory resource of given `kind`.
  * The size of memory is at least sizeof(T) * count and the alignment is at least alignof(T).
  * The return value is a unique pointer with a deleter that will safely dispose of the allocated
  * buffer, but does not call destructors of the objects.
+ * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
  * @param count           Number of objects for which the storage should suffice
  * @param alloc_stream    The CUDA stream on which the memory is immediately usable
@@ -342,6 +401,7 @@ auto alloc_raw_async_unique(size_t count,
  * The size of memory is at least sizeof(T) * count and the alignment is at least alignof(T).
  * The return value is a shared pointer with a deleter that will safely dispose of the allocated
  * buffer, but does not call destructors of the objects.
+ * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
  * @param mr              Memory resources to allocate the memory from
  * @param count           Number of objects for which the storage should suffice
@@ -375,10 +435,11 @@ std::shared_ptr<T> alloc_raw_async_shared(async_memory_resource<kind> *resource,
  * returned by this function is freed. Use `host_sync` for host-synchronous execution.
  *
  * This function allocates raw memory with suitable size and alignment to accommodate `count`
- * object of type `T`. The memory is obtained from memory resource `mr` with stream semantics.
+ * object of type `T`. The memory is obtained from the default memory resource of given `kind`.
  * The size of memory is at least sizeof(T) * count and the alignment is at least alignof(T).
  * The return value is a shared pointer with a deleter that will safely dispose of the allocated
  * buffer, but does not call destructors of the objects.
+ * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
  * @param count           Number of objects for which the storage should suffice
  * @param alloc_stream    The CUDA stream on which the memory is immediately usable
@@ -394,8 +455,6 @@ auto alloc_raw_async_shared(size_t count,
   return alloc_raw_async_shared<T>(GetDefaultResource<kind>(),
                                    count, alloc_stream, dealloc_stream);
 }
-
-
 
 }  // namespace mm
 }  // namespace dali
