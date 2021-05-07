@@ -45,6 +45,7 @@ class ShotNoiseImpl {
   }
 
   DALI_HOST_DEV void Apply(T &output, T input, uint32_t n) {
+    (void) input;  // applying noise doesn't depend on the input.
     output = ConvertSat<T>(n * factor_);
   }
 
