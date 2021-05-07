@@ -42,30 +42,69 @@ struct DistGen;
 template <>
 struct DistGen<false> {
   template <typename T, typename Dist, typename RNG>
-  inline void gen(span<T> out, span<const T> in, Dist& dist, RNG &rng) const {
+  inline void gen(span<T> out, span<const T> in, Dist& dist, RNG &rng, 
+                  int64_t p_offset, int64_t p_count) const {
     (void) in;
-    for (auto &x : out)
-      x = ConvertSat<T>(dist.Generate(rng));
+    int64_t p_pos = p_offset;
+    for (int64_t p = 0; p < p_count; p++, p_pos++) {
+      out[p_pos] = ConvertSat<T>(dist.Generate(rng));
+    }
+  }
+
+  template <typename T, typename Dist, typename RNG>
+  inline void gen_all_channels(span<T> out, span<const T> in, Dist& dist, RNG &rng, 
+                               int64_t p_offset, int64_t p_count, 
+                               int c_count, int64_t c_stride, int64_t p_stride) const {
+    (void) in;
+    int64_t p_pos = p_offset * p_stride;
+    for (int64_t p = 0; p < p_count; p++, p_pos += p_stride) {
+      int64_t c_pos = p_pos;
+      auto n = ConvertSat<T>(dist.Generate(rng));
+      for (int c = 0; c < c_count; c++, c_pos += c_stride) {
+        out[c_pos] = n;
+      }
+    }
   }
 };
 
 template <>
 struct DistGen<true> {
   template <typename T, typename Dist, typename RNG>
-  inline void gen(span<T> out, span<const T> in, Dist& dist, RNG &rng) const {
+  inline void gen(span<T> out, span<const T> in, Dist& dist, RNG &rng,
+                  int64_t p_offset, int64_t p_count) const {
+    assert(out.size() == in.size());
+    int64_t p_pos = p_offset;
+    for (int64_t p = 0; p < p_count; p++, p_pos++) {
+      auto n = dist.Generate(in[p_pos], rng);
+      dist.Apply(out[p_pos], in[p_pos], n);
+    }
+  }
+
+  template <typename T, typename Dist, typename RNG>
+  inline void gen_all_channels(span<T> out, span<const T> in, Dist& dist, RNG &rng,
+                               int64_t p_offset, int64_t p_count, 
+                               int c_count, int64_t c_stride, int64_t p_stride) const {
     assert(out.size() == in.size());
     for (int64_t k = 0; k < out.size(); k++) {
       auto n = dist.Generate(in[k], rng);
       dist.Apply(out[k], in[k], n);
     }
+    int64_t p_pos = p_offset * p_stride;
+    for (int64_t p = 0; p < p_count; p++, p_pos += p_stride) {
+      int64_t c_pos = p_pos;
+      auto n = dist.Generate(in[p_pos], rng);
+      for (int c = 0; c < c_count; c++, c_pos += c_stride) {
+        dist.Apply(out[c_pos], in[c_pos], n);
+      }
+    }
   }
 };
 
 template <typename T>
-inline span<T> get_chunk(span<T> data, int c, int chunks) {
-  T* start = data.begin() + data.size() * c / chunks;
-  T* end = data.begin() + data.size() * (c + 1) / chunks;
-  return make_span(start, end - start);
+inline std::pair<int64_t, int64_t> get_chunk(int64_t npixels, int c, int chunks) {
+  int64_t start = npixels * c / chunks;
+  int64_t end = npixels * (c + 1) / chunks;
+  return {start, end - start};
 }
 
 template <typename Backend, typename Impl, bool IsNoiseGen>
@@ -81,6 +120,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<CPUBackend> &w
   constexpr int64_t kChunkSize = 1 << 16;
   constexpr size_t kNumChunkSeeds = 16;
   int nsamples = output.shape().size();
+  int ndim = output.shape().sample_dim();
 
   TensorListView<detail::storage_tag_map_t<Backend>, const T, DynamicDimensions> in_view;
   if (IsNoiseGen) {
@@ -89,45 +129,91 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<CPUBackend> &w
     output.SetLayout(input.GetLayout());
   }
 
+  // TODO(janton): set layout explicitly from the user
+
   auto &dists_cpu = backend_data_.dists_cpu_;
   dists_cpu.resize(sizeof(Dist) * nsamples);  // memory was already reserved in the constructor
   Dist* dists = reinterpret_cast<Dist*>(dists_cpu.data());
   bool use_default_dist = !This().template SetupDists<T>(dists, nsamples);
 
+  int channel_dim = -1;
+  auto layout = output.GetLayout();
+  channel_dim = layout.empty() ? ndim - 1 : layout.find('C');
+
   DistGen<IsNoiseGen> dist_gen_;
   for (int sample_id = 0; sample_id < nsamples; ++sample_id) {
     auto sample_sz = out_shape.tensor_size(sample_id);
+    int64_t N = sample_sz;
+    int nchannels = -1;
     span<T> out_span{out_view[sample_id].data, sample_sz};
     span<const T> in_span;
     if (IsNoiseGen) {
       assert(sample_sz == in_view.shape.tensor_size(sample_id));
       in_span = {in_view[sample_id].data, sample_sz};
     }
-    if (sample_sz < kThreshold) {
-      tp.AddWork(
-        [=](int thread_id) {
-          auto dist = use_default_dist ? Dist() : dists[sample_id];
-          dist_gen_.template gen<T>(out_span, in_span, dist, rng_[sample_id]);
-        }, sample_sz);
-    } else {
-      int chunks = div_ceil(out_span.size(), kChunkSize);
-      std::array<uint32_t, kNumChunkSeeds> seed;
-      for (int c = 0; c < chunks; c++) {
-        auto out_chunk = get_chunk<T>(out_span, c, chunks);
-        span<const T> in_chunk;
-        if (IsNoiseGen) {
-          in_chunk = get_chunk<const T>(in_span, c, chunks);
-          assert(out_chunk.size() == in_chunk.size());
-        }
-        for (auto &s : seed)
-          s = rng_[sample_id]();
+    bool independent_channels = This().PerChannel();
+    if (independent_channels) {
+      if (N < kThreshold) {
         tp.AddWork(
           [=](int thread_id) {
-            std::seed_seq seq(seed.begin(), seed.end());
-            std::mt19937_64 chunk_rng(seq);
             auto dist = use_default_dist ? Dist() : dists[sample_id];
-            dist_gen_.template gen<T>(out_chunk, in_chunk, dist, chunk_rng);
-          }, out_chunk.size());
+            dist_gen_.template gen<T>(out_span, in_span, dist, rng_[sample_id],
+                                      0, N);
+          }, N);
+      } else {
+        int chunks = div_ceil(N, kChunkSize);
+        std::array<uint32_t, kNumChunkSeeds> seed;
+        for (int c = 0; c < chunks; c++) {
+          int64_t p_offset, p_count;
+          std::tie(p_offset, p_count) = get_chunk<T>(N, c, chunks);
+          for (auto &s : seed)
+            s = rng_[sample_id]();
+          tp.AddWork(
+            [=](int thread_id) {
+              std::seed_seq seq(seed.begin(), seed.end());
+              std::mt19937_64 chunk_rng(seq);
+              auto dist = use_default_dist ? Dist() : dists[sample_id];
+              dist_gen_.template gen<T>(out_span, in_span, dist, chunk_rng,
+                                        p_offset, p_count);
+            }, p_count);
+        }
+      }
+    } else {  // independent_channels == false
+      DALI_ENFORCE(
+          channel_dim == 0 || channel_dim == ndim - 1,
+          make_string("'C' should be the first or the last dimension in the layout, "
+                      "except for empty layouts where channel-last is assumed. "
+                      "Got layout: \"", layout, "\"."));
+      auto sh = out_shape.tensor_shape_span(sample_id);
+      int nchannels = sh[channel_dim];
+      N /= nchannels;
+      int64_t c_stride = volume(sh.begin() + channel_dim + 1, sh.end());
+      int64_t p_stride = channel_dim == 0 ? 1 : nchannels;
+
+      if (N < kThreshold) {
+        tp.AddWork(
+          [=](int thread_id) {
+            auto dist = use_default_dist ? Dist() : dists[sample_id];
+            dist_gen_.template gen_all_channels<T>(out_span, in_span, dist, rng_[sample_id],
+                                                   0, N, nchannels, c_stride, p_stride);
+          }, N);
+      } else {
+        int chunks = div_ceil(N, kChunkSize);
+        std::array<uint32_t, kNumChunkSeeds> seed;
+        for (int c = 0; c < chunks; c++) {
+          int64_t p_offset, p_count;
+          std::tie(p_offset, p_count) = get_chunk<T>(N, c, chunks);
+          for (auto &s : seed)
+            s = rng_[sample_id]();
+          tp.AddWork(
+            [=](int thread_id) {
+              std::seed_seq seq(seed.begin(), seed.end());
+              std::mt19937_64 chunk_rng(seq);
+              auto dist = use_default_dist ? Dist() : dists[sample_id];
+              dist_gen_.template gen_all_channels<T>(out_span, in_span, dist, chunk_rng, p_offset,
+                                                     p_count, nchannels, c_stride, p_stride);
+            }, p_count);
+        }
       }
     }
   }

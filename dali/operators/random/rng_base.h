@@ -83,9 +83,18 @@ class RNGBase : public Operator<Backend> {
     }
     This().AcquireArgs(spec_, ws, shape_.size());
 
+    assert(This().PerChannel());
+
     output_desc.resize(1);
     output_desc[0].shape = shape_;
     output_desc[0].type = TypeTable::GetTypeInfo(dtype_);
+    return true;
+  }
+
+  bool PerChannel() const {
+    // By default generators don't interpret channel data, treating the data as a 1D array
+    // If set to false by an implementation, the generation will occur once and will be applied
+    // to all channels
     return true;
   }
 
