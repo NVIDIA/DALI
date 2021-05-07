@@ -81,7 +81,7 @@ Deleter GetDeleter(memory_resource<kind, Context> *resource, size_t size, size_t
  */
 template <memory_kind kind>
 AsyncDeleter GetDeleter(async_memory_resource<kind> *resource,
-                   size_t size, size_t alignment, cudaStream_t stream) {
+                        size_t size, size_t alignment, cudaStream_t stream) {
   AsyncDeleter del;
   del.resource = static_cast<void *>(resource);
   del.size = size;
@@ -102,17 +102,17 @@ AsyncDeleter GetDeleter(async_memory_resource<kind> *resource,
  * @brief A unique pointer with a deleter that holds a pointer to a memory resource.
  */
 template <typename T>
-using DALIUniquePtr = std::unique_ptr<T, Deleter>;
+using uptr = std::unique_ptr<T, Deleter>;
 
 /**
  * @brief A unique pointer with a deleter that holds a pointer to a memory resource and
  *        a stream which defines the order of deallocation.
  */
 template <typename T>
-using DALIAsyncUniquePtr = std::unique_ptr<T, AsyncDeleter>;
+using async_uptr = std::unique_ptr<T, AsyncDeleter>;
 
 template <typename T>
-void set_dealloc_stream(DALIAsyncUniquePtr<T> &ptr, cudaStream_t stream) {
+void set_dealloc_stream(async_uptr<T> &ptr, cudaStream_t stream) {
   ptr.get_deleter().release_on_stream = stream;
 }
 
@@ -171,11 +171,11 @@ auto alloc_raw(size_t bytes, size_t alignment) {
  * @tparam Context  The execution context in which the memory will be available.
  */
 template <typename T, memory_kind kind, typename Context>
-DALIUniquePtr<T> alloc_raw_unique(memory_resource<kind, Context> *mr, size_t count) {
+uptr<T> alloc_raw_unique(memory_resource<kind, Context> *mr, size_t count) {
   size_t bytes = sizeof(T) * count;
   size_t alignment = alignof(T);
   auto mem_del = alloc_raw(mr, bytes, alignment);
-  return DALIUniquePtr<T>(static_cast<T*>(mem_del.first), std::move(mem_del.second));
+  return uptr<T>(static_cast<T*>(mem_del.first), std::move(mem_del.second));
 }
 
 /**
@@ -335,14 +335,14 @@ auto alloc_raw_async(size_t bytes,
  * @tparam kind           The kind of requested memory.
  */
 template <typename T, memory_kind kind>
-DALIAsyncUniquePtr<T> alloc_raw_async_unique(async_memory_resource<kind> *mr,
-                                             size_t count,
-                                             cudaStream_t alloc_stream,
-                                             cudaStream_t dealloc_stream) {
+async_uptr<T> alloc_raw_async_unique(async_memory_resource<kind> *mr,
+                                     size_t count,
+                                     cudaStream_t alloc_stream,
+                                     cudaStream_t dealloc_stream) {
   size_t bytes = sizeof(T) * count;
   size_t alignment = alignof(T);
   auto mem_del = alloc_raw_async(mr, bytes, alignment, alloc_stream, dealloc_stream);
-  return DALIAsyncUniquePtr<T>(static_cast<T*>(mem_del.first), std::move(mem_del.second));
+  return async_uptr<T>(static_cast<T*>(mem_del.first), std::move(mem_del.second));
 }
 
 /**
