@@ -258,8 +258,8 @@ auto alloc_raw_shared(size_t count) {
  * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
  * @param mr              Memory resources to allocate the memory from
- * @param bytes     Size, in bytes, of the memory being allocated
- * @param alignment Alignment of the requested memory
+ * @param bytes           Size, in bytes, of the memory being allocated
+ * @param alignment       Alignment of the requested memory
  * @param alloc_stream    The CUDA stream on which the memory is immediately usable
  * @param dealloc_stream  The CUDA stream which is guaranteed to finish all work scheduled
  *                        before the deallocation of the memory.
@@ -293,9 +293,8 @@ std::pair<void*, AsyncDeleter> alloc_raw_async(async_memory_resource<kind> *mr,
  * The return value is a pointer-deleter pair.
  * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
- * @param mr              Memory resources to allocate the memory from
- * @param bytes     Size, in bytes, of the memory being allocated
- * @param alignment Alignment of the requested memory
+ * @param bytes           Size, in bytes, of the memory being allocated
+ * @param alignment       Alignment of the requested memory
  * @param alloc_stream    The CUDA stream on which the memory is immediately usable
  * @param dealloc_stream  The CUDA stream which is guaranteed to finish all work scheduled
  *                        before the deallocation of the memory.
@@ -338,13 +337,13 @@ auto alloc_raw_async(size_t bytes,
  * @tparam kind           The kind of requested memory.
  */
 template <typename T, memory_kind kind>
-DALIAsyncUniquePtr<T> alloc_raw_async_unique(async_memory_resource<kind> *resource,
+DALIAsyncUniquePtr<T> alloc_raw_async_unique(async_memory_resource<kind> *mr,
                                              size_t count,
                                              cudaStream_t alloc_stream,
                                              cudaStream_t dealloc_stream) {
   size_t bytes = sizeof(T) * count;
   size_t alignment = alignof(T);
-  auto mem_del = alloc_raw_async(resource, bytes, alignment, alloc_stream, dealloc_stream);
+  auto mem_del = alloc_raw_async(mr, bytes, alignment, alloc_stream, dealloc_stream);
   return DALIAsyncUniquePtr<T>(static_cast<T*>(mem_del.first), std::move(mem_del.second));
 }
 
@@ -412,13 +411,13 @@ auto alloc_raw_async_unique(size_t count,
  * @tparam kind           The kind of requested memory.
  */
 template <typename T, memory_kind kind>
-std::shared_ptr<T> alloc_raw_async_shared(async_memory_resource<kind> *resource,
+std::shared_ptr<T> alloc_raw_async_shared(async_memory_resource<kind> *mr,
                                              size_t count,
                                              cudaStream_t alloc_stream,
                                              cudaStream_t dealloc_stream) {
   size_t bytes = sizeof(T) * count;
   size_t alignment = alignof(T);
-  auto mem_del = alloc_raw_async(resource, bytes, alignment, alloc_stream, dealloc_stream);
+  auto mem_del = alloc_raw_async(mr, bytes, alignment, alloc_stream, dealloc_stream);
   return std::shared_ptr<T>(static_cast<T*>(mem_del.first), std::move(mem_del.second));
 }
 
