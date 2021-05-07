@@ -53,7 +53,7 @@ __device__ __inline__ void Generate(BlockDesc<false> desc,
   }
 }
 
-template <typename T, typename Dist, bool IsNoiseGen, bool DefaultDist>
+template <typename T, typename Dist, bool DefaultDist, bool IsNoiseGen>
 __global__ void RNGKernel(BlockDesc<IsNoiseGen>* __restrict__ block_descs,
                           curandState* __restrict__ states,
                           const Dist* __restrict__ dists, int nblocks) {
@@ -127,10 +127,10 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &w
   gridDim.y = div_ceil(blockdesc_count, blockDim.y);
 
   if (use_default_dist) {
-    RNGKernel<T, Dist, IsNoiseGen, true>
+    RNGKernel<T, Dist, true>
       <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, nullptr, blockdesc_count);
   } else {
-    RNGKernel<T, Dist, IsNoiseGen, false>
+    RNGKernel<T, Dist, false>
       <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, dists, blockdesc_count);
   }
   CUDA_CALL(cudaGetLastError());
