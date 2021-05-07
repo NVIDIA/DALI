@@ -63,7 +63,7 @@ TEST(Alloc, AsyncPinnedDefault) {
 
 TEST(Alloc, HostSharedDefault) {
   mm::test::test_host_resource mr;
-  auto data = mm::alloc_raw_shared<int>(3);
+  auto data = mm::alloc_raw_shared<int, mm::memory_kind::host>(3);
   memset(data.get(), 0x55, sizeof(int) * 3);
   EXPECT_NO_THROW(data.reset());
   EXPECT_NO_THROW(mr.reset());
