@@ -25,8 +25,8 @@
 
 namespace dali {
 
-template <bool NeedsInput>
-struct RNGBaseFields<CPUBackend, NeedsInput> {
+template <bool NoiseGen>
+struct RNGBaseFields<CPUBackend, NoiseGen> {
   RNGBaseFields(int64_t seed, int nsamples) {}
 
   std::vector<uint8_t> dists_cpu_;
@@ -36,7 +36,7 @@ struct RNGBaseFields<CPUBackend, NeedsInput> {
   }
 };
 
-template <bool NeedsInput>
+template <bool NoiseGen>
 struct DistGen;
 
 template <>
@@ -45,7 +45,7 @@ struct DistGen<false> {
   inline void gen(span<T> out, span<const T> in, Dist& dist, RNG &rng) const {
     (void) in;
     for (auto &x : out)
-      x = ConvertSat<T>(dist(rng));
+      x = ConvertSat<T>(dist.Generate(rng));
   }
 };
 
@@ -54,8 +54,10 @@ struct DistGen<true> {
   template <typename T, typename Dist, typename RNG>
   inline void gen(span<T> out, span<const T> in, Dist& dist, RNG &rng) const {
     assert(out.size() == in.size());
-    for (int64_t k = 0; k < out.size(); k++)
-      out[k] = ConvertSat<T>(dist(in[k], rng));
+    for (int64_t k = 0; k < out.size(); k++) {
+      auto n = dist.Generate(in[k], rng);
+      dist.Apply(out[k], in[k], n);
+    }
   }
 };
 
@@ -66,12 +68,12 @@ inline span<T> get_chunk(span<T> data, int c, int chunks) {
   return make_span(start, end - start);
 }
 
-template <typename Backend, typename Impl, bool NeedsInput>
+template <typename Backend, typename Impl, bool NoiseGen>
 template <typename T, typename Dist>
-void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<CPUBackend> &ws) {
+void RNGBase<Backend, Impl, NoiseGen>::RunImplTyped(workspace_t<CPUBackend> &ws) {
   // Should never be called for Backend != CPUBackend
   static_assert(std::is_same<Backend, CPUBackend>::value, "Invalid backend");
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  auto &output = ws.template OutputRef<CPUBackend>(0);
   auto out_view = view<T>(output);
   const auto &out_shape = out_view.shape;
   auto &tp = ws.GetThreadPool();
@@ -81,7 +83,7 @@ void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<CPUBackend> &w
   int nsamples = output.shape().size();
 
   TensorListView<detail::storage_tag_map_t<Backend>, const T, DynamicDimensions> in_view;
-  if (NeedsInput) {
+  if (NoiseGen) {
     const auto &input = ws.InputRef<CPUBackend>(0);
     in_view = view<const T>(input);
     output.SetLayout(input.GetLayout());
@@ -92,12 +94,12 @@ void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<CPUBackend> &w
   Dist* dists = reinterpret_cast<Dist*>(dists_cpu.data());
   bool use_default_dist = !This().template SetupDists<T>(dists, nsamples);
 
-  DistGen<NeedsInput> dist_gen_;
+  DistGen<NoiseGen> dist_gen_;
   for (int sample_id = 0; sample_id < nsamples; ++sample_id) {
     auto sample_sz = out_shape.tensor_size(sample_id);
     span<T> out_span{out_view[sample_id].data, sample_sz};
     span<const T> in_span;
-    if (NeedsInput) {
+    if (NoiseGen) {
       assert(sample_sz == in_view.shape.tensor_size(sample_id));
       in_span = {in_view[sample_id].data, sample_sz};
     }
@@ -113,7 +115,7 @@ void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<CPUBackend> &w
       for (int c = 0; c < chunks; c++) {
         auto out_chunk = get_chunk<T>(out_span, c, chunks);
         span<const T> in_chunk;
-        if (NeedsInput) {
+        if (NoiseGen) {
           in_chunk = get_chunk<const T>(in_span, c, chunks);
           assert(out_chunk.size() == in_chunk.size());
         }

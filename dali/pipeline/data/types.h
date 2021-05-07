@@ -485,6 +485,11 @@ struct TypeNameHelper<std::array<T, N> > {
   }
 };
 
+template <typename... Types>
+auto ListTypeNames() {
+  return make_string_delim(", ", TypeTable::GetTypeID<Types>()...);
+}
+
 template <typename T>
 void TypeInfo::SetType(DALIDataType dtype) {
   // Note: We enforce the fact that NoType is invalid by
