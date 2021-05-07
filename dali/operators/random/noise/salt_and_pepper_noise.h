@@ -21,19 +21,19 @@
 #include "dali/operators/random/rng_base_cpu.h"
 
 #define DALI_SALT_AND_PEPPER_NOISE_TYPES \
-  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)
+  uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float
 
 namespace dali {
 
 template <typename Backend, typename T>
-class salt_and_pepper_noise_impl {
+class SaltAndPepperNoiseImpl {
  public:
-  using Dist = typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
-                                           curand_uniform_dist<float>,
-                                           std::uniform_real_distribution<float>>;
+  using DistType = typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
+                                               curand_uniform_dist<float>,
+                                               std::uniform_real_distribution<float>>;
 
-  DALI_HOST_DEV explicit salt_and_pepper_noise_impl(float noise_prob = 0.05,
-                                                    float salt_to_pepper_prob = 0.5)
+  DALI_HOST_DEV explicit SaltAndPepperNoiseImpl(float noise_prob = 0.05,
+                                                float salt_to_pepper_prob = 0.5)
       : noise_prob_(clamp<float>(noise_prob, 0, 1)),
         salt_prob_(noise_prob_ * clamp<float>(salt_to_pepper_prob, 0, 1)),
         salt_val_(ConvertNorm<T>(1.0f)),
@@ -41,16 +41,21 @@ class salt_and_pepper_noise_impl {
                                                  ConvertSatNorm<T>(-1.0f)) {}
 
   template <typename Generator>
-  DALI_HOST_DEV inline T operator()(T in_val, Generator& g) {
-    auto val = dist_(g);
-    if (val < noise_prob_) {
-      if (val < salt_prob_) {
-        return salt_val_;
+  DALI_HOST_DEV float Generate(T input, Generator &st) {
+    (void) input;  // this noise doesn't depend on the input
+    return dist_(st);
+  }
+
+  DALI_HOST_DEV void Apply(T &output, T input, float n) {
+    if (n < noise_prob_) {
+      if (n < salt_prob_) {
+        output = salt_val_;
       } else {
-        return pepper_val_;
+        output = pepper_val_;
       }
+    } else {
+      output = input;
     }
-    return in_val;
   }
 
  private:
@@ -58,24 +63,23 @@ class salt_and_pepper_noise_impl {
   float salt_prob_;
   T salt_val_;
   T pepper_val_;
-  Dist dist_;
+  DistType dist_;
 };
 
 template <typename Backend>
 class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, true> {
  public:
   using BaseImpl = RNGBase<Backend, SaltAndPepperNoise<Backend>, true>;
+
   template <typename T>
-  struct Dist {
-    using type = salt_and_pepper_noise_impl<Backend, T>;
-  };
+  using Impl =SaltAndPepperNoiseImpl<Backend, T>;
 
   explicit SaltAndPepperNoise(const OpSpec &spec)
       : BaseImpl(spec),
         prob_("prob", spec),
         salt_to_pepper_prob_("salt_to_pepper_prob", spec) {
     if (prob_.IsDefined() || salt_to_pepper_prob_.IsDefined()) {
-      backend_data_.ReserveDistsData(sizeof(typename Dist<double>::type) * max_batch_size_);
+      backend_data_.ReserveDistsData(sizeof(Impl<double>) * max_batch_size_);
     }
   }
 
@@ -90,22 +94,26 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
   }
 
   template <typename T>
-  bool SetupDists(typename Dist<T>::type* dists_data, int nsamples) {
+  bool SetupDists(Impl<T>* dists_data, int nsamples) {
     if (!prob_.IsDefined() && !salt_to_pepper_prob_.IsDefined()) {
       return false;
     }
     for (int s = 0; s < nsamples; s++) {
-      dists_data[s] = typename Dist<T>::type{prob_[s].data[0], salt_to_pepper_prob_[s].data[0]};
+      dists_data[s] = Impl<T>{prob_[s].data[0], salt_to_pepper_prob_[s].data[0]};
     }
     return true;
   }
 
   using BaseImpl::RunImpl;
   void RunImpl(workspace_t<Backend> &ws) override {
-    TYPE_SWITCH(dtype_, type2id, T, DALI_SALT_AND_PEPPER_NOISE_TYPES, (
-      using Dist = typename Dist<T>::type;
-      this->template RunImplTyped<T, Dist>(ws);
-    ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
+    TYPE_SWITCH(dtype_, type2id, T, (DALI_SALT_AND_PEPPER_NOISE_TYPES), (
+      using ImplT = Impl<T>;
+      BaseImpl::template RunImplTyped<T, ImplT>(ws);
+    ), (  // NOLINT
+      DALI_FAIL(make_string("Data type ", dtype_, " is currently not supported. "
+                            "Supported types are : ",
+                            ListTypeNames<DALI_SALT_AND_PEPPER_NOISE_TYPES>()));
+    ));  // NOLINT
   }
 
  protected:
