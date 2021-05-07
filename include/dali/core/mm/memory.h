@@ -149,10 +149,8 @@ std::pair<void*, Deleter> alloc_raw(memory_resource<kind, Context> *mr,
  * @tparam kind     The kind of requested memory.
  */
 template <memory_kind kind>
-std::pair<void*, Deleter> alloc_raw(size_t bytes, size_t alignment) {
-  auto *mr = GetDefaultResource<kind>();
-  void *mem = mr->allocate(bytes, alignment);
-  return { mem, GetDeleter(mr, bytes, alignment) };
+auto alloc_raw(size_t bytes, size_t alignment) {
+  return alloc_raw(GetDefaultResource<kind>(), bytes, alignment);
 }
 
 
@@ -249,7 +247,7 @@ auto alloc_raw_shared(size_t count) {
  * the stream on which the memory can be safely used without additional synchronization.
  * Use the value `host_sync` if the memory needs to be accessible on all streams or on host as
  * soon as the function returns.
- * `dealloc_stream` denotest the stream for deallocation. Stream-ordered semantics guarantee,
+ * `dealloc_stream` denotes the stream for deallocation. Stream-ordered semantics guarantee,
  * that if there's still some work pending on `dealloc_stream`, it will finish before the memory
  * returned by this function is freed. Use `host_sync` for host-synchronous execution.
  *
@@ -267,10 +265,10 @@ auto alloc_raw_shared(size_t count) {
  */
 template <memory_kind kind>
 std::pair<void*, AsyncDeleter> alloc_raw_async(async_memory_resource<kind> *mr,
-                                    size_t bytes,
-                                    size_t alignment,
-                                    cudaStream_t alloc_stream,
-                                    cudaStream_t dealloc_stream) {
+                                               size_t bytes,
+                                               size_t alignment,
+                                               cudaStream_t alloc_stream,
+                                               cudaStream_t dealloc_stream) {
   void *mem = alloc_stream == host_sync
     ? mr->allocate(bytes, alignment)
     : mr->allocate_async(bytes, alignment, alloc_stream);
@@ -285,7 +283,7 @@ std::pair<void*, AsyncDeleter> alloc_raw_async(async_memory_resource<kind> *mr,
  * the stream on which the memory can be safely used without additional synchronization.
  * Use the value `host_sync` if the memory needs to be accessible on all streams or on host as
  * soon as the function returns.
- * `dealloc_stream` denotest the stream for deallocation. Stream-ordered semantics guarantee,
+ * `dealloc_stream` denotes the stream for deallocation. Stream-ordered semantics guarantee,
  * that if there's still some work pending on `dealloc_stream`, it will finish before the memory
  * returned by this function is freed. Use `host_sync` for host-synchronous execution.
  *
@@ -317,7 +315,7 @@ auto alloc_raw_async(size_t bytes,
  * the stream on which the memory can be safely used without additional synchronization.
  * Use the value `host_sync` if the memory needs to be accessible on all streams or on host as
  * soon as the function returns.
- * `dealloc_stream` denotest the stream for deallocation. Stream-ordered semantics guarantee,
+ * `dealloc_stream` denotes the stream for deallocation. Stream-ordered semantics guarantee,
  * that if there's still some work pending on `dealloc_stream`, it will finish before the memory
  * returned by this function is freed. Use `host_sync` for host-synchronous execution.
  *
@@ -355,7 +353,7 @@ DALIAsyncUniquePtr<T> alloc_raw_async_unique(async_memory_resource<kind> *mr,
  * the stream on which the memory can be safely used without additional synchronization.
  * Use the value `host_sync` if the memory needs to be accessible on all streams or on host as
  * soon as the function returns.
- * `dealloc_stream` denotest the stream for deallocation. Stream-ordered semantics guarantee,
+ * `dealloc_stream` denotes the stream for deallocation. Stream-ordered semantics guarantee,
  * that if there's still some work pending on `dealloc_stream`, it will finish before the memory
  * returned by this function is freed. Use `host_sync` for host-synchronous execution.
  *
@@ -391,7 +389,7 @@ auto alloc_raw_async_unique(size_t count,
  * the stream on which the memory can be safely used without additional synchronization.
  * Use the value `host_sync` if the memory needs to be accessible on all streams or on host as
  * soon as the function returns.
- * `dealloc_stream` denotest the stream for deallocation. Stream-ordered semantics guarantee,
+ * `dealloc_stream` denotes the stream for deallocation. Stream-ordered semantics guarantee,
  * that if there's still some work pending on `dealloc_stream`, it will finish before the memory
  * returned by this function is freed. Use `host_sync` for host-synchronous execution.
  *
@@ -412,9 +410,9 @@ auto alloc_raw_async_unique(size_t count,
  */
 template <typename T, memory_kind kind>
 std::shared_ptr<T> alloc_raw_async_shared(async_memory_resource<kind> *mr,
-                                             size_t count,
-                                             cudaStream_t alloc_stream,
-                                             cudaStream_t dealloc_stream) {
+                                          size_t count,
+                                          cudaStream_t alloc_stream,
+                                          cudaStream_t dealloc_stream) {
   size_t bytes = sizeof(T) * count;
   size_t alignment = alignof(T);
   auto mem_del = alloc_raw_async(mr, bytes, alignment, alloc_stream, dealloc_stream);
@@ -429,7 +427,7 @@ std::shared_ptr<T> alloc_raw_async_shared(async_memory_resource<kind> *mr,
  * the stream on which the memory can be safely used without additional synchronization.
  * Use the value `host_sync` if the memory needs to be accessible on all streams or on host as
  * soon as the function returns.
- * `dealloc_stream` denotest the stream for deallocation. Stream-ordered semantics guarantee,
+ * `dealloc_stream` denotes the stream for deallocation. Stream-ordered semantics guarantee,
  * that if there's still some work pending on `dealloc_stream`, it will finish before the memory
  * returned by this function is freed. Use `host_sync` for host-synchronous execution.
  *
