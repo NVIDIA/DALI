@@ -176,7 +176,7 @@ void NemoAsrReader::Prefetch() {
     for (int i = 0; i < nsamples; i++) {
       auto it = decoded_map_.find(curr_batch[i].get());
       if (it != decoded_map_.end() && it->second != i) {
-        audio_batch[i].ShareData(&audio_batch[it->second]);
+        audio_batch[i].Copy(audio_batch[it->second], 0);
       }
     }
   }
