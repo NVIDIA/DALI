@@ -151,7 +151,6 @@ void NemoAsrReader::Prefetch() {
   for (int i = 0; i < nsamples; i++) {
     shape.set_tensor_shape(i, curr_batch[i]->shape());
   }
-  audio_batch.Reset();  // Clear shared data pointers
   audio_batch.Resize(shape, TypeTable::GetTypeInfo(dtype_));
 
   // Waiting until all the audio samples are ready to be consumed
@@ -177,7 +176,7 @@ void NemoAsrReader::Prefetch() {
     for (int i = 0; i < nsamples; i++) {
       auto it = decoded_map_.find(curr_batch[i].get());
       if (it != decoded_map_.end() && it->second != i) {
-        audio_batch[i].ShareData(&audio_batch[it->second]);
+        audio_batch[i].Copy(audio_batch[it->second], 0);
       }
     }
   }
