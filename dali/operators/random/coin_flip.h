@@ -25,7 +25,7 @@
 
 namespace dali {
 
-template <typename Backend, typename T>
+template <typename Backend>
 struct CoinFlipImpl {
   using DistType =
     typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
@@ -50,13 +50,12 @@ class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>, false> {
  public:
   using BaseImpl = RNGBase<Backend, CoinFlip<Backend>, false>;
 
-  template <typename T>
-  using Impl = CoinFlipImpl<Backend, T>;
+  using Impl = CoinFlipImpl<Backend>;
 
   explicit CoinFlip(const OpSpec &spec)
       : RNGBase<Backend, CoinFlip<Backend>, false>(spec),
         probability_("probability", spec) {
-    backend_data_.ReserveDistsData(sizeof(Impl<double>) * max_batch_size_);
+    backend_data_.ReserveDistsData(sizeof(Impl) * max_batch_size_);
   }
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
@@ -68,9 +67,9 @@ class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>, false> {
   }
 
   template <typename T>
-  bool SetupDists(Impl<T>* dists_data, int nsamples) {
+  bool SetupDists(Impl* dists_data, int nsamples) {
     for (int s = 0; s < nsamples; s++) {
-      dists_data[s] = Impl<T>{probability_[s].data[0]};
+      dists_data[s] = Impl{probability_[s].data[0]};
     }
     return true;
   }
@@ -78,8 +77,7 @@ class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>, false> {
   using RNGBase<Backend, CoinFlip<Backend>, false>::RunImpl;
   void RunImpl(workspace_t<Backend> &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, (DALI_COINFLIP_TYPES), (
-      using ImplT = Impl<T>;
-      BaseImpl::template RunImplTyped<T, ImplT>(ws);
+      BaseImpl::template RunImplTyped<T, Impl>(ws);
     ), (  // NOLINT
       DALI_FAIL(make_string("Data type ", dtype_, " is currently not supported. "
                             "Supported types are : ", ListTypeNames<DALI_COINFLIP_TYPES>()));

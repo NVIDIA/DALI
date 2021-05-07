@@ -53,8 +53,8 @@ __device__ __inline__ void Generate(BlockDesc<false> desc,
   }
 }
 
-template <typename T, typename Dist, bool NoiseGen, bool DefaultDist>
-__global__ void RNGKernel(BlockDesc<NoiseGen>* __restrict__ block_descs,
+template <typename T, typename Dist, bool IsNoiseGen, bool DefaultDist>
+__global__ void RNGKernel(BlockDesc<IsNoiseGen>* __restrict__ block_descs,
                           curandState* __restrict__ states,
                           const Dist* __restrict__ dists, int nblocks) {
   int block_size = blockDim.x * blockDim.y;
@@ -72,10 +72,10 @@ __global__ void RNGKernel(BlockDesc<NoiseGen>* __restrict__ block_descs,
 
 }  // namespace
 
-template <typename Backend, typename Impl, bool NoiseGen>
+template <typename Backend, typename Impl, bool IsNoiseGen>
 template <typename T, typename Dist>
-void RNGBase<Backend, Impl, NoiseGen>::RunImplTyped(workspace_t<GPUBackend> &ws) {
-  using Block = BlockDesc<NoiseGen>;
+void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &ws) {
+  using Block = BlockDesc<IsNoiseGen>;
   static_assert(std::is_same<Backend, GPUBackend>::value, "Unexpected backend");
   auto &output = ws.template OutputRef<GPUBackend>(0);
   auto out_view = view<T>(output);
@@ -87,7 +87,7 @@ void RNGBase<Backend, Impl, NoiseGen>::RunImplTyped(workspace_t<GPUBackend> &ws)
   int max_nblocks = backend_data_.max_blocks_;
   int blockdesc_count = -1;
   TensorListView<StorageGPU, const T> in_view;
-  if (NoiseGen) {
+  if (IsNoiseGen) {
     const auto& input = ws.template InputRef<GPUBackend>(0);
     in_view = view<const T>(input);
     output.SetLayout(input.GetLayout());
@@ -127,10 +127,10 @@ void RNGBase<Backend, Impl, NoiseGen>::RunImplTyped(workspace_t<GPUBackend> &ws)
   gridDim.y = div_ceil(blockdesc_count, blockDim.y);
 
   if (use_default_dist) {
-    RNGKernel<T, Dist, NoiseGen, true>
+    RNGKernel<T, Dist, IsNoiseGen, true>
       <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, nullptr, blockdesc_count);
   } else {
-    RNGKernel<T, Dist, NoiseGen, false>
+    RNGKernel<T, Dist, IsNoiseGen, false>
       <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, dists, blockdesc_count);
   }
   CUDA_CALL(cudaGetLastError());

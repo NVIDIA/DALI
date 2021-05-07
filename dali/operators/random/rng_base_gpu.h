@@ -27,7 +27,7 @@
 
 namespace dali {
 
-template <bool NoiseGen>
+template <bool IsNoiseGen>
 struct BlockDesc;
 
 template <>
@@ -46,9 +46,9 @@ struct BlockDesc<true> {
   size_t size;
 };
 
-template <bool NoiseGen>
-struct RNGBaseFields<GPUBackend, NoiseGen> {
-  RNGBaseFields<GPUBackend, NoiseGen>(int64_t seed, int max_batch_size,
+template <bool IsNoiseGen>
+struct RNGBaseFields<GPUBackend, IsNoiseGen> {
+  RNGBaseFields<GPUBackend, IsNoiseGen>(int64_t seed, int max_batch_size,
                                         int64_t static_sample_size = -1)
       : block_size_(static_sample_size < 0 ? 256 : std::min<int64_t>(static_sample_size, 256)),
         max_blocks_(static_sample_size < 0 ?
@@ -66,7 +66,7 @@ struct RNGBaseFields<GPUBackend, NoiseGen> {
     dists_gpu_.reserve(nbytes);
   }
 
-  using Block = BlockDesc<NoiseGen>;
+  using Block = BlockDesc<IsNoiseGen>;
 
   const int block_size_;
   const int max_blocks_;

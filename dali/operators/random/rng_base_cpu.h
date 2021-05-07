@@ -25,8 +25,8 @@
 
 namespace dali {
 
-template <bool NoiseGen>
-struct RNGBaseFields<CPUBackend, NoiseGen> {
+template <bool IsNoiseGen>
+struct RNGBaseFields<CPUBackend, IsNoiseGen> {
   RNGBaseFields(int64_t seed, int nsamples) {}
 
   std::vector<uint8_t> dists_cpu_;
@@ -36,7 +36,7 @@ struct RNGBaseFields<CPUBackend, NoiseGen> {
   }
 };
 
-template <bool NoiseGen>
+template <bool IsNoiseGen>
 struct DistGen;
 
 template <>
@@ -68,9 +68,9 @@ inline span<T> get_chunk(span<T> data, int c, int chunks) {
   return make_span(start, end - start);
 }
 
-template <typename Backend, typename Impl, bool NoiseGen>
+template <typename Backend, typename Impl, bool IsNoiseGen>
 template <typename T, typename Dist>
-void RNGBase<Backend, Impl, NoiseGen>::RunImplTyped(workspace_t<CPUBackend> &ws) {
+void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<CPUBackend> &ws) {
   // Should never be called for Backend != CPUBackend
   static_assert(std::is_same<Backend, CPUBackend>::value, "Invalid backend");
   auto &output = ws.template OutputRef<CPUBackend>(0);
@@ -83,7 +83,7 @@ void RNGBase<Backend, Impl, NoiseGen>::RunImplTyped(workspace_t<CPUBackend> &ws)
   int nsamples = output.shape().size();
 
   TensorListView<detail::storage_tag_map_t<Backend>, const T, DynamicDimensions> in_view;
-  if (NoiseGen) {
+  if (IsNoiseGen) {
     const auto &input = ws.InputRef<CPUBackend>(0);
     in_view = view<const T>(input);
     output.SetLayout(input.GetLayout());
@@ -94,12 +94,12 @@ void RNGBase<Backend, Impl, NoiseGen>::RunImplTyped(workspace_t<CPUBackend> &ws)
   Dist* dists = reinterpret_cast<Dist*>(dists_cpu.data());
   bool use_default_dist = !This().template SetupDists<T>(dists, nsamples);
 
-  DistGen<NoiseGen> dist_gen_;
+  DistGen<IsNoiseGen> dist_gen_;
   for (int sample_id = 0; sample_id < nsamples; ++sample_id) {
     auto sample_sz = out_shape.tensor_size(sample_id);
     span<T> out_span{out_view[sample_id].data, sample_sz};
     span<const T> in_span;
-    if (NoiseGen) {
+    if (IsNoiseGen) {
       assert(sample_sz == in_view.shape.tensor_size(sample_id));
       in_span = {in_view[sample_id].data, sample_sz};
     }
@@ -115,7 +115,7 @@ void RNGBase<Backend, Impl, NoiseGen>::RunImplTyped(workspace_t<CPUBackend> &ws)
       for (int c = 0; c < chunks; c++) {
         auto out_chunk = get_chunk<T>(out_span, c, chunks);
         span<const T> in_chunk;
-        if (NoiseGen) {
+        if (IsNoiseGen) {
           in_chunk = get_chunk<const T>(in_span, c, chunks);
           assert(out_chunk.size() == in_chunk.size());
         }

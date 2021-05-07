@@ -25,10 +25,10 @@
 
 namespace dali {
 
-template <typename Backend, bool NoiseGen>
+template <typename Backend, bool IsNoiseGen>
 struct RNGBaseFields;
 
-template <typename Backend, typename Impl, bool NoiseGen>
+template <typename Backend, typename Impl, bool IsNoiseGen>
 class RNGBase : public Operator<Backend> {
  protected:
   explicit RNGBase(const OpSpec &spec)
@@ -53,7 +53,7 @@ class RNGBase : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const workspace_t<Backend> &ws) override {
-    if (NoiseGen)
+    if (IsNoiseGen)
       dtype_ = ws.template InputRef<Backend>(0).type().id();
     else if (!spec_.TryGetArgument(dtype_, "dtype"))
       dtype_ = This().DefaultDataType();
@@ -64,7 +64,7 @@ class RNGBase : public Operator<Backend> {
     DALI_ENFORCE(!(has_shape && has_shape_like),
       "Providing argument \"shape\" is incompatible with providing a shape-like input");
 
-    if (NoiseGen) {
+    if (IsNoiseGen) {
       shape_ = ws.template InputRef<Backend>(0).shape();
     } else if (has_shape_like) {
       if (ws.template InputIsType<Backend>(0)) {
@@ -101,7 +101,7 @@ class RNGBase : public Operator<Backend> {
   DALIDataType dtype_ = DALI_NO_TYPE;
   BatchRNG<std::mt19937_64> rng_;
   TensorListShape<> shape_;
-  RNGBaseFields<Backend, NoiseGen> backend_data_;
+  RNGBaseFields<Backend, IsNoiseGen> backend_data_;
 };
 
 }  // namespace dali
