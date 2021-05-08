@@ -22,8 +22,16 @@ class SaveWeightsCallback(tf.keras.callbacks.Callback):
     def on_epoch_begin(self, epoch, logs=None):
         self.model.save_weights(self.ckpt_dir + '/epoch_' + str(epoch) + '.h5')
 
+class YOLOLearningRateSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
-# TODO: fix nan loss issue
+    def __init__(self, init_lr):
+        self.init_lr = init_lr
+
+    def __call__(self, step):
+        warmup = tf.math.minimum(1.0, tf.cast(step, tf.float32) / 1000)
+        return warmup * self.init_lr
+
+
 def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kwargs):
 
     seed = kwargs.get("seed")
@@ -51,10 +59,7 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
 
     total_steps = epochs * steps_per_epoch
     initial_lr = kwargs.get("lr")
-    lr_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
-        [int(0.3 * total_steps), int(0.5 * total_steps)],
-        [initial_lr, 0.1 * initial_lr, 0.01 * initial_lr]
-    )
+    lr_fn = YOLOLearningRateSchedule(initial_lr)
 
     initial_epoch = 0
 
@@ -64,7 +69,7 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
     with strategy.scope():
         model = YOLOv4Model()
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=lr_fn)
+            optimizer=tf.keras.optimizers.SGD(learning_rate=lr_fn)
         )
 
     if start_weights:
