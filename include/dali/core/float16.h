@@ -16,6 +16,7 @@
 #define DALI_CORE_FLOAT16_H_
 
 #include <cuda_fp16.h>  // for __half & related methods
+#include <cassert>
 #include <type_traits>
 #include "dali/core/host_dev.h"
 #include "dali/core/force_inline.h"
@@ -329,10 +330,13 @@ struct is_fp_or_half {
 
 }  // namespace dali
 
-#ifdef __CUDA_ARCH__
 inline __device__ dali::float16 __ldg(const dali::float16 *mem) {
+#ifdef __CUDA_ARCH__
   return dali::float16(__ldg(reinterpret_cast<const __half *>(mem)));
-}
+#else
+  assert(!"Unreachable code!");
+  return {};
 #endif
+}
 
 #endif  // DALI_CORE_FLOAT16_H_
