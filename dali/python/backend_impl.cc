@@ -301,7 +301,7 @@ void ExposeTensor(py::module &m) {
           Python object to be checked
       )code");
 
-  py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
+  auto tensor_cpu_binding = py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
     .def(py::init([](py::capsule &capsule, string layout = "") {
           auto t = std::make_unique<Tensor<CPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
@@ -310,7 +310,7 @@ void ExposeTensor(py::module &m) {
       "object"_a,
       "layout"_a = "",
       R"code(
-      DLPack of Tensor residing in the CPU memory.
+      Wrap a DLPack Tensor residing in the CPU memory.
 
       object : DLPack object
             Python DLPack object
@@ -366,7 +366,7 @@ void ExposeTensor(py::module &m) {
       "layout"_a = "",
       "is_pinned"_a = false,
       R"code(
-      Tensor residing in the CPU memory.
+      Wrap a Tensor residing in the CPU memory.
 
       b : object
             the buffer to wrap into the TensorListCPU object
@@ -424,10 +424,17 @@ void ExposeTensor(py::module &m) {
       )code")
     .def_property("__array_interface__", &ArrayInterfaceRepr<CPUBackend>, nullptr,
       R"code(
-      Returns array interface representation of TensorCPU.
+      Returns Array Interface representation of TensorCPU.
       )code");
+  tensor_cpu_binding.doc() = R"code(
+      Class representing a Tensor residing in host memory. It can be used to access individual
+      samples of a :class:`TensorListCPU` or used to wrap CPU memory that is intended
+      to be passed as an input to DALI.
 
-  py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
+      It is compatible with `Python Buffer Protocol <https://docs.python.org/3/c-api/buffer.html>`_
+      and `NumPy Array Interface <https://numpy.org/doc/stable/reference/arrays.interface.html>`_.)code";
+
+  auto tensor_gpu_binding = py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
     .def(py::init([](py::capsule &capsule, string layout = "") {
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
@@ -436,7 +443,7 @@ void ExposeTensor(py::module &m) {
       "object"_a,
       "layout"_a = "",
       R"code(
-      DLPack of Tensor residing in the GPU memory.
+      Wrap a DLPack Tensor residing in the GPU memory.
 
       object : DLPack object
             Python DLPack object
@@ -452,10 +459,10 @@ void ExposeTensor(py::module &m) {
       "layout"_a = "",
       "device_id"_a = -1,
       R"code(
-      Tensor residing in the GPU memory.
+      Wrap a Tensor residing in the GPU memory that implements CUDA Array Interface.
 
       object : object
-            Python object that implement CUDA Array Interface
+            Python object that implements CUDA Array Interface
       layout : str
             Layout of the data
       device_id: int
@@ -540,8 +547,14 @@ void ExposeTensor(py::module &m) {
       )code")
     .def_property("__cuda_array_interface__",  &ArrayInterfaceRepr<GPUBackend>, nullptr,
       R"code(
-      Returns cuda array interface representation of TensorGPU.
+      Returns CUDA Array Interface (Version 2) representation of TensorGPU.
       )code");
+  tensor_gpu_binding.doc() = R"code(
+      Class representing a Tensor residing in GPU memory. It can be used to access individual
+      samples of a :class:`TensorListGPU` or used to wrap GPU memory that is intended
+      to be passed as an input to DALI.
+
+      It is compatible with `CUDA Array Interface <https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html>`_.)code";
 }
 
 template <typename Backend>

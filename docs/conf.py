@@ -102,6 +102,7 @@ extensions = [
     'IPython.sphinxext.ipython_console_highlighting',
     'nbsphinx',
     'sphinx.ext.intersphinx',
+    'sphinx.ext.autosectionlabel',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -171,7 +172,7 @@ favicon_rel_path = "nvidia.ico"
 subprocess.call(["wget", "-O", favicon_rel_path, "https://docs.nvidia.com/images/nvidia.ico"])
 html_favicon = favicon_rel_path
 
-subprocess.call(["wget", "-O", "dali.png", "https://developer.nvidia.com/sites/default/files/akamai/dali.png"])
+subprocess.call(["wget", "-O", "dali.png", "https://raw.githubusercontent.com/NVIDIA/DALI/master/dali.png"])
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
