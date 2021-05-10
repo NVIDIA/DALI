@@ -164,3 +164,16 @@ For older versions of DALI (0.22 and lower), use the package `nvidia-dali`. The 
 CUDA 9 build is provided up to DALI 0.22.0. CUDA 10 build is provided starting from DALI 0.8.0.
 CUDA 11 build is provided starting from DALI 0.22.0.
 
+Open Cognitive Environment (Open-CE)
+------------------------------------
+
+.. |oce link| replace:: **external organizations**
+.. _oce link: https://github.com/open-ce/open-ce#community-builds
+
+DALI is also available as a part of the Open Cognitive Environment - a project that contains everything
+that is needed to build conda packages for a collection of machine learning and deep learning frameworks.
+
+This effort is community-driven and the DALI version available there may not be up to date.
+
+Prebuild packages (including DALI) are hosted by |oce link|_.
+
