@@ -427,7 +427,7 @@ void ExposeTensor(py::module &m) {
       Returns Array Interface representation of TensorCPU.
       )code");
   tensor_cpu_binding.doc() = R"code(
-      Class representing a Tensor with memory residing on CPU. It can be used to access individual
+      Class representing a Tensor residing in host memory. It can be used to access individual
       samples of a :class:`TensorListCPU` or used to wrap CPU memory that is intended
       to be passed as an input to DALI.
 
@@ -550,7 +550,7 @@ void ExposeTensor(py::module &m) {
       Returns CUDA Array Interface (Version 2) representation of TensorGPU.
       )code");
   tensor_gpu_binding.doc() = R"code(
-      Class representing a Tensor with memory residing on GPU. It can be used to access individual
+      Class representing a Tensor residing in GPU memory. It can be used to access individual
       samples of a :class:`TensorListGPU` or used to wrap GPU memory that is intended
       to be passed as an input to DALI.
 
