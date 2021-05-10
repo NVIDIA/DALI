@@ -83,7 +83,9 @@ TEST(FP16Host, Conversions) {
 
 DEVICE_TEST(FP16Dev, Conversions, 1, 1) {
   float16 a = {};
+#ifdef __CUDA_ARCH__
   DEV_EXPECT_EQ(static_cast<float>(a.impl), 0.0f);
+#endif
   a = 42;
   DEV_EXPECT_EQ(static_cast<float>(a), 42.0f);
   long long ll = 1234;  // NOLINT
