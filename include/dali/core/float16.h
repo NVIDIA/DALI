@@ -330,13 +330,15 @@ dali::float16 fma(dali::float16 a, dali::float16 b, dali::float16 c) noexcept {
 #endif
 }
 
+#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 350  // this is for clang-only build
 inline __device__ dali::float16 __ldg(const dali::float16 *mem) {
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 350
   return dali::float16(__ldg(reinterpret_cast<const __half *>(mem)));
 #else
   assert(!"Unreachable code!");
   return {};
 #endif
 }
+#endif
 
 #endif  // DALI_CORE_FLOAT16_H_
