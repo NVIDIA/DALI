@@ -26,41 +26,33 @@
 namespace dali {
 
 struct float16 {
-  DALI_HOST_DEV
   float16() = default;
   float16(const float16 &) = default;
 
 #ifdef __CUDA_ARCH__
   __device__ float16(__half x)          : impl(x) {}  // NOLINT
-  __device__ float16(float x)           : impl(x) {}  // NOLINT
-  __device__ float16(double x)          : impl(x) {}  // NOLINT
-  __device__ float16(signed char x)     : impl(x) {}  // NOLINT
-  __device__ float16(unsigned char x)   : impl(x) {}  // NOLINT
-  __device__ float16(short x)           : impl(x) {}  // NOLINT
-  __device__ float16(unsigned short x)  : impl(x) {}  // NOLINT
-  __device__ float16(int x)             : impl(x) {}  // NOLINT
-  __device__ float16(unsigned int x)    : impl(x) {}  // NOLINT
-  __device__ float16(long x)            : impl(static_cast<long long>(x)) {}  // NOLINT
-  __device__ float16(unsigned long x)   : impl(static_cast<unsigned long long>(x)) {}  // NOLINT
-  __device__ float16(long long x)           : impl(x) {}  // NOLINT
-  __device__ float16(unsigned long long x)  : impl(x) {}  // NOLINT
+#else
+  __host__ float16(half_float::half x)  : impl(x) {}  // NOLINT
 #endif
-#ifndef __CUDA_ARCH__
-  __host__ float16(half_float::half x) : impl(x) {}  // NOLINT
-  __host__ float16(float x)           : impl(x) {}  // NOLINT
-  __host__ float16(double x)          : impl(x) {}  // NOLINT
-  __host__ float16(signed char x)     : impl(x) {}  // NOLINT
-  __host__ float16(unsigned char x)   : impl(x) {}  // NOLINT
-  __host__ float16(short x)           : impl(x) {}  // NOLINT
-  __host__ float16(unsigned short x)  : impl(x) {}  // NOLINT
-  __host__ float16(int x)             : impl(x) {}  // NOLINT
-  __host__ float16(unsigned int x)    : impl(x) {}  // NOLINT
-  __host__ float16(long x)            : impl(static_cast<int64_t>(x)) {}  // NOLINT
-  __host__ float16(unsigned long x)   : impl(static_cast<uint64_t>(x)) {}  // NOLINT
-  __host__ float16(long long x)          : impl(static_cast<int64_t>(x)) {}  // NOLINT
-  __host__ float16(unsigned long long x) : impl(static_cast<uint64_t>(x)) {}  // NOLINT
+  DALI_HOST_DEV float16(float x)           : impl(x) {}  // NOLINT
+  DALI_HOST_DEV float16(double x)          : impl(x) {}  // NOLINT
+  DALI_HOST_DEV float16(signed char x)     : impl(x) {}  // NOLINT
+  DALI_HOST_DEV float16(unsigned char x)   : impl(x) {}  // NOLINT
+  DALI_HOST_DEV float16(short x)           : impl(x) {}  // NOLINT
+  DALI_HOST_DEV float16(unsigned short x)  : impl(x) {}  // NOLINT
+  DALI_HOST_DEV float16(int x)             : impl(x) {}  // NOLINT
+  DALI_HOST_DEV float16(unsigned int x)    : impl(x) {}  // NOLINT
+#ifdef __CUDA_ARCH__
+  DALI_HOST_DEV float16(long x)            : impl(static_cast<long long>(x)) {}  // NOLINT
+  DALI_HOST_DEV float16(unsigned long x)   : impl(static_cast<unsigned long long>(x)) {}  // NOLINT
+  DALI_HOST_DEV float16(long long x)           : impl(x) {}  // NOLINT
+  DALI_HOST_DEV float16(unsigned long long x)  : impl(x) {}  // NOLINT
+#else
+  DALI_HOST_DEV float16(long x)            : impl(static_cast<int64_t>(x)) {}  // NOLINT
+  DALI_HOST_DEV float16(unsigned long x)   : impl(static_cast<uint64_t>(x)) {}  // NOLINT
+  DALI_HOST_DEV float16(long long x)          : impl(static_cast<int64_t>(x)) {}  // NOLINT
+  DALI_HOST_DEV float16(unsigned long long x) : impl(static_cast<uint64_t>(x)) {}  // NOLINT
 #endif
-
 
 #ifdef __CUDA_ARCH__
   using impl_t = __half;
@@ -73,13 +65,7 @@ struct float16 {
   DALI_HOST_DEV DALI_FORCEINLINE
   constexpr operator impl_t() const noexcept { return impl; }
 
-#ifdef __CUDA_ARCH__
-  DALI_FORCEINLINE
-  __device__ operator float() const noexcept { return impl; }
-#else
-  DALI_FORCEINLINE
-  __host__ operator float() const noexcept { return impl; }
-#endif
+  DALI_FORCEINLINE DALI_HOST_DEV operator float() const noexcept { return impl; }
 
   DALI_FORCEINLINE DALI_HOST_DEV float16 operator-() const noexcept {
 #ifdef __CUDA_ARCH__
@@ -100,15 +86,14 @@ struct float16 {
   DALI_FORCEINLINE DALI_HOST_DEV float16 &operator++() noexcept;
   DALI_FORCEINLINE DALI_HOST_DEV float16 operator++(int) noexcept;
 
-#define DALI_HALF_DECLARE_COMPOUND_ASSIGNMENT(op) \
-  DALI_FORCEINLINE DALI_HOST_DEV float16 &operator op(float16 other) noexcept; \
-  DALI_FORCEINLINE DALI_HOST_DEV float16 &operator op(float other) noexcept; \
-  DALI_FORCEINLINE DALI_HOST_DEV float16 &operator op(double other) noexcept; \
-  template <typename T> \
-  DALI_FORCEINLINE DALI_HOST_DEV \
-  std::enable_if_t<std::is_integral<T>::value, float16 &> \
-  operator op(T other) noexcept { \
-    return *this op float16(other); \
+#define DALI_HALF_DECLARE_COMPOUND_ASSIGNMENT(op)                                        \
+  DALI_FORCEINLINE DALI_HOST_DEV float16 &operator op(float16 other) noexcept;           \
+  DALI_FORCEINLINE DALI_HOST_DEV float16 &operator op(float other) noexcept;             \
+  DALI_FORCEINLINE DALI_HOST_DEV float16 &operator op(double other) noexcept;            \
+  template <typename T>                                                                  \
+  DALI_FORCEINLINE DALI_HOST_DEV std::enable_if_t<std::is_integral<T>::value, float16 &> \
+  operator op(T other) noexcept {                                                        \
+    return *this op float16(other);                                                      \
   }
 
   DALI_HALF_DECLARE_COMPOUND_ASSIGNMENT(+=)
@@ -137,7 +122,6 @@ float16 operator -(float16 a, float16 b) noexcept {
   return float16(__hsub(a.impl, b.impl));
 #else
   return float16(static_cast<float>(a.impl) - static_cast<float>(b.impl));
-  return {};
 #endif
 #else
   return float16(float16::impl_t(a.impl - b.impl));
@@ -232,34 +216,34 @@ bool operator >=(float16 a, float16 b) noexcept {
   return b <= a;
 }
 
-#define DALI_IMPL_HALF_FLOAT_OP(op) \
-DALI_HOST_DEV DALI_FORCEINLINE \
-auto operator op(float a, float16 b) noexcept { \
-  return a op static_cast<float>(b); \
-} \
-DALI_HOST_DEV DALI_FORCEINLINE \
-auto operator op(float16 a, float b) noexcept { \
-  return static_cast<float>(a) op b; \
-}
+#define DALI_IMPL_HALF_FLOAT_OP(op)                                              \
+  template <typename FP16, typename T,                                           \
+            typename = std::enable_if_t<std::is_same<FP16, float16>::value>>     \
+  DALI_HOST_DEV DALI_FORCEINLINE auto operator op(T a, const FP16 &b) noexcept { \
+    return a op static_cast<float>(b);                                           \
+  }                                                                              \
+  template <typename FP16, typename T,                                           \
+            typename = std::enable_if_t<std::is_same<FP16, float16>::value>>     \
+  DALI_HOST_DEV DALI_FORCEINLINE auto operator op(const FP16 &a, T b) noexcept { \
+    return static_cast<float>(a) op b;                                           \
+  }
 
 DALI_IMPL_HALF_FLOAT_OP(+)
 DALI_IMPL_HALF_FLOAT_OP(-)
 DALI_IMPL_HALF_FLOAT_OP(*)
 DALI_IMPL_HALF_FLOAT_OP(/)
 
-#define DALI_IMPL_HALF_CMP_OP(op) \
-template <typename FP16, typename T> \
-DALI_HOST_DEV DALI_FORCEINLINE \
-std::enable_if_t<std::is_same<FP16, float16>::value, bool> \
-operator op(T a, const FP16 &b) noexcept { \
-  return a op static_cast<float>(b); \
-} \
-template <typename FP16, typename T> \
-DALI_HOST_DEV DALI_FORCEINLINE \
-std::enable_if_t<std::is_same<FP16, float16>::value, bool> \
-operator op(const FP16 &a, T b) noexcept { \
-  return static_cast<float>(a) op b; \
-}
+#define DALI_IMPL_HALF_CMP_OP(op)                                                           \
+  template <typename FP16, typename T>                                                      \
+  DALI_HOST_DEV DALI_FORCEINLINE std::enable_if_t<std::is_same<FP16, float16>::value, bool> \
+  operator op(T a, const FP16 &b) noexcept {                                                \
+    return a op static_cast<float>(b);                                                      \
+  }                                                                                         \
+  template <typename FP16, typename T>                                                      \
+  DALI_HOST_DEV DALI_FORCEINLINE std::enable_if_t<std::is_same<FP16, float16>::value, bool> \
+  operator op(const FP16 &a, T b) noexcept {                                                \
+    return static_cast<float>(a) op b;                                                      \
+  }
 
 DALI_IMPL_HALF_CMP_OP(==)
 DALI_IMPL_HALF_CMP_OP(!=)
@@ -294,16 +278,16 @@ DALI_FORCEINLINE DALI_HOST_DEV float16 float16::operator++(int) noexcept {  // N
   return old;
 }
 
-#define DALI_HALF_FLOAT_COMPOUND_OP(op) \
-DALI_FORCEINLINE DALI_HOST_DEV float16 &float16::operator op##=(float16 other) noexcept { \
-  return *this = *this op other; \
-} \
-DALI_FORCEINLINE DALI_HOST_DEV float16 &float16::operator op##=(float other) noexcept { \
-  return *this = static_cast<float>(impl) op other; \
-} \
-DALI_FORCEINLINE DALI_HOST_DEV float16 &float16::operator op##=(double other) noexcept { \
-  return *this = static_cast<float>(impl) op other; \
-}
+#define DALI_HALF_FLOAT_COMPOUND_OP(op)                                                     \
+  DALI_FORCEINLINE DALI_HOST_DEV float16 &float16::operator op##=(float16 other) noexcept { \
+    return *this = *this op other;                                                          \
+  }                                                                                         \
+  DALI_FORCEINLINE DALI_HOST_DEV float16 &float16::operator op##=(float other) noexcept {   \
+    return *this = static_cast<float>(impl) op other;                                       \
+  }                                                                                         \
+  DALI_FORCEINLINE DALI_HOST_DEV float16 &float16::operator op##=(double other) noexcept {  \
+    return *this = static_cast<float>(impl) op other;                                       \
+  }
 
 DALI_HALF_FLOAT_COMPOUND_OP(+)
 DALI_HALF_FLOAT_COMPOUND_OP(-)
