@@ -253,21 +253,6 @@ DALI_IMPL_HALF_CMP_OP(>)  // NOLINT
 DALI_IMPL_HALF_CMP_OP(<=) // NOLINT
 DALI_IMPL_HALF_CMP_OP(>=) // NOLINT
 
-DALI_HOST_DEV DALI_FORCEINLINE
-float16 fma(float16 a, float16 b, float16 c) noexcept {
-#ifdef __CUDA_ARCH__
-#if __CUDA_ARCH__ >= 530
-  return __hfma(a.impl, b.impl, c.impl);
-#else
-  return float16(fmaf(static_cast<float>(a.impl),
-                      static_cast<float>(b.impl),
-                      static_cast<float>(c.impl)));
-#endif
-#else
-  return static_cast<float>(a) * static_cast<float>(b) + static_cast<float>(c);
-#endif
-}
-
 DALI_FORCEINLINE DALI_HOST_DEV float16 &float16::operator++() noexcept {
   *this += float16(1);
   return *this;
@@ -329,6 +314,21 @@ struct is_fp_or_half {
 };
 
 }  // namespace dali
+
+DALI_HOST_DEV DALI_FORCEINLINE
+dali::float16 fma(dali::float16 a, dali::float16 b, dali::float16 c) noexcept {
+#ifdef __CUDA_ARCH__
+#if __CUDA_ARCH__ >= 530
+  return __hfma(a.impl, b.impl, c.impl);
+#else
+  return dali::float16(fmaf(static_cast<float>(a.impl),
+                            static_cast<float>(b.impl),
+                            static_cast<float>(c.impl)));
+#endif
+#else
+  return static_cast<float>(a) * static_cast<float>(b) + static_cast<float>(c);
+#endif
+}
 
 inline __device__ dali::float16 __ldg(const dali::float16 *mem) {
 #ifdef __CUDA_ARCH__
