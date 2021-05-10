@@ -108,7 +108,7 @@ def check_batch(test_data_root, batch_size, num_samples, device, arr_np_all, fil
                                    batch_size = batch_size,
                                    num_threads = num_threads,
                                    device_id = 0,
-                                   cache_header_information = False)
+                                   cache_header_information = cache_header_information)
         pipe.build()
 
         for batch in range(0, num_samples, batch_size):

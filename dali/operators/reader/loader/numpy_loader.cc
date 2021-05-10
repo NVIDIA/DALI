@@ -193,6 +193,7 @@ void ParseHeader(FileStream *file, NumpyParseTarget& target) {
   file->Seek(offset);  // prepare file for later reads
 
   ParseHeaderMetadata(target, header);
+  target.data_offset = offset;
 }
 
 bool NumpyHeaderCache::GetFromCache(const string &file_name, NumpyParseTarget &target) {
