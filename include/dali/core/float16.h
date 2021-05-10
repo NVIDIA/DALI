@@ -268,8 +268,6 @@ DALI_IMPL_HALF_CMP_OP(>)  // NOLINT
 DALI_IMPL_HALF_CMP_OP(<=) // NOLINT
 DALI_IMPL_HALF_CMP_OP(>=) // NOLINT
 
-
-
 DALI_HOST_DEV DALI_FORCEINLINE
 float16 fma(float16 a, float16 b, float16 c) noexcept {
 #ifdef __CUDA_ARCH__
@@ -346,5 +344,11 @@ struct is_fp_or_half {
 };
 
 }  // namespace dali
+
+#ifdef __CUDA_ARCH__
+inline __device__ dali::float16 __ldg(const dali::float16 *mem) {
+  return dali::float16(__ldg(reinterpret_cast<const __half *>(mem)));
+}
+#endif
 
 #endif  // DALI_CORE_FLOAT16_H_
