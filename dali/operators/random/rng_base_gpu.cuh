@@ -36,7 +36,8 @@ __device__ __inline__ void Generate(BlockDesc<true> desc,
   auto in = static_cast<const T*>(desc.input);
   auto idx_end = desc.offset + desc.size;
   for (auto idx = desc.offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
-    out[idx] = ConvertSat<T>(dist(in[idx], rng));
+    auto n = dist.Generate(in[idx], rng);
+    dist.Apply(out[idx], in[idx], n);
   }
 }
 
@@ -47,12 +48,13 @@ __device__ __inline__ void Generate(BlockDesc<false> desc,
   auto block_start = static_cast<T*>(desc.output);
   auto block_end = block_start + desc.size;
   for (auto out = block_start + threadIdx.x; out < block_end; out += blockDim.x) {
-    *out = ConvertSat<T>(dist(rng));
+    auto n = dist.Generate(rng);
+    *out = ConvertSat<T>(n);
   }
 }
 
-template <typename T, typename Dist, bool NeedsInput, bool DefaultDist>
-__global__ void RNGKernel(BlockDesc<NeedsInput>* __restrict__ block_descs,
+template <typename T, typename Dist, bool DefaultDist, bool IsNoiseGen>
+__global__ void RNGKernel(BlockDesc<IsNoiseGen>* __restrict__ block_descs,
                           curandState* __restrict__ states,
                           const Dist* __restrict__ dists, int nblocks) {
   int block_size = blockDim.x * blockDim.y;
@@ -70,10 +72,10 @@ __global__ void RNGKernel(BlockDesc<NeedsInput>* __restrict__ block_descs,
 
 }  // namespace
 
-template <typename Backend, typename Impl, bool NeedsInput>
+template <typename Backend, typename Impl, bool IsNoiseGen>
 template <typename T, typename Dist>
-void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<GPUBackend> &ws) {
-  using Block = BlockDesc<NeedsInput>;
+void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &ws) {
+  using Block = BlockDesc<IsNoiseGen>;
   static_assert(std::is_same<Backend, GPUBackend>::value, "Unexpected backend");
   auto &output = ws.template OutputRef<GPUBackend>(0);
   auto out_view = view<T>(output);
@@ -85,7 +87,7 @@ void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<GPUBackend> &w
   int max_nblocks = backend_data_.max_blocks_;
   int blockdesc_count = -1;
   TensorListView<StorageGPU, const T> in_view;
-  if (NeedsInput) {
+  if (IsNoiseGen) {
     const auto& input = ws.template InputRef<GPUBackend>(0);
     in_view = view<const T>(input);
     output.SetLayout(input.GetLayout());
@@ -125,12 +127,13 @@ void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<GPUBackend> &w
   gridDim.y = div_ceil(blockdesc_count, blockDim.y);
 
   if (use_default_dist) {
-    RNGKernel<T, Dist, NeedsInput, true>
+    RNGKernel<T, Dist, true>
       <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, nullptr, blockdesc_count);
   } else {
-    RNGKernel<T, Dist, NeedsInput, false>
+    RNGKernel<T, Dist, false>
       <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, dists, blockdesc_count);
   }
+  CUDA_CALL(cudaGetLastError());
 }
 
 }  // namespace dali

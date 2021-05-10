@@ -21,27 +21,32 @@
 #include "dali/operators/random/rng_base_cpu.h"
 
 #define DALI_SHOT_NOISE_TYPES \
-  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)
+  uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float
 
 namespace dali {
 
 template <typename Backend, typename T>
-class shot_noise_impl {
+class ShotNoiseImpl {
  public:
-  using Dist =
+  using DistType =
       typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
                                   curand_poisson_dist,
                                   std::poisson_distribution<uint32_t>>;
 
-  DALI_HOST_DEV explicit shot_noise_impl(float factor = 12)
+  DALI_HOST_DEV explicit ShotNoiseImpl(float factor = 12)
       : factor_{factor}, inv_factor_{1.0f / factor_} {}
 
   template <typename Generator>
-  DALI_HOST_DEV inline T operator()(T in_val, Generator& g) {
+  DALI_HOST_DEV uint32_t Generate(T in_val, Generator& g) {
     if (factor_ == 0.0f)
       return in_val;
-    Dist dist(cuda_max<float>(0.0f, in_val * inv_factor_));
-    return ConvertSat<T>(dist(g) * factor_);
+    DistType dist(cuda_max<float>(0.0f, in_val * inv_factor_));
+    return dist(g);
+  }
+
+  DALI_HOST_DEV void Apply(T &output, T input, uint32_t n) {
+    (void) input;  // applying noise doesn't depend on the input.
+    output = ConvertSat<T>(n * factor_);
   }
 
  private:
@@ -53,14 +58,15 @@ template <typename Backend>
 class ShotNoise : public RNGBase<Backend, ShotNoise<Backend>, true> {
  public:
   using BaseImpl = RNGBase<Backend, ShotNoise<Backend>, true>;
+
   template <typename T>
-  struct Dist {
-    using type = shot_noise_impl<Backend, T>;
-  };
+  using Impl = ShotNoiseImpl<Backend, T>;
 
   explicit ShotNoise(const OpSpec &spec)
       : BaseImpl(spec),
-        factor_("factor", spec) {}
+        factor_("factor", spec) {
+    backend_data_.ReserveDistsData(sizeof(Impl<double>) * max_batch_size_);
+  }
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
     factor_.Acquire(spec, ws, nsamples, true);
@@ -72,22 +78,25 @@ class ShotNoise : public RNGBase<Backend, ShotNoise<Backend>, true> {
   }
 
   template <typename T>
-  bool SetupDists(typename Dist<T>::type* dists_data, int nsamples) {
+  bool SetupDists(Impl<T>* dists_data, int nsamples) {
     if (!factor_.IsDefined()) {
       return false;
     }
     for (int s = 0; s < nsamples; s++) {
-      dists_data[s] = typename Dist<T>::type{factor_[s].data[0]};
+      dists_data[s] = Impl<T>{factor_[s].data[0]};
     }
     return true;
   }
 
   using BaseImpl::RunImpl;
   void RunImpl(workspace_t<Backend> &ws) override {
-    TYPE_SWITCH(dtype_, type2id, T, DALI_SHOT_NOISE_TYPES, (
-      using Dist = typename Dist<T>::type;
-      this->template RunImplTyped<T, Dist>(ws);
-    ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
+    TYPE_SWITCH(dtype_, type2id, T, (DALI_SHOT_NOISE_TYPES), (
+      using ImplT = Impl<T>;
+      BaseImpl::template RunImplTyped<T, ImplT>(ws);
+    ), (  // NOLINT
+      DALI_FAIL(make_string("Data type ", dtype_, " is currently not supported. "
+                            "Supported types are : ", ListTypeNames<DALI_SHOT_NOISE_TYPES>()));
+    ));  // NOLINT
   }
 
  protected:

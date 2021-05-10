@@ -20,8 +20,8 @@
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/core/dev_buffer.h"
 
-#define DALI_UNIFORM_DIST_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, \
-                                 int64_t, float16, float, double)
+#define DALI_UNIFORM_DIST_TYPES \
+  uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double
 
 namespace dali {
 
@@ -78,36 +78,69 @@ class uniform_int_values_dist {
   std::uniform_int_distribution<int> dist_;
 };
 
+template <typename Backend, typename T>
+struct UniformDistributionContinuousImpl {
+  using FloatType =
+      typename std::conditional<((std::is_integral<T>::value && sizeof(T) >= 4) || sizeof(T) > 4),
+                                double, float>::type;
+  using DistType =
+      typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
+                                  curand_uniform_dist<FloatType>, uniform_real_dist<FloatType>>;
+
+  DALI_HOST_DEV UniformDistributionContinuousImpl()
+    : dist_(-1, 1) {}
+
+  DALI_HOST_DEV explicit UniformDistributionContinuousImpl(FloatType range_start,
+                                                           FloatType range_end)
+      : dist_{range_start, range_end} {}
+
+  template <typename Generator>
+  DALI_HOST_DEV FloatType Generate(Generator &st) {
+    return dist_(st);
+  }
+
+  DistType dist_;
+};
+
+template <typename Backend, typename T>
+struct UniformDistributionDiscreteImpl {
+  using DistType = typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
+                                               curand_uniform_int_values_dist<float>,
+                                               uniform_int_values_dist<float>>;
+
+  DALI_HOST_DEV explicit UniformDistributionDiscreteImpl() : dist_(nullptr, 0) {}
+
+  DALI_HOST_DEV explicit UniformDistributionDiscreteImpl(const float *values, int64_t nvalues)
+    : dist_(values, nvalues) {}
+
+  template <typename Generator>
+  DALI_HOST_DEV float Generate(Generator &st) {
+    return dist_(st);
+  }
+
+  DistType dist_;
+};
+
+
 template <typename Backend>
 class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>, false> {
  public:
   template <typename T>
-  struct DistContinuous {
-    using FloatType =
-      typename std::conditional<
-          ((std::is_integral<T>::value && sizeof(T) >= 4) || sizeof(T) > 4),
-          double, float>::type;
-
-    using type =
-      typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
-          curand_uniform_dist<FloatType>,
-          uniform_real_dist<FloatType>>;
+  struct ImplDiscrete {
+    using type = UniformDistributionDiscreteImpl<Backend, T>;
   };
 
   template <typename T>
-  struct DistDiscrete {
-    // TODO(janton): work directly with T values? (It'll need converting the values)
-    using type = typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
-        curand_uniform_int_values_dist<float>,
-        uniform_int_values_dist<float>>;
+  struct ImplContinuous {
+    using type = UniformDistributionContinuousImpl<Backend, T>;
   };
 
   explicit UniformDistribution(const OpSpec &spec)
       : RNGBase<Backend, UniformDistribution<Backend>, false>(spec),
         values_("values", spec),
         range_("range", spec) {
-    int size_dist = values_.IsDefined() ? sizeof(typename DistDiscrete<double>::type)
-                                        : sizeof(typename DistContinuous<double>::type);
+    int size_dist = values_.IsDefined() ? sizeof(typename ImplDiscrete<double>::type)
+                                        : sizeof(typename ImplContinuous<double>::type);
     backend_data_.ReserveDistsData(size_dist * max_batch_size_);
     per_sample_values_.reserve(max_batch_size_);
     per_sample_nvalues_.reserve(max_batch_size_);
@@ -155,9 +188,9 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
   }
 
   template <typename T>
-  bool SetupDists(typename DistContinuous<T>::type* dists, int nsamples) {
+  bool SetupDists(typename ImplContinuous<T>::type* dists, int nsamples) {
     for (int s = 0; s < nsamples; s++) {
-      dists[s] = typename DistContinuous<T>::type(range_[s].data[0], range_[s].data[1]);
+      dists[s] = typename ImplContinuous<T>::type{range_[s].data[0], range_[s].data[1]};
     }
     // note: can't use the default because this operator's default range is different to
     // the default constructed distribution.
@@ -165,10 +198,10 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
   }
 
   template <typename T>
-  bool SetupDists(typename DistDiscrete<T>::type* dists, int nsamples) {
+  bool SetupDists(typename ImplDiscrete<T>::type* dists, int nsamples) {
     assert(values_.IsDefined());
     for (int s = 0; s < nsamples; s++) {
-      dists[s] = typename DistDiscrete<T>::type(per_sample_values_[s], per_sample_nvalues_[s]);
+      dists[s] = typename ImplDiscrete<T>::type{per_sample_values_[s], per_sample_nvalues_[s]};
     }
     return true;
   }
@@ -177,18 +210,21 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
   void RunImplTyped(workspace_t<Backend> &ws) {
     using Base = RNGBase<Backend, UniformDistribution<Backend>, false>;
     if (values_.IsDefined()) {
-      using Dist = typename DistDiscrete<T>::type;
-      Base::template RunImplTyped<T, Dist>(ws);
+      using ImplT = typename ImplDiscrete<T>::type;
+      Base::template RunImplTyped<T, ImplT>(ws);
     } else {
-      using Dist = typename DistContinuous<T>::type;
-      Base::template RunImplTyped<T, Dist>(ws);
+      using ImplT = typename ImplContinuous<T>::type;
+      Base::template RunImplTyped<T, ImplT>(ws);
     }
   }
 
   void RunImpl(workspace_t<Backend> &ws) override {
-    TYPE_SWITCH(dtype_, type2id, T, DALI_UNIFORM_DIST_TYPES, (
+    TYPE_SWITCH(dtype_, type2id, T, (DALI_UNIFORM_DIST_TYPES), (
       this->template RunImplTyped<T>(ws);
-    ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
+    ), (  // NOLINT
+      DALI_FAIL(make_string("Data type ", dtype_, " is currently not supported. "
+                            "Supported types are : ", ListTypeNames<DALI_UNIFORM_DIST_TYPES>()));
+    ));  // NOLINT
   }
 
  protected:
