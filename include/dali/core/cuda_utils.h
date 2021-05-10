@@ -18,7 +18,6 @@
 #include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
 #include <cassert>
 #include <type_traits>
-#include "dali/core/float16.h"
 #include "dali/core/host_dev.h"
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/cuda_error.h"

@@ -14,11 +14,50 @@
 
 #include <gtest/gtest.h>
 #include <vector>
+#include <cstring>
 #include "dali/core/float16.h"
 #include "dali/test/device_test.h"
 #include "dali/core/dev_buffer.h"
 
 namespace dali {
+
+TEST(FP16Host, Construction) {
+#ifndef __CUDA_ARCH__
+  float16 a = {};
+  EXPECT_EQ(a.impl, float16::impl_t());
+#endif
+  float16 b = 42;
+  EXPECT_EQ(static_cast<float>(b), 42.0f);
+  float16 c{-42L};
+  EXPECT_EQ(static_cast<float>(c), -42);
+  long long ll = 1234;  // NOLINT
+  float16 d(ll);
+  EXPECT_EQ(static_cast<float>(d), 1234);
+  float16 e = { -5.5f };
+  EXPECT_EQ(static_cast<float>(e), -5.5f);
+  float16 f = 2u;
+  EXPECT_EQ(static_cast<float>(f), 2.0f);
+  float16 g = f.impl;
+  EXPECT_EQ(0, std::memcmp(&g, &f, 2));
+}
+
+DEVICE_TEST(FP16Dev, Construction, 1, 1) {
+  float16 a = {};
+  DEV_EXPECT_EQ(static_cast<float>(a), 0.0f);
+  float16 b = 42;
+  DEV_EXPECT_EQ(static_cast<float>(b), 42.0f);
+  float16 c{-42L};
+  DEV_EXPECT_EQ(static_cast<float>(c), -42);
+  long long ll = 1234;  // NOLINT
+  float16 d(ll);
+  DEV_EXPECT_EQ(static_cast<float>(d), 1234);
+  float16 e = { -5.5f };
+  DEV_EXPECT_EQ(static_cast<float>(e), -5.5f);
+  float16 f = 2u;
+  DEV_EXPECT_EQ(static_cast<float>(f), 2.0f);
+  float16 g{f.impl};
+  DEV_EXPECT_EQ(static_cast<float>(g), 2.0f);
+}
 
 TEST(FP16Host, Conversions) {
   float16 a = {};
@@ -39,7 +78,6 @@ TEST(FP16Host, Conversions) {
 }
 
 DEVICE_TEST(FP16Dev, Conversions, 1, 1) {
-#ifdef __CUDA_ARCH__
   float16 a = {};
   DEV_EXPECT_EQ(static_cast<float>(a.impl), 0.0f);
   a = 42;
@@ -51,7 +89,6 @@ DEVICE_TEST(FP16Dev, Conversions, 1, 1) {
   DEV_EXPECT_EQ(static_cast<float>(a), -5.5f);
   a = 2u;
   DEV_EXPECT_EQ(static_cast<float>(a), 2.0f);
-#endif
 }
 
 TEST(FP16Host, Arithm) {
