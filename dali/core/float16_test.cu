@@ -37,8 +37,10 @@ TEST(FP16Host, Construction) {
   EXPECT_EQ(static_cast<float>(e), -5.5f);
   float16 f = 2u;
   EXPECT_EQ(static_cast<float>(f), 2.0f);
+#ifndef __CUDA_ARCH__
   float16 g = f.impl;
   EXPECT_EQ(0, std::memcmp(&g, &f, 2));
+#endif
 }
 
 DEVICE_TEST(FP16Dev, Construction, 1, 1) {
@@ -55,8 +57,10 @@ DEVICE_TEST(FP16Dev, Construction, 1, 1) {
   DEV_EXPECT_EQ(static_cast<float>(e), -5.5f);
   float16 f = 2u;
   DEV_EXPECT_EQ(static_cast<float>(f), 2.0f);
+#ifdef __CUDA_ARCH__
   float16 g{f.impl};
   DEV_EXPECT_EQ(static_cast<float>(g), 2.0f);
+#endif
 }
 
 TEST(FP16Host, Conversions) {
