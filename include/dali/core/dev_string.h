@@ -266,10 +266,6 @@ dev_to_string(F x) {
   return buf+lcursor;
 }
 
-inline __device__ DeviceString dev_to_string(double x) {
-  return dev_to_string(static_cast<float>(x));
-}
-
 }  // namespace dali
 
 #endif  // DALI_CORE_DEV_STRING_H_
