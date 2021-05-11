@@ -26,6 +26,34 @@
 
 namespace dali {
 
+/**
+ * @brief Half-precision type usable in host and device code
+ *
+ * This type implements half-precision arithmetic and is usable both
+ * in host and device code. It features implicit conversion from fundamental
+ * arithmetic types and implicit conversion to the underlying implementation
+ * (`__half` or `half_float::half`) and `float`.
+ *
+ * `float16` provides overloads of arithmetic operators with host and device
+ * implementation - the latter is implemented with half-precision intrinsics
+ * for devices with compute capability 5.3 and is effectively done in float
+ * for older devices.
+ *
+ * The type promotion rules for binary operators are:
+ * - float16 op float -> float
+ * - float16 op double -> double
+ * - float16 op (u)intX -> float16
+ *
+ * The calculations with integer arguments are implemented as:
+ * ```
+ *    float16 operator op(float16 a, intX b) { return a op float16(b); }
+ * ```
+ * This may lead to loss of precision or overflow to infinity. Please be careful
+ * when using mixed float16/integer arithmetic.
+ *
+ * `float16` constants can be defined with _hf suffix, for example:
+ * 1.234_hf, 42_hf
+ */
 struct float16 {
   float16() = default;
   float16(const float16 &) = default;
