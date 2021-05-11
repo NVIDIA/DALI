@@ -16,12 +16,6 @@
 #include "dali/test/device_test.h"
 
 namespace dali {
-
-// TODO(janton): Remove when a proper overload is available
-inline __device__ DeviceString dev_to_string(double x) {
-  return dev_to_string(static_cast<float>(x));
-}
-
 namespace test {
 
 DEVICE_TEST(uniform_dist, default_ctor, 110, 1024) {
