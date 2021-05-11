@@ -218,14 +218,18 @@ bool operator >=(float16 a, float16 b) noexcept {
 }
 
 #define DALI_IMPL_HALF_FLOAT_OP(op)                                              \
-  template <typename FP16, typename T,                                           \
-            typename = std::enable_if_t<std::is_same<FP16, float16>::value>>     \
-  DALI_HOST_DEV DALI_FORCEINLINE auto operator op(T a, const FP16 &b) noexcept { \
+  template <typename FP16, typename T>                                           \
+  DALI_HOST_DEV DALI_FORCEINLINE                                                 \
+  std::enable_if_t<std::is_same<FP16, float16>::value &&                         \
+                   std::is_floating_point<T>::value, float16>                    \
+  operator op(T a, const FP16 &b) noexcept {                                     \
     return a op static_cast<float>(b);                                           \
   }                                                                              \
-  template <typename FP16, typename T,                                           \
-            typename = std::enable_if_t<std::is_same<FP16, float16>::value>>     \
-  DALI_HOST_DEV DALI_FORCEINLINE auto operator op(const FP16 &a, T b) noexcept { \
+  template <typename FP16, typename T>                                           \
+  DALI_HOST_DEV DALI_FORCEINLINE                                                 \
+  std::enable_if_t<std::is_same<FP16, float16>::value &&                         \
+                   std::is_floating_point<T>::value, float16>                    \
+  operator op(const FP16 &a, T b) noexcept {                                     \
     return static_cast<float>(a) op b;                                           \
   }
 
@@ -233,6 +237,29 @@ DALI_IMPL_HALF_FLOAT_OP(+)
 DALI_IMPL_HALF_FLOAT_OP(-)
 DALI_IMPL_HALF_FLOAT_OP(*)
 DALI_IMPL_HALF_FLOAT_OP(/)
+
+
+#define DALI_IMPL_HALF_INT_OP(op)                        \
+  template <typename FP16, typename T>                   \
+  DALI_HOST_DEV DALI_FORCEINLINE                         \
+  std::enable_if_t<std::is_same<FP16, float16>::value && \
+                   std::is_integral<T>::value, float16>  \
+  operator op(T a, const FP16 &b) noexcept {             \
+    return float16(a) op b;                              \
+  }                                                      \
+  template <typename FP16, typename T>                   \
+  DALI_HOST_DEV DALI_FORCEINLINE                         \
+  std::enable_if_t<std::is_same<FP16, float16>::value && \
+                   std::is_integral<T>::value, float16>  \
+  operator op(const FP16 &a, T b) noexcept {             \
+    return a op float16(b);                              \
+  }                                                      \
+
+DALI_IMPL_HALF_INT_OP(+)
+DALI_IMPL_HALF_INT_OP(-)
+DALI_IMPL_HALF_INT_OP(*)
+DALI_IMPL_HALF_INT_OP(/)
+
 
 #define DALI_IMPL_HALF_CMP_OP(op)                                                           \
   template <typename FP16, typename T>                                                      \
@@ -312,6 +339,16 @@ struct is_fp_or_half {
   static constexpr bool value =
     std::is_floating_point<T>::value || is_half<T>::value;
 };
+
+DALI_HOST_DEV DALI_FORCEINLINE
+float16 operator "" _hf(long double x) {
+  return float16(static_cast<double>(x));
+}
+
+DALI_HOST_DEV DALI_FORCEINLINE
+float16 operator "" _hf(unsigned long long int x) {  // NOLINT(runtime/int)
+  return float16(x);
+}
 
 }  // namespace dali
 

@@ -15,11 +15,16 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <cstring>
+#include <typeinfo>
 #include "dali/core/float16.h"
 #include "dali/test/device_test.h"
 #include "dali/core/dev_buffer.h"
 
 namespace dali {
+
+__device__ auto dev_to_string(float16 x) {
+  return dev_to_string(static_cast<float>(x));
+}
 
 TEST(FP16Host, Construction) {
 #ifndef __CUDA_ARCH__
@@ -135,6 +140,35 @@ DEVICE_TEST(FP16Dev, Arithm, 1, 1) {
   DEV_EXPECT_EQ(static_cast<float>(c), 3);
 }
 
+#define EXPECT_FP16_EQ(a, b) EXPECT_EQ(float(float16(a)), float(b))  // NOLINT
+
+TEST(FP16Host, ArithmMixed) {
+  float16 a = 2048;
+  EXPECT_FP16_EQ(a - 4095, -2048);  // rounding
+  EXPECT_FP16_EQ(4095 - a, 2048);  // rounding
+  EXPECT_EQ(a + (-4095.0f), -2047.0f);
+  EXPECT_EQ((-4095.0f) + a, -2047.0f);
+  a = 1234;
+  EXPECT_FP16_EQ(a * 128u, float16(1234 * 128.0f));  // infinity
+  EXPECT_FP16_EQ(a / 128u, 1234.0f / 128.0f);
+  EXPECT_EQ(128.0 * a, float16(1234 * 128.0));  // infinity
+  EXPECT_EQ(a / 128.0, 1234.0 / 128.0);
+}
+
+#define DEV_EXPECT_FP16_EQ(a, b) DEV_EXPECT_EQ(float(float16(a)), float(b))  // NOLINT
+
+DEVICE_TEST(FP16Dev, ArithmMixed, 1, 1) {
+  float16 a = 2048;
+  DEV_EXPECT_FP16_EQ(a - 4095, -2048);  // rounding
+  DEV_EXPECT_FP16_EQ(4095 - a, 2048);  // rounding
+  DEV_EXPECT_EQ(a + (-4095.0f), -2047);
+  DEV_EXPECT_EQ((-4095.0f) + a, -2047);
+  a = 1234;
+  DEV_EXPECT_FP16_EQ(a * 128u, float16(1234 * 128.0f));  // infinity
+  DEV_EXPECT_FP16_EQ(a / 128u, 1234.0f / 128.0f);
+  DEV_EXPECT_EQ(128.0 * a, float16(1234 * 128.0));  // infinity
+  DEV_EXPECT_EQ(a / 128.0, 1234.0 / 128.0);
+}
 
 TEST(FP16Host, Compound) {
   float16 a = 5;
@@ -155,6 +189,9 @@ TEST(FP16Host, Compound) {
   a = 5;
   a += 42.0;
   EXPECT_EQ(static_cast<float>(a), 47);
+  a = 2048;
+  a -= 4095;
+  EXPECT_EQ(static_cast<float>(a), -2048);  // rounding
   a = 5;
   a -= 42.0f;
   EXPECT_EQ(static_cast<float>(a), -37);
@@ -185,6 +222,9 @@ DEVICE_TEST(FP16Dev, Compound, 1, 1) {
   a = 5;
   a += 42.0;
   DEV_EXPECT_EQ(static_cast<float>(a), 47);
+  a = 2048;
+  a -= 4095;
+  DEV_EXPECT_EQ(static_cast<float>(a), -2048);  // rounding
   a = 5;
   a -= 42.0f;
   DEV_EXPECT_EQ(static_cast<float>(a), -37);
@@ -238,6 +278,27 @@ TEST(FP16Host, Comparison) {
   test_cmp(x, 100u);
 }
 
+TEST(FP16Host, Literals) {
+  auto f1 = 123_hf;
+  auto f2 = 1.5_hf;
+  static_assert(std::is_same<decltype(f1), float16>::value,
+    "The literal should produce a float16.");
+  static_assert(std::is_same<decltype(f2), float16>::value,
+    "The literal should produce a float16.");
+  EXPECT_EQ(static_cast<float>(f1), 123.0f);
+  EXPECT_EQ(static_cast<float>(f2), 1.5f);
+}
+
+DEVICE_TEST(FP16Dev, Literals, 1, 1) {
+  auto f1 = 123_hf;
+  auto f2 = 1.5_hf;
+  static_assert(std::is_same<decltype(f1), float16>::value,
+    "The literal should produce a float16.");
+  static_assert(std::is_same<decltype(f2), float16>::value,
+    "The literal should produce a float16.");
+  DEV_EXPECT_EQ(static_cast<float>(f1), 123.0f);
+  DEV_EXPECT_EQ(static_cast<float>(f2), 1.5f);
+}
 
 DEVICE_TEST(FP16Dev, Comparison, 1, 1) {
   auto test_cmp = [&](float16 x, auto y) {

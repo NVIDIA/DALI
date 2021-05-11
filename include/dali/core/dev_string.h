@@ -180,7 +180,9 @@ inline __device__ DeviceString dev_to_string(const void *ptr) {
   return buf+cursor;
 }
 
-inline __device__ DeviceString dev_to_string(float x) {
+template <typename F>
+inline __device__ std::enable_if_t<std::is_floating_point<F>::value, DeviceString>
+dev_to_string(F x) {
   if (x == 0)
     return "0";
   char buf[64];;
@@ -195,8 +197,8 @@ inline __device__ DeviceString dev_to_string(float x) {
   }
 
   int exponent = 0;
-  if (x > 1e+8) {
-    float div = 1e+7;
+  if (x > F(1e+8)) {
+    F div = (1e+7);
     exponent = 7;
     while (x / div >= 10) {
       div *= 10;
@@ -204,7 +206,7 @@ inline __device__ DeviceString dev_to_string(float x) {
     }
     x /= div;
   } else if (x < 1e-4) {
-    float mul = 1e+4;
+    F mul = F(1e+4);
     exponent = -4;
     while (x * mul < 1) {
       mul *= 10;
@@ -214,7 +216,7 @@ inline __device__ DeviceString dev_to_string(float x) {
   }
 
   int integer_part = x;
-  float frac = x - integer_part;
+  F frac = x - integer_part;
   if (integer_part == 0) {
     buf[--lcursor] = '0';
   } else {
@@ -229,7 +231,12 @@ inline __device__ DeviceString dev_to_string(float x) {
   if (frac) {
     frac *= 10;
     buf[rcursor++] = '.';
-    float thresh = x * (10.0f / (1<<23));
+    F thresh;
+    if (std::is_same<F, float>::value) {
+      thresh = x * (10.0f / (1<<23));
+    } else {
+      thresh = x * (10.0 / (1LL<<52));
+    }
     int digit = 0;
     int max_prec = 7;
     for (int prec = 0; frac > thresh && prec < max_prec; prec++) {
