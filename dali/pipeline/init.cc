@@ -69,20 +69,10 @@ void DALIInit(const OpSpec &cpu_allocator,
 #if DALI_DEBUG
   subscribe_signals();
 #endif
-  InitializeBackends(cpu_allocator, pinned_cpu_allocator, gpu_allocator);
+  (void)cpu_allocator;
+  (void)pinned_cpu_allocator;
+  (void)gpu_allocator;
   InitializeBufferPolicies();
-}
-
-void DALISetCPUAllocator(const OpSpec& allocator) {
-  SetCPUAllocator(allocator);
-}
-
-void DALISetPinnedCPUAllocator(const OpSpec& allocator) {
-  SetPinnedCPUAllocator(allocator);
-}
-
-void DALISetGPUAllocator(const OpSpec& allocator) {
-  SetGPUAllocator(allocator);
 }
 
 }  // namespace dali

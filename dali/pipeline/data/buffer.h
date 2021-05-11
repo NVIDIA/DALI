@@ -34,6 +34,9 @@ namespace dali {
 class GPUBackend;
 class CPUBackend;
 
+template <typename Backend>
+shared_ptr<uint8_t> AllocShared(size_t bytes, bool pinned);
+
 // Helper function to get a string of the data shape
 inline string ShapeString(vector<Index> shape) {
   string tmp;
@@ -254,8 +257,7 @@ class DLL_PUBLIC Buffer {
                  "Cannot reallocate Buffer if it is sharing data. "
                  "Clear the status by `Reset()` first.");
     data_.reset();
-    data_.reset(Backend::New(new_num_bytes, pinned_),
-                std::bind(FreeMemory, std::placeholders::_1, new_num_bytes, device_, pinned_));
+    data_ = AllocShared<Backend>(new_num_bytes, pinned_);
 
     num_bytes_ = new_num_bytes;
   }
@@ -296,12 +298,6 @@ class DLL_PUBLIC Buffer {
   static constexpr double kMaxGrowthFactor = 4;
 
  protected:
-  static void FreeMemory(void* ptr, size_t bytes, int device, bool pinned) {
-    // for device ==  CPU_ONLY_DEVICE_ID it is noop
-    DeviceGuard g(device);
-    Backend::Delete(ptr, bytes, pinned);
-  }
-
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
     ResizeHelper(new_size, type_);

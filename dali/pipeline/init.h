@@ -15,9 +15,11 @@
 #ifndef DALI_PIPELINE_INIT_H_
 #define DALI_PIPELINE_INIT_H_
 
-#include "dali/pipeline/data/allocator.h"
+#include "dali/core/api_helper.h"
 
 namespace dali {
+
+class OpSpec;
 
 /**
  * @brief Initializes the pipeline. Sets global cpu&gpu allocators for all
@@ -27,11 +29,6 @@ namespace dali {
 DLL_PUBLIC void DALIInit(const OpSpec &cpu_allocator,
               const OpSpec &pinned_cpu_allocator,
               const OpSpec &gpu_allocator);
-
-DLL_PUBLIC void DALISetCPUAllocator(const OpSpec& allocator);
-DLL_PUBLIC void DALISetPinnedCPUAllocator(const OpSpec& allocator);
-DLL_PUBLIC void DALISetGPUAllocator(const OpSpec& allocator);
-
 
 }  // namespace dali
 
