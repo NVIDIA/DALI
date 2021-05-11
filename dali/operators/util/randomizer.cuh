@@ -70,7 +70,7 @@ struct curand_uniform_dist {
     "Unexpected data type");
 
   DALI_HOST_DEV curand_uniform_dist()
-      : range_start_(0.0), range_size_(1.0) {}
+      : range_start_(0), range_end_(1), range_size_(1) {}
 
   DALI_HOST_DEV curand_uniform_dist(T start, T end)
       : range_start_(start), range_end_(end), range_size_(end-start) {
