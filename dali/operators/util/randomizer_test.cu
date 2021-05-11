@@ -16,7 +16,6 @@
 #include "dali/test/device_test.h"
 
 namespace dali {
-
 namespace test {
 
 DEVICE_TEST(uniform_dist, default_ctor, 110, 1024) {
@@ -27,11 +26,11 @@ DEVICE_TEST(uniform_dist, default_ctor, 110, 1024) {
   curand_uniform_dist<double> dist_f64;
   for (int i = 0; i < 3; i++) {
     auto n1 = dist_f(&state);
-    DEV_EXPECT_GT(n1, 0.0f);
+    DEV_EXPECT_GE(n1, 0.0f);
     DEV_EXPECT_LT(n1, 1.0f);
 
     auto n2 = dist_f64(&state);
-    DEV_EXPECT_GT(n2, 0.0);
+    DEV_EXPECT_GE(n2, 0.0);
     DEV_EXPECT_LT(n2, 1.0);
   }
 }
@@ -44,16 +43,15 @@ DEVICE_TEST(uniform_dist, custom_range, 110, 1024) {
   curand_uniform_dist<double> dist_f64(-0.5, 0.5);
   for (int i = 0; i < 3; i++) {
     auto n1 = dist_f(&state);
-    DEV_EXPECT_GT(n1, -0.5f);
+    DEV_EXPECT_GE(n1, -0.5f);
     DEV_EXPECT_LT(n1, 0.5f);
 
     auto n2 = dist_f64(&state);
-    DEV_EXPECT_GT(n2, -0.5);
+    DEV_EXPECT_GE(n2, -0.5);
     DEV_EXPECT_LT(n2, 0.5);
   }
 }
 
 
 }  // namespace test
-
 }  // namespace dali
