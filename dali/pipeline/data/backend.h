@@ -19,45 +19,41 @@
 #include <memory>
 
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/data/allocator.h"
+#include "dali/core/cuda_error.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 
-// Called by "DALIInit" to set up polymorphic pointers
-// to user-defined memory allocators
+class OpSpec;
+
+// TODO(michalz): Remove - this is obsolete now.
 void InitializeBackends(const OpSpec &cpu_allocator,
     const OpSpec &pinned_cpu_allocator,
     const OpSpec &gpu_allocator);
 
-DLL_PUBLIC void SetCPUAllocator(const OpSpec& allocator);
-DLL_PUBLIC void SetPinnedCPUAllocator(const OpSpec& allocator);
-DLL_PUBLIC void SetGPUAllocator(const OpSpec& allocator);
-DLL_PUBLIC void SetGPUAllocator(std::unique_ptr<GPUAllocator> allocator);
 
-GPUAllocator& GetGPUAllocator();
-/**
- * @brief Provides access to GPU allocator and other GPU meta-data.
- */
-class DLL_PUBLIC GPUBackend final {
- public:
-  DLL_PUBLIC static void* New(size_t bytes, bool);
-  DLL_PUBLIC static void Delete(void *ptr, size_t bytes, bool);
-};
+struct CPUBackend {};
+struct GPUBackend {};
+struct MixedBackend {};
 
-/**
- * @brief Dummy Backend class to differentiate
- * Mixed ops.
- */
-class DLL_PUBLIC MixedBackend final {};
+template <typename Backend>
+shared_ptr<uint8_t> AllocShared(size_t bytes, bool pinned);
 
-/**
- * @brief Provides access to CPU allocator and other cpu meta-data
- */
-class DLL_PUBLIC CPUBackend final {
- public:
-  DLL_PUBLIC static void* New(size_t bytes, bool pinned);
-  DLL_PUBLIC static void Delete(void *ptr, size_t bytes, bool pinned);
-};
+template <>
+inline shared_ptr<uint8_t> AllocShared<GPUBackend>(size_t bytes, bool pinned) {
+  (void)pinned;  // this is less-than-ideal design
+  const size_t dev_alignment = 256;
+  return mm::alloc_raw_shared<uint8_t, mm::memory_kind::device>(bytes, dev_alignment);
+}
+
+template <>
+inline shared_ptr<uint8_t> AllocShared<CPUBackend>(size_t bytes, bool pinned) {
+  const size_t host_alignment = 64;
+  if (pinned)
+    return mm::alloc_raw_shared<uint8_t, mm::memory_kind::pinned>(bytes, host_alignment);
+  else
+    return mm::alloc_raw_shared<uint8_t, mm::memory_kind::host>(bytes, host_alignment);
+}
 
 // Utility to copy between backends
 inline void MemCopy(void *dst, const void *src, size_t bytes, cudaStream_t stream = 0) {
