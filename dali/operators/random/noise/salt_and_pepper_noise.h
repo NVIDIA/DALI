@@ -31,14 +31,19 @@ class SaltAndPepperNoiseImpl {
   using DistType = typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
                                                curand_uniform_dist<float>,
                                                std::uniform_real_distribution<float>>;
+  static constexpr T kDefaultSalt =
+      std::is_floating_point<T>::value ? T(1) : std::numeric_limits<T>::max();
+  static constexpr T kDefaultPepper =
+      std::is_floating_point<T>::value ? T(-1) : std::numeric_limits<T>::min();
 
   DALI_HOST_DEV explicit SaltAndPepperNoiseImpl(float noise_prob = 0.05,
-                                                float salt_to_pepper_prob = 0.5)
+                                                float salt_to_pepper_prob = 0.5,
+                                                T salt_val = kDefaultSalt,
+                                                T pepper_val = kDefaultPepper)
       : noise_prob_(clamp<float>(noise_prob, 0, 1)),
         salt_prob_(noise_prob_ * clamp<float>(salt_to_pepper_prob, 0, 1)),
-        salt_val_(ConvertNorm<T>(1.0f)),
-        pepper_val_(std::is_unsigned<T>::value ? ConvertSatNorm<T>(0.0f) :
-                                                 ConvertSatNorm<T>(-1.0f)) {}
+        salt_val_(salt_val), pepper_val_(pepper_val) {
+  }
 
   template <typename Generator>
   DALI_HOST_DEV float Generate(T input, Generator &st) {
@@ -72,13 +77,16 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
   using BaseImpl = RNGBase<Backend, SaltAndPepperNoise<Backend>, true>;
 
   template <typename T>
-  using Impl =SaltAndPepperNoiseImpl<Backend, T>;
+  using Impl = SaltAndPepperNoiseImpl<Backend, T>;
 
   explicit SaltAndPepperNoise(const OpSpec &spec)
       : BaseImpl(spec),
         prob_("prob", spec),
-        salt_to_pepper_prob_("salt_to_pepper_prob", spec) {
-    if (prob_.IsDefined() || salt_to_pepper_prob_.IsDefined()) {
+        salt_to_pepper_prob_("salt_to_pepper_prob", spec),
+        salt_val_("salt_val", spec),
+        pepper_val_("pepper_val", spec) {
+    if (prob_.IsDefined() || salt_to_pepper_prob_.IsDefined() ||
+        salt_val_.IsDefined() || pepper_val_.IsDefined()) {
       backend_data_.ReserveDistsData(sizeof(Impl<double>) * max_batch_size_);
     }
   }
@@ -86,6 +94,10 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
     prob_.Acquire(spec, ws, nsamples, true);
     salt_to_pepper_prob_.Acquire(spec, ws, nsamples, true);
+    if (salt_val_.IsDefined())
+      salt_val_.Acquire(spec, ws, nsamples, true);
+    if (pepper_val_.IsDefined())
+      pepper_val_.Acquire(spec, ws, nsamples, true);
   }
 
   DALIDataType DefaultDataType() const {
@@ -96,10 +108,13 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
   template <typename T>
   bool SetupDists(Impl<T>* dists_data, int nsamples) {
     if (!prob_.IsDefined() && !salt_to_pepper_prob_.IsDefined()) {
-      return false;
+      return false;  // default constructed Impl will be used
     }
     for (int s = 0; s < nsamples; s++) {
-      dists_data[s] = Impl<T>{prob_[s].data[0], salt_to_pepper_prob_[s].data[0]};
+      T salt_val = salt_val_.IsDefined() ? salt_val_[s].data[0] : Impl<T>::kDefaultSalt;
+      T pepper_val = pepper_val_.IsDefined() ? pepper_val_[s].data[0] : Impl<T>::kDefaultPepper;
+      dists_data[s] = Impl<T>{prob_[s].data[0], salt_to_pepper_prob_[s].data[0],
+                              salt_val, pepper_val};
     }
     return true;
   }
@@ -123,6 +138,8 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
 
   ArgValue<float> prob_;
   ArgValue<float> salt_to_pepper_prob_;
+  ArgValue<float> salt_val_;
+  ArgValue<float> pepper_val_;
 };
 
 }  // namespace dali

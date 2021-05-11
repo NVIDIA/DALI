@@ -151,69 +151,54 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<CPUBackend> &w
       assert(sample_sz == in_view.shape.tensor_size(sample_id));
       in_span = {in_view[sample_id].data, sample_sz};
     }
+
+    int64_t c_stride = -1, p_stride = -1;
     bool independent_channels = This().PerChannel();
-    if (independent_channels) {
-      if (N < kThreshold) {
-        tp.AddWork(
-          [=](int thread_id) {
-            auto dist = use_default_dist ? Dist() : dists[sample_id];
-            dist_gen_.template gen<T>(out_span, in_span, dist, rng_[sample_id],
-                                      0, N);
-          }, N);
-      } else {
-        int chunks = div_ceil(N, kChunkSize);
-        std::array<uint32_t, kNumChunkSeeds> seed;
-        for (int c = 0; c < chunks; c++) {
-          int64_t p_offset, p_count;
-          std::tie(p_offset, p_count) = get_chunk<T>(N, c, chunks);
-          for (auto &s : seed)
-            s = rng_[sample_id]();
-          tp.AddWork(
-            [=](int thread_id) {
-              std::seed_seq seq(seed.begin(), seed.end());
-              std::mt19937_64 chunk_rng(seq);
-              auto dist = use_default_dist ? Dist() : dists[sample_id];
-              dist_gen_.template gen<T>(out_span, in_span, dist, chunk_rng,
-                                        p_offset, p_count);
-            }, p_count);
-        }
-      }
-    } else {  // independent_channels == false
+    if (!independent_channels) {
       DALI_ENFORCE(
           channel_dim == 0 || channel_dim == ndim - 1,
           make_string("'C' should be the first or the last dimension in the layout, "
                       "except for empty layouts where channel-last is assumed. "
                       "Got layout: \"", layout, "\"."));
       auto sh = out_shape.tensor_shape_span(sample_id);
-      int nchannels = sh[channel_dim];
+      nchannels = sh[channel_dim];
       N /= nchannels;
-      int64_t c_stride = volume(sh.begin() + channel_dim + 1, sh.end());
-      int64_t p_stride = channel_dim == 0 ? 1 : nchannels;
+      c_stride = volume(sh.begin() + channel_dim + 1, sh.end());
+      p_stride = channel_dim == 0 ? 1 : nchannels;
+    }
 
-      if (N < kThreshold) {
+    if (N < kThreshold) {
+      tp.AddWork(
+        [=](int thread_id) {
+          auto dist = use_default_dist ? Dist() : dists[sample_id];
+          if (independent_channels) {
+            dist_gen_.template gen<T>(out_span, in_span, dist, rng_[sample_id], 0, N);
+          } else {
+            dist_gen_.template gen_all_channels<T>(out_span, in_span, dist, rng_[sample_id], 0, N,
+                                                    nchannels, c_stride, p_stride);
+          }
+        }, N);
+    } else {
+      int chunks = div_ceil(N, kChunkSize);
+      std::array<uint32_t, kNumChunkSeeds> seed;
+      for (int c = 0; c < chunks; c++) {
+        int64_t p_offset, p_count;
+        std::tie(p_offset, p_count) = get_chunk<T>(N, c, chunks);
+        for (auto &s : seed)
+          s = rng_[sample_id]();
         tp.AddWork(
           [=](int thread_id) {
+            std::seed_seq seq(seed.begin(), seed.end());
+            std::mt19937_64 chunk_rng(seq);
             auto dist = use_default_dist ? Dist() : dists[sample_id];
-            dist_gen_.template gen_all_channels<T>(out_span, in_span, dist, rng_[sample_id],
-                                                   0, N, nchannels, c_stride, p_stride);
-          }, N);
-      } else {
-        int chunks = div_ceil(N, kChunkSize);
-        std::array<uint32_t, kNumChunkSeeds> seed;
-        for (int c = 0; c < chunks; c++) {
-          int64_t p_offset, p_count;
-          std::tie(p_offset, p_count) = get_chunk<T>(N, c, chunks);
-          for (auto &s : seed)
-            s = rng_[sample_id]();
-          tp.AddWork(
-            [=](int thread_id) {
-              std::seed_seq seq(seed.begin(), seed.end());
-              std::mt19937_64 chunk_rng(seq);
-              auto dist = use_default_dist ? Dist() : dists[sample_id];
+            if (independent_channels) {
+              dist_gen_.template gen<T>(out_span, in_span, dist, chunk_rng,
+                                        p_offset, p_count);
+            } else {
               dist_gen_.template gen_all_channels<T>(out_span, in_span, dist, chunk_rng, p_offset,
                                                      p_count, nchannels, c_stride, p_stride);
-            }, p_count);
-        }
+            }
+          }, p_count);
       }
     }
   }
