@@ -28,6 +28,7 @@
 #include "dali/kernels/common/scatter_gather.h"
 #include "dali/core/common.h"
 #include "dali/core/spinlock.h"
+#include "dali/core/float16.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/tensor_layout.h"

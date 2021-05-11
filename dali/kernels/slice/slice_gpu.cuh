@@ -324,10 +324,10 @@ class SliceGPU {
 
     const auto grid = block_count_;
     if (any_padded_sample)
-      detail::SliceKernel<DALI_TO_GPU_T(OutputType), DALI_TO_GPU_T(InputType), Dims, true>
+      detail::SliceKernel<OutputType, InputType, Dims, true>
         <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
     else
-      detail::SliceKernel<DALI_TO_GPU_T(OutputType), DALI_TO_GPU_T(InputType), Dims, false>
+      detail::SliceKernel<OutputType, InputType, Dims, false>
         <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
     CUDA_CALL(cudaGetLastError());
   }

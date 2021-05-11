@@ -247,7 +247,7 @@ class SliceFlipNormalizePermutePadGpu {
           // need to handle __half due to compilation differences
           detail::SliceFlipNormalizePermutePadKernel
             <NeedPad, NeedFlip, NeedNormalize,
-            DALI_TO_GPU_T(OutputType), DALI_TO_GPU_T(InputType), Dims>
+            OutputType, InputType, Dims>
             <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs_gpu, block_descs_gpu);
         ), ());  // NOLINT
       ), ());  // NOLINT
