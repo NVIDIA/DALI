@@ -17,12 +17,22 @@
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/core/mm/mm_test_utils.h"
 #include "dali/core/cuda_stream.h"
+#include "dali/core/mm/detail/align.h"
 
 namespace dali {
 
 TEST(Alloc, Host) {
   mm::test::test_host_resource mr;
   mm::uptr<int> data = mm::alloc_raw_unique<int>(&mr, 3);
+  memset(data.get(), 0x55, sizeof(int) * 3);
+  EXPECT_NO_THROW(data.reset());
+  EXPECT_NO_THROW(mr.reset());
+}
+
+TEST(Alloc, HostOveraligned) {
+  mm::test::test_host_resource mr;
+  mm::uptr<int> data = mm::alloc_raw_unique<int>(&mr, 3, 0x10000);
+  EXPECT_TRUE(mm::detail::is_aligned(data.get(), 0x10000));
   memset(data.get(), 0x55, sizeof(int) * 3);
   EXPECT_NO_THROW(data.reset());
   EXPECT_NO_THROW(mr.reset());
