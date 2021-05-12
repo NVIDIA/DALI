@@ -551,7 +551,7 @@ class free_tree {
     size_t size = end - start;
 
     auto it = by_addr_.lower_bound(start);
-    if (it == by_addr_.end() || it->first > start)
+    if ((it == by_addr_.end() || it->first > start) && it != by_addr_.begin())
       it--;
     char *base = it->first;
     if (start < base || end > it->first + it->second)
