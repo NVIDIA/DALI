@@ -127,17 +127,10 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &w
   gridDim.y = div_ceil(blockdesc_count, blockDim.y);
 
   if (use_default_dist) {
-<<<<<<< HEAD
     RNGKernel<T, Dist, true>
       <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, nullptr, blockdesc_count);
   } else {
     RNGKernel<T, Dist, false>
-=======
-    RNGKernel<T, Dist, IsNoiseGen, true>
-      <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, nullptr, blockdesc_count);
-  } else {
-    RNGKernel<T, Dist, IsNoiseGen, false>
->>>>>>> RNGBase: Separate noise generation and application steps
       <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, dists, blockdesc_count);
   }
   CUDA_CALL(cudaGetLastError());
