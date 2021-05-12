@@ -209,38 +209,6 @@ class best_fit_free_list {
     return get_from_block(pbest, aligned, aligned + bytes);
   }
 
-  void *get_from_block(block **pblock, char *start, char *end) {
-    char *base = (*pblock)->start;
-    assert(start >= base && end <= (*pblock)->end);
-
-    bool gap_lo = start > base;
-    bool gap_hi = end < (*pblock)->end;
-    if (gap_lo) {
-      // there's space at the beginnning of the block due to alignment
-      block *lo = *pblock;
-      if (gap_hi) {
-        // there's space at the end of the block - we need a new block to describe that
-        block *hi = get_block();
-        hi->next = lo->next;
-        lo->next = hi;
-
-        hi->start = end;
-        hi->end = lo->end;
-      }
-      // the space at the beginning of the block is the difference in alignments
-      lo->end = start;
-    } else {
-      if (gap_hi) {
-        // there's space at the end of the block - update current block to describe it
-        (*pblock)->start = end;
-      } else {
-        // the block was fully utilized - remove it from the free list
-        remove(pblock);
-      }
-    }
-    return start;
-  }
-
   /**
    * @brief Places the free block in the list.
    *
@@ -255,6 +223,17 @@ class best_fit_free_list {
     head_ = blk;
   }
 
+  /**
+   * @brief Removes given memory range from the list, if present
+   *
+   * This function checks if the list contains given address range and if it does,
+   * it removes this range from the list. It can be returned to the list with subsequent
+   * call to `put`, just like any other block.
+   * The block must match an existing block exactly - should there be some
+   * padding, the block is considered not found and the function reports failure.
+   *
+   * @return True, if the block was successfully removed from the list.
+   */
   bool remove_if_in_list(void *base, size_t size) {
     char *start = static_cast<char*>(base);
     char *end = start + size;
@@ -295,6 +274,43 @@ class best_fit_free_list {
     b->end = nullptr;
     b->next = unused_blocks_;
     unused_blocks_ = b;
+  }
+
+  /**
+   * @brief Gets a specific chunk of memory from a specific block
+   *
+   * The start and end parameters must lie inside the block.
+   */
+  void *get_from_block(block **pblock, char *start, char *end) {
+    char *base = (*pblock)->start;
+    assert(start >= base && end <= (*pblock)->end);
+
+    bool gap_lo = start > base;
+    bool gap_hi = end < (*pblock)->end;
+    if (gap_lo) {
+      // there's space at the beginnning of the block due to alignment
+      block *lo = *pblock;
+      if (gap_hi) {
+        // there's space at the end of the block - we need a new block to describe that
+        block *hi = get_block();
+        hi->next = lo->next;
+        lo->next = hi;
+
+        hi->start = end;
+        hi->end = lo->end;
+      }
+      // the space at the beginning of the block is the difference in alignments
+      lo->end = start;
+    } else {
+      if (gap_hi) {
+        // there's space at the end of the block - update current block to describe it
+        (*pblock)->start = end;
+      } else {
+        // the block was fully utilized - remove it from the free list
+        remove(pblock);
+      }
+    }
+    return start;
   }
 
   block *head_ = nullptr;
@@ -432,6 +448,17 @@ class coalescing_free_list : public best_fit_free_list {
     head_ = new_head;
   }
 
+  /**
+   * @brief Removes given memory range from the list, if present
+   *
+   * This function checks if the list contains given address range and if it does,
+   * it removes this range from the list. It can be returned to the list with subsequent
+   * call to `put`, just like any other block.
+   * If the block is a part of a larger block found in the list, the remainders are
+   * put back to the list.
+   *
+   * @return True, if the block was successfully removed.
+   */
   bool remove_if_in_list(void *base, size_t size) {
     char *start = static_cast<char*>(base);
     char *end = start + size;
@@ -513,11 +540,11 @@ class free_tree {
   }
 
   /**
-   * @brief Removes a fixed block from the free tree.
+   * @brief Retrieves a specific memory region from the free tree.
    *
-   * If the block is not in the free tree, nullptr is returned.
+   * If the block is not covered by the free tree, nullptr is returned.
    */
-  void *get_exact(char *start, char *end) {
+  void *get_specific_block(char *start, char *end) {
     assert(end > start);
     if (by_addr_.empty())
       return nullptr;
@@ -553,8 +580,19 @@ class free_tree {
     return nullptr;
   }
 
+  /**
+   * @brief Removes given memory range from the tree, if present
+   *
+   * This function checks if the tree contains given address range and if it does,
+   * it removes this range from the tree. It can be returned to the tree with subsequent
+   * call to `put`, just like any other block.
+   * If the block is a part of a larger block found in the tree, the remainders are
+   * put back to the tree.
+   *
+   * @return True, if the block was successfully removed from the tree.
+   */
   bool remove_if_in_list(void *base, size_t size) {
-    return get_exact(static_cast<char*>(base), static_cast<char*>(base)+size) != nullptr;
+    return get_specific_block(static_cast<char*>(base), static_cast<char*>(base)+size) != nullptr;
   }
 
   /**
