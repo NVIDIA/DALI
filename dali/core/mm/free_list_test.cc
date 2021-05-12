@@ -83,7 +83,8 @@ TEST(MMBestFitFreeList, PutGetMoveGet) {
 template <typename FreeList>
 void TestCoalescingRemoveIf() {
   FreeList fl;
-  char a alignas(16)[1000];
+  char storage alignas(16)[4000];
+  char *a = storage + 128;   // thank you, overzealous compiler!
   ASSERT_FALSE(fl.remove_if_in_list(a, 1));  // total removed: 250..750
   fl.put(a, 500);
   fl.put(a + 500, 500);
@@ -188,7 +189,8 @@ TEST(MMFreeTree, PutGet) {
 
 TEST(MMBestFitFreeList, RemoveIf) {
   best_fit_free_list fl;
-  char a alignas(16)[1000];
+  char storage alignas(16)[4000];
+  char *a = storage + 128;   // thank you, overzealous compiler!
   fl.put(a, 100);
   fl.put(a + 100, 200);
   fl.put(a + 300, 700);
