@@ -72,7 +72,10 @@ Typically obtained by using the ``dali.tfrecord.FixedLenFeature`` and
 ``tf.FixedLenFeature`` and ``tf.VarLenFeature`` types, respectively. For additional flexibility,
 ``dali.tfrecord.VarLenFeature`` supports the ``partial_shape`` parameter. If provided,
 the data will be reshaped to match its value, and the first dimension will be inferred from
-the data size.)code",
+the data size.
+
+If the named feature doesn't exists in the processed TFRecord entry an empty tensor is returned.
+)code",
       DALI_TF_FEATURE_DICT)
   .AddParent("readers___TFRecordBase")
   .AddParent("LoaderBase");

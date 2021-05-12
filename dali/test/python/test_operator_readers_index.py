@@ -137,7 +137,7 @@ def test_mxnet_reader_alias():
 def tfrecord_pipe(tfrecord_op, path, index_path):
     inputs = tfrecord_op(path=path, index_path=index_path,
             features={"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
-                      "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
+                      "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)})
     return inputs["image/encoded"]
 
 def test_tfrecord_reader_alias():
@@ -146,3 +146,25 @@ def test_tfrecord_reader_alias():
     new_pipe = tfrecord_pipe(fn.readers.tfrecord, tfrecord, tfrecord_idx)
     legacy_pipe = tfrecord_pipe(fn.tfrecord_reader, tfrecord, tfrecord_idx)
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
+
+@pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+def tfrecord_pipe_empty_fields(path, index_path):
+    inputs = fn.readers.tfrecord(path=path, index_path=index_path,
+            features={"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
+                      "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1),
+                      "does/not/exists": tfrec.VarLenFeature(tfrec.int64, -1),
+                      "does/not/exists/as/well": tfrec.FixedLenFeature([1], tfrec.float32, .0)})
+    return inputs["image/encoded"], inputs["does/not/exists"], inputs["does/not/exists/as/well"]
+
+def test_tfrecord_reader_alias():
+    tfrecord = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train')
+    tfrecord_idx = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train.idx')
+    pipe = tfrecord_pipe_empty_fields(tfrecord, tfrecord_idx)
+    pipe.build()
+    out = pipe.run()
+    for tensor in out[0]:
+        assert len(np.array(tensor)) != 0
+    for tensor in out[1]:
+        assert len(np.array(tensor)) == 0
+    for tensor in out[2]:
+        assert len(np.array(tensor)) == 0
