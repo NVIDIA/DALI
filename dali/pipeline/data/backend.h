@@ -32,28 +32,9 @@ void InitializeBackends(const OpSpec &cpu_allocator,
     const OpSpec &gpu_allocator);
 
 
-struct CPUBackend {};
-struct GPUBackend {};
-struct MixedBackend {};
-
-template <typename Backend>
-shared_ptr<uint8_t> AllocShared(size_t bytes, bool pinned);
-
-template <>
-inline shared_ptr<uint8_t> AllocShared<GPUBackend>(size_t bytes, bool pinned) {
-  (void)pinned;  // this is less-than-ideal design
-  const size_t dev_alignment = 256;
-  return mm::alloc_raw_shared<uint8_t, mm::memory_kind::device>(bytes, dev_alignment);
-}
-
-template <>
-inline shared_ptr<uint8_t> AllocShared<CPUBackend>(size_t bytes, bool pinned) {
-  const size_t host_alignment = 64;
-  if (pinned)
-    return mm::alloc_raw_shared<uint8_t, mm::memory_kind::pinned>(bytes, host_alignment);
-  else
-    return mm::alloc_raw_shared<uint8_t, mm::memory_kind::host>(bytes, host_alignment);
-}
+class CPUBackend {};
+class GPUBackend {};
+class MixedBackend {};
 
 // Utility to copy between backends
 inline void MemCopy(void *dst, const void *src, size_t bytes, cudaStream_t stream = 0) {

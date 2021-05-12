@@ -14,11 +14,27 @@
 
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/backend.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 
 // this is to make debug builds happy about kMaxGrowthFactor
 template class Buffer<CPUBackend>;
 template class Buffer<GPUBackend>;
+
+
+DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, GPUBackend *) {
+  (void)pinned;  // this is less-than-ideal design
+  const size_t dev_alignment = 256;  // warp alignment for 32x64-bit
+  return mm::alloc_raw_shared<uint8_t, mm::memory_kind::device>(bytes, dev_alignment);
+}
+
+DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, CPUBackend *) {
+  const size_t host_alignment = 64;  // cache alignment
+  if (pinned)
+    return mm::alloc_raw_shared<uint8_t, mm::memory_kind::pinned>(bytes, host_alignment);
+  else
+    return mm::alloc_raw_shared<uint8_t, mm::memory_kind::host>(bytes, host_alignment);
+}
 
 }  // namespace dali
