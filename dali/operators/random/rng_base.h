@@ -83,8 +83,6 @@ class RNGBase : public Operator<Backend> {
     }
     This().AcquireArgs(spec_, ws, shape_.size());
 
-    assert(This().PerChannel());
-
     output_desc.resize(1);
     output_desc[0].shape = shape_;
     output_desc[0].type = TypeTable::GetTypeInfo(dtype_);

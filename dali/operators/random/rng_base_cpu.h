@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_RANDOM_RNG_BASE_CPU_H_
 
 #include <random>
+#include <utility>
 #include <vector>
 #include "dali/operators/random/rng_base.h"
 #include "dali/core/convert.h"
@@ -42,7 +43,7 @@ struct DistGen;
 template <>
 struct DistGen<false> {
   template <typename T, typename Dist, typename RNG>
-  inline void gen(span<T> out, span<const T> in, Dist& dist, RNG &rng, 
+  inline void gen(span<T> out, span<const T> in, Dist &dist, RNG &rng,
                   int64_t p_offset, int64_t p_count) const {
     (void) in;
     int64_t p_pos = p_offset;
@@ -52,9 +53,9 @@ struct DistGen<false> {
   }
 
   template <typename T, typename Dist, typename RNG>
-  inline void gen_all_channels(span<T> out, span<const T> in, Dist& dist, RNG &rng, 
-                               int64_t p_offset, int64_t p_count, 
-                               int c_count, int64_t c_stride, int64_t p_stride) const {
+  inline void gen_all_channels(span<T> out, span<const T> in, Dist &dist, RNG &rng,
+                               int64_t p_offset, int64_t p_count, int c_count,
+                               int64_t c_stride, int64_t p_stride) const {
     (void) in;
     int64_t p_pos = p_offset * p_stride;
     for (int64_t p = 0; p < p_count; p++, p_pos += p_stride) {
@@ -82,13 +83,9 @@ struct DistGen<true> {
 
   template <typename T, typename Dist, typename RNG>
   inline void gen_all_channels(span<T> out, span<const T> in, Dist& dist, RNG &rng,
-                               int64_t p_offset, int64_t p_count, 
+                               int64_t p_offset, int64_t p_count,
                                int c_count, int64_t c_stride, int64_t p_stride) const {
     assert(out.size() == in.size());
-    for (int64_t k = 0; k < out.size(); k++) {
-      auto n = dist.Generate(in[k], rng);
-      dist.Apply(out[k], in[k], n);
-    }
     int64_t p_pos = p_offset * p_stride;
     for (int64_t p = 0; p < p_count; p++, p_pos += p_stride) {
       int64_t c_pos = p_pos;
@@ -129,7 +126,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<CPUBackend> &w
     output.SetLayout(input.GetLayout());
   }
 
-  // TODO(janton): set layout explicitly from the user
+  // TODO(janton): set layout explicitly from the user for RNG
 
   auto &dists_cpu = backend_data_.dists_cpu_;
   dists_cpu.resize(sizeof(Dist) * nsamples);  // memory was already reserved in the constructor
@@ -175,7 +172,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<CPUBackend> &w
             dist_gen_.template gen<T>(out_span, in_span, dist, rng_[sample_id], 0, N);
           } else {
             dist_gen_.template gen_all_channels<T>(out_span, in_span, dist, rng_[sample_id], 0, N,
-                                                    nchannels, c_stride, p_stride);
+                                                   nchannels, c_stride, p_stride);
           }
         }, N);
     } else {

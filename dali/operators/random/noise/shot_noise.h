@@ -77,10 +77,6 @@ class ShotNoise : public RNGBase<Backend, ShotNoise<Backend>, true> {
     return {};
   }
 
-  bool PerChannel() const {
-    return true;
-  }
-
   template <typename T>
   bool SetupDists(Impl<T>* dists_data, int nsamples) {
     if (!factor_.IsDefined()) {

@@ -15,10 +15,11 @@
 #ifndef DALI_OPERATORS_RANDOM_NOISE_SALT_AND_PEPPER_NOISE_H_
 #define DALI_OPERATORS_RANDOM_NOISE_SALT_AND_PEPPER_NOISE_H_
 
+#include <limits>
 #include "dali/operators/random/rng_base.h"
-#include "dali/pipeline/operator/arg_helper.h"
-#include "dali/operators/random/rng_base_gpu.h"
 #include "dali/operators/random/rng_base_cpu.h"
+#include "dali/operators/random/rng_base_gpu.h"
+#include "dali/pipeline/operator/arg_helper.h"
 
 #define DALI_SALT_AND_PEPPER_NOISE_TYPES \
   uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float
@@ -84,7 +85,8 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
         prob_("prob", spec),
         salt_to_pepper_prob_("salt_to_pepper_prob", spec),
         salt_val_("salt_val", spec),
-        pepper_val_("pepper_val", spec) {
+        pepper_val_("pepper_val", spec),
+        per_channel_(spec.GetArgument<bool>("per_channel")) {
     if (prob_.IsDefined() || salt_to_pepper_prob_.IsDefined() ||
         salt_val_.IsDefined() || pepper_val_.IsDefined()) {
       backend_data_.ReserveDistsData(sizeof(Impl<double>) * max_batch_size_);
@@ -119,6 +121,10 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
     return true;
   }
 
+  bool PerChannel() const {
+    return per_channel_;
+  }
+
   using BaseImpl::RunImpl;
   void RunImpl(workspace_t<Backend> &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, (DALI_SALT_AND_PEPPER_NOISE_TYPES), (
@@ -140,6 +146,7 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
   ArgValue<float> salt_to_pepper_prob_;
   ArgValue<float> salt_val_;
   ArgValue<float> pepper_val_;
+  bool per_channel_ = false;
 };
 
 }  // namespace dali
