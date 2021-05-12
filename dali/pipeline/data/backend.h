@@ -32,9 +32,9 @@ void InitializeBackends(const OpSpec &cpu_allocator,
     const OpSpec &gpu_allocator);
 
 
-class CPUBackend {};
-class GPUBackend {};
-class MixedBackend {};
+class DLL_PUBLIC CPUBackend {};
+class DLL_PUBLIC GPUBackend {};
+class DLL_PUBLIC MixedBackend {};
 
 // Utility to copy between backends
 inline void MemCopy(void *dst, const void *src, size_t bytes, cudaStream_t stream = 0) {
