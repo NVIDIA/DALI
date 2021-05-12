@@ -34,8 +34,13 @@ namespace dali {
 class GPUBackend;
 class CPUBackend;
 
+DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, GPUBackend *);
+DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, CPUBackend *);
+
 template <typename Backend>
-shared_ptr<uint8_t> AllocShared(size_t bytes, bool pinned);
+inline shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned) {
+  return AllocBuffer(bytes, pinned, static_cast<Backend*>(nullptr));
+}
 
 // Helper function to get a string of the data shape
 inline string ShapeString(vector<Index> shape) {
@@ -257,7 +262,7 @@ class DLL_PUBLIC Buffer {
                  "Cannot reallocate Buffer if it is sharing data. "
                  "Clear the status by `Reset()` first.");
     data_.reset();
-    data_ = AllocShared<Backend>(new_num_bytes, pinned_);
+    data_ = AllocBuffer<Backend>(new_num_bytes, pinned_);
 
     num_bytes_ = new_num_bytes;
   }
