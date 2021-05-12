@@ -69,8 +69,7 @@ struct curand_uniform_dist {
   static_assert(std::is_same<T, float>::value || std::is_same<T, double>::value,
     "Unexpected data type");
 
-  DALI_HOST_DEV curand_uniform_dist()
-      : range_start_(0.0), range_size_(1.0) {}
+  DALI_HOST_DEV curand_uniform_dist() = default;
 
   DALI_HOST_DEV curand_uniform_dist(T start, T end)
       : range_start_(start), range_end_(end), range_size_(end-start) {
@@ -92,7 +91,7 @@ struct curand_uniform_dist {
   }
 
  private:
-  T range_start_, range_end_, range_size_;
+  T range_start_ = 0, range_end_ = 1, range_size_ = 1;
 };
 
 struct curand_uniform_int_range_dist {
