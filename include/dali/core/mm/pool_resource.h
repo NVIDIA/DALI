@@ -149,13 +149,22 @@ class pool_resource_base : public memory_resource<kind, Context> {
         if (!options_.try_smaller_on_failure)
           throw;
         if (blk_size == min_bytes) {
+          // We've reached the minimum size and still got no memory from upstream
+          // - try to free something.
           if (tried_return_to_upstream || !options_.return_to_upstream_on_failure)
             throw;
-          if (blocks_.empty())
+          if (blocks_.empty())  // nothing to free -> fail
             throw;
+          // If there are some upstream blocks which are completely free
+          // (the free list covers them completely), we can try to return them
+          // to the upstream, with the hope that it will reorganize and succeed in
+          // the subsequent allocation attempt.
           int blocks_freed = 0;
           for (int i = blocks_.size() - 1; i >= 0; i--) {
             UpstreamBlock blk = blocks_[i];
+            // If we can remove the block from the free list, it
+            // means that there are no suballocations from this block
+            // - we can safely free it to the upstream.
             if (free_list_.remove_if_in_list(blk.ptr, blk.bytes)) {
               upstream_->deallocate(blk.ptr, blk.bytes, blk.alignment);
               blocks_.erase_at(i--);
@@ -163,7 +172,8 @@ class pool_resource_base : public memory_resource<kind, Context> {
             }
           }
           if (!blocks_freed)
-            throw;
+            throw;  // we freed nothing, so there's no point in retrying to allocate
+          // mark that we've tried, so we can fail fast the next time
           tried_return_to_upstream = true;
         }
         blk_size = std::max(min_bytes, blk_size >> 1);
@@ -182,6 +192,15 @@ class pool_resource_base : public memory_resource<kind, Context> {
   size_t next_block_size(size_t upcoming_allocation_size) {
     size_t actual_block_size = std::max<size_t>(upcoming_allocation_size,
                                                 next_block_size_ * options_.growth_factor);
+    // Align the upstream block to reduce fragmentation.
+    // The upstream resource (e.g. OS routine) may return blocks that have
+    // coarse size granularity. This may result in fragmentation - the next
+    // large block will be overaligned and we'll never see the padding.
+    // Even though we might have received contiguous memory, we're not aware of that.
+    // To reduce the probability of this happening, we align the size to 1/1024th
+    // of the allocation size or 4kB (typical page size), whichever is larger.
+    // This makes (at least sometimes) the large blocks to be seen as adjacent
+    // and therefore enables coalescing in the free list.
     size_t alignment = 1uL << std::max((ilog2(actual_block_size) - 10), 12);
     actual_block_size = align_up(actual_block_size, alignment);
     next_block_size_ = std::min<size_t>(actual_block_size, options_.max_block_size);
