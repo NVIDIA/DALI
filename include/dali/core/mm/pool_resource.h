@@ -19,6 +19,7 @@
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
+#include "dali/core/util.h"
 
 namespace dali {
 namespace mm {
@@ -40,15 +41,22 @@ struct pool_options {
    *        block is unavailable.
    */
   bool try_smaller_on_failure = true;
+  /**
+   * @brief Whether to try to return completely free blocks to the upstream when an allocation
+   *        from upstream failed. This may effectively flush the pool.
+   *
+   * @remarks This option is ignored when `try_smaller_on_failure` is set to `false`.
+   */
+  bool return_to_upstream_on_failure = true;
   size_t upstream_alignment = 256;
 };
 
 constexpr pool_options default_host_pool_opts() noexcept {
-  return { (1 << 28), (1 << 12), 2.0f, true };
+  return { (1 << 28), (1 << 12), 2.0f, true, true };
 }
 
 constexpr pool_options default_device_pool_opts() noexcept {
-  return { (static_cast<size_t>(1) << 32), (1 << 20), 2.0f, false };
+  return { (static_cast<size_t>(1) << 32), (1 << 20), 2.0f, true, true };
 }
 
 template <memory_kind kind, typename Context, class FreeList, class LockType>
@@ -133,13 +141,36 @@ class pool_resource_base : public memory_resource<kind, Context> {
 
   void *get_upstream_block(size_t &blk_size, size_t min_bytes, size_t alignment) {
     blk_size = next_block_size(min_bytes);
+    bool tried_return_to_upstream = false;
     for (;;) {
       try {
         return upstream_->allocate(blk_size, alignment);
       } catch (const std::bad_alloc &) {
-        if (blk_size == min_bytes || !options_.try_smaller_on_failure)
+        if (!options_.try_smaller_on_failure)
           throw;
+        if (blk_size == min_bytes) {
+          if (tried_return_to_upstream || !options_.return_to_upstream_on_failure)
+            throw;
+          if (blocks_.empty())
+            throw;
+          int blocks_freed = 0;
+          for (int i = blocks_.size() - 1; i >= 0; i--) {
+            UpstreamBlock blk = blocks_[i];
+            if (free_list_.remove_if_in_list(blk.ptr, blk.bytes)) {
+              upstream_->deallocate(blk.ptr, blk.bytes, blk.alignment);
+              blocks_.erase_at(i--);
+              blocks_freed++;
+            }
+          }
+          if (!blocks_freed)
+            throw;
+          tried_return_to_upstream = true;
+        }
         blk_size = std::max(min_bytes, blk_size >> 1);
+
+        // Shrink the next_block_size_, so that we don't try to allocate a big block
+        // next time, because it would likely fail anyway.
+        next_block_size_ = blk_size;
       }
     }
   }
@@ -149,9 +180,11 @@ class pool_resource_base : public memory_resource<kind, Context> {
   }
 
   size_t next_block_size(size_t upcoming_allocation_size) {
-    size_t actual_block_size = std::max(upcoming_allocation_size, next_block_size_);
-    next_block_size_ = std::min<size_t>(actual_block_size * options_.growth_factor,
-                                        options_.max_block_size);
+    size_t actual_block_size = std::max<size_t>(upcoming_allocation_size,
+                                                next_block_size_ * options_.growth_factor);
+    size_t alignment = 1uL << std::max((ilog2(actual_block_size) - 10), 12);
+    actual_block_size = align_up(actual_block_size, alignment);
+    next_block_size_ = std::min<size_t>(actual_block_size, options_.max_block_size);
     return actual_block_size;
   }
 

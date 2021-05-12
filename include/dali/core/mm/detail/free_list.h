@@ -204,34 +204,41 @@ class best_fit_free_list {
     }
     if (!pbest)
       return nullptr;
-    char *base = static_cast<char *>((*pbest)->start);
+    char *base = (*pbest)->start;
     char *aligned = detail::align_ptr(base, alignment);
-    bool gap_lo = aligned > base;
-    bool gap_hi = aligned + bytes < (*pbest)->end;
+    return get_from_block(pbest, aligned, aligned + bytes);
+  }
+
+  void *get_from_block(block **pblock, char *start, char *end) {
+    char *base = (*pblock)->start;
+    assert(start >= base && end <= (*pblock)->end);
+
+    bool gap_lo = start > base;
+    bool gap_hi = end < (*pblock)->end;
     if (gap_lo) {
       // there's space at the beginnning of the block due to alignment
-      block *lo = *pbest;
+      block *lo = *pblock;
       if (gap_hi) {
         // there's space at the end of the block - we need a new block to describe that
         block *hi = get_block();
         hi->next = lo->next;
         lo->next = hi;
 
-        hi->start = aligned + bytes;
+        hi->start = end;
         hi->end = lo->end;
       }
       // the space at the beginning of the block is the difference in alignments
-      lo->end = aligned;
+      lo->end = start;
     } else {
       if (gap_hi) {
         // there's space at the end of the block - update current block to describe it
-        (*pbest)->start = aligned + bytes;
+        (*pblock)->start = end;
       } else {
         // the block was fully utilized - remove it from the free list
-        remove(pbest);
+        remove(pblock);
       }
     }
-    return aligned;
+    return start;
   }
 
   /**
@@ -246,6 +253,18 @@ class best_fit_free_list {
     blk->end = blk->start + bytes;
     blk->next = head_;
     head_ = blk;
+  }
+
+  bool remove_if_in_list(void *base, size_t size) {
+    char *start = static_cast<char*>(base);
+    char *end = start + size;
+    for (block **b = &head_; *b; b = &(*b)->next) {
+      if (start == (*b)->start && end == (*b)->end) {
+        remove(b);
+        return true;
+      }
+    }
+    return false;
   }
 
  protected:
@@ -412,6 +431,21 @@ class coalescing_free_list : public best_fit_free_list {
     assert(with.head_ == nullptr);
     head_ = new_head;
   }
+
+  bool remove_if_in_list(void *base, size_t size) {
+    char *start = static_cast<char*>(base);
+    char *end = start + size;
+    for (block **b = &head_; *b; b = &(*b)->next) {
+      if (start == (*b)->start && end == (*b)->end) {
+        remove(b);
+        return true;
+      } else if (start >= (*b)->start && end <= (*b)->end) {
+        (void)get_from_block(b, start, end);
+        return true;
+      }
+    }
+    return false;
+  }
 };
 
 /**
@@ -476,6 +510,51 @@ class free_tree {
       }
     }
     return nullptr;
+  }
+
+  /**
+   * @brief Removes a fixed block from the free tree.
+   *
+   * If the block is not in the free tree, nullptr is returned.
+   */
+  void *get_exact(char *start, char *end) {
+    assert(end > start);
+    if (by_addr_.empty())
+      return nullptr;
+    size_t size = end - start;
+
+    auto it = by_addr_.lower_bound(start);
+    if (it == by_addr_.end() || it->first > start)
+      it--;
+    char *base = it->first;
+    if (start < base || end > it->first + it->second)
+      return nullptr;
+
+    size_t block_size = it->second;
+    size_t front_padding = start - base;
+    assert(static_cast<ptrdiff_t>(front_padding) >= 0);
+    // NOTE: block_size - front_padding >= size  can overflow and fail - meh, unsigned size_t
+    if (block_size >= size + front_padding) {
+      by_size_.erase({ it->second, it->first });
+      size_t back_padding = block_size - size - front_padding;
+      assert(static_cast<ptrdiff_t>(back_padding) >= 0);
+      if (front_padding) {
+        by_addr_[base] = front_padding;
+        by_size_.insert({front_padding, base});
+      } else {
+        by_addr_.erase(base);
+      }
+      if (back_padding) {
+        by_addr_.insert({ end, back_padding });
+        by_size_.insert({ back_padding, end });
+      }
+      return start;
+    }
+    return nullptr;
+  }
+
+  bool remove_if_in_list(void *base, size_t size) {
+    return get_exact(static_cast<char*>(base), static_cast<char*>(base)+size) != nullptr;
   }
 
   /**
