@@ -86,7 +86,7 @@ def verify_salt_and_pepper(output, input, prob, salt_to_pepper_prob, per_channel
     actual_noise_prob = (pepper_count + salt_count) / pixel_count
     actual_salt_to_pepper_prob = salt_count / (salt_count + pepper_count)
     np.testing.assert_allclose(actual_noise_prob, prob, atol=1e-2)
-    np.testing.assert_allclose(actual_salt_to_pepper_prob, salt_to_pepper_prob, atol=1e-2)
+    np.testing.assert_allclose(actual_salt_to_pepper_prob, salt_to_pepper_prob, atol=1e-1)
 
 def _testimpl_operator_noise_salt_and_pepper(device, per_channel, prob, salt_to_pepper_prob, channel_first, batch_size, niter):
     pipe = pipe_salt_and_pepper_noise(prob, salt_to_pepper_prob, channel_first, per_channel=per_channel,
