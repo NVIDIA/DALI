@@ -68,11 +68,14 @@ def verify_salt_and_pepper(output, input, prob, salt_to_pepper_prob, per_channel
     passthrough_mask = np.all(output == input, axis=-1)
     pepper_mask = np.all(output == pepper_val, axis=-1)
     salt_mask = np.all(output == salt_val, axis=-1)
-    pixel_mask = np.logical_and(np.all(input != pepper_val, axis=-1),
-                                np.all(input != salt_val, axis=-1))
-    salt_count = np.count_nonzero(np.logical_and(salt_mask, pixel_mask))
-    pepper_count = np.count_nonzero(np.logical_and(pepper_mask, pixel_mask))
-    pixel_count = np.count_nonzero(pixel_mask)
+    # This mask is meant to select only the pixels that didn't have a 'salt' or 'pepper'
+    # value before the noise application. Otherwise, the measured noise/pepper percentages,
+    # might differ a lot in images with a lot of black or white pixels.
+    in_pixel_mask = np.logical_and(np.all(input != pepper_val, axis=-1),
+                                   np.all(input != salt_val, axis=-1))
+    salt_count = np.count_nonzero(np.logical_and(salt_mask, in_pixel_mask))
+    pepper_count = np.count_nonzero(np.logical_and(pepper_mask, in_pixel_mask))
+    pixel_count = np.count_nonzero(in_pixel_mask)
     assert (np.logical_or(passthrough_mask, np.logical_or(salt_mask, pepper_mask))).all()
     actual_noise_prob = (pepper_count + salt_count) / pixel_count
     actual_salt_to_pepper_prob = salt_count / (salt_count + pepper_count)

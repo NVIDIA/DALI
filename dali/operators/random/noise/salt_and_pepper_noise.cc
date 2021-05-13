@@ -51,7 +51,8 @@ resulting in some channels being corrupted and others kept intact. If set to Fal
 is generated once and applied to all channels, so that all channels in a pixel should either be
 kept intact, take the "pepper" value, or the "salt" value.
 
-Note: Per-channel noise generation requires the input layout to contain a channels ('C') dimension.)code",
+Note: Per-channel noise generation requires the input layout to contain a channels ('C') dimension,
+or be empty. In the case of the layout being empty, channel-last layout is assumed.)code",
       false);
 
 DALI_REGISTER_OPERATOR(noise__SaltAndPepper, SaltAndPepperNoise<CPUBackend>, CPU);

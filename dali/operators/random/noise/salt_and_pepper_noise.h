@@ -41,9 +41,11 @@ class SaltAndPepperNoiseImpl {
                                                 float salt_to_pepper_prob = 0.5,
                                                 T salt_val = kDefaultSalt,
                                                 T pepper_val = kDefaultPepper)
-      : noise_prob_(clamp<float>(noise_prob, 0, 1)),
-        salt_prob_(noise_prob_ * clamp<float>(salt_to_pepper_prob, 0, 1)),
+      : noise_prob_(noise_prob),
+        salt_prob_(noise_prob_ * salt_to_pepper_prob),
         salt_val_(salt_val), pepper_val_(pepper_val) {
+      assert(0.0f <= noise_prob && noise_prob <= 1.0);
+      assert(0.0f <= salt_to_pepper_prob && salt_to_pepper_prob <= 1.0);
   }
 
   template <typename Generator>
@@ -115,8 +117,14 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
     for (int s = 0; s < nsamples; s++) {
       T salt_val = salt_val_.IsDefined() ? salt_val_[s].data[0] : Impl<T>::kDefaultSalt;
       T pepper_val = pepper_val_.IsDefined() ? pepper_val_[s].data[0] : Impl<T>::kDefaultPepper;
-      dists_data[s] = Impl<T>{prob_[s].data[0], salt_to_pepper_prob_[s].data[0],
-                              salt_val, pepper_val};
+      float noise_prob = prob_[s].data[0];
+      float salt_to_pepper_prob = salt_to_pepper_prob_[s].data[0];
+      DALI_ENFORCE((0.0f <= noise_prob && noise_prob <= 1.0f),
+        make_string("Noise probability should be a value within [0.0, 1.0]. Got: ", noise_prob));
+      DALI_ENFORCE((0.0f <= salt_to_pepper_prob && salt_to_pepper_prob <= 1.0f),
+        make_string("Salt-to-pepper probability should be a value within [0.0, 1.0]. Got: ",
+                    salt_to_pepper_prob));
+      dists_data[s] = Impl<T>{noise_prob, salt_to_pepper_prob, salt_val, pepper_val};
     }
     return true;
   }

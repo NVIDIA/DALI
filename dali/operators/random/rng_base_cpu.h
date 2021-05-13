@@ -140,7 +140,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<CPUBackend> &w
   DistGen<IsNoiseGen> dist_gen_;
   for (int sample_id = 0; sample_id < nsamples; ++sample_id) {
     auto sample_sz = out_shape.tensor_size(sample_id);
-    int64_t N = sample_sz;
+    int64_t total_p_count = sample_sz;
     int nchannels = -1;
     span<T> out_span{out_view[sample_id].data, sample_sz};
     span<const T> in_span;
@@ -159,28 +159,28 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<CPUBackend> &w
                       "Got layout: \"", layout, "\"."));
       auto sh = out_shape.tensor_shape_span(sample_id);
       nchannels = sh[channel_dim];
-      N /= nchannels;
+      total_p_count /= nchannels;
       c_stride = volume(sh.begin() + channel_dim + 1, sh.end());
       p_stride = channel_dim == 0 ? 1 : nchannels;
     }
 
-    if (N < kThreshold) {
+    if (total_p_count < kThreshold) {
       tp.AddWork(
         [=](int thread_id) {
           auto dist = use_default_dist ? Dist() : dists[sample_id];
           if (independent_channels) {
-            dist_gen_.template gen<T>(out_span, in_span, dist, rng_[sample_id], 0, N);
+            dist_gen_.template gen<T>(out_span, in_span, dist, rng_[sample_id], 0, total_p_count);
           } else {
-            dist_gen_.template gen_all_channels<T>(out_span, in_span, dist, rng_[sample_id], 0, N,
-                                                   nchannels, c_stride, p_stride);
+            dist_gen_.template gen_all_channels<T>(out_span, in_span, dist, rng_[sample_id], 0,
+                                                   total_p_count, nchannels, c_stride, p_stride);
           }
-        }, N);
+        }, total_p_count);
     } else {
-      int chunks = div_ceil(N, kChunkSize);
+      int chunks = div_ceil(total_p_count, kChunkSize);
       std::array<uint32_t, kNumChunkSeeds> seed;
       for (int c = 0; c < chunks; c++) {
         int64_t p_offset, p_count;
-        std::tie(p_offset, p_count) = get_chunk<T>(N, c, chunks);
+        std::tie(p_offset, p_count) = get_chunk<T>(total_p_count, c, chunks);
         for (auto &s : seed)
           s = rng_[sample_id]();
         tp.AddWork(
