@@ -89,6 +89,13 @@ class RNGBase : public Operator<Backend> {
     return true;
   }
 
+  bool PerChannel() const {
+    // By default generators don't interpret channel data, treating the data as a 1D array
+    // If set to false by an implementation, the generation will occur once and will be applied
+    // to all channels
+    return true;
+  }
+
   template <typename T, typename Dist>
   void RunImplTyped(workspace_t<CPUBackend> &ws);
 
