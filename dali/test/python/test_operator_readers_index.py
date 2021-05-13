@@ -163,8 +163,14 @@ def test_tfrecord_reader_alias():
     pipe.build()
     out = pipe.run()
     for tensor in out[0]:
-        assert len(np.array(tensor)) != 0
+        data = np.array(tensor)
+        assert len(data) != 0
+        assert data.dtype  == np.uint8
     for tensor in out[1]:
-        assert len(np.array(tensor)) == 0
+        data = np.array(tensor)
+        assert len(data) == 0
+        assert data.dtype  == np.int64
     for tensor in out[2]:
-        assert len(np.array(tensor)) == 0
+        data = np.array(tensor)
+        assert len(data) == 0
+        assert data.dtype  == np.float32

@@ -73,13 +73,13 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
         // set type
         switch (f.GetType()) {
           case FeatureType::int64:
-            (void) output.mutable_data<int64_t>();
+             output.Resize({0}, TypeTable::GetTypeInfo(DALI_INT64));
             break;
           case FeatureType::string:
-            (void) output.mutable_data<uint8_t>();
+             output.Resize({0}, TypeTable::GetTypeInfo(DALI_UINT8));
             break;
           case FeatureType::float32:
-            (void) output.mutable_data<float>();
+             output.Resize({0}, TypeTable::GetTypeInfo(DALI_FLOAT));
             break;
         }
         output.SetSourceInfo(data.GetSourceInfo());
