@@ -79,6 +79,45 @@ TEST(MMBestFitFreeList, PutGetMoveGet) {
   EXPECT_EQ(l2.get(100, 2), a+10);
 }
 
+
+template <typename FreeList>
+void TestCoalescingRemoveIf() {
+  FreeList fl;
+  char storage alignas(16)[4000];
+  char *a = storage + 128;   // thank you, overzealous compiler!
+  ASSERT_FALSE(fl.remove_if_in_list(a, 1));  // total removed: 250..750
+  fl.put(a, 500);
+  fl.put(a + 500, 500);
+  ASSERT_FALSE(fl.remove_if_in_list(a + 2000, 1));  // totally outside
+  ASSERT_FALSE(fl.remove_if_in_list(a - 100, 10));
+
+  ASSERT_FALSE(fl.remove_if_in_list(a + 1000, 1));  // edge case
+  ASSERT_FALSE(fl.remove_if_in_list(a - 100, 100));
+
+  ASSERT_FALSE(fl.remove_if_in_list(a + 500, 501));  // overlaps, but exceeds
+  ASSERT_FALSE(fl.remove_if_in_list(a - 1, 100));
+
+  ASSERT_TRUE(fl.remove_if_in_list(a + 250, 500));  // total removed: 250..750
+
+  ASSERT_FALSE(fl.remove_if_in_list(a + 250, 500));  // already removed
+  ASSERT_FALSE(fl.remove_if_in_list(a + 300, 500));  // overlaps removed piece
+  ASSERT_FALSE(fl.remove_if_in_list(a + 200, 500));
+
+  ASSERT_TRUE(fl.remove_if_in_list(a + 200, 50));  // total removed: 200..750
+  ASSERT_TRUE(fl.remove_if_in_list(a, 50));  // total removed: 0..50, 200..750
+  EXPECT_EQ(fl.get(150, 1), a + 50);  // there's a gap at 50..200
+  EXPECT_EQ(fl.get(250, 128), nullptr);  // there's a block large enough, but not aligned to 128
+  EXPECT_EQ(fl.get(250, 1), a + 750);
+  EXPECT_EQ(fl.get(1, 1), nullptr);  // the free list should be empty now
+
+  // reset the free list
+  fl.put(a, 1000);
+  ASSERT_TRUE(fl.remove_if_in_list(a + 250, 500));  // total removed: 250..750
+  fl.put(a + 250, 500);  // put back
+  EXPECT_EQ(fl.get(1000, 1), a);
+  EXPECT_EQ(fl.get(1, 1), nullptr);  // the free list should be empty now
+}
+
 template <typename FreeList>
 void TestCoalescingPutGet() {
   FreeList fl;
@@ -146,6 +185,33 @@ TEST(MMCoalescingFreeList, PutGet) {
 
 TEST(MMFreeTree, PutGet) {
   TestCoalescingPutGet<free_tree>();
+}
+
+TEST(MMBestFitFreeList, RemoveIf) {
+  best_fit_free_list fl;
+  char storage alignas(16)[4000];
+  char *a = storage + 128;   // thank you, overzealous compiler!
+  fl.put(a, 100);
+  fl.put(a + 100, 200);
+  fl.put(a + 300, 700);
+  ASSERT_FALSE(fl.remove_if_in_list(a - 100, 1));
+  ASSERT_FALSE(fl.remove_if_in_list(a, 1));
+  ASSERT_FALSE(fl.remove_if_in_list(a + 100, 1));
+  ASSERT_FALSE(fl.remove_if_in_list(a + 300, 1));
+  ASSERT_FALSE(fl.remove_if_in_list(a + 1000, 1));
+  ASSERT_FALSE(fl.remove_if_in_list(a + 30, 70));
+
+  ASSERT_TRUE(fl.remove_if_in_list(a + 100, 200));
+  ASSERT_TRUE(fl.remove_if_in_list(a + 300, 700));
+  ASSERT_TRUE(fl.remove_if_in_list(a, 100));
+}
+
+TEST(MMCoalescingFreeList, RemoveIf) {
+  TestCoalescingRemoveIf<coalescing_free_list>();
+}
+
+TEST(MMFreeTree, RemoveIf) {
+  TestCoalescingRemoveIf<free_tree>();
 }
 
 

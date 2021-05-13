@@ -40,9 +40,10 @@ class test_resource_wrapper_impl {
  protected:
   using sentinel_t = uint32_t;
 
-  size_t alloc_curr_ = 0;
-  size_t alloc_peak_ = 0;
-  size_t num_allocs_ = 0;
+  size_t alloc_curr_   = 0;
+  size_t alloc_peak_   = 0;
+  size_t num_allocs_   = 0;
+  size_t num_deallocs_ = 0;
 
   template <typename UpstreamAlloc, typename... Extra>
   void *do_allocate_impl(UpstreamAlloc &&ua, size_t bytes, size_t alignment, Extra&&... extra) {
@@ -84,6 +85,7 @@ class test_resource_wrapper_impl {
     if (security_check) {
       ASSERT_TRUE(detail::check_sentinel<sentinel_t>(ptr, bytes)) << "Memory corruption detected";
     }
+    num_deallocs_++;
     alloc_curr_ -= bytes;
     freed_.insert(ptr);
     allocated_.erase(ptr);
@@ -114,8 +116,16 @@ class test_resource_wrapper_impl {
     return alloc_peak_;
   }
 
+  size_t get_current_size() const {
+    return alloc_curr_;
+  }
+
   size_t get_num_allocs() const {
     return num_allocs_;
+  }
+
+  size_t get_num_deallocs() const {
+    return num_deallocs_;
   }
 
   void simulate_out_of_memory(bool enable) {
