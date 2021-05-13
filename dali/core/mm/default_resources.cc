@@ -255,6 +255,13 @@ void SetDefaultDeviceResource(int device_id, device_async_resource *resource, bo
   SetDefaultDeviceResource(device_id, wrap(resource, own));
 }
 
+// This function is for testing purposes only - it must be visible
+DLL_PUBLIC void _Test_FreeDeviceResources() {
+  // clear does not deallocate - we need something stronger
+  decltype(g_resources.device) empty;
+  g_resources.device.swap(empty);
+}
+
 template <> DLL_PUBLIC
 void SetDefaultResource<memory_kind::device>(std::shared_ptr<device_async_resource> resource) {
   int dev = 0;
