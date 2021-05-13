@@ -38,14 +38,14 @@ class SaltAndPepperNoiseImpl {
       std::is_floating_point<T>::value ? T(-1) : std::numeric_limits<T>::min();
 
   DALI_HOST_DEV explicit SaltAndPepperNoiseImpl(float noise_prob = 0.05,
-                                                float salt_to_pepper_prob = 0.5,
+                                                float salt_vs_pepper = 0.5,
                                                 T salt_val = kDefaultSalt,
                                                 T pepper_val = kDefaultPepper)
       : noise_prob_(noise_prob),
-        salt_prob_(noise_prob_ * salt_to_pepper_prob),
+        salt_prob_(noise_prob_ * salt_vs_pepper),
         salt_val_(salt_val), pepper_val_(pepper_val) {
       assert(0.0f <= noise_prob && noise_prob <= 1.0);
-      assert(0.0f <= salt_to_pepper_prob && salt_to_pepper_prob <= 1.0);
+      assert(0.0f <= salt_vs_pepper && salt_vs_pepper <= 1.0);
   }
 
   template <typename Generator>
@@ -85,11 +85,11 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
   explicit SaltAndPepperNoise(const OpSpec &spec)
       : BaseImpl(spec),
         prob_("prob", spec),
-        salt_to_pepper_prob_("salt_to_pepper_prob", spec),
+        salt_vs_pepper_("salt_vs_pepper", spec),
         salt_val_("salt_val", spec),
         pepper_val_("pepper_val", spec),
         per_channel_(spec.GetArgument<bool>("per_channel")) {
-    if (prob_.IsDefined() || salt_to_pepper_prob_.IsDefined() ||
+    if (prob_.IsDefined() || salt_vs_pepper_.IsDefined() ||
         salt_val_.IsDefined() || pepper_val_.IsDefined()) {
       backend_data_.ReserveDistsData(sizeof(Impl<double>) * max_batch_size_);
     }
@@ -97,7 +97,7 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
     prob_.Acquire(spec, ws, nsamples, true);
-    salt_to_pepper_prob_.Acquire(spec, ws, nsamples, true);
+    salt_vs_pepper_.Acquire(spec, ws, nsamples, true);
     if (salt_val_.IsDefined())
       salt_val_.Acquire(spec, ws, nsamples, true);
     if (pepper_val_.IsDefined())
@@ -111,20 +111,21 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
 
   template <typename T>
   bool SetupDists(Impl<T>* dists_data, int nsamples) {
-    if (!prob_.IsDefined() && !salt_to_pepper_prob_.IsDefined()) {
+    if (!prob_.IsDefined() && !salt_vs_pepper_.IsDefined() &&
+        !salt_val_.IsDefined() && !pepper_val_.IsDefined()) {
       return false;  // default constructed Impl will be used
     }
     for (int s = 0; s < nsamples; s++) {
       T salt_val = salt_val_.IsDefined() ? salt_val_[s].data[0] : Impl<T>::kDefaultSalt;
       T pepper_val = pepper_val_.IsDefined() ? pepper_val_[s].data[0] : Impl<T>::kDefaultPepper;
       float noise_prob = prob_[s].data[0];
-      float salt_to_pepper_prob = salt_to_pepper_prob_[s].data[0];
+      float salt_vs_pepper = salt_vs_pepper_[s].data[0];
       DALI_ENFORCE((0.0f <= noise_prob && noise_prob <= 1.0f),
         make_string("Noise probability should be a value within [0.0, 1.0]. Got: ", noise_prob));
-      DALI_ENFORCE((0.0f <= salt_to_pepper_prob && salt_to_pepper_prob <= 1.0f),
-        make_string("Salt-to-pepper probability should be a value within [0.0, 1.0]. Got: ",
-                    salt_to_pepper_prob));
-      dists_data[s] = Impl<T>{noise_prob, salt_to_pepper_prob, salt_val, pepper_val};
+      DALI_ENFORCE((0.0f <= salt_vs_pepper && salt_vs_pepper <= 1.0f),
+        make_string("Salt-vs-pepper probability should be a value within [0.0, 1.0]. Got: ",
+                    salt_vs_pepper));
+      dists_data[s] = Impl<T>{noise_prob, salt_vs_pepper, salt_val, pepper_val};
     }
     return true;
   }
@@ -151,7 +152,7 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
   using BaseImpl::backend_data_;
 
   ArgValue<float> prob_;
-  ArgValue<float> salt_to_pepper_prob_;
+  ArgValue<float> salt_vs_pepper_;
   ArgValue<float> salt_val_;
   ArgValue<float> pepper_val_;
   bool per_channel_ = false;

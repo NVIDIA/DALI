@@ -28,7 +28,7 @@ The shape and data type of the output will match the input.
     .AddOptionalArg<float>("prob",
       R"code(Probability of an output value to take a salt or pepper value.)code",
       0.05f, true)
-    .AddOptionalArg<float>("salt_to_pepper_prob",
+    .AddOptionalArg<float>("salt_vs_pepper",
       R"code(Probability of a corrupted output value to take a salt value.)code",
       0.5f, true)
     .AddOptionalArg<float>("salt_val",
