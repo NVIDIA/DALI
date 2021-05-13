@@ -44,8 +44,6 @@ class SaltAndPepperNoiseImpl {
       : noise_prob_(noise_prob),
         salt_prob_(noise_prob_ * salt_vs_pepper),
         salt_val_(salt_val), pepper_val_(pepper_val) {
-      assert(0.0f <= noise_prob && noise_prob <= 1.0);
-      assert(0.0f <= salt_vs_pepper && salt_vs_pepper <= 1.0);
   }
 
   template <typename Generator>
