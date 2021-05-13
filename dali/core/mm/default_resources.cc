@@ -53,6 +53,7 @@ struct DefaultResources {
   std::shared_ptr<host_memory_resource> host;
   std::shared_ptr<pinned_async_resource> pinned_async;
   std::vector<std::shared_ptr<device_async_resource>> device;
+  std::mutex mtx;
 
   void ReleasePinned() {
     Release(pinned_async);
@@ -98,7 +99,6 @@ struct DefaultResources {
 };
 
 #define g_resources (DefaultResources::instance())
-
 
 inline std::shared_ptr<host_memory_resource> CreateDefaultHostResource() {
   return std::make_shared<malloc_memory_resource>();
@@ -160,11 +160,14 @@ const std::shared_ptr<host_memory_resource> &ShareDefaultResourceImpl<memory_kin
 template <>
 const std::shared_ptr<pinned_async_resource> &ShareDefaultResourceImpl<memory_kind::pinned>() {
   if (!g_resources.pinned_async) {
-    static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
-    static auto cleanup = AtExit([] {
-      g_resources.ReleasePinned();
-    });
-    g_resources.pinned_async = CreateDefaultPinnedResource();
+    std::lock_guard<std::mutex> lock(g_resources.mtx);
+    if (!g_resources.pinned_async) {
+      static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
+      static auto cleanup = AtExit([] {
+        g_resources.ReleasePinned();
+      });
+      g_resources.pinned_async = CreateDefaultPinnedResource();
+    }
   }
   return g_resources.pinned_async;
 }
@@ -174,6 +177,7 @@ const std::shared_ptr<device_async_resource> &ShareDefaultDeviceResourceImpl(int
     CUDA_CALL(cudaGetDevice(&device_id));
   }
   if (g_resources.device.empty()) {
+    std::lock_guard<std::mutex> lock(g_resources.mtx);
     int ndevs = 0;
     CUDA_CALL(cudaGetDeviceCount(&ndevs));
     g_resources.device.resize(ndevs);
@@ -183,12 +187,15 @@ const std::shared_ptr<device_async_resource> &ShareDefaultDeviceResourceImpl(int
       "Shoud be 0 <= device_id < ", g_resources.device.size(), " or negative for current device."));
   }
   if (!g_resources.device[device_id]) {
-    DeviceGuard devg(device_id);
-    static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
-    static auto cleanup = AtExit([] {
-      g_resources.ReleaseDevice();
-    });
-    g_resources.device[device_id] = CreateDefaultDeviceResource();
+    std::lock_guard<std::mutex> lock(g_resources.mtx);
+    if (!g_resources.device[device_id]) {
+      DeviceGuard devg(device_id);
+      static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
+      static auto cleanup = AtExit([] {
+        g_resources.ReleaseDevice();
+      });
+      g_resources.device[device_id] = CreateDefaultDeviceResource();
+    }
   }
   return g_resources.device[device_id];
 }
@@ -203,6 +210,7 @@ const std::shared_ptr<device_async_resource> &ShareDefaultResourceImpl<memory_ki
 
 template <> DLL_PUBLIC
 void SetDefaultResource<memory_kind::host>(std::shared_ptr<host_memory_resource> resource) {
+  std::lock_guard<std::mutex> lock(g_resources.mtx);
   g_resources.host = std::move(resource);
 }
 
@@ -215,6 +223,7 @@ void SetDefaultResource<memory_kind::host>(host_memory_resource *resource, bool 
 
 template <> DLL_PUBLIC
 void SetDefaultResource<memory_kind::pinned>(std::shared_ptr<pinned_async_resource> resource) {
+  std::lock_guard<std::mutex> lock(g_resources.mtx);
   g_resources.pinned_async = std::move(resource);
 }
 
@@ -226,6 +235,7 @@ void SetDefaultResource<memory_kind::pinned>(pinned_async_resource *resource, bo
 
 
 void SetDefaultDeviceResource(int device_id, std::shared_ptr<device_async_resource> resource) {
+  std::lock_guard<std::mutex> lock(g_resources.mtx);
   if (device_id < 0) {
     CUDA_CALL(cudaGetDevice(&device_id));
   }
