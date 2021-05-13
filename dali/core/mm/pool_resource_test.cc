@@ -75,6 +75,32 @@ TEST(MMPoolResource, Tree) {
   TestPoolResource<free_tree>(100000);
 }
 
+TEST(MMPoolResource, ReturnToUpstream) {
+  test_device_resource upstream;
+  {
+    pool_resource_base<memory_kind::device, any_context, free_tree, detail::dummy_lock>
+      pool(&upstream);
+    size_t size = 1<<28;  // 256M
+    for (;;) {
+      try {
+        void *mem = pool.allocate(size);
+        pool.deallocate(mem, size);
+      } catch (const std::bad_alloc &) {
+        EXPECT_EQ(upstream.get_current_size(), 0);
+        break;
+      }
+      if (upstream.get_num_deallocs() > 0)
+        break;  // deallocation to upstream detected - test passed
+      size *= 2;
+      if (size == 0) {
+        FAIL() << "Reached maximum possible size and there was no out-of-memory error and "
+                  "no release to the upstream.";
+      }
+    }
+  }
+  upstream.check_leaks();
+}
+
 }  // namespace test
 }  // namespace mm
 }  // namespace dali
