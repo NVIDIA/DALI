@@ -177,6 +177,9 @@ def test_jpeg_compression_distortion_cpu():
 def test_noise_shot_cpu():
     check_single_input(fn.noise.shot)
 
+def test_noise_salt_and_pepper_cpu():
+    check_single_input(fn.noise.salt_and_pepper)
+
 def test_image_decoder_crop_device():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
