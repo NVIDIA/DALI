@@ -174,6 +174,9 @@ def test_flip_cpu():
 def test_jpeg_compression_distortion_cpu():
     check_single_input(fn.jpeg_compression_distortion, quality = 10)
 
+def test_noise_gaussian_cpu():
+    check_single_input(fn.noise.gaussian)
+
 def test_noise_shot_cpu():
     check_single_input(fn.noise.shot)
 
