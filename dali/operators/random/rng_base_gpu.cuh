@@ -128,12 +128,17 @@ template <typename T, typename Dist>
 void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &ws) {
   static_assert(std::is_same<Backend, GPUBackend>::value, "Unexpected backend");
   auto &output = ws.template OutputRef<GPUBackend>(0);
-  auto out_view = view<T>(output);
   auto rngs = backend_data_.randomizer_.states();
   int block_sz = backend_data_.block_size_;
   int max_nblocks = backend_data_.max_blocks_;
   int blockdesc_count = -1;
   TensorListView<StorageGPU, const T> in_view;
+  auto out_view = view<T>(output);
+  int nsamples = out_view.num_samples();
+  if (nsamples == 0) {
+    return;
+  }
+
   if (IsNoiseGen) {
     const auto& input = ws.template InputRef<GPUBackend>(0);
     in_view = view<const T>(input);
@@ -153,10 +158,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &w
 
   auto &samples_cpu = backend_data_.sample_descs_cpu_;
   auto &samples_gpu = backend_data_.sample_descs_gpu_;
-  int nsamples = SetupSampleDescs(samples_cpu.data(), out_view, in_view, channel_dim);
-  if (nsamples == 0) {
-    return;
-  }
+  SetupSampleDescs(samples_cpu.data(), out_view, in_view, channel_dim);
   samples_gpu.from_host(samples_cpu, ws.stream());
 
   auto &blocks_cpu = backend_data_.block_descs_cpu_;

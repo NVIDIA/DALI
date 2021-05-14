@@ -129,10 +129,10 @@ int64_t SetupBlockDescs(BlockDesc *blocks, int64_t block_sz, int64_t max_nblocks
 }
 
 template <typename T>
-int64_t SetupSampleDescs(SampleDesc *samples,
-                         TensorListView<StorageGPU, T> &output,
-                         TensorListView<StorageGPU, const T> &input,
-                         int channel_dim = -1) {
+void SetupSampleDescs(SampleDesc *samples,
+                      TensorListView<StorageGPU, T> &output,
+                      TensorListView<StorageGPU, const T> &input,
+                      int channel_dim = -1) {
   int nsamples = output.num_samples();
   for (int s = 0; s < nsamples; s++) {
     T *sample_out = static_cast<T*>(output[s].data);
@@ -154,7 +154,6 @@ int64_t SetupSampleDescs(SampleDesc *samples,
       samples[s].c_stride = 1;
     }
   }
-  return nsamples;
 }
 
 }  // namespace dali
