@@ -21,6 +21,7 @@ import test_utils
 import librosa
 import torch
 import math
+import re
 
 dali_extra_path = test_utils.get_dali_extra_path()
 
@@ -272,8 +273,8 @@ def test_rnnt_data_pipeline():
     batch_size = 2
     ref_pipeline = FilterbankFeatures(sample_rate=16000, n_fft=512, highfreq=.0, dither=.00001,
                                       frame_splicing=3)
-    data_path = os.path.join(dali_extra_path, "db", "audio", "rnnt_data_pipeline")
-    rec_names = ["and_showed_itself_decoded.npy", "asked_her_father_decoded.npy"]
+    data_path = os.path.join(dali_extra_path, "db", "audio", "wav")
+    rec_names = [f for f in os.listdir(data_path) if re.match('.*\.npy', f) is not None]
     recordings = [np.load(os.path.join(data_path, name)) for name in rec_names]
     pipe = RnntTrainPipeline(device_id=0, n_devices=1, file_root=data_path,
                              file_list=os.path.join(data_path, "file_list.txt"),
