@@ -27,6 +27,7 @@ import os
 import glob
 from math import ceil, sqrt
 import tempfile
+import sys
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -817,4 +818,159 @@ def test_separated_exec_setup():
         t_cpu = a_cpu.at(i)
         assert(np.sum(np.abs(t_cpu - t_raw)) == 0)
 
-# ToDo add tests for DLTensorPythonFunction if easily possible
+tested_methods = [
+    "audio_decoder",
+    "image_decoder",
+    "image_decoder_slice",
+    "image_decoder_crop",
+    "image_decoder_random_crop",
+    "decoders.image",
+    "decoders.image_crop",
+    "decoders.image_slice",
+    "decoders.image_random_crop",
+    "decoders.audio",
+    "external_source",
+    "stack",
+    "reductions.variance",
+    "reductions.std_dev",
+    "reductions.rms",
+    "reductions.mean",
+    "reductions.mean_square",
+    "reductions.max",
+    "reductions.min",
+    "reductions.sum",
+    "transforms.translation",
+    "transforms.rotation",
+    "transforms.scale",
+    "transforms.combine",
+    "transforms.shear",
+    "transforms.crop",
+    "transform_translation",
+    "crop",
+    "constant",
+    "dump_image",
+    "numpy_reader",
+    "tfrecord_reader",
+    "file_reader",
+    "sequence_reader",
+    "mxnet_reader",
+    "caffe_reader",
+    "caffe2_reader",
+    "coco_reader",
+    "readers.file",
+    "readers.sequence",
+    "readers.tfrecord",
+    "readers.mxnet",
+    "readers.caffe",
+    "readers.caffe2",
+    "readers.coco",
+    "readers.numpy",
+    "coin_flip",
+    "uniform",
+    "random.uniform",
+    "random.coin_flip",
+    "random.normal",
+    "random_bbox_crop",
+    "python_function",
+    "rotate",
+    "brightness_contrast",
+    "hue",
+    "brightness",
+    "contrast",
+    "hsv",
+    "color_twist",
+    "saturation",
+    "old_color_twist",
+    "shapes",
+    "crop",
+    "color_space_conversion",
+    "cast",
+    "resize",
+    "gaussian_blur",
+    "crop_mirror_normalize",
+    "flip",
+    "jpeg_compression_distortion",
+    "noise.shot",
+    "reshape",
+    "reinterpret",
+    "water",
+    "sphere",
+    "erase",
+    "random_resized_crop",
+    "ssd_random_crop",
+    "bbox_paste",
+    "coord_flip",
+    "cat",
+    "bb_flip",
+    "warp_affine",
+    "normalize",
+    "pad",
+    "preemphasis_filter",
+    "power_spectrum",
+    "spectrogram",
+    "to_decibels",
+    "sequence_rearrange",
+    "normal_distribution",
+    "mel_filter_bank",
+    "nonsilent_region",
+    "one_hot",
+    "copy",
+    "resize_crop_mirror",
+    "fast_resize_crop_mirror",
+    "segmentation.select_masks",
+    "slice",
+    "segmentation.random_mask_pixel",
+    "transpose",
+    "paste",
+    "mfcc",
+    "lookup_table",
+    "element_extract",
+    "arithmetic_generic_op",
+    "box_encoder",
+]
+
+excluded_methods = [
+    "readers.nemo_asr",
+    "roi_random_crop",
+    "squeeze",
+    "jitter",
+    "permute_batch",
+    "peek_image_shape",
+    "batch_permutation",
+    "expand_dims",
+    "noise.gaussian",
+    "grid_mask",
+    "nemo_asr_reader",
+    "coord_transform",
+    "multi_paste",
+    "segmentation.random_object_bbox",
+    "noise.salt_and_pepper",
+    "dl_tensor_python_function",
+    "hidden.arithmetic_generic_op", #internal
+    "hidden.transform_translation", #internal
+    "video_reader",         # not supported for CPU
+    "video_reader_resize",  # not supported for CPU
+    "readers.video",        # not supported for CPU
+    "readers.video_resize", # not supported for CPU
+    "optical_flow",         # not supported for CPU
+]
+def test_coverage():
+    def get_functions(cls, prefix = ""):
+        res = []
+        if len(cls.__dict__.keys()) == 0:
+            prefix = prefix.replace("nvidia.dali.fn", "")
+            prefix = prefix.lstrip('.')
+            if len(prefix):
+                prefix += '.'
+            else:
+                prefix = ""
+            res.append(prefix + cls.__name__)
+        else:
+            for c in cls.__dict__.keys():
+                if not c.startswith("_") and c not in sys.builtin_module_names:
+                    c = cls.__dict__[c]
+                    res += get_functions(c, cls.__name__)
+        return res
+    methods = get_functions(fn)
+    covered = tested_methods + excluded_methods
+    assert set(covered) == set(methods), "Test doesn't cover:\n {}".format(set(methods) - set(covered))

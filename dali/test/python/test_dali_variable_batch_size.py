@@ -26,6 +26,7 @@ import inspect
 import os
 import math
 import random
+import sys
 
 """
 How to test variable (iter-to-iter) batch size for a given op?
@@ -692,3 +693,169 @@ def test_reinterpret():
                    pipeline_fn=pipe, input_layout="HWC")
     check_pipeline(generate_data(31, 13, (5, 160, 80, 3), lo=0, hi=255, dtype=np.uint8),
                    pipeline_fn=pipe, input_layout="FHWC")
+
+tested_methods = [
+    "audio_decoder",
+    "image_decoder",
+    "image_decoder_slice",
+    "image_decoder_crop",
+    "image_decoder_random_crop",
+    "decoders.image",
+    "decoders.image_crop",
+    "decoders.image_slice",
+    "decoders.image_random_crop",
+    "decoders.audio",
+    "peek_image_shape",
+    "external_source",
+    "brightness",
+    "brightness_contrast",
+    "cat",
+    "color_twist",
+    "contrast",
+    "copy",
+    "crop_mirror_normalize",
+    "dump_image",
+    "hsv",
+    "hue",
+    "jpeg_compression_distortion",
+    "noise.shot",
+    "old_color_twist",
+    "reductions.mean",
+    "reductions.mean_square",
+    "reductions.rms",
+    "reductions.min",
+    "reductions.max",
+    "reductions.sum",
+    "saturation",
+    "shapes",
+    "sphere",
+    "stack",
+    "water",
+    "color_space_conversion",
+    "coord_transform",
+    "crop",
+    "erase",
+    "fast_resize_crop_mirror",
+    "flip",
+    "gaussian_blur",
+    "normalize",
+    "pad",
+    "paste",
+    "resize",
+    "resize_crop_mirror",
+    "rotate",
+    "transpose",
+    "warp_affine",
+    "power_spectrum",
+    "preemphasis_filter",
+    "spectrogram",
+    "to_decibels",
+    "jitter",
+    "random_resized_crop",
+    "cast",
+    "copy",
+    "crop",
+    "crop_mirror_normalize",
+    "erase",
+    "flip",
+    "gaussian_blur",
+    "normalize",
+    "resize",
+    "bb_flip",
+    "one_hot",
+    "reinterpret",
+    "batch_permutation",
+    "reductions.std_dev",
+    "reductions.variance",
+    "mel_filter_bank",
+    "constant",
+    "mfcc",
+    "bbox_paste",
+    "sequence_rearrange",
+    "coord_flip",
+    "lookup_table",
+    "slice",
+    "permute_batch",
+    "nonsilent_region",
+    "element_extract",
+    "reshape",
+    "coin_flip",
+    "uniform",
+    "random.coin_flip",
+    "random.uniform",
+    "python_function",
+    "normal_distribution",
+    "random.normal",
+    "arithmetic_generic_op",
+]
+
+excluded_methods = [
+    "segmentation.select_masks",
+    "segmentation.random_object_bbox",
+    "segmentation.random_mask_pixel",
+    "multi_paste",
+    "random_bbox_crop",
+    "noise.salt_and_pepper",
+    "noise.gaussian",
+    "box_encoder",
+    "optical_flow",
+    "expand_dims",
+    "grid_mask",
+    "roi_random_crop",
+    "squeeze",
+    "ssd_random_crop",
+    "transforms.rotation",
+    "transforms.combine",
+    "transforms.shear",
+    "transforms.crop",
+    "transforms.scale",
+    "transforms.translation",
+    "transform_translation",
+    "dl_tensor_python_function",
+    "hidden.transform_translation", # intentional
+    "hidden.arithmetic_generic_op", # intentional
+    "coco_reader",              # readers are do not support variable batch size yet
+    "sequence_reader",          # readers are do not support variable batch size yet
+    "numpy_reader",             # readers are do not support variable batch size yet
+    "file_reader",              # readers are do not support variable batch size yet
+    "caffe_reader",             # readers are do not support variable batch size yet
+    "caffe2_reader",            # readers are do not support variable batch size yet
+    "mxnet_reader",             # readers are do not support variable batch size yet
+    "tfrecord_reader",          # readers are do not support variable batch size yet
+    "nemo_asr_reader",          # readers are do not support variable batch size yet
+    "video_reader",             # readers are do not support variable batch size yet
+    "video_reader_resize",      # readers are do not support variable batch size yet
+    "readers.coco",             # readers are do not support variable batch size yet
+    "readers.sequence",         # readers are do not support variable batch size yet
+    "readers.numpy",            # readers are do not support variable batch size yet
+    "readers.file",             # readers are do not support variable batch size yet
+    "readers.caffe",            # readers are do not support variable batch size yet
+    "readers.caffe2",           # readers are do not support variable batch size yet
+    "readers.mxnet",            # readers are do not support variable batch size yet
+    "readers.tfrecord",         # readers are do not support variable batch size yet
+    "readers.nemo_asr",         # readers are do not support variable batch size yet
+    "readers.video",            # readers are do not support variable batch size yet
+    "readers.video_resize",     # readers are do not support variable batch size yet
+
+]
+def test_coverage():
+    def get_functions(cls, prefix = ""):
+        res = []
+        if len(cls.__dict__.keys()) == 0:
+            prefix = prefix.replace("nvidia.dali.fn", "")
+            prefix = prefix.lstrip('.')
+            if len(prefix):
+                prefix += '.'
+            else:
+                prefix = ""
+            res.append(prefix + cls.__name__)
+        else:
+            for c in cls.__dict__.keys():
+                if not c.startswith("_") and c not in sys.builtin_module_names:
+                    c = cls.__dict__[c]
+                    res += get_functions(c, cls.__name__)
+        return res
+    methods = get_functions(fn)
+    covered = tested_methods + excluded_methods
+    print(set(methods) - set(covered))
+    assert set(covered) == set(methods), "Test doesn't cover:\n {}".format(set(methods) - set(covered))
