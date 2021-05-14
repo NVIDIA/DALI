@@ -306,11 +306,11 @@ else:
                      dtypes=None,
                      shapes=None):
             raise RuntimeError(
-                'DALIDataset is not supported for detected version of TensorFlow.  DALIDataset supports versions: 1.15, 2.0'
+                'DALIDataset is not supported for detected version of TensorFlow.  DALIDataset supports versions: 1.15, 2.x family'
             )
 
 
-DALIDataset.__doc__ = """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.15 and 2.0
+DALIDataset.__doc__ = """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.15 and 2.x family
 
 
     Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in
