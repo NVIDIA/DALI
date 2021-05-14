@@ -93,7 +93,7 @@ def generate_data(max_batch_size, n_iter, sample_shape, lo=0., hi=1., dtype=np.f
         raise RuntimeError("Invalid type argument")
 
 
-def single_op_pipeline(max_batch_size, input_data, device, /, *, input_layout=None,
+def single_op_pipeline(max_batch_size, input_data, device, *, input_layout=None,
                        operator_fn=None, **opfn_args):
     pipe = Pipeline(batch_size=max_batch_size, num_threads=1, device_id=0)
     with pipe:
@@ -115,7 +115,7 @@ def run_pipeline(input_epoch, pipeline_fn, *, devices: list = ['cpu', 'gpu'], **
     :param input_epoch: List of numpy arrays, where every item is a single batch
     :param pipeline_fn: Function, that returns created (but not built) pipeline.
                         Its signature should be (at least):
-                        pipeline_fn(max_batch_size, input_data, device, /, ...)
+                        pipeline_fn(max_batch_size, input_data, device, ...)
     :param devices: Devices to run the check on
     :param pipeline_fn_args: Additional args to pipeline_fn
     """
@@ -140,7 +140,7 @@ def check_pipeline(input_epoch, pipeline_fn, *, devices: list = ['cpu', 'gpu'], 
     :param input_epoch: List of numpy arrays, where every item is a single batch
     :param pipeline_fn: Function, that returns created (but not built) pipeline.
                         Its signature should be (at least):
-                        pipeline_fn(max_batch_size, input_data, device, /, ...)
+                        pipeline_fn(max_batch_size, input_data, device, ...)
     :param devices: Devices to run the check on
     :param eps: Epsilon for mean error
     :param pipeline_fn_args: Additional args to pipeline_fn
@@ -467,7 +467,7 @@ def test_reduce():
         fn.reductions.variance
     ]
 
-    def pipe(max_batch_size, input_data, device, /, reduce_fn):
+    def pipe(max_batch_size, input_data, device, reduce_fn):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         data = fn.external_source(source=input_data, cycle=False, device=device)
         mean = fn.reductions.mean(data)
@@ -674,7 +674,7 @@ def test_python_function():
         data += 13
         return data
 
-    def pipe(max_batch_size, input_data, device, /):
+    def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0, exec_async=False,
                         exec_pipelined=False)
         with pipe:
