@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <vector>
+#include <thread>
 #include "dali/core/mm/default_resources.h"
 #include "dali/core/mm/detail/align.h"
 #include "dali/core/cuda_stream.h"
@@ -22,6 +24,9 @@
 
 namespace dali {
 namespace mm {
+
+void _Test_FreeDeviceResources();
+
 namespace test {
 
 TEST(MMDefaultResource, GetResource_Host) {
@@ -175,6 +180,50 @@ TEST(MMDefaultResource, SetResource_MultiDevice) {
     EXPECT_EQ(&resources[i], GetDefaultDeviceResource(i));
     SetDefaultDeviceResource(i, nullptr);
   }
+}
+
+TEST(MMDefaultResource, InitStampede) {
+  vector<std::thread> threads;
+  std::atomic_bool f1, f2, stop;
+  std::atomic_int cnt;
+  f1 = false;
+  f2 = false;
+  stop = false;
+  cnt = 0;
+  for (int i = 0; i < 100; i++) {
+    threads.emplace_back([&]() {
+      while (!stop) {
+        while (!f1) {
+          if (stop)
+            return;
+          std::this_thread::yield();
+        }
+        GetDefaultResource<memory_kind::device>();
+        cnt++;
+        while (!f2) {
+          if (stop)
+            return;
+          std::this_thread::yield();
+        }
+        cnt--;
+      }
+    });
+  }
+  for (int attempt = 0; attempt < 1000; attempt++) {
+    f1 = true;
+    while (cnt != static_cast<int>(threads.size()))
+      std::this_thread::yield();
+    f1 = false;
+    SetDefaultResource<memory_kind::device>(nullptr);
+    _Test_FreeDeviceResources();
+    f2 = true;
+    while (cnt != 0)
+      std::this_thread::yield();
+    f2 = false;
+  }
+  stop = true;
+  for (auto &t : threads)
+    t.join();
 }
 
 TEST(MMDefaultResource, SetResource_Current) {
