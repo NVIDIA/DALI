@@ -560,6 +560,9 @@ def generate_decoders_data(data_dir, data_extension):
     fnames = test_utils.filter_files(data_dir, data_extension)
 
     nfiles = len(fnames)
+    for i in range(len(fnames), 10): # At leat 10 elements
+        fnames.append(fnames[-1])
+    nfiles = len(fnames)
     _input_epoch = [
         list(map(lambda fname: test_utils.read_file_bin(fname), fnames[:nfiles // 3])),
         list(map(lambda fname: test_utils.read_file_bin(fname),
