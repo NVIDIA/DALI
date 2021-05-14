@@ -167,7 +167,7 @@ class pool_resource_base : public memory_resource<kind, Context> {
             // - we can safely free it to the upstream.
             if (free_list_.remove_if_in_list(blk.ptr, blk.bytes)) {
               upstream_->deallocate(blk.ptr, blk.bytes, blk.alignment);
-              blocks_.erase_at(i--);
+              blocks_.erase_at(i);
               blocks_freed++;
             }
           }
