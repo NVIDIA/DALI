@@ -18,9 +18,12 @@ import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import nvidia.dali.math as dmath
 import nvidia.dali.plugin.pytorch as pytorch
+import torch.utils.dlpack as torch_dlpack
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator, dali_type, module_functions
 from segmentation_test_utils import make_batch_select_masks
+from test_audio_decoder_utils import generate_waveforms
+import scipy.io.wavfile
 from PIL import Image, ImageEnhance
 
 import numpy as np
@@ -30,6 +33,8 @@ import glob
 from math import ceil, sqrt
 import tempfile
 import sys
+import json
+from collections.abc import Iterable
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -99,18 +104,23 @@ def test_mixed_op_bad_device():
 
 def test_image_decoder_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.decoders.image(input, output_type=types.RGB)
-    pipe.set_outputs(decoded)
+    with pipe:
+        input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
+        decoded = fn.decoders.image(input, output_type=types.RGB)
+        pipe.set_outputs(decoded)
     pipe.build()
     for _ in range(3):
         pipe.run()
 
-def check_single_input(op, input_layout = "HWC", get_data = get_data, **kwargs):
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    data = fn.external_source(source = get_data, layout = input_layout)
-    processed = op(data, **kwargs)
-    pipe.set_outputs(processed)
+def check_single_input(op, input_layout = "HWC", get_data = get_data, batch=True, cycle=None, exec_async=True, exec_pipelined=True, **kwargs):
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None, exec_async=exec_async, exec_pipelined=exec_pipelined)
+    with pipe:
+        data = fn.external_source(source = get_data, layout = input_layout, batch=batch, cycle=cycle)
+        processed = op(data, **kwargs)
+        if isinstance(processed, Iterable):
+            pipe.set_outputs(*processed)
+        else:
+            pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
         pipe.run()
@@ -230,6 +240,63 @@ def test_erase_cpu():
 
 def test_random_resized_crop_cpu():
     check_single_input(fn.random_resized_crop, size = [5, 5])
+
+def test_expand_dims_cpu():
+    check_single_input(fn.expand_dims, axes = 1, new_axis_names = "Z")
+
+def test_coord_transform_cpu():
+    check_single_input(fn.coord_transform, M = [0, 0, 1,
+                                                0, 1, 0,
+                                                1, 0, 0], dtype=types.UINT8)
+
+def test_grid_mask_cpu():
+    check_single_input(fn.grid_mask, tile=51, ratio=0.38158387, angle=2.6810782)
+
+def test_multi_paste_cpu():
+    check_single_input(fn.multi_paste, in_ids = np.array([0, 1]), output_size = test_data_shape)
+
+def test_roi_random_crop_cpu():
+    check_single_input(fn.roi_random_crop, crop_shape = [x // 2 for x in test_data_shape], roi_start = [x // 4 for x in test_data_shape], roi_shape = [x // 2 for x in test_data_shape])
+
+def test_random_object_bbox_cpu():
+    get_data = [
+        np.int32([[1, 0, 0, 0],
+                [1, 2, 2, 1],
+                [1, 1, 2, 0],
+                [2, 0, 0, 1]]),
+
+        np.int32([[0, 3, 3, 0],
+                [1, 0, 1, 2],
+                [0, 1, 1, 0],
+                [0, 2, 0, 1],
+                [0, 2, 2, 1]])
+    ]
+    check_single_input(fn.segmentation.random_object_bbox, get_data = get_data, batch = False, cycle = "quiet", input_layout = "")
+
+def test_numba_func_cpu():
+    def set_all_values_to_255_batch(out0, in0):
+        out0[0][:] = 255
+
+    def setup_out_shape(out_shape, in_shape):
+        out_shape = in_shape
+
+    check_single_input(numba_function,
+                       run_fn=set_all_values_to_255_batch, out_types=[types.UINT8], in_types=[types.UINT8],
+                       outs_ndim=[3], ins_ndim=[3], setup_fn=setup_out_shape, batch_processing=True)
+
+def test_dl_tensor_python_function_cpu():
+    def dl_tensor_operation(tensor):
+        tensor = torch_dlpack.from_dlpack(tensor)
+        tensor_n = tensor.double() / 255
+        ret = tensor_n.sin()
+        ret = torch_dlpack.to_dlpack(ret)
+        return ret
+
+    def batch_dl_tensor_operation(tensors):
+        out = [dl_tensor_operation(t) for t in tensors]
+        return out
+
+    check_single_input(fn.dl_tensor_python_function, function=batch_dl_tensor_operation, batch_processing=True, exec_async = False, exec_pipelined = False)
 
 def test_nonsilent_region_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
@@ -465,6 +532,69 @@ def test_caffe2_reader_cpu():
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+def test_nemo_asr_reader_cpu():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        def create_manifest_file(manifest_file, names, lengths, rates, texts):
+            assert(len(names) == len(lengths) == len(rates) == len(texts))
+            data = []
+            for idx in range(len(names)):
+                entry_i = {}
+                entry_i['audio_filepath'] = names[idx]
+                entry_i['duration'] = lengths[idx] * (1.0 / rates[idx])
+                entry_i["text"] = texts[idx]
+                data.append(entry_i)
+            with open(manifest_file, 'w') as f:
+                for entry in data:
+                    json.dump(entry, f)
+                    f.write('\n')
+        nemo_asr_manifest = os.path.join(tmp_dir, "nemo_asr_manifest.json")
+        names = [
+            os.path.join(tmp_dir, "dali_test_1C.wav"),
+            os.path.join(tmp_dir, "dali_test_2C.wav"),
+            os.path.join(tmp_dir, "dali_test_4C.wav")
+        ]
+
+        freqs = [
+            np.array([0.02]),
+            np.array([0.01, 0.012]),
+            np.array([0.01, 0.012, 0.013, 0.014])
+        ]
+        rates = [ 22050, 22050, 12347 ]
+        lengths = [ 10000, 54321, 12345 ]
+
+        def create_ref():
+            ref = []
+            for i in range(len(names)):
+                wave = generate_waveforms(lengths[i], freqs[i])
+                wave = (wave * 32767).round().astype(np.int16)
+                ref.append(wave)
+            return ref
+
+        ref_i = create_ref()
+
+        def create_wav_files():
+            for i in range(len(names)):
+                scipy.io.wavfile.write(names[i], rates[i], ref_i[i])
+
+        create_wav_files()
+
+        ref_text_literal = [
+            "dali test 1C",
+            "dali test 2C",
+            "dali test 4C",
+        ]
+        nemo_asr_manifest = os.path.join(tmp_dir, "nemo_asr_manifest.json")
+        create_manifest_file(nemo_asr_manifest, names, lengths, rates, ref_text_literal)
+
+        fixed_seed = 1234
+        pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
+        out = fn.readers.nemo_asr(manifest_filepaths = [nemo_asr_manifest], dtype = types.INT16, downmix = False,
+                                            read_sample_rate = True, read_text = True, seed=fixed_seed)
+        pipe.set_outputs(*out)
+        pipe.build()
+        for _ in range(3):
+            pipe.run()
 
 def test_copy_cpu():
     check_single_input(fn.copy)
@@ -755,7 +885,39 @@ def test_reduce_variance_cpu():
 def test_arithm_ops_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     data = fn.external_source(source = get_data, layout = "HWC")
-    processed = [data * 2, data + 2, data - 2, data / 2, data // 2]
+    processed = [data * 2, data + 2, data - 2, data / 2, data // 2, data ** 2,
+                 data == 2, data != 2, data < 2, data <= 2, data > 2, data >= 2,
+                 data & 2, data | 2, data ^ 2,
+                 dmath.abs(data),
+                 dmath.fabs(data),
+                 dmath.floor(data),
+                 dmath.ceil(data),
+                 dmath.pow(data, 2),
+                 dmath.fpow(data, 1.5),
+                 dmath.min(data, 2),
+                 dmath.max(data, 50),
+                 dmath.clamp(data, 10, 50),
+                 dmath.sqrt(data),
+                 dmath.rsqrt(data),
+                 dmath.cbrt(data),
+                 dmath.exp(data),
+                 dmath.exp(data),
+                 dmath.log(data),
+                 dmath.log2(data),
+                 dmath.log10(data),
+                 dmath.sin(data),
+                 dmath.cos(data),
+                 dmath.tan(data),
+                 dmath.asin(data),
+                 dmath.acos(data),
+                 dmath.atan(data),
+                 dmath.atan2(data, 3),
+                 dmath.sinh(data),
+                 dmath.cosh(data),
+                 dmath.tanh(data),
+                 dmath.asinh(data),
+                 dmath.acosh(data),
+                 dmath.atanh(data)]
     pipe.set_outputs(*processed)
     pipe.build()
     for _ in range(3):
@@ -764,7 +926,9 @@ def test_arithm_ops_cpu():
 def test_arithm_ops_cpu_gpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     data = fn.external_source(source = get_data, layout = "HWC")
-    processed = [data * data.gpu(), data + data.gpu(), data - data.gpu(), data / data.gpu(), data // data.gpu()]
+    processed = [data * data.gpu(), data + data.gpu(), data - data.gpu(), data / data.gpu(), data // data.gpu(), data ** data.gpu(),
+                 data == data.gpu(), data != data.gpu(), data < data.gpu(), data <= data.gpu(), data > data.gpu(), data >= data.gpu(),
+                 data & data.gpu(), data | data.gpu(), data ^ data.gpu()]
     pipe.set_outputs(*processed)
     assert_raises(RuntimeError, pipe.build)
 
@@ -801,6 +965,38 @@ def test_stack_cpu():
     data3 = fn.external_source(source = get_data, layout = "HWC")
     pixel_pos = fn.stack(data, data2, data3)
     pipe.set_outputs(pixel_pos)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
+def test_batch_permute_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    data = fn.external_source(source = get_data, layout = "HWC")
+    perm = fn.batch_permutation(seed=420)
+    processed = fn.permute_batch(data, indices=perm)
+    pipe.set_outputs(processed)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
+def test_squeeze_cpu():
+    test_data_shape = [10, 20, 3, 1, 1]
+    def get_data():
+        out = [np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        return out
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    data = fn.external_source(source = get_data, layout = "HWCYZ")
+    processed = fn.squeeze(data, axis_names = "YZ")
+    pipe.set_outputs(processed)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
+def test_peek_image_shape_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
+    input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
+    shapes = fn.peek_image_shape(input)
+    pipe.set_outputs(shapes)
     pipe.build()
     for _ in range(3):
         pipe.run()
@@ -865,6 +1061,8 @@ tested_methods = [
     "caffe_reader",
     "caffe2_reader",
     "coco_reader",
+    "nemo_asr_reader",
+    "readers.nemo_asr",
     "readers.file",
     "readers.sequence",
     "readers.tfrecord",
@@ -935,26 +1133,16 @@ tested_methods = [
     "element_extract",
     "arithmetic_generic_op",
     "box_encoder",
-    "pytorch.DALIGenericIterator",
-]
-
-excluded_methods = [
-    "readers.nemo_asr",
-    "roi_random_crop",
-    "squeeze",
-    "jitter",
     "permute_batch",
-    "peek_image_shape",
     "batch_permutation",
+    "squeeze",
+    "peek_image_shape",
     "expand_dims",
-    "noise.gaussian",
-    "grid_mask",
-    "nemo_asr_reader",
     "coord_transform",
+    "grid_mask",
     "multi_paste",
+    "roi_random_crop",
     "segmentation.random_object_bbox",
-    "noise.salt_and_pepper",
-    "dl_tensor_python_function",
     "math.ceil",
     "math.clamp",
     "math.tanh",
@@ -984,8 +1172,14 @@ excluded_methods = [
     "math.fpow",
     "math.acosh",
     "math.min",
-    "pytorch.TorchPythonFunction",
     "numba.fn.experimental.numba_function",
+    "dl_tensor_python_function",
+]
+
+excluded_methods = [
+    "noise.gaussian",
+    "noise.salt_and_pepper",
+    "jitter",               # not supported for CPU
     "hidden.arithmetic_generic_op", #internal
     "hidden.transform_translation", #internal
     "video_reader",         # not supported for CPU

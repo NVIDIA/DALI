@@ -22,7 +22,6 @@ import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.math as dmath
-import nvidia.dali.plugin.pytorch as pytorch
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 import numpy as np
 import test_utils
@@ -845,7 +844,6 @@ excluded_methods = [
     "math.fpow",
     "math.acosh",
     "math.min",
-    "pytorch.TorchPythonFunction",
     "numba.fn.experimental.numba_function",
     "hidden.transform_translation", # intentional
     "hidden.arithmetic_generic_op", # intentional
