@@ -28,7 +28,7 @@ This operator can also change the type of data.)code")
 Assumes HWC layout.)code")
 .AddArg("in_ids", R"code(1D TensorList of type int.
 
-Indexes from what inputs to paste data in each iteration.)code", DALI_INT32, true)
+Indexes from what inputs to paste data in each iteration.)code", DALI_INT_VEC, true)
 .AddOptionalArg<int>("in_anchors", R"code(2D TensorList of type int64
 
 Absolute values of LU corner of the selection for each iteration.
