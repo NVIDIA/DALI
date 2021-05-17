@@ -14,12 +14,16 @@
 
 from nvidia.dali.pipeline import Pipeline
 from segmentation_test_utils import make_batch_select_masks
+from test_utils import module_functions
 from PIL import Image
 from nose.tools import nottest
 import nvidia.dali as dali
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
+import nvidia.dali.math as dmath
+import nvidia.dali.plugin.pytorch as pytorch
+from nvidia.dali.plugin.numba.fn.experimental import numba_function
 import numpy as np
 import test_utils
 import inspect
@@ -812,6 +816,37 @@ excluded_methods = [
     "transforms.translation",
     "transform_translation",
     "dl_tensor_python_function",
+    "math.ceil",
+    "math.clamp",
+    "math.tanh",
+    "math.tan",
+    "math.log2",
+    "math.atanh",
+    "math.atan",
+    "math.atan2",
+    "math.sin",
+    "math.cos",
+    "math.asinh",
+    "math.abs",
+    "math.sqrt",
+    "math.exp",
+    "math.acos",
+    "math.log",
+    "math.fabs",
+    "math.sinh",
+    "math.rsqrt",
+    "math.asin",
+    "math.floor",
+    "math.cosh",
+    "math.log10",
+    "math.max",
+    "math.cbrt",
+    "math.pow",
+    "math.fpow",
+    "math.acosh",
+    "math.min",
+    "pytorch.TorchPythonFunction",
+    "numba.fn.experimental.numba_function",
     "hidden.transform_translation", # intentional
     "hidden.arithmetic_generic_op", # intentional
     "coco_reader",              # readers are do not support variable batch size yet
@@ -838,24 +873,11 @@ excluded_methods = [
     "readers.video_resize",     # readers are do not support variable batch size yet
 
 ]
+
 def test_coverage():
-    def get_functions(cls, prefix = ""):
-        res = []
-        if len(cls.__dict__.keys()) == 0:
-            prefix = prefix.replace("nvidia.dali.fn", "")
-            prefix = prefix.lstrip('.')
-            if len(prefix):
-                prefix += '.'
-            else:
-                prefix = ""
-            res.append(prefix + cls.__name__)
-        else:
-            for c in cls.__dict__.keys():
-                if not c.startswith("_") and c not in sys.builtin_module_names:
-                    c = cls.__dict__[c]
-                    res += get_functions(c, cls.__name__)
-        return res
-    methods = get_functions(fn)
+    methods = module_functions(fn, remove_prefix = "nvidia.dali.fn")
+    methods += module_functions(dmath, remove_prefix = "nvidia.dali")
     covered = tested_methods + excluded_methods
     print(set(methods) - set(covered))
-    assert set(covered) == set(methods), "Test doesn't cover:\n {}".format(set(methods) - set(covered))
+    # we are fine with covering more we can easily list, like numba
+    assert set(methods).difference(set(covered)) == set(), "Test doesn't cover:\n {}".format(set(methods) - set(covered))

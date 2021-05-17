@@ -16,8 +16,10 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
-from nvidia.dali.plugin.pytorch import DALIGenericIterator
-from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator, dali_type
+import nvidia.dali.math as dmath
+import nvidia.dali.plugin.pytorch as pytorch
+from nvidia.dali.plugin.numba.fn.experimental import numba_function
+from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator, dali_type, module_functions
 from segmentation_test_utils import make_batch_select_masks
 from PIL import Image, ImageEnhance
 
@@ -764,7 +766,7 @@ def test_pytorch_plugin_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
     outs = fn.external_source(source = get_data, layout = "HWC")
     pipe.set_outputs(outs)
-    pii = DALIGenericIterator([pipe], ["data"])
+    pii = pytorch.DALIGenericIterator([pipe], ["data"])
 
 def test_random_mask_pixel_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
@@ -927,6 +929,7 @@ tested_methods = [
     "element_extract",
     "arithmetic_generic_op",
     "box_encoder",
+    "pytorch.DALIGenericIterator",
 ]
 
 excluded_methods = [
@@ -946,6 +949,37 @@ excluded_methods = [
     "segmentation.random_object_bbox",
     "noise.salt_and_pepper",
     "dl_tensor_python_function",
+    "math.ceil",
+    "math.clamp",
+    "math.tanh",
+    "math.tan",
+    "math.log2",
+    "math.atanh",
+    "math.atan",
+    "math.atan2",
+    "math.sin",
+    "math.cos",
+    "math.asinh",
+    "math.abs",
+    "math.sqrt",
+    "math.exp",
+    "math.acos",
+    "math.log",
+    "math.fabs",
+    "math.sinh",
+    "math.rsqrt",
+    "math.asin",
+    "math.floor",
+    "math.cosh",
+    "math.log10",
+    "math.max",
+    "math.cbrt",
+    "math.pow",
+    "math.fpow",
+    "math.acosh",
+    "math.min",
+    "pytorch.TorchPythonFunction",
+    "numba.fn.experimental.numba_function",
     "hidden.arithmetic_generic_op", #internal
     "hidden.transform_translation", #internal
     "video_reader",         # not supported for CPU
@@ -954,23 +988,10 @@ excluded_methods = [
     "readers.video_resize", # not supported for CPU
     "optical_flow",         # not supported for CPU
 ]
+
 def test_coverage():
-    def get_functions(cls, prefix = ""):
-        res = []
-        if len(cls.__dict__.keys()) == 0:
-            prefix = prefix.replace("nvidia.dali.fn", "")
-            prefix = prefix.lstrip('.')
-            if len(prefix):
-                prefix += '.'
-            else:
-                prefix = ""
-            res.append(prefix + cls.__name__)
-        else:
-            for c in cls.__dict__.keys():
-                if not c.startswith("_") and c not in sys.builtin_module_names:
-                    c = cls.__dict__[c]
-                    res += get_functions(c, cls.__name__)
-        return res
-    methods = get_functions(fn)
+    methods = module_functions(fn, remove_prefix = "nvidia.dali.fn")
+    methods += module_functions(dmath, remove_prefix = "nvidia.dali")
     covered = tested_methods + excluded_methods
-    assert set(covered) == set(methods), "Test doesn't cover:\n {}".format(set(methods) - set(covered))
+    # we are fine with covering more we can easily list, like numba
+    assert set(methods).difference(set(covered)) == set(), "Test doesn't cover:\n {}".format(set(methods) - set(covered))

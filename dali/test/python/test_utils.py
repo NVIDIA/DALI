@@ -517,3 +517,20 @@ def to_array(dali_out):
     if isinstance(dali_out, TensorListCPU):
         dali_out = dali_out.as_array()
     return np.array(dali_out)
+
+def module_functions(cls, prefix = "", remove_prefix = ""):
+    res = []
+    if len(cls.__dict__.keys()) == 0:
+        prefix = prefix.replace(remove_prefix, "")
+        prefix = prefix.lstrip('.')
+        if len(prefix):
+            prefix += '.'
+        else:
+            prefix = ""
+        res.append(prefix + cls.__name__)
+    else:
+        for c in cls.__dict__.keys():
+            if not c.startswith("_") and c not in sys.builtin_module_names:
+                c = cls.__dict__[c]
+                res += module_functions(c, cls.__name__, remove_prefix = remove_prefix)
+    return res
