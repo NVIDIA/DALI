@@ -238,9 +238,8 @@ ops_image_default_args = [
 
 
 def test_ops_image_default_args():
-    args = {}
     for op in ops_image_default_args:
-        yield image_data_helper, op, args
+        yield image_data_helper, op, {}
 
 ops_image_custom_args = [
     (fn.cast, {'dtype': types.INT32}),
@@ -373,15 +372,14 @@ def test_constant():
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         # just to drive the variable batch size.
-        dummy = fn.external_source(source=input_data, cycle=False, device=device)
+        batch_size_setter = fn.external_source(source=input_data, cycle=False, device=device)
         data = fn.constant(fdata=3.1415, shape=(10, 10), device=device)
-        pipe.set_outputs(data, dummy)
+        pipe.set_outputs(data, batch_size_setter)
         return pipe
 
     check_pipeline(
         generate_data(31, 13, custom_shape_generator(2, 4), lo=1, hi=255, dtype=np.uint8),
         pipeline_fn=pipe)
-test_constant()
 
 def test_reshape():
     check_pipeline(generate_data(31, 13, (160, 80, 3), lo=0, hi=255, dtype=np.uint8),
@@ -560,7 +558,9 @@ def generate_decoders_data(data_dir, data_extension):
     fnames = test_utils.filter_files(data_dir, data_extension)
 
     nfiles = len(fnames)
-    for i in range(len(fnames), 10): # At leat 10 elements
+    # TODO(janton): Workaround for audio data (not enough samples)
+    #               To be removed when more audio samples are added
+    for i in range(len(fnames), 10): # At least 10 elements
         fnames.append(fnames[-1])
     nfiles = len(fnames)
     _input_epoch = [
