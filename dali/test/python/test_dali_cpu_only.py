@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
@@ -27,10 +28,13 @@ import os
 import glob
 from math import ceil, sqrt
 import tempfile
+import re
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
-audio_dir = os.path.join(data_root, 'db', 'audio')
+audio_dir_wav = os.path.join(data_root, 'db', 'audio', 'wav')
+audio_wav = [os.path.join(audio_dir_wav, f) for f in os.listdir(audio_dir_wav) if
+             re.match(".*\.wav", f) is not None]
 caffe_dir = os.path.join(data_root, 'db', 'lmdb')
 caffe2_dir = os.path.join(data_root, 'db', 'c2lmdb')
 recordio_dir = os.path.join(data_root, 'db', 'recordio')
@@ -302,22 +306,30 @@ def test_one_hot_cpu():
 def test_transpose_cpu():
     check_single_input(fn.transpose, perm  = [2, 0, 1])
 
+
 def test_audio_decoder_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    input, _ = fn.readers.file(file_root=audio_dir, shard_id=0, num_shards=1)
-    decoded, _ = fn.decoders.audio(input)
-    pipe.set_outputs(decoded)
-    pipe.build()
+    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+    def pipe():
+        wav, _ = fn.readers.file(files=audio_wav, shard_id=0, num_shards=1)
+        wav, _ = fn.decoders.audio(wav)
+        return wav
+
+    p = pipe()
+    p.build()
     for _ in range(3):
-        pipe.run()
+        p.run()
+
 
 def test_coord_flip_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_data_shape = [200, 2]
+
     def get_data():
-        out = [(np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
+        out = [(np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) / 255).astype(
+            dtype=np.float32) for _ in range(batch_size)]
         return out
-    data = fn.external_source(source = get_data)
+
+    data = fn.external_source(source=get_data)
     processed = fn.coord_flip(data)
     pipe.set_outputs(processed)
     pipe.build()
