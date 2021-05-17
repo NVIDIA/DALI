@@ -84,16 +84,16 @@ def generate_data(max_batch_size, n_iter, sample_shape, lo=0., hi=1., dtype=np.f
     if np.issubdtype(dtype, np.integer):
         return [np.random.randint(lo, hi, size=(bs,) + size_fn(), dtype=dtype) for bs in
                 batch_sizes]
-    elif np.issubdtype(dtype, np.float):
+    elif np.issubdtype(dtype, np.float32):
         ret = (np.random.random_sample(size=(bs,) + size_fn()) for bs in batch_sizes)
         ret = map(lambda batch: (hi - lo) * batch + lo, ret)
         ret = map(lambda batch: batch.astype(dtype), ret)
         return list(ret)
     else:
-        raise RuntimeError("Invalid type argument")
+        raise RuntimeError(f"Invalid type argument: {dtype}")
 
 
-def single_op_pipeline(max_batch_size, input_data, device, /, *, input_layout=None,
+def single_op_pipeline(max_batch_size, input_data, device, *, input_layout=None,
                        operator_fn=None, **opfn_args):
     pipe = Pipeline(batch_size=max_batch_size, num_threads=1, device_id=0)
     with pipe:
@@ -115,7 +115,7 @@ def run_pipeline(input_epoch, pipeline_fn, *, devices: list = ['cpu', 'gpu'], **
     :param input_epoch: List of numpy arrays, where every item is a single batch
     :param pipeline_fn: Function, that returns created (but not built) pipeline.
                         Its signature should be (at least):
-                        pipeline_fn(max_batch_size, input_data, device, /, ...)
+                        pipeline_fn(max_batch_size, input_data, device, ...)
     :param devices: Devices to run the check on
     :param pipeline_fn_args: Additional args to pipeline_fn
     """
@@ -140,7 +140,7 @@ def check_pipeline(input_epoch, pipeline_fn, *, devices: list = ['cpu', 'gpu'], 
     :param input_epoch: List of numpy arrays, where every item is a single batch
     :param pipeline_fn: Function, that returns created (but not built) pipeline.
                         Its signature should be (at least):
-                        pipeline_fn(max_batch_size, input_data, device, /, ...)
+                        pipeline_fn(max_batch_size, input_data, device, ...)
     :param devices: Devices to run the check on
     :param eps: Epsilon for mean error
     :param pipeline_fn_args: Additional args to pipeline_fn
@@ -184,25 +184,24 @@ def custom_shape_generator(*args):
     return lambda: tuple([random.randint(lohi[0], lohi[1]) for lohi in gen_conf])
 
 
-def image_data_helper(operator_fn, **opfn_args):
+def image_data_helper(operator_fn, opfn_args={}):
     check_pipeline(generate_data(31, 13, image_like_shape_generator, lo=0, hi=255, dtype=np.uint8),
                    pipeline_fn=single_op_pipeline, input_layout="HWC", operator_fn=operator_fn,
                    **opfn_args)
 
-
-def float_array_helper(operator_fn, **opfn_args):
+def float_array_helper(operator_fn, opfn_args={}):
     check_pipeline(generate_data(31, 13, array_1d_shape_generator), pipeline_fn=single_op_pipeline,
                    operator_fn=operator_fn, **opfn_args)
 
 
-def sequence_op_helper(operator_fn, **opfn_args):
+def sequence_op_helper(operator_fn, opfn_args={}):
     check_pipeline(
         generate_data(31, 13, custom_shape_generator(3, 7, 160, 200, 80, 100, 3, 3), lo=0, hi=255,
                       dtype=np.uint8),
         pipeline_fn=single_op_pipeline, input_layout="FHWC", operator_fn=operator_fn, **opfn_args)
 
 
-def random_op_helper(operator_fn, **opfn_args):
+def random_op_helper(operator_fn, opfn_args={}):
     run_pipeline(generate_data(31, 13, image_like_shape_generator, lo=0, hi=255, dtype=np.uint8),
                  pipeline_fn=single_op_pipeline, operator_fn=operator_fn, **opfn_args)
 
@@ -223,7 +222,6 @@ ops_image_default_args = [
     fn.hsv,
     fn.hue,
     fn.jpeg_compression_distortion,
-    fn.noise.shot,
     fn.old_color_twist,
     fn.reductions.mean,
     fn.reductions.mean_square,
@@ -241,82 +239,75 @@ ops_image_default_args = [
 
 def test_ops_image_default_args():
     for op in ops_image_default_args:
-        yield image_data_helper, op
-
+        yield image_data_helper, op, {}
 
 ops_image_custom_args = [
-    {'operator_fn': fn.cast, 'dtype': types.INT32},
-    {'operator_fn': fn.color_space_conversion, 'image_type': types.BGR, 'output_type': types.RGB},
-    {'operator_fn': fn.coord_transform, 'M': .5, 'T': 2},
-    {'operator_fn': fn.crop, 'crop': (5, 5)},
-    {'operator_fn': fn.erase, 'anchor': [0.3], 'axis_names': "H", 'normalized_anchor': True,
-     'shape': [0.1], 'normalized_shape': True},
-    {'operator_fn': fn.fast_resize_crop_mirror, 'crop': [5, 5], 'resize_shorter': 10,
-     'devices': ['cpu']},
-    {'operator_fn': fn.flip, 'horizontal': True},
-    {'operator_fn': fn.gaussian_blur, 'window_size': 5},
-    {'operator_fn': fn.normalize, 'batch': True},
-    {'operator_fn': fn.pad, 'fill_value': -1, 'axes': (0,), 'shape': (10,)},
-    {'operator_fn': fn.paste, 'fill_value': 69, 'ratio': 1, 'devices': ['gpu']},
-    {'operator_fn': fn.resize, 'resize_x': 50, 'resize_y': 50},
-    {'operator_fn': fn.resize_crop_mirror, 'crop': [5, 5], 'resize_shorter': 10,
-     'devices': ['cpu']},
-    {'operator_fn': fn.rotate, 'angle': 25},
-    {'operator_fn': fn.transpose, 'perm': [2, 0, 1]},
-    {'operator_fn': fn.warp_affine, 'matrix': (.1, .9, 10, .8, -.2, -20)},
+    (fn.cast, {'dtype': types.INT32}),
+    (fn.color_space_conversion, {'image_type': types.BGR, 'output_type': types.RGB}),
+    (fn.coord_transform, {'M': .5, 'T': 2}),
+    (fn.crop, {'crop': (5, 5)}),
+    (fn.erase, {'anchor': [0.3], 'axis_names': "H", 'normalized_anchor': True,
+                'shape': [0.1], 'normalized_shape': True}),
+    (fn.fast_resize_crop_mirror, {'crop': [5, 5], 'resize_shorter': 10, 'devices': ['cpu']}),
+    (fn.flip, {'horizontal': True}),
+    (fn.gaussian_blur, {'window_size': 5}),
+    (fn.normalize, {'batch': True}),
+    (fn.pad, {'fill_value': -1, 'axes': (0,), 'shape': (10,)}),
+    (fn.paste, {'fill_value': 69, 'ratio': 1, 'devices': ['gpu']}),
+    (fn.resize, {'resize_x': 50, 'resize_y': 50}),
+    (fn.resize_crop_mirror, {'crop': [5, 5], 'resize_shorter': 10, 'devices': ['cpu']}),
+    (fn.rotate, {'angle': 25}),
+    (fn.transpose, {'perm': [2, 0, 1]}),
+    (fn.warp_affine, {'matrix': (.1, .9, 10, .8, -.2, -20)}),
 ]
 
-
 def test_ops_image_custom_args():
-    for op in ops_image_custom_args:
-        print("\nTesting ", op)
-        image_data_helper(**op)
+    for op, args in ops_image_custom_args:
+        yield image_data_helper, op, args
 
 
 float_array_ops = [
-    {'operator_fn': fn.power_spectrum, 'devices': ['cpu']},
-    {'operator_fn': fn.preemphasis_filter},
-    {'operator_fn': fn.spectrogram, 'nfft': 60, 'window_length': 50, 'window_step': 25},
-    {'operator_fn': fn.to_decibels},
+    (fn.power_spectrum, {'devices': ['cpu']}),
+    (fn.preemphasis_filter, {}),
+    (fn.spectrogram, {'nfft': 60, 'window_length': 50, 'window_step': 25}),
+    (fn.to_decibels, {}),
 ]
 
 
 def test_float_array_ops():
-    for op in float_array_ops:
-        print("\nTesting ", op)
-        float_array_helper(**op)
+    for op, args in float_array_ops:
+        yield float_array_helper, op, args
 
 
 random_ops = [
-    {'operator_fn': fn.jitter, 'devices': ['gpu']},
-    {'operator_fn': fn.random_resized_crop, 'size': 69},
+    (fn.jitter, {'devices': ['gpu']}),
+    (fn.random_resized_crop, {'size': 69}),
+    (fn.noise.gaussian, {}),
+    (fn.noise.shot, {}),
+    (fn.noise.salt_and_pepper, {'devices': ['cpu']}),  # TODO(janton): Enalble GPU once salt_and_pepper supports it.
 ]
 
-
 def test_random_ops():
-    for op in random_ops:
-        print("\nTesting ", op)
-        random_op_helper(**op)
-
+    for op, args in random_ops:
+        yield random_op_helper, op, args
 
 sequence_ops = [
-    {'operator_fn': fn.cast, 'dtype': types.INT32},
-    {'operator_fn': fn.copy},
-    {'operator_fn': fn.crop, 'crop': (5, 5)},
-    {'operator_fn': fn.crop_mirror_normalize, 'mirror': 1, 'output_layout': 'FCHW'},
-    {'operator_fn': fn.erase, 'anchor': [0.3], 'axis_names': "H", 'normalized_anchor': True,
-     'shape': [0.1], 'normalized_shape': True},
-    {'operator_fn': fn.flip, 'horizontal': True},
-    {'operator_fn': fn.gaussian_blur, 'window_size': 5},
-    {'operator_fn': fn.normalize, 'batch': True},
-    {'operator_fn': fn.resize, 'resize_x': 50, 'resize_y': 50},
+    (fn.cast, {'dtype': types.INT32}),
+    (fn.copy, {}),
+    (fn.crop, {'crop': (5, 5)}),
+    (fn.crop_mirror_normalize, {'mirror': 1, 'output_layout': 'FCHW'}),
+    (fn.erase, {'anchor': [0.3], 'axis_names': "H", 'normalized_anchor': True,
+                'shape': [0.1], 'normalized_shape': True}),
+    (fn.flip, {'horizontal': True}),
+    (fn.gaussian_blur, {'window_size': 5}),
+    (fn.normalize, {'batch': True}),
+    (fn.resize, {'resize_x': 50, 'resize_y': 50}),
 ]
 
 
 def test_sequence_ops():
-    for op in sequence_ops:
-        print("\nTesting ", op)
-        sequence_op_helper(**op)
+    for op, args in sequence_ops:
+        yield sequence_op_helper, op, args
 
 
 def test_batch_permute():
@@ -335,9 +326,9 @@ def test_batch_permute():
 def test_coin_flip():
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
-        depthwise = fn.coin_flip()
-        horizontal = fn.coin_flip()
-        vertical = fn.coin_flip()
+        depthwise = fn.random.coin_flip()
+        horizontal = fn.random.coin_flip()
+        vertical = fn.random.coin_flip()
         data = fn.external_source(source=input_data, cycle=False, device=device)
         processed = fn.flip(data, depthwise=depthwise, horizontal=horizontal, vertical=vertical)
         pipe.set_outputs(processed)
@@ -359,37 +350,36 @@ def test_uniform():
     run_pipeline(generate_data(31, 13, array_1d_shape_generator), pipeline_fn=pipe)
 
 
-def test_normal_distribution():
+def test_random_normal():
     def pipe_input(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         data = fn.external_source(source=input_data, cycle=False, device=device)
-        dist = fn.normal_distribution(data)
+        dist = fn.random.normal(data)
         pipe.set_outputs(dist)
         return pipe
 
     def pipe_no_input(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         data = fn.external_source(source=input_data, cycle=False, device=device)
-        dist = data + fn.normal_distribution()
+        dist = data + fn.random.normal()
         pipe.set_outputs(dist)
         return pipe
 
     run_pipeline(generate_data(31, 13, image_like_shape_generator), pipeline_fn=pipe_input)
     run_pipeline(generate_data(31, 13, image_like_shape_generator), pipeline_fn=pipe_no_input)
 
-
 def test_constant():
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
-        shape = fn.external_source(source=input_data, cycle=False, device='cpu')
-        data = fn.constant(fdata=3.1415, shape=shape, device=device)
-        pipe.set_outputs(data)
+        # just to drive the variable batch size.
+        batch_size_setter = fn.external_source(source=input_data, cycle=False, device=device)
+        data = fn.constant(fdata=3.1415, shape=(10, 10), device=device)
+        pipe.set_outputs(data, batch_size_setter)
         return pipe
 
     check_pipeline(
         generate_data(31, 13, custom_shape_generator(2, 4), lo=1, hi=255, dtype=np.uint8),
         pipeline_fn=pipe)
-
 
 def test_reshape():
     check_pipeline(generate_data(31, 13, (160, 80, 3), lo=0, hi=255, dtype=np.uint8),
@@ -426,9 +416,9 @@ def test_bbox_paste():
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         data = fn.external_source(source=input_data, cycle=False, device=device)
-        paste_posx = fn.uniform(range=(0, 1))
-        paste_posy = fn.uniform(range=(0, 1))
-        paste_ratio = fn.uniform(range=(1, 2))
+        paste_posx = fn.random.uniform(range=(0, 1))
+        paste_posy = fn.random.uniform(range=(0, 1))
+        paste_ratio = fn.random.uniform(range=(1, 2))
         processed = fn.bbox_paste(data, paste_x=paste_posx, paste_y=paste_posy, ratio=paste_ratio)
         pipe.set_outputs(processed)
         return pipe
@@ -467,7 +457,7 @@ def test_reduce():
         fn.reductions.variance
     ]
 
-    def pipe(max_batch_size, input_data, device, /, reduce_fn):
+    def pipe(max_batch_size, input_data, device, reduce_fn):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         data = fn.external_source(source=input_data, cycle=False, device=device)
         mean = fn.reductions.mean(data)
@@ -568,6 +558,11 @@ def generate_decoders_data(data_dir, data_extension):
     fnames = test_utils.filter_files(data_dir, data_extension)
 
     nfiles = len(fnames)
+    # TODO(janton): Workaround for audio data (not enough samples)
+    #               To be removed when more audio samples are added
+    for i in range(len(fnames), 10): # At least 10 elements
+        fnames.append(fnames[-1])
+    nfiles = len(fnames)
     _input_epoch = [
         list(map(lambda fname: test_utils.read_file_bin(fname), fnames[:nfiles // 3])),
         list(map(lambda fname: test_utils.read_file_bin(fname),
@@ -610,7 +605,6 @@ def test_audio_decoders():
 
     yield test_decoders_check, audio_decoder_pipe, \
           os.path.join(test_utils.get_dali_extra_path(), 'db', 'audio'), '.wav'
-
 
 def test_image_decoders():
     def image_decoder_pipe(max_batch_size, input_data, device):
@@ -674,7 +668,7 @@ def test_python_function():
         data += 13
         return data
 
-    def pipe(max_batch_size, input_data, device, /):
+    def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0, exec_async=False,
                         exec_pipelined=False)
         with pipe:
