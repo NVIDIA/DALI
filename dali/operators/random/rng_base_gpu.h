@@ -19,6 +19,7 @@
 #include <vector>
 #include "dali/core/convert.h"
 #include "dali/core/dev_buffer.h"
+#include "dali/core/span.h"
 #include "dali/kernels/alloc.h"
 #include "dali/operators/random/rng_base.h"
 #include "dali/pipeline/operator/operator.h"
@@ -77,50 +78,55 @@ struct RNGBaseFields<GPUBackend, IsNoiseGen> {
   DeviceBuffer<uint8_t> dists_gpu_;
 };
 
-template <int ndim>
-std::pair<std::vector<int>, int> DistributeBlocksPerSample(
-    const TensorListShape<ndim> &shape, int block_size, int max_blocks) {
-  std::vector<int> sizes(shape.size());
+template <typename Integer>
+int DistributeBlocksPerSample(span<int> blocks_per_sample,
+                              span<const Integer> sample_sizes,
+                              int block_size, int max_blocks) {
   int sum = 0;
-  for (int i = 0; i < shape.size(); ++i) {
-    sizes[i] = div_ceil(volume(shape[i]), block_size);
-    sum += sizes[i];
+  int nsamples = sample_sizes.size();
+  assert(nsamples == blocks_per_sample.size());
+  for (int i = 0; i < nsamples; ++i) {
+    blocks_per_sample[i] = div_ceil(sample_sizes[i], block_size);
+    sum += blocks_per_sample[i];
   }
   if (sum <= max_blocks) {
-    return {sizes, sum};
+    return sum;
   }
   // If numbers of blocks exceeded max_blocks, we need to scale them down
-  int to_distribute = max_blocks - shape.size();  // reserve a block for each sample
-  for (int i = 0; i < shape.size(); ++i) {
-    int before = sizes[i];
+  int to_distribute = max_blocks - nsamples;  // reserve a block for each sample
+  for (int i = 0; i < nsamples; ++i) {
+    int before = blocks_per_sample[i];
     int scaled = before * to_distribute / sum;
     // Blocks that are already counted and distributed are subtracted
     // from `sum` and `to_distribute` to make sure that no block is lost
     // due to integer division rounding and at the end all `max_blocks` blocks are distributed.
     to_distribute -= scaled;
     sum -= before;
-    sizes[i] = scaled + 1;  // each sample gets at least one block
+    blocks_per_sample[i] = scaled + 1;  // each sample gets at least one block
   }
   assert(to_distribute == 0);
-  return {sizes, max_blocks};
+  return max_blocks;
 }
 
 template <int ndim>
 int64_t SetupBlockDescs(BlockDesc *blocks, int64_t block_sz, int64_t max_nblocks,
                         const TensorListShape<ndim> &shape, int channel_dim = -1) {
   int nsamples = shape.num_samples();
-  auto shape_in_pixels = shape;
-  if (channel_dim >= 0) {
-    for (int s = 0; s < nsamples; s++)
-      shape_in_pixels.tensor_shape_span(s)[channel_dim] = 1;
+  SmallVector<int64_t, 256> sample_sizes;
+  sample_sizes.resize(nsamples);
+  for (int s = 0; s < nsamples; s++) {
+    int64_t npixels = shape.tensor_size(s);
+    if (channel_dim >= 0)
+      npixels /= shape.tensor_shape_span(s)[channel_dim];
+    sample_sizes[s] = npixels;
   }
-  std::vector<int> blocks_per_sample;
-  int64_t blocks_num;
-  std::tie(blocks_per_sample, blocks_num) =
-      DistributeBlocksPerSample(shape_in_pixels, block_sz, max_nblocks);
+  SmallVector<int, 256> blocks_per_sample;
+  blocks_per_sample.resize(nsamples);
+  int64_t blocks_num = DistributeBlocksPerSample(
+      make_span(blocks_per_sample), make_cspan(sample_sizes), block_sz, max_nblocks);
   int64_t block = 0;
   for (int s = 0; s < nsamples; s++) {
-    auto sample_size = shape_in_pixels.tensor_size(s);
+    auto sample_size = sample_sizes[s];
     if (sample_size == 0)
       continue;
     auto work_per_block = div_ceil(sample_size, blocks_per_sample[s]);
