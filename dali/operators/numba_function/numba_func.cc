@@ -112,7 +112,8 @@ This function must work in Numba ``nopython`` mode.)code", DALI_PYTHON_OBJECT)
 This function is invoked once per batch. Also this function must work in Numba ``nopython`` mode.)code",
                   DALI_PYTHON_OBJECT, nullptr)
   .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked once per batch or
-separately for every sample in the batch.)code", false);
+separately for every sample in the batch. For CPU usage we recommend not using this option. When operator 
+is working in per-sample basis multithreading is utilized, which may increase perfomance.)code", false);
 
 DALI_SCHEMA(NumbaFuncImpl)
   .DocStr("")
