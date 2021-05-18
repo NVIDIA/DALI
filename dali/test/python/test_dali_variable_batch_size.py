@@ -849,28 +849,28 @@ excluded_methods = [
     "numba.fn.experimental.numba_function",
     "hidden.transform_translation", # intentional
     "hidden.arithmetic_generic_op", # intentional
-    "coco_reader",              # readers are do not support variable batch size yet
-    "sequence_reader",          # readers are do not support variable batch size yet
-    "numpy_reader",             # readers are do not support variable batch size yet
-    "file_reader",              # readers are do not support variable batch size yet
-    "caffe_reader",             # readers are do not support variable batch size yet
-    "caffe2_reader",            # readers are do not support variable batch size yet
-    "mxnet_reader",             # readers are do not support variable batch size yet
-    "tfrecord_reader",          # readers are do not support variable batch size yet
-    "nemo_asr_reader",          # readers are do not support variable batch size yet
-    "video_reader",             # readers are do not support variable batch size yet
-    "video_reader_resize",      # readers are do not support variable batch size yet
-    "readers.coco",             # readers are do not support variable batch size yet
-    "readers.sequence",         # readers are do not support variable batch size yet
-    "readers.numpy",            # readers are do not support variable batch size yet
-    "readers.file",             # readers are do not support variable batch size yet
-    "readers.caffe",            # readers are do not support variable batch size yet
-    "readers.caffe2",           # readers are do not support variable batch size yet
-    "readers.mxnet",            # readers are do not support variable batch size yet
-    "readers.tfrecord",         # readers are do not support variable batch size yet
-    "readers.nemo_asr",         # readers are do not support variable batch size yet
-    "readers.video",            # readers are do not support variable batch size yet
-    "readers.video_resize",     # readers are do not support variable batch size yet
+    "coco_reader",              # readers do do not support variable batch size yet
+    "sequence_reader",          # readers do do not support variable batch size yet
+    "numpy_reader",             # readers do do not support variable batch size yet
+    "file_reader",              # readers do do not support variable batch size yet
+    "caffe_reader",             # readers do do not support variable batch size yet
+    "caffe2_reader",            # readers do do not support variable batch size yet
+    "mxnet_reader",             # readers do do not support variable batch size yet
+    "tfrecord_reader",          # readers do do not support variable batch size yet
+    "nemo_asr_reader",          # readers do do not support variable batch size yet
+    "video_reader",             # readers do do not support variable batch size yet
+    "video_reader_resize",      # readers do do not support variable batch size yet
+    "readers.coco",             # readers do do not support variable batch size yet
+    "readers.sequence",         # readers do do not support variable batch size yet
+    "readers.numpy",            # readers do do not support variable batch size yet
+    "readers.file",             # readers do do not support variable batch size yet
+    "readers.caffe",            # readers do do not support variable batch size yet
+    "readers.caffe2",           # readers do do not support variable batch size yet
+    "readers.mxnet",            # readers do do not support variable batch size yet
+    "readers.tfrecord",         # readers do do not support variable batch size yet
+    "readers.nemo_asr",         # readers do do not support variable batch size yet
+    "readers.video",            # readers do do not support variable batch size yet
+    "readers.video_resize",     # readers do do not support variable batch size yet
 
 ]
 
