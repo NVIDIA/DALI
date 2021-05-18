@@ -108,12 +108,19 @@ std::pair<std::vector<int>, int> DistributeBlocksPerSample(
 template <int ndim>
 int64_t SetupBlockDescs(BlockDesc *blocks, int64_t block_sz, int64_t max_nblocks,
                         const TensorListShape<ndim> &shape, int channel_dim = -1) {
+  int nsamples = shape.num_samples();
+  auto shape_in_pixels = shape;
+  if (channel_dim >= 0) {
+    for (int s = 0; s < nsamples; s++)
+      shape_in_pixels.tensor_shape_span(s)[channel_dim] = 1;
+  }
   std::vector<int> blocks_per_sample;
   int64_t blocks_num;
-  std::tie(blocks_per_sample, blocks_num) = DistributeBlocksPerSample(shape, block_sz, max_nblocks);
+  std::tie(blocks_per_sample, blocks_num) =
+      DistributeBlocksPerSample(shape_in_pixels, block_sz, max_nblocks);
   int64_t block = 0;
-  for (int s = 0; s < shape.size(); s++) {
-    auto sample_size = volume(shape[s]);
+  for (int s = 0; s < nsamples; s++) {
+    auto sample_size = shape_in_pixels.tensor_size(s);
     if (sample_size == 0)
       continue;
     auto work_per_block = div_ceil(sample_size, blocks_per_sample[s]);

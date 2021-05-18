@@ -163,15 +163,8 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &w
 
   auto &blocks_cpu = backend_data_.block_descs_cpu_;
   auto &blocks_gpu = backend_data_.block_descs_gpu_;
-  auto shape_copy = out_view.shape;
-  if (!independent_channels) {
-    // For generate once, apply to all channels, the channel dimension will be
-    // removed, so that each CUDA thread always processes all channels of a pixel.
-    for (int s = 0; s < nsamples; s++) {
-      shape_copy.tensor_shape_span(s)[channel_dim] = 1;
-    }
-  }
-  blockdesc_count = SetupBlockDescs(blocks_cpu.data(), block_sz, max_nblocks, shape_copy);
+  blockdesc_count =
+      SetupBlockDescs(blocks_cpu.data(), block_sz, max_nblocks, out_view.shape, channel_dim);
   if (blockdesc_count == 0) {
     return;
   }
