@@ -16,8 +16,10 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
-from nvidia.dali.plugin.pytorch import DALIGenericIterator
-from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator, dali_type
+import nvidia.dali.math as dmath
+import nvidia.dali.plugin.pytorch as pytorch
+from nvidia.dali.plugin.numba.fn.experimental import numba_function
+from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator, dali_type, module_functions
 from segmentation_test_utils import make_batch_select_masks
 from PIL import Image, ImageEnhance
 
@@ -27,6 +29,7 @@ import os
 import glob
 from math import ceil, sqrt
 import tempfile
+import sys
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -769,7 +772,7 @@ def test_pytorch_plugin_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
     outs = fn.external_source(source = get_data, layout = "HWC")
     pipe.set_outputs(outs)
-    pii = DALIGenericIterator([pipe], ["data"])
+    pii = pytorch.DALIGenericIterator([pipe], ["data"])
 
 def test_random_mask_pixel_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
@@ -823,4 +826,178 @@ def test_separated_exec_setup():
         t_cpu = a_cpu.at(i)
         assert(np.sum(np.abs(t_cpu - t_raw)) == 0)
 
-# ToDo add tests for DLTensorPythonFunction if easily possible
+tested_methods = [
+    "audio_decoder",
+    "image_decoder",
+    "image_decoder_slice",
+    "image_decoder_crop",
+    "image_decoder_random_crop",
+    "decoders.image",
+    "decoders.image_crop",
+    "decoders.image_slice",
+    "decoders.image_random_crop",
+    "decoders.audio",
+    "external_source",
+    "stack",
+    "reductions.variance",
+    "reductions.std_dev",
+    "reductions.rms",
+    "reductions.mean",
+    "reductions.mean_square",
+    "reductions.max",
+    "reductions.min",
+    "reductions.sum",
+    "transforms.translation",
+    "transforms.rotation",
+    "transforms.scale",
+    "transforms.combine",
+    "transforms.shear",
+    "transforms.crop",
+    "transform_translation",
+    "crop",
+    "constant",
+    "dump_image",
+    "numpy_reader",
+    "tfrecord_reader",
+    "file_reader",
+    "sequence_reader",
+    "mxnet_reader",
+    "caffe_reader",
+    "caffe2_reader",
+    "coco_reader",
+    "readers.file",
+    "readers.sequence",
+    "readers.tfrecord",
+    "readers.mxnet",
+    "readers.caffe",
+    "readers.caffe2",
+    "readers.coco",
+    "readers.numpy",
+    "coin_flip",
+    "uniform",
+    "random.uniform",
+    "random.coin_flip",
+    "random.normal",
+    "random_bbox_crop",
+    "python_function",
+    "rotate",
+    "brightness_contrast",
+    "hue",
+    "brightness",
+    "contrast",
+    "hsv",
+    "color_twist",
+    "saturation",
+    "old_color_twist",
+    "shapes",
+    "crop",
+    "color_space_conversion",
+    "cast",
+    "resize",
+    "gaussian_blur",
+    "crop_mirror_normalize",
+    "flip",
+    "jpeg_compression_distortion",
+    "noise.shot",
+    "reshape",
+    "reinterpret",
+    "water",
+    "sphere",
+    "erase",
+    "random_resized_crop",
+    "ssd_random_crop",
+    "bbox_paste",
+    "coord_flip",
+    "cat",
+    "bb_flip",
+    "warp_affine",
+    "normalize",
+    "pad",
+    "preemphasis_filter",
+    "power_spectrum",
+    "spectrogram",
+    "to_decibels",
+    "sequence_rearrange",
+    "normal_distribution",
+    "mel_filter_bank",
+    "nonsilent_region",
+    "one_hot",
+    "copy",
+    "resize_crop_mirror",
+    "fast_resize_crop_mirror",
+    "segmentation.select_masks",
+    "slice",
+    "segmentation.random_mask_pixel",
+    "transpose",
+    "paste",
+    "mfcc",
+    "lookup_table",
+    "element_extract",
+    "arithmetic_generic_op",
+    "box_encoder",
+    "pytorch.DALIGenericIterator",
+]
+
+excluded_methods = [
+    "readers.nemo_asr",
+    "roi_random_crop",
+    "squeeze",
+    "jitter",
+    "permute_batch",
+    "peek_image_shape",
+    "batch_permutation",
+    "expand_dims",
+    "noise.gaussian",
+    "grid_mask",
+    "nemo_asr_reader",
+    "coord_transform",
+    "multi_paste",
+    "segmentation.random_object_bbox",
+    "noise.salt_and_pepper",
+    "dl_tensor_python_function",
+    "math.ceil",
+    "math.clamp",
+    "math.tanh",
+    "math.tan",
+    "math.log2",
+    "math.atanh",
+    "math.atan",
+    "math.atan2",
+    "math.sin",
+    "math.cos",
+    "math.asinh",
+    "math.abs",
+    "math.sqrt",
+    "math.exp",
+    "math.acos",
+    "math.log",
+    "math.fabs",
+    "math.sinh",
+    "math.rsqrt",
+    "math.asin",
+    "math.floor",
+    "math.cosh",
+    "math.log10",
+    "math.max",
+    "math.cbrt",
+    "math.pow",
+    "math.fpow",
+    "math.acosh",
+    "math.min",
+    "pytorch.TorchPythonFunction",
+    "numba.fn.experimental.numba_function",
+    "hidden.arithmetic_generic_op", #internal
+    "hidden.transform_translation", #internal
+    "video_reader",         # not supported for CPU
+    "video_reader_resize",  # not supported for CPU
+    "readers.video",        # not supported for CPU
+    "readers.video_resize", # not supported for CPU
+    "optical_flow",         # not supported for CPU
+]
+
+def test_coverage():
+    methods = module_functions(fn, remove_prefix = "nvidia.dali.fn")
+    methods += module_functions(dmath, remove_prefix = "nvidia.dali")
+    covered = tested_methods + excluded_methods
+    # we are fine with covering more we can easily list, like numba
+    assert set(methods).difference(set(covered)) == set(), "Test doesn't cover:\n {}".format(set(methods) - set(covered))

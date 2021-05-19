@@ -14,18 +14,23 @@
 
 from nvidia.dali.pipeline import Pipeline
 from segmentation_test_utils import make_batch_select_masks
+from test_utils import module_functions
 from PIL import Image
 from nose.tools import nottest
 import nvidia.dali as dali
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
+import nvidia.dali.math as dmath
+import nvidia.dali.plugin.pytorch as pytorch
+from nvidia.dali.plugin.numba.fn.experimental import numba_function
 import numpy as np
 import test_utils
 import inspect
 import os
 import math
 import random
+import sys
 
 """
 How to test variable (iter-to-iter) batch size for a given op?
@@ -692,3 +697,187 @@ def test_reinterpret():
                    pipeline_fn=pipe, input_layout="HWC")
     check_pipeline(generate_data(31, 13, (5, 160, 80, 3), lo=0, hi=255, dtype=np.uint8),
                    pipeline_fn=pipe, input_layout="FHWC")
+
+tested_methods = [
+    "audio_decoder",
+    "image_decoder",
+    "image_decoder_slice",
+    "image_decoder_crop",
+    "image_decoder_random_crop",
+    "decoders.image",
+    "decoders.image_crop",
+    "decoders.image_slice",
+    "decoders.image_random_crop",
+    "decoders.audio",
+    "peek_image_shape",
+    "external_source",
+    "brightness",
+    "brightness_contrast",
+    "cat",
+    "color_twist",
+    "contrast",
+    "copy",
+    "crop_mirror_normalize",
+    "dump_image",
+    "hsv",
+    "hue",
+    "jpeg_compression_distortion",
+    "noise.shot",
+    "old_color_twist",
+    "reductions.mean",
+    "reductions.mean_square",
+    "reductions.rms",
+    "reductions.min",
+    "reductions.max",
+    "reductions.sum",
+    "saturation",
+    "shapes",
+    "sphere",
+    "stack",
+    "water",
+    "color_space_conversion",
+    "coord_transform",
+    "crop",
+    "erase",
+    "fast_resize_crop_mirror",
+    "flip",
+    "gaussian_blur",
+    "normalize",
+    "pad",
+    "paste",
+    "resize",
+    "resize_crop_mirror",
+    "rotate",
+    "transpose",
+    "warp_affine",
+    "power_spectrum",
+    "preemphasis_filter",
+    "spectrogram",
+    "to_decibels",
+    "jitter",
+    "random_resized_crop",
+    "cast",
+    "copy",
+    "crop",
+    "crop_mirror_normalize",
+    "erase",
+    "flip",
+    "gaussian_blur",
+    "normalize",
+    "resize",
+    "bb_flip",
+    "one_hot",
+    "reinterpret",
+    "batch_permutation",
+    "reductions.std_dev",
+    "reductions.variance",
+    "mel_filter_bank",
+    "constant",
+    "mfcc",
+    "bbox_paste",
+    "sequence_rearrange",
+    "coord_flip",
+    "lookup_table",
+    "slice",
+    "permute_batch",
+    "nonsilent_region",
+    "element_extract",
+    "reshape",
+    "coin_flip",
+    "uniform",
+    "random.coin_flip",
+    "random.uniform",
+    "python_function",
+    "normal_distribution",
+    "random.normal",
+    "arithmetic_generic_op",
+]
+
+excluded_methods = [
+    "segmentation.select_masks",
+    "segmentation.random_object_bbox",
+    "segmentation.random_mask_pixel",
+    "multi_paste",
+    "random_bbox_crop",
+    "noise.salt_and_pepper",
+    "noise.gaussian",
+    "box_encoder",
+    "optical_flow",
+    "expand_dims",
+    "grid_mask",
+    "roi_random_crop",
+    "squeeze",
+    "ssd_random_crop",
+    "transforms.rotation",
+    "transforms.combine",
+    "transforms.shear",
+    "transforms.crop",
+    "transforms.scale",
+    "transforms.translation",
+    "transform_translation",
+    "dl_tensor_python_function",
+    "math.ceil",
+    "math.clamp",
+    "math.tanh",
+    "math.tan",
+    "math.log2",
+    "math.atanh",
+    "math.atan",
+    "math.atan2",
+    "math.sin",
+    "math.cos",
+    "math.asinh",
+    "math.abs",
+    "math.sqrt",
+    "math.exp",
+    "math.acos",
+    "math.log",
+    "math.fabs",
+    "math.sinh",
+    "math.rsqrt",
+    "math.asin",
+    "math.floor",
+    "math.cosh",
+    "math.log10",
+    "math.max",
+    "math.cbrt",
+    "math.pow",
+    "math.fpow",
+    "math.acosh",
+    "math.min",
+    "pytorch.TorchPythonFunction",
+    "numba.fn.experimental.numba_function",
+    "hidden.transform_translation", # intentional
+    "hidden.arithmetic_generic_op", # intentional
+    "coco_reader",              # readers do do not support variable batch size yet
+    "sequence_reader",          # readers do do not support variable batch size yet
+    "numpy_reader",             # readers do do not support variable batch size yet
+    "file_reader",              # readers do do not support variable batch size yet
+    "caffe_reader",             # readers do do not support variable batch size yet
+    "caffe2_reader",            # readers do do not support variable batch size yet
+    "mxnet_reader",             # readers do do not support variable batch size yet
+    "tfrecord_reader",          # readers do do not support variable batch size yet
+    "nemo_asr_reader",          # readers do do not support variable batch size yet
+    "video_reader",             # readers do do not support variable batch size yet
+    "video_reader_resize",      # readers do do not support variable batch size yet
+    "readers.coco",             # readers do do not support variable batch size yet
+    "readers.sequence",         # readers do do not support variable batch size yet
+    "readers.numpy",            # readers do do not support variable batch size yet
+    "readers.file",             # readers do do not support variable batch size yet
+    "readers.caffe",            # readers do do not support variable batch size yet
+    "readers.caffe2",           # readers do do not support variable batch size yet
+    "readers.mxnet",            # readers do do not support variable batch size yet
+    "readers.tfrecord",         # readers do do not support variable batch size yet
+    "readers.nemo_asr",         # readers do do not support variable batch size yet
+    "readers.video",            # readers do do not support variable batch size yet
+    "readers.video_resize",     # readers do do not support variable batch size yet
+
+]
+
+def test_coverage():
+    methods = module_functions(fn, remove_prefix = "nvidia.dali.fn")
+    methods += module_functions(dmath, remove_prefix = "nvidia.dali")
+    covered = tested_methods + excluded_methods
+    print(set(methods) - set(covered))
+    # we are fine with covering more we can easily list, like numba
+    assert set(methods).difference(set(covered)) == set(), "Test doesn't cover:\n {}".format(set(methods) - set(covered))
