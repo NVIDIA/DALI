@@ -1,9 +1,6 @@
 import numpy as np
 import math
 import librosa
-import os
-import re
-import test_utils
 
 # generate sinewaves with given frequencies,
 # add Hann envelope and store in channel-last layout
@@ -27,9 +24,3 @@ def rosa_resample(input, in_rate, out_rate):
     ret[:,c] = a
 
   return ret
-
-def get_audio_files(fmt):
-  dali_extra = test_utils.get_dali_extra_path()
-  audio_path = os.path.join(dali_extra, "db", "audio", fmt)
-  audio_files = [os.path.join(audio_path, f) for f in os.listdir(audio_path) if re.match(f".*\.{fmt}", f) is not None]
-  return audio_files

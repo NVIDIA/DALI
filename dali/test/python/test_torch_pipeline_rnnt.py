@@ -15,7 +15,7 @@
 import nvidia.dali
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import test_audio_decoder_utils
+import test_utils
 import numpy as np
 import librosa
 import librosa
@@ -23,7 +23,7 @@ import torch
 import math
 import os
 
-audio_files = test_audio_decoder_utils.get_audio_files('wav')
+audio_files = test_utils.get_files('db/audio/wav', 'wav')
 npy_files = [os.path.splitext(fpath)[0] + '.npy' for fpath in audio_files]
 
 # From DeepLearningExamples

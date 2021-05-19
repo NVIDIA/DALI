@@ -21,8 +21,8 @@ import numpy as np
 import math
 import os
 import librosa
-from test_audio_decoder_utils import generate_waveforms, rosa_resample, get_audio_files
-from test_utils import compare_pipelines
+from test_audio_decoder_utils import generate_waveforms, rosa_resample
+from test_utils import compare_pipelines, get_files
 
 names = [
   "/tmp/dali_test_1C.wav",
@@ -166,7 +166,7 @@ def check_audio_decoder_correctness(fmt, dtype):
       decoded, _ = fn.decoders.audio(encoded, dtype=dtype, downmix=downmix)
       return decoded
 
-  audio_files = get_audio_files(fmt)
+  audio_files = get_files(f'db/audio/{fmt}', fmt)
   npy_files = [os.path.splitext(fpath)[0] + '.npy' for fpath in audio_files]
   new_pipe = audio_decoder_pipe(audio_files, dtype)
   npy_pipe = numpy_reader_pipe(npy_files)

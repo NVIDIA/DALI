@@ -534,3 +534,8 @@ def module_functions(cls, prefix = "", remove_prefix = ""):
                 c = cls.__dict__[c]
                 res += module_functions(c, cls.__name__, remove_prefix = remove_prefix)
     return res
+
+def get_files(path, ext):
+  dali_extra = get_dali_extra_path()
+  audio_files = [os.path.join(path, f) for f in os.listdir(path) if re.match(f".*\.{ext}", f) is not None]
+  return audio_files

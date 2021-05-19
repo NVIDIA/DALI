@@ -19,7 +19,7 @@ import nvidia.dali as dali
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 from functools import partial
-import test_audio_decoder_utils
+from test_utils import get_files
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
@@ -28,7 +28,7 @@ import os
 import librosa as librosa
 import math
 
-audio_files = test_audio_decoder_utils.get_audio_files('wav')
+audio_files = get_files('db/audio/wav', 'wav')
 
 class SpectrogramPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, nfft, window_length, window_step,
