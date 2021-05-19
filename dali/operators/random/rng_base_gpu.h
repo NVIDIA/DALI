@@ -149,7 +149,7 @@ void SetupSampleDescs(SampleDesc *samples,
   int nsamples = output.num_samples();
   for (int s = 0; s < nsamples; s++) {
     T *sample_out = static_cast<T*>(output[s].data);
-    const T *sample_in = static_cast<const T*>(input[s].data);
+    const T *sample_in = input.empty() ? nullptr : static_cast<const T *>(input[s].data);
     samples[s].output = sample_out;
     samples[s].input = sample_in;
     auto sh = output.shape.tensor_shape_span(s);
