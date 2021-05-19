@@ -876,6 +876,5 @@ def test_coverage():
     methods = module_functions(fn, remove_prefix = "nvidia.dali.fn")
     methods += module_functions(dmath, remove_prefix = "nvidia.dali")
     covered = tested_methods + excluded_methods
-    print(set(methods) - set(covered))
     # we are fine with covering more we can easily list, like numba
     assert set(methods).difference(set(covered)) == set(), "Test doesn't cover:\n {}".format(set(methods) - set(covered))
