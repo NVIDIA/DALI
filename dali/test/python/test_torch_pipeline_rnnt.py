@@ -23,7 +23,7 @@ import torch
 import math
 import os
 
-audio_files = test_audio_decoder_utils.get_test_audio_files('wav')
+audio_files = test_audio_decoder_utils.get_audio_files('wav')
 npy_files = [os.path.splitext(fpath)[0] + '.npy' for fpath in audio_files]
 
 # From DeepLearningExamples

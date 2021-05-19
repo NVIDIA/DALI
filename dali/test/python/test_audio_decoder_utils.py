@@ -28,7 +28,7 @@ def rosa_resample(input, in_rate, out_rate):
 
   return ret
 
-def get_test_audio_files(fmt):
+def get_audio_files(fmt):
   dali_extra = test_utils.get_dali_extra_path()
   audio_path = os.path.join(dali_extra, "db", "audio", fmt)
   audio_files = [os.path.join(audio_path, f) for f in os.listdir(audio_path) if re.match(f".*\.{fmt}", f) is not None]

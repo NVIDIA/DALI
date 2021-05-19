@@ -19,8 +19,9 @@ import nvidia.dali.types as types
 import scipy.io.wavfile
 import numpy as np
 import math
+import os
 import librosa
-from test_audio_decoder_utils import generate_waveforms, rosa_resample
+from test_audio_decoder_utils import generate_waveforms, rosa_resample, get_audio_files
 from test_utils import compare_pipelines
 
 names = [
@@ -133,16 +134,15 @@ def test_decoded_vs_generated():
 batch_size_alias_test=16
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
-def decoder_pipe(decoder_op, sample_rate, downmix, quality, dtype):
-    encoded, _ = fn.readers.file(files=names)
+def decoder_pipe(decoder_op, fnames, sample_rate, downmix, quality, dtype):
+    encoded, _ = fn.readers.file(files=fnames)
     decoded, rates = decoder_op(encoded, sample_rate=sample_rate, downmix=downmix, quality=quality,
                                 dtype=dtype)
     return decoded, rates
 
-
 def check_audio_decoder_alias(sample_rate, downmix, quality, dtype):
-    new_pipe = decoder_pipe(fn.decoders.audio, sample_rate, downmix, quality, dtype)
-    legacy_pipe = decoder_pipe(fn.audio_decoder, sample_rate, downmix, quality, dtype)
+    new_pipe = decoder_pipe(fn.decoders.audio, names, sample_rate, downmix, quality, dtype)
+    legacy_pipe = decoder_pipe(fn.audio_decoder, names, sample_rate, downmix, quality, dtype)
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
 
 
@@ -152,3 +152,27 @@ def test_audio_decoder_alias():
             for quality in [0, 50, 100]:
                 for dtype in [types.INT16, types.INT32, types.FLOAT]:
                     yield check_audio_decoder_alias, sample_rate, downmix, quality, dtype
+
+def check_audio_decoder_correctness(fmt, dtype):
+  batch_size = 16
+  @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+  def numpy_reader_pipe(fnames, device="cpu"):
+      data = fn.readers.numpy(device=device, files=fnames)
+      return data
+
+  @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+  def audio_decoder_pipe(fnames, dtype, downmix=True):
+      encoded, _ = fn.readers.file(files=fnames)
+      decoded, _ = fn.decoders.audio(encoded, dtype=dtype, downmix=downmix)
+      return decoded
+
+  audio_files = get_audio_files(fmt)
+  npy_files = [os.path.splitext(fpath)[0] + '.npy' for fpath in audio_files]
+  new_pipe = audio_decoder_pipe(audio_files, dtype)
+  npy_pipe = numpy_reader_pipe(npy_files)
+  compare_pipelines(new_pipe, npy_pipe, batch_size, 10, eps=1)
+
+def test_audio_decoder_correctness():
+  dtype = types.INT16
+  for fmt in ['wav', 'flac', 'ogg']:
+    yield check_audio_decoder_correctness, fmt, dtype

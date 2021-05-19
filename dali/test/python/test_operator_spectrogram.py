@@ -28,7 +28,7 @@ import os
 import librosa as librosa
 import math
 
-audio_files = test_audio_decoder_utils.get_test_audio_files('wav')
+audio_files = test_audio_decoder_utils.get_audio_files('wav')
 
 class SpectrogramPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, nfft, window_length, window_step,
