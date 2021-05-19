@@ -19,12 +19,10 @@ import numpy as np
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import os
 import test_utils
+import test_audio_decoder_utils
 
-dali_extra = test_utils.get_dali_extra_path()
-audio_files = os.path.join(dali_extra, "db", "audio")
-
+audio_files = test_audio_decoder_utils.get_test_audio_files('wav')
 
 def trim_ref(top_db, ref, frame_length, hop_length, input_data):
     yt, index = librosa.effects.trim(y=input_data, top_db=top_db, ref=ref,
@@ -45,7 +43,7 @@ class NonsilencePipeline(Pipeline):
         super(NonsilencePipeline, self).__init__(batch_size, num_threads, 0, seed=42,
                                                  exec_async=exec_async,
                                                  exec_pipelined=exec_pipelined)
-        self.input = ops.readers.File(device="cpu", file_root=audio_files)
+        self.input = ops.readers.File(device="cpu", files=audio_files)
         self.decode = ops.decoders.Audio(device="cpu", dtype=types.FLOAT, downmix=True)
 
         self.nonsilence = None
@@ -96,7 +94,7 @@ def test_nonsilence_operator():
     window_sizes = [512, 1024]
     reset_intervals = [-1, 2048, 8192]
     references_power = [None, .0003]
-    cutoff_coeffs = [-10, -20, -30]
+    cutoff_coeffs = [-10, -60, -80]
     for ws in window_sizes:
         for ri in reset_intervals:
             for rp in references_power:

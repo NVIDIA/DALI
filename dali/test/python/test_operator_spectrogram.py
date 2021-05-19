@@ -19,14 +19,16 @@ import nvidia.dali as dali
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 from functools import partial
+import test_audio_decoder_utils
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import ConstantDataIterator
-from test_utils import get_dali_extra_path
 import os
 import librosa as librosa
 import math
+
+audio_files = test_audio_decoder_utils.get_test_audio_files('wav')
 
 class SpectrogramPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, nfft, window_length, window_step,
@@ -168,15 +170,11 @@ def test_operator_spectrogram_vs_python_wave():
 for test in test_operator_spectrogram_vs_python_wave():
     test[0](*test[1:])
 
-dali_extra = get_dali_extra_path()
-audio_files = os.path.join(dali_extra, "db", "audio")
-
-
 class AudioSpectrogramPipeline(Pipeline):
     def __init__(self, device, batch_size, nfft, window_length, window_step,
                  num_threads=1, device_id=0, layout="ft"):
         super(AudioSpectrogramPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.input = ops.readers.File(device="cpu", file_root=audio_files)
+        self.input = ops.readers.File(device="cpu", files=audio_files)
         self.decode = ops.decoders.Audio(device="cpu", dtype=types.FLOAT, downmix=True)
         self.fft = ops.Spectrogram(device=device,
                                    nfft=nfft,
@@ -202,7 +200,7 @@ class AudioSpectrogramPythonPipeline(Pipeline):
             batch_size, num_threads, device_id,
             seed=12345, exec_async=False, exec_pipelined=False)
 
-        self.input = ops.readers.File(device="cpu", file_root=audio_files)
+        self.input = ops.readers.File(device="cpu", files=audio_files)
         self.decode = ops.decoders.Audio(device="cpu", dtype=types.FLOAT, downmix=True)
 
         function = partial(spectrogram_func, nfft, window_length, window_step, None)

@@ -15,15 +15,32 @@
 import nvidia.dali
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import test_audio_decoder_utils
 import numpy as np
-import os
-import test_utils
+import librosa
 import librosa
 import torch
 import math
+import os
 
-dali_extra_path = test_utils.get_dali_extra_path()
+audio_files = test_audio_decoder_utils.get_test_audio_files('wav')
+npy_files = [os.path.splitext(fpath)[0] + '.npy' for fpath in audio_files]
 
+# From DeepLearningExamples
+def _convert_samples_to_float32(samples):
+    """Convert sample type to float32.
+    Audio sample type is usually integer or float-point.
+    Integers will be scaled to [-1, 1] in float32.
+    """
+    float32_samples = samples.astype('float32')
+    if samples.dtype in np.sctypes['int']:
+        bits = np.iinfo(samples.dtype).bits
+        float32_samples *= (1. / 2 ** (bits - 1))
+    elif samples.dtype in np.sctypes['float']:
+        pass
+    else:
+        raise TypeError("Unsupported sample type: %s." % samples.dtype)
+    return float32_samples
 
 class FilterbankFeatures():
     def __init__(self, sample_rate=8000, window_size=0.02, window_stride=0.01,
@@ -121,7 +138,6 @@ class FilterbankFeatures():
 
     def forward(self, inp, seq_len):
         x = inp
-
         dtype = x.dtype
 
         seq_len = self.get_seq_len(seq_len)
@@ -154,8 +170,6 @@ class FilterbankFeatures():
         if self.normalize:
             x = self.normalize_batch(x, seq_len, normalize_type=self.normalize)
 
-        x = x[:, :, :seq_len.max()]  # rnnt loss requires lengths to match
-
         return x.to(dtype)
 
 
@@ -163,8 +177,7 @@ class RnntTrainPipeline(nvidia.dali.Pipeline):
     def __init__(self,
                  device_id,
                  n_devices,
-                 file_root,
-                 file_list,
+                 files,
                  batch_size,
                  sample_rate=16000,
                  window_size=.02,
@@ -183,7 +196,7 @@ class RnntTrainPipeline(nvidia.dali.Pipeline):
         self.dither = dither
         self.frame_splicing_factor = frame_splicing_factor
 
-        self.read = ops.readers.File(file_root=file_root, file_list=file_list, device="cpu",
+        self.read = ops.readers.File(files=files, device="cpu", random_shuffle=False,
                                      shard_id=device_id, num_shards=n_devices)
 
         self.decode = ops.decoders.Audio(device="cpu", dtype=types.FLOAT, downmix=True)
@@ -269,25 +282,31 @@ def test_rnnt_data_pipeline():
     comparing to the reference: random operations (i.e. dither and presampling
     aka "speed perturbation") are turned off
     """
-    batch_size = 2
     ref_pipeline = FilterbankFeatures(sample_rate=16000, n_fft=512, highfreq=.0, dither=.00001,
                                       frame_splicing=3)
-    data_path = os.path.join(dali_extra_path, "db", "audio", "rnnt_data_pipeline")
-    rec_names = ["and_showed_itself_decoded.npy", "asked_her_father_decoded.npy"]
-    recordings = [np.load(os.path.join(data_path, name)) for name in rec_names]
-    pipe = RnntTrainPipeline(device_id=0, n_devices=1, file_root=data_path,
-                             file_list=os.path.join(data_path, "file_list.txt"),
-                             batch_size=batch_size)
+    recordings = []
+    for fpath in npy_files:
+        arr = np.load(fpath)
+        arr = _convert_samples_to_float32(arr)
+        recordings.append(arr)
+    batch_size = len(recordings)
+    pipe = RnntTrainPipeline(device_id=0, n_devices=1, files=audio_files, batch_size=batch_size)
     pipe.build()
     dali_out = pipe.run()
-    seq_len = torch.tensor([rec.shape[0] for rec in recordings])
-    reference_data = [ref_pipeline.forward(torch.tensor([rec]), seq_len) for rec in recordings]
+    reference_data = []
+    for i in range(batch_size):
+        reference_data.append(
+            ref_pipeline.forward(torch.tensor([recordings[i]]), torch.tensor([recordings[i].shape[0]]))
+        )
     for sample_idx in range(batch_size):
         output_data = dali_out[0].at(sample_idx)
         output_data = np.transpose(output_data, (1, 0))
         audio_len = dali_out[1].at(sample_idx)[0]
         assert audio_len == reference_data[sample_idx].shape[2]
-        assert reference_data[sample_idx].shape[1:] == output_data.shape
-        size = reference_data[sample_idx][1:].flatten().shape[0]
-        assert np.sum(
-                np.isclose(reference_data[sample_idx], output_data, atol=.01, rtol=0)) / size > .99
+        nfeatures = reference_data[sample_idx].shape[1]
+        assert nfeatures == output_data.shape[0]
+        size = nfeatures * audio_len
+        ref = reference_data[sample_idx][:, :, :]
+        out = output_data[:, :]
+        assert np.sum(np.isclose(ref, out, atol=.1, rtol=0)) / size > .9, \
+            f"{np.sum(np.isclose(ref, out, atol=.1, rtol=0)) / size}"
