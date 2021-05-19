@@ -118,3 +118,17 @@ TEST(StaticSwitch, DALIDataType) {
     )); // NOLINT
   }
 }
+
+TEST(StaticSwitch, BoolSwitch) {
+  int a = 7;
+  BOOL_SWITCH(a > 3, BoolConst, (
+    std::integral_constant<bool, BoolConst> constant;
+    ASSERT_TRUE(constant);
+  ));
+
+  BOOL_SWITCH(a < 3, BoolConst, (
+    std::integral_constant<bool, BoolConst> constant;
+    ASSERT_FALSE(constant);
+  ));
+}
+

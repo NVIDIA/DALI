@@ -135,4 +135,27 @@
   { BOOST_PP_REMOVE_PARENS(default_); } \
   }
 
+/// Pastes the case_ code specialized for true and false values.
+/// The specialization is performed by aliasing a value with a constant named constant_name_
+/// @param expr_       - a boolean expression to switch by
+/// @param const_name_ - a name given for the constexpr bool variable.
+/// @param code_       - code to execute for true and false
+///
+/// Usage:
+/// ```
+/// BOOL_SWITCH(flag, BoolConst, (
+///     std::integral_constant<bool, BoolConst> constant;
+///     some_function<BoolConst>(...);
+///   )
+/// )
+/// ```
+#define BOOL_SWITCH(expr_, const_name_, code_)   \
+  if (expr_) {                                   \
+    constexpr bool const_name_ = true;           \
+    BOOST_PP_REMOVE_PARENS(code_);               \
+  } else {                                       \
+    constexpr bool const_name_ = false;          \
+    BOOST_PP_REMOVE_PARENS(code_);               \
+  }
+
 #endif  // DALI_CORE_STATIC_SWITCH_H_
