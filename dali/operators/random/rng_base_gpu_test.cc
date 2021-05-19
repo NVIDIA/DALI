@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <random>
 #include <algorithm>
+#include "dali/core/span.h"
 #include "dali/operators/random/rng_base_gpu.h"
 
 namespace dali {
@@ -22,9 +23,10 @@ namespace dali {
 class TestBlockDistribution : public ::testing::Test{
  protected:
   std::vector<int> distribute(const std::vector<int> &sizes) {
-    TensorListShape<1> shape(sizes.size());
-    for (int s = 0; s < shape.size(); ++s) shape.set_tensor_shape(s, {sizes[s]});
-    return DistributeBlocksPerSample(shape, block_size_, max_blocks_).first;
+    std::vector<int> blocks_per_sample(sizes.size());
+    DistributeBlocksPerSample(make_span(blocks_per_sample), make_cspan(sizes), block_size_,
+                              max_blocks_);
+    return blocks_per_sample;
   }
 
   const int block_size_ = 256;
@@ -56,13 +58,17 @@ TEST(DistributeBlocks, RandomTests) {
   const int block_size = 256;
   const int max_blocks = 1024;
   std::uniform_int_distribution<int> size_dist(32 * block_size, 2048 * block_size);
-  TensorListShape<1> shape(31);
+  int nsamples = 31;
+  TensorListShape<1> shape(nsamples);
+  std::vector<int> sizes(nsamples);
+  std::vector<int> blocks(nsamples);
   for (int i = 0; i < 100; ++i) {
-    for (int s = 0; s < shape.size(); ++s) shape.set_tensor_shape(s, {size_dist(rnd)});
-    std::vector<int> blocks;
-    int sum;
-    std::tie(blocks, sum) =
-      DistributeBlocksPerSample(shape, block_size, max_blocks);
+    for (int s = 0; s < nsamples; ++s) {
+      sizes[s] = size_dist(rnd);
+      blocks[s] = 0;
+    }
+    int sum =
+        DistributeBlocksPerSample(make_span(blocks), make_cspan(sizes), block_size, max_blocks);
     EXPECT_EQ(std::accumulate(blocks.begin(), blocks.end(), 0), sum);
     EXPECT_EQ(sum, max_blocks);
   }

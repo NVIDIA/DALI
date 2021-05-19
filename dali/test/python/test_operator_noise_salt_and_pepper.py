@@ -123,7 +123,7 @@ def test_operator_noise_salt_and_pepper():
     niter = 3
     probs = [None, 0.021, 0.5]
     salt_and_pepper_probs = [None, 1.0, 0.5, 0.0]
-    for device in ["cpu",]:
+    for device in ["cpu", "gpu"]:
         for per_channel in [False, True]:
             for channel_first in [False, True]:
                 for pepper_val, salt_val in [(None, None), (10, 50)]:
