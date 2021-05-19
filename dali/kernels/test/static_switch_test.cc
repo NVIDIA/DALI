@@ -124,11 +124,11 @@ TEST(StaticSwitch, BoolSwitch) {
   BOOL_SWITCH(a > 3, BoolConst, (
     std::integral_constant<bool, BoolConst> constant;
     ASSERT_TRUE(constant);
-  ));
+  ));  // NOLINT
 
   BOOL_SWITCH(a < 3, BoolConst, (
     std::integral_constant<bool, BoolConst> constant;
     ASSERT_FALSE(constant);
-  ));
+  ));  // NOLINT
 }
 
