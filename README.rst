@@ -86,7 +86,7 @@ An introduction to DALI can be found in the |dali_start|_ page.
 
 More advanced examples can be found in the |dali_examples|_ page.
 
-For an interactive version (Jupyter notebook) of the examples, go to the `docs/examples <https://github.com/NVIDIA/DALI/blob/master/docs/examples>`_
+For an interactive version (Jupyter notebook) of the examples, go to the `docs/examples <https://github.com/NVIDIA/DALI/blob/main/docs/examples>`_
 directory.
 
 **Note:** Select the |release-doc|_ or the |nightly-doc|_, which stays in sync with the main branch,
@@ -99,7 +99,7 @@ depending on your version.
 .. |release-doc| replace:: Latest Release Documentation
 .. _release-doc: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html
 .. |nightly-doc| replace:: Nightly Release Documentation
-.. _nightly-doc: https://docs.nvidia.com/deeplearning/dali/master-user-guide/docs/index.html
+.. _nightly-doc: https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/index.html
 
 ----
 
@@ -137,7 +137,7 @@ Contributing to DALI
 --------------------
 
 We welcome contributions to DALI. To contribute to DALI and make pull requests,
-follow the guidelines outlined in the `Contributing <https://github.com/NVIDIA/DALI/blob/master/CONTRIBUTING.md>`_
+follow the guidelines outlined in the `Contributing <https://github.com/NVIDIA/DALI/blob/main/CONTRIBUTING.md>`_
 document.
 
 If you are looking for a task good for the start please check one from

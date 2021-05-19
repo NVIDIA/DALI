@@ -80,7 +80,7 @@ else:
 version = version + """<br/>
 Version select: <select onChange="window.location.href = this.value" onFocus="this.selectedIndex = {0}">
     <option value="https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html"{1}>Current release</option>
-    <option value="https://docs.nvidia.com/deeplearning/dali/master-user-guide/docs/index.html"{2}>master (unstable)</option>
+    <option value="https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/index.html"{2}>main (unstable)</option>
     <option value="https://docs.nvidia.com/deeplearning/dali/archives/index.html">Older releases</option>
 </select>""".format(option_nr, release_opt, main_opt)
 
@@ -172,7 +172,7 @@ favicon_rel_path = "nvidia.ico"
 subprocess.call(["wget", "-O", favicon_rel_path, "https://docs.nvidia.com/images/nvidia.ico"])
 html_favicon = favicon_rel_path
 
-subprocess.call(["wget", "-O", "dali.png", "https://raw.githubusercontent.com/NVIDIA/DALI/master/dali.png"])
+subprocess.call(["wget", "-O", "dali.png", "https://raw.githubusercontent.com/NVIDIA/DALI/main/dali.png"])
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -245,7 +245,7 @@ texinfo_documents = [
 # -- Extension configuration -------------------------------------------------
 extlinks = {'issue': ('https://github.com/NVIDIA/DALI/issues/%s',
                       'issue '),
-            'fileref': ('https://github.com/NVIDIA/DALI/tree/' + (git_sha if git_sha != u'0000000' else "master") + '/%s', ''),}
+            'fileref': ('https://github.com/NVIDIA/DALI/tree/' + (git_sha if git_sha != u'0000000' else "main") + '/%s', ''),}
 
 
 from typing import (
