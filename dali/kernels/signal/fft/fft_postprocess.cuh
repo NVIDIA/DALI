@@ -144,7 +144,7 @@ __global__ void ConvertTimeMajorSpectrogram(
 
 template <typename Out, typename In, typename Convert = identity>
 __global__ void
-__launch_bounds__(32*kBlock)
+__launch_bounds__(kBlock*kBlock)
 TransposeBatch(
     const SampleDesc<Out, In> *samples,
     const BlockDesc *blocks,
