@@ -101,12 +101,12 @@ void JpegCompressionDistortionGPU::Run(KernelContext &ctx, const OutListGPU<uint
       ctx.gpu.stream, make_cspan(sample_descs_), block_setup_.Blocks());
   dim3 grid_dim = block_setup_.GridDim();
   dim3 block_dim = block_setup_.BlockDim();
-  VALUE_SWITCH(horz_subsample_ ? 1 : 0, HorzSubsample, (false, true), (
-    VALUE_SWITCH(vert_subsample_ ? 1 : 0, VertSubsample, (false, true), (
+  BOOL_SWITCH(horz_subsample_, HorzSubsample, (
+    BOOL_SWITCH(vert_subsample_, VertSubsample, (
       JpegCompressionDistortion<HorzSubsample, VertSubsample>
           <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples_gpu, blocks_gpu);
-    ), ());  // NOLINT
-  ), ());  // NOLINT
+    ));  // NOLINT
+  ));  // NOLINT
   CUDA_CALL(cudaGetLastError());
 }
 
@@ -119,12 +119,12 @@ void ChromaSubsampleDistortionGPU::Run(KernelContext &ctx, const OutListGPU<uint
       ctx.gpu.stream, make_cspan(sample_descs_), block_setup_.Blocks());
   dim3 grid_dim = block_setup_.GridDim();
   dim3 block_dim = block_setup_.BlockDim();
-  VALUE_SWITCH(horz_subsample_ ? 1 : 0, HorzSubsample, (false, true), (
-    VALUE_SWITCH(vert_subsample_ ? 1 : 0, VertSubsample, (false, true), (
+  BOOL_SWITCH(horz_subsample_, HorzSubsample, (
+    BOOL_SWITCH(vert_subsample_, VertSubsample, (
       ChromaSubsampleDistortion<HorzSubsample, VertSubsample>
           <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples_gpu, blocks_gpu);
-    ), ());  // NOLINT
-  ), ());  // NOLINT
+    ));  // NOLINT
+  ));  // NOLINT
   CUDA_CALL(cudaGetLastError());
 }
 

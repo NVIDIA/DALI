@@ -240,18 +240,18 @@ class SliceFlipNormalizePermutePadGpu {
         make_span(sample_descs_cpu, num_samples),
         make_span(block_descs_cpu, block_count_));
 
-    VALUE_SWITCH(need_pad ? 1 : 0, NeedPad, (false, true), (
-      VALUE_SWITCH(need_flip ? 1 : 0, NeedFlip, (false, true), (
-        VALUE_SWITCH(need_normalize_ ? 1 : 0, NeedNormalize, (false, true), (
+    BOOL_SWITCH(need_pad, NeedPad, (
+      BOOL_SWITCH(need_flip, NeedFlip, (
+        BOOL_SWITCH(need_normalize_, NeedNormalize, (
           auto grid = block_count_;
           // need to handle __half due to compilation differences
           detail::SliceFlipNormalizePermutePadKernel
             <NeedPad, NeedFlip, NeedNormalize,
             OutputType, InputType, Dims>
             <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs_gpu, block_descs_gpu);
-        ), ());  // NOLINT
-      ), ());  // NOLINT
-    ), ());  // NOLINT
+        ));  // NOLINT
+      ));  // NOLINT
+    ));  // NOLINT
 
     CUDA_CALL(cudaGetLastError());
   }
