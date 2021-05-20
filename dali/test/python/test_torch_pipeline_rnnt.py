@@ -24,6 +24,7 @@ import math
 import os
 
 audio_files = test_utils.get_files('db/audio/wav', 'wav')
+audio_files = [file for file in audio_files if '237-134500' in file]  # Filtering librispeech samples
 npy_files = [os.path.splitext(fpath)[0] + '.npy' for fpath in audio_files]
 
 # From DeepLearningExamples
