@@ -223,8 +223,8 @@ void SliceFlipNormalizePermutePadKernel(
   bool has_channels = channel_dim >= 0;
   bool need_normalize = (mean != nullptr && inv_stddev != nullptr);
   // Convert switch argument to `int` to avoid compiler warning about unreachable case label
-  VALUE_SWITCH(need_normalize ? 1 : 0, NeedNormalize, (false, true), (
-    VALUE_SWITCH(has_channels ? 1 : 0, HasChannels, (false, true), (
+  BOOL_SWITCH(need_normalize, NeedNormalize, (
+    BOOL_SWITCH(has_channels, HasChannels, (
       if (need_pad) {
         constexpr bool OutOfBounds = false;
         detail::SliceFlipNormalizePermutePadKernelImpl<NeedNormalize, HasChannels, OutOfBounds>(
@@ -237,8 +237,8 @@ void SliceFlipNormalizePermutePadKernel(
             out_shape.data(), mean, inv_stddev, channel_dim,
             std::integral_constant<int, Dims>());
       }
-    ), ());  // NOLINT
-  ), ());  // NOLINT
+    ));  // NOLINT
+  ));  // NOLINT
 }
 
 template <typename OutputType, typename InputType, int Dims>
