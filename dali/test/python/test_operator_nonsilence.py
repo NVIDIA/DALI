@@ -20,8 +20,9 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import test_utils
+import os
 
-audio_files = test_utils.get_files('db/audio/wav', 'wav')
+audio_files = test_utils.get_files(os.path.join('db', 'audio', 'wav'), 'wav')
 
 def trim_ref(top_db, ref, frame_length, hop_length, input_data):
     yt, index = librosa.effects.trim(y=input_data, top_db=top_db, ref=ref,
