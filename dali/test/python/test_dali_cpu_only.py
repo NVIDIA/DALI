@@ -18,9 +18,12 @@ import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import nvidia.dali.math as dmath
 import nvidia.dali.plugin.pytorch as pytorch
+import torch.utils.dlpack as torch_dlpack
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator, dali_type, module_functions
 from segmentation_test_utils import make_batch_select_masks
+from test_audio_decoder_utils import generate_waveforms
+import scipy.io.wavfile
 from PIL import Image, ImageEnhance
 
 import numpy as np
@@ -30,6 +33,8 @@ import glob
 from math import ceil, sqrt
 import tempfile
 import sys
+import json
+from collections.abc import Iterable
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -45,40 +50,40 @@ sequence_dir = os.path.join(data_root, 'db', 'sequence', 'frames')
 batch_size = 2
 test_data_shape = [10, 20, 3]
 def get_data():
-    out = [np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+    out = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
     return out
 
 def test_move_to_device_end():
     test_data_shape = [1, 3, 0, 4]
     def get_data():
-        out = [np.empty(test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        out = [np.empty(test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
         return out
 
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
-    outs = fn.external_source(source = get_data)
+    outs = fn.external_source(source=get_data)
     pipe.set_outputs(outs.gpu())
     assert_raises(RuntimeError, pipe.build)
 
 def test_move_to_device_middle():
     test_data_shape = [1, 3, 0, 4]
     def get_data():
-        out = [np.empty(test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        out = [np.empty(test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
         return out
 
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
-    data = fn.external_source(source = get_data)
-    outs = fn.rotate(data.gpu(), angle = 25)
+    data = fn.external_source(source=get_data)
+    outs = fn.rotate(data.gpu(), angle=25)
     pipe.set_outputs(outs)
     assert_raises(RuntimeError, pipe.build)
 
 def check_bad_device(device_id):
     test_data_shape = [1, 3, 0, 4]
     def get_data():
-        out = [np.empty(test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        out = [np.empty(test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
         return out
 
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=device_id)
-    outs = fn.external_source(source = get_data, device = "gpu")
+    outs = fn.external_source(source=get_data, device="gpu")
     pipe.set_outputs(outs)
     assert_raises(RuntimeError, pipe.build)
 
@@ -99,32 +104,41 @@ def test_mixed_op_bad_device():
 
 def test_image_decoder_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.decoders.image(input, output_type=types.RGB)
-    pipe.set_outputs(decoded)
+    with pipe:
+        input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
+        decoded = fn.decoders.image(input, output_type=types.RGB)
+        pipe.set_outputs(decoded)
     pipe.build()
     for _ in range(3):
         pipe.run()
 
-def check_single_input(op, input_layout = "HWC", get_data = get_data, **kwargs):
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    data = fn.external_source(source = get_data, layout = input_layout)
-    processed = op(data, **kwargs)
-    pipe.set_outputs(processed)
+def check_single_input(op, input_layout="HWC", get_data=get_data, batch=True, cycle=None, exec_async=True, exec_pipelined=True, **kwargs):
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None, exec_async=exec_async, exec_pipelined=exec_pipelined)
+    with pipe:
+        data = fn.external_source(source=get_data, layout=input_layout, batch=batch, cycle=cycle)
+        processed = op(data, **kwargs)
+        if isinstance(processed, Iterable):
+            pipe.set_outputs(*processed)
+        else:
+            pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
         pipe.run()
 
-def check_no_input(op, get_data = get_data, **kwargs):
+def check_no_input(op, get_data=get_data, **kwargs):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    processed = op(**kwargs)
-    pipe.set_outputs(processed)
+    with pipe:
+        processed = op(**kwargs)
+        if isinstance(processed, Iterable):
+            pipe.set_outputs(*processed)
+        else:
+            pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
         pipe.run()
 
 def test_rotate_cpu():
-    check_single_input(fn.rotate, angle = 25)
+    check_single_input(fn.rotate, angle=25)
 
 def test_brightness_contrast_cpu():
     check_single_input(fn.brightness_contrast)
@@ -154,28 +168,28 @@ def test_shapes_cpu():
     check_single_input(fn.shapes)
 
 def test_crop_cpu():
-    check_single_input(fn.crop, crop = (5, 5))
+    check_single_input(fn.crop, crop=(5, 5))
 
 def test_color_space_coversion_cpu():
-    check_single_input(fn.color_space_conversion, image_type = types.BGR, output_type = types.RGB)
+    check_single_input(fn.color_space_conversion, image_type=types.BGR, output_type=types.RGB)
 
 def test_cast_cpu():
-    check_single_input(fn.cast, dtype  = types.INT32)
+    check_single_input(fn.cast, dtype=types.INT32)
 
 def test_resize_cpu():
     check_single_input(fn.resize, resize_x=50, resize_y=50)
 
 def test_gaussian_blur_cpu():
-    check_single_input(fn.gaussian_blur, window_size = 5)
+    check_single_input(fn.gaussian_blur, window_size=5)
 
 def test_crop_mirror_normalize_cpu():
     check_single_input(fn.crop_mirror_normalize)
 
 def test_flip_cpu():
-    check_single_input(fn.flip, horizontal = True)
+    check_single_input(fn.flip, horizontal=True)
 
 def test_jpeg_compression_distortion_cpu():
-    check_single_input(fn.jpeg_compression_distortion, quality = 10)
+    check_single_input(fn.jpeg_compression_distortion, quality=10)
 
 def test_noise_gaussian_cpu():
     check_single_input(fn.noise.gaussian)
@@ -189,7 +203,7 @@ def test_noise_salt_and_pepper_cpu():
 def test_image_decoder_crop_device():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.decoders.image_crop(input, output_type=types.RGB, crop = (10, 10))
+    decoded = fn.decoders.image_crop(input, output_type=types.RGB, crop=(10, 10))
     pipe.set_outputs(decoded)
     pipe.build()
     for _ in range(3):
@@ -214,10 +228,10 @@ def test_reshape_cpu():
     new_shape = test_data_shape.copy()
     new_shape[0] //= 2
     new_shape[1] *= 2
-    check_single_input(fn.reshape, shape = new_shape)
+    check_single_input(fn.reshape, shape=new_shape)
 
 def test_reinterpret_cpu():
-    check_single_input(fn.reinterpret, rel_shape = [0.5, 1, -1])
+    check_single_input(fn.reinterpret, rel_shape=[0.5, 1, -1])
 
 def test_water_cpu():
     check_single_input(fn.water)
@@ -226,21 +240,79 @@ def test_sphere_cpu():
     check_single_input(fn.sphere)
 
 def test_erase_cpu():
-    check_single_input(fn.erase, anchor=[0.3], axis_names="H", normalized_anchor = True, shape = [0.1],normalized_shape = True)
+    check_single_input(fn.erase, anchor=[0.3], axis_names="H", normalized_anchor=True, shape=[0.1],normalized_shape=True)
 
 def test_random_resized_crop_cpu():
-    check_single_input(fn.random_resized_crop, size = [5, 5])
+    check_single_input(fn.random_resized_crop, size=[5, 5])
+
+def test_expand_dims_cpu():
+    check_single_input(fn.expand_dims, axes=1, new_axis_names="Z")
+
+def test_coord_transform_cpu():
+    M= [0, 0, 1,
+        0, 1, 0,
+        1, 0, 0]
+    check_single_input(fn.coord_transform, M=M, dtype=types.UINT8)
+
+def test_grid_mask_cpu():
+    check_single_input(fn.grid_mask, tile=51, ratio=0.38158387, angle=2.6810782)
+
+def test_multi_paste_cpu():
+    check_single_input(fn.multi_paste, in_ids=np.array([0, 1]), output_size=test_data_shape)
+
+def test_roi_random_crop_cpu():
+    check_single_input(fn.roi_random_crop, crop_shape=[x // 2 for x in test_data_shape], roi_start=[x // 4 for x in test_data_shape], roi_shape=[x // 2 for x in test_data_shape])
+
+def test_random_object_bbox_cpu():
+    get_data = [
+        np.int32([[1, 0, 0, 0],
+                [1, 2, 2, 1],
+                [1, 1, 2, 0],
+                [2, 0, 0, 1]]),
+
+        np.int32([[0, 3, 3, 0],
+                [1, 0, 1, 2],
+                [0, 1, 1, 0],
+                [0, 2, 0, 1],
+                [0, 2, 2, 1]])
+    ]
+    check_single_input(fn.segmentation.random_object_bbox, get_data=get_data, batch=False, cycle="quiet", input_layout="")
+
+def test_numba_func_cpu():
+    def set_all_values_to_255_batch(out0, in0):
+        out0[0][:] = 255
+
+    def setup_out_shape(out_shape, in_shape):
+        out_shape = in_shape
+
+    check_single_input(numba_function,
+                       run_fn=set_all_values_to_255_batch, out_types=[types.UINT8], in_types=[types.UINT8],
+                       outs_ndim=[3], ins_ndim=[3], setup_fn=setup_out_shape, batch_processing=True)
+
+def test_dl_tensor_python_function_cpu():
+    def dl_tensor_operation(tensor):
+        tensor = torch_dlpack.from_dlpack(tensor)
+        tensor_n = tensor.double() / 255
+        ret = tensor_n.sin()
+        ret = torch_dlpack.to_dlpack(ret)
+        return ret
+
+    def batch_dl_tensor_operation(tensors):
+        out = [dl_tensor_operation(t) for t in tensors]
+        return out
+
+    check_single_input(fn.dl_tensor_python_function, function=batch_dl_tensor_operation, batch_processing=True, exec_async=False, exec_pipelined=False)
 
 def test_nonsilent_region_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_data_shape = [200]
     def get_data():
-        out = [np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        out = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
         out[0][0] = 0
         out[1][0] = 0
         out[1][1] = 0
         return out
-    data = fn.external_source(source = get_data)
+    data = fn.external_source(source=get_data)
     processed, _ = fn.nonsilent_region(data)
     pipe.set_outputs(processed)
     pipe.build()
@@ -249,22 +321,22 @@ def test_nonsilent_region_cpu():
 
 test_audio_data_shape = [200]
 def get_audio_data():
-    out = [np.random.ranf(size = test_audio_data_shape).astype(dtype = np.float32) for _ in range(batch_size)]
+    out = [np.random.ranf(size=test_audio_data_shape).astype(dtype=np.float32) for _ in range(batch_size)]
     return out
 
 def test_preemphasis_filter_cpu():
-    check_single_input(fn.preemphasis_filter, get_data = get_audio_data, input_layout = None)
+    check_single_input(fn.preemphasis_filter, get_data=get_audio_data, input_layout=None)
 
 def test_power_spectrum_cpu():
-    check_single_input(fn.power_spectrum, get_data = get_audio_data, input_layout = None)
+    check_single_input(fn.power_spectrum, get_data=get_audio_data, input_layout=None)
 
 def test_spectrogram_cpu():
-    check_single_input(fn.spectrogram, get_data = get_audio_data, input_layout = None, nfft = 60, window_length = 50, window_step = 25)
+    check_single_input(fn.spectrogram, get_data=get_audio_data, input_layout=None, nfft=60, window_length=50, window_step=25)
 
 def test_mel_filter_bank_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    data = fn.external_source(source = get_audio_data)
-    spectrum = fn.spectrogram(data, nfft = 60, window_length = 50, window_step = 25)
+    data = fn.external_source(source=get_audio_data)
+    spectrum = fn.spectrogram(data, nfft=60, window_length=50, window_step=25)
     processed = fn.mel_filter_bank(spectrum)
     pipe.set_outputs(processed)
     pipe.build()
@@ -272,12 +344,12 @@ def test_mel_filter_bank_cpu():
         pipe.run()
 
 def test_to_decibels_cpu():
-    check_single_input(fn.to_decibels, get_data = get_audio_data, input_layout = None)
+    check_single_input(fn.to_decibels, get_data=get_audio_data, input_layout=None)
 
 def test_mfcc_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    data = fn.external_source(source = get_audio_data)
-    spectrum = fn.spectrogram(data, nfft = 60, window_length = 50, window_step = 25)
+    data = fn.external_source(source=get_audio_data)
+    spectrum = fn.spectrogram(data, nfft=60, window_length=50, window_step=25)
     mel = fn.mel_filter_bank(spectrum)
     dec = fn.to_decibels(mel)
     processed = fn.mfcc(dec)
@@ -287,29 +359,29 @@ def test_mfcc_cpu():
         pipe.run()
 
 def test_fast_resize_crop_mirror_cpu():
-    check_single_input(fn.fast_resize_crop_mirror, crop = [5, 5], resize_shorter = 10)
+    check_single_input(fn.fast_resize_crop_mirror, crop=[5, 5], resize_shorter=10)
 
 def test_resize_crop_mirror_cpu():
-    check_single_input(fn.resize_crop_mirror, crop = [5, 5], resize_shorter = 10)
+    check_single_input(fn.resize_crop_mirror, crop=[5, 5], resize_shorter=10)
 
 def test_normal_distribution_cpu():
-    check_no_input(fn.random.normal, shape = [5, 5])
+    check_no_input(fn.random.normal, shape=[5, 5])
 
 def test_one_hot_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_data_shape = [200]
     def get_data():
-        out = [np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        out = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
         return out
-    data = fn.external_source(source = get_data)
-    processed = fn.one_hot(data, num_classes = 256)
+    data = fn.external_source(source=get_data)
+    processed = fn.one_hot(data, num_classes=256)
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
         pipe.run()
 
 def test_transpose_cpu():
-    check_single_input(fn.transpose, perm  = [2, 0, 1])
+    check_single_input(fn.transpose, perm=[2, 0, 1])
 
 def test_audio_decoder_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
@@ -321,65 +393,47 @@ def test_audio_decoder_cpu():
         pipe.run()
 
 def test_coord_flip_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_data_shape = [200, 2]
     def get_data():
-        out = [(np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
+        out = [(np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
         return out
-    data = fn.external_source(source = get_data)
-    processed = fn.coord_flip(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.coord_flip, get_data=get_data, input_layout=None)
 
 def test_bb_flip_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_data_shape = [200, 4]
     def get_data():
-        out = [(np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
+        out = [(np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
         return out
-    data = fn.external_source(source = get_data)
-    processed = fn.bb_flip(data)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.bb_flip, get_data=get_data, input_layout=None)
 
 def test_warp_affine_cpu():
     warp_matrix = (0.1, 0.9, 10, 0.8, -0.2, -20)
-    check_single_input(fn.warp_affine, matrix = warp_matrix)
+    check_single_input(fn.warp_affine, matrix=warp_matrix)
 
 def test_normalize_cpu():
-    check_single_input(fn.normalize, batch  = True)
+    check_single_input(fn.normalize, batch=True)
 
 def test_lookup_table_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_data_shape = [100]
     def get_data():
-        out = [np.random.randint(0, 5, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        out = [np.random.randint(0, 5, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
         return out
-    data = fn.external_source(source = get_data)
-    processed = fn.lookup_table(data, keys = [1, 3], values = [10, 50])
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.lookup_table, keys=[1, 3], values=[10, 50], get_data=get_data, input_layout=None)
 
 def test_slice_cpu():
     anch_shape = [2]
     def get_anchors():
-        out = [(np.random.randint(1, 256, size = anch_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
+        out = [(np.random.randint(1, 256, size=anch_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
         return out
     def get_shape():
-        out = [(np.random.randint(1, 256, size = anch_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
+        out = [(np.random.randint(1, 256, size=anch_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
         return out
 
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    anchors = fn.external_source(source = get_anchors)
-    shape = fn.external_source(source = get_shape)
-    processed = fn.slice(data, anchors, shape, out_of_bounds_policy = "pad")
+    data = fn.external_source(source=get_data, layout="HWC")
+    anchors = fn.external_source(source=get_anchors)
+    shape = fn.external_source(source=get_shape)
+    processed = fn.slice(data, anchors, shape, out_of_bounds_policy="pad")
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
@@ -388,16 +442,16 @@ def test_slice_cpu():
 def test_image_decoder_slice_cpu():
     anch_shape = [2]
     def get_anchors():
-        out = [(np.random.randint(1, 128, size = anch_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
+        out = [(np.random.randint(1, 128, size=anch_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
         return out
     def get_shape():
-        out = [(np.random.randint(1, 128, size = anch_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
+        out = [(np.random.randint(1, 128, size=anch_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
         return out
 
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    anchors = fn.external_source(source = get_anchors)
-    shape = fn.external_source(source = get_shape)
+    anchors = fn.external_source(source=get_anchors)
+    shape = fn.external_source(source=get_shape)
     processed = fn.decoders.image_slice(input, anchors, shape)
     pipe.set_outputs(processed)
     pipe.build()
@@ -408,10 +462,10 @@ def test_pad_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_data_shape = [5, 4, 3]
     def get_data():
-        out = [np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        out = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
         return out
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = fn.pad(data, fill_value = -1, axes = (0,), shape = (10,) )
+    data = fn.external_source(source=get_data, layout="HWC")
+    processed = fn.pad(data, fill_value=-1, axes=(0,), shape=(10,) )
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
@@ -419,23 +473,22 @@ def test_pad_cpu():
 
 def test_mxnet_reader_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    out, _ = fn.readers.mxnet(path = os.path.join(recordio_dir, "train.rec"),
-                              index_path = os.path.join(recordio_dir, "train.idx"),
+    out, _ = fn.readers.mxnet(path=os.path.join(recordio_dir, "train.rec"),
+                              index_path=os.path.join(recordio_dir, "train.idx"),
                               shard_id=0, num_shards=1)
-    pipe.set_outputs(out)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_no_input(fn.readers.mxnet, path=os.path.join(recordio_dir, "train.rec"),
+                   index_path=os.path.join(recordio_dir, "train.idx"),
+                   shard_id=0, num_shards=1)
 
 def test_tfrecord_reader_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     tfrecord = sorted(glob.glob(os.path.join(tfrecord_dir, '*[!i][!d][!x]')))
     tfrecord_idx = sorted(glob.glob(os.path.join(tfrecord_dir, '*idx')))
-    input = fn.readers.tfrecord(path = tfrecord,
-                                index_path = tfrecord_idx,
+    input = fn.readers.tfrecord(path=tfrecord,
+                                index_path=tfrecord_idx,
                                 shard_id=0, num_shards=1,
-                                features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
-                                            "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
+                                features={"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
+                                          "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
     out = input["image/encoded"]
     pipe.set_outputs(out)
     pipe.build()
@@ -443,52 +496,85 @@ def test_tfrecord_reader_cpu():
         pipe.run()
 
 def test_coco_reader_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    out, _, _ = fn.readers.coco(file_root=coco_dir, annotations_file=coco_annotation, shard_id=0, num_shards=1)
-    pipe.set_outputs(out)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_no_input(fn.readers.coco, file_root=coco_dir, annotations_file=coco_annotation, shard_id=0, num_shards=1)
 
 def test_caffe_reader_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    out, _ = fn.readers.caffe(path = caffe_dir, shard_id=0, num_shards=1)
-    pipe.set_outputs(out)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_no_input(fn.readers.caffe, path=caffe_dir, shard_id=0, num_shards=1)
 
 def test_caffe2_reader_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    out, _ = fn.readers.caffe2(path = caffe2_dir, shard_id=0, num_shards=1)
-    pipe.set_outputs(out)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_no_input(fn.readers.caffe2, path=caffe2_dir, shard_id=0, num_shards=1)
+
+def test_nemo_asr_reader_cpu():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        def create_manifest_file(manifest_file, names, lengths, rates, texts):
+            assert(len(names) == len(lengths) == len(rates) == len(texts))
+            data = []
+            for idx in range(len(names)):
+                entry_i = {}
+                entry_i['audio_filepath'] = names[idx]
+                entry_i['duration'] = lengths[idx] * (1.0 / rates[idx])
+                entry_i["text"] = texts[idx]
+                data.append(entry_i)
+            with open(manifest_file, 'w') as f:
+                for entry in data:
+                    json.dump(entry, f)
+                    f.write('\n')
+        nemo_asr_manifest = os.path.join(tmp_dir, "nemo_asr_manifest.json")
+        names = [
+            os.path.join(tmp_dir, "dali_test_1C.wav"),
+            os.path.join(tmp_dir, "dali_test_2C.wav"),
+            os.path.join(tmp_dir, "dali_test_4C.wav")
+        ]
+
+        freqs = [
+            np.array([0.02]),
+            np.array([0.01, 0.012]),
+            np.array([0.01, 0.012, 0.013, 0.014])
+        ]
+        rates = [ 22050, 22050, 12347 ]
+        lengths = [ 10000, 54321, 12345 ]
+
+        def create_ref():
+            ref = []
+            for i in range(len(names)):
+                wave = generate_waveforms(lengths[i], freqs[i])
+                wave = (wave * 32767).round().astype(np.int16)
+                ref.append(wave)
+            return ref
+
+        ref_i = create_ref()
+
+        def create_wav_files():
+            for i in range(len(names)):
+                scipy.io.wavfile.write(names[i], rates[i], ref_i[i])
+
+        create_wav_files()
+
+        ref_text_literal = [
+            "dali test 1C",
+            "dali test 2C",
+            "dali test 4C",
+        ]
+        nemo_asr_manifest = os.path.join(tmp_dir, "nemo_asr_manifest.json")
+        create_manifest_file(nemo_asr_manifest, names, lengths, rates, ref_text_literal)
+
+        fixed_seed = 1234
+        check_no_input(fn.readers.nemo_asr, manifest_filepaths=[nemo_asr_manifest], dtype=types.INT16, downmix=False,
+                                            read_sample_rate=True, read_text=True, seed=fixed_seed)
 
 def test_copy_cpu():
     check_single_input(fn.copy)
 
 def test_element_extract_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    test_data_shape = [5, 10, 20, 3]
-    def get_data():
-        out = [np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
-        return out
-    data = fn.external_source(source = get_data, layout = "FHWC")
-    processed, _ = fn.element_extract(data, element_map=[0, 3])
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.element_extract, element_map=[0, 3], input_layout=None)
 
 def test_bbox_paste_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_data_shape = [200, 4]
     def get_data():
-        out = [(np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
+        out = [(np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
         return out
-    data = fn.external_source(source = get_data)
+    data = fn.external_source(source=get_data)
     paste_posx = fn.random.uniform(range=(0, 1))
     paste_posy = fn.random.uniform(range=(0, 1))
     paste_ratio = fn.random.uniform(range=(1, 2))
@@ -502,14 +588,14 @@ def test_random_bbox_crop_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_box_shape = [200, 4]
     def get_boxes():
-        out = [(np.random.randint(0, 255, size = test_box_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
+        out = [(np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
         return out
     test_lables_shape = [200, 1]
     def get_lables():
-        out = [np.random.randint(0, 255, size = test_lables_shape, dtype = np.int32) for _ in range(batch_size)]
+        out = [np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32) for _ in range(batch_size)]
         return out
-    boxes = fn.external_source(source = get_boxes)
-    lables = fn.external_source(source = get_lables)
+    boxes = fn.external_source(source=get_boxes)
+    lables = fn.external_source(source=get_lables)
     processed, _, _, _ = fn.random_bbox_crop(boxes, lables,
                                              aspect_ratio=[0.5, 2.0],
                                              thresholds=[0.1, 0.3, 0.5],
@@ -524,15 +610,15 @@ def test_ssd_random_crop_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_box_shape = [200, 4]
     def get_boxes():
-        out = [(np.random.randint(0, 255, size = test_box_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
+        out = [(np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
         return out
     test_lables_shape = [200]
     def get_lables():
-        out = [np.random.randint(0, 255, size = test_lables_shape, dtype = np.int32) for _ in range(batch_size)]
+        out = [np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32) for _ in range(batch_size)]
         return out
-    data = fn.external_source(source = get_data)
-    boxes = fn.external_source(source = get_boxes)
-    lables = fn.external_source(source = get_lables)
+    data = fn.external_source(source=get_data)
+    boxes = fn.external_source(source=get_boxes)
+    lables = fn.external_source(source=get_lables)
     processed, _, _ = fn.ssd_random_crop(data, boxes, lables)
     pipe.set_outputs(processed)
     pipe.build()
@@ -540,17 +626,11 @@ def test_ssd_random_crop_cpu():
         pipe.run()
 
 def test_sequence_rearrange_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_data_shape = [5, 10, 20, 3]
     def get_data():
-        out = [np.random.randint(0, 255, size = test_data_shape, dtype = np.uint8) for _ in range(batch_size)]
+        out = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
         return out
-    data = fn.external_source(source = get_data, layout = "FHWC")
-    processed = fn.sequence_rearrange(data, new_order = [0, 4, 1, 3, 2])
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.sequence_rearrange, new_order=[0, 4, 1, 3, 2], get_data=get_data, input_layout="FHWC")
 
 def test_box_encoder_cpu():
     def coco_anchors():
@@ -605,14 +685,14 @@ def test_box_encoder_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_box_shape = [20, 4]
     def get_boxes():
-        out = [(np.random.randint(0, 255, size = test_box_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
+        out = [(np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
         return out
     test_lables_shape = [20, 1]
     def get_lables():
-        out = [np.random.randint(0, 255, size = test_lables_shape, dtype = np.int32) for _ in range(batch_size)]
+        out = [np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32) for _ in range(batch_size)]
         return out
-    boxes = fn.external_source(source = get_boxes)
-    lables = fn.external_source(source = get_lables)
+    boxes = fn.external_source(source=get_boxes)
+    lables = fn.external_source(source=get_lables)
     processed, _ = fn.box_encoder(boxes, lables, anchors=coco_anchors())
     pipe.set_outputs(processed)
     pipe.build()
@@ -637,25 +717,14 @@ def test_numpy_reader_cpu():
             filenames.append(filename)
             create_numpy_file(filename, (5, 2, 8), np.float32, False)
 
-        pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-        processed = fn.readers.numpy(file_root = test_data_root)
-        pipe.set_outputs(processed)
-        pipe.build()
-        for _ in range(3):
-            pipe.run()
+        check_no_input(fn.readers.numpy, file_root=test_data_root)
 
 def test_python_function_cpu():
     def resize(image):
         return np.array(Image.fromarray(image).resize((50, 10)))
 
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None, exec_async=False, exec_pipelined=False)
-    with pipe:
-        data = fn.external_source(source = get_data, layout = "HWC")
-        processed = fn.python_function(data, function=resize)
-        pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.python_function, function=resize, exec_async=False, exec_pipelined=False)
 
 def test_constant_cpu():
     check_no_input(fn.constant, fdata = (1.25,2.5,3))
@@ -664,12 +733,7 @@ def test_dump_image_cpu():
     check_single_input(fn.dump_image)
 
 def test_sequence_reader_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    processed = fn.readers.sequence(file_root=sequence_dir, sequence_length=2, shard_id=0, num_shards=1)
-    pipe.set_outputs(processed)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_no_input(fn.readers.sequence, file_root=sequence_dir, sequence_length=2, shard_id=0, num_shards=1)
 
 def test_affine_translate_cpu():
     check_no_input(fn.transforms.translation, offset=(2, 3))
@@ -713,7 +777,7 @@ def test_segmentation_select_masks():
         return lambda: make_batch_select_masks(*args, **kwargs)
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None, seed=1234)
     with pipe:
-        polygons, vertices, selected_masks = fn.external_source(
+        polygons, vertices, selected_masks=fn.external_source(
             num_outputs = 3, device='cpu',
             source = get_data_source(batch_size, vertex_ndim=2, npolygons_range=(1, 5),
                                      nvertices_range=(3, 10))
@@ -737,7 +801,7 @@ def test_reduce_root_mean_square_cpu():
 
 def test_reduce_std_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    data = fn.external_source(source = get_data)
+    data = fn.external_source(source=get_data)
     mean = fn.reductions.mean(data)
     reduced = fn.reductions.std_dev(data, mean)
     pipe.set_outputs(reduced)
@@ -747,15 +811,59 @@ def test_reduce_std_cpu():
 
 def test_reduce_variance_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    data = fn.external_source(source = get_data)
+    data = fn.external_source(source=get_data)
     mean = fn.reductions.mean(data)
     reduced = fn.reductions.variance(data, mean)
     pipe.set_outputs(reduced)
 
 def test_arithm_ops_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = [data * 2, data + 2, data - 2, data / 2, data // 2]
+    data = fn.external_source(source=get_data, layout="HWC")
+    processed = [data * 2,
+                 data + 2,
+                 data - 2,
+                 data / 2,
+                 data // 2,
+                 data ** 2,
+                 data == 2,
+                 data != 2,
+                 data < 2,
+                 data <= 2,
+                 data > 2,
+                 data >= 2,
+                 data & 2,
+                 data | 2,
+                 data ^ 2,
+                 dmath.abs(data),
+                 dmath.fabs(data),
+                 dmath.floor(data),
+                 dmath.ceil(data),
+                 dmath.pow(data, 2),
+                 dmath.fpow(data, 1.5),
+                 dmath.min(data, 2),
+                 dmath.max(data, 50),
+                 dmath.clamp(data, 10, 50),
+                 dmath.sqrt(data),
+                 dmath.rsqrt(data),
+                 dmath.cbrt(data),
+                 dmath.exp(data),
+                 dmath.exp(data),
+                 dmath.log(data),
+                 dmath.log2(data),
+                 dmath.log10(data),
+                 dmath.sin(data),
+                 dmath.cos(data),
+                 dmath.tan(data),
+                 dmath.asin(data),
+                 dmath.acos(data),
+                 dmath.atan(data),
+                 dmath.atan2(data, 3),
+                 dmath.sinh(data),
+                 dmath.cosh(data),
+                 dmath.tanh(data),
+                 dmath.asinh(data),
+                 dmath.acosh(data),
+                 dmath.atanh(data)]
     pipe.set_outputs(*processed)
     pipe.build()
     for _ in range(3):
@@ -763,31 +871,39 @@ def test_arithm_ops_cpu():
 
 def test_arithm_ops_cpu_gpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    processed = [data * data.gpu(), data + data.gpu(), data - data.gpu(), data / data.gpu(), data // data.gpu()]
+    data = fn.external_source(source=get_data, layout="HWC")
+    processed = [data * data.gpu(),
+                 data + data.gpu(),
+                 data - data.gpu(),
+                 data / data.gpu(),
+                 data // data.gpu(),
+                 data ** data.gpu(),
+                 data == data.gpu(),
+                 data != data.gpu(),
+                 data < data.gpu(),
+                 data <= data.gpu(),
+                 data > data.gpu(),
+                 data >= data.gpu(),
+                 data & data.gpu(),
+                 data | data.gpu(),
+                 data ^ data.gpu()]
     pipe.set_outputs(*processed)
     assert_raises(RuntimeError, pipe.build)
 
 def test_pytorch_plugin_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
-    outs = fn.external_source(source = get_data, layout = "HWC")
+    outs = fn.external_source(source=get_data, layout="HWC")
     pipe.set_outputs(outs)
     pii = pytorch.DALIGenericIterator([pipe], ["data"])
 
 def test_random_mask_pixel_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    pixel_pos = fn.segmentation.random_mask_pixel(data)
-    pipe.set_outputs(pixel_pos)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+    check_single_input(fn.segmentation.random_mask_pixel)
 
 def test_cat_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    data2 = fn.external_source(source = get_data, layout = "HWC")
-    data3 = fn.external_source(source = get_data, layout = "HWC")
+    data = fn.external_source(source=get_data, layout="HWC")
+    data2 = fn.external_source(source=get_data, layout="HWC")
+    data3 = fn.external_source(source=get_data, layout="HWC")
     pixel_pos = fn.cat(data, data2, data3)
     pipe.set_outputs(pixel_pos)
     pipe.build()
@@ -796,22 +912,48 @@ def test_cat_cpu():
 
 def test_stack_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
-    data = fn.external_source(source = get_data, layout = "HWC")
-    data2 = fn.external_source(source = get_data, layout = "HWC")
-    data3 = fn.external_source(source = get_data, layout = "HWC")
+    data = fn.external_source(source=get_data, layout="HWC")
+    data2 = fn.external_source(source=get_data, layout="HWC")
+    data3 = fn.external_source(source=get_data, layout="HWC")
     pixel_pos = fn.stack(data, data2, data3)
     pipe.set_outputs(pixel_pos)
     pipe.build()
     for _ in range(3):
         pipe.run()
 
+def test_batch_permute_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    data = fn.external_source(source=get_data, layout="HWC")
+    perm = fn.batch_permutation(seed=420)
+    processed = fn.permute_batch(data, indices=perm)
+    pipe.set_outputs(processed)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
+def test_squeeze_cpu():
+    test_data_shape = [10, 20, 3, 1, 1]
+    def get_data():
+        out = [np.zeros(shape=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
+        return out
+    check_single_input(fn.squeeze, axis_names="YZ", get_data=get_data, input_layout="HWCYZ")
+
+def test_peek_image_shape_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
+    input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
+    shapes = fn.peek_image_shape(input)
+    pipe.set_outputs(shapes)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
 def test_separated_exec_setup():
     batch_size = 128
-    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None, prefetch_queue_depth = {"cpu_size": 5, "gpu_size": 3})
-    inputs, labels = fn.readers.caffe(path = caffe_dir, shard_id = 0, num_shards = 1)
-    images = fn.decoders.image(inputs, output_type = types.RGB)
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None, prefetch_queue_depth={"cpu_size": 5, "gpu_size": 3})
+    inputs, labels = fn.readers.caffe(path=caffe_dir, shard_id=0, num_shards=1)
+    images = fn.decoders.image(inputs, output_type=types.RGB)
     images = fn.resize(images, resize_x=224, resize_y=224)
-    images_cpu = fn.dump_image(images, suffix = "cpu")
+    images_cpu = fn.dump_image(images, suffix="cpu")
     pipe.set_outputs(images, images_cpu)
 
     pipe.build()
@@ -865,6 +1007,8 @@ tested_methods = [
     "caffe_reader",
     "caffe2_reader",
     "coco_reader",
+    "nemo_asr_reader",
+    "readers.nemo_asr",
     "readers.file",
     "readers.sequence",
     "readers.tfrecord",
@@ -899,6 +1043,8 @@ tested_methods = [
     "flip",
     "jpeg_compression_distortion",
     "noise.shot",
+    "noise.gaussian",
+    "noise.salt_and_pepper",
     "reshape",
     "reinterpret",
     "water",
@@ -935,26 +1081,16 @@ tested_methods = [
     "element_extract",
     "arithmetic_generic_op",
     "box_encoder",
-    "pytorch.DALIGenericIterator",
-]
-
-excluded_methods = [
-    "readers.nemo_asr",
-    "roi_random_crop",
-    "squeeze",
-    "jitter",
     "permute_batch",
-    "peek_image_shape",
     "batch_permutation",
+    "squeeze",
+    "peek_image_shape",
     "expand_dims",
-    "noise.gaussian",
-    "grid_mask",
-    "nemo_asr_reader",
     "coord_transform",
+    "grid_mask",
     "multi_paste",
+    "roi_random_crop",
     "segmentation.random_object_bbox",
-    "noise.salt_and_pepper",
-    "dl_tensor_python_function",
     "math.ceil",
     "math.clamp",
     "math.tanh",
@@ -984,8 +1120,12 @@ excluded_methods = [
     "math.fpow",
     "math.acosh",
     "math.min",
-    "pytorch.TorchPythonFunction",
     "numba.fn.experimental.numba_function",
+    "dl_tensor_python_function",
+]
+
+excluded_methods = [
+    "jitter",               # not supported for CPU
     "hidden.arithmetic_generic_op", #internal
     "hidden.transform_translation", #internal
     "video_reader",         # not supported for CPU
@@ -996,8 +1136,8 @@ excluded_methods = [
 ]
 
 def test_coverage():
-    methods = module_functions(fn, remove_prefix = "nvidia.dali.fn")
-    methods += module_functions(dmath, remove_prefix = "nvidia.dali")
+    methods = module_functions(fn, remove_prefix="nvidia.dali.fn")
+    methods += module_functions(dmath, remove_prefix="nvidia.dali")
     covered = tested_methods + excluded_methods
     # we are fine with covering more we can easily list, like numba
     assert set(methods).difference(set(covered)) == set(), "Test doesn't cover:\n {}".format(set(methods) - set(covered))
