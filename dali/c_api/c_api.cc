@@ -543,6 +543,21 @@ void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_n
   meta->stick_to_shard = returned_meta.stick_to_shard;
 }
 
+dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle, const char *name) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  auto *node = pipeline->GetOperatorNode(name);
+  switch (node->op_type) {
+    case dali::OpType::GPU:
+      return dali_backend_t::DALI_BACKEND_GPU;
+    case dali::OpType::CPU:
+      return dali_backend_t::DALI_BACKEND_CPU;
+    case dali::OpType::MIXED:
+      return dali_backend_t::DALI_BACKEND_MIXED;
+    default:
+      DALI_FAIL("Invalid operator type.");
+  }
+}
+
 void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle, daliExecutorMetadata **operator_meta,
                              size_t *operator_meta_num) {
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);

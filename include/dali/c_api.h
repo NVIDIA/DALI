@@ -43,6 +43,12 @@ typedef enum {
 } device_type_t;
 
 typedef enum {
+  DALI_BACKEND_GPU = 0,
+  DALI_BACKEND_CPU = 1,
+  DALI_BACKEND_MIXED = 2
+} dali_backend_t;
+
+typedef enum {
   DALI_NO_TYPE  = -1,
   DALI_UINT8    =  0,
   DALI_UINT16   =  1,
@@ -407,6 +413,14 @@ DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
  */
 DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
                                       daliReaderMetadata* meta);
+
+/**
+ * @brief Returns the backend of the operator with a given \p name
+ * @param name Name of the operator to query
+ */
+DLL_PUBLIC dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle,
+                                                 const char *name);
+
 /**
  * @brief Obtains the executor statistics
  *  @param operator_meta Pointer to the memory allocated by the function with operator_meta_num
