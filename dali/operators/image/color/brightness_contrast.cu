@@ -25,6 +25,8 @@ using TheKernel = kernels::MultiplyAddGpu<Out, In, 3>;
 }  // namespace
 
 DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrastGpu, GPU)
+DALI_REGISTER_OPERATOR(Brightness, BrightnessContrastGpu, GPU);
+DALI_REGISTER_OPERATOR(Contrast, BrightnessContrastGpu, GPU);
 
 
 bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,

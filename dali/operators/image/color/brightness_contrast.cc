@@ -24,18 +24,8 @@ using TheKernel = kernels::MultiplyAddCpu<Out, In, 3>;
 }  // namespace
 
 
-DALI_SCHEMA(BrightnessContrast)
-    .DocStr(R"code(Adjusts the brightness and contrast of the images based on the following
-formula::
-
-  out = brightness_shift * output_range + brightness * (grey + contrast * (in - grey))
-
-Where:
-
--	The output_range is 1 for float outputs or the maximum positive value for integral types.
--	Grey denotes the value of 0.5 for ``float``, 128 for ``uint8``, and 16384 for ``int16``, and so on.
-
-This operator can also change the type of data.)code")
+DALI_SCHEMA(Brightness)
+    .DocStr(R"code(Changes the brightness of the image.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("brightness",
@@ -46,6 +36,15 @@ This operator can also change the type of data.)code")
 For signed types, 1.0 represents the maximum positive value that can be represented by
 the type.)code",
                     0.0f, true)
+    .AddOptionalArg("dtype",
+                    R"code(Output data type.
+
+If not set, the input type is used.)code", DALI_NO_TYPE);
+
+DALI_SCHEMA(Contrast)
+    .DocStr(R"code(Changes the color contrast of the image.)code")
+    .NumInput(1)
+    .NumOutput(1)
     .AddOptionalArg("contrast", R"code(The contrast multiplier, where 0.0 produces
 the uniform grey.)code",
                     1.0f, true)
@@ -59,7 +58,26 @@ the half of the input type's positive range (or 0.5 for ``float``) is used.)code
 
 If not set, the input type is used.)code", DALI_NO_TYPE);
 
+DALI_SCHEMA(BrightnessContrast)
+    .AddParent("Brightness")
+    .AddParent("Contrast")
+    .DocStr(R"code(Adjusts the brightness and contrast of the images based on the following
+formula::
+
+  out = brightness_shift * output_range + brightness * (grey + contrast * (in - grey))
+
+Where:
+
+-	The output_range is 1 for float outputs or the maximum positive value for integral types.
+-	Grey denotes the value of 0.5 for ``float``, 128 for ``uint8``, and 16384 for ``int16``, and so on.
+
+This operator can also change the type of data.)code")
+    .NumInput(1)
+    .NumOutput(1);
+
 DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrastCpu, CPU)
+DALI_REGISTER_OPERATOR(Brightness, BrightnessContrastCpu, CPU);
+DALI_REGISTER_OPERATOR(Contrast, BrightnessContrastCpu, CPU);
 
 
 bool BrightnessContrastCpu::SetupImpl(std::vector<OutputDesc> &output_desc,

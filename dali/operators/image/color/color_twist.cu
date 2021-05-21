@@ -25,8 +25,6 @@ using TheKernel = kernels::LinearTransformationGpu<Out, In, 3, 3, 2>;
 }  // namespace
 
 DALI_REGISTER_OPERATOR(Hsv, ColorTwistGpu, GPU)
-DALI_REGISTER_OPERATOR(Brightness, ColorTwistGpu, GPU);
-DALI_REGISTER_OPERATOR(Contrast, ColorTwistGpu, GPU);
 DALI_REGISTER_OPERATOR(Hue, ColorTwistGpu, GPU);
 DALI_REGISTER_OPERATOR(Saturation, ColorTwistGpu, GPU);
 DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistGpu, GPU);

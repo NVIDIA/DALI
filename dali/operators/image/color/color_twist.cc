@@ -65,41 +65,6 @@ DALI_SCHEMA(ColorTransformBase)
 If not set, the input type is used.)code",
                     DALI_UINT8);
 
-DALI_SCHEMA(Brightness)
-    .DocStr(R"code(Changes the brightness of the image.)code")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddOptionalArg("brightness",
-                    R"code(Brightness change factor.
-
-Values must be non-negative.
-
-Example values:
-
-* `0` - Black image.
-* `1` - No change.
-* `2` - Increase brightness twice.
-)code", 1.f, true)
-    .AddParent("ColorTransformBase")
-    .InputLayout(0, "HWC");
-
-DALI_SCHEMA(Contrast)
-    .DocStr(R"code(Changes the color contrast of the image.)code")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddOptionalArg("contrast",
-                    R"code(Contrast change factor.
-
-Values must be non-negative.
-
-Example values:
-
-* `0` - Uniform grey image.
-* `1` - No change.
-* `2` - Increase brightness twice.
-)code", 1.f, true)
-    .AddParent("ColorTransformBase");
-
 DALI_SCHEMA(Hue)
     .DocStr(R"code(Changes the hue level of the image.)code")
     .NumInput(1)
@@ -169,8 +134,6 @@ Example values:
 
 
 DALI_REGISTER_OPERATOR(Hsv, ColorTwistCpu, CPU)
-DALI_REGISTER_OPERATOR(Brightness, ColorTwistCpu, CPU);
-DALI_REGISTER_OPERATOR(Contrast, ColorTwistCpu, CPU);
 DALI_REGISTER_OPERATOR(Hue, ColorTwistCpu, CPU);
 DALI_REGISTER_OPERATOR(Saturation, ColorTwistCpu, CPU);
 DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistCpu, CPU);
