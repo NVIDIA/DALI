@@ -14,6 +14,8 @@
 
 import nvidia.dali
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
+from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.types as types
 import test_utils
 import numpy as np
@@ -26,6 +28,7 @@ import os
 audio_files = test_utils.get_files('db/audio/wav', 'wav')
 audio_files = [file for file in audio_files if '237-134500' in file]  # Filtering librispeech samples
 npy_files = [os.path.splitext(fpath)[0] + '.npy' for fpath in audio_files]
+npy_files_sr = 16000
 
 # From DeepLearningExamples
 def _convert_samples_to_float32(samples):
@@ -43,6 +46,14 @@ def _convert_samples_to_float32(samples):
         raise TypeError("Unsupported sample type: %s." % samples.dtype)
     return float32_samples
 
+torch_windows = {
+    'hann': torch.hann_window,
+    'hamming': torch.hamming_window,
+    'blackman': torch.blackman_window,
+    'bartlett': torch.bartlett_window,
+    'none': None,
+}
+
 class FilterbankFeatures():
     def __init__(self, sample_rate=8000, window_size=0.02, window_stride=0.01,
                  window="hann", normalize="per_feature", n_fft=None,
@@ -51,15 +62,6 @@ class FilterbankFeatures():
                  pad_to=8,
                  max_duration=16.7,
                  frame_splicing=1):
-
-        torch_windows = {
-            'hann': torch.hann_window,
-            'hamming': torch.hamming_window,
-            'blackman': torch.blackman_window,
-            'bartlett': torch.bartlett_window,
-            'none': None,
-        }
-
         self.win_length = int(sample_rate * window_size)  # frame size
         self.hop_length = int(sample_rate * window_stride)
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
@@ -80,8 +82,6 @@ class FilterbankFeatures():
                                 fmax=highfreq), dtype=torch.float).unsqueeze(0)
         self.fb = filterbanks
         self.window = window_tensor
-        # self.register_buffer("fb", filterbanks)
-        # self.register_buffer("window", window_tensor)
         # Calculate maximum sequence length (# frames)
         max_length = 1 + math.ceil(
             (max_duration * sample_rate - self.win_length) / self.hop_length
@@ -173,6 +173,183 @@ class FilterbankFeatures():
 
         return x.to(dtype)
 
+def dali_run(pipe, device):
+    pipe.build()
+    outs = pipe.run()
+    return np.array(outs[0][0].as_cpu() if device == 'gpu' else outs[0][0])
+
+def win_args(sample_rate, window_size_sec, window_stride_sec):
+    win_length = int(sample_rate * window_size_sec)  # frame size
+    hop_length = int(sample_rate * window_stride_sec)
+    return win_length, hop_length
+
+def torch_spectrogram(audio, sample_rate, device='cpu',
+                      window_size=0.02, window_stride=0.01,
+                      center=True, pad_mode='reflect',
+                      window="hann", n_fft=None):
+    audio = torch.tensor(audio, dtype=torch.float32)
+    if device == 'gpu':
+        audio = audio.cuda()
+    win_length, hop_length = win_args(sample_rate, window_size, window_stride)
+    n_fft = n_fft or 2 ** math.ceil(math.log2(win_length))
+    window_fn = torch_windows.get(window, None)
+    window_tensor = window_fn(win_length, periodic=False) if window_fn else None
+    stft_out = torch.stft(audio, n_fft=n_fft, hop_length=hop_length,
+                          win_length=win_length, pad_mode=pad_mode,
+                          center=center, window=window_tensor.to(dtype=torch.float))
+    # get power spectrum
+    spectrogram = stft_out.pow(2).sum(-1)
+    spectrogram = spectrogram.cpu().detach().numpy()
+    return spectrogram
+
+def dali_spectrogram(audio_data, sample_rate, device='cpu',
+                     window_size=0.02, window_stride=0.01,
+                     center=True, pad_mode='reflect',
+                     window="hann", n_fft=None):
+    win_length, hop_length = win_args(sample_rate, window_size, window_stride)
+    n_fft = n_fft or 2 ** math.ceil(math.log2(win_length))
+    window_fn = torch_windows.get(window, None)
+    window_tensor = window_fn(win_length, periodic=False) if window_fn else None
+    reflect_padding = 'reflect' == pad_mode
+    @pipeline_def(batch_size=1, device_id=0, num_threads=3)
+    def spectrogram_pipe():
+        audio = fn.external_source(lambda: audio_data, device=device, batch=False)
+        spectrogram = fn.spectrogram(audio, device=device, nfft=n_fft, reflect_padding=reflect_padding,
+                                     center_windows=center, window_length=win_length, window_step=hop_length)
+        return spectrogram
+    return dali_run(spectrogram_pipe(), device=device)
+
+def _testimpl_torch_vs_dali_spectrogram(device, pad_mode='reflect', center=True):
+    arr = _convert_samples_to_float32(np.load(npy_files[0]))
+    torch_out = torch_spectrogram(arr, npy_files_sr, pad_mode=pad_mode, center=center, device=device)
+    dali_out = dali_spectrogram(arr, npy_files_sr, pad_mode=pad_mode, center=center, device=device)
+    np.testing.assert_allclose(torch_out, dali_out, atol=0.01, rtol=0.07)
+
+def test_torch_vs_dali_spectrogram():
+    for device in ['cpu', 'gpu']:
+        yield _testimpl_torch_vs_dali_spectrogram, device
+
+def torch_mel_fbank(spectrogram, sample_rate, device='cpu',
+                    window_size=0.02, window_stride=0.01,
+                    nfilt=64, lowfreq=0, highfreq=None,
+                    n_fft=None):
+    spectrogram = torch.tensor(spectrogram, dtype=torch.float32)
+    if device == 'gpu':
+        spectrogram = spectrogram.cuda()
+    win_length, hop_length = win_args(sample_rate, window_size, window_stride)
+    n_fft = n_fft or 2 ** math.ceil(math.log2(win_length))
+    filterbanks = torch.tensor(
+        librosa.filters.mel(sample_rate, n_fft, n_mels=nfilt, fmin=lowfreq,
+                            fmax=highfreq), dtype=torch.float)
+    if device == 'gpu':
+        filterbanks = filterbanks.cuda()
+    mel_spectrogram = torch.matmul(filterbanks.to(spectrogram.dtype), spectrogram)
+    mel_spectrogram = mel_spectrogram.cpu().detach().numpy()
+    return mel_spectrogram
+
+def dali_mel_fbank(spectrogram_data, sample_rate, device='cpu',
+                   window_size=0.02, window_stride=0.01,
+                   nfilt=64, lowfreq=0, highfreq=None,
+                   n_fft=None):
+    win_length, hop_length = win_args(sample_rate, window_size, window_stride)
+    @pipeline_def(batch_size=1, device_id=0, num_threads=3)
+    def mel_fbank_pipe():
+        spectrogram = fn.external_source(lambda: spectrogram_data, device=device, batch=False)
+        mel_spectrogram = fn.mel_filter_bank(spectrogram, sample_rate=sample_rate, nfilter=nfilt,
+                                             normalize=True, freq_low=lowfreq, freq_high=highfreq)
+        return mel_spectrogram
+    return dali_run(mel_fbank_pipe(), device=device)
+
+def _testimpl_torch_vs_dali_mel_fbank(device):
+    arr = _convert_samples_to_float32(np.load(npy_files[0]))
+    spec = torch_spectrogram(arr, npy_files_sr, device=device)
+    torch_out = torch_mel_fbank(spec, npy_files_sr, device=device)
+    dali_out = dali_mel_fbank(spec, npy_files_sr, device=device)
+    np.testing.assert_allclose(torch_out, dali_out, atol=0.0001)
+
+def test_torch_vs_dali_mel_fbank():
+    for device in ['cpu', 'gpu']:
+        yield _testimpl_torch_vs_dali_mel_fbank, device
+
+def torch_log(x, device='cpu'):
+    x = torch.tensor(x, dtype=torch.float32)
+    if device == 'gpu':
+        x = x.cuda()
+    log_x = torch.log(x + 1e-20)
+    log_x = log_x.cpu().detach().numpy()
+    return log_x
+
+def dali_log(x_data, device='cpu'):
+    @pipeline_def(batch_size=1, device_id=0, num_threads=3)
+    def log_pipe():
+        x = fn.external_source(lambda: x_data, device=device, batch=False)
+        log_x = fn.to_decibels(x, multiplier=np.log(10), reference=1.0, cutoff_db=-80)
+        return log_x
+    return dali_run(log_pipe(), device=device)
+
+def _testimpl_torch_vs_dali_log(device):
+    arr = _convert_samples_to_float32(np.load(npy_files[0]))
+    spec = torch_spectrogram(arr, npy_files_sr, device=device)
+    mel_spec = torch_mel_fbank(spec, npy_files_sr, device=device)
+    torch_out = torch_log(mel_spec, device=device)
+    dali_out = dali_log(mel_spec, device=device)
+    np.testing.assert_allclose(torch_out, dali_out, atol=1e-5)
+
+def torch_preemphasis(x, preemph, device='cpu'):
+    x = torch.tensor(x, dtype=torch.float32)
+    if device == 'gpu':
+        x = x.cuda()
+    y = torch.cat((x[0].unsqueeze(0), x[1:] - preemph * x[:-1]), dim=0)
+    y = y.cpu().detach().numpy()
+    return y
+
+def dali_preemphasis(x_data, preemph, device='cpu'):
+    @pipeline_def(batch_size=1, device_id=0, num_threads=3)
+    def preemph_pipe():
+        x = fn.external_source(lambda: x_data, device=device, batch=False)
+        y = fn.preemphasis_filter(x, preemph_coeff=preemph)
+        return y
+    return dali_run(preemph_pipe(), device=device)
+
+def _testimpl_torch_vs_dali_preemphasis(device):
+    arr = _convert_samples_to_float32(np.load(npy_files[0]))
+    torch_out = torch_preemphasis(arr, 0.97, device=device)
+    dali_out = dali_preemphasis(arr, 0.97, device=device)
+    # DALI and torch differ in the first element:
+    # DALI: y[0] = x[0] - coeff * x[0]
+    # Torch: y[0] = x[0]
+    np.testing.assert_allclose(torch_out[1:], dali_out[1:], atol=1e-5)
+
+def test_torch_vs_dali_preemphasis():
+    for device in ['cpu', 'gpu']:
+        yield _testimpl_torch_vs_dali_preemphasis, device
+
+
+def torch_normalize(mel_spec, normalize_type, device='cpu'):
+    mel_spec = torch.tensor(mel_spec, dtype=torch.float32).unsqueeze()
+    seq_len = torch.tensor(mel_spec.shape[1])
+    if device == 'gpu':
+        mel_spec = mel_spec.cuda()
+    out = FilterbankFeatures().normalize_batch(
+        mel_spec, seq_len, normalize_type=normalize_type)
+    out = out.cpu().detach().numpy()
+    return out
+
+def dali_normalize(mel_spec_data, normalize_type, device='cpu'):
+    @pipeline_def(batch_size=1, device_id=0, num_threads=3)
+    def log_pipe():
+        data = fn.external_source(lambda: mel_spec_data, device=device, batch=False)
+        out = fn.normalize(data, axes=[1], device=device)
+        return out
+    return dali_run(log_pipe(), device=device)
+
+def _testimpl_torch_vs_dali_log(device):
+    arr = _convert_samples_to_float32(np.load(npy_files[0]))
+    spec = torch_spectrogram(arr, npy_files_sr, device=device)
+    mel_spec = torch_mel_fbank(spec, npy_files_sr, device=device)
+    torch_out = torch_log(mel_spec, device=device)
+    dali_out = dali_log(mel_spec, device=device)
+    np.testing.assert_allclose(torch_out, dali_out, atol=1e-5)
 
 class RnntTrainPipeline(nvidia.dali.Pipeline):
     def __init__(self,
@@ -201,8 +378,6 @@ class RnntTrainPipeline(nvidia.dali.Pipeline):
                                      shard_id=device_id, num_shards=n_devices)
 
         self.decode = ops.decoders.Audio(device="cpu", dtype=types.FLOAT, downmix=True)
-
-        self.normal_distribution = ops.random.Normal(device="cpu")
 
         self.preemph = ops.PreemphasisFilter(preemph_coeff=preemph_coeff)
 
@@ -256,9 +431,9 @@ class RnntTrainPipeline(nvidia.dali.Pipeline):
 
     def define_graph(self):
         input, label = self.read()
-        decoded, sr = self.decode(input)
+        audio, sr = self.decode(input)
 
-        audio = self.remove_silence(decoded)
+        audio = self.remove_silence(audio)
 
         # DALI's preemph works a little bit different than the one in native code.
         # The difference occurs in first value in buffer.
@@ -266,23 +441,20 @@ class RnntTrainPipeline(nvidia.dali.Pipeline):
 
         audio = self.spectrogram(audio)
         audio = self.mel_fbank(audio)
-        audio = self.log_features(audio)
+        audio = self.log_features(audio + 1e-20)
         audio, audio_sh = self._splice_frames(audio)
 
-        # This normalization goes across ax=0, since
+        # This normalization goes across axis 0, since
         # the frame splicing doesn't transpose the tensor back
         audio = self.normalize(audio)
 
         return audio, audio_sh
 
-
+# Test compares pre-calculated output of native data pipeline with an output
+# from DALI data pipeline. There are few modification of native data pipeline
+# comparing to the reference: random operations (i.e. dither and presampling
+# aka "speed perturbation") are turned off
 def test_rnnt_data_pipeline():
-    """
-    Test compares pre-calculated output of native data pipeline with an output
-    from DALI data pipeline. There are few modification of native data pipeline
-    comparing to the reference: random operations (i.e. dither and presampling
-    aka "speed perturbation") are turned off
-    """
     ref_pipeline = FilterbankFeatures(sample_rate=16000, n_fft=512, highfreq=.0, dither=.00001,
                                       frame_splicing=3)
     recordings = []
@@ -307,7 +479,7 @@ def test_rnnt_data_pipeline():
         nfeatures = reference_data[sample_idx].shape[1]
         assert nfeatures == output_data.shape[0]
         size = nfeatures * audio_len
-        ref = reference_data[sample_idx][:, :, :]
+        ref = reference_data[sample_idx][0, :, :]
         out = output_data[:, :]
         assert np.sum(np.isclose(ref, out, atol=.1, rtol=0)) / size > .9, \
             f"{np.sum(np.isclose(ref, out, atol=.1, rtol=0)) / size}"
