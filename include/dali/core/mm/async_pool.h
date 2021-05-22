@@ -44,7 +44,7 @@ class async_pool_resource : public async_memory_resource<kind> {
    *                       using upstream.
    */
   explicit async_pool_resource(Upstream *upstream, bool avoid_upstream = true)
-  : global_pool_(upstream), avoid_upstream_(avoid_upstream) {
+  : global_pool_(upstream, global_pool_options()), avoid_upstream_(avoid_upstream) {
   }
   ~async_pool_resource() {
     try {
@@ -92,11 +92,15 @@ class async_pool_resource : public async_memory_resource<kind> {
   }
 
   void do_deallocate(void *mem, size_t bytes, size_t alignment) override {
+    if (!mem || !bytes)
+      return;
     adjust_size_and_alignment(bytes, alignment);
+    sync_scope sync = default_sync_scope<kind>();
+    mm::detail::synchronize(sync);
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char *>(mem);
     pop_block_padding(ptr, bytes, alignment);
-    return global_pool_.deallocate(ptr, bytes, alignment);
+    global_pool_.deallocate(ptr, bytes, alignment);
   }
 
   /**
@@ -364,7 +368,7 @@ class async_pool_resource : public async_memory_resource<kind> {
   void free_ready(PerStreamFreeBlocks &free) {
     auto *f = find_first_ready(free);
     while (f) {
-      global_pool_.deallocate(f->addr, f->bytes, f->alignment);
+      global_pool_.deallocate_no_sync(f->addr, f->bytes, f->alignment);
       f = remove_pending_free(free, f);
     }
   }
@@ -524,7 +528,11 @@ class async_pool_resource : public async_memory_resource<kind> {
    */
   static constexpr bool supports_splitting = detail::can_merge<FreeList>::value;
 
-  pool_resource_base<kind, any_context, FreeList, detail::dummy_lock> global_pool_;
+  static constexpr pool_options global_pool_options() {
+    return default_pool_opts<kind>();
+  }
+
+  deferred_dealloc_pool<kind, any_context, FreeList, spinlock> global_pool_;
 
   int num_pending_frees_ = 0;
   bool avoid_upstream_ = true;

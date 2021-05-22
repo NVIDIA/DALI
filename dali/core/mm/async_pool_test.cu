@@ -188,7 +188,6 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
       if (stream) {
         pool.deallocate_async(blk.ptr, blk.size, sv);
       } else {
-        CUDA_CALL(cudaStreamSynchronize(stream));
         pool.deallocate(blk.ptr, blk.size);
       }
     }
@@ -275,7 +274,8 @@ TEST(MMAsyncPool, MultiStreamRandomWithGPUHogs) {
 
     for (int t = 0; t < 10; t++) {
       threads.push_back(std::thread([&]() {
-        CUDAStream stream = CUDAStream::Create(true);
+        // 0-th thread uses null stream, which triggers non-async API usage
+        CUDAStream stream = t ? CUDAStream::Create(true) : CUDAStream();
         vector<block> blocks;
         detail::dummy_lock mtx;
         AsyncPoolTest(pool, blocks, mtx, stream, 20000, true);
