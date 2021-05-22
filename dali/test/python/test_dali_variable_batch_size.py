@@ -22,7 +22,10 @@ import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.math as dmath
+from segmentation_test_utils import make_batch_select_masks
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
+import torch.utils.dlpack as torch_dlpack
+import nvidia.dali.plugin.pytorch as pytorch
 import numpy as np
 import test_utils
 import inspect
@@ -30,6 +33,9 @@ import os
 import math
 import random
 import sys
+from collections.abc import Iterable
+from math import ceil, sqrt
+import nose
 
 """
 How to test variable (iter-to-iter) batch size for a given op?
@@ -58,6 +64,26 @@ common cases:
    whether the operator works, without qualitative comparison. Use `run_pipeline`
    instead of `check_pipeline`.
 """
+
+
+is_of_supported_var = None
+def is_of_supported(device_id=0):
+    global is_of_supported_var
+    if is_of_supported_var is not None:
+        return is_of_supported_var
+
+    compute_cap = 0
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+        compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
+        compute_cap = compute_cap[0] + compute_cap[1] / 10.
+    except ModuleNotFoundError:
+        pass
+
+    is_gds_supported_var = compute_cap >= 7.5
+    return is_gds_supported_var
 
 
 def generate_data(max_batch_size, n_iter, sample_shape, lo=0., hi=1., dtype=np.float32):
@@ -98,13 +124,22 @@ def generate_data(max_batch_size, n_iter, sample_shape, lo=0., hi=1., dtype=np.f
 
 
 def single_op_pipeline(max_batch_size, input_data, device, *, input_layout=None,
-                       operator_fn=None, **opfn_args):
+                       operator_fn=None, needs_input=True, **opfn_args):
     pipe = Pipeline(batch_size=max_batch_size, num_threads=1, device_id=0)
     with pipe:
         input = fn.external_source(source=input_data, cycle=False, device=device,
                                    layout=input_layout)
-        output = input if operator_fn is None else operator_fn(input, device=device, **opfn_args)
-        pipe.set_outputs(output)
+        if operator_fn is None:
+            output = input
+        else:
+            if needs_input:
+                output = operator_fn(input, **opfn_args)
+            else:
+                output = operator_fn(**opfn_args)
+        if needs_input:
+            pipe.set_outputs(output)
+        else:
+            pipe.set_outputs(output, input)
     return pipe
 
 
@@ -123,9 +158,19 @@ def run_pipeline(input_epoch, pipeline_fn, *, devices: list = ['cpu', 'gpu'], **
     :param devices: Devices to run the check on
     :param pipeline_fn_args: Additional args to pipeline_fn
     """
+    def get_batch_size(batch):
+        if isinstance(batch, Iterable) and not types._is_numpy_array(batch):
+            input = batch[0]
+            if isinstance(input, Iterable) and not types._is_numpy_array(batch):
+                return len(input)
+            else:
+                return input.shape[0]
+        else:
+            return batch.shape[0]
+
     for device in devices:
         n_iter = len(input_epoch)
-        max_bs = max(batch.shape[0] for batch in input_epoch)
+        max_bs = max(get_batch_size(batch) for batch in input_epoch)
         var_pipe = pipeline_fn(max_bs, input_epoch, device, **pipeline_fn_args)
         var_pipe.build()
         for _ in range(n_iter):
@@ -139,9 +184,10 @@ def check_pipeline(input_epoch, pipeline_fn, *, devices: list = ['cpu', 'gpu'], 
 
     This function conducts qualitative verification. It compares the result of
     running multiple iterations of the same pipeline (with possible varying batch sizes,
-    accoring to `input_epoch`) with results of the ad-hoc created pipelines per iteration
+    according to `input_epoch`) with results of the ad-hoc created pipelines per iteration
 
-    :param input_epoch: List of numpy arrays, where every item is a single batch
+    :param input_epoch: List where every item is numpy arrays or list of numpy arrays,
+                        and each item is a single batch of
     :param pipeline_fn: Function, that returns created (but not built) pipeline.
                         Its signature should be (at least):
                         pipeline_fn(max_batch_size, input_data, device, ...)
@@ -149,15 +195,25 @@ def check_pipeline(input_epoch, pipeline_fn, *, devices: list = ['cpu', 'gpu'], 
     :param eps: Epsilon for mean error
     :param pipeline_fn_args: Additional args to pipeline_fn
     """
+    def get_batch_size(batch):
+        if isinstance(batch, Iterable) and not types._is_numpy_array(batch):
+            input = batch[0]
+            if isinstance(input, Iterable) and not types._is_numpy_array(batch):
+                return len(input)
+            else:
+                return input.shape[0]
+        else:
+            return batch.shape[0]
+
     for device in devices:
         n_iter = len(input_epoch)
-        max_bs = max(batch.shape[0] for batch in input_epoch)
+        max_bs = max(get_batch_size(batch) for batch in input_epoch)
         var_pipe = pipeline_fn(max_bs, input_epoch, device, **pipeline_fn_args)
         var_pipe.build()
 
         for iter_idx in range(n_iter):
             iter_input = input_epoch[iter_idx]
-            batch_size = iter_input.shape[0]
+            batch_size = get_batch_size(iter_input)
 
             const_pipe = pipeline_fn(batch_size, [iter_input], device, **pipeline_fn_args)
             const_pipe.build()
@@ -240,10 +296,19 @@ ops_image_default_args = [
     fn.water,
 ]
 
-
 def test_ops_image_default_args():
     for op in ops_image_default_args:
         yield image_data_helper, op, {}
+
+
+
+def numba_set_all_values_to_255_batch(out0, in0):
+    out0[0][:] = 255
+
+
+def numba_setup_out_shape(out_shape, in_shape):
+    out_shape = in_shape
+
 
 ops_image_custom_args = [
     (fn.cast, {'dtype': types.INT32}),
@@ -263,6 +328,12 @@ ops_image_custom_args = [
     (fn.rotate, {'angle': 25}),
     (fn.transpose, {'perm': [2, 0, 1]}),
     (fn.warp_affine, {'matrix': (.1, .9, 10, .8, -.2, -20)}),
+    (fn.expand_dims, {'axes': 1, 'new_axis_names': "Z"}),
+    (fn.grid_mask, {'tile': 51, 'ratio': 0.38158387, 'angle': 2.6810782}),
+    (numba_function, {'run_fn': numba_set_all_values_to_255_batch, 'out_types': [types.UINT8],
+                      'in_types': [types.UINT8], 'outs_ndim': [3], 'ins_ndim': [3],
+                      'setup_fn': numba_setup_out_shape, 'batch_processing': True, 'devices': ['cpu']}),
+    # (fn.multi_paste, {'in_ids': np.random.randint(31, size=31), 'output_size': [300, 300, 3]})
 ]
 
 def test_ops_image_custom_args():
@@ -289,6 +360,8 @@ random_ops = [
     (fn.noise.gaussian, {}),
     (fn.noise.shot, {}),
     (fn.noise.salt_and_pepper, {}),
+    (fn.segmentation.random_mask_pixel, {'devices': ['cpu']}),
+    (fn.roi_random_crop, {'crop_shape': [10, 15, 3], 'roi_start': [25, 20, 0], 'roi_shape': [40, 30, 3], 'devices': ['cpu']})
 ]
 
 def test_random_ops():
@@ -372,18 +445,286 @@ def test_random_normal():
     run_pipeline(generate_data(31, 13, image_like_shape_generator), pipeline_fn=pipe_input)
     run_pipeline(generate_data(31, 13, image_like_shape_generator), pipeline_fn=pipe_no_input)
 
-def test_constant():
+
+def no_input_op_helper(operator_fn, opfn_args={}):
+    check_pipeline(
+        generate_data(31, 13, image_like_shape_generator, lo=0, hi=255, dtype=np.uint8),
+        pipeline_fn=single_op_pipeline, input_layout="HWC", operator_fn=operator_fn, needs_input=False, **opfn_args)
+
+
+no_input_ops = [
+    (fn.constant, {'fdata': 3.1415, 'shape': (10, 10)}),
+    (fn.transforms.translation, {'offset': (2, 3), 'devices': ['cpu']}),
+    (fn.transforms.scale, {'scale': (2, 3), 'devices': ['cpu']}),
+    (fn.transforms.rotation, {'angle': 30.0, 'devices': ['cpu']}),
+    (fn.transforms.shear, {'shear': (2., 1.), 'devices': ['cpu']}),
+    (fn.transforms.crop, {'from_start': (0., 1.), 'from_end': (1., 1.), 'to_start': (0.2, 0.3), 'to_end': (0.8, 0.5), 'devices': ['cpu']}),
+]
+
+
+def test_no_input_ops():
+    for op, args in no_input_ops:
+        yield no_input_op_helper, op, args
+
+
+def test_combine_transforms():
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
-        # just to drive the variable batch size.
-        batch_size_setter = fn.external_source(source=input_data, cycle=False, device=device)
-        data = fn.constant(fdata=3.1415, shape=(10, 10), device=device)
-        pipe.set_outputs(data, batch_size_setter)
+        with pipe:
+            # just to drive the variable batch size.
+            batch_size_setter = fn.external_source(source=input_data, cycle=False, device=device)
+            t = fn.transforms.translation(offset=(1, 2))
+            r = fn.transforms.rotation(angle=30.0)
+            s = fn.transforms.scale(scale=(2, 3))
+            out = fn.transforms.combine(t, r, s)
+        pipe.set_outputs(out, batch_size_setter)
         return pipe
 
     check_pipeline(
         generate_data(31, 13, custom_shape_generator(2, 4), lo=1, hi=255, dtype=np.uint8),
-        pipeline_fn=pipe)
+        pipeline_fn=pipe, devices=['cpu'])
+
+
+def test_dl_tensor_python_function():
+    def dl_tensor_operation(tensor):
+        tensor = torch_dlpack.from_dlpack(tensor)
+        tensor_n = tensor.double() / 255
+        ret = tensor_n.sin()
+        ret = torch_dlpack.to_dlpack(ret)
+        return ret
+
+    def batch_dl_tensor_operation(tensors):
+        out = [dl_tensor_operation(t) for t in tensors]
+        return out
+
+    def pipe(max_batch_size, input_data, device, input_layout=None):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0,
+                        exec_async=False, exec_pipelined=False)
+        with pipe:
+            input = fn.external_source(source=input_data, cycle=False, device=device,
+                                       layout=input_layout)
+            output = fn.dl_tensor_python_function(input, function=batch_dl_tensor_operation, batch_processing=True)
+            pipe.set_outputs(output, input)
+        return pipe
+
+    check_pipeline(generate_data(31, 13, image_like_shape_generator, lo=0, hi=255, dtype=np.uint8),
+                   pipeline_fn=pipe, devices=['cpu'])
+
+def test_random_object_bbox():
+    def pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        with pipe:
+            # just to drive the variable batch size.
+            data = fn.external_source(source=input_data, batch=False, cycle="quiet", device=device)
+            out = fn.segmentation.random_object_bbox(data)
+        pipe.set_outputs(*out)
+        return pipe
+
+    get_data = [
+        np.int32([[1, 0, 0, 0],
+                [1, 2, 2, 1],
+                [1, 1, 2, 0],
+                [2, 0, 0, 1]]),
+
+        np.int32([[0, 3, 3, 0],
+                [1, 0, 1, 2],
+                [0, 1, 1, 0],
+                [0, 2, 0, 1],
+                [0, 2, 2, 1]])
+    ]
+    run_pipeline(get_data, pipeline_fn=pipe, devices=['cpu'])
+
+def test_math_ops():
+    def pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        with pipe:
+            # just to drive the variable batch size.
+            data = fn.external_source(source=input_data, cycle=False, device=device)
+            processed = [data * 2,
+                 data + 2,
+                 data - 2,
+                 data / 2,
+                 data // 2,
+                 data ** 2,
+                 # compare_pipelines doesn't work well with bool so promote to int by *
+                 (data == 2) * 3,
+                 (data != 2) * 3,
+                 (data < 2) * 3,
+                 (data <= 2) * 3,
+                 (data > 2) * 3,
+                 (data >= 2) * 3,
+                 data & 2,
+                 data | 2,
+                 data ^ 2,
+                 dmath.abs(data),
+                 dmath.fabs(data),
+                 dmath.floor(data),
+                 dmath.ceil(data),
+                 dmath.pow(data, 2),
+                 dmath.fpow(data, 1.5),
+                 dmath.min(data, 2),
+                 dmath.max(data, 50),
+                 dmath.clamp(data, 10, 50),
+                 dmath.sqrt(data),
+                 dmath.rsqrt(data),
+                 dmath.cbrt(data),
+                 dmath.exp(data),
+                 dmath.exp(data),
+                 dmath.log(data),
+                 dmath.log2(data),
+                 dmath.log10(data),
+                 dmath.sin(data),
+                 dmath.cos(data),
+                 dmath.tan(data),
+                 dmath.asin(data),
+                 dmath.acos(data),
+                 dmath.atan(data),
+                 dmath.atan2(data, 3),
+                 dmath.sinh(data),
+                 dmath.cosh(data),
+                 dmath.tanh(data),
+                 dmath.asinh(data),
+                 dmath.acosh(data),
+                 dmath.atanh(data)]
+        pipe.set_outputs(*processed)
+        return pipe
+
+    check_pipeline(generate_data(31, 13, image_like_shape_generator, lo=0, hi=255, dtype=np.uint8),
+                   pipeline_fn=pipe)
+
+
+def test_squeeze_op():
+    def pipe(max_batch_size, input_data, device, input_layout=None):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        with pipe:
+            # just to drive the variable batch size.
+            data = fn.external_source(source=input_data, cycle=False, device=device, layout=input_layout)
+            out = fn.expand_dims(data, axes=[0, 2], new_axis_names="YZ")
+            out = fn.squeeze(out, axis_names="Z")
+        pipe.set_outputs(out)
+        return pipe
+
+    check_pipeline(generate_data(31, 13, image_like_shape_generator, lo=0, hi=255, dtype=np.uint8),
+                   pipeline_fn=pipe, input_layout="HWC")
+
+
+def test_box_encoder_op():
+    def coco_anchors():
+        anchors = []
+
+        fig_size = 300
+        feat_sizes = [38, 19, 10, 5, 3, 1]
+        feat_count = len(feat_sizes)
+        steps = [8., 16., 32., 64., 100., 300.]
+        scales = [21., 45., 99., 153., 207., 261., 315.]
+        aspect_ratios = [[2], [2, 3], [2, 3], [2, 3], [2], [2]]
+
+        fks = []
+        for step in steps:
+            fks.append(fig_size / step)
+
+        anchor_idx = 0
+        for idx in range(feat_count):
+            sk1 = scales[idx] / fig_size
+            sk2 = scales[idx + 1] / fig_size
+            sk3 = sqrt(sk1 * sk2)
+
+            all_sizes = [[sk1, sk1], [sk3, sk3]]
+
+            for alpha in aspect_ratios[idx]:
+                w = sk1 * sqrt(alpha)
+                h = sk1 / sqrt(alpha)
+                all_sizes.append([w, h])
+                all_sizes.append([h, w])
+
+            for sizes in all_sizes:
+                w, h = sizes[0], sizes[1]
+
+                for i in range(feat_sizes[idx]):
+                    for j in range(feat_sizes[idx]):
+                        cx = (j + 0.5) / fks[idx]
+                        cy = (i + 0.5) / fks[idx]
+
+                        cx = max(min(cx, 1.), 0.)
+                        cy = max(min(cy, 1.), 0.)
+                        w = max(min(w, 1.), 0.)
+                        h = max(min(h, 1.), 0.)
+
+                        anchors.append(cx - 0.5 * w)
+                        anchors.append(cy - 0.5 * h)
+                        anchors.append(cx + 0.5 * w)
+                        anchors.append(cy + 0.5 * h)
+
+                        anchor_idx = anchor_idx + 1
+        return anchors
+
+    def pipe(max_batch_size, input_data, device, input_layout=None):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        with pipe:
+            boxes, lables = fn.external_source(device=device, source=input_data, num_outputs=2)
+            processed, _ = fn.box_encoder(boxes, lables, anchors=coco_anchors())
+        pipe.set_outputs(processed)
+        return pipe
+
+    def get_data(batch_size):
+        obj_num = random.randint(1, 20)
+        test_box_shape = [obj_num, 4]
+        test_lables_shape = [obj_num, 1]
+        bboxes = [(np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
+        labels = [np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32) for _ in range(batch_size)]
+        return [bboxes, labels]
+
+    input_data = [get_data(random.randint(5, 31)) for _ in range(13)]
+    check_pipeline(input_data, pipeline_fn=pipe, devices=["cpu"])
+
+
+def test_random_bbox_crop_op():
+    def pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        with pipe:
+            boxes, lables = fn.external_source(device=device, source=input_data, num_outputs=2)
+            processed = fn.random_bbox_crop(boxes, lables,
+                                             aspect_ratio=[0.5, 2.0],
+                                             thresholds=[0.1, 0.3, 0.5],
+                                             scaling=[0.8, 1.0],
+                                             bbox_layout="xyXY")
+        pipe.set_outputs(*processed)
+        return pipe
+
+    def get_data(batch_size):
+        obj_num = random.randint(1, 20)
+        test_box_shape = [obj_num, 4]
+        test_lables_shape = [obj_num, 1]
+        bboxes = [(np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
+        labels = [np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32) for _ in range(batch_size)]
+        return [bboxes, labels]
+
+    input_data = [get_data(random.randint(5, 31)) for _ in range(13)]
+    run_pipeline(input_data, pipeline_fn=pipe, devices=["cpu"])
+
+
+def test_ssd_random_crop_op():
+    def pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        with pipe:
+            data, boxes, lables = fn.external_source(device=device, source=input_data, num_outputs=3)
+            processed = fn.ssd_random_crop(data, boxes, lables)
+        pipe.set_outputs(*processed)
+        return pipe
+
+    def get_data(batch_size):
+        obj_num = random.randint(1, 20)
+        test_data_shape = [50, 20, 3]
+        test_box_shape = [obj_num, 4]
+        test_lables_shape = [obj_num]
+        data = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
+        bboxes = [(np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
+        labels = [np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32) for _ in range(batch_size)]
+        return [data, bboxes, labels]
+
+    input_data = [get_data(random.randint(5, 31)) for _ in range(13)]
+    run_pipeline(input_data, pipeline_fn=pipe, devices=["cpu"])
+
 
 def test_reshape():
     check_pipeline(generate_data(31, 13, (160, 80, 3), lo=0, hi=255, dtype=np.uint8),
@@ -471,25 +812,6 @@ def test_reduce():
 
     for rf in reduce_fns:
         check_pipeline(generate_data(31, 13, image_like_shape_generator), pipe, reduce_fn=rf)
-
-
-def test_arithm_ops():
-    def pipe(max_batch_size, input_data, device):
-        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
-        data = fn.external_source(source=input_data, cycle=False, device=device)
-        data = dali.math.clamp(data, 0.1, 0.9)
-        data = data * 2
-        dbl_data = data
-        data = data + 3
-        data = data - 4
-        data = data / 5
-        data = data // 6
-        data = -data
-        data = data + dbl_data
-        pipe.set_outputs(data)
-        return pipe
-
-    check_pipeline(generate_data(31, 13, custom_shape_generator(300, 400, 100, 200)), pipe)
 
 
 def test_sequence_rearrange():
@@ -697,6 +1019,43 @@ def test_reinterpret():
     check_pipeline(generate_data(31, 13, (5, 160, 80, 3), lo=0, hi=255, dtype=np.uint8),
                    pipeline_fn=pipe, input_layout="FHWC")
 
+def test_segmentation_select_masks():
+    def get_data_source(*args, **kwargs):
+        return lambda: make_batch_select_masks(*args, **kwargs)
+    def pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=None, seed=1234)
+        with pipe:
+            polygons, vertices, selected_masks=fn.external_source(
+                num_outputs=3, device=device, source=input_data
+            )
+            out_polygons, out_vertices = fn.segmentation.select_masks(
+                selected_masks, polygons, vertices, reindex_masks=False
+            )
+        pipe.set_outputs(polygons, vertices, selected_masks, out_polygons, out_vertices)
+        return pipe
+    input_data = [get_data_source(random.randint(5, 31), vertex_ndim=2, npolygons_range=(1, 5),
+                                        nvertices_range=(3, 10))() for _ in range(13)]
+    check_pipeline(input_data, pipeline_fn=pipe, devices=["cpu"])
+
+
+def test_optical_flow():
+    if not is_of_supported():
+        raise nose.SkipTest('Optial Flow is not supported on this platform')
+
+    def pipe(max_batch_size, input_data, device, input_layout=None):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        with pipe:
+            data = fn.external_source(device=device, source=input_data, cycle=False, layout=input_layout)
+            processed = fn.ops.OpticalFlow(data, device=device, output_format=4)
+        pipe.set_outputs(processed)
+        return pipe
+
+    check_pipeline(
+        generate_data(31, 13, custom_shape_generator(3, 7, 160, 200, 80, 100, 3, 3), lo=0, hi=255,
+                      dtype=np.uint8),
+        pipeline_fn=pipe, devices=["gpu"], input_layout="FHWC")
+
+
 tested_methods = [
     "audio_decoder",
     "image_decoder",
@@ -722,6 +1081,8 @@ tested_methods = [
     "hue",
     "jpeg_compression_distortion",
     "noise.shot",
+    "noise.salt_and_pepper",
+    "noise.gaussian",
     "old_color_twist",
     "reductions.mean",
     "reductions.mean_square",
@@ -790,31 +1151,15 @@ tested_methods = [
     "normal_distribution",
     "random.normal",
     "arithmetic_generic_op",
-]
-
-excluded_methods = [
     "segmentation.select_masks",
-    "segmentation.random_object_bbox",
-    "segmentation.random_mask_pixel",
-    "multi_paste",
-    "random_bbox_crop",
-    "noise.salt_and_pepper",
-    "noise.gaussian",
-    "box_encoder",
-    "optical_flow",
     "expand_dims",
-    "grid_mask",
-    "roi_random_crop",
-    "squeeze",
-    "ssd_random_crop",
     "transforms.rotation",
-    "transforms.combine",
     "transforms.shear",
     "transforms.crop",
     "transforms.scale",
     "transforms.translation",
     "transform_translation",
-    "dl_tensor_python_function",
+    "transforms.combine",
     "math.ceil",
     "math.clamp",
     "math.tanh",
@@ -844,7 +1189,21 @@ excluded_methods = [
     "math.fpow",
     "math.acosh",
     "math.min",
+    "grid_mask",
+    "segmentation.random_mask_pixel",
+    "segmentation.random_object_bbox",
+    "roi_random_crop",
+    "squeeze",
+    "box_encoder",
     "numba.fn.experimental.numba_function",
+    "dl_tensor_python_function",
+    "random_bbox_crop",
+    "ssd_random_crop",
+    "optical_flow",
+]
+
+excluded_methods = [
+    "multi_paste",              # ToDo - crashes
     "hidden.transform_translation", # intentional
     "hidden.arithmetic_generic_op", # intentional
     "coco_reader",              # readers do do not support variable batch size yet
