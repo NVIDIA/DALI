@@ -37,17 +37,10 @@ from absl import logging
 import numpy as np
 import PIL.Image
 
-from pycocotools import mask
 import tensorflow as tf
-from dataset import label_map_util
-from dataset import tfrecord_util
+import tfrecord_util
+import label_map_util
 
-flags.DEFINE_boolean(
-    "include_masks",
-    False,
-    "Whether to include instance segmentations masks "
-    "(PNG encoded) in the result. default: False.",
-)
 flags.DEFINE_string("image_dir", "", "Directory containing images.")
 flags.DEFINE_string(
     "image_info_file",
@@ -61,7 +54,7 @@ flags.DEFINE_string(
 flags.DEFINE_string(
     "object_annotations_file",
     "",
-    "File containing object " "annotations - boxes and instance masks.",
+    "File containing object " "annotations - boxes.",
 )
 flags.DEFINE_string(
     "caption_annotations_file", "", "File containing image " "captions."
@@ -78,7 +71,6 @@ def create_tf_example(
     bbox_annotations=None,
     category_index=None,
     caption_annotations=None,
-    include_masks=False,
 ):
     """Converts image and annotations to a tf.Example proto.
 
@@ -100,8 +92,6 @@ def create_tf_example(
         function.
       caption_annotations:
         list of dict with keys: [u'id', u'image_id', u'str'].
-      include_masks: Whether to include instance segmentations masks
-        (PNG encoded) in the result. default: False.
 
     Returns:
       example: The converted tf.Example
@@ -132,16 +122,16 @@ def create_tf_example(
     }
 
     num_annotations_skipped = 0
+    xmin = []
+    xmax = []
+    ymin = []
+    ymax = []
+    is_crowd = []
+    category_names = []
+    category_ids = []
+    area = []
+
     if bbox_annotations:
-        xmin = []
-        xmax = []
-        ymin = []
-        ymax = []
-        is_crowd = []
-        category_names = []
-        category_ids = []
-        area = []
-        encoded_mask_png = []
         for object_annotations in bbox_annotations:
             (x, y, width, height) = tuple(object_annotations["bbox"])
             if width <= 0 or height <= 0:
@@ -160,37 +150,23 @@ def create_tf_example(
             category_names.append(category_index[category_id]["name"].encode("utf8"))
             area.append(object_annotations["area"])
 
-            if include_masks:
-                run_len_encoding = mask.frPyObjects(
-                    object_annotations["segmentation"], image_height, image_width
-                )
-                binary_mask = mask.decode(run_len_encoding)
-                if not object_annotations["iscrowd"]:
-                    binary_mask = np.amax(binary_mask, axis=2)
-                pil_image = PIL.Image.fromarray(binary_mask)
-                output_io = io.BytesIO()
-                pil_image.save(output_io, format="PNG")
-                encoded_mask_png.append(output_io.getvalue())
-        feature_dict.update(
-            {
-                "image/object/bbox/xmin": tfrecord_util.float_list_feature(xmin),
-                "image/object/bbox/xmax": tfrecord_util.float_list_feature(xmax),
-                "image/object/bbox/ymin": tfrecord_util.float_list_feature(ymin),
-                "image/object/bbox/ymax": tfrecord_util.float_list_feature(ymax),
-                "image/object/class/text": tfrecord_util.bytes_list_feature(
-                    category_names
-                ),
-                "image/object/class/label": tfrecord_util.int64_list_feature(
-                    category_ids
-                ),
-                "image/object/is_crowd": tfrecord_util.int64_list_feature(is_crowd),
-                "image/object/area": tfrecord_util.float_list_feature(area),
-            }
-        )
-        if include_masks:
-            feature_dict["image/object/mask"] = tfrecord_util.bytes_list_feature(
-                encoded_mask_png
-            )
+    feature_dict.update(
+        {
+            "image/object/bbox/xmin": tfrecord_util.float_list_feature(xmin),
+            "image/object/bbox/xmax": tfrecord_util.float_list_feature(xmax),
+            "image/object/bbox/ymin": tfrecord_util.float_list_feature(ymin),
+            "image/object/bbox/ymax": tfrecord_util.float_list_feature(ymax),
+            "image/object/class/text": tfrecord_util.bytes_list_feature(
+                category_names
+            ),
+            "image/object/class/label": tfrecord_util.int64_list_feature(
+                category_ids
+            ),
+            "image/object/is_crowd": tfrecord_util.int64_list_feature(is_crowd),
+            "image/object/area": tfrecord_util.float_list_feature(area),
+        }
+    )
+
     if caption_annotations:
         captions = []
         for caption_annotation in caption_annotations:
@@ -268,7 +244,6 @@ def _create_tf_record_from_coco_annotations(
     num_shards,
     object_annotations_file=None,
     caption_annotations_file=None,
-    include_masks=False,
 ):
     """Loads COCO annotation json files and converts to tf.Record format.
 
@@ -284,8 +259,6 @@ def _create_tf_record_from_coco_annotations(
       num_shards: Number of output files to create.
       object_annotations_file: JSON file containing bounding box annotations.
       caption_annotations_file: JSON file containing caption annotations.
-      include_masks: Whether to include instance segmentations masks
-        (PNG encoded) in the result. default: False.
     """
 
     logging.info("writing to output path: %s", output_path)
@@ -329,7 +302,6 @@ def _create_tf_record_from_coco_annotations(
                     _get_object_annotation(image["id"]),
                     category_index,
                     _get_caption_annotation(image["id"]),
-                    include_masks,
                 )
                 for image in images
             ],
@@ -377,7 +349,6 @@ def main(_):
         FLAGS.num_shards,
         FLAGS.object_annotations_file,
         FLAGS.caption_annotations_file,
-        FLAGS.include_masks,
     )
 
 
