@@ -5,7 +5,6 @@ import tensorflow as tf
 import re
 import os
 
-from collections import namedtuple
 from enum import Enum
 
 import hparams_config
@@ -20,17 +19,13 @@ class PipelineType(Enum):
     dali_gpu = 3
 
 
-def dict_to_namedtuple(字典):
-    Arguments = namedtuple("Arguments", 字典.keys())
-    return Arguments._make(字典.values())
-
-
 def run_training(args):
     logging.set_verbosity(logging.WARNING)
 
-    args = dict_to_namedtuple(args)
+    args = utils.dict_to_namedtuple(args)
 
     eval_file_pattern = args.eval_file_pattern
+    eval_in_fit = True if eval_file_pattern else False
     if args.eval_after_training and not eval_file_pattern:
         eval_file_pattern = args.train_file_pattern
 
@@ -39,7 +34,10 @@ def run_training(args):
     config.image_size = utils.parse_image_size(config.image_size)
 
     params = dict(
-        config.as_dict(), seed=args.seed, train_batch_size=args.train_batch_size
+        config.as_dict(),
+        seed=args.seed,
+        train_batch_size=args.train_batch_size,
+        eval_batch_size=args.eval_batch_size,
     )
 
     logging.info(params)
@@ -51,6 +49,15 @@ def run_training(args):
         config_file = os.path.join(ckpt_dir, "config.yaml")
         if not tf.io.gfile.exists(config_file):
             tf.io.gfile.GFile(config_file, "w").write(str(config))
+
+    if params["seed"]:
+        seed = params["seed"]
+        os.environ["PYTHONHASHSEED"] = str(seed)
+        tf.random.set_seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+        os.environ["TF_DETERMINISTIC_OPS"] = "1"
+        os.environ["TF_CUDNN_DETERMINISTIC"] = "1"
 
     physical_devices = tf.config.list_physical_devices("GPU")
     for gpu_instance in physical_devices:
@@ -115,13 +122,17 @@ def run_training(args):
         )
 
         train_dataset = strategy.distribute_datasets_from_function(
-            partial(dali_dataset_fn, args.train_batch_size, args.train_file_pattern, True),
+            partial(
+                dali_dataset_fn, args.train_batch_size, args.train_file_pattern, True
+            ),
             input_options,
         )
 
         if eval_file_pattern:
             eval_dataset = strategy.distribute_datasets_from_function(
-                partial(dali_dataset_fn, args.eval_batch_size, eval_file_pattern, False),
+                partial(
+                    dali_dataset_fn, args.eval_batch_size, eval_file_pattern, False
+                ),
                 input_options,
             )
 
@@ -145,10 +156,8 @@ def run_training(args):
                     args.eval_batch_size,
                     eval_file_pattern,
                     is_training=False,
-                    cpu_only=cpu_only
+                    cpu_only=cpu_only,
                 ).get_dataset()
-
-    # TODO: decide if necessary -> params['nms_configs']['max_nms_inputs'] = anchors.MAX_DETECTION_POINTS
 
     with strategy.scope():
         model = efficientdet_train.EfficientDetTrain(params=params)
@@ -182,10 +191,24 @@ def run_training(args):
                     filepath=os.path.join(
                         ckpt_dir, "".join([args.model_name, ".{epoch:02d}.h5"])
                     ),
-                    save_freq="epoch",
                     save_weights_only=True,
                 )
             )
+
+        # if params["moving_average_decay"]:
+        #     from tensorflow_addons import (
+        #         callbacks as tfa_callbacks,
+        #     )  # pylint: disable=g-import-not-at-top
+
+        #     callbacks.append(
+        #         tfa_callbacks.AverageModelCheckpoint(
+        #             filepath=os.path.join(
+        #                 ckpt_dir, "".join([args.model_name, ".avg.{epoch:02d}.h5"])
+        #             ),
+        #             save_weights_only=True,
+        #             update_weights=False,
+        #         )
+        #     )
 
         if args.log_dir:
             log_dir = args.log_dir
@@ -201,14 +224,14 @@ def run_training(args):
             steps_per_epoch=args.train_steps,
             initial_epoch=initial_epoch,
             callbacks=callbacks,
-            validation_data=eval_dataset,
-            shuffle=True,
+            validation_data=eval_dataset if eval_in_fit else None,
             validation_steps=args.eval_steps,
             validation_freq=args.eval_freq,
         )
 
         if args.eval_after_training:
-            pass  # TODO: add eval
+            print("Evaluation after training:")
+            model.evaluate(eval_dataset, steps=args.eval_steps)
 
         model.save_weights(args.output)
 

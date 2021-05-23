@@ -20,6 +20,7 @@ from absl import logging
 import numpy as np
 import tensorflow.compat.v1 as tf
 import tensorflow.compat.v2 as tf2
+from collections import namedtuple
 from tensorflow.python.eager import (
     tape as tape_lib,
 )  # pylint:disable=g-direct-tensorflow-import
@@ -28,6 +29,11 @@ from tensorflow.python.tpu import (
 )  # pylint:disable=g-direct-tensorflow-import
 
 # pylint: disable=logging-format-interpolation
+
+
+def dict_to_namedtuple(字典):
+    NamedTuple = namedtuple("NamedTuple", 字典.keys())
+    return NamedTuple._make(字典.values())
 
 
 def srelu_fn(x):
