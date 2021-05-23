@@ -72,12 +72,16 @@ class EfficientDetPipeline:
                 h = dali.fn.slice(input_shape, 0, 1, axes=[0])
 
                 ratio = 0.4
-                angle = dali.fn.random.normal(mean=-1, stddev=1) * 10.0 * (math.pi / 180.0)
+                angle = (
+                    dali.fn.random.normal(mean=-1, stddev=1) * 10.0 * (math.pi / 180.0)
+                )
                 l = dali.math.min(0.5 * h, 0.3 * w)
                 r = dali.math.max(0.5 * h, 0.3 * w)
                 tile = dali.fn.random.uniform(range=[0.0, 1.0]) * (r - l) + l
                 tile = dali.fn.cast(tile, dtype=dali.types.INT32)
-                gridmask = dali.fn.grid_mask(images, ratio=ratio, angle=angle, tile=tile)
+                gridmask = dali.fn.grid_mask(
+                    images, ratio=ratio, angle=angle, tile=tile
+                )
 
                 p = dali.fn.random.coin_flip()
                 images = images * (1 - p) + gridmask * p
@@ -103,11 +107,9 @@ class EfficientDetPipeline:
             enc_classes -= 1
 
             # convert to tlbr
-            enc_bboxes = dali.fn.coord_transform(enc_bboxes, M=[
-                0, 1, 0, 0,
-                1, 0, 0, 0,
-                0, 0, 0, 1,
-                0, 0, 1, 0])
+            enc_bboxes = dali.fn.coord_transform(
+                enc_bboxes, M=[0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
+            )
 
             # split into layers by size
             enc_bboxes_layers, enc_classes_layers = self._unpack_labels(
@@ -163,7 +165,7 @@ class EfficientDetPipeline:
     def get_dataset(self):
         output_shapes = [
             (self._batch_size, self._image_size[0], self._image_size[1], 3),
-            (self._batch_size,)
+            (self._batch_size,),
         ]
         output_dtypes = [tf.float32, tf.float32]
 

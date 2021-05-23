@@ -289,9 +289,9 @@ class InputReader:
             boxes = data["groundtruth_boxes"]
             classes = data["groundtruth_classes"]
             classes = tf.reshape(tf.cast(classes, dtype=tf.float32), [-1, 1])
+            # classes = tf.reshape(tf.cast(classes, dtype=tf.float32), [-1, 1])
             areas = data["groundtruth_area"]
             is_crowds = data["groundtruth_is_crowd"]
-            classes = tf.reshape(tf.cast(classes, dtype=tf.float32), [-1, 1])
 
             if self._is_training:
                 # Training time preprocessing.
@@ -413,8 +413,8 @@ class InputReader:
         dataset = tf.data.Dataset.list_files(
             self._file_pattern, shuffle=self._is_training, seed=seed
         )
-        # if self._is_training:
-        #    dataset = dataset.repeat()
+
+        dataset = dataset.repeat()
 
         # Prefetch data from files.
         def _prefetch_dataset(filename):

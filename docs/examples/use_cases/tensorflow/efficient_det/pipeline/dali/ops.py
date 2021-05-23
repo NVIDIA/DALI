@@ -34,7 +34,9 @@ def input(
             "image/object/area": dali.tfrecord.VarLenFeature(
                 dali.tfrecord.float32, 0.0
             ),
-            #'image/object/is_crowd': dali.tfrecord.VarLenFeature(dali.tfrecord.int64, 0)
+            "image/object/is_crowd": dali.tfrecord.VarLenFeature(
+                dali.tfrecord.int64, 0
+            ),
         },
         shard_id=shard_id,
         num_shards=num_shards,
@@ -110,6 +112,7 @@ def random_crop_resize_2(
         ),
         bbox_layout="xyXY",
         allow_no_crop=False,
+        total_num_attempts=64,
     )
     anchors = dali.fn.cast(anchors, dtype=dali.types.INT32)
     shapes = dali.fn.cast(shapes, dtype=dali.types.INT32)
