@@ -26,6 +26,7 @@ struct SampleDescriptor {
   OutputType *out;
   float coeff;
   int64_t size;
+  bool reflect_padding = true;
 };
 
 template <typename OutputType, typename InputType>
@@ -39,7 +40,8 @@ void __global__ PreemphasisFilterKernel(const SampleDescriptor<OutputType, Input
   if (k >= sample.size)
     return;
 
-  sample.out[k] = sample.in[k] - sample.coeff * sample.in[cuda_max(0l, k-1)];
+  InputType in_prev = sample.reflect_padding ? sample.in[cuda_max(0l, k-1)] : 0;
+  sample.out[k] = sample.in[k] - sample.coeff * in_prev;
   k += grid_stride;
   for (; k < sample.size; k += grid_stride)
     sample.out[k] = sample.in[k] - sample.coeff * sample.in[k-1];
@@ -78,6 +80,7 @@ void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
     sample.out = output.mutable_tensor<OutputType>(sample_idx);
     sample.size = volume(input.tensor_shape(sample_idx));
     sample.coeff = preemph_coeff_[sample_idx];
+    sample.reflect_padding = reflect_padding_;
   }
 
   int64_t sz = curr_batch_size * sizeof(SampleDesc);

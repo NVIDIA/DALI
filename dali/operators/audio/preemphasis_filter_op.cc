@@ -25,7 +25,12 @@ DALI_SCHEMA(PreemphasisFilter)
 
 This filter, in simple form, can be expressed by the formula::
 
-  Y[t] = X[t] - coeff * X[t-1]
+  Y[t] = X[t] - coeff * X[t-1]        if t > 1
+
+The behavior for the best sample, depends on the ``reflect_padding`` argument::
+
+  Y[0] = X[0]                         if reflect_padding == True
+  Y[0] = X[0] - coeff * X[0]          otherwise
 
 Where:
 
@@ -36,7 +41,12 @@ Where:
     .NumInput(1)
     .NumOutput(detail::kNumOutputs)
     .AddOptionalArg(detail::kCoeff, R"code(Preemphasis coefficient ``coeff``.)code", 0.97f, true)
-    .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output.)code", DALI_FLOAT);
+    .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output.)code", DALI_FLOAT)
+    .AddOptionalArg(detail::kReflectPadding,
+      R"(Indicates the padding policy when sampling outside the bounds of the signal (first sample).
+
+If True, the signal is mirrored, otherwise the signal is padded with zeros.)",
+    true);
 
 class PreemphasisFilterCPU : public PreemphasisFilter<CPUBackend> {
  public:
@@ -70,7 +80,8 @@ void PreemphasisFilterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
             out_ptr[j] = ConvertSat<OutputType>(in_ptr[j]);
           }
         } else {
-          out_ptr[0] = ConvertSat<OutputType>(in_ptr[0] - coeff * in_ptr[0]);
+          InputType in_prev = reflect_padding_ ? in_ptr[0] : 0;
+          out_ptr[0] = ConvertSat<OutputType>(in_ptr[0] - coeff * in_prev);
           for (int64_t j = 1; j < n; j++) {
             out_ptr[j] = ConvertSat<OutputType>(in_ptr[j] - coeff * in_ptr[j - 1]);
           }

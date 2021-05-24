@@ -23,11 +23,12 @@ from test_utils import RandomlyShapedDataIterator
 
 SEED = 12345
 
-def preemph_func(coeff, signal):
+def preemph_func(reflect, coeff, signal):
     in_shape = signal.shape
     assert(len(in_shape) == 1)  # 1D
     out = np.copy(signal)
-    out[0]  -= coeff * signal[0]
+    if reflect:
+        out[0]  -= coeff * signal[0]
     out[1:] -= coeff * signal[0:in_shape[0]-1]
     return out
 
@@ -53,7 +54,8 @@ class PreemphasisPipeline(Pipeline):
             return self.preemph(out)
 
 class PreemphasisPythonPipeline(Pipeline):
-    def __init__(self, device, batch_size, iterator, preemph_coeff=0.97, per_sample_coeff=False, num_threads=4, device_id=0):
+    def __init__(self, device, batch_size, iterator, preemph_coeff=0.97, reflect=True, per_sample_coeff=False,
+                 num_threads=4, device_id=0):
         super(PreemphasisPythonPipeline, self).__init__(batch_size, num_threads, device_id, seed=SEED,
                                                         exec_async=False, exec_pipelined=False)
         self.device = "cpu"
@@ -61,9 +63,9 @@ class PreemphasisPythonPipeline(Pipeline):
         self.per_sample_coeff = per_sample_coeff
         self.uniform = ops.random.Uniform(range=(0.5, 0.97), seed=1234)
         if self.per_sample_coeff:
-            function = preemph_func
+            function = partial(preemph_func, reflect)
         else:
-            function = partial(preemph_func, preemph_coeff)
+            function = partial(preemph_func, reflect, preemph_coeff)
         self.preemph = ops.PythonFunction(function=function)
 
     def define_graph(self):
@@ -85,5 +87,6 @@ def check_preemphasis_operator(device, batch_size, preemph_coeff, per_sample_coe
 def test_preemphasis_operator():
     for device in ['cpu', 'gpu']:
         for batch_size in [1, 3, 128]:
-            for coef, per_sample_coeff in [(0.97, False), (0.0, False), (None, True)]:
-                yield check_preemphasis_operator, device, batch_size, coef, per_sample_coeff
+            for reflect in [False, True]:
+                for coef, per_sample_coeff in [(0.97, False), (0.0, False), (None, True)]:
+                    yield check_preemphasis_operator, device, batch_size, coef, per_sample_coeff

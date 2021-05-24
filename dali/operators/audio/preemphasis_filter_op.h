@@ -28,6 +28,7 @@ namespace dali {
 namespace detail {
 
 const std::string kCoeff = "preemph_coeff";  // NOLINT
+const std::string kReflectPadding = "reflect_padding";  // NOLINT
 const int kNumOutputs = 1;
 
 }  // namespace detail
@@ -36,7 +37,9 @@ template<typename Backend>
 class PreemphasisFilter : public Operator<Backend> {
  public:
   explicit PreemphasisFilter(const OpSpec &spec)
-      : Operator<Backend>(spec), output_type_(spec.GetArgument<DALIDataType>(arg_names::kDtype)) {}
+      : Operator<Backend>(spec),
+        output_type_(spec.GetArgument<DALIDataType>(arg_names::kDtype)),
+        reflect_padding_(spec.GetArgument<bool>(detail::kReflectPadding)) {}
 
   ~PreemphasisFilter() override = default;
   DISABLE_COPY_MOVE_ASSIGN(PreemphasisFilter);
@@ -65,6 +68,7 @@ class PreemphasisFilter : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
   std::vector<float> preemph_coeff_;
   const DALIDataType output_type_;
+  bool reflect_padding_;
 };
 
 }  // namespace dali
