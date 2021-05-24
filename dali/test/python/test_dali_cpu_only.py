@@ -25,6 +25,7 @@ from segmentation_test_utils import make_batch_select_masks
 from test_audio_decoder_utils import generate_waveforms
 import scipy.io.wavfile
 from PIL import Image, ImageEnhance
+from test_detection_pipeline import coco_anchors
 
 import numpy as np
 from nose.tools import assert_raises
@@ -633,54 +634,6 @@ def test_sequence_rearrange_cpu():
     check_single_input(fn.sequence_rearrange, new_order=[0, 4, 1, 3, 2], get_data=get_data, input_layout="FHWC")
 
 def test_box_encoder_cpu():
-    def coco_anchors():
-        anchors = []
-
-        fig_size = 300
-        feat_sizes = [38, 19, 10, 5, 3, 1]
-        feat_count = len(feat_sizes)
-        steps = [8., 16., 32., 64., 100., 300.]
-        scales = [21., 45., 99., 153., 207., 261., 315.]
-        aspect_ratios = [[2], [2, 3], [2, 3], [2, 3], [2], [2]]
-
-        fks = []
-        for step in steps:
-            fks.append(fig_size / step)
-
-        anchor_idx = 0
-        for idx in range(feat_count):
-            sk1 = scales[idx] / fig_size
-            sk2 = scales[idx + 1] / fig_size
-            sk3 = sqrt(sk1 * sk2)
-
-            all_sizes = [[sk1, sk1], [sk3, sk3]]
-
-            for alpha in aspect_ratios[idx]:
-                w = sk1 * sqrt(alpha)
-                h = sk1 / sqrt(alpha)
-                all_sizes.append([w, h])
-                all_sizes.append([h, w])
-
-            for sizes in all_sizes:
-                w, h = sizes[0], sizes[1]
-
-                for i in range(feat_sizes[idx]):
-                    for j in range(feat_sizes[idx]):
-                        cx = (j + 0.5) / fks[idx]
-                        cy = (i + 0.5) / fks[idx]
-
-                        cx = max(min(cx, 1.), 0.)
-                        cy = max(min(cy, 1.), 0.)
-                        w = max(min(w, 1.), 0.)
-                        h = max(min(h, 1.), 0.)
-
-                        anchors.append(cx - 0.5 * w)
-                        anchors.append(cy - 0.5 * h)
-                        anchors.append(cx + 0.5 * w)
-                        anchors.append(cy + 0.5 * h)
-
-                        anchor_idx = anchor_idx + 1
-        return anchors
 
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_box_shape = [20, 4]
