@@ -82,8 +82,8 @@ def is_of_supported(device_id=0):
     except ModuleNotFoundError:
         pass
 
-    is_gds_supported_var = compute_cap >= 7.5
-    return is_gds_supported_var
+    is_of_supported_var = compute_cap >= 7.5
+    return is_of_supported_var
 
 
 def generate_data(max_batch_size, n_iter, sample_shape, lo=0., hi=1., dtype=np.float32):
@@ -539,23 +539,26 @@ def test_math_ops():
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         with pipe:
             # just to drive the variable batch size.
-            data = fn.external_source(source=input_data, cycle=False, device=device)
-            processed = [data * 2,
-                 data + 2,
-                 data - 2,
-                 data / 2,
-                 data // 2,
-                 data ** 2,
-                 # compare_pipelines doesn't work well with bool so promote to int by *
-                 (data == 2) * 3,
-                 (data != 2) * 3,
-                 (data < 2) * 3,
-                 (data <= 2) * 3,
-                 (data > 2) * 3,
-                 (data >= 2) * 3,
-                 data & 2,
-                 data | 2,
-                 data ^ 2,
+            data, data2 = fn.external_source(source=input_data, cycle=False, device=device, num_outputs=2)
+            processed = [
+                 -data,
+                 +data,
+                 data * data2,
+                 data + data2,
+                 data - data2,
+                 data / data2,
+                 data // data2,
+                 data ** data2,
+                #  compare_pipelines doesn't work well with bool so promote to int by *
+                 (data == data2) * 1,
+                 (data != data2) * 1,
+                 (data < data2) * 1,
+                 (data <= data2) * 1,
+                 (data > data2) * 1,
+                 (data >= data2) * 1,
+                 data & data,
+                 data | data,
+                 data ^ data,
                  dmath.abs(data),
                  dmath.fabs(data),
                  dmath.floor(data),
@@ -568,7 +571,6 @@ def test_math_ops():
                  dmath.sqrt(data),
                  dmath.rsqrt(data),
                  dmath.cbrt(data),
-                 dmath.exp(data),
                  dmath.exp(data),
                  dmath.log(data),
                  dmath.log2(data),
@@ -589,8 +591,14 @@ def test_math_ops():
         pipe.set_outputs(*processed)
         return pipe
 
-    check_pipeline(generate_data(31, 13, image_like_shape_generator, lo=0, hi=255, dtype=np.uint8),
-                   pipeline_fn=pipe)
+    def get_data(batch_size):
+        test_data_shape = [random.randint(5, 21), random.randint(5, 21), 3]
+        data1 = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
+        data2 = [np.random.randint(1, 4, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
+        return [data1, data2]
+
+    input_data = [get_data(random.randint(5, 31)) for _ in range(13)]
+    check_pipeline(input_data, pipeline_fn=pipe)
 
 
 def test_squeeze_op():
