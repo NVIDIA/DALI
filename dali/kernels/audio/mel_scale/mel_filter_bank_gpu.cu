@@ -76,10 +76,16 @@ __global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
   const T *in_frame = block_desc[block_id].in_frame;
   T *out_frame = block_desc[block_id].out_frame;
   int mel_bin = blockIdx.y * kBlockDim2 + threadIdx.y;
-  if (mel_bin >= mel_bins) return;
+
+  if (mel_bin >= mel_bins)
+    return;
+
   int64_t window = block_desc[block_id].start_window + threadIdx.x;
   int64_t nwindows = block_desc[block_id].frame_nwindows;
-  if (window >= nwindows) return;
+
+  if (window >= nwindows)
+    return;
+
   T *out = out_frame + mel_bin * nwindows + window;
   T norm_factor = (normalize) ? norm_factors[mel_bin] : 1;
   *out = calcMel(in_frame, mel_bin,
@@ -96,7 +102,10 @@ __global__ void MelFilterBankKernelInnerFft(const BlockDesc<T> *block_desc,
                                             int mel_bins, int64_t fftdim) {
   auto block_id = blockIdx.x;
   auto idx = block_desc[block_id].block_start + threadIdx.x;
-  if (idx >= block_desc[block_id].out_frame_size) return;
+
+  if (idx >= block_desc[block_id].out_frame_size)
+    return;
+
   auto window = idx / mel_bins;
   auto mel_bin = idx % mel_bins;
   const T *in = block_desc[block_id].in_frame;
@@ -160,7 +169,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
             (block_descs, weights_down, interval_ends, args_.normalize,
              norm_factors, args_.nfilter, fft_dim_);
     } else {
-      dim3 block(kBlockDim2, kBlockDim2);
+      dim3 block(kBlockDim2, std::min(args_.nfilter, kBlockDim2));
       dim3 grid(block_descs_.size(), div_ceil(args_.nfilter, kBlockDim2));
       MelFilterBankKernel
         <<<grid, block, 0, stream>>>(block_descs, weights_down, interval_ends,
@@ -198,7 +207,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
     auto batch_size = in_shape.num_samples();
     for (int64_t ti = 0; ti < batch_size; ++ti) {
       const auto &tshape = in_shape.tensor_shape(ti);
-      auto sample_size = volume(tshape.begin(), tshape.end() - 1) * args_.nfilter;
+      auto sample_size = volume(tshape.begin(), tshape.begin() + args_.axis) * args_.nfilter;
       auto nblocks = div_ceil(sample_size, kBlockDim1);
       for (int b = 0; b < nblocks; ++b) {
         block_descs_.push_back(BlockDesc<T>{nullptr, nullptr, {b * kBlockDim1, sample_size}});
