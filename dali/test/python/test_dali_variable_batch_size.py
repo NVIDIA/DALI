@@ -1046,12 +1046,12 @@ def test_optical_flow():
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         with pipe:
             data = fn.external_source(device=device, source=input_data, cycle=False, layout=input_layout)
-            processed = fn.ops.OpticalFlow(data, device=device, output_format=4)
+            processed = fn.optical_flow(data, device=device, output_format=4)
         pipe.set_outputs(processed)
         return pipe
 
     check_pipeline(
-        generate_data(31, 13, custom_shape_generator(3, 7, 160, 200, 80, 100, 3, 3), lo=0, hi=255,
+        generate_data(31, 13, custom_shape_generator(3, 7, 100, 100, 200, 200, 3, 3), lo=0, hi=255,
                       dtype=np.uint8),
         pipeline_fn=pipe, devices=["gpu"], input_layout="FHWC")
 
