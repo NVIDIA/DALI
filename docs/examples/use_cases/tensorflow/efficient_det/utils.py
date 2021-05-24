@@ -88,102 +88,6 @@ def cross_replica_mean(t, num_shards_per_group=None):
     )
 
 
-def get_ema_vars():
-    """Get all exponential moving average (ema) variables."""
-    ema_vars = tf.trainable_variables() + tf.get_collection(
-        tf.GraphKeys.MOVING_AVERAGE_VARIABLES
-    )
-    for v in tf.global_variables():
-        # We maintain mva for batch norm moving mean and variance as well.
-        if "moving_mean" in v.name or "moving_variance" in v.name:
-            ema_vars.append(v)
-    return list(set(ema_vars))
-
-
-def get_ckpt_var_map(ckpt_path, ckpt_scope, var_scope, skip_mismatch=None):
-    """Get a var map for restoring from pretrained checkpoints.
-
-    Args:
-      ckpt_path: string. A pretrained checkpoint path.
-      ckpt_scope: string. Scope name for checkpoint variables.
-      var_scope: string. Scope name for model variables.
-      skip_mismatch: skip variables if shape mismatch.
-
-    Returns:
-      var_map: a dictionary from checkpoint name to model variables.
-    """
-    logging.info("Init model from checkpoint {}".format(ckpt_path))
-    if not ckpt_scope.endswith("/") or not var_scope.endswith("/"):
-        raise ValueError("Please specific scope name ending with /")
-    if ckpt_scope.startswith("/"):
-        ckpt_scope = ckpt_scope[1:]
-    if var_scope.startswith("/"):
-        var_scope = var_scope[1:]
-
-    var_map = {}
-    # Get the list of vars to restore.
-    model_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=var_scope)
-    reader = tf.train.load_checkpoint(ckpt_path)
-    ckpt_var_name_to_shape = reader.get_variable_to_shape_map()
-    ckpt_var_names = set(reader.get_variable_to_shape_map().keys())
-
-    if tf.distribute.get_replica_context():
-        replica_id = tf.get_static_value(
-            tf.distribute.get_replica_context().replica_id_in_sync_group
-        )
-    else:
-        replica_id = 0
-
-    for i, v in enumerate(model_vars):
-        var_op_name = v.op.name
-
-        if replica_id >= 1:
-            var_op_name = "".join(var_op_name.rsplit(f"/replica_{replica_id}", 1))
-
-        if not var_op_name.startswith(var_scope):
-            logging.info(
-                "skip {} -- does not match scope {}".format(var_op_name, var_scope)
-            )
-        ckpt_var = ckpt_scope + var_op_name[len(var_scope) :]
-
-        if ckpt_var not in ckpt_var_names and var_op_name.endswith(
-            "/ExponentialMovingAverage"
-        ):
-            ckpt_var = ckpt_scope + var_op_name[: -len("/ExponentialMovingAverage")]
-
-        if ckpt_var not in ckpt_var_names:
-            if "Momentum" in ckpt_var or "RMSProp" in ckpt_var:
-                # Skip optimizer variables.
-                continue
-            if skip_mismatch:
-                logging.info(
-                    "skip {} ({}) -- not in ckpt".format(var_op_name, ckpt_var)
-                )
-                continue
-            raise ValueError("{} is not in ckpt {}".format(v.op, ckpt_path))
-
-        if v.shape != ckpt_var_name_to_shape[ckpt_var]:
-            if skip_mismatch:
-                logging.info(
-                    "skip {} ({} vs {}) -- shape mismatch".format(
-                        var_op_name, v.shape, ckpt_var_name_to_shape[ckpt_var]
-                    )
-                )
-                continue
-            raise ValueError(
-                "shape mismatch {} ({} vs {})".format(
-                    var_op_name, v.shape, ckpt_var_name_to_shape[ckpt_var]
-                )
-            )
-
-        if i < 5:
-            # Log the first few elements for sanity check.
-            logging.info("Init {} from ckpt var {}".format(var_op_name, ckpt_var))
-        var_map[ckpt_var] = v
-
-    return var_map
-
-
 class BatchNormalization(tf.keras.layers.BatchNormalization):
     """Fixed default name of BatchNormalization to match TpuBatchNormalization."""
 
@@ -198,6 +102,44 @@ class BatchNormalization(tf.keras.layers.BatchNormalization):
         for u in self.updates:
             tf.add_to_collection(tf.GraphKeys.UPDATE_OPS, u)
         return outputs
+
+
+def build_batch_norm(
+    beta_initializer: Text = "zeros",
+    gamma_initializer: Text = "ones",
+    data_format: Text = "channels_last",
+    momentum: float = 0.99,
+    epsilon: float = 1e-3,
+    name: Text = "tpu_batch_normalization",
+):
+    """Build a batch normalization layer.
+
+    Args:
+      beta_initializer: `str`, beta initializer.
+      gamma_initializer: `str`, gamma initializer.
+      data_format: `str` either "channels_first" for `[batch, channels, height,
+        width]` or "channels_last for `[batch, height, width, channels]`.
+      momentum: `float`, momentume of batch norm.
+      epsilon: `float`, small value for numerical stability.
+      name: the name of the batch normalization layer
+
+    Returns:
+      A normalized `Tensor` with the same `data_format`.
+    """
+    axis = 1 if data_format == "channels_first" else -1
+
+    bn_layer = BatchNormalization(
+        axis=axis,
+        momentum=momentum,
+        epsilon=epsilon,
+        center=True,
+        scale=True,
+        beta_initializer=beta_initializer,
+        gamma_initializer=gamma_initializer,
+        name=name,
+    )
+
+    return bn_layer
 
 
 def drop_connect(inputs, is_training, survival_prob):
@@ -218,22 +160,6 @@ def drop_connect(inputs, is_training, survival_prob):
     return output
 
 
-def num_params_flops(readable_format=True):
-    """Return number of parameters and flops."""
-    nparams = np.sum(
-        [np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()]
-    )
-    options = tf.profiler.ProfileOptionBuilder.float_operation()
-    options["output"] = "none"
-    flops = tf.profiler.profile(tf.get_default_graph(), options=options).total_float_ops
-    # We use flops to denote multiply-adds, which is counted as 2 ops in tfprof.
-    flops = flops // 2
-    if readable_format:
-        nparams = float(nparams) * 1e-6
-        flops = float(flops) * 1e-9
-    return nparams, flops
-
-
 conv_kernel_initializer = tf.initializers.variance_scaling()
 dense_kernel_initializer = tf.initializers.variance_scaling()
 
@@ -244,73 +170,6 @@ class Pair(tuple):
 
     def __init__(self, name, _):  # pylint: disable=super-init-not-called
         self.name = name
-
-
-def scalar(name, tensor, is_tpu=True):
-    """Stores a (name, Tensor) tuple in a custom collection."""
-    logging.info("Adding scale summary {}".format(Pair(name, tensor)))
-    if is_tpu:
-        tf.add_to_collection("scalar_summaries", Pair(name, tf.reduce_mean(tensor)))
-    else:
-        tf.summary.scalar(name, tf.reduce_mean(tensor))
-
-
-def image(name, tensor, is_tpu=True):
-    logging.info("Adding image summary {}".format(Pair(name, tensor)))
-    if is_tpu:
-        tf.add_to_collection("image_summaries", Pair(name, tensor))
-    else:
-        tf.summary.image(name, tensor)
-
-
-def archive_ckpt(ckpt_eval, ckpt_objective, ckpt_path):
-    """Archive a checkpoint if the metric is better."""
-    ckpt_dir, ckpt_name = os.path.split(ckpt_path)
-
-    saved_objective_path = os.path.join(ckpt_dir, "best_objective.txt")
-    saved_objective = float("-inf")
-    if tf.io.gfile.exists(saved_objective_path):
-        with tf.io.gfile.GFile(saved_objective_path, "r") as f:
-            saved_objective = float(f.read())
-    if saved_objective > ckpt_objective:
-        logging.info("Ckpt {} is worse than {}".format(ckpt_objective, saved_objective))
-        return False
-
-    filenames = tf.io.gfile.glob(ckpt_path + ".*")
-    if filenames is None:
-        logging.info("No files to copy for checkpoint {}".format(ckpt_path))
-        return False
-
-    # clear up the backup folder.
-    backup_dir = os.path.join(ckpt_dir, "backup")
-    if tf.io.gfile.exists(backup_dir):
-        tf.io.gfile.rmtree(backup_dir)
-
-    # rename the old checkpoints to backup folder.
-    dst_dir = os.path.join(ckpt_dir, "archive")
-    if tf.io.gfile.exists(dst_dir):
-        logging.info("mv {} to {}".format(dst_dir, backup_dir))
-        tf.io.gfile.rename(dst_dir, backup_dir)
-
-    # Write checkpoints.
-    tf.io.gfile.makedirs(dst_dir)
-    for f in filenames:
-        dest = os.path.join(dst_dir, os.path.basename(f))
-        tf.io.gfile.copy(f, dest, overwrite=True)
-    ckpt_state = tf.train.generate_checkpoint_state_proto(
-        dst_dir, model_checkpoint_path=os.path.join(dst_dir, ckpt_name)
-    )
-    with tf.io.gfile.GFile(os.path.join(dst_dir, "checkpoint"), "w") as f:
-        f.write(str(ckpt_state))
-    with tf.io.gfile.GFile(os.path.join(dst_dir, "best_eval.txt"), "w") as f:
-        f.write("%s" % ckpt_eval)
-
-    # Update the best objective.
-    with tf.io.gfile.GFile(saved_objective_path, "w") as f:
-        f.write("%f" % ckpt_objective)
-
-    logging.info("Copying checkpoint {} to {}".format(ckpt_path, dst_dir))
-    return True
 
 
 def parse_image_size(image_size: Union[Text, int, Tuple[int, int]]):
@@ -357,59 +216,6 @@ def get_feat_sizes(image_size: Union[Text, int, Tuple[int, int]], max_level: int
         feat_size = ((feat_size[0] - 1) // 2 + 1, (feat_size[1] - 1) // 2 + 1)
         feat_sizes.append({"height": feat_size[0], "width": feat_size[1]})
     return feat_sizes
-
-
-def verify_feats_size(
-    feats, feat_sizes, min_level, max_level, data_format="channels_last"
-):
-    """Verify the feature map sizes."""
-    expected_output_size = feat_sizes[min_level : max_level + 1]
-    for cnt, size in enumerate(expected_output_size):
-        h_id, w_id = (2, 3) if data_format == "channels_first" else (1, 2)
-        if feats[cnt].shape[h_id] != size["height"]:
-            raise ValueError(
-                "feats[{}] has shape {} but its height should be {}."
-                "(input_height: {}, min_level: {}, max_level: {}.)".format(
-                    cnt,
-                    feats[cnt].shape,
-                    size["height"],
-                    feat_sizes[0]["height"],
-                    min_level,
-                    max_level,
-                )
-            )
-        if feats[cnt].shape[w_id] != size["width"]:
-            raise ValueError(
-                "feats[{}] has shape {} but its width should be {}."
-                "(input_width: {}, min_level: {}, max_level: {}.)".format(
-                    cnt,
-                    feats[cnt].shape,
-                    size["width"],
-                    feat_sizes[0]["width"],
-                    min_level,
-                    max_level,
-                )
-            )
-
-
-@contextlib.contextmanager
-def float16_scope():
-    """Scope class for float16."""
-
-    def _custom_getter(getter, *args, **kwargs):
-        """Returns a custom getter that methods must be called under."""
-        cast_to_float16 = False
-        requested_dtype = kwargs["dtype"]
-        if requested_dtype == tf.float16:
-            kwargs["dtype"] = tf.float32
-            cast_to_float16 = True
-        var = getter(*args, **kwargs)
-        if cast_to_float16:
-            var = tf.cast(var, tf.float16)
-        return var
-
-    with tf.variable_scope("", custom_getter=_custom_getter) as varscope:
-        yield varscope
 
 
 def _recompute_grad(f):

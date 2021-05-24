@@ -24,7 +24,6 @@ from .backbone import backbone_factory
 from .backbone import efficientnet_builder
 from .model_utils import fpn_configs
 from .model_utils import postprocess
-from .model_utils import util_keras
 
 # pylint: disable=arguments-differ  # fo keras layers.
 
@@ -200,7 +199,7 @@ class OpAfterCombine(tf.keras.layers.Layer):
             data_format=self.data_format,
             name="conv",
         )
-        self.bn = util_keras.build_batch_norm(data_format=self.data_format, name="bn")
+        self.bn = utils.build_batch_norm(data_format=self.data_format, name="bn")
 
     def call(self, new_node, training):
         if not self.conv_bn_act_pattern:
@@ -242,7 +241,7 @@ class ResampleFeatureMap(tf.keras.layers.Layer):
             data_format=self.data_format,
             name="conv2d",
         )
-        self.bn = util_keras.build_batch_norm(data_format=self.data_format, name="bn")
+        self.bn = utils.build_batch_norm(data_format=self.data_format, name="bn")
 
     def _pool2d(self, inputs, height, width, target_height, target_width):
         """Pool the inputs to target height and width."""
@@ -395,7 +394,7 @@ class ClassNet(tf.keras.layers.Layer):
             bn_per_level = []
             for level in range(self.min_level, self.max_level + 1):
                 bn_per_level.append(
-                    util_keras.build_batch_norm(
+                    utils.build_batch_norm(
                         data_format=self.data_format,
                         name="class-%d-bn-%d" % (i, level),
                     )
@@ -529,7 +528,7 @@ class BoxNet(tf.keras.layers.Layer):
             bn_per_level = []
             for level in range(self.min_level, self.max_level + 1):
                 bn_per_level.append(
-                    util_keras.build_batch_norm(
+                    utils.build_batch_norm(
                         data_format=self.data_format,
                         name="box-%d-bn-%d" % (i, level),
                     )

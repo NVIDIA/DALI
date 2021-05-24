@@ -156,12 +156,8 @@ def create_tf_example(
             "image/object/bbox/xmax": tfrecord_util.float_list_feature(xmax),
             "image/object/bbox/ymin": tfrecord_util.float_list_feature(ymin),
             "image/object/bbox/ymax": tfrecord_util.float_list_feature(ymax),
-            "image/object/class/text": tfrecord_util.bytes_list_feature(
-                category_names
-            ),
-            "image/object/class/label": tfrecord_util.int64_list_feature(
-                category_ids
-            ),
+            "image/object/class/text": tfrecord_util.bytes_list_feature(category_names),
+            "image/object/class/label": tfrecord_util.int64_list_feature(category_ids),
             "image/object/is_crowd": tfrecord_util.int64_list_feature(is_crowd),
             "image/object/area": tfrecord_util.float_list_feature(area),
         }

@@ -18,11 +18,10 @@ from absl import logging
 import tensorflow as tf
 
 from . import efficientnet_builder
-from . import efficientnet_lite_builder
 from . import efficientnet_model
 
 
-def get_model(model_name, override_params=None, model_dir=None):
+def get_model(model_name, override_params=None):
     """A helper function to create and return model.
 
     Args:
@@ -46,24 +45,11 @@ def get_model(model_name, override_params=None, model_dir=None):
     if not override_params:
         override_params = {}
 
-    if model_name.startswith("efficientnet-lite"):
-        builder = efficientnet_lite_builder
-    elif model_name.startswith("efficientnet-"):
+    if model_name.startswith("efficientnet-"):
         builder = efficientnet_builder
     else:
         raise ValueError("Unknown model name {}".format(model_name))
 
     blocks_args, global_params = builder.get_model_params(model_name, override_params)
-
-    if model_dir:
-        param_file = os.path.join(model_dir, "model_params.txt")
-        if not tf.io.gfile.exists(param_file):
-            if not tf.io.gfile.exists(model_dir):
-                tf.io.gfile.mkdir(model_dir)
-            with tf.io.gfile.GFile(param_file, "w") as f:
-                logging.info("writing to %s", param_file)
-                f.write("model_name= %s\n\n" % model_name)
-                f.write("global_params= %s\n\n" % str(global_params))
-                f.write("blocks_args= %s\n\n" % str(blocks_args))
 
     return efficientnet_model.Model(blocks_args, global_params, model_name)
