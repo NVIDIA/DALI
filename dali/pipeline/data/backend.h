@@ -20,7 +20,6 @@
 
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
-#include "dali/core/mm/memory.h"
 
 namespace dali {
 
