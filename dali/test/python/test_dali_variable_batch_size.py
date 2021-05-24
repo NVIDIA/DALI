@@ -288,7 +288,7 @@ random_ops = [
     (fn.random_resized_crop, {'size': 69}),
     (fn.noise.gaussian, {}),
     (fn.noise.shot, {}),
-    (fn.noise.salt_and_pepper, {'devices': ['cpu']}),  # TODO(janton): Enalble GPU once salt_and_pepper supports it.
+    (fn.noise.salt_and_pepper, {}),
 ]
 
 def test_random_ops():
