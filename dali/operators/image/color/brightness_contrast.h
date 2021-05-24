@@ -91,9 +91,23 @@ class BrightnessContrastOp : public Operator<Backend> {
 
   void AcquireArguments(const workspace_t<Backend> &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
-    this->GetPerSampleArgument(brightness_, "brightness", ws, curr_batch_size);
-    this->GetPerSampleArgument(brightness_shift_, "brightness_shift", ws, curr_batch_size);
-    this->GetPerSampleArgument(contrast_, "contrast", ws, curr_batch_size);
+    if (this->spec_.ArgumentDefined("brightness")) {
+      this->GetPerSampleArgument(brightness_, "brightness", ws, curr_batch_size);
+    } else {
+      brightness_ = std::vector<float>(curr_batch_size, 1.f);
+    }
+
+    if (this->spec_.ArgumentDefined("brightness_shift")) {
+      this->GetPerSampleArgument(brightness_shift_, "brightness_shift", ws, curr_batch_size);
+    } else {
+      brightness_shift_ = std::vector<float>(curr_batch_size, 0);
+    }
+
+    if (this->spec_.ArgumentDefined("contrast")) {
+      this->GetPerSampleArgument(contrast_, "contrast", ws, curr_batch_size);
+    } else {
+      contrast_ = std::vector<float>(curr_batch_size, 1.f);
+    }
 
     input_type_ = ws.template InputRef<Backend>(0).type().id();
     output_type_ = output_type_arg_ != DALI_NO_TYPE ? output_type_arg_ : input_type_;
