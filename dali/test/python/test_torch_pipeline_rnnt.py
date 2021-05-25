@@ -302,7 +302,7 @@ def dali_preemphasis(x_data, preemph, device='cpu'):
     @pipeline_def(batch_size=1, device_id=0, num_threads=3)
     def preemph_pipe():
         x = fn.external_source(lambda: x_data, device=device, batch=False)
-        y = fn.preemphasis_filter(x, preemph_coeff=preemph)
+        y = fn.preemphasis_filter(x, preemph_coeff=preemph, border='zero')
         return y
     return dali_run(preemph_pipe(), device=device)
 
@@ -310,10 +310,7 @@ def _testimpl_torch_vs_dali_preemphasis(device):
     arr = _convert_samples_to_float32(np.load(npy_files[0]))
     torch_out = torch_preemphasis(arr, 0.97, device=device)
     dali_out = dali_preemphasis(arr, 0.97, device=device)
-    # DALI and torch differ in the first element:
-    # DALI: y[0] = x[0] - coeff * x[0]
-    # Torch: y[0] = x[0]
-    np.testing.assert_allclose(torch_out[1:], dali_out[1:], atol=1e-5)
+    np.testing.assert_allclose(torch_out, dali_out, atol=1e-5)
 
 def test_torch_vs_dali_preemphasis():
     for device in ['cpu', 'gpu']:
@@ -369,7 +366,7 @@ def rnnt_train_pipe(files, sample_rate=16000, silence_threshold=-80, preemph_coe
 
     data, _ = fn.readers.file(files=files, device="cpu", random_shuffle=False, shard_id=0, num_shards=1)
     audio, _ = fn.decoders.audio(data, dtype=types.FLOAT, downmix=True)
-    preemph_audio = fn.preemphasis_filter(audio, preemph_coeff=preemph_coeff, reflect_padding=False)
+    preemph_audio = fn.preemphasis_filter(audio, preemph_coeff=preemph_coeff, border='zero')
     spec = fn.spectrogram(preemph_audio, nfft=nfft, window_fn=window_fn_arg, window_length=win_len, window_step=win_hop,
                           center_windows=True, reflect_padding=True)
 
