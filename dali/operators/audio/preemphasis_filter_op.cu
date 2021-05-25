@@ -18,8 +18,6 @@
 
 namespace dali {
 
-using BorderType = PreemphasisFilter<GPUBackend>::BorderType;
-
 namespace detail {
 
 template <typename OutputType, typename InputType>
@@ -30,8 +28,11 @@ struct SampleDescriptor {
   int64_t size;
 };
 
-template <BorderType Border, typename OutputType, typename InputType>
-void __global__ PreemphasisFilterKernel(const SampleDescriptor<OutputType, InputType> *samples) {
+using BorderType = PreemphasisFilter<GPUBackend>::BorderType;
+
+template <typename OutputType, typename InputType>
+void __global__ PreemphasisFilterKernel(const SampleDescriptor<OutputType, InputType> *samples,
+                                        BorderType border_type) {
   const auto &sample = samples[blockIdx.y];
   int64_t block_size = blockDim.x;
   int64_t block_start = block_size * blockIdx.x;
@@ -42,11 +43,11 @@ void __global__ PreemphasisFilterKernel(const SampleDescriptor<OutputType, Input
     return;
 
   if (k == 0) {
-    if (Border == BorderType::Zero) {
+    if (border_type == BorderType::Zero) {
       sample.out[k] = sample.in[k];
     } else {
       // BorderType::Reflect or BorderType::Clamp
-      InputType border = (Border == BorderType::Reflect) ? sample.in[1] : sample.in[0];
+      InputType border = (border_type == BorderType::Reflect) ? sample.in[1] : sample.in[0];
       sample.out[k] = sample.in[k] - sample.coeff * border;
     }
     k += grid_stride;
@@ -68,13 +69,13 @@ class PreemphasisFilterGPU : public PreemphasisFilter<GPUBackend> {
   void RunImpl(workspace_t<GPUBackend> &ws) override;
 
  private:
-  template <BorderType Border, typename OutputType, typename InputType>
+  template <typename OutputType, typename InputType>
   void RunImplTyped(workspace_t<GPUBackend> &ws);
 
   Tensor<GPUBackend> scratch_mem_;
 };
 
-template <BorderType Border, typename OutputType, typename InputType>
+template <typename OutputType, typename InputType>
 void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
   using SampleDesc = detail::SampleDescriptor<OutputType, InputType>;
   const auto &input = ws.InputRef<GPUBackend>(0);
@@ -101,18 +102,14 @@ void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
   int block = 256;
   auto blocks_per_sample = std::max(32, 1024 / curr_batch_size);
   dim3 grid(blocks_per_sample, curr_batch_size);
-  detail::PreemphasisFilterKernel<Border><<<grid, block, 0, stream>>>(sample_descs_gpu);
+  detail::PreemphasisFilterKernel<<<grid, block, 0, stream>>>(sample_descs_gpu, border_type_);
 }
 
 void PreemphasisFilterGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.template InputRef<GPUBackend>(0);
   TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
-      VALUE_SWITCH(border_type_, Border, (BorderType::Clamp,
-                                          BorderType::Reflect,
-                                          BorderType::Zero), (
-        RunImplTyped<Border, OutputType, InputType>(ws);
-      ), assert(false););  // NOLINT
+      RunImplTyped<OutputType, InputType>(ws);
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
 }
