@@ -31,23 +31,23 @@ Assumes HWC layout.)code")
 .AddOptionalArg<int>("in_anchors", R"code(Absolute coordinates of LU corner
 of the source region.
 
-2D data with the first dimension containing as many entries as elements in ``in_ids``
-and the second one containing as many elements as the number of dimensions of the data.
+2D data with where the first dimension corresponds to the elements of ``in_ids``
+and the second one is equal to the number dimensions of the data.
 
-If not provided, zeros are assumed.)code", nullptr, true)
+If not provided, all anchors are zero.)code", nullptr, true)
 .AddOptionalArg<int>("shapes", R"code(Shape of the paste regions.
 
-2D data with the first dimension containing as many entries as elements in ``in_ids``
-and the second one containing as many elements as the number of dimensions of the data.
+2D data with where the first dimension corresponds to the elements of ``in_ids``
+and the second one is equal to the number dimensions of the data.
 
 If not provided, the input shape is used.)code", nullptr, true)
 .AddOptionalArg<int>("out_anchors", R"code(Absolute coordinates of LU corner
 of the destination region.
 
-2D data with the first dimension containing as many entries as elements in ``in_ids``
-and the second one containing as many elements as the number of dimensions of the data.
+2D data with where the first dimension corresponds to the elements of ``in_ids``
+and the second one is equal to the number dimensions of the data.
 
-If not provided, zeros are assumed.)code", nullptr, true)
+If not provided, all anchors are zero.)code", nullptr, true)
 .AddArg("output_size",
 R"code(Shape of the output.)code", DALI_INT_VEC, true)
 .AddOptionalArg("dtype",
