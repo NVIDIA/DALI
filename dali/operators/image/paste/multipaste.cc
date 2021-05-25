@@ -26,23 +26,33 @@ This operator can also change the type of data.)code")
 .InputDox(0, "images", "3D TensorList", R"code(Batch of input images.
 
 Assumes HWC layout.)code")
-.AddArg("in_ids", R"code(1D TensorList of type int.
+.AddArg("in_ids", R"code(Indices of the inputs to paste data from.)code",
+        DALI_INT_VEC, true)
+.AddOptionalArg<int>("in_anchors", R"code(Absolute coordinates of LU corner
+of the source region.
 
-Indexes from what inputs to paste data in each iteration.)code", DALI_INT32, true)
-.AddOptionalArg<int>("in_anchors", R"code(2D TensorList of type int64
+The anchors are represented as 2D tensors where the first dimension corresponds to the
+elements of ``in_ids`` and the second one is equal to the number of dimensions of the
+data, excluding channels.
 
-Absolute values of LU corner of the selection for each iteration.
-Zeros are used if this is omitted.)code", nullptr, true)
-.AddOptionalArg<int>("shapes", R"code(2D TensorList of type int64
+If not provided, all anchors are zero.)code", nullptr, true)
+.AddOptionalArg<int>("shapes", R"code(Shape of the paste regions.
 
-Absolute values of size of the selection for each iteration.
-Input size is used if this is omitted.)code", nullptr, true)
-.AddOptionalArg<int>("out_anchors", R"code(2D TensorList of type int64
+The shapes are represented as 2D tensors where the first dimension corresponds to the
+elements of ``in_ids`` and the second one is equal to the number of dimensions of the
+data, excluding channels.
 
-Absolute values of LU corner of the paste for each iteration.
-Zeros are used if omitted.)code", nullptr, true)
+If not provided, the input shape is used.)code", nullptr, true)
+.AddOptionalArg<int>("out_anchors", R"code(Absolute coordinates of LU corner
+of the destination region.
+
+The anchors are represented as 2D tensors where the first dimension corresponds to the
+elements of ``in_ids`` and the second one is equal to the number of dimensions of the
+data, excluding channels.
+
+If not provided, all anchors are zero.)code", nullptr, true)
 .AddArg("output_size",
-R"code(Output size.)code", DALI_INT_VEC, true)
+R"code(Shape of the output.)code", DALI_INT_VEC, true)
 .AddOptionalArg("dtype",
 R"code(Output data type. If not set, the input type is used.)code", DALI_NO_TYPE)
 .NumOutput(1);
