@@ -48,6 +48,7 @@ void MelFilterBank<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto &output = ws.OutputRef<GPUBackend>(0);
   const auto &in_shape = input.shape();
+  ctx_.gpu.stream = ws.stream();
   TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
     using MelFilterBankKernel = kernels::audio::MelFilterBankGpu<T>;
     auto in_view = view<const T>(input);
