@@ -112,7 +112,12 @@ This function must work in Numba ``nopython`` mode.)code", DALI_PYTHON_OBJECT)
 This function is invoked once per batch. Also this function must work in Numba ``nopython`` mode.)code",
                   DALI_PYTHON_OBJECT, nullptr)
   .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked once per batch or
-separately for every sample in the batch.)code", false);
+separately for each sample in the batch.
+
+When ``batch_processing`` is set to ``True``, the function processes the whole batch. It is necessary if the 
+function has to perform cross-sample operations and may be beneficial if significant part of the work can 
+be reused. For other use cases, specifying False and using per-sample processing function allows the operator 
+to process samples in parallel.)code", false);
 
 DALI_SCHEMA(NumbaFuncImpl)
   .DocStr("")
@@ -131,7 +136,7 @@ DALI_SCHEMA(NumbaFuncImpl)
   .AddOptionalArg<int>("setup_fn", R"code(Address of setup function setting shapes for outputs.
 This function is invoked once per batch.)code", 0)
   .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked once per batch or
-separately for every sample in the batch.)code", false);
+separately for each sample in the batch.)code", false);
 
 template <typename Backend>
 NumbaFuncImpl<Backend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
