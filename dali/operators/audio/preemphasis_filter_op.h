@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_AUDIO_PREEMPHASIS_FILTER_OP_H_
 #define DALI_OPERATORS_AUDIO_PREEMPHASIS_FILTER_OP_H_
 
+#include <string>
 #include <vector>
 #include "dali/core/convert.h"
 #include "dali/core/static_switch.h"
@@ -28,6 +29,7 @@ namespace dali {
 namespace detail {
 
 const std::string kCoeff = "preemph_coeff";  // NOLINT
+const std::string kBorder = "border";  // NOLINT
 const int kNumOutputs = 1;
 
 }  // namespace detail
@@ -35,8 +37,26 @@ const int kNumOutputs = 1;
 template<typename Backend>
 class PreemphasisFilter : public Operator<Backend> {
  public:
+  enum class BorderType : uint8_t {
+    Zero = 0,
+    Clamp,
+    Reflect,
+  };
+
   explicit PreemphasisFilter(const OpSpec &spec)
-      : Operator<Backend>(spec), output_type_(spec.GetArgument<DALIDataType>(arg_names::kDtype)) {}
+      : Operator<Backend>(spec),
+        output_type_(spec.GetArgument<DALIDataType>(arg_names::kDtype)) {
+    auto border_str = spec.GetArgument<std::string>(detail::kBorder);
+    if (border_str == "zero") {
+      border_type_ = BorderType::Zero;
+    } else if (border_str == "reflect") {
+      border_type_ = BorderType::Reflect;
+    } else if (border_str == "clamp") {
+      border_type_ = BorderType::Clamp;
+    } else {
+      DALI_FAIL(make_string("``border`` mode \"", border_str, "\" is not supported."));
+    }
+  }
 
   ~PreemphasisFilter() override = default;
   DISABLE_COPY_MOVE_ASSIGN(PreemphasisFilter);
@@ -65,6 +85,7 @@ class PreemphasisFilter : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
   std::vector<float> preemph_coeff_;
   const DALIDataType output_type_;
+  BorderType border_type_;
 };
 
 }  // namespace dali
