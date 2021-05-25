@@ -28,6 +28,7 @@ import nvidia.dali.plugin.pytorch as pytorch
 import numpy as np
 import test_utils
 from test_detection_pipeline import coco_anchors
+from test_optical_flow import load_frames
 import inspect
 import os
 import math
@@ -139,9 +140,26 @@ def single_op_pipeline(max_batch_size, input_data, device, *, input_layout=None,
         if needs_input:
             pipe.set_outputs(output)
         else:
+            # set input as an output to make sure it is not pruned from the graph
             pipe.set_outputs(output, input)
     return pipe
 
+
+def get_batch_size(batch):
+    """
+    Returns the batch size in samples
+
+    :param batch: List of input batches, if there is one input a batch can be either
+                  a numpy array or a list, for multiple inputs it can be tuple of lists or
+                  numpy arrays.
+    """
+    if isinstance(batch, tuple):
+        return get_batch_size(batch[0])
+    else:
+        if isinstance(batch, list):
+            return len(batch)
+        else:
+            return batch.shape[0]
 
 def run_pipeline(input_epoch, pipeline_fn, *, devices: list = ['cpu', 'gpu'], **pipeline_fn_args):
     """
@@ -160,15 +178,6 @@ def run_pipeline(input_epoch, pipeline_fn, *, devices: list = ['cpu', 'gpu'], **
     :param devices: Devices to run the check on
     :param pipeline_fn_args: Additional args to pipeline_fn
     """
-    def get_batch_size(batch):
-        if isinstance(batch, tuple):
-            return get_batch_size(batch[0])
-        else:
-            if isinstance(batch, list):
-                return len(batch)
-            else:
-                return batch.shape[0]
-
     for device in devices:
         n_iter = len(input_epoch)
         max_bs = max(get_batch_size(batch) for batch in input_epoch)
@@ -197,15 +206,6 @@ def check_pipeline(input_epoch, pipeline_fn, *, devices: list = ['cpu', 'gpu'], 
     :param eps: Epsilon for mean error
     :param pipeline_fn_args: Additional args to pipeline_fn
     """
-    def get_batch_size(batch):
-        if isinstance(batch, tuple):
-            return get_batch_size(batch[0])
-        else:
-            if isinstance(batch, list):
-                return len(batch)
-            else:
-                return batch.shape[0]
-
     for device in devices:
         n_iter = len(input_epoch)
         max_bs = max(get_batch_size(batch) for batch in input_epoch)
@@ -330,13 +330,13 @@ ops_image_custom_args = [
     (fn.transpose, {'perm': [2, 0, 1]}),
     (fn.warp_affine, {'matrix': (.1, .9, 10, .8, -.2, -20)}),
     (fn.expand_dims, {'axes': 1, 'new_axis_names': "Z"}),
-    (fn.grid_mask, {'tile': 51, 'ratio': 0.38158387, 'angle': 2.6810782}),
-    (numba_function, {'run_fn': numba_set_all_values_to_255_batch, 'out_types': [types.UINT8],
-                      'in_types': [types.UINT8], 'outs_ndim': [3], 'ins_ndim': [3],
-                      'setup_fn': numba_setup_out_shape, 'batch_processing': True, 'devices': ['cpu']}),
-    (numba_function, {'run_fn': numba_set_all_values_to_255_batch, 'out_types': [types.UINT8],
-                      'in_types': [types.UINT8], 'outs_ndim': [3], 'ins_ndim': [3],
-                      'setup_fn': numba_setup_out_shape, 'batch_processing': False, 'devices': ['cpu']}),
+    (fn.grid_mask, {'angle': 2.6810782, 'ratio': 0.38158387, 'tile': 51}),
+    (numba_function, {'batch_processing': True, 'devices': ['cpu'], 'in_types': [types.UINT8],
+                      'ins_ndim': [3], 'out_types': [types.UINT8],  'outs_ndim': [3],
+                      'run_fn': numba_set_all_values_to_255_batch,  'setup_fn': numba_setup_out_shape}),
+    (numba_function, {'batch_processing': False, 'devices': ['cpu'], 'in_types': [types.UINT8],
+                      'ins_ndim': [3], 'out_types': [types.UINT8],  'outs_ndim': [3],
+                      'run_fn': numba_set_all_values_to_255_batch,  'setup_fn': numba_setup_out_shape}),
     # (fn.multi_paste, {'in_ids': np.random.randint(31, size=31), 'output_size': [300, 300, 3]})
 ]
 
@@ -365,7 +365,8 @@ random_ops = [
     (fn.noise.shot, {}),
     (fn.noise.salt_and_pepper, {}),
     (fn.segmentation.random_mask_pixel, {'devices': ['cpu']}),
-    (fn.roi_random_crop, {'crop_shape': [10, 15, 3], 'roi_start': [25, 20, 0], 'roi_shape': [40, 30, 3], 'devices': ['cpu']})
+    (fn.roi_random_crop, {'devices': ['cpu'], 'crop_shape': [10, 15, 3], 'roi_start': [25, 20, 0],
+                          'roi_shape': [40, 30, 3]})
 ]
 
 def test_random_ops():
@@ -1014,10 +1015,10 @@ def test_optical_flow():
         pipe.set_outputs(processed)
         return pipe
 
-    check_pipeline(
-        generate_data(31, 13, custom_shape_generator(3, 7, 100, 100, 200, 200, 3, 3), lo=0, hi=255,
-                      dtype=np.uint8),
-        pipeline_fn=pipe, devices=["gpu"], input_layout="FHWC")
+    max_batch_size = 5
+    bach_sizes = [max_batch_size // 2, max_batch_size // 4, max_batch_size]
+    input_data = [[load_frames()[0] for _ in range(bs)] for bs in bach_sizes]
+    check_pipeline(input_data, pipeline_fn=pipe, devices=["gpu"], input_layout="FHWC")
 
 
 tested_methods = [
