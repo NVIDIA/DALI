@@ -19,7 +19,7 @@ def make_batch_select_masks(batch_size, npolygons_range = (1, 10), nvertices_ran
     polygons = []
     vertices = []
     selected_masks = []
-    for i in range(batch_size):
+    for _ in range(batch_size):
         nmasks = random.randint(*npolygons_range)
         available_masks = list(range(nmasks))
         selected_masks.append(np.array(random.sample(available_masks, random.randint(1, nmasks)), dtype = np.int32))
@@ -35,9 +35,9 @@ def make_batch_select_masks(batch_size, npolygons_range = (1, 10), nvertices_ran
         if np.issubdtype(vertex_dtype, np.integer):
             vertices.append(
                 np.random.randint(
-                    low=np.iinfo(vertex_dtype).min, 
-                    high=np.iinfo(vertex_dtype).max, 
-                    size=(vertex_count, vertex_ndim), 
+                    low=np.iinfo(vertex_dtype).min,
+                    high=np.iinfo(vertex_dtype).max,
+                    size=(vertex_count, vertex_ndim),
                     dtype=vertex_dtype
                 )
             )
