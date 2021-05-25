@@ -19,9 +19,10 @@ import nvidia.dali.types as types
 import scipy.io.wavfile
 import numpy as np
 import math
+import os
 import librosa
 from test_audio_decoder_utils import generate_waveforms, rosa_resample
-from test_utils import compare_pipelines
+from test_utils import compare_pipelines, get_files
 
 names = [
   "/tmp/dali_test_1C.wav",
@@ -133,16 +134,15 @@ def test_decoded_vs_generated():
 batch_size_alias_test=16
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
-def decoder_pipe(decoder_op, sample_rate, downmix, quality, dtype):
-    encoded, _ = fn.readers.file(files=names)
+def decoder_pipe(decoder_op, fnames, sample_rate, downmix, quality, dtype):
+    encoded, _ = fn.readers.file(files=fnames)
     decoded, rates = decoder_op(encoded, sample_rate=sample_rate, downmix=downmix, quality=quality,
                                 dtype=dtype)
     return decoded, rates
 
-
 def check_audio_decoder_alias(sample_rate, downmix, quality, dtype):
-    new_pipe = decoder_pipe(fn.decoders.audio, sample_rate, downmix, quality, dtype)
-    legacy_pipe = decoder_pipe(fn.audio_decoder, sample_rate, downmix, quality, dtype)
+    new_pipe = decoder_pipe(fn.decoders.audio, names, sample_rate, downmix, quality, dtype)
+    legacy_pipe = decoder_pipe(fn.audio_decoder, names, sample_rate, downmix, quality, dtype)
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
 
 
@@ -152,3 +152,42 @@ def test_audio_decoder_alias():
             for quality in [0, 50, 100]:
                 for dtype in [types.INT16, types.INT32, types.FLOAT]:
                     yield check_audio_decoder_alias, sample_rate, downmix, quality, dtype
+
+def check_audio_decoder_correctness(fmt, dtype):
+  batch_size = 16
+  niterations = 10
+  @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+  def audio_decoder_pipe(fnames, dtype, downmix=False):
+      encoded, _ = fn.readers.file(files=fnames)
+      decoded, _ = fn.decoders.audio(encoded, dtype=dtype, downmix=downmix)
+      return decoded
+
+  audio_files = get_files(os.path.join('db', 'audio', fmt), fmt)
+  npy_files = [os.path.splitext(fpath)[0] + '.npy' for fpath in audio_files]
+  pipe = audio_decoder_pipe(audio_files, dtype)
+  pipe.build()
+  for it in range(niterations):
+    data = pipe.run()
+    for s  in range(batch_size):
+      sample_idx = (it * batch_size + s) % len(audio_files)
+      ref = np.load(npy_files[sample_idx])
+      if len(ref.shape) == 1:
+        ref = np.expand_dims(ref, 1)
+      arr = np.array(data[0][s])
+      assert(arr.shape == ref.shape)
+      if fmt == 'ogg':
+        # For OGG Vorbis, we consider errors any value that is off by more than 1
+        # TODO(janton): There is a bug in libsndfile that produces underflow/overflow.
+        #               Remove this when the bug is fixed.
+        wrong_values = np.where(np.abs(arr-ref) > 1)[0]  # Tuple with two arrays, we just need the first dimension
+        nerrors = len(wrong_values)
+        assert(nerrors <= 1)
+        # TODO(janton): Uncomment this when the bug is fixed
+        # np.testing.assert_allclose(arr, ref, atol=1)
+      else:
+        np.testing.assert_equal(arr, ref)
+
+def test_audio_decoder_correctness():
+  dtype = types.INT16
+  for fmt in ['wav', 'flac', 'ogg']:
+    yield check_audio_decoder_correctness, fmt, dtype
