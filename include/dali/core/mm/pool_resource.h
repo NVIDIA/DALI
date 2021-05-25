@@ -16,13 +16,21 @@
 #define DALI_CORE_MM_POOL_RESOURCE_H_
 
 #include <mutex>
+#include <condition_variable>
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
+#include "dali/core/device_guard.h"
 #include "dali/core/util.h"
 
 namespace dali {
 namespace mm {
+
+enum class sync_scope {
+  none  = 0,   ///< no synchronization required
+  device = 1,  ///< synchronize with the current device
+  system = 2   ///< synchronize with all devices in the system
+};
 
 struct pool_options {
   /**
@@ -48,6 +56,25 @@ struct pool_options {
    * @remarks This option is ignored when `try_smaller_on_failure` is set to `false`.
    */
   bool return_to_upstream_on_failure = true;
+
+  /**
+   * @brief To what extent should `deallocate` synchronize before making the memory available
+   */
+  sync_scope sync = sync_scope::none;
+
+  /**
+   * @brief Enables deferred deallocation if the pool supports it (otherwise ignored)
+   */
+  bool enable_deferred_deallocation = false;
+
+  /**
+   * @brief Maximum number of outstanding deferred deallocations
+   *
+   * If there are more outstanding deferred deallocations than this number,
+   * the subsequent allocation blocks.
+   */
+  int max_outstanding_deallocations = 16;
+
   size_t upstream_alignment = 256;
 };
 
@@ -59,11 +86,159 @@ constexpr pool_options default_device_pool_opts() noexcept {
   return { (static_cast<size_t>(1) << 32), (1 << 20), 2.0f, true, true };
 }
 
+template <memory_kind kind>
+constexpr sync_scope default_sync_scope() {
+  return kind == memory_kind::device ? sync_scope::device
+                                     : kind == memory_kind::host ? sync_scope::none
+                                                                 : sync_scope::system;
+}
+
+template <memory_kind kind>
+constexpr pool_options default_pool_opts() noexcept {
+  if (kind == memory_kind::host) {
+    return default_host_pool_opts();
+  } else {
+    auto opt = default_device_pool_opts();
+    opt.sync = default_sync_scope<kind>();
+    opt.enable_deferred_deallocation = true;
+    return opt;
+  }
+}
+
+struct dealloc_params {
+  int sync_device = -1;  // -1 == current device
+  void *ptr = nullptr;
+  size_t bytes = 0, alignment = 0;
+};
+
+namespace detail {
+template <typename Actual>
+class deferred_deallocator {
+ public:
+  using dealloc_queue = SmallVector<dealloc_params, 32>;
+
+  ~deferred_deallocator() {
+    if (worker_.joinable()) {
+      stop();
+      worker_.join();
+    }
+  }
+
+  void deferred_deallocate(void *ptr,
+                           size_t bytes,
+                           size_t alignment = alignof(std::max_align_t),
+                           int device_id = -1) {
+    if (!ptr || !bytes)
+      return;  // nothing to do
+    if (device_id < 0) {
+      CUDA_CALL(cudaGetDevice(&device_id));
+    }
+
+    {
+      std::lock_guard<std::mutex> g(mtx_);
+      deallocs_[queue_idx_].push_back({device_id, ptr, bytes, alignment});
+
+      if (!started_)
+        start_worker();
+    }
+    cv_.notify_one();
+  }
+
+
+  int outstanding_dealloc_count() const {
+    return deallocs_[0].size() + deallocs_[1].size();
+  }
+
+  /**
+   * @brief Waits until currently scheduled deallocations are flushed.
+   *
+   * This function waits until the worker notifies that it's completed flushing
+   * current queue (there are two queues). It doesn't wait for the other queue
+   * nor prevent new deallocatiosn from being scheduled.
+   */
+  void flush_deferred() {
+    if (!no_pending_deallocs()) {
+      std::unique_lock<std::mutex> ulock(mtx_);
+      if (!no_pending_deallocs())
+        ready_.wait(ulock);
+    }
+  }
+
+ protected:
+  // exposed for testing
+  bool no_pending_deallocs() const noexcept {
+    return deallocs_[0].empty() && deallocs_[1].empty();
+  }
+
+ private:
+  Actual &This() noexcept {
+    return *static_cast<Actual *>(this);
+  }
+
+  void start_worker() {
+    worker_ = std::thread([this]() {
+      run();
+    });
+    started_ = true;
+  }
+
+  void run() {
+    std::unique_lock<std::mutex> ulock(mtx_);
+    while (!is_stopped()) {
+      cv_.wait(ulock, [&](){ return !stopped_ || deallocs_[queue_idx_].empty(); });
+      if (is_stopped())
+        break;
+      auto &to_free = deallocs_[queue_idx_];
+      queue_idx_ = 1 - queue_idx_;
+      ulock.unlock();
+      This().bulk_deallocate(make_span(to_free));
+      to_free.clear();
+      ready_.notify_one();
+      ulock.lock();
+    }
+  }
+
+  void stop() {
+    stopped_ = true;
+    cv_.notify_all();
+  }
+
+  bool is_stopped() const noexcept { return stopped_; }
+
+  std::thread worker_;
+  std::mutex mtx_;
+  std::condition_variable cv_, ready_;
+  dealloc_queue deallocs_[2];
+  int queue_idx_ = 0;
+  bool started_ = false;
+  bool stopped_ = false;
+};
+
+inline void synchronize_all_devices() {
+  int ndev;
+  CUDA_CALL(cudaGetDeviceCount(&ndev));
+  DeviceGuard dg;
+  for (int i = 0; i < ndev; i++) {
+    CUDA_CALL(cudaSetDevice(i));
+    CUDA_CALL(cudaDeviceSynchronize());
+  }
+}
+
+inline void synchronize(sync_scope scope) {
+  if (scope == sync_scope::device) {
+      CUDA_CALL(cudaDeviceSynchronize());
+  } else if (scope == sync_scope::system) {
+    synchronize_all_devices();
+  }
+}
+
+}  // namespace detail
+
 template <memory_kind kind, typename Context, class FreeList, class LockType>
 class pool_resource_base : public memory_resource<kind, Context> {
  public:
   explicit pool_resource_base(memory_resource<kind, Context> *upstream = nullptr,
-                              const pool_options opt = {})
+                              const pool_options opt = default_pool_opts<kind>())
   : upstream_(upstream), options_(opt) {
      next_block_size_ = opt.min_block_size;
   }
@@ -84,6 +259,53 @@ class pool_resource_base : public memory_resource<kind, Context> {
   }
 
   /**
+   * @brief Deallocates multiple blocks of memory, but synchronizes only once
+   *
+   * @remarks This function must not use do_deallocate virtual function.
+   */
+  void bulk_deallocate(span<const dealloc_params> params) {
+    if (!params.empty()) {
+      synchronize(params);
+      lock_guard guard(lock_);
+      for (const dealloc_params &par : params) {
+        free_list_.put(par.ptr, par.bytes);
+      }
+    }
+  }
+
+  void synchronize(span<const dealloc_params> params) {
+    if (options_.sync == sync_scope::device) {
+      int prev = -1;
+      const int kMaxDevices = 256;
+      uint32_t dev_mask[kMaxDevices >> 5];  // NOLINT - linter doesn't notice it's a constant expression
+      for (const dealloc_params &par : params) {
+        int dev = par.sync_device;
+        if (dev < 0) {
+          CUDA_CALL(cudaGetDevice(&dev));
+        }
+        if (dev < kMaxDevices) {  // that should do in all realistic cases
+          int bin = dev >> 5;
+          uint32_t mask = 1 << (dev & 31);
+          if (dev_mask[bin] & mask)
+            continue;  // already synchronized
+          dev_mask[bin] |= mask;
+        } else if (dev == prev) {  // if there's a highly unlikely system with >256 devices
+          continue;                // we just check if the device is the same as previous or not
+        }
+        DeviceGuard dg(dev);
+        CUDA_CALL(cudaDeviceSynchronize());
+        prev = dev;
+      }
+    } else if (options_.sync == sync_scope::system) {
+      detail::synchronize_all_devices();
+    }
+  }
+
+  void synchronize() {
+    detail::synchronize(options_.sync);
+  }
+
+  /**
    * @brief Tries to obtain a block from the internal free list.
    *
    * Allocates `bytes` memory from the free list. If a block that satisifies
@@ -98,6 +320,18 @@ class pool_resource_base : public memory_resource<kind, Context> {
       lock_guard guard(lock_);
       return free_list_.get(bytes, alignment);
     }
+  }
+
+  /**
+   * @brief Deallocates a block memory without synchronization
+   *
+   * Places a block of memory in the free list for immediate reuse.
+   * The caller must guarantee, that the memory is available without
+   * any additional synchronization in the execution context for this resource.
+   */
+  void deallocate_no_sync(void *ptr, size_t bytes, size_t alignment = alignof(std::max_align_t)) {
+    lock_guard guard(lock_);
+    free_list_.put(ptr, bytes);
   }
 
  protected:
@@ -124,7 +358,6 @@ class pool_resource_base : public memory_resource<kind, Context> {
         return new_block;
       } else {
         // we've allocated an oversized block - put the remainder in the free list
-        lock_guard guard(lock_);
         free_list_.put(static_cast<char *>(new_block) + bytes, blk_size - bytes);
         return new_block;
       }
@@ -135,8 +368,9 @@ class pool_resource_base : public memory_resource<kind, Context> {
   }
 
   void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
-    lock_guard guard(lock_);
-    free_list_.put(ptr, bytes);
+    (void)alignment;
+    synchronize();
+    deallocate_no_sync(ptr, bytes, alignment);
   }
 
   void *get_upstream_block(size_t &blk_size, size_t min_bytes, size_t alignment) {
@@ -221,6 +455,34 @@ class pool_resource_base : public memory_resource<kind, Context> {
   SmallVector<UpstreamBlock, 16> blocks_;
   using lock_guard = std::lock_guard<LockType>;
   using unique_lock = std::unique_lock<LockType>;
+};
+
+template <memory_kind kind, typename Context, class FreeList, class LockType>
+class deferred_dealloc_pool
+  : public pool_resource_base<kind, Context, FreeList, LockType>
+  , public detail::deferred_deallocator<deferred_dealloc_pool<kind, Context, FreeList, LockType>> {
+ public:
+  explicit deferred_dealloc_pool(memory_resource<kind, Context> *upstream = nullptr,
+                                 const pool_options opt = default_pool_opts<kind>())
+  : base(upstream, opt) {}
+
+ private:
+  using base = pool_resource_base<kind, Context, FreeList, LockType>;
+
+  void *do_allocate(size_t bytes, size_t alignment) override {
+    if (this->options_.enable_deferred_deallocation) {
+      if (this->outstanding_dealloc_count() > this->options_.max_outstanding_deallocations)
+        this->flush_deferred();
+    }
+    return base::do_allocate(bytes, alignment);
+  }
+
+  void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
+    if (this->options_.enable_deferred_deallocation)
+      this->deferred_deallocate(ptr, bytes, alignment);
+    else
+      base::do_deallocate(ptr, bytes, alignment);
+  }
 };
 
 }  // namespace mm
