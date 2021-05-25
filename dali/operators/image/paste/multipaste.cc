@@ -31,21 +31,24 @@ Assumes HWC layout.)code")
 .AddOptionalArg<int>("in_anchors", R"code(Absolute coordinates of LU corner
 of the source region.
 
-2D data with where the first dimension corresponds to the elements of ``in_ids``
-and the second one is equal to the number dimensions of the data.
+The anchors are represented as 2D tensors where the first dimension corresponds to the
+elements of ``in_ids`` and the second one is equal to the number of dimensions of the
+data, excluding channels.
 
 If not provided, all anchors are zero.)code", nullptr, true)
 .AddOptionalArg<int>("shapes", R"code(Shape of the paste regions.
 
-2D data with where the first dimension corresponds to the elements of ``in_ids``
-and the second one is equal to the number dimensions of the data.
+The shapes are represented as 2D tensors where the first dimension corresponds to the
+elements of ``in_ids`` and the second one is equal to the number of dimensions of the
+data, excluding channels.
 
 If not provided, the input shape is used.)code", nullptr, true)
 .AddOptionalArg<int>("out_anchors", R"code(Absolute coordinates of LU corner
 of the destination region.
 
-2D data with where the first dimension corresponds to the elements of ``in_ids``
-and the second one is equal to the number dimensions of the data.
+The anchors are represented as 2D tensors where the first dimension corresponds to the
+elements of ``in_ids`` and the second one is equal to the number of dimensions of the
+data, excluding channels.
 
 If not provided, all anchors are zero.)code", nullptr, true)
 .AddArg("output_size",
