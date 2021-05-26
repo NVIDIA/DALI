@@ -36,22 +36,24 @@ def is_gds_supported(device_id=0):
     if is_gds_supported_var is not None:
         return is_gds_supported_var
 
-    compute_cap = 0
-    try:
-        import pynvml
-        pynvml.nvmlInit()
-        handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
-        compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
-        compute_cap = compute_cap[0] + compute_cap[1] / 10.
-    except ModuleNotFoundError:
-        pass
+    # The latest GDS do work with other < 6.0 compute capability
+    # leave this code just in case we need to add a different check
+    # compute_cap = 0
+    # try:
+    #     import pynvml
+    #     pynvml.nvmlInit()
+    #     handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+    #     compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
+    #     compute_cap = compute_cap[0] + compute_cap[1] / 10.
+    # except ModuleNotFoundError:
+    #     pass
 
-    is_gds_supported_var = platform.processor() == "x86_64" and compute_cap >= 6.0
+    is_gds_supported_var = platform.processor() == "x86_64"
     return is_gds_supported_var
 
 def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=None, path_filter="*.npy",
-                        num_threads=1, device_id=0, num_gpus=1, cache_header_information=False):
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=0)
+                        num_threads=1, device_id=0, cache_header_information=False):
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
     data = fn.readers.numpy(device = device,
                             file_list = file_list,
                             files = files,
