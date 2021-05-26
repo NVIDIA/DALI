@@ -213,7 +213,8 @@ class best_fit_free_list {
    * @brief Places the free block in the list.
    *
    * The block is not merged with adjacent blocks. The fragmentation of the list is permanent.
-   * For long term usage, when fragmentation is an issue, use coalescing_free_list or free_tree.
+   * For long term usage, when internal fragmentation is an issue, use coalescing_free_list or
+   * coalescing_free_tree.
    */
   void put(void *ptr, size_t bytes) {
     block *blk = get_block();
@@ -479,19 +480,19 @@ class coalescing_free_list : public best_fit_free_list {
  * @brief Maintains a list of free memory blocks of variable size, returning free blocks
  *        with least margin.
  *
- * The free_tree yields exactly the same results as coalescing_free_list, but the operations
- * are completed in log(n) time.
+ * The coalescing_free_tree yields exactly the same results as coalescing_free_list, but the
+ * operations are completed in log(n) time.
  *
  * When there are few elements, the additional constant overhead may favor the use of
- * coalescing_free_list, but for long lifetimes and large number of free blocks free_tree
+ * coalescing_free_list, but for long lifetimes and large number of free blocks coalescing_free_tree
  * yields superior performance.
  *
- * Merging of the free_trees is accomplished in k*(log(n)+log(k)) time where n is the number
- * of elements already in the list and k is the number of inserted elements.
+ * Merging of the coalescing_free_trees is accomplished in k*(log(n)+log(k)) time where n is the
+ * number of elements already in the list and k is the number of inserted elements.
  *
  * The tree nodes are allocated from a pooling allocator.
  */
-class free_tree {
+class coalescing_free_tree {
  public:
   void clear() {
     by_addr_.clear();
@@ -630,7 +631,7 @@ class free_tree {
     }
   }
 
-  void merge(free_tree &&with) {
+  void merge(coalescing_free_tree &&with) {
     with.by_size_.clear();
     // Erase the source list one by one - this reduces requirements on total auxiliary memory
     // for the maps.
@@ -652,7 +653,7 @@ template <>
 struct can_merge<coalescing_free_list> : std::true_type {};
 
 template <>
-struct can_merge<free_tree> : std::true_type {};
+struct can_merge<coalescing_free_tree> : std::true_type {};
 }  // namespace detail
 
 }  // namespace mm

@@ -73,13 +73,13 @@ TEST(MMPoolResource, Coalescing) {
 }
 
 TEST(MMPoolResource, Tree) {
-  TestPoolResource<free_tree>(100000);
+  TestPoolResource<coalescing_free_tree>(100000);
 }
 
 TEST(MMPoolResource, ReturnToUpstream) {
   test_device_resource upstream;
   {
-    pool_resource_base<memory_kind::device, any_context, free_tree, detail::dummy_lock>
+    pool_resource_base<memory_kind::device, any_context, coalescing_free_tree, detail::dummy_lock>
       pool(&upstream);
     size_t size = 1<<28;  // 256M
     for (;;) {
@@ -107,7 +107,7 @@ TEST(MMPoolResource, TestBulkDeallocate) {
   {
     pool_options opts;
     opts.min_block_size = 1000000;
-    pool_resource_base<memory_kind::host, any_context, free_tree, detail::dummy_lock>
+    pool_resource_base<memory_kind::host, any_context, coalescing_free_tree, detail::dummy_lock>
       pool(&upstream, opts);
     vector<dealloc_params> params;
     std::mt19937_64 rng(12345);
@@ -135,9 +135,9 @@ namespace {
 
 template <memory_kind kind, typename Context = any_context>
 class test_defer_dealloc
-    : public deferred_dealloc_pool<kind, Context, free_tree, spinlock> {
+    : public deferred_dealloc_pool<kind, Context, coalescing_free_tree, spinlock> {
  public:
-  using pool = deferred_dealloc_pool<kind, Context, free_tree, spinlock>;
+  using pool = deferred_dealloc_pool<kind, Context, coalescing_free_tree, spinlock>;
   bool ready() const noexcept {
     return this->no_pending_deallocs();
   }
