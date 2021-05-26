@@ -5,3 +5,7 @@ TensorFlow Plugin API reference
    :members:
    :undoc-members:
 
+Experimental
+------------
+
+.. autofunction:: nvidia.dali.plugin.tf.experimental.DALIDatasetWithInputs
