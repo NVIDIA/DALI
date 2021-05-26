@@ -53,6 +53,21 @@ torch_windows = {
     'none': None,
 }
 
+def stack_subsample_frames(x, stacking=1, subsampling=1):
+    """ Stacks frames together across feature dim, and then subsamples
+
+    input is batch_size, feature_dim, num_frames
+    output is batch_size, feature_dim * stacking, num_frames / subsampling
+
+    """
+    seq = [x]
+    for n in range(1, stacking):
+        tmp = torch.zeros_like(x)
+        tmp[:, :, :-n] = x[:, :, n:]
+        seq.append(tmp)
+    x = torch.cat(seq, dim=1)[:, :, ::subsampling]
+    return x
+
 class FilterbankFeatures():
     def __init__(self, sample_rate=16000, window_size=0.02, window_stride=0.01, window="hann", normalize="per_feature",
                  n_fft=None, preemph=0.97, nfilt=64, lowfreq=0, highfreq=None, log=True, frame_splicing=1):
@@ -69,21 +84,6 @@ class FilterbankFeatures():
         self.window = window_fn(self.win_length, periodic=False) if window_fn else None
         self.fb = torch.tensor(
             librosa.filters.mel(sample_rate, self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq), dtype=torch.float).unsqueeze(0)
-
-    @staticmethod
-    def splice_frames(x, frame_splicing):
-        """ Stacks frames together across feature dim
-
-        input is batch_size, feature_dim, num_frames
-        output is batch_size, feature_dim*frame_splicing, num_frames
-
-        """
-        seq = [x]
-        for n in range(1, frame_splicing):
-            tmp = torch.zeros_like(x)
-            tmp[:, :, :-n] = x[:, :, n:]
-            seq.append(tmp)
-        return torch.cat(seq, dim=1)[:, :, ::frame_splicing]
 
     @staticmethod
     def normalize_batch(x, seq_len, normalize_type):
@@ -143,7 +143,7 @@ class FilterbankFeatures():
 
         # frame splicing if required
         if self.frame_splicing > 1:
-            x = self.splice_frames(x, self.frame_splicing)
+            x = stack_subsample_frames(x, stacking=self.frame_splicing)
 
         # normalize if required
         if self.normalize:
@@ -355,10 +355,58 @@ def test_torch_vs_dali_normalize():
         for normalize_type in ['per_feature', 'all_features']:
             yield _testimpl_torch_vs_dali_normalize, normalize_type, device
 
+def torch_frame_splicing(mel_spec, stacking=1, subsampling=1, device='cpu'):
+    mel_spec = torch.tensor(mel_spec, dtype=torch.float32).unsqueeze(0)
+    if device == 'gpu':
+        mel_spec = mel_spec.cuda()
+    out = stack_subsample_frames(mel_spec, stacking=stacking, subsampling=subsampling)
+    out = out.cpu().detach().numpy().squeeze(0)
+    return out
+
+def dali_frame_splicing(mel_spec_data, stacking, subsampling, device='cpu'):
+    @pipeline_def(batch_size=1, device_id=0, num_threads=3)
+    def log_pipe():
+        x = fn.external_source(lambda: mel_spec_data, device=device, batch=False)
+        # Splice frames implementation needs accessing the data shape on the CPU
+        x_orig_shape = fn.external_source(lambda: np.array(mel_spec_data.shape, dtype=np.int32), device='cpu', batch=False)
+        nfeatures = fn.slice(x_orig_shape, 0, 1, axes=(0,))
+        in_len = fn.slice(x_orig_shape, 1, 1, axes=(0,))
+        if stacking > 1:
+            seq = [x]
+            for n in range(1, stacking):
+                f = fn.slice(x, start=n, axes=(1,))
+                f = fn.pad(f, shape=x_orig_shape)
+                seq.append(f)
+            x = fn.cat(*seq, axis=0)
+            nfeatures = nfeatures * stacking
+        if subsampling > 1:
+            out_len = (in_len + subsampling - 1) // subsampling
+            m = fn.transforms.scale(scale=[subsampling, 1], center=[0.5, 0])
+            x = fn.reshape(x, rel_shape=[1, 1, -1], layout="HWC")  # Layout required by WarpAffine
+            x = fn.warp_affine(x, matrix=m, size=fn.cat(nfeatures, out_len), interp_type=types.INTERP_NN)
+            x = fn.reshape(x, rel_shape=[1, 1], layout="ft")
+        return x
+    return dali_run(log_pipe(), device=device)
+
+def _testimpl_torch_vs_dali_frame_splicing(stacking, subsampling, device):
+    for s in range(len(npy_files)):
+        arr = _convert_samples_to_float32(np.load(npy_files[s]))
+        spec = torch_spectrogram(arr, npy_files_sr, device=device)
+        mel_spec = torch_mel_fbank(spec, npy_files_sr, device=device)
+        log_features = torch_log(mel_spec, device=device)
+        torch_out = torch_frame_splicing(log_features, stacking=stacking, subsampling=subsampling, device=device)
+        dali_out = dali_frame_splicing(log_features, stacking, subsampling, device=device)
+        np.testing.assert_allclose(torch_out, dali_out, atol=1e-4)
+
+def test_torch_vs_dali_frame_splicing():
+    for device in ['cpu', 'gpu']:
+        for stacking, subsampling in [(1, 1), (3, 1), (3, 2), (3, 3)]:
+            yield _testimpl_torch_vs_dali_frame_splicing, stacking, subsampling, device
+
 @pipeline_def(batch_size=1, device_id=0, num_threads=3)
-def rnnt_train_pipe(files, sample_rate=16000, silence_threshold=-80, preemph_coeff=.97,
+def rnnt_train_pipe(files, sample_rate, silence_threshold=-80, preemph_coeff=.97,
                     window_size=.02, window_stride=.01, window="hann", nfeatures=64, nfft=512, frame_splicing=1,
-                    lowfreq=0.0, highfreq=None, normalize_type='per_feature'):
+                    lowfreq=0.0, highfreq=None, normalize_type='per_feature', device='cpu'):
     norm_axes = [1] if 'per_feature' else [0, 1]
     win_len, win_hop = win_args(sample_rate, window_size, window_stride)
     window_fn = torch_windows.get(window, None)
@@ -366,58 +414,99 @@ def rnnt_train_pipe(files, sample_rate=16000, silence_threshold=-80, preemph_coe
 
     data, _ = fn.readers.file(files=files, device="cpu", random_shuffle=False, shard_id=0, num_shards=1)
     audio, _ = fn.decoders.audio(data, dtype=types.FLOAT, downmix=True)
+
+    audio_shape = fn.shapes(audio, dtype=types.INT32)
+    audio_len = fn.slice(audio_shape, 0, 1, axes=(0,))
+    spec_len = audio_len // win_hop + 1
+    ref_spec_len = (audio_len + win_hop - 1) // win_hop
+
+    if device == 'gpu':
+        audio = audio.gpu()
+
     preemph_audio = fn.preemphasis_filter(audio, preemph_coeff=preemph_coeff, border='zero')
     spec = fn.spectrogram(preemph_audio, nfft=nfft, window_fn=window_fn_arg, window_length=win_len, window_step=win_hop,
                           center_windows=True, reflect_padding=True)
-
     mel_spec = fn.mel_filter_bank(spec, sample_rate=sample_rate, nfilter=nfeatures, freq_low=lowfreq, freq_high=highfreq)
     log_features = fn.to_decibels(mel_spec + 1e-20, multiplier=np.log(10), reference=1.0, cutoff_db=-80)
 
     if frame_splicing > 1:
-        log_features = fn.transpose(log_features, perm=[1, 0])
-        log_features = fn.reshape(log_features, rel_shape=[-1, frame_splicing])
-        log_features = fn.pad(log_features, axes=[0], fill_value=0, align=frame_splicing, shape=[1])
-        log_features = fn.transpose(log_features, perm=[1, 0])
+        seq = [log_features]
+        for n in range(1, frame_splicing):
+            f = fn.slice(log_features, start=n, axes=(1,))
+            f = fn.pad(f, shape=fn.cat(nfeatures, spec_len))
+            seq.append(f)
+        log_features_spliced = fn.cat(*seq, axis=0)
+    else:
+        log_features_spliced = log_features
 
-    norm_log_features = fn.normalize(log_features, axes=[1], epsilon=4e-5, ddof=1)
-    return norm_log_features, log_features, mel_spec, spec, preemph_audio, audio
+    if normalize_type:
+        # This is here for the sake of comparable results only, since the reference calculates the sequence length differently
+        log_features_spliced_trim = fn.slice(log_features_spliced, 0, ref_spec_len, axes=(1,))
+        if normalize_type == 'per_feature':
+            norm_log_features = fn.normalize(log_features_spliced_trim, axes=[1], device=device, epsilon=4e-5, ddof=1)
+        elif normalize_type == 'all_features':
+            norm_log_features = fn.normalize(log_features_spliced_trim, axes=[0, 1], device=device, epsilon=4e-5, ddof=1)
+        else:
+            assert False
+        norm_log_features = fn.pad(norm_log_features, shape=fn.cat(nfeatures, spec_len))
+    else:
+        norm_log_features = log_features_spliced
+
+    return norm_log_features, log_features_spliced, log_features, mel_spec, spec, preemph_audio, audio
 
 # Test compares pre-calculated output of native data pipeline with an output
 # from DALI data pipeline. There are few modification of native data pipeline
 # comparing to the reference: random operations (i.e. dither and presampling
 # aka "speed perturbation") are turned off
-def test_rnnt_data_pipeline():
-    preemph = 0.97
-    n_fft = None
+def _testimpl_rnnt_data_pipeline(device, silence_threshold=-80, preemph_coeff=.97, window_size=.02, window_stride=.01,
+                                 window="hann", nfeatures=64, n_fft=512, frame_splicing=1,
+                                 lowfreq=0.0, highfreq=None, normalize_type='per_feature'):
     sample_rate = npy_files_sr
-    highfreq = None
-    window_size = 0.02
-    window_stride = 0.01
-    normalize_type = 'per_feature'
-    ref_pipeline = FilterbankFeatures(sample_rate=sample_rate, n_fft=n_fft, highfreq=highfreq, frame_splicing=1)
+
+    ref_pipeline = FilterbankFeatures(
+        sample_rate=sample_rate, window_size=window_size, window_stride=window_stride, window=window, normalize=normalize_type,
+        n_fft=n_fft, preemph=preemph_coeff, nfilt=nfeatures, lowfreq=lowfreq, highfreq=highfreq, log=True, frame_splicing=frame_splicing
+    )
     recordings = []
     for fpath in npy_files:
         arr = np.load(fpath)
         arr = _convert_samples_to_float32(arr)
         recordings.append(arr)
     nrecordings = len(recordings)
-    pipe = rnnt_train_pipe(audio_files, seed=42)
-    pipe.build()
     reference_data = []
     for i in range(nrecordings):
         reference_data.append(
-            ref_pipeline.forward(torch.tensor([recordings[i]]), torch.tensor([recordings[i].shape[0]]))
+            ref_pipeline.forward(
+                torch.tensor([recordings[i]]),
+                torch.tensor([recordings[i].shape[0]])
+            )
         )
+
+    pipe = rnnt_train_pipe(
+        audio_files, sample_rate, silence_threshold, preemph_coeff, window_size, window_stride, window, nfeatures,
+        n_fft, frame_splicing, lowfreq, highfreq, normalize_type, device, seed=42
+    )
+    pipe.build()
     for i in range(nrecordings):
-        dali_out = pipe.run()
+        dali_out = list(pipe.run())
+        if device == 'gpu':
+            for out_idx in range(len(dali_out)):
+                dali_out[out_idx] = dali_out[out_idx].as_cpu()
         norm_log_features = np.array(dali_out[0][0])
-        log_features = np.array(dali_out[1][0])
-        mel_spec = np.array(dali_out[2][0])
-        spec = np.array(dali_out[3][0])
-        preemph_audio = np.array(dali_out[4][0])
-        audio = np.array(dali_out[5][0])
-        ref = reference_data[i].squeeze(0)
-        assert ref.shape == norm_log_features.shape
+        log_features_spliced = np.array(dali_out[1][0])
+        log_features = np.array(dali_out[2][0])
+        mel_spec = np.array(dali_out[3][0])
+        spec = np.array(dali_out[4][0])
+        preemph_audio = np.array(dali_out[5][0])
+        audio = np.array(dali_out[6][0])
+
+        audio_ref = recordings[i]
+        audio_len_ref = recordings[i].shape[0]
+        np.testing.assert_allclose(audio, audio_ref, atol=1e-4)
+
+        ref = np.array(reference_data[i].squeeze(0))
+        seq_len_ref = ref_pipeline.get_seq_len(torch.tensor([audio_len_ref])).squeeze(0)
+        assert ref.shape == norm_log_features.shape, f"{ref.shape}, {norm_log_features.shape}"
         nfeatures, seq_len = ref.shape
         size = nfeatures * seq_len
 
@@ -425,7 +514,7 @@ def test_rnnt_data_pipeline():
         audio_len_ref = recordings[i].shape[0]
         np.testing.assert_allclose(audio, audio_ref, atol=1e-4)
 
-        preemph_audio_ref = torch_preemphasis(audio_ref, preemph=preemph)
+        preemph_audio_ref = torch_preemphasis(audio_ref, preemph=preemph_coeff)
         np.testing.assert_allclose(preemph_audio, preemph_audio_ref, atol=1e-4)
 
         spec_ref = torch_spectrogram(preemph_audio_ref, npy_files_sr,
@@ -442,15 +531,36 @@ def test_rnnt_data_pipeline():
         log_features_ref2 = torch_log(mel_spec)
         np.testing.assert_allclose(log_features, log_features_ref2, atol=1e-4)
 
-        norm_log_features_ref = torch_normalize(log_features_ref, normalize_type)
+        log_features_spliced_ref = torch_frame_splicing(log_features_ref, stacking=frame_splicing)
+        np.testing.assert_allclose(log_features_spliced, log_features_spliced_ref, atol=1e-3)
+        log_features_spliced_ref2 = torch_frame_splicing(log_features, stacking=frame_splicing)
+        np.testing.assert_allclose(log_features_spliced, log_features_spliced_ref2, atol=1e-4)
+
+        norm_log_features_ref = np.zeros_like(log_features_spliced_ref)
+        norm_log_features_ref[:, :seq_len_ref] = torch_normalize(log_features_spliced_ref[:, :seq_len_ref], normalize_type)
         np.testing.assert_allclose(norm_log_features, norm_log_features_ref, atol=1e-3)
 
-        norm_log_features_ref2 = torch_normalize(log_features, normalize_type)
+        norm_log_features_ref2 = np.zeros_like(log_features_spliced)
+        norm_log_features_ref2[:, :seq_len_ref] = torch_normalize(log_features_spliced[:, :seq_len_ref], normalize_type)
         np.testing.assert_allclose(norm_log_features, norm_log_features_ref2, atol=1e-4)
 
-        # The reference pipeline calculate the number of windows in a wrong way, when using centered windows.
-        # Here we are trying to recreate that behavior.
-        seq_len = ref_pipeline.get_seq_len(torch.tensor([audio_len_ref]))
-        norm_log_features_ref3 = torch_normalize(log_features_ref, normalize_type, seq_len=seq_len)
-        ref_output = ref_pipeline.forward(torch.tensor([audio_ref]), torch.tensor([audio_len_ref])).squeeze(0)
-        np.testing.assert_allclose(norm_log_features_ref3[:, :seq_len[0]], ref_output[:, :seq_len[0]], atol=1e-4)
+        # Full pipeline
+        np.testing.assert_allclose(norm_log_features, ref, atol=1e-3)
+
+
+def test_rnnt_data_pipeline():
+    silence_threshold=-80
+    preemph_coeff=.97
+    window_size=.02
+    window_stride=.01
+    window="hann"
+    nfeatures=64
+    n_fft=512
+    lowfreq=0.0
+    highfreq=None
+    normalize_type='per_feature'
+    for device in ['cpu', 'gpu']:
+        for frame_splicing in [1, 3]:
+            yield _testimpl_rnnt_data_pipeline, device, \
+                silence_threshold, preemph_coeff, window_size, window_stride, window, nfeatures, n_fft, \
+                frame_splicing, lowfreq, highfreq, normalize_type
