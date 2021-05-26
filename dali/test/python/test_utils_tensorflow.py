@@ -48,6 +48,7 @@ def available_gpus():
     return devices
 
 
+# ################################################################################################ #
 #
 # To test custom DALI pipeline and DALIDataset wrapper for it all the `run_tf_dataset_*`
 # routines accept two arguments:
@@ -68,7 +69,8 @@ def available_gpus():
 # to_image_dataset(image_pipeline_desc, device_str) -> tf.data.Dataset
 # image_pipeline_desc will be the tuple returned by the `get_pipeline_desc`, device_str
 # is the expected placement of the tested DALIDataset
-
+#
+# ################################################################################################ #
 
 def get_image_pipeline(batch_size, num_threads, device, device_id=0, shard_id=0, num_shards=1,
         def_for_dataset=False):
