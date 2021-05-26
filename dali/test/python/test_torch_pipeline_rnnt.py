@@ -112,8 +112,7 @@ class FilterbankFeatures():
             return x
 
     def get_seq_len(self, seq_len):
-        return torch.ceil(seq_len.to(dtype=torch.float) / self.hop_length).to(
-            dtype=torch.int)
+        return seq_len.to(dtype=torch.int) // self.hop_length + 1
 
     def forward(self, inp, seq_len):
         x = inp
@@ -418,7 +417,6 @@ def rnnt_train_pipe(files, sample_rate, silence_threshold=-80, preemph_coeff=.97
     audio_shape = fn.shapes(audio, dtype=types.INT32)
     audio_len = fn.slice(audio_shape, 0, 1, axes=(0,))
     spec_len = audio_len // win_hop + 1
-    ref_spec_len = (audio_len + win_hop - 1) // win_hop
 
     if device == 'gpu':
         audio = audio.gpu()
@@ -440,15 +438,12 @@ def rnnt_train_pipe(files, sample_rate, silence_threshold=-80, preemph_coeff=.97
         log_features_spliced = log_features
 
     if normalize_type:
-        # This is here for the sake of comparable results only, since the reference calculates the sequence length differently
-        log_features_spliced_trim = fn.slice(log_features_spliced, 0, ref_spec_len, axes=(1,))
         if normalize_type == 'per_feature':
-            norm_log_features = fn.normalize(log_features_spliced_trim, axes=[1], device=device, epsilon=4e-5, ddof=1)
+            norm_log_features = fn.normalize(log_features_spliced, axes=[1], device=device, epsilon=4e-5, ddof=1)
         elif normalize_type == 'all_features':
-            norm_log_features = fn.normalize(log_features_spliced_trim, axes=[0, 1], device=device, epsilon=4e-5, ddof=1)
+            norm_log_features = fn.normalize(log_features_spliced, axes=[0, 1], device=device, epsilon=4e-5, ddof=1)
         else:
             assert False
-        norm_log_features = fn.pad(norm_log_features, shape=fn.cat(nfeatures, spec_len))
     else:
         norm_log_features = log_features_spliced
 
@@ -505,7 +500,6 @@ def _testimpl_rnnt_data_pipeline(device, silence_threshold=-80, preemph_coeff=.9
         np.testing.assert_allclose(audio, audio_ref, atol=1e-4)
 
         ref = np.array(reference_data[i].squeeze(0))
-        seq_len_ref = ref_pipeline.get_seq_len(torch.tensor([audio_len_ref])).squeeze(0)
         assert ref.shape == norm_log_features.shape, f"{ref.shape}, {norm_log_features.shape}"
         nfeatures, seq_len = ref.shape
         size = nfeatures * seq_len
@@ -536,12 +530,10 @@ def _testimpl_rnnt_data_pipeline(device, silence_threshold=-80, preemph_coeff=.9
         log_features_spliced_ref2 = torch_frame_splicing(log_features, stacking=frame_splicing)
         np.testing.assert_allclose(log_features_spliced, log_features_spliced_ref2, atol=1e-4)
 
-        norm_log_features_ref = np.zeros_like(log_features_spliced_ref)
-        norm_log_features_ref[:, :seq_len_ref] = torch_normalize(log_features_spliced_ref[:, :seq_len_ref], normalize_type)
+        norm_log_features_ref = torch_normalize(log_features_spliced_ref, normalize_type)
         np.testing.assert_allclose(norm_log_features, norm_log_features_ref, atol=1e-3)
 
-        norm_log_features_ref2 = np.zeros_like(log_features_spliced)
-        norm_log_features_ref2[:, :seq_len_ref] = torch_normalize(log_features_spliced[:, :seq_len_ref], normalize_type)
+        norm_log_features_ref2 = torch_normalize(log_features_spliced, normalize_type)
         np.testing.assert_allclose(norm_log_features, norm_log_features_ref2, atol=1e-4)
 
         # Full pipeline
