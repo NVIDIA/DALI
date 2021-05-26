@@ -135,10 +135,9 @@ namespace {
 
 template <memory_kind kind, typename Context = any_context>
 class test_defer_dealloc
-    : public detail::deferred_deallocator<test_defer_dealloc<kind, Context>>
-    , public pool_resource_base<kind, Context, free_tree, detail::dummy_lock> {
+    : public deferred_dealloc_pool<kind, Context, free_tree, spinlock> {
  public:
-  using pool = pool_resource_base<kind, Context, free_tree, detail::dummy_lock>;
+  using pool = deferred_dealloc_pool<kind, Context, free_tree, spinlock>;
   bool ready() const noexcept {
     return this->no_pending_deallocs();
   }

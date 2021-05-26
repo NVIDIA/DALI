@@ -112,107 +112,6 @@ struct dealloc_params {
 };
 
 namespace detail {
-template <typename Actual>
-class deferred_deallocator {
- public:
-  using dealloc_queue = SmallVector<dealloc_params, 32>;
-
-  ~deferred_deallocator() {
-    if (worker_.joinable()) {
-      stop();
-      worker_.join();
-    }
-  }
-
-  void deferred_deallocate(void *ptr,
-                           size_t bytes,
-                           size_t alignment = alignof(std::max_align_t),
-                           int device_id = -1) {
-    if (!ptr || !bytes)
-      return;  // nothing to do
-    if (device_id < 0) {
-      CUDA_CALL(cudaGetDevice(&device_id));
-    }
-
-    {
-      std::lock_guard<std::mutex> g(mtx_);
-      deallocs_[queue_idx_].push_back({device_id, ptr, bytes, alignment});
-
-      if (!started_)
-        start_worker();
-    }
-    cv_.notify_one();
-  }
-
-
-  int outstanding_dealloc_count() const {
-    return deallocs_[0].size() + deallocs_[1].size();
-  }
-
-  /**
-   * @brief Waits until currently scheduled deallocations are flushed.
-   *
-   * This function waits until the worker notifies that it's completed flushing
-   * current queue (there are two queues). It doesn't wait for the other queue
-   * nor prevent new deallocatiosn from being scheduled.
-   */
-  void flush_deferred() {
-    if (!no_pending_deallocs()) {
-      std::unique_lock<std::mutex> ulock(mtx_);
-      if (!no_pending_deallocs())
-        ready_.wait(ulock);
-    }
-  }
-
- protected:
-  // exposed for testing
-  bool no_pending_deallocs() const noexcept {
-    return deallocs_[0].empty() && deallocs_[1].empty();
-  }
-
- private:
-  Actual &This() noexcept {
-    return *static_cast<Actual *>(this);
-  }
-
-  void start_worker() {
-    worker_ = std::thread([this]() {
-      run();
-    });
-    started_ = true;
-  }
-
-  void run() {
-    std::unique_lock<std::mutex> ulock(mtx_);
-    while (!is_stopped()) {
-      cv_.wait(ulock, [&](){ return !stopped_ || deallocs_[queue_idx_].empty(); });
-      if (is_stopped())
-        break;
-      auto &to_free = deallocs_[queue_idx_];
-      queue_idx_ = 1 - queue_idx_;
-      ulock.unlock();
-      This().bulk_deallocate(make_span(to_free));
-      to_free.clear();
-      ready_.notify_one();
-      ulock.lock();
-    }
-  }
-
-  void stop() {
-    stopped_ = true;
-    cv_.notify_all();
-  }
-
-  bool is_stopped() const noexcept { return stopped_; }
-
-  std::thread worker_;
-  std::mutex mtx_;
-  std::condition_variable cv_, ready_;
-  dealloc_queue deallocs_[2];
-  int queue_idx_ = 0;
-  bool started_ = false;
-  bool stopped_ = false;
-};
 
 inline void synchronize_all_devices() {
   int ndev;
@@ -251,6 +150,8 @@ class pool_resource_base : public memory_resource<kind, Context> {
   }
 
   void free_all() {
+    upstream_lock_guard uguard(upstream_lock_);
+    lock_guard guard(lock_);
     for (auto &block : blocks_) {
       upstream_->deallocate(block.ptr, block.bytes, block.alignment);
     }
@@ -277,7 +178,7 @@ class pool_resource_base : public memory_resource<kind, Context> {
     if (options_.sync == sync_scope::device) {
       int prev = -1;
       const int kMaxDevices = 256;
-      uint32_t dev_mask[kMaxDevices >> 5];  // NOLINT - linter doesn't notice it's a constant expression
+      uint32_t dev_mask[kMaxDevices >> 5] = {};  // NOLINT - linter doesn't notice it's a constant expression
       for (const dealloc_params &par : params) {
         int dev = par.sync_device;
         if (dev < 0) {
@@ -304,6 +205,14 @@ class pool_resource_base : public memory_resource<kind, Context> {
   void synchronize() {
     detail::synchronize(options_.sync);
   }
+
+  /**
+   * @brief Flushes deferred deallocations, if supported
+   *
+   * This function is overriden by the deferred_deallocator modifier
+   */
+  virtual void flush_deferred() {}  /* no-op */
+
 
   /**
    * @brief Tries to obtain a block from the internal free list.
@@ -349,21 +258,15 @@ class pool_resource_base : public memory_resource<kind, Context> {
     size_t blk_size = bytes;
     void *new_block = get_upstream_block(blk_size, bytes, alignment);
     assert(new_block);
-    try {
+    if (blk_size == bytes) {
+      // we've allocated a block exactly of the required size - there's little
+      // chance that it will be merged with anything in the pool, so we'll return it as-is
+      return new_block;
+    } else {
+      // we've allocated an oversized block - put the remainder in the free list
       lock_guard guard(lock_);
-      blocks_.push_back({ new_block, blk_size, alignment });
-      if (blk_size == bytes) {
-        // we've allocated a block exactly of the required size - there's little
-        // chance that it will be merged with anything in the pool, so we'll return it as-is
-        return new_block;
-      } else {
-        // we've allocated an oversized block - put the remainder in the free list
-        free_list_.put(static_cast<char *>(new_block) + bytes, blk_size - bytes);
-        return new_block;
-      }
-    } catch (...) {
-      upstream_->deallocate(new_block, blk_size, alignment);
-      throw;
+      free_list_.put(static_cast<char *>(new_block) + bytes, blk_size - bytes);
+      return new_block;
     }
   }
 
@@ -374,12 +277,17 @@ class pool_resource_base : public memory_resource<kind, Context> {
   }
 
   void *get_upstream_block(size_t &blk_size, size_t min_bytes, size_t alignment) {
+    upstream_lock_guard uguard(upstream_lock_);
     blk_size = next_block_size(min_bytes);
     bool tried_return_to_upstream = false;
+    void *new_block = nullptr;
     for (;;) {
       try {
-        return upstream_->allocate(blk_size, alignment);
+        new_block = upstream_->allocate(blk_size, alignment);
+        break;
       } catch (const std::bad_alloc &) {
+        // If there are outstanding deallocations, wait for them to complete.
+        flush_deferred();
         if (!options_.try_smaller_on_failure)
           throw;
         if (blk_size == min_bytes) {
@@ -394,19 +302,28 @@ class pool_resource_base : public memory_resource<kind, Context> {
           // to the upstream, with the hope that it will reorganize and succeed in
           // the subsequent allocation attempt.
           int blocks_freed = 0;
-          for (int i = blocks_.size() - 1; i >= 0; i--) {
-            UpstreamBlock blk = blocks_[i];
-            // If we can remove the block from the free list, it
-            // means that there are no suballocations from this block
-            // - we can safely free it to the upstream.
-            if (free_list_.remove_if_in_list(blk.ptr, blk.bytes)) {
-              upstream_->deallocate(blk.ptr, blk.bytes, blk.alignment);
-              blocks_.erase_at(i);
-              blocks_freed++;
+          SmallVector<bool, 32> removed;
+          removed.resize(blocks_.size(), false);
+          {
+            lock_guard guard(lock_);
+            for (int i = 0; i < static_cast<int>(blocks_.size()); i++) {
+              UpstreamBlock blk = blocks_[i];
+              removed[i] = free_list_.remove_if_in_list(blk.ptr, blk.bytes);
+              if (removed[i])
+                blocks_freed++;
             }
           }
+
           if (!blocks_freed)
             throw;  // we freed nothing, so there's no point in retrying to allocate
+
+          for (int i = blocks_.size() - 1; i >= 0; i--) {
+            if (removed[i]) {
+              UpstreamBlock blk = blocks_[i];
+              upstream_->deallocate(blk.ptr, blk.bytes, blk.alignment);
+              blocks_.erase_at(i);
+            }
+          }
           // mark that we've tried, so we can fail fast the next time
           tried_return_to_upstream = true;
         }
@@ -417,6 +334,13 @@ class pool_resource_base : public memory_resource<kind, Context> {
         next_block_size_ = blk_size;
       }
     }
+    try {
+      blocks_.push_back({ new_block, blk_size, alignment });
+    } catch (...) {
+      upstream_->deallocate(new_block, blk_size, alignment);
+      throw;
+    }
+    return new_block;
   }
 
   virtual Context do_get_context() const noexcept {
@@ -443,6 +367,9 @@ class pool_resource_base : public memory_resource<kind, Context> {
 
   memory_resource<kind, Context> *upstream_;
   FreeList free_list_;
+
+  // locking order: upstream_lock_, lock_
+  std::mutex upstream_lock_;
   LockType lock_;
   pool_options options_;
   size_t next_block_size_ = 0;
@@ -455,19 +382,79 @@ class pool_resource_base : public memory_resource<kind, Context> {
   SmallVector<UpstreamBlock, 16> blocks_;
   using lock_guard = std::lock_guard<LockType>;
   using unique_lock = std::unique_lock<LockType>;
+  using upstream_lock_guard = std::lock_guard<std::mutex>;
 };
 
 template <memory_kind kind, typename Context, class FreeList, class LockType>
-class deferred_dealloc_pool
-  : public pool_resource_base<kind, Context, FreeList, LockType>
-  , public detail::deferred_deallocator<deferred_dealloc_pool<kind, Context, FreeList, LockType>> {
+class deferred_dealloc_pool : public pool_resource_base<kind, Context, FreeList, LockType> {
  public:
+  static_assert(!std::is_same<LockType, detail::dummy_lock>::value,
+                "This resource is inherently multithreaded and requires a functioning lock.");
+
   explicit deferred_dealloc_pool(memory_resource<kind, Context> *upstream = nullptr,
                                  const pool_options opt = default_pool_opts<kind>())
   : base(upstream, opt) {}
 
+  ~deferred_dealloc_pool() {
+    if (worker_.joinable()) {
+      stop();
+      worker_.join();
+    }
+    this->bulk_deallocate(make_span(deallocs_[0]));
+    this->bulk_deallocate(make_span(deallocs_[1]));
+  }
+
+  void deferred_deallocate(void *ptr,
+                           size_t bytes,
+                           size_t alignment = alignof(std::max_align_t),
+                           int device_id = -1) {
+    if (!ptr || !bytes)
+      return;  // nothing to do
+    if (device_id < 0) {
+      CUDA_CALL(cudaGetDevice(&device_id));
+    }
+
+    {
+      std::lock_guard<std::mutex> g(mtx_);
+      deallocs_[queue_idx_].push_back({device_id, ptr, bytes, alignment});
+
+      if (!started_)
+        start_worker();
+    }
+    cv_.notify_one();
+  }
+
+
+  int outstanding_dealloc_count() const {
+    return deallocs_[0].size() + deallocs_[1].size();
+  }
+
+  /**
+   * @brief Waits until currently scheduled deallocations are flushed.
+   *
+   * This function waits until the worker notifies that it's completed flushing
+   * current queue (there are two queues). It doesn't wait for the other queue
+   * nor prevent new deallocations from being scheduled.
+   *
+   * This method overrides the default no-op function from pool resource.
+   */
+  void flush_deferred() override {
+    if (!no_pending_deallocs()) {
+      std::unique_lock<std::mutex> ulock(mtx_);
+      if (!no_pending_deallocs())
+        ready_.wait(ulock);
+    }
+  }
+
+ protected:
+  // exposed for testing
+  bool no_pending_deallocs() const noexcept {
+    return deallocs_[0].empty() && deallocs_[1].empty();
+  }
+
  private:
   using base = pool_resource_base<kind, Context, FreeList, LockType>;
+  using dealloc_queue = SmallVector<dealloc_params, 16>;
 
   void *do_allocate(size_t bytes, size_t alignment) override {
     if (this->options_.enable_deferred_deallocation) {
@@ -483,6 +470,45 @@ class deferred_dealloc_pool
     else
       base::do_deallocate(ptr, bytes, alignment);
   }
+
+
+  void start_worker() {
+    worker_ = std::thread([this]() {
+      run();
+    });
+    started_ = true;
+  }
+
+  void run() {
+    std::unique_lock<std::mutex> ulock(mtx_);
+    while (!is_stopped()) {
+      cv_.wait(ulock, [&](){ return !stopped_ || deallocs_[queue_idx_].empty(); });
+      if (is_stopped())
+        break;
+      auto &to_free = deallocs_[queue_idx_];
+      queue_idx_ = 1 - queue_idx_;
+      ulock.unlock();
+      this->bulk_deallocate(make_span(to_free));
+      to_free.clear();
+      ready_.notify_one();
+      ulock.lock();
+    }
+  }
+
+  void stop() {
+    stopped_ = true;
+    cv_.notify_all();
+  }
+
+  bool is_stopped() const noexcept { return stopped_; }
+
+  std::thread worker_;
+  std::mutex mtx_;
+  std::condition_variable cv_, ready_;
+  dealloc_queue deallocs_[2];
+  int queue_idx_ = 0;
+  bool started_ = false;
+  bool stopped_ = false;
 };
 
 }  // namespace mm
