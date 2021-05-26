@@ -216,13 +216,21 @@ if dataset_compatible_tensorflow():
 
         return options
 
-    class _DALIDatasetV2(dataset_ops.DatasetSource):
+    class _DALIDatasetV2(dataset_ops.DatasetV2):
         def __init__(self,
                      pipeline,
                      output_dtypes=None,
                      output_shapes=None,
                      fail_on_device_mismatch=True,
                      *,
+                     # using kwargs for inputs allow us to add more kinds of parameters
+                     # TODO(klecki): consider alternative zipped representation for inputs?
+                     # Experimental inputs begin
+                     input_datasets=None,
+                     input_names=None,
+                     input_layouts=None,
+                     input_batch=False,
+                     # Experimental inputs end
                      batch_size=1,
                      num_threads=4,
                      device_id=0,
@@ -236,7 +244,7 @@ if dataset_compatible_tensorflow():
             output_shapes = self._handle_deprecation(output_shapes, shapes, "shapes")
             output_dtypes = self._handle_deprecation(output_dtypes, dtypes, "dtypes")
 
-            if not self._check_output_dtypes(output_dtypes):
+            if not self._check_dtypes(output_dtypes, tf.DType):
                 raise TypeError(("`output_dtypes` should be provided as single tf.DType value " +
                     "or a tuple of tf.DType values. Got value `{}` of type `{}`.") \
                         .format(output_dtypes, type(output_dtypes)))
@@ -253,6 +261,8 @@ if dataset_compatible_tensorflow():
                 output_shapes = (output_shapes, )
 
             output_classes = nest.map_structure(lambda _: ops.Tensor, output_dtypes)
+
+            self._parse_inputs(input_datasets, input_names, input_layouts, input_batch)
 
             self._pipeline = serialize_pipeline(pipeline)
             self._batch_size = batch_size
@@ -274,12 +284,63 @@ if dataset_compatible_tensorflow():
 
             super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
 
-        def _check_output_dtypes(self, output_dtypes):
-            """Check whether output_dtypes is instance of tf.DType or tuple of tf.DType"""
-            if isinstance(output_dtypes, tf.DType):
+        def _parse_inputs(self, input_datasets, input_names, input_layouts, input_batch):
+            """Verify the input specification and assign it to private members in
+            normalized form."""
+            # TODO does it work for None??
+            nest.assert_same_structure(input_datasets, input_names)
+            if input_datasets is not None:
+                if not self._check_dtypes(input_datasets, dataset_ops.DatasetV2):
+                    raise TypeError(("`input_datasets` should be provided as single input " +
+                        "tf.data.Dataset object or a tuple of Datasets. Got `{}` of type `{}`.") \
+                        .format(input_datasets, type(input_datasets)))
+
+                if not self._check_dtypes(input_names, str):
+                    raise TypeError(("`input_names` should be provided as single str or a tuple of str. " +
+                        "Got `{}` of type `{}`.") \
+                        .format(input_names, type(input_names)))
+
+                # TODO(klecki): we can possibly add a syntactic sugar and allow only one layout to be
+                # specified for all inputs uniformly
+                if input_layouts is not None:
+                    nest.assert_same_structure(input_layouts, input_datasets)
+                    if not self._check_dtypes(input_layouts, str):
+                        raise TypeError(("`input_layouts` should be provided as single str " +
+                            "or a tuple of str. Got `{}` of type `{}`.") \
+                            .format(input_layouts, type(input_layouts)))
+                else:
+                    input_layouts = nest.map_structure(lambda _: "", input_datasets)
+            else:
+                # Make them explicitly empty for the internal representations
+                input_datasets = ()
+                input_names = ()
+                input_layouts = ()
+
+            if not isinstance(input_datasets, tuple):
+                input_datasets = (input_datasets, )
+                input_names = (input_names, )
+                input_layouts = (input_layouts, )
+
+            self._input_datasets = input_datasets
+            self._input_names = input_names
+            self._input_layouts = input_layouts
+
+            if input_batch != False:
+                raise NotImplementedError(
+                    ("Inputs to dataset can work only in per-sample mode, " +
+                     " that is for `input_batch = False`. Got `input_batch = {}`."
+                     ).format(input_batch))
+
+            self._input_batch = input_batch
+
+        def _check_dtypes(self, provided_nest, expected_elem_type, allow_single=True):
+            """Check whether `provided_nest` is instance of `expected_elem_type`
+            or tuple of `expected_elem_type`. TF doesn't treat list as a nesting type, but as a Tensor.
+            """
+            if allow_single and isinstance(provided_nest, expected_elem_type):
                 return True
-            elif isinstance(output_dtypes, tuple) \
-                and all(isinstance(dtype, tf.DType) for dtype in output_dtypes):
+            elif isinstance(provided_nest, tuple) \
+                and all(isinstance(elem, expected_elem_type) for elem in provided_nest):
                 return True
             else:
                 return False
@@ -309,8 +370,19 @@ if dataset_compatible_tensorflow():
         def _element_structure(self):
             return self._structure
 
+        def _inputs(self):
+            # Apparently here TF is happy with a list
+            return nest.flatten(self._input_datasets)
+
         def _as_variant_tensor(self):
             return _dali_tf_module.dali_dataset(
+                # Experimental dataset inputs
+                nest.map_structure(lambda d: d._variant_tensor, self._input_datasets),
+                # Description of inputs
+                input_names=self._input_names,
+                input_layouts=self._input_layouts,
+                input_batch=self._input_batch,
+                # End of experimental inputs
                 pipeline=self._pipeline,
                 batch_size=self._batch_size,
                 num_threads=self._num_threads,
@@ -346,10 +418,8 @@ if dataset_compatible_tensorflow():
 
     def _load_experimental_dataset():
         class DALIDatasetWithInputs(dataset_ops._OptionsDataset):
-            # @functools.wraps(_DALIDatasetV2.__init__)
+            @functools.wraps(_DALIDatasetV2.__init__)
             def __init__(self, pipeline, **kwargs):
-                raise NotImplementedError("DALIDatasetWithInputs is only a placeholder operator.")
-
                 dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
                 super(DALIDatasetWithInputs, self).__init__(dataset_impl, dataset_options())
 

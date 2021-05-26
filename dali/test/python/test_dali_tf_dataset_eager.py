@@ -16,6 +16,7 @@ import tensorflow as tf
 from nvidia.dali.plugin.tf.experimental import DALIDatasetWithInputs
 import nvidia.dali.plugin.tf as dali_tf
 from test_utils_tensorflow import *
+from test_dali_tf_dataset_pipelines import *
 from nose.tools import raises, with_setup
 
 tf.compat.v1.enable_eager_execution()
@@ -27,6 +28,31 @@ def test_tf_dataset_gpu():
 
 def test_tf_dataset_cpu():
     run_tf_dataset_eager_mode('cpu')
+
+
+def run_tf_dataset_with_fixed_input(dev, shape, value, dtype):
+    tensor = np.full(shape, value, dtype)
+    run_tf_dataset_eager_mode(dev,
+        get_pipeline_desc=external_source_tester(shape, dtype, FixedSampleIterator(tensor + 1)),
+        to_dataset=external_source_converter_with_fixed_value(shape, dtype, tensor, '/cpu:0'))
+
+def test_tf_dataset_with_fixed_input():
+    for dev in ['cpu', 'gpu']:
+        for shape in [(7, 42), (64, 64, 3), (3, 40, 40, 4)]:
+            for dtype in [np.uint8, np.int32, np.float32]:
+                for value in [42, 255]:
+                    yield run_tf_dataset_with_fixed_input, dev, shape, value, dtype
+
+def run_tf_dataset_with_random_input(dev, max_shape, dtype):
+    run_tf_dataset_eager_mode(dev,
+        get_pipeline_desc=external_source_tester(max_shape, dtype, RandomSampleIterator(max_shape, dtype(0))),
+        to_dataset=external_source_converter_with_callback(max_shape, dtype, RandomSampleIterator, '/cpu:0'))
+
+def test_tf_dataset_with_random_input():
+    for dev in ['cpu', 'gpu']:
+        for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
+            for dtype in [np.uint8, np.int32, np.float32]:
+                yield run_tf_dataset_with_random_input, dev, max_shape, dtype
 
 
 @raises(Exception)

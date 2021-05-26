@@ -13,7 +13,10 @@
 // limitations under the License.
 
 #include <chrono>
+#include <queue>
 #include <sstream>
+#include <vector>
+
 
 #include "tensorflow/core/public/version.h"
 
@@ -26,6 +29,7 @@
 
 #define EIGEN_USE_GPU
 
+#include "tensorflow/core/common_runtime/input_colocation_exemption_registry.h"
 #include "tensorflow/core/framework/common_shape_fns.h"
 #include "tensorflow/core/framework/dataset.h"
 #include "tensorflow/core/framework/op.h"
@@ -64,16 +68,27 @@ namespace dali_tf_impl {
 class DALIDatasetOp::Dataset : public DatasetBase {
  public:
   explicit Dataset(OpKernelContext *context, const PipelineDef pipeline_def,
+                   const Inputs &inputs, const InputDef &input_def,
                    const std::vector<PartialTensorShape> &shapes, const DataTypeVector &dtypes,
                    const bool is_gpu_device, const bool fail_on_device_mismatch)
       : DatasetBase(DatasetContext(context)),
+        input_desc_(inputs, input_def),
         pipeline_def_(pipeline_def),
         shapes_(shapes),
         dtypes_(dtypes),
         device_type_(is_gpu_device ? device_type_t::GPU : device_type_t::CPU),
         fail_on_device_mismatch_(fail_on_device_mismatch) {
+    for (const auto &input : input_desc_.inputs) {
+      input->Ref();
+    }
     if (is_gpu_device) {
       stream_ = context->eigen_gpu_device().stream();
+    }
+  }
+
+  ~Dataset() override {
+    for (const auto &input : input_desc_.inputs) {
+      input->Unref();
     }
   }
 
@@ -104,6 +119,48 @@ class DALIDatasetOp::Dataset : public DatasetBase {
   const bool fail_on_device_mismatch_;
 
   daliPipelineHandle pipeline_handle_;
+
+
+  // // TODO(klecki): add constants for members used here, find out where this thing is used
+  // // and where is the inverse of this serialization
+  // Status AsGraphDefInternal(SerializationContext *context, DatasetGraphDefBuilder *b,
+  //                           Node **output) const override {
+
+  //   LOG(WARNING) << "[DALIDatasetOp::Dataset]::AsGraphDefInternal" << std::endl;
+  //   auto inputs = InputsToNodeList(context, b);
+
+  //   auto attrs = PipelineDefToGraphDefAttrs(b, pipeline_def_);
+
+  //   SerializeField(attrs, b, kInputNames, input_names_);
+  //   SerializeField(attrs, b, kInputNames, input_devices_);
+  //   SerializeField(attrs, b, kInputLayouts, input_layouts_);
+  //   SerializeField(attrs, b, kInputBatch, input_batch_);
+
+  //   SerializeField(attrs, b, kOutputShapes, shapes_);
+  //   SerializeField(attrs, b, kOutputDtypes, dtypes_);
+  //   SerializeField(attrs, b, kDeviceMismatch, fail_on_device_mismatch_);
+
+  //   // with the {std::make_pair(0, inputs)} below we wrap the data into view
+  //   // (that is gtl::ArraySlice<Node*>), returning view directly from the helper is not an option
+  //   TF_RETURN_IF_ERROR(b->AddDataset(this, {}, {std::make_pair(0, inputs)}, attrs, output));
+
+  //   return Status::OK();
+  // }
+  // std::vector<Node *> InputsToNodeList(SerializationContext *context,
+  //                                      DatasetGraphDefBuilder *b) const {
+  //   // FROM ZIP DATASET
+  //   std::vector<Node *> input_graph_nodes;
+  //   input_graph_nodes.reserve(inputs_.size());
+  //   for (const auto &input : inputs_) {
+  //     Node *input_node;
+  //     // TF_RETURN_IF_ERROR(b->AddInputDataset(context, input, &input_node));
+  //     b->AddInputDataset(context, input, &input_node);  // TODO(klecki): check status
+  //     input_graph_nodes.emplace_back(input_node);
+  //   }
+  //   return input_graph_nodes;
+  // }
+
+
 
   Status AsGraphDefInternal(SerializationContext *context, DatasetGraphDefBuilder *b,
                             Node **output) const override {
@@ -160,17 +217,22 @@ class DALIDatasetOp::Dataset : public DatasetBase {
         pipeline_def_.exec_separated, pipeline_def_.prefetch_queue_depth,
         pipeline_def_.cpu_prefetch_queue_depth, pipeline_def_.gpu_prefetch_queue_depth,
         pipeline_def_.enable_memory_stats));
-
-    if (!pipeline_def_.exec_separated) {
-      TF_DALI_CALL(daliPrefetchUniform(pipeline_handle, pipeline_def_.prefetch_queue_depth));
-    } else {
-      TF_DALI_CALL(daliPrefetchSeparate(pipeline_handle, pipeline_def_.cpu_prefetch_queue_depth,
-                                        pipeline_def_.gpu_prefetch_queue_depth));
-    }
     return Status::OK();
   }
 
   class Iterator;
+
+  bool HasInputs() const {
+    return input_desc_.inputs.size() > 0;
+  }
+
+
+  int NumInputs() const {
+    return input_desc_.inputs.size();
+  }
+
+  // TODO(klecki): TF likes to have those inputs consted
+  const InputDesc input_desc_;
 };
 
 
@@ -183,6 +245,17 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         enable_memory_stats_(enable_memory_stats) {}
 
   Status Initialize(IteratorContext *context) override {
+    // FROM ZIP DATASET
+    mutex_lock l(mu_);
+    iterator_state_ = InputState::in_progress;
+    if (dataset()->HasInputs()) {
+      input_impls_.resize(dataset()->input_desc_.inputs.size());
+      for (size_t i = 0; i < input_impls_.size(); ++i) {
+        TF_RETURN_IF_ERROR(dataset()->input_desc_.inputs[i]->MakeIterator(
+            context, this, strings::StrCat(prefix(), "[", i, "]"), &input_impls_[i]));
+      }
+    }
+    TF_RETURN_IF_ERROR(PrefetchPipeline(context, &pipeline_handle_));
     return CheckOutputDevices();
   }
 
@@ -210,7 +283,194 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
   Status GetNextInternal(IteratorContext *context, std::vector<Tensor> *out_tensors,
                          bool *end_of_sequence) override {
     tensorflow::mutex_lock l(mu_);
+    *end_of_sequence = false;
 
+    if (dataset()->HasInputs()) {
+      // if someone is stubborn enough to query us after the end of input data
+      // TODO(klecki): we should raise a warning that reinitializing DALI Pipeline is not efficeint
+      if (iterator_state_ == InputState::stop_signaled) {
+        LOG(WARNING) << "[DALI INPUT]: end resignalled" << std::endl;
+        *end_of_sequence = true;
+        return Status::OK();
+      }
+
+      // Obtain the inputs and if end wasn't reached feed it.
+      if (iterator_state_ == InputState::in_progress) {
+        bool end_of_input_sequence;
+        ListOfBatches batches;
+        TF_RETURN_IF_ERROR(PrepareBatches(context, batches, &end_of_input_sequence));
+        if (end_of_input_sequence) {
+          LOG(WARNING) << "[DALI INPUT]: end pending" << std::endl;
+          iterator_state_ = InputState::stop_pending;
+        } else {
+          LOG(WARNING) << "[DALI INPUT]: feeding batches: " << batches.size() << std::endl;
+          TF_RETURN_IF_ERROR(FeedInputs(&pipeline_handle_, std::move(batches)));
+        }
+      }
+
+      // We run out of data, indicate the end
+      if (iterator_state_ == InputState::stop_pending && InputsScheduled() == 0) {
+        LOG(WARNING) << "[DALI INPUT]: end signalled" << std::endl;
+        iterator_state_ = InputState::stop_signaled;
+        *end_of_sequence = true;
+        for (auto &input : input_impls_) {
+          input.reset();
+        }
+        return Status::OK();
+      }
+    }
+
+    TF_RETURN_IF_ERROR(ProduceOutputs(context, out_tensors, end_of_sequence));
+
+    // we produced output, we can safely release the input that was used to produce it
+    if (dataset()->HasInputs()) {
+      assert(iterator_state_ != InputState::stop_signalled && InputsScheduled() > 0);
+      ReleaseInputs();
+    }
+    // We schedule next run always when we don't have inputs or when we have inputs
+    // and they produced something - which happens only in `in_progress` state.
+    if (!dataset()->HasInputs() || iterator_state_ == InputState::in_progress) {
+      TF_DALI_CALL(daliRun(&pipeline_handle_));
+    }
+    return Status::OK();
+  }
+
+  ~Iterator() {
+    if (enable_memory_stats_) {
+      size_t N;
+      daliExecutorMetadata *meta;
+      daliGetExecutorMetadata(&pipeline_handle_, &meta, &N);
+      std::cout << "DALI operator memory statistics: " << std::endl;
+      for (size_t i = 0; i < N; ++i) {
+        std::cout << "Operator " << meta[i].operator_name;
+        for (size_t j = 0; j < meta[i].out_num; ++j) {
+          std::cout << "   output [ " << j << " ] : " << meta[i].real_size[j] << "B allocated "
+                    << meta[i].max_real_size[j] << "B max allocated " << meta[i].reserved[j]
+                    << "B reserved" << meta[i].max_reserved[j] << "B max reserved";
+          if (j != meta[i].out_num - 1) {
+            std::cout << ",";
+          }
+        }
+        std::cout << std::endl;
+      }
+      daliFreeExecutorMetadata(meta, N);
+    }
+    daliDeletePipeline(&pipeline_handle_);
+  }
+
+#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3
+  Status SaveInternal(SerializationContext *ctx, IteratorStateWriter *writer) override {
+    return errors::Unimplemented("SaveInternal is not supported for DALI dataset.");
+  }
+
+  Status RestoreInternal(IteratorContext *ctx, IteratorStateReader *reader) override {
+    return errors::Unimplemented("RestoreInternal is not supported for DALI dataset");
+  }
+#endif
+
+ private:
+
+  // TODO(klecki): Check this again
+  // TensorFlow treats a sample/example as a vector of Tensors (they flatten everything),
+  // and if a dataset has multiple outputs it means, that it returned a tuple that maps
+  // to a vector of Tensors.
+  using TfExample = std::vector<Tensor>;
+
+  // Batch is a list of Tensors - we repack the TfExamples into a Batch.
+  // We need to build batches sample by sample to advance the input iterators in sync.
+  // TODO(klecki): In batch mode this will be a single Tensor with additional dimension representing
+  //               whole batch
+  using Batch = std::vector<Tensor>;
+
+  // Represents tuple of inputs for one iteration
+  using ListOfBatches = std::vector<Batch>;
+
+
+  /**
+   * @brief Schedule required number of runs of DALI Pipeline to fill the prefetch queue.
+   *
+   * When there are input datasets, feed the pipeline required number of input batches.
+   *
+   * TODO(klecki): Inputs handled only for an uniform executor
+   */
+  Status PrefetchPipeline(IteratorContext *context, daliPipelineHandle *pipeline_handle) {
+    if (!dataset()->pipeline_def_.exec_separated) {
+      int prefetch_depth = dataset()->pipeline_def_.prefetch_queue_depth;
+      if (dataset()->HasInputs()) {
+        for (int i = 0; i < prefetch_depth; i++) {
+          bool end_of_sequence;
+          ListOfBatches batches;
+          TF_RETURN_IF_ERROR(PrepareBatches(context, batches, &end_of_sequence));
+          if (end_of_sequence) {
+            return errors::InvalidArgument(
+                "End of sequence encountered during initial data prefetching. Make sure that the "
+                "input datasets have enough data to fill ",
+                prefetch_depth, " batches.");
+          }
+          // we only feed and don't release during warmup.
+          TF_RETURN_IF_ERROR(FeedInputs(pipeline_handle, std::move(batches)));
+        }
+      }
+      TF_DALI_CALL(daliPrefetchUniform(pipeline_handle, prefetch_depth));
+    } else {
+      if (dataset()->HasInputs()) {
+        return errors::InvalidArgument("Input datasets are not compatible with split executor.");
+      }
+      TF_DALI_CALL(daliPrefetchSeparate(pipeline_handle,
+                                        dataset()->pipeline_def_.cpu_prefetch_queue_depth,
+                                        dataset()->pipeline_def_.gpu_prefetch_queue_depth));
+    }
+    return Status::OK();
+  }
+
+
+  /**
+   * @brief Obtain samples from input interators and build collection of batches representing
+   * one input iteration.
+   *
+   * We query one sample at a time to signal stop as soon as possible.
+   */
+  Status PrepareBatches(IteratorContext *context, ListOfBatches &out_batches,
+                        bool *end_of_sequence) {
+    out_batches.clear();
+    *end_of_sequence = false;
+    ListOfBatches input_batches(dataset()->NumInputs());
+    int next_batch_size = dataset()->pipeline_def_.batch_size;
+    for (auto &batch : input_batches) {
+      batch.resize(next_batch_size);
+    }
+    for (int sample_idx = 0; sample_idx < next_batch_size; sample_idx++) {
+      for (int input_idx = 0; input_idx < dataset()->NumInputs(); input_idx++) {
+        TfExample example;
+        bool input_end_of_sequence = false;
+        auto &input = input_impls_[input_idx];
+        // TODO(klecki): ZipDataset just goes to next iteration on Error.
+        // Desync of input datasets is not desired, we just report the problem fast
+        TF_RETURN_IF_ERROR(input->GetNext(context, &example, &input_end_of_sequence));
+        *end_of_sequence |= input_end_of_sequence;
+        if (*end_of_sequence) {
+          return Status::OK();
+        }
+
+        // Repack the single Tensor from TfExample to Batch
+        if (example.size() != 1) {
+          return errors::InvalidArgument("Got a sample consisting of ", example.size(),
+                                         " elements for input: ", input_idx,
+                                         ". Only samples of 1 element are supported.");
+        }
+        input_batches[input_idx][sample_idx] = example[0];
+      }
+    }
+    out_batches = std::move(input_batches);
+    return Status::OK();
+  }
+
+  /**
+   * @brief Obtain the last computed outputs from DALI Pipeline and copy them to the TF Tensors
+   * that we allocated for outputs. Release the DALI Pipeline Outputs.
+   */
+  Status ProduceOutputs(IteratorContext *context, std::vector<Tensor> *out_tensors,
+                        bool *end_of_sequence) {
     TF_DALI_CALL(daliShareOutput(&pipeline_handle_));
 
     auto num_outputs = 0;
@@ -241,7 +501,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       out_tensors->emplace_back(context->allocator({}), dataset()->dtypes_[out_id], output_shape);
       tensorflow::Tensor &output = out_tensors->operator[](out_id);
 
-      void *dst = nullptr;
+      void *dst = nullptr;  // TODO(klecki): output.data();
       switch (dataset()->dtypes_[out_id]) {
         case DT_BOOL:
           dst = reinterpret_cast<void *>(output.flat<bool>().data());
@@ -292,45 +552,127 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     *end_of_sequence = false;
 
     TF_DALI_CALL(daliOutputRelease(&pipeline_handle_));
-    TF_DALI_CALL(daliRun(&pipeline_handle_));
-
     return Status::OK();
   }
 
-  ~Iterator() {
-    if (enable_memory_stats_) {
-      size_t N;
-      daliExecutorMetadata *meta;
-      daliGetExecutorMetadata(&pipeline_handle_, &meta, &N);
-      std::cout << "DALI operator memory statistics: " << std::endl;
-      for (size_t i = 0; i < N; ++i) {
-        std::cout << "Operator " << meta[i].operator_name;
-        for (size_t j = 0; j < meta[i].out_num; ++j) {
-          std::cout << "   output [ " << j << " ] : " << meta[i].real_size[j] << "B allocated "
-                    << meta[i].max_real_size[j] << "B max allocated " << meta[i].reserved[j]
-                    << "B reserved" << meta[i].max_reserved[j] << "B max reserved";
-          if (j != meta[i].out_num - 1) {
-            std::cout << ",";
-          }
-        }
-        std::cout << std::endl;
-      }
-      daliFreeExecutorMetadata(meta, N);
+  /**
+   * @brief Check if samples have the same ndim, dtype etc.
+   *
+   * This probably is already handled by TF, as dataset probably can't
+   * dynamically change its shape. And we can probably check the declared output
+   * structure in Python level.
+   *
+   * TODO(klecki): add those checks in Python for clear errors
+   */
+  Status VerifyUniform(const Batch &input_batch, int input_idx) {
+    if (input_batch.empty()) {
+      return errors::InvalidArgument("Empty batch for input: ", input_idx, ".");
     }
-    daliDeletePipeline(&pipeline_handle_);
+    int ndim = input_batch[0].dims();
+    auto dtype = input_batch[0].dtype();
+    for (auto &sample : input_batch) {
+      if (sample.dims() != ndim) {
+        return errors::InvalidArgument(
+            "Inconsistent dimensionality of samples in a batch for input: ", input_idx,
+            ", got sample with: ", sample.dims(), " dimensions while the first one has: ", ndim,
+            " dimensions.");
+      }
+      if (sample.dtype() != dtype) {
+        return errors::InvalidArgument("Inconsistent dtype of samples in a batch for input: ",
+                                       input_idx, ", got sample with: ", sample.dtype(),
+                                       " dtype while the first one has: ", dtype, " dtype.");
+      }
+    }
+    return Status::OK();
   }
 
-#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3
-  Status SaveInternal(SerializationContext *ctx, IteratorStateWriter *writer) override {
-    return errors::Unimplemented("SaveInternal is not supported for DALI dataset.");
+
+  /**
+   * @brief Helper function that repacks the `Batch` (which is an list of samples returned by
+   * GetNext()), to the format used by DALI C API for feeding External Source.
+   *
+   * Outputs: ptrs, dtype, shapes, ndim
+   * Inputs: input_batch
+   */
+  Status RepackNonContiguousBatch(std::vector<const void *> &ptrs, dali_data_type_t &dtype,
+                                  std::vector<int64_t> &shapes, int64_t &ndim,
+                                  const Batch &input_batch) {
+    int batch_size = dataset()->pipeline_def_.batch_size;
+    assert(input_batch.size() > 0);
+    assert(input_batch.size() == batch_size);
+
+    ptrs.resize(batch_size, nullptr);
+    dtype = TfToDaliType(input_batch[0].dtype());
+    ndim = input_batch[0].dims();
+    shapes.reserve(batch_size * ndim);
+    shapes.clear();
+
+    LOG(WARNING) << "[DALI INPUT]: Batch detected, type: " << input_batch[0].dtype()
+                 << ", ndim: " << ndim << std::endl;
+
+    for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
+      auto &tensor = input_batch[sample_idx];
+      LOG(WARNING) << "[DALI INPUT]: repacking a tensor, sample: " << sample_idx
+                   << ", shape: " << tensor.shape() << "device ?? I have no idea how to check it"
+                   << std::endl;
+      ptrs[sample_idx] = tensor.data();
+      // LOG(WARNING) << "[DALI INPUT]: tensor contents: " << *static_cast<int32_t *>(tensor.data())
+      //              << std::endl;
+      for (int d = 0; d < ndim; d++) {
+        shapes.push_back(tensor.dim_size(d));
+      }
+    }
+    return Status::OK();
   }
 
-  Status RestoreInternal(IteratorContext *ctx, IteratorStateReader *reader) override {
-    return errors::Unimplemented("RestoreInternal is not supported for DALI dataset");
-  }
-#endif
+  /**
+   * @brief Feed a batches into coresponding inputs (External Source nodes).
+   *
+   * The batches are kept in queue to keep them alive long enough for DALI to process them.
+   *
+   * TODO(klecki): check if this is actually no-copy mode.
+   */
+  Status FeedInputs(daliPipelineHandle *pipeline_handle, ListOfBatches &&batches) {
+    // Keep alive the prefetch_queue_depth of batches - this corresponds to the number of batches
+    // that we insert during warmup
+    alive_batches_.push(std::move(batches));
+    auto &current_batches = alive_batches_.back();
 
- private:
+    // reuse the allocations for all inputs
+    std::vector<const void *> ptrs;
+    dali_data_type_t dtype;
+    std::vector<int64_t> shapes;
+    int64_t ndim;
+
+    for (int input_idx = 0; input_idx < dataset()->NumInputs(); input_idx++) {
+      auto &input_batch = current_batches[input_idx];
+      TF_RETURN_IF_ERROR(VerifyUniform(input_batch, input_idx));
+      LOG(WARNING) << "[DALI INPUT]: Feeding batch for input " << input_idx << std::endl;
+      TF_RETURN_IF_ERROR(RepackNonContiguousBatch(ptrs, dtype, shapes, ndim, input_batch));
+      auto &input_name = dataset()->input_desc_.input_names[input_idx];
+      // TODO(klecki): Currently we are restricted to supporting input memory on the same
+      // device as the DALIDataset placement
+      auto input_device = dataset()->device_type_;
+      auto &input_layout = dataset()->input_desc_.input_layouts[input_idx];
+
+      LOG(WARNING) << "[DALI INPUT]: Input name for idx " << input_idx << " : " << input_name
+                   << "device: " << input_device << std::endl;
+
+      TF_DALI_CALL(daliSetExternalInputTensors(pipeline_handle, input_name.c_str(), input_device,
+                                               ptrs.data(), dtype, shapes.data(), ndim,
+                                               input_layout.c_str(), 0));
+    }
+    return Status::OK();
+  }
+
+  void ReleaseInputs() {
+    alive_batches_.pop();
+  }
+
+  int InputsScheduled() {
+    return alive_batches_.size();
+  }
+
   /**
    * @brief Get a shape that is compatible with the partial required shape (set for TF dataset)
    *        and the shape of batch returned from DALI pipeline.
@@ -450,13 +792,26 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     return 0;
   }
 
+  enum class InputState
+  {
+    in_progress,   // we can still use inputs, none have ended
+    stop_pending,  // input signalled end, we stop reading them, some might be in pipeline
+    stop_signaled  // we ran out of batches ahead, time to raise stop ourselves
+  };
+
   tensorflow::mutex mu_;
+  std::vector<std::unique_ptr<IteratorBase>> input_impls_;
+  std::queue<ListOfBatches> alive_batches_;
+  InputState iterator_state_ = InputState::in_progress;
   daliPipelineHandle pipeline_handle_;
   bool enable_memory_stats_;
 };
 
 void DALIDatasetOp::MakeDataset(OpKernelContext *context, DatasetBase **output) {
-  *output = new Dataset(context, pipeline_def_, shapes_, dtypes_, is_gpu_device_,
+  Inputs inputs;
+  FillInputs(context, inputs);
+  ValidateInputs(context, inputs, input_def_);
+  *output = new Dataset(context, pipeline_def_, inputs, input_def_, shapes_, dtypes_, is_gpu_device_,
                         fail_on_device_mismatch_);
 }
 
@@ -472,6 +827,33 @@ void DALIDatasetOp::FillPipelineDef(OpKernelConstruction *context, PipelineDef &
   OP_REQUIRES_OK(context, context->GetAttr(kGpuMemoryStats, &def.enable_memory_stats));
 }
 
+void DALIDatasetOp::FillInputDef(OpKernelConstruction *context, InputDef &def) {
+  OP_REQUIRES_OK(context, context->GetAttr(kInputNames, &def.input_names));
+  OP_REQUIRES_OK(context, context->GetAttr(kInputLayouts, &def.input_layouts));
+  OP_REQUIRES_OK(context, context->GetAttr(kInputBatch, &def.input_batch));
+}
+
+void DALIDatasetOp::FillInputs(OpKernelContext *context, Inputs &def) {
+  // based on the ZipDatasetOp::MakeDataset
+  for (size_t i = 0; i < context->num_inputs(); ++i) {
+    DatasetBase *input;
+    OP_REQUIRES_OK(context, GetDatasetFromVariantTensor(context->input(i), &input));
+    def.inputs.push_back(input);
+    // TODO(klecki): Obtain the input devices
+    // def.input_devices.push_bach(context->in)
+  }
+}
+
+void DALIDatasetOp::ValidateInputs(OpKernelContext *context, Inputs &inputs, InputDef &input_def) {
+  // TODO(klecki): This is not really needed - we do it in Python side with better errors?
+  // OP_REQUIRES(context, context->num_inputs() == input_def.input_names_.size(),
+  //             errors::InvalidArgument("Number of inputs and input names provided must match, got ",
+  //                                     context->num_inputs(), " inputs and ", input_def.input_names_.size(),
+  //                                     " input names."));
+  // TODO(klecki): Validate the input devices against the current device
+}
+
+
 std::unique_ptr<IteratorBase> DALIDatasetOp::Dataset::MakeIteratorInternal(
     const string &prefix) const {
   daliPipelineHandle pipeline_handle;
@@ -485,10 +867,19 @@ std::unique_ptr<IteratorBase> DALIDatasetOp::Dataset::MakeIteratorInternal(
 // Regestrations
 REGISTER_KERNEL_BUILDER(Name("DALIDataset").Device(tensorflow::DEVICE_CPU), DALIDatasetOp);
 
-REGISTER_KERNEL_BUILDER(Name("DALIDataset").Device(DEVICE_GPU).HostMemory("handle"), DALIDatasetOp);
+REGISTER_KERNEL_BUILDER(
+    Name("DALIDataset").Device(DEVICE_GPU).HostMemory("handle").HostMemory("input_datasets"),
+    DALIDatasetOp);
+
+// TODO(klecki): Is this what we need to do? Based on MapDataset
+REGISTER_INPUT_COLOCATION_EXEMPTION("DALIDataset");
 
 REGISTER_OP("DALIDataset")
+    .Input("input_datasets: N * variant")
     .Output("handle: variant")
+    .Attr("input_names: list(string)")    // must match the input_datasets
+    .Attr("input_layouts: list(string)")  // must match the input_datasets
+    .Attr("input_batch: bool = true")     // TODO(klecki): extend to list?
     .Attr("pipeline: string")
     .Attr("batch_size: int")
     .Attr("num_threads: int")
@@ -498,6 +889,7 @@ REGISTER_OP("DALIDataset")
     .Attr("cpu_prefetch_queue_depth: int")
     .Attr("gpu_prefetch_queue_depth: int")
     .Attr("enable_memory_stats: bool = false")
+    .Attr("N: int >= 0")
     .Attr("output_shapes: list(shape) >= 1")
     .Attr(
         "output_dtypes: "

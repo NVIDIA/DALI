@@ -27,6 +27,32 @@ def test_tf_dataset_cpu():
     run_tf_dataset_graph('cpu')
 
 
+def run_tf_dataset_with_fixed_input(dev, shape, value, dtype):
+    tensor = np.full(shape, value, dtype)
+    run_tf_dataset_graph(dev,
+        get_pipeline_desc=external_source_tester(shape, dtype, FixedSampleIterator(tensor)),
+        to_dataset=external_source_converter_with_fixed_value(shape, dtype, tensor))
+
+def test_tf_dataset_with_fixed_input():
+    for dev in ['cpu', 'gpu']:
+        for shape in [(7, 42), (64, 64, 3), (3, 40, 40, 4)]:
+            for dtype in [np.uint8, np.int32, np.float32]:
+                for value in [42, 255]:
+                    yield run_tf_dataset_with_fixed_input, dev, shape, value, dtype
+
+
+def run_tf_dataset_with_random_input(dev, max_shape, dtype):
+    run_tf_dataset_graph(dev,
+        get_pipeline_desc=external_source_tester(max_shape, dtype, RandomSampleIterator(max_shape, dtype(0))),
+        to_dataset=external_source_converter_with_callback(max_shape, dtype, RandomSampleIterator))
+
+def test_tf_dataset_with_random_input():
+    for dev in ['cpu', 'gpu']:
+        for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
+            for dtype in [np.uint8, np.int32, np.float32]:
+                yield run_tf_dataset_with_random_input, dev, max_shape, dtype
+
+
 @raises(Exception)
 def test_tf_dataset_wrong_placement_cpu():
     batch_size = 12
