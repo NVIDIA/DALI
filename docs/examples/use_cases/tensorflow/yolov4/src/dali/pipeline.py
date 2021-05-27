@@ -1,7 +1,7 @@
 import nvidia.dali as dali
 import nvidia.dali.plugin.tf as dali_tf
 import tensorflow as tf
-import ops
+from . import ops
 
 
 class YOLOv4Pipeline:

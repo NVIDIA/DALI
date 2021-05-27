@@ -1,5 +1,5 @@
 from model import YOLOv4Model
-from pipeline import YOLOv4Pipeline
+from dali.pipeline import YOLOv4Pipeline
 import numpy as np
 
 from img import read_img, draw_img, save_img, add_bboxes

@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 
 from img import read_img, draw_img
-from pipeline import YOLOv4Pipeline
+from dali.pipeline import YOLOv4Pipeline
 import utils
 
 import math
