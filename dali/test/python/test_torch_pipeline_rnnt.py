@@ -22,6 +22,7 @@ import numpy as np
 import librosa
 import torch
 import math
+import random
 import os
 
 audio_files = get_files('db/audio/wav', 'wav')
@@ -137,7 +138,7 @@ class FilterbankFeatures():
         # do stft
         x = torch.stft(x, n_fft=self.n_fft, hop_length=self.hop_length,
                        win_length=self.win_length, pad_mode='reflect',
-                       center=True, window=self.window.to(dtype=torch.float))
+                       center=True, window=self.window.to(dtype=torch.float).to(x.device))
 
         # get power spectrum
         x = x.pow(2).sum(-1)
@@ -193,51 +194,6 @@ def torch_spectrogram(audio, sample_rate, device='cpu',
     spectrogram = spectrogram.cpu().numpy()
     return spectrogram
 
-def librosa_spectrogram(audio_data, sample_rate, device='cpu',
-                        window_size=0.02, window_stride=0.01,
-                        center=True, pad_mode='reflect',
-                        window="hann", n_fft=None):
-    win_length, hop_length = win_args(sample_rate, window_size, window_stride)
-    n_fft = n_fft or 2 ** math.ceil(math.log2(win_length))
-    window_fn = torch_windows.get(window, None)
-    window_tensor = window_fn(win_length, periodic=False).numpy() if window_fn else None
-    spectrogram = np.abs(
-        librosa.stft(y=audio_data, n_fft=n_fft or win_length,
-                     win_length=win_length, hop_length=hop_length, window=window_tensor))**2
-    return spectrogram
-
-def dali_spectrogram(audio_data, sample_rate, device='cpu',
-                     window_size=0.02, window_stride=0.01,
-                     center=True, pad_mode='reflect',
-                     window="hann", n_fft=None):
-    win_length, hop_length = win_args(sample_rate, window_size, window_stride)
-    n_fft = n_fft or 2 ** math.ceil(math.log2(win_length))
-    window_fn = torch_windows.get(window, None)
-    window_tensor = window_fn(win_length, periodic=False).numpy() if window_fn else None
-    reflect_padding = 'reflect' == pad_mode
-    @pipeline_def(batch_size=1, device_id=0, num_threads=3)
-    def spectrogram_pipe():
-        audio = fn.external_source(lambda: audio_data, device=device, batch=False)
-        spectrogram = fn.spectrogram(audio, device=device, nfft=n_fft, reflect_padding=reflect_padding,
-                                     center_windows=center, window_fn=window_tensor.tolist(),
-                                     window_length=win_length, window_step=hop_length)
-        return spectrogram
-    return dali_run(spectrogram_pipe(), device=device)
-
-def _testimpl_torch_vs_dali_spectrogram(device, pad_mode='reflect', center=True, atol=1e-03):
-    for s in range(len(npy_files)):
-        arr = _convert_samples_to_float32(np.load(npy_files[s]))
-        torch_out = torch_spectrogram(arr, npy_files_sr, pad_mode=pad_mode, center=center, device=device)
-        dali_out = dali_spectrogram(arr, npy_files_sr, pad_mode=pad_mode, center=center, device=device)
-        rosa_out = librosa_spectrogram(arr, npy_files_sr, pad_mode=pad_mode, center=center, device=device)
-        np.testing.assert_allclose(rosa_out, dali_out, atol=atol)
-        np.testing.assert_allclose(torch_out, rosa_out, atol=atol)
-        np.testing.assert_allclose(torch_out, dali_out, atol=atol)
-
-def test_torch_vs_dali_spectrogram():
-    for device in ['cpu', 'gpu']:
-        yield _testimpl_torch_vs_dali_spectrogram, device
-
 def torch_mel_fbank(spectrogram, sample_rate, device='cpu',
                     nfilt=64, lowfreq=0, highfreq=None):
     spectrogram = torch.tensor(spectrogram, dtype=torch.float32)
@@ -252,28 +208,6 @@ def torch_mel_fbank(spectrogram, sample_rate, device='cpu',
     mel_spectrogram = mel_spectrogram.cpu().numpy()
     return mel_spectrogram
 
-def dali_mel_fbank(spectrogram_data, sample_rate, device='cpu',
-                   nfilt=64, lowfreq=0, highfreq=None):
-    @pipeline_def(batch_size=1, device_id=0, num_threads=3)
-    def mel_fbank_pipe():
-        spectrogram = fn.external_source(lambda: spectrogram_data, device=device, batch=False)
-        mel_spectrogram = fn.mel_filter_bank(spectrogram, sample_rate=sample_rate, nfilter=nfilt,
-                                             freq_low=lowfreq, freq_high=highfreq)
-        return mel_spectrogram
-    return dali_run(mel_fbank_pipe(), device=device)
-
-def _testimpl_torch_vs_dali_mel_fbank(device):
-    for s in range(len(npy_files)):
-        arr = _convert_samples_to_float32(np.load(npy_files[s]))
-        spec = torch_spectrogram(arr, npy_files_sr, device=device)
-        torch_out = torch_mel_fbank(spec, npy_files_sr, device=device)
-        dali_out = dali_mel_fbank(spec, npy_files_sr, device=device)
-        np.testing.assert_allclose(torch_out, dali_out, atol=1e-04)
-
-def test_torch_vs_dali_mel_fbank():
-    for device in ['cpu', 'gpu']:
-        yield _testimpl_torch_vs_dali_mel_fbank, device
-
 def torch_log(x, device='cpu'):
     x = torch.tensor(x, dtype=torch.float32)
     if device == 'gpu':
@@ -282,22 +216,6 @@ def torch_log(x, device='cpu'):
     log_x = log_x.cpu().numpy()
     return log_x
 
-def dali_log(x_data, device='cpu'):
-    @pipeline_def(batch_size=1, device_id=0, num_threads=3)
-    def pipe():
-        x = fn.external_source(lambda: x_data, device=device, batch=False)
-        log_x = fn.to_decibels(x, multiplier=np.log(10), reference=1.0, cutoff_db=-80)
-        return log_x
-    return dali_run(pipe(), device=device)
-
-def _testimpl_torch_vs_dali_log(device):
-    arr = _convert_samples_to_float32(np.load(npy_files[0]))
-    spec = torch_spectrogram(arr, npy_files_sr, device=device)
-    mel_spec = torch_mel_fbank(spec, npy_files_sr, device=device)
-    torch_out = torch_log(mel_spec, device=device)
-    dali_out = dali_log(mel_spec, device=device)
-    np.testing.assert_allclose(torch_out, dali_out, atol=1e-5)
-
 def torch_preemphasis(x, preemph, device='cpu'):
     x = torch.tensor(x, dtype=torch.float32)
     if device == 'gpu':
@@ -305,24 +223,6 @@ def torch_preemphasis(x, preemph, device='cpu'):
     y = torch.cat((x[0].unsqueeze(0), x[1:] - preemph * x[:-1]), dim=0)
     y = y.cpu().numpy()
     return y
-
-def dali_preemphasis(x_data, preemph, device='cpu'):
-    @pipeline_def(batch_size=1, device_id=0, num_threads=3)
-    def preemph_pipe():
-        x = fn.external_source(lambda: x_data, device=device, batch=False)
-        y = fn.preemphasis_filter(x, preemph_coeff=preemph, border='zero')
-        return y
-    return dali_run(preemph_pipe(), device=device)
-
-def _testimpl_torch_vs_dali_preemphasis(device):
-    arr = _convert_samples_to_float32(np.load(npy_files[0]))
-    torch_out = torch_preemphasis(arr, 0.97, device=device)
-    dali_out = dali_preemphasis(arr, 0.97, device=device)
-    np.testing.assert_allclose(torch_out, dali_out, atol=1e-5)
-
-def test_torch_vs_dali_preemphasis():
-    for device in ['cpu', 'gpu']:
-        yield _testimpl_torch_vs_dali_preemphasis, device
 
 def torch_normalize(mel_spec, normalize_type, seq_len=None, device='cpu'):
     mel_spec = torch.tensor(mel_spec, dtype=torch.float32).unsqueeze(0)
@@ -334,34 +234,6 @@ def torch_normalize(mel_spec, normalize_type, seq_len=None, device='cpu'):
         mel_spec, seq_len, normalize_type=normalize_type)
     out = out.cpu().numpy().squeeze(0)
     return out
-
-def dali_normalize(mel_spec_data, normalize_type, device='cpu'):
-    @pipeline_def(batch_size=1, device_id=0, num_threads=3)
-    def pipe():
-        data = fn.external_source(lambda: mel_spec_data, device=device, batch=False)
-        if normalize_type == 'per_feature':
-            out = fn.normalize(data, axes=[1], device=device, epsilon=4e-5, ddof=1)
-        elif normalize_type == 'all_features':
-            out = fn.normalize(data, axes=[0, 1], device=device, epsilon=4e-5, ddof=1)
-        else:
-            assert False
-        return out
-    return dali_run(pipe(), device=device)
-
-def _testimpl_torch_vs_dali_normalize(normalize_type, device):
-    for s in range(len(npy_files)):
-        arr = _convert_samples_to_float32(np.load(npy_files[s]))
-        spec = torch_spectrogram(arr, npy_files_sr, device=device)
-        mel_spec = torch_mel_fbank(spec, npy_files_sr, device=device)
-        log_features = torch_log(mel_spec, device=device)
-        torch_out = torch_normalize(log_features, normalize_type=normalize_type, device=device)
-        dali_out = dali_normalize(log_features, normalize_type=normalize_type, device=device)
-        np.testing.assert_allclose(torch_out, dali_out, atol=1e-4)
-
-def test_torch_vs_dali_normalize():
-    for device in ['cpu', 'gpu']:
-        for normalize_type in ['per_feature', 'all_features']:
-            yield _testimpl_torch_vs_dali_normalize, normalize_type, device
 
 def torch_frame_splicing(mel_spec, stacking=1, subsampling=1, device='cpu'):
     mel_spec = torch.tensor(mel_spec, dtype=torch.float32).unsqueeze(0)
@@ -387,34 +259,7 @@ def dali_frame_splicing_graph(x, nfeatures, x_len, stacking=1, subsampling=1):
         x = fn.reshape(x, rel_shape=[1, 1], layout="ft")
     return x
 
-def dali_frame_splicing(mel_spec_data, stacking, subsampling, device='cpu'):
-    @pipeline_def(batch_size=1, device_id=0, num_threads=3)
-    def pipe():
-        x = fn.external_source(lambda: mel_spec_data, device=device, batch=False)
-        # Splice frames implementation needs accessing the data shape on the CPU
-        x_orig_shape = fn.external_source(lambda: np.array(mel_spec_data.shape, dtype=np.int32), device='cpu', batch=False)
-        nfeatures = fn.slice(x_orig_shape, 0, 1, axes=(0,))
-        in_len = fn.slice(x_orig_shape, 1, 1, axes=(0,))
-        x = dali_frame_splicing_graph(x, nfeatures, in_len, stacking=stacking, subsampling=subsampling)
-        return x
-    return dali_run(pipe(), device=device)
-
-def _testimpl_torch_vs_dali_frame_splicing(stacking, subsampling, device):
-    for s in range(len(npy_files)):
-        arr = _convert_samples_to_float32(np.load(npy_files[s]))
-        spec = torch_spectrogram(arr, npy_files_sr, device=device)
-        mel_spec = torch_mel_fbank(spec, npy_files_sr, device=device)
-        log_features = torch_log(mel_spec, device=device)
-        torch_out = torch_frame_splicing(log_features, stacking=stacking, subsampling=subsampling, device=device)
-        dali_out = dali_frame_splicing(log_features, stacking, subsampling, device=device)
-        np.testing.assert_allclose(torch_out, dali_out, atol=1e-4)
-
-def test_torch_vs_dali_frame_splicing():
-    for device in ['cpu', 'gpu']:
-        for stacking, subsampling in [(1, 1), (3, 1), (3, 2), (3, 3)]:
-            yield _testimpl_torch_vs_dali_frame_splicing, stacking, subsampling, device
-
-def torch_pad_both_sides(x, pad_amount, device='cpu'):
+def torch_reflect_pad(x, pad_amount, device='cpu'):
     x = torch.tensor(x, dtype=torch.float32).unsqueeze(0)
     if device == 'gpu':
         x = x.cuda()
@@ -439,35 +284,13 @@ def dali_reflect_pad_graph(x, x_len, pad_amount):
     x = fn.cat(pad_start, x, pad_end, axis=0)
     return x
 
-def dali_pad_both_sides(data, pad_amount, device='cpu'):
-    @pipeline_def(batch_size=1, device_id=0, num_threads=3)
-    def pipe():
-        x = fn.external_source(lambda: data, device=device, batch=False)
-        x_orig_shape = fn.external_source(lambda: np.array(data.shape, dtype=np.int32), device='cpu', batch=False)
-        in_len = fn.slice(x_orig_shape, 0, 1, axes=(0,))
-        x = dali_reflect_pad_graph(x, in_len, pad_amount)
-        return x
-    return dali_run(pipe(), device=device)
-
-def _testimpl_torch_vs_dali_pad_both_sides(pad_amount, device):
-    for s in range(len(npy_files)):
-        arr = _convert_samples_to_float32(np.load(npy_files[s]))
-        torch_out = torch_pad_both_sides(arr, pad_amount, device=device)
-        dali_out = dali_pad_both_sides(arr, pad_amount, device=device)
-        np.testing.assert_equal(torch_out, dali_out)
-
-def test_torch_vs_dali_pad_both_sides():
-    pad_amount = 16
-    for device in ['cpu', 'gpu']:
-        yield _testimpl_torch_vs_dali_pad_both_sides, pad_amount, device
-
-
 @pipeline_def(batch_size=1, device_id=0, num_threads=3)
 def rnnt_train_pipe(files, sample_rate, pad_amount=0, preemph_coeff=.97,
                     window_size=.02, window_stride=.01, window="hann", nfeatures=64, nfft=512,
                     frame_splicing_stack=1, frame_splicing_subsample=1,
                     lowfreq=0.0, highfreq=None, normalize_type='per_feature', device='cpu'):
-    norm_axes = [1] if 'per_feature' else [0, 1]
+    assert normalize_type == 'per_feature' or normalize_type == 'all_features'
+    norm_axes = [1] if normalize_type == 'per_feature' else [0, 1]
     win_len, win_hop = win_args(sample_rate, window_size, window_stride)
     window_fn = torch_windows.get(window, None)
     window_fn_arg = window_fn(win_len, periodic=False).numpy().tolist() if window_fn else None
@@ -507,13 +330,19 @@ def rnnt_train_pipe(files, sample_rate, pad_amount=0, preemph_coeff=.97,
         log_features_spliced = log_features
 
     if normalize_type:
-        assert normalize_type == 'per_feature' or normalize_type == 'all_features'
-        norm_axes = [1] if normalize_type else [0, 1]
         norm_log_features = fn.normalize(log_features_spliced, axes=norm_axes, device=device, epsilon=4e-5, ddof=1)
     else:
         norm_log_features = log_features_spliced
 
     return norm_log_features, log_features_spliced, log_features, mel_spec, spec, preemph_audio, padded_audio, audio
+
+
+recordings = []
+for fpath in npy_files:
+    arr = np.load(fpath)
+    arr = _convert_samples_to_float32(arr)
+    recordings.append(arr)
+nrecordings = len(recordings)
 
 # Test compares pre-calculated output of native data pipeline with an output
 # from DALI data pipeline. There are few modification of native data pipeline
@@ -521,7 +350,7 @@ def rnnt_train_pipe(files, sample_rate, pad_amount=0, preemph_coeff=.97,
 # aka "speed perturbation") are turned off
 def _testimpl_rnnt_data_pipeline(device, pad_amount=0, preemph_coeff=.97, window_size=.02, window_stride=.01,
                                  window="hann", nfeatures=64, n_fft=512, frame_splicing_stack=1, frame_splicing_subsample=1,
-                                 lowfreq=0.0, highfreq=None, normalize_type='per_feature'):
+                                 lowfreq=0.0, highfreq=None, normalize_type='per_feature', batch_size=32):
     sample_rate = npy_files_sr
 
     ref_pipeline = FilterbankFeatures(
@@ -529,12 +358,6 @@ def _testimpl_rnnt_data_pipeline(device, pad_amount=0, preemph_coeff=.97, window
         n_fft=n_fft, pad_amount=pad_amount, preemph=preemph_coeff, nfilt=nfeatures, lowfreq=lowfreq, highfreq=highfreq, log=True,
         frame_splicing_stack=frame_splicing_stack, frame_splicing_subsample=frame_splicing_subsample
     )
-    recordings = []
-    for fpath in npy_files:
-        arr = np.load(fpath)
-        arr = _convert_samples_to_float32(arr)
-        recordings.append(arr)
-    nrecordings = len(recordings)
     reference_data = []
     for i in range(nrecordings):
         reference_data.append(
@@ -546,62 +369,67 @@ def _testimpl_rnnt_data_pipeline(device, pad_amount=0, preemph_coeff=.97, window
 
     pipe = rnnt_train_pipe(
         audio_files, sample_rate, pad_amount, preemph_coeff, window_size, window_stride, window, nfeatures,
-        n_fft, frame_splicing_stack, frame_splicing_subsample, lowfreq, highfreq, normalize_type, device, seed=42
+        n_fft, frame_splicing_stack, frame_splicing_subsample, lowfreq, highfreq, normalize_type, device,
+        seed=42, batch_size=batch_size
     )
     pipe.build()
-    for i in range(nrecordings):
+    nbatches = (nrecordings + batch_size - 1) // batch_size
+    i = 0
+    for b in range(nbatches):
         dali_out = list(pipe.run())
+        for s in range(batch_size):
+            if i >= nrecordings:
+                break
+            norm_log_features, log_features_spliced, log_features, mel_spec, spec, preemph_audio, padded_audio, audio = \
+                [to_array(out[s]) for out in dali_out]
 
-        norm_log_features, log_features_spliced, log_features, mel_spec, spec, preemph_audio, padded_audio, audio = \
-            (to_array(out)[0] for out in dali_out)
+            ref = np.array(reference_data[i].squeeze(0))
+            assert ref.shape == norm_log_features.shape, f"{ref.shape}, {norm_log_features.shape}"
+            nfeatures, seq_len = ref.shape
+            size = nfeatures * seq_len
 
+            audio_ref = recordings[i]
+            audio_len_ref = recordings[i].shape[0]
+            np.testing.assert_allclose(audio, audio_ref, atol=1e-4)
 
-        ref = np.array(reference_data[i].squeeze(0))
-        assert ref.shape == norm_log_features.shape, f"{ref.shape}, {norm_log_features.shape}"
-        nfeatures, seq_len = ref.shape
-        size = nfeatures * seq_len
+            padded_audio_ref = torch_reflect_pad(audio, pad_amount)
+            np.testing.assert_equal(padded_audio, padded_audio_ref)
 
-        audio_ref = recordings[i]
-        audio_len_ref = recordings[i].shape[0]
-        np.testing.assert_allclose(audio, audio_ref, atol=1e-4)
+            preemph_audio_ref = torch_preemphasis(padded_audio_ref, preemph=preemph_coeff)
+            np.testing.assert_allclose(preemph_audio, preemph_audio_ref, atol=1e-4)
 
-        padded_audio_ref = torch_pad_both_sides(audio, pad_amount)
-        np.testing.assert_equal(padded_audio, padded_audio_ref)
+            spec_ref = torch_spectrogram(preemph_audio_ref, npy_files_sr,
+                                        window_size=window_size, window_stride=window_stride,
+                                        center=True, pad_mode='reflect',
+                                        window=window, n_fft=n_fft)
+            np.testing.assert_allclose(spec, spec_ref, atol=1e-4)
 
-        preemph_audio_ref = torch_preemphasis(padded_audio_ref, preemph=preemph_coeff)
-        np.testing.assert_allclose(preemph_audio, preemph_audio_ref, atol=1e-4)
+            mel_spec_ref = torch_mel_fbank(spec_ref, npy_files_sr)
+            np.testing.assert_allclose(mel_spec, mel_spec_ref, atol=1e-4)
 
-        spec_ref = torch_spectrogram(preemph_audio_ref, npy_files_sr,
-                                     window_size=window_size, window_stride=window_stride,
-                                     center=True, pad_mode='reflect',
-                                     window="hann", n_fft=n_fft)
-        np.testing.assert_allclose(spec, spec_ref, atol=1e-4)
+            log_features_ref = torch_log(mel_spec_ref)
+            np.testing.assert_allclose(log_features, log_features_ref, atol=1e-3)
+            log_features_ref2 = torch_log(mel_spec)
+            np.testing.assert_allclose(log_features, log_features_ref2, atol=1e-4)
 
-        mel_spec_ref = torch_mel_fbank(spec_ref, npy_files_sr)
-        np.testing.assert_allclose(mel_spec, mel_spec_ref, atol=1e-4)
+            log_features_spliced_ref = torch_frame_splicing(log_features_ref, stacking=frame_splicing_stack, subsampling=frame_splicing_subsample)
+            np.testing.assert_allclose(log_features_spliced, log_features_spliced_ref, atol=1e-3)
+            log_features_spliced_ref2 = torch_frame_splicing(log_features, stacking=frame_splicing_stack, subsampling=frame_splicing_subsample)
+            np.testing.assert_allclose(log_features_spliced, log_features_spliced_ref2, atol=1e-4)
 
-        log_features_ref = torch_log(mel_spec_ref)
-        np.testing.assert_allclose(log_features, log_features_ref, atol=1e-3)
-        log_features_ref2 = torch_log(mel_spec)
-        np.testing.assert_allclose(log_features, log_features_ref2, atol=1e-4)
+            norm_log_features_ref = torch_normalize(log_features_spliced_ref, normalize_type)
+            np.testing.assert_allclose(norm_log_features, norm_log_features_ref, atol=1e-3)
 
-        log_features_spliced_ref = torch_frame_splicing(log_features_ref, stacking=frame_splicing_stack, subsampling=frame_splicing_subsample)
-        np.testing.assert_allclose(log_features_spliced, log_features_spliced_ref, atol=1e-3)
-        log_features_spliced_ref2 = torch_frame_splicing(log_features, stacking=frame_splicing_stack, subsampling=frame_splicing_subsample)
-        np.testing.assert_allclose(log_features_spliced, log_features_spliced_ref2, atol=1e-4)
+            norm_log_features_ref2 = torch_normalize(log_features_spliced, normalize_type)
+            np.testing.assert_allclose(norm_log_features, norm_log_features_ref2, atol=1e-4)
 
-        norm_log_features_ref = torch_normalize(log_features_spliced_ref, normalize_type)
-        np.testing.assert_allclose(norm_log_features, norm_log_features_ref, atol=1e-3)
+            # Full pipeline
+            np.testing.assert_allclose(norm_log_features, ref, atol=1e-3)
 
-        norm_log_features_ref2 = torch_normalize(log_features_spliced, normalize_type)
-        np.testing.assert_allclose(norm_log_features, norm_log_features_ref2, atol=1e-4)
-
-        # Full pipeline
-        np.testing.assert_allclose(norm_log_features, ref, atol=1e-3)
+            i += 1
 
 
 def test_rnnt_data_pipeline():
-    pad_amount=16
     preemph_coeff=.97
     window_size=.02
     window_stride=.01
@@ -610,9 +438,10 @@ def test_rnnt_data_pipeline():
     n_fft=512
     lowfreq=0.0
     highfreq=None
-    normalize_type='per_feature'
     for device in ['cpu', 'gpu']:
         for frame_splicing_stack, frame_splicing_subsample in [(1, 1), (3, 2)]:
-            yield _testimpl_rnnt_data_pipeline, device, \
-                pad_amount, preemph_coeff, window_size, window_stride, window, nfeatures, n_fft, \
-                frame_splicing_stack, frame_splicing_subsample, lowfreq, highfreq, normalize_type
+            for normalize_type in ['per_feature', 'all_features']:
+                pad_amount = random.choice([0, 16])
+                yield _testimpl_rnnt_data_pipeline, device, \
+                    pad_amount, preemph_coeff, window_size, window_stride, window, nfeatures, n_fft, \
+                    frame_splicing_stack, frame_splicing_subsample, lowfreq, highfreq, normalize_type
