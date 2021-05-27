@@ -645,6 +645,18 @@ class coalescing_free_tree {
   detail::pooled_set<std::pair<size_t, char *>, true> by_size_;
 };
 
+/**
+ * @brief Maintains a tree of free memory blocks of variable size, returning free blocks
+ *        with least margin.
+ *
+ * This free tree does not combine blocks - it returns the one with least margin, if
+ * the margin is within the limit. Maximum size of a suitable block is relative
+ * to the requested block.
+ *
+ * When requesting a block smaller than the one in the tree, the information about the original
+ * block is stored in a special structure and restored upon deallocation, so the entire original
+ * block can be reconstituted.
+ */
 class best_fit_free_tree {
  public:
   void clear() {
@@ -655,6 +667,11 @@ class best_fit_free_tree {
 
   float max_padding_ratio = 1.1f;
 
+  /**
+   * @brief Gets a block that has at least the specified size and alignment
+   *
+   * This free tree will not use blocks larger than `size * max_padding_ratio`
+   */
   void *get(size_t size, size_t alignment) {
     // the formula below is to avoid rounding errors - do not "optimize"
     size_t max_size = size + static_cast<size_t>(size * (max_padding_ratio - 1));
@@ -674,6 +691,11 @@ class best_fit_free_tree {
     return nullptr;
   }
 
+  /**
+   * @brief Puts a block to the tree
+   *
+   * If the block was returned as a part of a larger block, the original block is put instead.
+   */
   void put(void *ptr, size_t size) {
     char *addr = static_cast<char*>(ptr);
     auto orig_it = original_.find(addr);
