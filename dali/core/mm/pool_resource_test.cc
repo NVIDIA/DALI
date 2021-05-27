@@ -27,52 +27,59 @@ namespace test {
 template <typename FreeList>
 void TestPoolResource(int num_iter) {
   test_host_resource upstream;
-  auto opt = default_host_pool_opts();
-  pool_resource_base<memory_kind::host, any_context, FreeList, detail::dummy_lock>
-    pool(&upstream, opt);
-  std::mt19937_64 rng(12345);
-  std::bernoulli_distribution is_free(0.4);
-  std::uniform_int_distribution<int> align_dist(0, 8);  // alignment anywhere from 1B to 256B
-  std::poisson_distribution<int> size_dist(128);
-  struct allocation {
-    void *ptr;
-    size_t size, alignment;
-    size_t fill;
-  };
-  std::vector<allocation> allocs;
+  {
+    auto opt = default_host_pool_opts();
+    pool_resource_base<memory_kind::host, any_context, FreeList, detail::dummy_lock>
+      pool(&upstream, opt);
+    std::mt19937_64 rng(12345);
+    std::bernoulli_distribution is_free(0.4);
+    std::uniform_int_distribution<int> align_dist(0, 8);  // alignment anywhere from 1B to 256B
+    std::poisson_distribution<int> size_dist(128);
+    struct allocation {
+      void *ptr;
+      size_t size, alignment;
+      size_t fill;
+    };
+    std::vector<allocation> allocs;
 
-  for (int i = 0; i < num_iter; i++) {
-    if (is_free(rng) && !allocs.empty()) {
-      auto idx = rng() % allocs.size();
-      allocation a = allocs[idx];
+    for (int i = 0; i < num_iter; i++) {
+      if (is_free(rng) && !allocs.empty()) {
+        auto idx = rng() % allocs.size();
+        allocation a = allocs[idx];
+        CheckFill(a.ptr, a.size, a.fill);
+        pool.deallocate(a.ptr, a.size, a.alignment);
+        std::swap(allocs[idx], allocs.back());
+        allocs.pop_back();
+      } else {
+        allocation a;
+        a.size = std::max(1, std::min(size_dist(rng), 1<<24));
+        a.alignment = 1 << align_dist(rng);
+        a.fill = rng();
+        a.ptr = pool.allocate(a.size, a.alignment);
+        ASSERT_TRUE(detail::is_aligned(a.ptr, a.alignment));
+        Fill(a.ptr, a.size, a.fill);
+        allocs.push_back(a);
+      }
+    }
+
+    for (auto &a : allocs) {
       CheckFill(a.ptr, a.size, a.fill);
       pool.deallocate(a.ptr, a.size, a.alignment);
-      std::swap(allocs[idx], allocs.back());
-      allocs.pop_back();
-    } else {
-      allocation a;
-      a.size = std::max(1, std::min(size_dist(rng), 1<<24));
-      a.alignment = 1 << align_dist(rng);
-      a.fill = rng();
-      a.ptr = pool.allocate(a.size, a.alignment);
-      ASSERT_TRUE(detail::is_aligned(a.ptr, a.alignment));
-      Fill(a.ptr, a.size, a.fill);
-      allocs.push_back(a);
     }
+    allocs.clear();
   }
-
-  for (auto &a : allocs) {
-    CheckFill(a.ptr, a.size, a.fill);
-    pool.deallocate(a.ptr, a.size, a.alignment);
-  }
-  allocs.clear();
+  upstream.check_leaks();
 }
 
 TEST(MMPoolResource, Coalescing) {
   TestPoolResource<coalescing_free_list>(10000);
 }
 
-TEST(MMPoolResource, Tree) {
+TEST(MMPoolResource, BestFitFreeTree) {
+  TestPoolResource<best_fit_free_tree>(100000);
+}
+
+TEST(MMPoolResource, CoalescingFreeTree) {
   TestPoolResource<coalescing_free_tree>(100000);
 }
 

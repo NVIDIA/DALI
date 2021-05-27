@@ -645,6 +645,79 @@ class coalescing_free_tree {
   detail::pooled_set<std::pair<size_t, char *>, true> by_size_;
 };
 
+class best_fit_free_tree {
+ public:
+  void clear() {
+    by_addr_.clear();
+    by_size_.clear();
+    original_.clear();
+  }
+
+  float max_padding_ratio = 1.1f;
+
+  void *get(size_t size, size_t alignment) {
+    // the formula below is to avoid rounding errors - do not "optimize"
+    size_t max_size = size + static_cast<size_t>(size * (max_padding_ratio - 1));
+
+    for (auto it = by_size_.lower_bound({ size, nullptr }); it != by_size_.end(); ++it) {
+      size_t block_size = it->first;
+      if (block_size > max_size)
+        break;  // nothing good will happen
+      char *base = it->second;
+      char *aligned = detail::align_ptr(base, alignment);
+      by_size_.erase(it);
+      by_addr_.erase(base);
+      if (block_size != size)  // only store if there's padding
+        original_.insert({aligned, { base, block_size }});
+      return aligned;
+    }
+    return nullptr;
+  }
+
+  void put(void *ptr, size_t size) {
+    char *addr = static_cast<char*>(ptr);
+    auto orig_it = original_.find(addr);
+    if (orig_it != original_.end()) {
+      // restore padding, if any
+      auto orig_block = orig_it->second;
+      assert(static_cast<char*>(ptr) >= orig_block.first);
+      assert(static_cast<char*>(ptr) + size <= orig_block.first + orig_block.second);
+      addr = orig_block.first;
+      size = orig_block.second;
+      original_.erase(orig_it);
+    }
+    by_size_.insert({size, addr});
+    by_addr_.insert({addr, size});
+  }
+
+  /**
+   * @brief Retrieves a specific memory region from the free tree.
+   *
+   * If the exact block is not found, the function fails - no splitting occurs
+   */
+  void *get_specific_block(char *start, char *end) {
+    auto it = by_addr_.find(start);
+    if (it == by_addr_.end())
+      return nullptr;
+    if (start + it->second != end)
+      return nullptr;  // not this block, after all
+    by_size_.erase({it->second, it->first});
+    by_addr_.erase(it);
+    return start;
+  }
+
+  /**
+   * @brief Removes a block from the tree if _exactly_ this block is free - no splitting occurs
+   */
+  bool remove_if_in_list(void *base, size_t size) {
+    return get_specific_block(static_cast<char*>(base), static_cast<char*>(base)+size) != nullptr;
+  }
+
+  detail::pooled_set<std::pair<size_t, char *>, true> by_size_;
+  detail::pooled_map<char *, size_t, true> by_addr_;
+  detail::pooled_map<char *, std::pair<char *, size_t>, true> original_;
+};
+
 namespace detail {
 template <typename FreeList>
 struct can_merge : std::false_type {};
