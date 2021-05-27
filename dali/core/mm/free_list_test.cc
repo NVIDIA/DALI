@@ -183,8 +183,8 @@ TEST(MMCoalescingFreeList, PutGet) {
   TestCoalescingPutGet<coalescing_free_list>();
 }
 
-TEST(MMFreeTree, PutGet) {
-  TestCoalescingPutGet<free_tree>();
+TEST(MMCoalescingFreeTree, PutGet) {
+  TestCoalescingPutGet<coalescing_free_tree>();
 }
 
 TEST(MMBestFitFreeList, RemoveIf) {
@@ -210,8 +210,8 @@ TEST(MMCoalescingFreeList, RemoveIf) {
   TestCoalescingRemoveIf<coalescing_free_list>();
 }
 
-TEST(MMFreeTree, RemoveIf) {
-  TestCoalescingRemoveIf<free_tree>();
+TEST(MMCoalescingFreeTree, RemoveIf) {
+  TestCoalescingRemoveIf<coalescing_free_tree>();
 }
 
 
@@ -229,7 +229,7 @@ class test_coalescing_free_list : public coalescing_free_list {
   }
 };
 
-class test_free_tree : public free_tree {
+class test_free_tree : public coalescing_free_tree {
  public:
   void CheckEqual(const test_free_tree &ref) {
     for (auto it1 = by_addr_.cbegin(), it2 = ref.by_addr_.cbegin();
@@ -248,7 +248,7 @@ TEST(MMCoalescingFreeList, Merge) {
   TestMerge<test_coalescing_free_list>();
 }
 
-TEST(MMFreeTree, Merge) {
+TEST(MMCoalescingFreeTree, Merge) {
   TestMerge<test_free_tree>();
 }
 
