@@ -17,14 +17,14 @@ import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.types as types
-import test_utils
+from test_utils import get_files, to_array
 import numpy as np
 import librosa
 import torch
 import math
 import os
 
-audio_files = test_utils.get_files('db/audio/wav', 'wav')
+audio_files = get_files('db/audio/wav', 'wav')
 audio_files = [file for file in audio_files if '237-134500' in file]  # Filtering librispeech samples
 npy_files = [os.path.splitext(fpath)[0] + '.npy' for fpath in audio_files]
 npy_files_sr = 16000
@@ -158,7 +158,7 @@ class FilterbankFeatures():
 def dali_run(pipe, device):
     pipe.build()
     outs = pipe.run()
-    return np.array(outs[0][0].as_cpu() if device == 'gpu' else outs[0][0])
+    return to_array(outs[0])[0]
 
 def win_args(sample_rate, window_size_sec, window_stride_sec):
     win_length = int(sample_rate * window_size_sec)  # frame size
@@ -181,7 +181,7 @@ def torch_spectrogram(audio, sample_rate, device='cpu',
                           center=center, window=window_tensor.to(dtype=torch.float))
     # get power spectrum
     spectrogram = stft_out.pow(2).sum(-1)
-    spectrogram = spectrogram.cpu().detach().numpy()
+    spectrogram = spectrogram.cpu().numpy()
     return spectrogram
 
 def librosa_spectrogram(audio_data, sample_rate, device='cpu',
@@ -191,7 +191,7 @@ def librosa_spectrogram(audio_data, sample_rate, device='cpu',
     win_length, hop_length = win_args(sample_rate, window_size, window_stride)
     n_fft = n_fft or 2 ** math.ceil(math.log2(win_length))
     window_fn = torch_windows.get(window, None)
-    window_tensor = window_fn(win_length, periodic=False).detach().numpy() if window_fn else None
+    window_tensor = window_fn(win_length, periodic=False).numpy() if window_fn else None
     spectrogram = np.abs(
         librosa.stft(y=audio_data, n_fft=n_fft or win_length,
                      win_length=win_length, hop_length=hop_length, window=window_tensor))**2
@@ -204,7 +204,7 @@ def dali_spectrogram(audio_data, sample_rate, device='cpu',
     win_length, hop_length = win_args(sample_rate, window_size, window_stride)
     n_fft = n_fft or 2 ** math.ceil(math.log2(win_length))
     window_fn = torch_windows.get(window, None)
-    window_tensor = window_fn(win_length, periodic=False).detach().numpy() if window_fn else None
+    window_tensor = window_fn(win_length, periodic=False).numpy() if window_fn else None
     reflect_padding = 'reflect' == pad_mode
     @pipeline_def(batch_size=1, device_id=0, num_threads=3)
     def spectrogram_pipe():
@@ -240,7 +240,7 @@ def torch_mel_fbank(spectrogram, sample_rate, device='cpu',
     if device == 'gpu':
         filterbanks = filterbanks.cuda()
     mel_spectrogram = torch.matmul(filterbanks.to(spectrogram.dtype), spectrogram)
-    mel_spectrogram = mel_spectrogram.cpu().detach().numpy()
+    mel_spectrogram = mel_spectrogram.cpu().numpy()
     return mel_spectrogram
 
 def dali_mel_fbank(spectrogram_data, sample_rate, device='cpu',
@@ -270,7 +270,7 @@ def torch_log(x, device='cpu'):
     if device == 'gpu':
         x = x.cuda()
     log_x = torch.log(x + 1e-20)
-    log_x = log_x.cpu().detach().numpy()
+    log_x = log_x.cpu().numpy()
     return log_x
 
 def dali_log(x_data, device='cpu'):
@@ -294,7 +294,7 @@ def torch_preemphasis(x, preemph, device='cpu'):
     if device == 'gpu':
         x = x.cuda()
     y = torch.cat((x[0].unsqueeze(0), x[1:] - preemph * x[:-1]), dim=0)
-    y = y.cpu().detach().numpy()
+    y = y.cpu().numpy()
     return y
 
 def dali_preemphasis(x_data, preemph, device='cpu'):
@@ -323,7 +323,7 @@ def torch_normalize(mel_spec, normalize_type, seq_len=None, device='cpu'):
         mel_spec = mel_spec.cuda()
     out = FilterbankFeatures().normalize_batch(
         mel_spec, seq_len, normalize_type=normalize_type)
-    out = out.cpu().detach().numpy().squeeze(0)
+    out = out.cpu().numpy().squeeze(0)
     return out
 
 def dali_normalize(mel_spec_data, normalize_type, device='cpu'):
@@ -359,7 +359,7 @@ def torch_frame_splicing(mel_spec, stacking=1, subsampling=1, device='cpu'):
     if device == 'gpu':
         mel_spec = mel_spec.cuda()
     out = stack_subsample_frames(mel_spec, stacking=stacking, subsampling=subsampling)
-    out = out.cpu().detach().numpy().squeeze(0)
+    out = out.cpu().numpy().squeeze(0)
     return out
 
 def dali_frame_splicing(mel_spec_data, stacking, subsampling, device='cpu'):
@@ -373,8 +373,7 @@ def dali_frame_splicing(mel_spec_data, stacking, subsampling, device='cpu'):
         if stacking > 1:
             seq = [x]
             for n in range(1, stacking):
-                f = fn.slice(x, start=n, axes=(1,))
-                f = fn.pad(f, shape=x_orig_shape)
+                f = fn.slice(x, start=n, shape=in_len, axes=(1,), out_of_bounds_policy='pad', fill_values=0)
                 seq.append(f)
             x = fn.cat(*seq, axis=0)
             nfeatures = nfeatures * stacking
@@ -409,7 +408,7 @@ def rnnt_train_pipe(files, sample_rate, silence_threshold=-80, preemph_coeff=.97
     norm_axes = [1] if 'per_feature' else [0, 1]
     win_len, win_hop = win_args(sample_rate, window_size, window_stride)
     window_fn = torch_windows.get(window, None)
-    window_fn_arg = window_fn(win_len, periodic=False).detach().numpy().tolist() if window_fn else None
+    window_fn_arg = window_fn(win_len, periodic=False).numpy().tolist() if window_fn else None
 
     data, _ = fn.readers.file(files=files, device="cpu", random_shuffle=False, shard_id=0, num_shards=1)
     audio, _ = fn.decoders.audio(data, dtype=types.FLOAT, downmix=True)
@@ -430,20 +429,16 @@ def rnnt_train_pipe(files, sample_rate, silence_threshold=-80, preemph_coeff=.97
     if frame_splicing > 1:
         seq = [log_features]
         for n in range(1, frame_splicing):
-            f = fn.slice(log_features, start=n, axes=(1,))
-            f = fn.pad(f, shape=fn.cat(nfeatures, spec_len))
+            f = fn.slice(log_features, start=n, shape=spec_len, axes=(1,), out_of_bounds_policy='pad', fill_values=0)
             seq.append(f)
         log_features_spliced = fn.cat(*seq, axis=0)
     else:
         log_features_spliced = log_features
 
     if normalize_type:
-        if normalize_type == 'per_feature':
-            norm_log_features = fn.normalize(log_features_spliced, axes=[1], device=device, epsilon=4e-5, ddof=1)
-        elif normalize_type == 'all_features':
-            norm_log_features = fn.normalize(log_features_spliced, axes=[0, 1], device=device, epsilon=4e-5, ddof=1)
-        else:
-            assert False
+        assert normalize_type == 'per_feature' or normalize_type == 'all_features'
+        norm_axes = [1] if normalize_type else [0, 1]
+        norm_log_features = fn.normalize(log_features_spliced, axes=norm_axes, device=device, epsilon=4e-5, ddof=1)
     else:
         norm_log_features = log_features_spliced
 
@@ -484,16 +479,9 @@ def _testimpl_rnnt_data_pipeline(device, silence_threshold=-80, preemph_coeff=.9
     pipe.build()
     for i in range(nrecordings):
         dali_out = list(pipe.run())
-        if device == 'gpu':
-            for out_idx in range(len(dali_out)):
-                dali_out[out_idx] = dali_out[out_idx].as_cpu()
-        norm_log_features = np.array(dali_out[0][0])
-        log_features_spliced = np.array(dali_out[1][0])
-        log_features = np.array(dali_out[2][0])
-        mel_spec = np.array(dali_out[3][0])
-        spec = np.array(dali_out[4][0])
-        preemph_audio = np.array(dali_out[5][0])
-        audio = np.array(dali_out[6][0])
+
+        norm_log_features, log_features_spliced, log_features, mel_spec, spec, preemph_audio, audio = \
+            (to_array(out)[0] for out in dali_out)
 
         audio_ref = recordings[i]
         audio_len_ref = recordings[i].shape[0]
