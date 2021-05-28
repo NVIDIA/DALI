@@ -20,6 +20,7 @@ import numpy as np
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
+from test_utils import to_array
 
 import tensorflow as tf
 from tensorflow.python.client import device_lib
@@ -61,7 +62,7 @@ def available_gpus():
 # Respective signatures:
 # get_pipeline_desc(batch_size, num_threads, device, device_id, shard_id, num_shards,
 #                  def_for_dataset) -> nvidia.dali.pipeline, shapes, dtypes
-# `def_for_dataset` - indicates if this function is invoked to create a basaline standalone
+# `def_for_dataset` - indicates if this function is invoked to create a baseline standalone
 #                     pipeline (False), or it will be wrapped into TF dataset (True)
 # It is supposed to return a tuple that also describes the shapes and dtypes returned by the pipe.
 #
@@ -208,13 +209,7 @@ def run_pipeline(pipelines, iterations, device):
         shard_outputs = []
         for pipeline in pipelines:
             pipe_outputs = pipeline.run()
-            if device == 'gpu':
-                shard_outputs.append(
-                    tuple(result.as_cpu().as_array() for result in pipe_outputs))
-            else:
-                shard_outputs.append(
-                    tuple(result.as_array() for result in pipe_outputs))
-
+            shard_outputs.append(tuple(to_array(result) for result in pipe_outputs))
         results.append(tuple(shard_outputs))
     return results
 

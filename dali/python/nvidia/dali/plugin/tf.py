@@ -41,7 +41,7 @@ _experimental_dataset_docstring = """Experimental variant of
 
 Each of the input datasets must be mapped to a :meth:`~nvidia.dali.fn.external_source` operator
 that will represent the input to the DALI pipeline. The input is represented by the ``name``
-parameter of :meth:`~nvidia.dali.fn.external_source` and needs to be provided for corresponding
+parameter of :meth:`~nvidia.dali.fn.external_source` and needs to be provided to the corresponding
 input dataset via the ``input_names`` argument of DALIDatasetWithInputs.
 
 .. warning::
@@ -49,32 +49,35 @@ input dataset via the ``input_names`` argument of DALIDatasetWithInputs.
 
 
 .. warning::
-    This version of the class is just API placeholder and the functionality is not yet implemented.
+    This version of the class is just an API placeholder and the functionality is not yet
+    implemented.
 
 The operator adds additional parameters to the ones supported by the
 :class:`~nvidia.dali.plugin.tf.DALIDataset`:
 
-    Parameters
-    ----------
+Parameters
+----------
     `input_datasets` : `tf.data.Dataset` or `tuple` of `tf.data.Dataset`, optional, default = None
-        input datasets to the DALI Pipeline. When provided, user must specify the `input_names`
+        input datasets to the DALI Pipeline. When provided, user must specify the ``input_names``
         as well to provide the mapping of input datasets to `External Source` nodes.
     `input_names` : `str` or `tuple` of `str`, optional, default = None
-        names of inputs to the DALI Pipeline. Must match arity of the `input_datasets`.
-        `input_datasets[i]` will be provided to `External Source` of the name `input_names[i]`.
+        names of inputs to the DALI Pipeline. Must match arity of the ``input_datasets``.
+        ``input_datasets[i]`` will be provided to the external source instance with the name
+        ``input_names[i]``.
     `input_layouts` : `str` or `tuple` of `str`, optional, default = None
-        layouts of inputs to the DALI Pipeline. Must match arity of the `input_datasets`.
-        `input_layouts[i]` will be set for `input_datasets[i]` provided to `External Source`
-        of the name `input_names[i]`.
-        If not provided while specifying the input_datasets, empty layout string will be used.
+        layouts of inputs to the DALI Pipeline. Must match arity of the ``input_datasets``.
+        ``input_layouts[i]`` will be set for ``input_datasets[i]`` provided to the external source
+        instance with the name ``input_names[i]``.
+        If not provided while specifying the ``input_datasets``, an empty layout string will be
+        used.
     `input_batch` : bool, optional, default = False
         batch mode for the input datasets. Only the default - sample mode - is supported,
-        that is `input_batch = False`.
+        that is ``input_batch = False``.
         Sample mode means that every input dataset is treated as if providing individual samples.
-        DALIDataset will query the inputs dataset `batch_size`-times to build a batch that would
+        DALIDataset will query the inputs dataset ``batch_size``-times to build a batch that would
         be fed into the DALI Pipeline.
-        In sample mode, each sample produced by the input dataset can have different shape,
-        but not number of dimensions.
+        In sample mode, each sample produced by the input dataset can have a different shape,
+        but not a different number of dimensions.
 """
 
 
