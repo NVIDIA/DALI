@@ -682,6 +682,8 @@ class best_fit_free_tree {
         break;  // nothing good will happen
       char *base = it->second;
       char *aligned = detail::align_ptr(base, alignment);
+      if (aligned + size > base + block_size)
+        continue;  // alignment made it out of range
       by_size_.erase(it);
       by_addr_.erase(base);
       if (block_size != size)  // only store if there's padding
