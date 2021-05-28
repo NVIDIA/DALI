@@ -351,7 +351,7 @@ if dataset_compatible_tensorflow():
                 raise NotImplementedError("DALIDatasetWithInputs is only a placeholder operator.")
 
                 dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
-                super(DALIDataset, self).__init__(dataset_impl, dataset_options())
+                super(DALIDatasetWithInputs, self).__init__(dataset_impl, dataset_options())
 
 
         current_module = sys.modules[__name__]
