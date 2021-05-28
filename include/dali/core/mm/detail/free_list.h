@@ -645,6 +645,103 @@ class coalescing_free_tree {
   detail::pooled_set<std::pair<size_t, char *>, true> by_size_;
 };
 
+/**
+ * @brief Maintains a tree of free memory blocks of variable size, returning free blocks
+ *        with least margin.
+ *
+ * This free tree does not combine blocks - it returns the one with least margin, if
+ * the margin is within the limit. Maximum size of a suitable block is relative
+ * to the requested block.
+ *
+ * When requesting a block smaller than the one in the tree, the information about the original
+ * block is stored in a special structure and restored upon deallocation, so the entire original
+ * block can be reconstituted.
+ */
+class best_fit_free_tree {
+ public:
+  void clear() {
+    by_addr_.clear();
+    by_size_.clear();
+    original_.clear();
+  }
+
+  float max_padding_ratio = 1.1f;
+
+  /**
+   * @brief Gets a block that has at least the specified size and alignment
+   *
+   * This free tree will not use blocks larger than `size * max_padding_ratio`
+   */
+  void *get(size_t size, size_t alignment) {
+    // the formula below is to avoid rounding errors - do not "optimize"
+    size_t max_size = size + static_cast<size_t>(size * (max_padding_ratio - 1));
+
+    for (auto it = by_size_.lower_bound({ size, nullptr }); it != by_size_.end(); ++it) {
+      size_t block_size = it->first;
+      if (block_size > max_size)
+        break;  // nothing good will happen
+      char *base = it->second;
+      char *aligned = detail::align_ptr(base, alignment);
+      if (aligned + size > base + block_size)
+        continue;  // alignment made it out of range
+      by_size_.erase(it);
+      by_addr_.erase(base);
+      if (block_size != size)  // only store if there's padding
+        original_.insert({aligned, { base, block_size }});
+      return aligned;
+    }
+    return nullptr;
+  }
+
+  /**
+   * @brief Puts a block to the tree
+   *
+   * If the block was returned as a part of a larger block, the original block is put instead.
+   */
+  void put(void *ptr, size_t size) {
+    char *addr = static_cast<char*>(ptr);
+    auto orig_it = original_.find(addr);
+    if (orig_it != original_.end()) {
+      // restore padding, if any
+      auto orig_block = orig_it->second;
+      assert(static_cast<char*>(ptr) >= orig_block.first);
+      assert(static_cast<char*>(ptr) + size <= orig_block.first + orig_block.second);
+      addr = orig_block.first;
+      size = orig_block.second;
+      original_.erase(orig_it);
+    }
+    by_size_.insert({size, addr});
+    by_addr_.insert({addr, size});
+  }
+
+  /**
+   * @brief Retrieves a specific memory region from the free tree.
+   *
+   * If the exact block is not found, the function fails - no splitting occurs
+   */
+  void *get_specific_block(char *start, char *end) {
+    auto it = by_addr_.find(start);
+    if (it == by_addr_.end())
+      return nullptr;
+    if (start + it->second != end)
+      return nullptr;  // not this block, after all
+    by_size_.erase({it->second, it->first});
+    by_addr_.erase(it);
+    return start;
+  }
+
+  /**
+   * @brief Removes a block from the tree if _exactly_ this block is free - no splitting occurs
+   */
+  bool remove_if_in_list(void *base, size_t size) {
+    return get_specific_block(static_cast<char*>(base), static_cast<char*>(base)+size) != nullptr;
+  }
+
+  detail::pooled_set<std::pair<size_t, char *>, true> by_size_;
+  detail::pooled_map<char *, size_t, true> by_addr_;
+  detail::pooled_map<char *, std::pair<char *, size_t>, true> original_;
+};
+
 namespace detail {
 template <typename FreeList>
 struct can_merge : std::false_type {};
