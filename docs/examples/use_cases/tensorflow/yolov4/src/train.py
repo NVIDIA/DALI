@@ -4,6 +4,7 @@ import tensorflow as tf
 
 from img import read_img, draw_img
 from dali.pipeline import YOLOv4Pipeline
+from np.pipeline import YOLOv4PipelineNumpy
 import utils
 
 import math
@@ -51,7 +52,7 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
         physical_devices = tf.config.list_physical_devices('GPU')
         tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-    dali_use_gpu = kwargs.get("dali_use_gpu")
+    pipeline = kwargs.get("pipeline")
     use_mosaic = kwargs.get("use_mosaic")
     log_dir = kwargs.get("log_dir")
     ckpt_dir = kwargs.get("ckpt_dir")
@@ -80,19 +81,28 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
 
 
     def dataset_fn(input_context):
-        with tf.device("/gpu:{}".format(input_context.input_pipeline_id)):
-            device_id = input_context.input_pipeline_id
-            num_threads = input_context.num_input_pipelines
-            image_size = (608, 608)
+        image_size = (608, 608)
+        device_id = input_context.input_pipeline_id
+        num_threads = input_context.num_input_pipelines
 
-            pipeline = YOLOv4Pipeline(
+        if pipeline == 'dali-gpu' or pipeline == 'dali-cpu':
+            with tf.device("/gpu:{}".format(input_context.input_pipeline_id)):
+                yolo = YOLOv4Pipeline(
+                    file_root, annotations_file,
+                    batch_size, image_size, num_threads, device_id, seed,
+                    use_gpu=pipeline == 'dali-gpu',
+                    is_training=True,
+                    use_mosaic=use_mosaic
+                )
+                return yolo.dataset()
+                
+        if pipeline == 'numpy':
+            return YOLOv4PipelineNumpy(
                 file_root, annotations_file,
                 batch_size, image_size, num_threads, device_id, seed,
-                dali_use_gpu=dali_use_gpu,
                 is_training=True,
                 use_mosaic=use_mosaic
             )
-            return pipeline.dataset()
 
     input_options = tf.distribute.InputOptions(
         experimental_place_dataset_on_device = True,

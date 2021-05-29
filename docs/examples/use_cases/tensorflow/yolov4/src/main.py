@@ -82,7 +82,7 @@ if __name__ == "__main__":
     parser_train.add_argument("--output", "-o", default="output.h5")
     parser_train.add_argument("--start_weights", "-w", default=None)
     parser_train.add_argument("--learning_rate", default=1e-4, type=float)
-    parser_train.add_argument("--dali_use_gpu", action="store_true")
+    parser_train.add_argument("--pipeline", default="dali-gpu")
     parser_train.add_argument("--multigpu", action="store_true")
     parser_train.add_argument("--use_mosaic", action="store_true")
     parser_train.add_argument("--log_dir", default=None)
@@ -105,7 +105,7 @@ if __name__ == "__main__":
             args.file_root, args.annotations, args.batch_size, args.epochs, args.steps,
             output=args.output,
             lr=args.learning_rate,
-            dali_use_gpu=args.dali_use_gpu,
+            pipeline=args.pipeline,
             log_dir=args.log_dir,
             ckpt_dir=args.ckpt_dir,
             start_weights=args.start_weights,
