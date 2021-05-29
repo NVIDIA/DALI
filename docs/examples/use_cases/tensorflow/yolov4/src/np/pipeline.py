@@ -63,7 +63,7 @@ class YOLOv4PipelineNumpy:
             classes = tf.ragged.stack(classes)
             classes = classes.to_tensor(-1)
             classes = tf.cast(tf.expand_dims(classes, axis=-1), dtype=tf.float32)
-            
+
             return images, tf.concat([bboxes, classes], axis=-1)
 
     def __len__(self):
@@ -88,6 +88,8 @@ class YOLOv4PipelineNumpy:
             ann_ids = self._coco.getAnnIds(image_ids[i])
             anns = self._coco.loadAnns(ann_ids)
             sample_bboxes = np.array([ann['bbox'] for ann in anns])
+            if len(sample_bboxes.shape) == 1:
+                sample_bboxes = np.zeros((0, 4))
             sample_bboxes[ : , 0] /= image_width
             sample_bboxes[ : , 1] /= image_height
             sample_bboxes[ : , 2] /= image_width
@@ -96,7 +98,7 @@ class YOLOv4PipelineNumpy:
             sample_bboxes[ : , 1] += sample_bboxes[ : , 3] / 2
 
             bboxes.append(sample_bboxes)
-            classes.append(np.array([ann['category_id'] for ann in anns]))
+            classes.append(np.array([ann['category_id'] for ann in anns], dtype=int))
 
         return images, bboxes, classes
 
