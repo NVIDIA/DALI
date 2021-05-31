@@ -75,9 +75,11 @@ TEST(MMPoolResource, Coalescing) {
   TestPoolResource<coalescing_free_list>(10000);
 }
 
+/* TODO(michalz): Unlock when pool resource can work with best_fit_free_tree
 TEST(MMPoolResource, BestFitFreeTree) {
   TestPoolResource<best_fit_free_tree>(100000);
 }
+*/
 
 TEST(MMPoolResource, CoalescingFreeTree) {
   TestPoolResource<coalescing_free_tree>(100000);
