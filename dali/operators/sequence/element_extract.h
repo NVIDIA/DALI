@@ -68,6 +68,11 @@ class ElementExtract : public Operator<Backend> {
 
     DALI_ENFORCE(!element_map_.empty(),
         "No 'element_map' indexes provided");
+
+    for (auto elem : element_map_) {
+        DALI_ENFORCE(elem >= 0,
+            "index " + std::to_string(elem) + " out of bounds.");
+    }
   }
 
  protected:

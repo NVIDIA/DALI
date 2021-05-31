@@ -150,3 +150,4 @@ def test_raises():
     for shape, layout in [([4], "F"), ([6, 1], "XF"), ([8, 10, 3], "HWC")]:
         yield check_element_extract_raises, shape, layout, [1, 3], "cpu"
     yield check_element_extract_raises, [6, 1], "FX", [10], "cpu"
+    yield check_element_extract_raises, [6, 1], "FX", [-5], "cpu"
