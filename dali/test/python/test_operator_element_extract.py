@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,8 +13,13 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import fn, pipeline_def
 import nvidia.dali.ops as ops
+from test_utils import RandomlyShapedDataIterator, to_array
+from nose.tools import raises
+
 import numpy as np
+
 
 def test_element_extract_operator():
     batch_size = 4
@@ -94,3 +99,54 @@ def test_element_extract_operator():
         assert out2.shape == out4.shape
         np.testing.assert_array_equal( expected_last, out2 )
         np.testing.assert_array_equal( expected_last, out4 )
+
+
+batch_size=8
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
+def element_extract_pipe(shape, layout, element_map, dev, dtype):
+    min_shape = [s // 2 if s > 1 else 1 for s in shape]
+    min_shape[0] = shape[0]
+    min_shape = tuple(min_shape)
+    input = fn.external_source(source=RandomlyShapedDataIterator(batch_size,
+                                                                 min_shape=min_shape,
+                                                                 max_shape=shape,
+                                                                 dtype=dtype),
+                               layout=layout)
+    if dev == "gpu":
+        input = input.gpu()
+    elements = fn.element_extract(input, element_map=element_map)
+    result = (input,) + tuple(elements) if len(element_map) > 1 else (input, elements)
+    return result
+
+def check_element_extract(shape, layout, element_map, dev, dtype=np.uint8):
+    pipe = element_extract_pipe(shape, layout, element_map, dev, dtype)
+    pipe.build()
+    for i in range(10):
+        results = pipe.run()
+        input = results[0]
+        elements = results[1:]
+        for i in range(batch_size):
+            for j, idx in enumerate(element_map):
+                assert elements[j][i].layout() == layout[1:]
+                expected = to_array(input[i])[idx]
+                obtained = to_array(elements[j][i])
+                np.testing.assert_array_equal(expected, obtained)
+
+def test_element_extract_layout():
+    for shape, layout in [([4, 2, 2], "FHW"), ([6, 1], "FX"), ([8, 10, 10, 3], "FHWC")]:
+        for element_map in [[1, 3], [0], [2, 2], [0, 1, 2]]:
+            for device in ["cpu", "gpu"]:
+                for dtype in [np.uint8, np.int32]:
+                    yield check_element_extract, shape, layout, element_map, device, dtype
+    for device in ["cpu", "gpu"]:
+        yield check_element_extract, [4, 3, 3], "FXY", [0, 1, 2, 3, 3, 2, 1, 0], device
+
+@raises(RuntimeError)
+def check_element_extract_raises(shape, layout, element_map, dev):
+    check_element_extract(shape, layout, element_map, dev)
+
+def test_raises():
+    for shape, layout in [([4], "F"), ([6, 1], "XF"), ([8, 10, 3], "HWC")]:
+        yield check_element_extract_raises, shape, layout, [1, 3], "cpu"
+    yield check_element_extract_raises, [6, 1], "FX", [10], "cpu"

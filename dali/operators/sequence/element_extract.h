@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,32 +18,52 @@
 
 #include <vector>
 #include "dali/core/common.h"
+#include "dali/core/format.h"
+#include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/kernels/common/scatter_gather.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
 namespace detail {
-  static void CheckInputShape(const TensorShape<>& tensor_shape,
-                              const std::vector<int>& element_map) {
-    DALI_ENFORCE(tensor_shape.size() > 0);
-    auto N_input = tensor_shape[0];
+  static void CheckInputShape(const span<const int64_t>& tensor_shape,
+                              const std::vector<int>& element_map,
+                              const TensorLayout& input_layout) {
+    if (!input_layout.empty()) {
+      DALI_ENFORCE(
+          VideoLayoutInfo::IsSequence(input_layout),
+          make_string("Input layout must describe a sequence - it must start with 'F', got '",
+                      input_layout, "' instead."));
+    }
 
-    int N_output = element_map.size();
-    DALI_ENFORCE(N_input >= N_output,
-        "Requested more elements than available");
+    DALI_ENFORCE(tensor_shape.size() > 1,
+                 "Input must have at least two dimenstions - outermost for sequence and at least "
+                 "one for data elements.");
+    auto N_input = tensor_shape[0];
 
     for (auto elem : element_map)
         DALI_ENFORCE(elem < N_input,
             "index " + std::to_string(elem) + " out of bounds");
   }
+
+  static TensorListShape<> GetOutputShape(const TensorListShape<> &input_shape,
+                                          const std::vector<int> &element_map,
+                                          const TensorLayout& input_layout) {
+    for (int i = 0; i < input_shape.num_samples(); ++i) {
+      auto shape = input_shape.tensor_shape_span(i);
+      CheckInputShape(shape, element_map, input_layout);
+    }
+    return input_shape.last(input_shape.sample_dim() - 1);
+  }
+
 }  // namespace detail
 
 template <typename Backend>
 class ElementExtract : public Operator<Backend> {
  public:
   inline explicit ElementExtract(const OpSpec &spec)
-    : Operator<Backend>(spec) {
+    : Operator<Backend>(spec), scatter_gather_(kMaxSizePerBlock) {
     element_map_ = spec.GetRepeatedArgument<int>("element_map");
 
     DALI_ENFORCE(!element_map_.empty(),
@@ -51,17 +71,30 @@ class ElementExtract : public Operator<Backend> {
   }
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    return false;
+  bool CanInferOutputs() const override {
+    return true;
   }
 
-  void RunImpl(Workspace<Backend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    const auto &input = ws.template InputRef<Backend>(0);
+    output_desc.resize(element_map_.size());
+    auto output_shape = detail::GetOutputShape(input.shape(), element_map_, input.GetLayout());
+    for (auto &desc : output_desc) {
+      desc.shape = output_shape;
+      desc.type = input.type();
+    }
+    return true;
+  }
+
+  void RunImpl(workspace_t<Backend> &ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
  private:
   std::vector<int> element_map_;
+  kernels::ScatterGatherGPU scatter_gather_;
+  static constexpr size_t kMaxSizePerBlock = 1 << 18;  // 256 kB per block
 };
 
 }  // namespace dali
