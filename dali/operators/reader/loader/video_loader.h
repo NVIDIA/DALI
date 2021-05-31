@@ -139,6 +139,7 @@ struct sequence_meta {
   int label;
   int height;
   int width;
+  int N_frames;
 };
 
 
@@ -264,9 +265,19 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
         }
       }
 
+      int s;
       for (int s = start_frame; s < end_frame && s + total_count <= end_frame; s += step_) {
         frame_starts_.emplace_back(sequence_meta{i, s, file_info_[i].label,
-                                   codecpar(stream)->height, codecpar(stream)->width});
+                                   codecpar(stream)->height, codecpar(stream)->width,
+                                   count_});
+      }
+      if (s < end_frame) {
+        int fcount = 1 + (end_frame - 1 - s) / stride_;
+        if (fcount > 0) {
+          frame_starts_.emplace_back(sequence_meta{i, s, file_info_[i].label,
+                                     codecpar(stream)->height, codecpar(stream)->width,
+                                     fcount});
+         }
       }
     }
     DALI_ENFORCE(!frame_starts_.empty(), "There are no valid sequences in the provided "
