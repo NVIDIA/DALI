@@ -217,8 +217,9 @@ TEST(MMCoalescingFreeTree, RemoveIf) {
 TEST(MMBestFitFreeTree, Alignment) {
   best_fit_free_tree fl;
   fl.max_padding_ratio = 10;
-  char storage alignas(1024)[4096];
-  assert(detail::is_aligned(storage, 1024));
+  // workaround for large alignment bug in GCC
+  char unaligned[4096+1024];
+  char *storage = detail::align_ptr(unaligned, 1024);
   fl.put(storage+1, 1024);
   EXPECT_EQ(fl.get(1024, 512), nullptr) << "Block out of range or misaligned";
   fl.put(storage+1025, 2047);
@@ -228,8 +229,9 @@ TEST(MMBestFitFreeTree, Alignment) {
 
 TEST(MMCoalescingFreeTree, Alignment) {
   coalescing_free_tree fl;
-  char storage alignas(1024)[4096];
-  assert(detail::is_aligned(storage, 1024));
+  // workaround for large alignment bug in GCC
+  char unaligned[4096+1024];
+  char *storage = detail::align_ptr(unaligned, 1024);
   fl.put(storage+1, 1024);
   EXPECT_EQ(fl.get(1024, 512), nullptr) << "Block out of range or misaligned";
   fl.put(storage+1025, 2047);
