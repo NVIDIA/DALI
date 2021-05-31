@@ -33,7 +33,7 @@ def test_tf_dataset_wrong_placement_cpu():
     num_threads = 4
     iterations = 10
 
-    pipeline = get_pipeline(batch_size, num_threads, 'cpu', 0)
+    pipeline = get_image_pipeline(batch_size, num_threads, 'cpu', 0)
 
     with tf.device('/gpu:0'):
         dataset = get_dali_dataset_from_pipeline(
@@ -48,7 +48,7 @@ def test_tf_dataset_wrong_placement_gpu():
     num_threads = 4
     iterations = 10
 
-    pipeline = get_pipeline(batch_size, num_threads, 'gpu', 0)
+    pipeline = get_image_pipeline(batch_size, num_threads, 'gpu', 0)
 
     with tf.device('/cpu:0'):
         dataset = get_dali_dataset_from_pipeline(

@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 import tensorflow as tf
 from tensorflow.python.data.util import nest
 from tensorflow.python.framework import tensor_shape
 from nvidia.dali import types
+from nvidia.dali import internal as _internal
 
 from collections import Iterable
 from distutils.version import LooseVersion
@@ -30,6 +33,51 @@ _dali_tf.__doc__ = _dali_tf.__doc__ + """
     Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in
     DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
     differ based on your use case.
+"""
+
+
+_experimental_dataset_docstring = """Experimental variant of
+:class:`~nvidia.dali.plugin.tf.DALIDataset`. This dataset adds support for input tf.data.Datasets.
+
+Each of the input datasets must be mapped to a :meth:`~nvidia.dali.fn.external_source` operator
+that will represent the input to the DALI pipeline. The input is represented by the ``name``
+parameter of :meth:`~nvidia.dali.fn.external_source` and needs to be provided to the corresponding
+input dataset via the ``input_names`` argument of DALIDatasetWithInputs.
+
+.. warning::
+    This class is experimental and its API might change without notice.
+
+
+.. warning::
+    This version of the class is just an API placeholder and the functionality is not yet
+    implemented.
+
+The operator adds additional parameters to the ones supported by the
+:class:`~nvidia.dali.plugin.tf.DALIDataset`:
+
+Parameters
+----------
+    input_datasets : tf.data.Dataset or tuple of tf.data.Dataset, optional, default = None
+        input datasets to the DALI Pipeline. When provided, user must specify the ``input_names``
+        as well to provide the mapping of input datasets to ``External Source`` nodes.
+    input_names : str or tuple of str, optional, default = None
+        names of inputs to the DALI Pipeline. Must match arity of the ``input_datasets``.
+        ``input_datasets[i]`` will be provided to the external source instance with the name
+        ``input_names[i]``.
+    input_layouts : str or tuple of str, optional, default = None
+        layouts of inputs to the DALI Pipeline. Must match arity of the ``input_datasets``.
+        ``input_layouts[i]`` will be set for ``input_datasets[i]`` provided to the external source
+        instance with the name ``input_names[i]``.
+        If not provided while specifying the ``input_datasets``, an empty layout string will be
+        used.
+    input_batch : bool, optional, default = False
+        batch mode for the input datasets. Only the default - sample mode - is supported,
+        that is ``input_batch = False``.
+        Sample mode means that every input dataset is treated as if providing individual samples.
+        DALIDataset will query the inputs dataset ``batch_size``-times to build a batch that would
+        be fed into the DALI Pipeline.
+        In sample mode, each sample produced by the input dataset can have a different shape,
+        but not a different number of dimensions.
 """
 
 
@@ -144,10 +192,14 @@ MIN_TENSORFLOW_VERSION = LooseVersion('1.15')
 
 
 def dataset_compatible_tensorflow():
+    """Returns ``True`` if current TensorFlow version is compatible with DALIDataset."""
     return LooseVersion(tf.__version__) >= MIN_TENSORFLOW_VERSION
 
 
 def dataset_distributed_compatible_tensorflow():
+    """Returns ``True`` if the tf.distribute APIs for current TensorFlow version are compatible
+    with DALIDataset.
+    """
     return LooseVersion(tf.__version__) >= LooseVersion('2.5.0')
 
 
@@ -281,11 +333,35 @@ if dataset_compatible_tensorflow():
     else:
         _DALIDatasetImpl = _DALIDatasetV2
 
+    _experimental_kwargs = ['input_datasets', 'input_names', 'input_layouts', 'input_batch']
+
     class DALIDataset(dataset_ops._OptionsDataset):
         @functools.wraps(_DALIDatasetV2.__init__)
         def __init__(self, pipeline, **kwargs):
+            for disallowed_kwarg in _experimental_kwargs:
+                if disallowed_kwarg in kwargs.keys():
+                    raise TypeError("__init__() got an unexpected keyword argument '{}'".format(disallowed_kwarg))
             dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
             super(DALIDataset, self).__init__(dataset_impl, dataset_options())
+
+    def _load_experimental_dataset():
+        class DALIDatasetWithInputs(dataset_ops._OptionsDataset):
+            # @functools.wraps(_DALIDatasetV2.__init__)
+            def __init__(self, pipeline, **kwargs):
+                raise NotImplementedError("DALIDatasetWithInputs is only a placeholder operator.")
+
+                dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
+                super(DALIDatasetWithInputs, self).__init__(dataset_impl, dataset_options())
+
+
+        current_module = sys.modules[__name__]
+        experimental_module = _internal.get_submodule(current_module, "experimental")
+        DALIDatasetWithInputs.__module__ = experimental_module
+        DALIDatasetWithInputs.__doc__ = _experimental_dataset_docstring
+        setattr(experimental_module, "DALIDatasetWithInputs", DALIDatasetWithInputs)
+
+    _load_experimental_dataset()
+
 
 else:
 
@@ -309,65 +385,81 @@ else:
                 'DALIDataset is not supported for detected version of TensorFlow.  DALIDataset supports versions: 1.15, 2.x family'
             )
 
+    def _load_experimental_dataset():
+        class DALIDatasetWithInputs:
+            def __init__(self, *args, **kwargs):
+                raise RuntimeError(
+                    'experimental.DALIDatasetWithInputs is not supported for detected version of TensorFlow. '
+                    + 'DALIDataset supports versions: 1.15, 2.x family')
 
-DALIDataset.__doc__ = """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.15 and 2.x family
+        current_module = sys.modules[__name__]
+        experimental_module = _internal.get_submodule(current_module, "experimental")
+        DALIDatasetWithInputs.__module__ = experimental_module
+        DALIDatasetWithInputs.__doc__ = _experimental_dataset_docstring
+        setattr(experimental_module, "DALIDatasetWithInputs", DALIDatasetWithInputs)
+
+    _load_experimental_dataset()
 
 
-    Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in
-    DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
-    differ based on your use case.
+DALIDataset.__doc__ = """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI
+    pipeline. It supports TensorFlow 1.15 and 2.x family
+
+
+    Please keep in mind that TensorFlow allocates almost all available device memory by default.
+    This might cause errors in DALI due to insufficient memory. On how to change this behaviour
+    please look into the TensorFlow documentation, as it may differ based on your use case.
 
     Parameters
     ----------
-    `pipeline` : `nvidia.dali.Pipeline`
+    pipeline : :class:`nvidia.dali.Pipeline`
         defining the data processing to be performed.
-    `output_dtypes`: `tf.DType` or `tuple` of `tf.DType`, default = None
+    output_dtypes: tf.DType or tuple of tf.DType, default = None
         expected output types
-    `output_shapes`: tuple of shapes, optional, default = None
-        expected output shapes. If provided, must match arity of the `output_dtypes`.
+    output_shapes: tuple of shapes, optional, default = None
+        expected output shapes. If provided, must match arity of the ``output_dtypes``.
         When set to None, DALI will infer the shapes on its own.
         Individual shapes can be also set to None or contain None to indicate unknown dimensions.
         If specified must be compatible with shape returned from DALI Pipeline
-        and with `batch_size` argument which will be the outermost dimension of returned tensors.
-        In case of `batch_size = 1` it can be omitted in the shape.
+        and with ``batch_size`` argument which will be the outermost dimension of returned tensors.
+        In case of ``batch_size = 1`` it can be omitted in the shape.
         DALI Dataset will try to match requested shape by squeezing 1-sized dimensions
         from shape obtained from Pipeline.
-    `fail_on_device_mismatch` : bool, optional, default = True
-        When set to `True` runtime check will be performed to ensure DALI device and TF device are
-        both CPU or both GPU. In some contexts this check might be inaccurate. When set to `False`
+    fail_on_device_mismatch : bool, optional, default = True
+        When set to ``True`` runtime check will be performed to ensure DALI device and TF device are
+        both CPU or both GPU. In some contexts this check might be inaccurate. When set to ``False``
         will skip the check but print additional logs to check the devices. Keep in mind that this
         may allow hidden GPU to CPU copies in the workflow and impact performance.
-    `batch_size` : int, optional, default = 1
+    batch_size : int, optional, default = 1
         batch size of the pipeline.
-    `num_threads` : int, optional, default = 4
+    num_threads : int, optional, default = 4
         number of CPU threads used by the pipeline.
-    `device_id` : int, optional, default = 0
+    device_id : int, optional, default = 0
         id of GPU used by the pipeline.
         A None value for this parameter means that DALI should not use GPU nor CUDA runtime.
         This limits the pipeline to only CPU operators but allows it to run on any CPU capable machine.
-    `exec_separated` : bool, optional, default = False
+    exec_separated : bool, optional, default = False
         Whether to execute the pipeline in a way that enables
         overlapping CPU and GPU computation, typically resulting
         in faster execution speed, but larger memory consumption.
-    `prefetch_queue_depth` : int, optional, default = 2
+    prefetch_queue_depth : int, optional, default = 2
         depth of the executor queue. Deeper queue makes DALI more
         resistant to uneven execution time of each batch, but it also
         consumes more memory for internal buffers.
-        Value will be used with `exec_separated` set to False.
-    `cpu_prefetch_queue_depth` : int, optional, default = 2
+        Value will be used with ``exec_separated`` set to ``False``.
+    cpu_prefetch_queue_depth : int, optional, default = 2
         depth of the executor cpu queue. Deeper queue makes DALI more
         resistant to uneven execution time of each batch, but it also
         consumes more memory for internal buffers.
-        Value will be used with `exec_separated` set to True.
-    `gpu_prefetch_queue_depth` : int, optional, default = 2
+        Value will be used with ``exec_separated`` set to ``True``.
+    gpu_prefetch_queue_depth : int, optional, default = 2
         depth of the executor gpu queue. Deeper queue makes DALI more
         resistant to uneven execution time of each batch, but it also
         consumes more memory for internal buffers.
-        Value will be used with `exec_separated` set to True.
+        Value will be used with ``exec_separated`` set to ``True``.
 
     Returns
     -------
-    `DALIDataset` object based on DALI pipeline and compatible with `tf.data.Dataset` API.
+    ``DALIDataset`` object based on DALI pipeline and compatible with ``tf.data.Dataset`` API.
 
     """
 

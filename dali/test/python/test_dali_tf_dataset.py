@@ -19,7 +19,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.plugin.tf as dali_tf
 from nose.tools import raises
 
-from test_utils_tensorflow import get_pipeline
+from test_utils_tensorflow import get_image_pipeline
 
 
 @raises(Exception)
@@ -27,7 +27,7 @@ def test_different_num_shapes_dtypes():
     batch_size = 12
     num_threads = 4
 
-    dataset_pipeline = get_pipeline(batch_size, num_threads, 'cpu')
+    dataset_pipeline = get_image_pipeline(batch_size, num_threads, 'cpu')
     shapes = (
         (batch_size, 3, 224, 224),
         (batch_size, 1, 1),

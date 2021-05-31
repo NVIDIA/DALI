@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import tensorflow as tf
+from nvidia.dali.plugin.tf.experimental import DALIDatasetWithInputs
 import nvidia.dali.plugin.tf as dali_tf
 from test_utils_tensorflow import *
 from nose.tools import raises, with_setup
@@ -34,7 +35,7 @@ def test_tf_dataset_wrong_placement_cpu():
     num_threads = 4
     iterations = 10
 
-    pipeline = get_pipeline(batch_size, num_threads, 'cpu', 0)
+    pipeline = get_image_pipeline(batch_size, num_threads, 'cpu', 0)
 
     with tf.device('/gpu:0'):
         dataset = get_dali_dataset_from_pipeline(
@@ -50,7 +51,7 @@ def test_tf_dataset_wrong_placement_gpu():
     num_threads = 4
     iterations = 10
 
-    pipeline = get_pipeline(batch_size, num_threads, 'gpu', 0)
+    pipeline = get_image_pipeline(batch_size, num_threads, 'gpu', 0)
 
     with tf.device('/cpu:0'):
         dataset = get_dali_dataset_from_pipeline(
@@ -58,6 +59,22 @@ def test_tf_dataset_wrong_placement_gpu():
 
     for sample in dataset:
         pass
+
+
+# Test if the experimental Dataset can be imported and that it is not yet implemented
+@raises(NotImplementedError)
+def test_tf_experimental_inputs_disabled():
+    pipeline = get_image_pipeline(4, 4, 'cpu', 0)
+    DALIDatasetWithInputs(pipeline)
+
+
+# Test if the TypeError is raised for unsupported arguments for regular DALIDataset
+@raises(TypeError)
+def test_tf_experimental_inputs_disabled():
+    pipeline = get_image_pipeline(4, 4, 'cpu', 0)
+    dali_tf.DALIDataset(pipeline,
+                        input_datasets=tf.data.Dataset.from_tensors(np.int32([42, 42])),
+                        input_names="test")
 
 
 # This test should be private (name starts with _) as it is called separately in L1
