@@ -14,6 +14,7 @@
 
 import tensorflow
 from test_utils_tensorflow import *
+from test_dali_tf_dataset_pipelines import *
 from nose.tools import raises, with_setup
 
 tensorflow.compat.v1.disable_eager_execution()

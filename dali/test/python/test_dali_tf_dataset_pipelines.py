@@ -69,7 +69,10 @@ class FixedSampleIterator:
 @pipeline_def
 def one_input_pipeline(def_for_dataset, device, source):
     if def_for_dataset:
-        input = fn.external_source(name="input_placeholder")
+        # TODO(klecki): We need a way to control definition of DALI Pipeline, to set
+        # the appropriate no_copy (and other options), maybe we can do it in Python by inspecting
+        # the defined graph?
+        input = fn.external_source(name="input_placeholder", no_copy=device == "cpu")
     else:
         input = fn.external_source(name="actual_input", source=source, batch=False)
     input = input if device == 'cpu' else input.gpu()
@@ -81,7 +84,7 @@ def one_input_pipeline(def_for_dataset, device, source):
 def external_source_converter_with_fixed_value(shape, dtype, tensor):
     def to_dataset(pipeline_desc, device_str):
         with tf.device('/cpu:0'):
-            input_dataset = tf.data.Dataset.from_tensors(tensor).repeat().map(lambda x: x+1)
+            input_dataset = tf.data.Dataset.from_tensors(tensor).repeat()
             # If we place DALIDataset on GPU we need the remote call + manual data transfer
             if "gpu" in device_str:
                 input_dataset = input_dataset.apply(tf.data.experimental.copy_to_device('/gpu:0'))
@@ -144,4 +147,3 @@ def external_source_tester(shape, dtype, source=None):
 
         return pipe, (batch_shape, batch_shape), (tf.dtypes.as_dtype(dtype), tf.int32)
     return get_external_source_pipeline_getter
-

@@ -119,6 +119,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
   const bool fail_on_device_mismatch_;
 
   daliPipelineHandle pipeline_handle_;
+  const InputDesc input_desc_;
 
   Status AsGraphDefInternal(SerializationContext *context, DatasetGraphDefBuilder *b,
                             Node **output) const override {
@@ -214,9 +215,6 @@ class DALIDatasetOp::Dataset : public DatasetBase {
   int NumInputs() const {
     return input_desc_.inputs.size();
   }
-
-  // TODO(klecki): TF likes to have those inputs consted
-  const InputDesc input_desc_;
 };
 
 
@@ -258,7 +256,6 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         if (dataset()->fail_on_device_mismatch_) {
           return Status(tensorflow::error::Code::INTERNAL, msg);
         }
-        LOG(WARNING) << "DALI LOG: CheckOutputDevice: " << msg;
       }
     }
     return Status::OK();
@@ -273,7 +270,6 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       // if someone is stubborn enough to query us after the end of input data
       // TODO(klecki): we should raise a warning that reinitializing DALI Pipeline is not efficeint
       if (iterator_state_ == InputState::stop_signaled) {
-        LOG(WARNING) << "[DALI INPUT]: end resignalled" << std::endl;
         *end_of_sequence = true;
         return Status::OK();
       }
@@ -284,17 +280,14 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         ListOfBatches batches;
         TF_RETURN_IF_ERROR(PrepareBatches(context, batches, &end_of_input_sequence));
         if (end_of_input_sequence) {
-          LOG(WARNING) << "[DALI INPUT]: end pending" << std::endl;
           iterator_state_ = InputState::stop_pending;
         } else {
-          LOG(WARNING) << "[DALI INPUT]: feeding batches: " << batches.size() << std::endl;
           TF_RETURN_IF_ERROR(FeedInputs(&pipeline_handle_, std::move(batches)));
         }
       }
 
       // We run out of data, indicate the end
       if (iterator_state_ == InputState::stop_pending && InputsScheduled() == 0) {
-        LOG(WARNING) << "[DALI INPUT]: end signalled" << std::endl;
         iterator_state_ = InputState::stop_signaled;
         *end_of_sequence = true;
         for (auto &input : input_impls_) {
@@ -591,17 +584,9 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     shapes.reserve(batch_size * ndim);
     shapes.clear();
 
-    LOG(WARNING) << "[DALI INPUT]: Batch detected, type: " << input_batch[0].dtype()
-                 << ", ndim: " << ndim << std::endl;
-
     for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
       auto &tensor = input_batch[sample_idx];
-      LOG(WARNING) << "[DALI INPUT]: repacking a tensor, sample: " << sample_idx
-                   << ", shape: " << tensor.shape() << "device ?? I have no idea how to check it"
-                   << std::endl;
       ptrs[sample_idx] = tensor.data();
-      // LOG(WARNING) << "[DALI INPUT]: tensor contents: " << *static_cast<int32_t *>(tensor.data())
-      //              << std::endl;
       for (int d = 0; d < ndim; d++) {
         shapes.push_back(tensor.dim_size(d));
       }
@@ -631,16 +616,13 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     for (int input_idx = 0; input_idx < dataset()->NumInputs(); input_idx++) {
       auto &input_batch = current_batches[input_idx];
       TF_RETURN_IF_ERROR(VerifyUniform(input_batch, input_idx));
-      LOG(WARNING) << "[DALI INPUT]: Feeding batch for input " << input_idx << std::endl;
       TF_RETURN_IF_ERROR(RepackNonContiguousBatch(ptrs, dtype, shapes, ndim, input_batch));
+
       auto &input_name = dataset()->input_desc_.input_names[input_idx];
       // TODO(klecki): Currently we are restricted to supporting input memory on the same
       // device as the DALIDataset placement
       auto input_device = dataset()->device_type_;
       auto &input_layout = dataset()->input_desc_.input_layouts[input_idx];
-
-      LOG(WARNING) << "[DALI INPUT]: Input name for idx " << input_idx << " : " << input_name
-                   << "device: " << input_device << std::endl;
 
       TF_DALI_CALL(daliSetExternalInputTensors(pipeline_handle, input_name.c_str(), input_device,
                                                ptrs.data(), dtype, shapes.data(), ndim,
@@ -818,23 +800,26 @@ void DALIDatasetOp::FillInputDef(OpKernelConstruction *context, InputDef &def) {
 }
 
 void DALIDatasetOp::FillInputs(OpKernelContext *context, Inputs &def) {
-  // based on the ZipDatasetOp::MakeDataset
   for (size_t i = 0; i < context->num_inputs(); ++i) {
     DatasetBase *input;
     OP_REQUIRES_OK(context, GetDatasetFromVariantTensor(context->input(i), &input));
     def.inputs.push_back(input);
-    // TODO(klecki): Obtain the input devices
-    std::cout << ">>>>>>>>>>>>>>>>>> MEMORY TYPE " << i << " " << context->input_memory_type(i) << std::endl;
-    // def.input_devices.push_bach(context->in)
+    // TODO(klecki): If possible, obtain the device placement of the inputs for verification,
+    // we may try to make sure that the inputs to GPU dataset used copy_to_device.
   }
 }
 
 void DALIDatasetOp::ValidateInputs(OpKernelContext *context, Inputs &inputs, InputDef &input_def) {
-  // TODO(klecki): This is not really needed - we do it in Python side with better errors?
-  // OP_REQUIRES(context, context->num_inputs() == input_def.input_names_.size(),
-  //             errors::InvalidArgument("Number of inputs and input names provided must match, got ",
-  //                                     context->num_inputs(), " inputs and ", input_def.input_names_.size(),
-  //                                     " input names."));
+  // This is not really needed - we do it in Python side already, but just in case:
+  OP_REQUIRES(context, inputs.inputs.size() == input_def.input_names.size(),
+              errors::InvalidArgument("Number of inputs and input names provided must match, got ",
+                                      inputs.inputs.size(), " inputs and ",
+                                      input_def.input_names.size(), " input names."));
+  OP_REQUIRES(
+      context, inputs.inputs.size() == input_def.input_layouts.size(),
+      errors::InvalidArgument("Number of inputs and input layouts provided must match, got ",
+                              inputs.inputs.size(), " inputs and ", input_def.input_layouts.size(),
+                              " input layouts."));
   // TODO(klecki): Validate the input devices against the current device
 }
 

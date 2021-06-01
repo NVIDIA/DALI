@@ -80,7 +80,6 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
   // in compute from Op inputs.
   struct Inputs {
     std::vector<tensorflow::data::DatasetBase *> inputs;
-    std::vector<device_type_t> input_devices;
   };
 
   // Those are the static Attrs describing inputs
