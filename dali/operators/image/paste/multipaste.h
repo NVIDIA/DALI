@@ -222,7 +222,7 @@ class MultiPasteOp : public Operator<Backend> {
             This().template SetupTyped<OutputType, InputType>(ws, out_shape);
         ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
     ), DALI_FAIL(make_string("Unsupported input type: ", images.type().id())))  // NOLINT
-   return true;
+    return true;
   }
 
   inline Coords GetInAnchors(int sample_num, int paste_num) const {

@@ -19,6 +19,12 @@
 
 namespace dali {
 
+template <int n, typename T, typename Source>
+inline void to_vec(vec<n, T> &out, Source &&src) {
+  for (int i = 0; i < n; i++)
+    out[i] = src[i];
+}
+
 void MultiPasteGPU::InitSamples(const TensorListShape<> &out_shape) {
   assert(spatial_ndim_ == 2);
   int batch_size = out_shape.num_samples();
@@ -30,7 +36,8 @@ void MultiPasteGPU::InitSamples(const TensorListShape<> &out_shape) {
     sample.inputs.resize(n);
 
     sample.channels = 3;
-    memcpy(sample.out_size.begin(), out_shape[i].data(), sizeof(int) * spatial_ndim_);
+
+    to_vec(sample.out_size, out_shape[i]);
     for (int j = 0; j < n; j++) {
       int from_sample = in_idx_[i].data[j];
       auto in_anchor_view = GetInAnchors(i, j);
@@ -38,9 +45,9 @@ void MultiPasteGPU::InitSamples(const TensorListShape<> &out_shape) {
       auto shape_view = GetShape(i, j, Coords(
           raw_input_size_mem_.data() + spatial_ndim_ * from_sample,
           dali::TensorShape<>(spatial_ndim_)));
-      memcpy(&sample.inputs[j].size[0],       shape_view.data,      sizeof(int) * spatial_ndim_);
-      memcpy(&sample.inputs[j].in_anchor[0],  in_anchor_view.data,  sizeof(int) * spatial_ndim_);
-      memcpy(&sample.inputs[j].out_anchor[0], out_anchor_view.data, sizeof(int) * spatial_ndim_);
+      to_vec(sample.inputs[j].size,       shape_view.data);
+      to_vec(sample.inputs[j].in_anchor,  in_anchor_view.data);
+      to_vec(sample.inputs[j].out_anchor, out_anchor_view.data);
       sample.inputs[j].in_idx = from_sample;
     }
   }
