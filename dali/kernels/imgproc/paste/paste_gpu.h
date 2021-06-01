@@ -48,7 +48,7 @@ struct SampleDescriptorGPU {
   ivec<ndims> patch_counts, out_pitch;
 };
 
-// Could not fill this in Setup, as we are not given reference to out then
+// Could not fill this in Setup - there are no pointers yet
 template <class OutputType, class InputType, int ndims>
 void FillPointers(span<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> descs,
                   span<PatchDesc<InputType, ndims - 1>> patches,
@@ -172,7 +172,7 @@ void CreateSampleDescriptors(
           patch.patch_start[1] = scaled_x_to_x[x];
           patch.patch_end[0] = scaled_y_to_y[y + 1];
           patch.patch_end[1] = scaled_x_to_x[x + 1];
-          patch.in = nullptr;
+          patch.in = nullptr;  // to be filled later
           patch.in_sample_idx = max_paste == -1 ? -1 : sample.inputs[max_paste].in_idx;
           patch.in_pitch[0] = 0;
           patch.in_pitch[1] = max_paste == -1 ? -1 : in_shape[sample.inputs[max_paste].in_idx][1];
