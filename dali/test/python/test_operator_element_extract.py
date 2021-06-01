@@ -142,7 +142,7 @@ def test_element_extract_layout():
     for device in ["cpu", "gpu"]:
         yield check_element_extract, [4, 3, 3], "FXY", [0, 1, 2, 3, 3, 2, 1, 0], device
 
-# @raises(RuntimeError)
+@raises(RuntimeError)
 def check_element_extract_raises(shape, layout, element_map, dev):
     check_element_extract(shape, layout, element_map, dev)
 
