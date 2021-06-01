@@ -18,7 +18,7 @@
 namespace dali {
 
 DALI_SCHEMA(ElementExtract)
-    .DocStr(R"code(Extracts one or more elements from input.
+    .DocStr(R"code(Extracts one or more elements from input sequence.
 
 The outputs are slices in the first (outermost) dimension of the input.
 There are as many outputs as the elements provided in the ``element_map``.

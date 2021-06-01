@@ -28,8 +28,18 @@ namespace dali {
 
 namespace detail {
   static void CheckInputShape(const span<const int64_t>& tensor_shape,
-                              const std::vector<int>& element_map,
-                              const TensorLayout& input_layout) {
+                              const std::vector<int>& element_map) {
+    assert(tensor_shape.size() > 0);
+    auto N_input = tensor_shape[0];
+
+    for (auto elem : element_map)
+      DALI_ENFORCE(elem < N_input, "index " + std::to_string(elem) + " out of bounds");
+  }
+
+  static TensorListShape<> GetOutputShape(const TensorListShape<> &input_shape,
+                                          const std::vector<int> &element_map,
+                                          const TensorLayout& input_layout) {
+
     if (!input_layout.empty()) {
       DALI_ENFORCE(
           VideoLayoutInfo::IsSequence(input_layout),
@@ -37,22 +47,13 @@ namespace detail {
                       input_layout, "' instead."));
     }
 
-    DALI_ENFORCE(tensor_shape.size() > 1,
+    DALI_ENFORCE(input_shape.sample_dim() > 1,
                  "Input must have at least two dimenstions - outermost for sequence and at least "
                  "one for data elements.");
-    auto N_input = tensor_shape[0];
 
-    for (auto elem : element_map)
-        DALI_ENFORCE(elem < N_input,
-            "index " + std::to_string(elem) + " out of bounds");
-  }
-
-  static TensorListShape<> GetOutputShape(const TensorListShape<> &input_shape,
-                                          const std::vector<int> &element_map,
-                                          const TensorLayout& input_layout) {
     for (int i = 0; i < input_shape.num_samples(); ++i) {
       auto shape = input_shape.tensor_shape_span(i);
-      CheckInputShape(shape, element_map, input_layout);
+      CheckInputShape(shape, element_map);
     }
     return input_shape.last(input_shape.sample_dim() - 1);
   }
@@ -63,15 +64,13 @@ template <typename Backend>
 class ElementExtract : public Operator<Backend> {
  public:
   inline explicit ElementExtract(const OpSpec &spec)
-    : Operator<Backend>(spec), scatter_gather_(kMaxSizePerBlock) {
+      : Operator<Backend>(spec), scatter_gather_(kMaxSizePerBlock) {
     element_map_ = spec.GetRepeatedArgument<int>("element_map");
 
-    DALI_ENFORCE(!element_map_.empty(),
-        "No 'element_map' indexes provided");
+    DALI_ENFORCE(!element_map_.empty(), "No 'element_map' indexes provided");
 
     for (auto elem : element_map_) {
-        DALI_ENFORCE(elem >= 0,
-            "index " + std::to_string(elem) + " out of bounds.");
+      DALI_ENFORCE(elem >= 0, "index " + std::to_string(elem) + " out of bounds.");
     }
   }
 
