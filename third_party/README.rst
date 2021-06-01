@@ -34,8 +34,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |benchmark| replace:: Google Benchmark
 .. _benchmark: https://github.com/google/benchmark
-.. |benchmarkver| replace:: 1.5.2
-.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.5.2
+.. |benchmarkver| replace:: 1.5.4
+.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.5.4
 .. |benchmarklic| replace:: Apache License 2.0
 .. _benchmarklic: https://github.com/google/benchmark/blob/master/LICENSE
 
