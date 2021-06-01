@@ -35,17 +35,13 @@ class RandomSampleIterator:
         # As tf passes only tensors to the iterator, we pass a dummy value of which we take the type
         self.dtype = dtype_sample.dtype
         self.seed = seed
-        print("RSI init")
-
     def __iter__(self):
-        print("RSI iter")
         self.n = self.start
         self.random_iter = iter(RandomlyShapedDataIterator(batch_size=1, min_shape=self.min_shape,
                 max_shape=self.max_shape, seed=self.seed, dtype=self.dtype))
         return self
 
     def __next__(self):
-        print("RSI next")
         if self.n <= self.stop:
             result = self.n
             self.n += 1

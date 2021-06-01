@@ -346,7 +346,6 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 #endif
 
  private:
-
   // TODO(klecki): Check this again
   // TensorFlow treats a sample/example as a vector of Tensors (they flatten everything),
   // and if a dataset has multiple outputs it means, that it returned a tuple that maps
@@ -758,8 +757,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     return 0;
   }
 
-  enum class InputState
-  {
+  enum class InputState {
     in_progress,   // we can still use inputs, none have ended
     stop_pending,  // input signalled end, we stop reading them, some might be in pipeline
     stop_signaled  // we ran out of batches ahead, time to raise stop ourselves
@@ -777,8 +775,8 @@ void DALIDatasetOp::MakeDataset(OpKernelContext *context, DatasetBase **output) 
   Inputs inputs;
   FillInputs(context, inputs);
   ValidateInputs(context, inputs, input_def_);
-  *output = new Dataset(context, pipeline_def_, inputs, input_def_, shapes_, dtypes_, is_gpu_device_,
-                        fail_on_device_mismatch_);
+  *output = new Dataset(context, pipeline_def_, inputs, input_def_, shapes_, dtypes_,
+                        is_gpu_device_, fail_on_device_mismatch_);
 }
 
 void DALIDatasetOp::FillPipelineDef(OpKernelConstruction *context, PipelineDef &def) {

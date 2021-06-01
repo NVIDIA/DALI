@@ -114,8 +114,14 @@ def DALIIteratorWrapper(pipeline=None,
         cpu_prefetch_queue_depth = -1  # dummy: wont' be used
         gpu_prefetch_queue_depth = prefetch_queue_depth
 
+
+    # Build the python graph (pipeline._py_graph_built)
+    # TODO(klecki): Inspect the graph and set proper defaults in the External Source?
+    # print(pipeline._ops)
+
     if serialized_pipeline is None:
         serialized_pipeline = serialize_pipeline(pipeline)
+
 
     # if batch_size is not provided we need to extract if from the shape arg
     if (not isinstance(shapes, Iterable) or len(shapes) == 0) and batch_size == -1:
