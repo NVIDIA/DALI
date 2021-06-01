@@ -25,6 +25,7 @@
 #include "dali/core/span.h"
 #include "dali/core/convert.h"
 #include "dali/core/geom/box.h"
+#include "dali/kernels/kernel.h"
 #include "dali/kernels/imgproc/roi.h"
 #include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/imgproc/paste/paste_gpu_input.h"
@@ -36,6 +37,7 @@ namespace paste {
 template<class InputType, int ndims>
 struct PatchDesc {
   const InputType *in;
+  int in_sample_idx;
   ivec<ndims> patch_start, patch_end, in_anchor, in_pitch;
 };
 
@@ -48,12 +50,18 @@ struct SampleDescriptorGPU {
 
 // Could not fill this in Setup, as we are not given reference to out then
 template <class OutputType, class InputType, int ndims>
-void FillOutDetails(span<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> out_descs,
-                    const OutListGPU<OutputType, ndims> &out) {
-  int batch_size = out_descs.size();
+void FillPointers(span<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> descs,
+                  span<PatchDesc<InputType, ndims - 1>> patches,
+                  const OutListGPU<OutputType, ndims> &out,
+                  const InListGPU<InputType, ndims> &in) {
+  int batch_size = descs.size();
 
   for (int i = 0; i < batch_size; i++) {
-    out_descs[i].out = out[i].data;
+    descs[i].out = out.data[i];
+  }
+
+  for (auto &p : patches) {
+    p.in = p.in_sample_idx < 0 ? nullptr : in.data[p.in_sample_idx];
   }
 }
 
@@ -67,10 +75,9 @@ template <class OutputType, class InputType, int ndims>
 void CreateSampleDescriptors(
     vector<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> &out_descs,
     vector<PatchDesc<InputType, ndims - 1>> &out_patches,
-    const InListGPU<InputType, ndims> &in,
-    span<paste::MultiPasteSampleInput<ndims - 1>> samples
-) {
-  assert(ndims == 3);
+    const TensorListShape<ndims> &in_shape,
+    span<paste::MultiPasteSampleInput<ndims - 1>> samples) {
+  static_assert(ndims == 3);
 
   int batch_size = samples.size();
 
@@ -165,8 +172,10 @@ void CreateSampleDescriptors(
           patch.patch_start[1] = scaled_x_to_x[x];
           patch.patch_end[0] = scaled_y_to_y[y + 1];
           patch.patch_end[1] = scaled_x_to_x[x + 1];
-          patch.in = max_paste == -1 ? nullptr : in[sample.inputs[max_paste].in_idx].data;
-          patch.in_pitch[1] = max_paste == -1 ? -1 : in[sample.inputs[max_paste].in_idx].shape[1];
+          patch.in = nullptr;
+          patch.in_sample_idx = max_paste == -1 ? -1 : sample.inputs[max_paste].in_idx;
+          patch.in_pitch[0] = 0;
+          patch.in_pitch[1] = max_paste == -1 ? -1 : in_shape[sample.inputs[max_paste].in_idx][1];
 
           if (max_paste != -1) {
             patch.in_anchor[0] = sample.inputs[max_paste].in_anchor[0] +
@@ -252,14 +261,15 @@ class PasteGPU {
 
   KernelRequirements Setup(
       KernelContext &context,
-      const InListGPU<InputType, ndims> &in,
       span<paste::MultiPasteSampleInput<spatial_dims>> samples,
-      const TensorListShape<ndims> &out_shape) {
-    paste::CreateSampleDescriptors(sample_descriptors_, patch_descriptors_, in, samples);
+      const TensorListShape<ndims> &out_shape,
+      const TensorListShape<ndims> &in_shape) {
+    paste::CreateSampleDescriptors(sample_descriptors_, patch_descriptors_, in_shape, samples);
 
     KernelRequirements req;
     ScratchpadEstimator se;
-    auto flattened_shape = collapse_dim(out_shape, 1);
+    // merge width with channels
+    auto flattened_shape = collapse_dim(out_shape, spatial_dims - 1);
     block_setup_.SetupBlocks(flattened_shape, true);
     se.add<SampleDesc>(AllocType::GPU, sample_descriptors_.size());
     se.add<PatchDesc>(AllocType::GPU, patch_descriptors_.size());
@@ -272,9 +282,9 @@ class PasteGPU {
 
   void Run(
       KernelContext &context,
-      const OutListGPU<OutputType, ndims> &out, const InListGPU<InputType, ndims> &in,
-      span<paste::MultiPasteSampleInput<spatial_dims>> __samples) {
-    paste::FillOutDetails(make_span(sample_descriptors_), out);
+      const OutListGPU<OutputType, ndims> &out,
+      const InListGPU<InputType, ndims> &in) {
+    paste::FillPointers(make_span(sample_descriptors_), make_span(patch_descriptors_), out, in);
 
     SampleDesc *samples_gpu;
     PatchDesc  *patches_gpu;
@@ -289,6 +299,7 @@ class PasteGPU {
 
     paste::PasteKernel<<<patch_dim, block_dim, 0, stream>>>(
         samples_gpu, patches_gpu, blocks_gpu);
+    CUDA_CALL(cudaGetLastError());
   }
 };
 

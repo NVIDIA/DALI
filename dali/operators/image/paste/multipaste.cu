@@ -19,75 +19,49 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(MultiPaste, MultiPasteGPU, GPU)
-
-void MultiPasteGPU::FillGPUInput(const workspace_t<GPUBackend> &ws) {
-  auto &output = ws.template OutputRef<GPUBackend>(0);
-  int batch_size = output.shape().num_samples();
-  int spatial_ndim = output_size_[0].shape[0];
-
-  samples.resize(batch_size);
+void MultiPasteGPU::InitSamples(const TensorListShape<> &out_shape) {
+  assert(spatial_ndim_ == 2);
+  int batch_size = out_shape.num_samples();
+  samples_.resize(batch_size);
   for (int i = 0; i < batch_size; i++) {
-    auto &sample = samples[i];
+    auto &sample = samples_[i];
     int n = in_idx_[i].num_elements();
 
     sample.inputs.resize(n);
 
     sample.channels = 3;
-    memcpy(sample.out_size.begin(), output_size_[i].data, sizeof(int) * spatial_ndim);
+    memcpy(sample.out_size.begin(), out_shape[i].data(), sizeof(int) * spatial_ndim_);
     for (int j = 0; j < n; j++) {
       int from_sample = in_idx_[i].data[j];
       auto in_anchor_view = GetInAnchors(i, j);
       auto out_anchor_view = GetOutAnchors(i, j);
       auto shape_view = GetShape(i, j, Coords(
-          raw_input_size_mem_.data() + 2 * from_sample,
-          dali::TensorShape<>(spatial_ndim)));
-      memcpy(sample.inputs[j].size.begin(), shape_view.data, sizeof(int) * spatial_ndim);
-      memcpy(sample.inputs[j].in_anchor.begin(), in_anchor_view.data, sizeof(int) * spatial_ndim);
-      memcpy(sample.inputs[j].out_anchor.begin(), out_anchor_view.data, sizeof(int) * spatial_ndim);
+          raw_input_size_mem_.data() + spatial_ndim_ * from_sample,
+          dali::TensorShape<>(spatial_ndim_)));
+      memcpy(&sample.inputs[j].size[0],       shape_view.data,      sizeof(int) * spatial_ndim_);
+      memcpy(&sample.inputs[j].in_anchor[0],  in_anchor_view.data,  sizeof(int) * spatial_ndim_);
+      memcpy(&sample.inputs[j].out_anchor[0], out_anchor_view.data, sizeof(int) * spatial_ndim_);
       sample.inputs[j].in_idx = from_sample;
     }
   }
 }
 
-bool MultiPasteGPU::SetupImpl(std::vector<OutputDesc> &output_desc,
-                              const workspace_t<GPUBackend> &ws) {
-  AcquireArguments(spec_, ws);
-  FillGPUInput(ws);
-
-  const auto &images = ws.template InputRef<GPUBackend>(0);
-  const auto &output = ws.template OutputRef<GPUBackend>(0);
-  output_desc.resize(1);
-
-  TYPE_SWITCH(images.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
-          {
-            using Kernel = kernels::PasteGPU<OutputType, InputType, 3>;
-            kernel_manager_.Initialize<Kernel>();
-
-            TensorListShape<> sh = images.shape();
-            TensorListShape<3> shapes(sh.num_samples(), sh.sample_dim());
-            for (int i = 0; i < sh.num_samples(); i++) {
-                const TensorShape<3> &out_sh = { output_size_[i].data[0],
-                                                output_size_[i].data[1], sh[i][2] };
-                shapes.set_tensor_shape(i, out_sh);
-            }
-
-            kernels::KernelContext ctx;
-            ctx.gpu.stream = ws.stream();
-            const auto tvin = view<const InputType, 3>(images);
-            const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin,
-                                                 make_span(samples), shapes);
-
-            output_desc[0] = {shapes, TypeTable::GetTypeInfo(output_type_)};
-          }
-      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", images.type().id())))  // NOLINT
-  return true;
+template<typename OutputType, typename InputType>
+void MultiPasteGPU::SetupTyped(const workspace_t<GPUBackend> &ws,
+                               const TensorListShape<> &out_shape) {
+  const auto &images = ws.template Input<GPUBackend>(0);
+  const auto &in = view<const InputType, 3>(images);
+  using Kernel = kernels::PasteGPU<OutputType, InputType, 3>;
+  kernels::KernelContext ctx;
+  ctx.gpu.stream = ws.stream();
+  kernel_manager_.Initialize<Kernel>();
+  InitSamples(out_shape);
+  const auto &reqs = kernel_manager_.Setup<Kernel>(
+        0, ctx, make_span(samples_), out_shape.to_static<3>(), in.shape);
 }
 
-template<typename InputType, typename OutputType>
-void MultiPasteGPU::RunImplExplicitlyTyped(workspace_t<GPUBackend> &ws) {
+template<typename OutputType, typename InputType>
+void MultiPasteGPU::RunTyped(workspace_t<GPUBackend> &ws) {
   const auto &images = ws.template Input<GPUBackend>(0);
   auto &output = ws.template Output<GPUBackend>(0);
 
@@ -99,20 +73,9 @@ void MultiPasteGPU::RunImplExplicitlyTyped(workspace_t<GPUBackend> &ws) {
 
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
-  kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, out_view, in_view, make_span(samples));
+  kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, out_view, in_view);
 }
 
-
-void MultiPasteGPU::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto input_type_id = ws.template InputRef<GPUBackend>(0).type().id();
-  TYPE_SWITCH(input_type_id, type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
-              RunImplExplicitlyTyped<InputType, OutputType>(ws);
-      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input_type_id)))  // NOLINT
-}
-
-
-
+DALI_REGISTER_OPERATOR(MultiPaste, MultiPasteGPU, GPU)
 
 }  // namespace dali
