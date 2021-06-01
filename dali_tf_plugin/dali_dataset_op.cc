@@ -120,57 +120,22 @@ class DALIDatasetOp::Dataset : public DatasetBase {
 
   daliPipelineHandle pipeline_handle_;
 
-
-  // // TODO(klecki): add constants for members used here, find out where this thing is used
-  // // and where is the inverse of this serialization
-  // Status AsGraphDefInternal(SerializationContext *context, DatasetGraphDefBuilder *b,
-  //                           Node **output) const override {
-
-  //   LOG(WARNING) << "[DALIDatasetOp::Dataset]::AsGraphDefInternal" << std::endl;
-  //   auto inputs = InputsToNodeList(context, b);
-
-  //   auto attrs = PipelineDefToGraphDefAttrs(b, pipeline_def_);
-
-  //   SerializeField(attrs, b, kInputNames, input_names_);
-  //   SerializeField(attrs, b, kInputNames, input_devices_);
-  //   SerializeField(attrs, b, kInputLayouts, input_layouts_);
-  //   SerializeField(attrs, b, kInputBatch, input_batch_);
-
-  //   SerializeField(attrs, b, kOutputShapes, shapes_);
-  //   SerializeField(attrs, b, kOutputDtypes, dtypes_);
-  //   SerializeField(attrs, b, kDeviceMismatch, fail_on_device_mismatch_);
-
-  //   // with the {std::make_pair(0, inputs)} below we wrap the data into view
-  //   // (that is gtl::ArraySlice<Node*>), returning view directly from the helper is not an option
-  //   TF_RETURN_IF_ERROR(b->AddDataset(this, {}, {std::make_pair(0, inputs)}, attrs, output));
-
-  //   return Status::OK();
-  // }
-  // std::vector<Node *> InputsToNodeList(SerializationContext *context,
-  //                                      DatasetGraphDefBuilder *b) const {
-  //   // FROM ZIP DATASET
-  //   std::vector<Node *> input_graph_nodes;
-  //   input_graph_nodes.reserve(inputs_.size());
-  //   for (const auto &input : inputs_) {
-  //     Node *input_node;
-  //     // TF_RETURN_IF_ERROR(b->AddInputDataset(context, input, &input_node));
-  //     b->AddInputDataset(context, input, &input_node);  // TODO(klecki): check status
-  //     input_graph_nodes.emplace_back(input_node);
-  //   }
-  //   return input_graph_nodes;
-  // }
-
-
-
   Status AsGraphDefInternal(SerializationContext *context, DatasetGraphDefBuilder *b,
                             Node **output) const override {
-    auto attrs = PipelineDefToGraphDefAttrs(b, pipeline_def_);
+    std::vector<Node *> inputs;
+    TF_RETURN_IF_ERROR(InputsToNodeList(context, b, input_desc_, inputs));
+
+    AttrSerializationContainer attrs;
+    PipelineDefToGraphDefAttrs(b, pipeline_def_, attrs);
+    InputDescToGraphDefAttrs(b, input_desc_, attrs);
 
     SerializeField(attrs, b, "output_shapes", shapes_);
     SerializeField(attrs, b, "output_dtypes", dtypes_);
     SerializeField(attrs, b, "fail_on_device_mismatch", fail_on_device_mismatch_);
 
-    TF_RETURN_IF_ERROR(b->AddDataset(this, {}, attrs, output));
+    // with the {std::make_pair(0, inputs)} below we wrap the data into view
+    // (that is gtl::ArraySlice<Node*>), returning view directly from the helper is not an option
+    TF_RETURN_IF_ERROR(b->AddDataset(this, {}, {std::make_pair(0, inputs)}, attrs, output));
 
     return Status::OK();
   }
@@ -182,21 +147,21 @@ class DALIDatasetOp::Dataset : public DatasetBase {
 #endif
 
  private:
+  using AttrSerializationContainer = std::vector<std::pair<StringPiece, AttrValue>>;
+
   /**
    * @brief Append the AttrValue created from `filed` under `name` to `attrs` vector
    */
   template <typename T>
-  void SerializeField(std::vector<std::pair<StringPiece, AttrValue>> &attrs,
-                      DatasetGraphDefBuilder *b, const StringPiece &name, const T &field) const {
+  void SerializeField(AttrSerializationContainer &attrs, DatasetGraphDefBuilder *b,
+                      const StringPiece &name, const T &field) const {
     AttrValue field_attr;
     b->BuildAttrValue(field, &field_attr);
     attrs.push_back(std::make_pair(name, field_attr));
   }
 
-  std::vector<std::pair<StringPiece, AttrValue>> PipelineDefToGraphDefAttrs(
-      DatasetGraphDefBuilder *b, const PipelineDef &def) const {
-    std::vector<std::pair<StringPiece, AttrValue>> attrs;
-
+  void PipelineDefToGraphDefAttrs(DatasetGraphDefBuilder *b, const PipelineDef &def,
+                                  AttrSerializationContainer &attrs) const {
     SerializeField(attrs, b, kPipeline, pipeline_def_.pipeline);
     SerializeField(attrs, b, kBatchSize, pipeline_def_.batch_size);
     SerializeField(attrs, b, kNumThreads, pipeline_def_.num_threads);
@@ -206,8 +171,27 @@ class DALIDatasetOp::Dataset : public DatasetBase {
     SerializeField(attrs, b, kCpuPrefetchQueueDepth, pipeline_def_.cpu_prefetch_queue_depth);
     SerializeField(attrs, b, kGpuPrefetchQueueDepth, pipeline_def_.gpu_prefetch_queue_depth);
     SerializeField(attrs, b, kGpuMemoryStats, pipeline_def_.enable_memory_stats);
+  }
 
-    return attrs;
+  void InputDescToGraphDefAttrs(DatasetGraphDefBuilder *b, const InputDesc &input_desc,
+                                AttrSerializationContainer &attrs) const {
+    SerializeField(attrs, b, kInputNames, input_desc.input_names);
+    SerializeField(attrs, b, kInputLayouts, input_desc.input_layouts);
+    SerializeField(attrs, b, kInputBatch, input_desc.input_batch);
+  }
+
+  Status InputsToNodeList(SerializationContext *context, DatasetGraphDefBuilder *b,
+                          const InputDesc &input_desc,
+                          std::vector<Node *> &input_graph_nodes) const {
+    // FROM ZIP DATASET
+    input_graph_nodes.clear();
+    input_graph_nodes.reserve(input_desc.inputs.size());
+    for (const auto &input : input_desc.inputs) {
+      Node *input_node;
+      TF_RETURN_IF_ERROR(b->AddInputDataset(context, input, &input_node));
+      input_graph_nodes.emplace_back(input_node);
+    }
+    return Status::OK();
   }
 
   Status InitPipeline(daliPipelineHandle *pipeline_handle) const {
@@ -840,6 +824,7 @@ void DALIDatasetOp::FillInputs(OpKernelContext *context, Inputs &def) {
     OP_REQUIRES_OK(context, GetDatasetFromVariantTensor(context->input(i), &input));
     def.inputs.push_back(input);
     // TODO(klecki): Obtain the input devices
+    std::cout << ">>>>>>>>>>>>>>>>>> MEMORY TYPE " << i << " " << context->input_memory_type(i) << std::endl;
     // def.input_devices.push_bach(context->in)
   }
 }

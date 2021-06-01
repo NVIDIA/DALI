@@ -34,7 +34,7 @@ def run_tf_dataset_with_fixed_input(dev, shape, value, dtype):
     tensor = np.full(shape, value, dtype)
     run_tf_dataset_eager_mode(dev,
         get_pipeline_desc=external_source_tester(shape, dtype, FixedSampleIterator(tensor + 1)),
-        to_dataset=external_source_converter_with_fixed_value(shape, dtype, tensor, '/cpu:0'))
+        to_dataset=external_source_converter_with_fixed_value(shape, dtype, tensor))
 
 def test_tf_dataset_with_fixed_input():
     for dev in ['cpu', 'gpu']:
@@ -46,7 +46,7 @@ def test_tf_dataset_with_fixed_input():
 def run_tf_dataset_with_random_input(dev, max_shape, dtype):
     run_tf_dataset_eager_mode(dev,
         get_pipeline_desc=external_source_tester(max_shape, dtype, RandomSampleIterator(max_shape, dtype(0))),
-        to_dataset=external_source_converter_with_callback(max_shape, dtype, RandomSampleIterator, '/cpu:0'))
+        to_dataset=external_source_converter_with_callback(max_shape, dtype, RandomSampleIterator))
 
 def test_tf_dataset_with_random_input():
     for dev in ['cpu', 'gpu']:
