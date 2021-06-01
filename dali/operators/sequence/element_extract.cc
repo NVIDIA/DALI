@@ -43,31 +43,19 @@ dimension than the input, that is for ``FHWC`` inputs, the outputs will be ``HWC
             return additional_outputs;
         });
 
-template <>
-void ElementExtract<CPUBackend>::RunImpl(HostWorkspace &ws) {
-  auto &input = ws.InputRef<CPUBackend>(0);
-  auto element_layout = VideoLayoutInfo::GetFrameLayout(input.GetLayout());
-  int elements_per_sample = element_map_.size();
-  auto data_type = input.type();
-  auto &tp = ws.GetThreadPool();
-  for (int k = 0; k < elements_per_sample; k++) {
-    int element = element_map_[k];
-    auto &output = ws.OutputRef<CPUBackend>(k);
 
-    for (unsigned int i = 0; i < input.ntensor(); i++) {
-      auto tensor_shape = input.tensor_shape(i);
-      auto element_size = volume(tensor_shape.begin() + 1, tensor_shape.end());
-      auto input_offset_bytes = element * element_size * data_type.size();
-      tp.AddWork(
-          [out_ptr = output.raw_mutable_tensor(i),
-           in_ptr = static_cast<const uint8_t *>(input.raw_tensor(i)) + input_offset_bytes,
-           element_size, data_type](int thread_id) {
-            data_type.Copy<CPUBackend, CPUBackend>(out_ptr, in_ptr, element_size, 0);
-          },
-          element_size);
-    }
-    output.SetLayout(element_layout);
-  }
+template <>
+void ElementExtract<CPUBackend>::AddCopy(HostWorkspace &ws, void *dst, const void *src,
+                                         size_t volume, const TypeInfo &type) {
+  auto &tp = ws.GetThreadPool();
+  tp.AddWork([=](int thread_id) { type.Copy<CPUBackend, CPUBackend>(dst, src, volume, 0); },
+             volume);
+}
+
+
+template <>
+void ElementExtract<CPUBackend>::RunCopies(HostWorkspace &ws) {
+  auto &tp = ws.GetThreadPool();
   tp.RunAll();
 }
 
