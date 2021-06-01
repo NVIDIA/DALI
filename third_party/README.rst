@@ -62,8 +62,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |dlpack| replace:: DLPack
 .. _dlpack: https://github.com/dmlc/dlpack
-.. |dlpackver| replace:: 0.4
-.. _dlpackver: https://github.com/dmlc/dlpack/releases/tag/v0.4
+.. |dlpackver| replace:: 0.5
+.. _dlpackver: https://github.com/dmlc/dlpack/releases/tag/v0.5
 .. |dlpacklic| replace:: Apache License 2.0
 .. _dlpacklic: https://github.com/dmlc/dlpack/blob/main/LICENSE
 
