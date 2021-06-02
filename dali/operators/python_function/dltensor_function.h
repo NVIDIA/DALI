@@ -38,7 +38,7 @@ constexpr DLDeviceType Backend2DLDevice() {
   if (std::is_same<Backend, CPUBackend>::value) {
     return kDLCPU;
   } else {
-    return kDLGPU;
+    return kDLCUDA;
   }
 }
 
