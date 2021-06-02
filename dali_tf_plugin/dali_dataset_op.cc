@@ -591,7 +591,11 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 
     for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
       auto &tensor = input_batch[sample_idx];
+#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 2
       ptrs[sample_idx] = tensor.data();
+#else
+      ptrs[sample_idx] = tensor.tensor_data().data();
+#endif
       for (int d = 0; d < ndim; d++) {
         shapes.push_back(tensor.dim_size(d));
       }
