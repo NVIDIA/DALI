@@ -157,17 +157,19 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
   int64_t offset, length;
   std::tie(offset, length) =
       ProcessOffsetAndLength(meta, entry.offset, entry.duration);
-  if (offset > 0)
-    sample.decoder().SeekFrames(offset);
   assert(0 < length && length <= meta.length && "Unexpected length");
   meta.length = length;
 
   sample.shape_ = DecodedAudioShape(meta, sample_rate_, downmix_);
   assert(sample.shape_.size() > 0);
+  sample.decoder().Close();  // avoid keeping too many files open at the same time.
 
   TYPE_SWITCH(dtype_, type2id, OutputType, (int16_t, int32_t, float), (
     // Audio decoding will be run in the prefetch function, once the batch is formed
-    sample.decode_f_ = [this, &sample, &entry](Tensor<CPUBackend> &audio, int tid) {
+    sample.decode_f_ = [this, &sample, &entry, offset](Tensor<CPUBackend> &audio, int tid) {
+      sample.decoder().OpenFromFile(entry.audio_filepath);
+      if (offset > 0)
+        sample.decoder().SeekFrames(offset);
       ReadAudio<OutputType>(
         audio, sample.audio_meta_, entry, sample.decoder(),
         decode_scratch_[tid], resample_scratch_[tid]);
