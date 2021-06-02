@@ -118,12 +118,12 @@ bool NumpyReader::SetupImpl(std::vector<OutputDesc> &output_desc,
   // If necessary start prefetching thread and wait for a consumable batch
   DataReader<CPUBackend, ImageFileWrapper>::SetupImpl(output_desc, ws);
 
+  int batch_size = prefetched_batch_queue_[curr_batch_consumer_].size();
   const auto &file_0 = GetSample(0);
   TypeInfo output_type = file_0.image.type();
   int ndim = file_0.image.shape().sample_dim();
-
-  TensorListShape<> sh(max_batch_size_, ndim);
-  for (int i = 0; i < max_batch_size_; i++) {
+  TensorListShape<> sh(batch_size, ndim);
+  for (int i = 0; i < batch_size; i++) {
     auto sample_sh = sh.tensor_shape_span(i);
     const auto& file_i = GetSample(i);
     const auto &file_sh = file_i.image.shape();

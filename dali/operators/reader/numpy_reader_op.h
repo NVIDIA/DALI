@@ -42,8 +42,6 @@ class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
  protected:
   void TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageFileWrapper);
-
-  using Operator<CPUBackend>::max_batch_size_;
 };
 
 }  // namespace dali
