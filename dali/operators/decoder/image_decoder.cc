@@ -189,12 +189,6 @@ When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-tu
 to reduce the decoding time and memory usage. When the ROI decoding is not supported for a given
 image format, it will decode the entire image and crop the selected ROI.
 
-.. note::
-  ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.fn.decoders.image_crop` automatically disables hardware accelerated
-  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.fn.decoders.image` and
-  :meth:`nvidia.dali.fn.crop` operators instead.
-
 The output of the decoder is in *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
@@ -220,12 +214,6 @@ a range of values specified by ``area`` and ``aspect_ratio`` arguments, respecti
 When possible, the operator uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
 to reduce the decoding time and memory usage. When the ROI decoding is not supported for a given
 image format, it will decode the entire image and crop the selected ROI.
-
-.. note::
-  ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.fn.decoders.image_random_crop` automatically disables hardware accelerated
-  decoding. To use the hardware decoder, use the :meth:`nvidia.dali.fn.decoders.image` and
-  :meth:`nvidia.dali.fn.random_crop` operators instead.
 
 The output of the decoder is in *HWC* layout.
 
@@ -277,12 +265,6 @@ and "WH" order for the slice arguments.
 When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
 to optimize the decoding time and memory usage. When the ROI decoding is not supported for a given
 image format, it will decode the entire image and crop the selected ROI.
-
-.. note::
-  ROI decoding is currently not compatible with hardware-based decoding. Using
-  :meth:`nvidia.dali.fn.decoders.image_slice` automatically disables hardware accelerated decoding.
-  To use the hardware decoder, use the :meth:`nvidia.dali.fn.decoders.image` and
-  :meth:`nvidia.dali.fn.slice` operators instead.
 
 The output of the decoder is in the *HWC* layout.
 
