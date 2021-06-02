@@ -77,7 +77,7 @@ void CreateSampleDescriptors(
     vector<PatchDesc<InputType, ndims - 1>> &out_patches,
     const TensorListShape<ndims> &in_shape,
     span<paste::MultiPasteSampleInput<ndims - 1>> samples) {
-  static_assert(ndims == 3);
+  static_assert(ndims == 3, "Only 2D data with channels supported");
 
   int batch_size = samples.size();
 

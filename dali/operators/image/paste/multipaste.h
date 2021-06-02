@@ -33,6 +33,9 @@
 
 namespace dali {
 
+#define MULTIPASTE_INPUT_TYPES uint8_t, int16_t, int32_t, float
+#define MULTIPASTE_OUTPUT_TYPES uint8_t, int16_t, int32_t, float
+
 template <typename Backend, typename Actual>
 class MultiPasteOp : public Operator<Backend> {
  public:
@@ -51,6 +54,16 @@ class MultiPasteOp : public Operator<Backend> {
 
  protected:
   using Coords = TensorView<StorageCPU, const int, 1>;
+
+  inline void UnsupportedInputType(DALIDataType actual) {
+    DALI_FAIL(make_string("Unsupported input type: ", actual,
+              "\nSupported types: ", ListTypeNames<MULTIPASTE_INPUT_TYPES>()));
+  }
+
+  inline void UnsupportedOutpuType(DALIDataType actual) {
+    DALI_FAIL(make_string("Unsupported output type: ", actual,
+              "\nSupported types: ", ListTypeNames<MULTIPASTE_OUTPUT_TYPES>()));
+  }
 
   explicit MultiPasteOp(const OpSpec &spec)
       : Operator<Backend>(spec)
@@ -183,11 +196,11 @@ class MultiPasteOp : public Operator<Backend> {
 
   void RunImpl(workspace_t<Backend> &ws) override {
     const auto input_type_id = ws.template InputRef<Backend>(0).type().id();
-    TYPE_SWITCH(input_type_id, type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-        TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
+    TYPE_SWITCH(input_type_id, type2id, InputType, (MULTIPASTE_INPUT_TYPES), (
+        TYPE_SWITCH(output_type_, type2id, OutputType, (MULTIPASTE_OUTPUT_TYPES), (
                 This().template RunTyped<OutputType, InputType>(ws);
-        ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-    ), DALI_FAIL(make_string("Unsupported input type: ", input_type_id)))  // NOLINT
+        ), UnsupportedOutpuType(output_type_))  // NOLINT
+    ), UnsupportedInputType(input_type_id))  // NOLINT
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -217,11 +230,11 @@ class MultiPasteOp : public Operator<Backend> {
       out_shape.set_tensor_shape(i, out_sh);
     }
 
-    TYPE_SWITCH(images.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-        TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
+    TYPE_SWITCH(images.type().id(), type2id, InputType, (MULTIPASTE_INPUT_TYPES), (
+        TYPE_SWITCH(output_type_, type2id, OutputType, (MULTIPASTE_OUTPUT_TYPES), (
             This().template SetupTyped<OutputType, InputType>(ws, out_shape);
-        ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-    ), DALI_FAIL(make_string("Unsupported input type: ", images.type().id())))  // NOLINT
+        ), UnsupportedOutpuType(output_type_))  // NOLINT
+    ), UnsupportedInputType(images.type().id()))  // NOLINT
     return true;
   }
 
