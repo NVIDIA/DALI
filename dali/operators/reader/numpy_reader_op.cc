@@ -118,7 +118,7 @@ bool NumpyReader::SetupImpl(std::vector<OutputDesc> &output_desc,
   // If necessary start prefetching thread and wait for a consumable batch
   DataReader<CPUBackend, ImageFileWrapper>::SetupImpl(output_desc, ws);
 
-  int batch_size = prefetched_batch_queue_[curr_batch_consumer_].size();
+  int batch_size = GetCurrBatchSize();
   const auto &file_0 = GetSample(0);
   TypeInfo output_type = file_0.image.type();
   int ndim = file_0.image.shape().sample_dim();

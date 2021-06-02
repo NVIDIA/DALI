@@ -196,8 +196,20 @@ class DataReader : public Operator<Backend> {
     return ret;
   }
 
-  LoadTarget& GetSample(int sample_idx) {
-    return *prefetched_batch_queue_[curr_batch_consumer_][sample_idx];
+  inline std::vector<std::shared_ptr<LoadTarget>>& GetCurrBatch() {
+    return prefetched_batch_queue_[curr_batch_consumer_];
+  }
+
+  inline const std::vector<std::shared_ptr<LoadTarget>>& GetCurrBatch() const {
+    return prefetched_batch_queue_[curr_batch_consumer_];
+  }
+
+  inline int GetCurrBatchSize() const {
+    return GetCurrBatch().size();
+  }
+
+  inline LoadTarget& GetSample(int sample_idx) {
+    return *GetCurrBatch()[sample_idx];
   }
 
   LoadTargetPtr MoveSample(int sample_idx) {
