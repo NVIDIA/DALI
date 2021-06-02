@@ -33,28 +33,34 @@
 
 namespace dali {
 
-class SliceAttr {
+class NamedSliceAttr {
  public:
-  explicit inline SliceAttr(const OpSpec &spec)
+  explicit inline NamedSliceAttr(const OpSpec &spec,
+                                 const char* kStartName = "start",
+                                 const char* kRelStartName = "rel_start",
+                                 const char* kEndName = "end",
+                                 const char* kRelEndName = "rel_end",
+                                 const char* kShapeName = "shape",
+                                 const char* kRelShapeName = "rel_shape",
+                                 const char* kAxesName = "axes",
+                                 const char* kAxisNamesName = "axis_names")
       : spec_(spec),
-        normalized_anchor_(spec.GetArgument<bool>("normalized_anchor")),
-        normalized_shape_(spec.GetArgument<bool>("normalized_shape")),
-        start_("start", spec),
-        rel_start_("rel_start", spec),
-        end_("end", spec),
-        rel_end_("rel_end", spec),
-        shape_("shape", spec),
-        rel_shape_("rel_shape", spec),
+        start_(kStartName, spec),
+        rel_start_(kRelStartName, spec),
+        end_(kEndName, spec),
+        rel_end_(kRelEndName, spec),
+        shape_(kShapeName, spec),
+        rel_shape_(kRelShapeName, spec),
         crop_window_generators_(spec.GetArgument<int>("max_batch_size")) {
-    const bool has_axes_arg = spec.HasArgument("axes");
-    const bool has_axis_names_arg = spec.HasArgument("axis_names");
+    const bool has_axes_arg = spec.HasArgument(kAxesName);
+    const bool has_axis_names_arg = spec.HasArgument(kAxisNamesName);
     // Process `axis_names` if provided, or if neither `axis_names` nor `axes` are
     if (has_axis_names_arg || !has_axes_arg) {
-      axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
+      axis_names_ = spec.GetArgument<TensorLayout>(kAxisNamesName);
       axes_ = {};
     } else {
       // Process `axes` only if provided and `axis_names` isn't
-      axes_ = spec.GetRepeatedArgument<int>("axes");
+      axes_ = spec.GetRepeatedArgument<int>(kAxesName);
       axis_names_ = TensorLayout{};
     }
     has_start_ = start_.IsDefined() || rel_start_.IsDefined();
@@ -66,7 +72,7 @@ class SliceAttr {
   }
 
   template <typename Backend>
-  void ProcessArguments(const workspace_t<Backend> &ws) {
+  bool ProcessArguments(const workspace_t<Backend> &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     int ndim = ws.GetInputDim(0);
 
@@ -90,38 +96,10 @@ class SliceAttr {
     else if (rel_shape_.IsDefined())
       rel_shape_.Acquire(spec_, ws, curr_batch_size, args_shape);
 
-    if (has_start_ || has_end_ || has_shape_) {
-      if (spec_.HasArgument("normalized_anchor") || spec_.HasArgument("normalized_shape"))
-        DALI_WARN("Warning: ``normalized_anchor``/``normalized_shape`` is only relevant "
-                  "when using positional slice arguments");
-
-      DALI_ENFORCE(ws.NumInput() == 1,
-        "Named arguments start/end/shape are not compatible with positional"
-        " anchor and shape inputs");
-      for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
-        ProcessNamedArgs(data_idx);
-      }
-    } else if (ws.NumInput() == 3) {
-      const auto &crop_anchor = ws.template InputRef<CPUBackend>(1);
-      const auto &crop_shape = ws.template InputRef<CPUBackend>(2);
-      DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
-                  make_string("Anchor and shape should have the same type. Got: ",
-                              crop_anchor.type().id(), " and ", crop_shape.type().id()));
-      auto args_dtype = crop_anchor.type().id();
-      TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
-        auto anchor_view = view<const ArgsType>(crop_anchor);
-        auto shape_view = view<const ArgsType>(crop_shape);
-        for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
-          VerifyArgsShape(anchor_view.tensor_shape(data_idx), shape_view.tensor_shape(data_idx));
-          ProcessPositionalInputArgs(data_idx,
-                                     anchor_view.tensor_data(data_idx),
-                                     shape_view.tensor_data(data_idx));
-        }
-      ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", args_dtype)));  // NOLINT
-    } else {
-      DALI_FAIL("Expected named slice arguments (e.g. start/end, start/shape) "
-                "or positional inputs start, shape");
+    for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
+      ProcessNamedArgs(data_idx);
     }
+    return has_start_ || has_end_ || has_shape_;
   }
 
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
@@ -199,6 +177,86 @@ class SliceAttr {
       };
   }
 
+ private:
+  const OpSpec &spec_;
+
+  std::vector<int> axes_;
+  TensorLayout axis_names_;
+
+  ArgValue<int, 1> start_;
+  ArgValue<float, 1> rel_start_;
+
+  ArgValue<int, 1> end_;
+  ArgValue<float, 1> rel_end_;
+
+  ArgValue<int, 1> shape_;
+  ArgValue<float, 1> rel_shape_;
+
+  std::vector<CropWindowGenerator> crop_window_generators_;
+
+  bool has_start_, has_end_, has_shape_;
+};
+
+
+class PositionalSliceAttr {
+ public:
+  explicit inline PositionalSliceAttr(const OpSpec &spec)
+      : spec_(spec),
+        normalized_anchor_(spec.GetArgument<bool>("normalized_anchor")),
+        normalized_shape_(spec.GetArgument<bool>("normalized_shape")),
+        crop_window_generators_(spec.GetArgument<int>("max_batch_size")) {
+    const bool has_axes_arg = spec.HasArgument("axes");
+    const bool has_axis_names_arg = spec.HasArgument("axis_names");
+    // Process `axis_names` if provided, or if neither `axis_names` nor `axes` are
+    if (has_axis_names_arg || !has_axes_arg) {
+      axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
+      axes_ = {};
+    } else {
+      // Process `axes` only if provided and `axis_names` isn't
+      axes_ = spec.GetRepeatedArgument<int>("axes");
+      axis_names_ = TensorLayout{};
+    }
+  }
+
+  template <typename Backend>
+  bool ProcessArguments(const workspace_t<Backend> &ws) {
+    auto curr_batch_size = ws.GetInputBatchSize(0);
+    int ndim = ws.GetInputDim(0);
+
+    auto args_shape = TensorShape<1>(ndim);
+    if (!axes_.empty() || !axis_names_.empty()) {
+      args_shape[0] = std::max(static_cast<int>(axes_.size()),
+                               static_cast<int>(axis_names_.size()));
+    }
+
+    if (ws.NumInput() != 3)
+      return false;
+
+    const auto &crop_anchor = ws.template InputRef<CPUBackend>(1);
+    const auto &crop_shape = ws.template InputRef<CPUBackend>(2);
+    DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
+                make_string("Anchor and shape should have the same type. Got: ",
+                            crop_anchor.type().id(), " and ", crop_shape.type().id()));
+    auto args_dtype = crop_anchor.type().id();
+    TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
+      auto anchor_view = view<const ArgsType>(crop_anchor);
+      auto shape_view = view<const ArgsType>(crop_shape);
+      for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
+        VerifyArgsShape(anchor_view.tensor_shape(data_idx), shape_view.tensor_shape(data_idx));
+        ProcessPositionalInputArgs(data_idx,
+                                    anchor_view.tensor_data(data_idx),
+                                    shape_view.tensor_data(data_idx));
+      }
+    ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", args_dtype)));  // NOLINT
+    return true;
+  }
+
+  const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
+    DALI_ENFORCE(data_idx < crop_window_generators_.size());
+    return crop_window_generators_[data_idx];
+  }
+
+ private:
   template <typename AnchorT, typename ShapeT>
   void ProcessPositionalInputArgs(int data_idx,
                                   const AnchorT *slice_anchor_data,
@@ -273,23 +331,54 @@ class SliceAttr {
   bool normalized_anchor_, normalized_shape_;
   std::vector<int> axes_;
   TensorLayout axis_names_;
-
-  ArgValue<int, 1> start_;
-  ArgValue<float, 1> rel_start_;
-
-  ArgValue<int, 1> end_;
-  ArgValue<float, 1> rel_end_;
-
-  ArgValue<int, 1> shape_;
-  ArgValue<float, 1> rel_shape_;
-
   std::vector<CropWindowGenerator> crop_window_generators_;
-
-  TensorListShape<> start_coords_;
-  TensorListShape<> end_coords_;
-
-  bool has_start_, has_end_, has_shape_;
 };
+
+class SliceAttr {
+ public:
+  explicit inline SliceAttr(const OpSpec &spec)
+      : spec_(spec),
+        named_slice_attr_(spec),
+        pos_slice_attr_(spec) {
+  }
+
+  template <typename Backend>
+  void ProcessArguments(const workspace_t<Backend> &ws) {
+    named_args_ = named_slice_attr_.template ProcessArguments<Backend>(ws);
+    if (named_args_) {
+      if (spec_.HasArgument("normalized_anchor") || spec_.HasArgument("normalized_shape")) {
+        DALI_WARN(
+            "Warning: ``normalized_anchor``/``normalized_shape`` is only relevant "
+            "when using positional slice arguments");
+      }
+      DALI_ENFORCE(ws.NumInput() == 1,
+                  "Named arguments start/end/shape are not compatible with positional"
+                  " anchor and shape inputs");
+    } else {
+      if (ws.NumInput() != 3) {
+        DALI_FAIL(
+            make_string("Expected named slice arguments (e.g. start/end, start/shape) "
+                        "or positional inputs start, shape. Got ",
+                        ws.NumInput(), " inputs."));
+      }
+      pos_slice_attr_.template ProcessArguments<Backend>(ws);
+    }
+  }
+
+  const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
+    if (named_args_)
+      return named_slice_attr_.GetCropWindowGenerator(data_idx);
+    else
+      return pos_slice_attr_.GetCropWindowGenerator(data_idx);
+  }
+
+ private:
+  const OpSpec &spec_;
+  NamedSliceAttr named_slice_attr_;
+  PositionalSliceAttr pos_slice_attr_;
+  bool named_args_ = false;
+};
+
 
 }  // namespace dali
 
