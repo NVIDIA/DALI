@@ -65,7 +65,7 @@ void NumpyReaderGPU::Prefetch() {
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
     size_t image_bytes = static_cast<size_t>(volume(curr_tensor_list.tensor_shape(data_idx)) \
                                              * curr_tensor_list.type().size());
-    uint8_t* base_ptr = static_cast<uint8_t*>(curr_tensor_list.raw_mutable_tensor(data_idx));
+    uint8_t* dst_ptr = static_cast<uint8_t*>(curr_tensor_list.raw_mutable_tensor(data_idx));
     size_t file_offset = 0;
     while (image_bytes > 0) {
       size_t read_bytes = std::min(image_bytes, chunk_size);
