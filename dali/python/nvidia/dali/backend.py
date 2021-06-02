@@ -40,7 +40,7 @@ if not initialized:
         deprecation_warning("DALI support for Python 3.9 is experimental and some functionalities "
                             "may not work.")
 
-    if __cuda_version__ < 100:
+    if __cuda_version__ < 102:
         deprecation_warning("DALI 1.3 is the last official release that supports CUDA 10.0. "
                             "The next release will support only 10.2 from 10.x familly. "
                             "Please update your environment to CUDA version 10.2 or newer.")
