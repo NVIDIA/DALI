@@ -24,6 +24,9 @@ It should be added as parent to all RNG operators.)code")
     .AddOptionalArg<std::vector<int>>("shape",
       R"code(Shape of the output data.)code", nullptr, true)
     .AddOptionalArg<DALIDataType>("dtype",
-      R"code(Output data type.)code", nullptr);
+      R"code(Output data type.
+
+Note: The generated numbers are converted to the output data type, rounding and clamping if necessary.
+)code", nullptr);
 
 }  // namespace dali
