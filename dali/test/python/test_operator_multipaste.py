@@ -24,6 +24,7 @@ from test_utils import get_dali_extra_path
 DEBUG_LVL = 0
 SHOW_IMAGES = False
 
+np.random.seed(1234)
 
 data_root = get_dali_extra_path()
 img_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -144,7 +145,7 @@ def get_pipeline(
         use_gpu=False,
         num_out_of_bounds=0
 ):
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=np.random.randint(12345))
     with pipe:
         input, _ = fn.readers.file(file_root=img_dir)
         decoded = fn.decoders.image(input, device='cpu', output_type=types.RGB)
@@ -205,6 +206,9 @@ def manual_verify(batch_size, inp, output, in_idx_l, in_anchors_l, shapes_l, out
         ref = ref.astype(np_type_map[dtype])
         if DEBUG_LVL > 0 and not np.array_equal(out, ref):
             print(f"Error on image {i}")
+            import PIL.Image
+            PIL.Image.fromarray(out).save("multipaste_out.png")
+            PIL.Image.fromarray(ref).save("multipaste_ref.png")
         assert np.array_equal(out, ref)
 
 
