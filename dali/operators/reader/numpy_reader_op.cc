@@ -26,22 +26,19 @@ namespace dali {
 
 void NumpyReader::TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input) {
   auto& in_shape = input.shape();
+  auto& out_shape = output.shape();
   auto& type = input.type();
-  int n_dims = in_shape.size();
-  std::vector<int> perm(n_dims);
-  std::vector<int64_t> out_shape(n_dims);
-  for (int i = 0; i < n_dims; ++i) {
+  int n_dims = in_shape.sample_dim();
+  SmallVector<int, 6> perm;
+  perm.resize(n_dims);
+  for (int i = 0; i < n_dims; ++i)
     perm[i] = n_dims - i - 1;
-    out_shape[i] = in_shape[perm[i]];
-  }
-  output.Resize(out_shape, type);
+
   auto input_type = type.id();
-  TensorShape<> in_ts(in_shape.begin(), in_shape.end());
-  TensorShape<> out_ts(out_shape.begin(), out_shape.end());
   TYPE_SWITCH(input_type, type2id, InputType, NUMPY_ALLOWED_TYPES, (
     kernels::Transpose(
-      TensorView<StorageCPU, InputType>{output.mutable_data<InputType>(), out_ts},
-      TensorView<StorageCPU, const InputType>{input.data<InputType>(), in_ts},
+      TensorView<StorageCPU, InputType>{output.mutable_data<InputType>(), out_shape},
+      TensorView<StorageCPU, const InputType>{input.data<InputType>(), in_shape},
       make_cspan(perm));
   ), DALI_FAIL(make_string("Unsupported input type: ", input_type)));  // NOLINT
 }
@@ -115,5 +112,53 @@ DALI_SCHEMA(NumpyReader)
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
+
+bool NumpyReader::SetupImpl(std::vector<OutputDesc> &output_desc,
+                            const workspace_t<CPUBackend> &ws) {
+  // If necessary start prefetching thread and wait for a consumable batch
+  DataReader<CPUBackend, ImageFileWrapper>::SetupImpl(output_desc, ws);
+
+  const auto &file_0 = GetSample(0);
+  TypeInfo output_type = file_0.image.type();
+  int ndim = file_0.image.shape().sample_dim();
+
+  TensorListShape<> sh(max_batch_size_, ndim);
+  for (int i = 0; i < max_batch_size_; i++) {
+    auto sample_sh = sh.tensor_shape_span(i);
+    const auto& file_i = GetSample(i);
+    const auto &file_sh = file_i.image.shape();
+    if (file_i.meta == "transpose:false") {
+      for (int d = 0; d < ndim; d++)
+        sample_sh[d] = file_sh[d];
+    } else {
+      for (int d = 0; d < ndim; d++)
+        sample_sh[d] = file_sh[ndim - 1 -d];
+    }
+    sh.set_tensor_shape(i, sample_sh);
+  }
+  output_desc.resize(1);
+  output_desc[0].shape = std::move(sh);
+  output_desc[0].type = output_type;
+  return true;
+}
+
+void NumpyReader::RunImpl(HostWorkspace &ws) {
+  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &out_sh = output.shape();
+  auto &thread_pool = ws.GetThreadPool();
+  for (int sample_idx = 0; sample_idx < max_batch_size_; sample_idx++) {
+    thread_pool.AddWork([&, sample_idx](int tid) {
+      const auto& file_i = GetSample(sample_idx);
+      int64_t nbytes = file_i.image.nbytes();
+      if (file_i.meta == "transpose:false") {
+        std::memcpy(output[sample_idx].raw_mutable_data(), file_i.image.raw_data(), nbytes);
+      } else {
+        TransposeHelper(output[sample_idx], file_i.image);
+      }
+      output[sample_idx].SetSourceInfo(file_i.image.GetSourceInfo());
+    }, out_sh.tensor_size(sample_idx));
+  }
+  thread_pool.RunAll();
+}
 
 }  // namespace dali

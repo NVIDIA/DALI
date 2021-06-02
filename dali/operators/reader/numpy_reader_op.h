@@ -32,33 +32,18 @@ class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
     loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch);
   }
 
-  void RunImpl(SampleWorkspace &ws) override {
-    const int idx = ws.data_idx();
-
-    const auto& imfile = GetSample(idx);
-
-    // copy from raw_data -> outputs directly
-    auto &image_output = ws.Output<CPUBackend>(0);
-
-    // image
-    Index image_bytes = imfile.image.nbytes();
-
-    if (imfile.meta == "transpose:false") {
-      // just copy the tensor over
-      image_output.Resize(imfile.image.shape(), imfile.image.type());
-      std::memcpy(image_output.raw_mutable_data(),
-                  imfile.image.raw_data(),
-                  image_bytes);
-    } else {
-      // here we need to transpose the data
-      TransposeHelper(image_output, imfile.image);
-    }
-    image_output.SetSourceInfo(imfile.image.GetSourceInfo());
+  bool CanInferOutputs() const override {
+    return true;
   }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
+  void RunImpl(HostWorkspace &ws) override;
 
  protected:
   void TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageFileWrapper);
+
+  using Operator<CPUBackend>::max_batch_size_;
 };
 
 }  // namespace dali
