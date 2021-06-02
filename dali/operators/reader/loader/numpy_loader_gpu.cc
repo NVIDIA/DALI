@@ -46,14 +46,14 @@ void NumpyLoaderGPU::RegisterBuffer(void *buffer, size_t total_size) {
 }
 
 void NumpyLoaderGPU::ReadSampleHelper(CUFileStream *file, ImageFileWrapperGPU& imfile,
-                                      void *buffer, Index offset, size_t total_size) {
+                                      void *buffer, Index file_offset, size_t read_size) {
   // register the buffer (if needed)
-  RegisterBuffer(buffer, total_size);
+  RegisterBuffer(buffer, read_size);
 
-  Index image_bytes = volume(imfile.shape) * imfile.type_info.size();
+  // Index image_bytes = volume(imfile.shape) * imfile.type_info.size();
 
   // copy the image
-  file->ReadGPU(static_cast<uint8_t*>(buffer), image_bytes, offset);
+  file->ReadGPUThread(static_cast<uint8_t*>(buffer), read_size, 0, file_offset);
 }
 
 // we need to implement that but we should split parsing and reading in this case
@@ -105,12 +105,12 @@ void NumpyLoaderGPU::ReadSample(ImageFileWrapperGPU& imfile) {
     imfile.transpose_fortan_order = target.fortran_order;
   };
 
-  imfile.read_sample_f = [this, image_file, &imfile] (void *buffer, Index offset,
-                                                      size_t total_size) {
+  imfile.read_sample_f = [this, image_file, &imfile] (void *buffer, Index file_offset,
+                                                      size_t read_size) {
     // read sample
-    ReadSampleHelper(imfile.file_stream.get(), imfile, buffer, offset, total_size);
+    ReadSampleHelper(imfile.file_stream.get(), imfile, buffer, file_offset, read_size);
     // close the file handle
-    imfile.file_stream->Close();
+    // imfile.file_stream->Close();
   };
 
   // set file path
