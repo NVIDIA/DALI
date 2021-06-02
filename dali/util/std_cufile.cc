@@ -115,8 +115,8 @@ void StdCUFileStream::HandleIOError(int64 ret) const {
   }
 }
 
-size_t StdCUFileStream::ReadGPUThread(uint8_t* gpu_buffer, size_t n_bytes,
-                                      size_t buffer_offset, size_t file_offset) {
+size_t StdCUFileStream::ReadGPUImpl(uint8_t* gpu_buffer, size_t n_bytes,
+				    size_t buffer_offset, size_t file_offset) {
   // effective pos:
   size_t eff_pos = pos_ + file_offset;
 

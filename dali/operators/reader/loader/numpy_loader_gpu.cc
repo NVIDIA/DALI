@@ -51,7 +51,7 @@ void NumpyLoaderGPU::ReadSampleHelper(CUFileStream *file, ImageFileWrapperGPU& i
   RegisterBuffer(buffer, read_size);
 
   // copy the image
-  file->ReadGPUThread(static_cast<uint8_t*>(buffer), read_size, 0, file_offset);
+  file->ReadGPUImpl(static_cast<uint8_t*>(buffer), read_size, 0, file_offset);
 }
 
 // we need to implement that but we should split parsing and reading in this case
