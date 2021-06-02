@@ -47,7 +47,7 @@ class DLL_PUBLIC CUFileStream : public FileStream {
    */
   virtual size_t ReadGPU(uint8_t* buffer, size_t n_bytes, size_t offset = 0) = 0;
   virtual size_t ReadGPUImpl(uint8_t* buffer, size_t n_bytes,
-			     size_t buffer_offset, size_t file_offset) = 0;
+                             size_t buffer_offset, size_t file_offset) = 0;
 
  protected:
   explicit CUFileStream(const std::string& path) : FileStream(path) {}

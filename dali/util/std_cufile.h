@@ -34,7 +34,7 @@ class StdCUFileStream : public CUFileStream {
   void Close() override;
   shared_ptr<void> Get(size_t n_bytes) override;
   size_t ReadGPUImpl(uint8_t* gpu_buffer, size_t n_bytes,
-		     size_t buffer_offset, size_t file_offset) override;
+                     size_t buffer_offset, size_t file_offset) override;
   size_t ReadGPU(uint8_t * buffer, size_t n_bytes, size_t offset = 0) override;
   size_t Read(uint8_t* cpu_buffer, size_t n_bytes) override;
   size_t Pos() const;
