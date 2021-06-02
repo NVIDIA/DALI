@@ -69,7 +69,7 @@ void NumpyReaderGPU::Prefetch() {
     size_t file_offset = 0;
     while (image_bytes > 0) {
       size_t read_bytes = std::min(image_bytes, chunk_size);
-      void* buffer = static_cast<void*>(base_ptr);
+      void* buffer = static_cast<void*>(dst_ptr);
       thread_pool_.AddWork([&curr_batch, data_idx, buffer, file_offset, read_bytes](int tid) {
         // curr_batch[data_idx]->read_sample_f(curr_tensor_list.raw_mutable_data(),
         //                                    curr_tensor_list.tensor_offset(data_idx) *
@@ -79,7 +79,7 @@ void NumpyReaderGPU::Prefetch() {
       });
 
       // update addresses
-      base_ptr += read_bytes;
+      dst_ptr += read_bytes;
       file_offset += read_bytes;
       image_bytes -= read_bytes;
     }
