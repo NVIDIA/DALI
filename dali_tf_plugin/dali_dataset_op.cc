@@ -604,7 +604,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    *
    * The batches are kept in queue to keep them alive long enough for DALI to process them.
    *
-   * TODO(klecki): check if this is actually no-copy mode.
+   * TODO(klecki): Automatically set no-copy mode. (Now it's silently always assumed)
    */
   Status FeedInputs(daliPipelineHandle *pipeline_handle, ListOfBatches &&batches) {
     // Keep alive the prefetch_queue_depth of batches - this corresponds to the number of batches
@@ -845,7 +845,6 @@ REGISTER_KERNEL_BUILDER(
     Name("DALIDataset").Device(DEVICE_GPU).HostMemory("handle").HostMemory("input_datasets"),
     DALIDatasetOp);
 
-// TODO(klecki): Is this what we need to do? Based on MapDataset
 REGISTER_INPUT_COLOCATION_EXEMPTION("DALIDataset");
 
 REGISTER_OP("DALIDataset")
