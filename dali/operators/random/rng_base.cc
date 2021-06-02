@@ -26,7 +26,8 @@ It should be added as parent to all RNG operators.)code")
     .AddOptionalArg<DALIDataType>("dtype",
       R"code(Output data type.
 
-Note: The generated numbers are converted to the output data type, rounding and clamping if necessary.
+.. note::
+  The generated numbers are converted to the output data type, rounding and clamping if necessary.
 )code", nullptr);
 
 }  // namespace dali

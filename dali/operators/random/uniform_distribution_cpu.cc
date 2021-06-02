@@ -69,8 +69,9 @@ generated.
 
 This argument is mutually exclusive with ``values``.
 
-Warning: When specifying an integer type as ``dtype``, the generated numbers can go outside
-the specified range, due to rounding.
+.. warning::
+  When specifying an integer type as ``dtype``, the generated numbers can go outside
+  the specified range, due to rounding.
 )code",
       std::vector<float>{-1.0f, 1.0f}, true)
     .AddOptionalArg<std::vector<float>>("values",
