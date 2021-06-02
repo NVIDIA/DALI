@@ -24,23 +24,15 @@ namespace dali {
   (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, float16, \
   double)
 
-void NumpyReader::TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input) {
-  auto& in_shape = input.shape();
-  auto& out_shape = output.shape();
-  auto& type = input.type();
-  int n_dims = in_shape.sample_dim();
+void NumpyReader::TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input) {
+  int n_dims = input.shape().sample_dim();
   SmallVector<int, 6> perm;
   perm.resize(n_dims);
   for (int i = 0; i < n_dims; ++i)
     perm[i] = n_dims - i - 1;
-
-  auto input_type = type.id();
-  TYPE_SWITCH(input_type, type2id, InputType, NUMPY_ALLOWED_TYPES, (
-    kernels::Transpose(
-      TensorView<StorageCPU, InputType>{output.mutable_data<InputType>(), out_shape},
-      TensorView<StorageCPU, const InputType>{input.data<InputType>(), in_shape},
-      make_cspan(perm));
-  ), DALI_FAIL(make_string("Unsupported input type: ", input_type)));  // NOLINT
+  TYPE_SWITCH(input.type().id(), type2id, T, NUMPY_ALLOWED_TYPES, (
+    kernels::TransposeGrouped(view<T>(output), view<const T>(input), make_cspan(perm));
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(readers__Numpy, NumpyReader, CPU);
@@ -118,23 +110,40 @@ bool NumpyReader::SetupImpl(std::vector<OutputDesc> &output_desc,
   // If necessary start prefetching thread and wait for a consumable batch
   DataReader<CPUBackend, ImageFileWrapper>::SetupImpl(output_desc, ws);
 
-  int batch_size = prefetched_batch_queue_[curr_batch_consumer_].size();
+  int batch_size = GetCurrBatchSize();
   const auto &file_0 = GetSample(0);
   TypeInfo output_type = file_0.image.type();
   int ndim = file_0.image.shape().sample_dim();
   TensorListShape<> sh(batch_size, ndim);
+
   for (int i = 0; i < batch_size; i++) {
-    auto sample_sh = sh.tensor_shape_span(i);
     const auto& file_i = GetSample(i);
     const auto &file_sh = file_i.image.shape();
-    if (file_i.meta == "transpose:false") {
+    auto sample_sh = sh.tensor_shape_span(i);
+
+    DALI_ENFORCE(
+        file_i.image.shape().sample_dim() == ndim,
+        make_string(
+            "Inconsistent data: All samples in the batch must have the same number of dimensions. "
+            "Got \"",
+            file_0.filename, "\" with ", ndim, " dimensions and \"", file_i.filename, "\" with ",
+            file_i.image.shape().sample_dim(), " dimensions"));
+    DALI_ENFORCE(
+        file_i.image.type().id() == output_type.id(),
+        make_string("Inconsistent data: All samples in the batch must have the same data type. "
+                    "Got \"",
+                    file_0.filename, "\" with data type ", output_type.id(), " and \"",
+                    file_i.filename, "\" with data type ", file_i.image.type().id()));
+
+    bool is_transposed = !(file_i.meta == "transpose:false");
+    // Calculate the full transposed shape first
+    if (is_transposed) {
       for (int d = 0; d < ndim; d++)
-        sample_sh[d] = file_sh[d];
+        sample_sh[d] = file_sh[ndim - 1 - d];
     } else {
       for (int d = 0; d < ndim; d++)
-        sample_sh[d] = file_sh[ndim - 1 -d];
+        sample_sh[d] = file_sh[d];
     }
-    sh.set_tensor_shape(i, sample_sh);
   }
   output_desc.resize(1);
   output_desc[0].shape = std::move(sh);
@@ -145,18 +154,28 @@ bool NumpyReader::SetupImpl(std::vector<OutputDesc> &output_desc,
 void NumpyReader::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   const auto &out_sh = output.shape();
+  int ndim = out_sh.sample_dim();
+  int nsamples = out_sh.num_samples();
   auto &thread_pool = ws.GetThreadPool();
-  for (int sample_idx = 0; sample_idx < max_batch_size_; sample_idx++) {
-    thread_pool.AddWork([&, sample_idx](int tid) {
-      const auto& file_i = GetSample(sample_idx);
-      int64_t nbytes = file_i.image.nbytes();
-      if (file_i.meta == "transpose:false") {
-        std::memcpy(output[sample_idx].raw_mutable_data(), file_i.image.raw_data(), nbytes);
+
+  for (int i = 0; i < nsamples; i++) {
+    const auto& file_i = GetSample(i);
+    const auto& file_sh = file_i.image.shape();
+    bool need_transpose = !(file_i.meta == "transpose:false");
+
+    // controls task priority
+    int64_t task_sz = volume(file_i.image.shape());
+    if (need_transpose)
+      task_sz += out_sh.tensor_size(i);
+
+    thread_pool.AddWork([&, i, need_transpose](int tid) {
+      if (need_transpose) {
+        TransposeHelper(output[i], file_i.image);
       } else {
-        TransposeHelper(output[sample_idx], file_i.image);
+        std::memcpy(output[i].raw_mutable_data(), file_i.image.raw_data(), file_i.image.nbytes());
       }
-      output[sample_idx].SetSourceInfo(file_i.image.GetSourceInfo());
-    }, out_sh.tensor_size(sample_idx));
+      output[i].SetSourceInfo(file_i.image.GetSourceInfo());
+    }, task_sz);
   }
   thread_pool.RunAll();
 }

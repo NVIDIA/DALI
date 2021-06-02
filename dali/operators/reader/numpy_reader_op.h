@@ -15,19 +15,19 @@
 #ifndef DALI_OPERATORS_READER_NUMPY_READER_OP_H_
 #define DALI_OPERATORS_READER_NUMPY_READER_OP_H_
 
-#include <utility>
 #include <string>
+#include <utility>
 #include <vector>
-
-#include "dali/operators/reader/reader_op.h"
 #include "dali/operators/reader/loader/numpy_loader.h"
+#include "dali/operators/reader/reader_op.h"
+#include "dali/pipeline/operator/arg_helper.h"
 
 namespace dali {
 
 class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
  public:
   explicit NumpyReader(const OpSpec& spec)
-    : DataReader< CPUBackend, ImageFileWrapper >(spec) {
+      : DataReader<CPUBackend, ImageFileWrapper>(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch);
   }
