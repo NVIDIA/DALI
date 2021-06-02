@@ -145,7 +145,7 @@ size_t StdCUFileStream::ReadGPUImpl(uint8_t* gpu_buffer, size_t n_bytes,
 }
 
 size_t StdCUFileStream::ReadGPU(uint8_t* gpu_buffer, size_t n_bytes, size_t buffer_offset) {
-  n_bytes = ReadGPUThread(gpu_buffer, n_bytes, buffer_offset, 0);
+  n_bytes = ReadGPUImpl(gpu_buffer, n_bytes, buffer_offset, 0);
 
   // we can safely advance the file pointer here
   pos_ += n_bytes;
