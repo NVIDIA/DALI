@@ -127,15 +127,14 @@ class DataReader : public Operator<Backend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    // If necessary start prefetching thread and wait for a consumable batch
+    StartPrefetchThread();
+    ConsumerWait();
     return false;
   }
 
   // CPUBackend operators
   void Run(HostWorkspace &ws) override {
-    // If necessary start prefetching thread and wait for a consumable batch
-    StartPrefetchThread();
-    ConsumerWait();
-
     // consume batch
     DomainTimeRange tr("[DALI][DataReader] Run #" + to_string(curr_batch_consumer_),
                        DomainTimeRange::kViolet);
@@ -175,10 +174,6 @@ class DataReader : public Operator<Backend> {
 
   // GPUBackend operators
   void Run(DeviceWorkspace &ws) override {
-    // If necessary start prefetching thread and wait for a consumable batch
-    StartPrefetchThread();
-    ConsumerWait();
-
     // Consume batch
     Operator<Backend>::Run(ws);
     CUDA_CALL(cudaStreamSynchronize(ws.stream()));
