@@ -45,13 +45,58 @@ def test_tf_dataset_with_fixed_input():
 def run_tf_dataset_with_random_input(dev, max_shape, dtype):
     run_tf_dataset_graph(dev,
         get_pipeline_desc=external_source_tester(max_shape, dtype, RandomSampleIterator(max_shape, dtype(0))),
-        to_dataset=external_source_converter_with_callback(max_shape, dtype, RandomSampleIterator))
+        to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype))
 
 def test_tf_dataset_with_random_input():
     for dev in ['cpu', 'gpu']:
         for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
             for dtype in [np.uint8, np.int32, np.float32]:
                 yield run_tf_dataset_with_random_input, dev, max_shape, dtype
+
+
+# Run with everything on GPU (External Source op as well)
+def run_tf_dataset_with_random_input_gpu(max_shape, dtype):
+    run_tf_dataset_graph("gpu",
+        get_pipeline_desc=external_source_tester(max_shape, dtype, RandomSampleIterator(max_shape, dtype(0)), "gpu"),
+        to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype))
+
+def test_tf_dataset_with_random_input_gpu():
+    for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
+        for dtype in [np.uint8, np.int32, np.float32]:
+            yield run_tf_dataset_with_random_input_gpu, max_shape, dtype
+
+
+def run_tf_dataset_with_stop_iter(dev, max_shape, dtype):
+    run_tf_dataset_graph(dev, to_stop_iter=True,
+        get_pipeline_desc=external_source_tester(max_shape, dtype, RandomSampleIterator(max_shape, dtype(0), start=0, stop=12 * 5 - 3)),
+        to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype, 0, 12 * 5 - 3))
+
+def test_tf_dataset_with_stop_iter():
+    for dev in ['cpu', 'gpu']:
+        for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
+            for dtype in [np.uint8, np.int32, np.float32]:
+                yield run_tf_dataset_with_stop_iter, dev, max_shape, dtype
+
+
+def run_tf_dataset_multi_input(dev, start_values, input_names):
+    run_tf_dataset_graph(dev,
+        get_pipeline_desc=external_source_tester_multiple(start_values, input_names),
+        to_dataset=external_source_converter_multiple(start_values, input_names))
+
+
+start_values = [
+    [np.full((2, 4), -42, dtype=np.int64), np.full((3, 5), -123.0, dtype=np.float32)],
+    [np.full((3, 5), -3.14, dtype=np.float32)],
+    [np.full((2, 4), -42, dtype=np.int64), np.full((3, 5), -666.0, dtype=np.float32), np.full((1, 7), 5, dtype=np.int8)]
+]
+
+input_names = [["input_{}".format(i) for i, _ in enumerate(vals)] for vals in start_values]
+
+
+def test_tf_dataset_multi_input():
+    for dev in ['cpu', 'gpu']:
+        for starts, names in zip(start_values, input_names):
+            yield run_tf_dataset_multi_input, dev, starts, names
 
 
 @raises(Exception)

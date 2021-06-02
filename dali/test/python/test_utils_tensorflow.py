@@ -169,7 +169,7 @@ def get_pipe_dataset(batch_size,
     return dali_pipeline, tf_dataset
 
 
-def run_dataset_in_graph(dali_datasets, iterations):
+def run_dataset_in_graph(dali_datasets, iterations, to_stop_iter=False):
     if not isinstance(dali_datasets, list):
         dali_datasets = [dali_datasets]
 
@@ -184,33 +184,51 @@ def run_dataset_in_graph(dali_datasets, iterations):
 
     with tf.compat.v1.Session() as sess:
         sess.run(initializers)
-        for _ in range(iterations):
-            dataset_results.append(sess.run(ops_to_run))
+        try:
+            for _ in range(iterations):
+                dataset_results.append(sess.run(ops_to_run))
+        except tf.errors.OutOfRangeError:
+            if to_stop_iter:
+                return dataset_results
+            else:
+                raise
     return dataset_results
 
 
-def run_dataset_eager_mode(dali_datasets, iterations):
+def run_dataset_eager_mode(dali_datasets, iterations, to_stop_iter=False):
     if not isinstance(dali_datasets, list):
         dali_datasets = [dali_datasets]
 
     results = []
-    for i, batch in zip(range(iterations), zip(*dali_datasets)):
-        results.append(batch)
+    try:
+        for i, batch in zip(range(iterations), zip(*dali_datasets)):
+            results.append(batch)
+    except StopIteration:
+        if to_stop_iter:
+            return results
+        else:
+            raise
     return results
 
 
-def run_pipeline(pipelines, iterations, device):
+def run_pipeline(pipelines, iterations, device, to_stop_iter=False):
     if not isinstance(pipelines, list):
         pipelines = [pipelines]
     for pipeline in pipelines:
         pipeline.build()
     results = []
-    for _ in range(iterations):
-        shard_outputs = []
-        for pipeline in pipelines:
-            pipe_outputs = pipeline.run()
-            shard_outputs.append(tuple(to_array(result) for result in pipe_outputs))
-        results.append(tuple(shard_outputs))
+    try:
+        for _ in range(iterations):
+            shard_outputs = []
+            for pipeline in pipelines:
+                pipe_outputs = pipeline.run()
+                shard_outputs.append(tuple(to_array(result) for result in pipe_outputs))
+            results.append(tuple(shard_outputs))
+    except StopIteration:
+        if to_stop_iter:
+            return results
+        else:
+            raise
     return results
 
 
@@ -227,7 +245,7 @@ def compare(dataset_results, standalone_results, iterations=-1,  num_devices=1):
 
 
 def run_tf_dataset_graph(device, device_id=0, get_pipeline_desc=get_image_pipeline,
-        to_dataset=to_image_dataset):
+        to_dataset=to_image_dataset, to_stop_iter=False):
     batch_size = 12
     num_threads = 4
     iterations = 10
@@ -235,14 +253,14 @@ def run_tf_dataset_graph(device, device_id=0, get_pipeline_desc=get_image_pipeli
     standalone_pipeline, dali_dataset = get_pipe_dataset(batch_size, num_threads, device, device_id,
         get_pipeline_desc=get_pipeline_desc, to_dataset=to_dataset)
 
-    dataset_results = run_dataset_in_graph(dali_dataset, iterations)
-    standalone_results = run_pipeline(standalone_pipeline, iterations, device)
+    dataset_results = run_dataset_in_graph(dali_dataset, iterations, to_stop_iter=to_stop_iter)
+    standalone_results = run_pipeline(standalone_pipeline, iterations, device, to_stop_iter=to_stop_iter)
 
     compare(dataset_results, standalone_results)
 
 
 def run_tf_dataset_eager_mode(device, device_id=0, get_pipeline_desc=get_image_pipeline,
-        to_dataset=to_image_dataset):
+        to_dataset=to_image_dataset, to_stop_iter=False):
     batch_size = 12
     num_threads = 4
     iterations = 10
@@ -250,8 +268,8 @@ def run_tf_dataset_eager_mode(device, device_id=0, get_pipeline_desc=get_image_p
     standalone_pipeline, dali_dataset = get_pipe_dataset(batch_size, num_threads, device, device_id,
         get_pipeline_desc=get_pipeline_desc, to_dataset=to_dataset)
 
-    dataset_results = run_dataset_eager_mode(dali_dataset, iterations)
-    standalone_results = run_pipeline(standalone_pipeline, iterations, device)
+    dataset_results = run_dataset_eager_mode(dali_dataset, iterations, to_stop_iter=to_stop_iter)
+    standalone_results = run_pipeline(standalone_pipeline, iterations, device, to_stop_iter=to_stop_iter)
 
     compare(dataset_results, standalone_results)
 

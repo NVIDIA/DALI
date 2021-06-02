@@ -60,6 +60,13 @@ Parameters
     input_datasets : tf.data.Dataset or tuple of tf.data.Dataset, optional, default = None
         input datasets to the DALI Pipeline. When provided, user must specify the ``input_names``
         as well to provide the mapping of input datasets to ``External Source`` nodes.
+
+        .. warning::
+            Input dataset must be placed on the same device as ``DALIDatasetWithInputs``.
+            If the input has different placement (input is placed on CPU, while
+            ``DALIDatasetWithInputs`` is placed on GPU) the ``tf.data.experimental.copy_to_device``
+            with GPU argument must be first applied to input.
+
     input_names : str or tuple of str, optional, default = None
         names of inputs to the DALI Pipeline. Must match arity of the ``input_datasets``.
         ``input_datasets[i]`` will be provided to the external source instance with the name
@@ -113,11 +120,6 @@ def DALIIteratorWrapper(pipeline=None,
         exec_separated = False
         cpu_prefetch_queue_depth = -1  # dummy: wont' be used
         gpu_prefetch_queue_depth = prefetch_queue_depth
-
-
-    # Build the python graph (pipeline._py_graph_built)
-    # TODO(klecki): Inspect the graph and set proper defaults in the External Source?
-    # print(pipeline._ops)
 
     if serialized_pipeline is None:
         serialized_pipeline = serialize_pipeline(pipeline)
@@ -270,6 +272,8 @@ if dataset_compatible_tensorflow():
 
             self._parse_inputs(input_datasets, input_names, input_layouts, input_batch)
 
+            # TODO(klecki): Inspect the graph in the pipeline and set proper defaults in the External Source
+
             self._pipeline = serialize_pipeline(pipeline)
             self._batch_size = batch_size
             self._num_threads = num_threads
@@ -293,8 +297,10 @@ if dataset_compatible_tensorflow():
         def _parse_inputs(self, input_datasets, input_names, input_layouts, input_batch):
             """Verify the input specification and assign it to private members in
             normalized form."""
-            # TODO does it work for None??
-            nest.assert_same_structure(input_datasets, input_names)
+            try:
+                nest.assert_same_structure(input_datasets, input_names)
+            except ValueError as e:
+                raise ValueError("`input_datasets` and `input_names` structure do not match.") from e
             if input_datasets is not None:
                 if not self._check_dtypes(input_datasets, dataset_ops.DatasetV2):
                     raise TypeError(("`input_datasets` should be provided as single input " +
@@ -309,7 +315,10 @@ if dataset_compatible_tensorflow():
                 # TODO(klecki): we can possibly add a syntactic sugar and allow only one layout to be
                 # specified for all inputs uniformly
                 if input_layouts is not None:
-                    nest.assert_same_structure(input_layouts, input_datasets)
+                    try:
+                        nest.assert_same_structure(input_layouts, input_datasets)
+                    except ValueError as e:
+                        raise ValueError("`input_datasets` and `input_layouts` structure do not match.") from e
                     if not self._check_dtypes(input_layouts, str):
                         raise TypeError(("`input_layouts` should be provided as single str " +
                             "or a tuple of str. Got `{}` of type `{}`.") \
@@ -338,6 +347,9 @@ if dataset_compatible_tensorflow():
                      ).format(input_batch))
 
             self._input_batch = input_batch
+
+            # TODO(klecki): Validate number of specified inputs against the Pipeline
+
 
         def _check_dtypes(self, provided_nest, expected_elem_type, allow_single=True):
             """Check whether `provided_nest` is instance of `expected_elem_type`

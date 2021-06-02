@@ -184,7 +184,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
   Status InputsToNodeList(SerializationContext *context, DatasetGraphDefBuilder *b,
                           const InputDesc &input_desc,
                           std::vector<Node *> &input_graph_nodes) const {
-    // FROM ZIP DATASET
+    // Based on ZipDataset
     input_graph_nodes.clear();
     input_graph_nodes.reserve(input_desc.inputs.size());
     for (const auto &input : input_desc.inputs) {
@@ -227,14 +227,20 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         enable_memory_stats_(enable_memory_stats) {}
 
   Status Initialize(IteratorContext *context) override {
-    // FROM ZIP DATASET
+    // Based on ZipDataset
     mutex_lock l(mu_);
     iterator_state_ = InputState::in_progress;
     if (dataset()->HasInputs()) {
       input_impls_.resize(dataset()->input_desc_.inputs.size());
       for (size_t i = 0; i < input_impls_.size(); ++i) {
+#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3
         TF_RETURN_IF_ERROR(dataset()->input_desc_.inputs[i]->MakeIterator(
             context, this, strings::StrCat(prefix(), "[", i, "]"), &input_impls_[i]));
+#else
+        // Older TF versions (2.2.0 and earlier) use 3 arguments
+        TF_RETURN_IF_ERROR(dataset()->input_desc_.inputs[i]->MakeIterator(
+            context, strings::StrCat(prefix(), "[", i, "]"), &input_impls_[i]));
+#endif
       }
     }
     TF_RETURN_IF_ERROR(PrefetchPipeline(context, &pipeline_handle_));
