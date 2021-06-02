@@ -50,8 +50,6 @@ void NumpyLoaderGPU::ReadSampleHelper(CUFileStream *file, ImageFileWrapperGPU& i
   // register the buffer (if needed)
   RegisterBuffer(buffer, read_size);
 
-  // Index image_bytes = volume(imfile.shape) * imfile.type_info.size();
-
   // copy the image
   file->ReadGPUThread(static_cast<uint8_t*>(buffer), read_size, 0, file_offset);
 }
@@ -109,8 +107,7 @@ void NumpyLoaderGPU::ReadSample(ImageFileWrapperGPU& imfile) {
                                                       size_t read_size) {
     // read sample
     ReadSampleHelper(imfile.file_stream.get(), imfile, buffer, file_offset, read_size);
-    // close the file handle
-    // imfile.file_stream->Close();
+    // we cannot close the file handle here, we need to remember to do it later on
   };
 
   // set file path

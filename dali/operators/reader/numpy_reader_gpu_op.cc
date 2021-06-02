@@ -58,12 +58,12 @@ void NumpyReaderGPU::Prefetch() {
   curr_tensor_list.Resize(TensorListShape<>(tmp_shapes), ref_type);
 
   size_t chunk_size = static_cast<size_t>( \
-                        div_ceil(static_cast<uint64_t>(curr_tensor_list.nbytes()), \
+                        div_ceil(static_cast<uint64_t>(curr_tensor_list.nbytes()),
                                  static_cast<uint64_t>(thread_pool_.NumThreads())));
 
   // read the data
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
-    size_t image_bytes = static_cast<size_t>(volume(curr_tensor_list.tensor_shape(data_idx)) \
+    size_t image_bytes = static_cast<size_t>(volume(curr_tensor_list.tensor_shape(data_idx))
                                              * curr_tensor_list.type().size());
     uint8_t* dst_ptr = static_cast<uint8_t*>(curr_tensor_list.raw_mutable_tensor(data_idx));
     size_t file_offset = 0;
@@ -71,10 +71,6 @@ void NumpyReaderGPU::Prefetch() {
       size_t read_bytes = std::min(image_bytes, chunk_size);
       void* buffer = static_cast<void*>(dst_ptr);
       thread_pool_.AddWork([&curr_batch, data_idx, buffer, file_offset, read_bytes](int tid) {
-        // curr_batch[data_idx]->read_sample_f(curr_tensor_list.raw_mutable_data(),
-        //                                    curr_tensor_list.tensor_offset(data_idx) *
-        //                                    curr_tensor_list.type().size(),
-        //                                    image_bytes);
         curr_batch[data_idx]->read_sample_f(buffer, file_offset, read_bytes);
       });
 
