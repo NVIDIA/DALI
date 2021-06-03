@@ -45,7 +45,7 @@ void NumpyLoaderGPU::RegisterBuffer(void *buffer, size_t total_size) {
   }
 }
 
-void NumpyLoaderGPU::ReadSampleHelper(CUFileStream *file, ImageFileWrapperGPU& imfile,
+void NumpyLoaderGPU::ReadSampleHelper(CUFileStream *file,
                                       void *buffer, Index file_offset, size_t read_size) {
   // register the buffer (if needed)
   RegisterBuffer(buffer, read_size);
@@ -106,7 +106,7 @@ void NumpyLoaderGPU::ReadSample(ImageFileWrapperGPU& imfile) {
   imfile.read_sample_f = [this, image_file, &imfile] (void *buffer, Index file_offset,
                                                       size_t read_size) {
     // read sample
-    ReadSampleHelper(imfile.file_stream.get(), imfile, buffer, file_offset, read_size);
+    ReadSampleHelper(imfile.file_stream.get(), buffer, file_offset, read_size);
     // we cannot close the file handle here, we need to remember to do it later on
   };
 
