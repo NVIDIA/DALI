@@ -98,12 +98,13 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
                 return yolo.dataset()
 
         if pipeline == 'numpy':
-            return YOLOv4PipelineNumpy(
+            yolo = YOLOv4PipelineNumpy(
                 file_root, annotations_file,
                 batch_size, image_size, num_threads, device_id, seed,
                 is_training=True,
                 use_mosaic=use_mosaic
             )
+            return yolo.dataset()
 
     input_options = tf.distribute.InputOptions(
         experimental_place_dataset_on_device = True,

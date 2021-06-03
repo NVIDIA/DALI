@@ -29,7 +29,9 @@ class YOLOv4PipelineNumpy:
         self._batch_id = 0
         self._image_ids = self._coco.getImgIds()
         np.random.shuffle(self._image_ids)
-        self._num_batches = len(self._image_ids) // self._batch_size
+        self._num_batches = len(self._image_ids) // (self._batch_size * self._num_threads)
+        if self._num_batches == 0:
+            raise Exception("Batch size exceeds training set size")
 
 
     def __iter__(self):
@@ -44,7 +46,7 @@ class YOLOv4PipelineNumpy:
                 self._batch_id = 0
                 np.random.shuffle(self._image_ids)
 
-            start = self._batch_id * self._batch_size
+            start = self._batch_size * (self._batch_id * self._num_threads + self._device_id)
             image_ids = self._image_ids[start : start + self._batch_size]
 
             images, bboxes, classes = self._input(image_ids)
@@ -54,7 +56,7 @@ class YOLOv4PipelineNumpy:
                 if self._use_mosaic:
                     images, bboxes, classes = self._mosaic(images, bboxes, classes)
 
-            self._batch_id = self._batch_id + 1
+            self._batch_id += 1
 
             lengths = [len(b) for b in bboxes]
             bboxes = tf.RaggedTensor.from_row_lengths(tf.concat(bboxes, axis=0), lengths)
@@ -62,7 +64,8 @@ class YOLOv4PipelineNumpy:
             bboxes = tf.cast(bboxes, dtype=tf.float32)
 
             classes = tf.ragged.stack(classes)
-            classes = classes.to_tensor(-1)
+            if self._batch_size > 1:
+                classes = classes.to_tensor(-1)
             classes = tf.cast(tf.expand_dims(classes, axis=-1), dtype=tf.float32)
 
             return images, tf.concat([bboxes, classes], axis=-1)
@@ -179,3 +182,12 @@ class YOLOv4PipelineNumpy:
                 classes_out.append(np.concatenate((classes00, classes10, classes01, classes11)))
 
         return images_out, bboxes_out, classes_out
+
+
+    def dataset(self):
+        return tf.data.Dataset.from_generator(lambda: self,
+            output_signature = (
+                tf.TensorSpec(shape=(None, 608, 608, 3), dtype=tf.float32),
+                tf.TensorSpec(shape=(None, None, 5), dtype=tf.float32
+            )
+        ))
