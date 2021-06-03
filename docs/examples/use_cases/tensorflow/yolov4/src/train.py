@@ -12,7 +12,7 @@ import os
 import random
 
 
-SET_MEMORY_GROWTH = False
+SET_MEMORY_GROWTH = True
 
 
 class SaveWeightsCallback(tf.keras.callbacks.Callback):
@@ -49,8 +49,9 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
 
 
     if SET_MEMORY_GROWTH:
-        physical_devices = tf.config.list_physical_devices('GPU')
-        tf.config.experimental.set_memory_growth(physical_devices[0], True)
+        pds = tf.config.list_physical_devices('GPU')
+        for pd in pds:
+            tf.config.experimental.set_memory_growth(pd, True)
 
     pipeline = kwargs.get("pipeline")
     use_mosaic = kwargs.get("use_mosaic")
@@ -95,7 +96,7 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
                     use_mosaic=use_mosaic
                 )
                 return yolo.dataset()
-                
+
         if pipeline == 'numpy':
             return YOLOv4PipelineNumpy(
                 file_root, annotations_file,

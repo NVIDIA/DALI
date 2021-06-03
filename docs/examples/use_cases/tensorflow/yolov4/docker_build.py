@@ -7,4 +7,4 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--tag', default="dali-yolov4", help='Tag for ')
 args = parser.parse_args()
 
-os.system(f"docker build -t {args.tag} .")
+os.system(f"docker build --network=internal -t {args.tag} .")
