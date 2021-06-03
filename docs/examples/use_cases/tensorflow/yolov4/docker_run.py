@@ -5,8 +5,8 @@ import os
 
 cwd = os.getcwd()
 default_cmd = "train /coco/train2017/ /coco/annotations/instances_train2017.json -o /data/output.h5 --seed 1234 \
-                     -b 7 -s 7500 -e 30 --multigpu --pipeline dali-gpu --use_mosaic \
-                     --learning_rate \"1e-3\" --ckpt_dir /data/ --log_dir /dlogs/"
+                     -b 6 -s 7500 -e 30 --multigpu --pipeline dali-gpu --use_mosaic \
+                     --ckpt_dir /data/ --log_dir /dlogs/"
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--tag', default="dali-yolov4", help='Image tag')
