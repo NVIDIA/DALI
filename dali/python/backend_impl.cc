@@ -181,8 +181,8 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
                                     [dlm_tensor_ptr = move(dlm_tensor_ptr)](void*) {}),
                                     bytes, typed_shape, dali_type);
 
-  // according to the docs kDLCPUPinned = kDLCPU | kDLCUDA so test it as a the first option
-  if (dl_tensor.device.device_type == kDLCPUPinned) {
+  // according to the docs kDLCUDAHost = kDLCPU | kDLCUDA so test it as a the first option
+  if (dl_tensor.device.device_type == kDLCUDAHost) {
     batch->set_device_id(-1);
     batch->set_pinned(true);
   } else if (dl_tensor.device.device_type == kDLCPU) {
