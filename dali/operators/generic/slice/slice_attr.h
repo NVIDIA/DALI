@@ -52,10 +52,12 @@ class NamedSliceAttr {
         shape_(kShapeName, spec),
         rel_shape_(kRelShapeName, spec),
         crop_window_generators_(spec.GetArgument<int>("max_batch_size")) {
-    const bool has_axes_arg = spec.HasArgument(kAxesName);
-    const bool has_axis_names_arg = spec.HasArgument(kAxisNamesName);
+    const bool use_axes = kAxesName != nullptr;
+    const bool use_axis_names = kAxisNamesName != nullptr;
+    const bool has_axes_arg = use_axes && spec.HasArgument(kAxesName);
+    const bool has_axis_names_arg = use_axis_names && spec.HasArgument(kAxisNamesName);
     // Process `axis_names` if provided, or if neither `axis_names` nor `axes` are
-    if (has_axis_names_arg || !has_axes_arg) {
+    if (has_axis_names_arg || (!has_axes_arg && use_axis_names)) {
       axis_names_ = spec.GetArgument<TensorLayout>(kAxisNamesName);
       axes_ = {};
     } else {
@@ -72,9 +74,11 @@ class NamedSliceAttr {
   }
 
   template <typename Backend>
-  bool ProcessArguments(const workspace_t<Backend> &ws) {
-    auto curr_batch_size = ws.GetInputBatchSize(0);
-    int ndim = ws.GetInputDim(0);
+  bool ProcessArguments(const workspace_t<Backend> &ws, int curr_batch_size = -1, int ndim = -1) {
+    if (curr_batch_size < 0)
+      curr_batch_size = ws.GetInputBatchSize(0);
+    if (ndim < 0)
+      ndim = ws.GetInputDim(0);
 
     auto args_shape = TensorShape<1>(ndim);
     if (!axes_.empty() || !axis_names_.empty()) {
@@ -118,6 +122,9 @@ class NamedSliceAttr {
         auto axes = axes_;
         if (!axis_names_.empty()) {
           axes = GetDimIndices(shape_layout, axis_names_).to_vector();
+        } else if (axes.empty()) {
+          axes.resize(shape.sample_dim());
+          std::iota(axes.begin(), axes.end(), 0);
         }
 
         constexpr double i64min = static_cast<double>(std::numeric_limits<int64_t>::min());
@@ -351,7 +358,7 @@ class SliceAttr {
             "Warning: ``normalized_anchor``/``normalized_shape`` is only relevant "
             "when using positional slice arguments");
       }
-      DALI_ENFORCE(ws.NumInput() == 1,
+      DALI_ENFORCE(ws.NumInput() <= 1,
                   "Named arguments start/end/shape are not compatible with positional"
                   " anchor and shape inputs");
     } else {

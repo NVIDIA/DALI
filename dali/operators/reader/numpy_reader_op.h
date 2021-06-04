@@ -19,15 +19,21 @@
 #include <string>
 #include <vector>
 
-#include "dali/operators/reader/reader_op.h"
+#include "dali/operators/generic/slice/slice_attr.h"
 #include "dali/operators/reader/loader/numpy_loader.h"
+#include "dali/operators/reader/reader_op.h"
+#include "dali/pipeline/operator/arg_helper.h"
+#include "dali/util/crop_window.h"
+#include "dali/kernels/kernel_manager.h"
 
 namespace dali {
 
 class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
  public:
   explicit NumpyReader(const OpSpec& spec)
-    : DataReader< CPUBackend, ImageFileWrapper >(spec) {
+      : DataReader<CPUBackend, ImageFileWrapper>(spec),
+        slice_attr_(spec, "roi_start", "rel_roi_start", "roi_end", "rel_roi_end", "roi_shape",
+                    "rel_roi_shape", "roi_axes", nullptr) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch);
   }
@@ -41,7 +47,14 @@ class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
 
  protected:
   void TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);
+  void SliceHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input,
+                   const CropWindow& roi);
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageFileWrapper);
+
+ private:
+  NamedSliceAttr slice_attr_;
+  std::vector<CropWindow> rois_;
+  TensorVector<CPUBackend> scratch_;
 };
 
 }  // namespace dali

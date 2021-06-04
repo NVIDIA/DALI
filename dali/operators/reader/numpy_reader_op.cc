@@ -14,6 +14,7 @@
 
 #include <string>
 
+#include "dali/kernels/slice/slice_cpu.h"
 #include "dali/kernels/transpose/transpose.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/reader/numpy_reader_op.h"
@@ -25,22 +26,32 @@ namespace dali {
   double)
 
 void NumpyReader::TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input) {
-  auto& in_shape = input.shape();
-  auto& out_shape = output.shape();
-  auto& type = input.type();
-  int n_dims = in_shape.sample_dim();
+  int n_dims = input.shape().sample_dim();
   SmallVector<int, 6> perm;
   perm.resize(n_dims);
   for (int i = 0; i < n_dims; ++i)
     perm[i] = n_dims - i - 1;
+  TYPE_SWITCH(input.type().id(), type2id, T, NUMPY_ALLOWED_TYPES, (
+    kernels::TransposeGrouped(view<T>(output), view<const T>(input), make_cspan(perm));
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
+}
 
-  auto input_type = type.id();
-  TYPE_SWITCH(input_type, type2id, InputType, NUMPY_ALLOWED_TYPES, (
-    kernels::Transpose(
-      TensorView<StorageCPU, InputType>{output.mutable_data<InputType>(), out_shape},
-      TensorView<StorageCPU, const InputType>{input.data<InputType>(), in_shape},
-      make_cspan(perm));
-  ), DALI_FAIL(make_string("Unsupported input type: ", input_type)));  // NOLINT
+void NumpyReader::SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
+                              const CropWindow &roi) {
+  int ndim = input.shape().sample_dim();
+  VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
+    TYPE_SWITCH(input.type().id(), type2id, T, NUMPY_ALLOWED_TYPES, (
+      kernels::SliceCPU<T, T, Dims> kernel;
+      kernels::SliceArgs<T, Dims> args;
+      args.anchor = roi.anchor;
+      args.shape = roi.shape;
+      kernels::KernelContext ctx;
+      auto out_view = view<T, Dims>(output);
+      auto in_view = view<const T, Dims>(input);
+      // no need to run Setup (we already know the output shape)
+      kernel.Run(ctx, out_view, in_view, args);
+    ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(readers__Numpy, NumpyReader, CPU);
@@ -95,6 +106,48 @@ sizes vary a lot.)code", true)
       R"code(If set to True, the header information for each file is cached, improving access
 speed.)code",
       false)
+    .AddOptionalArg<std::vector<int>>("roi_start",
+        R"code(Start of the region-of-interest, in absolute coordinates.
+
+This argument is incompatible with "rel_roi_start".
+)code",
+        nullptr, true)
+    .AddOptionalArg<std::vector<float>>("rel_roi_start",
+        R"code(Start of the region-of-interest, in relative coordinates (range [0.0 - 1.0]).
+
+This argument is incompatible with "roi_start".
+)code",
+        nullptr, true)
+    .AddOptionalArg<std::vector<int>>("roi_end",
+        R"code(End of the region-of-interest, in absolute coordinates.
+
+This argument is incompatible with "rel_roi_end", "roi_shape" and "rel_roi_shape".
+)code",
+        nullptr, true)
+    .AddOptionalArg<std::vector<float>>("rel_roi_end",
+        R"code(End of the region-of-interest, in relative coordinates (range [0.0 - 1.0]).
+
+This argument is incompatible with "roi_end", "roi_shape" and "rel_roi_shape".
+)code",
+        nullptr, true)
+    .AddOptionalArg<std::vector<int>>("roi_shape",
+        R"code(Shape of the region-of-interest, in absolute coordinates.
+
+This argument is incompatible with "rel_roi_shape", "roi_end" and "rel_roi_end".
+)code",
+        nullptr, true)
+    .AddOptionalArg<std::vector<float>>("rel_roi_shape",
+        R"code(Shape of the region-of-interest, in relative coordinates (range [0.0 - 1.0]).
+
+This argument is incompatible with "roi_shape", "roi_end" and "rel_roi_end".
+)code",
+        nullptr, true)
+    .AddOptionalArg("roi_axes",
+        R"code(Order of dimensions used for the ROI anchor and shape argumens, as dimension indices.
+
+If not provided, all the dimensions should be specified in the ROI arguments.
+)code",
+        std::vector<int>{})
   .AddParent("LoaderBase");
 
 
@@ -123,18 +176,60 @@ bool NumpyReader::SetupImpl(std::vector<OutputDesc> &output_desc,
   TypeInfo output_type = file_0.image.type();
   int ndim = file_0.image.shape().sample_dim();
   TensorListShape<> sh(batch_size, ndim);
+
+  bool need_slice = slice_attr_.template ProcessArguments<CPUBackend>(ws, batch_size, ndim);
+
+  rois_.clear();
+  if (need_slice)
+    rois_.resize(batch_size);
+
   for (int i = 0; i < batch_size; i++) {
-    auto sample_sh = sh.tensor_shape_span(i);
     const auto& file_i = GetSample(i);
     const auto &file_sh = file_i.image.shape();
-    if (file_i.meta == "transpose:false") {
+    auto sample_sh = sh.tensor_shape_span(i);
+
+    DALI_ENFORCE(
+        file_i.image.shape().sample_dim() == ndim,
+        make_string(
+            "Inconsistent data: All samples in the batch must have the same number of dimensions. "
+            "Got \"",
+            file_0.filename, "\" with ", ndim, " dimensions and \"", file_i.filename, "\" with ",
+            file_i.image.shape().sample_dim(), " dimensions"));
+    DALI_ENFORCE(
+        file_i.image.type().id() == output_type.id(),
+        make_string("Inconsistent data: All samples in the batch must have the same data type. "
+                    "Got \"",
+                    file_0.filename, "\" with data type ", output_type.id(), " and \"",
+                    file_i.filename, "\" with data type ", file_i.image.type().id()));
+
+    bool is_transposed = !(file_i.meta == "transpose:false");
+    // Calculate the full transposed shape first
+    if (is_transposed) {
       for (int d = 0; d < ndim; d++)
-        sample_sh[d] = file_sh[d];
+        sample_sh[d] = file_sh[ndim - 1 - d];
     } else {
       for (int d = 0; d < ndim; d++)
-        sample_sh[d] = file_sh[ndim - 1 -d];
+        sample_sh[d] = file_sh[d];
     }
-    sh.set_tensor_shape(i, sample_sh);
+
+    if (need_slice) {
+      // Calculate the cropping window, based on the final layout (user provides axes in that
+      // layout)
+      auto tmp_roi = slice_attr_.GetCropWindowGenerator(i)(sh.tensor_shape(i), {});
+      sh.set_tensor_shape(i, tmp_roi.shape);  // set the final shape
+
+      // Reverse the cropping window arguments if needed, as we do slice before transpose to save
+      // bandwidth.
+      auto &roi = rois_[i];
+      if (is_transposed) {
+        for (int d = 0; d < ndim; d++) {
+          roi.anchor[d] = tmp_roi.anchor[ndim - 1 - d];
+          roi.shape[d] = tmp_roi.shape[ndim - 1 - d];
+        }
+      } else {
+        roi = std::move(tmp_roi);
+      }
+    }
   }
   output_desc.resize(1);
   output_desc[0].shape = std::move(sh);
@@ -145,18 +240,40 @@ bool NumpyReader::SetupImpl(std::vector<OutputDesc> &output_desc,
 void NumpyReader::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   const auto &out_sh = output.shape();
+  int ndim = out_sh.sample_dim();
+  int nsamples = out_sh.num_samples();
   auto &thread_pool = ws.GetThreadPool();
-  for (int sample_idx = 0; sample_idx < max_batch_size_; sample_idx++) {
-    thread_pool.AddWork([&, sample_idx](int tid) {
-      const auto& file_i = GetSample(sample_idx);
-      int64_t nbytes = file_i.image.nbytes();
-      if (file_i.meta == "transpose:false") {
-        std::memcpy(output[sample_idx].raw_mutable_data(), file_i.image.raw_data(), nbytes);
+  int nthreads = thread_pool.NumThreads();
+  scratch_.SetSize(nthreads);
+
+  for (int i = 0; i < nsamples; i++) {
+    const auto& file_i = GetSample(i);
+    const auto& file_sh = file_i.image.shape();
+    bool need_transpose = !(file_i.meta == "transpose:false");
+    bool need_slice = !rois_.empty();
+
+    // controls task priority
+    int64_t task_sz = volume(file_i.image.shape());
+    if (need_slice)
+      task_sz += volume(rois_[i].shape);
+    if (need_transpose)
+      task_sz += out_sh.tensor_size(i);
+
+    thread_pool.AddWork([&, i, need_transpose, need_slice](int tid) {
+      if (need_slice && need_transpose) {
+        scratch_[tid].Resize(rois_[i].shape);
+        scratch_[tid].set_type(file_i.image.type());
+        SliceHelper(scratch_[tid], file_i.image, rois_[i]);
+        TransposeHelper(output[i], scratch_[tid]);
+      } else if (need_slice) {
+        SliceHelper(output[i], file_i.image, rois_[i]);
+      } else if (need_transpose) {
+        TransposeHelper(output[i], file_i.image);
       } else {
-        TransposeHelper(output[sample_idx], file_i.image);
+        std::memcpy(output[i].raw_mutable_data(), file_i.image.raw_data(), file_i.image.nbytes());
       }
-      output[sample_idx].SetSourceInfo(file_i.image.GetSourceInfo());
-    }, out_sh.tensor_size(sample_idx));
+      output[i].SetSourceInfo(file_i.image.GetSourceInfo());
+    }, task_sz);
   }
   thread_pool.RunAll();
 }
