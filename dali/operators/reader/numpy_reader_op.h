@@ -15,8 +15,8 @@
 #ifndef DALI_OPERATORS_READER_NUMPY_READER_OP_H_
 #define DALI_OPERATORS_READER_NUMPY_READER_OP_H_
 
-#include <utility>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "dali/operators/generic/slice/slice_attr.h"
@@ -24,7 +24,6 @@
 #include "dali/operators/reader/reader_op.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/util/crop_window.h"
-#include "dali/kernels/kernel_manager.h"
 
 namespace dali {
 
