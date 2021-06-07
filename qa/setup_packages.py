@@ -315,7 +315,7 @@ class CudaHttpPackage(CudaPackage):
         request = Request(url)
         request.get_method = lambda : 'HEAD'
         try:
-            _ = urlopen(request)
+            _ = urlopen(request, timeout=60)
             return url
         except HTTPError:
             return None
