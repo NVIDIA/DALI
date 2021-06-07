@@ -90,6 +90,7 @@ void PlanarToInterleaved(Output *output, const Input *input, int64_t npixels,
   } else {
     assert(false);
   }
+  CUDA_CALL(cudaGetLastError());
 }
 
 template <typename Output, typename Input>
@@ -98,6 +99,7 @@ void PlanarRGBToGray(Output *output, const Input *input, int64_t npixels,
   int num_blocks = div_ceil(npixels, 1024);
   int block_size = (npixels < 1024) ? npixels : 1024;
   planar_rgb_to_gray<<<num_blocks, block_size, 0, stream>>>(output, input, npixels);
+  CUDA_CALL(cudaGetLastError());
 }
 
 template <typename Output, typename Input>

@@ -151,7 +151,7 @@ struct KernelContext {
   /**
    * @brief Caller-provided allocator for temporary data.
    */
-  Scratchpad *scratchpad;
+  Scratchpad *scratchpad = nullptr;
 };
 
 }  // namespace kernels
