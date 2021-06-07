@@ -362,9 +362,10 @@ TEST(FP16Linkage, KernelTemplate) {
   ts.n = buf.size();
   CUDA_CALL(cudaMemset(buf, 0, buf.size_bytes()));
   FP16TestKernel<<<div_ceil(ts.n, 64), 64>>>(ts);
+  CUDA_CALL(cudaGetLastError());
   vector<float16> host_buf(buf.size());
   CUDA_CALL(cudaMemcpy(host_buf.data(), buf, buf.size_bytes(), cudaMemcpyDeviceToHost));
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
   for (int i = 0; i < ts.n; i++) {
     EXPECT_EQ(static_cast<float>(host_buf[i]), i + 42.0f);
   }
