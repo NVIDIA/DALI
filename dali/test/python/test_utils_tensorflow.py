@@ -266,7 +266,8 @@ def run_tf_dataset_multigpu_graph_manual_placement(get_pipeline_desc=get_image_p
     standalone_pipelines = []
     for device_id in range(num_devices):
         standalone_pipeline, dali_dataset = get_pipe_dataset(batch_size, num_threads, 'gpu',
-            device_id, num_devices, get_pipeline_desc=get_pipeline_desc, to_dataset=to_dataset)
+            device_id, num_devices, get_pipeline_desc=get_pipeline_desc, to_dataset=to_dataset,
+            dali_on_dev_0=False)
         dali_datasets.append(dali_dataset)
         standalone_pipelines.append(standalone_pipeline)
 
@@ -287,7 +288,8 @@ def run_tf_dataset_multigpu_eager_manual_placement(get_pipeline_desc=get_image_p
     standalone_pipelines = []
     for device_id in range(num_devices):
         standalone_pipeline, dali_dataset = get_pipe_dataset(batch_size, num_threads, 'gpu',
-            device_id, num_devices, get_pipeline_desc=get_pipeline_desc, to_dataset=to_dataset)
+            device_id, num_devices, get_pipeline_desc=get_pipeline_desc, to_dataset=to_dataset,
+            dali_on_dev_0=False)
         dali_datasets.append(dali_dataset)
         standalone_pipelines.append(standalone_pipeline)
 
@@ -336,7 +338,7 @@ def run_tf_dataset_multigpu_eager_mirrored_strategy(get_pipeline_desc=get_image_
     standalone_pipelines = []
     for device_id in range(num_devices):
         pipeline, _, _ = get_pipeline_desc(
-            batch_size, num_threads, device='gpu', device_id=0, shard_id=device_id,
+            batch_size, num_threads, device='gpu', device_id=device_id, shard_id=device_id,
             num_shards=num_devices)
         standalone_pipelines.append(pipeline)
 

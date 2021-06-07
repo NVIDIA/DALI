@@ -337,7 +337,7 @@ ops_image_custom_args = [
     (numba_function, {'batch_processing': False, 'devices': ['cpu'], 'in_types': [types.UINT8],
                       'ins_ndim': [3], 'out_types': [types.UINT8],  'outs_ndim': [3],
                       'run_fn': numba_set_all_values_to_255_batch,  'setup_fn': numba_setup_out_shape}),
-    # (fn.multi_paste, {'in_ids': np.random.randint(31, size=31), 'output_size': [300, 300, 3]})
+    (fn.multi_paste, {'in_ids': np.zeros([31], dtype=np.int32), 'output_size': [300, 300, 3]})
 ]
 
 def test_ops_image_custom_args():
