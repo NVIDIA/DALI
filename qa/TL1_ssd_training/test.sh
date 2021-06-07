@@ -5,7 +5,7 @@ target_dir=./docs/examples/use_cases/pytorch/single_stage_detector/
 
 test_body() {
     # workaround due to errors while pycocotools is int "pip_packages" above
-    pip install -I pycocotools
+    pip install --default-timeout=100 -I pycocotools
     apt update && apt install -y gcc-7 g++-7
 
     #install APEX

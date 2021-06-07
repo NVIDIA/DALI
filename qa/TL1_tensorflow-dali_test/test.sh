@@ -15,10 +15,10 @@ do_once() {
     # check if CUDA version is at least 11.x
     if [ "$(echo "$CUDA_VERSION" | tr " " "\n" | sort -rV | head -n 1)" == "110" ]; then
         # install TF 2.4.x for CUDA 11.x test
-        pip install $($topdir/qa/setup_packages.py -i 1 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
+        pip install --default-timeout=100 $($topdir/qa/setup_packages.py -i 1 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
     else
         # install TF 2.3.x for CUDA 10.x test
-        pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
+        pip install --default-timeout=100 $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
     fi
 
     # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
@@ -60,7 +60,7 @@ do_once() {
     export HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu
     export HOROVOD_NCCL_LINK=SHARED
     export HOROVOD_WITHOUT_PYTORCH=1
-    pip install horovod==0.21.3
+    pip install --default-timeout=100 horovod==0.21.3
 
     for file in $(ls /data/imagenet/train-val-tfrecord-480-subset);
     do

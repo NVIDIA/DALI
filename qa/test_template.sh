@@ -56,7 +56,7 @@ do
         # install packages
         inst=$($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
         if [ -n "$inst" ]; then
-            pip install $inst -f /pip-packages
+            pip install --default-timeout=100 $inst -f /pip-packages
 
             # If we just installed tensorflow, we need to reinstall DALI TF plugin
             if [[ "$inst" == *tensorflow* ]]; then

@@ -9,7 +9,7 @@ function CLEAN_AND_EXIT {
 }
 
 export USE_CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
-pip install $(python /opt/dali/qa/setup_packages.py -i 0 -u paddlepaddle-gpu --cuda ${USE_CUDA_VERSION})
+pip install --default-timeout=100 $(python /opt/dali/qa/setup_packages.py -i 0 -u paddlepaddle-gpu --cuda ${USE_CUDA_VERSION})
 
 cd /opt/dali/docs/examples/use_cases/paddle/resnet50
 

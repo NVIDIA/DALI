@@ -22,7 +22,7 @@ do
                 inst=$(python ../setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
                 if [ -n "$inst" ]
                 then
-                    pip download $inst -d /pip-packages
+                    pip download $inst --default-timeout=100 -d /pip-packages
                 fi
             done
         fi

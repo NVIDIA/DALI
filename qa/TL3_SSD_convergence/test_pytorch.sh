@@ -10,8 +10,8 @@ function CLEAN_AND_EXIT {
 
 cd /opt/dali/docs/examples/use_cases/pytorch/single_stage_detector/
 
-pip install mlperf_compliance Cython==0.28.4
-pip install pycocotools==2.0.0
+pip install --default-timeout=100 mlperf_compliance Cython==0.28.4
+pip install --default-timeout=100 pycocotools==2.0.0
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 

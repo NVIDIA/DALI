@@ -8,8 +8,8 @@ do_once() {
     bash cmake-*.sh --skip-license --prefix=/usr
     rm cmake-*.sh
     # for stub generation
-    pip install clang
-    pip install libclang
+    pip install --default-timeout=100 clang
+    pip install --default-timeout=100 libclang
 }
 
 test_body() {
