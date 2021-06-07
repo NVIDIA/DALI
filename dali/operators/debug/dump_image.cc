@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/debug/dump_image.h"
+#include "dali/core/format.h"
 #include "dali/core/tensor_layout.h"
 #include "dali/util/image.h"
 
@@ -24,11 +25,15 @@ void DumpImage<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
 
   DALI_ENFORCE(input.ndim() == 3,
-      "Input images must have three dimensions.");
+               make_string("Input images must have three dimensions, got input with `",
+                           input.ndim(), "` dimensions."));
 
   int h = input.dim(0);
   int w = input.dim(1);
   int c = input.dim(2);
+  DALI_ENFORCE(c == 1 || c == 3,
+               make_string("Only 3-channel and gray images are supported, got input with `", c,
+                           "` channels."));
 
   WriteHWCImage(input.template data<uint8>(),
       h, w, c, std::to_string(ws.data_idx()) + "-" + suffix_ + "-" + std::to_string(0));
