@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/core/format.h"
 #include "dali/operators/debug/dump_image.h"
 #include "dali/util/image.h"
 
@@ -21,6 +22,17 @@ template<>
 void DumpImage<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
+
+
+  DALI_ENFORCE(input.shape().sample_dim() == 3,
+               make_string("Input images must have three dimensions, got input with `",
+                           input.shape().sample_dim(), "` dimensions."));
+  for (int i = 0; i < input.shape().num_samples(); i++) {
+    int channels = input.shape().tensor_shape_span(i)[2];
+    DALI_ENFORCE(channels == 1 || channels == 3,
+                 make_string("Only 3-channel and gray images are supported, got input with `",
+                             channels, "` channels."));
+  }
 
   // sync before write
   CUDA_CALL(cudaStreamSynchronize(ws.stream()));

@@ -50,7 +50,7 @@ TEST(DeviceTest, DeviceSideFailure) {
   int num = 0;
   EXPECT_NONFATAL_FAILURE({
     DEVICE_TEST_CASE_BODY(DeviceTest, DeviceSideFailure, dim3(1), dim3(2))
-    num = host_status.num_messages;
+    num = status.host.num_messages;
   }, "There were errors in device code");
   EXPECT_EQ(num, 21);  // threadIdx.x == 0 succeeds once
   EXPECT_EQ(cudaGetLastError(), cudaSuccess);
