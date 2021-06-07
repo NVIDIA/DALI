@@ -33,11 +33,12 @@ struct TestStatusBlock {
 
 struct TestStatus {
   TestStatusBlock host, *device = nullptr;
-  void Init() {
+  bool Init() {
     ASSERT_EQ(cudaSuccess, cudaMalloc(&device, sizeof(TestStatusBlock)))
-      << "Cannot allocate test status block";
-    EXPECT_EQ(cudaSuccess, cudaMemset(device, 0, sizeof(TestStatusBlock)))
-      << "Cannot clear test status block";
+      << "Cannot allocate test status block", false;
+    ASSERT_EQ(cudaSuccess, cudaMemset(device, 0, sizeof(TestStatusBlock)))
+      << "Cannot clear test status block", false;
+    return true;
   }
 
   cudaError_t to_host() {
@@ -169,8 +170,8 @@ __device__ void suite_name##_##test_name##_body( \
  */
 #define DEVICE_TEST_CASE_BODY(suite_name, test_name, grid, block, ...) \
   dali::testing::TestStatus status; \
-  status.Init(); \
-  if (HasFailure()) return; \
+  if (!status.Init()) \
+    return; \
   (void)cudaGetLastError(); \
   suite_name##_##test_name##_kernel<<<grid, block>>>(status.device, ##__VA_ARGS__); \
   auto err = status.to_host(); \
