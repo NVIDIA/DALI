@@ -36,31 +36,32 @@ namespace dali {
 class NamedSliceAttr {
  public:
   explicit inline NamedSliceAttr(const OpSpec &spec,
-                                 const char* kStartName = "start",
-                                 const char* kRelStartName = "rel_start",
-                                 const char* kEndName = "end",
-                                 const char* kRelEndName = "rel_end",
-                                 const char* kShapeName = "shape",
-                                 const char* kRelShapeName = "rel_shape",
-                                 const char* kAxesName = "axes",
-                                 const char* kAxisNamesName = "axis_names")
+                                 const char* start_name = "start",
+                                 const char* rel_start_name = "rel_start",
+                                 const char* end_name = "end",
+                                 const char* rel_end_name = "rel_end",
+                                 const char* shape_name = "shape",
+                                 const char* rel_shape_name = "rel_shape",
+                                 const char* axes_name = "axes",
+                                 const char* axis_names = "axis_names")
       : spec_(spec),
-        start_(kStartName, spec),
-        rel_start_(kRelStartName, spec),
-        end_(kEndName, spec),
-        rel_end_(kRelEndName, spec),
-        shape_(kShapeName, spec),
-        rel_shape_(kRelShapeName, spec),
-        crop_window_generators_(spec.GetArgument<int>("max_batch_size")) {
-    const bool has_axes_arg = spec.HasArgument(kAxesName);
-    const bool has_axis_names_arg = spec.HasArgument(kAxisNamesName);
+        start_(start_name, spec),
+        rel_start_(rel_start_name, spec),
+        end_(end_name, spec),
+        rel_end_(rel_end_name, spec),
+        shape_(shape_name, spec),
+        rel_shape_(rel_shape_name, spec) {
+    int max_batch_sz = spec.GetArgument<int>("max_batch_size");
+    crop_window_generators_.resize(max_batch_sz);
+    const bool has_axes_arg = spec.HasArgument(axes_name);
+    const bool has_axis_names_arg = spec.HasArgument(axis_names);
     // Process `axis_names` if provided, or if neither `axis_names` nor `axes` are
     if (has_axis_names_arg || !has_axes_arg) {
-      axis_names_ = spec.GetArgument<TensorLayout>(kAxisNamesName);
+      axis_names_ = spec.GetArgument<TensorLayout>(axis_names);
       axes_ = {};
     } else {
       // Process `axes` only if provided and `axis_names` isn't
-      axes_ = spec.GetRepeatedArgument<int>(kAxesName);
+      axes_ = spec.GetRepeatedArgument<int>(axes_name);
       axis_names_ = TensorLayout{};
     }
     has_start_ = start_.IsDefined() || rel_start_.IsDefined();
@@ -200,11 +201,11 @@ class NamedSliceAttr {
 
 class PositionalSliceAttr {
  public:
-  explicit inline PositionalSliceAttr(const OpSpec &spec)
-      : spec_(spec),
-        normalized_anchor_(spec.GetArgument<bool>("normalized_anchor")),
-        normalized_shape_(spec.GetArgument<bool>("normalized_shape")),
-        crop_window_generators_(spec.GetArgument<int>("max_batch_size")) {
+  explicit inline PositionalSliceAttr(const OpSpec& spec) : spec_(spec) {
+    normalized_anchor_ = spec.GetArgument<bool>("normalized_anchor");
+    normalized_shape_ = spec.GetArgument<bool>("normalized_shape");
+    int max_batch_sz = spec.GetArgument<int>("max_batch_size");
+    crop_window_generators_.resize(max_batch_sz);
     const bool has_axes_arg = spec.HasArgument("axes");
     const bool has_axis_names_arg = spec.HasArgument("axis_names");
     // Process `axis_names` if provided, or if neither `axis_names` nor `axes` are
@@ -229,7 +230,7 @@ class PositionalSliceAttr {
                                static_cast<int>(axis_names_.size()));
     }
 
-    if (ws.NumInput() != 3)
+    if (ws.NumInput() != (spec_.GetSchema().MinNumInput() + 2))
       return false;
 
     const auto &crop_anchor = ws.template InputRef<CPUBackend>(1);
@@ -344,29 +345,29 @@ class SliceAttr {
 
   template <typename Backend>
   void ProcessArguments(const workspace_t<Backend> &ws) {
-    named_args_ = named_slice_attr_.template ProcessArguments<Backend>(ws);
-    if (named_args_) {
+    use_named_args_ = named_slice_attr_.template ProcessArguments<Backend>(ws);
+    if (use_named_args_) {
       if (spec_.HasArgument("normalized_anchor") || spec_.HasArgument("normalized_shape")) {
         DALI_WARN(
             "Warning: ``normalized_anchor``/``normalized_shape`` is only relevant "
             "when using positional slice arguments");
       }
-      DALI_ENFORCE(ws.NumInput() == 1,
+      DALI_ENFORCE(ws.NumInput() == spec_.GetSchema().MinNumInput(),
                   "Named arguments start/end/shape are not compatible with positional"
                   " anchor and shape inputs");
     } else {
-      if (ws.NumInput() != 3) {
+      bool processed_pos_args = pos_slice_attr_.template ProcessArguments<Backend>(ws);
+      if (!processed_pos_args) {
         DALI_FAIL(
             make_string("Expected named slice arguments (e.g. start/end, start/shape) "
-                        "or positional inputs start, shape. Got ",
+                        "or positional inputs (start, shape). Got ",
                         ws.NumInput(), " inputs."));
       }
-      pos_slice_attr_.template ProcessArguments<Backend>(ws);
     }
   }
 
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
-    if (named_args_)
+    if (use_named_args_)
       return named_slice_attr_.GetCropWindowGenerator(data_idx);
     else
       return pos_slice_attr_.GetCropWindowGenerator(data_idx);
@@ -376,7 +377,7 @@ class SliceAttr {
   const OpSpec &spec_;
   NamedSliceAttr named_slice_attr_;
   PositionalSliceAttr pos_slice_attr_;
-  bool named_args_ = false;
+  bool use_named_args_ = false;
 };
 
 
