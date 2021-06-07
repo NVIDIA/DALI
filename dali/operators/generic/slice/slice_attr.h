@@ -43,7 +43,7 @@ class NamedSliceAttr {
                                  const char* shape_name = "shape",
                                  const char* rel_shape_name = "rel_shape",
                                  const char* axes_name = "axes",
-                                 const char* axis_names = "axis_names")
+                                 const char* axis_names_name = "axis_names")
       : spec_(spec),
         start_(start_name, spec),
         rel_start_(rel_start_name, spec),
@@ -53,11 +53,13 @@ class NamedSliceAttr {
         rel_shape_(rel_shape_name, spec) {
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
-    const bool has_axes_arg = spec.HasArgument(axes_name);
-    const bool has_axis_names_arg = spec.HasArgument(axis_names);
+    const bool use_axes = axes_name != nullptr;
+    const bool use_axis_names = axis_names_name != nullptr;
+    const bool has_axes_arg = use_axes && spec.HasArgument(axes_name);
+    const bool has_axis_names_arg = use_axis_names && spec.HasArgument(axis_names_name);
     // Process `axis_names` if provided, or if neither `axis_names` nor `axes` are
-    if (has_axis_names_arg || !has_axes_arg) {
-      axis_names_ = spec.GetArgument<TensorLayout>(axis_names);
+    if (has_axis_names_arg || (!has_axes_arg && use_axis_names)) {
+      axis_names_ = spec.GetArgument<TensorLayout>(axis_names_name);
       axes_ = {};
     } else {
       // Process `axes` only if provided and `axis_names` isn't

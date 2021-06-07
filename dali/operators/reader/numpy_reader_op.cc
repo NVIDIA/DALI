@@ -15,6 +15,7 @@
 #include <string>
 
 #include "dali/kernels/slice/slice_cpu.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_cpu.h"
 #include "dali/kernels/transpose/transpose.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/reader/numpy_reader_op.h"
@@ -45,6 +46,26 @@ void NumpyReader::SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBacken
       kernels::SliceArgs<T, Dims> args;
       args.anchor = roi.anchor;
       args.shape = roi.shape;
+      kernels::KernelContext ctx;
+      auto out_view = view<T, Dims>(output);
+      auto in_view = view<const T, Dims>(input);
+      // no need to run Setup (we already know the output shape)
+      kernel.Run(ctx, out_view, in_view, args);
+    ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
+}
+
+void NumpyReader::SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
+                                     const CropWindow &roi) {
+  const auto& in_shape = input.shape();
+  int ndim = in_shape.sample_dim();
+  VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
+    TYPE_SWITCH(input.type().id(), type2id, T, NUMPY_ALLOWED_TYPES, (
+      kernels::SliceFlipNormalizePermutePadCpu<T, T, Dims> kernel;
+      kernels::SliceFlipNormalizePermutePadArgs<Dims> args(roi.shape, in_shape);
+      args.anchor = roi.anchor;
+      for (int d = 0; d < Dims; d++)
+        args.permuted_dims[d] = Dims - 1 - d;
       kernels::KernelContext ctx;
       auto out_view = view<T, Dims>(output);
       auto in_view = view<const T, Dims>(input);
@@ -244,7 +265,6 @@ void NumpyReader::RunImpl(HostWorkspace &ws) {
   int nsamples = out_sh.num_samples();
   auto &thread_pool = ws.GetThreadPool();
   int nthreads = thread_pool.NumThreads();
-  scratch_.SetSize(nthreads);
 
   for (int i = 0; i < nsamples; i++) {
     const auto& file_i = GetSample(i);
@@ -261,10 +281,7 @@ void NumpyReader::RunImpl(HostWorkspace &ws) {
 
     thread_pool.AddWork([&, i, need_transpose, need_slice](int tid) {
       if (need_slice && need_transpose) {
-        scratch_[tid].Resize(rois_[i].shape);
-        scratch_[tid].set_type(file_i.image.type());
-        SliceHelper(scratch_[tid], file_i.image, rois_[i]);
-        TransposeHelper(output[i], scratch_[tid]);
+        SlicePermuteHelper(output[i], file_i.image, rois_[i]);
       } else if (need_slice) {
         SliceHelper(output[i], file_i.image, rois_[i]);
       } else if (need_transpose) {

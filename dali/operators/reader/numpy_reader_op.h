@@ -48,12 +48,13 @@ class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
   void TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);
   void SliceHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input,
                    const CropWindow& roi);
+  void SlicePermuteHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input,
+                          const CropWindow& roi);
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageFileWrapper);
 
  private:
   NamedSliceAttr slice_attr_;
   std::vector<CropWindow> rois_;
-  TensorVector<CPUBackend> scratch_;
 };
 
 }  // namespace dali
