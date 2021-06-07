@@ -67,7 +67,7 @@ class NumpyLoaderGPU : public CUFileLoader {
   void RegisterBuffer(void *buffer, size_t total_size);
 
   // read the full sample
-  void ReadSampleHelper(CUFileStream *file, ImageFileWrapperGPU& imfile,
+  void ReadSampleHelper(CUFileStream *file,
                         void *buffer, Index offset, size_t total_size);
 
   // do we want to register device buffers:

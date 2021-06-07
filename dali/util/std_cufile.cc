@@ -115,29 +115,39 @@ void StdCUFileStream::HandleIOError(int64 ret) const {
   }
 }
 
-size_t StdCUFileStream::ReadGPU(uint8_t* gpu_buffer, size_t n_bytes, size_t offset) {
+size_t StdCUFileStream::ReadGPUImpl(uint8_t* gpu_buffer, size_t n_bytes,
+                                    size_t buffer_offset, size_t file_offset) {
+  // effective pos:
+  size_t eff_pos = pos_ + file_offset;
+
   // compute size
-  n_bytes = std::min(n_bytes, length_ - pos_);
+  n_bytes = std::min(n_bytes, length_ - eff_pos);
 
   // read data: backup n_bytes here and create a read-offset
   ssize_t n_read = n_bytes;
   off_t read_off = 0;
-  off_t buffer_off = offset;
   while (n_read > 0) {
     int64_t read = cuFileRead(f_.cufh, static_cast<void*>(gpu_buffer), n_read,
-                              static_cast<off_t>(pos_) + read_off, buffer_off);
+                              static_cast<off_t>(eff_pos) + read_off, buffer_offset);
 
     if (read >= 0) {
       // worked well, continue
       n_read -= read;
       read_off += read;
-      buffer_off += read;
+      buffer_offset += read;
     } else {
       // say goodbye here
       HandleIOError(read);
     }
   }
 
+  return n_bytes;
+}
+
+size_t StdCUFileStream::ReadGPU(uint8_t* gpu_buffer, size_t n_bytes, size_t buffer_offset) {
+  n_bytes = ReadGPUImpl(gpu_buffer, n_bytes, buffer_offset, 0);
+
+  // we can safely advance the file pointer here
   pos_ += n_bytes;
   return n_bytes;
 }
