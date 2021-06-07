@@ -15,46 +15,29 @@
 #ifndef DALI_OPERATORS_READER_NUMPY_READER_OP_H_
 #define DALI_OPERATORS_READER_NUMPY_READER_OP_H_
 
-#include <utility>
 #include <string>
+#include <utility>
 #include <vector>
-
-#include "dali/operators/reader/reader_op.h"
 #include "dali/operators/reader/loader/numpy_loader.h"
+#include "dali/operators/reader/reader_op.h"
+#include "dali/pipeline/operator/arg_helper.h"
 
 namespace dali {
 
 class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
  public:
   explicit NumpyReader(const OpSpec& spec)
-    : DataReader< CPUBackend, ImageFileWrapper >(spec) {
+      : DataReader<CPUBackend, ImageFileWrapper>(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch);
   }
 
-  void RunImpl(SampleWorkspace &ws) override {
-    const int idx = ws.data_idx();
-
-    const auto& imfile = GetSample(idx);
-
-    // copy from raw_data -> outputs directly
-    auto &image_output = ws.Output<CPUBackend>(0);
-
-    // image
-    Index image_bytes = imfile.image.nbytes();
-
-    if (imfile.meta == "transpose:false") {
-      // just copy the tensor over
-      image_output.Resize(imfile.image.shape(), imfile.image.type());
-      std::memcpy(image_output.raw_mutable_data(),
-                  imfile.image.raw_data(),
-                  image_bytes);
-    } else {
-      // here we need to transpose the data
-      TransposeHelper(image_output, imfile.image);
-    }
-    image_output.SetSourceInfo(imfile.image.GetSourceInfo());
+  bool CanInferOutputs() const override {
+    return true;
   }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
+  void RunImpl(HostWorkspace &ws) override;
 
  protected:
   void TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);
