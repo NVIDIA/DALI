@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import os
 import platform
+import random
 import tempfile
 import nose.tools
 from test_utils import compare_pipelines, to_array
@@ -358,34 +359,34 @@ def test_numpy_reader_alias():
             yield check_numpy_reader_alias, test_data_root, device
 
 
-def NumpyReaderROIPipeline(file_root, batch_size, device="cpu", file_filter='*.npy',
-                           roi_start=None, rel_roi_start=None, roi_end=None, rel_roi_end=None, roi_shape=None,
-                           rel_roi_shape=None, roi_axes=None, default_axes=[],
-                           num_threads=4, device_id=0):
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
-    with pipe:
-        data = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter,
+@pipeline_def(device_id=0, num_threads=8)
+def numpy_reader_roi_pipe(file_root, device="cpu", file_filter='*.npy',
+                          roi_start=None, rel_roi_start=None, roi_end=None, rel_roi_end=None, roi_shape=None,
+                          rel_roi_shape=None, roi_axes=None, default_axes=[], out_of_bounds_policy=None, fill_value=None):
+    data = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter,
+                            shard_id=0, num_shards=1, cache_header_information=False)
+    roi_data = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter,
+                                roi_start=roi_start, rel_roi_start=rel_roi_start,
+                                roi_end=roi_end, rel_roi_end=rel_roi_end,
+                                roi_shape=roi_shape, rel_roi_shape=rel_roi_shape,
+                                roi_axes=roi_axes, out_of_bounds_policy=out_of_bounds_policy,
+                                fill_value=fill_value,
                                 shard_id=0, num_shards=1, cache_header_information=False)
-        roi_data = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter,
-                                    roi_start=roi_start, rel_roi_start=rel_roi_start,
-                                    roi_end=roi_end, rel_roi_end=rel_roi_end,
-                                    roi_shape=roi_shape, rel_roi_shape=rel_roi_shape,
-                                    roi_axes=roi_axes,
-                                    shard_id=0, num_shards=1, cache_header_information=False)
-        sliced_data = fn.slice(data, start=roi_start, rel_start=rel_roi_start,
-                               end=roi_end, rel_end=rel_roi_end,
-                               shape=roi_shape, rel_shape=rel_roi_shape,
-                               axes=roi_axes or default_axes)  # Slice has different default (axis_names="WH")
-    pipe.set_outputs(roi_data, sliced_data)
-    return pipe
+    sliced_data = fn.slice(data, start=roi_start, rel_start=rel_roi_start,
+                           end=roi_end, rel_end=rel_roi_end,
+                           shape=roi_shape, rel_shape=rel_roi_shape,
+                           axes=roi_axes or default_axes,  # Slice has different default (axis_names="WH")
+                           out_of_bounds_policy=out_of_bounds_policy, fill_values=fill_value)
+    return roi_data, sliced_data
 
-def check_roi_array(file_root, batch_size, ndim, dtype, device, fortran_order=False, file_filter="*.npy",
-                    roi_start=None, rel_roi_start=None, roi_end=None, rel_roi_end=None, roi_shape=None,
-                    rel_roi_shape=None, roi_axes=None):
+def _testimpl_numpy_reader_roi(file_root, batch_size, ndim, dtype, device, fortran_order=False, file_filter="*.npy",
+                               roi_start=None, rel_roi_start=None, roi_end=None, rel_roi_end=None, roi_shape=None,
+                               rel_roi_shape=None, roi_axes=None, out_of_bounds_policy=None, fill_value=None):
     default_axes = list(range(ndim))
-    pipe = NumpyReaderROIPipeline(file_root=file_root, file_filter=file_filter, device = device, batch_size=batch_size, num_threads=8, device_id=0,
-                                  roi_start=roi_start, rel_roi_start=rel_roi_start, roi_end=roi_end, rel_roi_end=rel_roi_end,
-                                  roi_shape=roi_shape, rel_roi_shape=rel_roi_shape, roi_axes=roi_axes, default_axes=default_axes)
+    pipe = numpy_reader_roi_pipe(file_root=file_root, file_filter=file_filter, device=device,
+                                 roi_start=roi_start, rel_roi_start=rel_roi_start, roi_end=roi_end, rel_roi_end=rel_roi_end,
+                                 roi_shape=roi_shape, rel_roi_shape=rel_roi_shape, roi_axes=roi_axes, default_axes=default_axes,
+                                 out_of_bounds_policy=out_of_bounds_policy, fill_value=fill_value, batch_size=batch_size)
 
     pipe.build()
     roi_out, sliced_out = pipe.run()
@@ -395,42 +396,103 @@ def check_roi_array(file_root, batch_size, ndim, dtype, device, fortran_order=Fa
         assert_array_equal(roi_arr, sliced_arr)
 
 def test_numpy_reader_roi():
-    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
-        # setup file
-        shapes=[(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)]
-        ndim=2
-        dtype=np.uint8
-        batch_size=8
-        file_filter="*.npy"
-        files = []
+    # setup file
+    shapes=[(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)]
+    ndim=2
+    dtype=np.uint8
+    batch_size=8
+    file_filter="*.npy"
 
-        # roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes
-        roi_args = [
-        ([1, 2], None, None, None, None, None, None),
-            (None, [0.1, 0.2], None, None, None, None, None),
-            (None, None, [8, 7], None, None, None, None),
-            (None, None, None, [0.5, 0.9], None, None, None),
-            (None, None, None, None, [4, 5], None, None),
-            (None, None, None, None, None, [0.4, 0.8], None),
-            (1, None, 9, None, None, None, [0]),
-            (1, None, 9, None, None, None, [1]),
-            ([1, 2], None, [8, 9], None, None, None, [0, 1]),
-            ([1, 2], None, [8, 9], None, None, None, [0, 1]),
-            ([1, 2], None, None, [0.5, 0.4], None, None, [0, 1]),
-            (None, [0.1, 0.2], [8, 9], None, None, None, [0, 1]),
-        ]
+    # roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy
+    roi_args = [
+        ([1, 2], None, None, None, None, None, None, None),
+        (None, [0.1, 0.2], None, None, None, None, None, None),
+        (None, None, [8, 7], None, None, None, None, None),
+        (None, None, None, [0.5, 0.9], None, None, None, None),
+        (None, None, None, None, [4, 5], None, None, None),
+        (None, None, None, None, None, [0.4, 0.8], None, None),
+        (1, None, 9, None, None, None, [0], None),
+        (1, None, 9, None, None, None, [1], None),
+        ([1, 2], None, [8, 9], None, None, None, [0, 1], None),
+        ([1, 2], None, [8, 9], None, None, None, [0, 1], None),
+        ([1, 2], None, None, [0.5, 0.4], None, None, [0, 1], None),
+        (None, [0.1, 0.2], [8, 9], None, None, None, [0, 1], None),
+        ([1, 2], None, [20, 9], None, None, None, [0, 1], "pad"),
+        ([-10, 2], None, [8, 9], None, None, None, [0, 1], "pad"),
+        ([1, 2], None, [20, 9], None, None, None, [0, 1], "trim_to_shape"),
+        ([-10, 2], None, [8, 9], None, None, None, [0, 1], "trim_to_shape"),
+    ]
 
-        for fortran_order in [False, True]:
+    for fortran_order in [False, True, None]:
+        with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
             index = 0
             for sh in shapes:
                 filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
-                create_numpy_file(filename, sh, dtype, fortran_order)
-                files.append(filename)
+                if fortran_order is None:
+                    fortran_order = random.choice([False, True])
+                actual_fortran_order=fortran_order if fortran_order is not None else random.choice([False, True])
+                create_numpy_file(filename, sh, dtype, actual_fortran_order)
 
             for device in ["cpu"]:  # TODO(janton): ROI is only supported for CPU backend, for now
-                for roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes in roi_args:
-                    yield check_roi_array, test_data_root, batch_size, ndim, type, device, fortran_order, file_filter, \
-                        roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes
+                for roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy in roi_args:
+                    fill_value = random.choice([None, 10.0])
+                    yield _testimpl_numpy_reader_roi, test_data_root, batch_size, ndim, dtype, device, fortran_order, file_filter, \
+                        roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy, fill_value
 
-            for filename in files:
-                delete_numpy_file(filename)
+
+def _testimpl_numpy_reader_roi_error(file_root, batch_size, ndim, dtype, device, fortran_order=False, file_filter="*.npy",
+                                     roi_start=None, rel_roi_start=None, roi_end=None, rel_roi_end=None, roi_shape=None,
+                                     rel_roi_shape=None, roi_axes=None, out_of_bounds_policy=None, fill_value=None):
+    @pipeline_def(batch_size=3, device_id=0, num_threads=8)
+    def pipe():
+        print(file_root)
+        print(file_filter)
+        data = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter,
+                                roi_start=roi_start, rel_roi_start=rel_roi_start,
+                                roi_end=roi_end, rel_roi_end=rel_roi_end,
+                                roi_shape=roi_shape, rel_roi_shape=rel_roi_shape,
+                                roi_axes=roi_axes, out_of_bounds_policy=out_of_bounds_policy,
+                                fill_value=fill_value,
+                                shard_id=0, num_shards=1, cache_header_information=False)
+        return data
+    p = pipe()
+    err = None
+    try:
+        p.build()
+        p.run()
+    except RuntimeError as thrown:
+        err = thrown
+    # asserts should not be in except block to avoid printing nested exception on failure
+    assert err, "Exception not thrown"
+
+def test_numpy_reader_roi_error():
+    # setup file
+    shapes=[(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)]
+    ndim=2
+    dtype=np.uint8
+    batch_size=8
+    file_filter="*.npy"
+
+    # roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy
+    roi_args = [
+        ([1, 2], [0.1, 0.2], None, None, None, None, None, None),  # Both roi_start and rel_roi_start
+        (None, None, [8, 7], [0.4, 0.5], None, None, None, None),  # Both roi_end and rel_roi_end
+        (None, None, [8, 7], None, [8, 7], None, None, None),  # Both roi_end and roi_shape
+        (None, None, [8, 7], None, None, [0.4, 0.5], None, None),  # Both roi_end and rel_roi_shape
+        (None, None, None, [0.5, 0.4], [8, 7], None, None, None),  # Both rel_roi_end and roi_shape
+        ([-1, 2], None, None, None, None, None, None, None), # Out of bounds anchor
+        (None, None, [100, 8], None, None, None, None, None), # Out of bounds end
+        (None, None, None, None, [100, 8], None, None, None), # Out of bounds shape
+    ]
+    fortran_order = False
+    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
+        index = 0
+        for sh in shapes:
+            filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+            create_numpy_file(filename, sh, dtype, fortran_order=fortran_order)
+
+        for device in ["cpu"]:  # TODO(janton): ROI is only supported for CPU backend, for now
+            for roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy in roi_args:
+                fill_value = random.choice([None, 10.0])
+                yield _testimpl_numpy_reader_roi_error, test_data_root, batch_size, ndim, dtype, device, fortran_order, file_filter, \
+                    roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy, fill_value

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,10 +20,12 @@
 #include <vector>
 
 #include "dali/operators/generic/slice/slice_attr.h"
+#include "dali/operators/generic/slice/out_of_bounds_policy.h"
 #include "dali/operators/reader/loader/numpy_loader.h"
 #include "dali/operators/reader/reader_op.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/util/crop_window.h"
+
 
 namespace dali {
 
@@ -35,6 +37,10 @@ class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
                     "rel_roi_shape", "roi_axes", nullptr) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch);
+    out_of_bounds_policy_ = GetOutOfBoundsPolicy(spec);
+    if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
+      fill_value_ = spec.GetArgument<float>("fill_value");
+    }
   }
 
   bool CanInferOutputs() const override {
@@ -47,14 +53,16 @@ class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
  protected:
   void TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);
   void SliceHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input,
-                   const CropWindow& roi);
+                   const CropWindow& roi, float fill_value = 0);
   void SlicePermuteHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input,
-                          const CropWindow& roi);
+                          const CropWindow& roi, float fill_value = 0);
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageFileWrapper);
 
  private:
   NamedSliceAttr slice_attr_;
   std::vector<CropWindow> rois_;
+  OutOfBoundsPolicy out_of_bounds_policy_ = OutOfBoundsPolicy::Error;
+  float fill_value_ = 0;
 };
 
 }  // namespace dali

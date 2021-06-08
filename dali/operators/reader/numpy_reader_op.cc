@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ void NumpyReader::TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CPUBa
 }
 
 void NumpyReader::SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
-                              const CropWindow &roi) {
+                              const CropWindow &roi, float fill_value) {
   int ndim = input.shape().sample_dim();
   VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
     TYPE_SWITCH(input.type().id(), type2id, T, NUMPY_ALLOWED_TYPES, (
@@ -46,6 +46,8 @@ void NumpyReader::SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBacken
       kernels::SliceArgs<T, Dims> args;
       args.anchor = roi.anchor;
       args.shape = roi.shape;
+      args.fill_values.clear();
+      args.fill_values.push_back(ConvertSat<T>(fill_value));
       kernels::KernelContext ctx;
       auto out_view = view<T, Dims>(output);
       auto in_view = view<const T, Dims>(input);
@@ -56,7 +58,7 @@ void NumpyReader::SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBacken
 }
 
 void NumpyReader::SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
-                                     const CropWindow &roi) {
+                                     const CropWindow &roi, float fill_value) {
   const auto& in_shape = input.shape();
   int ndim = in_shape.sample_dim();
   VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
@@ -66,6 +68,8 @@ void NumpyReader::SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor<CP
       args.anchor = roi.anchor;
       for (int d = 0; d < Dims; d++)
         args.permuted_dims[d] = Dims - 1 - d;
+      args.fill_values.clear();
+      args.fill_values.push_back(ConvertSat<T>(fill_value));
       kernels::KernelContext ctx;
       auto out_view = view<T, Dims>(output);
       auto in_view = view<const T, Dims>(input);
@@ -131,44 +135,78 @@ speed.)code",
         R"code(Start of the region-of-interest, in absolute coordinates.
 
 This argument is incompatible with "rel_roi_start".
+
+.. note::
+    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<float>>("rel_roi_start",
         R"code(Start of the region-of-interest, in relative coordinates (range [0.0 - 1.0]).
 
 This argument is incompatible with "roi_start".
+
+.. note::
+    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<int>>("roi_end",
         R"code(End of the region-of-interest, in absolute coordinates.
 
 This argument is incompatible with "rel_roi_end", "roi_shape" and "rel_roi_shape".
+
+.. note::
+    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<float>>("rel_roi_end",
         R"code(End of the region-of-interest, in relative coordinates (range [0.0 - 1.0]).
 
 This argument is incompatible with "roi_end", "roi_shape" and "rel_roi_shape".
+
+.. note::
+    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<int>>("roi_shape",
         R"code(Shape of the region-of-interest, in absolute coordinates.
 
 This argument is incompatible with "rel_roi_shape", "roi_end" and "rel_roi_end".
+
+.. note::
+    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<float>>("rel_roi_shape",
         R"code(Shape of the region-of-interest, in relative coordinates (range [0.0 - 1.0]).
 
 This argument is incompatible with "roi_shape", "roi_end" and "rel_roi_end".
+
+.. note::
+    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg("roi_axes",
         R"code(Order of dimensions used for the ROI anchor and shape argumens, as dimension indices.
 
 If not provided, all the dimensions should be specified in the ROI arguments.
+
+.. note::
+    ROI reading is currently available only for the CPU backend.
 )code",
         std::vector<int>{})
+    .AddOptionalArg("out_of_bounds_policy",
+        R"code(Determines the policy when reading outside of the bounds of the numpy array.
+
+Here is a list of the supported values:
+
+- ``"error"`` (default): Attempting to read outside of the bounds of the image will produce an error.
+- ``"pad"``: The array will be padded as needed with zeros or any other value that is specified
+  with the ``fill_value`` argument.
+- ``"trim_to_shape"``: The ROI will be cut to the bounds of the array.)code",
+        "error")
+    .AddOptionalArg("fill_value",
+        R"code(Determines the padding value when ``out_of_bounds_policy`` is set to “pad”.)code",
+        0.f)
   .AddParent("LoaderBase");
 
 
@@ -236,11 +274,13 @@ bool NumpyReader::SetupImpl(std::vector<OutputDesc> &output_desc,
     if (need_slice) {
       // Calculate the cropping window, based on the final layout (user provides axes in that
       // layout)
-      auto tmp_roi = slice_attr_.GetCropWindowGenerator(i)(sh.tensor_shape(i), {});
+      auto full_sample_sh = sh.tensor_shape(i);  // already permuted dims
+      auto tmp_roi = slice_attr_.GetCropWindowGenerator(i)(full_sample_sh, {});
+      ApplySliceBoundsPolicy(out_of_bounds_policy_, full_sample_sh, tmp_roi.anchor, tmp_roi.shape);
       sh.set_tensor_shape(i, tmp_roi.shape);  // set the final shape
 
-      // Reverse the cropping window arguments if needed, as we do slice before transpose to save
-      // bandwidth.
+      // Reverse the cropping window arguments if needed, as we provide slice arguments in the
+      // original layout
       auto &roi = rois_[i];
       if (is_transposed) {
         for (int d = 0; d < ndim; d++) {
@@ -274,16 +314,17 @@ void NumpyReader::RunImpl(HostWorkspace &ws) {
 
     // controls task priority
     int64_t task_sz = volume(file_i.image.shape());
+    // slice + transpose is treated as similar size as just slice
     if (need_slice)
       task_sz += volume(rois_[i].shape);
-    if (need_transpose)
+    else if (need_transpose)
       task_sz += out_sh.tensor_size(i);
 
     thread_pool.AddWork([&, i, need_transpose, need_slice](int tid) {
       if (need_slice && need_transpose) {
-        SlicePermuteHelper(output[i], file_i.image, rois_[i]);
+        SlicePermuteHelper(output[i], file_i.image, rois_[i], fill_value_);
       } else if (need_slice) {
-        SliceHelper(output[i], file_i.image, rois_[i]);
+        SliceHelper(output[i], file_i.image, rois_[i], fill_value_);
       } else if (need_transpose) {
         TransposeHelper(output[i], file_i.image);
       } else {

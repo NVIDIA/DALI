@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,31 @@
 #include "dali/operators/generic/slice/slice_attr.h"
 
 namespace dali {
+
+void ProcessAxesArgs(std::vector<int> &axes, TensorLayout &axis_names, const OpSpec &spec,
+                     const char* axes_name, const char* axis_names_name) {
+  axes.clear();
+  axis_names = TensorLayout{};
+  const bool use_axes = axes_name != nullptr;
+  const bool use_axis_names = axis_names_name != nullptr;
+  const bool has_axes_arg = use_axes && spec.HasArgument(axes_name);
+  const bool has_axis_names_arg = use_axis_names && spec.HasArgument(axis_names_name);
+  if (has_axes_arg && has_axis_names_arg) {
+    DALI_FAIL(
+        make_string("\"", axes_name, "\" and \"", axis_names_name, "\" are mutually exclusive"));
+  } else if (has_axes_arg) {
+    axes = spec.GetRepeatedArgument<int>(axes_name);
+    axis_names = TensorLayout{};
+  } else if (use_axis_names && spec.TryGetArgument(axis_names, axis_names_name)) {
+    axes = {};
+  } else if (use_axes && spec.TryGetArgument(axes, axes_name)) {
+    axis_names = TensorLayout{};
+  } else {
+    // Will use all-axes
+    axes = {};
+    axis_names = TensorLayout{};
+  }
+}
 
 DALI_SCHEMA(SliceAttr)
     .DocStr(R"code(Slice attributes placeholder)code")

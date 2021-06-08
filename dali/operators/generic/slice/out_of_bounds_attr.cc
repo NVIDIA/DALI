@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ DALI_SCHEMA(OutOfBoundsAttr)
 
 Here is a list of the supported values:
 
-- ``"error"`` (default): Attempting to slice outside of the bounds of the image will produce an error.
+- ``"error"`` (default): Attempting to slice outside of the bounds of the input will produce an error.
 - ``"pad"``: The input will be padded as needed with zeros or any other value that is specified
   with the ``fill_values`` argument.
 - ``"trim_to_shape"``: The slice window will be cut to the bounds of the input.)code", "error")

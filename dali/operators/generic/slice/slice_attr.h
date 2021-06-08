@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,6 +33,9 @@
 
 namespace dali {
 
+void ProcessAxesArgs(std::vector<int> &axes, TensorLayout &axis_names, const OpSpec &spec,
+                     const char* axes_name = "axes", const char* axis_names_name = "axis_names");
+
 class NamedSliceAttr {
  public:
   explicit inline NamedSliceAttr(const OpSpec &spec,
@@ -53,25 +56,20 @@ class NamedSliceAttr {
         rel_shape_(rel_shape_name, spec) {
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
-    const bool use_axes = axes_name != nullptr;
-    const bool use_axis_names = axis_names_name != nullptr;
-    const bool has_axes_arg = use_axes && spec.HasArgument(axes_name);
-    const bool has_axis_names_arg = use_axis_names && spec.HasArgument(axis_names_name);
-    // Process `axis_names` if provided, or if neither `axis_names` nor `axes` are
-    if (has_axis_names_arg || (!has_axes_arg && use_axis_names)) {
-      axis_names_ = spec.GetArgument<TensorLayout>(axis_names_name);
-      axes_ = {};
-    } else {
-      // Process `axes` only if provided and `axis_names` isn't
-      axes_ = spec.GetRepeatedArgument<int>(axes_name);
-      axis_names_ = TensorLayout{};
-    }
+    ProcessAxesArgs(axes_, axis_names_, spec, axes_name, axis_names_name);
+
     has_start_ = start_.IsDefined() || rel_start_.IsDefined();
+
+    if ((start_.IsDefined() + rel_start_.IsDefined()) > 1)
+      DALI_FAIL(make_string("\"", start_name, "\" and \"", rel_start_name,
+                            "\" arguments are mutually exclusive"));
+
     has_end_ = end_.IsDefined() || rel_end_.IsDefined();
     has_shape_ = shape_.IsDefined() || rel_shape_.IsDefined();
 
-    DALI_ENFORCE(!(has_end_ && has_shape_),
-        "``end``/``rel_end`` can't be provided together with ``shape``/``rel_shape``.");
+    if ((end_.IsDefined() + rel_end_.IsDefined() + shape_.IsDefined() + rel_shape_.IsDefined()) > 1)
+      DALI_FAIL(make_string("\"", end_name, "\", \"", rel_end_name, "\", \"", shape_name,
+                            "\", and \"", rel_shape_name, "\" arguments are mutually exclusive"));
   }
 
   template <typename Backend>
@@ -213,17 +211,7 @@ class PositionalSliceAttr {
     normalized_shape_ = spec.GetArgument<bool>("normalized_shape");
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
-    const bool has_axes_arg = spec.HasArgument("axes");
-    const bool has_axis_names_arg = spec.HasArgument("axis_names");
-    // Process `axis_names` if provided, or if neither `axis_names` nor `axes` are
-    if (has_axis_names_arg || !has_axes_arg) {
-      axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
-      axes_ = {};
-    } else {
-      // Process `axes` only if provided and `axis_names` isn't
-      axes_ = spec.GetRepeatedArgument<int>("axes");
-      axis_names_ = TensorLayout{};
-    }
+    ProcessAxesArgs(axes_, axis_names_, spec, "axes", "axis_names");
   }
 
   template <typename Backend>
@@ -362,14 +350,14 @@ class SliceAttr {
       DALI_ENFORCE(ws.NumInput() == spec_.GetSchema().MinNumInput(),
                   "Named arguments start/end/shape are not compatible with positional"
                   " anchor and shape inputs");
-    } else {
+    } else if (ws.NumInput() == (spec_.GetSchema().MinNumInput() + 2)) {
       bool processed_pos_args = pos_slice_attr_.template ProcessArguments<Backend>(ws);
-      if (!processed_pos_args) {
-        DALI_FAIL(
-            make_string("Expected named slice arguments (e.g. start/end, start/shape) "
-                        "or positional inputs (start, shape). Got ",
-                        ws.NumInput(), " inputs."));
-      }
+      DALI_ENFORCE(processed_pos_args, "Failed to process positional arguments (start, shape)");
+    } else {
+      DALI_FAIL(
+          make_string("Expected named slice arguments (e.g. start/end, start/shape) "
+                      "or positional inputs (start, shape). Got ",
+                      ws.NumInput(), " inputs."));
     }
   }
 
