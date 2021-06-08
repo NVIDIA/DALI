@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 #ifndef DALI_TEST_DALI_TEST_DECODER_H_
 #define DALI_TEST_DALI_TEST_DECODER_H_

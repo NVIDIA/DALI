@@ -1,4 +1,4 @@
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 # caffe_parse_header
 # Reads set of version defines from the header file
