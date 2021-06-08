@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from logging import exception
 import nvidia.dali as dali
 
 import nvidia.dali.plugin.tf as dali_tf
@@ -27,6 +28,7 @@ from tensorflow.python.client import device_lib
 from nose import SkipTest
 from distutils.version import LooseVersion
 import math
+from contextlib import contextmanager
 
 
 def skip_for_incompatible_tf():
@@ -47,6 +49,14 @@ def available_gpus():
     for device_id in range(num_available_gpus()):
         devices.append('/gpu:{0}'.format(device_id))
     return devices
+
+@contextmanager
+def expect_iter_end(should_raise, exception_type):
+    try:
+        yield
+    except exception_type:
+        if should_raise:
+            raise
 
 
 # ################################################################################################ #
@@ -184,14 +194,9 @@ def run_dataset_in_graph(dali_datasets, iterations, to_stop_iter=False):
 
     with tf.compat.v1.Session() as sess:
         sess.run(initializers)
-        try:
+        with expect_iter_end(not to_stop_iter, tf.errors.OutOfRangeError):
             for _ in range(iterations):
                 dataset_results.append(sess.run(ops_to_run))
-        except tf.errors.OutOfRangeError:
-            if to_stop_iter:
-                return dataset_results
-            else:
-                raise
     return dataset_results
 
 
@@ -200,14 +205,9 @@ def run_dataset_eager_mode(dali_datasets, iterations, to_stop_iter=False):
         dali_datasets = [dali_datasets]
 
     results = []
-    try:
+    with expect_iter_end(not to_stop_iter, StopIteration):
         for i, batch in zip(range(iterations), zip(*dali_datasets)):
             results.append(batch)
-    except StopIteration:
-        if to_stop_iter:
-            return results
-        else:
-            raise
     return results
 
 
@@ -217,18 +217,13 @@ def run_pipeline(pipelines, iterations, device, to_stop_iter=False):
     for pipeline in pipelines:
         pipeline.build()
     results = []
-    try:
+    with expect_iter_end(not to_stop_iter, StopIteration):
         for _ in range(iterations):
             shard_outputs = []
             for pipeline in pipelines:
                 pipe_outputs = pipeline.run()
                 shard_outputs.append(tuple(to_array(result) for result in pipe_outputs))
             results.append(tuple(shard_outputs))
-    except StopIteration:
-        if to_stop_iter:
-            return results
-        else:
-            raise
     return results
 
 
