@@ -317,7 +317,7 @@ if (DALI_CLANG_ONLY)
   message(STATUS "Generated gencode flags for clang: ${CUDA_gencode_flags_clang}")
   CUDA_get_toolkit_from_compiler(CUDA_TOOLKIT_PATH_VAR)
   message(STATUS "Used CUDA toolkit: ${CUDA_TOOLKIT_PATH_VAR}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --cuda-path=${CUDA_TOOLKIT_PATH_VAR} ${CUDA_gencode_flags_clang}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-cuda-version --cuda-path=${CUDA_TOOLKIT_PATH_VAR} ${CUDA_gencode_flags_clang}")
 endif()
 
 # Add ptx & bin flags for cuda compiler (nvcc)

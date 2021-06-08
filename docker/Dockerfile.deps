@@ -30,6 +30,20 @@ ENV DALI_DEPS_REPO=${DALI_DEPS_REPO:-https://github.com/NVIDIA/DALI_deps}
 ARG DALI_DEPS_VERSION_SHA
 ENV DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA}
 
+# Clang, build it before deps as deps changes more frequently
+RUN CLANG_VERSION=11.1.0                                                                           && \
+    cd tmp                                                                                         && \
+    wget https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-${CLANG_VERSION}.tar.gz    && \
+    tar -xf llvmorg-*.tar.gz                                                                       && \
+    rm -rf llvmorg-*.tar.gz                                                                        && \
+    cd llvm-*                                                                                      && \
+    mkdir build                                                                                    && \
+    cd build                                                                                       && \
+    cmake -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles" ../llvm && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install                                      && \
+    cd /tmp                                                                                        && \
+    rm -rf llvm-*
+
 # run in /bin/bash to have more advanced features supported like list
 RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI_DEPS_VERSION)}    && \
     git clone ${DALI_DEPS_REPO} /tmp/dali_deps                                                     && \
@@ -40,15 +54,6 @@ RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI
     export CC_COMP=${CC}                                                                           && \
     export CXX_COMP=${CXX}                                                                         && \
     /tmp/dali_deps/build_scripts/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/DALI_DEPS_VERSION'
-
-# Clang, but only for x86_64
-RUN if [ "$(uname -m)" == "x86_64" ]; then \
-        CLANG_VERSION=10.0.0 && \
-        cd /usr/local && \
-        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}/clang+llvm-${CLANG_VERSION}-x86_64-linux-sles11.3.tar.xz && \
-        tar -xJf clang+llvm-*.tar.xz --strip 1 && \
-        rm clang+llvm-*.tar.xz; \
-    fi
 
 # extra deps
 COPY --from=extra_deps / /
