@@ -1,0 +1,35 @@
+#!/bin/sh
+
+# Check copyright notice
+files=`git diff --cached --name-only`
+year=`date +%Y`
+
+for f in $files; do
+    head -10 $f | grep -i "Copyright (c)" 2>&1 1>/dev/null || continue  # Copyright not present in this file
+
+    if ! grep -i -e "$year, NVIDIA CORPORATION" $f 2>&1 1>/dev/null; then
+        need_update_year="$need_update_year $f"
+    fi
+
+    if ! grep -i -e ", NVIDIA CORPORATION & AFFILIATES" $f 2>&1 1>/dev/null; then
+        need_add_affiliates="$need_add_affiliates $f"
+    fi
+done
+
+if [ -n "$need_add_affiliates" ]; then
+    echo "'& AFFILIATES' is missing in the copyright notice of the following files:"
+    for f in $need_add_affiliates; do
+        echo "    $f"
+    done
+    exit 1
+fi
+
+if [ -n "$need_update_year" ]; then
+    echo "$year is missing in the copyright notice of the following files:"
+    for f in $need_update_year; do
+        echo "    $f"
+    done
+    exit 1
+fi
+
+exit 0
