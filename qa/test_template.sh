@@ -56,7 +56,18 @@ do
         # install packages
         inst=$($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
         if [ -n "$inst" ]; then
-            pip install $inst -f /pip-packages
+            for pkg in ${inst}
+            do
+                # turn off error
+                set +e
+                pip install $pkg -f /pip-packages --no-index
+                res=$?
+                set -e
+                # if no package was found in our download dir, so install it from index
+                if [ "$res" != "0" ]; then
+                    pip install $pkg
+                fi
+            done
 
             # If we just installed tensorflow, we need to reinstall DALI TF plugin
             if [[ "$inst" == *tensorflow* ]]; then
