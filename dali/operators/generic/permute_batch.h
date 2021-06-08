@@ -29,7 +29,7 @@ class PermuteBatchBase : public Operator<Backend> {
   }
 
   bool SetupImpl(vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override {
-    auto curr_batch_size = ws.GetInputBatchSize(0);
+    int curr_batch_size = ws.GetRequestedBatchSize(0);
     outputs.resize(1);
     auto &input = ws.template InputRef<Backend>(0);
     const auto &in_shape = input.shape();
@@ -39,6 +39,8 @@ class PermuteBatchBase : public Operator<Backend> {
       GetPerSampleArgument<int>(indices_, "indices", this->spec_, ws, curr_batch_size);
     } else {
       this->spec_.TryGetRepeatedArgument(indices_, "indices");
+      DALI_ENFORCE(static_cast<int>(indices_.size()) == curr_batch_size,
+        "The length of `indices` list does not match the requested batch size");
     }
 
     auto &out_shape = outputs[0].shape;
