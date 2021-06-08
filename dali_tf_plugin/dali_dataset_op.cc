@@ -178,7 +178,6 @@ class DALIDatasetOp::Dataset : public DatasetBase {
                                 AttrSerializationContainer &attrs) const {
     SerializeField(attrs, b, kInputNames, input_desc.input_names);
     SerializeField(attrs, b, kInputLayouts, input_desc.input_layouts);
-    SerializeField(attrs, b, kInputBatch, input_desc.input_batch);
   }
 
   Status InputsToNodeList(SerializationContext *context, DatasetGraphDefBuilder *b,
@@ -208,7 +207,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
   class Iterator;
 
   bool HasInputs() const {
-    return input_desc_.inputs.size() > 0;
+    return !input_desc_.inputs.empty();
   }
 
 
@@ -231,7 +230,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     mutex_lock l(mu_);
     iterator_state_ = InputState::in_progress;
     if (dataset()->HasInputs()) {
-      input_impls_.resize(dataset()->input_desc_.inputs.size());
+      input_impls_.resize(dataset()->NumInputs());
       for (size_t i = 0; i < input_impls_.size(); ++i) {
 #if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3
         TF_RETURN_IF_ERROR(dataset()->input_desc_.inputs[i]->MakeIterator(
@@ -274,7 +273,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 
     if (dataset()->HasInputs()) {
       // if someone is stubborn enough to query us after the end of input data
-      // TODO(klecki): we should raise a warning that reinitializing DALI Pipeline is not efficeint
+      // TODO(klecki): we should raise a warning that reinitializing DALI Pipeline is not efficient
       if (iterator_state_ == InputState::stop_signaled) {
         *end_of_sequence = true;
         return Status::OK();
@@ -378,22 +377,25 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
   Status PrefetchPipeline(IteratorContext *context, daliPipelineHandle *pipeline_handle) {
     if (!dataset()->pipeline_def_.exec_separated) {
       int prefetch_depth = dataset()->pipeline_def_.prefetch_queue_depth;
+      int actual_prefetch_depth = 0;
       if (dataset()->HasInputs()) {
         for (int i = 0; i < prefetch_depth; i++) {
           bool end_of_sequence;
           ListOfBatches batches;
           TF_RETURN_IF_ERROR(PrepareBatches(context, batches, &end_of_sequence));
           if (end_of_sequence) {
-            return errors::InvalidArgument(
-                "End of sequence encountered during initial data prefetching. Make sure that the "
-                "input datasets have enough data to fill ",
-                prefetch_depth, " batches.");
+            iterator_state_ = InputState::stop_pending;
+            break;
+          } else {
+            // we only feed and don't release during warmup.
+            TF_RETURN_IF_ERROR(FeedInputs(pipeline_handle, std::move(batches)));
+            actual_prefetch_depth++;
           }
-          // we only feed and don't release during warmup.
-          TF_RETURN_IF_ERROR(FeedInputs(pipeline_handle, std::move(batches)));
         }
+      } else {
+        actual_prefetch_depth = prefetch_depth;
       }
-      TF_DALI_CALL(daliPrefetchUniform(pipeline_handle, prefetch_depth));
+      TF_DALI_CALL(daliPrefetchUniform(pipeline_handle, actual_prefetch_depth));
     } else {
       if (dataset()->HasInputs()) {
         return errors::InvalidArgument("Input datasets are not compatible with split executor.");
@@ -804,7 +806,6 @@ void DALIDatasetOp::FillPipelineDef(OpKernelConstruction *context, PipelineDef &
 void DALIDatasetOp::FillInputDef(OpKernelConstruction *context, InputDef &def) {
   OP_REQUIRES_OK(context, context->GetAttr(kInputNames, &def.input_names));
   OP_REQUIRES_OK(context, context->GetAttr(kInputLayouts, &def.input_layouts));
-  OP_REQUIRES_OK(context, context->GetAttr(kInputBatch, &def.input_batch));
 }
 
 void DALIDatasetOp::FillInputs(OpKernelContext *context, Inputs &def) {
@@ -856,7 +857,6 @@ REGISTER_OP("DALIDataset")
     .Output("handle: variant")
     .Attr("input_names: list(string)")    // must match the input_datasets
     .Attr("input_layouts: list(string)")  // must match the input_datasets
-    .Attr("input_batch: bool = true")     // TODO(klecki): extend to list?
     .Attr("pipeline: string")
     .Attr("batch_size: int")
     .Attr("num_threads: int")

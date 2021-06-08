@@ -86,7 +86,6 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
   struct InputDef {
     std::vector<std::string> input_names;
     std::vector<std::string> input_layouts;
-    bool input_batch = false;
   };
 
   struct InputDesc : Inputs, InputDef {
@@ -108,7 +107,6 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
   // Arguments describing inputs
   static constexpr const char* const kInputNames = "input_names";
   static constexpr const char* const kInputLayouts = "input_layouts";
-  static constexpr const char* const kInputBatch = "input_batch";
 
   // Arguments describing outputs
   static constexpr const char* const kOutputShapes = "output_shapes";

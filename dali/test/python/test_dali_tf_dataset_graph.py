@@ -16,6 +16,7 @@ import tensorflow
 from test_utils_tensorflow import *
 from test_dali_tf_dataset_pipelines import *
 from nose.tools import raises, with_setup
+import random as random
 
 tensorflow.compat.v1.disable_eager_execution()
 
@@ -28,18 +29,18 @@ def test_tf_dataset_cpu():
     run_tf_dataset_graph('cpu')
 
 
-def run_tf_dataset_with_fixed_input(dev, shape, value, dtype):
+def run_tf_dataset_with_constant_input(dev, shape, value, dtype):
     tensor = np.full(shape, value, dtype)
     run_tf_dataset_graph(dev,
         get_pipeline_desc=external_source_tester(shape, dtype, FixedSampleIterator(tensor)),
         to_dataset=external_source_converter_with_fixed_value(shape, dtype, tensor))
 
-def test_tf_dataset_with_fixed_input():
+def test_tf_dataset_with_constant_input():
     for dev in ['cpu', 'gpu']:
         for shape in [(7, 42), (64, 64, 3), (3, 40, 40, 4)]:
             for dtype in [np.uint8, np.int32, np.float32]:
-                for value in [42, 255]:
-                    yield run_tf_dataset_with_fixed_input, dev, shape, value, dtype
+                value = random.choice([42, 255])
+                yield run_tf_dataset_with_constant_input, dev, shape, value, dtype
 
 
 def run_tf_dataset_with_random_input(dev, max_shape, dtype):
@@ -66,16 +67,18 @@ def test_tf_dataset_with_random_input_gpu():
             yield run_tf_dataset_with_random_input_gpu, max_shape, dtype
 
 
-def run_tf_dataset_with_stop_iter(dev, max_shape, dtype):
+def run_tf_dataset_with_stop_iter(dev, max_shape, dtype, stop_samples):
     run_tf_dataset_graph(dev, to_stop_iter=True,
-        get_pipeline_desc=external_source_tester(max_shape, dtype, RandomSampleIterator(max_shape, dtype(0), start=0, stop=12 * 5 - 3)),
-        to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype, 0, 12 * 5 - 3))
+        get_pipeline_desc=external_source_tester(max_shape, dtype, RandomSampleIterator(max_shape, dtype(0), start=0, stop=stop_samples)),
+        to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype, 0, stop_samples))
 
 def test_tf_dataset_with_stop_iter():
+    batch_size = 12
     for dev in ['cpu', 'gpu']:
         for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
             for dtype in [np.uint8, np.int32, np.float32]:
-                yield run_tf_dataset_with_stop_iter, dev, max_shape, dtype
+                for iters in [1, 2, 3, 4, 5]:
+                    yield run_tf_dataset_with_stop_iter, dev, max_shape, dtype, iters * batch_size - 3
 
 
 def run_tf_dataset_multi_input(dev, start_values, input_names):

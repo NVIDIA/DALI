@@ -31,7 +31,7 @@ class RandomSampleIterator:
                  max_shape=(10, 600, 800, 3),
                  dtype_sample=np.uint8(0),
                  start=0,
-                 stop=10e100,
+                 stop=1e100,
                  min_shape=None,
                  seed=42):
         self.start = start
@@ -99,7 +99,7 @@ def one_input_pipeline(def_for_dataset, device, source, external_source_device):
         # We use no copy when the input memory is matching the external source placement,
         # so the Dataset's placement is the same as external source's device
         input = fn.external_source(name="input_placeholder",
-                                   no_copy=device == external_source_device,
+                                   no_copy=(device == external_source_device),
                                    device=external_source_device)
     else:
         input = fn.external_source(name="actual_input",
@@ -142,7 +142,6 @@ def external_source_converter_with_callback(input_iterator, shape, dtype, *args)
     def to_dataset(pipeline_desc, device_str):
         with tf.device('/cpu:0'):
             _args = (shape, dtype(0)) + tuple(args)
-            print(_args)
             out_shape = tuple(None for _ in shape)
             tf_type = tf.dtypes.as_dtype(dtype)
             input_dataset = tf.data.Dataset.from_generator(
@@ -224,7 +223,6 @@ def external_source_converter_multiple(start_values, input_names):
         with tf.device('/cpu:0'):
             input_datasets = []
             for value, name in zip(start_values, input_names):
-
                 tf_type = tf.dtypes.as_dtype(value.dtype)
                 shape = value.shape
                 input_dataset = tf.data.Dataset.from_generator(

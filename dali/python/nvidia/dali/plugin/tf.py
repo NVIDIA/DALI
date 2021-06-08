@@ -41,16 +41,18 @@ _experimental_dataset_docstring = """Experimental variant of
 
 Each of the input datasets must be mapped to a :meth:`~nvidia.dali.fn.external_source` operator
 that will represent the input to the DALI pipeline. The input is represented by the ``name``
-parameter of :meth:`~nvidia.dali.fn.external_source` and needs to be provided to the corresponding
+parameter of :meth:`~nvidia.dali.fn.external_source` and needs to be provided for the corresponding
 input dataset via the ``input_names`` argument of DALIDatasetWithInputs.
+
+The input datasets are assumed to operate in sample mode - it means that every input dataset
+is treated as if providing individual samples.
+DALIDataset will query the inputs dataset ``batch_size``-times to build a batch that would
+be fed into the DALI Pipeline.
+In sample mode, each sample produced by the input dataset can have a different shape,
+but not a different number of dimensions.
 
 .. warning::
     This class is experimental and its API might change without notice.
-
-
-.. warning::
-    This version of the class is just an API placeholder and the functionality is not yet
-    implemented.
 
 The operator adds additional parameters to the ones supported by the
 :class:`~nvidia.dali.plugin.tf.DALIDataset`:
@@ -63,7 +65,7 @@ Parameters
 
         .. warning::
             Input dataset must be placed on the same device as ``DALIDatasetWithInputs``.
-            If the input has different placement (input is placed on CPU, while
+            If the input has different placement (for instance, input is placed on CPU, while
             ``DALIDatasetWithInputs`` is placed on GPU) the ``tf.data.experimental.copy_to_device``
             with GPU argument must be first applied to input.
 
@@ -77,14 +79,6 @@ Parameters
         instance with the name ``input_names[i]``.
         If not provided while specifying the ``input_datasets``, an empty layout string will be
         used.
-    input_batch : bool, optional, default = False
-        batch mode for the input datasets. Only the default - sample mode - is supported,
-        that is ``input_batch = False``.
-        Sample mode means that every input dataset is treated as if providing individual samples.
-        DALIDataset will query the inputs dataset ``batch_size``-times to build a batch that would
-        be fed into the DALI Pipeline.
-        In sample mode, each sample produced by the input dataset can have a different shape,
-        but not a different number of dimensions.
 """
 
 
@@ -237,7 +231,6 @@ if dataset_compatible_tensorflow():
                      input_datasets=None,
                      input_names=None,
                      input_layouts=None,
-                     input_batch=False,
                      # Experimental inputs end
                      batch_size=1,
                      num_threads=4,
@@ -270,7 +263,7 @@ if dataset_compatible_tensorflow():
 
             output_classes = nest.map_structure(lambda _: ops.Tensor, output_dtypes)
 
-            self._parse_inputs(input_datasets, input_names, input_layouts, input_batch)
+            self._setup_inputs(input_datasets, input_names, input_layouts)
 
             # TODO(klecki): Inspect the graph in the pipeline and set proper defaults in the External Source
 
@@ -294,7 +287,7 @@ if dataset_compatible_tensorflow():
 
             super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
 
-        def _parse_inputs(self, input_datasets, input_names, input_layouts, input_batch):
+        def _setup_inputs(self, input_datasets, input_names, input_layouts):
             """Verify the input specification and assign it to private members in
             normalized form."""
             try:
@@ -303,13 +296,13 @@ if dataset_compatible_tensorflow():
                 raise ValueError("`input_datasets` and `input_names` structure do not match.") from e
             if input_datasets is not None:
                 if not self._check_dtypes(input_datasets, dataset_ops.DatasetV2):
-                    raise TypeError(("`input_datasets` should be provided as single input " +
+                    raise TypeError(("`input_datasets` should be provided as a " +
                         "tf.data.Dataset object or a tuple of Datasets. Got `{}` of type `{}`.") \
                         .format(input_datasets, type(input_datasets)))
 
                 if not self._check_dtypes(input_names, str):
-                    raise TypeError(("`input_names` should be provided as single str or a tuple of str. " +
-                        "Got `{}` of type `{}`.") \
+                    raise TypeError(("`input_names` should be provided as a str or a tuple" +
+                        " of str. Got `{}` of type `{}`.") \
                         .format(input_names, type(input_names)))
 
                 # TODO(klecki): we can possibly add a syntactic sugar and allow only one layout to be
@@ -320,7 +313,7 @@ if dataset_compatible_tensorflow():
                     except ValueError as e:
                         raise ValueError("`input_datasets` and `input_layouts` structure do not match.") from e
                     if not self._check_dtypes(input_layouts, str):
-                        raise TypeError(("`input_layouts` should be provided as single str " +
+                        raise TypeError(("`input_layouts` should be provided as a str " +
                             "or a tuple of str. Got `{}` of type `{}`.") \
                             .format(input_layouts, type(input_layouts)))
                 else:
@@ -339,14 +332,6 @@ if dataset_compatible_tensorflow():
             self._input_datasets = input_datasets
             self._input_names = input_names
             self._input_layouts = input_layouts
-
-            if input_batch != False:
-                raise NotImplementedError(
-                    ("Inputs to dataset can work only in per-sample mode, " +
-                     " that is for `input_batch = False`. Got `input_batch = {}`."
-                     ).format(input_batch))
-
-            self._input_batch = input_batch
 
             # TODO(klecki): Validate number of specified inputs against the Pipeline
 
@@ -399,7 +384,6 @@ if dataset_compatible_tensorflow():
                 # Description of inputs
                 input_names=self._input_names,
                 input_layouts=self._input_layouts,
-                input_batch=self._input_batch,
                 # End of experimental inputs
                 pipeline=self._pipeline,
                 batch_size=self._batch_size,
@@ -423,7 +407,7 @@ if dataset_compatible_tensorflow():
     else:
         _DALIDatasetImpl = _DALIDatasetV2
 
-    _experimental_kwargs = ['input_datasets', 'input_names', 'input_layouts', 'input_batch']
+    _experimental_kwargs = ['input_datasets', 'input_names', 'input_layouts']
 
     class DALIDataset(dataset_ops._OptionsDataset):
         @functools.wraps(_DALIDatasetV2.__init__)
