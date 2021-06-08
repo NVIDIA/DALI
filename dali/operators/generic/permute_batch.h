@@ -29,19 +29,25 @@ class PermuteBatchBase : public Operator<Backend> {
   }
 
   bool SetupImpl(vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override {
-    int curr_batch_size = ws.GetRequestedBatchSize(0);
     outputs.resize(1);
     auto &input = ws.template InputRef<Backend>(0);
     const auto &in_shape = input.shape();
     outputs[0].type = input.type();
 
     if (has_indices_input_) {
-      GetPerSampleArgument<int>(indices_, "indices", this->spec_, ws, curr_batch_size);
+      auto &idx_in = ws.ArgumentInput("indices");
+      auto idx_view = view<const int, 0>(idx_in);
+      indices_.resize(idx_view.num_samples());
+      for (int i = 0; i < idx_view.num_samples(); i++) {
+        indices_[i] = *idx_view.data[i];
+      }
     } else {
       this->spec_.TryGetRepeatedArgument(indices_, "indices");
-      DALI_ENFORCE(static_cast<int>(indices_.size()) == curr_batch_size,
-        "The length of `indices` list does not match the requested batch size");
     }
+    // TODO(michalz): Remove when fully variable batch size is supported
+    DALI_ENFORCE(static_cast<int>(indices_.size()) == ws.GetRequestedBatchSize(0), make_string(
+      "The number of sample indices ", indices_.size(), " does not match the current batch size, "
+      "which is ", ws.GetRequestedBatchSize(0)));
 
     auto &out_shape = outputs[0].shape;
     int D = in_shape.sample_dim();
