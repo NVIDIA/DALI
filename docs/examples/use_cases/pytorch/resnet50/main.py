@@ -103,11 +103,15 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
     decoder_device = 'cpu' if dali_cpu else 'mixed'
     device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
     host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
+    preallocate_width_hint = 5980 if decoder_device == 'mixed' else 0
+    preallocate_height_hint = 6430 if decoder_device == 'mixed' else 0
     if is_training:
         images = fn.decoders.image_random_crop(images,
                                                device=decoder_device, output_type=types.RGB,
                                                device_memory_padding=device_memory_padding,
                                                host_memory_padding=host_memory_padding,
+                                               preallocate_width_hint=preallocate_width_hint,
+                                               preallocate_height_hint=preallocate_height_hint,
                                                random_aspect_ratio=[0.8, 1.25],
                                                random_area=[0.1, 1.0],
                                                num_attempts=100)
@@ -120,7 +124,11 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
     else:
         images = fn.decoders.image(images,
                                    device=decoder_device,
-                                   output_type=types.RGB)
+                                   output_type=types.RGB,
+                                   device_memory_padding=device_memory_padding,
+                                   host_memory_padding=host_memory_padding,
+                                   preallocate_width_hint=preallocate_width_hint,
+                                   preallocate_height_hint=preallocate_height_hint)
         images = fn.resize(images,
                            device=dali_device,
                            size=size,
