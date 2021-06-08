@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,8 +25,12 @@ using TheKernel = kernels::MultiplyAddCpu<Out, In, 3>;
 
 
 DALI_SCHEMA(Brightness)
-    .DocStr(R"code(Adjusts the brightness of the images based on the following formula::
+    .DocStr(R"code(Adjusts the brightness of the images.
+
+The brightness is adjusted based on the following formula::
+
     out = brightness_shift * output_range + brightness * in
+
 Where output_range is 1 for float outputs or the maximum positive value for integral types.
 
 This operator can also change the type of data.)code")
@@ -46,12 +50,11 @@ the type.)code",
 If not set, the input type is used.)code", DALI_NO_TYPE);
 
 DALI_SCHEMA(Contrast)
-    .DocStr(R"code(Adjusts the contrast of the images based on the following formula::
-    out = grey + contrast * (in - grey)
-Where:
+    .DocStr(R"code(Adjusts the contrast of the images.
 
--	The output_range is 1 for float outputs or the maximum positive value for integral types.
--	Grey denotes the value of 0.5 for ``float``, 128 for ``uint8``, and 16384 for ``int16``, and so on.
+The contrast is adjusted based on the following formula::
+
+    out = contrast_center + contrast * (in - contrast_center)
 
 This operator can also change the type of data.)code")
     .NumInput(1)
@@ -72,15 +75,13 @@ If not set, the input type is used.)code", DALI_NO_TYPE);
 DALI_SCHEMA(BrightnessContrast)
     .AddParent("Brightness")
     .AddParent("Contrast")
-    .DocStr(R"code(Adjusts the brightness and contrast of the images based on the following
-formula::
+    .DocStr(R"code(Adjusts the brightness and contrast of the images.
 
-  out = brightness_shift * output_range + brightness * (grey + contrast * (in - grey))
+The brightness and contrast are adjusted based on the following formula::
 
-Where:
+  out = brightness_shift * output_range + brightness * (contrast_center + contrast * (in - contrast_center))
 
--	The output_range is 1 for float outputs or the maximum positive value for integral types.
--	Grey denotes the value of 0.5 for ``float``, 128 for ``uint8``, and 16384 for ``int16``, and so on.
+Where the output_range is 1 for float outputs or the maximum positive value for integral types.
 
 This operator can also change the type of data.)code")
     .NumInput(1)

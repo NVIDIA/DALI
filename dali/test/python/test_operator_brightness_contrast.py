@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,11 +38,13 @@ def convert_sat(data, out_dtype):
     clipped = np.round(clipped)
   return clipped.astype(out_dtype)
 
-def dali_to_np_type(dtype):
+def dali_type_to_np(dtype):
   if dtype == types.FLOAT:
     return np.single
   elif dtype == types.INT16:
     return np.short
+  elif dtype == types.INT32:
+    return np.intc
   elif dtype == types.UINT8:
     return np.ubyte
   else:
@@ -59,49 +61,74 @@ def ref_operator(contrast_center, out_dtype):
   return lambda input, brightness, brightness_shift, contrast: \
                 bricon_ref(input, brightness, brightness_shift, contrast, contrast_center, out_dtype)
 
-def params():
+def contrast_param():
+  return fn.random.uniform(range=[-1.0, 1.0], seed=123)
+
+def brightness_params():
   return fn.random.uniform(range=[0.0, 5.0], seed=123), \
-         fn.random.uniform(range=[0.0, 5.0], seed=123), \
          fn.random.uniform(range=[-1.0, 1.0], seed=123)
 
-
 @pipeline_def(num_threads=4, device_id=0, seed=1234)
-def bri_and_con_pipe(data_iterator, contrast_center, dtype, dev='cpu'):
-  contrast, brightness, brightness_shift = params()
+def bri_pipe(data_iterator, dtype, dev='cpu'):
+  brightness, brightness_shift = brightness_params()
   inp = fn.external_source(source=data_iterator)
   if dev == 'gpu':
     inp = inp.gpu()
-  inp = fn.contrast(inp, contrast=contrast, contrast_center=contrast_center)
   inp = fn.brightness(inp, brightness=brightness, brightness_shift=brightness_shift, dtype=dtype)
   return inp
 
 @pipeline_def(num_threads=4, device_id=0, seed=1234)
-def bricon_pipe(data_iterator, contrast_center, dtype, dev='cpu'):
-  contrast, brightness, brightness_shift = params()
+def con_pipe(data_iterator, contrast_center, dtype, dev='cpu'):
+  contrast = contrast_param()
   inp = fn.external_source(source=data_iterator)
   if dev == 'gpu':
     inp = inp.gpu()
-  inp = fn.brightness_contrast(inp, brightness=brightness, brightness_shift=brightness_shift,
-                               contrast=contrast, contrast_center=contrast_center, dtype=dtype)
+  inp = fn.contrast(inp, contrast=contrast, contrast_center=contrast_center, dtype=dtype)
+  return inp
+
+@pipeline_def(num_threads=4, device_id=0, seed=1234)
+def bricon_pipe(data_iterator, contrast_center, bri, con, dtype, dev='cpu'):
+  if bri:
+    brightness, brightness_shift = brightness_params()
+  if con:
+    contrast = contrast_param()
+  inp = fn.external_source(source=data_iterator)
+  if dev == 'gpu':
+    inp = inp.gpu()
+  if bri and con:
+    inp = fn.brightness_contrast(inp, brightness=brightness, brightness_shift=brightness_shift,
+                                 contrast=contrast, contrast_center=contrast_center, dtype=dtype)
+  elif bri:
+    inp = fn.brightness_contrast(inp, brightness=brightness, brightness_shift=brightness_shift,
+                                 dtype=dtype)
+  elif con:
+    inp = fn.brightness_contrast(inp, contrast=contrast, contrast_center=contrast_center,
+                                 dtype=dtype)
   return inp
 
 @pipeline_def(num_threads=4, device_id=0, seed=1234, exec_pipelined=False, exec_async=False)
 def bricon_ref_pipe(data_iterator, contrast_center, dtype, dev='cpu'):
-  contrast, brightness, brightness_shift = params()
+  brightness, brightness_shift = brightness_params()
+  contrast = contrast_param()
   inp = fn.external_source(source=data_iterator)
   inp = fn.python_function(inp, brightness, brightness_shift, contrast,\
-                           function=ref_operator(contrast_center, dali_to_np_type(dtype)))
+                           function=ref_operator(contrast_center, dali_type_to_np(dtype)))
   return inp
 
-def check_equivalence(device, dtype):
+def check_equivalence(device, inp_dtype, out_dtype, op):
   batch_size=32
   n_iters = 16
-  ri1 = RandomDataIterator(batch_size, shape=(1, 1, 1), dtype=dali_to_np_type(dtype))
-  ri2 = RandomDataIterator(batch_size, shape=(1, 1, 1), dtype=dali_to_np_type(dtype))
-  contrast_center = 0.4 * max_range(dali_to_np_type(dtype))
-  pipe1 = bri_and_con_pipe(ri1, contrast_center, dtype, device, batch_size=batch_size)
-  pipe2 = bricon_pipe(ri2, contrast_center, dtype, device, batch_size=batch_size)
-  if dtype in [np.half, np.single, np.double]:
+  ri1 = RandomDataIterator(batch_size, shape=(128, 32, 3), dtype=dali_type_to_np(inp_dtype))
+  ri2 = RandomDataIterator(batch_size, shape=(128, 32, 3), dtype=dali_type_to_np(inp_dtype))
+  contrast_center = 0.4 * max_range(dali_type_to_np(inp_dtype))
+  if op == 'brightness':
+    pipe1 = bri_pipe(ri1, out_dtype, device, batch_size=batch_size)
+  else:
+    pipe1 = con_pipe(ri1, contrast_center, out_dtype, device, batch_size=batch_size)
+  bri = op == 'brightness'
+  con = op == 'contrast'
+  pipe2 = bricon_pipe(ri2, contrast_center, bri, con, out_dtype, device, batch_size=batch_size)
+  if out_dtype in [np.half, np.single, np.double]:
     eps = 1e-4
   else:
     eps = 1
@@ -109,18 +136,20 @@ def check_equivalence(device, dtype):
 
 def test_equivalence():
   for device in ['cpu', 'gpu']:
-    for dtype in [types.FLOAT, types.INT16, types.UINT8]:
-      yield check_equivalence, device, dtype
+    for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
+      for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
+        for op in ['brightness', 'contrast']:
+          yield check_equivalence, device, inp_dtype, out_dtype, op
 
 
 def check_vs_ref(device, inp_dtype, out_dtype):
   batch_size=32
-  n_iters = 16
-  ri1 = RandomDataIterator(batch_size, shape=(1, 1, 1), dtype=dali_to_np_type(inp_dtype))
-  ri2 = RandomDataIterator(batch_size, shape=(1, 1, 1), dtype=dali_to_np_type(inp_dtype))
-  contrast_center = 0.4 * max_range(dali_to_np_type(inp_dtype))
+  n_iters = 8
+  ri1 = RandomDataIterator(batch_size, shape=(128, 32, 3), dtype=dali_type_to_np(inp_dtype))
+  ri2 = RandomDataIterator(batch_size, shape=(128, 32, 3), dtype=dali_type_to_np(inp_dtype))
+  contrast_center = 0.4 * max_range(dali_type_to_np(inp_dtype))
   pipe1 = bricon_ref_pipe(ri1, contrast_center, out_dtype, device, batch_size=batch_size)
-  pipe2 = bricon_pipe(ri2, contrast_center, out_dtype, device, batch_size=batch_size)
+  pipe2 = bricon_pipe(ri2, contrast_center, True, True, out_dtype, device, batch_size=batch_size)
   if out_dtype in [np.half, np.single, np.double]:
     eps = 1e-4
   else:
