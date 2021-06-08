@@ -7,8 +7,21 @@ z40=0000000000000000000000000000000000000000
 
 while read local_ref local_sha remote_ref remote_sha
 do
-    echo "Performing linter check"
-    python tools/lint.py . --nproc=5 || exit 1
+    if [ "$local_sha" = $z40 ]; then
+        echo "Branch deleted. OK" && exit 0
+    fi
+
+    range="$remote_sha..$local_sha"
+    files=`git diff --name-only $range`
+
+    file_list_arg=""
+    for f in $files; do
+        fname=`basename $f`
+        file_list_arg="$file_list_arg $fname"
+    done
+
+    echo "Performing linter check: python tools/lint.py . --nproc=5 --file-list $file_list_arg"
+    python tools/lint.py . --nproc=5 --file-list $file_list_arg || exit 1
     echo "OK"
 done
 
