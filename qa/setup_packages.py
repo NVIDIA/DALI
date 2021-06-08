@@ -11,12 +11,8 @@ except ImportError:
         import pip._internal.pep425tags as p
     except ImportError:
         import pip.pep425tags as p
-try:
-    # For Python 3.0 and later
-    from urllib.request import urlopen, HTTPError, Request
-except ImportError:
-    # Fall back to Python 2's urllib2
-    from urllib2 import urlopen, HTTPError, Request
+
+from urllib.request import urlopen, HTTPError, Request, URLError
 
 PYTHON_VERSION = ".".join([str(x) for x in sys.version_info[0:2]])
 
@@ -314,11 +310,18 @@ class CudaHttpPackage(CudaPackage):
         url = "://".join(url)
         request = Request(url)
         request.get_method = lambda : 'HEAD'
-        try:
-            _ = urlopen(request, timeout=60)
-            return url
-        except HTTPError:
-            return None
+        attempts = 3
+        while attempts:
+            try:
+                _ = urlopen(request, timeout=100)
+                return url
+            except HTTPError:
+                return None
+            except URLError:
+                attempts -= 1
+                if attempts == 0:
+                    raise
+                print("Cannot reach {}, attempts left {}".format(url, attempts))
 
     def get_pyvers_name(self, url, cuda_version):
         """Checks if a provided url is available for a given cuda version
