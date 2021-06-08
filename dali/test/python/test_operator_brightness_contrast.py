@@ -51,7 +51,6 @@ def dali_to_np_type(dtype):
 def bricon_ref(input, brightness, brightness_shift, contrast, contrast_center, out_dtype):
   output_range = max_range(out_dtype)
   input_range = max_range(input.dtype)
-  # print('dtype: ', input.dtype, ' range ', input_range)
   norm = output_range / input_range
   output = brightness_shift * output_range + norm * brightness * (contrast_center + contrast * (input - contrast_center))
   return convert_sat(output, out_dtype)
