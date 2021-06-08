@@ -29,7 +29,6 @@
 namespace dali {
 
 namespace brightness_contrast {
-namespace detail {
 
 template <typename T>
 constexpr float FullRange() {
@@ -45,8 +44,11 @@ constexpr float HalfRange() {
     : 0.5f;
 }
 
-}  // namespace detail
 }  // namespace brightness_contrast
+
+const float kDefaultBrightness = 1.f;
+const float kDefaultBrightnessShift = 0;
+const float kDefaultContrast = 1.f;
 
 template <typename Backend>
 class BrightnessContrastOp : public Operator<Backend> {
@@ -73,9 +75,9 @@ class BrightnessContrastOp : public Operator<Backend> {
   void OpArgsToKernelArgs(float &addend, float &multiplier,
     float brightness, float brightness_shift, float contrast) {
     float contrast_center = std::isnan(contrast_center_)
-      ? brightness_contrast::detail::HalfRange<InputType>()
+      ? brightness_contrast::HalfRange<InputType>()
       : contrast_center_;
-    float brightness_range = brightness_contrast::detail::FullRange<OutputType>();
+    float brightness_range = brightness_contrast::FullRange<OutputType>();
     // The formula is:
     // out = brightness_shift * brightness_range +
     //       brightness * (contrast_center + contrast * (in - contrast_center)
@@ -84,9 +86,11 @@ class BrightnessContrastOp : public Operator<Backend> {
     // out = (brightness_shift * brightness_range +
     //        brightness * (contrast_center - contrast * contrast_center)) +
     //        brightness * contrast * in
+    float norm_brightness = (brightness * brightness_contrast::FullRange<OutputType>()) /
+                 brightness_contrast::FullRange<InputType>();
     addend = brightness_shift * brightness_range +
-             brightness * (contrast_center - contrast * contrast_center);
-    multiplier = brightness * contrast;
+             norm_brightness * (contrast_center - contrast * contrast_center);
+    multiplier = norm_brightness * contrast;
   }
 
   void AcquireArguments(const workspace_t<Backend> &ws) {
@@ -94,19 +98,19 @@ class BrightnessContrastOp : public Operator<Backend> {
     if (this->spec_.ArgumentDefined("brightness")) {
       this->GetPerSampleArgument(brightness_, "brightness", ws, curr_batch_size);
     } else {
-      brightness_ = std::vector<float>(curr_batch_size, 1.f);
+      brightness_ = std::vector<float>(curr_batch_size, kDefaultBrightness);
     }
 
     if (this->spec_.ArgumentDefined("brightness_shift")) {
       this->GetPerSampleArgument(brightness_shift_, "brightness_shift", ws, curr_batch_size);
     } else {
-      brightness_shift_ = std::vector<float>(curr_batch_size, 0);
+      brightness_shift_ = std::vector<float>(curr_batch_size, kDefaultBrightnessShift);
     }
 
     if (this->spec_.ArgumentDefined("contrast")) {
       this->GetPerSampleArgument(contrast_, "contrast", ws, curr_batch_size);
     } else {
-      contrast_ = std::vector<float>(curr_batch_size, 1.f);
+      contrast_ = std::vector<float>(curr_batch_size, kDefaultContrast);
     }
 
     input_type_ = ws.template InputRef<Backend>(0).type().id();

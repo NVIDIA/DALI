@@ -25,34 +25,45 @@ using TheKernel = kernels::MultiplyAddCpu<Out, In, 3>;
 
 
 DALI_SCHEMA(Brightness)
-    .DocStr(R"code(Changes the brightness of the image.)code")
+    .DocStr(R"code(Adjusts the brightness of the images based on the following formula::
+    out = brightness_shift * output_range + brightness * in
+Where output_range is 1 for float outputs or the maximum positive value for integral types.
+
+This operator can also change the type of data.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("brightness",
                     "Brightness mutliplier.",
-                    1.0f, true)
+                    kDefaultBrightness, true)
     .AddOptionalArg("brightness_shift", R"code(The brightness shift.
 
 For signed types, 1.0 represents the maximum positive value that can be represented by
 the type.)code",
-                    0.0f, true)
+                    kDefaultBrightnessShift, true)
     .AddOptionalArg("dtype",
                     R"code(Output data type.
 
 If not set, the input type is used.)code", DALI_NO_TYPE);
 
 DALI_SCHEMA(Contrast)
-    .DocStr(R"code(Changes the color contrast of the image.)code")
+    .DocStr(R"code(Adjusts the contrast of the images based on the following formula::
+    out = grey + contrast * (in - grey)
+Where:
+
+-	The output_range is 1 for float outputs or the maximum positive value for integral types.
+-	Grey denotes the value of 0.5 for ``float``, 128 for ``uint8``, and 16384 for ``int16``, and so on.
+
+This operator can also change the type of data.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("contrast", R"code(The contrast multiplier, where 0.0 produces
 the uniform grey.)code",
-                    1.0f, true)
+                    kDefaultContrast, true)
     .AddOptionalArg("contrast_center", R"code(The intensity level that is unaffected by contrast.
 
 This is the value that all pixels assume when the contrast is zero. When not set,
 the half of the input type's positive range (or 0.5 for ``float``) is used.)code",
-                    0.5f, false)
+                    brightness_contrast::HalfRange<float>(), false)
     .AddOptionalArg("dtype",
                     R"code(Output data type.
 
