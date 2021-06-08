@@ -582,14 +582,13 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
                                   std::vector<int64_t> &shapes, int64_t &ndim,
                                   const Batch &input_batch) {
     int batch_size = dataset()->pipeline_def_.batch_size;
-    assert(input_batch.size() > 0);
     assert(input_batch.size() == batch_size);
 
     ptrs.resize(batch_size, nullptr);
     dtype = TfToDaliType(input_batch[0].dtype());
     ndim = input_batch[0].dims();
-    shapes.reserve(batch_size * ndim);
     shapes.clear();
+    shapes.reserve(batch_size * ndim);
 
     for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
       auto &tensor = input_batch[sample_idx];
