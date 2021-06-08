@@ -74,8 +74,7 @@ def bri_pipe(data_iterator, dtype, dev='cpu'):
   inp = fn.external_source(source=data_iterator)
   if dev == 'gpu':
     inp = inp.gpu()
-  inp = fn.brightness(inp, brightness=brightness, brightness_shift=brightness_shift, dtype=dtype)
-  return inp
+  return fn.brightness(inp, brightness=brightness, brightness_shift=brightness_shift, dtype=dtype)
 
 @pipeline_def(num_threads=4, device_id=0, seed=1234)
 def con_pipe(data_iterator, contrast_center, dtype, dev='cpu'):
@@ -83,8 +82,7 @@ def con_pipe(data_iterator, contrast_center, dtype, dev='cpu'):
   inp = fn.external_source(source=data_iterator)
   if dev == 'gpu':
     inp = inp.gpu()
-  inp = fn.contrast(inp, contrast=contrast, contrast_center=contrast_center, dtype=dtype)
-  return inp
+  return fn.contrast(inp, contrast=contrast, contrast_center=contrast_center, dtype=dtype)
 
 @pipeline_def(num_threads=4, device_id=0, seed=1234)
 def bricon_pipe(data_iterator, contrast_center, bri, con, dtype, dev='cpu'):
@@ -96,24 +94,22 @@ def bricon_pipe(data_iterator, contrast_center, bri, con, dtype, dev='cpu'):
   if dev == 'gpu':
     inp = inp.gpu()
   if bri and con:
-    inp = fn.brightness_contrast(inp, brightness=brightness, brightness_shift=brightness_shift,
-                                 contrast=contrast, contrast_center=contrast_center, dtype=dtype)
+    return fn.brightness_contrast(inp, brightness=brightness, brightness_shift=brightness_shift,
+                                  contrast=contrast, contrast_center=contrast_center, dtype=dtype)
   elif bri:
-    inp = fn.brightness_contrast(inp, brightness=brightness, brightness_shift=brightness_shift,
-                                 dtype=dtype)
+    return fn.brightness_contrast(inp, brightness=brightness, brightness_shift=brightness_shift,
+                                  dtype=dtype)
   elif con:
-    inp = fn.brightness_contrast(inp, contrast=contrast, contrast_center=contrast_center,
-                                 dtype=dtype)
-  return inp
+    return fn.brightness_contrast(inp, contrast=contrast, contrast_center=contrast_center,
+                                  dtype=dtype)
 
 @pipeline_def(num_threads=4, device_id=0, seed=1234, exec_pipelined=False, exec_async=False)
 def bricon_ref_pipe(data_iterator, contrast_center, dtype, dev='cpu'):
   brightness, brightness_shift = brightness_params()
   contrast = contrast_param()
   inp = fn.external_source(source=data_iterator)
-  inp = fn.python_function(inp, brightness, brightness_shift, contrast,\
-                           function=ref_operator(contrast_center, dali_type_to_np(dtype)))
-  return inp
+  return fn.python_function(inp, brightness, brightness_shift, contrast,\
+                            function=ref_operator(contrast_center, dali_type_to_np(dtype)))
 
 def check_equivalence(device, inp_dtype, out_dtype, op):
   batch_size=32
