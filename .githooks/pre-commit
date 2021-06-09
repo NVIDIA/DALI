@@ -18,6 +18,9 @@
 files=`git diff --cached --name-only`
 year=`date +%Y`
 
+git rev-parse -q --verify MERGE_HEAD && \
+    echo "Merge commit, skipping hooks" && exit 0
+
 for f in $files; do
     head -10 $f | grep -i "Copyright (c)" 2>&1 1>/dev/null \
         || continue  # Copyright not present in this file
