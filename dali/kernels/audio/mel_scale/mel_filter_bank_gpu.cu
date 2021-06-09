@@ -175,6 +175,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
         <<<grid, block, 0, stream>>>(block_descs, weights_down, interval_ends,
                                      args_.normalize, norm_factors, args_.nfilter);
     }
+    CUDA_CALL(cudaGetLastError());
   }
 
   using MelFilterImplBase<T>::Args;

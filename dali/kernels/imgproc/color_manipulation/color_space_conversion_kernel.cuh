@@ -204,6 +204,7 @@ void RunColorSpaceConversionKernel(Out *output, const In *input, DALIImageType o
   } else {
     DALI_FAIL(make_string("conversion not supported ", in_type, " to ", out_type));
   }
+  CUDA_CALL(cudaGetLastError());
 }
 
 }  // namespace color

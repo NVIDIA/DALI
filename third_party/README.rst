@@ -34,8 +34,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |benchmark| replace:: Google Benchmark
 .. _benchmark: https://github.com/google/benchmark
-.. |benchmarkver| replace:: 1.5.2
-.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.5.2
+.. |benchmarkver| replace:: 1.5.4
+.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.5.4
 .. |benchmarklic| replace:: Apache License 2.0
 .. _benchmarklic: https://github.com/google/benchmark/blob/master/LICENSE
 
@@ -62,8 +62,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |dlpack| replace:: DLPack
 .. _dlpack: https://github.com/dmlc/dlpack
-.. |dlpackver| replace:: 0.4
-.. _dlpackver: https://github.com/dmlc/dlpack/releases/tag/v0.4
+.. |dlpackver| replace:: 0.5
+.. _dlpackver: https://github.com/dmlc/dlpack/releases/tag/v0.5
 .. |dlpacklic| replace:: Apache License 2.0
 .. _dlpacklic: https://github.com/dmlc/dlpack/blob/main/LICENSE
 
@@ -97,8 +97,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |rapidjson| replace:: RapidJSON
 .. _rapidjson: https://github.com/Tencent/rapidjson
-.. |rapidjsonver| replace:: Top-of-tree (Apr 8, 2021)
-.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/47b837e14ab5712fade68e0b00768ff95c120966
+.. |rapidjsonver| replace:: Top-of-tree (May 7, 2021)
+.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/17aa824c928ea111e9b12a61e06d98335ce98f15
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt
 
