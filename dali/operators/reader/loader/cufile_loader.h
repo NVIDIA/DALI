@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ namespace dali {
 struct ImageFileWrapperGPU {
   Tensor<GPUBackend> image;
   std::string filename;
-  bool transpose_fortan_order;
+  bool fortran_order;
   TensorShape<> shape;
   TypeInfo type_info;
   std::unique_ptr<CUFileStream> file_stream;

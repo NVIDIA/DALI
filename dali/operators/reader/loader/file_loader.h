@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ struct ImageFileWrapper {
   Tensor<CPUBackend> image;
   std::string filename;
   // some field for auxiliary info to pass to the reader
-  std::string meta;
+  bool fortran_order;
 };
 
 template <typename Backend = CPUBackend, typename Target = ImageFileWrapper,

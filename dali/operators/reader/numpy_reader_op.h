@@ -15,6 +15,12 @@
 #ifndef DALI_OPERATORS_READER_NUMPY_READER_OP_H_
 #define DALI_OPERATORS_READER_NUMPY_READER_OP_H_
 
+#define NUMPY_ALLOWED_TYPES \
+  (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, float16, \
+  double)
+
+#define NUMPY_ALLOWED_DIMS (0, 1, 2, 3, 4, 5, 6)
+
 #include <string>
 #include <utility>
 #include <vector>
@@ -26,17 +32,15 @@
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/util/crop_window.h"
 
-
 namespace dali {
 
-class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
+template <typename Backend, typename Target>
+class NumpyReader : public DataReader<Backend, Target> {
  public:
   explicit NumpyReader(const OpSpec& spec)
-      : DataReader<CPUBackend, ImageFileWrapper>(spec),
+      : DataReader<Backend, Target>(spec),
         slice_attr_(spec, "roi_start", "rel_roi_start", "roi_end", "rel_roi_end", "roi_shape",
                     "rel_roi_shape", "roi_axes", nullptr) {
-    bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-    loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch);
     out_of_bounds_policy_ = GetOutOfBoundsPolicy(spec);
     if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
       fill_value_ = spec.GetArgument<float>("fill_value");
@@ -47,22 +51,125 @@ class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
-  void RunImpl(HostWorkspace &ws) override;
+  USE_READER_OPERATOR_MEMBERS(Backend, Target);
+  using DataReader<Backend, Target>::GetCurrBatchSize;
+  using DataReader<Backend, Target>::GetSample;
+
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<Backend>& ws) override {
+    // If necessary start prefetching thread and wait for a consumable batch
+    DataReader<Backend, Target>::SetupImpl(output_desc, ws);
+
+    int batch_size = GetCurrBatchSize();
+    const auto& file_0 = GetSample(0);
+    TypeInfo output_type = file_0.image.type();
+    int ndim = file_0.image.shape().sample_dim();
+    TensorListShape<> sh(batch_size, ndim);
+
+    bool need_slice = slice_attr_.template ProcessArguments<Backend>(ws, batch_size, ndim);
+    rois_.clear();
+    if (need_slice)
+      rois_.resize(batch_size);
+
+    nsamples_copy_ = 0;
+    nsamples_transpose_ = 0;
+    nsamples_slice_ = 0;
+    nsamples_slice_perm_ = 0;
+    for (int i = 0; i < batch_size; i++) {
+      const auto& file_i = GetSample(i);
+      const auto& file_sh = file_i.image.shape();
+      auto sample_sh = sh.tensor_shape_span(i);
+
+      DALI_ENFORCE(
+          file_i.image.shape().sample_dim() == ndim,
+          make_string("Inconsistent data: All samples in the batch must have the same number of "
+                      "dimensions. "
+                      "Got \"",
+                      file_0.filename, "\" with ", ndim, " dimensions and \"", file_i.filename,
+                      "\" with ", file_i.image.shape().sample_dim(), " dimensions"));
+      DALI_ENFORCE(
+          file_i.image.type().id() == output_type.id(),
+          make_string("Inconsistent data: All samples in the batch must have the same data type. "
+                      "Got \"",
+                      file_0.filename, "\" with data type ", output_type.id(), " and \"",
+                      file_i.filename, "\" with data type ", file_i.image.type().id()));
+
+      bool is_transposed = file_i.fortran_order;
+      // Calculate the full transposed shape first
+      if (is_transposed) {
+        for (int d = 0; d < ndim; d++)
+          sample_sh[d] = file_sh[ndim - 1 - d];
+      } else {
+        for (int d = 0; d < ndim; d++)
+          sample_sh[d] = file_sh[d];
+      }
+
+      if (need_slice) {
+        // Calculate the cropping window, based on the final layout (user provides axes in that
+        // layout)
+        auto full_sample_sh = sh.tensor_shape(i);  // already permuted dims
+        auto tmp_roi = slice_attr_.GetCropWindowGenerator(i)(full_sample_sh, {});
+        ApplySliceBoundsPolicy(out_of_bounds_policy_, full_sample_sh, tmp_roi.anchor,
+                               tmp_roi.shape);
+        sh.set_tensor_shape(i, tmp_roi.shape);  // set the final shape
+
+        // Reverse the cropping window arguments if needed, as we provide slice arguments in the
+        // original layout
+        auto& roi = rois_[i];
+        if (is_transposed) {
+          for (int d = 0; d < ndim; d++) {
+            roi.anchor[d] = tmp_roi.anchor[ndim - 1 - d];
+            roi.shape[d] = tmp_roi.shape[ndim - 1 - d];
+          }
+        } else {
+          roi = std::move(tmp_roi);
+        }
+      }
+
+      if (need_slice) {
+        if (is_transposed)
+          nsamples_slice_perm_++;
+        else
+          nsamples_slice_++;
+      } else {
+        if (is_transposed)
+          nsamples_transpose_++;
+        else
+          nsamples_copy_++;
+      }
+    }
+    output_desc.resize(1);
+    output_desc[0].shape = std::move(sh);
+    output_desc[0].type = output_type;
+    return true;
+  }
+
+  NamedSliceAttr slice_attr_;
+  std::vector<CropWindow> rois_;
+  OutOfBoundsPolicy out_of_bounds_policy_ = OutOfBoundsPolicy::Error;
+  float fill_value_ = 0;
+
+  int nsamples_copy_ = 0;
+  int nsamples_transpose_ = 0;
+  int nsamples_slice_ = 0;
+  int nsamples_slice_perm_ = 0;
+};
+
+class NumpyReaderCPU : public NumpyReader<CPUBackend, ImageFileWrapper> {
+ public:
+  explicit NumpyReaderCPU(const OpSpec& spec) : NumpyReader<CPUBackend, ImageFileWrapper>(spec) {
+    bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
+    loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch);
+  }
 
  protected:
+  void RunImpl(HostWorkspace &ws) override;
+
+ private:
   void TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);
   void SliceHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input,
                    const CropWindow& roi, float fill_value = 0);
   void SlicePermuteHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input,
                           const CropWindow& roi, float fill_value = 0);
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageFileWrapper);
-
- private:
-  NamedSliceAttr slice_attr_;
-  std::vector<CropWindow> rois_;
-  OutOfBoundsPolicy out_of_bounds_policy_ = OutOfBoundsPolicy::Error;
-  float fill_value_ = 0;
 };
 
 }  // namespace dali

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -100,7 +100,7 @@ void NumpyLoaderGPU::ReadSample(ImageFileWrapperGPU& imfile) {
 
     imfile.type_info = target.type_info;
     imfile.shape = target.shape;
-    imfile.transpose_fortan_order = target.fortran_order;
+    imfile.fortran_order = target.fortran_order;
   };
 
   imfile.read_sample_f = [this, image_file, &imfile] (void *buffer, Index file_offset,

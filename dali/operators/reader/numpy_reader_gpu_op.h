@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,18 +19,20 @@
 #include <string>
 #include <vector>
 
-#include "dali/operators/reader/reader_op.h"
-#include "dali/operators/reader/loader/numpy_loader_gpu.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/transpose/transpose_gpu.h"
+#include "dali/operators/reader/loader/numpy_loader_gpu.h"
+#include "dali/operators/reader/numpy_reader_op.h"
+#include "dali/operators/reader/reader_op.h"
 
 namespace dali {
 
-class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
+class NumpyReaderGPU : public NumpyReader<GPUBackend, ImageFileWrapperGPU> {
  public:
   explicit NumpyReaderGPU(const OpSpec& spec) :
-    DataReader<GPUBackend, ImageFileWrapperGPU>(spec),
-    thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false) {
+    NumpyReader<GPUBackend, ImageFileWrapperGPU>(spec),
+    thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false),
+    sg_(1<<18, spec.GetArgument<int>("max_batch_size")) {
     if (spec.ArgumentDefined("roi_start") || spec.ArgumentDefined("rel_roi_start") ||
         spec.ArgumentDefined("roi_end") || spec.ArgumentDefined("rel_roi_end") ||
         spec.ArgumentDefined("roi_shape") || spec.ArgumentDefined("rel_roi_shape") ||
@@ -82,17 +84,23 @@ class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
     return imfile.type_info;
   }
 
+  template <typename T>
+  const T* GetSampleData(int sample_idx) {
+    return prefetched_batch_tensors_[curr_batch_consumer_].mutable_tensor<T>(sample_idx);
+  }
+
   const void* GetSampleRawData(int sample_idx) {
     return prefetched_batch_tensors_[curr_batch_consumer_].raw_mutable_tensor(sample_idx);
   }
 
-  bool CanInferOutputs() const override { return false; }
-
+  template <typename T, int Dims>
+  void RunImplTyped(DeviceWorkspace &ws);
   void RunImpl(DeviceWorkspace &ws) override;
-
   USE_READER_OPERATOR_MEMBERS(GPUBackend, ImageFileWrapperGPU);
 
+ private:
   using TransposeKernel = kernels::TransposeGPU;
+  kernels::ScatterGatherGPU sg_;
   kernels::KernelManager kmgr_;
 };
 
