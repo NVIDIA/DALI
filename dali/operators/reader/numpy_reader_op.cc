@@ -314,11 +314,10 @@ void NumpyReader::RunImpl(HostWorkspace &ws) {
 
     // controls task priority
     int64_t task_sz = volume(file_i.image.shape());
-    // slice + transpose is treated as similar size as just slice
-    if (need_slice)
-      task_sz += volume(rois_[i].shape);
-    else if (need_transpose)
-      task_sz += out_sh.tensor_size(i);
+    if (need_slice)  // geometric mean between input shape and ROI shape
+      task_sz = std::sqrt(static_cast<double>(task_sz) * volume(rois_[i].shape));
+    if (need_transpose)  // 2x if transposition is required
+      task_sz *= 2;
 
     thread_pool.AddWork([&, i, need_transpose, need_slice](int tid) {
       if (need_slice && need_transpose) {
