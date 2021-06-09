@@ -76,6 +76,7 @@ void ConvertToOFLayout(ColorConversionMethod cvtm, const uint8_t *input, uint8_t
   dim3 grid_dim(num_blocks(out_channels * width_px, block_dim.x),
                 num_blocks(height, block_dim.y));
   cvtm<<<grid_dim, block_dim, 0, stream>>>(input, output, pitch, width_px, height);
+  CUDA_CALL(cudaGetLastError());
 }
 
 }  // namespace
