@@ -26,8 +26,8 @@ namespace dali {
 namespace testing {
 namespace brightness_contrast {
 
-using dali::brightness_contrast::detail::FullRange;
-using dali::brightness_contrast::detail::HalfRange;
+using dali::brightness_contrast::FullRange;
+using dali::brightness_contrast::HalfRange;
 
 using InputDataType = float;
 
