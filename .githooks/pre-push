@@ -1,0 +1,42 @@
+#!/bin/sh
+
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http:#www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+remote="$1"
+url="$2"
+
+z40=0000000000000000000000000000000000000000
+
+while read local_ref local_sha remote_ref remote_sha
+do
+    if [ "$local_sha" = $z40 ]; then
+        echo "Branch deleted. OK" && exit 0
+    fi
+
+    range="$remote_sha..$local_sha"
+    files=`git diff --name-only $range`
+
+    file_list_arg=""
+    for f in $files; do
+        fname=`basename $f`
+        file_list_arg="$file_list_arg $fname"
+    done
+
+    echo "Performing linter check: python tools/lint.py . --nproc=5 --file-list $file_list_arg"
+    python tools/lint.py . --nproc=5 --file-list $file_list_arg || exit 1
+    echo "OK"
+done
+
+exit 0
