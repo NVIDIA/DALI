@@ -36,6 +36,8 @@ struct TestStatus {
   bool Init() {
     ASSERT_EQ(cudaSuccess, cudaMalloc(&device, sizeof(TestStatusBlock)))
       << "Cannot allocate test status block", false;
+    if (device == nullptr)
+      return false;  // this should never happen - it is here to silence static analysis errors
     ASSERT_EQ(cudaSuccess, cudaMemset(device, 0, sizeof(TestStatusBlock)))
       << "Cannot clear test status block", false;
     return true;
@@ -180,7 +182,6 @@ __device__ void suite_name##_##test_name##_body( \
   dali::testing::TestStatus status;                                                     \
   if (!status.Init())                                                                   \
     return;                                                                             \
-  assert(status.device != nullptr);                                                     \
   dali::testing::ClearCudaError();                                                      \
   suite_name##_##test_name##_kernel<<<grid, block>>>(status.device, ##__VA_ARGS__);     \
   auto err = status.to_host();                                                          \
