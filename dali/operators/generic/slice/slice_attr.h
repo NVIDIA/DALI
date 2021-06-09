@@ -33,7 +33,11 @@
 
 namespace dali {
 
-void ProcessAxesArgs(std::vector<int>& axes, TensorLayout& axis_names, const OpSpec& spec,
+/**
+ * @brief Process axes arguments.
+ * @return true if there are axes defined, false otherwise (use all axes).
+ */
+bool ProcessAxesArgs(std::vector<int>& axes, TensorLayout& axis_names, const OpSpec& spec,
                      const char* axes_arg_name = "axes",
                      const char* axis_names_arg_name = "axis_names");
 
@@ -57,7 +61,7 @@ class NamedSliceAttr {
         rel_shape_(rel_shape_name, spec) {
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
-    ProcessAxesArgs(axes_, axis_names_, spec, axes_arg_name, axis_names_arg_name);
+    use_all_axes_ = !ProcessAxesArgs(axes_, axis_names_, spec, axes_arg_name, axis_names_arg_name);
 
     has_start_ = start_.IsDefined() || rel_start_.IsDefined();
 
@@ -81,7 +85,7 @@ class NamedSliceAttr {
       ndim = ws.GetInputDim(0);
 
     auto args_shape = TensorShape<1>(ndim);
-    if (!axes_.empty() || !axis_names_.empty()) {
+    if (!use_all_axes_) {
       args_shape[0] = std::max(static_cast<int>(axes_.size()),
                                static_cast<int>(axis_names_.size()));
     }
@@ -122,7 +126,7 @@ class NamedSliceAttr {
         auto axes = axes_;
         if (!axis_names_.empty()) {
           axes = GetDimIndices(shape_layout, axis_names_).to_vector();
-        } else if (axes.empty()) {
+        } else if (use_all_axes_) {
           axes.resize(shape.sample_dim());
           std::iota(axes.begin(), axes.end(), 0);
         }
@@ -202,6 +206,7 @@ class NamedSliceAttr {
   std::vector<CropWindowGenerator> crop_window_generators_;
 
   bool has_start_, has_end_, has_shape_;
+  bool use_all_axes_ = false;
 };
 
 
@@ -212,7 +217,7 @@ class PositionalSliceAttr {
     normalized_shape_ = spec.GetArgument<bool>("normalized_shape");
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
-    ProcessAxesArgs(axes_, axis_names_, spec, "axes", "axis_names");
+    use_all_axes_ = !ProcessAxesArgs(axes_, axis_names_, spec, "axes", "axis_names");
   }
 
   template <typename Backend>
@@ -221,7 +226,7 @@ class PositionalSliceAttr {
     int ndim = ws.GetInputDim(0);
 
     auto args_shape = TensorShape<1>(ndim);
-    if (!axes_.empty() || !axis_names_.empty()) {
+    if (!use_all_axes_) {
       args_shape[0] = std::max(static_cast<int>(axes_.size()),
                                static_cast<int>(axis_names_.size()));
     }
@@ -271,6 +276,9 @@ class PositionalSliceAttr {
         auto axes = axes_;
         if (!axis_names_.empty()) {
           axes = GetDimIndices(shape_layout, axis_names_).to_vector();
+        } else if (use_all_axes_) {
+          axes.resize(shape.sample_dim());
+          std::iota(axes.begin(), axes.end(), 0);
         }
 
         constexpr double i64min = static_cast<double>(std::numeric_limits<int64_t>::min());
@@ -329,6 +337,7 @@ class PositionalSliceAttr {
   std::vector<int> axes_;
   TensorLayout axis_names_;
   std::vector<CropWindowGenerator> crop_window_generators_;
+  bool use_all_axes_ = false;
 };
 
 class SliceAttr {
