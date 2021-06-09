@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ void ApplySliceBoundsPolicy(OutOfBoundsPolicy policy, const TensorShape<Dims> &i
         if (is_out_of_bounds<false>(slice_anchor[d], input_shape[d]) ||
             is_out_of_bounds<true>(slice_anchor[d] + slice_shape[d], input_shape[d])) {
           DALI_FAIL(make_string(
-              "Slice can't be place out of bounds with current policy. Got: input_shape={",
+              "Slice can't be placed out of bounds with current policy. Got: input_shape={",
               input_shape, "}, slice_anchor={", slice_anchor, "}, slice_shape={", slice_shape,
               "}"));
         }

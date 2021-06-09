@@ -31,6 +31,14 @@ class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
   explicit NumpyReaderGPU(const OpSpec& spec) :
     DataReader<GPUBackend, ImageFileWrapperGPU>(spec),
     thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false) {
+    if (spec.ArgumentDefined("roi_start") || spec.ArgumentDefined("rel_roi_start") ||
+        spec.ArgumentDefined("roi_end") || spec.ArgumentDefined("rel_roi_end") ||
+        spec.ArgumentDefined("roi_shape") || spec.ArgumentDefined("rel_roi_shape") ||
+        spec.ArgumentDefined("roi_axes")) {
+      DALI_FAIL(
+          "NumpyReader: Region-of-intereset reading is not yet supported for the GPU backend.");
+    }
+
     prefetched_batch_tensors_.resize(prefetch_queue_depth_);
 
     // set a device guard

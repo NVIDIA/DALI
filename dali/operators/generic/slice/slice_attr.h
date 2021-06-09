@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,6 +33,14 @@
 
 namespace dali {
 
+/**
+ * @brief Process axes arguments.
+ * @return true if there are axes defined, false otherwise (use all axes).
+ */
+bool ProcessAxesArgs(std::vector<int>& axes, TensorLayout& axis_names, const OpSpec& spec,
+                     const char* axes_arg_name = "axes",
+                     const char* axis_names_arg_name = "axis_names");
+
 class NamedSliceAttr {
  public:
   explicit inline NamedSliceAttr(const OpSpec &spec,
@@ -42,8 +50,8 @@ class NamedSliceAttr {
                                  const char* rel_end_name = "rel_end",
                                  const char* shape_name = "shape",
                                  const char* rel_shape_name = "rel_shape",
-                                 const char* axes_name = "axes",
-                                 const char* axis_names = "axis_names")
+                                 const char* axes_arg_name = "axes",
+                                 const char* axis_names_arg_name = "axis_names")
       : spec_(spec),
         start_(start_name, spec),
         rel_start_(rel_start_name, spec),
@@ -53,32 +61,31 @@ class NamedSliceAttr {
         rel_shape_(rel_shape_name, spec) {
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
-    const bool has_axes_arg = spec.HasArgument(axes_name);
-    const bool has_axis_names_arg = spec.HasArgument(axis_names);
-    // Process `axis_names` if provided, or if neither `axis_names` nor `axes` are
-    if (has_axis_names_arg || !has_axes_arg) {
-      axis_names_ = spec.GetArgument<TensorLayout>(axis_names);
-      axes_ = {};
-    } else {
-      // Process `axes` only if provided and `axis_names` isn't
-      axes_ = spec.GetRepeatedArgument<int>(axes_name);
-      axis_names_ = TensorLayout{};
-    }
+    use_all_axes_ = !ProcessAxesArgs(axes_, axis_names_, spec, axes_arg_name, axis_names_arg_name);
+
     has_start_ = start_.IsDefined() || rel_start_.IsDefined();
+
+    if ((start_.IsDefined() + rel_start_.IsDefined()) > 1)
+      DALI_FAIL(make_string("\"", start_name, "\" and \"", rel_start_name,
+                            "\" arguments are mutually exclusive"));
+
     has_end_ = end_.IsDefined() || rel_end_.IsDefined();
     has_shape_ = shape_.IsDefined() || rel_shape_.IsDefined();
 
-    DALI_ENFORCE(!(has_end_ && has_shape_),
-        "``end``/``rel_end`` can't be provided together with ``shape``/``rel_shape``.");
+    if ((end_.IsDefined() + rel_end_.IsDefined() + shape_.IsDefined() + rel_shape_.IsDefined()) > 1)
+      DALI_FAIL(make_string("\"", end_name, "\", \"", rel_end_name, "\", \"", shape_name,
+                            "\", and \"", rel_shape_name, "\" arguments are mutually exclusive"));
   }
 
   template <typename Backend>
-  bool ProcessArguments(const workspace_t<Backend> &ws) {
-    auto curr_batch_size = ws.GetInputBatchSize(0);
-    int ndim = ws.GetInputDim(0);
+  bool ProcessArguments(const workspace_t<Backend> &ws, int curr_batch_size = -1, int ndim = -1) {
+    if (curr_batch_size < 0)
+      curr_batch_size = ws.GetInputBatchSize(0);
+    if (ndim < 0)
+      ndim = ws.GetInputDim(0);
 
     auto args_shape = TensorShape<1>(ndim);
-    if (!axes_.empty() || !axis_names_.empty()) {
+    if (!use_all_axes_) {
       args_shape[0] = std::max(static_cast<int>(axes_.size()),
                                static_cast<int>(axis_names_.size()));
     }
@@ -119,6 +126,9 @@ class NamedSliceAttr {
         auto axes = axes_;
         if (!axis_names_.empty()) {
           axes = GetDimIndices(shape_layout, axis_names_).to_vector();
+        } else if (use_all_axes_) {
+          axes.resize(shape.sample_dim());
+          std::iota(axes.begin(), axes.end(), 0);
         }
 
         constexpr double i64min = static_cast<double>(std::numeric_limits<int64_t>::min());
@@ -196,6 +206,7 @@ class NamedSliceAttr {
   std::vector<CropWindowGenerator> crop_window_generators_;
 
   bool has_start_, has_end_, has_shape_;
+  bool use_all_axes_ = false;
 };
 
 
@@ -206,17 +217,7 @@ class PositionalSliceAttr {
     normalized_shape_ = spec.GetArgument<bool>("normalized_shape");
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
-    const bool has_axes_arg = spec.HasArgument("axes");
-    const bool has_axis_names_arg = spec.HasArgument("axis_names");
-    // Process `axis_names` if provided, or if neither `axis_names` nor `axes` are
-    if (has_axis_names_arg || !has_axes_arg) {
-      axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
-      axes_ = {};
-    } else {
-      // Process `axes` only if provided and `axis_names` isn't
-      axes_ = spec.GetRepeatedArgument<int>("axes");
-      axis_names_ = TensorLayout{};
-    }
+    use_all_axes_ = !ProcessAxesArgs(axes_, axis_names_, spec, "axes", "axis_names");
   }
 
   template <typename Backend>
@@ -225,7 +226,7 @@ class PositionalSliceAttr {
     int ndim = ws.GetInputDim(0);
 
     auto args_shape = TensorShape<1>(ndim);
-    if (!axes_.empty() || !axis_names_.empty()) {
+    if (!use_all_axes_) {
       args_shape[0] = std::max(static_cast<int>(axes_.size()),
                                static_cast<int>(axis_names_.size()));
     }
@@ -275,6 +276,9 @@ class PositionalSliceAttr {
         auto axes = axes_;
         if (!axis_names_.empty()) {
           axes = GetDimIndices(shape_layout, axis_names_).to_vector();
+        } else if (use_all_axes_) {
+          axes.resize(shape.sample_dim());
+          std::iota(axes.begin(), axes.end(), 0);
         }
 
         constexpr double i64min = static_cast<double>(std::numeric_limits<int64_t>::min());
@@ -333,6 +337,7 @@ class PositionalSliceAttr {
   std::vector<int> axes_;
   TensorLayout axis_names_;
   std::vector<CropWindowGenerator> crop_window_generators_;
+  bool use_all_axes_ = false;
 };
 
 class SliceAttr {
@@ -355,14 +360,14 @@ class SliceAttr {
       DALI_ENFORCE(ws.NumInput() == spec_.GetSchema().MinNumInput(),
                   "Named arguments start/end/shape are not compatible with positional"
                   " anchor and shape inputs");
-    } else {
+    } else if (ws.NumInput() == (spec_.GetSchema().MinNumInput() + 2)) {
       bool processed_pos_args = pos_slice_attr_.template ProcessArguments<Backend>(ws);
-      if (!processed_pos_args) {
-        DALI_FAIL(
-            make_string("Expected named slice arguments (e.g. start/end, start/shape) "
-                        "or positional inputs (start, shape). Got ",
-                        ws.NumInput(), " inputs."));
-      }
+      DALI_ENFORCE(processed_pos_args, "Failed to process positional arguments (start, shape)");
+    } else {
+      DALI_FAIL(
+          make_string("Expected named slice arguments (e.g. start/end, start/shape) "
+                      "or positional inputs (start, shape). Got ",
+                      ws.NumInput(), " inputs."));
     }
   }
 
