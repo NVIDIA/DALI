@@ -55,8 +55,14 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
   RecycleBuffer(tensor_vector_elm);
 }
 
+// Note that the operators named "ExternalSource" are automatically converted into
+// "_ExternalSource" nodes when creating the OpSpec. See the OpSpec::set_name for details.
+// The ExternalSource had special handling for serialization and limited support for cpu-only
+// deserialization (via Pipeline::AddExterinalInput) and it's not possbile to create it from
+// Python any more. It can still be present in some serialized Pipelines, so we need to handle
+// it during deserialization.
+// Otherwise, the implementation uses "_ExternalSource" so we keep only one to reduce confusion.
 DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<CPUBackend>, CPU);
-DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);
 
 DALI_SCHEMA(_ExternalSource)
   .DocStr(R"code("This is a backend for `ExternalSource` operator. Refer to the proper documentation
@@ -84,33 +90,5 @@ For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you
 of separate Tensors, there will be an additional copy made internally, consuming both memory
 and bandwidth.)code", false)
   .MakeInternal();
-
-DALI_SCHEMA(ExternalSource)
-  .DocStr(R"code(Allows externally provided data to be passed as an input to the pipeline.
-
-Currently this operator is not supported in TensorFlow. It is worth noting that fed inputs
-should match the number of dimensions expected by the next operator in the pipeline
-(e.g. HWC will expect 3-dimensional tensors
-where the last dimension represents the different channels).)code")
-  .NumInput(0)
-  .NumOutput(1)
-  .AddOptionalArg("blocking",
-      R"code(Whether external source should block until data is available or just
-fail when it is not)code", false)
-  .AddOptionalArg("no_copy",
-      R"code(Whether DALI should copy the buffer when feed_input is called
-If True, DALI passes the user memory directly to the Pipeline, instead of copying.
-It is the user's responsibility to keep the buffer alive and unmodified
-until it is consumed by the pipeline.
-
-The buffer can be modified or freed again after the relevant iteration output has been consumed.
-Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
-(when they are not equal) iterations following the``feed_input`` call.
-
-The memory location must match the specified ``device`` parameter of the operator.
-For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
-For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you provide a list
-of separate Tensors, there will be an additional copy made internally, consuming both memory
-and bandwidth.)code", false);
 
 }  // namespace dali

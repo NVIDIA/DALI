@@ -76,7 +76,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     std::vector<std::pair<std::string, TensorList<CPUBackend>*>> inputs{
       std::make_pair("encoded", &encoded_data)};
     AddAdditionalInputs(inputs);
-    this->SetExternalInputs(inputs);
+    this->AddExternalInputs(inputs);
     this->RunOperator(DecodingOp(), eps);
   }
 

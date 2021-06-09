@@ -645,11 +645,6 @@ string Pipeline::SerializeToProtobuf() const {
   pipe.set_device_id(this->device_id());
   pipe.set_seed(this->original_seed_);
 
-  // loop over external inputs
-  for (auto &name : external_inputs_) {
-    pipe.add_external_inputs(name);
-  }
-
   // loop over ops, create messages and append
   for (size_t i = 0; i < this->op_specs_for_serialization_.size(); ++i) {
     dali_proto::OpDef *op_def = pipe.add_op();
@@ -659,10 +654,8 @@ string Pipeline::SerializeToProtobuf() const {
 
     DALI_ENFORCE(spec.GetSchema().IsSerializable(), "Could not serialize the operator: "
                                                     + spec.name());
-    // As long as spec isn't an ExternalSource node, serialize
-    if (spec.name() != "ExternalSource") {
-      dali::SerializeToProtobuf(op_def, p.instance_name, spec, p.logical_id);
-    }
+
+    dali::SerializeToProtobuf(op_def, p.instance_name, spec, p.logical_id);
   }
 
   // loop over outputs used to create the graph

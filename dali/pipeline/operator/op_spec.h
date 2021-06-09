@@ -45,8 +45,6 @@ namespace dali {
  */
 class DLL_PUBLIC OpSpec {
  public:
-  template <typename T>
-  using TensorPtr = shared_ptr<Tensor<T>>;
   struct InOutDeviceDesc {
     std::string name;
     std::string device;
@@ -81,6 +79,14 @@ class DLL_PUBLIC OpSpec {
    * @brief Sets the name of the Operator.
    */
   DLL_PUBLIC inline void set_name(const string &name) {
+    // Due to the fact that External Source existed in DALI as two entities we need to have a place
+    // where we merge it back into one. "ExternalSource" had special handling for serialization,
+    // so we go with the _ExternalSource that is now used.
+    if (name == "ExternalSource") {
+      name_ = "_ExternalSource";
+      schema_ = SchemaRegistry::TryGetSchema("_ExternalSource");
+      return;
+    }
     name_ = name;
     schema_ = name.empty() ? nullptr : SchemaRegistry::TryGetSchema(name);
   }

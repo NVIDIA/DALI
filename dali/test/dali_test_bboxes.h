@@ -31,7 +31,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     TensorList<CPUBackend> boxes;
     TensorList<CPUBackend> labels;
     this->MakeBBoxesAndLabelsBatch(&boxes, &labels, batch_size, ltrb);
-    this->SetExternalInputs({{"boxes", &boxes}, {"labels", &labels}});
+    this->AddExternalInputs({{"boxes", &boxes}, {"labels", &labels}});
 
     auto pipe = this->GetPipeline();
 
@@ -47,6 +47,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
                                     .AddOutput("output3", "cpu"));
 
     this->SetTestCheckType(this->GetTestCheckType());
+    this->FillExternalInputs();
     pipe->Build(DALISingleOpTest<ImgType>::outputs_);
     pipe->RunCPU();
     pipe->RunGPU();
@@ -61,7 +62,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
 
-    this->SetExternalInputs(inputs);
+    this->AddExternalInputs(inputs);
 
     auto pipe = this->GetPipeline();
 
@@ -87,6 +88,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
 
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build({{"cropped_images", "gpu"}, {"resized_boxes", "gpu"}});
+    this->FillExternalInputs();
     pipe->RunCPU();
     pipe->RunGPU();
 
@@ -108,7 +110,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
 
-    this->SetExternalInputs(inputs);
+    this->AddExternalInputs(inputs);
 
     auto pipe = this->GetPipeline();
 
@@ -133,6 +135,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
 
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build({{"cropped_images", "cpu"}, {"resized_boxes", "cpu"}});
+    this->FillExternalInputs();
     pipe->RunCPU();
     pipe->RunGPU();
 

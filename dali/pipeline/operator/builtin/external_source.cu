@@ -53,6 +53,5 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
 }
 
 DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<GPUBackend>, GPU);
-DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<GPUBackend>, GPU);
 
 }  // namespace dali

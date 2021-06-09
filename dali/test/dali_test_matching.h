@@ -28,7 +28,7 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType, OutputImgType> {
 
     TensorList<CPUBackend> data;
     this->MakeJPEGBatch(&data, batch_size);
-    this->SetExternalInputs({{"jpegs", &data}});
+    this->AddExternalInputs({{"jpegs", &data}});
 
     auto pipe = this->GetPipeline();
     // Decode the images

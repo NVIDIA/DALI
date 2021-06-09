@@ -75,7 +75,7 @@ class BBoxPasteTest<std::integral_constant<bool, ltrb>> : public DALISingleOpTes
     spec.AddArg("ratio", ratio);
     spec.AddArg("paste_x", paste_x);
     spec.AddArg("paste_y", paste_y);
-    SetExternalInputs({ { "bb_input", input_tl_.get() } });
+    AddExternalInputs({ { "bb_input", input_tl_.get() } });
     RunOperator(spec, 1e-7f);
   }
 

@@ -106,33 +106,18 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC ~Pipeline() = default;
 
   /**
-   * @brief Creates a placeholder for an external input with the given name
+   * @brief Creates a placeholder for an External Source operator with the given name
+   * (and output of given name).
+   *
+   * Equivalent to inserting _ExternalSource with output of given name and specified
+   * device placemnt.
    */
-  DLL_PUBLIC inline int AddExternalInput(const string &name) {
-    DALI_ENFORCE(!built_, "Alterations to the pipeline after "
-        "\"Build()\" has been called are not allowed");
-    // Verify that this name is unique and record it
-    auto it = edge_names_.find(name);
-    DALI_ENFORCE(it == edge_names_.end(), "External input name '" +
-        name + "' conflicts with existing intermediate result name");
-    EdgeMeta meta;
-    meta.has_cpu = true;
-    meta.has_gpu = false;
-    meta.has_contiguous = false;
-    DALI_ENFORCE(edge_names_.insert({name, meta}).second,
-        "ExternalInput name insertion failure.");
-
-    // Create a spec for an ExternalInput op and add it to our graph
-    OpSpec spec =
-      OpSpec("ExternalSource")
-              .AddArg("device", "cpu")
-              .AddOutput(name, "cpu");
-    auto logical_id = GetNextLogicalId();
-    logical_ids_[logical_id];
-    PrepareOpSpec(&spec, logical_id);
-    graph_.AddOp(spec, "__ExternalInput_" + name);
-    external_inputs_.push_back(name);
-    return logical_id;
+  DLL_PUBLIC inline int AddExternalInput(const string &name, const string &device = "cpu") {
+    return AddOperator(OpSpec("_ExternalSource")
+                           .AddArg("name", name)
+                           .AddArg("device", device)
+                           .AddOutput(name, device),
+                       name);
   }
 
   template <typename T, typename OperatorBackend>
@@ -523,11 +508,6 @@ class DLL_PUBLIC Pipeline {
   OpGraph graph_;
   std::unique_ptr<ExecutorBase> executor_;
   std::map<string, EdgeMeta> edge_names_;
-
-  // store a list of all OpSpec and external inputs
-  // added, in order to recreate the pipeline in a
-  // serialized form
-  vector<string> external_inputs_;
 
   struct OpDefinition {
     std::string instance_name;
