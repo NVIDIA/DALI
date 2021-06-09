@@ -33,8 +33,9 @@
 
 namespace dali {
 
-void ProcessAxesArgs(std::vector<int> &axes, TensorLayout &axis_names, const OpSpec &spec,
-                     const char* axes_name = "axes", const char* axis_names_name = "axis_names");
+void ProcessAxesArgs(std::vector<int>& axes, TensorLayout& axis_names, const OpSpec& spec,
+                     const char* axes_arg_name = "axes",
+                     const char* axis_names_arg_name = "axis_names");
 
 class NamedSliceAttr {
  public:
@@ -45,8 +46,8 @@ class NamedSliceAttr {
                                  const char* rel_end_name = "rel_end",
                                  const char* shape_name = "shape",
                                  const char* rel_shape_name = "rel_shape",
-                                 const char* axes_name = "axes",
-                                 const char* axis_names_name = "axis_names")
+                                 const char* axes_arg_name = "axes",
+                                 const char* axis_names_arg_name = "axis_names")
       : spec_(spec),
         start_(start_name, spec),
         rel_start_(rel_start_name, spec),
@@ -56,7 +57,7 @@ class NamedSliceAttr {
         rel_shape_(rel_shape_name, spec) {
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
-    ProcessAxesArgs(axes_, axis_names_, spec, axes_name, axis_names_name);
+    ProcessAxesArgs(axes_, axis_names_, spec, axes_arg_name, axis_names_arg_name);
 
     has_start_ = start_.IsDefined() || rel_start_.IsDefined();
 

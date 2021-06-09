@@ -484,6 +484,7 @@ def test_numpy_reader_roi_error():
         (None, None, [100, 8], None, None, None, None, None), # Out of bounds end
         (None, None, None, None, [100, 8], None, None, None), # Out of bounds shape
     ]
+
     fortran_order = False
     with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
         index = 0
@@ -491,8 +492,15 @@ def test_numpy_reader_roi_error():
             filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
             create_numpy_file(filename, sh, dtype, fortran_order=fortran_order)
 
-        for device in ["cpu"]:  # TODO(janton): ROI is only supported for CPU backend, for now
+        for device in ["cpu", "gpu"]:
             for roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy in roi_args:
                 fill_value = random.choice([None, 10.0])
                 yield _testimpl_numpy_reader_roi_error, test_data_root, batch_size, ndim, dtype, device, fortran_order, file_filter, \
                     roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy, fill_value
+
+        # For now the GPU implementation doesn't support ROI, so passing any ROI argument will fail
+        device = 'gpu'
+        roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy = (
+            [1, 2], None, None, None, None, None, None, None)
+        yield _testimpl_numpy_reader_roi_error, test_data_root, batch_size, ndim, dtype, device, fortran_order, file_filter, \
+                roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy, fill_value
