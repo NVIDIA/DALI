@@ -39,6 +39,22 @@ struct ImageFileWrapper {
   std::string filename;
   // some field for auxiliary info to pass to the reader
   bool fortran_order;
+
+  const TypeInfo& type() const {
+    return image.type();
+  }
+
+  void set_type(const TypeInfo& type_info) {
+    image.set_type(type_info);
+  }
+
+  const TensorShape<>& shape() const {
+    return image.shape();
+  }
+
+  void set_shape(const TensorShape<>& shape) {
+    image.Resize(shape);
+  }
 };
 
 template <typename Backend = CPUBackend, typename Target = ImageFileWrapper,

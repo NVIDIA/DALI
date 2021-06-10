@@ -39,11 +39,29 @@ struct ImageFileWrapperGPU {
   Tensor<GPUBackend> image;
   std::string filename;
   bool fortran_order;
-  TensorShape<> shape;
-  TypeInfo type_info;
   std::unique_ptr<CUFileStream> file_stream;
   std::function<void(void)> read_meta_f;
   std::function<void(void* buffer, Index offset, size_t total_size)> read_sample_f;
+
+  const TensorShape<>& shape() const {
+    return shape_;
+  }
+
+  void set_shape(const TensorShape<>& shape) {
+    shape_ = shape;
+  }
+
+  const TypeInfo& type() const {
+    return type_info_;
+  }
+
+  void set_type(const TypeInfo& type_info) {
+    type_info_ = type_info;
+  }
+
+ private:
+  TypeInfo type_info_;
+  TensorShape<> shape_;
 };
 
 class CUFileLoader : public FileLoader<GPUBackend, ImageFileWrapperGPU, CUFileStream> {

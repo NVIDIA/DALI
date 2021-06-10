@@ -98,8 +98,8 @@ void NumpyLoaderGPU::ReadSample(ImageFileWrapperGPU& imfile) {
       header_cache_.UpdateCache(image_file, target);
     }
 
-    imfile.type_info = target.type_info;
-    imfile.shape = target.shape;
+    imfile.set_type(target.type_info);
+    imfile.set_shape(target.shape);
     imfile.fortran_order = target.fortran_order;
   };
 

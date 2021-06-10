@@ -74,14 +74,12 @@ class NumpyReaderGPU : public NumpyReader<GPUBackend, ImageFileWrapperGPU> {
   vector<TensorList<GPUBackend>> prefetched_batch_tensors_;
 
   // helpers for sample types and shapes
-  TensorShape<> GetSampleShape(int sample_idx) {
-    const auto& imfile = GetSample(sample_idx);
-    return imfile.shape;
+  const TensorShape<>& GetSampleShape(int sample_idx) {
+    return GetSample(sample_idx).shape();
   }
 
-  TypeInfo GetSampleType(int sample_idx) {
-    const auto& imfile = GetSample(sample_idx);
-    return imfile.type_info;
+  const TypeInfo& GetSampleType(int sample_idx) {
+    return GetSample(sample_idx).type();
   }
 
   template <typename T>
