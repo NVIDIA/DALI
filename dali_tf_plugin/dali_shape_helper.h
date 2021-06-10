@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ static tensorflow::TensorShape DaliToShape(const AutoCPtr<int64_t>& ns) {
   return ts;
 }
 
-static tensorflow::DataType DaliToTfType(dali_data_type_t dali_type) {
+constexpr tensorflow::DataType DaliToTfType(dali_data_type_t dali_type) {
   switch (dali_type) {
     case DALI_UINT8:
       return tensorflow::DT_UINT8;
@@ -71,7 +71,7 @@ static tensorflow::DataType DaliToTfType(dali_data_type_t dali_type) {
   }
 }
 
-static dali_data_type_t TfToDaliType(tensorflow::DataType tf_type) {
+constexpr dali_data_type_t TfToDaliType(tensorflow::DataType tf_type) {
   switch (tf_type) {
     case tensorflow::DT_UINT8:
       return DALI_UINT8;

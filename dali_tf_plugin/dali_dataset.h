@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,10 +54,10 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
         is_gpu_device_(context->device_type() == "GPU"),
         context_(context) {
     FillPipelineDef(context, pipeline_def_);
-    FillInputDef(context, input_def_);
+    FillInputAttrs(context, input_attrs_);
     OP_REQUIRES_OK(context, context->GetAttr(kOutputShapes, &shapes_));
     OP_REQUIRES_OK(context, context->GetAttr(kOutputDtypes, &dtypes_));
-    OP_REQUIRES_OK(context, context->GetAttr(kDeviceMismatch, &fail_on_device_mismatch_));
+    OP_REQUIRES_OK(context, context->GetAttr(kFailOnDevMismatch, &fail_on_device_mismatch_));
   }
 
   void MakeDataset(tensorflow::OpKernelContext* context,
@@ -83,14 +83,14 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
   };
 
   // Those are the static Attrs describing inputs
-  struct InputDef {
+  struct InputAttrs {
     std::vector<std::string> input_names;
     std::vector<std::string> input_layouts;
   };
 
-  struct InputDesc : Inputs, InputDef {
-    InputDesc(const Inputs& inputs, const InputDef& input_def)
-        : Inputs(inputs), InputDef(input_def) {}
+  struct InputDescs : Inputs, InputAttrs {
+    InputDescs(const Inputs& inputs, const InputAttrs& input_attrs)
+        : Inputs(inputs), InputAttrs(input_attrs) {}
   };
 
   // DALI Pipeline arguments
@@ -113,16 +113,16 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
   static constexpr const char* const kOutputDtypes = "output_dtypes";
 
   // DatasetOp-specific arguments
-  static constexpr const char* const kDeviceMismatch = "fail_on_device_mismatch";
+  static constexpr const char* const kFailOnDevMismatch = "fail_on_device_mismatch";
 
 
   void FillPipelineDef(tensorflow::OpKernelConstruction* context, PipelineDef& def);
   void FillInputs(tensorflow::OpKernelContext *context, Inputs &def);
-  void FillInputDef(tensorflow::OpKernelConstruction* context, InputDef& def);
-  void ValidateInputs(tensorflow::OpKernelContext *context, Inputs &inputs, InputDef& input_def);
+  void FillInputAttrs(tensorflow::OpKernelConstruction* context, InputAttrs& def);
+  void ValidateInputs(tensorflow::OpKernelContext *context, Inputs &inputs, InputAttrs& input_attrs);
 
   PipelineDef pipeline_def_;
-  InputDef input_def_;
+  InputAttrs input_attrs_;
   std::vector<tensorflow::PartialTensorShape> shapes_;
   tensorflow::DataTypeVector dtypes_;
   bool is_gpu_device_;

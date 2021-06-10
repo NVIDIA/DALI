@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -336,17 +336,18 @@ if dataset_compatible_tensorflow():
             # TODO(klecki): Validate number of specified inputs against the Pipeline
 
 
-        def _check_dtypes(self, provided_nest, expected_elem_type, allow_single=True):
-            """Check whether `provided_nest` is instance of `expected_elem_type`
+        def _check_dtypes(self, values, expected_elem_type):
+            """Check whether `values` is instance of `expected_elem_type`
             or tuple of `expected_elem_type`. TF doesn't treat list as a nesting type, but as a Tensor.
             """
-            if allow_single and isinstance(provided_nest, expected_elem_type):
+            if isinstance(values, expected_elem_type):
                 return True
-            elif isinstance(provided_nest, tuple) \
-                and all(isinstance(elem, expected_elem_type) for elem in provided_nest):
+            elif isinstance(values, tuple) \
+                and all(isinstance(elem, expected_elem_type) for elem in values):
                 return True
             else:
                 return False
+
 
         def _handle_deprecation(self, supported_arg, deprecated_arg, name):
             if deprecated_arg is not None:

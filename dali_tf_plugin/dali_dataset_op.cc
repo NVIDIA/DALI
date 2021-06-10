@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -68,11 +68,11 @@ namespace dali_tf_impl {
 class DALIDatasetOp::Dataset : public DatasetBase {
  public:
   explicit Dataset(OpKernelContext *context, const PipelineDef pipeline_def,
-                   const Inputs &inputs, const InputDef &input_def,
+                   const Inputs &inputs, const InputAttrs &input_attrs,
                    const std::vector<PartialTensorShape> &shapes, const DataTypeVector &dtypes,
                    const bool is_gpu_device, const bool fail_on_device_mismatch)
       : DatasetBase(DatasetContext(context)),
-        input_desc_(inputs, input_def),
+        input_desc_(inputs, input_attrs),
         pipeline_def_(pipeline_def),
         shapes_(shapes),
         dtypes_(dtypes),
@@ -119,7 +119,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
   const bool fail_on_device_mismatch_;
 
   daliPipelineHandle pipeline_handle_;
-  const InputDesc input_desc_;
+  const InputDescs input_desc_;
 
   Status AsGraphDefInternal(SerializationContext *context, DatasetGraphDefBuilder *b,
                             Node **output) const override {
@@ -128,7 +128,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
 
     AttrSerializationContainer attrs;
     PipelineDefToGraphDefAttrs(b, pipeline_def_, attrs);
-    InputDescToGraphDefAttrs(b, input_desc_, attrs);
+    InputDescsToGraphDefAttrs(b, input_desc_, attrs);
 
     SerializeField(attrs, b, "output_shapes", shapes_);
     SerializeField(attrs, b, "output_dtypes", dtypes_);
@@ -141,7 +141,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
     return Status::OK();
   }
 
-#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3
+#if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3)
   Status CheckExternalState() const override {
     return errors::Unimplemented("CheckExternalState is not supported for DALI dataset.");
   }
@@ -174,14 +174,14 @@ class DALIDatasetOp::Dataset : public DatasetBase {
     SerializeField(attrs, b, kGpuMemoryStats, pipeline_def_.enable_memory_stats);
   }
 
-  void InputDescToGraphDefAttrs(DatasetGraphDefBuilder *b, const InputDesc &input_desc,
+  void InputDescsToGraphDefAttrs(DatasetGraphDefBuilder *b, const InputDescs &input_desc,
                                 AttrSerializationContainer &attrs) const {
     SerializeField(attrs, b, kInputNames, input_desc.input_names);
     SerializeField(attrs, b, kInputLayouts, input_desc.input_layouts);
   }
 
   Status InputsToNodeList(SerializationContext *context, DatasetGraphDefBuilder *b,
-                          const InputDesc &input_desc,
+                          const InputDescs &input_desc,
                           std::vector<Node *> &input_graph_nodes) const {
     // Based on ZipDataset
     input_graph_nodes.clear();
@@ -232,7 +232,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     if (dataset()->HasInputs()) {
       input_impls_.resize(dataset()->NumInputs());
       for (size_t i = 0; i < input_impls_.size(); ++i) {
-#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3
+#if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3)
         TF_RETURN_IF_ERROR(dataset()->input_desc_.inputs[i]->MakeIterator(
             context, this, strings::StrCat(prefix(), "[", i, "]"), &input_impls_[i]));
 #else
@@ -340,7 +340,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     daliDeletePipeline(&pipeline_handle_);
   }
 
-#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3
+#if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3)
   Status SaveInternal(SerializationContext *ctx, IteratorStateWriter *writer) override {
     return errors::Unimplemented("SaveInternal is not supported for DALI dataset.");
   }
@@ -785,8 +785,8 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 void DALIDatasetOp::MakeDataset(OpKernelContext *context, DatasetBase **output) {
   Inputs inputs;
   FillInputs(context, inputs);
-  ValidateInputs(context, inputs, input_def_);
-  *output = new Dataset(context, pipeline_def_, inputs, input_def_, shapes_, dtypes_,
+  ValidateInputs(context, inputs, input_attrs_);
+  *output = new Dataset(context, pipeline_def_, inputs, input_attrs_, shapes_, dtypes_,
                         is_gpu_device_, fail_on_device_mismatch_);
 }
 
@@ -802,12 +802,14 @@ void DALIDatasetOp::FillPipelineDef(OpKernelConstruction *context, PipelineDef &
   OP_REQUIRES_OK(context, context->GetAttr(kGpuMemoryStats, &def.enable_memory_stats));
 }
 
-void DALIDatasetOp::FillInputDef(OpKernelConstruction *context, InputDef &def) {
+void DALIDatasetOp::FillInputAttrs(OpKernelConstruction *context, InputAttrs &def) {
   OP_REQUIRES_OK(context, context->GetAttr(kInputNames, &def.input_names));
   OP_REQUIRES_OK(context, context->GetAttr(kInputLayouts, &def.input_layouts));
 }
 
 void DALIDatasetOp::FillInputs(OpKernelContext *context, Inputs &def) {
+  def.inputs.clear();
+  def.inputs.reserve(context->num_inputs());
   for (size_t i = 0; i < context->num_inputs(); ++i) {
     DatasetBase *input;
     OP_REQUIRES_OK(context, GetDatasetFromVariantTensor(context->input(i), &input));
@@ -817,16 +819,16 @@ void DALIDatasetOp::FillInputs(OpKernelContext *context, Inputs &def) {
   }
 }
 
-void DALIDatasetOp::ValidateInputs(OpKernelContext *context, Inputs &inputs, InputDef &input_def) {
+void DALIDatasetOp::ValidateInputs(OpKernelContext *context, Inputs &inputs, InputAttrs &input_attrs) {
   // This is not really needed - we do it in Python side already, but just in case:
-  OP_REQUIRES(context, inputs.inputs.size() == input_def.input_names.size(),
+  OP_REQUIRES(context, inputs.inputs.size() == input_attrs.input_names.size(),
               errors::InvalidArgument("Number of inputs and input names provided must match, got ",
                                       inputs.inputs.size(), " inputs and ",
-                                      input_def.input_names.size(), " input names."));
+                                      input_attrs.input_names.size(), " input names."));
   OP_REQUIRES(
-      context, inputs.inputs.size() == input_def.input_layouts.size(),
+      context, inputs.inputs.size() == input_attrs.input_layouts.size(),
       errors::InvalidArgument("Number of inputs and input layouts provided must match, got ",
-                              inputs.inputs.size(), " inputs and ", input_def.input_layouts.size(),
+                              inputs.inputs.size(), " inputs and ", input_attrs.input_layouts.size(),
                               " input layouts."));
   // TODO(klecki): Validate the input devices against the current device
 }

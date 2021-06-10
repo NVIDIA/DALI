@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -171,7 +171,7 @@ class InstallerHelper:
             dali_lflags = '-L' + tmpdir + ' -ldali'
             dali_cflags = '-I' + os.path.join(self.src_path, 'include')
 
-            cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++11 -DNDEBUG -shared ' \
+            cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++14 -DNDEBUG -shared ' \
                 + dali_stub_src + ' -o ' + dali_stub_lib + ' -fPIC ' + dali_cflags + ' ' \
                 + cuda_cflags + ' ' + cuda_lflags + ' -O2'
             print('Building DALI stub lib:\n\n ' + cmd + '\n\n')
@@ -189,7 +189,7 @@ class InstallerHelper:
             # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
             # https://github.com/tensorflow/tensorflow/issues/17316
             # Do not remove it.
-            cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++11 -DNDEBUG -shared ' \
+            cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++14 -DNDEBUG -shared ' \
                 + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' \
                 + tf_cflags + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' ' \
                 + cuda_lflags + ' -O2'
