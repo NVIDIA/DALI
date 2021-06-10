@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,16 +55,10 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
   RecycleBuffer(tensor_vector_elm);
 }
 
-// Note that the operators named "ExternalSource" are automatically converted into
-// "_ExternalSource" nodes when creating the OpSpec. See the OpSpec::set_name for details.
-// The ExternalSource had special handling for serialization and limited support for cpu-only
-// deserialization (via Pipeline::AddExterinalInput) and it's not possbile to create it from
-// Python any more. It can still be present in some serialized Pipelines, so we need to handle
-// it during deserialization.
-// Otherwise, the implementation uses "_ExternalSource" so we keep only one to reduce confusion.
-DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<CPUBackend>, CPU);
 
-DALI_SCHEMA(_ExternalSource)
+DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);
+
+DALI_SCHEMA(ExternalSource)
   .DocStr(R"code("This is a backend for `ExternalSource` operator. Refer to the proper documentation
   for details.)code")
   .NumInput(0)

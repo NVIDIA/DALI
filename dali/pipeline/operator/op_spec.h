@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,15 +80,15 @@ class DLL_PUBLIC OpSpec {
    */
   DLL_PUBLIC inline void set_name(const string &name) {
     // Due to the fact that External Source existed in DALI as two entities we need to have a place
-    // where we merge it back into one. "ExternalSource" had special handling for serialization,
-    // so we go with the _ExternalSource that is now used.
-    if (name == "ExternalSource") {
-      name_ = "_ExternalSource";
-      schema_ = SchemaRegistry::TryGetSchema("_ExternalSource");
-      return;
+    // where we merge it back into one. "ExternalSource" special handling for serialization was
+    // removed so we can merge back _ExternalSource into it.
+    // We need to rename the spec that we construct at some point to not serialize it back
+    // with the doubled operator.
+    if (name == "_ExternalSource") {
+      name_ = "ExternalSource";
     }
     name_ = name;
-    schema_ = name.empty() ? nullptr : SchemaRegistry::TryGetSchema(name);
+    schema_ = name_.empty() ? nullptr : SchemaRegistry::TryGetSchema(name_);
   }
 
   DLL_PUBLIC inline const OpSchema &GetSchema() const {

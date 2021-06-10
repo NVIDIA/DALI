@@ -439,8 +439,8 @@ Keyword Args
             self, source=None, num_outputs=None, *, cycle=None, layout=None, name=None,
             device="cpu", cuda_stream=None, use_copy_kernel=None, batch=None, parallel=None,
             no_copy=None, prefetch_queue_depth=None, **kwargs):
-        self._schema = _b.GetSchema("_ExternalSource")
-        self._spec = _b.OpSpec("_ExternalSource")
+        self._schema = _b.GetSchema("ExternalSource")
+        self._spec = _b.OpSpec("ExternalSource")
         self._device = device
         self._layout = layout
         self._cuda_stream = cuda_stream

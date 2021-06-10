@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #ifndef DALI_TEST_DALI_TEST_BBOXES_H_
 #define DALI_TEST_DALI_TEST_BBOXES_H_
 
@@ -47,8 +47,8 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
                                     .AddOutput("output3", "cpu"));
 
     this->SetTestCheckType(this->GetTestCheckType());
-    this->FillExternalInputs();
     pipe->Build(DALISingleOpTest<ImgType>::outputs_);
+    this->FillExternalInputs();
     pipe->RunCPU();
     pipe->RunGPU();
 

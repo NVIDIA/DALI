@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -109,11 +109,11 @@ class DLL_PUBLIC Pipeline {
    * @brief Creates a placeholder for an External Source operator with the given name
    * (and output of given name).
    *
-   * Equivalent to inserting _ExternalSource with output of given name and specified
+   * Equivalent to inserting ExternalSource with output of given name and specified
    * device placemnt.
    */
   DLL_PUBLIC inline int AddExternalInput(const string &name, const string &device = "cpu") {
-    return AddOperator(OpSpec("_ExternalSource")
+    return AddOperator(OpSpec("ExternalSource")
                            .AddArg("name", name)
                            .AddArg("device", device)
                            .AddOutput(name, device),
