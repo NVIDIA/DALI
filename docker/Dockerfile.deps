@@ -22,14 +22,6 @@ RUN yum remove -y devtoolset* && \
 # Don't want the short-unicode version for Python 2.7
 RUN rm -f /opt/python/cp27-cp27m
 
-COPY DALI_DEPS_VERSION /tmp
-
-ARG DALI_DEPS_REPO
-ENV DALI_DEPS_REPO=${DALI_DEPS_REPO:-https://github.com/NVIDIA/DALI_deps}
-
-ARG DALI_DEPS_VERSION_SHA
-ENV DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA}
-
 # Clang, build it before deps as deps changes more frequently
 RUN CLANG_VERSION=11.1.0                                                                           && \
     cd tmp                                                                                         && \
@@ -43,6 +35,14 @@ RUN CLANG_VERSION=11.1.0                                                        
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install                                      && \
     cd /tmp                                                                                        && \
     rm -rf llvm-*
+
+COPY DALI_DEPS_VERSION /tmp
+
+ARG DALI_DEPS_REPO
+ENV DALI_DEPS_REPO=${DALI_DEPS_REPO:-https://github.com/NVIDIA/DALI_deps}
+
+ARG DALI_DEPS_VERSION_SHA
+ENV DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA}
 
 # run in /bin/bash to have more advanced features supported like list
 RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI_DEPS_VERSION)}    && \

@@ -19,7 +19,7 @@ ENV PATH=/opt/python/cp36-cp36/bin:/opt/python/cp37-cp37m/bin:/opt/python/cp38-c
 
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
-# install pyhton bindings and patch it to use the clang we have here
+# install Python bindings and patch it to use the clang we have here
 RUN pip install future setuptools wheel clang && \
     PY_CLANG_PATH=$(echo $(pip show clang) | sed 's/.*Location: \(.*\) Requires.*/\1/')/clang/cindex.py && \
     LIBCLANG_PATH=/usr/local/lib/libclang.so && \
