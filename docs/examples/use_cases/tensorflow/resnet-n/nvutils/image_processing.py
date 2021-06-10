@@ -189,11 +189,7 @@ def get_dali_pipeline(
         images = fn.decoders.image(
             inputs["image/encoded"],
             device=decode_device,
-            output_type=types.RGB,
-            device_memory_padding=211025920 if decode_device == 'mixed' else 0,
-            host_memory_padding=140544512 if decode_device == 'mixed' else 0,
-            preallocate_width_hint=5980 if decode_device == 'mixed' else 0,
-            preallocate_height_hint=6430 if decode_device == 'mixed' else 0)
+            output_type=types.RGB)
         # Make sure that every image > 224 for CropMirrorNormalize
         images = fn.resize(images, device=resize_device, resize_shorter=256)
 
