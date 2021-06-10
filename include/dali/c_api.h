@@ -43,8 +43,8 @@ typedef enum {
 } device_type_t;
 
 typedef enum {
-  DALI_BACKEND_GPU = 0,
-  DALI_BACKEND_CPU = 1,
+  DALI_BACKEND_CPU = 0,
+  DALI_BACKEND_GPU = 1,
   DALI_BACKEND_MIXED = 2
 } dali_backend_t;
 
