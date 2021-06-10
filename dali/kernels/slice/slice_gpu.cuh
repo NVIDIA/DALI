@@ -161,8 +161,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
       in_idx += i_d;  // in_strides[d] is 1
 
     // Fill values are reused a lot, so let's make sure they are cached (by using __ldg())
-    out[out_idx] =
-        out_of_bounds ? __ldg(&fill_values[i_c]) : clamp<OutputType>(in[in_idx]);
+    out[out_idx] = out_of_bounds ? __ldg(&fill_values[i_c]) : clamp<OutputType>(in[in_idx]);
   }
 }
 

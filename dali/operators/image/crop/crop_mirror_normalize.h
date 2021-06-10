@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,14 +37,14 @@
 #define CMN_NDIMS (3, 4, 5)
 
 namespace dali {
+
 namespace detail {
 
 template <int Dims>
-kernels::SliceFlipNormalizePermutePadArgs<Dims>
-ToSliceFlipNormalizePermutePadArgs(TensorShape<> input_shape, TensorLayout input_layout,
-                                   TensorLayout output_layout, const CropWindow &win,
-                                   bool horizontal_flip, bool pad_channels, span<const float> mean,
-                                   span<const float> inv_stddev, span<const float> fill_values) {
+kernels::SliceFlipNormalizePermutePadArgs<Dims> ToSliceFlipNormalizePermutePadArgs(
+    TensorShape<> input_shape, TensorLayout input_layout, TensorLayout output_layout,
+    const CropWindow &win, bool horizontal_flip, bool pad_channels, span<const float> mean,
+    span<const float> inv_stddev, span<const float> fill_values) {
   kernels::SliceFlipNormalizePermutePadArgs<Dims> args(win.shape.to_static<Dims>(), input_shape);
   args.anchor = win.anchor.to_static<Dims>();
   args.channel_dim = -1;

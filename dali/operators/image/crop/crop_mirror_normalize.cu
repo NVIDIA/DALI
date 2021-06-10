@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ bool CropMirrorNormalize<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
         output_desc[0].shape = req.output_shapes[0];
       ), DALI_FAIL(make_string("Not supported number of dimensions:", ndim));); // NOLINT
     ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
-  ), DALI_FAIL(make_string("Not supported input type:", input_type_)););  // NOLINT
+  ), DALI_FAIL(make_string("Not supported input type:", input_type_));); // NOLINT
   return true;
 }
 
