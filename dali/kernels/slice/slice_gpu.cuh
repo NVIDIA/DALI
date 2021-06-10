@@ -26,8 +26,13 @@
 #include "dali/core/fast_div.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/common/copy.h"
+#include "dali/kernels/common/type_erasure.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/slice/slice_kernel_utils.h"
+
+__device__ DALI_FORCEINLINE bool __ldg(const bool* ptr) {
+  return __ldg(reinterpret_cast<const dali::kernels::type_of_size<sizeof(bool)> *>(ptr));
+}
 
 namespace dali {
 namespace kernels {
@@ -97,16 +102,6 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
   }
 }
 
-template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE T ldg(const T* ptr) {
-  return __ldg(ptr);
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE bool ldg(const bool* ptr) {
-  return *ptr;
-}
-
 /**
  * @brief General algorithm that allows for padding in any dimension
  * @remarks `in` refers to the beginning of the input (not the slice anchor)
@@ -167,7 +162,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
 
     // Fill values are reused a lot, so let's make sure they are cached (by using __ldg())
     out[out_idx] =
-        out_of_bounds ? ldg<OutputType>(&fill_values[i_c]) : clamp<OutputType>(in[in_idx]);
+        out_of_bounds ? __ldg(&fill_values[i_c]) : clamp<OutputType>(in[in_idx]);
   }
 }
 
