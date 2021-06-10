@@ -819,7 +819,8 @@ void DALIDatasetOp::FillInputs(OpKernelContext *context, Inputs &def) {
   }
 }
 
-void DALIDatasetOp::ValidateInputs(OpKernelContext *context, Inputs &inputs, InputAttrs &input_attrs) {
+void DALIDatasetOp::ValidateInputs(OpKernelContext *context, Inputs &inputs,
+                                   InputAttrs &input_attrs) {
   // This is not really needed - we do it in Python side already, but just in case:
   OP_REQUIRES(context, inputs.inputs.size() == input_attrs.input_names.size(),
               errors::InvalidArgument("Number of inputs and input names provided must match, got ",
@@ -828,8 +829,8 @@ void DALIDatasetOp::ValidateInputs(OpKernelContext *context, Inputs &inputs, Inp
   OP_REQUIRES(
       context, inputs.inputs.size() == input_attrs.input_layouts.size(),
       errors::InvalidArgument("Number of inputs and input layouts provided must match, got ",
-                              inputs.inputs.size(), " inputs and ", input_attrs.input_layouts.size(),
-                              " input layouts."));
+                              inputs.inputs.size(), " inputs and ",
+                              input_attrs.input_layouts.size(), " input layouts."));
   // TODO(klecki): Validate the input devices against the current device
 }
 

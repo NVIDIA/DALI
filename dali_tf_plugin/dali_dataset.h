@@ -119,7 +119,8 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
   void FillPipelineDef(tensorflow::OpKernelConstruction* context, PipelineDef& def);
   void FillInputs(tensorflow::OpKernelContext *context, Inputs &def);
   void FillInputAttrs(tensorflow::OpKernelConstruction* context, InputAttrs& def);
-  void ValidateInputs(tensorflow::OpKernelContext *context, Inputs &inputs, InputAttrs& input_attrs);
+  void ValidateInputs(tensorflow::OpKernelContext* context, Inputs& inputs,
+                      InputAttrs& input_attrs);
 
   PipelineDef pipeline_def_;
   InputAttrs input_attrs_;
