@@ -18,6 +18,12 @@
 files=`git diff --cached --name-only`
 year=`date +%Y`
 
+if [ "$SKIP_HOOKS" = true ]
+then
+    echo "Skipping pre-commit hook..."
+    exit 0
+fi
+
 git rev-parse -q --verify MERGE_HEAD && \
     echo "Merge commit, skipping hooks" && exit 0
 

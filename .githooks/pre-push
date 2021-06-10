@@ -17,6 +17,13 @@
 remote="$1"
 url="$2"
 
+if [ "$SKIP_HOOKS" = true ]
+then
+    echo "Skipping pre-push hook..."
+    exit 0
+fi
+
+
 z40=0000000000000000000000000000000000000000
 
 while read local_ref local_sha remote_ref remote_sha
