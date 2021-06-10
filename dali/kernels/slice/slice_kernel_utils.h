@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ template <int Dims, typename Args>
 void CheckValidOutputShape(const TensorShape<Dims>& in_sample_shape,
                            const TensorShape<Dims>& out_sample_shape,
                            const Args& args) {
-  for (size_t d = 0; d < Dims; d++) {
+  for (int d = 0; d < Dims; d++) {
     DALI_ENFORCE(args.shape[d] <= out_sample_shape[d],
       "Output shape dimension " + std::to_string(d) + " is too small");
   }
