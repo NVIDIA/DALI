@@ -165,7 +165,6 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
       const auto& file_i = GetSample(i);
       if (file_i.fortran_order) {
         from.data[j] = GetSampleData<T>(i);
-        std::cout << "ndim " << ndim << " sample shape " << GetSampleShape(i) << "\n";
         from.shape.set_tensor_shape(j, GetSampleShape(i));
         to.data[j] = out_view.data[i];
         to.shape.set_tensor_shape(j, out_view.shape.tensor_shape(i));
