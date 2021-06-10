@@ -65,11 +65,7 @@ def create_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, siz
         else:
             images = fn.decoders.image(images,
                                        device=decoder_device,
-                                       output_type=types.RGB,
-                                       device_memory_padding=device_memory_padding,
-                                       host_memory_padding=host_memory_padding,
-                                       preallocate_width_hint=preallocate_width_hint,
-                                       preallocate_height_hint=preallocate_height_hint,)
+                                       output_type=types.RGB)
             images = fn.resize(images,
                                device=dali_device,
                                size=size,
