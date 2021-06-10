@@ -163,6 +163,7 @@ class NumpyReaderCPU : public NumpyReader<CPUBackend, ImageFileWrapper> {
 
  protected:
   void RunImpl(HostWorkspace &ws) override;
+  using Operator<CPUBackend>::RunImpl;
 
  private:
   void TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);

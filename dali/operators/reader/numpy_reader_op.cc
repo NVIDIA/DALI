@@ -131,63 +131,42 @@ speed.)code",
         R"code(Start of the region-of-interest, in absolute coordinates.
 
 This argument is incompatible with "rel_roi_start".
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<float>>("rel_roi_start",
         R"code(Start of the region-of-interest, in relative coordinates (range [0.0 - 1.0]).
 
 This argument is incompatible with "roi_start".
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<int>>("roi_end",
         R"code(End of the region-of-interest, in absolute coordinates.
 
 This argument is incompatible with "rel_roi_end", "roi_shape" and "rel_roi_shape".
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<float>>("rel_roi_end",
         R"code(End of the region-of-interest, in relative coordinates (range [0.0 - 1.0]).
 
 This argument is incompatible with "roi_end", "roi_shape" and "rel_roi_shape".
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<int>>("roi_shape",
         R"code(Shape of the region-of-interest, in absolute coordinates.
 
 This argument is incompatible with "rel_roi_shape", "roi_end" and "rel_roi_end".
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<float>>("rel_roi_shape",
         R"code(Shape of the region-of-interest, in relative coordinates (range [0.0 - 1.0]).
 
 This argument is incompatible with "roi_shape", "roi_end" and "rel_roi_end".
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg("roi_axes",
         R"code(Order of dimensions used for the ROI anchor and shape argumens, as dimension indices.
 
 If not provided, all the dimensions should be specified in the ROI arguments.
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         std::vector<int>{})
     .AddOptionalArg("out_of_bounds_policy",

@@ -13,12 +13,6 @@
 // limitations under the License.
 
 #include <string>
-
-#include "dali/core/convert.h"
-#include "dali/core/static_switch.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
-#include "dali/kernels/slice/slice_kernel_utils.h"
-#include "dali/kernels/transpose/transpose_gpu.h"
 #include "dali/operators/reader/numpy_reader_gpu_op.h"
 #include "dali/pipeline/data/views.h"
 
@@ -93,102 +87,6 @@ void NumpyReaderGPU::Prefetch() {
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
     curr_batch[data_idx]->file_stream->Close();
   }
-}
-
-template <typename T, int Dims>
-void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
-  auto &output = ws.OutputRef<GPUBackend>(0);
-  const auto &out_sh = output.shape();
-  int ndim = out_sh.sample_dim();
-  int nsamples = out_sh.num_samples();
-  auto dtype = GetSampleType(0);
-  bool need_slice = !rois_.empty();
-  auto out_view = view<T>(output);
-
-  // Permuted dims, to use for the transposition
-  std::array<int, Dims> perm;
-  for (int d = 0; d < Dims; d++)
-    perm[d] = Dims - 1 - d;
-
-  for (int data_idx = 0; data_idx < nsamples; data_idx++) {
-    const auto& imfile = GetSample(data_idx);
-    output.SetSourceInfo(data_idx, imfile.image.GetSourceInfo());
-  }
-
-  if (nsamples_copy_) {
-    if (nsamples_copy_ == nsamples) {
-      std::swap(output, prefetched_batch_tensors_[curr_batch_consumer_]);
-    } else {
-      auto type_sz = dtype.size();
-      int j = 0;
-      for (int i = 0; i < nsamples; i++) {
-        const auto& file_i = GetSample(i);
-        if (!need_slice && !file_i.fortran_order) {
-          auto sz = out_sh.tensor_size(i) * type_sz;
-          sg_.AddCopy(out_view.data[i], GetSampleRawData(i), sz);
-          j++;
-        }
-      }
-      assert(j == nsamples_copy_);
-      sg_.Run(ws.stream());
-    }
-  }
-
-  // TLV used to invoke kernels with a subset of the samples
-  TensorListView<StorageGPU, const T> from;
-  from.data.reserve(nsamples);
-  from.shape.resize(nsamples, ndim);
-  TensorListView<StorageGPU, T> to;
-  to.data.reserve(nsamples);
-  to.shape.resize(nsamples, ndim);
-
-  if (nsamples_slice_) {
-    // TODO(janton): Implement
-    // SmallVector<kernels::SliceArgs<T, Dims>, 256> slice_args_;
-    DALI_FAIL("ROI reading is not enabled for this backend");
-  }
-
-  if (nsamples_slice_perm_) {
-    // TODO(janton): Implement
-    // SmallVector<kernels::SliceFlipNormalizePermutePadArgs<Dims>, 256> slice_perm_args_;
-    DALI_FAIL("ROI reading is not enabled for this backend");
-  }
-
-  if (nsamples_transpose_) {
-    from.shape.resize(nsamples_transpose_, ndim);
-    from.data.resize(nsamples_transpose_);
-    to.shape.resize(nsamples_transpose_, ndim);
-    to.data.resize(nsamples_transpose_);
-
-    int j = 0;
-    for (int i = 0; i < nsamples; i++) {
-      const auto& file_i = GetSample(i);
-      if (file_i.fortran_order) {
-        from.data[j] = GetSampleData<T>(i);
-        from.shape.set_tensor_shape(j, GetSampleShape(i));
-        to.data[j] = out_view.data[i];
-        to.shape.set_tensor_shape(j, out_view.shape.tensor_shape(i));
-        j++;
-      }
-    }
-    assert(j == nsamples_transpose_);
-    kernels::KernelContext ctx;
-    ctx.gpu.stream = ws.stream();
-    kmgr_.Setup<TransposeKernel>(0, ctx, from.shape, make_span(perm),
-                                 dtype.size());
-    kmgr_.Run<TransposeKernel>(0, 0, ctx, to, from);
-  }
-}
-
-void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
-  auto &output = ws.OutputRef<GPUBackend>(0);
-  int ndim = output.shape().sample_dim();
-  auto dtype = output.type().id();
-  VALUE_SWITCH(ndim, Dims, NUMPY_ALLOWED_DIMS, (
-    TYPE_SWITCH(dtype, type2id, T, NUMPY_ALLOWED_TYPES, (
-      RunImplTyped<T, Dims>(ws);
-    ), DALI_FAIL(make_string("Not supported input type: ", dtype)););  // NOLINT
-  ), DALI_FAIL(make_string("Not supported number of dimensions: ", ndim)););  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(readers__Numpy, NumpyReaderGPU, GPU);
