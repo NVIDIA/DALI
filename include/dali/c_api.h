@@ -415,11 +415,11 @@ DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const cha
                                       daliReaderMetadata* meta);
 
 /**
- * @brief Returns the backend of the operator with a given \p name
- * @param name Name of the operator to query
+ * @brief Returns the backend of the operator with a given \p operator_name
+ * @param operator_name Name of the operator to query
  */
 DLL_PUBLIC dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle,
-                                                 const char *name);
+                                                 const char *operator_name);
 
 /**
  * @brief Obtains the executor statistics

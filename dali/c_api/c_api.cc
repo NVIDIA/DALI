@@ -543,7 +543,7 @@ void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_n
   meta->stick_to_shard = returned_meta.stick_to_shard;
 }
 
-dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle, const char *name) {
+dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle, const char *operator_name) {
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
   auto *node = pipeline->GetOperatorNode(name);
   switch (node->op_type) {
