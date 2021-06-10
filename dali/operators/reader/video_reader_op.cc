@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ This class only supports constant frame rate videos.
   .AddOptionalArg("filenames",
       R"code(File names of the video files to load.
 
-This option is mutually exclusive with ``filenames`` and ``file_root``.)code",
+This option is mutually exclusive with ``file_list`` and ``file_root``.)code",
       std::vector<std::string>{})
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
 ``filenames`` argument.
