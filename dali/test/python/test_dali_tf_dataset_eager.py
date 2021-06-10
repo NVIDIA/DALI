@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,9 +46,12 @@ def test_tf_dataset_with_constant_input():
 
 
 def run_tf_dataset_with_random_input(dev, max_shape, dtype):
-    run_tf_dataset_eager_mode(dev,
-        get_pipeline_desc=external_source_tester(max_shape, dtype, RandomSampleIterator(max_shape, dtype(0))),
+    run_tf_dataset_eager_mode(
+        dev,
+        get_pipeline_desc=external_source_tester(max_shape, dtype,
+                                                 RandomSampleIterator(max_shape, dtype(0))),
         to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype))
+
 
 def test_tf_dataset_with_random_input():
     for dev in ['cpu', 'gpu']:
@@ -59,9 +62,12 @@ def test_tf_dataset_with_random_input():
 
 # Run with everything on GPU (External Source op as well)
 def run_tf_dataset_with_random_input_gpu(max_shape, dtype):
-    run_tf_dataset_eager_mode("gpu",
-        get_pipeline_desc=external_source_tester(max_shape, dtype, RandomSampleIterator(max_shape, dtype(0)), "gpu"),
+    run_tf_dataset_eager_mode(
+        "gpu",
+        get_pipeline_desc=external_source_tester(max_shape, dtype,
+                                                 RandomSampleIterator(max_shape, dtype(0)), "gpu"),
         to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype))
+
 
 def test_tf_dataset_with_random_input_gpu():
     for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
@@ -70,9 +76,17 @@ def test_tf_dataset_with_random_input_gpu():
 
 
 def run_tf_dataset_with_stop_iter(dev, max_shape, dtype, stop_samples):
-    run_tf_dataset_eager_mode(dev, to_stop_iter=True,
-        get_pipeline_desc=external_source_tester(max_shape, dtype, RandomSampleIterator(max_shape, dtype(0), start=0, stop=stop_samples)),
-        to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype, 0, stop_samples))
+    run_tf_dataset_eager_mode(dev,
+                              to_stop_iter=True,
+                              get_pipeline_desc=external_source_tester(
+                                  max_shape, dtype,
+                                  RandomSampleIterator(max_shape,
+                                                       dtype(0),
+                                                       start=0,
+                                                       stop=stop_samples)),
+                              to_dataset=external_source_converter_with_callback(
+                                  RandomSampleIterator, max_shape, dtype, 0, stop_samples))
+
 
 def test_tf_dataset_with_stop_iter():
     batch_size = 12
@@ -88,11 +102,14 @@ def run_tf_dataset_multi_input(dev, start_values, input_names):
         to_dataset=external_source_converter_multiple(start_values, input_names))
 
 
-start_values = [
-    [np.full((2, 4), 42, dtype=np.int64), np.full((3, 5), 123.0, dtype=np.float32)],
-    [np.full((3, 5), 3.14, dtype=np.float32)],
-    [np.full((2, 4), 42, dtype=np.int64), np.full((3, 5), 666.0, dtype=np.float32), np.full((1, 7), -5, dtype=np.int8)]
-]
+start_values = [[np.full((2, 4), 42, dtype=np.int64),
+                 np.full((3, 5), 123.0, dtype=np.float32)],
+                [np.full((3, 5), 3.14, dtype=np.float32)],
+                [
+                    np.full((2, 4), 42, dtype=np.int64),
+                    np.full((3, 5), 666.0, dtype=np.float32),
+                    np.full((1, 7), -5, dtype=np.int8)
+                ]]
 
 input_names = [["input_{}".format(i) for i, _ in enumerate(vals)] for vals in start_values]
 

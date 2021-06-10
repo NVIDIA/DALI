@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ def available_gpus():
     for device_id in range(num_available_gpus()):
         devices.append('/gpu:{0}'.format(device_id))
     return devices
+
 
 @contextmanager
 def expect_iter_end(should_raise, exception_type):

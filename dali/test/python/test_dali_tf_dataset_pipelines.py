@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -252,10 +252,13 @@ def external_source_tester_multiple(start_values, input_names):
     def get_external_source_pipeline_getter(batch_size, num_threads, device, device_id=0,
         shard_id=0, num_shards=1, def_for_dataset=False):
 
-        sources = [ InfiniteSampleIterator(start_value) for start_value in start_values ]
-        output_shapes = [ ( (batch_size,) + tuple(None for _ in start_value.shape) ) for start_value in start_values ]
+        sources = [InfiniteSampleIterator(start_value) for start_value in start_values]
+        output_shapes = [((batch_size, ) + tuple(None for _ in start_value.shape))
+                         for start_value in start_values]
         output_shapes = tuple(output_shapes + output_shapes)
-        output_dtypes = tuple([ tf.dtypes.as_dtype(start_value.dtype) for start_value in start_values ] + [tf.int32] * len(start_values))
+        output_dtypes = tuple(
+            [tf.dtypes.as_dtype(start_value.dtype)
+             for start_value in start_values] + [tf.int32] * len(start_values))
 
         pipe = many_input_pipeline(def_for_dataset,
                                    device,
