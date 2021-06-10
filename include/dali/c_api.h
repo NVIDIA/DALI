@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -126,7 +126,8 @@ enum {
   /**
    * If memory transfer should be synchronous - applies to GPU memory
    */
-  DALI_ext_force_sync = (1<<0),
+  DALI_ext_force_sync = (1 << 0),
+
   /**
    * If provided CPU memory is page-locked
    */
@@ -137,6 +138,17 @@ enum {
    * Only relevant when the input is either pinned host memory or device memory
    */
   DALI_use_copy_kernel = (1 << 2),
+
+  /**
+   * Override the `no_copy` specified for given External Source and force the data to be copied.
+   */
+  DALI_ext_force_copy = (1 << 3),
+
+  /**
+   * Override the `no_copy` specified for given External Source and pass the data directly to the
+   * Pipeline.
+   */
+  DALI_ext_force_no_copy = (1 << 4),
 };
 
 /**

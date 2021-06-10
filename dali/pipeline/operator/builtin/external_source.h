@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@
 #include "dali/pipeline/operator/batch_size_provider.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/worker_thread.h"
+#include "include/dali/core/common.h"
 
 namespace dali {
 
@@ -162,6 +163,22 @@ auto get_batch_size(const BatchContainer<Backend>& container) {
 }  // namespace detail
 
 /**
+ * @brief Options that can be configured when setting data for the External Source
+ *
+ * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
+ *             to the internal buffer
+ * @param use_copy_kernel If true, a copy kernel will be used to make a
+ *                        contiguous buffer instead of cudaMemcpyAsync.
+ * @param no_copy_mode Select whether to use the parameter defined in the External Source or
+ *                     override the mode of operation forcing the copy or no-copy
+ */
+struct SetDataConfig {
+  bool sync = false;
+  bool use_copy_kernel = false;
+  DALIExtNoCopyMode no_copy_mode = DALIExtNoCopyMode::DEFAULT;
+};
+
+/**
  * @brief Provides in-graph access to data fed in from outside of dali.
  * For now, we do a copy from the passed in data into our data to avoid
  * potential scoping and data corruption issues.
@@ -197,12 +214,12 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   /**
    * @brief Sets the data that should be passed out of the op on the next iteration.
    */
-  template<typename SrcBackend>
+  template <typename SrcBackend>
   inline void SetDataSource(const TensorList<SrcBackend> &tl, cudaStream_t stream = 0,
-                            bool sync = false, bool use_copy_kernel = false) {
+                            SetDataConfig set_data_config = {}) {
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
-    SetDataSourceHelper(tl, stream, sync, use_copy_kernel);
+    SetDataSourceHelper(tl, stream, set_data_config);
   }
 
   /**
@@ -210,26 +227,25 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
    */
   template <typename SrcBackend>
   inline void SetDataSource(const vector<Tensor<SrcBackend>> &vect_of_tensors,
-                            cudaStream_t stream = 0, bool sync = false,
-                            bool use_copy_kernel = false) {
+                            cudaStream_t stream = 0, SetDataConfig set_data_config = {}) {
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
     for (size_t i = 0; i < tv.size(); ++i) {
       tv[i].ShareData(const_cast<Tensor<SrcBackend>*>(&vect_of_tensors[i]));
     }
-    SetDataSourceHelper(tv, stream, sync, use_copy_kernel);
+    SetDataSourceHelper(tv, stream, set_data_config);
   }
 
   /**
    * @brief Sets the data that should be passed out of the op on the next iteration.
    */
-  template<typename SrcBackend>
+  template <typename SrcBackend>
   inline void SetDataSource(const TensorVector<SrcBackend> &tv, cudaStream_t stream = 0,
-                            bool sync = false, bool use_copy_kernel = false) {
+                            SetDataConfig set_data_config = {}) {
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
-    SetDataSourceHelper(tv, stream, sync, use_copy_kernel);
+    SetDataSourceHelper(tv, stream, set_data_config);
   }
 
   int NextBatchSize() override {
@@ -452,7 +468,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
 
   template<typename SrcBackend, template<typename> class SourceDataType>
   inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &batch, cudaStream_t stream = 0,
-                                  bool sync = false, bool use_copy_kernel = false) {
+                                  SetDataConfig set_data_config = {}) {
     bool is_gpu_src = std::is_same<SrcBackend, GPUBackend>::value;
     bool is_gpu_dst = std::is_same<Backend, GPUBackend>::value;
     if (is_gpu_src && !is_gpu_dst) {
@@ -469,10 +485,24 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     // pass anything as it is ignored.
     std::list<uptr_tl_type> tl_elm;
     std::list<uptr_tl_type> tv_elm;
-    if (no_copy_) {
-      ShareUserData(batch, stream, use_copy_kernel);
+
+    bool actual_no_copy = no_copy_;
+    switch (set_data_config.no_copy_mode) {
+      case DALIExtNoCopyMode::FORCE_COPY:
+        actual_no_copy = false;
+        break;
+      case DALIExtNoCopyMode::FORCE_NO_COPY:
+        actual_no_copy = true;
+        break;
+      default:
+        actual_no_copy = no_copy_;
+        break;
+    };
+
+    if (actual_no_copy) {
+      ShareUserData(batch, stream, set_data_config.use_copy_kernel);
     } else {
-      CopyUserData(batch, stream, sync, use_copy_kernel);
+      CopyUserData(batch, stream, set_data_config.sync, set_data_config.use_copy_kernel);
     }
     cv_.notify_one();
   }

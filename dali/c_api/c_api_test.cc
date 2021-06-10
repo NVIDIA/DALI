@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -99,6 +99,32 @@ std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string
                            .AddOutput(output_name, exec_device));
 
   std::vector<std::pair<std::string, std::string>> outputs = {{output_name, output_device}};
+
+  pipe.SetOutputNames(outputs);
+  return pipe_ptr;
+}
+
+
+std::unique_ptr<Pipeline> GetExternalSourcePipeline(bool no_copy, const std::string &device) {
+  auto pipe_ptr = std::make_unique<Pipeline>(batch_size, num_thread, device_id, seed, pipelined,
+                                             prefetch_queue_depth, async);
+  auto &pipe = *pipe_ptr;
+
+  pipe.AddOperator(OpSpec("_ExternalSource")
+                       .AddArg("device", device)
+                       .AddArg("name", input_name)
+                       .AddArg("no_copy", no_copy)
+                       .AddOutput(input_name, device), input_name);
+  //  Some Op
+  pipe.AddOperator(OpSpec("Resize")
+                       .AddArg("device", device)
+                       .AddArg("image_type", DALI_RGB)
+                       .AddArg("resize_x", output_size)
+                       .AddArg("resize_y", output_size)
+                       .AddInput(input_name, device)
+                       .AddOutput(output_name, device));
+
+  std::vector<std::pair<std::string, std::string>> outputs = {{output_name, device}};
 
   pipe.SetOutputNames(outputs);
   return pipe_ptr;
@@ -609,6 +635,100 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
     ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr, flags);
   }
 }
+
+
+TYPED_TEST(CApiTest, NoCopyForce) {
+  TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3},
+                                   {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
+                                   {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
+  TensorList<CPUBackend> input_cpu;
+  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+
+  TensorList<TypeParam> input;
+
+  auto device = backend_to_device_type<TypeParam>::value;
+  std::string device_str = device == CPU ? "cpu" : "gpu";
+
+  auto other_device = device == CPU ? GPU : CPU;
+  std::string other_device_str = other_device == CPU ? "cpu" : "gpu";
+
+  auto pipe_ptr = GetExternalSourcePipeline(false, other_device_str);
+  auto serialized = pipe_ptr->SerializeToProtobuf();
+
+  pipe_ptr->Build();
+
+  daliPipelineHandle handle;
+  daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
+                     device_id, false, prefetch_queue_depth, prefetch_queue_depth,
+                     prefetch_queue_depth, false);
+
+  SequentialFill(view<uint8_t>(input_cpu), 42);
+  // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
+  input.Copy(input_cpu, cuda_stream);
+
+  // Try to fill the pipeline placed on "other_device" with data placed on the current "device"
+  // while forcing NO COPY. It's not allowed to do a no copy across backends and it should error
+  // out.
+  ASSERT_THROW(daliSetExternalInputAsync(
+                    &handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
+                    input.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
+                    input_shape.sample_dim(), nullptr, cuda_stream, DALI_ext_force_no_copy),
+                std::runtime_error);
+}
+
+
+
+TYPED_TEST(CApiTest, CopyForce) {
+  TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3},
+                                   {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
+                                   {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
+  TensorList<CPUBackend> input_cpu;
+  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+
+  TensorList<TypeParam> input;
+
+  auto device = backend_to_device_type<TypeParam>::value;
+  std::string device_str = device == CPU ? "cpu" : "gpu";
+
+  auto pipe_ptr = GetExternalSourcePipeline(true, device_str);
+  auto serialized = pipe_ptr->SerializeToProtobuf();
+
+  pipe_ptr->Build();
+
+  daliPipelineHandle handle;
+  daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
+                     device_id, false, prefetch_queue_depth, prefetch_queue_depth,
+                     prefetch_queue_depth, false);
+
+  std::vector<TensorList<TypeParam>> data;
+  data.resize(prefetch_queue_depth);
+
+  for (int i = 0; i < prefetch_queue_depth; i++) {
+    SequentialFill(view<uint8_t>(input_cpu), 42 * i);
+    // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
+    data[i].Copy(input_cpu, cuda_stream);
+    pipe_ptr->SetExternalInput(input_name, data[i]);
+    TensorList<TypeParam> tmp_data;
+    tmp_data.Copy(data[i], cuda_stream);
+    // We pass a temporary TensorList as input and force the copy
+    daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
+                              tmp_data.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
+                              input_shape.sample_dim(), nullptr, cuda_stream, DALI_ext_force_copy);
+  }
+
+  for (int i = 0; i < prefetch_queue_depth; i++) {
+    pipe_ptr->RunCPU();
+    pipe_ptr->RunGPU();
+  }
+  daliPrefetchUniform(&handle, prefetch_queue_depth);
+
+  dali::DeviceWorkspace ws;
+  for (int i = 0; i < prefetch_queue_depth; i++) {
+    ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
+  }
+}
+
+
 
 template <typename Backend>
 void Clear(Tensor<Backend>& tensor);
