@@ -183,7 +183,6 @@ def main():
                                 shard_id=args.local_rank,
                                 num_shards=args.world_size,
                                 is_training=True,
-                                exec_pipelined=False,
                                 device_id=-99999)
     pipe.build()
     # DALI iterator for classification tasks for PyTorch. It returns 2 outputs (data and label) in the form of PyTorch’s Tensor.
@@ -199,7 +198,6 @@ def main():
                                 shard_id=args.local_rank,
                                 num_shards=args.world_size,
                                 is_training=False,
-                                exec_pipelined=False,
                                 device_id=-99999)
     pipe.build()
     val_loader = DALIClassificationIterator(pipe, reader_name="Reader", last_batch_policy=LastBatchPolicy.PARTIAL)
