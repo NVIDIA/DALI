@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,9 +29,9 @@ class DataNode(object):
     stage. It does not carry actual data, but is used to define the connections between operators
     and to specify the pipeline outputs. See documentation for :class:`Pipeline` for details.
 
-    `DataNode` objects can be passed to DALI operators as inputs (and some of the named arguments)
-    but they also provide arithmetic operations which implicitly create appropriate operators that
-    perform the expressions.
+    ``DataNode`` objects can be passed to DALI operators as inputs (and some of the named keyword
+    arguments) but they also provide arithmetic operations which implicitly create appropriate
+    operators that perform the expressions.
     """
     def __init__(self, name, device="cpu", source=None):
         self.name = name
