@@ -142,22 +142,8 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
 
 
 def main():
-    global best_prec1, args
-    best_prec1 = 0
+    global args
     args = parse()
-
-    # test mode, use default args for sanity test
-    if args.test:
-        args.opt_level = None
-        args.epochs = 1
-        args.start_epoch = 0
-        args.arch = 'resnet50'
-        args.batch_size = 64
-        args.data = []
-        args.sync_bn = False
-        args.data.append('/data/imagenet/train-jpeg/')
-        args.data.append('/data/imagenet/val-jpeg/')
-        print("Test mode - no DDP, no apex, RN50, 10 iterations")
 
     if not len(args.data):
         raise Exception("error: No data set provided")
@@ -165,29 +151,6 @@ def main():
     args.distributed = False
     if 'WORLD_SIZE' in os.environ:
         args.distributed = int(os.environ['WORLD_SIZE']) > 1
-
-    # make apex optional
-    if args.opt_level is not None or args.distributed or args.sync_bn:
-        try:
-            global DDP, amp, optimizers, parallel
-            from apex.parallel import DistributedDataParallel as DDP
-            from apex import amp, optimizers, parallel
-        except ImportError:
-            raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
-
-    print("opt_level = {}".format(args.opt_level))
-    print("keep_batchnorm_fp32 = {}".format(args.keep_batchnorm_fp32), type(args.keep_batchnorm_fp32))
-    print("loss_scale = {}".format(args.loss_scale), type(args.loss_scale))
-
-    print("\nCUDNN VERSION: {}\n".format(torch.backends.cudnn.version()))
-
-    cudnn.benchmark = True
-    best_prec1 = 0
-    if args.deterministic:
-        cudnn.benchmark = False
-        cudnn.deterministic = True
-        torch.manual_seed(args.local_rank)
-        torch.set_printoptions(precision=10)
 
     args.gpu = 0
     args.world_size = 1
@@ -200,75 +163,6 @@ def main():
         args.world_size = torch.distributed.get_world_size()
 
     args.total_batch_size = args.world_size * args.batch_size
-    assert torch.backends.cudnn.enabled, "Amp requires cudnn backend to be enabled."
-
-    # create model
-    if args.pretrained:
-        print("=> using pre-trained model '{}'".format(args.arch))
-        model = models.__dict__[args.arch](pretrained=True)
-    else:
-        print("=> creating model '{}'".format(args.arch))
-        model = models.__dict__[args.arch]()
-
-    if args.sync_bn:
-        print("using apex synced BN")
-        model = parallel.convert_syncbn_model(model)
-
-    if hasattr(torch, 'channels_last') and  hasattr(torch, 'contiguous_format'):
-        if args.channels_last:
-            memory_format = torch.channels_last
-        else:
-            memory_format = torch.contiguous_format
-        model = model.cuda().to(memory_format=memory_format)
-    else:
-        model = model.cuda()
-
-    # Scale learning rate based on global batch size
-    args.lr = args.lr*float(args.batch_size*args.world_size)/256.
-    optimizer = torch.optim.SGD(model.parameters(), args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay)
-
-    # Initialize Amp.  Amp accepts either values or strings for the optional override arguments,
-    # for convenient interoperation with argparse.
-    if args.opt_level is not None:
-        model, optimizer = amp.initialize(model, optimizer,
-                                          opt_level=args.opt_level,
-                                          keep_batchnorm_fp32=args.keep_batchnorm_fp32,
-                                          loss_scale=args.loss_scale
-                                          )
-
-    # For distributed training, wrap the model with apex.parallel.DistributedDataParallel.
-    # This must be done AFTER the call to amp.initialize.  If model = DDP(model) is called
-    # before model, ... = amp.initialize(model, ...), the call to amp.initialize may alter
-    # the types of model's parameters in a way that disrupts or destroys DDP's allreduce hooks.
-    if args.distributed:
-        # By default, apex.parallel.DistributedDataParallel overlaps communication with
-        # computation in the backward pass.
-        # model = DDP(model)
-        # delay_allreduce delays all communication to the end of the backward pass.
-        model = DDP(model, delay_allreduce=True)
-
-    # define loss function (criterion) and optimizer
-    criterion = nn.CrossEntropyLoss().cuda()
-
-    # Optionally resume from a checkpoint
-    if args.resume:
-        # Use a local scope to avoid dangling references
-        def resume():
-            if os.path.isfile(args.resume):
-                print("=> loading checkpoint '{}'".format(args.resume))
-                checkpoint = torch.load(args.resume, map_location = lambda storage, loc: storage.cuda(args.gpu))
-                args.start_epoch = checkpoint['epoch']
-                global best_prec1
-                best_prec1 = checkpoint['best_prec1']
-                model.load_state_dict(checkpoint['state_dict'])
-                optimizer.load_state_dict(checkpoint['optimizer'])
-                print("=> loaded checkpoint '{}' (epoch {})"
-                      .format(args.resume, checkpoint['epoch']))
-            else:
-                print("=> no checkpoint found at '{}'".format(args.resume))
-        resume()
 
     # Data loading code
     if len(args.data) == 1:
@@ -316,24 +210,24 @@ def main():
     val_loader = DALIClassificationIterator(pipe, reader_name="Reader", last_batch_policy=LastBatchPolicy.PARTIAL)
 
     if args.evaluate:
-        validate(val_loader, model, criterion)
+        validate(val_loader)
         return
 
     total_time = AverageMeter()
     for epoch in range(args.start_epoch, args.epochs):
         # train for one epoch
-        avg_train_time = train(train_loader, model, criterion, optimizer, epoch)
+        avg_train_time = train(train_loader, epoch)
         total_time.update(avg_train_time)
         if args.test:
             break
 
         # evaluate on validation set
-        validate(val_loader, model, criterion)
+        validate(val_loader)
 
         train_loader.reset()
         val_loader.reset()
 
-def train(train_loader, model, criterion, optimizer, epoch):
+def train(train_loader, epoch):
     batch_time = AverageMeter()
 
     end = time.time()
@@ -359,7 +253,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
     return batch_time.avg
 
-def validate(val_loader, model, criterion):
+def validate(val_loader):
     batch_time = AverageMeter()
 
     end = time.time()
