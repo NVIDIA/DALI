@@ -497,7 +497,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
       default:
         actual_no_copy = no_copy_;
         break;
-    };
+    }
 
     if (actual_no_copy) {
       ShareUserData(batch, stream, set_data_config.use_copy_kernel);
