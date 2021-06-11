@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -268,6 +268,82 @@ TEST_F(VideoReaderTest, Vp9Profile2) {
                        .AddArg("skip_vfr_check", true)
                        .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
                                                                      "/db/video/vp9/vp9_2.mp4"})
+                       .AddOutput("frames", "gpu"));
+
+  DeviceWorkspace ws;
+  try {
+    pipe.Build(this->Outputs());
+
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+  } catch (const std::exception &e) {
+    if (IsUnsupportedCodec(e.what())) {
+      GTEST_SKIP() << "Skipped because of unsupported codec. Original error:\n" << e.what();
+    } else {
+      throw;
+    }
+  }
+
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
+  const auto &frames_shape = frames_output.shape();
+
+  ASSERT_EQ(frames_shape.size(), 1);
+  ASSERT_EQ(frames_shape[0][0], sequence_length);
+}
+
+
+TEST_F(VideoReaderTest, Vp8Profile0) {
+  Pipeline pipe(1, 1, 0);
+  const int sequence_length = 60;
+
+  // richer FFmpeg configuration leads to different behaviour of VFR heuristics so dissable it for
+  // this video
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("skip_vfr_check", true)
+                       .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                                     "/db/video/vp8/vp8.webm"})
+                       .AddOutput("frames", "gpu"));
+
+  DeviceWorkspace ws;
+  try {
+    pipe.Build(this->Outputs());
+
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+  } catch (const std::exception &e) {
+    if (IsUnsupportedCodec(e.what())) {
+      GTEST_SKIP() << "Skipped because of unsupported codec. Original error:\n" << e.what();
+    } else {
+      throw;
+    }
+  }
+
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
+  const auto &frames_shape = frames_output.shape();
+
+  ASSERT_EQ(frames_shape.size(), 1);
+  ASSERT_EQ(frames_shape[0][0], sequence_length);
+}
+
+TEST_F(VideoReaderTest, MJpeg) {
+  Pipeline pipe(1, 1, 0);
+  const int sequence_length = 60;
+  const string unsupported_exception_msg =
+      "Decoder hardware does not support this video codec"
+      " and/or chroma format";
+
+  // richer FFmpeg configuration leads to different behaviour of VFR heuristics so dissable it for
+  // this video
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("skip_vfr_check", true)
+                       .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                                     "/db/video/mjpeg/mjpeg.avi"})
                        .AddOutput("frames", "gpu"));
 
   DeviceWorkspace ws;

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -115,6 +115,15 @@ NvDecoder::NvDecoder(int device_id,
       codec = Codec::VP9;
       break;
 
+    case AV_CODEC_ID_VP8:
+      codec = Codec::VP8;
+      break;
+
+
+    case AV_CODEC_ID_MJPEG:
+      codec = Codec::MJPEG;
+      break;
+
     default:
       DALI_FAIL("Invalid codec for NvDecoder");
       return;
@@ -160,7 +169,12 @@ int NvDecoder::decode_av_packet(AVPacket* avpkt, int64_t start_time, AVRational 
   }
 
   // parser_ will call handle_* callbacks after parsing
-  NVCUVID_CALL(cuvidParseVideoData(parser_, &cupkt));
+  auto ret = cuvidParseVideoData(parser_, &cupkt);
+  if (!captured_exception_) {
+    // throw only if we haven't captured any other exception before which is probably processed
+    // right now and we don't want to throw exception in exception
+    NVCUVID_CALL(ret);
+  }
   return 0;
 }
 
