@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,9 +54,10 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
         is_gpu_device_(context->device_type() == "GPU"),
         context_(context) {
     FillPipelineDef(context, pipeline_def_);
-    OP_REQUIRES_OK(context, context->GetAttr("output_shapes", &shapes_));
-    OP_REQUIRES_OK(context, context->GetAttr("output_dtypes", &dtypes_));
-    OP_REQUIRES_OK(context, context->GetAttr("fail_on_device_mismatch", &fail_on_device_mismatch_));
+    FillInputAttrs(context, input_attrs_);
+    OP_REQUIRES_OK(context, context->GetAttr(kOutputShapes, &shapes_));
+    OP_REQUIRES_OK(context, context->GetAttr(kOutputDtypes, &dtypes_));
+    OP_REQUIRES_OK(context, context->GetAttr(kFailOnDevMismatch, &fail_on_device_mismatch_));
   }
 
   void MakeDataset(tensorflow::OpKernelContext* context,
@@ -75,6 +76,24 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
     bool enable_memory_stats;
   };
 
+  // TODO(klecki): I know the name Inputs is not ideal, but we actually get them
+  // in compute from Op inputs.
+  struct Inputs {
+    std::vector<tensorflow::data::DatasetBase *> inputs;
+  };
+
+  // Those are the static Attrs describing inputs
+  struct InputAttrs {
+    std::vector<std::string> input_names;
+    std::vector<std::string> input_layouts;
+  };
+
+  struct InputDescs : Inputs, InputAttrs {
+    InputDescs(const Inputs& inputs, const InputAttrs& input_attrs)
+        : Inputs(inputs), InputAttrs(input_attrs) {}
+  };
+
+  // DALI Pipeline arguments
   static constexpr const char* const kPipeline = "pipeline";
   static constexpr const char* const kBatchSize = "batch_size";
   static constexpr const char* const kNumThreads = "num_threads";
@@ -85,9 +104,26 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
   static constexpr const char* const kGpuPrefetchQueueDepth = "gpu_prefetch_queue_depth";
   static constexpr const char* const kGpuMemoryStats = "enable_memory_stats";
 
+  // Arguments describing inputs
+  static constexpr const char* const kInputNames = "input_names";
+  static constexpr const char* const kInputLayouts = "input_layouts";
+
+  // Arguments describing outputs
+  static constexpr const char* const kOutputShapes = "output_shapes";
+  static constexpr const char* const kOutputDtypes = "output_dtypes";
+
+  // DatasetOp-specific arguments
+  static constexpr const char* const kFailOnDevMismatch = "fail_on_device_mismatch";
+
+
   void FillPipelineDef(tensorflow::OpKernelConstruction* context, PipelineDef& def);
+  void FillInputs(tensorflow::OpKernelContext *context, Inputs &def);
+  void FillInputAttrs(tensorflow::OpKernelConstruction* context, InputAttrs& def);
+  void ValidateInputs(tensorflow::OpKernelContext* context, Inputs& inputs,
+                      InputAttrs& input_attrs);
 
   PipelineDef pipeline_def_;
+  InputAttrs input_attrs_;
   std::vector<tensorflow::PartialTensorShape> shapes_;
   tensorflow::DataTypeVector dtypes_;
   bool is_gpu_device_;
