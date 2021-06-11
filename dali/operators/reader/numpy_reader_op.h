@@ -24,6 +24,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <set>
 
 #include "dali/operators/generic/slice/slice_attr.h"
 #include "dali/operators/generic/slice/out_of_bounds_policy.h"
@@ -65,15 +66,15 @@ class NumpyReader : public DataReader<Backend, Target> {
     int ndim = file_0.shape().sample_dim();
     TensorListShape<> sh(batch_size, ndim);
 
-    bool need_slice = slice_attr_.template ProcessArguments<Backend>(ws, batch_size, ndim);
+    bool has_roi_args = slice_attr_.template ProcessArguments<Backend>(ws, batch_size, ndim);
     rois_.clear();
-    if (need_slice)
+    if (has_roi_args)
       rois_.resize(batch_size);
 
-    nsamples_copy_ = 0;
-    nsamples_transpose_ = 0;
-    nsamples_slice_ = 0;
-    nsamples_slice_perm_ = 0;
+    need_copy_.clear();
+    need_transpose_.clear();
+    need_slice_.clear();
+    need_slice_perm_.clear();
     for (int i = 0; i < batch_size; i++) {
       const auto& file_i = GetSample(i);
       const auto& file_sh = file_i.shape();
@@ -103,7 +104,8 @@ class NumpyReader : public DataReader<Backend, Target> {
           sample_sh[d] = file_sh[d];
       }
 
-      if (need_slice) {
+      bool need_slice = false;
+      if (has_roi_args) {
         // Calculate the cropping window, based on the final layout (user provides axes in that
         // layout)
         auto full_sample_sh = sh.tensor_shape(i);  // already permuted dims
@@ -111,6 +113,13 @@ class NumpyReader : public DataReader<Backend, Target> {
         ApplySliceBoundsPolicy(out_of_bounds_policy_, full_sample_sh, tmp_roi.anchor,
                                tmp_roi.shape);
         sh.set_tensor_shape(i, tmp_roi.shape);  // set the final shape
+
+        for (int d = 0; d < ndim; d++) {
+          if (tmp_roi.anchor[d] != 0 || tmp_roi.shape[d] != full_sample_sh[d]) {
+            need_slice = true;
+            break;
+          }
+        }
 
         // Reverse the cropping window arguments if needed, as we provide slice arguments in the
         // original layout
@@ -125,17 +134,14 @@ class NumpyReader : public DataReader<Backend, Target> {
         }
       }
 
-      if (need_slice) {
-        if (is_transposed)
-          nsamples_slice_perm_++;
-        else
-          nsamples_slice_++;
-      } else {
-        if (is_transposed)
-          nsamples_transpose_++;
-        else
-          nsamples_copy_++;
-      }
+      if (need_slice && is_transposed)
+        need_slice_perm_.insert(i);
+      else if (is_transposed)
+        need_transpose_.insert(i);
+      else if (need_slice)
+        need_slice_.insert(i);
+      else
+        need_copy_.insert(i);
     }
     output_desc.resize(1);
     output_desc[0].shape = std::move(sh);
@@ -148,10 +154,10 @@ class NumpyReader : public DataReader<Backend, Target> {
   OutOfBoundsPolicy out_of_bounds_policy_ = OutOfBoundsPolicy::Error;
   float fill_value_ = 0;
 
-  int nsamples_copy_ = 0;
-  int nsamples_transpose_ = 0;
-  int nsamples_slice_ = 0;
-  int nsamples_slice_perm_ = 0;
+  std::set<int> need_transpose_;
+  std::set<int> need_slice_;
+  std::set<int> need_slice_perm_;
+  std::set<int> need_copy_;
 };
 
 class NumpyReaderCPU : public NumpyReader<CPUBackend, ImageFileWrapper> {

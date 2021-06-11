@@ -212,17 +212,18 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
     const auto& file_i = GetSample(i);
     const auto& file_sh = file_i.image.shape();
     bool need_transpose = file_i.fortran_order;
-    bool need_slice = !rois_.empty();
+    bool need_slice = need_slice_.find(i) != need_slice_.end();
+    bool need_slice_perm = need_slice_perm_.find(i) != need_slice_perm_.end();
 
     // controls task priority
     int64_t task_sz = volume(file_i.image.shape());
-    if (need_slice)  // geometric mean between input shape and ROI shape
+    if (need_slice || need_slice_perm)  // geometric mean between input shape and ROI shape
       task_sz = std::sqrt(static_cast<double>(task_sz) * volume(rois_[i].shape));
     if (need_transpose)  // 2x if transposition is required
       task_sz *= 2;
 
     thread_pool.AddWork([&, i, need_transpose, need_slice](int tid) {
-      if (need_slice && need_transpose) {
+      if (need_slice_perm) {
         SlicePermuteHelper(output[i], file_i.image, rois_[i], fill_value_);
       } else if (need_slice) {
         SliceHelper(output[i], file_i.image, rois_[i], fill_value_);

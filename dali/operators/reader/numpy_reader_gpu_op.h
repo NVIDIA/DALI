@@ -95,7 +95,7 @@ class NumpyReaderGPU : public NumpyReader<GPUBackend, ImageFileWrapperGPU> {
   kernels::ScatterGatherGPU sg_;
   kernels::KernelManager kmgr_transpose_;
   kernels::KernelManager kmgr_slice_;
-  kernels::KernelManager kmgr_slice_permute_;
+  kernels::KernelManager kmgr_slice_perm_;
 };
 
 }  // namespace dali
