@@ -172,9 +172,9 @@ def main():
         crop_size = 224
         val_size = 256
 
+    # remove the device_id=args.local_rank to let dali uses CPU only device id and not calling libcuda.so
     pipe = create_dali_pipeline(batch_size=args.batch_size,
                                 num_threads=args.workers,
-                                device_id=args.local_rank,
                                 seed=12 + args.local_rank,
                                 data_dir=traindir,
                                 crop=crop_size,
@@ -189,7 +189,6 @@ def main():
 
     pipe = create_dali_pipeline(batch_size=args.batch_size,
                                 num_threads=args.workers,
-                                device_id=args.local_rank,
                                 seed=12 + args.local_rank,
                                 data_dir=valdir,
                                 crop=crop_size,
