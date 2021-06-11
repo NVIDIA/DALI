@@ -97,6 +97,7 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
     decoder_device = 'cpu' if dali_cpu else 'mixed'
     device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
     host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
+    print("dali device is {}, decoder device is {}").format(dali_device, decoder_device)
     if is_training:
         images = fn.decoders.image_random_crop(images,
                                                device=decoder_device, output_type=types.RGB,
@@ -110,7 +111,7 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
                            resize_x=crop,
                            resize_y=crop,
                            interp_type=types.INTERP_TRIANGULAR)
-        mirror = fn.random.coin_flip(probability=0.5)
+        # mirror = fn.random.coin_flip(probability=0.5)
     else:
         images = fn.decoders.image(images,
                                    device=decoder_device,
@@ -120,16 +121,16 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
                            size=size,
                            mode="not_smaller",
                            interp_type=types.INTERP_TRIANGULAR)
-        mirror = False
+        # mirror = False
 
-    images = fn.crop_mirror_normalize(images.gpu(),
-                                      dtype=types.FLOAT,
-                                      output_layout="CHW",
-                                      crop=(crop, crop),
-                                      mean=[0.485 * 255,0.456 * 255,0.406 * 255],
-                                      std=[0.229 * 255,0.224 * 255,0.225 * 255],
-                                      mirror=mirror)
-    labels = labels.gpu()
+    # images = fn.crop_mirror_normalize(images.gpu(),
+    #                                   dtype=types.FLOAT,
+    #                                   output_layout="CHW",
+    #                                   crop=(crop, crop),
+    #                                   mean=[0.485 * 255,0.456 * 255,0.406 * 255],
+    #                                   std=[0.229 * 255,0.224 * 255,0.225 * 255],
+    #                                   mirror=mirror)
+    # labels = labels.gpu()
     return images, labels
 
 
