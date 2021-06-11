@@ -30,7 +30,7 @@ NVIDIA DALI Documentation
 
    installation
    Platform Support <support_matrix>
-   Getting Started Tutorial <examples/getting started.ipynb>
+   Getting Started Tutorial <examples/getting_started.ipynb>
 
 .. toctree::
    :hidden:
