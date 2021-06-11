@@ -97,7 +97,7 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
     decoder_device = 'cpu' if dali_cpu else 'mixed'
     device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
     host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
-    print("dali device is {}, decoder device is {}").format(dali_device, decoder_device)
+    print('dali device is {}, decoder device is {}'.format(dali_device, decoder_device))
     if is_training:
         images = fn.decoders.image_random_crop(images,
                                                device=decoder_device, output_type=types.RGB,
