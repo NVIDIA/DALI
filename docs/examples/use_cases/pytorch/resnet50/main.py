@@ -93,6 +93,8 @@ def to_python_float(t):
 
 @pipeline_def
 def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=False, is_training=True):
+    # Read jpegs and labels from the hard drive
+    # this line is enough
     images, labels = fn.readers.file(file_root=data_dir,
                                      shard_id=shard_id,
                                      num_shards=num_shards,
@@ -296,6 +298,7 @@ def main():
                                 num_shards=args.world_size,
                                 is_training=True)
     pipe.build()
+    # DALI iterator for classification tasks for PyTorch. It returns 2 outputs (data and label) in the form of PyTorch’s Tensor.
     train_loader = DALIClassificationIterator(pipe, reader_name="Reader", last_batch_policy=LastBatchPolicy.PARTIAL)
 
     pipe = create_dali_pipeline(batch_size=args.batch_size,
@@ -325,38 +328,14 @@ def main():
             break
 
         # evaluate on validation set
-        [prec1, prec5] = validate(val_loader, model, criterion)
-
-        # remember best prec@1 and save checkpoint
-        if args.local_rank == 0:
-            is_best = prec1 > best_prec1
-            best_prec1 = max(prec1, best_prec1)
-            save_checkpoint({
-                'epoch': epoch + 1,
-                'arch': args.arch,
-                'state_dict': model.state_dict(),
-                'best_prec1': best_prec1,
-                'optimizer' : optimizer.state_dict(),
-            }, is_best)
-            if epoch == args.epochs - 1:
-                print('##Top-1 {0}\n'
-                      '##Top-5 {1}\n'
-                      '##Perf  {2}'.format(
-                      prec1,
-                      prec5,
-                      args.total_batch_size / total_time.avg))
+        validate(val_loader, model, criterion)
 
         train_loader.reset()
         val_loader.reset()
 
 def train(train_loader, model, criterion, optimizer, epoch):
     batch_time = AverageMeter()
-    losses = AverageMeter()
-    top1 = AverageMeter()
-    top5 = AverageMeter()
 
-    # switch to train mode
-    model.train()
     end = time.time()
 
     for i, data in enumerate(train_loader):
@@ -364,59 +343,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         target = data[0]["label"].squeeze(-1).long()
         train_loader_len = int(math.ceil(train_loader._size / args.batch_size))
 
-        if args.prof >= 0 and i == args.prof:
-            print("Profiling begun at iteration {}".format(i))
-            torch.cuda.cudart().cudaProfilerStart()
-
-        if args.prof >= 0: torch.cuda.nvtx.range_push("Body of iteration {}".format(i))
-
-        adjust_learning_rate(optimizer, epoch, i, train_loader_len)
-        if args.test:
-            if i > 10:
-                break
-
-        # compute output
-        if args.prof >= 0: torch.cuda.nvtx.range_push("forward")
-        output = model(input)
-        if args.prof >= 0: torch.cuda.nvtx.range_pop()
-        loss = criterion(output, target)
-
-        # compute gradient and do SGD step
-        optimizer.zero_grad()
-
-        if args.prof >= 0: torch.cuda.nvtx.range_push("backward")
-        if args.opt_level is not None:
-            with amp.scale_loss(loss, optimizer) as scaled_loss:
-                scaled_loss.backward()
-        else:
-             loss.backward()
-        if args.prof >= 0: torch.cuda.nvtx.range_pop()
-
-        if args.prof >= 0: torch.cuda.nvtx.range_push("optimizer.step()")
-        optimizer.step()
-        if args.prof >= 0: torch.cuda.nvtx.range_pop()
-
         if i%args.print_freq == 0:
-            # Every print_freq iterations, check the loss, accuracy, and speed.
-            # For best performance, it doesn't make sense to print these metrics every
-            # iteration, since they incur an allreduce and some host<->device syncs.
-
-            # Measure accuracy
-            prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
-
-            # Average loss and accuracy across processes for logging
-            if args.distributed:
-                reduced_loss = reduce_tensor(loss.data)
-                prec1 = reduce_tensor(prec1)
-                prec5 = reduce_tensor(prec5)
-            else:
-                reduced_loss = loss.data
-
-            # to_python_float incurs a host<->device sync
-            losses.update(to_python_float(reduced_loss), input.size(0))
-            top1.update(to_python_float(prec1), input.size(0))
-            top5.update(to_python_float(prec5), input.size(0))
-
             torch.cuda.synchronize()
             batch_time.update((time.time() - end)/args.print_freq)
             end = time.time()
@@ -424,34 +351,16 @@ def train(train_loader, model, criterion, optimizer, epoch):
             if args.local_rank == 0:
                 print('Epoch: [{0}][{1}/{2}]\t'
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Speed {3:.3f} ({4:.3f})\t'
-                      'Loss {loss.val:.10f} ({loss.avg:.4f})\t'
-                      'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                      'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+                      'Speed {3:.3f} ({4:.3f})'.format(
                        epoch, i, train_loader_len,
                        args.world_size*args.batch_size/batch_time.val,
                        args.world_size*args.batch_size/batch_time.avg,
-                       batch_time=batch_time,
-                       loss=losses, top1=top1, top5=top5))
-
-        # Pop range "Body of iteration {}".format(i)
-        if args.prof >= 0: torch.cuda.nvtx.range_pop()
-
-        if args.prof >= 0 and i == args.prof + 10:
-            print("Profiling ended at iteration {}".format(i))
-            torch.cuda.cudart().cudaProfilerStop()
-            quit()
+                       batch_time=batch_time))
 
     return batch_time.avg
 
 def validate(val_loader, model, criterion):
     batch_time = AverageMeter()
-    losses = AverageMeter()
-    top1 = AverageMeter()
-    top5 = AverageMeter()
-
-    # switch to evaluate mode
-    model.eval()
 
     end = time.time()
 
@@ -460,24 +369,6 @@ def validate(val_loader, model, criterion):
         target = data[0]["label"].squeeze(-1).long()
         val_loader_len = int(val_loader._size / args.batch_size)
 
-        # compute output
-        with torch.no_grad():
-            output = model(input)
-            loss = criterion(output, target)
-
-        # measure accuracy and record loss
-        prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
-
-        if args.distributed:
-            reduced_loss = reduce_tensor(loss.data)
-            prec1 = reduce_tensor(prec1)
-            prec5 = reduce_tensor(prec5)
-        else:
-            reduced_loss = loss.data
-
-        losses.update(to_python_float(reduced_loss), input.size(0))
-        top1.update(to_python_float(prec1), input.size(0))
-        top5.update(to_python_float(prec5), input.size(0))
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -487,27 +378,11 @@ def validate(val_loader, model, criterion):
         if args.local_rank == 0 and i % args.print_freq == 0:
             print('Test: [{0}/{1}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Speed {2:.3f} ({3:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                  'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+                  'Speed {2:.3f} ({3:.3f})'.format(
                    i, val_loader_len,
                    args.world_size * args.batch_size / batch_time.val,
                    args.world_size * args.batch_size / batch_time.avg,
-                   batch_time=batch_time, loss=losses,
-                   top1=top1, top5=top5))
-
-    print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
-        .format(top1=top1, top5=top5))
-
-    return [top1.avg, top5.avg]
-
-
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
-    torch.save(state, filename)
-    if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
-
+                   batch_time=batch_time))
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -525,46 +400,6 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
-
-
-def adjust_learning_rate(optimizer, epoch, step, len_epoch):
-    """LR schedule that should yield 76% converged accuracy with batch size 256"""
-    factor = epoch // 30
-
-    if epoch >= 80:
-        factor = factor + 1
-
-    lr = args.lr*(0.1**factor)
-
-    """Warmup"""
-    if epoch < 5:
-        lr = lr*float(1 + step + epoch*len_epoch)/(5.*len_epoch)
-
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
-
-
-def accuracy(output, target, topk=(1,)):
-    """Computes the precision@k for the specified values of k"""
-    maxk = max(topk)
-    batch_size = target.size(0)
-
-    _, pred = output.topk(maxk, 1, True, True)
-    pred = pred.t()
-    correct = pred.eq(target.view(1, -1).expand_as(pred))
-
-    res = []
-    for k in topk:
-        correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
-        res.append(correct_k.mul_(100.0 / batch_size))
-    return res
-
-
-def reduce_tensor(tensor):
-    rt = tensor.clone()
-    dist.all_reduce(rt, op=dist.reduce_op.SUM)
-    rt /= args.world_size
-    return rt
 
 if __name__ == '__main__':
     main()
