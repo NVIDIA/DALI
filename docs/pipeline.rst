@@ -80,7 +80,7 @@ Example::
         img_files, labels = fn.readers.file(file_root='image_dir', device='cpu')
         # `images` is GPU data (result of Mixed operator)
         images = fn.decoders.image(img_files, device='mixed')
-        `coin_flip` must be on CPU so the `flip_params` can be used as argument input
+        # `coin_flip` must be on CPU so the `flip_params` can be used as argument input
         flip_param = fn.random.coin_flip(device='cpu')
         # `images` is input (GPU) and `flip_param` is argument input (CPU)
         flipped = fn.flip(images, horizontal=flip_param, device='gpu')
