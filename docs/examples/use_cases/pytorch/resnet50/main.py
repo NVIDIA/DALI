@@ -1,22 +1,14 @@
 import argparse
 import os
-import shutil
 import time
 import math
 
 import torch
-import torch.nn as nn
 import torch.nn.parallel
-import torch.backends.cudnn as cudnn
-import torch.distributed as dist
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
-import torchvision.transforms as transforms
-import torchvision.datasets as datasets
 import torchvision.models as models
-
-import numpy as np
 
 try:
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator, LastBatchPolicy
@@ -152,13 +144,12 @@ def main():
     if 'WORLD_SIZE' in os.environ:
         args.distributed = int(os.environ['WORLD_SIZE']) > 1
 
-    args.gpu = 0
     args.world_size = 1
 
     if args.distributed:
-        args.gpu = args.local_rank
-        torch.cuda.set_device(args.gpu)
-        torch.distributed.init_process_group(backend='nccl',
+        # backend='gloo', device_ids must be None or an empty list for CPU modules
+        # rank = args.local_rank, world_size=args.world_size these two variables may be set through distributed.launch
+        torch.distributed.init_process_group(backend='gloo',
                                              init_method='env://')
         args.world_size = torch.distributed.get_world_size()
 
