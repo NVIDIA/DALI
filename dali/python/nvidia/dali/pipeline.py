@@ -560,6 +560,8 @@ Parameters
         self._py_pool_started = True
 
     def _init_pipeline_backend(self):
+        print('device id is {}'.format(types.CPU_ONLY_DEVICE_ID if self._device_id is None else "NOTHING"))
+        print('cpu queue size is {}'.format(self._cpu_queue_size))
         self._pipe = b.Pipeline(self._max_batch_size,
                                 self._num_threads,
                                 self._device_id if self._device_id is not None else types.CPU_ONLY_DEVICE_ID,
