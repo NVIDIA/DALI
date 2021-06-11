@@ -67,7 +67,7 @@ Those named keyword arguments (which are distinct from the positional inputs) ca
   * Python constants
   * Argument inputs - outputs of the **CPU** operators - indicated as `TensorList` in the operator's docstring.
 
-In the case of argument inputs,  passing output of one operator to **named keyword argument**
+In the case of argument inputs, passing output of one operator to **named keyword argument**
 of other operator will establish a connection in the processing graph.
 
 Those parameters will be computed as a part of DALI pipeline graph every iteration and
