@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,10 +14,12 @@
 
 #include <gtest/gtest.h>
 #include <utility>
+#include <fstream>
 
 #include "dali/test/dali_test_decoder.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/operator/builtin/external_source.h"
+#include "dali/test/dali_test_config.h"
 
 namespace dali {
 
@@ -533,5 +535,31 @@ TEST(CachingListTest, ProphetTest) {
   ASSERT_THROW(cl.PeekProphet(), std::out_of_range);
   ASSERT_THROW(cl.AdvanceProphet(), std::out_of_range);
 }
+
+// TODO(klecki): For whatever reason the serialized pipelines error out on batch size
+TEST(ExternalSourceTest, DeserializeLegacyExternalSource) {
+  std::string path = testing::dali_extra_path() + "/db/serialized_pipes/";
+  std::tuple<std::string, std::string, std::string> es_pipes[] = {
+      {"add_external_input_v1.0.0.proto", "cpu", "__ExternalInput_es"},
+      {"underscore_ext_src_cpu_v1.0.0.proto", "cpu", "es"},
+      {"underscore_ext_src_gpu_v1.0.0.proto", "gpu", "es"}};
+  for (auto file_dev_name : es_pipes) {
+    std::string path_to_deserialize = path + std::get<0>(file_dev_name);
+    std::string dev = std::get<1>(file_dev_name);
+    std::string name = std::get<2>(file_dev_name);
+    std::fstream file(path, std::ios::in | std::ios::binary);
+    std::string pipe_str;
+    file >> pipe_str;
+    Pipeline pipe(pipe_str, 10, 4, 0);
+    pipe.Build();
+    // Check if the external source is the only operator deserialized
+    auto *op = pipe.GetOperatorNode(name);
+    ASSERT_EQ(op->parents.size(), 0);
+    ASSERT_EQ(op->children.size(), 0);
+    ASSERT_EQ(op->spec.name(), "ExternalSource");
+
+  }
+}
+
 
 }  // namespace dali

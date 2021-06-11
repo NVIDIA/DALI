@@ -58,8 +58,15 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
 
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);
 
+
+// This schema is partially internal. We want it to be listed int the supported_ops,
+// but it is explicitly not loaded by the Op Factory. Instead the Python wrapper classes
+// access it directly.
+// C++ operators should access this operator directly as well.
 DALI_SCHEMA(ExternalSource)
-  .DocStr(R"code("This is a backend for `ExternalSource` operator. Refer to the proper documentation
+  .DocStr(R"code("Allows externally provided data to be passed as an input to the pipeline.
+
+  This is a backend for `ExternalSource` operator. Refer to the proper documentation
   for details.)code")
   .NumInput(0)
   .NumOutput(1)
@@ -82,7 +89,6 @@ The memory location must match the specified ``device`` parameter of the operato
 For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
 For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you provide a list
 of separate Tensors, there will be an additional copy made internally, consuming both memory
-and bandwidth.)code", false)
-  .MakeInternal();
+and bandwidth.)code", false);
 
 }  // namespace dali

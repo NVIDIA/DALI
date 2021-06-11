@@ -748,12 +748,12 @@ TYPED_TEST(CApiTest, CpuOnlyTest) {
 TEST(CApiTest, GetBackendTest) {
   dali::Pipeline pipe(1, 1, 0);
   std::string es_gpu_name = "es_gpu";
-  pipe.AddOperator(OpSpec("_ExternalSource")
+  pipe.AddOperator(OpSpec("ExternalSource")
                           .AddArg("device", "gpu")
                           .AddArg("name", es_gpu_name)
                           .AddOutput(es_gpu_name, "gpu"), es_gpu_name);
   std::string es_cpu_name = "es_cpu";
-  pipe.AddOperator(OpSpec("_ExternalSource")
+  pipe.AddOperator(OpSpec("ExternalSource")
                           .AddArg("device", "cpu")
                           .AddArg("name", es_cpu_name)
                           .AddOutput(es_cpu_name, "cpu"), es_cpu_name);
