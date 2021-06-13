@@ -155,8 +155,11 @@ def main():
 
     args.world_size = 1
     print('batch_size is {}, num_threads is {}, shard id is {}, world size is {}'.format(args.batch_size, args.workers, args.local_rank, int(os.environ['WORLD_SIZE'])))
-    print('rank is {}', os.environ['RANK'])
-    print('local rank is {}', os.environ['LOCAL_RANK'])
+    print('rank is {}'.format(os.environ['RANK']))
+    print('local rank is'.format(os.environ['LOCAL_RANK']))
+    shard_id = args.local_rank
+    if 'RANK' in os.environ:
+        shard_id = int(os.environ['RANK'])
     if args.distributed:
         # backend='gloo', device_ids must be None or an empty list for CPU modules
         # rank = args.local_rank, world_size=args.world_size these two variables may be set through distributed.launch
@@ -197,7 +200,7 @@ def main():
                                 crop=crop_size,
                                 size=val_size,
                                 dali_cpu=args.dali_cpu,
-                                shard_id=args.local_rank,
+                                shard_id=shard_id,
                                 num_shards=args.world_size,
                                 is_training=True,
                                 device_id=-99999)
@@ -213,7 +216,7 @@ def main():
                                 crop=crop_size,
                                 size=val_size,
                                 dali_cpu=args.dali_cpu,
-                                shard_id=args.local_rank,
+                                shard_id=shard_id,
                                 num_shards=args.world_size,
                                 is_training=False,
                                 device_id=-99999)
