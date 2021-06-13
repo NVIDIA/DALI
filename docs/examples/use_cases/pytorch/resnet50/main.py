@@ -154,13 +154,16 @@ def main():
         args.distributed = int(os.environ['WORLD_SIZE']) > 1
 
     args.world_size = 1
-
+    print('batch_size is {}, num_threads is {}, shard id is {}, world size is {}'.format(args.batch_size, args.workers, args.local_rank, int(os.environ['WORLD_SIZE'])))
     if args.distributed:
         # backend='gloo', device_ids must be None or an empty list for CPU modules
         # rank = args.local_rank, world_size=args.world_size these two variables may be set through distributed.launch
+        print('start to init process group')
         torch.distributed.init_process_group(backend='gloo',
                                              init_method='env://')
+        print('inited process group')
         args.world_size = torch.distributed.get_world_size()
+        print('the updated word size is {}'.format(args.world_size))
 
     args.total_batch_size = args.world_size * args.batch_size
 
