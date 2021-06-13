@@ -243,7 +243,6 @@ def train(train_loader, epoch):
         train_loader_len = int(math.ceil(train_loader._size / args.batch_size))
 
         if i%args.print_freq == 0:
-            torch.cuda.synchronize()
             batch_time.update((time.time() - end)/args.print_freq)
             end = time.time()
 
@@ -267,7 +266,6 @@ def validate(val_loader):
         input = data[0]["data"]
         target = data[0]["label"].squeeze(-1).long()
         val_loader_len = int(val_loader._size / args.batch_size)
-
 
         # measure elapsed time
         batch_time.update(time.time() - end)
