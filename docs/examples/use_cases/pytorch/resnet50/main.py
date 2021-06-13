@@ -160,8 +160,7 @@ def main():
         # rank = args.local_rank, world_size=args.world_size these two variables may be set through distributed.launch
         print('start to init process group')
         torch.distributed.init_process_group(backend='gloo',
-                                             init_method='env://',
-                                             timeout='5m')
+                                             init_method='env://')
         print('inited process group')
         args.world_size = torch.distributed.get_world_size()
         print('the updated word size is {}'.format(args.world_size))
