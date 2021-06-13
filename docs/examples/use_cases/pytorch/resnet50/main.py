@@ -111,7 +111,7 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
                            resize_x=crop,
                            resize_y=crop,
                            interp_type=types.INTERP_TRIANGULAR)
-        # mirror = fn.random.coin_flip(probability=0.5)
+        mirror = fn.random.coin_flip(probability=0.5)
     else:
         images = fn.decoders.image(images,
                                    device=decoder_device,
@@ -121,16 +121,24 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
                            size=size,
                            mode="not_smaller",
                            interp_type=types.INTERP_TRIANGULAR)
-        # mirror = False
+        mirror = False
 
-    # images = fn.crop_mirror_normalize(images.gpu(),
-    #                                   dtype=types.FLOAT,
-    #                                   output_layout="CHW",
-    #                                   crop=(crop, crop),
-    #                                   mean=[0.485 * 255,0.456 * 255,0.406 * 255],
-    #                                   std=[0.229 * 255,0.224 * 255,0.225 * 255],
-    #                                   mirror=mirror)
-    # labels = labels.gpu()
+    # TODO(lu) what's that, can i change it to CPU or remove it
+    # it supports CPU/GPU
+    # TODO(lu) see if i can directly use cpu()
+    # or i don't need to use images.gpu() but use images directly
+    # or add device=dali_device and use images as input directly from https://github.com/NVIDIA/DALI/blob/main/dali/test/python/test_pipeline.py
+    images = fn.crop_mirror_normalize(images,
+                                      device=dali_device,
+                                      dtype=types.FLOAT,
+                                      output_layout="CHW",
+                                      crop=(crop, crop),
+                                      mean=[0.485 * 255,0.456 * 255,0.406 * 255],
+                                      std=[0.229 * 255,0.224 * 255,0.225 * 255],
+                                      mirror=mirror)
+    if dali_device == 'gpu':
+        labels = labels.cpu()
+    # TODO(lu) is this needed? PyTorch expects labels as INT64 labels = fn.cast(labels, dtype=types.INT64) from https://github.com/NVIDIA/DALI/blob/main/docs/examples/frameworks/pytorch/pytorch-lightning.ipynb  
     return images, labels
 
 
@@ -173,6 +181,9 @@ def main():
         val_size = 256
 
     # remove the device_id=args.local_rank to let dali uses CPU only device id and not calling libcuda.so
+    print('batch_size is {}, num_threads is {}, shard id is {}, num shards is {}'.format(args.batch_size, args.workers, args.local_rank, args.world_size))
+    # sharding the dataset into multiple parts/shards, each GPU/CPU get its own shard to process, from https://github.com/NVIDIA/DALI/blob/main/docs/examples/general/multigpu.ipynb
+    # TODO(lu) is sharding similar in CPU world
     pipe = create_dali_pipeline(batch_size=args.batch_size,
                                 num_threads=args.workers,
                                 seed=12 + args.local_rank,
@@ -186,6 +197,7 @@ def main():
                                 device_id=-99999)
     pipe.build()
     # DALI iterator for classification tasks for PyTorch. It returns 2 outputs (data and label) in the form of PyTorch’s Tensor.
+    # TODO(lu) can i remove it? run the pipe directly?
     train_loader = DALIClassificationIterator(pipe, reader_name="Reader", last_batch_policy=LastBatchPolicy.PARTIAL)
 
     pipe = create_dali_pipeline(batch_size=args.batch_size,
