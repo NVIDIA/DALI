@@ -160,7 +160,8 @@ def main():
         # rank = args.local_rank, world_size=args.world_size these two variables may be set through distributed.launch
         print('start to init process group')
         torch.distributed.init_process_group(backend='gloo',
-                                             init_method='env://')
+                                             init_method='env://',
+                                             timeout='5m')
         print('inited process group')
         args.world_size = torch.distributed.get_world_size()
         print('the updated word size is {}'.format(args.world_size))
@@ -184,6 +185,7 @@ def main():
         val_size = 256
 
     # remove the device_id=args.local_rank to let dali uses CPU only device id and not calling libcuda.so
+    # TODO(lu) why node 1 shard id is also 0 local rank is also 0
     print('batch_size is {}, num_threads is {}, shard id is {}, num shards is {}'.format(args.batch_size, args.workers, args.local_rank, args.world_size))
     # sharding the dataset into multiple parts/shards, each GPU/CPU get its own shard to process, from https://github.com/NVIDIA/DALI/blob/main/docs/examples/general/multigpu.ipynb
     # TODO(lu) is sharding similar in CPU world
