@@ -155,6 +155,8 @@ def main():
 
     args.world_size = 1
     print('batch_size is {}, num_threads is {}, shard id is {}, world size is {}'.format(args.batch_size, args.workers, args.local_rank, int(os.environ['WORLD_SIZE'])))
+    print('rank is {}', os.environ['RANK'])
+    print('local rank is {}', os.environ['LOCAL_RANK'])
     if args.distributed:
         # backend='gloo', device_ids must be None or an empty list for CPU modules
         # rank = args.local_rank, world_size=args.world_size these two variables may be set through distributed.launch
