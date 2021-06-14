@@ -86,11 +86,9 @@ class BrightnessContrastOp : public Operator<Backend> {
     // out = (brightness_shift * brightness_range +
     //        brightness * (contrast_center - contrast * contrast_center)) +
     //        brightness * contrast * in
-    float norm_brightness = (brightness * brightness_contrast::FullRange<OutputType>()) /
-                 brightness_contrast::FullRange<InputType>();
     addend = brightness_shift * brightness_range +
-             norm_brightness * (contrast_center - contrast * contrast_center);
-    multiplier = norm_brightness * contrast;
+             brightness * (contrast_center - contrast * contrast_center);
+    multiplier = brightness * contrast;
   }
 
   void AcquireArguments(const workspace_t<Backend> &ws) {
