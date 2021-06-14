@@ -536,28 +536,145 @@ TEST(CachingListTest, ProphetTest) {
   ASSERT_THROW(cl.AdvanceProphet(), std::out_of_range);
 }
 
-// TODO(klecki): For whatever reason the serialized pipelines error out on batch size
-TEST(ExternalSourceTest, DeserializeLegacyExternalSource) {
-  std::string path = testing::dali_extra_path() + "/db/serialized_pipes/";
-  std::tuple<std::string, std::string, std::string> es_pipes[] = {
-      {"add_external_input_v1.0.0.proto", "cpu", "__ExternalInput_es"},
-      {"underscore_ext_src_cpu_v1.0.0.proto", "cpu", "es"},
-      {"underscore_ext_src_gpu_v1.0.0.proto", "gpu", "es"}};
-  for (auto file_dev_name : es_pipes) {
-    std::string path_to_deserialize = path + std::get<0>(file_dev_name);
-    std::string dev = std::get<1>(file_dev_name);
-    std::string name = std::get<2>(file_dev_name);
-    std::fstream file(path, std::ios::in | std::ios::binary);
-    std::string pipe_str;
-    file >> pipe_str;
-    Pipeline pipe(pipe_str, 10, 4, 0);
-    pipe.Build();
-    // Check if the external source is the only operator deserialized
-    auto *op = pipe.GetOperatorNode(name);
-    ASSERT_EQ(op->parents.size(), 0);
-    ASSERT_EQ(op->children.size(), 0);
-    ASSERT_EQ(op->spec.name(), "ExternalSource");
 
+void TestOnlyExternalSource(Pipeline &pipe, const std::string &name, const std::string &dev) {
+  // Check if the external source is the only operator deserialized
+  auto *op = pipe.GetOperatorNode(name);
+  ASSERT_EQ(op->parents.size(), 0);
+  ASSERT_EQ(op->id, 0);
+  ASSERT_EQ(op->spec.name(), "ExternalSource");
+  ASSERT_EQ(pipe.num_outputs(), 1);
+  ASSERT_EQ(pipe.output_device(0), dev);
+  ASSERT_EQ(pipe.output_name(0), name);
+  if (dev == "cpu") {
+    // take Make Contiguous into account
+    ASSERT_EQ(op->children.size(), 1);
+  } else {
+    ASSERT_EQ(op->children.size(), 0);
+  }
+}
+
+
+void TestRunExternalSource(Pipeline &pipe, const std::string &name,
+                                    const std::string &dev) {
+  TensorListShape<> input_shape =  uniform_list_shape(10, {42, 42, 3});
+  TensorList<CPUBackend> input_cpu;
+  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+  for (int64_t i = 0; i < input_shape.num_elements(); i++) {
+    input_cpu.mutable_data<uint8_t>()[i] = i % 255;
+  }
+  DeviceWorkspace ws;
+  if (dev == "cpu") {
+    // take Make Contiguous into account
+    pipe.SetExternalInput("es", input_cpu);
+  } else {
+    TensorList<GPUBackend> input_gpu;
+    input_gpu.Copy(input_cpu, 0);
+    cudaStreamSynchronize(0);
+    pipe.SetExternalInput("es", input_gpu);
+  }
+  pipe.RunCPU();
+  pipe.RunGPU();
+
+  TensorList<CPUBackend> output_cpu;
+  pipe.Outputs(&ws);
+  if (dev == "cpu") {
+    output_cpu.Copy(ws.Output<CPUBackend>(0), 0);
+  } else {
+    output_cpu.Copy(ws.Output<GPUBackend>(0), 0);
+    cudaStreamSynchronize(0);
+  }
+  ASSERT_EQ(input_cpu.shape(), output_cpu.shape());
+  ASSERT_EQ(input_cpu.type(), output_cpu.type());
+  ASSERT_EQ(
+      memcmp(input_cpu.data<uint8_t>(), output_cpu.data<uint8_t>(), input_shape.num_elements()),
+      0);
+}
+
+
+TEST(ExternalSourceTest, SerializeDeserializeOpSpec) {
+  std::string name = "es";
+  for (std::string dev : {"cpu", "gpu"}) {
+    Pipeline pipe_to_serialize(10, 4, 0);
+    pipe_to_serialize.AddOperator(OpSpec("ExternalSource")
+                      .AddArg("device", dev)
+                      .AddArg("name", name)
+                      .AddOutput("es", dev),
+                  name);
+    pipe_to_serialize.Build({{name, dev}});
+    auto serialized = pipe_to_serialize.SerializeToProtobuf();
+
+    Pipeline pipe(serialized);
+    pipe.Build();
+
+    TestOnlyExternalSource(pipe, name, dev);
+    TestRunExternalSource(pipe, name, dev);
+  }
+}
+
+
+TEST(ExternalSourceTest, SerializeDeserializeAddExternalInput) {
+  std::string name = "es";
+  for (std::string dev : {"cpu", "gpu"}) {
+    Pipeline pipe_to_serialize(10, 4, 0);
+    pipe_to_serialize.AddExternalInput(name, dev);
+    pipe_to_serialize.Build({{name, dev}});
+    auto serialized = pipe_to_serialize.SerializeToProtobuf();
+
+    Pipeline pipe(serialized);
+    pipe.Build();
+
+    TestOnlyExternalSource(pipe, name, dev);
+    TestRunExternalSource(pipe, name, dev);
+  }
+}
+
+
+// Data for `DeserializeLegacyExternalSource` was generated with DALI 1.0.0 using the code below
+// TEST(ExternalSourceGen, GeneratePipelines) {
+//   {
+//     Pipeline p(10, 4, 0);
+//     p.AddExternalInput("es");
+//     p.Build({{"es", "cpu"}});
+//     std::ofstream file("add_external_input_v1.0.0.dali",
+//                        std::ios::out | std::ios::binary);
+//     file << p.SerializeToProtobuf();
+//   }
+//   for (auto dev : {"cpu"s, "gpu"s}) {
+//     Pipeline p(10, 4, 0);
+//     p.AddOperator(OpSpec("_ExternalSource")
+//                       .AddArg("device", dev)
+//                       .AddArg("name", "es")
+//                       .AddOutput("es", dev),
+//                   "es");
+//     p.Build({{"es", dev}});
+//     std::ofstream file("underscore_ext_src_" + dev + "_v1.0.0.dali",
+//                        std::ios::out | std::ios::binary);
+//     file << p.SerializeToProtobuf();
+//   }
+// }
+TEST(ExternalSourceTest, DeserializeLegacyExternalSource) {
+  std::string name = "es";
+  std::string path = testing::dali_extra_path() + "/db/serialized_pipes/";
+  std::tuple<std::string, std::string> es_pipes[] = {
+      {"add_external_input_v1.0.0.dali", "cpu"},
+      {"underscore_ext_src_cpu_v1.0.0.dali", "cpu"},
+      {"underscore_ext_src_gpu_v1.0.0.dali", "gpu"}};
+  for (auto file_dev : es_pipes) {
+    std::string path_to_deserialize = path + std::get<0>(file_dev);
+    std::string dev = std::get<1>(file_dev);
+    std::fstream file(path_to_deserialize, std::ios::in | std::ios::binary);
+
+    // Shortest (and not the slowest) way to read whole file with C++ API
+    std::stringstream tmp_ss;
+    tmp_ss << file.rdbuf();
+    auto pipe_str = tmp_ss.str();
+
+    Pipeline pipe(pipe_str);
+    pipe.Build();
+
+    TestOnlyExternalSource(pipe, name, dev);
+    TestRunExternalSource(pipe, name, dev);
   }
 }
 

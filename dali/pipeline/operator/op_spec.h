@@ -86,7 +86,10 @@ class DLL_PUBLIC OpSpec {
     // with the doubled operator.
     if (name == "_ExternalSource") {
       name_ = "ExternalSource";
+      schema_ = SchemaRegistry::TryGetSchema(name_);
+      return;
     }
+
     name_ = name;
     schema_ = name_.empty() ? nullptr : SchemaRegistry::TryGetSchema(name_);
   }
