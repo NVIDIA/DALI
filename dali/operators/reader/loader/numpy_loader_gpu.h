@@ -41,38 +41,25 @@ namespace dali {
 struct NumpyFileWrapperGPU {
   std::string filename;
   bool fortan_order;
+  TensorShape<> shape;
+  TypeInfo type;
+  DALIMeta meta;
+
   std::function<void(void)> read_meta_f;
   std::function<void(void* buffer, Index offset, size_t total_size)> read_sample_f;
   std::unique_ptr<CUFileStream> file_stream;
 
-  const TensorShape<>& shape() const {
-    return shape_;
+  const TensorShape<>& get_shape() const {
+    return shape;
   }
 
-  void set_shape(const TensorShape<>& shape) {
-    shape_ = shape;
+  const TypeInfo& get_type() const {
+    return type;
   }
 
-  const TypeInfo& type() const {
-    return type_info_;
+  const DALIMeta& get_meta() const {
+    return meta;
   }
-
-  void set_type(const TypeInfo& type_info) {
-    type_info_ = type_info;
-  }
-
-  const DALIMeta& meta() const {
-    return meta_;
-  }
-
-  void set_meta(const DALIMeta& meta) {
-    meta_ = meta;
-  }
-
- private:
-  TypeInfo type_info_;
-  TensorShape<> shape_;
-  DALIMeta meta_;
 };
 
 class NumpyLoaderGPU : public CUFileLoader<NumpyFileWrapperGPU> {

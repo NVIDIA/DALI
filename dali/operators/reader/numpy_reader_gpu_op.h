@@ -73,11 +73,11 @@ class NumpyReaderGPU : public DataReader<GPUBackend, NumpyFileWrapperGPU> {
 
   // helpers for sample types and shapes
   TensorShape<> GetSampleShape(int sample_idx) {
-    return GetSample(sample_idx).shape();
+    return GetSample(sample_idx).get_shape();
   }
 
   TypeInfo GetSampleType(int sample_idx) {
-    return GetSample(sample_idx).type();
+    return GetSample(sample_idx).get_type();
   }
 
   const void* GetSampleRawData(int sample_idx) {

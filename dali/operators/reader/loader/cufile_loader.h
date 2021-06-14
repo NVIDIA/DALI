@@ -36,11 +36,6 @@
 
 namespace dali {
 
-struct ImageFileWrapperGPU {
-  Tensor<GPUBackend> image;
-  std::string filename;
-};
-
 template <typename Target>
 class CUFileLoader : public FileLoader<GPUBackend, Target, CUFileStream> {
  public:
@@ -73,12 +68,6 @@ class CUFileLoader : public FileLoader<GPUBackend, Target, CUFileStream> {
     this->last_sample_ptr_tmp.reset();
     this->sample_buffer_.clear();
     this->empty_tensors_.clear();
-  }
-
-  std::enable_if_t<std::is_same<Target, ImageFileWrapperGPU>::value, void>
-  ReadSample(Target& target) override {
-    DeviceGuard g(this->device_id_);
-    this->FileLoader<GPUBackend, Target, CUFileStream>::ReadSample(target);
   }
 
  private:

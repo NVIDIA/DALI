@@ -39,20 +39,20 @@ void NumpyReaderGPU::Prefetch() {
 
   // resize the current batch
   std::vector<TensorShape<>> tmp_shapes;
-  auto ref_type = curr_batch[0]->type();
-  auto ref_shape = curr_batch[0]->shape();
+  auto ref_type = curr_batch[0]->get_type();
+  auto ref_shape = curr_batch[0]->get_shape();
   for (size_t data_idx = 0; data_idx < curr_batch.size(); ++data_idx) {
     auto &sample = curr_batch[data_idx];
-    DALI_ENFORCE(ref_type == sample->type(), make_string("Inconsistent data! "
+    DALI_ENFORCE(ref_type == sample->get_type(), make_string("Inconsistent data! "
                  "The data produced by the reader has inconsistent type:\n"
-                 "type of [", data_idx, "] is ", sample->type().id(), " whereas\n"
+                 "type of [", data_idx, "] is ", sample->get_type().id(), " whereas\n"
                  "type of [0] is ", ref_type.id()));
 
-    DALI_ENFORCE(ref_shape.size() == sample->shape().size(), make_string("Inconsistent data! "
+    DALI_ENFORCE(ref_shape.size() == sample->get_shape().size(), make_string("Inconsistent data! "
         "The data produced by the reader has inconsistent dimensionality:\n"
-        "[", data_idx, "] has ", sample->shape().size(), " dimensions whereas\n"
+        "[", data_idx, "] has ", sample->get_shape().size(), " dimensions whereas\n"
         "[0] has ", ref_shape.size(), " dimensions."));
-    tmp_shapes.push_back(sample->shape());
+    tmp_shapes.push_back(sample->get_shape());
   }
 
   curr_tensor_list.Resize(TensorListShape<>(tmp_shapes), ref_type);
@@ -152,7 +152,7 @@ void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
       copy_to.push_back(image_output.raw_mutable_tensor(data_idx));
       copy_sizes.push_back(shape.tensor_size(data_idx));
     }
-    image_output.SetMeta(data_idx, target.meta());
+    image_output.SetMeta(data_idx, target.get_meta());
   }
 
   if (transpose_from.empty() && !copy_sizes.empty()) {

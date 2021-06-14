@@ -63,24 +63,12 @@ struct NumpyFileWrapper {
     return image.type();
   }
 
-  void set_type(const TypeInfo& type_info) {
-    image.set_type(type_info);
-  }
-
   const TensorShape<>& shape() const {
     return image.shape();
   }
 
-  void set_shape(const TensorShape<>& shape) {
-    image.Resize(shape);
-  }
-
   const DALIMeta& meta() const {
     return image.GetMeta();
-  }
-
-  void set_meta(const DALIMeta& meta) {
-    image.SetMeta(meta);
   }
 };
 

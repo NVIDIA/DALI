@@ -77,13 +77,13 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
   // if image is cached, skip loading
   if (ShouldSkipImage(image_file)) {
     meta.SetSkipSample(true);
-    target.set_meta(meta);
+    target.meta = meta;
     target.filename.clear();
     return;
   }
 
   // set metadata
-  target.set_meta(meta);
+  target.meta = meta;
 
   target.read_meta_f = [this, image_file, &target] () {
     // open file
@@ -99,8 +99,8 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
       header_cache_.UpdateCache(image_file, parse_target);
     }
 
-    target.set_type(parse_target.type_info);
-    target.set_shape(parse_target.shape);
+    target.type = parse_target.type_info;
+    target.shape = parse_target.shape;
     target.fortan_order = parse_target.fortran_order;
   };
 
