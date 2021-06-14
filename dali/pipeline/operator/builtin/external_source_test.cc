@@ -13,8 +13,9 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <utility>
 #include <fstream>
+#include <tuple>
+#include <utility>
 
 #include "dali/test/dali_test_decoder.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
