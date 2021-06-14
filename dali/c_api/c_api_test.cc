@@ -757,21 +757,21 @@ TEST(CApiTest, GetBackendTest) {
                           .AddArg("device", "cpu")
                           .AddArg("name", es_cpu_name)
                           .AddOutput(es_cpu_name, "cpu"), es_cpu_name);
-  std::string decoder_name = "decoder";
-  pipe.AddOperator(OpSpec("decoders__Image")
+  std::string cont_name = "contiguous";
+  pipe.AddOperator(OpSpec("MakeContiguous")
                           .AddArg("device", "mixed")
-                          .AddArg("name", decoder_name)
+                          .AddArg("name", cont_name)
                           .AddInput(es_cpu_name, "cpu")
-                          .AddOutput(decoder_name, "gpu"), decoder_name);
+                          .AddOutput(cont_name, "gpu"), cont_name);
   std::vector<std::pair<std::string, std::string>> outputs = {{es_gpu_name, "gpu"},
-                                                              {decoder_name, "gpu"}};
+                                                              {cont_name, "gpu"}};
   pipe.SetOutputNames(outputs);
   std::string ser = pipe.SerializeToProtobuf();
   daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
   EXPECT_EQ(daliGetOperatorBackend(&handle, es_cpu_name.c_str()), DALI_BACKEND_CPU);
   EXPECT_EQ(daliGetOperatorBackend(&handle, es_gpu_name.c_str()), DALI_BACKEND_GPU);
-  EXPECT_EQ(daliGetOperatorBackend(&handle, decoder_name.c_str()), DALI_BACKEND_MIXED);
+  EXPECT_EQ(daliGetOperatorBackend(&handle, cont_name.c_str()), DALI_BACKEND_MIXED);
 }
 
 }  // namespace dali
