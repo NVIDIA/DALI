@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -76,10 +76,10 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
     DALI_ENFORCE(can_use_frames_timestamps_ || !enable_frame_num_,
                  "frame numbers can be enabled only when "
-                 "`file_list` or `filenames` argument is passed");
+                 "`file_list`, or `filenames` with `labels` argument are passed");
     DALI_ENFORCE(can_use_frames_timestamps_ || !enable_timestamps_,
                  "timestamps can be enabled only when "
-                 "`file_list` or `filenames` argument is passed");
+                 "`file_list`, or `filenames` with `labels` argument are passed");
 
     DALI_ENFORCE(!(has_labels_arg && filenames_.empty()),
                  "The argument ``labels`` is valid only when file paths "

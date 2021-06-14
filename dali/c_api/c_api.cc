@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -541,6 +541,21 @@ void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_n
   meta->shard_id = returned_meta.shard_id;
   meta->pad_last_batch = returned_meta.pad_last_batch;
   meta->stick_to_shard = returned_meta.stick_to_shard;
+}
+
+dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle, const char *operator_name) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  auto *node = pipeline->GetOperatorNode(operator_name);
+  switch (node->op_type) {
+    case dali::OpType::CPU:
+      return dali_backend_t::DALI_BACKEND_CPU;
+    case dali::OpType::GPU:
+      return dali_backend_t::DALI_BACKEND_GPU;
+    case dali::OpType::MIXED:
+      return dali_backend_t::DALI_BACKEND_MIXED;
+    default:
+      DALI_FAIL("Invalid operator type.");
+  }
 }
 
 void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle, daliExecutorMetadata **operator_meta,

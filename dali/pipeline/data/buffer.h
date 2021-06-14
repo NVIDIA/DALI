@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -111,7 +111,7 @@ class DLL_PUBLIC Buffer {
                  "on non-const buffer to set valid type for " + type_.name());
     DALI_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
                  "Calling type does not match buffer data type: " +
-                 TypeTable::GetTypeName<T>() + " v. " + type_.name());
+                 TypeTable::GetTypeName<T>() + " vs " + type_.name());
     // clang-format on
     return static_cast<T*>(data_.get());
   }

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,6 +41,12 @@ typedef enum {
   CPU = 0,
   GPU = 1
 } device_type_t;
+
+typedef enum {
+  DALI_BACKEND_CPU = 0,
+  DALI_BACKEND_GPU = 1,
+  DALI_BACKEND_MIXED = 2
+} dali_backend_t;
 
 typedef enum {
   DALI_NO_TYPE  = -1,
@@ -407,6 +413,14 @@ DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
  */
 DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
                                       daliReaderMetadata* meta);
+
+/**
+ * @brief Returns the backend of the operator with a given \p operator_name
+ * @param operator_name Name of the operator to query
+ */
+DLL_PUBLIC dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle,
+                                                 const char *operator_name);
+
 /**
  * @brief Obtains the executor statistics
  *  @param operator_meta Pointer to the memory allocated by the function with operator_meta_num

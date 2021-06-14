@@ -14,7 +14,7 @@ $PYTHON ../tools/stubgen.py ../include/dali/c_api.h --output "${DALI_STUB_SRC}"
 DALI_CFLAGS="-I../include -I.."
 DALI_LFLAGS="-L${DALI_STUB_DIR} -ldali"
 
-$COMPILER -std=c++11 -DNDEBUG -O2 -shared -fPIC ${DALI_STUB_SRC} -o ${DALI_STUB_LIB} ${INCL_DIRS} ${DALI_CFLAGS}
+$COMPILER -std=c++14 -DNDEBUG -O2 -shared -fPIC ${DALI_STUB_SRC} -o ${DALI_STUB_LIB} ${INCL_DIRS} ${DALI_CFLAGS}
 
 TF_CFLAGS=( $($PYTHON -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))') )
 TF_LFLAGS=( $($PYTHON -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))') )
@@ -22,7 +22,7 @@ TF_LFLAGS=( $($PYTHON -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.g
 # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
 # https://github.com/tensorflow/tensorflow/issues/17316
 # Do not remove it.
-$COMPILER -std=c++11 -DNDEBUG -O2 -shared -fPIC ${SRCS} -o ${LIB_NAME} ${INCL_DIRS} ${DALI_CFLAGS} ${DALI_LFLAGS} ${TF_CFLAGS[@]} ${TF_LFLAGS[@]}
+$COMPILER -std=c++14 -DNDEBUG -O2 -shared -fPIC ${SRCS} -o ${LIB_NAME} ${INCL_DIRS} ${DALI_CFLAGS} ${DALI_LFLAGS} ${TF_CFLAGS[@]} ${TF_LFLAGS[@]}
 
 # Cleaning up stub dir
 rm -rf "${DALI_STUB_DIR}"

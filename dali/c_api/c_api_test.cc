@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -743,6 +743,35 @@ TYPED_TEST(CApiTest, CpuOnlyTest) {
   std::string ser = pipe.SerializeToProtobuf();
   daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
+}
+
+TEST(CApiTest, GetBackendTest) {
+  dali::Pipeline pipe(1, 1, 0);
+  std::string es_gpu_name = "es_gpu";
+  pipe.AddOperator(OpSpec("_ExternalSource")
+                          .AddArg("device", "gpu")
+                          .AddArg("name", es_gpu_name)
+                          .AddOutput(es_gpu_name, "gpu"), es_gpu_name);
+  std::string es_cpu_name = "es_cpu";
+  pipe.AddOperator(OpSpec("_ExternalSource")
+                          .AddArg("device", "cpu")
+                          .AddArg("name", es_cpu_name)
+                          .AddOutput(es_cpu_name, "cpu"), es_cpu_name);
+  std::string decoder_name = "decoder";
+  pipe.AddOperator(OpSpec("decoders__Image")
+                          .AddArg("device", "mixed")
+                          .AddArg("name", decoder_name)
+                          .AddInput(es_cpu_name, "cpu")
+                          .AddOutput(decoder_name, "gpu"), decoder_name);
+  std::vector<std::pair<std::string, std::string>> outputs = {{es_gpu_name, "gpu"},
+                                                              {decoder_name, "gpu"}};
+  pipe.SetOutputNames(outputs);
+  std::string ser = pipe.SerializeToProtobuf();
+  daliPipelineHandle handle;
+  daliDeserializeDefault(&handle, ser.c_str(), ser.size());
+  EXPECT_EQ(daliGetOperatorBackend(&handle, es_cpu_name.c_str()), DALI_BACKEND_CPU);
+  EXPECT_EQ(daliGetOperatorBackend(&handle, es_gpu_name.c_str()), DALI_BACKEND_GPU);
+  EXPECT_EQ(daliGetOperatorBackend(&handle, decoder_name.c_str()), DALI_BACKEND_MIXED);
 }
 
 }  // namespace dali
