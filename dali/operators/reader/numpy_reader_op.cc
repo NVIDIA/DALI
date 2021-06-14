@@ -125,7 +125,8 @@ This argument is mutually exclusive with ``file_list``.)", nullptr)
   .AddOptionalArg("register_buffers",
       R"code(Applies **only** to the ``gpu`` backend type.
 .. warning:
-this feature is temporarily disabled and will be re-enabled in future releases.
+    This argument is temporarily disabled and left for the backward compatibility.
+    It will be reenabled in the future releases.
 If true, the device I/O buffers will be registered with cuFile. It is not recommended if the sample
 sizes vary a lot.)code", true)
   .AddOptionalArg("cache_header_information",
