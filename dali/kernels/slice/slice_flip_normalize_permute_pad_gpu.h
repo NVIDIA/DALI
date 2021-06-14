@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -129,10 +129,6 @@ class SliceFlipNormalizePermutePadGpu {
            const InListGPU<InputType, Dims> &in,
            const std::vector<Args> &args) {
     (void) args;
-    if (block_count_ == 0) {
-      return;  // no data to copy
-    }
-
     const auto num_samples = in.size();
 
     float *norm_add_cpu = nullptr, *norm_mul_cpu = nullptr;
