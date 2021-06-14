@@ -22,7 +22,8 @@
 
 namespace dali {
 
-// register buffer
+// register buffer: currently not used, need to be rewritten since
+// pool allocators can lead to double registrations
 void NumpyLoaderGPU::RegisterBuffer(void *buffer, size_t total_size) {
   if (register_buffers_) {
     // get raw pointer
