@@ -56,18 +56,19 @@ that can be specified for the operator, and are executed in following order:
 #. ``'mixed'`` - operators that accept CPU inputs and produce GPU outputs, for exampe :meth:`nvidia.dali.fn.decoders.image`.
 #. ``'gpu'`` - operators that accept GPU inputs and produce GPU outpus.
 
-Additionaly, ``.gpu()`` might be used on a :class:`~nvidia.dali.pipeline.DataNode` (the output of
-the operator in pipeline definition) to transfer data from CPU to GPU.
+Data produced by a CPU operator may be explicitly copied to the GPU by calling ``.gpu()``
+on a :class:`~nvidia.dali.pipeline.DataNode` (an output of a DALI operator).
 
-Once tha data is transferred to GPU it can't be transferred back to CPU within the DALI pipeline.
+Data that has been produced by a later stage cannot be consumed by an operator executing
+in an earlier stage.
 
-Every DALI operator accepts additional keyword arguments used to parametrize it's behaviour.
+Most DALI operators accept additional keyword arguments used to parametrize their behavior.
 Those named keyword arguments (which are distinct from the positional inputs) can be:
 
   * Python constants
   * Argument inputs - outputs of the **CPU** operators - indicated as `TensorList` in the operator's docstring.
 
-In the case of argument inputs, passing output of one operator to **named keyword argument**
+In the case of argument inputs, passing output of one operator as a **named keyword argument**
 of other operator will establish a connection in the processing graph.
 
 Those parameters will be computed as a part of DALI pipeline graph every iteration and
@@ -91,8 +92,10 @@ Example::
     pipe.build()
 
 .. note::
-    The ``device`` parameter is set by default to ``'cpu'``. It is automatically inferred to
-    ``'gpu'`` if GPU data is passed as an input to an operator.
+    If the ``device`` parameter is not specified, it is selected automatically based on the
+    placement of the inputs. If there is at least one GPU input, the ``device='gpu'`` is assumed,
+    otherwise ``'cpu'`` is used.
+
     The example above adds ``device`` parameter explicitly for clarity, but it would work the same
     if only ``device='mixed'`` was specified for ``fn.decoders.image``.
 
