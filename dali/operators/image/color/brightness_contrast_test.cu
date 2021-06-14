@@ -98,9 +98,8 @@ void BrightnessContrastVerify(TensorListWrapper input, TensorListWrapper output,
     auto in_tensor = input_tl->tensor<InputDataType>(t);
     ASSERT_EQ(in_shape, out_shape);
     for (int i = 0; i < volume(out_shape); i++) {
-      float norm_brightness = brightness * FullRange<OutputType>() / FullRange<InputDataType>();
       float with_contrast = contrast_offset + contrast*(in_tensor[i] - contrast_offset);
-      float with_brighness = norm_brightness * with_contrast;
+      float with_brighness = brightness * with_contrast;
       float with_shift = out_range * brightness_shift + with_brighness;
       EXPECT_EQ(out_tensor[i], ConvertSat<OutputType>(with_shift));
     }
