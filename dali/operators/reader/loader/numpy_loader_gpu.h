@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,7 +38,44 @@
 
 namespace dali {
 
-class NumpyLoaderGPU : public CUFileLoader {
+struct NumpyFileWrapperGPU {
+  std::string filename;
+  bool fortan_order;
+  std::function<void(void)> read_meta_f;
+  std::function<void(void* buffer, Index offset, size_t total_size)> read_sample_f;
+  std::unique_ptr<CUFileStream> file_stream;
+
+  const TensorShape<>& shape() const {
+    return shape_;
+  }
+
+  void set_shape(const TensorShape<>& shape) {
+    shape_ = shape;
+  }
+
+  const TypeInfo& type() const {
+    return type_info_;
+  }
+
+  void set_type(const TypeInfo& type_info) {
+    type_info_ = type_info;
+  }
+
+  const DALIMeta& meta() const {
+    return meta_;
+  }
+
+  void set_meta(const DALIMeta& meta) {
+    meta_ = meta;
+  }
+
+ private:
+  TypeInfo type_info_;
+  TensorShape<> shape_;
+  DALIMeta meta_;
+};
+
+class NumpyLoaderGPU : public CUFileLoader<NumpyFileWrapperGPU> {
  public:
   explicit inline NumpyLoaderGPU(
     const OpSpec& spec,
@@ -59,8 +96,8 @@ class NumpyLoaderGPU : public CUFileLoader {
     reg_buff_.clear();
   }
 
-  // we want to make it possible to override this function as well
-  void ReadSample(ImageFileWrapperGPU& tensor) override;
+  void PrepareEmpty(NumpyFileWrapperGPU& tensor) override;
+  void ReadSample(NumpyFileWrapperGPU& tensor) override;
 
  protected:
   // register input tensor

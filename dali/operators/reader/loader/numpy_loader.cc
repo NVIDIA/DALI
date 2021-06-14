@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -219,7 +219,7 @@ void NumpyHeaderCache::UpdateCache(const string &file_name, const NumpyParseTarg
 
 }  // namespace detail
 
-void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
+void NumpyLoader::ReadSample(NumpyFileWrapper& imfile) {
   auto image_file = images_[current_index_++];
 
   // handle wrap-around
@@ -283,7 +283,7 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
   imfile.filename = file_root_ + "/" + image_file;
 
   // set meta
-  imfile.meta = (target.fortran_order ? "transpose:true" : "transpose:false");
+  imfile.fortan_order = target.fortran_order;
 }
 
 }  // namespace dali

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,11 +34,21 @@
 
 namespace dali {
 
+namespace detail {
+
+template <typename T, typename result = decltype(std::declval<T &>().image)>
+inline std::true_type HasImage(T *);
+inline std::false_type HasImage(...);
+
+/// @brief Inherits `true_type`, `if T::image` exists
+template <typename T>
+struct has_image : decltype(HasImage((T*)0)) {};  // NOLINT
+
+}  // namespace detail
+
 struct ImageFileWrapper {
   Tensor<CPUBackend> image;
   std::string filename;
-  // some field for auxiliary info to pass to the reader
-  std::string meta;
 };
 
 template <typename Backend = CPUBackend, typename Target = ImageFileWrapper,
@@ -102,12 +112,14 @@ class FileLoader : public Loader<Backend, Target> {
     copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
   }
 
-  void PrepareEmpty(Target &image_file) override {
+  std::enable_if_t<detail::has_image<Target>::value, void>
+  PrepareEmpty(Target &image_file) override {
     PrepareEmptyTensor(image_file.image);
-    image_file.filename = "";
+    image_file.filename.clear();
   }
 
-  void ReadSample(Target &imfile) override {
+  std::enable_if_t<detail::has_image<Target>::value, void>
+  ReadSample(Target &imfile) override {
     auto image_file = images_[current_index_++];
 
     // handle wrap-around

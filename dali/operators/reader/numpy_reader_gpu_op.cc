@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ void NumpyReaderGPU::Prefetch() {
   // We actually prepare the next batch
   DomainTimeRange tr("[DALI][NumpyReaderGPU] Prefetch #" + to_string(curr_batch_producer_),
                       DomainTimeRange::kRed);
-  DataReader<GPUBackend, ImageFileWrapperGPU>::Prefetch();
+  DataReader<GPUBackend, NumpyFileWrapperGPU>::Prefetch();
   auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
   auto &curr_tensor_list = prefetched_batch_tensors_[curr_batch_producer_];
 
@@ -39,20 +39,20 @@ void NumpyReaderGPU::Prefetch() {
 
   // resize the current batch
   std::vector<TensorShape<>> tmp_shapes;
-  auto ref_type = curr_batch[0]->type_info;
-  auto ref_shape = curr_batch[0]->shape;
+  auto ref_type = curr_batch[0]->type();
+  auto ref_shape = curr_batch[0]->shape();
   for (size_t data_idx = 0; data_idx < curr_batch.size(); ++data_idx) {
     auto &sample = curr_batch[data_idx];
-    DALI_ENFORCE(ref_type == sample->type_info, make_string("Inconsistent data! "
+    DALI_ENFORCE(ref_type == sample->type(), make_string("Inconsistent data! "
                  "The data produced by the reader has inconsistent type:\n"
-                 "type of [", data_idx, "] is ", sample->type_info.id(), " whereas\n"
+                 "type of [", data_idx, "] is ", sample->type().id(), " whereas\n"
                  "type of [0] is ", ref_type.id()));
 
-    DALI_ENFORCE(ref_shape.size() == sample->shape.size(), make_string("Inconsistent data! "
+    DALI_ENFORCE(ref_shape.size() == sample->shape().size(), make_string("Inconsistent data! "
         "The data produced by the reader has inconsistent dimensionality:\n"
-        "[", data_idx, "] has ", sample->shape.size(), " dimensions whereas\n"
+        "[", data_idx, "] has ", sample->shape().size(), " dimensions whereas\n"
         "[0] has ", ref_shape.size(), " dimensions."));
-    tmp_shapes.push_back(sample->shape);
+    tmp_shapes.push_back(sample->shape());
   }
 
   curr_tensor_list.Resize(TensorListShape<>(tmp_shapes), ref_type);
@@ -113,9 +113,9 @@ void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
   perm_shape.resize(GetSampleShape(0).size());
 
   for (int sample_idx = 0; sample_idx < max_batch_size_; sample_idx++) {
-    const auto& imfile = GetSample(sample_idx);
+    const auto& target = GetSample(sample_idx);
     auto plain_shape = GetSampleShape(sample_idx);
-    if (imfile.transpose_fortan_order) {
+    if (target.fortan_order) {
       PermuteHelper(plain_shape, perm_shape, perm);
       tmp_shapes.push_back(perm_shape);
       transpose_shapes.push_back(plain_shape);
@@ -143,8 +143,8 @@ void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
 
 
   for (int data_idx = 0; data_idx < max_batch_size_; ++data_idx) {
-    const auto& imfile = GetSample(data_idx);
-    if (imfile.transpose_fortan_order) {
+    const auto& target = GetSample(data_idx);
+    if (target.fortan_order) {
       transpose_from.push_back(GetSampleRawData(data_idx));
       transpose_to.push_back(image_output.raw_mutable_tensor(data_idx));
     } else {
@@ -152,7 +152,7 @@ void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
       copy_to.push_back(image_output.raw_mutable_tensor(data_idx));
       copy_sizes.push_back(shape.tensor_size(data_idx));
     }
-    image_output.SetSourceInfo(data_idx, imfile.image.GetSourceInfo());
+    image_output.SetMeta(data_idx, target.meta());
   }
 
   if (transpose_from.empty() && !copy_sizes.empty()) {
