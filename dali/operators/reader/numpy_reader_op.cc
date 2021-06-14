@@ -122,6 +122,14 @@ This argument is mutually exclusive with ``files``.)", nullptr)
 If ``file_root`` is provided, the paths are treated as being relative to it.
 
 This argument is mutually exclusive with ``file_list``.)", nullptr)
+  .AddOptionalArg("register_buffers", R"code(
+.. warning::
+this argument is temporarily disabled and left for the backward compatibility.
+It will be reenabled in the future releases.
+
+Applies **only** to the ``gpu`` backend type.
+If true, the device I/O buffers will be registered with cuFile. It is not recommended if the sample
+sizes vary a lot.)code", false)
   .AddOptionalArg("cache_header_information",
       R"code(If set to True, the header information for each file is cached, improving access
 speed.)code",
