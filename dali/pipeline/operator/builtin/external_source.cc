@@ -64,10 +64,13 @@ DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);
 // access it directly.
 // C++ operators should access this operator directly as well.
 DALI_SCHEMA(ExternalSource)
-  .DocStr(R"code("Allows externally provided data to be passed as an input to the pipeline.
+  .DocStr(R"code(Allows externally provided data to be passed as an input to the pipeline.
 
-  This is a backend for `ExternalSource` operator. Refer to the proper documentation
-  for details.)code")
+  This is a backend for `ExternalSource` operator. For Python functionality, refer to
+  nvidia.dali.fn.external_source operator documentation.
+
+  This operator can be used with C and C++ APIs by either directly specyfing it with OpSpec
+  or by the Pipeline::AddExternalInput method.)code")
   .NumInput(0)
   .NumOutput(1)
   .AddOptionalArg("blocking",
