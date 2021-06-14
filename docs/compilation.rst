@@ -218,6 +218,14 @@ For the recommended dependency versions please check https://github.com/NVIDIA/D
 
   .. code-block:: bash
 
+    echo "--- a/libavcodec/exr.c
+    +++ b/libavcodec/exr.c
+    @@ -1062 +1062 @@ static int dwa_uncompress(EXRContext *s, const uint8_t *src, int compressed_size
+    -    if (dc_size > 0) {
+    +    {
+    @@ -1066 +1066 @@ static int dwa_uncompress(EXRContext *s, const uint8_t *src, int compressed_size
+    -        if (dc_count > (6LL * td->xsize * td->ysize + 63) / 64)
+    +        if (dc_count != dc_w * dc_h * 3)" | patch -p 1
     ./configure \
     --prefix=/usr/local \
     --disable-static \
