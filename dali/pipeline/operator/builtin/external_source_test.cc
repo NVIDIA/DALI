@@ -631,7 +631,7 @@ TEST(ExternalSourceTest, SerializeDeserializeAddExternalInput) {
 }
 
 
-// Data for `DeserializeLegacyExternalSource` was generated with DALI 1.0.0 using the code below
+// Data for `DeserializeLegacyExternalSource` was generated with DALI 1.0.0 using the code below:
 // TEST(ExternalSourceGen, GeneratePipelines) {
 //   {
 //     Pipeline p(10, 4, 0);
@@ -654,7 +654,9 @@ TEST(ExternalSourceTest, SerializeDeserializeAddExternalInput) {
 //     file << p.SerializeToProtobuf();
 //   }
 // }
-// and
+//
+// and:
+//
 // for dev in ["cpu", "gpu"]:
 //     @pipeline_def
 //     def my_pipeline():

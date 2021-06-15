@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -331,12 +331,12 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
                     .AddInput("crop_data", "cpu")
                     .AddOutput("images", "gpu");
     pipeline_.AddExternalInput("begin_data");
-    pipeline_.SetExternalInput("begin_data", begin_data);
     pipeline_.AddExternalInput("crop_data");
-    pipeline_.SetExternalInput("crop_data", crop_data);
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);
+    pipeline_.SetExternalInput("begin_data", begin_data);
+    pipeline_.SetExternalInput("crop_data", crop_data);
 
     auto node = pipeline_.GetOperatorNode(decoder_name_);
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
