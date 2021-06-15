@@ -1,0 +1,4 @@
+./docker_run.py --coco_eval_dataset train2017 --cmd '--pipeline dali_gpu --train_batch_size 16 --epochs 50 --output /data/out_weights_1.h5 --eval_steps 500 --train_steps 100 --multi_gpu'
+
+./prepare_coco_dataset_docker.py --coco ~/COCO 
+
