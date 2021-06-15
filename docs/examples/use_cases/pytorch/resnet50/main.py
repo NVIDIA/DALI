@@ -167,8 +167,8 @@ def main():
     total_time = AverageMeter()
     for epoch in range(args.start_epoch, args.epochs):
         # train for one epoch
-        avg_train_time = train(train_loader, epoch)
-        total_time.update(avg_train_time)
+        total_train_time = train(train_loader, epoch)
+        total_time.update(total_train_time)
         if args.test:
             break
 
@@ -177,12 +177,12 @@ def main():
 def train(train_loader, epoch):
     batch_time = AverageMeter()
     train_loader_len = int(math.ceil(train_loader._size / args.batch_size))
+    start = time.time()
     end = time.time()
 
     for i, data in enumerate(train_loader):
         input = data[0]["data"]
         target = data[0]["label"].squeeze(-1).long()
-
         if i%args.print_freq == 0:
             batch_time.update((time.time() - end)/args.print_freq)
             end = time.time()
@@ -191,13 +191,15 @@ def train(train_loader, epoch):
                 print('Epoch: [{0}][{1}/{2}]\t'
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                       'Speed {3:.3f} ({4:.3f})'.format(
-                       epoch, i, train_loader_len,
-                       args.world_size*args.batch_size/batch_time.val,
-                       args.world_size*args.batch_size/batch_time.avg,
-                       batch_time=batch_time))
+                    epoch, i, train_loader_len,
+                    args.world_size*args.batch_size/batch_time.val,
+                    args.world_size*args.batch_size/batch_time.avg,
+                    batch_time=batch_time))
 
-    print('Train loader size is {}, batch number {}, total time is {}, batch num {}, batch time average is {}'.format(train_loader._size, train_loader_len, batch_time.sum, batch_time.count, batch_time.avg))
-    return batch_time.avg
+    duration = time.time() - start
+    print('Train loader size is {}, total time is {}, Image/s for this node is {}'.format(train_loader._size, duration, train_loader._size / duration))
+    # TODO(lu) collect total data loading time from all the nodes and compute the global IOPS
+    return duration
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
