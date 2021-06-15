@@ -232,10 +232,10 @@ class RandomDataIterator(object):
         for _ in range(self.batch_size):
             if dtype == np.float32:
                 self.test_data.append(
-                    np.array(self.np_rng.rand(*shape) * (1.0), dtype=dtype) - 0.5)
+                    np.array(self.np_rng.random(shape) * (1.0), dtype=dtype) - 0.5)
             else:
                 self.test_data.append(
-                    np.array(self.np_rng.rand(*shape) * 255, dtype=dtype))
+                    np.array(self.np_rng.random(shape) * 255, dtype=dtype))
 
     def __iter__(self):
         self.i = 0
