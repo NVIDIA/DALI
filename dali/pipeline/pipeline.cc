@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,18 @@
 namespace dali {
 
   void DeserializeOpSpec(const dali_proto::OpDef& def, OpSpec* spec) {
-    spec->set_name(def.name());
+    std::string name = def.name();
+
+    // Due to the fact that External Source existed in DALI as two entities we need to have a place
+    // where we merge it back into one. "ExternalSource" special handling for serialization was
+    // removed so we can merge back _ExternalSource into it.
+    // We need to rename the spec that we construct at some point to not serialize it back
+    // with the doubled operator.
+    if (name == "_ExternalSource") {
+      name = "ExternalSource";
+    }
+
+    spec->set_name(name);
 
     // Extract all the arguments with correct types
     for (auto &arg : def.args()) {

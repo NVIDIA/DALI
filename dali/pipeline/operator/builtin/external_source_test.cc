@@ -654,13 +654,25 @@ TEST(ExternalSourceTest, SerializeDeserializeAddExternalInput) {
 //     file << p.SerializeToProtobuf();
 //   }
 // }
+// and
+// for dev in ["cpu", "gpu"]:
+//     @pipeline_def
+//     def my_pipeline():
+//         es = fn.external_source(name="es", device=dev)
+//         return es
+//
+//     pipe = my_pipeline(batch_size=10, num_threads=2, device_id=0)
+//     pipe.build()
+//     pipe.serialize(filename="python_"+dev+"_v1.0.0.dali")
 TEST(ExternalSourceTest, DeserializeLegacyExternalSource) {
   std::string name = "es";
   std::string path = testing::dali_extra_path() + "/db/serialized_pipes/";
   std::tuple<std::string, std::string> es_pipes[] = {
       {"add_external_input_v1.0.0.dali", "cpu"},
       {"underscore_ext_src_cpu_v1.0.0.dali", "cpu"},
-      {"underscore_ext_src_gpu_v1.0.0.dali", "gpu"}};
+      {"underscore_ext_src_gpu_v1.0.0.dali", "gpu"},
+      {"python_cpu_v1.0.0.dali", "cpu"},
+      {"python_gpu_v1.0.0.dali", "gpu"}};
   for (auto file_dev : es_pipes) {
     std::string path_to_deserialize = path + std::get<0>(file_dev);
     std::string dev = std::get<1>(file_dev);

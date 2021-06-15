@@ -79,17 +79,6 @@ class DLL_PUBLIC OpSpec {
    * @brief Sets the name of the Operator.
    */
   DLL_PUBLIC inline void set_name(const string &name) {
-    // Due to the fact that External Source existed in DALI as two entities we need to have a place
-    // where we merge it back into one. "ExternalSource" special handling for serialization was
-    // removed so we can merge back _ExternalSource into it.
-    // We need to rename the spec that we construct at some point to not serialize it back
-    // with the doubled operator.
-    if (name == "_ExternalSource") {
-      name_ = "ExternalSource";
-      schema_ = SchemaRegistry::TryGetSchema(name_);
-      return;
-    }
-
     name_ = name;
     schema_ = name_.empty() ? nullptr : SchemaRegistry::TryGetSchema(name_);
   }
