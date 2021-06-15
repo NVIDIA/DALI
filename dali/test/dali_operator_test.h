@@ -35,7 +35,7 @@ using Arguments = std::map<ArgumentKey, TestOpArg>;
 
 namespace detail {
 
-const std::string input_name = "input";
+const char input_name[] = "input";
 
 template<typename Backend>
 std::string BackendStringName() {
