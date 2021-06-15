@@ -64,13 +64,11 @@ struct NumpyFileWrapperGPU {
 
 class NumpyLoaderGPU : public CUFileLoader<NumpyFileWrapperGPU> {
  public:
-  explicit inline NumpyLoaderGPU(
-    const OpSpec& spec,
-    vector<std::string> images = std::vector<std::string>(),
-    bool shuffle_after_epoch = false) :
-      CUFileLoader(spec, images, shuffle_after_epoch),
-      register_buffers_(false),
-      header_cache_(spec.GetArgument<bool>("cache_header_information")) {}
+  explicit inline NumpyLoaderGPU(const OpSpec& spec, vector<std::string> files = {},
+                                 bool shuffle_after_epoch = false)
+      : CUFileLoader(spec, files, shuffle_after_epoch),
+        register_buffers_(false),
+        header_cache_(spec.GetArgument<bool>("cache_header_information")) {}
 
   ~NumpyLoaderGPU() override {
     // set device

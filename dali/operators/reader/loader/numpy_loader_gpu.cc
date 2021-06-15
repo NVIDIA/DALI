@@ -64,18 +64,18 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
   DeviceGuard g(device_id_);
 
   // extract image file
-  auto image_file = images_[current_index_++];
+  auto filename = files_[current_index_++];
 
   // handle wrap-around
   MoveToNextShard(current_index_);
 
   // metadata info
   DALIMeta meta;
-  meta.SetSourceInfo(image_file);
+  meta.SetSourceInfo(filename);
   meta.SetSkipSample(false);
 
   // if image is cached, skip loading
-  if (ShouldSkipImage(image_file)) {
+  if (ShouldSkipImage(filename)) {
     meta.SetSkipSample(true);
     target.meta = meta;
     target.filename.clear();
@@ -85,18 +85,18 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
   // set metadata
   target.meta = meta;
 
-  target.read_meta_f = [this, image_file, &target] () {
+  target.read_meta_f = [this, filename, &target] () {
     // open file
-    target.file_stream = CUFileStream::Open(file_root_ + "/" + image_file, read_ahead_, false);
+    target.file_stream = CUFileStream::Open(file_root_ + "/" + filename, read_ahead_, false);
 
     // read the header
     NumpyParseTarget parse_target;
-    auto ret = header_cache_.GetFromCache(image_file, parse_target);
+    auto ret = header_cache_.GetFromCache(filename, parse_target);
     if (ret) {
       target.file_stream->Seek(parse_target.data_offset);
     } else {
       detail::ParseHeader(target.file_stream.get(), parse_target);
-      header_cache_.UpdateCache(image_file, parse_target);
+      header_cache_.UpdateCache(filename, parse_target);
     }
 
     target.type = parse_target.type_info;
@@ -104,7 +104,7 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
     target.fortan_order = parse_target.fortran_order;
   };
 
-  target.read_sample_f = [this, image_file, &target] (void *buffer, Index file_offset,
+  target.read_sample_f = [this, filename, &target] (void *buffer, Index file_offset,
                                                       size_t read_size) {
     // read sample
     ReadSampleHelper(target.file_stream.get(), buffer, file_offset, read_size);
@@ -112,7 +112,7 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
   };
 
   // set file path
-  target.filename = file_root_ + "/" + image_file;
+  target.filename = file_root_ + "/" + filename;
 }
 
 }  // namespace dali

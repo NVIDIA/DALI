@@ -55,20 +55,20 @@ class NumpyParseTarget{
 };
 
 struct NumpyFileWrapper {
-  Tensor<CPUBackend> image;
+  Tensor<CPUBackend> data;
   std::string filename;
   bool fortan_order;
 
   const TypeInfo& type() const {
-    return image.type();
+    return data.type();
   }
 
   const TensorShape<>& shape() const {
-    return image.shape();
+    return data.shape();
   }
 
   const DALIMeta& meta() const {
-    return image.GetMeta();
+    return data.GetMeta();
   }
 };
 

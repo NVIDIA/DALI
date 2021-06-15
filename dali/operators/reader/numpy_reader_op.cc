@@ -239,12 +239,12 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
 
   for (int i = 0; i < nsamples; i++) {
     const auto& file_i = GetSample(i);
-    const auto& file_sh = file_i.image.shape();
+    const auto& file_sh = file_i.data.shape();
     bool need_transpose = file_i.fortan_order;
     bool need_slice = !rois_.empty();
 
     // controls task priority
-    int64_t task_sz = volume(file_i.image.shape());
+    int64_t task_sz = volume(file_i.data.shape());
     if (need_slice)  // geometric mean between input shape and ROI shape
       task_sz = std::sqrt(static_cast<double>(task_sz) * volume(rois_[i].shape));
     if (need_transpose)  // 2x if transposition is required
@@ -252,15 +252,15 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
 
     thread_pool.AddWork([&, i, need_transpose, need_slice](int tid) {
       if (need_slice && need_transpose) {
-        SlicePermuteHelper(output[i], file_i.image, rois_[i], fill_value_);
+        SlicePermuteHelper(output[i], file_i.data, rois_[i], fill_value_);
       } else if (need_slice) {
-        SliceHelper(output[i], file_i.image, rois_[i], fill_value_);
+        SliceHelper(output[i], file_i.data, rois_[i], fill_value_);
       } else if (need_transpose) {
-        TransposeHelper(output[i], file_i.image);
+        TransposeHelper(output[i], file_i.data);
       } else {
-        std::memcpy(output[i].raw_mutable_data(), file_i.image.raw_data(), file_i.image.nbytes());
+        std::memcpy(output[i].raw_mutable_data(), file_i.data.raw_data(), file_i.data.nbytes());
       }
-      output[i].SetSourceInfo(file_i.image.GetSourceInfo());
+      output[i].SetSourceInfo(file_i.data.GetSourceInfo());
     }, task_sz);
   }
   thread_pool.RunAll();
