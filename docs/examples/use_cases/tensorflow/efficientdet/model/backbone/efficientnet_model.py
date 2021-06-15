@@ -123,37 +123,6 @@ def dense_kernel_initializer(shape, dtype=None, partition_info=None):
     return tf.random.uniform(shape, -init_range, init_range, dtype=dtype)
 
 
-def superpixel_kernel_initializer(shape, dtype="float32", partition_info=None):
-    """Initializes superpixel kernels.
-
-    This is inspired by space-to-depth transformation that is mathematically
-    equivalent before and after the transformation. But we do the space-to-depth
-    via a convolution. Moreover, we make the layer trainable instead of direct
-    transform, we can initialization it this way so that the model can learn not
-    to do anything but keep it mathematically equivalent, when improving
-    performance.
-
-
-    Args:
-      shape: shape of variable
-      dtype: dtype of variable
-      partition_info: unused
-
-    Returns:
-      an initialization for the variable
-    """
-    del partition_info
-    #  use input depth to make superpixel kernel.
-    depth = shape[-2]
-    filters = np.zeros([2, 2, depth, 4 * depth], dtype=dtype)
-    i = np.arange(2)
-    j = np.arange(2)
-    k = np.arange(depth)
-    mesh = np.array(np.meshgrid(i, j, k)).T.reshape(-1, 3).T
-    filters[mesh[0], mesh[1], mesh[2], 4 * mesh[2] + 2 * mesh[0] + mesh[1]] = 1
-    return filters
-
-
 def round_filters(filters, global_params, skip=False):
     """Round number of filters based on depth multiplier."""
     multiplier = global_params.width_coefficient
