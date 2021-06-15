@@ -156,7 +156,9 @@ def main():
     args.world_size = 1
     print('batch_size is {}, num_threads is {}, shard id is {}, world size is {}'.format(args.batch_size, args.workers, args.local_rank, int(os.environ['WORLD_SIZE'])))
     print('rank is {}'.format(os.environ['RANK']))
-    print('local rank is'.format(os.environ['LOCAL_RANK']))
+    # print('local rank is'.format(os.environ['LOCAL_RANK']))
+    # Arena doesn't has local rank concept
+    args.local_rank = int(os.environ['RANK'])
     shard_id = args.local_rank
     if 'RANK' in os.environ:
         shard_id = int(os.environ['RANK'])
