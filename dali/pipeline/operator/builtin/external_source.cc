@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,12 +55,22 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
   RecycleBuffer(tensor_vector_elm);
 }
 
-DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<CPUBackend>, CPU);
+
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);
 
-DALI_SCHEMA(_ExternalSource)
-  .DocStr(R"code("This is a backend for `ExternalSource` operator. Refer to the proper documentation
-  for details.)code")
+
+// This schema is partially internal. We want it to be listed int the supported_ops,
+// but it is explicitly not loaded by the Op Factory. Instead the Python wrapper classes
+// access it directly.
+// C++ operators should access this operator directly as well.
+DALI_SCHEMA(ExternalSource)
+  .DocStr(R"code(Allows externally provided data to be passed as an input to the pipeline.
+
+  This is a backend for `ExternalSource` operator. For Python functionality, refer to
+  nvidia.dali.fn.external_source operator documentation.
+
+  This operator can be used with C and C++ APIs by either directly specyfing it with OpSpec
+  or by the Pipeline::AddExternalInput method.)code")
   .NumInput(0)
   .NumOutput(1)
   .AddOptionalArg("blocking",
@@ -77,35 +87,6 @@ The buffer can be modified or freed again after the outputs of the relevant iter
 have been consumed. Effectively, it happens after ``prefetch_queue_depth`` or
 ``cpu_queue_depth * gpu_queue_depth`` (when they are not equal) iterations following
 the``feed_input`` call.
-
-The memory location must match the specified ``device`` parameter of the operator.
-For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
-For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you provide a list
-of separate Tensors, there will be an additional copy made internally, consuming both memory
-and bandwidth.)code", false)
-  .MakeInternal();
-
-DALI_SCHEMA(ExternalSource)
-  .DocStr(R"code(Allows externally provided data to be passed as an input to the pipeline.
-
-Currently this operator is not supported in TensorFlow. It is worth noting that fed inputs
-should match the number of dimensions expected by the next operator in the pipeline
-(e.g. HWC will expect 3-dimensional tensors
-where the last dimension represents the different channels).)code")
-  .NumInput(0)
-  .NumOutput(1)
-  .AddOptionalArg("blocking",
-      R"code(Whether external source should block until data is available or just
-fail when it is not)code", false)
-  .AddOptionalArg("no_copy",
-      R"code(Whether DALI should copy the buffer when feed_input is called
-If True, DALI passes the user memory directly to the Pipeline, instead of copying.
-It is the user's responsibility to keep the buffer alive and unmodified
-until it is consumed by the pipeline.
-
-The buffer can be modified or freed again after the relevant iteration output has been consumed.
-Effectively, it happens after ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
-(when they are not equal) iterations following the``feed_input`` call.
 
 The memory location must match the specified ``device`` parameter of the operator.
 For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.

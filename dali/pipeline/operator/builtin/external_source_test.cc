@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,11 +13,14 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <fstream>
+#include <tuple>
 #include <utility>
 
 #include "dali/test/dali_test_decoder.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/operator/builtin/external_source.h"
+#include "dali/test/dali_test_config.h"
 
 namespace dali {
 
@@ -533,5 +536,162 @@ TEST(CachingListTest, ProphetTest) {
   ASSERT_THROW(cl.PeekProphet(), std::out_of_range);
   ASSERT_THROW(cl.AdvanceProphet(), std::out_of_range);
 }
+
+
+void TestOnlyExternalSource(Pipeline &pipe, const std::string &name, const std::string &dev) {
+  // Check if the external source is the only operator deserialized
+  auto *op = pipe.GetOperatorNode(name);
+  ASSERT_EQ(op->parents.size(), 0);
+  ASSERT_EQ(op->id, 0);
+  ASSERT_EQ(op->spec.name(), "ExternalSource");
+  ASSERT_EQ(pipe.num_outputs(), 1);
+  ASSERT_EQ(pipe.output_device(0), dev);
+  ASSERT_EQ(pipe.output_name(0), name);
+  if (dev == "cpu") {
+    // take Make Contiguous into account
+    ASSERT_EQ(op->children.size(), 1);
+  } else {
+    ASSERT_EQ(op->children.size(), 0);
+  }
+}
+
+
+void TestRunExternalSource(Pipeline &pipe, const std::string &name,
+                                    const std::string &dev) {
+  TensorListShape<> input_shape =  uniform_list_shape(10, {42, 42, 3});
+  TensorList<CPUBackend> input_cpu;
+  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+  for (int64_t i = 0; i < input_shape.num_elements(); i++) {
+    input_cpu.mutable_data<uint8_t>()[i] = i % 255;
+  }
+  DeviceWorkspace ws;
+  if (dev == "cpu") {
+    // take Make Contiguous into account
+    pipe.SetExternalInput("es", input_cpu);
+  } else {
+    TensorList<GPUBackend> input_gpu;
+    input_gpu.Copy(input_cpu, 0);
+    cudaStreamSynchronize(0);
+    pipe.SetExternalInput("es", input_gpu);
+  }
+  pipe.RunCPU();
+  pipe.RunGPU();
+
+  TensorList<CPUBackend> output_cpu;
+  pipe.Outputs(&ws);
+  if (dev == "cpu") {
+    output_cpu.Copy(ws.Output<CPUBackend>(0), 0);
+  } else {
+    output_cpu.Copy(ws.Output<GPUBackend>(0), 0);
+    cudaStreamSynchronize(0);
+  }
+  ASSERT_EQ(input_cpu.shape(), output_cpu.shape());
+  ASSERT_EQ(input_cpu.type(), output_cpu.type());
+  ASSERT_EQ(
+      memcmp(input_cpu.data<uint8_t>(), output_cpu.data<uint8_t>(), input_shape.num_elements()),
+      0);
+}
+
+
+TEST(ExternalSourceTest, SerializeDeserializeOpSpec) {
+  std::string name = "es";
+  for (std::string dev : {"cpu", "gpu"}) {
+    Pipeline pipe_to_serialize(10, 4, 0);
+    pipe_to_serialize.AddOperator(OpSpec("ExternalSource")
+                      .AddArg("device", dev)
+                      .AddArg("name", name)
+                      .AddOutput("es", dev),
+                  name);
+    pipe_to_serialize.Build({{name, dev}});
+    auto serialized = pipe_to_serialize.SerializeToProtobuf();
+
+    Pipeline pipe(serialized);
+    pipe.Build();
+
+    TestOnlyExternalSource(pipe, name, dev);
+    TestRunExternalSource(pipe, name, dev);
+  }
+}
+
+
+TEST(ExternalSourceTest, SerializeDeserializeAddExternalInput) {
+  std::string name = "es";
+  for (std::string dev : {"cpu", "gpu"}) {
+    Pipeline pipe_to_serialize(10, 4, 0);
+    pipe_to_serialize.AddExternalInput(name, dev);
+    pipe_to_serialize.Build({{name, dev}});
+    auto serialized = pipe_to_serialize.SerializeToProtobuf();
+
+    Pipeline pipe(serialized);
+    pipe.Build();
+
+    TestOnlyExternalSource(pipe, name, dev);
+    TestRunExternalSource(pipe, name, dev);
+  }
+}
+
+
+// Data for `DeserializeLegacyExternalSource` was generated with DALI 1.0.0 using the code below:
+// TEST(ExternalSourceGen, GeneratePipelines) {
+//   {
+//     Pipeline p(10, 4, 0);
+//     p.AddExternalInput("es");
+//     p.Build({{"es", "cpu"}});
+//     std::ofstream file("add_external_input_v1.0.0.dali",
+//                        std::ios::out | std::ios::binary);
+//     file << p.SerializeToProtobuf();
+//   }
+//   for (auto dev : {"cpu"s, "gpu"s}) {
+//     Pipeline p(10, 4, 0);
+//     p.AddOperator(OpSpec("_ExternalSource")
+//                       .AddArg("device", dev)
+//                       .AddArg("name", "es")
+//                       .AddOutput("es", dev),
+//                   "es");
+//     p.Build({{"es", dev}});
+//     std::ofstream file("underscore_ext_src_" + dev + "_v1.0.0.dali",
+//                        std::ios::out | std::ios::binary);
+//     file << p.SerializeToProtobuf();
+//   }
+// }
+//
+// and:
+//
+// for dev in ["cpu", "gpu"]:
+//     @pipeline_def
+//     def my_pipeline():
+//         es = fn.external_source(name="es", device=dev)
+//         return es
+//
+//     pipe = my_pipeline(batch_size=10, num_threads=2, device_id=0)
+//     pipe.build()
+//     pipe.serialize(filename="python_"+dev+"_v1.0.0.dali")
+TEST(ExternalSourceTest, DeserializeLegacyExternalSource) {
+  std::string name = "es";
+  std::string path = testing::dali_extra_path() + "/db/serialized_pipes/";
+  std::tuple<std::string, std::string> es_pipes[] = {
+      {"add_external_input_v1.0.0.dali", "cpu"},
+      {"underscore_ext_src_cpu_v1.0.0.dali", "cpu"},
+      {"underscore_ext_src_gpu_v1.0.0.dali", "gpu"},
+      {"python_cpu_v1.0.0.dali", "cpu"},
+      {"python_gpu_v1.0.0.dali", "gpu"}};
+  for (auto file_dev : es_pipes) {
+    std::string path_to_deserialize = path + std::get<0>(file_dev);
+    std::string dev = std::get<1>(file_dev);
+    std::fstream file(path_to_deserialize, std::ios::in | std::ios::binary);
+
+    // Shortest (and not the slowest) way to read whole file with C++ API
+    std::stringstream tmp_ss;
+    tmp_ss << file.rdbuf();
+    auto pipe_str = tmp_ss.str();
+
+    Pipeline pipe(pipe_str);
+    pipe.Build();
+
+    TestOnlyExternalSource(pipe, name, dev);
+    TestRunExternalSource(pipe, name, dev);
+  }
+}
+
 
 }  // namespace dali

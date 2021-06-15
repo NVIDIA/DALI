@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -152,7 +152,7 @@ void StringToVector(const char *name, const char *val, OpSpec *spec, DALIDataTyp
  * Example usage is to overload Reference(...) function in subclass,
  * which has access to input data. The function should return batch of
  * reference data, calculated for given input data. Following, define
- * a TYPED_TEST case, where you set test conditions (at least SetExternalInputs
+ * a TYPED_TEST case, where you set test conditions (at least AddExternalInputs
  * to set up input data) and run operator, using one of RunOperator overloads.
  * @tparam ImgType @see DALIImageType
  */
@@ -261,18 +261,27 @@ class DALISingleOpTest : public DALITest {
     pipeline_->Build(outputs_);
   }
 
-  void SetExternalInputs(const vector<std::pair<string, TensorList<CPUBackend>*>> &inputs) {
+  void AddExternalInputs(const vector<std::pair<string, TensorList<CPUBackend>*>> &inputs) {
     InitPipeline();
     inputs_ = inputs;
     for (auto& input : inputs) {
       input_data_.push_back(input.second);
       pipeline_->AddExternalInput(input.first);
+    }
+  }
+
+
+  // TODO(klecki): Imagine that this is private, but some classes abuse the access to the pipeline
+  // and Build & Run it manually, so they also have to set the External Inputs manually.
+  void FillExternalInputs() {
+    for (auto& input : inputs_) {
       pipeline_->SetExternalInput(input.first, *input.second);
     }
   }
 
   void RunOperator(DeviceWorkspace *ws) {
     SetTestCheckType(GetTestCheckType());
+    FillExternalInputs();
     pipeline_->RunCPU();
     pipeline_->RunGPU();
     pipeline_->Outputs(ws);
@@ -376,7 +385,7 @@ class DALISingleOpTest : public DALITest {
     TensorList<CPUBackend> data;
     DecodedData(&data, this->batch_size_, this->ImageType());
     if (flag)
-      SetExternalInputs({std::make_pair("input", &data)});
+      AddExternalInputs({std::make_pair("input", &data)});
 
     RunOperator(operation, eps);
   }

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
 
   void RunForCocoCpu(const vector<float> &anchors, float criteria, bool offset = false) {
     this->SetBatchSize(coco_batch_size);
-    this->SetExternalInputs({{"bboxes", &this->boxes_}, {"labels", &this->labels_}});
+    this->AddExternalInputs({{"bboxes", &this->boxes_}, {"labels", &this->labels_}});
     this->AddSingleOp(OpSpec("BoxEncoder")
                           .AddArg("device", "cpu")
                           .AddArg("criteria", criteria)
@@ -51,7 +51,7 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
 
   void RunForCocoGpu(const vector<float> &anchors, float criteria, bool offset = false) {
     this->SetBatchSize(coco_batch_size);
-    this->SetExternalInputs({{"bboxes", &this->boxes_}, {"labels", &this->labels_}});
+    this->AddExternalInputs({{"bboxes", &this->boxes_}, {"labels", &this->labels_}});
     this->AddSingleOp(OpSpec("BoxEncoder")
                           .AddArg("device", "gpu")
                           .AddArg("criteria", criteria)
