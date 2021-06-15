@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,10 +26,10 @@
 
 namespace dali {
 
-class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
+class NumpyReaderGPU : public DataReader<GPUBackend, NumpyFileWrapperGPU> {
  public:
   explicit NumpyReaderGPU(const OpSpec& spec) :
-    DataReader<GPUBackend, ImageFileWrapperGPU>(spec),
+    DataReader<GPUBackend, NumpyFileWrapperGPU>(spec),
     thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false) {
     if (spec.ArgumentDefined("roi_start") || spec.ArgumentDefined("rel_roi_start") ||
         spec.ArgumentDefined("roi_end") || spec.ArgumentDefined("rel_roi_end") ||
@@ -58,7 +58,7 @@ class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
      * destroy the thread pool make sure no one is using it anymore.
      */
 
-    DataReader<GPUBackend, ImageFileWrapperGPU>::StopPrefetchThread();
+    DataReader<GPUBackend, NumpyFileWrapperGPU>::StopPrefetchThread();
   }
 
   // override prefetching here
@@ -73,13 +73,11 @@ class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
 
   // helpers for sample types and shapes
   TensorShape<> GetSampleShape(int sample_idx) {
-    const auto& imfile = GetSample(sample_idx);
-    return imfile.shape;
+    return GetSample(sample_idx).get_shape();
   }
 
   TypeInfo GetSampleType(int sample_idx) {
-    const auto& imfile = GetSample(sample_idx);
-    return imfile.type_info;
+    return GetSample(sample_idx).get_type();
   }
 
   const void* GetSampleRawData(int sample_idx) {
@@ -90,7 +88,7 @@ class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
 
   void RunImpl(DeviceWorkspace &ws) override;
 
-  USE_READER_OPERATOR_MEMBERS(GPUBackend, ImageFileWrapperGPU);
+  USE_READER_OPERATOR_MEMBERS(GPUBackend, NumpyFileWrapperGPU);
 
   using TransposeKernel = kernels::TransposeGPU;
   kernels::KernelManager kmgr_;

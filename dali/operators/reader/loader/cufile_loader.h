@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,26 +30,32 @@
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/file_loader.h"
 #include "dali/operators/reader/loader/loader.h"
+#include "dali/operators/reader/loader/utils.h"
 #include "dali/util/cufile.h"
 #include "dali/util/cufile_helper.h"
 
 namespace dali {
 
-struct ImageFileWrapperGPU {
-  Tensor<GPUBackend> image;
-  std::string filename;
-  bool transpose_fortan_order;
-  TensorShape<> shape;
-  TypeInfo type_info;
-  std::unique_ptr<CUFileStream> file_stream;
-  std::function<void(void)> read_meta_f;
-  std::function<void(void* buffer, Index offset, size_t total_size)> read_sample_f;
-};
-
-class CUFileLoader : public FileLoader<GPUBackend, ImageFileWrapperGPU, CUFileStream> {
+template <typename Target>
+class CUFileLoader : public FileLoader<GPUBackend, Target, CUFileStream> {
  public:
-  explicit CUFileLoader(const OpSpec& spec, vector<std::string> images = std::vector<std::string>(),
-                        bool shuffle_after_epoch = false);
+  explicit CUFileLoader(const OpSpec& spec, vector<std::string> images = {},
+                        bool shuffle_after_epoch = false)
+      : FileLoader<GPUBackend, Target, CUFileStream>(spec) {
+    // set the device first
+    DeviceGuard g(this->device_id_);
+
+    // this is needed for the driver singleton
+    static std::mutex open_driver_mutex;
+    static std::weak_ptr<cufile::CUFileDriverHandle> driver_handle;
+
+    // load the cufile driver
+    std::lock_guard<std::mutex> dlock(open_driver_mutex);
+    if (!(d_ = driver_handle.lock())) {
+      d_ = std::make_shared<cufile::CUFileDriverHandle>(this->device_id_);
+      driver_handle = d_;
+    }
+  }
 
   ~CUFileLoader() {
     /*
@@ -59,14 +65,10 @@ class CUFileLoader : public FileLoader<GPUBackend, ImageFileWrapperGPU, CUFileSt
      * cuFileDeregister functions, so instead of letting them to be cleared by Loader class when
      * cuFile is no longer accesible we need to do that here.
      */
-    last_sample_ptr_tmp.reset();
-    sample_buffer_.clear();
-    empty_tensors_.clear();
+    this->last_sample_ptr_tmp.reset();
+    this->sample_buffer_.clear();
+    this->empty_tensors_.clear();
   }
-
-  void PrepareEmpty(ImageFileWrapperGPU& tensor) override;
-  // we want to make it possible to override this function as well
-  void ReadSample(ImageFileWrapperGPU& tensor) override;
 
  private:
   std::shared_ptr<cufile::CUFileDriverHandle> d_;

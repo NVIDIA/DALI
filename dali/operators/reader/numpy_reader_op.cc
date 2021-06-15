@@ -26,7 +26,7 @@ namespace dali {
   (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, float16, \
   double)
 
-void NumpyReader::TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input) {
+void NumpyReaderCPU::TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input) {
   int n_dims = input.shape().sample_dim();
   SmallVector<int, 6> perm;
   perm.resize(n_dims);
@@ -37,7 +37,7 @@ void NumpyReader::TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CPUBa
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
 }
 
-void NumpyReader::SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
+void NumpyReaderCPU::SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
                               const CropWindow &roi, float fill_value) {
   int ndim = input.shape().sample_dim();
   VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
@@ -57,7 +57,7 @@ void NumpyReader::SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBacken
   ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
 }
 
-void NumpyReader::SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
+void NumpyReaderCPU::SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
                                      const CropWindow &roi, float fill_value) {
   const auto& in_shape = input.shape();
   int ndim = in_shape.sample_dim();
@@ -79,7 +79,7 @@ void NumpyReader::SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor<CP
   ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
 }
 
-DALI_REGISTER_OPERATOR(readers__Numpy, NumpyReader, CPU);
+DALI_REGISTER_OPERATOR(readers__Numpy, NumpyReaderCPU, CPU);
 
 DALI_SCHEMA(readers__Numpy)
   .DocStr(R"(Reads Numpy arrays from a directory.
@@ -215,7 +215,7 @@ Here is a list of the supported values:
 
 
 // Deprecated alias
-DALI_REGISTER_OPERATOR(NumpyReader, NumpyReader, CPU);
+DALI_REGISTER_OPERATOR(NumpyReader, NumpyReaderCPU, CPU);
 
 DALI_SCHEMA(NumpyReader)
     .DocStr("Legacy alias for :meth:`readers.numpy`.")
@@ -229,80 +229,7 @@ DALI_SCHEMA(NumpyReader)
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
-bool NumpyReader::SetupImpl(std::vector<OutputDesc> &output_desc,
-                            const workspace_t<CPUBackend> &ws) {
-  // If necessary start prefetching thread and wait for a consumable batch
-  DataReader<CPUBackend, ImageFileWrapper>::SetupImpl(output_desc, ws);
-
-  int batch_size = GetCurrBatchSize();
-  const auto &file_0 = GetSample(0);
-  TypeInfo output_type = file_0.image.type();
-  int ndim = file_0.image.shape().sample_dim();
-  TensorListShape<> sh(batch_size, ndim);
-
-  bool need_slice = slice_attr_.template ProcessArguments<CPUBackend>(ws, batch_size, ndim);
-
-  rois_.clear();
-  if (need_slice)
-    rois_.resize(batch_size);
-
-  for (int i = 0; i < batch_size; i++) {
-    const auto& file_i = GetSample(i);
-    const auto &file_sh = file_i.image.shape();
-    auto sample_sh = sh.tensor_shape_span(i);
-
-    DALI_ENFORCE(
-        file_i.image.shape().sample_dim() == ndim,
-        make_string(
-            "Inconsistent data: All samples in the batch must have the same number of dimensions. "
-            "Got \"",
-            file_0.filename, "\" with ", ndim, " dimensions and \"", file_i.filename, "\" with ",
-            file_i.image.shape().sample_dim(), " dimensions"));
-    DALI_ENFORCE(
-        file_i.image.type().id() == output_type.id(),
-        make_string("Inconsistent data: All samples in the batch must have the same data type. "
-                    "Got \"",
-                    file_0.filename, "\" with data type ", output_type.id(), " and \"",
-                    file_i.filename, "\" with data type ", file_i.image.type().id()));
-
-    bool is_transposed = !(file_i.meta == "transpose:false");
-    // Calculate the full transposed shape first
-    if (is_transposed) {
-      for (int d = 0; d < ndim; d++)
-        sample_sh[d] = file_sh[ndim - 1 - d];
-    } else {
-      for (int d = 0; d < ndim; d++)
-        sample_sh[d] = file_sh[d];
-    }
-
-    if (need_slice) {
-      // Calculate the cropping window, based on the final layout (user provides axes in that
-      // layout)
-      auto full_sample_sh = sh.tensor_shape(i);  // already permuted dims
-      auto tmp_roi = slice_attr_.GetCropWindowGenerator(i)(full_sample_sh, {});
-      ApplySliceBoundsPolicy(out_of_bounds_policy_, full_sample_sh, tmp_roi.anchor, tmp_roi.shape);
-      sh.set_tensor_shape(i, tmp_roi.shape);  // set the final shape
-
-      // Reverse the cropping window arguments if needed, as we provide slice arguments in the
-      // original layout
-      auto &roi = rois_[i];
-      if (is_transposed) {
-        for (int d = 0; d < ndim; d++) {
-          roi.anchor[d] = tmp_roi.anchor[ndim - 1 - d];
-          roi.shape[d] = tmp_roi.shape[ndim - 1 - d];
-        }
-      } else {
-        roi = std::move(tmp_roi);
-      }
-    }
-  }
-  output_desc.resize(1);
-  output_desc[0].shape = std::move(sh);
-  output_desc[0].type = output_type;
-  return true;
-}
-
-void NumpyReader::RunImpl(HostWorkspace &ws) {
+void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   const auto &out_sh = output.shape();
   int ndim = out_sh.sample_dim();
@@ -312,12 +239,12 @@ void NumpyReader::RunImpl(HostWorkspace &ws) {
 
   for (int i = 0; i < nsamples; i++) {
     const auto& file_i = GetSample(i);
-    const auto& file_sh = file_i.image.shape();
-    bool need_transpose = !(file_i.meta == "transpose:false");
+    const auto& file_sh = file_i.data.shape();
+    bool need_transpose = file_i.fortan_order;
     bool need_slice = !rois_.empty();
 
     // controls task priority
-    int64_t task_sz = volume(file_i.image.shape());
+    int64_t task_sz = volume(file_i.data.shape());
     if (need_slice)  // geometric mean between input shape and ROI shape
       task_sz = std::sqrt(static_cast<double>(task_sz) * volume(rois_[i].shape));
     if (need_transpose)  // 2x if transposition is required
@@ -325,15 +252,15 @@ void NumpyReader::RunImpl(HostWorkspace &ws) {
 
     thread_pool.AddWork([&, i, need_transpose, need_slice](int tid) {
       if (need_slice && need_transpose) {
-        SlicePermuteHelper(output[i], file_i.image, rois_[i], fill_value_);
+        SlicePermuteHelper(output[i], file_i.data, rois_[i], fill_value_);
       } else if (need_slice) {
-        SliceHelper(output[i], file_i.image, rois_[i], fill_value_);
+        SliceHelper(output[i], file_i.data, rois_[i], fill_value_);
       } else if (need_transpose) {
-        TransposeHelper(output[i], file_i.image);
+        TransposeHelper(output[i], file_i.data);
       } else {
-        std::memcpy(output[i].raw_mutable_data(), file_i.image.raw_data(), file_i.image.nbytes());
+        std::memcpy(output[i].raw_mutable_data(), file_i.data.raw_data(), file_i.data.nbytes());
       }
-      output[i].SetSourceInfo(file_i.image.GetSourceInfo());
+      output[i].SetSourceInfo(file_i.data.GetSourceInfo());
     }, task_sz);
   }
   thread_pool.RunAll();

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,15 +38,37 @@
 
 namespace dali {
 
-class NumpyLoaderGPU : public CUFileLoader {
+struct NumpyFileWrapperGPU {
+  std::string filename;
+  bool fortan_order;
+  TensorShape<> shape;
+  TypeInfo type;
+  DALIMeta meta;
+
+  std::function<void(void)> read_meta_f;
+  std::function<void(void* buffer, Index offset, size_t total_size)> read_sample_f;
+  std::unique_ptr<CUFileStream> file_stream;
+
+  const TensorShape<>& get_shape() const {
+    return shape;
+  }
+
+  const TypeInfo& get_type() const {
+    return type;
+  }
+
+  const DALIMeta& get_meta() const {
+    return meta;
+  }
+};
+
+class NumpyLoaderGPU : public CUFileLoader<NumpyFileWrapperGPU> {
  public:
-  explicit inline NumpyLoaderGPU(
-    const OpSpec& spec,
-    vector<std::string> images = std::vector<std::string>(),
-    bool shuffle_after_epoch = false) :
-      CUFileLoader(spec, images, shuffle_after_epoch),
-      register_buffers_(false),
-      header_cache_(spec.GetArgument<bool>("cache_header_information")) {}
+  explicit inline NumpyLoaderGPU(const OpSpec& spec, vector<std::string> files = {},
+                                 bool shuffle_after_epoch = false)
+      : CUFileLoader(spec, files, shuffle_after_epoch),
+        register_buffers_(false),
+        header_cache_(spec.GetArgument<bool>("cache_header_information")) {}
 
   ~NumpyLoaderGPU() override {
     // set device
@@ -59,8 +81,8 @@ class NumpyLoaderGPU : public CUFileLoader {
     reg_buff_.clear();
   }
 
-  // we want to make it possible to override this function as well
-  void ReadSample(ImageFileWrapperGPU& tensor) override;
+  void PrepareEmpty(NumpyFileWrapperGPU& tensor) override;
+  void ReadSample(NumpyFileWrapperGPU& tensor) override;
 
  protected:
   // register input tensor
