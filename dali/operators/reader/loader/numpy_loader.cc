@@ -219,71 +219,70 @@ void NumpyHeaderCache::UpdateCache(const string &file_name, const NumpyParseTarg
 
 }  // namespace detail
 
-void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
-  auto image_file = images_[current_index_++];
+void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
+  auto filename = files_[current_index_++];
 
   // handle wrap-around
   MoveToNextShard(current_index_);
 
   // metadata info
   DALIMeta meta;
-  meta.SetSourceInfo(image_file);
+  meta.SetSourceInfo(filename);
   meta.SetSkipSample(false);
 
-  // if image is cached, skip loading
-  if (ShouldSkipImage(image_file)) {
+  // if data is cached, skip loading
+  if (ShouldSkipImage(filename)) {
     meta.SetSkipSample(true);
-    imfile.image.Reset();
-    imfile.image.SetMeta(meta);
-    imfile.image.set_type(TypeInfo::Create<uint8_t>());
-    imfile.image.Resize({0});
-    imfile.filename = "";
+    target.data.Reset();
+    target.data.SetMeta(meta);
+    target.data.set_type(TypeInfo::Create<uint8_t>());
+    target.data.Resize({0});
+    target.filename = "";
     return;
   }
 
-  auto current_image = FileStream::Open(file_root_ + "/" + image_file, read_ahead_,
-                                        !copy_read_data_);
+  auto current_file = FileStream::Open(file_root_ + "/" + filename, read_ahead_, !copy_read_data_);
 
   // read the header
-  NumpyParseTarget target;
-  auto ret = header_cache_.GetFromCache(image_file, target);
+  NumpyParseTarget parse_target;
+  auto ret = header_cache_.GetFromCache(filename, parse_target);
   if (ret) {
-    current_image->Seek(target.data_offset);
+    current_file->Seek(parse_target.data_offset);
   } else {
-    detail::ParseHeader(current_image.get(), target);
-    header_cache_.UpdateCache(image_file, target);
+    detail::ParseHeader(current_file.get(), parse_target);
+    header_cache_.UpdateCache(filename, parse_target);
   }
 
-  Index image_bytes = target.nbytes();
+  Index nbytes = parse_target.nbytes();
 
   if (copy_read_data_) {
-    if (imfile.image.shares_data()) {
-      imfile.image.Reset();
+    if (target.data.shares_data()) {
+      target.data.Reset();
     }
-    imfile.image.Resize(target.shape, target.type_info);
+    target.data.Resize(parse_target.shape, parse_target.type_info);
     // copy the image
-    Index ret = current_image->Read(static_cast<uint8_t*>(imfile.image.raw_mutable_data()),
-                                    image_bytes);
-    DALI_ENFORCE(ret == image_bytes, make_string("Failed to read file: ", image_file));
+    Index ret = current_file->Read(static_cast<uint8_t*>(target.data.raw_mutable_data()),
+                                    nbytes);
+    DALI_ENFORCE(ret == nbytes, make_string("Failed to read file: ", filename));
   } else {
-    auto p = current_image->Get(image_bytes);
-    DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", image_file));
+    auto p = current_file->Get(nbytes);
+    DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", filename));
     // Wrap the raw data in the Tensor object.
-    imfile.image.ShareData(p, image_bytes, {image_bytes});
-    imfile.image.Resize(target.shape, target.type_info);
+    target.data.ShareData(p, nbytes, {nbytes});
+    target.data.Resize(parse_target.shape, parse_target.type_info);
   }
 
   // close the file handle
-  current_image->Close();
+  current_file->Close();
 
   // set metadata
-  imfile.image.SetMeta(meta);
+  target.data.SetMeta(meta);
 
   // set file path
-  imfile.filename = file_root_ + "/" + image_file;
+  target.filename = file_root_ + "/" + filename;
 
-  // set fortran_order
-  imfile.fortran_order = target.fortran_order;
+  // set meta
+  target.fortran_order = parse_target.fortran_order;
 }
 
 }  // namespace dali

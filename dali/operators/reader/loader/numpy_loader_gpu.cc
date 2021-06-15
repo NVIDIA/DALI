@@ -54,64 +54,65 @@ void NumpyLoaderGPU::ReadSampleHelper(CUFileStream *file,
   file->ReadGPUImpl(static_cast<uint8_t*>(buffer), read_size, 0, file_offset);
 }
 
+void NumpyLoaderGPU::PrepareEmpty(NumpyFileWrapperGPU& target) {
+  target = {};
+}
+
 // we need to implement that but we should split parsing and reading in this case
-void NumpyLoaderGPU::ReadSample(ImageFileWrapperGPU& imfile) {
+void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
   // set the device:
   DeviceGuard g(device_id_);
 
   // extract image file
-  auto image_file = images_[current_index_++];
+  auto filename = files_[current_index_++];
 
   // handle wrap-around
   MoveToNextShard(current_index_);
 
   // metadata info
   DALIMeta meta;
-  meta.SetSourceInfo(image_file);
+  meta.SetSourceInfo(filename);
   meta.SetSkipSample(false);
 
   // if image is cached, skip loading
-  if (ShouldSkipImage(image_file)) {
+  if (ShouldSkipImage(filename)) {
     meta.SetSkipSample(true);
-    imfile.image.SetMeta(meta);
-    imfile.image.Reset();
-    imfile.image.set_type(TypeInfo::Create<uint8_t>());
-    imfile.image.Resize({0});
-    imfile.filename.clear();
+    target.meta = meta;
+    target.filename.clear();
     return;
   }
 
   // set metadata
-  imfile.image.SetMeta(meta);
+  target.meta = meta;
 
-  imfile.read_meta_f = [this, image_file, &imfile] () {
+  target.read_meta_f = [this, filename, &target] () {
     // open file
-    imfile.file_stream = CUFileStream::Open(file_root_ + "/" + image_file, read_ahead_, false);
+    target.file_stream = CUFileStream::Open(file_root_ + "/" + filename, read_ahead_, false);
 
     // read the header
-    NumpyParseTarget target;
-    auto ret = header_cache_.GetFromCache(image_file, target);
+    NumpyParseTarget parse_target;
+    auto ret = header_cache_.GetFromCache(filename, parse_target);
     if (ret) {
-      imfile.file_stream->Seek(target.data_offset);
+      target.file_stream->Seek(parse_target.data_offset);
     } else {
-      detail::ParseHeader(imfile.file_stream.get(), target);
-      header_cache_.UpdateCache(image_file, target);
+      detail::ParseHeader(target.file_stream.get(), parse_target);
+      header_cache_.UpdateCache(filename, parse_target);
     }
 
-    imfile.set_type(target.type_info);
-    imfile.set_shape(target.shape);
-    imfile.fortran_order = target.fortran_order;
+    target.type = parse_target.type_info;
+    target.shape = parse_target.shape;
+    target.fortran_order = parse_target.fortran_order;
   };
 
-  imfile.read_sample_f = [this, image_file, &imfile] (void *buffer, Index file_offset,
+  target.read_sample_f = [this, filename, &target] (void *buffer, Index file_offset,
                                                       size_t read_size) {
     // read sample
-    ReadSampleHelper(imfile.file_stream.get(), buffer, file_offset, read_size);
+    ReadSampleHelper(target.file_stream.get(), buffer, file_offset, read_size);
     // we cannot close the file handle here, we need to remember to do it later on
   };
 
   // set file path
-  imfile.filename = file_root_ + "/" + image_file;
+  target.filename = file_root_ + "/" + filename;
 }
 
 }  // namespace dali

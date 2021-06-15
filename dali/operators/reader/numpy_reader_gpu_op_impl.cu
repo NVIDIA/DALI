@@ -42,8 +42,8 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
     perm[d] = Dims - 1 - d;
 
   for (int data_idx = 0; data_idx < nsamples; data_idx++) {
-    const auto& imfile = GetSample(data_idx);
-    output.SetSourceInfo(data_idx, imfile.image.GetSourceInfo());
+    const auto& target = GetSample(data_idx);
+    output.SetSourceInfo(data_idx, target.meta.GetSourceInfo());
   }
 
   int nsamples_copy = need_copy_.size();

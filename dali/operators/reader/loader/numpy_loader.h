@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,6 +54,24 @@ class NumpyParseTarget{
   }
 };
 
+struct NumpyFileWrapper {
+  Tensor<CPUBackend> data;
+  std::string filename;
+  bool fortran_order;
+
+  const TypeInfo& get_type() const {
+    return data.type();
+  }
+
+  const TensorShape<>& get_shape() const {
+    return data.shape();
+  }
+
+  const DALIMeta& get_meta() const {
+    return data.GetMeta();
+  }
+};
+
 namespace detail {
 
 DLL_PUBLIC void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header);
@@ -76,7 +94,7 @@ class NumpyHeaderCache {
 
 }  // namespace detail
 
-class NumpyLoader : public FileLoader<> {
+class NumpyLoader : public FileLoader<CPUBackend, NumpyFileWrapper> {
  public:
   explicit inline NumpyLoader(
     const OpSpec& spec,
@@ -84,8 +102,13 @@ class NumpyLoader : public FileLoader<> {
     : FileLoader(spec, shuffle_after_epoch),
     header_cache_(spec.GetArgument<bool>("cache_header_information")) {}
 
+  void PrepareEmpty(NumpyFileWrapper &target) override {
+    target = {};
+  }
+
   // we want to make it possible to override this function as well
-  void ReadSample(ImageFileWrapper& tensor) override;
+  void ReadSample(NumpyFileWrapper& target) override;
+
  private:
   detail::NumpyHeaderCache header_cache_;
 };

@@ -27,10 +27,10 @@
 
 namespace dali {
 
-class NumpyReaderGPU : public NumpyReader<GPUBackend, ImageFileWrapperGPU> {
+class NumpyReaderGPU : public NumpyReader<GPUBackend, NumpyFileWrapperGPU> {
  public:
   explicit NumpyReaderGPU(const OpSpec& spec)
-      : NumpyReader<GPUBackend, ImageFileWrapperGPU>(spec),
+      : NumpyReader<GPUBackend, NumpyFileWrapperGPU>(spec),
         thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false),
         sg_(1 << 18, spec.GetArgument<int>("max_batch_size")) {
     prefetched_batch_tensors_.resize(prefetch_queue_depth_);
@@ -51,7 +51,7 @@ class NumpyReaderGPU : public NumpyReader<GPUBackend, ImageFileWrapperGPU> {
      * destroy the thread pool make sure no one is using it anymore.
      */
 
-    DataReader<GPUBackend, ImageFileWrapperGPU>::StopPrefetchThread();
+    DataReader<GPUBackend, NumpyFileWrapperGPU>::StopPrefetchThread();
   }
 
   // override prefetching here
@@ -66,11 +66,11 @@ class NumpyReaderGPU : public NumpyReader<GPUBackend, ImageFileWrapperGPU> {
 
   // helpers for sample types and shapes
   const TensorShape<>& GetSampleShape(int sample_idx) {
-    return GetSample(sample_idx).shape();
+    return GetSample(sample_idx).get_shape();
   }
 
   const TypeInfo& GetSampleType(int sample_idx) {
-    return GetSample(sample_idx).type();
+    return GetSample(sample_idx).get_type();
   }
 
   template <typename T>
@@ -88,7 +88,7 @@ class NumpyReaderGPU : public NumpyReader<GPUBackend, ImageFileWrapperGPU> {
   using Operator<GPUBackend>::RunImpl;
 
 
-  USE_READER_OPERATOR_MEMBERS(GPUBackend, ImageFileWrapperGPU);
+  USE_READER_OPERATOR_MEMBERS(GPUBackend, NumpyFileWrapperGPU);
 
  private:
   using TransposeKernel = kernels::TransposeGPU;

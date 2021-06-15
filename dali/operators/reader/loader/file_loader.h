@@ -34,30 +34,24 @@
 
 namespace dali {
 
-struct ImageFileWrapper {
-  Tensor<CPUBackend> image;
+namespace detail {
+
+template <typename T, typename result = decltype(std::declval<T &>().data)>
+inline std::true_type HasData(T *);
+inline std::false_type HasData(...);
+
+/// @brief Inherits `true_type`, `if T::data` exists
+template <typename T>
+struct has_data : decltype(HasData((T*)0)) {};  // NOLINT
+
+}  // namespace detail
+
+struct FileWrapper {
+  Tensor<CPUBackend> data;
   std::string filename;
-  // some field for auxiliary info to pass to the reader
-  bool fortran_order;
-
-  const TypeInfo& type() const {
-    return image.type();
-  }
-
-  void set_type(const TypeInfo& type_info) {
-    image.set_type(type_info);
-  }
-
-  const TensorShape<>& shape() const {
-    return image.shape();
-  }
-
-  void set_shape(const TensorShape<>& shape) {
-    image.Resize(shape);
-  }
 };
 
-template <typename Backend = CPUBackend, typename Target = ImageFileWrapper,
+template <typename Backend = CPUBackend, typename Target = FileWrapper,
           typename InputStream = FileStream>
 class FileLoader : public Loader<Backend, Target> {
  public:
@@ -91,7 +85,7 @@ class FileLoader : public Loader<Backend, Target> {
 
     if (has_files_arg_) {
       DALI_ENFORCE(files.size() > 0, "``files`` specified an empty list.");
-      images_ = std::move(files);
+      files_ = std::move(files);
     }
 
     /*
@@ -118,72 +112,96 @@ class FileLoader : public Loader<Backend, Target> {
     copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
   }
 
-  void PrepareEmpty(Target &image_file) override {
-    PrepareEmptyTensor(image_file.image);
-    image_file.filename = "";
+  template <typename T>
+  std::enable_if_t<!detail::has_data<T>::value, void>
+  PrepareEmptyImpl(T &target) {
+    assert(false);
   }
 
-  void ReadSample(Target &imfile) override {
-    auto image_file = images_[current_index_++];
+  template <typename T>
+  std::enable_if_t<detail::has_data<T>::value, void>
+  PrepareEmptyImpl(T &target) {
+    PrepareEmptyTensor(target.data);
+    target.filename.clear();
+  }
+
+  void PrepareEmpty(Target &target) override {
+    PrepareEmptyImpl<Target>(target);
+  }
+
+  template <typename T>
+  std::enable_if_t<!detail::has_data<T>::value, void>
+  ReadSampleImpl(T &target) {
+    assert(false);
+  }
+
+  template <typename T>
+  std::enable_if_t<detail::has_data<T>::value, void>
+  ReadSampleImpl(T &target) {
+    auto filename = files_[current_index_++];
 
     // handle wrap-around
     MoveToNextShard(current_index_);
 
     // metadata info
     DALIMeta meta;
-    meta.SetSourceInfo(image_file);
+    meta.SetSourceInfo(filename);
     meta.SetSkipSample(false);
 
-    // if image is cached, skip loading
-    if (ShouldSkipImage(image_file)) {
+    // if data is cached, skip loading
+    if (ShouldSkipImage(filename)) {
       meta.SetSkipSample(true);
-      imfile.image.Reset();
-      imfile.image.SetMeta(meta);
-      imfile.image.set_type(TypeInfo::Create<uint8_t>());
-      imfile.image.Resize({0});
-      imfile.filename = "";
+      target.data.Reset();
+      target.data.SetMeta(meta);
+      target.data.set_type(TypeInfo::Create<uint8_t>());
+      target.data.Resize({0});
+      target.filename = "";
       return;
     }
 
-    auto current_image = InputStream::Open(filesystem::join_path(file_root_, image_file),
+    auto current_file = InputStream::Open(filesystem::join_path(file_root_, filename),
                                            read_ahead_, !copy_read_data_);
-    Index image_size = current_image->Size();
+    Index file_size = current_file->Size();
 
     if (copy_read_data_) {
-      if (imfile.image.shares_data()) {
-        imfile.image.Reset();
+      if (target.data.shares_data()) {
+        target.data.Reset();
       }
-      imfile.image.Resize({image_size});
-      // copy the image
-      Index ret = current_image->Read(imfile.image.template mutable_data<uint8_t>(), image_size);
-      DALI_ENFORCE(ret == image_size, make_string("Failed to read file: ", image_file));
+      target.data.Resize({file_size});
+      // copy the data
+      Index ret = current_file->Read(target.data.template mutable_data<uint8_t>(), file_size);
+      DALI_ENFORCE(ret == file_size, make_string("Failed to read file: ", filename));
     } else {
-      auto p = current_image->Get(image_size);
-      DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", image_file));
+      auto p = current_file->Get(file_size);
+      DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", filename));
       // Wrap the raw data in the Tensor object.
-      imfile.image.ShareData(p, image_size, {image_size});
-      imfile.image.set_type(TypeInfo::Create<uint8_t>());
+      target.data.ShareData(p, file_size, {file_size});
+      target.data.set_type(TypeInfo::Create<uint8_t>());
     }
 
     // close the file handle
-    current_image->Close();
+    current_file->Close();
 
     // set metadata
-    imfile.image.SetMeta(meta);
+    target.data.SetMeta(meta);
 
     // set string
-    imfile.filename = filesystem::join_path(file_root_, image_file);
+    target.filename = filesystem::join_path(file_root_, filename);
+  }
+
+  void ReadSample(Target &target) override {
+    ReadSampleImpl<Target>(target);
   }
 
  protected:
   Index SizeImpl() override {
-    return static_cast<Index>(images_.size());
+    return static_cast<Index>(files_.size());
   }
 
   void PrepareMetadataImpl() override {
-    if (images_.empty()) {
+    if (files_.empty()) {
       if (!has_files_arg_ && !has_file_list_arg_) {
-        images_ = filesystem::traverse_directories(file_root_, file_filter_);
+        files_ = filesystem::traverse_directories(file_root_, file_filter_);
       } else if (has_file_list_arg_) {
         // load paths from list
         std::ifstream s(file_list_);
@@ -193,7 +211,7 @@ class FileLoader : public Loader<Backend, Target> {
         char *line = line_buf.data();
         while (s.getline(line, line_buf.size())) {
           if (line[0])  // skip empty lines
-            images_.emplace_back(line);
+            files_.emplace_back(line);
         }
         DALI_ENFORCE(s.eof(), "Wrong format of file_list: " + file_list_);
       }
@@ -204,7 +222,7 @@ class FileLoader : public Loader<Backend, Target> {
       // seeded with hardcoded value to get
       // the same sequence on every shard
       std::mt19937 g(kDaliDataloaderSeed);
-      std::shuffle(images_.begin(), images_.end(), g);
+      std::shuffle(files_.begin(), files_.end(), g);
     }
     Reset(true);
   }
@@ -220,7 +238,7 @@ class FileLoader : public Loader<Backend, Target> {
 
     if (shuffle_after_epoch_) {
       std::mt19937 g(kDaliDataloaderSeed + current_epoch_);
-      std::shuffle(images_.begin(), images_.end(), g);
+      std::shuffle(files_.begin(), files_.end(), g);
     }
   }
 
@@ -238,7 +256,7 @@ class FileLoader : public Loader<Backend, Target> {
   using Loader<Backend, Target>::PrepareEmptyTensor;
 
   string file_list_, file_root_, file_filter_;
-  vector<std::string> images_;
+  vector<std::string> files_;
 
   bool has_files_arg_ = false;
   bool has_file_list_arg_ = false;
@@ -249,6 +267,7 @@ class FileLoader : public Loader<Backend, Target> {
   int current_epoch_;
   typename InputStream::MappingReserver mmap_reserver_;
 };
+
 
 }  // namespace dali
 

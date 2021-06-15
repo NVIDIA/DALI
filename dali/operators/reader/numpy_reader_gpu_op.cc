@@ -22,7 +22,7 @@ void NumpyReaderGPU::Prefetch() {
   // We actually prepare the next batch
   DomainTimeRange tr("[DALI][NumpyReaderGPU] Prefetch #" + to_string(curr_batch_producer_),
                       DomainTimeRange::kRed);
-  DataReader<GPUBackend, ImageFileWrapperGPU>::Prefetch();
+  DataReader<GPUBackend, NumpyFileWrapperGPU>::Prefetch();
   auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
   auto &curr_tensor_list = prefetched_batch_tensors_[curr_batch_producer_];
 
@@ -35,26 +35,26 @@ void NumpyReaderGPU::Prefetch() {
   thread_pool_.RunAll();
 
   // resize the current batch
-  auto ref_type = curr_batch[0]->type();
-  auto ref_shape = curr_batch[0]->shape();
+  auto ref_type = curr_batch[0]->get_type();
+  auto ref_shape = curr_batch[0]->get_shape();
   TensorListShape<> tmp_shapes(curr_batch.size(), ref_shape.sample_dim());
   for (size_t data_idx = 0; data_idx < curr_batch.size(); ++data_idx) {
     auto &sample = curr_batch[data_idx];
-    DALI_ENFORCE(ref_type == sample->type(), make_string("Inconsistent data! "
+    DALI_ENFORCE(ref_type == sample->get_type(), make_string("Inconsistent data! "
                  "The data produced by the reader has inconsistent type:\n"
-                 "type of [", data_idx, "] is ", sample->type().id(), " whereas\n"
+                 "type of [", data_idx, "] is ", sample->get_type().id(), " whereas\n"
                  "type of [0] is ", ref_type.id()));
 
     DALI_ENFORCE(
-        ref_shape.sample_dim() == sample->shape().sample_dim(),
+        ref_shape.sample_dim() == sample->get_shape().sample_dim(),
         make_string(
             "Inconsistent data! The data produced by the reader has inconsistent dimensionality:\n"
             "[",
-            data_idx, "] has ", sample->shape().sample_dim(),
+            data_idx, "] has ", sample->get_shape().sample_dim(),
             " dimensions whereas\n"
             "[0] has ",
             ref_shape.sample_dim(), " dimensions."));
-    tmp_shapes.set_tensor_shape(data_idx, sample->shape());
+    tmp_shapes.set_tensor_shape(data_idx, sample->get_shape());
   }
 
   curr_tensor_list.Resize(tmp_shapes, ref_type);

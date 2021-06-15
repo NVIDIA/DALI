@@ -62,8 +62,8 @@ class NumpyReader : public DataReader<Backend, Target> {
 
     int batch_size = GetCurrBatchSize();
     const auto& file_0 = GetSample(0);
-    TypeInfo output_type = file_0.type();
-    int ndim = file_0.shape().sample_dim();
+    TypeInfo output_type = file_0.get_type();
+    int ndim = file_0.get_shape().sample_dim();
     TensorListShape<> sh(batch_size, ndim);
 
     bool has_roi_args = slice_attr_.template ProcessArguments<Backend>(ws, batch_size, ndim);
@@ -77,22 +77,22 @@ class NumpyReader : public DataReader<Backend, Target> {
     need_slice_perm_.clear();
     for (int i = 0; i < batch_size; i++) {
       const auto& file_i = GetSample(i);
-      const auto& file_sh = file_i.shape();
+      const auto& file_sh = file_i.get_shape();
       auto sample_sh = sh.tensor_shape_span(i);
 
       DALI_ENFORCE(
-          file_i.shape().sample_dim() == ndim,
+          file_i.get_shape().sample_dim() == ndim,
           make_string("Inconsistent data: All samples in the batch must have the same number of "
                       "dimensions. "
                       "Got \"",
                       file_0.filename, "\" with ", ndim, " dimensions and \"", file_i.filename,
-                      "\" with ", file_i.shape().sample_dim(), " dimensions"));
+                      "\" with ", file_i.get_shape().sample_dim(), " dimensions"));
       DALI_ENFORCE(
-          file_i.type().id() == output_type.id(),
+          file_i.get_type().id() == output_type.id(),
           make_string("Inconsistent data: All samples in the batch must have the same data type. "
                       "Got \"",
                       file_0.filename, "\" with data type ", output_type.id(), " and \"",
-                      file_i.filename, "\" with data type ", file_i.type().id()));
+                      file_i.filename, "\" with data type ", file_i.get_type().id()));
 
       bool is_transposed = file_i.fortran_order;
       // Calculate the full transposed shape first
@@ -160,9 +160,9 @@ class NumpyReader : public DataReader<Backend, Target> {
   std::set<int> need_copy_;
 };
 
-class NumpyReaderCPU : public NumpyReader<CPUBackend, ImageFileWrapper> {
+class NumpyReaderCPU : public NumpyReader<CPUBackend, NumpyFileWrapper> {
  public:
-  explicit NumpyReaderCPU(const OpSpec& spec) : NumpyReader<CPUBackend, ImageFileWrapper>(spec) {
+  explicit NumpyReaderCPU(const OpSpec& spec) : NumpyReader<CPUBackend, NumpyFileWrapper>(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch);
   }
@@ -177,6 +177,7 @@ class NumpyReaderCPU : public NumpyReader<CPUBackend, ImageFileWrapper> {
                    const CropWindow& roi, float fill_value = 0);
   void SlicePermuteHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input,
                           const CropWindow& roi, float fill_value = 0);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, NumpyFileWrapper);
 };
 
 }  // namespace dali
