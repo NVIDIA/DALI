@@ -46,13 +46,15 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
     output.SetSourceInfo(data_idx, target.meta.GetSourceInfo());
   }
 
-  int nsamples_copy = need_copy_.size();
+  int nsamples_copy = std::count(need_copy_.begin(), need_copy_.end(), true);
   if (nsamples_copy) {
     if (nsamples_copy == nsamples) {
       std::swap(output, prefetched_batch_tensors_[curr_batch_consumer_]);
     } else {
       auto type_sz = dtype.size();
-      for (int i : need_copy_) {
+      for (int i = 0; i < nsamples; i++) {
+        if (!need_copy_[i])
+          continue;
         const auto& file_i = GetSample(i);
         auto sz = out_sh.tensor_size(i) * type_sz;
         sg_.AddCopy(out_view.data[i], GetSampleRawData(i), sz);
@@ -61,7 +63,7 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
     }
   }
 
-  int nsamples_slice = need_slice_.size();
+  int nsamples_slice = std::count(need_slice_.begin(), need_slice_.end(), true);
   if (nsamples_slice) {
     // TLV used to invoke kernels with a subset of the samples
     TensorListView<StorageGPU, const T, Dims> from;
@@ -74,7 +76,9 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
     std::vector<kernels::SliceArgs<T, Dims>> slice_args;
     slice_args.resize(nsamples_slice);
     int j = 0;
-    for (int i : need_slice_) {
+    for (int i = 0; i < nsamples; i++) {
+      if (!need_slice_[i])
+        continue;
       const auto& file_i = GetSample(i);
       auto &args = slice_args[j];
       args.anchor = rois_[i].anchor;
@@ -95,7 +99,7 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
     kmgr_slice_.Run<Kernel>(0, 0, ctx, to, from, slice_args);
   }
 
-  int nsamples_slice_perm = need_slice_perm_.size();
+  int nsamples_slice_perm = std::count(need_slice_perm_.begin(), need_slice_perm_.end(), true);
   if (nsamples_slice_perm) {
     // TLV used to invoke kernels with a subset of the samples
     TensorListView<StorageGPU, const T, Dims> from;
@@ -109,7 +113,9 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
     std::vector<Args> slice_transpose_args;
     slice_transpose_args.resize(nsamples_slice_perm);
     int j = 0;
-    for (int i : need_slice_perm_) {
+    for (int i = 0; i < nsamples; i++) {
+      if (!need_slice_perm_[i])
+        continue;
       const auto& file_i = GetSample(i);
       auto &args = slice_transpose_args[j];
       args = Args(rois_[i].shape, GetSampleShape(i));
@@ -132,7 +138,7 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
     kmgr_slice_perm_.Run<Kernel>(0, 0, ctx, to, from, slice_transpose_args);
   }
 
-  int nsamples_transpose = need_transpose_.size();
+  int nsamples_transpose = std::count(need_transpose_.begin(), need_transpose_.end(), true);
   if (nsamples_transpose) {
     // TLV used to invoke kernels with a subset of the samples
     TensorListView<StorageGPU, const T> from;
@@ -143,7 +149,9 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
     to.data.resize(nsamples_transpose);
 
     int j = 0;
-    for (int i : need_transpose_) {
+    for (int i = 0; i < nsamples; i++) {
+      if (!need_transpose_[i])
+        continue;
       const auto& file_i = GetSample(i);
       from.data[j] = GetSampleData<T>(i);
       from.shape.set_tensor_shape(j, GetSampleShape(i));
