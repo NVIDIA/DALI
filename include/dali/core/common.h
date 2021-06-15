@@ -111,13 +111,6 @@ enum DALIImageType {
   DALI_ANY_DATA     = 4
 };
 
-enum class DALIExtNoCopyMode {
-  DEFAULT,
-  FORCE_COPY,
-  FORCE_NO_COPY
-};
-
-
 inline bool IsColor(DALIImageType type) {
   return type == DALI_RGB || type == DALI_BGR || type == DALI_YCbCr;
 }

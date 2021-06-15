@@ -194,7 +194,7 @@ DLL_PUBLIC void daliSetExternalInputBatchSize(daliPipelineHandle *pipe_handle, c
  *                   Can be set to NULL.
  * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
  *               provided stream.
- * @param flags Extra flags, check DALI_ext_force_sync, DALI_ext_pinned, DALI_use_copy_kernel
+ * @param flags Extra flags, check DALI_ext_* and DALI_use_copy_kernel flags
  */
 DLL_PUBLIC void
 daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,

@@ -57,15 +57,20 @@ int PopCurrBatchSize(batch_size_map_t *batch_size_map, int max_batch_size,
   return ret;
 }
 
-
-dali::DALIExtNoCopyMode GetExternalSourceCopyMode(unsigned int flags) {
-  dali::DALIExtNoCopyMode no_copy_mode = dali::DALIExtNoCopyMode::DEFAULT;
+/**
+ * @brief Extract ExtSrcNoCopyMode based on the DALI_ext_force_copy and DALI_ext_force_no_copy
+ *
+ * @param flags Flags typically specified in daliSetExternalInput* functions.
+ */
+dali::ExtSrcNoCopyMode GetExternalSourceCopyMode(unsigned int flags) {
+  dali::ExtSrcNoCopyMode no_copy_mode = dali::ExtSrcNoCopyMode::DEFAULT;
   DALI_ENFORCE(!((flags & DALI_ext_force_copy) && (flags & DALI_ext_force_no_copy)),
-               "External Source cannot be forced to use copy and no copy at the same time.");
+               "External Source cannot be forced to use DALI_ext_force_copy and "
+               "DALI_ext_force_no_copy at the same time.");
   if (flags & DALI_ext_force_copy) {
-    no_copy_mode = dali::DALIExtNoCopyMode::FORCE_COPY;
+    no_copy_mode = dali::ExtSrcNoCopyMode::FORCE_COPY;
   } else if (flags & DALI_ext_force_no_copy) {
-    no_copy_mode = dali::DALIExtNoCopyMode::FORCE_NO_COPY;
+    no_copy_mode = dali::ExtSrcNoCopyMode::FORCE_NO_COPY;
   }
   return no_copy_mode;
 }

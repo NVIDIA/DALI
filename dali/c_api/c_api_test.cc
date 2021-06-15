@@ -64,12 +64,16 @@ struct the_other_backend<GPUBackend> {
 };
 
 
+std::string GetDeviceStr(device_type_t dev) {
+  return dev == CPU ? "cpu" : "gpu";
+}
+
 template<typename Backend, device_type_t execution_device = backend_to_device_type<Backend>::value>
 std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string &output_device) {
   auto pipe_ptr = std::make_unique<Pipeline>(batch_size, num_thread, device_id, seed, pipelined,
                                              prefetch_queue_depth, async);
   auto &pipe = *pipe_ptr;
-  std::string exec_device = execution_device == CPU ? "cpu" : "gpu";
+  std::string exec_device = GetDeviceStr(execution_device);
   TensorList<Backend> data;
   if (is_file_reader) {
     std::string file_root = testing::dali_extra_path() + "/db/single/jpeg/";
@@ -637,7 +641,7 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
 }
 
 
-TYPED_TEST(CApiTest, NoCopyForce) {
+TYPED_TEST(CApiTest, ForceNoCopyFail) {
   TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3},
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
@@ -647,10 +651,10 @@ TYPED_TEST(CApiTest, NoCopyForce) {
   TensorList<TypeParam> input;
 
   auto device = backend_to_device_type<TypeParam>::value;
-  std::string device_str = device == CPU ? "cpu" : "gpu";
+  std::string device_str = GetDeviceStr(device);
 
   auto other_device = device == CPU ? GPU : CPU;
-  std::string other_device_str = other_device == CPU ? "cpu" : "gpu";
+  std::string other_device_str = GetDeviceStr(other_device);
 
   auto pipe_ptr = GetExternalSourcePipeline(false, other_device_str);
   auto serialized = pipe_ptr->SerializeToProtobuf();
@@ -678,7 +682,7 @@ TYPED_TEST(CApiTest, NoCopyForce) {
 
 
 
-TYPED_TEST(CApiTest, CopyForce) {
+TYPED_TEST(CApiTest, ForceCopy) {
   TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3},
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
@@ -688,7 +692,7 @@ TYPED_TEST(CApiTest, CopyForce) {
   TensorList<TypeParam> input;
 
   auto device = backend_to_device_type<TypeParam>::value;
-  std::string device_str = device == CPU ? "cpu" : "gpu";
+  std::string device_str = GetDeviceStr(device);
 
   auto pipe_ptr = GetExternalSourcePipeline(true, device_str);
   auto serialized = pipe_ptr->SerializeToProtobuf();
