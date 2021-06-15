@@ -34,18 +34,6 @@
 
 namespace dali {
 
-namespace detail {
-
-template <typename T, typename result = decltype(std::declval<T &>().data)>
-inline std::true_type HasData(T *);
-inline std::false_type HasData(...);
-
-/// @brief Inherits `true_type`, `if T::data` exists
-template <typename T>
-struct has_data : decltype(HasData((T*)0)) {};  // NOLINT
-
-}  // namespace detail
-
 struct FileWrapper {
   Tensor<CPUBackend> data;
   std::string filename;
@@ -110,87 +98,6 @@ class FileLoader : public Loader<Backend, Target> {
           typename InputStream::MappingReserver(static_cast<unsigned int>(initial_buffer_fill_));
     }
     copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
-  }
-
-  template <typename T>
-  std::enable_if_t<!detail::has_data<T>::value, void>
-  PrepareEmptyImpl(T &target) {
-    assert(false);
-  }
-
-  template <typename T>
-  std::enable_if_t<detail::has_data<T>::value, void>
-  PrepareEmptyImpl(T &target) {
-    PrepareEmptyTensor(target.data);
-    target.filename.clear();
-  }
-
-  void PrepareEmpty(Target &target) override {
-    PrepareEmptyImpl<Target>(target);
-  }
-
-  template <typename T>
-  std::enable_if_t<!detail::has_data<T>::value, void>
-  ReadSampleImpl(T &target) {
-    assert(false);
-  }
-
-  template <typename T>
-  std::enable_if_t<detail::has_data<T>::value, void>
-  ReadSampleImpl(T &target) {
-    auto filename = files_[current_index_++];
-
-    // handle wrap-around
-    MoveToNextShard(current_index_);
-
-    // metadata info
-    DALIMeta meta;
-    meta.SetSourceInfo(filename);
-    meta.SetSkipSample(false);
-
-    // if data is cached, skip loading
-    if (ShouldSkipImage(filename)) {
-      meta.SetSkipSample(true);
-      target.data.Reset();
-      target.data.SetMeta(meta);
-      target.data.set_type(TypeInfo::Create<uint8_t>());
-      target.data.Resize({0});
-      target.filename = "";
-      return;
-    }
-
-    auto current_file = InputStream::Open(filesystem::join_path(file_root_, filename),
-                                           read_ahead_, !copy_read_data_);
-    Index file_size = current_file->Size();
-
-    if (copy_read_data_) {
-      if (target.data.shares_data()) {
-        target.data.Reset();
-      }
-      target.data.Resize({file_size});
-      // copy the data
-      Index ret = current_file->Read(target.data.template mutable_data<uint8_t>(), file_size);
-      DALI_ENFORCE(ret == file_size, make_string("Failed to read file: ", filename));
-    } else {
-      auto p = current_file->Get(file_size);
-      DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", filename));
-      // Wrap the raw data in the Tensor object.
-      target.data.ShareData(p, file_size, {file_size});
-      target.data.set_type(TypeInfo::Create<uint8_t>());
-    }
-
-    // close the file handle
-    current_file->Close();
-
-    // set metadata
-    target.data.SetMeta(meta);
-
-    // set string
-    target.filename = filesystem::join_path(file_root_, filename);
-  }
-
-  void ReadSample(Target &target) override {
-    ReadSampleImpl<Target>(target);
   }
 
  protected:
