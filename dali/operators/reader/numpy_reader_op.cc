@@ -218,13 +218,13 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
 
     // controls task priority
     int64_t task_sz = volume(file_i.get_shape());
-    if (need_slice_[i] || need_slice_perm_[i])  // geometric mean between input shape and ROI shape
+    if (need_slice_[i])  // geometric mean between input shape and ROI shape
       task_sz = std::sqrt(static_cast<double>(task_sz) * volume(rois_[i].shape));
     if (need_transpose_[i])  // 2x if transposition is required
       task_sz *= 2;
 
     thread_pool.AddWork([&, i](int tid) {
-      if (need_slice_perm_[i]) {
+      if (need_slice_[i] && need_transpose_[i]) {
         SlicePermuteHelper(output[i], file_i.data, rois_[i], fill_value_);
       } else if (need_slice_[i]) {
         SliceHelper(output[i], file_i.data, rois_[i], fill_value_);
