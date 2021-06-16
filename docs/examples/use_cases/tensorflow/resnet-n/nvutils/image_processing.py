@@ -180,7 +180,7 @@ def get_dali_pipeline(
             random_aspect_ratio=[0.75, 1.25],
             random_area=[0.05, 1.0],
             num_attempts=100,
-            # as HW NVJPEG to allocate memory ahead for the biggest image in the data set to avoid reallocations in runtime
+            # ask HW NVJPEG to allocate memory ahead for the biggest image in the data set to avoid reallocations in runtime
             preallocate_width_hint=5980 if decode_device == 'mixed' else 0,
             preallocate_height_hint=6430 if decode_device == 'mixed' else 0)
         images = fn.resize(images, device=resize_device, resize_x=width, resize_y=height)
