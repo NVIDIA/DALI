@@ -30,20 +30,15 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
   const auto &out_sh = output.shape();
   int ndim = out_sh.sample_dim();
   int nsamples = out_sh.num_samples();
-  auto dtype = GetSampleType(0);
   bool need_slice = !rois_.empty();
   auto out_view = view<T>(output);
+  auto curr_batch = GetCurrBatchView<T, Dims>();
+  auto dtype = TypeTable::GetTypeInfoFromStatic<T>();
 
   // Permuted dims, to use for the transposition
   std::array<int, Dims> perm;
   for (int d = 0; d < Dims; d++)
     perm[d] = Dims - 1 - d;
-
-  for (int data_idx = 0; data_idx < nsamples; data_idx++) {
-    const auto& target = GetSample(data_idx);
-    output.SetSourceInfo(data_idx, target.meta.GetSourceInfo());
-  }
-
 
   int nsamples_copy = 0;
   for (int i = 0; i < nsamples; i++)
@@ -53,13 +48,11 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
     if (nsamples_copy == nsamples) {
       std::swap(output, prefetched_batch_tensors_[curr_batch_consumer_]);
     } else {
-      auto type_sz = dtype.size();
       for (int i = 0; i < nsamples; i++) {
         if (need_slice_[i] || need_transpose_[i])
           continue;
-        const auto& file_i = GetSample(i);
-        auto sz = out_sh.tensor_size(i) * type_sz;
-        sg_.AddCopy(out_view[i].data, GetSampleRawData(i), sz);
+        auto sz = out_sh.tensor_size(i) * dtype.size();
+        sg_.AddCopy(out_view.data[i], curr_batch.data[i], sz);
       }
       sg_.Run(ws.stream());
     }
@@ -88,36 +81,33 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
   if (nsamples_slice) {
     // TLV used to invoke kernels with a subset of the samples
     TensorListView<StorageGPU, const T, Dims> from;
-    from.shape.resize(nsamples_slice);
-    from.data.resize(nsamples_slice);
+    from.resize(nsamples_slice);
     TensorListView<StorageGPU, T, Dims> to;
-    to.shape.resize(nsamples_slice);
-    to.data.resize(nsamples_slice);
+    to.resize(nsamples_slice);
 
     std::vector<kernels::SliceArgs<T, Dims>> slice_args;
     slice_args.resize(nsamples_slice);
     for (int i = 0, j = 0, k = 0; i < nsamples; i++) {
       if (!need_slice_[i])
         continue;
-      const auto& file_i = GetSample(i);
       auto &args = slice_args[j];
       args.anchor = rois_[i].anchor;
       args.shape = rois_[i].shape;
       args.fill_values.clear();
       args.fill_values.push_back(ConvertSat<T>(fill_value_));
 
-      from.data[j] = GetSampleData<T>(i);
-      from.shape.set_tensor_shape(j, GetSampleShape(i).template to_static<Dims>());
+      from.data[j] = curr_batch.data[i];
+      from.shape.set_tensor_shape(j, curr_batch.shape[i]);
 
       if (need_transpose_[i]) {
         // slice to an intermediate buffer
-        to.data[j] = tmp_view[k].data;
-        to.shape.set_tensor_shape(j, tmp_view[k].shape);
+        to.data[j] = tmp_view.data[k];
+        to.shape.set_tensor_shape(j, tmp_view.tensor_shape(k));
         k++;
       } else {
         // directly to the output
-        to.data[j] = out_view[i].data;
-        to.shape.set_tensor_shape(j, out_view[i].shape.template to_static<Dims>());
+        to.data[j] = out_view.data[i];
+        to.shape.set_tensor_shape(j, out_view.shape[i]);
       }
       j++;
     }
@@ -132,29 +122,25 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
   if (nsamples_transpose) {
     // TLV used to invoke kernels with a subset of the samples
     TensorListView<StorageGPU, const T> from;
+    from.resize(nsamples_transpose, ndim);
     TensorListView<StorageGPU, T> to;
-    from.shape.resize(nsamples_transpose, ndim);
-    from.data.resize(nsamples_transpose);
-    to.shape.resize(nsamples_transpose, ndim);
-    to.data.resize(nsamples_transpose);
+    to.resize(nsamples_transpose, ndim);
 
     for (int i = 0, j = 0, k = 0; i < nsamples; i++) {
       if (!need_transpose_[i])
         continue;
-      const auto& file_i = GetSample(i);
-
       if (need_slice_[i]) {
         // from sliced data
-        from.data[j] = tmp_view[k].data;
-        from.shape.set_tensor_shape(j, tmp_view[k].shape);
+        from.data[j] = tmp_view.data[k];
+        from.shape.set_tensor_shape(j, tmp_view.tensor_shape(k));
         k++;
       } else {
         // directly from the input
-        from.data[j] = GetSampleData<T>(i);
-        from.shape.set_tensor_shape(j, GetSampleShape(i));
+        from.data[j] = curr_batch.data[i];
+        from.shape.set_tensor_shape(j, curr_batch.tensor_shape(i));
       }
       to.data[j] = out_view[i].data;
-      to.shape.set_tensor_shape(j, out_view[i].shape);
+      to.shape.set_tensor_shape(j, out_view.tensor_shape(i));
       j++;
     }
     kernels::KernelContext ctx;

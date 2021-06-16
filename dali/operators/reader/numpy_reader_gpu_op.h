@@ -64,22 +64,9 @@ class NumpyReaderGPU : public NumpyReader<GPUBackend, NumpyFileWrapperGPU> {
 
   vector<TensorList<GPUBackend>> prefetched_batch_tensors_;
 
-  // helpers for sample types and shapes
-  const TensorShape<>& GetSampleShape(int sample_idx) {
-    return GetSample(sample_idx).get_shape();
-  }
-
-  const TypeInfo& GetSampleType(int sample_idx) {
-    return GetSample(sample_idx).get_type();
-  }
-
-  template <typename T>
-  const T* GetSampleData(int sample_idx) {
-    return prefetched_batch_tensors_[curr_batch_consumer_].mutable_tensor<T>(sample_idx);
-  }
-
-  const void* GetSampleRawData(int sample_idx) {
-    return prefetched_batch_tensors_[curr_batch_consumer_].raw_mutable_tensor(sample_idx);
+  template <typename T, int Dims>
+  TensorListView<StorageGPU, const T, Dims> GetCurrBatchView() {
+    return view<const T, Dims>(prefetched_batch_tensors_[curr_batch_consumer_]);
   }
 
   template <typename T, int Dims>
