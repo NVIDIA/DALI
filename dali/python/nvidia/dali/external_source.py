@@ -288,8 +288,10 @@ from Python by several methods.
 
 The simplest and preferred way is to specify a ``source``, which can be a callable or iterable.
 
-.. warning::
-    :meth:`nvidia.dali.fn.external_source` operator is not compatible with TensorFlow integration.
+.. note::
+    :meth:`nvidia.dali.fn.external_source` operator is partially compatible with TensorFlow
+    integration via :meth:`nvidia.dali.plugin.tf.experimental.DALIDatasetWithInputs`.
+    Please refer to its documentation for details.
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
@@ -650,8 +652,10 @@ provided GPU memory content only using provided stream (DALI schedules a copy on
 and all work is properly queued). If no stream is provided feeding input blocks until the
 provided memory is copied to the internal buffer.
 
-.. warning::
-    :meth:`nvidia.dali.fn.external_source` operator is not compatible with TensorFlow integration.
+.. note::
+    :meth:`nvidia.dali.fn.external_source` operator is partially compatible with TensorFlow
+    integration via :meth:`nvidia.dali.plugin.tf.experimental.DALIDatasetWithInputs`.
+    Please refer to its documentation for details.
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
