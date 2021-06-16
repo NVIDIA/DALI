@@ -26,6 +26,9 @@ import warnings
 
 from nvidia.dali_tf_plugin import dali_tf_plugin
 
+from collections.abc import Mapping
+
+
 _dali_tf_module = dali_tf_plugin.load_dali_tf_plugin()
 _dali_tf = _dali_tf_module.dali
 _dali_tf.__doc__ = _dali_tf.__doc__ + """
@@ -59,26 +62,31 @@ The operator adds additional parameters to the ones supported by the
 
 Parameters
 ----------
-    input_datasets : tf.data.Dataset or tuple of tf.data.Dataset, optional, default = None
-        input datasets to the DALI Pipeline. When provided, user must specify the ``input_names``
-        as well to provide the mapping of input datasets to ``External Source`` nodes.
+    input_datasets : dict[str, tf.data.Dataset] or dict[str, nvidia.dali.plugin.tf.experimental.input]
+        input datasets to the DALI Pipeline. It must be provided as a dictionary mapping from
+        the names of the ``External Source`` nodes to the datasets objects intended as inputs
+        for those nodes (or to the :meth:`~nvidia.dali.plugin.tf.experimental.input` wrapper).
+
+        For example::
+
+            {
+                'tensor_input': tf.data.Dataset.from_tensors(tensor).repeat(),
+                'generator_input': tf.data.Dataset.from_generator(some_generator)
+            }
+
+        can be passed as ``input_datasets`` for Pipeline like::
+
+            @pipeline_def
+            def external_source_pipe():
+                input_0 = fn.external_source(name='tensor_input')
+                input_1 = fn.external_source(name='generator_input')
+                return fn.resize(input_1, resize_x=input_0)
 
         .. warning::
             Input dataset must be placed on the same device as ``DALIDatasetWithInputs``.
             If the input has different placement (for instance, input is placed on CPU, while
             ``DALIDatasetWithInputs`` is placed on GPU) the ``tf.data.experimental.copy_to_device``
             with GPU argument must be first applied to input.
-
-    input_names : str or tuple of str, optional, default = None
-        names of inputs to the DALI Pipeline. Must match arity of the ``input_datasets``.
-        ``input_datasets[i]`` will be provided to the external source instance with the name
-        ``input_names[i]``.
-    input_layouts : str or tuple of str, optional, default = None
-        layouts of inputs to the DALI Pipeline. Must match arity of the ``input_datasets``.
-        ``input_layouts[i]`` will be set for ``input_datasets[i]`` provided to the external source
-        instance with the name ``input_names[i]``.
-        If not provided while specifying the ``input_datasets``, an empty layout string will be
-        used.
 """
 
 
@@ -204,6 +212,18 @@ def dataset_distributed_compatible_tensorflow():
     """
     return LooseVersion(tf.__version__) >= LooseVersion('2.5.0')
 
+def _get_experimental():
+    # TODO(klecki): this is WAR only for experimental module
+    current_module = sys.modules[__name__]
+    experimental = _internal.get_submodule(current_module, "experimental")
+    return experimental
+
+
+def _insert_experimental_member(member, name):
+    experimental_module = _get_experimental()
+    member.__module__ = experimental_module
+    setattr(experimental_module, name, member)
+
 
 if dataset_compatible_tensorflow():
     from tensorflow.python.framework import ops
@@ -226,11 +246,8 @@ if dataset_compatible_tensorflow():
                      fail_on_device_mismatch=True,
                      *,
                      # using kwargs for inputs allow us to add more kinds of parameters
-                     # TODO(klecki): consider alternative zipped representation for inputs?
                      # Experimental inputs begin
                      input_datasets=None,
-                     input_names=None,
-                     input_layouts=None,
                      # Experimental inputs end
                      batch_size=1,
                      num_threads=4,
@@ -263,10 +280,7 @@ if dataset_compatible_tensorflow():
 
             output_classes = nest.map_structure(lambda _: ops.Tensor, output_dtypes)
 
-            self._setup_inputs(input_datasets, input_names, input_layouts)
-
-            # TODO(klecki): Inspect the graph in the pipeline and set proper defaults in the External Source
-
+            self._python_pipeline = pipeline  # keep the live Pipeline object
             self._pipeline = serialize_pipeline(pipeline)
             self._batch_size = batch_size
             self._num_threads = num_threads
@@ -281,57 +295,76 @@ if dataset_compatible_tensorflow():
             self._output_dtypes = output_dtypes
             self._fail_on_device_mismatch = fail_on_device_mismatch
 
+            self._setup_inputs(input_datasets)
+
+            # TODO(klecki): Inspect the graph in the pipeline and set proper defaults in the External Source
+
             self._structure = structure.convert_legacy_structure(self._output_dtypes,
                                                                  self._output_shapes,
                                                                  output_classes)
 
             super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
 
-        def _setup_inputs(self, input_datasets, input_names, input_layouts):
+        def _setup_inputs(self, input_datasets):
             """Verify the input specification and assign it to private members in
             normalized form."""
-            try:
-                nest.assert_same_structure(input_datasets, input_names)
-            except ValueError as e:
-                raise ValueError("`input_datasets` and `input_names` structure do not match.") from e
-            if input_datasets is not None:
-                if not self._check_dtypes(input_datasets, dataset_ops.DatasetV2):
-                    raise TypeError(("`input_datasets` should be provided as a " +
-                        "tf.data.Dataset object or a tuple of Datasets. Got `{}` of type `{}`.") \
-                        .format(input_datasets, type(input_datasets)))
-
-                if not self._check_dtypes(input_names, str):
-                    raise TypeError(("`input_names` should be provided as a str or a tuple" +
-                        " of str. Got `{}` of type `{}`.") \
-                        .format(input_names, type(input_names)))
-
-                # TODO(klecki): we can possibly add a syntactic sugar and allow only one layout to be
-                # specified for all inputs uniformly
-                if input_layouts is not None:
-                    try:
-                        nest.assert_same_structure(input_layouts, input_datasets)
-                    except ValueError as e:
-                        raise ValueError("`input_datasets` and `input_layouts` structure do not match.") from e
-                    if not self._check_dtypes(input_layouts, str):
-                        raise TypeError(("`input_layouts` should be provided as a str " +
-                            "or a tuple of str. Got `{}` of type `{}`.") \
-                            .format(input_layouts, type(input_layouts)))
-                else:
-                    input_layouts = nest.map_structure(lambda _: "", input_datasets)
-            else:
+            if input_datasets is None:
                 # Make them explicitly empty for the internal representations
-                input_datasets = ()
-                input_names = ()
-                input_layouts = ()
+                self._input_datasets = ()
+                self._input_names = ()
+                self._input_layouts = ()
+                return
 
-            if not isinstance(input_datasets, tuple):
-                input_datasets = (input_datasets, )
-                input_names = (input_names, )
-                input_layouts = (input_layouts, )
+            input_datasets_list = []
+            input_names_list = []
+            input_layouts_list = []
 
-            self._input_datasets = input_datasets
-            self._input_names = input_names
-            self._input_layouts = input_layouts
+            def _get_dataset(value):
+                if isinstance(value, dataset_ops.DatasetV2):
+                    return value
+                else:
+                    return value.dataset
+
+            error_str = (
+                "`input_datasets` must be a dictionary that maps input names (the `name` " +
+                "specified for External Source node in DALI pipeline) to input datasets " +
+                "objects (`tf.data.Dataset`) or `nvidia.dali.plugin.tf.input` wrapper objects, " +
+                "got {} of type {}."
+            ).format(input_datasets, type(input_datasets))
+
+            if not isinstance(input_datasets, Mapping):
+                raise TypeError(error_str)
+
+            for input_name, input_value in input_datasets.items():
+                if not isinstance(input_name, str):
+                    raise TypeError(error_str + (" Expected the keys (representing the input " +
+                                                 "names) to be of type `str`, got {} of type {}"
+                                                 ).format(input_name, type(input_name)))
+
+                is_dataset_only = isinstance(input_value, dataset_ops.DatasetV2)
+
+                experimental = _get_experimental()
+
+
+                if not is_dataset_only and not isinstance(input_value, type(experimental.input)):
+                    raise TypeError(error_str + (" Expected the values of the dictionary " +
+                                                 "(representing the inputs) " +
+                                                 " to be of type `tf.data.Dataset` or " +
+                                                 "`nvidia.dali.plugin.tf.input` got {} of type {}."
+                                                 ).format(input_value, type(input_value)))
+
+                input_names_list.append(input_name)
+                input_datasets_list.append(_get_dataset(input_value))
+
+                # TODO(klecki): Do we want all Python-only ES parameters to be overridable here?
+                if is_dataset_only or input_value.layout is None:
+                    input_layouts_list.append(self._get_layout_from_pipeline(input_name))
+                else:
+                    input_layouts_list.append(input_value.layout)
+
+            self._input_datasets = tuple(input_datasets_list)
+            self._input_names = tuple(input_names_list)
+            self._input_layouts = tuple(input_layouts_list)
 
             # TODO(klecki): Validate number of specified inputs against the Pipeline
 
@@ -365,6 +398,10 @@ if dataset_compatible_tensorflow():
                 return deprecated_arg
             else:
                 return supported_arg
+
+        def _get_layout_from_pipeline(self, input_name):
+            # TODO(klecki)
+            return ""
 
         @property
         def element_spec(self):
@@ -408,7 +445,7 @@ if dataset_compatible_tensorflow():
     else:
         _DALIDatasetImpl = _DALIDatasetV2
 
-    _experimental_kwargs = ['input_datasets', 'input_names', 'input_layouts']
+    _experimental_kwargs = ['input_datasets']
 
     class DALIDataset(dataset_ops._OptionsDataset):
         @functools.wraps(_DALIDatasetV2.__init__)
@@ -426,12 +463,31 @@ if dataset_compatible_tensorflow():
                 dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
                 super(DALIDatasetWithInputs, self).__init__(dataset_impl, dataset_options())
 
-
-        current_module = sys.modules[__name__]
-        experimental_module = _internal.get_submodule(current_module, "experimental")
-        DALIDatasetWithInputs.__module__ = experimental_module
         DALIDatasetWithInputs.__doc__ = _experimental_dataset_docstring
-        setattr(experimental_module, "DALIDatasetWithInputs", DALIDatasetWithInputs)
+        _insert_experimental_member(DALIDatasetWithInputs, "DALIDatasetWithInputs")
+
+        # TODO(klecki): Do I even want this?
+        class input:
+            """Wrapper for input passed to DALIDataset. Allows to pass additional options.
+
+            Parameters
+            ----------
+            dataset : tf.data.Dataset
+                The dataset used as input
+            layout : str, optional, default = None
+                Layout of given input. If None, the layout will be taken from the
+                Python Pipeline object. If it is not provided there, empty layout will be used.
+
+                .. warning::
+                    Layout is not preserved by pipeline serialization and deserialization.
+                    If you are using deserialized pipeline and want to specify layout,
+                    you need to do it here.
+            """
+            def __init__(self, dataset, *, layout=None):
+                self.dataset = dataset
+                self.layout = layout
+
+        _insert_experimental_member(input, "input")
 
     _load_experimental_dataset()
 
@@ -465,11 +521,14 @@ else:
                     'experimental.DALIDatasetWithInputs is not supported for detected version of TensorFlow. '
                     + 'DALIDataset supports versions: 1.15, 2.x family')
 
-        current_module = sys.modules[__name__]
-        experimental_module = _internal.get_submodule(current_module, "experimental")
-        DALIDatasetWithInputs.__module__ = experimental_module
         DALIDatasetWithInputs.__doc__ = _experimental_dataset_docstring
-        setattr(experimental_module, "DALIDatasetWithInputs", DALIDatasetWithInputs)
+        _insert_experimental_member(DALIDatasetWithInputs, "DALIDatasetWithInputs")
+
+        class input:
+            def __init__(self, *args, **kwargs):
+                pass
+
+        _insert_experimental_member(input, "input")
 
     _load_experimental_dataset()
 

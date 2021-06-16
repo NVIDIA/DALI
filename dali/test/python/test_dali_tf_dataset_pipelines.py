@@ -126,8 +126,7 @@ def external_source_converter_with_fixed_value(shape, dtype, tensor):
 
         with tf.device(device_str):
             dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
-                    input_datasets=input_dataset,
-                    input_names="input_placeholder",
+                    input_datasets={"input_placeholder": input_dataset},
                     pipeline=dataset_pipeline,
                     batch_size=dataset_pipeline.batch_size,
                     output_shapes=shapes,
@@ -154,8 +153,7 @@ def external_source_converter_with_callback(input_iterator, shape, dtype, *args)
 
         with tf.device(device_str):
             dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
-                    input_datasets=input_dataset,
-                    input_names="input_placeholder",
+                    input_datasets={"input_placeholder": input_dataset},
                     pipeline=dataset_pipeline,
                     batch_size=dataset_pipeline.batch_size,
                     output_shapes=shapes,
@@ -220,8 +218,8 @@ def many_input_pipeline(def_for_dataset, device, sources, input_names):
 # Test that uses multiple Generator dataset as inputs to DALI pipeline
 def external_source_converter_multiple(start_values, input_names):
     def to_dataset(pipeline_desc, device_str):
+        input_datasets = {}
         with tf.device('/cpu:0'):
-            input_datasets = []
             for value, name in zip(start_values, input_names):
                 tf_type = tf.dtypes.as_dtype(value.dtype)
                 shape = value.shape
@@ -230,14 +228,13 @@ def external_source_converter_multiple(start_values, input_names):
                 # If we place DALIDataset on GPU we need the remote call + manual data transfer
                 if "gpu" in device_str:
                     input_dataset = input_dataset.apply(tf.data.experimental.copy_to_device('/gpu:0'))
-                input_datasets.append(input_dataset)
+                input_datasets[name] = input_dataset
 
         dataset_pipeline, shapes, dtypes = pipeline_desc
 
         with tf.device(device_str):
             dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
-                    input_datasets=tuple(input_datasets),
-                    input_names=tuple(input_names),
+                    input_datasets=input_datasets,
                     pipeline=dataset_pipeline,
                     batch_size=dataset_pipeline.batch_size,
                     output_shapes=shapes,

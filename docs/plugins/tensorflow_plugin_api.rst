@@ -9,3 +9,5 @@ Experimental
 ------------
 
 .. autofunction:: nvidia.dali.plugin.tf.experimental.DALIDatasetWithInputs
+
+.. autofunction:: nvidia.dali.plugin.tf.experimental.input

@@ -152,15 +152,13 @@ def test_tf_dataset_wrong_placement_gpu():
         pass
 
 @raises(Exception)
-def check_tf_dataset_mismatched_input_type(wrong_input_dataset, wrong_input_name, wrong_input_layout=None):
+def check_tf_dataset_mismatched_input_type(wrong_input_datasets):
     pipe = many_input_pipeline(True, "cpu", None, ["a", "b"], batch_size=8, num_threads=4, device_id=0)
 
     with tf.device('/cpu:0'):
         input_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
         dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
-                input_datasets=wrong_input_dataset,
-                input_names=wrong_input_name,
-                input_layouts=wrong_input_layout,
+                input_datasets=wrong_input_datasets,
                 pipeline=pipe,
                 batch_size=pipe.batch_size,
                 output_shapes=(None, None),
@@ -171,14 +169,12 @@ def check_tf_dataset_mismatched_input_type(wrong_input_dataset, wrong_input_name
 
 def test_tf_dataset_mismatched_input_type():
     input_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
+    for wrong_input_dataset in ["a", input_dataset, [input_dataset]]:
+        yield check_tf_dataset_mismatched_input_type, wrong_input_dataset
     for wrong_input_dataset in ["str", [input_dataset]]:
-        yield check_tf_dataset_mismatched_input_type, wrong_input_dataset, "a"
-    for wrong_input_name in [42, ["a"]]:
-        yield check_tf_dataset_mismatched_input_type, input_dataset, wrong_input_name
-    yield check_tf_dataset_mismatched_input_type, (input_dataset, input_dataset), ("a", "b"), "HWC"
-    yield check_tf_dataset_mismatched_input_type, (input_dataset), ("a", "b")
-    yield check_tf_dataset_mismatched_input_type, (input_dataset, input_dataset), ("b")
-
+        yield check_tf_dataset_mismatched_input_type, {"a" : wrong_input_dataset}
+    for wrong_input_name in [42, ("a", "b")]:
+        yield check_tf_dataset_mismatched_input_type, {wrong_input_name : input_dataset}
 
 
 # Test if the TypeError is raised for unsupported arguments for regular DALIDataset
@@ -186,8 +182,7 @@ def test_tf_dataset_mismatched_input_type():
 def test_tf_experimental_inputs_disabled():
     pipeline = get_image_pipeline(4, 4, 'cpu', 0)
     dali_tf.DALIDataset(pipeline,
-                        input_datasets=tf.data.Dataset.from_tensors(np.int32([42, 42])),
-                        input_names="test")
+                        input_datasets={"test" : tf.data.Dataset.from_tensors(np.int32([42, 42]))})
 
 
 # This test should be private (name starts with _) as it is called separately in L1
