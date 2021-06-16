@@ -81,7 +81,7 @@ class InfiniteSampleIterator:
         return result
 
 @pipeline_def
-def one_input_pipeline(def_for_dataset, device, source, external_source_device):
+def one_input_pipeline(def_for_dataset, device, source, external_source_device, no_copy):
     """Pipeline accepting single input via external source
 
     Parameters
@@ -96,8 +96,12 @@ def one_input_pipeline(def_for_dataset, device, source, external_source_device):
         Device that we want the external source in TF dataset to be placed
     """
     if def_for_dataset:
-        # We use no copy when the input memory is matching the external source placement,
-        # so the Dataset's placement is the same as external source's device
+        if no_copy is None:
+            # If no_copy is None, we infer it automatically and we use no_copy=True when
+            # the input memory is matching the external source placement,
+            # so the Dataset's placement is the same as external source's device,
+            # otherwise for cross-backend we use False.
+            no_copy=(device == external_source_device)
         input = fn.external_source(name="input_placeholder",
                                    no_copy=(device == external_source_device),
                                    device=external_source_device)
@@ -166,7 +170,7 @@ def external_source_converter_with_callback(input_iterator, shape, dtype, *args)
     return to_dataset
 
 @nottest
-def external_source_tester(shape, dtype, source=None, external_source_device="cpu"):
+def external_source_tester(shape, dtype, source=None, external_source_device="cpu", no_copy=None):
     def get_external_source_pipeline_getter(batch_size, num_threads, device, device_id=0,
         shard_id=0, num_shards=1, def_for_dataset=False):
 
@@ -176,7 +180,8 @@ def external_source_tester(shape, dtype, source=None, external_source_device="cp
                                   external_source_device,
                                   batch_size=batch_size,
                                   num_threads=num_threads,
-                                  device_id=device_id)
+                                  device_id=device_id,
+                                  no_copy=no_copy)
 
         batch_shape = (batch_size,) + tuple(None for _ in shape)
 

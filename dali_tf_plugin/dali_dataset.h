@@ -76,8 +76,7 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
     bool enable_memory_stats;
   };
 
-  // TODO(klecki): I know the name Inputs is not ideal, but we actually get them
-  // in compute from Op inputs.
+  // I know the name Inputs is not ideal, but we actually get them in compute from Op inputs.
   struct Inputs {
     std::vector<tensorflow::data::DatasetBase *> inputs;
   };

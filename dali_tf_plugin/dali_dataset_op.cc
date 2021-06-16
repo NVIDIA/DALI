@@ -118,7 +118,6 @@ class DALIDatasetOp::Dataset : public DatasetBase {
   const device_type_t device_type_;
   const bool fail_on_device_mismatch_;
 
-  daliPipelineHandle pipeline_handle_;
   const InputDescs input_desc_;
 
   Status AsGraphDefInternal(SerializationContext *context, DatasetGraphDefBuilder *b,
@@ -240,6 +239,11 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         TF_RETURN_IF_ERROR(dataset()->input_desc_.inputs[i]->MakeIterator(
             context, strings::StrCat(prefix(), "[", i, "]"), &input_impls_[i]));
 #endif
+      }
+      input_ext_src_devices_.resize(dataset()->NumInputs());
+      for (size_t i = 0; i < input_ext_src_devices_.size(); i++) {
+        TF_DALI_CALL(input_ext_src_devices_[i] = daliGetOperatorBackend(
+                         &pipeline_handle_, dataset()->input_desc_.input_names[i].c_str()));
       }
     }
     TF_RETURN_IF_ERROR(PrefetchPipeline(context, &pipeline_handle_));
@@ -608,8 +612,6 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    * @brief Feed a batches into coresponding inputs (External Source nodes).
    *
    * The batches are kept in queue to keep them alive long enough for DALI to process them.
-   *
-   * TODO(klecki): Automatically set no-copy mode. (Now it's silently always assumed)
    */
   Status FeedInputs(daliPipelineHandle *pipeline_handle, ListOfBatches &&batches) {
     // Keep alive the prefetch_queue_depth of batches - this corresponds to the number of batches
@@ -633,10 +635,28 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       // device as the DALIDataset placement
       auto input_device = dataset()->device_type_;
       auto &input_layout = dataset()->input_desc_.input_layouts[input_idx];
+      auto ext_src_device = input_ext_src_devices_[input_idx];
+
+
+      unsigned int flag = 0u;
+      // We can share the data without copy when the backends are the same, otherwise
+      // we need to copy.
+      if ((input_device == CPU && ext_src_device == DALI_BACKEND_CPU) ||
+          (input_device == GPU && ext_src_device == DALI_BACKEND_GPU)) {
+        flag = DALI_ext_force_no_copy;
+      } else {
+        flag = DALI_ext_force_copy;
+      }
 
       TF_DALI_CALL(daliSetExternalInputTensors(pipeline_handle, input_name.c_str(), input_device,
                                                ptrs.data(), dtype, shapes.data(), ndim,
-                                               input_layout.c_str(), 0));
+                                               input_layout.c_str(), flag));
+
+      // No need keep the data if we did the copy
+      if ((input_device == CPU && ext_src_device != DALI_BACKEND_CPU) ||
+          (input_device == GPU && ext_src_device != DALI_BACKEND_GPU)) {
+        input_batch.clear();
+      }
     }
     return Status::OK();
   }
@@ -776,6 +796,8 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 
   tensorflow::mutex mu_;
   std::vector<std::unique_ptr<IteratorBase>> input_impls_;
+  // Obtained from pipeline, the `device` parameter of external source nodes used for inputs
+  std::vector<dali_backend_t> input_ext_src_devices_;
   std::queue<ListOfBatches> alive_batches_;
   InputState iterator_state_ = InputState::in_progress;
   daliPipelineHandle pipeline_handle_;
