@@ -612,8 +612,6 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    * @brief Feed a batches into coresponding inputs (External Source nodes).
    *
    * The batches are kept in queue to keep them alive long enough for DALI to process them.
-   *
-   * TODO(klecki): Automatically set no-copy mode. (Now it's silently always assumed)
    */
   Status FeedInputs(daliPipelineHandle *pipeline_handle, ListOfBatches &&batches) {
     // Keep alive the prefetch_queue_depth of batches - this corresponds to the number of batches
@@ -653,6 +651,12 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       TF_DALI_CALL(daliSetExternalInputTensors(pipeline_handle, input_name.c_str(), input_device,
                                                ptrs.data(), dtype, shapes.data(), ndim,
                                                input_layout.c_str(), flag));
+
+      // No need keep the data if we did the copy
+      if ((input_device == CPU && ext_src_device != DALI_BACKEND_CPU) ||
+          (input_device == GPU && ext_src_device != DALI_BACKEND_GPU)) {
+        input_batch.clear();
+      }
     }
     return Status::OK();
   }
