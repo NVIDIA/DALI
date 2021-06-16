@@ -39,6 +39,7 @@ TEST(CUMemAddressRange, Reserve) {
   EXPECT_EQ(start, range.ptr());
   EXPECT_EQ(size, range.size());
   EXPECT_FALSE(mapped);
+  EXPECT_NO_THROW(range.reset());
 }
 
 TEST(CUMemAddressRange, ReserveAndMap) {
@@ -59,15 +60,18 @@ TEST(CUMemAddressRange, ReserveAndMap) {
   bool mapped = false;
   void *data[3] = { &start, &size, &mapped };
   void *ptr = cuvm::Map(base, mem);
+  EXPECT_EQ(ptr, reinterpret_cast<void*>(base));
   CUDA_CALL(cuPointerGetAttributes(3, attrs, data, base + 100));
   EXPECT_EQ(start, range.ptr());
   EXPECT_EQ(size, range.size());
   EXPECT_TRUE(mapped);
-  cuvm::Unmap(ptr, mem.size());
+  EXPECT_NO_THROW(cuvm::Unmap(ptr, mem.size()));
   CUDA_CALL(cuPointerGetAttributes(3, attrs, data, base + 1234));
   EXPECT_EQ(start, range.ptr());
   EXPECT_EQ(size, range.size());
   EXPECT_FALSE(mapped);
+  EXPECT_NO_THROW(mem.reset());
+  EXPECT_NO_THROW(range.reset());
 }
 
 }  // namespace test
