@@ -114,7 +114,7 @@ std::unique_ptr<Pipeline> GetExternalSourcePipeline(bool no_copy, const std::str
                                              prefetch_queue_depth, async);
   auto &pipe = *pipe_ptr;
 
-  pipe.AddOperator(OpSpec("_ExternalSource")
+  pipe.AddOperator(OpSpec("ExternalSource")
                        .AddArg("device", device)
                        .AddArg("name", input_name)
                        .AddArg("no_copy", no_copy)
