@@ -54,6 +54,11 @@ but not a different number of dimensions.
 .. warning::
     This class is experimental and its API might change without notice.
 
+.. note::
+    Setting ``no_copy`` on the external source nodes when defining the pipeline is considered
+    a no-op when used with DALI Dataset. The ``no_copy`` option is handled internally
+    and enabled automatically if possible.
+
 The operator adds additional parameters to the ones supported by the
 :class:`~nvidia.dali.plugin.tf.DALIDataset`:
 

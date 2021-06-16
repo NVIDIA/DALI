@@ -45,7 +45,7 @@ def test_tf_dataset_with_constant_input():
                 yield run_tf_dataset_with_constant_input, dev, shape, value, dtype
 
 
-def run_tf_dataset_with_random_input(dev, max_shape, dtype):
+def run_tf_dataset_with_random_input(dev, max_shape, dtype, no_copy=None):
     run_tf_dataset_eager_mode(
         dev,
         get_pipeline_desc=external_source_tester(max_shape, dtype,
@@ -73,6 +73,26 @@ def test_tf_dataset_with_random_input_gpu():
     for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
         for dtype in [np.uint8, np.int32, np.float32]:
             yield run_tf_dataset_with_random_input_gpu, max_shape, dtype
+
+
+def run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy):
+    run_tf_dataset_eager_mode(
+        dataset_dev,
+        get_pipeline_desc=external_source_tester(max_shape, dtype,
+                                                 RandomSampleIterator(max_shape, dtype(0)), es_dev,
+                                                 no_copy),
+        to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype))
+
+
+# Check if setting no_copy flags in all placement scenarios is ok as we override it internally
+def test_tf_dataset_with_no_copy():
+    for max_shape in [(10, 20), (120, 120, 3)]:
+        for dataset_dev in ["cpu", "gpu"]:
+            for es_dev in ["cpu", "gpu"]:
+                if dataset_dev == "cpu" and es_dev == "gpu":
+                    continue  # GPU op in CPU dataset not supported
+                for no_copy in [True, False, None]:
+                    yield run_tf_dataset_no_copy, max_shape, np.uint8, dataset_dev, es_dev, no_copy
 
 
 def run_tf_dataset_with_stop_iter(dev, max_shape, dtype, stop_samples):
