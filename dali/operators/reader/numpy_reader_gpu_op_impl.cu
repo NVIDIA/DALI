@@ -47,15 +47,15 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
   if (nsamples_copy) {
     if (nsamples_copy == nsamples) {
       std::swap(output, prefetched_batch_tensors_[curr_batch_consumer_]);
-    } else {
-      for (int i = 0; i < nsamples; i++) {
-        if (need_slice_[i] || need_transpose_[i])
-          continue;
-        auto sz = out_sh.tensor_size(i) * dtype.size();
-        sg_.AddCopy(out_view.data[i], curr_batch.data[i], sz);
-      }
-      sg_.Run(ws.stream());
+      return;
     }
+    for (int i = 0; i < nsamples; i++) {
+      if (need_slice_[i] || need_transpose_[i])
+        continue;
+      auto sz = out_sh.tensor_size(i) * dtype.size();
+      sg_.AddCopy(out_view.data[i], curr_batch.data[i], sz);
+    }
+    sg_.Run(ws.stream());
   }
 
   int nsamples_slice = std::count(need_slice_.begin(), need_slice_.end(), true);
