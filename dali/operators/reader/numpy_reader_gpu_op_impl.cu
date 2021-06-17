@@ -44,11 +44,11 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
   for (int i = 0; i < nsamples; i++) {
     if (need_slice_[i] && need_transpose_[i])
       nsamples_slice_transpose++;
-    else if (need_slice_[i])
+    if (need_slice_[i])
       nsamples_slice++;
-    else if (need_transpose_[i])
+    if (need_transpose_[i])
       nsamples_transpose++;
-    else
+    if (!need_slice_[i] && !need_transpose_[i])
       nsamples_copy++;
   }
 
