@@ -61,19 +61,19 @@ class CUMemAddressRange : public UniqueHandle<CUAddressRange, CUMemAddressRange>
  public:
   DALI_INHERIT_UNIQUE_HANDLE(CUAddressRange, CUMemAddressRange);
 
+  CUdeviceptr ptr() const noexcept {
+      return handle_.ptr();
+  }
+  size_t size() const noexcept {
+      return handle_.size();
+  }
+
   static CUMemAddressRange Reserve(size_t size, size_t alignment = 0, CUdeviceptr start = 0) {
     CUdeviceptr ptr = 0;
     size_t grain = GetAddressGranularity();
     size = align_up(size, grain);
     CUDA_CALL(cuMemAddressReserve(&ptr, size, alignment, start, 0));
     return CUMemAddressRange(CUAddressRange{ ptr, size });
-  }
-
-  CUdeviceptr ptr() const noexcept {
-      return handle_.ptr();
-  }
-  size_t size() const noexcept {
-      return handle_.size();
   }
 
   static void DestroyHandle(CUAddressRange handle) {
@@ -111,9 +111,9 @@ class CUMem : public UniqueHandle<CUMemAllocation, CUMem> {
  public:
   DALI_INHERIT_UNIQUE_HANDLE(CUMemAllocation, CUMem);
 
-  static void DestroyHandle(CUMemAllocation handle) {
-    CUDA_DTOR_CALL(cuMemRelease(handle.first));
-  }
+  CUmemGenericAllocationHandle handle() const noexcept { return handle_.first; }
+
+  size_t size() const noexcept { return handle_.second; }
 
   static CUMem Create(size_t size, int device_id = -1) {
     return Create(size, DeviceMemProp(device_id));
@@ -126,9 +126,10 @@ class CUMem : public UniqueHandle<CUMemAllocation, CUMem> {
     return CUMem({ handle, size });
   }
 
-  CUmemGenericAllocationHandle handle() const noexcept { return handle_.first; }
 
-  size_t size() const noexcept { return handle_.second; }
+  static void DestroyHandle(CUMemAllocation handle) {
+    CUDA_DTOR_CALL(cuMemRelease(handle.first));
+  }
 };
 
 template <typename T = void>
