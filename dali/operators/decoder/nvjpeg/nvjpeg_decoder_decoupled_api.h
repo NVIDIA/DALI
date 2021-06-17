@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -102,19 +102,20 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                        TensorShape<1>{300*1024});
       hw_decoder_images_staging_.Resize(shapes, TypeInfo::Create<uint8_t>());
 #if defined(NVJPEG_PREALLOCATE_API)
-      // TODO(awolant): How to expose chroma subsampling to the user?
-      if (spec.GetArgument<int>("preallocate_width_hint") > 0 &&
-          spec.GetArgument<int>("preallocate_height_hint") > 0) {
-        LOG_LINE << "Using NVJPEG_PREALLOCATE_API" << std::endl;
-        NVJPEG_CALL(nvjpegDecodeBatchedPreAllocate(
-          handle_,
-          state_hw_batched_,
-          CalcHwDecoderBatchSize(hw_decoder_load_, max_batch_size_),
-          spec.GetArgument<int>("preallocate_width_hint"),
-          spec.GetArgument<int>("preallocate_height_hint"),
-          NVJPEG_CSS_444,
-          NVJPEG_OUTPUT_RGB));
-      }
+      // call nvjpegDecodeBatchedPreAllocate to use memory pool for HW decoder even if hint is 0
+      auto preallocate_width_hint = spec.GetArgument<int>("preallocate_width_hint");
+      auto preallocate_height_hint = spec.GetArgument<int>("preallocate_height_hint");
+      preallocate_width_hint = preallocate_width_hint < 0 ? 0 : preallocate_width_hint;
+      preallocate_height_hint = preallocate_height_hint < 0 ? 0 : preallocate_height_hint;
+      LOG_LINE << "Using NVJPEG_PREALLOCATE_API" << std::endl;
+      NVJPEG_CALL(nvjpegDecodeBatchedPreAllocate(
+        handle_,
+        state_hw_batched_,
+        CalcHwDecoderBatchSize(hw_decoder_load_, max_batch_size_),
+        preallocate_width_hint,
+        preallocate_height_hint,
+        NVJPEG_CSS_444,
+        GetFormat(output_image_type_)));
 #endif
       using_hw_decoder_ = true;
       in_data_.reserve(max_batch_size_);
