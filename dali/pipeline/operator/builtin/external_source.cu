@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,6 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   }
 }
 
-DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<GPUBackend>, GPU);
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<GPUBackend>, GPU);
 
 }  // namespace dali

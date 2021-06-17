@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@ namespace testing {
 using Arguments = std::map<ArgumentKey, TestOpArg>;
 
 namespace detail {
+
+const char input_name[] = "input";
 
 template<typename Backend>
 std::string BackendStringName() {
@@ -104,11 +106,16 @@ inline std::unique_ptr<Pipeline> CreatePipeline(size_t batch_size, size_t num_th
 }
 
 
-inline void AddInputToPipeline(Pipeline &pipeline, const TensorListWrapper &input) {
-  ASSERT_TRUE(input && input.has_cpu()) << "External input works only for CPUBackend";
-  const std::string input_name = "input";
-  pipeline.AddExternalInput(input_name);
-  pipeline.SetExternalInput(input_name, *input.get<CPUBackend>());
+inline void AddInputToPipeline(Pipeline &pipeline, const std::string &device) {
+  pipeline.AddExternalInput(detail::input_name, device);
+}
+
+inline void SetInputInPipeline(Pipeline &pipeline, const TensorListWrapper &input) {
+  if (input.has_cpu()) {
+    pipeline.SetExternalInput(detail::input_name, *input.get<CPUBackend>());
+  } else {
+    pipeline.SetExternalInput(detail::input_name, *input.get<GPUBackend>());
+  }
 }
 
 
@@ -165,7 +172,7 @@ CreateOpSpec(const std::string &operator_name, Arguments operator_arguments, boo
     arg.second.SetArg(arg.first.arg_name(), opspec, nullptr);
   }
   if (has_input) {
-    opspec.AddInput("input", input_backend);
+    opspec.AddInput(detail::input_name, input_backend);
   }
   opspec.AddOutput("output", output_backend);
   return opspec;
@@ -241,9 +248,9 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
     ASSERT_GT(batch_size, 0UL) << "Looks like there ain't no tensors in input";
     auto pipeline = CreatePipeline(batch_size, num_threads_);
     if (input) {
-      AddInputToPipeline(*pipeline, input);
+      AddInputToPipeline(*pipeline, input.has_cpu() ? "cpu" : "gpu");
     }
-    auto outputs = RunTestImpl(*pipeline, operator_arguments, input ? true : false,
+    auto outputs = RunTestImpl(*pipeline, operator_arguments, input,
                                               op_backend, op_backend);
     verify(input, outputs[0], operator_arguments);
     output = outputs[0];
@@ -267,13 +274,15 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
   }
 
   std::vector<TensorListWrapper> RunTestImpl(Pipeline &pipeline,
-                                             const Arguments &operator_arguments, bool has_inputs,
+                                             const Arguments &operator_arguments,
+                                             const TensorListWrapper &input,
                                              const std::string &input_backend,
                                              const std::string &output_backend) {
     const auto op_spec = CreateOpSpec(GenerateOperatorGraph().get_op_name(), operator_arguments,
-                                      has_inputs, input_backend, output_backend);
+                                      static_cast<bool>(input), input_backend, output_backend);
     AddOperatorToPipeline(pipeline, op_spec);
     BuildPipeline(pipeline, op_spec);
+    SetInputInPipeline(pipeline, input);
     RunPipeline(pipeline);
     return GetOutputsFromPipeline(pipeline, output_backend);
   }

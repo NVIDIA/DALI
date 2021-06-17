@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,8 +45,6 @@ namespace dali {
  */
 class DLL_PUBLIC OpSpec {
  public:
-  template <typename T>
-  using TensorPtr = shared_ptr<Tensor<T>>;
   struct InOutDeviceDesc {
     std::string name;
     std::string device;
@@ -82,7 +80,7 @@ class DLL_PUBLIC OpSpec {
    */
   DLL_PUBLIC inline void set_name(const string &name) {
     name_ = name;
-    schema_ = name.empty() ? nullptr : SchemaRegistry::TryGetSchema(name);
+    schema_ = name_.empty() ? nullptr : SchemaRegistry::TryGetSchema(name_);
   }
 
   DLL_PUBLIC inline const OpSchema &GetSchema() const {

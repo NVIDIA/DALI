@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -392,7 +392,8 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
                                      file.frame_base_);
 
     if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC ||
-        codec_id == AV_CODEC_ID_MPEG4 || codec_id == AV_CODEC_ID_VP9) {
+        codec_id == AV_CODEC_ID_MPEG4 || codec_id == AV_CODEC_ID_VP8 ||
+        codec_id == AV_CODEC_ID_VP9 || codec_id == AV_CODEC_ID_MJPEG) {
       const char* filtername = nullptr;
       if (codec_id == AV_CODEC_ID_H264) {
         filtername = "h264_mp4toannexb";

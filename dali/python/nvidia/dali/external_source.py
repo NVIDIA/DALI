@@ -1,3 +1,17 @@
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # custom wrappers around ops
 from nvidia.dali import backend as _b
 import inspect
@@ -274,8 +288,10 @@ from Python by several methods.
 
 The simplest and preferred way is to specify a ``source``, which can be a callable or iterable.
 
-.. warning::
-    :meth:`nvidia.dali.fn.external_source` operator is not compatible with TensorFlow integration.
+.. note::
+    :meth:`nvidia.dali.fn.external_source` operator is partially compatible with TensorFlow
+    integration via :meth:`nvidia.dali.plugin.tf.experimental.DALIDatasetWithInputs`.
+    Please refer to its documentation for details.
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
@@ -439,8 +455,8 @@ Keyword Args
             self, source=None, num_outputs=None, *, cycle=None, layout=None, name=None,
             device="cpu", cuda_stream=None, use_copy_kernel=None, batch=None, parallel=None,
             no_copy=None, prefetch_queue_depth=None, **kwargs):
-        self._schema = _b.GetSchema("_ExternalSource")
-        self._spec = _b.OpSpec("_ExternalSource")
+        self._schema = _b.GetSchema("ExternalSource")
+        self._spec = _b.OpSpec("ExternalSource")
         self._device = device
         self._layout = layout
         self._cuda_stream = cuda_stream
@@ -636,8 +652,10 @@ provided GPU memory content only using provided stream (DALI schedules a copy on
 and all work is properly queued). If no stream is provided feeding input blocks until the
 provided memory is copied to the internal buffer.
 
-.. warning::
-    :meth:`nvidia.dali.fn.external_source` operator is not compatible with TensorFlow integration.
+.. note::
+    :meth:`nvidia.dali.fn.external_source` operator is partially compatible with TensorFlow
+    integration via :meth:`nvidia.dali.plugin.tf.experimental.DALIDatasetWithInputs`.
+    Please refer to its documentation for details.
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,

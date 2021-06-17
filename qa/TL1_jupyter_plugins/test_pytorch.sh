@@ -10,7 +10,7 @@ do_once() {
 
 test_body() {
   # dummy
-  exclude_files="pytorch-lightning*\|#"
+  exclude_files="#"
 
   # test code
   find frameworks/pytorch/ -name "*.ipynb" | sed "/${exclude_files}/d" | xargs -i jupyter nbconvert \
