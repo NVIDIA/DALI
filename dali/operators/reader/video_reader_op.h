@@ -17,6 +17,7 @@
 
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include "dali/operators/reader/loader/video_loader.h"
 #include "dali/operators/reader/reader_op.h"
@@ -167,6 +168,13 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
         }
         if (enable_timestamps_) {
           auto *timestamp = timestamp_output_->mutable_tensor<double>(data_idx);
+          if (prefetched_video.timestamps.size() < static_cast<size_t>(count_)) {
+            // pad timestamps for shorter sequences
+            auto old_size = prefetched_video.timestamps.size();
+            prefetched_video.timestamps.resize(count_);
+            std::fill(prefetched_video.timestamps.begin() + old_size,
+                      prefetched_video.timestamps.end(), -1);
+          }
           timestamp_output_->type().Copy<GPUBackend, CPUBackend>(
               timestamp, prefetched_video.timestamps.data(), prefetched_video.timestamps.size(),
               stream);

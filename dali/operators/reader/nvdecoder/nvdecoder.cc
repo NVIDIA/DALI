@@ -416,6 +416,13 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
   }
   if (captured_exception_)
     std::rethrow_exception(captured_exception_);
+  if (sequence.count < sequence.max_count) {
+    auto data_size = sequence.count * volume(sequence.frame_shape()) *
+                     dali::TypeTable::GetTypeInfo(sequence.dtype).size();
+    auto pad_size = (sequence.max_count - sequence.count) * volume(sequence.frame_shape()) *
+                     dali::TypeTable::GetTypeInfo(sequence.dtype).size();
+    cudaMemsetAsync(sequence.sequence.raw_mutable_data() + data_size, 0, pad_size, stream_);
+  }
   record_sequence_event_(sequence);
 }
 

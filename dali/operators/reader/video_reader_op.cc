@@ -161,6 +161,11 @@ If floating point values have been provided, the start frame number will be roun
 the end frame number will be rounded down.
 
 Frame numbers start from 0.)code", false)
+  .AddOptionalArg("pad_sequences",
+      R"code(Allows creation of incomplete sequences if there is an insufficient number
+of frames at the very end of the video.
+
+Redundant frames are zeroed. Corresponding time stamps and frame numbers are set to -1.)code", false)
   .AddParent("LoaderBase");
 
 

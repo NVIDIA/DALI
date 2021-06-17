@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,8 +37,10 @@ struct SequenceWrapper {
  public:
   SequenceWrapper() = default;
 
-  void initialize(int count, int height, int width, int channels, DALIDataType dtype) {
+  void initialize(int count, int max_count, int height, int width, int channels,
+                  DALIDataType dtype) {
     this->count = count;
+    this->max_count = max_count;
     this->height = height;
     this->width = width;
     this->channels = channels;
@@ -69,12 +71,13 @@ struct SequenceWrapper {
   }
 
   TensorShape<4> shape() const {
-    return TensorShape<4>{count, height, width, channels};
+    return TensorShape<4>{max_count, height, width, channels};
   }
 
   Tensor<GPUBackend> sequence;
 
   int count = -1;
+  int max_count = -1;
   int height = -1;
   int width = -1;
   int channels = -1;
