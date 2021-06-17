@@ -40,7 +40,7 @@ namespace dali {
 
 struct NumpyFileWrapperGPU {
   std::string filename;
-  bool fortan_order;
+  bool fortran_order;
   TensorShape<> shape;
   TypeInfo type;
   DALIMeta meta;

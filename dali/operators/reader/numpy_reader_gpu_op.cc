@@ -13,11 +13,8 @@
 // limitations under the License.
 
 #include <string>
-
-#include "dali/pipeline/data/views.h"
-#include "dali/kernels/transpose/transpose_gpu.h"
-#include "dali/core/static_switch.h"
 #include "dali/operators/reader/numpy_reader_gpu_op.h"
+#include "dali/pipeline/data/views.h"
 
 namespace dali {
 
@@ -38,9 +35,9 @@ void NumpyReaderGPU::Prefetch() {
   thread_pool_.RunAll();
 
   // resize the current batch
-  std::vector<TensorShape<>> tmp_shapes;
   auto ref_type = curr_batch[0]->get_type();
   auto ref_shape = curr_batch[0]->get_shape();
+  TensorListShape<> tmp_shapes(curr_batch.size(), ref_shape.sample_dim());
   for (size_t data_idx = 0; data_idx < curr_batch.size(); ++data_idx) {
     auto &sample = curr_batch[data_idx];
     DALI_ENFORCE(ref_type == sample->get_type(), make_string("Inconsistent data! "
@@ -48,14 +45,19 @@ void NumpyReaderGPU::Prefetch() {
                  "type of [", data_idx, "] is ", sample->get_type().id(), " whereas\n"
                  "type of [0] is ", ref_type.id()));
 
-    DALI_ENFORCE(ref_shape.size() == sample->get_shape().size(), make_string("Inconsistent data! "
-        "The data produced by the reader has inconsistent dimensionality:\n"
-        "[", data_idx, "] has ", sample->get_shape().size(), " dimensions whereas\n"
-        "[0] has ", ref_shape.size(), " dimensions."));
-    tmp_shapes.push_back(sample->get_shape());
+    DALI_ENFORCE(
+        ref_shape.sample_dim() == sample->get_shape().sample_dim(),
+        make_string(
+            "Inconsistent data! The data produced by the reader has inconsistent dimensionality:\n"
+            "[",
+            data_idx, "] has ", sample->get_shape().sample_dim(),
+            " dimensions whereas\n"
+            "[0] has ",
+            ref_shape.sample_dim(), " dimensions."));
+    tmp_shapes.set_tensor_shape(data_idx, sample->get_shape());
   }
 
-  curr_tensor_list.Resize(TensorListShape<>(tmp_shapes), ref_type);
+  curr_tensor_list.Resize(tmp_shapes, ref_type);
 
   size_t chunk_size = static_cast<size_t>( \
                         div_ceil(static_cast<uint64_t>(curr_tensor_list.nbytes()),
@@ -63,6 +65,7 @@ void NumpyReaderGPU::Prefetch() {
 
   // read the data
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
+    curr_tensor_list.SetMeta(data_idx, curr_batch[data_idx]->get_meta());
     size_t image_bytes = static_cast<size_t>(volume(curr_tensor_list.tensor_shape(data_idx))
                                              * curr_tensor_list.type().size());
     uint8_t* dst_ptr = static_cast<uint8_t*>(curr_tensor_list.raw_mutable_tensor(data_idx));
@@ -84,95 +87,6 @@ void NumpyReaderGPU::Prefetch() {
 
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
     curr_batch[data_idx]->file_stream->Close();
-  }
-}
-
-void PermuteHelper(const TensorShape<> &plain_shapes, std::vector<int64_t> &perm_shape,
-                  std::vector<int> &perm) {
-  int n_dims = plain_shapes.size();
-  if (perm.empty()) {
-    perm.resize(n_dims);
-    for (int i = 0; i < n_dims; ++i) {
-      perm[i] = n_dims - i - 1;
-    }
-  }
-  for (int i = 0; i < n_dims; ++i) {
-    perm_shape[i] = plain_shapes[perm[i]];
-  }
-}
-
-void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
-  TensorListShape<> shape(max_batch_size_);
-  // use vector for temporarily storing shapes
-  std::vector<TensorShape<>> tmp_shapes;
-  std::vector<TensorShape<>> transpose_shapes;
-  std::vector<int> perm;
-  std::vector<int64_t> perm_shape;
-
-  perm.reserve(GetSampleShape(0).size());
-  perm_shape.resize(GetSampleShape(0).size());
-
-  for (int sample_idx = 0; sample_idx < max_batch_size_; sample_idx++) {
-    const auto& target = GetSample(sample_idx);
-    auto plain_shape = GetSampleShape(sample_idx);
-    if (target.fortan_order) {
-      PermuteHelper(plain_shape, perm_shape, perm);
-      tmp_shapes.push_back(perm_shape);
-      transpose_shapes.push_back(plain_shape);
-    } else {
-      tmp_shapes.push_back(plain_shape);
-    }
-  }
-  auto ref_type = GetSampleType(0);
-  shape = TensorListShape<>(tmp_shapes);
-  ws.Output<GPUBackend>(0).Resize(shape, ref_type);
-
-  auto &image_output = ws.Output<GPUBackend>(0);
-
-  SmallVector<int64_t, 256> copy_sizes;
-  copy_sizes.reserve(max_batch_size_);
-  SmallVector<const void *, 256> copy_from;
-  copy_from.reserve(max_batch_size_);
-  SmallVector<void *, 256> copy_to;
-  copy_to.reserve(max_batch_size_);
-
-  SmallVector<const void *, 256> transpose_from;
-  transpose_from.reserve(max_batch_size_);
-  SmallVector<void *, 256> transpose_to;
-  transpose_to.reserve(max_batch_size_);
-
-
-  for (int data_idx = 0; data_idx < max_batch_size_; ++data_idx) {
-    const auto& target = GetSample(data_idx);
-    if (target.fortan_order) {
-      transpose_from.push_back(GetSampleRawData(data_idx));
-      transpose_to.push_back(image_output.raw_mutable_tensor(data_idx));
-    } else {
-      copy_from.push_back(GetSampleRawData(data_idx));
-      copy_to.push_back(image_output.raw_mutable_tensor(data_idx));
-      copy_sizes.push_back(shape.tensor_size(data_idx));
-    }
-    image_output.SetMeta(data_idx, target.get_meta());
-  }
-
-  if (transpose_from.empty() && !copy_sizes.empty()) {
-    std::swap(image_output, prefetched_batch_tensors_[curr_batch_consumer_]);
-  } else {
-    // use copy kernel for plan samples
-    if (!copy_sizes.empty()) {
-      ref_type.template Copy<GPUBackend, GPUBackend>(copy_to.data(), copy_from.data(),
-                                                     copy_sizes.data(), copy_sizes.size(),
-                                                     ws.stream(), true);
-    }
-
-    // transpose remaining samples
-    if (!transpose_from.empty()) {
-      kernels::KernelContext ctx;
-      ctx.gpu.stream = ws.stream();
-      kmgr_.Setup<TransposeKernel>(0, ctx, TensorListShape<>(transpose_shapes), make_span(perm),
-                                  ref_type.size());
-      kmgr_.Run<TransposeKernel>(0, 0, ctx, transpose_to.data(), transpose_from.data());
-    }
   }
 }
 

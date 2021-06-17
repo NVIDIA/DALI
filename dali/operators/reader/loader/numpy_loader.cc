@@ -282,7 +282,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   target.filename = file_root_ + "/" + filename;
 
   // set meta
-  target.fortan_order = parse_target.fortran_order;
+  target.fortran_order = parse_target.fortran_order;
 }
 
 }  // namespace dali

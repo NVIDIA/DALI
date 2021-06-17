@@ -57,17 +57,17 @@ class NumpyParseTarget{
 struct NumpyFileWrapper {
   Tensor<CPUBackend> data;
   std::string filename;
-  bool fortan_order;
+  bool fortran_order;
 
-  const TypeInfo& type() const {
+  const TypeInfo& get_type() const {
     return data.type();
   }
 
-  const TensorShape<>& shape() const {
+  const TensorShape<>& get_shape() const {
     return data.shape();
   }
 
-  const DALIMeta& meta() const {
+  const DALIMeta& get_meta() const {
     return data.GetMeta();
   }
 };

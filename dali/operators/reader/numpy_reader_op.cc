@@ -22,10 +22,6 @@
 
 namespace dali {
 
-#define NUMPY_ALLOWED_TYPES \
-  (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, float16, \
-  double)
-
 void NumpyReaderCPU::TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input) {
   int n_dims = input.shape().sample_dim();
   SmallVector<int, 6> perm;
@@ -38,7 +34,7 @@ void NumpyReaderCPU::TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CP
 }
 
 void NumpyReaderCPU::SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
-                              const CropWindow &roi, float fill_value) {
+                                 const CropWindow &roi, float fill_value) {
   int ndim = input.shape().sample_dim();
   VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
     TYPE_SWITCH(input.type().id(), type2id, T, NUMPY_ALLOWED_TYPES, (
@@ -58,7 +54,7 @@ void NumpyReaderCPU::SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBac
 }
 
 void NumpyReaderCPU::SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
-                                     const CropWindow &roi, float fill_value) {
+                                        const CropWindow &roi, float fill_value) {
   const auto& in_shape = input.shape();
   int ndim = in_shape.sample_dim();
   VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
@@ -139,63 +135,42 @@ speed.)code",
         R"code(Start of the region-of-interest, in absolute coordinates.
 
 This argument is incompatible with "rel_roi_start".
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<float>>("rel_roi_start",
         R"code(Start of the region-of-interest, in relative coordinates (range [0.0 - 1.0]).
 
 This argument is incompatible with "roi_start".
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<int>>("roi_end",
         R"code(End of the region-of-interest, in absolute coordinates.
 
 This argument is incompatible with "rel_roi_end", "roi_shape" and "rel_roi_shape".
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<float>>("rel_roi_end",
         R"code(End of the region-of-interest, in relative coordinates (range [0.0 - 1.0]).
 
 This argument is incompatible with "roi_end", "roi_shape" and "rel_roi_shape".
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<int>>("roi_shape",
         R"code(Shape of the region-of-interest, in absolute coordinates.
 
 This argument is incompatible with "rel_roi_shape", "roi_end" and "rel_roi_end".
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg<std::vector<float>>("rel_roi_shape",
         R"code(Shape of the region-of-interest, in relative coordinates (range [0.0 - 1.0]).
 
 This argument is incompatible with "roi_shape", "roi_end" and "rel_roi_end".
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         nullptr, true)
     .AddOptionalArg("roi_axes",
         R"code(Order of dimensions used for the ROI anchor and shape argumens, as dimension indices.
 
 If not provided, all the dimensions should be specified in the ROI arguments.
-
-.. note::
-    ROI reading is currently available only for the CPU backend.
 )code",
         std::vector<int>{})
     .AddOptionalArg("out_of_bounds_policy",
@@ -239,23 +214,21 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
 
   for (int i = 0; i < nsamples; i++) {
     const auto& file_i = GetSample(i);
-    const auto& file_sh = file_i.data.shape();
-    bool need_transpose = file_i.fortan_order;
-    bool need_slice = !rois_.empty();
+    const auto& file_sh = file_i.get_shape();
 
     // controls task priority
-    int64_t task_sz = volume(file_i.data.shape());
-    if (need_slice)  // geometric mean between input shape and ROI shape
+    int64_t task_sz = volume(file_i.get_shape());
+    if (need_slice_[i])  // geometric mean between input shape and ROI shape
       task_sz = std::sqrt(static_cast<double>(task_sz) * volume(rois_[i].shape));
-    if (need_transpose)  // 2x if transposition is required
+    if (need_transpose_[i])  // 2x if transposition is required
       task_sz *= 2;
 
-    thread_pool.AddWork([&, i, need_transpose, need_slice](int tid) {
-      if (need_slice && need_transpose) {
+    thread_pool.AddWork([&, i](int tid) {
+      if (need_slice_[i] && need_transpose_[i]) {
         SlicePermuteHelper(output[i], file_i.data, rois_[i], fill_value_);
-      } else if (need_slice) {
+      } else if (need_slice_[i]) {
         SliceHelper(output[i], file_i.data, rois_[i], fill_value_);
-      } else if (need_transpose) {
+      } else if (need_transpose_[i]) {
         TransposeHelper(output[i], file_i.data);
       } else {
         std::memcpy(output[i].raw_mutable_data(), file_i.data.raw_data(), file_i.data.nbytes());

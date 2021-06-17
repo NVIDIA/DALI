@@ -101,7 +101,7 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
 
     target.type = parse_target.type_info;
     target.shape = parse_target.shape;
-    target.fortan_order = parse_target.fortran_order;
+    target.fortran_order = parse_target.fortran_order;
   };
 
   target.read_sample_f = [this, filename, &target] (void *buffer, Index file_offset,
