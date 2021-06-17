@@ -19,10 +19,12 @@ namespace dali {
 namespace kernels {
 
 /**
- * @brief Utility to divide a bigger shape into smaller blocks, given a desired number of blocks
- *        and a minimum practical block size.
- *        The algorithm starts splitting from the outermost dimension until the number of blocks
- *        reaches the desired number or until the remaining volume is under a given threshold.
+ * @brief Utility to divide a bigger shape into smaller blocks, given a desired minimum number
+ *        of blocks and a minimum practical block size.
+ *        The algorithm starts splitting from the outermost dimension until either the number of
+ *        blocks reaches the desired minimum, or until the remaining volume is under a given threshold.
+ * @remarks The algorithm makes an effort to keep a good balance of block sizes, which might result in
+ *          a higher number of blocks than the minimum requested.
  * @param split_factor Output argument used to represent split factors for each dimension.
  * @param in_shape Input shape
  * @param min_nblocks Desired minimum number of blocks
@@ -31,17 +33,20 @@ namespace kernels {
 template <typename SplitFactor, typename Shape>
 void split_shape(SplitFactor& split_factor, const Shape& in_shape, int min_nblocks = 8,
                  int min_sz = (16 << 10)) {
-  int ndim = in_shape.size();
-  assert(static_cast<int>(split_factor.size()) == ndim);
+  int ndim = dali::size(in_shape);
+  assert(static_cast<int>(dali::size(split_factor)) == ndim);
   for (int d = 0; d < ndim; d++)
     split_factor[d] = 1;
 
-  int64_t vol = volume(in_shape.begin(), in_shape.end());
+  int64_t vol = volume(in_shape);
   for (int d = 0, nblocks = 1; d < ndim && nblocks < min_nblocks && vol > min_sz; d++) {
     int n = in_shape[d];
     int &b = split_factor[d];
     auto remaining = div_ceil(min_nblocks, nblocks);
-    if (remaining < n) {
+    constexpr int kThreshold = 4;
+    // ``* kThreshold`` to keep balance of block sizes,
+    // only dividing by ``remaining`` when the number is small.
+    if (remaining * kThreshold < n) {
       b = remaining;
       nblocks *= b;
       assert(nblocks >= min_nblocks);

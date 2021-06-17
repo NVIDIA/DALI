@@ -24,7 +24,7 @@ TEST(split_shape, basic_test) {
   TensorShape<> sh(10, 10, 10);
   std::vector<int> split_factor = {1, 1, 1};
 
-  split_shape(split_factor, sh, 3, 1000);  // minimum volume is bigger than the input volume
+  split_shape(split_factor, sh, 3, 1000);  // minimum volume is equal to the input volume, no split
   ASSERT_EQ(split_factor[0], 1);
   ASSERT_EQ(split_factor[1], 1);
   ASSERT_EQ(split_factor[2], 1);
@@ -34,13 +34,18 @@ TEST(split_shape, basic_test) {
   ASSERT_EQ(split_factor[1], 10);
   ASSERT_EQ(split_factor[2], 10);
 
-  split_shape(split_factor, sh, 3, 10);  // split across first dimension only
-  ASSERT_EQ(split_factor[0], 3);
+  split_shape(split_factor, sh, 10, 10);  // split across first dimension only
+  ASSERT_EQ(split_factor[0], 10);
   ASSERT_EQ(split_factor[1], 1);
   ASSERT_EQ(split_factor[2], 1);
 
-  split_shape(split_factor, sh, 10, 10);  // split across first dimension only
-  ASSERT_EQ(split_factor[0], 10);
+  split_shape(split_factor, sh, 3, 10);  // split across first dimension only
+  ASSERT_EQ(split_factor[0], 10);  // Due to 3 * 4 > 10
+  ASSERT_EQ(split_factor[1], 1);
+  ASSERT_EQ(split_factor[2], 1);
+
+  split_shape(split_factor, sh, 2, 10);  // split across first dimension only
+  ASSERT_EQ(split_factor[0], 2);
   ASSERT_EQ(split_factor[1], 1);
   ASSERT_EQ(split_factor[2], 1);
 
@@ -54,9 +59,14 @@ TEST(split_shape, basic_test) {
   ASSERT_EQ(split_factor[1], 2);
   ASSERT_EQ(split_factor[2], 1);
 
+  split_shape(split_factor, sh, 19, 1);  // split across first and second dimensions
+  ASSERT_EQ(split_factor[0], 10);
+  ASSERT_EQ(split_factor[1], 2);  // due to 2 * 4 < 10
+  ASSERT_EQ(split_factor[2], 1);
+
   split_shape(split_factor, sh, 24, 1);  // split across first and second dimensions
   ASSERT_EQ(split_factor[0], 10);
-  ASSERT_EQ(split_factor[1], 3);
+  ASSERT_EQ(split_factor[1], 10);  // due to 3 * 4 > 10
   ASSERT_EQ(split_factor[2], 1);
 
   split_shape(split_factor, sh, 1000, 10);  // split until the volume is small enough
