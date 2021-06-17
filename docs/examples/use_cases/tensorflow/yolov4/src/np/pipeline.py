@@ -190,4 +190,4 @@ class YOLOv4PipelineNumpy:
                 tf.TensorSpec(shape=(None, 608, 608, 3), dtype=tf.float32),
                 tf.TensorSpec(shape=(None, None, 5), dtype=tf.float32
             )
-        ))
+        )).prefetch(tf.data.AUTOTUNE)

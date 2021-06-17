@@ -1,7 +1,5 @@
 import nvidia.dali as dali
 
-# TODO: clean up
-
 def input(file_root, annotations_file, device_id, num_threads, device, random_shuffle=True):
     inputs, bboxes, classes = dali.fn.readers.coco(
         file_root=file_root,
@@ -15,29 +13,6 @@ def input(file_root, annotations_file, device_id, num_threads, device, random_sh
     images = dali.fn.decoders.image(inputs, device=device, output_type=dali.types.RGB)
 
     return images, bboxes, classes
-
-
-def permute(images, bboxes, labels):
-    indices = dali.fn.batch_permutation()
-    return (
-        dali.fn.permute_batch(images, indices=indices),
-        dali.fn.permute_batch(bboxes, indices=indices),
-        dali.fn.permute_batch(labels, indices=indices),
-    )
-
-def generate_tiles(images, bboxes, labels, shape_x, shape_y, image_size):
-    images, bboxes, labels = permute(images, bboxes, labels)
-    crop_anchor, crop_shape, bboxes, labels = dali.fn.random_bbox_crop(
-        bboxes,
-        labels,
-        crop_shape=dali.fn.stack(shape_x, shape_y),
-        input_shape=image_size,
-        allow_no_crop=False,
-        total_num_attempts=64
-    )
-    images = dali.fn.slice(images, crop_anchor, crop_shape, normalized_anchor=False, normalized_shape=False)
-    return images, bboxes, labels
-
 
 def ltrb_to_xywh(bboxes):
     Z = dali.types.Constant(0.0)
@@ -104,13 +79,37 @@ def color_twist(images):
         contrast=random_value()
     )
 
+
 def flip(images, bboxes):
     coin = dali.fn.random.coin_flip()
     images = dali.fn.flip(images, horizontal=coin)
     bboxes = dali.fn.bb_flip(bboxes, horizontal=coin, ltrb=True)
     return images, bboxes
 
+
 def mosaic(images, bboxes, labels, image_size):
+
+    def permute(images, bboxes, labels):
+        indices = dali.fn.batch_permutation()
+        return (
+            dali.fn.permute_batch(images, indices=indices),
+            dali.fn.permute_batch(bboxes, indices=indices),
+            dali.fn.permute_batch(labels, indices=indices),
+        )
+
+    def generate_tiles(images, bboxes, labels, shape_x, shape_y, image_size):
+        images, bboxes, labels = permute(images, bboxes, labels)
+        crop_anchor, crop_shape, bboxes, labels = dali.fn.random_bbox_crop(
+            bboxes,
+            labels,
+            crop_shape=dali.fn.stack(shape_x, shape_y),
+            input_shape=image_size,
+            allow_no_crop=False,
+            total_num_attempts=64
+        )
+        images = dali.fn.slice(images, crop_anchor, crop_shape, normalized_anchor=False, normalized_shape=False)
+        return images, bboxes, labels
+
     prob_x = dali.fn.random.uniform(range=(0.2, 0.8))
     prob_y = dali.fn.random.uniform(range=(0.2, 0.8))
 
