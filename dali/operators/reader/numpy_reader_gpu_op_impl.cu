@@ -40,10 +40,18 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
   for (int d = 0; d < Dims; d++)
     perm[d] = Dims - 1 - d;
 
-  int nsamples_copy = 0;
-  for (int i = 0; i < nsamples; i++)
-    if (!need_slice_[i] && !need_transpose_[i])
+  int nsamples_copy = 0, nsamples_slice = 0, nsamples_transpose = 0, nsamples_slice_transpose = 0;
+  for (int i = 0; i < nsamples; i++) {
+    if (need_slice_[i] && need_transpose_[i])
+      nsamples_slice_transpose++;
+    else if (need_slice_[i])
+      nsamples_slice++;
+    else if (need_transpose_[i])
+      nsamples_transpose++;
+    else
       nsamples_copy++;
+  }
+
   if (nsamples_copy) {
     if (nsamples_copy == nsamples) {
       std::swap(output, prefetched_batch_tensors_[curr_batch_consumer_]);
@@ -57,13 +65,6 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
     }
     sg_.Run(ws.stream());
   }
-
-  int nsamples_slice = std::count(need_slice_.begin(), need_slice_.end(), true);
-  int nsamples_transpose = std::count(need_transpose_.begin(), need_transpose_.end(), true);
-  int nsamples_slice_transpose = 0;
-  for (int i = 0; i < nsamples; i++)
-    if (need_slice_[i] && need_transpose_[i])
-      nsamples_slice_transpose++;
 
   TensorListView<StorageGPU, T, Dims> tmp_view;
   if (nsamples_slice_transpose) {
