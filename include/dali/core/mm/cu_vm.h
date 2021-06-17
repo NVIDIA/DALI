@@ -90,7 +90,7 @@ class CUMemAddressRange : public UniqueHandle<CUAddressRange, CUMemAddressRange>
    * @param size      Size, in bytes - should be a multiple of GetAddressGranularity - if it's not
    *                  it is rounded up to the next multiple
    * @param alignment Mostly ignored
-   * @param start     The requested starting address - a hint for a starting dddress of the range.
+   * @param start     The requested starting address - a hint for a starting address of the range.
    *                  The driver will attempt to allocate the address range at the address given,
    *                  but this is just a hint and the function will map a different range if the
    *                  requested location is not available.
