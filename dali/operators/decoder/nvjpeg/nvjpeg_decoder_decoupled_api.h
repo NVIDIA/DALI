@@ -109,8 +109,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                    make_string("Provided preallocate_width_hint=", preallocate_width_hint, ", and ",
                    "preallocate_height_hint=", preallocate_height_hint, " should not be ",
                    "negative."));
-      preallocate_width_hint = preallocate_width_hint < 0 ? 0 : preallocate_width_hint;
-      preallocate_height_hint = preallocate_height_hint < 0 ? 0 : preallocate_height_hint;
       LOG_LINE << "Using NVJPEG_PREALLOCATE_API" << std::endl;
       NVJPEG_CALL(nvjpegDecodeBatchedPreAllocate(
         handle_,
