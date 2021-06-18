@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -153,6 +153,7 @@ Parameters
         # * Start the Python workers pool (_start_py_workers())
         # * Construct the C++ Pipeline backend and pass the graph to it (_init_pipeline_backend())
         # * Build the pieline. (_pipe.Build())
+        # In case of deserialized pipeline, only _backend_prepared and _built will be True
         self._py_graph_built = False
         self._py_pool_started = False
         self._backend_prepared = False

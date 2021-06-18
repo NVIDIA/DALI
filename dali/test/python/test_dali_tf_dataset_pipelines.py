@@ -128,7 +128,7 @@ def external_source_converter_with_fixed_value(shape, dtype, tensor):
             dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
                     input_datasets={"input_placeholder": input_dataset},
                     pipeline=dataset_pipeline,
-                    batch_size=dataset_pipeline.batch_size,
+                    batch_size=dataset_pipeline.max_batch_size,
                     output_shapes=shapes,
                     output_dtypes=dtypes,
                     num_threads=dataset_pipeline.num_threads,
@@ -155,7 +155,7 @@ def external_source_converter_with_callback(input_iterator, shape, dtype, *args)
             dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
                     input_datasets={"input_placeholder": input_dataset},
                     pipeline=dataset_pipeline,
-                    batch_size=dataset_pipeline.batch_size,
+                    batch_size=dataset_pipeline.max_batch_size,
                     output_shapes=shapes,
                     output_dtypes=dtypes,
                     num_threads=dataset_pipeline.num_threads,
@@ -236,7 +236,7 @@ def external_source_converter_multiple(start_values, input_names):
             dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
                     input_datasets=input_datasets,
                     pipeline=dataset_pipeline,
-                    batch_size=dataset_pipeline.batch_size,
+                    batch_size=dataset_pipeline.max_batch_size,
                     output_shapes=shapes,
                     output_dtypes=dtypes,
                     num_threads=dataset_pipeline.num_threads,

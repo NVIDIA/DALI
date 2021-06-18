@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+from nvidia.dali import Pipeline, pipeline_def
+logging.getLogger('tensorflow').disabled = True
+# logging.getLogger('tensorflow').setLevel(logging.WARNING)
+
 import tensorflow as tf
-from nvidia.dali.plugin.tf.experimental import DALIDatasetWithInputs
+from nvidia.dali.plugin.tf.experimental import DALIDatasetWithInputs, input as experimental_input
 import nvidia.dali.plugin.tf as dali_tf
 from test_utils_tensorflow import *
 from test_dali_tf_dataset_pipelines import *
@@ -152,29 +157,100 @@ def test_tf_dataset_wrong_placement_gpu():
         pass
 
 @raises(Exception)
-def check_tf_dataset_mismatched_input_type(wrong_input_datasets):
+def check_tf_dataset_wrong_input_type(wrong_input_datasets):
     pipe = many_input_pipeline(True, "cpu", None, ["a", "b"], batch_size=8, num_threads=4, device_id=0)
 
     with tf.device('/cpu:0'):
-        input_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
         dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
                 input_datasets=wrong_input_datasets,
                 pipeline=pipe,
-                batch_size=pipe.batch_size,
+                batch_size=pipe.max_batch_size,
                 output_shapes=(None, None),
                 output_dtypes=(tf.int32, tf.int32),
                 num_threads=pipe.num_threads,
                 device_id=pipe.device_id)
         return dali_dataset
 
-def test_tf_dataset_mismatched_input_type():
+def test_tf_dataset_wrong_input_type():
     input_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
+    # wrong `input_datasets` type (no dictionary)
     for wrong_input_dataset in ["a", input_dataset, [input_dataset]]:
-        yield check_tf_dataset_mismatched_input_type, wrong_input_dataset
+        yield check_tf_dataset_wrong_input_type, wrong_input_dataset
+    # wrong values in dictionary
     for wrong_input_dataset in ["str", [input_dataset]]:
-        yield check_tf_dataset_mismatched_input_type, {"a" : wrong_input_dataset}
+        yield check_tf_dataset_wrong_input_type, {"a" : wrong_input_dataset, "b": wrong_input_dataset}
+    # wrong keys in dictionary
     for wrong_input_name in [42, ("a", "b")]:
-        yield check_tf_dataset_mismatched_input_type, {wrong_input_name : input_dataset}
+        yield check_tf_dataset_wrong_input_type, {wrong_input_name : input_dataset}
+    # not covered one of the External Source nodes
+    yield check_tf_dataset_wrong_input_type, {"a" : input_dataset}
+    # missing external source node
+    yield check_tf_dataset_wrong_input_type, {
+        "a": input_dataset,
+        "b": input_dataset,
+        "c": input_dataset
+    }
+
+@pipeline_def(batch_size=10, num_threads=4, device_id=0)
+def es_pipe(kwargs):
+    return fn.external_source(**kwargs)
+
+
+@raises(Exception)
+def check_disallowed_es(kwargs, input_datasets):
+    pipe = es_pipe(kwargs)
+
+    with tf.device('/cpu:0'):
+        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
+                input_datasets=input_datasets,
+                pipeline=pipe,
+                batch_size=pipe.max_batch_size,
+                output_shapes=(None, None),
+                output_dtypes=(tf.int32, tf.int32),
+                num_threads=pipe.num_threads,
+                device_id=pipe.device_id)
+        return dali_dataset
+
+def test_tf_dataset_disallowed_es():
+    in_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
+    # no names
+    yield check_disallowed_es, {}, {}
+    # num_outputs
+    yield check_disallowed_es, {'name': 'a', 'num_outputs': 1}, {'a': in_dataset}
+    # source provided
+    yield check_disallowed_es, {'name': 'a', 'source': []}, {'a': in_dataset}
+
+
+def check_layout(kwargs, input_datasets, layout):
+    pipe = Pipeline(10, 4, 0)
+    with pipe:
+        input = fn.external_source(**kwargs)
+        # Rely on the Pad internal check to ensure that External Source set layout
+        pipe.set_outputs(fn.pad(input, axis_names=layout))
+
+    with tf.device('/cpu:0'):
+        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
+                input_datasets=input_datasets,
+                pipeline=pipe,
+                batch_size=pipe.max_batch_size,
+                output_shapes=None,
+                output_dtypes=tf.int64,
+                num_threads=pipe.num_threads,
+                device_id=pipe.device_id)
+
+    run_dataset_eager_mode(dali_dataset, 10)
+
+
+def test_tf_dataset_layouts():
+    for shape, layout in [((2, 3), "XY"), ((10, 20, 3), "HWC"), ((4, 128, 64, 3), "FHWC")]:
+        in_dataset = tf.data.Dataset.from_tensors(np.full(shape, 42)).repeat()
+        # Captured from pipeline
+        yield check_layout, {'layout': layout, 'name': 'in'}, {'in': in_dataset}, layout
+        # Captured from pipeline
+        yield check_layout, {'layout': layout, 'name': 'in'}, {'in': experimental_input(in_dataset)}, layout
+        # Overridden via experimental.input
+        yield check_layout, {'layout': 'TO_OVERRIDE', 'name': 'in'}, {'in': experimental_input(in_dataset, layout=layout)}, layout
+
 
 
 # Test if the TypeError is raised for unsupported arguments for regular DALIDataset

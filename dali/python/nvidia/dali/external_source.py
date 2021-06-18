@@ -583,6 +583,8 @@ Keyword Args
 
         if name is None:
             name = self._name
+        else:
+            self._name = name
 
         if name is not None and self._num_outputs is not None:
             raise RuntimeError("``num_outputs`` is not compatible with named ``ExternalSource``.")
@@ -638,6 +640,11 @@ Keyword Args
 
 def _is_external_source_with_callback(op_instance):
     return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None
+
+
+def _is_external_source(op_instance):
+    return isinstance(op_instance._op, ExternalSource)
+
 
 def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None,
                     cuda_stream = None, use_copy_kernel = None, batch = True, **kwargs):
