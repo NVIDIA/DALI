@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,10 +18,9 @@ from test_utils import get_dali_extra_path
 
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-from nvidia.dali.backend_impl import TensorListGPU
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
-import re
+import numpy as np
 import tempfile
 
 from nose.tools import assert_raises, raises
@@ -35,7 +34,7 @@ PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + '/' + f for f in PLENTY_VIDEO_FIL
 FILE_LIST = "/tmp/file_list.txt"
 MUTLIPLE_RESOLUTION_ROOT = '/tmp/video_resolution/'
 
-test_data_root = os.environ['DALI_EXTRA_PATH']
+test_data_root = get_dali_extra_path()
 video_data_root = os.path.join(test_data_root, 'db', 'video')
 corrupted_video_data_root = os.path.join(video_data_root, 'corrupted')
 video_containers_data_root = os.path.join(test_data_root, 'db', 'video', 'containers')
@@ -273,3 +272,53 @@ def check_container(cont):
 def test_container():
     for cont in video_types:
         yield check_container, cont
+
+def test_pad_sequence():
+    @pipeline_def(batch_size=1, num_threads=4, device_id=0)
+    def create_video_pipe(filenames, sequence_length=1, stride=1, step=-1, pad_sequences=False):
+        fr, lab, fr_num, time_stamp = fn.readers.video(device="gpu", filenames=filenames, labels=[],
+                                                       sequence_length=sequence_length,
+                                                       shard_id=0, num_shards=1, enable_timestamps=True,
+                                                       enable_frame_num=True, random_shuffle=False,
+                                                       skip_vfr_check=True, step=step, stride=stride,
+                                                       pad_last_batch=True, pad_sequences=pad_sequences)
+        return fr, lab, fr_num, time_stamp
+
+    video_filename = [os.path.join(video_data_root, 'sintel', 'video_files', 'sintel_trailer-720p_3.mp4')]
+    dali_pipe = create_video_pipe(video_filename)
+    dali_pipe.build()
+    meta = dali_pipe.reader_meta()
+    total_number_of_frames = list(meta.values())[0]['epoch_size']
+
+    sequence_length = 4
+    stride = sequence_length//2
+    # second sequence should have only half of the frames
+    step = total_number_of_frames - (stride * sequence_length//2 - 1)
+    dali_pipe = create_video_pipe(batch_size=2, filenames=video_filename, sequence_length=sequence_length,
+                                  stride=stride, step=step, pad_sequences=True)
+    dali_pipe.build()
+    meta = dali_pipe.reader_meta()
+    assert list(meta.values())[0]['epoch_size'] == 2
+
+    last_sample_frame_count = 1 + (total_number_of_frames - 1 - step) // stride
+    assert last_sample_frame_count < sequence_length
+
+    out = dali_pipe.run()
+    sampl = 1
+    # check padded sample
+    # non padded frames should not be 0
+    assert np.any(np.array(out[0].as_cpu()[sampl])[0:last_sample_frame_count]) != 0
+    # while padded one only 0
+    assert np.all(np.array(out[0].as_cpu()[sampl])[last_sample_frame_count + 1:]) == 0
+    assert np.array(out[2].as_cpu()[sampl]) == step
+    # non padded samples should have non negative timestamps
+    assert np.all(np.array(out[3].as_cpu()[sampl])[0:last_sample_frame_count] != np.array([-1] * last_sample_frame_count))
+    # while padded one only -1
+    assert np.all(np.array(out[3].as_cpu()[sampl])[last_sample_frame_count + 1:] == np.array([-1] * (sequence_length - last_sample_frame_count)))
+
+    dali_pipe = create_video_pipe(batch_size=2, filenames=video_filename, sequence_length=sequence_length,
+                                  stride=stride, step=step, pad_sequences=False)
+    dali_pipe.build()
+    meta = dali_pipe.reader_meta()
+    # when sequence padding if off we should get only one valid sample in the epoch
+    assert list(meta.values())[0]['epoch_size'] == 1
