@@ -105,6 +105,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       // call nvjpegDecodeBatchedPreAllocate to use memory pool for HW decoder even if hint is 0
       auto preallocate_width_hint = spec.GetArgument<int>("preallocate_width_hint");
       auto preallocate_height_hint = spec.GetArgument<int>("preallocate_height_hint");
+      DALI_ENFORCE(preallocate_width_hint >= 0 && preallocate_width_hint >= 0,
+                   make_string("Provided preallocate_width_hint=", preallocate_width_hint, ", and ",
+                   "preallocate_height_hint=", preallocate_height_hint, " should not be ",
+                   "negative."));
       preallocate_width_hint = preallocate_width_hint < 0 ? 0 : preallocate_width_hint;
       preallocate_height_hint = preallocate_height_hint < 0 ? 0 : preallocate_height_hint;
       LOG_LINE << "Using NVJPEG_PREALLOCATE_API" << std::endl;
