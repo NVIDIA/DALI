@@ -246,10 +246,7 @@ if dataset_compatible_tensorflow():
                 output_shapes=None,
                 fail_on_device_mismatch=True,
                 *,
-                # using kwargs for inputs allow us to add more kinds of parameters
-                # Experimental inputs begin
                 input_datasets=None,
-                # Experimental inputs end
                 batch_size=1,
                 num_threads=4,
                 device_id=0,
@@ -297,8 +294,6 @@ if dataset_compatible_tensorflow():
             self._fail_on_device_mismatch = fail_on_device_mismatch
 
             self._setup_inputs(input_datasets)
-
-            # TODO(klecki): Inspect the graph in the pipeline and set proper defaults in the External Source
 
             self._structure = structure.convert_legacy_structure(self._output_dtypes,
                                                                  self._output_shapes,
@@ -514,7 +509,6 @@ if dataset_compatible_tensorflow():
         DALIDatasetWithInputs.__doc__ = _experimental_dataset_docstring
         _insert_experimental_member(DALIDatasetWithInputs, "DALIDatasetWithInputs")
 
-        # TODO(klecki): Do I even want this?
         class input:
             """Wrapper for input passed to DALIDataset. Allows to pass additional options.
 

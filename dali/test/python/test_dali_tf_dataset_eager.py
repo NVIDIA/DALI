@@ -12,14 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-from nvidia.dali import Pipeline, pipeline_def
-logging.getLogger('tensorflow').disabled = True
-# logging.getLogger('tensorflow').setLevel(logging.WARNING)
-
 import tensorflow as tf
-from nvidia.dali.plugin.tf.experimental import DALIDatasetWithInputs, input as experimental_input
+from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.plugin.tf as dali_tf
+from nvidia.dali.plugin.tf.experimental import DALIDatasetWithInputs, input as experimental_input
 from test_utils_tensorflow import *
 from test_dali_tf_dataset_pipelines import *
 from nose.tools import raises, with_setup
