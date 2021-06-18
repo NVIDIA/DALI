@@ -15,6 +15,8 @@
 #ifndef DALI_KERNELS_COMMON_SPLIT_SHAPE_H_
 #define DALI_KERNELS_COMMON_SPLIT_SHAPE_H_
 
+#include "dali/core/util.h"
+
 namespace dali {
 namespace kernels {
 
