@@ -54,6 +54,23 @@ static inline size_t GetAddressGranularity() {
   return grain;
 }
 
+inline bool IsSupported() {
+  static auto impl = []() {
+    if (!cuInitChecked())
+      return false;
+    CUdeviceptr mem = 0;
+    size_t size = 1<<24;  // This should be big enough for any granularity and small enough
+                          // to be available.
+    CUresult res = cuMemAddressReserve(&mem, size, 0, 0, 0);
+    if (mem && res == CUDA_SUCCESS) {
+      (void)cuMemAddressFree(mem, size);
+    }
+    return res != CUDA_ERROR_NOT_SUPPORTED;
+  };
+  static bool supported = impl();
+  return supported;
+}
+
 /**
  * @brief Manages a virtual addresses range
  */

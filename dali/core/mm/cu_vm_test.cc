@@ -22,6 +22,9 @@ namespace mm {
 namespace test {
 
 TEST(CUMemAddressRange, Reserve) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory API not supported on this machine";
+
   int64_t requested = 4000000;
   cuvm::CUMemAddressRange range = cuvm::CUMemAddressRange::Reserve(requested);
   EXPECT_GE(static_cast<int64_t>(range.size()), requested);
@@ -42,6 +45,9 @@ TEST(CUMemAddressRange, Reserve) {
 }
 
 TEST(CUMemAddressRange, ReserveAndMap) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory API not supported on this machine";
+
   int64_t virt_size = 10<<20;
   int64_t phys_size = 4<<20;
   cuvm::CUMemAddressRange range = cuvm::CUMemAddressRange::Reserve(virt_size);
@@ -74,6 +80,9 @@ TEST(CUMemAddressRange, ReserveAndMap) {
 
 
 TEST(CUMemAddressRange, ReserveAndMapPiecewise) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory API not supported on this machine";
+
   int64_t virt_size = 10<<20;
   int64_t phys_size = 4<<20;
   cuvm::CUMemAddressRange range = cuvm::CUMemAddressRange::Reserve(virt_size);
