@@ -278,6 +278,7 @@ void SliceKernel(OutputType *output,
   }
 }
 
+
 /**
  * @brief Implementation of slice kernel with an execution engine.
  */
@@ -295,12 +296,11 @@ void SliceKernel(ExecutionEngine &exec_engine,
                  int min_blk_sz = 16000,
                  int req_nblocks = -1) {
     // Parallelize
-  std::array<int, Dims> split_factor;
-
   if (req_nblocks < 0)
     req_nblocks = exec_engine.NumThreads() * 8;
 
   int nblocks = 1;
+  std::array<int, Dims> split_factor;
   if (req_nblocks > 1) {
     split_factor.fill(1);
     // Either ``req_nblocks`` blocks or fewer if remaining block sizes < min_blk_sz
@@ -314,47 +314,39 @@ void SliceKernel(ExecutionEngine &exec_engine,
     return;
   }
 
-  int last_split_dim = -1;
-  for (int d = Dims - 1; d >= 0; d--) {
-    if (split_factor[d] > 1) {
-      last_split_dim = d;
-      break;
-    }
-  }
+  int last_split_dim = LastSplitDim(split_factor);
+  TensorShape<Dims> start;
+  for (int d = 0; d < Dims; d++)
+    start[d] = 0;
+  auto end = out_shape;  // need a copy
 
-  std::array<int, Dims> split_factor_strides;
-  CalcStrides(split_factor_strides, split_factor);
+  std::cout << "Split factor:";
+  for (int d = 0; d < Dims; d++)
+    std::cout << " " << split_factor[d];
+  std::cout << "\n";
 
-  for (int b = 0; b < nblocks; b++) {
-    auto blk_anchor = anchor;
-    auto blk_out_shape = out_shape;
-    auto blk_out_ptr = output;
-    auto idx = b;
-    for (int d = 0; d < Dims; d++) {
-      if (split_factor[d] == 1)
-        continue;
+  std::cout << "Shape:";
+  for (int d = 0; d < Dims; d++)
+    std::cout << " " << out_shape[d];
+  std::cout << "\n";
 
-      int b_d = idx;
-      if (last_split_dim != d) {
-        b_d = idx / split_factor_strides[d];
-        idx = idx % split_factor_strides[d];
+
+  ScheduleBlocks(
+    start, end, make_cspan(split_factor), 0, last_split_dim,
+    [&](const TensorShape<Dims> &blk_start, const TensorShape<Dims> &blk_end) {
+      auto output_ptr = output;
+      TensorShape<Dims> blk_anchor;
+      TensorShape<Dims> blk_shape;
+      for (int d = 0; d < Dims; d++) {
+        output_ptr += blk_start[d] * out_strides[d];
+        blk_shape[d] = blk_end[d] - blk_start[d];
+        blk_anchor[d] = anchor[d] + blk_start[d];
       }
-
-      auto blk_start_d = out_shape[d] * b_d / split_factor[d];
-      auto blk_end_d = out_shape[d] * (b_d + 1) / split_factor[d];
-
-      blk_out_ptr += blk_start_d * out_strides[d];
-      blk_anchor[d] += blk_start_d;
-      blk_out_shape[d] = blk_end_d - blk_start_d;
-    }
-
-    exec_engine.AddWork(
-        [=](int) {
-          SliceKernel(blk_out_ptr, input, in_strides, out_strides, blk_anchor, in_shape,
-                      blk_out_shape, fill_values, channel_dim);
-        },
-        volume(blk_out_shape), false);
-  }
+      exec_engine.AddWork([=](int) {
+        SliceKernel(output_ptr, input, in_strides, out_strides, blk_anchor,
+                    in_shape, blk_shape, fill_values, channel_dim);
+      }, volume(blk_shape), false);
+    });
   exec_engine.RunAll();
 }
 
