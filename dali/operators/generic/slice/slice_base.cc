@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ bool SliceBaseCpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc
   output_desc[0].type = TypeInfo::Create<OutputType>();
   output_desc[0].shape.resize(nsamples, Dims);
 
-  kmgr_.Resize<Kernel>(nthreads, nsamples);
+  kmgr_.Resize<Kernel>(nsamples, nsamples);
   kernels::KernelContext ctx;
   auto in_view = view<const InputType, Dims>(input);
   for (int i = 0; i < nsamples; i++) {
@@ -74,20 +74,33 @@ template <typename OutputType, typename InputType, int Dims>
 void SliceBaseCpu<OutputType, InputType, Dims>::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
+  output.SetLayout(input.GetLayout());
+
   int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
   auto out_shape = output.shape();
-  for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-    thread_pool.AddWork(
-      [this, &input, &output, sample_idx](int thread_id) {
-        auto in_view = view<const InputType, Dims>(input[sample_idx]);
-        auto out_view = view<OutputType, Dims>(output[sample_idx]);
-        kernels::KernelContext ctx;
-        kmgr_.Run<Kernel>(thread_id, sample_idx, ctx, out_view, in_view, args_[sample_idx]);
-      }, out_shape.tensor_size(sample_idx));
+
+  auto in_view = view<const InputType, Dims>(input);
+  auto out_view = view<OutputType, Dims>(output);
+
+  if (nsamples < thread_pool.NumThreads() * 4) {  // intra-sample parallelization
+    kernels::KernelContext ctx;
+    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+      kmgr_.Run<Kernel>(sample_idx, sample_idx, ctx, out_view[sample_idx], in_view[sample_idx],
+                        args_[sample_idx], thread_pool);
+    }
+  } else {
+    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+      thread_pool.AddWork(
+          [&, sample_idx](int) {
+            kernels::KernelContext ctx;
+            kmgr_.Run<Kernel>(sample_idx, sample_idx, ctx, out_view[sample_idx],
+                              in_view[sample_idx], args_[sample_idx]);
+          },
+          out_shape.tensor_size(sample_idx));
+    }
+    thread_pool.RunAll();
   }
-  thread_pool.RunAll();
-  output.SetLayout(input.GetLayout());
 }
 
 template <>
