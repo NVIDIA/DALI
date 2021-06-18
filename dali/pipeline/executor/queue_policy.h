@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -185,7 +185,7 @@ struct UniformQueuePolicy {
     NotifyAll();
   }
 
-  bool IsStopSignaled() {
+  bool IsStopSignaled() const {
     // We only need to check the first one, since they're
     // always set in the same time
     return ready_stop_;
@@ -365,7 +365,7 @@ struct SeparateQueuePolicy {
     NotifyAll();
   }
 
-  bool IsStopSignaled() {
+  bool IsStopSignaled() const {
     // We only need to check the first one, since they're
     // always set in the same time.
     return ready_stop_;
