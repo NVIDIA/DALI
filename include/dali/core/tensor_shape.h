@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -265,8 +265,10 @@ struct TensorShape : public TensorShapeBase<DeviceArray<int64_t, ndim>, ndim> {
       this->shape[i] = *it;
     }
 #ifndef __CUDA_ARCH__
-    if (i != ndim || it != last)
-      throw std::invalid_argument(make_string("Expected ", ndim, " elements. Got ", i));
+    if (i != ndim)
+      throw std::invalid_argument(make_string("Expected ", ndim, " elements, got ", i));
+    if (it != last)
+      throw std::invalid_argument(make_string("Expected ", ndim, " elements, got more."));
 #endif
   }
 
