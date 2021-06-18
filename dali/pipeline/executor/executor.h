@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -236,10 +236,12 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   }
 
   void HandleError(const std::string& message = "Unknown exception") {
+    {
+      std::lock_guard<std::mutex> errors_lock(errors_mutex_);
+      errors_.push_back(message);
+    }
     exec_error_ = true;
     ShutdownQueue();
-    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-    errors_.push_back(message);
   }
 
   void PruneUnusedGraphNodes() override;
@@ -478,7 +480,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   if (exec_error_ || QueuePolicy::IsStopSignaled()) {
     // TODO(klecki) collect all errors
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-    std::string error = errors_.empty() ? "Unknown error" : errors_.front();
+    std::string error = errors_.empty() ? QueuePolicy::IsStopSignaled() && !exec_error_
+                                            ? "Stop signaled" : "Unknown error"
+                                        : errors_.front();
     throw std::runtime_error(error);
   }
 
@@ -486,7 +490,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
 
   if (exec_error_ || QueuePolicy::IsStopSignaled()) {
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-    std::string error = errors_.empty() ? "Unknown error" : errors_.front();
+    std::string error = errors_.empty() ? QueuePolicy::IsStopSignaled() && !exec_error_
+                                            ? "Stop signaled" : "Unknown error"
+                                        : errors_.front();
     throw std::runtime_error(error);
   }
 
