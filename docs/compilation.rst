@@ -147,6 +147,8 @@ Prerequisites
 For the recommended dependency versions, links to the project and the exact build commands used,
 please check https://github.com/NVIDIA/DALI_deps.
 
+The SHA of the currently used version can be found in DALI_PROJECT_ROOT/DALI_EXTRA_VERSION.
+
 |nvjpeg link|_, |gds link|_, |jpegturbo link|_ and  |libtiff link|_ has an *unofficial* option to
 disable it.
 
