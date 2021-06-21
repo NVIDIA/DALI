@@ -295,7 +295,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
                  int channel_dim = -1,  // negative if no channel dim or already processed
                  int min_blk_sz = 16000,
                  int req_nblocks = -1) {
-    // Parallelize
+  // Parallelize
   if (req_nblocks < 0)
     req_nblocks = exec_engine.NumThreads() * 8;
 
@@ -318,21 +318,10 @@ void SliceKernel(ExecutionEngine &exec_engine,
   TensorShape<Dims> start;
   for (int d = 0; d < Dims; d++)
     start[d] = 0;
-  auto end = out_shape;  // need a copy
-
-  std::cout << "Split factor:";
-  for (int d = 0; d < Dims; d++)
-    std::cout << " " << split_factor[d];
-  std::cout << "\n";
-
-  std::cout << "Shape:";
-  for (int d = 0; d < Dims; d++)
-    std::cout << " " << out_shape[d];
-  std::cout << "\n";
-
+  const auto& end = out_shape;
 
   ScheduleBlocks(
-    start, end, make_cspan(split_factor), 0, last_split_dim,
+    start, end, split_factor, 0, last_split_dim,
     [&](const TensorShape<Dims> &blk_start, const TensorShape<Dims> &blk_end) {
       auto output_ptr = output;
       TensorShape<Dims> blk_anchor;

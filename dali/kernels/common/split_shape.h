@@ -83,11 +83,10 @@ int LastSplitDim(const SplitFactor& split_factor) {
  * @brief Schedule work on a per-block basis
  */
 template <int Dims, typename SplitFactor, typename ScheduleBlockFunc>
-void ScheduleBlocks(TensorShape<Dims> &start, TensorShape<Dims> &end,
+void ScheduleBlocks(TensorShape<Dims> start, TensorShape<Dims> end,
                     const SplitFactor& split_factor, int d, int max_split_dim,
-                    ScheduleBlockFunc &&func) {
+                    ScheduleBlockFunc&& func) {
   if (d > max_split_dim || d == Dims) {
-    std::cout << "Execute \n";
     func(start, end);
     return;
   }
@@ -101,12 +100,10 @@ void ScheduleBlocks(TensorShape<Dims> &start, TensorShape<Dims> &end,
   int64_t start_d  = start[d];
   int64_t extent_d = end[d] - start_d;
   int nblocks_d = split_factor[d];
+  int64_t prev_end = start_d;
   for (int b = 0; b < nblocks_d; b++) {
-    start[d] = extent_d *  b      / nblocks_d + start_d;
-    end[d]   = extent_d * (b + 1) / nblocks_d + start_d;
-    std::cout << "d" << d << " b" << b << " start_d=" << start[d] << " end_d=" << end[d]
-              << " start_d " << start_d << " extent_d " << extent_d << " nblocks_d " << nblocks_d
-              << "\n";
+    start[d] = prev_end;
+    end[d]   = prev_end = extent_d * (b + 1) / nblocks_d + start_d;
     ScheduleBlocks(start, end, split_factor, d + 1, max_split_dim,
                    std::forward<ScheduleBlockFunc>(func));
   }
