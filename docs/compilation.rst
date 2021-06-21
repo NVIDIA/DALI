@@ -115,35 +115,24 @@ Bare Metal build
 Prerequisites
 ^^^^^^^^^^^^^
 
-For the recommended dependency versions please check https://github.com/NVIDIA/DALI_deps.
-
 .. |cuda link| replace:: **NVIDIA CUDA 10.0**
 .. _cuda link: https://developer.nvidia.com/cuda-downloads
 .. |nvjpeg link| replace:: **nvJPEG library**
 .. _nvjpeg link: https://developer.nvidia.com/nvjpeg
-.. |protobuf link| replace:: **protobuf**
-.. _protobuf link: https://github.com/NVIDIA/DALI_deps
-.. |cmake link| replace:: **CMake**
-.. _cmake link: https://github.com/NVIDIA/DALI_deps
 .. |jpegturbo link| replace:: **libjpeg-turbo**
 .. _jpegturbo link: https://github.com/NVIDIA/DALI_deps
 .. |libtiff link| replace:: **libtiff**
 .. _libtiff link: https://github.com/NVIDIA/DALI_deps
-.. |ffmpeg link| replace:: **FFmpeg**
-.. _ffmpeg link: https://github.com/NVIDIA/DALI_deps
-.. |libsnd link| replace:: **libsnd**
-.. _libsnd link: https://github.com/NVIDIA/DALI_deps
-.. |opencv link| replace:: **OpenCV**
-.. _opencv link: https://github.com/NVIDIA/DALI_deps
 .. |lmdb link| replace:: **liblmdb**
 .. _lmdb link: https://github.com/NVIDIA/DALI_deps
 .. |gcc link| replace:: **GCC**
 .. _gcc link: https://www.gnu.org/software/gcc/
-.. |boost link| replace:: **Boost**
-.. _boost link: https://github.com/NVIDIA/DALI_deps
 .. |dali_deps link| replace:: **DALI_deps**
 .. _dali_deps link: https://github.com/NVIDIA/DALI_deps
-
+.. |ffmpeg link| replace:: **FFmpeg**
+.. _ffmpeg link: https://github.com/NVIDIA/DALI_deps
+.. |libsnd link| replace:: **libsnd**
+.. _libsnd link: https://github.com/NVIDIA/DALI_deps
 .. |mxnet link| replace:: **MXNet 1.5**
 .. _mxnet link: http://mxnet.incubator.apache.org
 .. |pytorch link| replace:: **PyTorch 1.1**
@@ -154,6 +143,12 @@ For the recommended dependency versions please check https://github.com/NVIDIA/D
 .. _clang link: https://apt.llvm.org/
 .. |gds link| replace:: **GPU Direct Storage**
 .. _gds link: https://developer.nvidia.com/gpudirect-storage
+
+For the recommended dependency versions, links to the project and the exact build commands used,
+please check https://github.com/NVIDIA/DALI_deps.
+
+|nvjpeg link|_, |gds link|_, |jpegturbo link|_ and  |libtiff link|_ has an *unofficial* option to
+disable it.
 
 
 
@@ -169,28 +164,9 @@ For the recommended dependency versions please check https://github.com/NVIDIA/D
    | |clang link|_                          | clang and python-clang bindings are needed for compile time code generation. The easiest    |
    |                                        | way to obtain them is 'pip install clang libclang'                                          |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |boost link|_                          | Modules: *preprocessor*.                                                                    |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |cuda link|_                           |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |nvjpeg link|_                         | *This can be unofficially disabled. See below.*                                             |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |protobuf link|_                       | The currently supported version can be check |dali_deps link|_ repository.                  |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |cmake link|_                          |                                                                                             |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |jpegturbo link|_                      | *This can be unofficially disabled. See below.*                                             |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |libtiff link|_                        | *This can be unofficially disabled. See below.*                                             |
-   |                                        | Note: libtiff should be built with zlib support                                             |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |ffmpeg link|_                         | We recommend using verison listed in |dali_deps link|_ repository and compiled using        |
-   |                                        | the following *instructions below*.                                                         |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |libsnd link|_                         | We recommend using version listed in |dali_deps link|_ repository and compiled using        |
-   |                                        | the following *instructions below*.                                                         |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |opencv link|_                         | The currently supported version can be check |dali_deps link|_ repository.                  |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | (Optional) |lmdb link|_                | The currently supported version can be check |dali_deps link|_ repository.                  |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
