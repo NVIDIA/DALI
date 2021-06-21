@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -172,7 +172,7 @@ class MultiPasteOp : public Operator<Backend> {
           DALI_ENFORCE(out_anchor.data[k] >= 0 && in_anchor.data[k] >= 0 &&
                        out_anchor.data[k] + shape.data[k] <= output_size_[i].data[k] &&
                        in_anchor.data[k] + shape.data[k] <= in_shape.data[k],
-                       "Paste in/out coords should be within inout/output bounds.");
+                       "Paste in/out coords should be within input/output bounds.");
         }
 
         for (int k = 0; k < j; k++) {
