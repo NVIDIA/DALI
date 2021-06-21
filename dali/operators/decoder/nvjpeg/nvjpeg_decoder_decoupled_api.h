@@ -103,13 +103,20 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       hw_decoder_images_staging_.Resize(shapes, TypeInfo::Create<uint8_t>());
 #if defined(NVJPEG_PREALLOCATE_API)
       // call nvjpegDecodeBatchedPreAllocate to use memory pool for HW decoder even if hint is 0
+      // due to considerable performance benefit - >20% for 8GPU training
       auto preallocate_width_hint = spec.GetArgument<int>("preallocate_width_hint");
       auto preallocate_height_hint = spec.GetArgument<int>("preallocate_height_hint");
-      DALI_ENFORCE(preallocate_width_hint > 0 && preallocate_width_hint > 0,
+      // make sure it is not negative if provided
+      DALI_ENFORCE((!HasArgument("preallocate_width_hint") || preallocate_width_hint >= 0) &&
+                   (!HasArgument("preallocate_height_hint") || preallocate_height_hint >= 0),
                    make_string("Provided preallocate_width_hint=", preallocate_width_hint, ", and ",
                    "preallocate_height_hint=", preallocate_height_hint, " should not be ",
-                   "bigger than 0."));
+                   "negative."));
       LOG_LINE << "Using NVJPEG_PREALLOCATE_API" << std::endl;
+      // for backward compatibility we need to accept 0 as a hint, but nvJPEG return an error
+      // when such value is provided
+      preallocate_width_hint = preallocate_width_hint ? preallocate_width_hint : 1;
+      preallocate_height_hint = preallocate_height_hint ? preallocate_height_hint : 1;
       NVJPEG_CALL(nvjpegDecodeBatchedPreAllocate(
         handle_,
         state_hw_batched_,

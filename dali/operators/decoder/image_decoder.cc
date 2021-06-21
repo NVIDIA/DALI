@@ -108,14 +108,14 @@ https://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decod
 Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
 
 The hint is used to preallocate memory for the HW JPEG decoder.)code",
-      1)
+      0)
   .AddOptionalArg("preallocate_height_hint",
       R"code(Image width hint.
 
 Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
 
 The hint is used to preallocate memory for the HW JPEG decoder.)code",
-      1)
+      0)
   .AddOptionalArg("affine",
       R"code(Applies **only** to the ``mixed`` backend type.
 
