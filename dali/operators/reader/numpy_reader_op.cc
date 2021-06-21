@@ -223,18 +223,41 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
     if (need_transpose_[i])  // 2x if transposition is required
       task_sz *= 2;
 
-    thread_pool.AddWork([&, i](int tid) {
-      if (need_slice_[i] && need_transpose_[i]) {
+    if (need_slice_[i] && need_transpose_[i]) {
+      thread_pool.AddWork([&, i](int tid) {
         SlicePermuteHelper(output[i], file_i.data, rois_[i], fill_value_);
-      } else if (need_slice_[i]) {
+      }, task_sz);
+    } else if (need_slice_[i]) {
+      thread_pool.AddWork([&, i](int tid) {
         SliceHelper(output[i], file_i.data, rois_[i], fill_value_);
-      } else if (need_transpose_[i]) {
+      }, task_sz);
+    } else if (need_transpose_[i]) {
+      thread_pool.AddWork([&, i](int tid) {
         TransposeHelper(output[i], file_i.data);
+      }, task_sz);
+    } else {
+      constexpr int64_t kThreshold = 64000;
+      constexpr int64_t kChunkSize = 32000;
+      auto out_ptr = output[i].raw_mutable_data();
+      auto in_ptr = file_i.data.raw_data();
+      int64_t nbytes = file_i.data.nbytes();
+      if (nbytes <= kThreshold) {
+        thread_pool.AddWork([=](int tid) {
+          std::memcpy(out_ptr, in_ptr, nbytes);
+        }, task_sz);
       } else {
-        std::memcpy(output[i].raw_mutable_data(), file_i.data.raw_data(), file_i.data.nbytes());
+        while (nbytes > 0) {
+          int64_t chunk_nbytes = std::min(nbytes, kChunkSize);
+          task_sz = chunk_nbytes / file_i.data.type().size();
+          thread_pool.AddWork([=](int tid) {
+            std::memcpy(out_ptr, in_ptr, chunk_nbytes);
+          }, task_sz);
+          out_ptr += chunk_nbytes;
+          in_ptr += chunk_nbytes;
+          nbytes -= chunk_nbytes;
+        }
       }
-      output[i].SetSourceInfo(file_i.data.GetSourceInfo());
-    }, task_sz);
+    }
   }
   thread_pool.RunAll();
 }
