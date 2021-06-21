@@ -107,8 +107,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       auto preallocate_width_hint = spec.GetArgument<int>("preallocate_width_hint");
       auto preallocate_height_hint = spec.GetArgument<int>("preallocate_height_hint");
       // make sure it is not negative if provided
-      DALI_ENFORCE((!HasArgument("preallocate_width_hint") || preallocate_width_hint >= 0) &&
-                   (!HasArgument("preallocate_height_hint") || preallocate_height_hint >= 0),
+      DALI_ENFORCE((!spec.HasArgument("preallocate_width_hint") ||
+                      preallocate_width_hint >= 0) &&
+                   (!spec.HasArgument("preallocate_height_hint") ||
+                      preallocate_height_hint >= 0),
                    make_string("Provided preallocate_width_hint=", preallocate_width_hint, ", and ",
                    "preallocate_height_hint=", preallocate_height_hint, " should not be ",
                    "negative."));
