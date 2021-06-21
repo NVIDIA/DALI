@@ -381,6 +381,10 @@ if dataset_compatible_tensorflow():
             self._input_layouts = tuple(input_layouts_list)
 
         def _assert_pipeline_instace(self):
+            """Ensure that the pipeline is built, and check if the Python part is available.
+            """
+            #
+            self._pipeline_instance.build()
             if not self._pipeline_instance._py_graph_built and self._pipeline_instance._built:
                 raise ValueError("Deserialized pipelines cannot be used with `input_datasets`. " +
                                  "Please provide a pipeline that was created directly in Python " +
