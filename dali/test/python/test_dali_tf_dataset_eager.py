@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+logging.getLogger('tensorflow').disabled = True
+
 import tensorflow as tf
 from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.plugin.tf as dali_tf
-from nvidia.dali.plugin.tf.experimental import DALIDatasetWithInputs, input as experimental_input
+from nvidia.dali.plugin.tf.experimental import DALIDatasetWithInputs, input as experimental_input, dataset_def
 from test_utils_tensorflow import *
 from test_dali_tf_dataset_pipelines import *
 from nose.tools import raises, with_setup
@@ -246,6 +249,42 @@ def test_tf_dataset_layouts():
         yield check_layout, {'layout': layout, 'name': 'in'}, {'in': experimental_input(in_dataset)}, layout
         # Overridden via experimental.input
         yield check_layout, {'layout': 'TO_OVERRIDE', 'name': 'in'}, {'in': experimental_input(in_dataset, layout=layout)}, layout
+
+
+
+def test_decorator():
+    @dataset_def(batch_size=10, num_threads=4, device_id=0, output_dtypes=tf.int64)
+    def my_dataset():
+        input = fn.external_source(name="placeholder")
+        return input
+
+    with tf.device('/cpu:0'):
+        in_dataset = tf.data.Dataset.from_tensors(np.full((4, 2), 42)).repeat()
+        dali_dataset = my_dataset(input_datasets={"placeholder": in_dataset},
+                                  output_shapes=(None, None, None))
+
+    print(run_dataset_eager_mode(dali_dataset, 10))
+
+
+# def test_decorator2():
+#     @dataset_def(batch_size=10,
+#                     num_threads=4,
+#                     device_id=0,
+#                     output_dtypes=tf.int64,
+#                     output_shapes=(None, None, None))
+#     def my_dataset(my_input):
+#         # TODO(klecki): handle source=tf.data.Dataset
+#         input = fn.external_source(source=my_input)
+#         return input
+
+
+#     # Rather clear way of doing stuff
+#     with tf.device('/cpu:0'):
+#         in_dataset = tf.data.Dataset.from_tensors(np.full((4, 2), 42)).repeat()
+#         dali_dataset = my_dataset(in_dataset)
+
+#     print(run_dataset_eager_mode(dali_dataset, 10))
+
 
 
 

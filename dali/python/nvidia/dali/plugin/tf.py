@@ -19,8 +19,8 @@ from tensorflow.python.data.util import nest
 from tensorflow.python.framework import tensor_shape
 from nvidia.dali import types
 from nvidia.dali import internal as _internal
-
 from nvidia.dali.external_source import _is_external_source
+from nvidia.dali import Pipeline as _Pipeline
 
 from collections import Iterable
 from distutils.version import LooseVersion
@@ -539,6 +539,96 @@ if dataset_compatible_tensorflow():
                 self.layout = layout
 
         _insert_experimental_member(input, "input")
+
+        def dataset_def(fn=None, **pipeline_kwargs):
+            """
+            Decorator that converts a DALI graph definition function into a TensorFlow
+            tf.data.Dataset factory wrapping the defined pipeline.
+
+            This is DALI TensorFlow plugin counterpart of :meth:`nvidia.dali.pipeline_def`
+            decorator. See the documentation there, to find out how to define a DALI pipeline with
+            it.
+
+            Additionally, the ``@dataset_def`` decorator allows pass the ``output_dtypes`,
+            ``output_shapes`` and ``fail_on_device_mismatch`` arguments to the created dataset
+            factory, both at the decoration site and the call site, similarly to ``pipeline_def``::
+
+                @dataset_def(fail_on_device_mismatch=True, output_dtypes=tf.int32)
+                def my_pipe():
+                    data = fn.file_reader(files=...)
+                    return data
+
+                dataset = my_pipe(output_dtypes=tf.uint8)  # output_dtypes=tf.uint8 overrides output_dtypes=tf.int32
+
+            Other DALIDataset arguments, that is:
+
+                * batch_size,
+                * num_threads,
+                * device_id,
+                * exec_separated,
+                * prefetch_queue_depth,
+
+            are shared with the Pipeline. The ``prefetch_queue_depth`` handles everything, so:
+
+                * cpu_prefetch_queue_depth,
+                * gpu_prefetch_queue_depth
+
+            are not allowed anymore. (TODO(klecki): wording)
+            """
+            def actual_decorator(func):
+                @functools.wraps(func)
+                def create_pipeline(*args, **kwargs):
+
+                    _, pipe_pinned_args, dataset_pinned_args = _internal._discriminate_args(
+                        lambda _: _,
+                        parent_funcs=[_Pipeline.__init__, _DALIDatasetV2.__init__],
+                        parent_names=["Pipeline constructor",  "DALIDataset constructor"],
+                        func_kwargs=pipeline_kwargs)
+
+                    fn_kwargs, pipe_call_args, dataset_call_args = _internal._discriminate_args(
+                        func,
+                        parent_funcs=[_Pipeline.__init__, _DALIDatasetV2.__init__],
+                        parent_names=["Pipeline constructor",  "DALIDataset constructor"],
+                        func_kwargs=kwargs)
+
+                    # Merge and overwrite dict
+                    pipe_args = {**pipe_pinned_args, **pipe_call_args}
+                    dataset_args = {**dataset_pinned_args, **dataset_call_args}
+
+                    # TODO, disallow separated, extract from pipeline form.
+                    if 'cpu_prefetch_queue_depth' in dataset_args:
+                        raise ValueError()
+
+                    if 'gpu_prefetch_queue_depth' in dataset_args:
+                        raise ValueError()
+
+
+                    pipe = _Pipeline(**pipe_args)  # Merge and overwrite dict
+                    with pipe:
+                        pipe_outputs = func(*args, **fn_kwargs)
+                        if isinstance(pipe_outputs, tuple):
+                            po = pipe_outputs
+                        elif pipe_outputs is None:
+                            po = ()
+                        else:
+                            po = (pipe_outputs,)
+                        pipe.set_outputs(*po)
+
+                    # TODO(klecki): can we move it to the inside and always extract those from
+                    # pipeline spec?
+                    dataset = DALIDatasetWithInputs(pipe,
+                        **dataset_args,
+                        batch_size=pipe.batch_size,
+                        num_threads=pipe.num_threads,
+                        device_id=pipe.device_id,
+                        prefetch_queue_depth=pipe.prefetch_queue_depth  # TODO(klecki): extract this correctly
+                    )
+                    return dataset
+
+                return create_pipeline
+            return actual_decorator(fn) if fn else actual_decorator
+
+        _insert_experimental_member(dataset_def, "dataset_def")
 
     _load_experimental_dataset()
 

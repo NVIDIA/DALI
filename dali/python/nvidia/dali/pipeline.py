@@ -19,10 +19,10 @@ from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali.backend import CheckDLPackCapsule
+from nvidia.dali import internal as _internal
 from threading import local as tls
 from . import data_node as _data_node
 import functools
-import inspect
 import warnings
 import weakref
 import ctypes
@@ -1192,35 +1192,11 @@ Parameters
         data from NumPy arrays."""
         pass
 
-
-def _discriminate_args(func, **func_kwargs):
-    """Split args on those applicable to Pipeline constructor and the decorated function."""
-    func_argspec = inspect.getfullargspec(func)
-    ctor_argspec = inspect.getfullargspec(Pipeline.__init__)
-
-    ctor_args = {}
-    fn_args = {}
-
-    if func_argspec.varkw is not None:
-        raise TypeError(
-            "Using variadic keyword argument `**{}` in graph-defining function is not allowed.".format(
-                func_argspec.varkw))
-
-    for farg in func_kwargs.items():
-        is_ctor_arg = farg[0] in ctor_argspec.args or farg[0] in ctor_argspec.kwonlyargs
-        is_fn_arg = farg[0] in func_argspec.args or farg[0] in func_argspec.kwonlyargs
-        if is_fn_arg:
-            fn_args[farg[0]] = farg[1]
-            if is_ctor_arg:
-                print(
-                    "Warning: the argument `{}` shadows a Pipeline constructor argument of the same name.".format(
-                        farg[0]))
-        elif is_ctor_arg:
-            ctor_args[farg[0]] = farg[1]
-        else:
-            assert False, "This shouldn't happen. Please double-check the `{}` argument".format(farg[0])
-
-    return ctor_args, fn_args
+def _discriminate_args(decorated_func, func_kwargs):
+    return _internal._discriminate_args(decorated_func,
+                                        func_kwargs=func_kwargs,
+                                        parent_funcs=[Pipeline.__init__],
+                                        parent_names=["Pipeline constructor"])
 
 
 def pipeline_def(fn=None, **pipeline_kwargs):
@@ -1298,7 +1274,7 @@ def pipeline_def(fn=None, **pipeline_kwargs):
     def actual_decorator(func):
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
-            ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
+            fn_kwargs, ctor_args = _discriminate_args(func, kwargs)
             pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
             with pipe:
                 pipe_outputs = func(*args, **fn_kwargs)
