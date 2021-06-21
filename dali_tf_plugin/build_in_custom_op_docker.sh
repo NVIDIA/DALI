@@ -13,8 +13,7 @@ LAST_CONFIG_INDEX=$(python ../qa/setup_packages.py -n -u tensorflow-gpu --cuda $
 PREBUILT_DIR=/prebuilt
 mkdir -p ${PREBUILT_DIR}
 
-COMPILER_SUBDIR_NAME=`python -c 'import dali_tf_plugin_utils as utils; print(utils.get_cpp_compiler_version())'`
-mkdir -p $PREBUILT_DIR/$COMPILER_SUBDIR_NAME
+mkdir -p $PREBUILT_DIR
 
 for i in `seq 0 $LAST_CONFIG_INDEX`; do
     INST=$(python ../qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${CUDA_VERSION})
@@ -25,7 +24,7 @@ for i in `seq 0 $LAST_CONFIG_INDEX`; do
     pip install ${INST} -f /pip-packages
 
     SUFFIX=$(echo $INST | sed 's/.*=\([0-9]\+\)\.\([0-9]\+\).*/\1_\2/')
-    LIB_PATH="${PREBUILT_DIR}/${COMPILER_SUBDIR_NAME}/libdali_tf_${SUFFIX}.so"
+    LIB_PATH="${PREBUILT_DIR}/libdali_tf_${SUFFIX}.so"
 
     source ./build_dali_tf.sh "${LIB_PATH}"
 
