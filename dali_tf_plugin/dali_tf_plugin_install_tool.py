@@ -49,8 +49,7 @@ class InstallerHelper:
         #   major version and the minor version in the prebuilt plugin is lower than the requested one.
         self.can_install_prebuilt = not self.always_build and \
             bool(self.tf_compiler) and \
-            (StrictVersion(self.default_cpp_version) >= StrictVersion('5.0') and \
-             StrictVersion(self.tf_compiler) >= StrictVersion('5.0')) and \
+            StrictVersion(self.tf_compiler) >= StrictVersion('5.0') and \
             self.is_compatible_with_prebuilt_bin
         self.prebuilt_plugins_available = []
         self.prebuilt_plugin_best_match = None
