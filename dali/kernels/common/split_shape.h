@@ -15,6 +15,10 @@
 #ifndef DALI_KERNELS_COMMON_SPLIT_SHAPE_H_
 #define DALI_KERNELS_COMMON_SPLIT_SHAPE_H_
 
+#include <utility>
+#include "dali/core/util.h"
+#include "dali/core/tensor_shape.h"
+
 namespace dali {
 namespace kernels {
 
@@ -56,6 +60,58 @@ void split_shape(SplitFactor& split_factor, const Shape& in_shape, int min_nbloc
     b = n;
     nblocks *= b;
     vol = div_ceil(vol, b);
+  }
+}
+
+/**
+ * @brief returns the dimension index with a split factor > 1
+ */
+template <typename SplitFactor>
+int LastSplitDim(const SplitFactor& split_factor) {
+  int last_split_dim = -1;
+  int ndim = dali::size(split_factor);
+  for (int d = ndim - 1; d >= 0; d--) {
+    if (split_factor[d] > 1) {
+      last_split_dim = d;
+      break;
+    }
+  }
+  return last_split_dim;
+}
+
+/**
+ * @brief Iterates over blocks, based on a split factor for each dimension
+ * @param start start coordinates of the region
+ * @param end end coordinates of the region
+ * @param split_factor split factor for each dimension in the region
+ * @param d Current dimension
+ * @param max_split_dim last dimension with a split factor different than 1.
+ * @param func Function to run for each block.
+ */
+template <int ndim, typename SplitFactor, typename OnBlockFunc>
+void ForEachBlock(TensorShape<ndim> start, TensorShape<ndim> end, const SplitFactor& split_factor,
+                  int d, int max_split_dim, OnBlockFunc&& func) {
+  assert(start.size() == end.size());
+  if (d > max_split_dim || d == start.size()) {
+    func(start, end);
+    return;
+  }
+
+  if (split_factor[d] == 1) {
+    ForEachBlock(start, end, split_factor, d + 1, max_split_dim,
+                 std::forward<OnBlockFunc>(func));
+    return;
+  }
+
+  int64_t start_d = start[d];
+  int64_t extent_d = end[d] - start_d;
+  int nblocks_d = split_factor[d];
+  int64_t prev_end = start_d;
+  for (int b = 0; b < nblocks_d; b++) {
+    start[d] = prev_end;
+    end[d] = prev_end = extent_d * (b + 1) / nblocks_d + start_d;
+    ForEachBlock(start, end, split_factor, d + 1, max_split_dim,
+                 std::forward<OnBlockFunc>(func));
   }
 }
 

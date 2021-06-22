@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,14 +15,17 @@
 #ifndef DALI_KERNELS_SLICE_SLICE_CPU_H_
 #define DALI_KERNELS_SLICE_SLICE_CPU_H_
 
-#include <utility>
 #include <tuple>
+#include <utility>
 #include <vector>
-#include "dali/kernels/slice/slice_kernel_utils.h"
 #include "dali/core/common.h"
 #include "dali/core/convert.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/exec/engine.h"
+#include "dali/kernels/common/split_shape.h"
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/slice/slice_kernel_utils.h"
+
 
 namespace dali {
 namespace kernels {
@@ -275,9 +278,97 @@ void SliceKernel(OutputType *output,
   }
 }
 
+
+/**
+ * @brief Implementation of slice kernel with an execution engine.
+ */
+template <typename ExecutionEngine, typename OutputType, typename InputType, int Dims>
+DLL_LOCAL  // workaround for GCC bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=80947
+void SliceKernel(ExecutionEngine &exec_engine,
+                 OutputType *output,
+                 const InputType *input,
+                 const TensorShape<Dims> &in_strides,
+                 const TensorShape<Dims> &out_strides,
+                 const TensorShape<Dims> &anchor,
+                 const TensorShape<Dims> &in_shape,
+                 const TensorShape<Dims> &out_shape,
+                 const OutputType *fill_values,
+                 int channel_dim = -1,  // negative if no channel dim or already processed
+                 int min_blk_sz = 16000,
+                 int req_nblocks = -1) {
+  // Parallelize
+  if (req_nblocks < 0)
+    req_nblocks = exec_engine.NumThreads() * 8;
+
+  int nblocks = 1;
+  std::array<int, Dims> split_factor;
+  if (req_nblocks > 1) {
+    split_factor.fill(1);
+    // Either ``req_nblocks`` blocks or fewer if remaining block sizes < min_blk_sz
+    split_shape(split_factor, out_shape, req_nblocks, min_blk_sz);
+    nblocks = volume(split_factor);
+  }
+
+  if (nblocks == 1) {
+    exec_engine.AddWork([=](int) {
+      SliceKernel(output, input, in_strides, out_strides, anchor, in_shape, out_shape,
+                  fill_values, channel_dim);
+    }, volume(out_shape), false);  // do not start work immediately
+    return;
+  }
+
+  int last_split_dim = LastSplitDim(split_factor);
+  TensorShape<Dims> start;
+  const auto& end = out_shape;
+
+  ForEachBlock(
+    start, end, split_factor, 0, last_split_dim,
+    [&](const TensorShape<Dims> &blk_start, const TensorShape<Dims> &blk_end) {
+      auto output_ptr = output;
+      TensorShape<Dims> blk_anchor;
+      TensorShape<Dims> blk_shape;
+      for (int d = 0; d < Dims; d++) {
+        output_ptr += blk_start[d] * out_strides[d];
+        blk_shape[d] = blk_end[d] - blk_start[d];
+        blk_anchor[d] = anchor[d] + blk_start[d];
+      }
+      exec_engine.AddWork([=](int) {
+        SliceKernel(output_ptr, input, in_strides, out_strides, blk_anchor,
+                    in_shape, blk_shape, fill_values, channel_dim);
+      }, volume(blk_shape), false);  // do not start work immediately
+    });
+  // scheduled work does not start until user calls Run()
+}
+
+/**
+ * @brief Specialization for SequentialExecutionEngine.
+ *        The slice is processed without partitioning.
+ */
+template <typename OutputType, typename InputType, int Dims>
+void SliceKernel(SequentialExecutionEngine &exec_engine,
+                 OutputType *output,
+                 const InputType *input,
+                 const TensorShape<Dims> &in_strides,
+                 const TensorShape<Dims> &out_strides,
+                 const TensorShape<Dims> &anchor,
+                 const TensorShape<Dims> &in_shape,
+                 const TensorShape<Dims> &out_shape,
+                 const OutputType *fill_values,
+                 int channel_dim = -1,  // negative if no channel dim or already processed
+                 int min_blk_sz = 16000,
+                 int req_nblocks = -1) {
+  (void) exec_engine;
+  (void) min_blk_sz;
+  (void) req_nblocks;
+  SliceKernel(output, input, in_strides, out_strides, anchor, in_shape, out_shape, fill_values,
+              channel_dim);
+}
+
 template <typename OutputType, typename InputType, int Dims>
 class SliceCPU {
  public:
+  static_assert(Dims >= 0, "Dims must be >= 0");
+
   KernelRequirements Setup(KernelContext &context,
                            const InTensorCPU<InputType, Dims> &in,
                            const SliceArgs<OutputType, Dims> &slice_args) {
@@ -287,10 +378,32 @@ class SliceCPU {
     return req;
   }
 
-  void Run(KernelContext &context,
-           OutTensorCPU<OutputType, Dims> &out,
-           const InTensorCPU<InputType, Dims> &in,
-           const SliceArgs<OutputType, Dims> &slice_args) {
+  /**
+   * @brief Schedules the kernel work with an execution engine.
+   *
+   *        The work is only schedule and does not start until the user calls RunAll()
+   *        on the execution engine.
+   *
+   *        The user is responsible to synchronize with the execution engine.
+   *
+   *        For execution engines other than SequentialExecutionEngine, the algorithm will try
+   *        to split the slice into similar sized blocks until we either reach a minimum of ``req_nblocks``
+   *        or the block volume is smaller than the minimum practical size, ``min_blk_sz``.
+   * @param context Kernel context
+   * @param out Output tensor view
+   * @param in Input tensor view
+   * @param slice_args Slice arguments
+   * @param min_blk_sz Minimum practical block size
+   * @param req_nblocks Requested number of blocks. By default the requested number of blocks
+   *                    is calculated as ``num_threads * 8``
+   */
+  template <typename ExecutionEngine>
+  void Schedule(KernelContext &context,
+                OutTensorCPU<OutputType, Dims> out,
+                InTensorCPU<InputType, Dims> in,
+                const SliceArgs<OutputType, Dims> &slice_args,
+                ExecutionEngine &exec_engine,
+                int min_blk_sz = 16000, int req_nblocks = -1) {
     const auto &in_shape = in.shape;
     const auto &out_shape = out.shape;
     const auto &anchor = slice_args.anchor;
@@ -312,10 +425,19 @@ class SliceCPU {
         "Multi-channel fill value does not match the number of channels in the input");
     }
 
-    SliceKernel(out_ptr, in_ptr,
-                in_strides, out_strides,
-                anchor, in_shape, out_shape,
-                fill_values, channel_dim);
+    SliceKernel(exec_engine, out_ptr, in_ptr, in_strides, out_strides, anchor, in_shape, out_shape,
+                fill_values, channel_dim, min_blk_sz, req_nblocks);
+  }
+
+  /**
+   * @brief Run the kernel
+   */
+  void Run(KernelContext &context,
+           OutTensorCPU<OutputType, Dims> out,
+           InTensorCPU<InputType, Dims> in,
+           const SliceArgs<OutputType, Dims> &slice_args) {
+    SequentialExecutionEngine engine;
+    Schedule(context, out, in, slice_args, engine);  // work is run synchronously, no need to wait
   }
 };
 
