@@ -212,6 +212,10 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
   auto &thread_pool = ws.GetThreadPool();
   int nthreads = thread_pool.NumThreads();
 
+  // From 1 to 10 blocks per sample depending on the nthreads/nsamples ratio
+  int blocks_per_sample = std::max(1, 10 * nthreads / nsamples);
+  constexpr int kThreshold = 16000;  // smaller samples will not be subdivided
+
   for (int i = 0; i < nsamples; i++) {
     const auto& file_i = GetSample(i);
     const auto& file_sh = file_i.get_shape();
@@ -236,25 +240,22 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
         TransposeHelper(output[i], file_i.data);
       }, task_sz);
     } else {
-      constexpr int64_t kThreshold = 64000;
-      constexpr int64_t kChunkSize = 32000;
-      auto out_ptr = output[i].raw_mutable_data();
-      auto in_ptr = file_i.data.raw_data();
+      uint8_t* out_ptr = static_cast<uint8_t*>(output[i].raw_mutable_data());
+      const uint8_t* in_ptr = static_cast<const uint8_t*>(file_i.data.raw_data());
       int64_t nbytes = file_i.data.nbytes();
       if (nbytes <= kThreshold) {
         thread_pool.AddWork([=](int tid) {
           std::memcpy(out_ptr, in_ptr, nbytes);
         }, task_sz);
       } else {
-        while (nbytes > 0) {
-          int64_t chunk_nbytes = std::min(nbytes, kChunkSize);
-          task_sz = chunk_nbytes / file_i.data.type().size();
+        int64_t prev_b_start = 0;
+        task_sz = task_sz / blocks_per_sample;
+        for (int b = 0; b < blocks_per_sample; b++) {
+          int64_t b_start = prev_b_start;
+          int64_t b_end = prev_b_start = nbytes * (b + 1) / blocks_per_sample;
           thread_pool.AddWork([=](int tid) {
-            std::memcpy(out_ptr, in_ptr, chunk_nbytes);
+            std::memcpy(out_ptr + b_start, in_ptr + b_start, b_end - b_start);
           }, task_sz);
-          out_ptr += chunk_nbytes;
-          in_ptr += chunk_nbytes;
-          nbytes -= chunk_nbytes;
         }
       }
     }
