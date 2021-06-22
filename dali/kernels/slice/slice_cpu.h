@@ -383,7 +383,7 @@ class SliceCPU {
    *        The work is only schedule and does not start until the user calls RunAll()
    *        on the execution engine.
    *
-   *        The user is responsible to synchronize with the execution engine (e.g. WaitForWork())
+   *        The user is responsible to synchronize with the execution engine.
    *
    *        For execution engines other than SequentialExecutionEngine, the algorithm will try
    *        to split the slice into similar sized blocks until we either reach a minimum of ``req_nblocks``

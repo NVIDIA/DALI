@@ -43,7 +43,6 @@ class SliceBaseCpu : public OpImplBase<CPUBackend> {
 
  private:
   std::vector<SliceArgs> args_;
-  Kernel kernel_;  // this kernel is stateless
 };
 
 template <typename OutputType, typename InputType, int Dims>
@@ -62,7 +61,7 @@ bool SliceBaseCpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc
   auto in_view = view<const InputType, Dims>(input);
   for (int i = 0; i < nsamples; i++) {
     auto in_view = view<const InputType, Dims>(input[i]);
-    auto req = kernel_.Setup(ctx, in_view, args_[i]);
+    auto req = Kernel().Setup(ctx, in_view, args_[i]);
     auto out_shape = req.output_shapes[0][0].shape;
     output_desc[0].shape.set_tensor_shape(i, out_shape);
   }
@@ -86,8 +85,8 @@ void SliceBaseCpu<OutputType, InputType, Dims>::RunImpl(workspace_t<CPUBackend> 
   int block_threshold = 16000;
   kernels::KernelContext ctx;
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-    kernel_.Schedule(ctx, out_view[sample_idx], in_view[sample_idx],
-                     args_[sample_idx], thread_pool, block_threshold, req_nblocks);
+    Kernel().Schedule(ctx, out_view[sample_idx], in_view[sample_idx],
+                      args_[sample_idx], thread_pool, block_threshold, req_nblocks);
   }
   thread_pool.RunAll();  // work starts now
 }
