@@ -43,7 +43,7 @@ class SliceBaseCpu : public OpImplBase<CPUBackend> {
 
  private:
   std::vector<SliceArgs> args_;
-  kernels::KernelManager kmgr_;
+  Kernel kernel_;  // this kernel is stateless
 };
 
 template <typename OutputType, typename InputType, int Dims>
@@ -58,12 +58,11 @@ bool SliceBaseCpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc
   output_desc[0].type = TypeInfo::Create<OutputType>();
   output_desc[0].shape.resize(nsamples, Dims);
 
-  kmgr_.Resize<Kernel>(nsamples, nsamples);
   kernels::KernelContext ctx;
   auto in_view = view<const InputType, Dims>(input);
   for (int i = 0; i < nsamples; i++) {
     auto in_view = view<const InputType, Dims>(input[i]);
-    auto req = kmgr_.Setup<Kernel>(i, ctx, in_view, args_[i]);
+    auto req = kernel_.Setup(ctx, in_view, args_[i]);
     auto out_shape = req.output_shapes[0][0].shape;
     output_desc[0].shape.set_tensor_shape(i, out_shape);
   }
@@ -83,24 +82,14 @@ void SliceBaseCpu<OutputType, InputType, Dims>::RunImpl(workspace_t<CPUBackend> 
   auto in_view = view<const InputType, Dims>(input);
   auto out_view = view<OutputType, Dims>(output);
 
-  if (nsamples < thread_pool.NumThreads() * 4) {  // intra-sample parallelization
-    kernels::KernelContext ctx;
-    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-      kmgr_.Run<Kernel>(sample_idx, sample_idx, ctx, out_view[sample_idx], in_view[sample_idx],
-                        args_[sample_idx], thread_pool);
-    }
-  } else {
-    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-      thread_pool.AddWork(
-          [&, sample_idx](int) {
-            kernels::KernelContext ctx;
-            kmgr_.Run<Kernel>(sample_idx, sample_idx, ctx, out_view[sample_idx],
-                              in_view[sample_idx], args_[sample_idx]);
-          },
-          out_shape.tensor_size(sample_idx));
-    }
-    thread_pool.RunAll();
+  int req_nblocks = std::max(1, 10 * thread_pool.NumThreads() / nsamples);
+  int block_threshold = 16000;
+  kernels::KernelContext ctx;
+  for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+    kernel_.Run(ctx, out_view[sample_idx], in_view[sample_idx],
+                args_[sample_idx], thread_pool, block_threshold, req_nblocks);
   }
+  thread_pool.WaitForWork();
 }
 
 template <>

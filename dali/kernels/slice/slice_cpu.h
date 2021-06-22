@@ -309,8 +309,11 @@ void SliceKernel(ExecutionEngine &exec_engine,
   }
 
   if (nblocks == 1) {
-    SliceKernel(output, input, in_strides, out_strides, anchor, in_shape, out_shape,
-                fill_values, channel_dim);
+    exec_engine.AddWork([=](int) {
+      SliceKernel(output, input, in_strides, out_strides, anchor, in_shape, out_shape,
+                  fill_values, channel_dim);
+    }, volume(out_shape));
+    exec_engine.RunAll(false);  // do not wait until the work is completed
     return;
   }
 
@@ -332,9 +335,9 @@ void SliceKernel(ExecutionEngine &exec_engine,
       exec_engine.AddWork([=](int) {
         SliceKernel(output_ptr, input, in_strides, out_strides, blk_anchor,
                     in_shape, blk_shape, fill_values, channel_dim);
-      }, volume(blk_shape), false);
+      }, volume(blk_shape), false);  // do not start work immediately
     });
-  exec_engine.RunAll();
+  exec_engine.RunAll(false);  // do not wait until the work is completed
 }
 
 /**
@@ -382,6 +385,7 @@ class SliceCPU {
    *        SequentialExecutionEngine, the algorithm will try to split the slice into
    *        similar sized blocks until we either reach a minimum of ``req_nblocks`` or
    *        the block volume is smaller than the minimum practical size, ``min_blk_sz``.
+   * @remarks The user is responsible to call exec_engine.WaitForWork() after running the kernel.
    * @param context Kernel context
    * @param out Output tensor view
    * @param in Input tensor view
