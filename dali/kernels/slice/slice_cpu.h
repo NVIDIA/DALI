@@ -316,8 +316,6 @@ void SliceKernel(ExecutionEngine &exec_engine,
 
   int last_split_dim = LastSplitDim(split_factor);
   TensorShape<Dims> start;
-  for (int d = 0; d < Dims; d++)
-    start[d] = 0;
   const auto& end = out_shape;
 
   ScheduleBlocks(
@@ -366,6 +364,8 @@ void SliceKernel(SequentialExecutionEngine &exec_engine,
 template <typename OutputType, typename InputType, int Dims>
 class SliceCPU {
  public:
+  static_assert(Dims >= 0, "Dims must be >= 0");
+
   KernelRequirements Setup(KernelContext &context,
                            const InTensorCPU<InputType, Dims> &in,
                            const SliceArgs<OutputType, Dims> &slice_args) {
@@ -390,7 +390,7 @@ class SliceCPU {
    * @param req_nblocks Requested number of blocks. By default the requested number of blocks
    *                    is calculated as ``num_threads * 8``
    */
-  template <typename ExecutionEngine = SequentialExecutionEngine>
+  template <typename ExecutionEngine>
   void Run(KernelContext &context,
            OutTensorCPU<OutputType, Dims> out,
            InTensorCPU<InputType, Dims> in,

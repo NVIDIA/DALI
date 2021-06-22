@@ -82,11 +82,12 @@ int LastSplitDim(const SplitFactor& split_factor) {
 /**
  * @brief Schedule work on a per-block basis
  */
-template <int Dims, typename SplitFactor, typename ScheduleBlockFunc>
-void ScheduleBlocks(TensorShape<Dims> start, TensorShape<Dims> end,
+template <int ndim, typename SplitFactor, typename ScheduleBlockFunc>
+void ScheduleBlocks(TensorShape<ndim> start, TensorShape<ndim> end,
                     const SplitFactor& split_factor, int d, int max_split_dim,
                     ScheduleBlockFunc&& func) {
-  if (d > max_split_dim || d == Dims) {
+  assert(start.size() == end.size());
+  if (d > max_split_dim || d == start.size()) {
     func(start, end);
     return;
   }
