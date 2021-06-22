@@ -46,6 +46,13 @@ test_body_wrapper() {(
     test_body
 )}
 
+# get extra index url for given packages
+extra_indices=$($topdir/qa/setup_packages.py -u $pip_packages --cuda ${CUDA_VERSION} -e)
+extra_indices_string=""
+for e in ${extra_indices}; do
+    extra_indices_string="${extra_indices_string} --extra-index-url=${e}"
+done
+
 for i in `seq 0 $last_config_index`;
 do
     echo "Test run $i"
@@ -65,7 +72,7 @@ do
                 set -e
                 # if no package was found in our download dir, so install it from index
                 if [ "$res" != "0" ]; then
-                    pip install $pkg
+                    pip install $pkg ${extra_indices_string}
                 fi
             done
 

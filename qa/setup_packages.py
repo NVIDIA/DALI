@@ -200,6 +200,16 @@ class BasePackage():
             ret.append(self.get_install_string(i, cuda_version))
         return " ".join(ret)
 
+    def get_extra_index(self, cuda_version):
+        """Gets a extra url index for pip for given cuda version.
+
+            Parameters
+            ----------
+            `cuda_version`: str
+                Cuda version used for this query
+        """
+        return ""
+
 class PlainPackage(BasePackage):
     """Class describing a simple package with a key/name and a list of versions.
         Cuda version is irrelevant for this package
@@ -262,6 +272,40 @@ class CudaPackage(BasePackage):
             if int(ver) <= int(cuda_version):
                 max_cuda = ver
         return max_cuda
+
+
+class CudaPackageExtraIndex(CudaPackage):
+    """Class describing a cuda package with a key/name and a dictionary where the key
+        is a cuda version and value is the list of versions supported.
+
+        Parameters
+        ----------
+        `key`: str
+            Name this package should be queried for
+        `versions`: dict or PckgVer class object
+            Dictionary, where the key is a cuda version and vale, is the list of versions supported
+        `name`: str, optional, default = None
+            Name of this package used during installation. If empty it is the same as the key.
+            If it includes `{cuda_v}` it is replaced by the cuda_version when queried
+        `extra_index`: str, optional, default = ""
+            Extra url used as pep 503 compatible repository to obtain listed packages
+    """
+    def __init__(self, key, versions, name=None, extra_index=""):
+        super(CudaPackageExtraIndex, self).__init__(key, versions, name)
+        if not isinstance(versions, dict):
+            raise TypeError("versions argument should by dict type [cuda_version : list_of_versions")
+        self.extra_index = extra_index
+
+    def get_extra_index(self, cuda_version):
+        """Gets a extra url index for pip for given cuda version.
+
+            Parameters
+            ----------
+            `cuda_version`: str
+                Cuda version used for this query
+        """
+        cuda_version = self.max_cuda_version(cuda_version)
+        return self.extra_index.format(cuda_v=cuda_version)
 
 class CudaHttpPackage(CudaPackage):
     """Class describing a cuda package with a key/name and a dictionary where the key
@@ -371,10 +415,12 @@ all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
                               "2.4.1",
                               PckgVer("1.15.5+nv21.04", python_min_ver="3.8", python_max_ver="3.8", alias="nvidia-tensorflow")]
                         }),
-                CudaHttpPackage("torch",
-                        { "100" : ["http://download.pytorch.org/whl/cu{cuda_v}/torch-1.4.0+cu{cuda_v}-{platform}.whl"] }),
-                CudaHttpPackage("torchvision",
-                        { "100" : ["https://download.pytorch.org/whl/cu{cuda_v}/torchvision-0.5.0+cu{cuda_v}-{platform}.whl"] }),
+                CudaPackageExtraIndex("torch",
+                        { "100" : ["1.4.0"],
+                          "110" : ["1.4.0"] }, extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
+                CudaPackageExtraIndex("torchvision",
+                        { "100" : ["0.5.0"],
+                          "110" : ["0.5.0"] }, extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
                 CudaPackage("paddlepaddle-gpu",
                         { "100" : ["2.0.2"],
                           "110" : ["2.0.2"]})
@@ -390,6 +436,7 @@ parser.add_argument('--all', '-a', dest='getall', action='store_true', help='ret
 parser.add_argument('--remove', '-r', dest='remove', help="list packages to remove", action='store_true', default=False)
 parser.add_argument('--cuda', dest='cuda', default="90", help="CUDA version to use")
 parser.add_argument('--use', '-u', dest='use', default=[], help="provide only packages from this list", nargs='*')
+parser.add_argument('--extra_index', '-e', dest='extra_index', help="return relevant extra indices list for pip", action='store_true', default=False)
 args = parser.parse_args()
 
 def print_configs(cuda_version):
@@ -411,14 +458,16 @@ def cal_num_of_configs(packages, cuda_version):
             ret *= pckg.get_num_of_version(cuda_version)
     return ret
 
-def for_all_pckg(packages, fun):
-    """Iterates over all packages, executes a fun returns all fun results as a list"""
+def for_all_pckg(packages, fun, add_additional_packages=True):
+    """Iterates over all packages, executes a fun. Returns all fun results as a list"""
     ret = []
     for pckg in all_packages:
         if pckg.key in packages:
             ret.append(fun(pckg))
-    # add all remaining used packages with default versions
-    additional = [v for v in packages if v not in all_packages_keys]
+    additional = []
+    if add_additional_packages:
+        # add all remaining used packages with default versions
+        additional = [v for v in packages if v not in all_packages_keys]
     return ret + additional
 
 def get_remove_string(packages, cuda_version):
@@ -438,18 +487,26 @@ def get_install_string(idx, packages, cuda_version):
     # add all remaining used packages with default versions
     return " ".join(ret)
 
+def get_extra_indices(idx, packages, cuda_version):
+    """Get all extra indices for given packages"""
+    ret = for_all_pckg(packages, lambda pckg: pckg.get_extra_index(cuda_version), add_additional_packages=False)
+    # add all remaining used packages with default versions
+    return " ".join(ret)
+
 def main():
     global args
     if args.list:
         print_configs(args.cuda)
     elif args.num:
-        print (cal_num_of_configs(args.use, args.cuda) - 1)
+        print(cal_num_of_configs(args.use, args.cuda) - 1)
     elif args.remove:
-        print (get_remove_string(args.use, args.cuda))
+        print(get_remove_string(args.use, args.cuda))
     elif args.getall:
         print(get_all_strings(args.use, args.cuda))
     elif args.install >= 0:
-        print (get_install_string(args.install, args.use, args.cuda))
+        print(get_install_string(args.install, args.use, args.cuda))
+    elif args.extra_index:
+        print(get_extra_indices(args.install, args.use, args.cuda))
 
 if __name__ == "__main__":
     main()
