@@ -88,9 +88,11 @@ void ScheduleBlocks(TensorShape<ndim> start, TensorShape<ndim> end,
                     ScheduleBlockFunc&& func) {
   assert(start.size() == end.size());
   if (d > max_split_dim || d == start.size()) {
+    std::cout << "ScheduleBlocks start=" << start << " end=" << end << "\n";
     func(start, end);
     return;
   }
+
 
   if (split_factor[d] == 1) {
     ScheduleBlocks(start, end, split_factor, d + 1, max_split_dim,
@@ -105,6 +107,7 @@ void ScheduleBlocks(TensorShape<ndim> start, TensorShape<ndim> end,
   for (int b = 0; b < nblocks_d; b++) {
     start[d] = prev_end;
     end[d]   = prev_end = extent_d * (b + 1) / nblocks_d + start_d;
+    std::cout << "ScheduleBlocks d=" << d << " b=" << b << "\n";
     ScheduleBlocks(start, end, split_factor, d + 1, max_split_dim,
                    std::forward<ScheduleBlockFunc>(func));
   }

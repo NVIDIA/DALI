@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,9 @@
 #include "dali/core/common.h"
 #include "dali/core/convert.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/exec/engine.h"
 #include "dali/core/static_switch.h"
+#include "dali/kernels/common/split_shape.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
 #include "dali/kernels/slice/slice_kernel_utils.h"
@@ -241,9 +243,104 @@ void SliceFlipNormalizePermutePadKernel(
   ));  // NOLINT
 }
 
+template <typename ExecutionEngine, int Dims, typename OutputType, typename InputType>
+void SliceFlipNormalizePermutePadKernel(
+    ExecutionEngine &exec_engine, OutputType *output, const InputType *input,
+    const TensorShape<Dims> &in_strides, const TensorShape<Dims> &out_strides,
+    const TensorShape<Dims> &anchor, const TensorShape<Dims> &in_shape,
+    const TensorShape<Dims> &out_shape, const OutputType *fill_values = nullptr,
+    const float *mean = nullptr, const float *inv_stddev = nullptr,
+    int channel_dim = -1,  // negative if no channel dim or already processed
+    int min_blk_sz = 16000, int req_nblocks = -1) {
+  // Parallelize
+  if (req_nblocks < 0)
+    req_nblocks = exec_engine.NumThreads() * 8;
+
+  int nblocks = 1;
+  std::array<int, Dims> split_factor;
+  if (req_nblocks > 1) {
+    split_factor.fill(1);
+    // Either ``req_nblocks`` blocks or fewer if remaining block sizes < min_blk_sz
+    split_shape(split_factor, out_shape, req_nblocks, min_blk_sz);
+    nblocks = volume(split_factor);
+  }
+
+  if (nblocks == 1) {
+    exec_engine.AddWork([=](int) {
+      SliceFlipNormalizePermutePadKernel(output, input, in_strides, out_strides, anchor, in_shape,
+                                         out_shape, fill_values, mean, inv_stddev, channel_dim);
+    }, volume(out_shape), false);
+
+    return;
+  }
+
+  int last_split_dim = LastSplitDim(split_factor);
+  TensorShape<Dims> start;
+  const auto& end = out_shape;
+
+  std::cout << "Original out shape: ";
+  std::cout << " " << out_shape << "\n";
+  std::cout << "Original in shape: ";
+  std::cout << " " << in_shape << "\n";
+  std::cout << "Original anchor: ";
+  std::cout << " " << anchor << "\n";
+
+  std::cout << "Split factor: ";
+  for (int d = 0; d < Dims; d++)
+    std::cout << " " << split_factor[d];
+  std::cout << "\n";
+  std::cout << "Input strides: " << in_strides << "\n";
+  std::cout << "Output strides: " << out_strides << "\n";
+
+  ScheduleBlocks(
+    start, end, split_factor, 0, last_split_dim,
+    [&](const TensorShape<Dims> &blk_start, const TensorShape<Dims> &blk_end) {
+      auto output_ptr = output;
+      TensorShape<Dims> blk_anchor;
+      TensorShape<Dims> blk_shape;
+      for (int d = 0; d < Dims; d++) {
+        output_ptr += blk_start[d] * out_strides[d];
+        blk_shape[d] = blk_end[d] - blk_start[d];
+        blk_anchor[d] = anchor[d] + blk_start[d];
+      }
+
+      exec_engine.AddWork([=](int) {
+        std::cout << "Processing block:\n";
+        std::cout << "out offset: " << (int64_t)(output_ptr - output) / out_strides[0] << "\n";
+        std::cout << "\tblk_start:" << blk_start << "\n";
+        std::cout << "\tblk_end:" << blk_end << "\n";
+        std::cout << "\tblk_anchor:" << blk_anchor << "\n";
+        std::cout << "\tout_shape:" << out_shape << "\n";
+
+        SliceFlipNormalizePermutePadKernel(output_ptr, input, in_strides, out_strides,
+                                           blk_anchor, in_shape, blk_shape, fill_values,
+                                           mean, inv_stddev, channel_dim);
+      }, volume(blk_shape), false);
+    });
+}
+
+template <int Dims, typename OutputType, typename InputType>
+void SliceFlipNormalizePermutePadKernel(
+    SequentialExecutionEngine &exec_engine, OutputType *output, const InputType *input,
+    const TensorShape<Dims> &in_strides, const TensorShape<Dims> &out_strides,
+    const TensorShape<Dims> &anchor, const TensorShape<Dims> &in_shape,
+    const TensorShape<Dims> &out_shape, const OutputType *fill_values = nullptr,
+    const float *mean = nullptr, const float *inv_stddev = nullptr,
+    int channel_dim = -1,  // negative if no channel dim or already processed
+    int min_blk_sz = 16000, int req_nblocks = -1) {
+  (void) exec_engine;
+  (void) min_blk_sz;
+  (void) req_nblocks;
+  SliceFlipNormalizePermutePadKernel(output, input, in_strides, out_strides, anchor, in_shape,
+                                     out_shape, fill_values, mean, inv_stddev, channel_dim);
+}
+
+
 template <typename OutputType, typename InputType, int Dims>
 class SliceFlipNormalizePermutePadCpu {
  public:
+  static_assert(Dims >= 0, "Dims must be >= 0");
+
   using Args = SliceFlipNormalizePermutePadArgs<Dims>;
 
   KernelRequirements Setup(KernelContext &context,
@@ -257,19 +354,35 @@ class SliceFlipNormalizePermutePadCpu {
     return req;
   }
 
-  void Run(KernelContext &context,
-           const OutTensorCPU<OutputType, Dims> &out,
-           const InTensorCPU<InputType, Dims> &in,
-           const Args &orig_args) {
+  template <typename ExecutionEngine>
+  void Schedule(KernelContext &context,
+                const OutTensorCPU<OutputType, Dims> &out,
+                const InTensorCPU<InputType, Dims> &in,
+                const Args &orig_args,
+                ExecutionEngine &exec_engine,
+                int min_blk_sz = 16000, int req_nblocks = -1) {
     auto args = detail::ProcessArgs(orig_args, in.shape);
     auto *mean = args.mean.empty() ? nullptr : args.mean.data();
     auto *inv_stddev = args.inv_stddev.empty() ? nullptr : args.inv_stddev.data();
     SmallVector<OutputType, 4> fill_values;
     for (auto value : args.fill_values)
       fill_values.push_back(static_cast<OutputType>(value));
-    SliceFlipNormalizePermutePadKernel(out.data, in.data + args.input_offset, args.in_strides,
-                                       args.out_strides, args.anchor, args.in_shape, args.out_shape,
-                                       fill_values.data(), mean, inv_stddev, args.channel_dim);
+
+    SliceFlipNormalizePermutePadKernel(exec_engine, out.data, in.data + args.input_offset,
+                                       args.in_strides, args.out_strides, args.anchor,
+                                       args.in_shape, args.out_shape, fill_values.data(), mean,
+                                       inv_stddev, args.channel_dim, min_blk_sz, req_nblocks);
+  }
+
+  /**
+   * @brief Run the kernel
+   */
+  void Run(KernelContext &context,
+           OutTensorCPU<OutputType, Dims> out,
+           InTensorCPU<InputType, Dims> in,
+           const Args &orig_args) {
+    SequentialExecutionEngine engine;
+    Schedule(context, out, in, orig_args, engine);
   }
 };
 
