@@ -86,10 +86,10 @@ void SliceBaseCpu<OutputType, InputType, Dims>::RunImpl(workspace_t<CPUBackend> 
   int block_threshold = 16000;
   kernels::KernelContext ctx;
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-    kernel_.Run(ctx, out_view[sample_idx], in_view[sample_idx],
-                args_[sample_idx], thread_pool, block_threshold, req_nblocks);
+    kernel_.Schedule(ctx, out_view[sample_idx], in_view[sample_idx],
+                     args_[sample_idx], thread_pool, block_threshold, req_nblocks);
   }
-  thread_pool.WaitForWork();
+  thread_pool.RunAll();  // work starts now
 }
 
 template <>

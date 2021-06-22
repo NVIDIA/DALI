@@ -312,8 +312,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
     exec_engine.AddWork([=](int) {
       SliceKernel(output, input, in_strides, out_strides, anchor, in_shape, out_shape,
                   fill_values, channel_dim);
-    }, volume(out_shape));
-    exec_engine.RunAll(false);  // do not wait until the work is completed
+    }, volume(out_shape), false);  // do not start work immediately
     return;
   }
 
@@ -337,7 +336,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
                     in_shape, blk_shape, fill_values, channel_dim);
       }, volume(blk_shape), false);  // do not start work immediately
     });
-  exec_engine.RunAll(false);  // do not wait until the work is completed
+  // scheduled work does not start until user calls Run()
 }
 
 /**
@@ -379,13 +378,16 @@ class SliceCPU {
   }
 
   /**
-   * @brief Run the kernel with an execution engine.
+   * @brief Schedules the kernel work with an execution engine.
    *
-   *        For execution engines other than
-   *        SequentialExecutionEngine, the algorithm will try to split the slice into
-   *        similar sized blocks until we either reach a minimum of ``req_nblocks`` or
-   *        the block volume is smaller than the minimum practical size, ``min_blk_sz``.
-   * @remarks The user is responsible to call exec_engine.WaitForWork() after running the kernel.
+   *        The work is only schedule and does not start until the user calls RunAll()
+   *        on the execution engine.
+   *
+   *        The user is responsible to synchronize with the execution engine (e.g. WaitForWork())
+   *
+   *        For execution engines other than SequentialExecutionEngine, the algorithm will try
+   *        to split the slice into similar sized blocks until we either reach a minimum of ``req_nblocks``
+   *        or the block volume is smaller than the minimum practical size, ``min_blk_sz``.
    * @param context Kernel context
    * @param out Output tensor view
    * @param in Input tensor view
@@ -395,12 +397,12 @@ class SliceCPU {
    *                    is calculated as ``num_threads * 8``
    */
   template <typename ExecutionEngine>
-  void Run(KernelContext &context,
-           OutTensorCPU<OutputType, Dims> out,
-           InTensorCPU<InputType, Dims> in,
-           const SliceArgs<OutputType, Dims> &slice_args,
-           ExecutionEngine &exec_engine,
-           int min_blk_sz = 16000, int req_nblocks = -1) {
+  void Schedule(KernelContext &context,
+                OutTensorCPU<OutputType, Dims> out,
+                InTensorCPU<InputType, Dims> in,
+                const SliceArgs<OutputType, Dims> &slice_args,
+                ExecutionEngine &exec_engine,
+                int min_blk_sz = 16000, int req_nblocks = -1) {
     const auto &in_shape = in.shape;
     const auto &out_shape = out.shape;
     const auto &anchor = slice_args.anchor;
@@ -434,7 +436,7 @@ class SliceCPU {
            InTensorCPU<InputType, Dims> in,
            const SliceArgs<OutputType, Dims> &slice_args) {
     SequentialExecutionEngine engine;
-    Run(context, out, in, slice_args, engine);
+    Schedule(context, out, in, slice_args, engine);  // work is run synchronously, no need to wait
   }
 };
 
