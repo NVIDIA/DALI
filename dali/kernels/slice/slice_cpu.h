@@ -283,6 +283,7 @@ void SliceKernel(OutputType *output,
  * @brief Implementation of slice kernel with an execution engine.
  */
 template <typename ExecutionEngine, typename OutputType, typename InputType, int Dims>
+DLL_LOCAL  // workaround for GCC bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=80947
 void SliceKernel(ExecutionEngine &exec_engine,
                  OutputType *output,
                  const InputType *input,
@@ -320,7 +321,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
   TensorShape<Dims> start;
   const auto& end = out_shape;
 
-  ScheduleBlocks(
+  ForEachBlock(
     start, end, split_factor, 0, last_split_dim,
     [&](const TensorShape<Dims> &blk_start, const TensorShape<Dims> &blk_end) {
       auto output_ptr = output;
