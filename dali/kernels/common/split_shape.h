@@ -80,36 +80,38 @@ int LastSplitDim(const SplitFactor& split_factor) {
 }
 
 /**
- * @brief Schedule work on a per-block basis
+ * @brief Iterates over blocks, based on a split factor for each dimension
+ * @param start start coordinates of the region
+ * @param end end coordinates of the region
+ * @param split_factor split factor for each dimension in the region
+ * @param d Current dimension
+ * @param max_split_dim last dimension with a split factor different than 1.
+ * @param func Function to run for each block.
  */
-template <int ndim, typename SplitFactor, typename ScheduleBlockFunc>
-void ScheduleBlocks(TensorShape<ndim> start, TensorShape<ndim> end,
-                    const SplitFactor& split_factor, int d, int max_split_dim,
-                    ScheduleBlockFunc&& func) {
+template <int ndim, typename SplitFactor, typename OnBlockFunc>
+void ForEachBlock(TensorShape<ndim> start, TensorShape<ndim> end, const SplitFactor& split_factor,
+                  int d, int max_split_dim, OnBlockFunc&& func) {
   assert(start.size() == end.size());
   if (d > max_split_dim || d == start.size()) {
-    std::cout << "ScheduleBlocks start=" << start << " end=" << end << "\n";
     func(start, end);
     return;
   }
 
-
   if (split_factor[d] == 1) {
-    ScheduleBlocks(start, end, split_factor, d + 1, max_split_dim,
-                   std::forward<ScheduleBlockFunc>(func));
+    ForEachBlock(start, end, split_factor, d + 1, max_split_dim,
+                 std::forward<OnBlockFunc>(func));
     return;
   }
 
-  int64_t start_d  = start[d];
+  int64_t start_d = start[d];
   int64_t extent_d = end[d] - start_d;
   int nblocks_d = split_factor[d];
   int64_t prev_end = start_d;
   for (int b = 0; b < nblocks_d; b++) {
     start[d] = prev_end;
-    end[d]   = prev_end = extent_d * (b + 1) / nblocks_d + start_d;
-    std::cout << "ScheduleBlocks d=" << d << " b=" << b << "\n";
-    ScheduleBlocks(start, end, split_factor, d + 1, max_split_dim,
-                   std::forward<ScheduleBlockFunc>(func));
+    end[d] = prev_end = extent_d * (b + 1) / nblocks_d + start_d;
+    ForEachBlock(start, end, split_factor, d + 1, max_split_dim,
+                 std::forward<OnBlockFunc>(func));
   }
 }
 
