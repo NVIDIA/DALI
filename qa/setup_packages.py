@@ -293,11 +293,11 @@ class CudaPackageExtraIndex(CudaPackage):
     def __init__(self, key, versions, name=None, extra_index=""):
         super(CudaPackageExtraIndex, self).__init__(key, versions, name)
         if not isinstance(versions, dict):
-            raise TypeError("versions argument should by dict type [cuda_version : list_of_versions")
+            raise TypeError("versions argument should be a dictionary {cuda_version_str : list_of_versions}")
         self.extra_index = extra_index
 
     def get_extra_index(self, cuda_version):
-        """Gets a extra url index for pip for given cuda version.
+        """Gets a extra url index for pip for a given cuda version.
 
             Parameters
             ----------
@@ -459,7 +459,7 @@ def cal_num_of_configs(packages, cuda_version):
     return ret
 
 def for_all_pckg(packages, fun, add_additional_packages=True):
-    """Iterates over all packages, executes a fun. Returns all fun results as a list"""
+    """Iterates over all packages, executes a function. Returns all function results as a list"""
     ret = []
     for pckg in all_packages:
         if pckg.key in packages:
