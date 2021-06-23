@@ -327,9 +327,9 @@ def test_pad_sequence():
     assert get_epoch_size(dali_pipe) == 1
 
     def divisor_generator(n, max_val):
-        for i in range(1, max_val + 1):
+        for i in range(max_val + 1, 1, -1):
             if n % i == 0:
-                yield i
+                return i
 
     dali_pipe = create_video_pipe(batch_size=1, filenames=video_filename, sequence_length=1,
                                   stride=1, pad_sequences=False)
@@ -337,7 +337,7 @@ def test_pad_sequence():
 
     # to speed things up read as close as 30 frames at the time, but in the way that the sequences
     # cover the whole video (without padding)
-    ref_sequence_length = list(divisor_generator(get_epoch_size(dali_pipe), 30))[-1]
+    ref_sequence_length = divisor_generator(get_epoch_size(dali_pipe), 30)
 
     # extract frames from the test video without padding and compare with one from padded pipeline
     dali_pipe = create_video_pipe(batch_size=1, filenames=video_filename, sequence_length=ref_sequence_length,
