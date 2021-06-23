@@ -14,6 +14,8 @@
 
 #include "dali/core/mm/cu_vm.h"
 #include <gtest/gtest.h>
+#include <chrono>
+#include <vector>
 
 #if DALI_USE_CUDA_VM_MAP
 
@@ -118,6 +120,59 @@ TEST(CUMemAddressRange, ReserveAndMapPiecewise) {
   EXPECT_NO_THROW(cuvm::Unmap(ptr2, mem2.size()));
   EXPECT_NO_THROW(mem2.reset());
   EXPECT_NO_THROW(range.reset());
+}
+
+template <typename Out = double, typename R, typename P>
+inline Out microseconds(std::chrono::duration<R, P> d) {
+  return std::chrono::duration_cast<std::chrono::duration<Out, std::micro>>(d).count();
+}
+
+
+TEST(CUMemAddressRange, Perf) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory API not supported on this machine";
+
+  int64_t virt_size = 10L<<30;
+  int64_t phys_size = (64L)<<20;
+  std::vector<cuvm::CUMem> phys;
+  int N = 16;
+  phys.reserve(N);
+  auto t0 = std::chrono::high_resolution_clock::now();
+  cuvm::CUMemAddressRange range = cuvm::CUMemAddressRange::Reserve(virt_size);
+  auto t1 = std::chrono::high_resolution_clock::now();
+  for (int i = 0; i < N; i++) {
+    phys.push_back(cuvm::CUMem::Create(phys_size));
+  }
+  auto t2 = std::chrono::high_resolution_clock::now();
+  CUdeviceptr p = range.ptr();
+  for (int i = 0; i < (int)phys.size(); i++) {
+    cuvm::Map(p, phys[i]);
+    p += phys[i].size();
+  }
+  auto t3 = std::chrono::high_resolution_clock::now();
+  p = range.ptr();
+  for (int i = 0; i < (int)phys.size(); i++) {
+    cuvm::Unmap((void*)p, phys[i].size());
+    p += phys[i].size();
+  }
+  auto t4 = std::chrono::high_resolution_clock::now();
+  phys.clear();
+  auto t5 = std::chrono::high_resolution_clock::now();
+  range.reset();
+  auto t6 = std::chrono::high_resolution_clock::now();
+  void *mem;
+  CUDA_CALL(cudaMalloc(&mem, N*phys_size));
+  auto t7 = std::chrono::high_resolution_clock::now();
+  CUDA_CALL(cudaFree(mem));
+  auto t8 = std::chrono::high_resolution_clock::now();
+  std::cout << microseconds(t1 - t0) << std::endl;
+  std::cout << microseconds(t2 - t1) << std::endl;
+  std::cout << microseconds(t3 - t2) << std::endl;
+  std::cout << microseconds(t4 - t3) << std::endl;
+  std::cout << microseconds(t5 - t4) << std::endl;
+  std::cout << microseconds(t6 - t5) << std::endl;
+  std::cout << microseconds(t7 - t6) << std::endl;
+  std::cout << microseconds(t8 - t7) << std::endl;
 }
 
 }  // namespace test
