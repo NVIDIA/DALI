@@ -47,7 +47,7 @@ struct SequenceWrapper {
     this->dtype = dtype;
 
     timestamps.clear();
-    timestamps.reserve(count);
+    timestamps.reserve(max_count);
 
     if (!event_) {
       event_ = CUDAEvent::CreateWithFlags(cudaEventBlockingSync | cudaEventDisableTiming);
