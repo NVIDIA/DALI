@@ -292,9 +292,10 @@ def test_pad_sequence():
 
     sequence_length = 4
     stride = sequence_length//2
+    batch_size = 2
     # second sequence should have only half of the frames
     step = total_number_of_frames - (stride * sequence_length//2 - 1)
-    dali_pipe = create_video_pipe(batch_size=2, filenames=video_filename, sequence_length=sequence_length,
+    dali_pipe = create_video_pipe(batch_size=batch_size, filenames=video_filename, sequence_length=sequence_length,
                                   stride=stride, step=step, pad_sequences=True)
     dali_pipe.build()
     meta = dali_pipe.reader_meta()
@@ -322,3 +323,29 @@ def test_pad_sequence():
     meta = dali_pipe.reader_meta()
     # when sequence padding if off we should get only one valid sample in the epoch
     assert list(meta.values())[0]['epoch_size'] == 1
+
+    # extract frames from the test video without padding and compare with one from padded pipeline
+    ref_sequence_length = 20
+    dali_pipe = create_video_pipe(batch_size=1, filenames=video_filename, sequence_length=ref_sequence_length,
+                                  stride=1, pad_sequences=False)
+    dali_pipe.build()
+    meta = dali_pipe.reader_meta()
+    ts_index = 0
+    sampl_idx = 0
+    for _ in range(list(meta.values())[0]['epoch_size']):
+        # to speed things up read 20 frames at a time from the reference
+        ref_out = dali_pipe.run()
+        # run over all frame timestamps and compare them with one from the tested pipeline
+        for ref_idx in range(ref_sequence_length):
+            # if we get into padded samples break
+            if np.array(out[3].as_cpu()[sampl_idx])[ts_index] == -1:
+                break
+            # if there is a match compare frames itself and move to next timestamp/sample from the tested batch
+            if np.array(out[3].as_cpu()[sampl_idx])[ts_index] == np.array(ref_out[3].as_cpu()[0])[ref_idx]:
+                assert np.all(np.array(out[0].as_cpu()[sampl_idx])[ts_index] == np.array(ref_out[0].as_cpu()[0])[ref_idx])
+                ts_index += 1
+                if ts_index == sequence_length:
+                    ts_index = 0
+                    sampl_idx += 1
+                if sampl_idx == batch_size:
+                    break
