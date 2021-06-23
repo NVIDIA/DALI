@@ -22,6 +22,7 @@ from nvidia.dali.pipeline import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import numpy as np
 import tempfile
+import math
 
 from nose.tools import assert_raises, raises
 
@@ -274,6 +275,10 @@ def test_container():
         yield check_container, cont
 
 def test_pad_sequence():
+    def get_epoch_size(pipe):
+        meta = pipe.reader_meta()
+        return list(meta.values())[0]['epoch_size']
+
     @pipeline_def(batch_size=1, num_threads=4, device_id=0)
     def create_video_pipe(filenames, sequence_length=1, stride=1, step=-1, pad_sequences=False):
         fr, lab, fr_num, time_stamp = fn.readers.video(device="gpu", filenames=filenames, labels=[],
@@ -284,11 +289,10 @@ def test_pad_sequence():
                                                        pad_last_batch=True, pad_sequences=pad_sequences)
         return fr, lab, fr_num, time_stamp
 
-    video_filename = [os.path.join(video_data_root, 'sintel', 'video_files', 'sintel_trailer-720p_3.mp4')]
+    video_filename = [os.path.join(video_data_root, 'sintel', 'video_files', 'sintel_trailer-720p_2.mp4')]
     dali_pipe = create_video_pipe(video_filename)
     dali_pipe.build()
-    meta = dali_pipe.reader_meta()
-    total_number_of_frames = list(meta.values())[0]['epoch_size']
+    total_number_of_frames = get_epoch_size(dali_pipe)
 
     sequence_length = 4
     stride = sequence_length//2
@@ -298,42 +302,50 @@ def test_pad_sequence():
     dali_pipe = create_video_pipe(batch_size=batch_size, filenames=video_filename, sequence_length=sequence_length,
                                   stride=stride, step=step, pad_sequences=True)
     dali_pipe.build()
-    meta = dali_pipe.reader_meta()
-    assert list(meta.values())[0]['epoch_size'] == 2
+    assert get_epoch_size(dali_pipe)== 2
 
     last_sample_frame_count = 1 + (total_number_of_frames - 1 - step) // stride
     assert last_sample_frame_count < sequence_length
 
     out = dali_pipe.run()
-    sampl = 1
+    padded_sampl = 1
     # check padded sample
     # non padded frames should not be 0
-    assert np.any(np.array(out[0].as_cpu()[sampl])[0:last_sample_frame_count]) != 0
+    assert np.any(np.array(out[0].as_cpu()[padded_sampl])[0:last_sample_frame_count]) != 0
     # while padded one only 0
-    assert np.all(np.array(out[0].as_cpu()[sampl])[last_sample_frame_count + 1:]) == 0
-    assert np.array(out[2].as_cpu()[sampl]) == step
+    assert np.all(np.array(out[0].as_cpu()[padded_sampl])[last_sample_frame_count + 1:]) == 0
+    assert np.array(out[2].as_cpu()[padded_sampl]) == step
     # non padded samples should have non negative timestamps
-    assert np.all(np.array(out[3].as_cpu()[sampl])[0:last_sample_frame_count] != np.array([-1] * last_sample_frame_count))
+    assert np.all(np.array(out[3].as_cpu()[padded_sampl])[0:last_sample_frame_count] != np.array([-1] * last_sample_frame_count))
     # while padded one only -1
-    assert np.all(np.array(out[3].as_cpu()[sampl])[last_sample_frame_count + 1:] == np.array([-1] * (sequence_length - last_sample_frame_count)))
+    assert np.all(np.array(out[3].as_cpu()[padded_sampl])[last_sample_frame_count + 1:] == np.array([-1] * (sequence_length - last_sample_frame_count)))
 
     dali_pipe = create_video_pipe(batch_size=2, filenames=video_filename, sequence_length=sequence_length,
                                   stride=stride, step=step, pad_sequences=False)
     dali_pipe.build()
-    meta = dali_pipe.reader_meta()
     # when sequence padding if off we should get only one valid sample in the epoch
-    assert list(meta.values())[0]['epoch_size'] == 1
+    assert get_epoch_size(dali_pipe) == 1
+
+    def divisor_generator(n, max_val):
+        for i in range(1, max_val + 1):
+            if n % i == 0:
+                yield i
+
+    dali_pipe = create_video_pipe(batch_size=1, filenames=video_filename, sequence_length=1,
+                                  stride=1, pad_sequences=False)
+    dali_pipe.build()
+
+    # to speed things up read as close as 30 frames at the time, but in the way that the sequences
+    # cover the whole video (without padding)
+    ref_sequence_length = list(divisor_generator(get_epoch_size(dali_pipe), 30))[-1]
 
     # extract frames from the test video without padding and compare with one from padded pipeline
-    ref_sequence_length = 20
     dali_pipe = create_video_pipe(batch_size=1, filenames=video_filename, sequence_length=ref_sequence_length,
                                   stride=1, pad_sequences=False)
     dali_pipe.build()
-    meta = dali_pipe.reader_meta()
     ts_index = 0
     sampl_idx = 0
-    for _ in range(list(meta.values())[0]['epoch_size']):
-        # to speed things up read 20 frames at a time from the reference
+    for _ in range(get_epoch_size(dali_pipe)):
         ref_out = dali_pipe.run()
         # run over all frame timestamps and compare them with one from the tested pipeline
         for ref_idx in range(ref_sequence_length):
@@ -347,5 +359,9 @@ def test_pad_sequence():
                 if ts_index == sequence_length:
                     ts_index = 0
                     sampl_idx += 1
+                # it should break earlier and not get here at all, as we expect to have padded sample in the tested pipeline
                 if sampl_idx == batch_size:
-                    break
+                    assert False
+
+    assert sampl_idx == padded_sampl
+    assert ts_index == last_sample_frame_count
