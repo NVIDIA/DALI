@@ -62,10 +62,10 @@ The operator adds additional parameters to the ones supported by the
 
 Parameters
 ----------
-    input_datasets : dict[str, tf.data.Dataset] or dict[str, nvidia.dali.plugin.tf.experimental.input]
+    input_datasets : dict[str, tf.data.Dataset] or dict[str, nvidia.dali.plugin.tf.experimental.Input]
         input datasets to the DALI Pipeline. It must be provided as a dictionary mapping from
-        the names of the ``External Source`` nodes to the datasets objects intended as inputs
-        for those nodes (or to the :meth:`~nvidia.dali.plugin.tf.experimental.input` wrapper).
+        the names of the ``External Source`` nodes to the datasets objects or to the
+        :meth:`~nvidia.dali.plugin.tf.experimental.Input` wrapper.
 
         For example::
 
@@ -261,7 +261,7 @@ if dataset_compatible_tensorflow():
             output_dtypes = self._handle_deprecation(output_dtypes, dtypes, "dtypes")
 
             if not self._check_dtypes(output_dtypes, tf.DType):
-                raise TypeError(("`output_dtypes` should be provided as single tf.DType value " +
+                raise TypeError(("`output_dtypes` should be provided as single tf.DType value "
                     "or a tuple of tf.DType values. Got value `{}` of type `{}`.") \
                         .format(output_dtypes, type(output_dtypes)))
 
@@ -311,7 +311,7 @@ if dataset_compatible_tensorflow():
                 self._input_layouts = ()
                 return
 
-            self._assert_pipeline_instace()
+            self._assert_pipeline_instance()
 
             name_es_map = self._get_name_es_instance_map()
 
@@ -326,8 +326,8 @@ if dataset_compatible_tensorflow():
                     return value.dataset
 
             error_str = (
-                "`input_datasets` must be a dictionary that maps input names (the `name` " +
-                "specified for External Source node in DALI pipeline) to input datasets " +
+                "`input_datasets` must be a dictionary that maps input names (the `name` "
+                "specified for External Source node in DALI pipeline) to input datasets "
                 "objects (`tf.data.Dataset`) or `nvidia.dali.plugin.tf.input` wrapper objects")
 
             if not isinstance(input_datasets, Mapping):
@@ -337,25 +337,25 @@ if dataset_compatible_tensorflow():
             for input_name, input_value in input_datasets.items():
                 # keys are str
                 if not isinstance(input_name, str):
-                    raise TypeError(error_str + (". Expected the keys (representing the input " +
-                                                 "names) to be of type `str`, got: `{}` of type: " +
+                    raise TypeError(error_str + (". Expected the keys (representing the input "
+                                                 "names) to be of type `str`, got: `{}` of type: "
                                                  "{} instead.").format(input_name, type(input_name)))
 
                 # values are tf.data.Dataset or input
                 is_dataset_only = isinstance(input_value, dataset_ops.DatasetV2)
                 experimental = _get_experimental()
-                if not is_dataset_only and not isinstance(input_value, experimental.input):
-                    raise TypeError(error_str + (". Expected the values of the dictionary " +
-                                                 "(representing the inputs) " +
-                                                 " to be of type `tf.data.Dataset` or " +
-                                                 "`nvidia.dali.plugin.tf.input` got: `{}` of " +
+                if not is_dataset_only and not isinstance(input_value, experimental.Input):
+                    raise TypeError(error_str + (". Expected the values of the dictionary "
+                                                 "(representing the inputs) "
+                                                 " to be of type `tf.data.Dataset` or "
+                                                 "`nvidia.dali.plugin.tf.Input` got: `{}` of "
                                                  "type: {} instead.").format(input_value, type(input_value)))
 
                 # there is External Source with name equal to `input_name`
                 if input_name not in name_es_map.keys():
-                    raise ValueError(("Did not find an External Source node with nam=' {}' in " +
-                                      "the provided pipeline - required by the name specified " +
-                                      "in the `input_datasets`. Names of available External " +
+                    raise ValueError(("Did not find an External Source node with name=' {}' in "
+                                      "the provided pipeline - required by the name specified "
+                                      "in the `input_datasets`. Names of available External "
                                       "Source nodes are: {}.").format(input_name,
                                                                       list(name_es_map.keys())))
 
@@ -366,46 +366,45 @@ if dataset_compatible_tensorflow():
                 if is_dataset_only or input_value.layout is None:
                     input_layouts_list.append(self._get_layout_from_pipeline(input_name, name_es_map))
                 else:
-                    print("HERE: ", input_value, input_value.layout)
                     input_layouts_list.append(input_value.layout)
 
             # We covered all inputs
             non_matched = set(name_es_map.keys()) - set(input_datasets.keys())
             if len(non_matched) != 0:
-                raise ValueError(("Found External Source nodes in the Pipeline, that were not " +
-                                  "assigned any inputs. Nodes without inputs: \n{}.\nNodes that " +
+                raise ValueError(("Found External Source nodes in the Pipeline, that were not "
+                                  "assigned any inputs. Nodes without inputs: \n{}.\nNodes that "
                                   "were assigned inputs:\n{}.").format(list(non_matched), list(input_datasets.keys())))
 
             self._input_datasets = tuple(input_datasets_list)
             self._input_names = tuple(input_names_list)
             self._input_layouts = tuple(input_layouts_list)
 
-        def _assert_pipeline_instace(self):
+        def _assert_pipeline_instance(self):
             """Ensure that the pipeline is built, and check if the Python part is available.
             """
             #
             self._pipeline_instance.build()
             if not self._pipeline_instance._py_graph_built and self._pipeline_instance._built:
-                raise ValueError("Deserialized pipelines cannot be used with `input_datasets`. " +
-                                 "Please provide a pipeline that was created directly in Python " +
+                raise ValueError("Deserialized pipelines cannot be used with `input_datasets`. "
+                                 "Please provide a pipeline that was created directly in Python "
                                  "and not recreated from serialized one.")
 
         def _assert_correct_external_sources(self, external_source):
             """Validate that the external source nodes used are properly configured"""
             if external_source._op._num_outputs is not None:
-                raise ValueError("Found External Source node in the Pipeline that was " +
-                                 "created with `num_outputs` parameter. Only single-output " +
-                                 "(with `num_outputs=None`), named (with `name` argument " +
-                                 "specified) External Source nodes are supported as inputs " +
+                raise ValueError("Found External Source node in the Pipeline that was "
+                                 "created with `num_outputs` parameter. Only single-output "
+                                 "(with `num_outputs=None`), named (with `name` argument "
+                                 "specified) External Source nodes are supported as inputs "
                                  "for DALIDataset integration.")
             if external_source._op._callback is not None:
-                raise NotImplementedError("External Source with `callback` specified as input " +
+                raise NotImplementedError("External Source with `callback` specified as input "
                                           "for DALIDataset are not supported yet.")
             if external_source._op._name is None:
-                raise ValueError("Found External Source node in the Pipeline that was " +
-                                 "not named (no `name` argument set). Only single-output " +
-                                 "(with `num_outputs=None`), named (with `name` argument " +
-                                 "specified) External Source nodes are supported as inputs " +
+                raise ValueError("Found External Source node in the Pipeline that was "
+                                 "not named (no `name` argument set). Only single-output "
+                                 "(with `num_outputs=None`), named (with `name` argument "
+                                 "specified) External Source nodes are supported as inputs "
                                  "for DALIDataset integration.")
 
         def _get_name_es_instance_map(self):
@@ -436,7 +435,7 @@ if dataset_compatible_tensorflow():
             if deprecated_arg is not None:
                 if supported_arg is not None:
                     raise ValueError((
-                        "Usage of `{name}` is deprecated in favor of `output_{name}`. " +
+                        "Usage of `{name}` is deprecated in favor of `output_{name}`. "
                         "Both arguments were provided, but only `output_{name}` should be provided."
                     ).format(name=name))
                 # show only this warning
@@ -513,7 +512,7 @@ if dataset_compatible_tensorflow():
         DALIDatasetWithInputs.__doc__ = _experimental_dataset_docstring
         _insert_experimental_member(DALIDatasetWithInputs, "DALIDatasetWithInputs")
 
-        class input:
+        class Input:
             """Wrapper for input passed to DALIDataset. Allows to pass additional options.
 
             Parameters
@@ -532,13 +531,13 @@ if dataset_compatible_tensorflow():
             def __init__(self, dataset, *, layout=None):
                 if not isinstance(dataset, dataset_ops.DatasetV2):
                     raise TypeError(
-                        ("The inputs specified to DALIDataset must be instances of " +
+                        ("The inputs specified to DALIDataset must be instances of "
                          "type `tf.data.Dataset` got: `{}` of type: {} instead.").format(
                              dataset, type(dataset)))
                 self.dataset = dataset
                 self.layout = layout
 
-        _insert_experimental_member(input, "input")
+        _insert_experimental_member(Input, "Input")
 
     _load_experimental_dataset()
 
@@ -574,11 +573,11 @@ else:
         DALIDatasetWithInputs.__doc__ = _experimental_dataset_docstring
         _insert_experimental_member(DALIDatasetWithInputs, "DALIDatasetWithInputs")
 
-        class input:
+        class Input:
             def __init__(self, *args, **kwargs):
                 pass
 
-        _insert_experimental_member(input, "input")
+        _insert_experimental_member(Input, "Input")
 
     _load_experimental_dataset()
 

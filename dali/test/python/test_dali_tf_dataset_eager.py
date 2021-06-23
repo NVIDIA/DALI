@@ -15,7 +15,7 @@
 import tensorflow as tf
 from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.plugin.tf as dali_tf
-from nvidia.dali.plugin.tf.experimental import DALIDatasetWithInputs, input as experimental_input
+from nvidia.dali.plugin.tf.experimental import DALIDatasetWithInputs, Input
 from test_utils_tensorflow import *
 from test_dali_tf_dataset_pipelines import *
 from nose.tools import raises, with_setup
@@ -243,9 +243,9 @@ def test_tf_dataset_layouts():
         # Captured from pipeline
         yield check_layout, {'layout': layout, 'name': 'in'}, {'in': in_dataset}, layout
         # Captured from pipeline
-        yield check_layout, {'layout': layout, 'name': 'in'}, {'in': experimental_input(in_dataset)}, layout
+        yield check_layout, {'layout': layout, 'name': 'in'}, {'in': Input(in_dataset)}, layout
         # Overridden via experimental.input
-        yield check_layout, {'layout': 'TO_OVERRIDE', 'name': 'in'}, {'in': experimental_input(in_dataset, layout=layout)}, layout
+        yield check_layout, {'layout': 'TO_OVERRIDE', 'name': 'in'}, {'in': Input(in_dataset, layout=layout)}, layout
 
 
 
