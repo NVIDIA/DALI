@@ -328,7 +328,8 @@ if dataset_compatible_tensorflow():
             error_str = (
                 "`input_datasets` must be a dictionary that maps input names (the `name` "
                 "specified for External Source node in DALI pipeline) to input datasets "
-                "objects (`tf.data.Dataset`) or `nvidia.dali.plugin.tf.input` wrapper objects")
+                "objects (`tf.data.Dataset`) or `nvidia.dali.plugin.tf.experimental.Input` wrapper "
+                "objects")
 
             if not isinstance(input_datasets, Mapping):
                 raise TypeError(error_str +
@@ -341,7 +342,7 @@ if dataset_compatible_tensorflow():
                                                  "names) to be of type `str`, got: `{}` of type: "
                                                  "{} instead.").format(input_name, type(input_name)))
 
-                # values are tf.data.Dataset or input
+                # values are tf.data.Dataset or Input
                 is_dataset_only = isinstance(input_value, dataset_ops.DatasetV2)
                 experimental = _get_experimental()
                 if not is_dataset_only and not isinstance(input_value, experimental.Input):
@@ -353,7 +354,7 @@ if dataset_compatible_tensorflow():
 
                 # there is External Source with name equal to `input_name`
                 if input_name not in name_es_map.keys():
-                    raise ValueError(("Did not find an External Source node with name=' {}' in "
+                    raise ValueError(("Did not find an External Source node with name='{}' in "
                                       "the provided pipeline - required by the name specified "
                                       "in the `input_datasets`. Names of available External "
                                       "Source nodes are: {}.").format(input_name,

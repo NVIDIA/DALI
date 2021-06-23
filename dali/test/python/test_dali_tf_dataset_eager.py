@@ -244,7 +244,7 @@ def test_tf_dataset_layouts():
         yield check_layout, {'layout': layout, 'name': 'in'}, {'in': in_dataset}, layout
         # Captured from pipeline
         yield check_layout, {'layout': layout, 'name': 'in'}, {'in': Input(in_dataset)}, layout
-        # Overridden via experimental.input
+        # Overridden via experimental.Input
         yield check_layout, {'layout': 'TO_OVERRIDE', 'name': 'in'}, {'in': Input(in_dataset, layout=layout)}, layout
 
 
