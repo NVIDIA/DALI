@@ -33,10 +33,12 @@ namespace kernels {
  * @param in_shape Input shape
  * @param min_nblocks Desired minimum number of blocks
  * @param min_sz Minimum practical block size
+ * @param skip_dim If provided, this dimension will not be split
+ * @return product of split_factor
  */
 template <typename SplitFactor, typename Shape>
-void split_shape(SplitFactor& split_factor, const Shape& in_shape, int min_nblocks = 8,
-                 int min_sz = (16 << 10)) {
+int split_shape(SplitFactor& split_factor, const Shape& in_shape, int min_nblocks = 8,
+                int min_sz = (16 << 10), int skip_dim = -1) {
   int ndim = dali::size(in_shape);
   assert(static_cast<int>(dali::size(split_factor)) == ndim);
   for (int d = 0; d < ndim; d++)
@@ -44,6 +46,8 @@ void split_shape(SplitFactor& split_factor, const Shape& in_shape, int min_nbloc
 
   int64_t vol = volume(in_shape);
   for (int d = 0, nblocks = 1; d < ndim && nblocks < min_nblocks && vol > min_sz; d++) {
+    if (d == skip_dim)
+      continue;
     int n = in_shape[d];
     int &b = split_factor[d];
     auto remaining = div_ceil(min_nblocks, nblocks);
@@ -61,6 +65,7 @@ void split_shape(SplitFactor& split_factor, const Shape& in_shape, int min_nbloc
     nblocks *= b;
     vol = div_ceil(vol, b);
   }
+  return volume(split_factor);
 }
 
 /**
