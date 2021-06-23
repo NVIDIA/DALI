@@ -31,6 +31,11 @@ struct bitmask {
   static constexpr const int storage_bits = sizeof(bit_storage_t) * 8;
   static constexpr const int storage_bits_log = ilog2(storage_bits);
 
+  /**
+   * @brief Find the first bit with given value, starting at start
+   *
+   * @return The index of the first bit found of the size of the bit mask if not found.
+   */
   ptrdiff_t find(bool value, ptrdiff_t start = 0) const {
     assert(start >= 0);
     if (start >= size_)
@@ -61,6 +66,9 @@ struct bitmask {
     return size_;
   }
 
+  /**
+   * @brief Fill a range of bits with given value
+   */
   void fill(ptrdiff_t start, ptrdiff_t end, bool value) {
     if (start >= end)
       return;
@@ -98,12 +106,18 @@ struct bitmask {
     }
   }
 
+  /**
+   * @brief Fill the entire mask with given value.
+   */
   void fill(bool value) {
     size_t s = size();
     clear();
     resize(s, value);
   }
 
+  /**
+   * @brief A pseudoreference to a single bit in the mask
+   */
   struct bitref {
     bitref &operator=(bool value) {
       if (value)
@@ -208,6 +222,7 @@ struct bitmask {
  private:
   // vector of bit storage words - the bits that are outside of the mask are 0
   std::vector<bit_storage_t> storage_;
+  // number of bits in the mask
   ptrdiff_t size_ = 0;
 };
 
