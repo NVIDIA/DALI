@@ -17,12 +17,20 @@ do
         if test -n "$pip_packages"
         then
             last_config_index=$(python ../setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
+
+            # get extra index url for given packages
+            extra_indices=$($topdir/qa/setup_packages.py -u $pip_packages --cuda ${CUDA_VERSION} -e)
+            extra_indices_string=""
+            for e in ${extra_indices}; do
+                extra_indices_string="${extra_indices_string} --extra-index-url=${e}"
+            done
+
             for i in `seq 0 $last_config_index`;
             do
                 inst=$(python ../setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
                 if [ -n "$inst" ]
                 then
-                    pip download $inst -d /pip-packages
+                    pip download $inst -d /pip-packages ${extra_indices_string}
                 fi
             done
         fi
