@@ -160,15 +160,18 @@ std::enable_if_t<std::is_integral<Integer>::value, int> ctz(Integer word) {
   int bit = 0;
   if (sizeof(uword) > 4 && (uword & 0xffffffffu) == 0) {
     bit += 32;
-    uword >>= 32;
+    const int shift32 = sizeof(uword) > 4 ? 32 : 0;  // workaround undefined shift warning
+    uword >>= shift32;
   }
   if (sizeof(uword) > 2 && (uword & 0xffffu) == 0) {
     bit += 16;
-    uword >>= 16;
+    const int shift16 = sizeof(uword) > 2 ? 16 : 0;  // workaround undefined shift warning
+    uword >>= shift16;
   }
   if (sizeof(uword) > 1 && (uword & 0xffu) == 0) {
     bit += 8;
-    uword >>= 8;
+    const int shift8 = sizeof(uword) > 1 ? 8 : 0;  // workaround undefined shift warning
+    uword >>= shift8;
   }
   if ((uword & 0xfu) == 0) {
     bit += 4;
