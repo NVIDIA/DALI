@@ -254,7 +254,7 @@ void SliceFlipNormalizePermutePadKernel(
   // Parallelize
   std::array<int, Dims> split_factor;
   int nblocks = split_shape(split_factor, args.out_shape, min_blk_sz,
-                            req_nblocks > 0 ? exec_engine.NumThreads() * 8 : req_nblocks,
+                            req_nblocks > 0 ? req_nblocks : exec_engine.NumThreads() * 8,
                             args.channel_dim);
   if (nblocks == 1) {
     exec_engine.AddWork([=](int) {
