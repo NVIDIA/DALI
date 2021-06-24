@@ -177,6 +177,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
                                 AttrSerializationContainer &attrs) const {
     SerializeField(attrs, b, kInputNames, input_desc.input_names);
     SerializeField(attrs, b, kInputLayouts, input_desc.input_layouts);
+    SerializeField(attrs, b, kInputBatched, input_desc.input_batched);
   }
 
   Status InputsToNodeList(SerializationContext *context, DatasetGraphDefBuilder *b,
@@ -411,12 +412,89 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     return Status::OK();
   }
 
+  /**
+   * @brief Call GetNext on given input and extract the only Tensor Example that is expected as
+   * output or signall stop.
+   */
+  Status GetExampleFromInput(IteratorContext *context, int input_idx, Tensor &example,
+                             bool *end_of_sequence) {
+    TfExample input_example;
+    *end_of_sequence = false;
+    auto &input = input_impls_[input_idx];
+    // TODO(klecki): ZipDataset just goes to next iteration on Error.
+    // Desync of input datasets is not desired, we just report the problem fast
+    TF_RETURN_IF_ERROR(input->GetNext(context, &input_example, end_of_sequence));
+    if (*end_of_sequence) {
+      return Status::OK();
+    }
+
+    // Repack the single Tensor from TfExample to Batch
+    if (input_example.size() != 1) {
+      return errors::InvalidArgument("Got a sample consisting of ", input_example.size(),
+                                     " elements for input: ", input_idx,
+                                     ". Only samples of 1 element are supported.");
+    }
+    // Extract the obtained example
+    example = input_example[0];
+    return Status::OK();
+  }
+
+  /**
+   * @brief Obtain samples from input of given index, operating in batch mode
+   *
+   * out_batch will contain one output sample representing whole batch
+   */
+  Status PrepareBatchesBatchMode(IteratorContext *context, int input_idx, Batch &out_batch,
+                                 bool *end_of_sequence) {
+    int next_batch_size = dataset()->pipeline_def_.batch_size;
+    // In batch mode, we have tensors representing batches, so we keep only 1 of them
+    out_batch.clear();
+    *end_of_sequence = false;
+
+    Tensor example;
+    TF_RETURN_IF_ERROR(GetExampleFromInput(context, input_idx, example, end_of_sequence));
+    if (*end_of_sequence) {
+      return Status::OK();
+    }
+    // Batch mode, only one tensor for whole batch
+    out_batch.push_back(example);
+    return Status::OK();
+  }
+
+  /**
+   * @brief Obtain samples from input of given index, operation in sample mode.
+   *
+   * out_batch will contain sample tensors.
+   */
+  Status PrepareBatchesSampleMode(IteratorContext *context, int input_idx, Batch &out_batch,
+                                  bool *end_of_sequence) {
+    int next_batch_size = dataset()->pipeline_def_.batch_size;
+    // Sample mode, so we have batch of actual sample tensors
+    out_batch.clear();
+    Batch in_batch;
+    in_batch.resize(next_batch_size);
+    *end_of_sequence = false;
+
+    // We fail fast, we will either bubble up the error or set the state of dataset to stop_pending
+    // and just use up what is queued.
+    for (int sample_idx = 0; sample_idx < next_batch_size; sample_idx++) {
+      TF_RETURN_IF_ERROR(
+          GetExampleFromInput(context, input_idx, in_batch[sample_idx], end_of_sequence));
+      if (*end_of_sequence) {
+        return Status::OK();
+      }
+    }
+    out_batch = std::move(in_batch);
+    return Status::OK();
+  }
+
 
   /**
    * @brief Obtain samples from input interators and build collection of batches representing
    * one input iteration.
    *
-   * We query one sample at a time to signal stop as soon as possible.
+   * Get the input in either batch or sample mode, report errors fast and return empty batches.
+   * In case of end_of_sequence or error we expect to start over.
    */
   Status PrepareBatches(IteratorContext *context, ListOfBatches &out_batches,
                         bool *end_of_sequence) {
@@ -424,29 +502,18 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     *end_of_sequence = false;
     ListOfBatches input_batches(dataset()->NumInputs());
     int next_batch_size = dataset()->pipeline_def_.batch_size;
-    for (auto &batch : input_batches) {
-      batch.resize(next_batch_size);
-    }
-    for (int sample_idx = 0; sample_idx < next_batch_size; sample_idx++) {
-      for (int input_idx = 0; input_idx < dataset()->NumInputs(); input_idx++) {
-        TfExample example;
-        bool input_end_of_sequence = false;
-        auto &input = input_impls_[input_idx];
-        // TODO(klecki): ZipDataset just goes to next iteration on Error.
-        // Desync of input datasets is not desired, we just report the problem fast
-        TF_RETURN_IF_ERROR(input->GetNext(context, &example, &input_end_of_sequence));
-        *end_of_sequence |= input_end_of_sequence;
-        if (*end_of_sequence) {
-          return Status::OK();
-        }
 
-        // Repack the single Tensor from TfExample to Batch
-        if (example.size() != 1) {
-          return errors::InvalidArgument("Got a sample consisting of ", example.size(),
-                                         " elements for input: ", input_idx,
-                                         ". Only samples of 1 element are supported.");
-        }
-        input_batches[input_idx][sample_idx] = example[0];
+    for (int input_idx = 0; input_idx < dataset()->NumInputs(); input_idx++) {
+      bool batched = dataset()->input_desc_.input_batched[input_idx];
+      if (batched) {
+        TF_RETURN_IF_ERROR(
+            PrepareBatchesBatchMode(context, input_idx, input_batches[input_idx], end_of_sequence));
+      } else {
+        TF_RETURN_IF_ERROR(PrepareBatchesSampleMode(context, input_idx, input_batches[input_idx],
+                                                    end_of_sequence));
+      }
+      if (*end_of_sequence) {
+        return Status::OK();
       }
     }
     out_batches = std::move(input_batches);
@@ -574,35 +641,56 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     return Status::OK();
   }
 
+  void *GetTensorData(const Tensor &t) {
+#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 2
+    return t.data();
+#else
+    return t.tensor_data().data();
+#endif
+  }
 
   /**
-   * @brief Helper function that repacks the `Batch` (which is an list of samples returned by
-   * GetNext()), to the format used by DALI C API for feeding External Source.
+   * @brief Helper function that repacks the pointer to data of `Batch` (which is an list of
+   * samples returned by GetNext()), to the format used by DALI C API for feeding External Source.
    *
    * Outputs: ptrs, dtype, shapes, ndim
-   * Inputs: input_batch
+   * @param ptrs output pointers, in sample mode, batch size of pointers, in batch mode
+   *             a vector with one pointer to data.
+   *
+   * Inputs: input_batch, batched
+   * @param input_batch Batch tensor in batch mode, othewise batch of sample tensors
+   * @param batched true if batch mode, otherwise sample mode
    */
-  Status RepackNonContiguousBatch(std::vector<const void *> &ptrs, dali_data_type_t &dtype,
-                                  std::vector<int64_t> &shapes, int64_t &ndim,
-                                  const Batch &input_batch) {
-    int batch_size = dataset()->pipeline_def_.batch_size;
-    assert(input_batch.size() == batch_size);
+  Status RepackBatch(std::vector<const void *> &ptrs, dali_data_type_t &dtype,
+                     std::vector<int64_t> &shapes, int64_t &ndim, const Batch &input_batch,
 
-    ptrs.resize(batch_size, nullptr);
+                     bool batched) {
+    int batch_size = dataset()->pipeline_def_.batch_size;
+
     dtype = TfToDaliType(input_batch[0].dtype());
-    ndim = input_batch[0].dims();
+    // remove the batch dimension if present
+    ndim = batched ? input_batch[0].dims() - 1 : input_batch[0].dims();
     shapes.clear();
     shapes.reserve(batch_size * ndim);
 
-    for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
-      auto &tensor = input_batch[sample_idx];
-#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 2
-      ptrs[sample_idx] = tensor.data();
-#else
-      ptrs[sample_idx] = tensor.tensor_data().data();
-#endif
-      for (int d = 0; d < ndim; d++) {
-        shapes.push_back(tensor.dim_size(d));
+    if (batched) {
+      auto &tensor = input_batch[0];
+      assert(tensor.dim(0) == batch_size);
+      ptrs.resize(1, nullptr);
+      ptrs[0] = GetTensorData(tensor);
+      for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
+        for (int d = 0; d < ndim; d++) {
+          shapes.push_back(tensor.dim_size(d + 1));
+        }
+      }
+    } else {
+      assert(input_batch.size() == batch_size);
+      ptrs.resize(batch_size, nullptr);
+      for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
+        ptrs[sample_idx] = GetTensorData(input_batch[sample_idx]);
+        for (int d = 0; d < ndim; d++) {
+          shapes.push_back(input_batch[sample_idx].dim_size(d));
+        }
       }
     }
     return Status::OK();
@@ -628,7 +716,8 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     for (int input_idx = 0; input_idx < dataset()->NumInputs(); input_idx++) {
       auto &input_batch = current_batches[input_idx];
       TF_RETURN_IF_ERROR(VerifyUniform(input_batch, input_idx));
-      TF_RETURN_IF_ERROR(RepackNonContiguousBatch(ptrs, dtype, shapes, ndim, input_batch));
+      bool batched = dataset()->input_desc_.input_batched[input_idx];
+      TF_RETURN_IF_ERROR(RepackBatch(ptrs, dtype, shapes, ndim, input_batch, batched));
 
       auto &input_name = dataset()->input_desc_.input_names[input_idx];
       // TODO(klecki): Currently we are restricted to supporting input memory on the same
@@ -648,9 +737,15 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         flag = DALI_ext_force_copy;
       }
 
-      TF_DALI_CALL(daliSetExternalInputTensors(pipeline_handle, input_name.c_str(), input_device,
-                                               ptrs.data(), dtype, shapes.data(), ndim,
-                                               input_layout.c_str(), flag));
+      if (batched) {
+        TF_DALI_CALL(daliSetExternalInput(pipeline_handle, input_name.c_str(), input_device,
+                                          ptrs[0], dtype, shapes.data(), ndim, input_layout.c_str(),
+                                          flag));
+      } else {
+        TF_DALI_CALL(daliSetExternalInputTensors(pipeline_handle, input_name.c_str(), input_device,
+                                                 ptrs.data(), dtype, shapes.data(), ndim,
+                                                 input_layout.c_str(), flag));
+      }
 
       // No need keep the data if we did the copy
       if ((input_device == CPU && ext_src_device != DALI_BACKEND_CPU) ||
@@ -827,6 +922,7 @@ void DALIDatasetOp::FillPipelineDef(OpKernelConstruction *context, PipelineDef &
 void DALIDatasetOp::FillInputAttrs(OpKernelConstruction *context, InputAttrs &def) {
   OP_REQUIRES_OK(context, context->GetAttr(kInputNames, &def.input_names));
   OP_REQUIRES_OK(context, context->GetAttr(kInputLayouts, &def.input_layouts));
+  OP_REQUIRES_OK(context, context->GetAttr(kInputBatched, &def.input_batched));
 }
 
 void DALIDatasetOp::FillInputs(OpKernelContext *context, Inputs &def) {
@@ -853,6 +949,11 @@ void DALIDatasetOp::ValidateInputs(OpKernelContext *context, Inputs &inputs,
       errors::InvalidArgument("Number of inputs and input layouts provided must match, got ",
                               inputs.inputs.size(), " inputs and ",
                               input_attrs.input_layouts.size(), " input layouts."));
+  OP_REQUIRES(
+      context, inputs.inputs.size() == input_attrs.input_batched.size(),
+      errors::InvalidArgument("Number of inputs and input batched specification must match, got ",
+                              inputs.inputs.size(), " inputs and ",
+                              input_attrs.input_batched.size(), " input batched."));
   // TODO(klecki): Validate the input devices against the current device
 }
 
@@ -881,6 +982,7 @@ REGISTER_OP("DALIDataset")
     .Output("handle: variant")
     .Attr("input_names: list(string)")    // must match the input_datasets
     .Attr("input_layouts: list(string)")  // must match the input_datasets
+    .Attr("input_batched: list(int)")  // must match the input_datasets, use int instead of bool
     .Attr("pipeline: string")
     .Attr("batch_size: int")
     .Attr("num_threads: int")

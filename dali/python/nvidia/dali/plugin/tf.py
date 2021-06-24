@@ -43,14 +43,17 @@ _experimental_dataset_docstring = """Experimental variant of
 :class:`~nvidia.dali.plugin.tf.DALIDataset`. This dataset adds support for input tf.data.Datasets.
 
 Each of the input datasets must be mapped to a :meth:`~nvidia.dali.fn.external_source` operator
-that will represent the input to the DALI pipeline. The input is represented by the ``name``
-parameter of :meth:`~nvidia.dali.fn.external_source` and needs to be provided for the corresponding
-input dataset via the ``input_names`` argument of DALIDatasetWithInputs.
+that will represent the input to the DALI pipeline. In the pipeline the input is represented as
+the ``name`` parameter of :meth:`~nvidia.dali.fn.external_source`. Input datasets must be provided
+as a mapping from that ``name`` to the dataset object via the ``input_datasets`` dictionary argument
+of DALIDatasetWithInputs.
 
-The input datasets are assumed to operate in sample mode - it means that every input dataset
-is treated as if providing individual samples.
-DALIDataset will query the inputs dataset ``batch_size``-times to build a batch that would
-be fed into the DALI Pipeline.
+The input datasets can operate in sample mode - it means that every input dataset
+is treated as if providing individual samples, or in batch mode - in that case the input dataset
+must return batches (Tensors with outermost dimension representing the sample index in batch).
+
+In sample mode DALIDataset will query the inputs dataset ``batch_size``-times to build a batch
+that would be fed into the DALI Pipeline.
 In sample mode, each sample produced by the input dataset can have a different shape,
 but not a different number of dimensions.
 
@@ -86,6 +89,24 @@ Parameters
                 input_0 = fn.external_source(name='tensor_input')
                 input_1 = fn.external_source(name='generator_input')
                 return fn.resize(input_1, resize_x=input_0)
+
+        Entries that use ``tf.data.Dataset`` directly, like::
+
+            {
+                'input': tf.data.Dataset.from_tensors(tensor)
+            }
+
+        are equivalent to following specification using ``nvidia.dali.plugin.tf.experimental.Input``::
+
+            {
+                'input' : nvidia.dali.plugin.tf.experimental.Input(
+                              dataset=tf.data.Dataset.from_tensors(tensor),
+                              layout=None,
+                              batch=False)
+            }
+
+        This means that inputs, specified as ``tf.data.Dataset`` directly, are considered
+        sample inputs.
 
         .. warning::
             Input dataset must be placed on the same device as ``DALIDatasetWithInputs``.
@@ -230,6 +251,29 @@ def _insert_experimental_member(member, name):
     setattr(experimental_module, name, member)
 
 
+def _get_layout_from_pipeline(input_name, name_es_map):
+    layout = name_es_map[input_name]._layout
+    return layout if layout is not None else ""
+
+def _get_external_source_param(input_name, input_value, name_es_map, param_name):
+    def get_param_from_pipe(input_name, name_es_map, param_name):
+        es_op = name_es_map[input_name]
+        # Check the OpInstance and the `_op`
+        try:
+            return getattr(es_op, "_" + param_name)
+        except AttributeError:
+            return getattr(es_op._op, "_" + param_name, None)
+
+    # We didn't get input through input_datasets
+    if input_value is None:
+        return get_param_from_pipe(input_name, name_es_map, param_name)
+
+    if getattr(input_value, param_name) is None:
+        return get_param_from_pipe(input_name, name_es_map, param_name)
+    else:
+        return getattr(input_value, param_name)
+
+
 if dataset_compatible_tensorflow():
     from tensorflow.python.framework import ops
     from tensorflow.python.data.ops import dataset_ops
@@ -314,6 +358,7 @@ if dataset_compatible_tensorflow():
                 self._input_datasets = ()
                 self._input_names = ()
                 self._input_layouts = ()
+                self._input_batched = ()
                 return
 
             self._assert_pipeline_instance()
@@ -323,6 +368,7 @@ if dataset_compatible_tensorflow():
             input_datasets_list = []
             input_names_list = []
             input_layouts_list = []
+            input_batched_list = []
 
             def _get_dataset(value):
                 if isinstance(value, dataset_ops.DatasetV2):
@@ -368,11 +414,19 @@ if dataset_compatible_tensorflow():
                 input_names_list.append(input_name)
                 input_datasets_list.append(_get_dataset(input_value))
 
-                # TODO(klecki): Do we want all Python-only ES parameters to be overridable here?
-                if is_dataset_only or input_value.layout is None:
-                    input_layouts_list.append(self._get_layout_from_pipeline(input_name, name_es_map))
+                if is_dataset_only:
+                    # Set the defaults used in lookup
+                    as_input = experimental.Input(input_value, layout=None, batch=False)
                 else:
-                    input_layouts_list.append(input_value.layout)
+                    as_input = input_value
+
+                # TODO(klecki): Do we want all Python-only ES parameters to be overridable here?
+                layout = _get_external_source_param(input_name, as_input, name_es_map, 'layout')
+                input_layouts_list.append(layout if layout is not None else "")
+
+                # Batched mode is supported by default
+                batched = _get_external_source_param(input_name, as_input, name_es_map, 'batch')
+                input_batched_list.append(batched if batched is not None else True)
 
             # We covered all inputs
             non_matched = set(name_es_map.keys()) - set(input_datasets.keys())
@@ -384,6 +438,8 @@ if dataset_compatible_tensorflow():
             self._input_datasets = tuple(input_datasets_list)
             self._input_names = tuple(input_names_list)
             self._input_layouts = tuple(input_layouts_list)
+            # Map it to integers
+            self._input_batched = tuple(1 if b else 0 for b in input_batched_list)
 
         def _assert_pipeline_instance(self):
             """Ensure that the pipeline is built, and check if the Python part is available.
@@ -473,6 +529,7 @@ if dataset_compatible_tensorflow():
                 # Description of inputs
                 input_names=self._input_names,
                 input_layouts=self._input_layouts,
+                input_batched=self._input_batched,
                 # End of experimental inputs
                 pipeline=self._pipeline_serialized,
                 batch_size=self._batch_size,
@@ -519,22 +576,26 @@ if dataset_compatible_tensorflow():
         _insert_experimental_member(DALIDatasetWithInputs, "DALIDatasetWithInputs")
 
         class Input:
-            """Wrapper for input passed to DALIDataset. Allows to pass additional options.
+            """Wrapper for input passed to DALIDataset. Allows to pass additional options that
+            can override some of the ones provided to the External Source node in the
+            Python Pipeline object.
 
             Parameters
             ----------
             dataset : tf.data.Dataset
                 The dataset used as input
             layout : str, optional, default = None
-                Layout of given input. If None, the layout will be taken from the
-                Python Pipeline object. If it is not provided there, empty layout will be used.
+                Layout of given input. If None, the layout will be taken from the corresponding
+                External Source node in the Python Pipeline object. If it is not provided there,
+                empty layout will be used.
+            batch: bool, optional, default = None
+                Batch mode of given input. If None, the batch mode will be taken from the
+                corresponding External Source node in the Python Pipeline object.
 
-                .. warning::
-                    Layout is not preserved by pipeline serialization and deserialization.
-                    If you are using deserialized pipeline and want to specify layout,
-                    you need to do it here.
+                If the ``batch = False``, the input dataset is considered sample input.
+                If the ``batch = True``, the input dataset is expected to return batches.
             """
-            def __init__(self, dataset, *, layout=None):
+            def __init__(self, dataset, *, layout=None, batch=False):
                 if not isinstance(dataset, dataset_ops.DatasetV2):
                     raise TypeError(
                         ("The inputs specified to DALIDataset must be instances of "
@@ -542,6 +603,7 @@ if dataset_compatible_tensorflow():
                              dataset, type(dataset)))
                 self.dataset = dataset
                 self.layout = layout
+                self.batch = batch
 
         _insert_experimental_member(Input, "Input")
 
