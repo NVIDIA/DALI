@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@ from test_utils import get_dali_extra_path
 
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-from nvidia.dali.backend_impl import TensorListGPU
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
-import re
+import numpy as np
 import tempfile
+import math
 
 from nose.tools import assert_raises, raises
 
@@ -35,7 +35,7 @@ PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + '/' + f for f in PLENTY_VIDEO_FIL
 FILE_LIST = "/tmp/file_list.txt"
 MUTLIPLE_RESOLUTION_ROOT = '/tmp/video_resolution/'
 
-test_data_root = os.environ['DALI_EXTRA_PATH']
+test_data_root = get_dali_extra_path()
 video_data_root = os.path.join(test_data_root, 'db', 'video')
 corrupted_video_data_root = os.path.join(video_data_root, 'corrupted')
 video_containers_data_root = os.path.join(test_data_root, 'db', 'video', 'containers')
@@ -273,3 +273,95 @@ def check_container(cont):
 def test_container():
     for cont in video_types:
         yield check_container, cont
+
+def test_pad_sequence():
+    def get_epoch_size(pipe):
+        meta = pipe.reader_meta()
+        return list(meta.values())[0]['epoch_size']
+
+    @pipeline_def(batch_size=1, num_threads=4, device_id=0)
+    def create_video_pipe(filenames, sequence_length=1, stride=1, step=-1, pad_sequences=False):
+        fr, lab, fr_num, time_stamp = fn.readers.video(device="gpu", filenames=filenames, labels=[],
+                                                       sequence_length=sequence_length,
+                                                       shard_id=0, num_shards=1, enable_timestamps=True,
+                                                       enable_frame_num=True, random_shuffle=False,
+                                                       skip_vfr_check=True, step=step, stride=stride,
+                                                       pad_last_batch=True, pad_sequences=pad_sequences)
+        return fr, lab, fr_num, time_stamp
+
+    video_filename = [os.path.join(video_data_root, 'sintel', 'video_files', 'sintel_trailer-720p_2.mp4')]
+    dali_pipe = create_video_pipe(video_filename)
+    dali_pipe.build()
+    total_number_of_frames = get_epoch_size(dali_pipe)
+
+    sequence_length = 4
+    stride = sequence_length//2
+    batch_size = 2
+    # second sequence should have only half of the frames
+    step = total_number_of_frames - (stride * sequence_length//2 - 1)
+    dali_pipe = create_video_pipe(batch_size=batch_size, filenames=video_filename, sequence_length=sequence_length,
+                                  stride=stride, step=step, pad_sequences=True)
+    dali_pipe.build()
+    assert get_epoch_size(dali_pipe)== 2
+
+    last_sample_frame_count = 1 + (total_number_of_frames - 1 - step) // stride
+    assert last_sample_frame_count < sequence_length
+
+    out = dali_pipe.run()
+    padded_sampl = 1
+    # check padded sample
+    # non padded frames should not be 0
+    assert np.any(np.array(out[0].as_cpu()[padded_sampl])[0:last_sample_frame_count]) != 0
+    # while padded one only 0
+    assert np.all(np.array(out[0].as_cpu()[padded_sampl])[last_sample_frame_count + 1:]) == 0
+    assert np.array(out[2].as_cpu()[padded_sampl]) == step
+    # non padded samples should have non negative timestamps
+    assert np.all(np.array(out[3].as_cpu()[padded_sampl])[0:last_sample_frame_count] != np.array([-1] * last_sample_frame_count))
+    # while padded one only -1
+    assert np.all(np.array(out[3].as_cpu()[padded_sampl])[last_sample_frame_count + 1:] == np.array([-1] * (sequence_length - last_sample_frame_count)))
+
+    dali_pipe = create_video_pipe(batch_size=2, filenames=video_filename, sequence_length=sequence_length,
+                                  stride=stride, step=step, pad_sequences=False)
+    dali_pipe.build()
+    # when sequence padding if off we should get only one valid sample in the epoch
+    assert get_epoch_size(dali_pipe) == 1
+
+    def divisor_generator(n, max_val):
+        for i in range(max_val + 1, 1, -1):
+            if n % i == 0:
+                return i
+
+    dali_pipe = create_video_pipe(batch_size=1, filenames=video_filename, sequence_length=1,
+                                  stride=1, pad_sequences=False)
+    dali_pipe.build()
+
+    # to speed things up read as close as 30 frames at the time, but in the way that the sequences
+    # cover the whole video (without padding)
+    ref_sequence_length = divisor_generator(get_epoch_size(dali_pipe), 30)
+
+    # extract frames from the test video without padding and compare with one from padded pipeline
+    dali_pipe = create_video_pipe(batch_size=1, filenames=video_filename, sequence_length=ref_sequence_length,
+                                  stride=1, pad_sequences=False)
+    dali_pipe.build()
+    ts_index = 0
+    sampl_idx = 0
+    for _ in range(get_epoch_size(dali_pipe)):
+        ref_out = dali_pipe.run()
+        # run over all frame timestamps and compare them with one from the tested pipeline
+        for ref_idx in range(ref_sequence_length):
+            # if we get into padded samples break
+            if np.array(out[3].as_cpu()[sampl_idx])[ts_index] == -1:
+                break
+            # if there is a match compare frames itself and move to next timestamp/sample from the tested batch
+            if np.array(out[3].as_cpu()[sampl_idx])[ts_index] == np.array(ref_out[3].as_cpu()[0])[ref_idx]:
+                assert np.all(np.array(out[0].as_cpu()[sampl_idx])[ts_index] == np.array(ref_out[0].as_cpu()[0])[ref_idx])
+                ts_index += 1
+                if ts_index == sequence_length:
+                    ts_index = 0
+                    sampl_idx += 1
+                # it should break earlier and not get here at all, as we expect to have padded sample in the tested pipeline
+                if sampl_idx == batch_size:
+                    assert False
+
+    assert sampl_idx == padded_sampl
+    assert ts_index == last_sample_frame_count

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -139,6 +139,7 @@ struct sequence_meta {
   int label;
   int height;
   int width;
+  int length;
 };
 
 
@@ -163,6 +164,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       codec_id_(0),
       skip_vfr_check_(spec.GetArgument<bool>("skip_vfr_check")),
       file_list_frame_num_(spec.GetArgument<bool>("file_list_frame_num")),
+      pad_sequences_(spec.GetArgument<bool>("pad_sequences")),
       stats_({0, 0, 0, 0, 0}),
       current_frame_idx_(-1),
       stop_(false) {
@@ -264,9 +266,19 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
         }
       }
 
-      for (int s = start_frame; s < end_frame && s + total_count <= end_frame; s += step_) {
+      int s;
+      for (s = start_frame; s < end_frame && s + total_count <= end_frame; s += step_) {
         frame_starts_.emplace_back(sequence_meta{i, s, file_info_[i].label,
-                                   codecpar(stream)->height, codecpar(stream)->width});
+                                   codecpar(stream)->height, codecpar(stream)->width,
+                                   count_});
+      }
+      if (pad_sequences_ && s < end_frame) {
+        for (; s < end_frame; s += step_) {
+          int fcount = 1 + (end_frame - 1 - s) / stride_;
+          frame_starts_.emplace_back(sequence_meta{i, s, file_info_[i].label,
+                                     codecpar(stream)->height, codecpar(stream)->width,
+                                     fcount});
+        }
       }
     }
     DALI_ENFORCE(!frame_starts_.empty(), "There are no valid sequences in the provided "
@@ -328,6 +340,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   int codec_id_;
   bool skip_vfr_check_;
   bool file_list_frame_num_;
+  bool pad_sequences_;
   VideoLoaderStats stats_;
 
   std::unordered_map<std::string, VideoFile> open_files_;

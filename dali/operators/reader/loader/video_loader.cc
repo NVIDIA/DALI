@@ -733,11 +733,11 @@ void VideoLoader::PrepareEmpty(SequenceWrapper &tensor) {}
 void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     // TODO(spanev) remove the async between the 2 following methods?
     auto& seq_meta = frame_starts_[current_frame_idx_];
-    tensor.initialize(count_, seq_meta.height, seq_meta.width, channels_, dtype_);
+    tensor.initialize(seq_meta.length, count_, seq_meta.height, seq_meta.width, channels_, dtype_);
 
     tensor.read_sample_f = [this,
                             file_name = file_info_[seq_meta.filename_idx].video_file,
-                            index = seq_meta.frame_idx, count = count_, &tensor] () {
+                            index = seq_meta.frame_idx, count = seq_meta.length, &tensor] () {
       push_sequence_to_read(file_name, index, count);
       receive_frames(tensor);
     };
