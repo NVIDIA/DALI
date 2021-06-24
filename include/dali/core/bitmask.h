@@ -31,17 +31,25 @@ class bitmask {
   static constexpr const int storage_bits = sizeof(bit_storage_t) * 8;
   static constexpr const int storage_bits_log = ilog2(storage_bits);
 
+  static constexpr int bit_idx(ptrdiff_t idx) {
+    return idx & (storage_bits - 1);
+  }
+
+  static constexpr int word_idx(ptrdiff_t idx) {
+    return idx >> storage_bits_log;
+  }
+
   /**
    * @brief Find the first bit with given value, starting at start
    *
-   * @return The index of the first bit found of the size of the bit mask if not found.
+   * @return The index of the first bit found or the size of the bit mask if not found.
    */
   ptrdiff_t find(bool value, ptrdiff_t start = 0) const {
     assert(start >= 0);
     if (start >= size_)
       return size_;
-    auto index = start >> storage_bits_log;
-    int bit = start & (storage_bits - 1);
+    auto index = word_idx(start);
+    int bit = bit_idx(start);
     bit_storage_t flip = 0;
     if (!value)
       flip = ~flip;
@@ -72,16 +80,16 @@ class bitmask {
   void fill(ptrdiff_t start, ptrdiff_t end, bool value) {
     if (start >= end)
       return;
-    ptrdiff_t start_idx = start >> storage_bits_log;
-    ptrdiff_t end_idx = end >> storage_bits_log;
+    ptrdiff_t start_idx = word_idx(start);
+    ptrdiff_t end_idx = word_idx(end);
     bit_storage_t ones = ~bit_storage_t(0);
     bit_storage_t start_mask = ones;
     bit_storage_t end_mask = 0;
-    if (start & (storage_bits - 1)) {
-        start_mask <<= (start & (storage_bits - 1));
+    if (bit_idx(start)) {
+        start_mask <<= bit_idx(start);
     }
-    if (end & (storage_bits - 1)) {
-        end_mask = ones >> (storage_bits - (end & (storage_bits - 1)));
+    if (bit_idx(end)) {
+        end_mask = ones >> (storage_bits - bit_idx(end));
     }
     if (start_idx == end_idx) {
         start_mask &= end_mask;
@@ -126,14 +134,30 @@ class bitmask {
         *storage &= ~mask;
       return *this;
     }
+    bitref &operator|=(bool value) {
+      if (value)
+        *storage |= mask;
+      return *this;
+    }
+    bitref &operator&=(bool value) {
+      if (!value)
+        *storage &= ~mask;
+      return *this;
+    }
+    bitref &operator^=(bool value) {
+      if (value)
+        *storage ^= mask;
+      return *this;
+    }
     constexpr operator bool() const {
       return *storage & mask;
     }
+
    private:
     friend class bitmask;
     constexpr bitref(bit_storage_t *array, ptrdiff_t index)
-    : storage(&array[index >> storage_bits_log])
-    , mask(bit_storage_t(1) << (index & (storage_bits - 1))) {}
+    : storage(&array[word_idx(index)])
+    , mask(bit_storage_t(1) << bit_idx(index)) {}
 
     bit_storage_t *storage;
     bit_storage_t mask;
@@ -154,7 +178,7 @@ class bitmask {
   void pop_back() {
     assert(!empty());
     (*this)[--size_] = 0;
-    if ((size_ & (storage_bits - 1)) == 0)
+    if (bit_idx(size_) == 0)
       storage_.pop_back();
   }
 
@@ -177,12 +201,12 @@ class bitmask {
     storage_.resize((new_size + storage_bits - 1) >> storage_bits_log, fill);
     if (storage_.size() == prev_words && new_size > size()) {
       if (value) {
-        storage_.back() |= ones << (size_ & (storage_bits - 1));
+        storage_.back() |= ones << bit_idx(size_);
       }
     }
-    if (new_size & (storage_bits - 1)) {
+    if (bit_idx(new_size)) {
       bit_storage_t mask = ones;
-      mask = (mask << (new_size & (storage_bits - 1)));  // remove leading ones
+      mask = (mask << bit_idx(new_size));  // remove leading ones
       mask = ~mask;  // flip values to keep only the leading ones
       storage_.back() &= mask;
     }
@@ -214,8 +238,8 @@ class bitmask {
   }
 
   bool operator[](const ptrdiff_t index) const {
-    bit_storage_t storage = storage_[index >> storage_bits_log];
-    bit_storage_t mask = bit_storage_t(1) << (index & (storage_bits - 1));
+    bit_storage_t storage = storage_[word_idx(index)];
+    bit_storage_t mask = bit_storage_t(1) << bit_idx(index);
     return storage & mask;
   }
 
