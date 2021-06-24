@@ -112,7 +112,7 @@ TEST(Bitmask, Find) {
   std::mt19937_64 rng(12345);
   std::bernoulli_distribution what;
   std::uniform_int_distribution<> len_dist(1, 200);
-  for (int i = 0; i < 2; i++) {
+  for (int i = 0; i < 200; i++) {
     int rep = len_dist(rng);
     bool value = what(rng);
     for (int j = 0; j < rep; j++) {
