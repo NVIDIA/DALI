@@ -15,9 +15,9 @@
 #ifndef DALI_CORE_BITMASK_H_
 #define DALI_CORE_BITMASK_H_
 
-#include <vector>
 #include <cassert>
 #include "dali/core/util.h"
+#include "dali/core/small_vector.h"
 
 namespace dali {
 
@@ -221,7 +221,7 @@ class bitmask {
 
  private:
   // vector of bit storage words - the bits that are outside of the mask are 0
-  std::vector<bit_storage_t> storage_;
+  SmallVector<bit_storage_t, 1> storage_;
   // number of bits in the mask
   ptrdiff_t size_ = 0;
 };
