@@ -53,7 +53,29 @@ TEST(Bitmask, Indexing) {
   EXPECT_TRUE(mask[1]);
   EXPECT_FALSE(mask[2]);
   EXPECT_TRUE(mask[3]);
+
   EXPECT_TRUE(mask[99]);
+  mask[99] ^= false;
+  EXPECT_TRUE(mask[99]);
+  mask[99] ^= true;
+  EXPECT_FALSE(mask[99]);
+  mask[99] ^= false;
+  EXPECT_FALSE(mask[99]);
+
+  mask[99] |= false;
+  EXPECT_FALSE(mask[99]);
+  mask[99] |= true;
+  EXPECT_TRUE(mask[99]);
+  mask[99] |= false;
+  EXPECT_TRUE(mask[99]);
+
+  mask[99] &= true;
+  EXPECT_TRUE(mask[99]);
+  mask[99] &= false;
+  EXPECT_FALSE(mask[99]);
+  mask[99] &= true;
+  EXPECT_FALSE(mask[99]);
+
   EXPECT_EQ(mask.data()[0], bitmask::bit_storage_t(0b1010));
 }
 
