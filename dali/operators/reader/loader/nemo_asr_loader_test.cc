@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,16 +41,19 @@ TEST(NemoAsrLoaderTest, ParseManifest) {
   EXPECT_NEAR(1.45, entries[0].duration, 1e-7);
   EXPECT_NEAR(0.0, entries[0].offset, 1e-7);
   EXPECT_EQ("     A ab B C D   ", entries[0].text);
+  EXPECT_EQ(0, entries[0].index);
 
   EXPECT_EQ("path/to/audio2.wav", entries[1].audio_filepath);
   EXPECT_NEAR(2.45, entries[1].duration, 1e-7);
   EXPECT_NEAR(1.03, entries[1].offset, 1e-7);
   EXPECT_EQ("C DA B", entries[1].text);
+  EXPECT_EQ(1, entries[1].index);
 
   EXPECT_EQ("path/to/audio3.wav", entries[2].audio_filepath);
   EXPECT_NEAR(3.45, entries[2].duration, 1e-7);
   EXPECT_NEAR(0.0, entries[2].offset, 1e-7);
   EXPECT_EQ("", entries[2].text);
+  EXPECT_EQ(2, entries[2].index);
 
   entries.clear();
   ss.clear();
@@ -67,6 +70,8 @@ TEST(NemoAsrLoaderTest, ParseManifest) {
   ASSERT_EQ(2, entries.size());
   EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
   EXPECT_EQ("path/to/audio2.wav", entries[1].audio_filepath);
+  EXPECT_EQ(0, entries[0].index);
+  EXPECT_EQ(1, entries[1].index);
 
   entries.clear();
   ss.clear();
@@ -74,6 +79,7 @@ TEST(NemoAsrLoaderTest, ParseManifest) {
   detail::ParseManifest(entries, ss, 0.0, 2.44999f);
   ASSERT_EQ(1, entries.size());
   EXPECT_EQ("path/to/audio1.wav", entries[0].audio_filepath);
+  EXPECT_EQ(0, entries[0].index);
 }
 
 TEST(NemoAsrLoaderTest, ParseNonAsciiTransript) {
@@ -215,6 +221,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     loader.ReadSample(sample);
     sample_audio.Resize(sample.shape());
     sample.decode_audio(sample_audio, 0);
+    ASSERT_EQ(sample.index(), 0);
     TensorView<StorageCPU, int16_t> ref(ref_data.data(), {ref_samples, 2});
     Check(ref, view<const int16_t>(sample_audio));
   }
@@ -242,6 +249,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     loader.ReadSample(sample);
     sample_audio.Resize(sample.shape());
     sample.decode_audio(sample_audio, 0);
+    ASSERT_EQ(sample.index(), 0);
     TensorView<StorageCPU, float> ref(downmixed.data(), {ref_samples});
     Check(ref, view<const float>(sample_audio), EqualEpsRel(1e-5, 1e-5));
   }
@@ -388,4 +396,3 @@ TEST(NemoAsrLoaderTest, ReadSample_OffsetAndDuration) {
 
 
 }  // namespace dali
-
