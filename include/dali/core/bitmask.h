@@ -80,6 +80,8 @@ class bitmask {
   void fill(ptrdiff_t start, ptrdiff_t end, bool value) {
     if (start >= end)
       return;
+    assert(start >= 0 && start <= ssize());
+    assert(end   >= 0 && end   <= ssize());
     ptrdiff_t start_idx = word_idx(start);
     ptrdiff_t end_idx = word_idx(end);
     bit_storage_t ones = ~bit_storage_t(0);
