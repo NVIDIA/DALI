@@ -24,7 +24,7 @@ namespace dali {
 /**
  * @brief A vector of bits with a utility for quickly searching for set/cleared bits.
  */
-struct bitmask {
+class bitmask {
  public:
   using bit_storage_t = uint64_t;
 
