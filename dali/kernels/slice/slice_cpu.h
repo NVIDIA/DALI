@@ -296,7 +296,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
                  int req_nblocks = -1) {
   // Parallelize
   std::array<int, Dims> split_factor;
-  uint64_t skip_dim_mask = (1 << args.channel_dim);
+  uint64_t skip_dim_mask = args.channel_dim >= 0 ? (1 << args.channel_dim) : 0;
   int nblocks = split_shape(split_factor, out_shape,
                             req_nblocks > 0 ? req_nblocks : exec_engine.NumThreads() * 8,
                             min_blk_sz, skip_dim_mask);
