@@ -29,48 +29,70 @@ def test_tf_dataset_cpu():
     run_tf_dataset_graph('cpu')
 
 
-def run_tf_dataset_with_constant_input(dev, shape, value, dtype):
+def run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch):
     tensor = np.full(shape, value, dtype)
     run_tf_dataset_graph(dev,
-        get_pipeline_desc=external_source_tester(shape, dtype, FixedSampleIterator(tensor)),
-        to_dataset=external_source_converter_with_fixed_value(shape, dtype, tensor))
+        get_pipeline_desc=external_source_tester(shape, dtype, FixedSampleIterator(tensor), batch=batch),
+        to_dataset=external_source_converter_with_fixed_value(shape, dtype, tensor, batch))
 
 def test_tf_dataset_with_constant_input():
     for dev in ['cpu', 'gpu']:
         for shape in [(7, 42), (64, 64, 3), (3, 40, 40, 4)]:
             for dtype in [np.uint8, np.int32, np.float32]:
-                value = random.choice([42, 255])
-                yield run_tf_dataset_with_constant_input, dev, shape, value, dtype
+                for batch in ["dataset", True, False, None]:
+                    value = random.choice([42, 255])
+                    yield run_tf_dataset_with_constant_input, dev, shape, value, dtype, batch
 
 
-def run_tf_dataset_with_random_input(dev, max_shape, dtype):
+def run_tf_dataset_with_random_input(dev, max_shape, dtype, batch):
+    min_shape = get_min_shape_helper(batch, max_shape)
     run_tf_dataset_graph(
         dev,
-        get_pipeline_desc=external_source_tester(max_shape, dtype,
-                                                 RandomSampleIterator(max_shape, dtype(0))),
-        to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype))
+        get_pipeline_desc=external_source_tester(max_shape,
+                                                 dtype,
+                                                 RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape),
+                                                 batch=batch),
+        to_dataset=external_source_converter_with_callback(RandomSampleIterator,
+                                                           max_shape,
+                                                           dtype,
+                                                           0,
+                                                           1e10,
+                                                           min_shape,
+                                                           batch=batch))
 
 
 def test_tf_dataset_with_random_input():
     for dev in ['cpu', 'gpu']:
         for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
             for dtype in [np.uint8, np.int32, np.float32]:
-                yield run_tf_dataset_with_random_input, dev, max_shape, dtype
+                for batch in ["dataset", True, False, None]:
+                    yield run_tf_dataset_with_random_input, dev, max_shape, dtype, batch
 
 
 # Run with everything on GPU (External Source op as well)
-def run_tf_dataset_with_random_input_gpu(max_shape, dtype):
+def run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch):
+    min_shape = get_min_shape_helper(batch, max_shape)
     run_tf_dataset_graph(
         "gpu",
-        get_pipeline_desc=external_source_tester(max_shape, dtype,
-                                                 RandomSampleIterator(max_shape, dtype(0)), "gpu"),
-        to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype))
+        get_pipeline_desc=external_source_tester(max_shape,
+                                                 dtype,
+                                                 RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape),
+                                                 "gpu",
+                                                 batch=batch),
+        to_dataset=external_source_converter_with_callback(RandomSampleIterator,
+                                                           max_shape,
+                                                           dtype,
+                                                           0,
+                                                           1e10,
+                                                           min_shape,
+                                                           batch=batch))
 
 
 def test_tf_dataset_with_random_input_gpu():
     for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
         for dtype in [np.uint8, np.int32, np.float32]:
-            yield run_tf_dataset_with_random_input_gpu, max_shape, dtype
+            for batch in ["dataset", True, False, None]:
+                yield run_tf_dataset_with_random_input_gpu, max_shape, dtype, batch
 
 
 def run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy):

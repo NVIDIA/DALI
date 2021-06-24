@@ -26,6 +26,13 @@ import numpy as np
 
 from nose.tools import nottest
 
+def get_min_shape_helper(batch, max_shape):
+    if batch is None or batch == True:
+        # Make the shape fixed for batched mode
+        return max_shape
+    else:
+        return None
+
 class RandomSampleIterator:
     def __init__(self,
                  max_shape=(10, 600, 800, 3),
@@ -81,7 +88,7 @@ class InfiniteSampleIterator:
         return result
 
 @pipeline_def
-def one_input_pipeline(def_for_dataset, device, source, external_source_device, no_copy):
+def one_input_pipeline(def_for_dataset, device, source, external_source_device, no_copy, batch):
     """Pipeline accepting single input via external source
 
     Parameters
@@ -95,6 +102,7 @@ def one_input_pipeline(def_for_dataset, device, source, external_source_device, 
     external_source_device : str
         Device that we want the external source in TF dataset to be placed
     """
+
     if def_for_dataset:
         if no_copy is None:
             # If no_copy is None, we infer it automatically and we use no_copy=True when
@@ -102,9 +110,13 @@ def one_input_pipeline(def_for_dataset, device, source, external_source_device, 
             # so the Dataset's placement is the same as external source's device,
             # otherwise for cross-backend we use False.
             no_copy=(device == external_source_device)
+        if batch == "dataset":
+            # Special value used in tests, reroute it to the default
+            no_copy = None
         input = fn.external_source(name="input_placeholder",
-                                   no_copy=(device == external_source_device),
-                                   device=external_source_device)
+                                   no_copy=no_copy,
+                                   device=external_source_device,
+                                   batch=batch)
     else:
         input = fn.external_source(name="actual_input",
                                    source=source,
@@ -117,20 +129,28 @@ def one_input_pipeline(def_for_dataset, device, source, external_source_device, 
 
 
 # Test that uses Tensor and Repeat (infinite) datasets as inputs to DALI pipeline
-def external_source_converter_with_fixed_value(shape, dtype, tensor):
+def external_source_converter_with_fixed_value(shape, dtype, tensor, batch="dataset"):
     def to_dataset(pipeline_desc, device_str):
+        dataset_pipeline, shapes, dtypes = pipeline_desc
+
         with tf.device('/cpu:0'):
             input_dataset = tf.data.Dataset.from_tensors(tensor).repeat()
+            if batch is None or batch == True:
+                input_dataset = input_dataset.batch(dataset_pipeline.max_batch_size)
             # If we place DALIDataset on GPU we need the remote call + manual data transfer
             if "gpu" in device_str:
                 input_dataset = input_dataset.apply(tf.data.experimental.copy_to_device('/gpu:0'))
 
-
-        dataset_pipeline, shapes, dtypes = pipeline_desc
+        if batch == "dataset":
+            input_datasets = { "input_placeholder": input_dataset }
+        else:
+            input_datasets = {
+                "input_placeholder": dali_tf.experimental.Input(input_dataset, batch=batch)
+            }
 
         with tf.device(device_str):
             dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
-                    input_datasets={"input_placeholder": input_dataset},
+                    input_datasets=input_datasets,
                     pipeline=dataset_pipeline,
                     batch_size=dataset_pipeline.max_batch_size,
                     output_shapes=shapes,
@@ -141,23 +161,36 @@ def external_source_converter_with_fixed_value(shape, dtype, tensor):
     return to_dataset
 
 # Test that uses Generator dataset as inputs to DALI pipeline
-def external_source_converter_with_callback(input_iterator, shape, dtype, *args):
+def external_source_converter_with_callback(
+        input_iterator, shape, dtype, start_samples=0, stop_samples=1e10, min_shape=None,
+        batch="dataset"):
     def to_dataset(pipeline_desc, device_str):
+        dataset_pipeline, shapes, dtypes = pipeline_desc
+
         with tf.device('/cpu:0'):
-            _args = (shape, dtype(0)) + tuple(args)
+            _args = (shape, dtype(0), start_samples, stop_samples)
+            # Add min_shape if it's not None
+            _args = _args + ((min_shape,) if min_shape is not None else ())
             out_shape = tuple(None for _ in shape)
             tf_type = tf.dtypes.as_dtype(dtype)
             input_dataset = tf.data.Dataset.from_generator(
                 input_iterator, output_types=tf_type, output_shapes=out_shape, args=_args)
+            if batch is None or batch == True:
+                input_dataset = input_dataset.batch(dataset_pipeline.max_batch_size)
             # If we place DALIDataset on GPU we need the remote call + manual data transfer
             if "gpu" in device_str:
                 input_dataset = input_dataset.apply(tf.data.experimental.copy_to_device('/gpu:0'))
 
-        dataset_pipeline, shapes, dtypes = pipeline_desc
+        if batch == "dataset":
+            input_datasets = { "input_placeholder": input_dataset }
+        else:
+            input_datasets = {
+                "input_placeholder": dali_tf.experimental.Input(input_dataset, batch=batch)
+            }
 
         with tf.device(device_str):
             dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
-                    input_datasets={"input_placeholder": input_dataset},
+                    input_datasets=input_datasets,
                     pipeline=dataset_pipeline,
                     batch_size=dataset_pipeline.max_batch_size,
                     output_shapes=shapes,
@@ -168,7 +201,7 @@ def external_source_converter_with_callback(input_iterator, shape, dtype, *args)
     return to_dataset
 
 @nottest
-def external_source_tester(shape, dtype, source=None, external_source_device="cpu", no_copy=None):
+def external_source_tester(shape, dtype, source=None, external_source_device="cpu", no_copy=None, batch=False):
     def get_external_source_pipeline_getter(batch_size, num_threads, device, device_id=0,
         shard_id=0, num_shards=1, def_for_dataset=False):
 
@@ -179,7 +212,8 @@ def external_source_tester(shape, dtype, source=None, external_source_device="cp
                                   batch_size=batch_size,
                                   num_threads=num_threads,
                                   device_id=device_id,
-                                  no_copy=no_copy)
+                                  no_copy=no_copy,
+                                  batch=batch)
 
         batch_shape = (batch_size,) + tuple(None for _ in shape)
 

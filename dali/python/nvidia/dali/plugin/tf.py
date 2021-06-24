@@ -578,7 +578,8 @@ if dataset_compatible_tensorflow():
         class Input:
             """Wrapper for input passed to DALIDataset. Allows to pass additional options that
             can override some of the ones provided to the External Source node in the
-            Python Pipeline object.
+            Python Pipeline object. Passing None indicates, that the value should be looked up
+            in the Pipeline defintion.
 
             Parameters
             ----------
@@ -588,11 +589,12 @@ if dataset_compatible_tensorflow():
                 Layout of given input. If None, the layout will be taken from the corresponding
                 External Source node in the Python Pipeline object. If it is not provided there,
                 empty layout will be used.
-            batch: bool, optional, default = None
+            batch: bool, optional, default = False
                 Batch mode of given input. If None, the batch mode will be taken from the
                 corresponding External Source node in the Python Pipeline object.
 
                 If the ``batch = False``, the input dataset is considered sample input.
+
                 If the ``batch = True``, the input dataset is expected to return batches.
             """
             def __init__(self, dataset, *, layout=None, batch=False):

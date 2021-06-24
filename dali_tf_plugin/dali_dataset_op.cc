@@ -737,6 +737,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         flag = DALI_ext_force_copy;
       }
 
+      // TODO(klecki): Consider using other stream here: Dataset's stream_ or stream 0.
       if (batched) {
         TF_DALI_CALL(daliSetExternalInput(pipeline_handle, input_name.c_str(), input_device,
                                           ptrs[0], dtype, shapes.data(), ndim, input_layout.c_str(),
