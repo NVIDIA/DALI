@@ -109,10 +109,10 @@ def one_input_pipeline(def_for_dataset, device, source, external_source_device, 
             # the input memory is matching the external source placement,
             # so the Dataset's placement is the same as external source's device,
             # otherwise for cross-backend we use False.
-            no_copy=(device == external_source_device)
+            no_copy = (device == external_source_device)
         if batch == "dataset":
             # Special value used in tests, reroute it to the default
-            no_copy = None
+            batch = None
         input = fn.external_source(name="input_placeholder",
                                    no_copy=no_copy,
                                    device=external_source_device,
@@ -222,7 +222,7 @@ def external_source_tester(shape, dtype, source=None, external_source_device="cp
 
 
 @pipeline_def
-def many_input_pipeline(def_for_dataset, device, sources, input_names):
+def many_input_pipeline(def_for_dataset, device, sources, input_names, batches):
     """ Pipeline accepting multiple inputs via external source
 
     Parameters
@@ -238,8 +238,11 @@ def many_input_pipeline(def_for_dataset, device, sources, input_names):
     """
     inputs = []
     if def_for_dataset:
-        for input_name in input_names:
-            input = fn.external_source(name=input_name)
+        for input_name, batch in zip(input_names, batches):
+            if batch == "dataset":
+                # Special value used in tests, reroute it to the default
+                batch = None
+            input = fn.external_source(name=input_name, batch=batch)
             input = input if device == 'cpu' else input.gpu()
             inputs.append(input)
     else:
@@ -255,21 +258,26 @@ def many_input_pipeline(def_for_dataset, device, sources, input_names):
 
 
 # Test that uses multiple Generator dataset as inputs to DALI pipeline
-def external_source_converter_multiple(start_values, input_names):
+def external_source_converter_multiple(start_values, input_names, batches):
     def to_dataset(pipeline_desc, device_str):
+        dataset_pipeline, shapes, dtypes = pipeline_desc
+
         input_datasets = {}
         with tf.device('/cpu:0'):
-            for value, name in zip(start_values, input_names):
+            for value, name, batch in zip(start_values, input_names, batches):
                 tf_type = tf.dtypes.as_dtype(value.dtype)
                 shape = value.shape
                 input_dataset = tf.data.Dataset.from_generator(
                     InfiniteSampleIterator, output_types=tf_type, output_shapes=shape, args=(value,))
+                if batch is None or batch == True:
+                    input_dataset = input_dataset.batch(dataset_pipeline.max_batch_size)
                 # If we place DALIDataset on GPU we need the remote call + manual data transfer
                 if "gpu" in device_str:
                     input_dataset = input_dataset.apply(tf.data.experimental.copy_to_device('/gpu:0'))
-                input_datasets[name] = input_dataset
-
-        dataset_pipeline, shapes, dtypes = pipeline_desc
+                if batch == "dataset":
+                    input_datasets[name] = input_dataset
+                else:
+                    input_datasets[name] = dali_tf.experimental.Input(input_dataset, batch=batch)
 
         with tf.device(device_str):
             dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
@@ -284,7 +292,7 @@ def external_source_converter_multiple(start_values, input_names):
     return to_dataset
 
 @nottest
-def external_source_tester_multiple(start_values, input_names):
+def external_source_tester_multiple(start_values, input_names, batches):
     def get_external_source_pipeline_getter(batch_size, num_threads, device, device_id=0,
         shard_id=0, num_shards=1, def_for_dataset=False):
 
@@ -302,7 +310,8 @@ def external_source_tester_multiple(start_values, input_names):
                                    input_names,
                                    batch_size=batch_size,
                                    num_threads=num_threads,
-                                   device_id=device_id)
+                                   device_id=device_id,
+                                   batches=batches)
 
         return pipe, output_shapes, output_dtypes
     return get_external_source_pipeline_getter

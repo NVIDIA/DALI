@@ -20,6 +20,7 @@ from test_utils_tensorflow import *
 from test_dali_tf_dataset_pipelines import *
 from nose.tools import raises, with_setup
 import random as random
+import itertools
 
 tf.compat.v1.enable_eager_execution()
 
@@ -139,10 +140,10 @@ def test_tf_dataset_with_stop_iter():
                 for iters in [1, 2, 3, 4, 5]:
                     yield run_tf_dataset_with_stop_iter, dev, max_shape, dtype, iters * batch_size - 3
 
-def run_tf_dataset_multi_input(dev, start_values, input_names):
+def run_tf_dataset_multi_input(dev, start_values, input_names, batches):
     run_tf_dataset_eager_mode(dev,
-        get_pipeline_desc=external_source_tester_multiple(start_values, input_names),
-        to_dataset=external_source_converter_multiple(start_values, input_names))
+        get_pipeline_desc=external_source_tester_multiple(start_values, input_names, batches),
+        to_dataset=external_source_converter_multiple(start_values, input_names, batches))
 
 
 start_values = [[np.full((2, 4), 42, dtype=np.int64),
@@ -160,7 +161,9 @@ input_names = [["input_{}".format(i) for i, _ in enumerate(vals)] for vals in st
 def test_tf_dataset_multi_input():
     for dev in ['cpu', 'gpu']:
         for starts, names in zip(start_values, input_names):
-            yield run_tf_dataset_multi_input, dev, starts, names
+            yield run_tf_dataset_multi_input, dev, starts, names, ["dataset" for _ in input_names]
+            for batches in list(itertools.product([True, False], repeat=len(input_names))):
+                yield run_tf_dataset_multi_input, dev, starts, names, batches
 
 
 @raises(Exception)
