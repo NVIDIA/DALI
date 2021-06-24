@@ -33,11 +33,6 @@ namespace kernels {
 
 namespace detail {
 
-template <typename T, typename Container>
-const T *GetPtr(const Container &c) {
-  return c.empty() ? nullptr : c.data();
-}
-
 template <bool NeedNormalize, typename OutputType, typename InputType>
 inline void Fill(OutputType &destination, InputType element,
                  const float *mean, const float *inv_stddev) {
@@ -265,9 +260,9 @@ void SliceFlipNormalizePermutePadKernel(
     exec_engine.AddWork([=](int) {
       SliceFlipNormalizePermutePadKernel(output, input, args.in_strides, args.out_strides,
                                          args.anchor, args.in_shape, args.out_shape,
-                                         detail::GetPtr<OutputType>(fill_values),
-                                         detail::GetPtr<float>(args.mean),
-                                         detail::GetPtr<float>(args.inv_stddev),
+                                         GetPtr<OutputType>(fill_values),
+                                         GetPtr<float>(args.mean),
+                                         GetPtr<float>(args.inv_stddev),
                                          args.channel_dim);
     }, volume(args.out_shape), false);
     return;
@@ -293,9 +288,9 @@ void SliceFlipNormalizePermutePadKernel(
       exec_engine.AddWork([=](int) {
         SliceFlipNormalizePermutePadKernel(output_ptr, input_ptr, args.in_strides, args.out_strides,
                                            blk_anchor, args.in_shape, blk_shape,
-                                           detail::GetPtr<OutputType>(fill_values),
-                                           detail::GetPtr<float>(args.mean),
-                                           detail::GetPtr<float>(args.inv_stddev),
+                                           GetPtr<OutputType>(fill_values),
+                                           GetPtr<float>(args.mean),
+                                           GetPtr<float>(args.inv_stddev),
                                            args.channel_dim);
       }, volume(blk_shape), false);
     });
@@ -307,13 +302,13 @@ void SliceFlipNormalizePermutePadKernel(
         OutputType *output, const InputType *input,
         const detail::SliceFlipNormalizePermutePadProcessedArgs<Dims> &args,
         const SmallVector<OutputType, 8> &fill_values,
-        int = -1, int = -1) {
+        int /* min_blk_sz */ = -1, int /* req_nblocks */ = -1) {
   (void)exec_engine;
   SliceFlipNormalizePermutePadKernel(output, input, args.in_strides, args.out_strides, args.anchor,
                                      args.in_shape, args.out_shape,
-                                     detail::GetPtr<OutputType>(fill_values),
-                                     detail::GetPtr<float>(args.mean),
-                                     detail::GetPtr<float>(args.inv_stddev),
+                                     GetPtr<OutputType>(fill_values),
+                                     GetPtr<float>(args.mean),
+                                     GetPtr<float>(args.inv_stddev),
                                      args.channel_dim);
 }
 
