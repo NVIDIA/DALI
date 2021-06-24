@@ -171,15 +171,28 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>
   size_t min_va_size = 0x100000000u;  // 4GiB
 
   struct va_region {
-    va_region(cuvm::CUMemAddressRange range, size_t block_size) : va(std::move(range)) {
+    va_region(cuvm::CUMemAddressRange range, size_t block_size)
+    : va(std::move(range)), block_size(block_size) {
       size_t size = range.size();
       size_t blocks_in_range = size / block_size;
-      mapped.resize(blocks_in_range);
-      used.resize(blocks_in_range);
+      mapping.resize(blocks_in_range);
+      mapped.resize(blocks_in_range, false);
+      used.resize(blocks_in_range, false);
+    }
+    ~va_region() {
+      CUdeviceptr ptr = va.ptr();
+      for (size_t i = 0; i < mapping.size(); i++, ptr += block_size)
+        if (h) {
+          CUDA_DTOR_CALL(cuMemUnmap(ptr, block_size));
+          CUDA_DTOR_CALL(cuMemRelease(h));
+          h = nullptr;
+        }
+      }
     }
     cuvm::CUMemAddressRange va;
-    vector<mem_handle_t>    mapped;
-    bitmask                 used;
+    size_t                  block_size;
+    vector<mem_handle_t>    mapping;
+    bitmask                 mapped, used;
   };
   SmallVector<va_region, 8> va_regions;
 
