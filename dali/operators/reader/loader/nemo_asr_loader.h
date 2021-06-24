@@ -39,8 +39,8 @@ struct NemoAsrEntry {
   std::string audio_filepath;
   double duration = kDefaultDuration;  // in seconds, optional
   double offset = 0.0;  // in seconds, optional
+  int64_t index = -1;
   std::string text;  // transcription
-  int64_t index;
 };
 
 class AsrSample {
@@ -93,6 +93,13 @@ class AsrSample {
 
 namespace detail {
 
+/**
+ * @brief Parses the contents of a manifest file and populates a vector of NemoAsrEntry
+ * @param min_duration Minimum audio duration, in seconds. Shorter samples will be filtered out.
+ * @param max_duration Maximum audio duration, in seconds. Longer samples will be filtered out.
+ * @param read_text If True, the parser will read the text transcript from the manifest.
+ *                  If False, the text field is ignored.
+ */
 DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream &manifest_file,
                               double min_duration = kDefaultDuration,
                               double max_duration = kDefaultDuration,

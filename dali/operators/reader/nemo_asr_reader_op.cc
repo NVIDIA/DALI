@@ -49,10 +49,10 @@ Example manifest file::
 
 This reader produces between 1 and 3 outputs:
 
-- Decoded audio data: float, shape=``(audio_length,)``
-- (optional, if ``read_sample_rate=True``) Audio sample rate: float, shape=``(1,)``
-- (optional, if ``read_text=True``) Transcript text as a null terminated string: uint8, shape=``(text_len + 1,)``
-- (optional, if ``read_idxs=True``) Index of the manifest entry: int64, shape=``(1,)``
+- Decoded audio data: float, ``shape=(audio_length,)``
+- (optional, if ``read_sample_rate=True``) Audio sample rate: float, ``shape=(1,)``
+- (optional, if ``read_text=True``) Transcript text as a null terminated string: uint8, ``shape=(text_len + 1,)``
+- (optional, if ``read_idxs=True``) Index of the manifest entry: int64, ``shape=(1,)``
 
 )code")
   .AddArg("manifest_filepaths",
@@ -65,7 +65,8 @@ This reader produces between 1 and 3 outputs:
     "Whether to output the transcript text for each sample as a separate output",
     true)
   .AddOptionalArg("read_idxs",
-    "Whether to output the indices of samples as they occur in the manifest file as a separate output",
+    R"code(Whether to output the indices of samples as they occur in the manifest file
+ as a separate output)code",
     false)
   .AddOptionalArg("shuffle_after_epoch",
     "If true, reader shuffles whole dataset after each epoch",

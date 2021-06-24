@@ -258,15 +258,16 @@ def test_nemo_asr_reader_pad_last_batch():
   # Trying to catch race conditions (A lot of samples in the batch to be replicated)
   yield _testimpl_nemo_asr_reader_pad_last_batch, 128
 
-def test_read_idxs(batch_size=10):
+def test_read_idxs(batch_size=10, reader_seed=12345):
   @pipeline_def(device_id=0, num_threads=4)
-  def nemo_asr_reader_read_idxs(reader_seed=12345):
+  def nemo_asr_reader_read_idxs(reader_seed=reader_seed):
     audio, idx = fn.readers.nemo_asr(manifest_filepaths=[nemo_asr_manifest], random_shuffle=True, seed=reader_seed,
                                      read_sample_rate=False, read_text=False, read_idxs=True)
     return audio, idx
-  pipe1 = nemo_asr_reader_read_idxs(batch_size=batch_size)
+  seed = 12345
+  pipe1 = nemo_asr_reader_read_idxs(batch_size=batch_size, reader_seed=seed)
   pipe1.build()
-  pipe2 = nemo_asr_reader_read_idxs(batch_size=batch_size)
+  pipe2 = nemo_asr_reader_read_idxs(batch_size=batch_size, reader_seed=seed)
   pipe2.build()
 
   total_samples = len(names)
