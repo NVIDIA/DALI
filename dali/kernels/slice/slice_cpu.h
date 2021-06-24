@@ -297,17 +297,10 @@ void SliceKernel(ExecutionEngine &exec_engine,
                  int min_blk_sz = 16000,
                  int req_nblocks = -1) {
   // Parallelize
-  if (req_nblocks < 0)
-    req_nblocks = exec_engine.NumThreads() * 8;
-
-  int nblocks = 1;
   std::array<int, Dims> split_factor;
-  if (req_nblocks > 1) {
-    split_factor.fill(1);
-    // Either ``req_nblocks`` blocks or fewer if remaining block sizes < min_blk_sz
-    split_shape(split_factor, out_shape, req_nblocks, min_blk_sz);
-    nblocks = volume(split_factor);
-  }
+  int nblocks = split_shape(split_factor, out_shape, min_blk_sz,
+                            req_nblocks > 0 ? exec_engine.NumThreads() * 8 : req_nblocks,
+                            channel_dim);
 
   if (nblocks == 1) {
     exec_engine.AddWork([=](int) {
@@ -317,12 +310,10 @@ void SliceKernel(ExecutionEngine &exec_engine,
     return;
   }
 
-  int last_split_dim = LastSplitDim(split_factor);
-  TensorShape<Dims> start;
+  TensorShape<Dims> start;  // zero-filled
   const auto& end = out_shape;
-
   ForEachBlock(
-    start, end, split_factor, 0, last_split_dim,
+    start, end, split_factor, 0, LastSplitDim(split_factor),
     [&](const TensorShape<Dims> &blk_start, const TensorShape<Dims> &blk_end) {
       auto output_ptr = output;
       TensorShape<Dims> blk_anchor;
@@ -355,11 +346,8 @@ void SliceKernel(SequentialExecutionEngine &exec_engine,
                  const TensorShape<Dims> &out_shape,
                  const OutputType *fill_values,
                  int channel_dim = -1,  // negative if no channel dim or already processed
-                 int min_blk_sz = 16000,
-                 int req_nblocks = -1) {
+                 int = -1, int = -1) {
   (void) exec_engine;
-  (void) min_blk_sz;
-  (void) req_nblocks;
   SliceKernel(output, input, in_strides, out_strides, anchor, in_shape, out_shape, fill_values,
               channel_dim);
 }
