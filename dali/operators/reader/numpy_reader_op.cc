@@ -22,7 +22,30 @@
 
 namespace dali {
 
-void NumpyReaderCPU::TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input) {
+static void CopyHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
+                       ThreadPool &thread_pool, int min_blk_sz, int req_nblocks) {
+  auto out_ptr = static_cast<uint8_t*>(output.raw_mutable_data());
+  auto in_ptr = static_cast<const uint8_t*>(input.raw_data());
+  auto nelements = volume(input.shape());
+  auto nbytes = input.nbytes();
+  if (nelements <= min_blk_sz) {
+    thread_pool.AddWork([=](int tid) {
+      std::memcpy(out_ptr, in_ptr, nbytes);
+    }, nelements);
+  } else {
+    int64_t prev_b_start = 0;
+    auto task_sz = nelements / req_nblocks;
+    for (int b = 0; b < req_nblocks; b++) {
+      int64_t b_start = prev_b_start;
+      int64_t b_end = prev_b_start = nbytes * (b + 1) / req_nblocks;
+      thread_pool.AddWork([=](int tid) {
+        std::memcpy(out_ptr + b_start, in_ptr + b_start, (b_end - b_start));
+      }, task_sz);
+    }
+  }
+}
+
+static void TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input) {
   int n_dims = input.shape().sample_dim();
   SmallVector<int, 6> perm;
   perm.resize(n_dims);
@@ -33,8 +56,9 @@ void NumpyReaderCPU::TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CP
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
 }
 
-void NumpyReaderCPU::SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
-                                 const CropWindow &roi, float fill_value) {
+static void SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
+                        const CropWindow &roi, float fill_value, ThreadPool &thread_pool,
+                        int min_blk_sz, int req_nblocks) {
   int ndim = input.shape().sample_dim();
   VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
     TYPE_SWITCH(input.type().id(), type2id, T, NUMPY_ALLOWED_TYPES, (
@@ -48,14 +72,15 @@ void NumpyReaderCPU::SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBac
       auto out_view = view<T, Dims>(output);
       auto in_view = view<const T, Dims>(input);
       // no need to run Setup (we already know the output shape)
-      kernel.Run(ctx, out_view, in_view, args);
+      kernel.Schedule(ctx, out_view, in_view, args, thread_pool, min_blk_sz, req_nblocks);
     ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
 }
 
-void NumpyReaderCPU::SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
-                                        const CropWindow &roi, float fill_value) {
-  const auto& in_shape = input.shape();
+static void SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
+                               const CropWindow &roi, float fill_value, ThreadPool &thread_pool,
+                               int min_blk_sz, int req_nblocks) {
+  const auto &in_shape = input.shape();
   int ndim = in_shape.sample_dim();
   VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
     TYPE_SWITCH(input.type().id(), type2id, T, NUMPY_ALLOWED_TYPES, (
@@ -70,7 +95,7 @@ void NumpyReaderCPU::SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor
       auto out_view = view<T, Dims>(output);
       auto in_view = view<const T, Dims>(input);
       // no need to run Setup (we already know the output shape)
-      kernel.Run(ctx, out_view, in_view, args);
+      kernel.Schedule(ctx, out_view, in_view, args, thread_pool, min_blk_sz, req_nblocks);
     ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
 }
@@ -219,45 +244,20 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
   for (int i = 0; i < nsamples; i++) {
     const auto& file_i = GetSample(i);
     const auto& file_sh = file_i.get_shape();
-
-    // controls task priority
-    int64_t task_sz = volume(file_i.get_shape());
-    if (need_slice_[i])  // geometric mean between input shape and ROI shape
-      task_sz = std::sqrt(static_cast<double>(task_sz) * volume(rois_[i].shape));
-    if (need_transpose_[i])  // 2x if transposition is required
-      task_sz *= 2;
-
+    int64_t sample_sz = volume(file_i.get_shape());
     if (need_slice_[i] && need_transpose_[i]) {
-      thread_pool.AddWork([&, i](int tid) {
-        SlicePermuteHelper(output[i], file_i.data, rois_[i], fill_value_);
-      }, task_sz);
+      SlicePermuteHelper(output[i], file_i.data, rois_[i], fill_value_, thread_pool, kThreshold,
+                         blocks_per_sample);
     } else if (need_slice_[i]) {
-      thread_pool.AddWork([&, i](int tid) {
-        SliceHelper(output[i], file_i.data, rois_[i], fill_value_);
-      }, task_sz);
+      SliceHelper(output[i], file_i.data, rois_[i], fill_value_, thread_pool, kThreshold,
+                  blocks_per_sample);
     } else if (need_transpose_[i]) {
+      // TODO(janton): Parallelize when Transpose supports tiling
       thread_pool.AddWork([&, i](int tid) {
         TransposeHelper(output[i], file_i.data);
-      }, task_sz);
+      }, sample_sz * 2);
     } else {
-      uint8_t* out_ptr = static_cast<uint8_t*>(output[i].raw_mutable_data());
-      const uint8_t* in_ptr = static_cast<const uint8_t*>(file_i.data.raw_data());
-      int64_t nbytes = file_i.data.nbytes();
-      if (nbytes <= kThreshold) {
-        thread_pool.AddWork([=](int tid) {
-          std::memcpy(out_ptr, in_ptr, nbytes);
-        }, task_sz);
-      } else {
-        int64_t prev_b_start = 0;
-        task_sz = task_sz / blocks_per_sample;
-        for (int b = 0; b < blocks_per_sample; b++) {
-          int64_t b_start = prev_b_start;
-          int64_t b_end = prev_b_start = nbytes * (b + 1) / blocks_per_sample;
-          thread_pool.AddWork([=](int tid) {
-            std::memcpy(out_ptr + b_start, in_ptr + b_start, b_end - b_start);
-          }, task_sz);
-        }
-      }
+      CopyHelper(output[i], file_i.data, thread_pool, kThreshold, blocks_per_sample);
     }
   }
   thread_pool.RunAll();
