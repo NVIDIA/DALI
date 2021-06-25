@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,28 +15,21 @@
 from nvidia.dali.pipeline import Pipeline
 from segmentation_test_utils import make_batch_select_masks
 from test_utils import module_functions
-from PIL import Image
 from nose.tools import nottest
-import nvidia.dali as dali
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.math as dmath
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
-import torch.utils.dlpack as torch_dlpack
-import nvidia.dali.plugin.pytorch as pytorch
 import numpy as np
 import test_utils
 from test_detection_pipeline import coco_anchors
 from test_optical_flow import load_frames
 import inspect
 import os
-import math
 import random
-import sys
-from collections.abc import Iterable
-from math import ceil, sqrt
 import nose
+from nose.plugins.attrib import attr
 
 """
 How to test variable (iter-to-iter) batch size for a given op?
@@ -490,7 +483,9 @@ def test_combine_transforms():
         pipeline_fn=pipe, devices=['cpu'])
 
 
+@attr('pytorch')
 def test_dl_tensor_python_function():
+    import torch.utils.dlpack as torch_dlpack
     def dl_tensor_operation(tensor):
         tensor = torch_dlpack.from_dlpack(tensor)
         tensor_n = tensor.double() / 255
