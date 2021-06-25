@@ -165,11 +165,6 @@ class NumpyReaderCPU : public NumpyReader<CPUBackend, NumpyFileWrapper> {
   using Operator<CPUBackend>::RunImpl;
 
  private:
-  void TransposeHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input);
-  void SliceHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input,
-                   const CropWindow& roi, float fill_value = 0);
-  void SlicePermuteHelper(Tensor<CPUBackend>& output, const Tensor<CPUBackend>& input,
-                          const CropWindow& roi, float fill_value = 0);
   USE_READER_OPERATOR_MEMBERS(CPUBackend, NumpyFileWrapper);
 };
 

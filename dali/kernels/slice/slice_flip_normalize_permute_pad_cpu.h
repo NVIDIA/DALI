@@ -31,6 +31,8 @@
 namespace dali {
 namespace kernels {
 
+static constexpr int kSliceFlipNormPermCost = 8;  // compared to memcpy (heuristic)
+
 namespace detail {
 
 template <bool NeedNormalize, typename OutputType, typename InputType>
@@ -265,7 +267,7 @@ void SliceFlipNormalizePermutePadKernel(
                                          GetPtr<float>(args.mean),
                                          GetPtr<float>(args.inv_stddev),
                                          args.channel_dim);
-    }, volume(args.out_shape), false);
+    }, kSliceFlipNormPermCost * volume(args.out_shape), false);
     return;
   }
 
@@ -293,7 +295,7 @@ void SliceFlipNormalizePermutePadKernel(
                                            GetPtr<float>(args.mean),
                                            GetPtr<float>(args.inv_stddev),
                                            args.channel_dim);
-      }, volume(blk_shape), false);
+      }, kSliceFlipNormPermCost * volume(blk_shape), false);
     });
 }
 
