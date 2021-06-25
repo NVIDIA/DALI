@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose torch numba"
+pip_packages="nose pillow opencv-python torch numba"
 
 target_dir=./dali/test/python
 
@@ -8,12 +8,14 @@ target_dir=./dali/test/python
 source test_body.sh
 
 test_body() {
-  # run this only on x86_64, not arm
-  if [ $(uname -m) == "x86_64" ]
-  then
-    test_pytorch
-  fi
+  test_pytorch
 }
+
+# run this only on x86_64, not arm
+if [ $(uname -m) != "x86_64" ]
+then
+  exit 0
+fi
 
 pushd ../..
 source ./qa/test_template.sh
