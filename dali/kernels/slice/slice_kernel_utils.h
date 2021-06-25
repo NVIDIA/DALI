@@ -30,9 +30,14 @@ template <typename T, int Dims>
 struct SliceArgs {
   TensorShape<Dims> anchor;
   TensorShape<Dims> shape;
-  SmallVector<T, 3> fill_values = {0, };
+  SmallVector<T, 8> fill_values = {0, };
   int channel_dim = -1;
 };
+
+template <typename T, typename Container>
+const T *GetPtr(const Container &c) {
+  return c.empty() ? nullptr : c.data();
+}
 
 template <int Dims, typename Args>
 void CheckValidOutputShape(const TensorShape<Dims>& in_sample_shape,

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,9 +45,9 @@ struct SliceFlipNormalizePermutePadArgs {
   TensorShape<Dims> in_shape;
   std::array<bool, Dims> flip;
   std::array<int, Dims> permuted_dims;
-  SmallVector<float, 4> mean;
-  SmallVector<float, 4> inv_stddev;
-  SmallVector<float, 4> fill_values;
+  SmallVector<float, 8> mean;
+  SmallVector<float, 8> inv_stddev;
+  SmallVector<float, 8> fill_values;
   int channel_dim = -1;
 };
 
@@ -85,6 +85,7 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
   processed_args.channel_dim = -1;
 
   // Flip operation is implemented by manipulating the anchor and the sign of the input strides
+
   for (int d = 0; d < Dims; d++) {
     if (args.flip[d]) {
       processed_args.input_offset +=
