@@ -1,11 +1,9 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="numpy pillow torch torchvision mlperf_compliance matplotlib Cython"
+pip_packages="numpy pillow torch torchvision mlperf_compliance matplotlib Cython pycocotools"
 target_dir=./docs/examples/use_cases/pytorch/single_stage_detector/
 
 test_body() {
-    # workaround due to errors while pycocotools is int "pip_packages" above
-    pip install -I pycocotools
     apt update && apt install -y gcc-7 g++-7
 
     #install APEX
