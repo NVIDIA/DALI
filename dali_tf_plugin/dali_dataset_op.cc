@@ -641,7 +641,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     return Status::OK();
   }
 
-  void *GetTensorData(const Tensor &t) {
+  const void *GetTensorData(const Tensor &t) const {
 #if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 2
     return t.data();
 #else
