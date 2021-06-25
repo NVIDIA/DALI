@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,8 @@ namespace {
 
 int NemoAsrReaderOutputFn(const OpSpec &spec) {
   return static_cast<int>(spec.GetArgument<bool>("read_sample_rate")) +
-         static_cast<int>(spec.GetArgument<bool>("read_text"));
+         static_cast<int>(spec.GetArgument<bool>("read_text")) +
+         static_cast<int>(spec.GetArgument<bool>("read_idxs"));
 }
 
 }  // namespace
@@ -48,9 +49,10 @@ Example manifest file::
 
 This reader produces between 1 and 3 outputs:
 
-- Decoded audio data: float, shape=``(audio_length,)``
-- (optional, if ``read_sample_rate=True``) Audio sample rate: float, shape=``(1,)``
-- (optional, if ``read_text=True``) Transcript text as a null terminated string: uint8, shape=``(text_len + 1,)``
+- Decoded audio data: float, ``shape=(audio_length,)``
+- (optional, if ``read_sample_rate=True``) Audio sample rate: float, ``shape=(1,)``
+- (optional, if ``read_text=True``) Transcript text as a null terminated string: uint8, ``shape=(text_len + 1,)``
+- (optional, if ``read_idxs=True``) Index of the manifest entry: int64, ``shape=(1,)``
 
 )code")
   .AddArg("manifest_filepaths",
@@ -62,6 +64,10 @@ This reader produces between 1 and 3 outputs:
   .AddOptionalArg("read_text",
     "Whether to output the transcript text for each sample as a separate output",
     true)
+  .AddOptionalArg("read_idxs",
+    R"code(Whether to output the indices of samples as they occur in the manifest file
+ as a separate output)code",
+    false)
   .AddOptionalArg("shuffle_after_epoch",
     "If true, reader shuffles whole dataset after each epoch",
     false)
@@ -120,6 +126,7 @@ NemoAsrReader::NemoAsrReader(const OpSpec& spec)
     : DataReader<CPUBackend, AsrSample>(spec),
       read_sr_(spec.GetArgument<bool>("read_sample_rate")),
       read_text_(spec.GetArgument<bool>("read_text")),
+      read_idxs_(spec.GetArgument<bool>("read_idxs")),
       dtype_(spec.GetArgument<DALIDataType>("dtype")),
       num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))),
       thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false) {
@@ -211,6 +218,14 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
     text_out.Resize({text_sz});
     std::memcpy(text_out.mutable_data<uint8_t>(), text.c_str(), text_sz);
     text_out.SetMeta(meta);
+  }
+
+  if (read_idxs_) {
+    auto &idxs_out = ws.Output<CPUBackend>(next_out_idx++);
+    idxs_out.set_type(TypeTable::GetTypeInfo(DALI_INT64));
+    idxs_out.Resize({1});
+    *idxs_out.mutable_data<int64_t>() = sample.index();
+    idxs_out.SetMeta(meta);
   }
 }
 

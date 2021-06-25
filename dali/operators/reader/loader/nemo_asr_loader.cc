@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,8 +31,9 @@ namespace dali {
 namespace detail {
 
 void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_file,
-                   double min_duration, double max_duration) {
+                   double min_duration, double max_duration, bool read_text) {
   std::string line;
+  int64_t index = 0;
   while (std::getline(manifest_file, line)) {
     detail::LookaheadParser parser(const_cast<char*>(line.c_str()));
     if (parser.PeekType() != kObjectType) {
@@ -41,6 +42,7 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_fi
     }
     parser.EnterObject();
     NemoAsrEntry entry;
+    entry.index = index;
     while (const char* key = parser.NextObjectKey()) {
       if (0 == std::strcmp(key, "audio_filepath")) {
         entry.audio_filepath = parser.GetString();
@@ -48,7 +50,7 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_fi
         entry.duration = parser.GetDouble();
       } else if (0 == std::strcmp(key, "offset")) {
         entry.offset = parser.GetDouble();
-      } else if (0 == std::strcmp(key, "text")) {
+      } else if (read_text && 0 == std::strcmp(key, "text")) {
         entry.text = parser.GetString();
       } else {
         parser.SkipValue();
@@ -65,6 +67,7 @@ void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream& manifest_fi
     }
 
     entries.emplace_back(std::move(entry));
+    index++;
   }
 }
 
@@ -75,7 +78,7 @@ void NemoAsrLoader::PrepareMetadataImpl() {
     std::ifstream fstream(manifest_filepath);
     DALI_ENFORCE(fstream,
                  make_string("Could not open NEMO ASR manifest file: \"", manifest_filepath, "\""));
-    detail::ParseManifest(entries_, fstream, min_duration_, max_duration_);
+    detail::ParseManifest(entries_, fstream, min_duration_, max_duration_, read_text_);
   }
   shuffled_indices_.resize(entries_.size());
   std::iota(shuffled_indices_.begin(), shuffled_indices_.end(), 0);
@@ -144,6 +147,7 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
   MoveToNextShard(current_index_);
 
   // metadata info
+  sample.index_ = entry.index;
   sample.text_ = entry.text;
 
   // Ignoring copy_read_data_, Sharing data is not supported with this loader

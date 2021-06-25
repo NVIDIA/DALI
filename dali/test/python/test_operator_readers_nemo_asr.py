@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -257,3 +257,26 @@ def test_nemo_asr_reader_pad_last_batch():
 
   # Trying to catch race conditions (A lot of samples in the batch to be replicated)
   yield _testimpl_nemo_asr_reader_pad_last_batch, 128
+
+def test_read_idxs(batch_size=10, reader_seed=12345):
+  @pipeline_def(device_id=0, num_threads=4)
+  def nemo_asr_reader_read_idxs(reader_seed=reader_seed):
+    audio, idx = fn.readers.nemo_asr(manifest_filepaths=[nemo_asr_manifest], random_shuffle=True, seed=reader_seed,
+                                     read_sample_rate=False, read_text=False, read_idxs=True)
+    return audio, idx
+  seed = 12345
+  pipe1 = nemo_asr_reader_read_idxs(batch_size=batch_size, reader_seed=seed)
+  pipe1.build()
+  pipe2 = nemo_asr_reader_read_idxs(batch_size=batch_size, reader_seed=seed)
+  pipe2.build()
+
+  total_samples = len(names)
+
+  for iter in range(3):
+    audio1, idx1 = pipe1.run()
+    audio2, idx2 = pipe2.run()
+    for s in range(batch_size):
+      np.testing.assert_array_equal(np.array(audio1[s]), np.array(audio2[s]))
+      np.testing.assert_array_equal(np.array(idx1[s]), np.array(idx2[s]))
+      idx = np.array(idx1[s])[0]
+      assert idx >= 0 and idx < total_samples
