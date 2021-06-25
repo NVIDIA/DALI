@@ -38,9 +38,10 @@ static void CopyHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &inp
     for (int b = 0; b < req_nblocks; b++) {
       int64_t b_start = prev_b_start;
       int64_t b_end = prev_b_start = nbytes * (b + 1) / req_nblocks;
+      int64_t b_size = b_end - b_start;
       thread_pool.AddWork([=](int tid) {
-        std::memcpy(out_ptr + b_start, in_ptr + b_start, (b_end - b_start));
-      }, task_sz);
+        std::memcpy(out_ptr + b_start, in_ptr + b_start, b_size);
+      }, b_size);
     }
   }
 }
@@ -255,7 +256,7 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
       // TODO(janton): Parallelize when Transpose supports tiling
       thread_pool.AddWork([&, i](int tid) {
         TransposeHelper(output[i], file_i.data);
-      }, sample_sz * 2);
+      }, sample_sz * 8);  // 8 x (heuristic)
     } else {
       CopyHelper(output[i], file_i.data, thread_pool, kThreshold, blocks_per_sample);
     }

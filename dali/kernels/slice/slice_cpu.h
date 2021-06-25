@@ -30,6 +30,8 @@
 namespace dali {
 namespace kernels {
 
+static constexpr int kSliceCost = 2;  // compared to memcpy (heuristic)
+
 namespace detail {
 
 /**
@@ -305,7 +307,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
     exec_engine.AddWork([=](int) {
       SliceKernel(out_data, in_data, out_strides, in_strides, out_shape, in_shape,
                   args.anchor, GetPtr<OutputType>(args.fill_values), args.channel_dim);
-    }, volume(out_shape), false);  // do not start work immediately
+    }, kSliceCost * volume(out_shape), false);  // do not start work immediately
     return;
   }
 
@@ -325,7 +327,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
       exec_engine.AddWork([=](int) {
         SliceKernel(output_ptr, in_data, out_strides, in_strides, blk_shape, in_shape,
                     blk_anchor, GetPtr<OutputType>(args.fill_values), args.channel_dim);
-      }, volume(blk_shape), false);  // do not start work immediately
+      }, kSliceCost * volume(blk_shape), false);  // do not start work immediately
     });
   // scheduled work does not start until user calls Run()
 }
