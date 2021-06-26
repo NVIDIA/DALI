@@ -33,7 +33,8 @@ class YOLOLearningRateSchedule(tf.keras.optimizers.schedules.LearningRateSchedul
         return warmup * self.init_lr
 
 
-def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kwargs):
+
+def train(file_root, annotations, batch_size, epochs, steps_per_epoch, **kwargs):
 
     seed = kwargs.get("seed")
     if not seed:
@@ -59,6 +60,37 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
     ckpt_dir = kwargs.get("ckpt_dir")
     start_weights = kwargs.get("start_weights")
 
+    def get_dataset_fn(file_root, annotations,
+                       batch_size, pipeline, is_training):
+
+        def dataset_fn(input_context):
+            image_size = (608, 608)
+            device_id = input_context.input_pipeline_id
+            num_threads = input_context.num_input_pipelines
+
+            if pipeline == 'dali-gpu' or pipeline == 'dali-cpu':
+                with tf.device("/gpu:{}".format(input_context.input_pipeline_id)):
+                    yolo = YOLOv4Pipeline(
+                        file_root, annotations,
+                        batch_size, image_size, num_threads, device_id, seed,
+                        use_gpu=pipeline == 'dali-gpu',
+                        is_training=is_training,
+                        use_mosaic=use_mosaic
+                    )
+                    return yolo.dataset()
+
+            if pipeline == 'numpy':
+                yolo = YOLOv4PipelineNumpy(
+                    file_root, annotations,
+                    batch_size, image_size, num_threads, device_id, seed,
+                    is_training=is_training,
+                    use_mosaic=use_mosaic
+                )
+                return yolo.dataset()
+
+        return dataset_fn
+
+
     total_steps = epochs * steps_per_epoch
     initial_lr = kwargs.get("lr")
     lr_fn = YOLOLearningRateSchedule(initial_lr)
@@ -80,38 +112,23 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
         if fn.endswith('.h5') and fn.startswith('epoch_'):
             initial_epoch = int(fn[6 : -3])
 
-
-    def dataset_fn(input_context):
-        image_size = (608, 608)
-        device_id = input_context.input_pipeline_id
-        num_threads = input_context.num_input_pipelines
-
-        if pipeline == 'dali-gpu' or pipeline == 'dali-cpu':
-            with tf.device("/gpu:{}".format(input_context.input_pipeline_id)):
-                yolo = YOLOv4Pipeline(
-                    file_root, annotations_file,
-                    batch_size, image_size, num_threads, device_id, seed,
-                    use_gpu=pipeline == 'dali-gpu',
-                    is_training=True,
-                    use_mosaic=use_mosaic
-                )
-                return yolo.dataset()
-
-        if pipeline == 'numpy':
-            yolo = YOLOv4PipelineNumpy(
-                file_root, annotations_file,
-                batch_size, image_size, num_threads, device_id, seed,
-                is_training=True,
-                use_mosaic=use_mosaic
-            )
-            return yolo.dataset()
-
     input_options = tf.distribute.InputOptions(
         experimental_place_dataset_on_device = True,
         experimental_prefetch_to_device = False,
         experimental_replication_mode = tf.distribute.InputReplicationMode.PER_REPLICA)
 
-    dataset = strategy.distribute_datasets_from_function(dataset_fn, input_options)
+    dataset = strategy.distribute_datasets_from_function(
+        get_dataset_fn(file_root, annotations, batch_size, pipeline, True),
+        input_options)
+
+    eval_file_root = kwargs.get('eval_file_root')
+    eval_annotations = kwargs.get('eval_annotations')
+    eval_dataset = None
+    if not eval_file_root is None and not eval_annotations is None:
+        eval_dataset = strategy.distribute_datasets_from_function(
+            get_dataset_fn(eval_file_root, eval_annotations, 1, 'dali-cpu', False),
+            tf.distribute.InputOptions()
+        )
 
 
     callbacks = []
@@ -129,7 +146,10 @@ def train(file_root, annotations_file, batch_size, epochs, steps_per_epoch, **kw
         epochs=epochs,
         steps_per_epoch=steps_per_epoch,
         initial_epoch=initial_epoch,
-        callbacks=callbacks
+        callbacks=callbacks,
+        validation_data=eval_dataset,
+        validation_steps=kwargs.get('eval_steps'),
+        validation_freq=kwargs.get('eval_frequency'),
     )
 
     return model

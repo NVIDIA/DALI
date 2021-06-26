@@ -79,6 +79,10 @@ if __name__ == "__main__":
     parser_train.add_argument("--batch_size", "-b", default=8, type=int)
     parser_train.add_argument("--epochs", "-e", default=5, type=int)
     parser_train.add_argument("--steps", "-s", default=1000, type=int)
+    parser_train.add_argument("--eval_file_root", default=None)
+    parser_train.add_argument("--eval_annotations", default=None)
+    parser_train.add_argument("--eval_steps", default=5000, type=int)
+    parser_train.add_argument("--eval_frequency", default=5, type=int)
     parser_train.add_argument("--output", "-o", default="output.h5")
     parser_train.add_argument("--start_weights", "-w", default=None)
     parser_train.add_argument("--learning_rate", default=1e-3, type=float)
@@ -103,6 +107,10 @@ if __name__ == "__main__":
     elif args.action == "train":
         run_training(
             args.file_root, args.annotations, args.batch_size, args.epochs, args.steps,
+            eval_file_root=args.eval_file_root,
+            eval_annotations=args.eval_annotations,
+            eval_steps=args.eval_steps,
+            eval_frequency=args.eval_frequency,
             output=args.output,
             lr=args.learning_rate,
             pipeline=args.pipeline,

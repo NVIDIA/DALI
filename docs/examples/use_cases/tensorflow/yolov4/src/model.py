@@ -122,7 +122,12 @@ class YOLOv4Model(tf.keras.Model):
 
         input, gt_boxes = data
         prediction = self(input, training=False)
-        self.mAP_tracker.update_state(utils.calc_mAP(prediction, gt_boxes, self.classes_num))
+        ap = tf.py_function(
+            func=lambda *args: utils.calc_mAP(args[:-2], args[-2], args[-1]),
+            inp=[*prediction, gt_boxes, self.classes_num],
+            Tout=tf.float64,
+        )
+        self.mAP_tracker.update_state(ap)
 
         return {"mAP" : self.mAP_tracker.result()}
 
