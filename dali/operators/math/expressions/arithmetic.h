@@ -155,7 +155,7 @@ inline std::vector<ExprImplTask> CreateExecutionTasks(const ExprNode &expr, Expr
   return result;
 }
 
-inline TensorListShape<> ShapePromotion(std::string op, span<const TensorListShape<> *> shapes,
+inline TensorListShape<> ShapePromotion(const std::string &op, span<const TensorListShape<> *> shapes,
                                         int batch_size) {
   const TensorListShape<> *out_shape = nullptr;
   bool only_scalars = true;
