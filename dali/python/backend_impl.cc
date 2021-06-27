@@ -266,10 +266,10 @@ void ExposeTensorLayout(py::module &m) {
       return expr;\
     })
   DEFINE_LAYOUT_CMP(eq, other  && self == *other);
-  DEFINE_LAYOUT_CMP(ne, !other && self != *other);  // null is not equal to non-null
-  DEFINE_LAYOUT_CMP(lt, !other && self <  *other);  // null precedes non-null
+  DEFINE_LAYOUT_CMP(ne, !other || self != *other);  // null is not equal to non-null
+  DEFINE_LAYOUT_CMP(lt, !other || self <  *other);  // null precedes non-null
   DEFINE_LAYOUT_CMP(gt, other  && self >  *other);
-  DEFINE_LAYOUT_CMP(le, !other && self <= *other);
+  DEFINE_LAYOUT_CMP(le, !other || self <= *other);
   DEFINE_LAYOUT_CMP(ge, other  && self >= *other);
 #undef DEFINE_LAYOUT_CMP
 }
