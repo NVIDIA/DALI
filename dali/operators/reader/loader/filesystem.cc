@@ -124,8 +124,6 @@ inline void assemble_file_list(std::vector<std::string>& file_list,
 
   if (filter.empty()) {
     while ((entry = readdir(dir))) {
-      std::string full_path = curr_dir_path + dir_sep + std::string{entry->d_name};
-
 #ifdef _DIRENT_HAVE_D_TYPE
     /*
      * we support only regular files and symlinks, if FS returns DT_UNKNOWN

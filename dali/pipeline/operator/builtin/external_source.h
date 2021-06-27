@@ -504,8 +504,6 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
-    std::list<uptr_tl_type> tl_elm;
-    std::list<uptr_tl_type> tv_elm;
 
     bool actual_no_copy = no_copy_;
     switch (ext_src_setting_mode.no_copy_mode) {
