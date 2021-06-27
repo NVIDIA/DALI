@@ -38,13 +38,13 @@ class SSDRandomCrop : public Operator<Backend> {
     int_dis_(0, 6),        // sample option
     float_dis_(0.3, 1.) {  // w, h generation
     // setup all possible sample types
-    sample_options_.push_back(SampleOption{false, -1.f});
-    sample_options_.push_back(SampleOption{false, 0.1});
-    sample_options_.push_back(SampleOption{false, 0.3});
-    sample_options_.push_back(SampleOption{false, 0.5});
-    sample_options_.push_back(SampleOption{false, 0.7});
-    sample_options_.push_back(SampleOption{false, 0.9});
-    sample_options_.push_back(SampleOption{true, 0});
+    sample_options_.emplace_back(false, -1.f);
+    sample_options_.emplace_back(false, 0.1);
+    sample_options_.emplace_back(false, 0.3);
+    sample_options_.emplace_back(false, 0.5);
+    sample_options_.emplace_back(false, 0.7);
+    sample_options_.emplace_back(false, 0.9);
+    sample_options_.emplace_back(true, 0);
   }
 
   inline ~SSDRandomCrop() override = default;

@@ -120,7 +120,7 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
     }
     // output names
     for (auto& output : def.pipe_outputs()) {
-      this->output_names_.push_back(std::make_pair(output.name(), output.device()));
+      this->output_names_.emplace_back(output.name(), output.device());
     }
   }
 

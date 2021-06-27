@@ -67,7 +67,7 @@ inline void assemble_file_list(std::vector<std::pair<std::string, int>>& file_la
 #endif
     std::string rel_path = curr_entry + dir_sep + std::string{entry->d_name};
     if (HasKnownExtension(std::string(entry->d_name))) {
-      file_label_pairs.push_back(std::make_pair(rel_path, label));
+      file_label_pairs.emplace_back(rel_path, label);
     }
   }
   closedir(dir);
