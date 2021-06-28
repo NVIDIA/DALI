@@ -1,5 +1,5 @@
 # (C) Copyright IBM Corp. 2019. All Rights Reserved.
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019 - 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,12 +64,12 @@ requirements:
   host:
     - python
     - future >=0.17.1
-    - protobuf >=3.17.1
-    - libprotobuf-static >=3.17.1
+    - protobuf >=3.17.2
+    - libprotobuf-static >=3.17.2
     - libjpeg-turbo >=2.1.0
-    - tensorflow-gpu =2.2.0
-    - tensorflow-estimator =2.2.0
-    - tensorboard =2.2.2
+    - tensorflow-gpu =2.4.1
+    - tensorflow-estimator =2.4.1
+    - tensorboard =2.4.1
     - dali-opencv
     - dali-ffmpeg
     - boost >=1.67
@@ -85,9 +85,9 @@ requirements:
     - python
     - future >=0.17.1
     - libjpeg-turbo >=2.1.0
-    - tensorflow-gpu =2.2.0
-    - tensorflow-estimator =2.2.0
-    - tensorboard =2.2.2
+    - tensorflow-gpu =2.4.1
+    - tensorflow-estimator =2.4.1
+    - tensorboard =2.4.1
     - lmdb >=0.9.28
     - libtiff >=4.3.0
     - libsndfile >=1.0.31
