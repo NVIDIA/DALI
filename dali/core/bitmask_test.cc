@@ -152,5 +152,46 @@ TEST(Bitmask, Find) {
   }
 }
 
+void TestBitmaskAppend(int first_bits, int second_bits) {
+  bitmask m1;
+  bitmask m2;
+  std::vector<bool> ref;
+
+  std::mt19937_64 rng(12345);
+  std::bernoulli_distribution dist;
+  int N = first_bits + second_bits;
+  for (int i = 0; i < N; i++) {
+    bool value = dist(rng);
+    (i < first_bits ? m1 : m2).push_back(value);
+    ref.push_back(value);
+  }
+  m1.append(m2);
+  EXPECT_EQ(m1.ssize(), N);
+  for (int i = 0; i < N; i++) {
+    EXPECT_EQ(m1[i], ref[i]);
+  }
+}
+
+TEST(Bitmask, AppendToAligned) {
+  TestBitmaskAppend(128, 1);
+  TestBitmaskAppend(64, 63);
+  TestBitmaskAppend(192, 128);
+  TestBitmaskAppend(128, 65);
+}
+
+TEST(Bitmask, AppendNoOverflow) {
+  TestBitmaskAppend(17, 13);
+  TestBitmaskAppend(17, 64 - 17);
+  TestBitmaskAppend(129 + 17, 64  +13);
+  TestBitmaskAppend(64 + 17, 64  +13);
+}
+
+TEST(Bitmask, AppendOverflow) {
+  TestBitmaskAppend(17, 63);
+  TestBitmaskAppend(63, 2);
+  TestBitmaskAppend(128 - 5, 9);
+  TestBitmaskAppend(128 - 5, 128 + 9);
+}
+
 }  // namespace test
 }  // namespace dali
