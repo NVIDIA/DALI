@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy>=1.17 opencv-python pillow nvidia-ml-py==11.450.51 numba"
+pip_packages="nose pillow opencv-python torch numba"
 
 target_dir=./dali/test/python
 
@@ -8,8 +8,14 @@ target_dir=./dali/test/python
 source test_body.sh
 
 test_body() {
-  test_no_fw
+  test_pytorch
 }
+
+# run this only on x86_64, not arm
+if [ $(uname -m) != "x86_64" ]
+then
+  exit 0
+fi
 
 pushd ../..
 source ./qa/test_template.sh

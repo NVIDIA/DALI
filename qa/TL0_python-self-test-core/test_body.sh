@@ -3,9 +3,8 @@
 test_nose() {
     for test_script in $(ls test_pipeline*.py \
                             test_functional_api.py \
-                            test_backend_impl.py \
-                            test_dali_variable_batch_size.py); do
-        nosetests --verbose --attr '!slow' ${test_script}
+                            test_backend_impl.py); do
+        nosetests --verbose --attr '!slow,!pytorch' ${test_script}
     done
 }
 
@@ -17,6 +16,10 @@ test_py() {
     python test_data_containers.py -s -b 20 -n
 }
 
+test_pytorch() {
+    nosetests --verbose --attr '!slow,pytorch' test_dali_variable_batch_size.py
+}
+
 test_no_fw() {
     test_nose
     test_py
@@ -24,4 +27,5 @@ test_no_fw() {
 
 run_all() {
   test_no_fw
+  test_pytorch
 }
