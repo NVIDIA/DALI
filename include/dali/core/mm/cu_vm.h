@@ -33,10 +33,16 @@ namespace cuvm {
  */
 struct CUAddressRange : std::pair<CUdeviceptr, size_t> {
   using std::pair<CUdeviceptr, size_t>::pair;
-  CUdeviceptr &ptr() noexcept { return first; }
-  CUdeviceptr  ptr() const noexcept { return first; }
-  size_t &size() noexcept { return second; }
-  size_t  size() const noexcept { return second; }
+  constexpr CUdeviceptr &ptr() noexcept { return first; }
+  constexpr CUdeviceptr  ptr() const noexcept { return first; }
+  constexpr size_t &size() noexcept { return second; }
+  constexpr size_t  size() const noexcept { return second; }
+
+  constexpr CUdeviceptr end() const noexcept { return first + second; }
+
+  constexpr bool contains(CUdeviceptr ptr) const noexcept {
+    return ptr >= this->ptr() && ptr < this->end();
+  }
 };
 
 static inline size_t GetAddressGranularity() {
@@ -81,15 +87,29 @@ class CUMemAddressRange : public UniqueHandle<CUAddressRange, CUMemAddressRange>
   /**
    * @brief Starting address of the VA reservation.
    */
-  CUdeviceptr ptr() const noexcept {
-      return handle_.ptr();
+  constexpr CUdeviceptr ptr() const noexcept {
+    return handle_.ptr();
   }
 
   /**
    * @brief Actual size, in bytes, of the VA reservation.
    */
-  size_t size() const noexcept {
-      return handle_.size();
+  constexpr size_t size() const noexcept {
+    return handle_.size();
+  }
+
+  /**
+   * @brief One past the last address in this VA reservation.
+   */
+  constexpr CUdeviceptr end() const noexcept {
+    return handle_.end();
+  }
+
+  /**
+   * @brief Tells if the address is in the memory range managed by this handle
+   */
+  constexpr bool contains(CUdeviceptr ptr) const noexcept {
+    return handle_.contains(ptr);
   }
 
   /**
@@ -142,10 +162,10 @@ inline CUmemAllocationProp DeviceMemProp(int device_id = -1) {
 
 struct CUMemAllocation : std::pair<CUmemGenericAllocationHandle, size_t> {
   using std::pair<CUmemGenericAllocationHandle, size_t>::pair;
-  CUmemGenericAllocationHandle &handle() noexcept { return first; }
-  CUmemGenericAllocationHandle  handle() const noexcept { return first; }
-  size_t &size() noexcept { return second; }
-  size_t  size() const noexcept { return second; }
+  constexpr CUmemGenericAllocationHandle &handle() noexcept { return first; }
+  constexpr CUmemGenericAllocationHandle  handle() const noexcept { return first; }
+  constexpr size_t &size() noexcept { return second; }
+  constexpr size_t  size() const noexcept { return second; }
 };
 
 /**
@@ -228,8 +248,12 @@ T *Map(CUdeviceptr virt_addr, CUMemAllocation mem) {
   return Map<T>(virt_addr, mem.handle(), mem.size());
 }
 
+inline void Unmap(CUdeviceptr ptr, size_t size) {
+  CUDA_DTOR_CALL(cuMemUnmap(ptr, size));
+}
+
 inline void Unmap(const void *ptr, size_t size) {
-  CUDA_CALL(cuMemUnmap(reinterpret_cast<CUdeviceptr>(ptr), size));
+  Unmap(reinterpret_cast<CUdeviceptr>(ptr), size);
 }
 
 
