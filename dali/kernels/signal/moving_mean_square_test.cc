@@ -51,8 +51,8 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
 
  private:
   void calc_output() {
-    ref_output_.resize(buffer_length_ - window_size_);
-    for (int i = 0; i <= buffer_length_ - window_size_; i++) {
+    ref_output_.resize(buffer_length_ - window_size_ + 1);
+    for (int i = 0; i < buffer_length_ - window_size_+ 1; i++) {
       float sumsq = 0;
       for (int j = 0; j < window_size_; j++) {
         auto val = static_cast<float>(input_[i + j]);
