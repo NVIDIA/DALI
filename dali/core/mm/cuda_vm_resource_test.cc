@@ -12,4 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <gtest/gtest.h>
 #include "dali/core/mm/cuda_vm_resource.h"
+
+namespace dali {
+namespace mm {
+
+TEST(MM_VMResource, X) {
+  cuda_vm_resource res;
+  void *ptr = res.allocate(100);
+  res.deallocate(ptr, 100);
+}
+
+}  // namespace mm
+}  // namespace dali
+
+
