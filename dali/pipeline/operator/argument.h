@@ -219,7 +219,7 @@ class ArgumentInst<std::vector<T>> : public Argument {
   ValueInst<std::vector<T>> val;
 };
 
-DLL_PUBLIC Argument* DeserializeProtobuf(const DaliProtoPriv arg);
+DLL_PUBLIC Argument* DeserializeProtobuf(const DaliProtoPriv &arg);
 
 template <typename T>
 bool Argument::IsType() {

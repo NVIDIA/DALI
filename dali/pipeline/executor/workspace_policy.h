@@ -112,7 +112,7 @@ void add_output(op_type_to_workspace_t<op_type> &ws, const tensor_data_store_que
 template <OpType op_type>
 void SetupInputOutput(op_type_to_workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
                       const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
-                      const QueueIdxs idxs) {
+                      const QueueIdxs &idxs) {
   for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
     auto tid = node.parent_tensors[j];
     auto &parent_node = graph.Node(graph.Tensor(tid).producer.node);
@@ -171,13 +171,13 @@ void SetupInputOutput(op_type_to_workspace_t<op_type> &ws, const OpGraph &graph,
 
 template <OpType op_type>
 inline void SetupThreadPool(op_type_to_workspace_t<op_type> &ws, const OpGraph &, const OpNode &,
-                            ThreadPool *, const QueueIdxs) {
+                            ThreadPool *, const QueueIdxs &) {
   /* No-op if we are not CPU */
 }
 
 template <>
 inline void SetupThreadPool<OpType::CPU>(op_type_to_workspace_t<OpType::CPU> &ws, const OpGraph &,
-                                         const OpNode &, ThreadPool *thread_pool, const QueueIdxs) {
+                                         const OpNode &, ThreadPool *thread_pool, const QueueIdxs &) {
   ws.SetThreadPool(thread_pool);
 }
 
@@ -234,7 +234,7 @@ op_type_to_workspace_t<op_type> CreateWorkspace(
     const OpGraph &graph, const OpNode &node,
     const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, ThreadPool *thread_pool,
     cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
-    const MixedOpEventMap &mixed_op_events, const QueueIdxs idxs) {
+    const MixedOpEventMap &mixed_op_events, const QueueIdxs &idxs) {
   op_type_to_workspace_t<op_type> ws;
   SetupInputOutput<op_type>(ws, graph, node, tensor_to_store_queue, idxs);
   SetupThreadPool<op_type>(ws, graph, node, thread_pool, idxs);

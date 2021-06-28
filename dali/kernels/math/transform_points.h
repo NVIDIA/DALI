@@ -39,7 +39,7 @@ class TransformPointsCPU {
   }
 
   void Run(KernelContext &ctx, const OutTensorCPU<Out> &out, const InTensorCPU<In> &in,
-           const mat<out_pt_dim, in_pt_dim> M, const vec<out_pt_dim> T) {
+           const mat<out_pt_dim, in_pt_dim> M, const vec<out_pt_dim> &T) {
     int64_t n = volume(in.shape.begin(), in.shape.end() - 1);
     assert(in.num_elements() == n * in_pt_dim);
     assert(out.num_elements() == n * out_pt_dim);
