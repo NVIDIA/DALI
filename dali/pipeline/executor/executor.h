@@ -262,7 +262,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
   class EventList {
    public:
-    inline EventList() {}
+    inline EventList() = default;
     inline EventList(int size, EventPool *event_pool) {
       DALI_ENFORCE(event_pool != nullptr);
       for (int i = 0; i < size; ++i) {

@@ -443,7 +443,7 @@ class DLL_PUBLIC TypeTable {
 
  private:
   // TypeTable should only be referenced through its static members
-  TypeTable() {}
+  TypeTable() = default;
 
   template <typename T>
   DALIDataType RegisterType(DALIDataType dtype) {
