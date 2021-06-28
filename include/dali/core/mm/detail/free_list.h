@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -282,12 +282,14 @@ class best_fit_free_list {
    *
    * The start and end parameters must lie inside the block.
    */
-  void *get_from_block(block **pblock, char *start, char *end) {
+  void *get_from_block(block **pblock, void *start, void *end) {
     char *base = (*pblock)->start;
-    assert(start >= base && end <= (*pblock)->end);
+    char *cstart = static_cast<char *>(start);
+    char *cend = static_cast<char *>(end);
+    assert(cstart >= base && cend <= (*pblock)->end);
 
-    bool gap_lo = start > base;
-    bool gap_hi = end < (*pblock)->end;
+    bool gap_lo = cstart > base;
+    bool gap_hi = cend < (*pblock)->end;
     if (gap_lo) {
       // there's space at the beginnning of the block due to alignment
       block *lo = *pblock;
@@ -297,21 +299,21 @@ class best_fit_free_list {
         hi->next = lo->next;
         lo->next = hi;
 
-        hi->start = end;
+        hi->start = cend;
         hi->end = lo->end;
       }
       // the space at the beginning of the block is the difference in alignments
-      lo->end = start;
+      lo->end = cstart;
     } else {
       if (gap_hi) {
         // there's space at the end of the block - update current block to describe it
-        (*pblock)->start = end;
+        (*pblock)->start = cend;
       } else {
         // the block was fully utilized - remove it from the free list
         remove(pblock);
       }
     }
-    return start;
+    return cstart;
   }
 
   block *head_ = nullptr;
@@ -541,25 +543,44 @@ class coalescing_free_tree {
   }
 
   /**
+   * @brief Checks whether given range is present in the free tree
+   */
+  bool contains(void *start, void *end) const {
+    char *cstart = static_cast<char *>(start);
+    char *cend = static_cast<char *>(end);
+    assert(cend > cstart);
+    if (by_addr_.empty())
+      return false;
+
+    auto it = by_addr_.lower_bound(cstart);
+    if ((it == by_addr_.end() || it->first > cstart) && it != by_addr_.begin())
+      it--;
+    char *base = it->first;
+    return cstart >= base && cend <= it->first + it->second;
+  }
+
+  /**
    * @brief Retrieves a specific memory region from the free tree.
    *
    * If the block is not covered by the free tree, nullptr is returned.
    */
-  void *get_specific_block(char *start, char *end) {
-    assert(end > start);
+  void *get_specific_block(void *start, void *end) {
+    char *cstart = static_cast<char *>(start);
+    char *cend = static_cast<char *>(end);
+    assert(cend > cstart);
     if (by_addr_.empty())
       return nullptr;
-    size_t size = end - start;
+    size_t size = cend - cstart;
 
-    auto it = by_addr_.lower_bound(start);
-    if ((it == by_addr_.end() || it->first > start) && it != by_addr_.begin())
+    auto it = by_addr_.lower_bound(cstart);
+    if ((it == by_addr_.end() || it->first > cstart) && it != by_addr_.begin())
       it--;
     char *base = it->first;
-    if (start < base || end > it->first + it->second)
+    if (cstart < base || cend > it->first + it->second)
       return nullptr;
 
     size_t block_size = it->second;
-    size_t front_padding = start - base;
+    size_t front_padding = cstart - base;
     assert(static_cast<ptrdiff_t>(front_padding) >= 0);
     // NOTE: block_size - front_padding >= size  can overflow and fail - meh, unsigned size_t
     if (block_size >= size + front_padding) {
@@ -573,8 +594,8 @@ class coalescing_free_tree {
         by_addr_.erase(base);
       }
       if (back_padding) {
-        by_addr_.insert({ end, back_padding });
-        by_size_.insert({ back_padding, end });
+        by_addr_.insert({ cend, back_padding });
+        by_size_.insert({ back_padding, cend });
       }
       return start;
     }
@@ -593,7 +614,7 @@ class coalescing_free_tree {
    * @return True, if the block was successfully removed from the tree.
    */
   bool remove_if_in_list(void *base, size_t size) {
-    return get_specific_block(static_cast<char*>(base), static_cast<char*>(base)+size) != nullptr;
+    return get_specific_block(base, static_cast<char*>(base)+size) != nullptr;
   }
 
   /**
@@ -719,22 +740,24 @@ class best_fit_free_tree {
    *
    * If the exact block is not found, the function fails - no splitting occurs
    */
-  void *get_specific_block(char *start, char *end) {
-    auto it = by_addr_.find(start);
+  void *get_specific_block(void *start, void *end) {
+    char *cstart = static_cast<char *>(start);
+    char *cend = static_cast<char *>(end);
+    auto it = by_addr_.find(cstart);
     if (it == by_addr_.end())
       return nullptr;
-    if (start + it->second != end)
+    if (cstart + it->second != cend)
       return nullptr;  // not this block, after all
     by_size_.erase({it->second, it->first});
     by_addr_.erase(it);
-    return start;
+    return cstart;
   }
 
   /**
    * @brief Removes a block from the tree if _exactly_ this block is free - no splitting occurs
    */
   bool remove_if_in_list(void *base, size_t size) {
-    return get_specific_block(static_cast<char*>(base), static_cast<char*>(base)+size) != nullptr;
+    return get_specific_block(base, static_cast<char*>(base)+size) != nullptr;
   }
 
   detail::pooled_set<std::pair<size_t, char *>, true> by_size_;
