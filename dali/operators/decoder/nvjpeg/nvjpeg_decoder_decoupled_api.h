@@ -579,12 +579,15 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       if (nvjpeg_decode) {
 #if IS_HW_DECODER_COMPATIBLE
         if (state_hw_batched_ != nullptr) {
-          NVJPEG_CALL(nvjpegJpegStreamParseHeader(handle_, input_data, in_size,
-                                                  hw_decoder_jpeg_stream_));
-          int is_supported = -1;
-          NVJPEG_CALL(nvjpegDecodeBatchedSupportedEx(handle_, hw_decoder_jpeg_stream_,
-                                                     data.params, &is_supported));
-          hw_decode = is_supported == 0;
+          // in some cases hybrid decoder can handle the image but HW decoder can't, we should not
+          // error in that case
+          ret = nvjpegJpegStreamParseHeader(handle_, input_data, in_size, hw_decoder_jpeg_stream_);
+          if (ret == NVJPEG_STATUS_SUCCESS) {
+            int is_supported = -1;
+            NVJPEG_CALL(nvjpegDecodeBatchedSupportedEx(handle_, hw_decoder_jpeg_stream_,
+                                                        data.params, &is_supported));
+            hw_decode = is_supported == 0;
+          }
           if (!hw_decode) {
             LOG_LINE << "Sample \"" << data.file_name
                      << "\" can't be handled by the HW decoder and shall be processed by the CUDA "
