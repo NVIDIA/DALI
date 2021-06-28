@@ -359,7 +359,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   ShareUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t /*stream = 0*/,
                 bool /*use_copy_kernel = false*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    state_.push_back({false});
+    state_.push_back({false, true});
     auto tv_elm = tv_data_.GetEmpty();
     // set pinned if needed
     if (batch.is_pinned() != tv_elm.front()->is_pinned()) {
@@ -409,7 +409,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
       }
       copied_shared_data = true;
     }
-    state_.push_back({copied_shared_data});
+    state_.push_back({copied_shared_data, true});
     tl_data_.PushBack(tl_elm);
   }
 
@@ -419,7 +419,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   ShareUserData(const TensorList<SrcBackend> &batch, cudaStream_t /*stream = 0*/,
                 bool /* use_copy_kernel */) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    state_.push_back({false});
+    state_.push_back({false, true});
     auto tl_elm = tl_data_.GetEmpty();
     tl_elm.front()->ShareData(const_cast<TensorList<Backend>*>(&batch));
     tl_data_.PushBack(tl_elm);
@@ -449,7 +449,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tv_data_.PushBack(tv_elm);
-      state_.push_back({false});
+      state_.push_back({false, false});
     }
   }
 
@@ -483,7 +483,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tl_data_.PushBack(tl_elm);
       copy_to_storage_events_.PushBack(copy_to_storage_event);
-      state_.push_back({false});
+      state_.push_back({false, false});
     }
   }
 
@@ -544,7 +544,16 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
    * a per sample metadata could be stored here
    */
   struct ExternalSourceState {
+    /**
+     * True if the data that was shared as no_copy required copy regardless.
+     * Happens for non-contiguous TensorVector with GPU memory.
+     */
     bool copied_shared_data = false;
+    /**
+     * @brief Actual value of no_copy option used in this call. Always false for CopyUserData(...)
+     * and always true for ShareUserData(...)
+     */
+    bool no_copy = false;
   };
 
   std::list<ExternalSourceState> state_;
