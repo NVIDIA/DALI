@@ -16,6 +16,8 @@
 #define DALI_TF_PLUGIN_DALI_SHAPE_HELPER_H_
 
 #include <memory>
+#include <utility>
+#include <vector>
 
 #include "dali/c_api.h"
 
@@ -101,6 +103,142 @@ constexpr dali_data_type_t TfToDaliType(tensorflow::DataType tf_type) {
       return DALI_NO_TYPE;
   }
 }
+
+
+static const void* GetTensorData(const tensorflow::Tensor& t) {
+#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 2
+  return t.data();
+#else
+  return t.tensor_data().data();
+#endif
+}
+
+
+// TensorFlow treats a sample/example as a vector of Tensors (they flatten everything),
+// and if a dataset has multiple outputs it means, that it returned a tuple that maps
+// to a vector of Tensors.
+using TfExample = std::vector<tensorflow::Tensor>;
+
+// Batch is a list of Tensors - we repack the TfExamples into a Batch.
+// We need to build batches sample by sample to advance the input iterators in sync.
+using BatchStorage = std::vector<tensorflow::Tensor>;
+
+class Batch {
+ public:
+  Batch() = default;
+
+  explicit Batch(BatchStorage &&sample_tensors)
+      : storage(std::move(sample_tensors)), is_per_sample(true) {}
+
+  explicit Batch(tensorflow::Tensor &batch_tensor) : storage{batch_tensor}, is_per_sample(false) {}
+
+  int64_t ndim() const {
+    if (is_per_sample) {
+      return storage[0].dims();
+    } else {
+      // remove the batch dimension if present
+      return storage[0].dims() - 1;
+    }
+  }
+
+  dali_data_type_t dtype() const {
+    return TfToDaliType(storage[0].dtype());
+  }
+
+  int64_t batch_size() const {
+    if (is_per_sample) {
+      return storage.size();
+    } else {
+      return storage[0].dim_size(0);
+    }
+  }
+
+  void GetShapes(std::vector<int64_t> &shapes) const {
+    shapes.clear();
+    shapes.reserve(batch_size() * ndim());
+    if (is_per_sample) {
+      for (int sample_idx = 0; sample_idx < batch_size(); sample_idx++) {
+        for (int d = 0; d < ndim(); d++) {
+          shapes.push_back(storage[sample_idx].dim_size(d));
+        }
+      }
+    } else {
+      for (int sample_idx = 0; sample_idx < batch_size(); sample_idx++) {
+        for (int d = 0; d < ndim(); d++) {
+          shapes.push_back(storage[0].dim_size(d + 1));
+        }
+      }
+    }
+  }
+
+  tensorflow::Status GetPtrs(std::vector<const void *> &ptrs) const {
+    if (!is_per_sample) {
+      return tensorflow::errors::Internal("Internal mismatch of batch and per-sample mode.");
+    }
+    ptrs.clear();
+    ptrs.resize(batch_size(), nullptr);
+    for (int sample_idx = 0; sample_idx < batch_size(); sample_idx++) {
+      ptrs[sample_idx] = GetTensorData(storage[sample_idx]);
+    }
+    return tensorflow::Status::OK();
+  }
+
+
+  tensorflow::Status GetPtr(const void *&ptr) const {
+    if (is_per_sample) {
+      return tensorflow::errors::Internal("Internal mismatch of batch and per-sample mode.");
+    }
+    ptr = GetTensorData(storage[0]);
+    return tensorflow::Status::OK();
+  }
+
+
+  /**
+   * @brief Check if samples have the same ndim, dtype etc.
+   *
+   * This probably is already handled by TF, as dataset probably can't
+   * dynamically change its shape. And we can probably check the declared output
+   * structure in Python level.
+   *
+   * TODO(klecki): add those checks in Python for clear errors
+   */
+  tensorflow::Status VerifyUniform(int input_idx) {
+    if (storage.empty()) {
+      return tensorflow::errors::InvalidArgument("Empty batch for input: ", input_idx, ".");
+    }
+    if (!is_per_sample) {
+      return tensorflow::Status::OK();
+    }
+    int ndim = storage[0].dims();
+    auto dtype = storage[0].dtype();
+    for (auto &sample : storage) {
+      if (sample.dims() != ndim) {
+        return tensorflow::errors::InvalidArgument(
+            "Inconsistent dimensionality of samples in a batch for input: ", input_idx,
+            ", got sample with: ", sample.dims(), " dimensions while the first one has: ", ndim,
+            " dimensions.");
+      }
+      if (sample.dtype() != dtype) {
+        return tensorflow::errors::InvalidArgument(
+            "Inconsistent dtype of samples in a batch for input: ", input_idx,
+            ", got sample with: ", sample.dtype(), " dtype while the first one has: ", dtype,
+            " dtype.");
+      }
+    }
+    return tensorflow::Status::OK();
+  }
+
+  void clear() {
+    storage.clear();
+  }
+
+ private:
+  BatchStorage storage;
+  bool is_per_sample = true;
+};
+
+// Represents tuple of inputs for one iteration
+using ListOfBatches = std::vector<Batch>;
 
 
 }  // namespace dali_tf_impl

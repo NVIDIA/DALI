@@ -17,6 +17,7 @@ from test_utils_tensorflow import *
 from test_dali_tf_dataset_pipelines import *
 from nose.tools import raises, with_setup
 import random as random
+import itertools
 
 tensorflow.compat.v1.disable_eager_execution()
 

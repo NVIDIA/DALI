@@ -356,22 +356,6 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 #endif
 
  private:
-  // TODO(klecki): Check this again
-  // TensorFlow treats a sample/example as a vector of Tensors (they flatten everything),
-  // and if a dataset has multiple outputs it means, that it returned a tuple that maps
-  // to a vector of Tensors.
-  using TfExample = std::vector<Tensor>;
-
-  // Batch is a list of Tensors - we repack the TfExamples into a Batch.
-  // We need to build batches sample by sample to advance the input iterators in sync.
-  // TODO(klecki): In batch mode this will be a single Tensor with additional dimension representing
-  //               whole batch
-  using Batch = std::vector<Tensor>;
-
-  // Represents tuple of inputs for one iteration
-  using ListOfBatches = std::vector<Batch>;
-
-
   /**
    * @brief Schedule required number of runs of DALI Pipeline to fill the prefetch queue.
    *
@@ -447,8 +431,6 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
   Status PrepareBatchesBatchMode(IteratorContext *context, int input_idx, Batch &out_batch,
                                  bool *end_of_sequence) {
     int next_batch_size = dataset()->pipeline_def_.batch_size;
-    // In batch mode, we have tensors representing batches, so we keep only 1 of them
-    out_batch.clear();
     *end_of_sequence = false;
 
     Tensor example;
@@ -457,7 +439,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       return Status::OK();
     }
     // Batch mode, only one tensor for whole batch
-    out_batch.push_back(example);
+    out_batch = Batch{example};
     return Status::OK();
   }
 
@@ -470,8 +452,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
                                   bool *end_of_sequence) {
     int next_batch_size = dataset()->pipeline_def_.batch_size;
     // Sample mode, so we have batch of actual sample tensors
-    out_batch.clear();
-    Batch in_batch;
+    BatchStorage in_batch;
     in_batch.resize(next_batch_size);
     *end_of_sequence = false;
 
@@ -484,7 +465,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         return Status::OK();
       }
     }
-    out_batch = std::move(in_batch);
+    out_batch = Batch{std::move(in_batch)};
     return Status::OK();
   }
 
@@ -515,6 +496,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       if (*end_of_sequence) {
         return Status::OK();
       }
+      TF_RETURN_IF_ERROR(input_batches[input_idx].VerifyUniform(input_idx));
     }
     out_batches = std::move(input_batches);
     return Status::OK();
@@ -611,92 +593,6 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
   }
 
   /**
-   * @brief Check if samples have the same ndim, dtype etc.
-   *
-   * This probably is already handled by TF, as dataset probably can't
-   * dynamically change its shape. And we can probably check the declared output
-   * structure in Python level.
-   *
-   * TODO(klecki): add those checks in Python for clear errors
-   */
-  Status VerifyUniform(const Batch &input_batch, int input_idx) {
-    if (input_batch.empty()) {
-      return errors::InvalidArgument("Empty batch for input: ", input_idx, ".");
-    }
-    int ndim = input_batch[0].dims();
-    auto dtype = input_batch[0].dtype();
-    for (auto &sample : input_batch) {
-      if (sample.dims() != ndim) {
-        return errors::InvalidArgument(
-            "Inconsistent dimensionality of samples in a batch for input: ", input_idx,
-            ", got sample with: ", sample.dims(), " dimensions while the first one has: ", ndim,
-            " dimensions.");
-      }
-      if (sample.dtype() != dtype) {
-        return errors::InvalidArgument("Inconsistent dtype of samples in a batch for input: ",
-                                       input_idx, ", got sample with: ", sample.dtype(),
-                                       " dtype while the first one has: ", dtype, " dtype.");
-      }
-    }
-    return Status::OK();
-  }
-
-  const void *GetTensorData(const Tensor &t) const {
-#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 2
-    return t.data();
-#else
-    return t.tensor_data().data();
-#endif
-  }
-
-  /**
-   * @brief Helper function that repacks the pointer to data of `Batch` (which is a list of
-   * samples returned by GetNext()), to the format used by DALI C API for feeding External Source.
-   *
-   * Outputs: ptrs, dtype, shapes, ndim
-   * @param ptrs output pointers, in sample mode, batch size of pointers, in batch mode
-   *             a vector with one pointer to data.
-   *
-   * Inputs: input_batch, batched
-   * @param input_batch Batch tensor in batch mode, othewise batch of sample tensors
-   * @param batched true if batch mode, otherwise sample mode
-   */
-  Status RepackBatch(std::vector<const void *> &ptrs, dali_data_type_t &dtype,
-                     std::vector<int64_t> &shapes, int64_t &ndim, const Batch &input_batch,
-
-                     bool batched) {
-    int batch_size = dataset()->pipeline_def_.batch_size;
-
-    dtype = TfToDaliType(input_batch[0].dtype());
-    // remove the batch dimension if present
-    ndim = batched ? input_batch[0].dims() - 1 : input_batch[0].dims();
-    shapes.clear();
-    shapes.reserve(batch_size * ndim);
-
-    if (batched) {
-      auto &tensor = input_batch[0];
-      assert(tensor.dim(0) == batch_size);
-      ptrs.resize(1, nullptr);
-      ptrs[0] = GetTensorData(tensor);
-      for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
-        for (int d = 0; d < ndim; d++) {
-          shapes.push_back(tensor.dim_size(d + 1));
-        }
-      }
-    } else {
-      assert(input_batch.size() == batch_size);
-      ptrs.resize(batch_size, nullptr);
-      for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
-        ptrs[sample_idx] = GetTensorData(input_batch[sample_idx]);
-        for (int d = 0; d < ndim; d++) {
-          shapes.push_back(input_batch[sample_idx].dim_size(d));
-        }
-      }
-    }
-    return Status::OK();
-  }
-
-  /**
    * @brief Feed a batches into coresponding inputs (External Source nodes).
    *
    * The batches are kept in queue to keep them alive long enough for DALI to process them.
@@ -715,9 +611,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 
     for (int input_idx = 0; input_idx < dataset()->NumInputs(); input_idx++) {
       auto &input_batch = current_batches[input_idx];
-      TF_RETURN_IF_ERROR(VerifyUniform(input_batch, input_idx));
       bool batched = dataset()->input_desc_.input_batched[input_idx];
-      TF_RETURN_IF_ERROR(RepackBatch(ptrs, dtype, shapes, ndim, input_batch, batched));
 
       auto &input_name = dataset()->input_desc_.input_names[input_idx];
       // TODO(klecki): Currently we are restricted to supporting input memory on the same
@@ -739,13 +633,18 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 
       // TODO(klecki): Consider using other stream here: Dataset's stream_ or stream 0.
       if (batched) {
-        TF_DALI_CALL(daliSetExternalInput(pipeline_handle, input_name.c_str(), input_device,
-                                          ptrs[0], dtype, shapes.data(), ndim, input_layout.c_str(),
-                                          flag));
+        const void *ptr = nullptr;
+        TF_RETURN_IF_ERROR(input_batch.GetPtr(ptr));
+        input_batch.GetShapes(shapes);
+        TF_DALI_CALL(daliSetExternalInput(pipeline_handle, input_name.c_str(), input_device, ptr,
+                                          input_batch.dtype(), shapes.data(), input_batch.ndim(),
+                                          input_layout.c_str(), flag));
       } else {
+        TF_RETURN_IF_ERROR(input_batch.GetPtrs(ptrs));
+        input_batch.GetShapes(shapes);
         TF_DALI_CALL(daliSetExternalInputTensors(pipeline_handle, input_name.c_str(), input_device,
-                                                 ptrs.data(), dtype, shapes.data(), ndim,
-                                                 input_layout.c_str(), flag));
+                                                 ptrs.data(), input_batch.dtype(), shapes.data(),
+                                                 input_batch.ndim(), input_layout.c_str(), flag));
       }
 
       // No need keep the data if we did the copy
