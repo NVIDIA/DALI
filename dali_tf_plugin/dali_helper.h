@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TF_PLUGIN_DALI_SHAPE_HELPER_H_
-#define DALI_TF_PLUGIN_DALI_SHAPE_HELPER_H_
+#ifndef DALI_TF_PLUGIN_DALI_HELPER_H_
+#define DALI_TF_PLUGIN_DALI_HELPER_H_
 
 #include <memory>
 #include <utility>
@@ -244,4 +244,4 @@ using ListOfBatches = std::vector<Batch>;
 }  // namespace dali_tf_impl
 
 
-#endif  // DALI_TF_PLUGIN_DALI_SHAPE_HELPER_H_
+#endif  // DALI_TF_PLUGIN_DALI_HELPER_H_

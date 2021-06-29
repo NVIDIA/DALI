@@ -34,7 +34,7 @@
 
 #include "dali/c_api.h"
 #include "dali/core/common.h"
-#include "dali_tf_plugin/dali_shape_helper.h"
+#include "dali_tf_plugin/dali_helper.h"
 
 typedef std::chrono::high_resolution_clock Clock;
 

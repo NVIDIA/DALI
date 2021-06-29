@@ -39,7 +39,7 @@ install(FILES "${PROJECT_SOURCE_DIR}/nvidia/dali_tf_plugin/dali_tf_plugin.py" DE
 install(DIRECTORY "${DALI_ROOT}/include" DESTINATION "${PROJECT_BINARY_DIR}")
 install(FILES "${DALI_ROOT}/tools/stubgen.py" DESTINATION "${PROJECT_BINARY_DIR}")
 install(FILES "dali_dataset.h" DESTINATION "${PROJECT_BINARY_DIR}/dali_tf_plugin")
-install(FILES "dali_shape_helper.h" DESTINATION "${PROJECT_BINARY_DIR}/dali_tf_plugin")
+install(FILES "dali_helper.h" DESTINATION "${PROJECT_BINARY_DIR}/dali_tf_plugin")
 install(FILES "daliop.cc" DESTINATION "${PROJECT_BINARY_DIR}")
 install(FILES "dali_dataset_op.cc" DESTINATION "${PROJECT_BINARY_DIR}")
 install(FILES "dali_tf_plugin_install_tool.py" DESTINATION "${PROJECT_BINARY_DIR}")

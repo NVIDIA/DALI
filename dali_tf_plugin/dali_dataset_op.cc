@@ -45,7 +45,7 @@
 #include "dali/c_api.h"
 #include "dali/core/common.h"
 #include "dali/core/format.h"
-#include "dali_tf_plugin/dali_shape_helper.h"
+#include "dali_tf_plugin/dali_helper.h"
 
 #include "dali_tf_plugin/dali_dataset.h"
 
