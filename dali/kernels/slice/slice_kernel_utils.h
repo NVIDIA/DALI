@@ -104,6 +104,31 @@ inline std::tuple<int64_t, int64_t, int64_t> CalcPadCopyExtents(int64_t anchor,
   return std::tuple<int64_t, int64_t, int64_t>{pad_before, to_copy, pad_after};
 }
 
+
+template <typename OutputType, typename InputType, int Dims>
+bool CanRunPlainCopy(const TensorShape<Dims> &out_strides,
+                     const TensorShape<Dims> &in_strides,
+                     const TensorShape<Dims> &out_shape,
+                     const TensorShape<Dims> &in_shape,
+                     const SliceArgs<OutputType, Dims> &args) {
+  // if there's type conversion we can't run memcpy
+  if (!std::is_same<OutputType, InputType>::value)
+    return false;
+
+  auto default_out_strides = GetStrides(out_shape);
+  auto default_in_strides = GetStrides(in_shape);
+
+  // If the strides are not the default ones, or the window anchor and shape
+  // are different than the bounds of the input, we can't run plain memcpy
+  for (int d = 0; d < Dims; d++) {
+    if (args.anchor[d] != 0 || out_shape[d] != in_shape[d] ||
+        default_out_strides[d] != out_strides[d] ||
+        default_in_strides[d] != in_strides[d])
+      return false;
+  }
+  return true;
+}
+
 }  // namespace kernels
 }  // namespace dali
 

@@ -296,12 +296,33 @@ void SliceKernel(ExecutionEngine &exec_engine,
                  const SliceArgs<OutputType, Dims> &args,
                  int min_blk_sz = 16000,
                  int req_nblocks = -1) {
-  // Parallelize
+  if (req_nblocks < 0)
+    req_nblocks = exec_engine.NumThreads() * 8;
+
+  // If the output and input data type is the same and the slice arguments take the whole extent
+  // of the input, then we can simply run memcpy.
+  if (CanRunPlainCopy<OutputType, InputType, Dims>(out_strides, in_strides, out_shape, in_shape,
+                                                   args)) {
+    int64_t total_sz = volume(out_shape);
+    int64_t nbytes = total_sz * sizeof(OutputType);
+    int nblocks = std::min<int64_t>(req_nblocks, div_ceil(total_sz, min_blk_sz));
+    assert(nblocks > 0);
+
+    int64_t prev_b_end = 0;
+    for (int b = 0; b < nblocks; b++) {
+      int64_t b_start = prev_b_end;
+      int64_t b_end = prev_b_end = total_sz * (b + 1) / nblocks;
+      int64_t b_nbytes = (b_end - b_start) * sizeof(OutputType);
+      exec_engine.AddWork([=](int tid) {
+        std::memcpy(out_data + b_start, in_data + b_start, b_nbytes);
+      }, b_nbytes, false);  // do not start work immediately
+    }
+    return;
+  }
+
   std::array<int, Dims> split_factor;
   uint64_t skip_dim_mask = args.channel_dim >= 0 ? (1 << args.channel_dim) : 0;
-  int nblocks = split_shape(split_factor, out_shape,
-                            req_nblocks > 0 ? req_nblocks : exec_engine.NumThreads() * 8,
-                            min_blk_sz, skip_dim_mask);
+  int nblocks = split_shape(split_factor, out_shape, req_nblocks, min_blk_sz, skip_dim_mask);
 
   if (nblocks == 1) {
     exec_engine.AddWork([=](int) {
@@ -347,6 +368,15 @@ void SliceKernel(SequentialExecutionEngine &exec_engine,
                  const SliceArgs<OutputType, Dims> &args,
                  int /* min_blk_sz */ = -1, int /* req_nblocks */ = -1) {
   (void) exec_engine;
+
+  // If the output and input data type is the same and the slice arguments take the whole extent
+  // of the input, then we can simply run memcpy.
+  if (CanRunPlainCopy<OutputType, InputType, Dims>(out_strides, in_strides, out_shape, in_shape,
+                                                   args)) {
+    std::memcpy(out_data, in_data, sizeof(OutputType) * volume(out_shape));
+    return;
+  }
+
   SliceKernel(out_data, in_data, out_strides, in_strides, out_shape, in_shape,
               args.anchor, GetPtr<OutputType>(args.fill_values), args.channel_dim);
 }
