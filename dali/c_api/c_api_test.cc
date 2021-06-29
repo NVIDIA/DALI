@@ -681,8 +681,8 @@ TYPED_TEST(CApiTest, ForceNoCopyFail) {
 }
 
 
-
-TYPED_TEST(CApiTest, ForceCopy) {
+template <typename TypeParam>
+void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test) {
   TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3},
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
@@ -694,7 +694,7 @@ TYPED_TEST(CApiTest, ForceCopy) {
   auto device = backend_to_device_type<TypeParam>::value;
   std::string device_str = GetDeviceStr(device);
 
-  auto pipe_ptr = GetExternalSourcePipeline(true, device_str);
+  auto pipe_ptr = GetExternalSourcePipeline(ext_src_no_copy, device_str);
   auto serialized = pipe_ptr->SerializeToProtobuf();
 
   pipe_ptr->Build();
@@ -712,12 +712,21 @@ TYPED_TEST(CApiTest, ForceCopy) {
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     data[i].Copy(input_cpu, cuda_stream);
     pipe_ptr->SetExternalInput(input_name, data[i]);
-    TensorList<TypeParam> tmp_data;
-    tmp_data.Copy(data[i], cuda_stream);
-    // We pass a temporary TensorList as input and force the copy
-    daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
-                              tmp_data.raw_data(), dali_data_type_t::DALI_UINT8, input_shape.data(),
-                              input_shape.sample_dim(), nullptr, cuda_stream, DALI_ext_force_copy);
+    if (flag_to_test == DALI_ext_force_no_copy) {
+      // for no copy, we just pass the view to data
+      daliSetExternalInputAsync(&handle, input_name.c_str(),
+                                backend_to_device_type<TypeParam>::value, data[i].raw_data(),
+                                dali_data_type_t::DALI_UINT8, input_shape.data(),
+                                input_shape.sample_dim(), nullptr, cuda_stream, flag_to_test);
+    } else {
+      TensorList<TypeParam> tmp_data;
+      tmp_data.Copy(data[i], cuda_stream);
+      // We pass a temporary TensorList as input and force the copy
+      daliSetExternalInputAsync(&handle, input_name.c_str(),
+                                backend_to_device_type<TypeParam>::value, tmp_data.raw_data(),
+                                dali_data_type_t::DALI_UINT8, input_shape.data(),
+                                input_shape.sample_dim(), nullptr, cuda_stream, flag_to_test);
+    }
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -732,6 +741,15 @@ TYPED_TEST(CApiTest, ForceCopy) {
   }
 }
 
+
+TYPED_TEST(CApiTest, ForceCopy) {
+  TestForceFlagRun<TypeParam>(true, DALI_ext_force_copy);
+}
+
+
+TYPED_TEST(CApiTest, ForceNoCopy) {
+  TestForceFlagRun<TypeParam>(false, DALI_ext_force_no_copy);
+}
 
 
 template <typename Backend>
