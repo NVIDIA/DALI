@@ -149,7 +149,7 @@ void RefReduce(const TensorListView<StorageCPU, Out> &out,
   if (batch && in.num_samples() > 1) {
     assert(out.shape.num_samples() == 1);
     auto s_shape = uniform_list_shape(in.num_samples(), out.shape[0]);
-    unique_ptr<Out> s_data(new Out[s_shape.num_elements()]);
+    unique_ptr<Out[]> s_data(new Out[s_shape.num_elements()]);
     auto reduced_samples = make_tensor_list_cpu(s_data.get(), std::move(s_shape));
     RefReduce(reduced_samples, in, axes, keep_dims, false, R);
     int64_t n = out.shape[0].num_elements();

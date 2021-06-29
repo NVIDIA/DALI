@@ -711,7 +711,6 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
       vec<ndim, float> shape, anchor;
       Box<ndim, float> rel_crop, out_crop;
-      std::array<float, coords_size> out_bounds, rel_bounds;
       for (int i = 0; i < num_attempts_; i++, count++) {
         if (absolute_crop_dims) {
           auto &crop_shape = crop_shape_[sample];
