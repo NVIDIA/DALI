@@ -50,7 +50,7 @@ void TestConvertLoad(In lo, In hi) {
   int lanes = 16 / sizeof(In);
   In in[lanes];  // NOLINT
   for (int i = 0; i < lanes; i++) {
-    in[i] = lo + (hi - lo) * i / (lanes - 1);
+    in[i] = int64_t(lo) + (int64_t(hi) - int64_t(lo)) * i / (lanes - 1);
   }
   float4x<nvec> v = load_f(in);
   for (int i = 0; i < nvec; i++) {
