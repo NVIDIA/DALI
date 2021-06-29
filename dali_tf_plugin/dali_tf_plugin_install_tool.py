@@ -97,14 +97,30 @@ class InstallerHelper:
 
         return s
 
+    def check_import(self, lib_path):
+        import tensorflow as tf
+        import nvidia.dali as dali  # DALI symbols need to be loaded
+        print("Importing the TF library to check for errors")
+        try:
+            tf.load_op_library(lib_path)
+            return True
+        except Exception as e:
+            print("Failed to import TF library: ", str(e))
+            return False
+
     def install_prebuilt(self):
         assert(self.can_install_prebuilt)
         assert(self.prebuilt_plugin_best_match is not None)
         assert(self.plugin_name is not None)
         print("Tensorflow was built with g++ {}, providing prebuilt plugin".format(self.tf_compiler))
-        plugin_dest =  os.path.join(self.plugin_dest_dir, self.plugin_name)
-        print("Copy {} to {}".format(self.prebuilt_plugin_best_match, self.plugin_dest_dir))
-        copyfile(self.prebuilt_plugin_best_match, plugin_dest)
+        if self.check_import(self.prebuilt_plugin_best_match):
+            print("Copy {} to {}".format(self.prebuilt_plugin_best_match, self.plugin_dest_dir))
+            plugin_dest =  os.path.join(self.plugin_dest_dir, self.plugin_name)
+            copyfile(self.prebuilt_plugin_best_match, plugin_dest)
+            return True
+        else:
+            print(f"Error importing {self.prebuilt_plugin_best_match}, will not install prebuilt plugin")
+            return False
 
     def install(self):
         print("Checking build environment for DALI TF plugin ...")
@@ -129,8 +145,10 @@ class InstallerHelper:
         # Note: https://github.com/tensorflow/custom-op
         # Packages are also built for gcc 5.4 now, so we are also providing prebuilt plugins for 5.4
         if self.can_install_prebuilt:
-            self.install_prebuilt()
-            return
+            if self.install_prebuilt():
+                return
+            else:
+                print("Installation of prebuilt plugins failed, will try building from source")
 
         if not self.can_default_compile:
             if self.has_alt_compiler:
@@ -188,6 +206,9 @@ class InstallerHelper:
                 + cuda_lflags + ' -O2'
             print("Build DALI TF library:\n\n " + cmd + '\n\n')
             subprocess.check_call(cmd, cwd=self.src_path, shell=True)
+            if not self.check_import(lib_path):
+                raise ImportError("Error while importing the DALI TF plugin built from source, will not install")
+            print("Installation successful")
 
 def main():
     env = InstallerHelper()
