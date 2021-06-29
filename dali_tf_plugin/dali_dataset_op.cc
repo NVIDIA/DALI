@@ -430,9 +430,9 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 
     // Repack the single Tensor from TfExample to Batch
     if (input_example.size() != 1) {
-      return errors::InvalidArgument("Got a sample consisting of ", input_example.size(),
+      return errors::InvalidArgument("Got an example consisting of ", input_example.size(),
                                      " elements for input: ", input_idx,
-                                     ". Only samples of 1 element are supported.");
+                                     ". Only examples of 1 element are supported.");
     }
     // Extract the obtained example
     example = input_example[0];
@@ -650,7 +650,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
   }
 
   /**
-   * @brief Helper function that repacks the pointer to data of `Batch` (which is an list of
+   * @brief Helper function that repacks the pointer to data of `Batch` (which is a list of
    * samples returned by GetNext()), to the format used by DALI C API for feeding External Source.
    *
    * Outputs: ptrs, dtype, shapes, ndim
@@ -981,9 +981,10 @@ REGISTER_INPUT_COLOCATION_EXEMPTION("DALIDataset");
 REGISTER_OP("DALIDataset")
     .Input("input_datasets: N * variant")
     .Output("handle: variant")
-    .Attr("input_names: list(string)")    // must match the input_datasets
-    .Attr("input_layouts: list(string)")  // must match the input_datasets
-    .Attr("input_batched: list(int)")  // must match the input_datasets, use int instead of bool
+    // the input_* attrs must match the input_datasets length
+    .Attr("input_names: list(string)")
+    .Attr("input_layouts: list(string)")
+    .Attr("input_batched: list(int)")  // use vector<int> instead of vector<bool>
     .Attr("pipeline: string")
     .Attr("batch_size: int")
     .Attr("num_threads: int")

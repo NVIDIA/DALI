@@ -48,14 +48,22 @@ the ``name`` parameter of :meth:`~nvidia.dali.fn.external_source`. Input dataset
 as a mapping from that ``name`` to the dataset object via the ``input_datasets`` dictionary argument
 of DALIDatasetWithInputs.
 
-The input datasets can operate in sample mode - it means that every input dataset
-is treated as if providing individual samples, or in batch mode - in that case the input dataset
-must return batches (Tensors with outermost dimension representing the sample index in batch).
+The input datasets can operate in per-sample mode or in batch mode.
 
-In sample mode DALIDataset will query the inputs dataset ``batch_size``-times to build a batch
+In per-sample mode, the values produced by the source dataset are interpreted
+as individual samples. The batch dimension is absent. For example, a 640x480 RGB image would
+have a shape `[480, 640, 3]`.
+
+In batch mode, the tensors produced by the source dataset are interpreted as batches,
+with an additional outer dimension denoting the samples in the batch. For example, a batch of
+ten 640x480 RGB images would have a shape `[10, 480, 640, 3]`.
+
+In both cases (per-sample and batch mode), the layout of those inputs should be denoted as "HWC".
+
+In per-sample mode DALIDataset will query the inputs dataset ``batch_size``-times to build a batch
 that would be fed into the DALI Pipeline.
-In sample mode, each sample produced by the input dataset can have a different shape,
-but not a different number of dimensions.
+In per-sample mode, each sample produced by the input dataset can have a different shape,
+but the number of dimension and the layout must remain constant.
 
 .. warning::
     This class is experimental and its API might change without notice.
@@ -250,11 +258,6 @@ def _insert_experimental_member(member, name):
     member.__module__ = experimental_module
     setattr(experimental_module, name, member)
 
-
-def _get_layout_from_pipeline(input_name, name_es_map):
-    layout = name_es_map[input_name]._layout
-    return layout if layout is not None else ""
-
 def _get_external_source_param(input_name, input_value, name_es_map, param_name):
     def get_param_from_pipe(input_name, name_es_map, param_name):
         es_op = name_es_map[input_name]
@@ -265,10 +268,7 @@ def _get_external_source_param(input_name, input_value, name_es_map, param_name)
             return getattr(es_op._op, "_" + param_name, None)
 
     # We didn't get input through input_datasets
-    if input_value is None:
-        return get_param_from_pipe(input_name, name_es_map, param_name)
-
-    if getattr(input_value, param_name) is None:
+    if input_value is None or getattr(input_value, param_name) is None:
         return get_param_from_pipe(input_name, name_es_map, param_name)
     else:
         return getattr(input_value, param_name)
@@ -422,7 +422,7 @@ if dataset_compatible_tensorflow():
 
                 # TODO(klecki): Do we want all Python-only ES parameters to be overridable here?
                 layout = _get_external_source_param(input_name, as_input, name_es_map, 'layout')
-                input_layouts_list.append(layout if layout is not None else "")
+                input_layouts_list.append(layout or "")
 
                 # Batched mode is supported by default
                 batched = _get_external_source_param(input_name, as_input, name_es_map, 'batch')
@@ -438,8 +438,8 @@ if dataset_compatible_tensorflow():
             self._input_datasets = tuple(input_datasets_list)
             self._input_names = tuple(input_names_list)
             self._input_layouts = tuple(input_layouts_list)
-            # Map it to integers
-            self._input_batched = tuple(1 if b else 0 for b in input_batched_list)
+            # Map it to integers, to pass as vector<int> instead of vector<bool> to C++
+            self._input_batched = tuple(int(b) for b in input_batched_list)
 
         def _assert_pipeline_instance(self):
             """Ensure that the pipeline is built, and check if the Python part is available.
@@ -476,10 +476,6 @@ if dataset_compatible_tensorflow():
                     self._assert_correct_external_sources(op)
                     name_es[op._op._name] = op
             return name_es
-
-        def _get_layout_from_pipeline(self, input_name, name_es_map):
-            layout = name_es_map[input_name]._layout
-            return layout if layout is not None else ""
 
         def _check_dtypes(self, values, expected_elem_type):
             """Check whether `values` is instance of `expected_elem_type`
@@ -576,17 +572,17 @@ if dataset_compatible_tensorflow():
         _insert_experimental_member(DALIDatasetWithInputs, "DALIDatasetWithInputs")
 
         class Input:
-            """Wrapper for input passed to DALIDataset. Allows to pass additional options that
-            can override some of the ones provided to the External Source node in the
+            """Wrapper for an input passed to DALIDataset. Allows to pass additional options that
+            can override some of the ones specified in the External Source node in the
             Python Pipeline object. Passing None indicates, that the value should be looked up
-            in the Pipeline defintion.
+            in the pipeline definition.
 
             Parameters
             ----------
             dataset : tf.data.Dataset
                 The dataset used as input
             layout : str, optional, default = None
-                Layout of given input. If None, the layout will be taken from the corresponding
+                Layout of the input. If None, the layout will be taken from the corresponding
                 External Source node in the Python Pipeline object. If it is not provided there,
                 empty layout will be used.
             batch: bool, optional, default = False

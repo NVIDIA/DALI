@@ -27,8 +27,12 @@ import numpy as np
 from nose.tools import nottest
 
 def get_min_shape_helper(batch, max_shape):
+    """For batch=None or batch=True, we use batch mode which requires fixed shape.
+    In that case min and max shape for RandomSampleIterator need to be equal.
+    `batch` can also be a string "dataset" that indicates we passed a Dataset object as input
+    without specifying the batch mode through: Input(dataset, batch=...)
+    """
     if batch is None or batch == True:
-        # Make the shape fixed for batched mode
         return max_shape
     else:
         return None
