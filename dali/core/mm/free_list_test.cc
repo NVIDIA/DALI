@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -212,6 +212,21 @@ TEST(MMCoalescingFreeList, RemoveIf) {
 
 TEST(MMCoalescingFreeTree, RemoveIf) {
   TestCoalescingRemoveIf<coalescing_free_tree>();
+}
+
+TEST(MMCoalescingFreeTree, Contains) {
+  coalescing_free_tree fl;
+  char a alignas(16)[4000];
+  fl.put(a, 63);
+  fl.put(a + 64, 2);
+  EXPECT_TRUE(fl.contains(a, a + 63));
+  EXPECT_TRUE(fl.contains(a + 10, a + 63));
+  EXPECT_TRUE(fl.contains(a + 10, a + 13));
+  EXPECT_TRUE(fl.contains(a + 64, a + 66));
+
+  EXPECT_FALSE(fl.contains(a, a + 64));
+  EXPECT_FALSE(fl.contains(a + 63, a + 65));
+  EXPECT_FALSE(fl.contains(a + 64, a + 67));
 }
 
 TEST(MMBestFitFreeTree, Alignment) {
