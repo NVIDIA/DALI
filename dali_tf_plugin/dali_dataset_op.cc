@@ -288,7 +288,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       if (iterator_state_ == InputState::in_progress) {
         bool end_of_input_sequence;
         ListOfBatches batches;
-        TF_RETURN_IF_ERROR(PrepareBatches(context, batches, &end_of_input_sequence));
+        TF_RETURN_IF_ERROR(PrepareBatches(context, batches, end_of_input_sequence));
         if (end_of_input_sequence) {
           iterator_state_ = InputState::stop_pending;
         } else {
@@ -307,7 +307,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       }
     }
 
-    TF_RETURN_IF_ERROR(ProduceOutputs(context, out_tensors, end_of_sequence));
+    TF_RETURN_IF_ERROR(ProduceOutputs(context, out_tensors, *end_of_sequence));
 
     // we produced output, we can safely release the input that was used to produce it
     if (dataset()->HasInputs()) {
@@ -369,9 +369,9 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       int actual_prefetch_depth = 0;
       if (dataset()->HasInputs()) {
         for (int i = 0; i < prefetch_depth; i++) {
-          bool end_of_sequence;
+          bool end_of_sequence = false;
           ListOfBatches batches;
-          TF_RETURN_IF_ERROR(PrepareBatches(context, batches, &end_of_sequence));
+          TF_RETURN_IF_ERROR(PrepareBatches(context, batches, end_of_sequence));
           if (end_of_sequence) {
             iterator_state_ = InputState::stop_pending;
             break;
@@ -401,14 +401,14 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    * output or signall stop.
    */
   Status GetExampleFromInput(IteratorContext *context, int input_idx, Tensor &example,
-                             bool *end_of_sequence) {
+                             bool &end_of_sequence) {
     TfExample input_example;
-    *end_of_sequence = false;
+    end_of_sequence = false;
     auto &input = input_impls_[input_idx];
     // TODO(klecki): ZipDataset just goes to next iteration on Error.
     // Desync of input datasets is not desired, we just report the problem fast
-    TF_RETURN_IF_ERROR(input->GetNext(context, &input_example, end_of_sequence));
-    if (*end_of_sequence) {
+    TF_RETURN_IF_ERROR(input->GetNext(context, &input_example, &end_of_sequence));
+    if (end_of_sequence) {
       return Status::OK();
     }
 
@@ -429,13 +429,13 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    * out_batch will contain one output sample representing whole batch
    */
   Status PrepareBatchesBatchMode(IteratorContext *context, int input_idx, Batch &out_batch,
-                                 bool *end_of_sequence) {
+                                 bool &end_of_sequence) {
     int next_batch_size = dataset()->pipeline_def_.batch_size;
-    *end_of_sequence = false;
+    end_of_sequence = false;
 
     Tensor example;
     TF_RETURN_IF_ERROR(GetExampleFromInput(context, input_idx, example, end_of_sequence));
-    if (*end_of_sequence) {
+    if (end_of_sequence) {
       return Status::OK();
     }
     // Batch mode, only one tensor for whole batch
@@ -449,19 +449,19 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    * out_batch will contain sample tensors.
    */
   Status PrepareBatchesSampleMode(IteratorContext *context, int input_idx, Batch &out_batch,
-                                  bool *end_of_sequence) {
+                                  bool &end_of_sequence) {
     int next_batch_size = dataset()->pipeline_def_.batch_size;
     // Sample mode, so we have batch of actual sample tensors
     BatchStorage in_batch;
     in_batch.resize(next_batch_size);
-    *end_of_sequence = false;
+    end_of_sequence = false;
 
     // We fail fast, we will either bubble up the error or set the state of dataset to stop_pending
     // and just use up what is queued.
     for (int sample_idx = 0; sample_idx < next_batch_size; sample_idx++) {
       TF_RETURN_IF_ERROR(
           GetExampleFromInput(context, input_idx, in_batch[sample_idx], end_of_sequence));
-      if (*end_of_sequence) {
+      if (end_of_sequence) {
         return Status::OK();
       }
     }
@@ -478,9 +478,9 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    * In case of end_of_sequence or error we expect to start over.
    */
   Status PrepareBatches(IteratorContext *context, ListOfBatches &out_batches,
-                        bool *end_of_sequence) {
+                        bool &end_of_sequence) {
     out_batches.clear();
-    *end_of_sequence = false;
+    end_of_sequence = false;
     ListOfBatches input_batches(dataset()->NumInputs());
     int next_batch_size = dataset()->pipeline_def_.batch_size;
 
@@ -493,7 +493,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         TF_RETURN_IF_ERROR(PrepareBatchesSampleMode(context, input_idx, input_batches[input_idx],
                                                     end_of_sequence));
       }
-      if (*end_of_sequence) {
+      if (end_of_sequence) {
         return Status::OK();
       }
       TF_RETURN_IF_ERROR(input_batches[input_idx].VerifyUniform(input_idx));
@@ -507,7 +507,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    * that we allocated for outputs. Release the DALI Pipeline Outputs.
    */
   Status ProduceOutputs(IteratorContext *context, std::vector<Tensor> *out_tensors,
-                        bool *end_of_sequence) {
+                        bool &end_of_sequence) {
     TF_DALI_CALL(daliShareOutput(&pipeline_handle_));
 
     auto num_outputs = 0;
@@ -586,7 +586,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
                                   dataset()->stream_, false));
     }
 
-    *end_of_sequence = false;
+    end_of_sequence = false;
 
     TF_DALI_CALL(daliOutputRelease(&pipeline_handle_));
     return Status::OK();

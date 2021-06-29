@@ -52,11 +52,11 @@ The input datasets can operate in per-sample mode or in batch mode.
 
 In per-sample mode, the values produced by the source dataset are interpreted
 as individual samples. The batch dimension is absent. For example, a 640x480 RGB image would
-have a shape `[480, 640, 3]`.
+have a shape ``[480, 640, 3]``.
 
 In batch mode, the tensors produced by the source dataset are interpreted as batches,
 with an additional outer dimension denoting the samples in the batch. For example, a batch of
-ten 640x480 RGB images would have a shape `[10, 480, 640, 3]`.
+ten 640x480 RGB images would have a shape ``[10, 480, 640, 3]``.
 
 In both cases (per-sample and batch mode), the layout of those inputs should be denoted as "HWC".
 
