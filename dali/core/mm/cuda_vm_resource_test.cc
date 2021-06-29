@@ -20,8 +20,12 @@ namespace mm {
 
 TEST(MM_VMResource, X) {
   cuda_vm_resource res;
-  void *ptr = res.allocate(100);
-  res.deallocate(ptr, 100);
+  void *ptr = res.allocate(100<<20);
+  void *ptr2 = res.allocate(100<<20);
+  res.deallocate(ptr, 100<<20);
+  void *ptr3 = res.allocate(100<<20);
+  EXPECT_EQ(ptr, ptr2);
+  res.deallocate(ptr2, 100<<20);
 }
 
 }  // namespace mm

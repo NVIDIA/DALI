@@ -42,6 +42,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   void purge() {
     for (auto &r : va_regions_)
       r.purge();
+    va_ranges_.clear();
   }
 
  private:
@@ -61,7 +62,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   }
 
   struct va_region {
-    va_region(cuvm::CUMemAddressRange range, size_t block_size)
+    va_region(cuvm::CUAddressRange range, size_t block_size)
     : address_range(std::move(range)), block_size(block_size) {
       size_t size = address_range.size();
       size_t blocks_in_range = size / block_size;
@@ -124,7 +125,67 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       return mem;
     }
 
-    cuvm::CUMemAddressRange address_range;
+    void append(va_region &&other) {
+      assert(address_range.end() == other.address_range.ptr());
+      assert(block_size == other.block_size);
+      address_range.size() += other.address_range.size();
+      int other_blocks = other.num_blocks();
+      int old_blocks = num_blocks();
+      mapping.resize(old_blocks + other_blocks);
+      for (int i = 0; i < other_blocks; i++) {
+        mapping[old_blocks + i] = other.mapping[i];
+        other.mapping[i] = {};
+      }
+      other.mapping = {};
+
+      mapped.append(other.mapped);
+      available.append(other.available);
+
+      other.available = {};
+      other.mapped = {};
+      available_blocks += other.available_blocks;
+      other.available_blocks = 0;
+      assert(mapping.size() == mapped.size());
+      assert(mapping.size() == available.size());
+    }
+
+    void resize(int new_num_blocks) {
+      if (new_num_blocks < num_blocks()) {
+        int no_longer_in_range = 0;
+        for (int i = new_num_blocks; i < num_blocks(); i++) {
+          if (mapping[i]) {
+            cuvm::Unmap(block_ptr(i), block_size);
+            CUDA_DTOR_CALL(cuMemRelease(mapping[i]));
+            mapping[i] = {};
+            if (available[i])
+              no_longer_in_range++;
+          }
+        }
+        available_blocks -= no_longer_in_range;
+      }
+      mapping.resize(new_num_blocks);
+      mapped.resize(new_num_blocks);
+      available.resize(new_num_blocks);
+      address_range.size() = new_num_blocks * block_size;
+    }
+
+    void set_block_availability(char *start, char *end, bool availability) {
+      int blk_start = (start - block_ptr<char>(0)) / block_size;
+      int blk_end   = (end   - block_ptr<char>(0)) / block_size;
+      int flipped = 0;
+      for (int b = available.find(!availability, blk_start); b < blk_end; ) {
+        int first_flipped = available.find(availability, b+1);
+        flipped += first_flipped - b;
+        b = first_flipped + 1;
+      }
+      if (availability)
+        available_blocks += flipped;
+      else
+        available_blocks -= flipped;
+      available.fill(blk_start, blk_end, availability);
+    }
+
+    cuvm::CUAddressRange    address_range;
     vector<mem_handle_t>    mapping;
     bitmask                 mapped, available;
     ptrdiff_t               available_blocks = 0;
@@ -132,6 +193,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   };
 
   SmallVector<va_region, 8> va_regions_;
+  SmallVector<cuvm::CUMemAddressRange, 8> va_ranges_;
   size_t total_used_, total_mapped_;
   size_t min_va_size = 0x100000000u;  // 4GiB
   size_t block_size_ = 0;
@@ -161,7 +223,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     char *ptr = static_cast<char*>(free_mapped_.get(size, alignment));
     if (ptr) {
       free_va_.get_specific_block(ptr, ptr + size);
-      //#error TODO mark overlapping blocks as not available
+      mark_as_unavailable(ptr, size);
       return ptr;
     } else {
       return nullptr;
@@ -193,12 +255,42 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       last_va = &va_regions_.back();
       hint = last_va->address_range.ptr() + last_va->address_range.size();
     }
-    cuvm::CUMemAddressRange va = cuvm::CUMemAddressRange::Reserve(va_size, 0, hint);
+    va_ranges_.push_back(cuvm::CUMemAddressRange::Reserve(va_size, 0, hint));
+    auto &va = va_ranges_.back();
     std::cerr << "Allocated a virtual memory range at: " << (void*)va.ptr() << " - hint was "
-              << (void*)hint;
-    va_regions_.emplace_back(std::move(va), block_size_);
-    auto &region = va_regions_.back();
-    free_va_.put(region.block_ptr(0), region.block_size * region.num_blocks());
+              << (void*)hint << std::endl;
+
+    // Try to merge regions
+    // 1. Find preceding region
+    va_region *region = nullptr;
+    for (auto &r : va_regions_)
+      if (r.address_range.end() == va.ptr()) {
+        region = &r;
+        break;
+      }
+    if (region) {
+      // Found! Resize it. The new VA range is unmapped, so we can simply resize,
+      // there's nothing more to do.
+      region->resize(region->num_blocks() + va_size / block_size_);
+    } else {
+      // Not found - create a new region
+      va_regions_.emplace_back(va, block_size_);
+      region = &va_regions_.back();
+    }
+
+    // 2. Find succeeding region
+    for (size_t i = 0; i < va_regions_.size(); i++) {
+      auto &r = va_regions_[i];
+      if (r.address_range.ptr() == region->address_range.end()) {
+        // Found - now we move the contents of the old range to the end of the new one
+        // and erase the old one.
+        region->append(std::move(r));
+        va_regions_.erase_at(i);
+        break;
+      }
+    }
+
+    free_va_.put(reinterpret_cast<void*>(va.ptr()), va.size());
   }
 
   virtual void do_deallocate(void *ptr, size_t size, size_t alignment) override {
@@ -209,7 +301,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   }
 
   bool is_block_aligned(void *ptr) const noexcept {
-    return detail::is_aligned(ptr, block_size_));
+    return detail::is_aligned(ptr, block_size_);
   }
 
   bool is_free_mapped(char *start, char *end) const noexcept {
@@ -222,21 +314,29 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     return { start, end };
   }
 
+  /**
+   * @brief Mark all memory in the given range as available; check partially covered blocks.
+   *
+   * All blocks completely covered by the given memory range are marked as available.
+   * The blocks which are only partially covered (at the beginning and at the end) are checked
+   * in the free tree and marked accordingly. The function assumes that the free tree has
+   * already been updated to reflect the availability.
+   */
   void mark_as_available(void *ptr, size_t size) {
     char *cptr = static_cast<char *>(ptr);
 
     char *start = nullptr, *end = nullptr;
-    if (!is_block_aligned(ptr)) {
-      auto block_bounds = block_bounds(cptr);
-      start = free_mapped_.contains(block_bounds.first, block_bounds.second)
-              ? block_bounds.first : block_bounds.second;
+    if (!is_block_aligned(cptr)) {
+      auto block = block_bounds(cptr);
+      start = free_mapped_.contains(block.first, block.second)
+              ? block.first : block.second;
     } else {
       start = cptr;
     }
-    if (!is_block_aligned(ptr + size)) {
-      auto block_bounds = block_bounds(cptr);
-      end = free_mapped_.contains(block_bounds.first, block_bounds.second)
-              ? block_bounds.second : block_bounds.first;
+    if (!is_block_aligned(cptr + size)) {
+      auto block = block_bounds(cptr);
+      end = free_mapped_.contains(block.first, block.second)
+              ? block.second : block.first;
     } else {
       end = cptr + size;
     }
@@ -244,10 +344,22 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     set_block_avaialbility(start, end, true);
   }
 
-  void set_block_avaialbility(char *start, char *end, bool available) {
-    for (char *ptr = start; ptr < end; ) {
-      va_region *va = va_find(ptr);
-    }
+  /**
+   * @brief Mark all blocks that overlap the given range as unavailable
+   */
+  void mark_as_unavailable(void *ptr, size_t size) {
+    char *cptr = static_cast<char *>(ptr);
+    char *start = detail::align_ptr_down(cptr, block_size_);
+    char *end = detail::align_ptr(cptr + size, block_size_);
+    set_block_avaialbility(start, end, false);
+  }
+
+
+  void set_block_avaialbility(char *start, char *end, bool availability) {
+    va_region *va = va_find(start);
+    assert(va != nullptr);
+    assert(va == va_find(end-1));
+    va->set_block_availability(start, end, availability);
   }
 
   void map_storage(void *ptr, size_t size) {
@@ -260,7 +372,6 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     int block_idx = offset / block_size_;
     int blocks = size / block_size_;
     struct block_range {
-      va_region *region;
       int begin, end;
     };
     SmallVector<block_range, 8> to_map;
@@ -268,23 +379,14 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     while (blocks) {
       int next_unmapped = region->mapped.find(false, block_idx);
       if (next_unmapped - block_idx >= blocks)
-        return;  // everything we need is mapped)
-      if (next_unmapped == region->num_blocks()) {
-        blocks -= next_unmapped - block_idx;
-        region = va_find(region_end);
-        assert(region);
-        region_start = region->address_range.ptr();
-        region_end = region->address_range.end();
-        block_idx = 0;
-      } else {
-        int next_mapped = region->mapped.find(true, next_unmapped + 1);
-        blocks_to_map += next_mapped - next_unmapped;
-        if (blocks_to_map > blocks)
-          blocks_to_map = blocks;
-        block_idx += blocks_to_map;
-        blocks -= blocks_to_map;
-        to_map.push_back({ region, next_unmapped, block_idx });
-      }
+        break;  // everything we need is mapped)
+      int next_mapped = region->mapped.find(true, next_unmapped + 1);
+      blocks_to_map += next_mapped - next_unmapped;
+      if (blocks_to_map > blocks)
+        blocks_to_map = blocks;
+      block_idx += blocks_to_map;
+      blocks -= blocks_to_map;
+      to_map.push_back({ next_unmapped, block_idx });
     }
 
     SmallVector<cuvm::CUMem, 256> free_blocks;
@@ -293,12 +395,12 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
 
     int i = 0;
     for (const block_range &br : to_map) {
-      br.region->available.fill(br.begin, br.end, true);
+      region->available.fill(br.begin, br.end, true);
       for (int b = br.begin; b < br.end; b++) {
         assert(i < static_cast<int>(free_blocks.size()));
-        br.region->map_block(b, std::move(free_blocks[i++]));
+        region->map_block(b, std::move(free_blocks[i++]));
       }
-      free_mapped_.put(br.region->block_ptr(br.begin), (br.end - br.begin) * block_size_);
+      free_mapped_.put(region->block_ptr(br.begin), (br.end - br.begin) * block_size_);
     }
     assert(i == blocks_to_map);
   }
