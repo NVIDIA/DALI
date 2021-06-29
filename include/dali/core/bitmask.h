@@ -35,7 +35,7 @@ class bitmask {
     return idx & (storage_bits - 1);
   }
 
-  static constexpr int word_idx(ptrdiff_t idx) {
+  static constexpr ptrdiff_t word_idx(ptrdiff_t idx) {
     return idx >> storage_bits_log;
   }
 
@@ -48,7 +48,7 @@ class bitmask {
     assert(start >= 0);
     if (start >= size_)
       return size_;
-    auto index = word_idx(start);
+    ptrdiff_t index = word_idx(start);
     int bit = bit_idx(start);
     bit_storage_t flip = 0;
     if (!value)
@@ -243,6 +243,41 @@ class bitmask {
     bit_storage_t storage = storage_[word_idx(index)];
     bit_storage_t mask = bit_storage_t(1) << bit_idx(index);
     return storage & mask;
+  }
+
+  void append(const bitmask &other) {
+    if (empty()) {
+      *this = other;
+      return;
+    }
+
+    int first_free_bit_idx = bit_idx(size_);
+    if (first_free_bit_idx == 0) {
+      size_t num_words = storage_.size();
+      storage_.resize(num_words + other.storage_.size());
+      for (size_t i = 0; i < other.storage_.size(); i++)
+        storage_[i + num_words] = other.storage_[i];
+    } else {
+      ptrdiff_t idx = size_;
+      ptrdiff_t widx = word_idx(idx);
+      ptrdiff_t total_words = (size_ + other.size_ + storage_bits - 1) >> storage_bits_log;
+      storage_.resize(total_words);
+      int lshift = first_free_bit_idx;
+      int rshift = storage_bits - lshift;
+
+      ptrdiff_t i = 0;
+      ptrdiff_t other_words = other.storage_.size();
+      bit_storage_t prev = storage_[widx];
+
+      for (; i < other_words; i++) {
+        storage_[widx++] = prev | (other.storage_[i] << lshift);
+        prev = other.storage_[i] >> rshift;
+      }
+      if (widx < total_words) {
+        storage_[widx] = prev;
+      }
+    }
+    size_ += other.size_;
   }
 
  private:
