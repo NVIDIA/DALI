@@ -16,6 +16,7 @@
 #define DALI_CORE_MM_CUDA_VM_RESOURCE_H_
 
 #include "dali/core/mm/cu_vm.h"
+#include <algorithm>
 #include <vector>
 
 #if DALI_USE_CUDA_VM_MAP
@@ -26,6 +27,10 @@
 
 namespace dali {
 namespace mm {
+
+namespace test {
+class VMResourceTest;
+}  // namespace test
 
 class cuda_vm_resource : public memory_resource<memory_kind::device> {
  public:
@@ -213,7 +218,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     if (ptr)
       return ptr;
     ptr = get_va(size, alignment);
-    map_storage(ptr, align_up(size, block_size_));
+    map_storage(ptr, size);
     ptr = try_get_mapped(size, alignment);
     assert(ptr != nullptr);
     return ptr;
@@ -334,7 +339,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       start = cptr;
     }
     if (!is_block_aligned(cptr + size)) {
-      auto block = block_bounds(cptr);
+      auto block = block_bounds(cptr + size);
       end = free_mapped_.contains(block.first, block.second)
               ? block.second : block.first;
     } else {
@@ -369,23 +374,22 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     CUdeviceptr region_start  = region->address_range.ptr();
     CUdeviceptr region_end    = region->address_range.end();
     ptrdiff_t offset = dptr - region_start;
-    int block_idx = offset / block_size_;
-    int blocks = size / block_size_;
+    int start_block_idx = offset / block_size_;
+    int end_block_idx = (offset + size + block_size_ - 1) / block_size_;
     struct block_range {
       int begin, end;
     };
     SmallVector<block_range, 8> to_map;
     int blocks_to_map = 0;
-    while (blocks) {
+    for (int block_idx = start_block_idx; block_idx < end_block_idx; ) {
       int next_unmapped = region->mapped.find(false, block_idx);
-      if (next_unmapped - block_idx >= blocks)
+      if (next_unmapped >= end_block_idx)
         break;  // everything we need is mapped)
+      block_idx = next_unmapped;
       int next_mapped = region->mapped.find(true, next_unmapped + 1);
-      blocks_to_map += next_mapped - next_unmapped;
-      if (blocks_to_map > blocks)
-        blocks_to_map = blocks;
-      block_idx += blocks_to_map;
-      blocks -= blocks_to_map;
+      int next = std::min(end_block_idx, next_mapped);
+      blocks_to_map += next - next_unmapped;
+      block_idx = next;
       to_map.push_back({ next_unmapped, block_idx });
     }
 
@@ -441,7 +445,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     return va_find(reinterpret_cast<CUdeviceptr>(ptr));
   }
 
-
+  friend class test::VMResourceTest;
 
   coalescing_free_tree free_mapped_, free_va_;
   std::mutex  pool_lock_;
