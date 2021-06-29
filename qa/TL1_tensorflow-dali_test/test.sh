@@ -50,10 +50,6 @@ do_once() {
         echo "plm_rsh_agent = /usr/local/mpi/bin/rsh_warn.sh" >> /usr/local/mpi/etc/openmpi-mca-params.conf
     fi
 
-    if [ ${CUDA_VERSION} -lt 100 ]; then
-        apt-get update && apt-get install -y gcc-4.8 g++-4.8
-    fi
-
     apt-get update && apt-get install -y cmake
     export HOROVOD_GPU_ALLREDUCE=NCCL
     export HOROVOD_NCCL_INCLUDE=/usr/include
