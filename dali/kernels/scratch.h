@@ -167,7 +167,7 @@ class ScratchpadAllocator {
    *
    * See `Reserve(AllocType, size_t)` for details.
    */
-  void Reserve(std::array<size_t, NumAllocTypes> sizes) {
+  void Reserve(const std::array<size_t, NumAllocTypes> &sizes) {
     for (size_t idx = 0; idx < NumAllocTypes; idx++) {
       Reserve(AllocType(idx), sizes[idx]);
     }
