@@ -321,7 +321,7 @@ struct ConvolutionCpu {
     return req;
   }
 
-  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> out,
+  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> &out,
            const TensorView<StorageCPU, const In, ndim>& in,
            const TensorView<StorageCPU, const W, 1>& window, float scale = 1) {
     auto diameter = window.num_elements();

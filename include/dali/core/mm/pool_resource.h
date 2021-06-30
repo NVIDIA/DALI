@@ -137,7 +137,7 @@ template <memory_kind kind, typename Context, class FreeList, class LockType>
 class pool_resource_base : public memory_resource<kind, Context> {
  public:
   explicit pool_resource_base(memory_resource<kind, Context> *upstream = nullptr,
-                              const pool_options opt = default_pool_opts<kind>())
+                              const pool_options &opt = default_pool_opts<kind>())
   : upstream_(upstream), options_(opt) {
      next_block_size_ = opt.min_block_size;
   }
@@ -392,7 +392,7 @@ class deferred_dealloc_pool : public pool_resource_base<kind, Context, FreeList,
                 "This resource is inherently multithreaded and requires a functioning lock.");
 
   explicit deferred_dealloc_pool(memory_resource<kind, Context> *upstream = nullptr,
-                                 const pool_options opt = default_pool_opts<kind>())
+                                 const pool_options &opt = default_pool_opts<kind>())
   : base(upstream, opt) {}
 
   ~deferred_dealloc_pool() {
