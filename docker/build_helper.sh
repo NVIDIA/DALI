@@ -42,7 +42,13 @@ export BUILD_NVDEC=${BUILD_NVDEC:-ON}
 export BUILD_LIBSND=${BUILD_LIBSND:-ON}
 export BUILD_NVML=${BUILD_NVML:-ON}
 export BUILD_FFTS=${BUILD_FFTS:-ON}
-export BUILD_CUFILE=${BUILD_CUFILE-OFF}
+# CUFILE is part of CUDA 11.4 so enable it by default in such case
+if [ "$CUDA_VER" -ge "114" ]
+then
+    export BUILD_CUFILE=${BUILD_CUFILE-ON}
+else
+    export BUILD_CUFILE=${BUILD_CUFILE-OFF}
+fi
 export LINK_LIBCUDA=${LINK_LIBCUDA:-OFF}
 export STRIP_BINARY=${STRIP_BINARY:-OFF}
 export VERBOSE_LOGS=${VERBOSE_LOGS:-OFF}
