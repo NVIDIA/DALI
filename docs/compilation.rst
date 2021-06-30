@@ -38,10 +38,11 @@ Building Python Wheel
 Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If needed,
 set the following environment variables:
 
-* | CUDA_VERSION - CUDA toolkit version (10.2 and 11.3 are offiically supported, 10.0, 11.0, 11.1 and 11.2 are deprecated and may not work).
-  | The default is ``11.3``. Thanks to CUDA extended compatibility mode, CUDA 11.1, 11.2 and 11.3 wheels are
-    named as CUDA 11.0 because it can work with the CUDA 11.0 R450.x driver family. Please update
-    to the latest recommended driver version in that family.
+* | CUDA_VERSION - CUDA toolkit version (10.2 and 11.4 are offiically supported, 10.0, 11.0, 11.1,
+    11.2 and 11.3 are deprecated and may not work).
+  | The default is ``11.4``. Thanks to CUDA extended compatibility mode, CUDA 11.1, 11.2, 11.3
+    and 11.34wheels are named as CUDA 11.0 because it can work with the CUDA 11.0 R450.x driver
+    family. Please update to the latest recommended driver version in that family.
   | If the value of the CUDA_VERSION is prefixed with `.` then any value ``.XX.Y`` can be passed,
     the supported version check is suppressed, and the user needs to make sure that
     Dockerfile.cudaXXY.deps is present in the `docker/` directory.
