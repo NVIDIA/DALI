@@ -608,7 +608,7 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   template <typename U>
   TensorListView(const TensorListView<Backend, U, sample_ndim> &other)
       : Base(other.data, other.shape) {
-    static_assert(sample_ndim == sample_ndim || sample_ndim == DynamicDimensions,
+    static_assert(sample_ndim == other.sample_ndim || sample_ndim == DynamicDimensions,
                   "Cannot change number of dimensions");
     detail::check_implicit_conversion<U, DataType>();
   }
