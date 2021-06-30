@@ -132,8 +132,8 @@ TEST(CUMemAddressRange, Perf) {
   if (!cuvm::IsSupported())
     GTEST_SKIP() << "CUDA Virtual Memory API not supported on this machine";
 
-  int64_t virt_size = 10L<<30;
-  int64_t phys_size = (64L)<<20;
+  int64_t virt_size = 10L << 30;
+  int64_t phys_size = (64L) << 20;
   std::vector<cuvm::CUMem> phys;
   int N = 16;
   phys.reserve(N);
@@ -145,14 +145,14 @@ TEST(CUMemAddressRange, Perf) {
   }
   auto t2 = std::chrono::high_resolution_clock::now();
   CUdeviceptr p = range.ptr();
-  for (int i = 0; i < (int)phys.size(); i++) {
+  for (int i = 0; i < static_cast<int>(phys.size()); i++) {
     cuvm::Map(p, phys[i]);
     p += phys[i].size();
   }
   auto t3 = std::chrono::high_resolution_clock::now();
   p = range.ptr();
-  for (int i = 0; i < (int)phys.size(); i++) {
-    cuvm::Unmap((void*)p, phys[i].size());
+  for (int i = 0; i < static_cast<int>(phys.size()); i++) {
+    cuvm::Unmap(p, phys[i].size());
     p += phys[i].size();
   }
   auto t4 = std::chrono::high_resolution_clock::now();

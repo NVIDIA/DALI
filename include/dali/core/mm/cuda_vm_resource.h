@@ -15,9 +15,10 @@
 #ifndef DALI_CORE_MM_CUDA_VM_RESOURCE_H_
 #define DALI_CORE_MM_CUDA_VM_RESOURCE_H_
 
-#include "dali/core/mm/cu_vm.h"
 #include <algorithm>
+#include <utility>>
 #include <vector>
+#include "dali/core/mm/cu_vm.h"
 
 #if DALI_USE_CUDA_VM_MAP
 #include "dali/core/mm/memory_resource.h"
@@ -68,7 +69,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
 
   struct va_region {
     va_region(cuvm::CUAddressRange range, size_t block_size)
-    : address_range(std::move(range)), block_size(block_size) {
+    : address_range(range), block_size(block_size) {
       size_t size = address_range.size();
       size_t blocks_in_range = size / block_size;
       mapping.resize(blocks_in_range);
@@ -89,7 +90,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
 
     void purge() {
       CUdeviceptr ptr = address_range.ptr();
-      for (int i = 0; i < num_blocks(); i++, ptr += block_size) {
+      for (size_t i = 0; i < mapping.size(); i++, ptr += block_size) {
         auto &h = mapping[i];
         if (h) {
           cuvm::Unmap(ptr, block_size);
@@ -211,7 +212,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     size = align_up(size, alignment);
   }
 
-  virtual void *do_allocate(size_t size, size_t alignment) override {
+  void *do_allocate(size_t size, size_t alignment) override {
     adjust_params(size, alignment);
     // try to get a free region that's already mapped
     void *ptr = try_get_mapped(size, alignment);
@@ -245,6 +246,13 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     return ptr;
   }
 
+  /**
+   * @brief Allocate virtual address space of at at least `min_size` bytes.
+   *
+   * The function hints the driver to use a distinct address space for each device in the
+   * attempt to have a contiguous address spaces for each device. Currently, the spacing
+   * between device VA spaces is 1 TiB and initial VA size for each device is 4 GiB.
+   */
   void va_allocate(size_t min_size) {
     size_t va_size = std::max(next_pow2(min_size), min_va_size);
 
@@ -258,13 +266,21 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     } else {
       // Try to allocate after the last VA for this device
       last_va = &va_regions_.back();
-      hint = last_va->address_range.ptr() + last_va->address_range.size();
+      hint = last_va->address_range.end();
     }
     va_ranges_.push_back(cuvm::CUMemAddressRange::Reserve(va_size, 0, hint));
     auto &va = va_ranges_.back();
-    std::cerr << "Allocated a virtual memory range at: " << (void*)va.ptr() << " - hint was "
-              << (void*)hint << std::endl;
+    std::cerr << "Allocated a virtual memory range at: " << (void*)va.ptr() << " - hint was "  // NOLINT
+              << (void*)hint << std::endl;  // NOLINT
 
+    va_add_region(va);
+  }
+
+  /**
+   * @brief Add a memory region that spans the given VA range and merge it with adjacent
+   *        regions, if found.
+   */
+  void va_add_region(cuvm::CUAddressRange va) {
     // Try to merge regions
     // 1. Find preceding region
     va_region *region = nullptr;
@@ -276,7 +292,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     if (region) {
       // Found! Resize it. The new VA range is unmapped, so we can simply resize,
       // there's nothing more to do.
-      region->resize(region->num_blocks() + va_size / block_size_);
+      region->resize(region->num_blocks() + va.size() / block_size_);
     } else {
       // Not found - create a new region
       va_regions_.emplace_back(va, block_size_);
@@ -287,18 +303,19 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     for (size_t i = 0; i < va_regions_.size(); i++) {
       auto &r = va_regions_[i];
       if (r.address_range.ptr() == region->address_range.end()) {
-        // Found - now we move the contents of the old range to the end of the new one
-        // and erase the old one.
+        // Found - now we append the old range (which follows the new one) to the new one...
         region->append(std::move(r));
+        // ...and remove the old one
         va_regions_.erase_at(i);
         break;
       }
     }
 
+    // 3. Place the virtual address range in the VA free tree
     free_va_.put(reinterpret_cast<void*>(va.ptr()), va.size());
   }
 
-  virtual void do_deallocate(void *ptr, size_t size, size_t alignment) override {
+  void do_deallocate(void *ptr, size_t size, size_t alignment) override {
     adjust_params(size, alignment);
     free_mapped_.put(ptr, size);
     free_va_.put(ptr, size);
