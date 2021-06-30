@@ -38,6 +38,8 @@ class InstallerHelper:
         self.platform_machine = platform.machine()
         self.is_compatible_with_prebuilt_bin = self.platform_system == 'Linux' and self.platform_machine == 'x86_64'
         self.prebuilt_dir = os.path.join(self.src_path, 'prebuilt')
+        self.prebuilt_stub_dir = os.path.join(self.prebuilt_dir, 'stub')
+        self.prebuilt_dali_stub = find('libdali.so', self.prebuilt_stub_dir)[0] or None
 
         # If set, checking for prebuilt binaries or compiler version check is disabled
         self.always_build = bool(int(os.getenv('DALI_TF_ALWAYS_BUILD', '0')))
@@ -50,23 +52,18 @@ class InstallerHelper:
         self.can_install_prebuilt = not self.always_build and \
             bool(self.tf_compiler) and \
             StrictVersion(self.tf_compiler) >= StrictVersion('5.0') and \
-            self.is_compatible_with_prebuilt_bin
+            self.is_compatible_with_prebuilt_bin and \
+            self.prebuilt_dali_stub is not None
+
         self.prebuilt_plugins_available = []
         self.prebuilt_plugin_best_match = None
         self.plugin_name = None
+
         if self.can_install_prebuilt:
             self.prebuilt_plugins_available = find('libdali_tf_*.so', self.prebuilt_dir)
             best_version = find_available_prebuilt_tf(self.tf_version, self.prebuilt_plugins_available)
             if best_version is None:
                 # No prebuilt plugins available
-                self.can_install_prebuilt = False
-            elif best_version != self.tf_version and not can_import_dali():
-                # If the version doesn't match exactly but we can import DALI then we try to provide the best
-                # candidate (closest version) and try to import the plugin. If we can't import DALI (because
-                # it's being installed) then we can't rely on any prebuilt plugin for a different version of TF.
-                print(f"Prebuilt plugin available for TF {best_version}, not the currently installed TF {self.tf_version}. "
-                      "Will not install, since the plugin can't be verified because DALI is not yet installed. "
-                      "Will try building from source instead.")
                 self.can_install_prebuilt = False
             else:
                 tf_version_underscore = best_version.replace('.', '_')
@@ -100,31 +97,43 @@ class InstallerHelper:
             s += "\n Can install prebuilt plugin?          {}".format("Yes" if self.can_install_prebuilt else "No")
             s += "\n Prebuilt plugin path:                 {}".format(self.prebuilt_plugin_best_match or "N/A")
             s += "\n Prebuilt plugins available:           {}".format(", ".join(self.prebuilt_plugins_available) or "N/A")
+            s += "\n Prebuilt DALI stub available:         {}".format(self.prebuilt_dali_stub or "N/A")
             s += "\n Can compile with default compiler?    {}".format("Yes" if self.can_default_compile else "No")
             s += "\n Can compile with alt compiler?        {}".format("Yes" if self.has_alt_compiler else "No")
         s += "\n---------------------------------------------------------------------------------------------------------"
 
         return s
 
-    def check_import(self, lib_path):
+    def check_import(self, lib_path, dali_stub):
         import tensorflow as tf
-        assert can_import_dali()  # DALI symbols need to be loaded
+        lib_name = os.path.basename(lib_path)
+        dali_stub_name = os.path.basename(dali_stub)
         print("Importing the TF library to check for errors")
-        try:
-            tf.load_op_library(lib_path)
-            return True
-        except Exception as e:
-            print("Failed to import TF library: ", str(e))
-            return False
+
+        # The DALI TF lib and the DALI stub lib should be at the same directory for check_import to succeed
+        # Unfortunately the symlink is necessary because we can't change LD_LIBRARY_PATH from within the script
+        with tempfile.TemporaryDirectory(prefix="check_import_tmp") as tmpdir:
+            lib_path_tmpdir = os.path.join(tmpdir, lib_name)
+            os.symlink(lib_path, lib_path_tmpdir)
+
+            dali_stub_tmpdir = os.path.join(tmpdir, dali_stub_name)
+            os.symlink(dali_stub, dali_stub_tmpdir)
+
+            try:
+                print("Loading DALI TF library: ", lib_path_tmpdir)
+                tf.load_op_library(lib_path_tmpdir)
+                return True
+            except Exception as e:
+                print("Failed to import TF library: ", str(e))
+                return False
 
     def install_prebuilt(self):
         assert(self.can_install_prebuilt)
         assert(self.prebuilt_plugin_best_match is not None)
         assert(self.plugin_name is not None)
         print("Tensorflow was built with g++ {}, providing prebuilt plugin".format(self.tf_compiler))
-        # If DALI can be imported, try loading the DALI TF plugin to check for errors.
-        # Otherwise, simply proceed with installation
-        if not can_import_dali() or self.check_import(self.prebuilt_plugin_best_match):
+
+        if self.check_import(self.prebuilt_plugin_best_match, self.prebuilt_dali_stub):
             print("Copy {} to {}".format(self.prebuilt_plugin_best_match, self.plugin_dest_dir))
             plugin_dest =  os.path.join(self.plugin_dest_dir, self.plugin_name)
             copyfile(self.prebuilt_plugin_best_match, plugin_dest)
@@ -206,19 +215,20 @@ class InstallerHelper:
             for filename in filenames:
                 plugin_src = plugin_src + ' ' + os.path.join(self.src_path, filename)
 
-            lib_path =  os.path.join(self.plugin_dest_dir, 'libdali_tf_current.so')
+            lib_filename = 'libdali_tf_current.so'
+            lib_path =  os.path.join(self.plugin_dest_dir, lib_filename)
 
             # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
             # https://github.com/tensorflow/tensorflow/issues/17316
             # Do not remove it.
-            cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++14 -DNDEBUG -shared ' \
+            cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -Wl,-rpath,\'$ORIGIN\' -std=c++14 -DNDEBUG -shared ' \
                 + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' \
                 + tf_cflags + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' ' \
                 + cuda_lflags + ' -O2'
             print("Build DALI TF library:\n\n " + cmd + '\n\n')
             subprocess.check_call(cmd, cwd=self.src_path, shell=True)
-            # If DALI was already installed, try to load the plugin to check for errors
-            if can_import_dali() and not self.check_import(lib_path):
+
+            if not self.check_import(lib_path, dali_stub_lib):
                 raise ImportError("Error while importing the DALI TF plugin built from source, will not install")
             print("Installation successful")
 
