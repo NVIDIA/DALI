@@ -36,6 +36,7 @@ def run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch):
         get_pipeline_desc=external_source_tester(shape, dtype, FixedSampleIterator(tensor), batch=batch),
         to_dataset=external_source_converter_with_fixed_value(shape, dtype, tensor, batch))
 
+@with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_with_constant_input():
     for dev in ['cpu', 'gpu']:
         for shape in [(7, 42), (64, 64, 3), (3, 40, 40, 4)]:
@@ -62,6 +63,7 @@ def run_tf_dataset_with_random_input(dev, max_shape, dtype, batch):
                                                            batch=batch))
 
 
+@with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_with_random_input():
     for dev in ['cpu', 'gpu']:
         for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
@@ -89,6 +91,7 @@ def run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch):
                                                            batch=batch))
 
 
+@with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_with_random_input_gpu():
     for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
         for dtype in [np.uint8, np.int32, np.float32]:
@@ -106,6 +109,7 @@ def run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy):
 
 
 # Check if setting no_copy flags in all placement scenarios is ok as we override it internally
+@with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_with_no_copy():
     for max_shape in [(10, 20), (120, 120, 3)]:
         for dataset_dev in ["cpu", "gpu"]:
@@ -126,6 +130,7 @@ def run_tf_dataset_with_stop_iter(dev, max_shape, dtype, stop_samples):
                              RandomSampleIterator, max_shape, dtype, 0, stop_samples))
 
 
+@with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_with_stop_iter():
     batch_size = 12
     for dev in ['cpu', 'gpu']:
@@ -153,6 +158,7 @@ start_values = [[np.full((2, 4), -42, dtype=np.int64),
 input_names = [["input_{}".format(i) for i, _ in enumerate(vals)] for vals in start_values]
 
 
+@with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_multi_input():
     for dev in ['cpu', 'gpu']:
         for starts, names in zip(start_values, input_names):

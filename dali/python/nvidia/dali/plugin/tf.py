@@ -239,6 +239,13 @@ def dataset_compatible_tensorflow():
     return LooseVersion(tf.__version__) >= MIN_TENSORFLOW_VERSION
 
 
+def dataset_inputs_compatible_tensorflow():
+    """Returns ``True`` if the current TensorFlow version is compatible with
+    experimental.DALIDatasetWithInputs and input Datasets can be used with DALI.
+    """
+    return LooseVersion(tf.__version__) >= LooseVersion('2.4.1')
+
+
 def dataset_distributed_compatible_tensorflow():
     """Returns ``True`` if the tf.distribute APIs for current TensorFlow version are compatible
     with DALIDataset.

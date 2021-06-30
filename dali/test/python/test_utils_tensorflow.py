@@ -35,6 +35,10 @@ def skip_for_incompatible_tf():
     if not dali_tf.dataset_distributed_compatible_tensorflow():
         raise SkipTest('This feature is enabled for TF 2.5.0 and higher')
 
+def skip_inputs_for_incompatible_tf():
+    if not dali_tf.dataset_inputs_compatible_tensorflow():
+        raise SkipTest('This feature is enabled for TF 2.4.1 and higher')
+
 
 def num_available_gpus():
     local_devices = device_lib.list_local_devices()
