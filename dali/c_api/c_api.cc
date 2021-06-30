@@ -331,6 +331,9 @@ static int64_t *daliShapeAtHelper(dali::DeviceWorkspace *ws, int n, int k) {
   }
 
   c_shape = static_cast<int64_t*>(malloc(sizeof(int64_t) * (shape.size() + 1)));
+  if (!c_shape) {
+    return nullptr;
+  }
   c_shape[shape.size()] = 0;
   memcpy(c_shape, &shape[0], shape.size() * sizeof(int64_t));
   return c_shape;
