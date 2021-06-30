@@ -58,6 +58,15 @@ class InstallerHelper:
             self.prebuilt_plugins_available = find('libdali_tf_*.so', self.prebuilt_dir)
             best_version = find_available_prebuilt_tf(self.tf_version, self.prebuilt_plugins_available)
             if best_version is None:
+                # No prebuilt plugins available
+                self.can_install_prebuilt = False
+            elif best_version != self.tf_version and not can_import_dali():
+                # If the version doesn't match exactly but we can import DALI then we try to provide the best
+                # candidate (closest version) and try to import the plugin. If we can't import DALI (because
+                # it's being installed) then we can't rely on any prebuilt plugin for a different version of TF.
+                print(f"Prebuilt plugin available for TF {best_version}, not the currently installed TF {self.tf_version}. "
+                      "Will not install, since the plugin can't be verified because DALI is not yet installed. "
+                      "Will try building from source instead.")
                 self.can_install_prebuilt = False
             else:
                 tf_version_underscore = best_version.replace('.', '_')
@@ -99,7 +108,7 @@ class InstallerHelper:
 
     def check_import(self, lib_path):
         import tensorflow as tf
-        import nvidia.dali as dali  # DALI symbols need to be loaded
+        assert can_import_dali()  # DALI symbols need to be loaded
         print("Importing the TF library to check for errors")
         try:
             tf.load_op_library(lib_path)
@@ -206,8 +215,10 @@ class InstallerHelper:
                 + cuda_lflags + ' -O2'
             print("Build DALI TF library:\n\n " + cmd + '\n\n')
             subprocess.check_call(cmd, cwd=self.src_path, shell=True)
-            if not self.check_import(lib_path):
-                raise ImportError("Error while importing the DALI TF plugin built from source, will not install")
+            if can_import_dali():
+                # If DALI was already installed, try to load the plugin to check for errors
+                if not self.check_import(lib_path):
+                    raise ImportError("Error while importing the DALI TF plugin built from source, will not install")
             print("Installation successful")
 
 def main():

@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -158,3 +158,10 @@ def find_available_prebuilt_tf(requested_version, available_libs):
             if ver_second <= req_ver_second and (selected_ver is None or selected_ver < (ver_first, ver_second)):
                 selected_ver = (ver_first, ver_second)
     return '.'.join([str(v) for v in selected_ver]) if selected_ver is not None else None
+
+def can_import_dali():
+    try:
+        import nvidia.dali as dali
+        return True
+    except:
+        return False
