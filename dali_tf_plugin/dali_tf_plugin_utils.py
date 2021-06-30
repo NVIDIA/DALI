@@ -163,5 +163,5 @@ def can_import_dali():
     try:
         import nvidia.dali as dali
         return True
-    except:
+    except Exception:
         return False

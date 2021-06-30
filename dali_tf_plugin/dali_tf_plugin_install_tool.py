@@ -122,7 +122,9 @@ class InstallerHelper:
         assert(self.prebuilt_plugin_best_match is not None)
         assert(self.plugin_name is not None)
         print("Tensorflow was built with g++ {}, providing prebuilt plugin".format(self.tf_compiler))
-        if self.check_import(self.prebuilt_plugin_best_match):
+        # If DALI can be imported, try loading the DALI TF plugin to check for errors.
+        # Otherwise, simply proceed with installation
+        if not can_import_dali() or self.check_import(self.prebuilt_plugin_best_match):
             print("Copy {} to {}".format(self.prebuilt_plugin_best_match, self.plugin_dest_dir))
             plugin_dest =  os.path.join(self.plugin_dest_dir, self.plugin_name)
             copyfile(self.prebuilt_plugin_best_match, plugin_dest)
@@ -215,10 +217,9 @@ class InstallerHelper:
                 + cuda_lflags + ' -O2'
             print("Build DALI TF library:\n\n " + cmd + '\n\n')
             subprocess.check_call(cmd, cwd=self.src_path, shell=True)
-            if can_import_dali():
-                # If DALI was already installed, try to load the plugin to check for errors
-                if not self.check_import(lib_path):
-                    raise ImportError("Error while importing the DALI TF plugin built from source, will not install")
+            # If DALI was already installed, try to load the plugin to check for errors
+            if can_import_dali() and not self.check_import(lib_path):
+                raise ImportError("Error while importing the DALI TF plugin built from source, will not install")
             print("Installation successful")
 
 def main():
