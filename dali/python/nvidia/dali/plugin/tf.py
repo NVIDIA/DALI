@@ -41,6 +41,7 @@ _dali_tf.__doc__ = _dali_tf.__doc__ + """
 
 _experimental_dataset_docstring = """Experimental variant of
 :class:`~nvidia.dali.plugin.tf.DALIDataset`. This dataset adds support for input tf.data.Datasets.
+Support for input tf.data.Datasets is available only for TensorFlow 2.4.1 and newer.
 
 Each of the input datasets must be mapped to a :meth:`~nvidia.dali.fn.external_source` operator
 that will represent the input to the DALI pipeline. In the pipeline the input is represented as
@@ -568,6 +569,30 @@ if dataset_compatible_tensorflow():
             dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
             super(DALIDataset, self).__init__(dataset_impl, dataset_options())
 
+else:
+
+    class DALIDataset:
+        def __init__(self,
+                     pipeline,
+                     output_dtypes=None,
+                     output_shapes=None,
+                     fail_on_device_mismatch=True,
+                     *,
+                     batch_size=1,
+                     num_threads=4,
+                     device_id=0,
+                     exec_separated=False,
+                     prefetch_queue_depth=2,
+                     cpu_prefetch_queue_depth=2,
+                     gpu_prefetch_queue_depth=2,
+                     dtypes=None,
+                     shapes=None):
+            raise RuntimeError(
+                'DALIDataset is not supported for detected version of TensorFlow.  DALIDataset supports versions: 1.15, 2.x family'
+            )
+
+
+if dataset_inputs_compatible_tensorflow():
     def _load_experimental_dataset():
         class DALIDatasetWithInputs(dataset_ops._OptionsDataset):
             @functools.wraps(_DALIDatasetV2.__init__)
@@ -615,33 +640,12 @@ if dataset_compatible_tensorflow():
     _load_experimental_dataset()
 
 else:
-
-    class DALIDataset:
-        def __init__(self,
-                     pipeline,
-                     output_dtypes=None,
-                     output_shapes=None,
-                     fail_on_device_mismatch=True,
-                     *,
-                     batch_size=1,
-                     num_threads=4,
-                     device_id=0,
-                     exec_separated=False,
-                     prefetch_queue_depth=2,
-                     cpu_prefetch_queue_depth=2,
-                     gpu_prefetch_queue_depth=2,
-                     dtypes=None,
-                     shapes=None):
-            raise RuntimeError(
-                'DALIDataset is not supported for detected version of TensorFlow.  DALIDataset supports versions: 1.15, 2.x family'
-            )
-
     def _load_experimental_dataset():
         class DALIDatasetWithInputs:
             def __init__(self, *args, **kwargs):
                 raise RuntimeError(
                     'experimental.DALIDatasetWithInputs is not supported for detected version of TensorFlow. '
-                    + 'DALIDataset supports versions: 1.15, 2.x family')
+                    + 'DALIDataset supports versions: 2.4.1 and above.')
 
         DALIDatasetWithInputs.__doc__ = _experimental_dataset_docstring
         _insert_experimental_member(DALIDatasetWithInputs, "DALIDatasetWithInputs")
