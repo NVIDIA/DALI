@@ -30,5 +30,5 @@ TF_LFLAGS=( $($PYTHON -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.g
 # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
 # https://github.com/tensorflow/tensorflow/issues/17316
 # Do not remove it.
-$COMPILER -Wl,-rpath,\'$ORIGIN\' -std=c++14 -DNDEBUG -O2 -shared -fPIC ${SRCS} \
+$COMPILER -Wl,-rpath,\$ORIGIN -std=c++14 -DNDEBUG -O2 -shared -fPIC ${SRCS} \
     -o ${LIB_NAME} ${INCL_DIRS} ${DALI_CFLAGS} ${DALI_LFLAGS} ${TF_CFLAGS[@]} ${TF_LFLAGS[@]}

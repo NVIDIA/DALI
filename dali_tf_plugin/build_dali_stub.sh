@@ -16,20 +16,15 @@
 
 COMPILER=${CXX:-g++}
 PYTHON=${PYTHON:-python}
-DALI_STUB_DIR=${1:-"${PWD}/stub"}
-DALI_STUB_LIB="${DALI_STUB_DIR}/libdali.so"
-SRCS="dali_stub.cc"
-INCL_DIRS="-I/usr/local/cuda/include/ -I"
+OUT_DALI_STUB_LIB=${1:-"${PWD}/stub/libdali.so"}
+INCL_DIRS="-I/usr/local/cuda/include/"
 
-mkdir -p ${DALI_STUB_DIR}
-
-DALI_STUB_SRC_DIR=`mktemp -d -t "dali_stub_XXXXXX"`
-DALI_STUB_SRC="${DALI_STUB_SRC_DIR}/dali_stub.cc"
+DALI_STUB_DIR=`mktemp -d -t "dali_stub_XXXXXX"`
+DALI_STUB_SRC="${DALI_STUB_DIR}/dali_stub.cc"
 $PYTHON ../tools/stubgen.py ../include/dali/c_api.h --output "${DALI_STUB_SRC}"
 
 DALI_CFLAGS="-I../include -I.."
-
-$COMPILER -std=c++14 -DNDEBUG -O2 -shared -fPIC ${DALI_STUB_SRC} -o ${DALI_STUB_LIB} ${INCL_DIRS} ${DALI_CFLAGS}
+$COMPILER -std=c++14 -DNDEBUG -O2 -shared -fPIC ${DALI_STUB_SRC} -o ${OUT_DALI_STUB_LIB} ${INCL_DIRS} ${DALI_CFLAGS}
 
 # Cleaning up stub dir
 rm -rf "${DALI_STUB_DIR}"

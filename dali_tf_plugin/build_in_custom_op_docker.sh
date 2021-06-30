@@ -28,8 +28,9 @@ PREBUILT_DIR=/prebuilt
 mkdir -p ${PREBUILT_DIR}
 
 STUB_DIR="${PREBUILT_DIR}/stub"
+STUB_LIB="${STUB_DIR}/libdali.so"
 mkdir -p "${STUB_DIR}"
-source ./build_dali_stub.sh "${STUB_DIR}"
+source ./build_dali_stub.sh "${STUB_LIB}"
 
 for i in `seq 0 $LAST_CONFIG_INDEX`; do
     INST=$(python ../qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${CUDA_VERSION})
