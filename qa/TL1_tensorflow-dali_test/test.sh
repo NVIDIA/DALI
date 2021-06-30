@@ -1,5 +1,5 @@
 #!/bin/bash -e
-pip_packages=""
+pip_packages="horovod==0.21.3"
 target_dir=./docs/examples/use_cases/tensorflow/resnet-n
 
 do_once() {
@@ -56,7 +56,17 @@ do_once() {
     export HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu
     export HOROVOD_NCCL_LINK=SHARED
     export HOROVOD_WITHOUT_PYTORCH=1
-    pip install horovod==0.21.3
+    # horovod is added to `pip_packages` so it can be preloaded, but install it here when
+    # TF is already available and we can set env variables
+    install_cmd="pip install --force-reinstall horovod==0.21.3 -f /pip-packages"
+    set +e
+    ${install_cmd} --no-index
+    res=$?
+    set -e
+    # if no package was found in our download dir, so install it from index
+    if [ "$res" != "0" ]; then
+        ${install_cmd}
+    fi
 
     for file in $(ls /data/imagenet/train-val-tfrecord-480-subset);
     do
