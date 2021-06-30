@@ -4,7 +4,7 @@ pip_packages="numpy pillow torch torchvision mlperf_compliance matplotlib Cython
 target_dir=./docs/examples/use_cases/pytorch/single_stage_detector/
 
 test_body() {
-    apt update && apt install -y gcc-7 g++-7
+    apt-get update && apt-get install -y gcc-7 g++-7
 
     #install APEX
     git clone https://github.com/nvidia/apex
