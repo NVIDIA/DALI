@@ -15,7 +15,7 @@
 import nvidia.dali as dali
 
 
-def input(
+def input_tfrecord(
     tfrecord_files, tfrecord_idxs, device, shard_id, num_shards, random_shuffle=True
 ):
     inputs = dali.fn.readers.tfrecord(
@@ -69,6 +69,38 @@ def input(
         classes,
         dali.fn.cast(inputs["image/width"], dtype=dali.types.FLOAT),
         dali.fn.cast(inputs["image/height"], dtype=dali.types.FLOAT),
+    )
+
+
+def input_coco(
+        images_path, annotations_path, device, shard_id, num_shards, random_shuffle=True
+):
+    encoded, bboxes, classes = dali.fn.readers.coco(
+        file_root=images_path,
+        annotations_file=annotations_path,
+        ratio=True,
+        ltrb=True,
+        shard_id=shard_id,
+        num_shards=num_shards,
+        random_shuffle=random_shuffle)   
+
+
+    images = dali.fn.decoders.image(
+        encoded,
+        device="mixed" if device == "gpu" else "cpu",
+        output_type=dali.types.RGB,
+    )
+
+    shape = dali.fn.peek_image_shape(encoded)
+    h = dali.fn.slice(shape, 0, 1, axes=(0,))
+    w = dali.fn.slice(shape, 1, 1, axes=(0,))
+
+    return (
+        images,
+        bboxes,
+        classes,
+        dali.fn.cast(w, dtype=dali.types.FLOAT),
+        dali.fn.cast(h, dtype=dali.types.FLOAT),
     )
 
 

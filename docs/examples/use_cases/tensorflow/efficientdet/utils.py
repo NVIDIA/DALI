@@ -35,20 +35,32 @@ class PipelineType(Enum):
     dali_gpu = 3
 
 
+class InputType(Enum):
+    tfrecord = 0
+    coco = 1
+
+
 def dict_to_namedtuple(字典):
     NamedTuple = namedtuple("NamedTuple", 字典.keys())
     return NamedTuple._make(字典.values())
 
 
 def get_dataset(
-    pipeline, file_pattern, total_batch_size, is_training, params, strategy=None
+    args, total_batch_size, is_training, params, strategy=None
 ):
+    pipeline = args.pipeline
+    
     if strategy and not is_training and pipeline == PipelineType.dali_gpu:
         strategy = None
         pipeline = PipelineType.dali_cpu
 
     if pipeline in [PipelineType.tensorflow, PipelineType.syntetic]:
         from pipeline.tf.dataloader import InputReader
+
+        if is_training:
+            file_pattern = args.train_file_pattern
+        else:
+            file_pattern = args.eval_file_pattern or args.train_file_pattern
 
         dataset = InputReader(
             params,
@@ -71,7 +83,7 @@ def get_dataset(
                 return EfficientDetPipeline(
                     params,
                     int(total_batch_size / num_shards),
-                    file_pattern,
+                    args,
                     is_training=is_training,
                     num_shards=num_shards,
                     device_id=device_id,
@@ -96,7 +108,7 @@ def get_dataset(
             dataset = EfficientDetPipeline(
                 params,
                 total_batch_size,
-                file_pattern,
+                args,
                 is_training=is_training,
                 cpu_only=cpu_only,
             ).get_dataset()

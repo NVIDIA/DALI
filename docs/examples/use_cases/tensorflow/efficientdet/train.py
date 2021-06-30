@@ -61,8 +61,7 @@ def run_training(args):
         strategy = tf.distribute.get_strategy()
 
     train_dataset = utils.get_dataset(
-        args.pipeline,
-        args.train_file_pattern,
+        args,
         args.train_batch_size * num_devices,
         True,
         params,
@@ -70,10 +69,8 @@ def run_training(args):
     )
 
     if args.eval_after_training or args.eval_during_training:
-        eval_file_pattern = args.eval_file_pattern or args.train_file_pattern
         eval_dataset = utils.get_dataset(
-            args.pipeline,
-            eval_file_pattern,
+            args,
             num_devices,
             False,
             params,
@@ -162,8 +159,24 @@ if __name__ == "__main__":
         "--epochs", type=int, default=300, help="epoch on which training should finish"
     )
     parser.add_argument(
-        "--train_file_pattern",
+        "--input",
+        action=enum_action(utils.InputType),
         required=True,
+        help="input type",
+    )
+    parser.add_argument(
+        "--images_path",
+        required=False,
+        help="Path to COCO images",
+    )
+    parser.add_argument(
+        "--annotations_path",
+        required=False,
+        help="Path to COCO annotations",
+    )
+    parser.add_argument(
+        "--train_file_pattern",
+        required=False,
         help="glob pattern for TFrecord files with training data",
     )
     parser.add_argument("--train_batch_size", type=int, default=64)

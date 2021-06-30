@@ -20,6 +20,7 @@ import math
 from absl import logging
 from glob import glob
 from pipeline import anchors
+from utils import InputType
 
 from . import ops
 
@@ -29,18 +30,28 @@ class EfficientDetPipeline:
         self,
         params,
         batch_size,
-        file_pattern,
+        args,
         is_training=True,
         num_shards=1,
         device_id=0,
         cpu_only=False,
     ):
-
         self._batch_size = batch_size
         self._image_size = params["image_size"]
         self._gridmask = params["grid_mask"]
-        self._tfrecord_files = glob(file_pattern)
-        self._tfrecord_idxs = [filename + "_idx" for filename in self._tfrecord_files]
+
+        self._input = args.input
+        if self._input == InputType.tfrecord:
+            if is_training:
+                file_pattern = args.train_file_pattern
+            else:
+                file_pattern = args.eval_file_pattern or args.train_file_pattern
+
+            self._tfrecord_files = glob(file_pattern)
+            self._tfrecord_idxs = [filename + "_idx" for filename in self._tfrecord_files]
+        elif self._input == InputType.coco:
+            self._images_path = args.images_path
+            self._annotations_path = args.annotations_path
 
         self._is_training = is_training
         self._num_shards = num_shards
@@ -72,14 +83,24 @@ class EfficientDetPipeline:
 
     def _define_pipeline(self):
         with self._pipe:
-            images, bboxes, classes, widths, heights = ops.input(
-                self._tfrecord_files,
-                self._tfrecord_idxs,
-                device=self._device,
-                shard_id=self._shard_id,
-                num_shards=self._num_shards,
-                random_shuffle=self._is_training,
-            )
+            if self._input == InputType.tfrecord:
+                images, bboxes, classes, widths, heights = ops.input_tfrecord(
+                    self._tfrecord_files,
+                    self._tfrecord_idxs,
+                    device=self._device,
+                    shard_id=self._shard_id,
+                    num_shards=self._num_shards,
+                    random_shuffle=self._is_training
+                )
+            elif self._input == InputType.coco:
+                images, bboxes, classes, widths, heights = ops.input_coco(
+                    self._images_path,
+                    self._annotations_path,
+                    device=self._device,
+                    shard_id=self._shard_id,
+                    num_shards=self._num_shards,
+                    random_shuffle=self._is_training
+                )
 
             if self._is_training and self._gridmask:
                 images = ops.gridmask(self._device, images, widths, heights)
