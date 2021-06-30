@@ -110,8 +110,8 @@ Tensor<CPUBackend> cpu_iou(const Tensor<CPUBackend>& box1,
     float r = std::min(b1[2], b2[2]);
     float b = std::min(b1[3], b2[3]);
 
-    lt.push_back(std::make_pair(l, t));
-    rb.push_back(std::make_pair(r, b));
+    lt.emplace_back(l, t);
+    rb.emplace_back(r, b);
   }
 
   // delta = rb - lt
