@@ -15,10 +15,26 @@ do_once() {
     # check if CUDA version is at least 11.x
     if [ "$(echo "$CUDA_VERSION" | tr " " "\n" | sort -rV | head -n 1)" == "110" ]; then
         # install TF 2.4.x for CUDA 11.x test
-        pip install $($topdir/qa/setup_packages.py -i 1 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
+        install_cmd="pip install $($topdir/qa/setup_packages.py -i 1 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
+        set +e
+        ${install_cmd} --no-index
+        res=$?
+        set -e
+        # if no package was found in our download dir, so install it from index
+        if [ "$res" != "0" ]; then
+            ${install_cmd}
+        fi
     else
         # install TF 2.3.x for CUDA 10.x test
-        pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
+        install_cmd="pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
+        set +e
+        ${install_cmd} --no-index
+        res=$?
+        set -e
+        # if no package was found in our download dir, so install it from index
+        if [ "$res" != "0" ]; then
+            ${install_cmd}
+        fi
     fi
 
     # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
