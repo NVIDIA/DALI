@@ -27,6 +27,7 @@
 #include "dali/core/small_vector.h"
 #include "dali/core/bitmask.h"
 #include "dali/core/spinlock.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 namespace mm {
@@ -37,8 +38,13 @@ class VMResourceTest;
 
 class cuda_vm_resource : public memory_resource<memory_kind::device> {
  public:
-  explicit cuda_vm_resource(int device_ordinal = -1) {
+  explicit cuda_vm_resource(int device_ordinal = -1,
+                            size_t block_size = 0,
+                            size_t initial_va_size = size_t(4) << 30) {
     device_ordinal_ = device_ordinal;
+    block_size_ = block_size;
+    initial_va_size_ = initial_va_size;
+
     configure();
   }
   using mem_handle_t = CUmemGenericAllocationHandle;
@@ -47,17 +53,27 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     purge();
   }
 
-  void purge() {
+  void *try_allocate_from_free(size_t size, size_t alignment) {
+    adjust_params(size, alignment);
+    if (size == 0)
+      return nullptr;
     lock_guard pool_guard(pool_lock_);
-    mem_lock_guard mem_guard(mem_lock_);
-    for (auto &r : va_regions_)
-      r.purge();
-    va_ranges_.clear();
+    // try to get a free region that's already mapped
+    void *ptr = try_get_mapped(size, alignment);
+    if (ptr) {
+      stat_add_allocation(size);
+    }
+    return ptr;
+  }
+
+  void deallocate_no_sync(void *ptr, size_t size, size_t alignment) {
+    deallocate_impl(ptr, size, alignment, false);
   }
 
   struct Stat {
     int allocated_blocks;
     int peak_allocated_blocks;
+    size_t block_size;
     size_t allocated_va;
     size_t curr_allocated;
     size_t peak_allocated;
@@ -66,6 +82,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     size_t peak_allocations;
     size_t total_allocations;
     size_t total_deallocations;
+    size_t total_unmaps;
   };
 
   Stat get_stat() const {
@@ -79,6 +96,14 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   }
 
  private:
+  void purge() {
+    lock_guard pool_guard(pool_lock_);
+    mem_lock_guard mem_guard(mem_lock_);
+    for (auto &r : va_regions_)
+      r.purge();
+    va_ranges_.clear();
+  }
+
   void configure() {
     if (device_ordinal_ < 0) {
       CUDA_CALL(cudaGetDevice(&device_ordinal_));
@@ -92,6 +117,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
                              std::min<size_t>(next_pow2(total_mem_ >> 8),  // capacity-dependent...
                                               64 << 20));  // ...but capped at 64 MiB
     }
+    stat_.block_size = block_size_;
   }
 
   struct va_region {
@@ -227,8 +253,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
 
   SmallVector<va_region, 8> va_regions_;
   SmallVector<cuvm::CUMemAddressRange, 8> va_ranges_;
-  size_t total_used_, total_mapped_;
-  size_t min_va_size = 0x100000000u;  // 4GiB
+  size_t initial_va_size_ = 0;
   size_t block_size_ = 0;
   size_t total_mem_ = 0;
   int device_ordinal_ = -1;
@@ -250,6 +275,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       stat_add_allocation(size);
       return ptr;
     }
+    DeviceGuard dg(device_ordinal_);
     mem_lock_guard mem_guard(mem_lock_);
     ptr = get_va(size, alignment);
     map_storage(ptr, size);
@@ -289,7 +315,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
    * between device VA spaces is 1 TiB and initial VA size for each device is 4 GiB.
    */
   void va_allocate(size_t min_size) {
-    size_t va_size = std::max(next_pow2(min_size), min_va_size);
+    size_t va_size = std::max(next_pow2(min_size), initial_va_size_);
 
     CUdeviceptr hint = {};
     va_region *last_va = nullptr;
@@ -305,8 +331,6 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     }
     va_ranges_.push_back(cuvm::CUMemAddressRange::Reserve(va_size, 0, hint));
     auto &va = va_ranges_.back();
-    std::cerr << "Allocated a virtual memory range at: " << (void*)va.ptr() << " - hint was "  // NOLINT
-              << (void*)hint << std::endl;  // NOLINT
 
     va_add_region(va);
     stat_va_add(va_size);
@@ -352,9 +376,17 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   }
 
   void do_deallocate(void *ptr, size_t size, size_t alignment) override {
+    deallocate_impl(ptr, size, alignment, true);
+  }
+
+  void deallocate_impl(void *ptr, size_t size, size_t alignment, bool sync) {
     adjust_params(size, alignment);
     if (size == 0)
       return;
+    DeviceGuard dg(device_ordinal_);
+    if (sync) {
+      CUDA_CALL(cudaDeviceSynchronize());
+    }
     lock_guard pool_guard(pool_lock_);
     stat_add_deallocation(size);
     free_mapped_.put(ptr, size);
@@ -392,6 +424,8 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       auto block = block_bounds(cptr);
       start = free_mapped_.contains(block.first, block.second)
               ? block.first : block.second;
+      // If the entire block is free then include it in the range - otherwsie point
+      // to the beginning of the next block.
     } else {
       start = cptr;
     }
@@ -399,9 +433,16 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       auto block = block_bounds(cptr + size);
       end = free_mapped_.contains(block.first, block.second)
               ? block.second : block.first;
+      // If the entire block is free then include it in this range - otherwise
+      // point to the end of the previous block.
     } else {
       end = cptr + size;
     }
+    // It's possible that at this point end < start. It can happen if both ends of the range
+    // (ptr, ptr + size) lie within one block and that block is not avaialble - in this case
+    // `start` will point to the start of next block and `end` will point to end of the
+    // previous block, so they will become swapped. This is handled properly by
+    // set_block_availability.
     set_block_avaialbility(start, end, true);
   }
 
@@ -417,7 +458,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
 
 
   void set_block_avaialbility(char *start, char *end, bool availability) {
-    if (end == start)
+    if (end <= start)  // NOTE it's possible that end < start - see mark_as_available
       return;
     va_region *va = va_find(start);
     assert(va != nullptr);
@@ -488,6 +529,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
              block_idx < r.num_blocks() && count > 0;
              block_idx = r.available.find(true, block_idx+1)) {
           out.push_back(r.unmap_block(block_idx));
+          stat_.total_unmaps++;
           char *ptr = r.block_ptr<char>(block_idx);
           free_mapped_.get_specific_block(ptr, ptr + block_size_);
           stat_take_free(block_size_);

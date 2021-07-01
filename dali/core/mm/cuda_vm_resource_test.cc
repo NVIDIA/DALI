@@ -199,63 +199,87 @@ std::string format_size(size_t bytes) {
   std::stringstream ss;
   print(ss, bytes, " bytes");
   if (bytes > (1LLU << 34)) {
-    print(ss, " (", bytes >> 30, " GiB");
+    print(ss, " (", bytes >> 30, " GiB)");
   } else if (bytes > (1LLU << 24)) {
-    print(ss, " (", bytes >> 20, " MiB");
+    print(ss, " (", bytes >> 20, " MiB)");
   } else if (bytes > (1LLU << 14)) {
-    print(ss, " (", bytes >> 10, " KiB");
+    print(ss, " (", bytes >> 10, " KiB)");
   }
   return ss.str();
 }
 
+using perfclock = std::chrono::high_resolution_clock;
+
+template <typename Out = double, typename R, typename P>
+inline Out microseconds(std::chrono::duration<R, P> d) {
+  return std::chrono::duration_cast<std::chrono::duration<Out, std::micro>>(d).count();
+}
+
 TEST_F(VMResourceTest, RandomAllocations) {
-  cuda_vm_resource pool;
+  cuda_vm_resource pool(-1, 4 << 20);  // use small 4 MiB blocks
   std::mt19937_64 rng(12345);
-  std::bernoulli_distribution is_free(0.4);
+  std::bernoulli_distribution is_free(0.5);
   std::uniform_int_distribution<int> align_dist(0, 8);  // alignment anywhere from 1B to 256B
-  std::poisson_distribution<int> size_dist(128);
+  std::poisson_distribution<int> size_dist(4 << 20);  // average at 4 MiB
   struct allocation {
     void *ptr;
     size_t size, alignment;
-    size_t fill;
   };
   std::vector<allocation> allocs;
 
   int num_iter = 100000;
 
+  std::map<uintptr_t, size_t> allocated;
+
+  perfclock::duration alloc_time = {};
+  perfclock::duration dealloc_time = {};
+
   for (int i = 0; i < num_iter; i++) {
     if (is_free(rng) && !allocs.empty()) {
       auto idx = rng() % allocs.size();
       allocation a = allocs[idx];
-      //CheckFill(a.ptr, a.size, a.fill);
+      auto t0 = perfclock::now();
       pool.deallocate(a.ptr, a.size, a.alignment);
+      auto t1 = perfclock::now();
+      dealloc_time += t1 - t0;
       std::swap(allocs[idx], allocs.back());
       allocs.pop_back();
     } else {
       allocation a;
-      a.size = std::max(1, std::min(size_dist(rng), 1<<24));
+      a.size = std::max(1, std::min(size_dist(rng), 256 << 20));  // Limit to 256 MiB
       a.alignment = 1 << align_dist(rng);
-      a.fill = rng();
+      auto t0 = perfclock::now();
       a.ptr = pool.allocate(a.size, a.alignment);
+      auto t1 = perfclock::now();
+      alloc_time += t1 - t0;
       ASSERT_TRUE(detail::is_aligned(a.ptr, a.alignment));
-      //Fill(a.ptr, a.size, a.fill);
+      CUDA_CALL(cudaMemset(a.ptr, 0, a.size));
+      CUDA_CALL(cudaDeviceSynchronize());  // wait now so the deallocation timing is not affected
       allocs.push_back(a);
     }
   }
 
   for (auto &a : allocs) {
-    //CheckFill(a.ptr, a.size, a.fill);
+    auto t0 = perfclock::now();
     pool.deallocate(a.ptr, a.size, a.alignment);
+    auto t1 = perfclock::now();
+    dealloc_time += t1 - t0;
   }
   allocs.clear();
 
   auto stat = pool.get_stat();
   print(std::cerr,
-    "Peak allocations: ", stat.peak_allocations, "\n"
-    "Peak allocations size: ", format_size(stat.peak_allocated), "\n"
+    "Total allocations:     ", stat.total_allocations, "\n"
+    "Peak allocations:      ", stat.peak_allocations, "\n"
+    "Average time to allocate:   ", microseconds(alloc_time) / stat.total_allocations, " us\n"
+    "Average time to deallocate: ", microseconds(dealloc_time) / stat.total_deallocations, " us\n"
+    "Peak allocations size: ", format_size(stat.peak_allocated), "\n\n"
     "Peak allocated blocks: ", stat.peak_allocated_blocks, "\n"
-    "Peak allocated block size: ", format_size(stat.peak_allocated_blocks), "\n"
+    "Peak allocated physical size: ", format_size(stat.peak_allocated_blocks * stat.block_size),
+    "\n"
+    "Unmap operations: ", stat.total_unmaps, "\n"
     "VA size: ", format_size(stat.allocated_va), "\n");
+
   EXPECT_EQ(stat.curr_allocated, 0u);
   EXPECT_EQ(stat.curr_allocations, 0u);
   EXPECT_EQ(stat.total_allocations, stat.total_deallocations);
@@ -264,5 +288,3 @@ TEST_F(VMResourceTest, RandomAllocations) {
 }  // namespace test
 }  // namespace mm
 }  // namespace dali
-
-
