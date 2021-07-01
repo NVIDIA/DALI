@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         add-apt-repository ppa:deadsnakes/ppa -y && \
         apt-get update; \
     fi && \
-    apt-get install -y python3.9 python3.9-dev && \
+    apt-get install -y python3.9 python3.9-dev python3.9-distutils && \
     rm -rf /var/lib/apt/lists/* && \
     curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py && \
     # decouple libclang and clang installation so libclang changes are not overriden by clang

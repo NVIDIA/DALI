@@ -34,8 +34,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |benchmark| replace:: Google Benchmark
 .. _benchmark: https://github.com/google/benchmark
-.. |benchmarkver| replace:: 1.5.4
-.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.5.4
+.. |benchmarkver| replace:: 1.5.5
+.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.5.5
 .. |benchmarklic| replace:: Apache License 2.0
 .. _benchmarklic: https://github.com/google/benchmark/blob/master/LICENSE
 
@@ -76,15 +76,15 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |fmt| replace:: {fmt}
 .. _fmt: https://github.com/fmtlib/fmt
-.. |fmtver| replace:: 7.1.3
-.. _fmtver: https://github.com/fmtlib/fmt/releases/tag/7.1.3
+.. |fmtver| replace:: 8.0.0
+.. _fmtver: https://github.com/fmtlib/fmt/releases/tag/8.0.0
 .. |fmtlic| replace:: MIT License
 .. _fmtlic: https://github.com/fmtlib/fmt/blob/master/LICENSE.rst
 
 .. |googletest| replace:: GoogleTest
 .. _googletest: https://github.com/google/googletest
-.. |googletestver| replace:: 1.10.0
-.. _googletestver: https://github.com/google/googletest/releases/tag/release-1.10.0
+.. |googletestver| replace:: 1.11.0
+.. _googletestver: https://github.com/google/googletest/releases/tag/release-1.11.0
 .. |googletestlic| replace:: BSD 3-Clause License
 .. _googletestlic: https://github.com/google/googletest/blob/master/LICENSE
 
@@ -97,8 +97,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |rapidjson| replace:: RapidJSON
 .. _rapidjson: https://github.com/Tencent/rapidjson
-.. |rapidjsonver| replace:: Top-of-tree (May 7, 2021)
-.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/17aa824c928ea111e9b12a61e06d98335ce98f15
+.. |rapidjsonver| replace:: Top-of-tree (Jun 14, 2021)
+.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/b557259f8813bed2d79e83bd2f92eb673579a82c
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt
 
@@ -118,7 +118,7 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |thrust| replace:: Thrust
 .. _thrust: https://github.com/NVIDIA/thrust
-.. |thrustver| replace:: 1.12.0
-.. _thrustver: https://github.com/NVIDIA/thrust/releases/tag/1.12.0
+.. |thrustver| replace:: 1.12.1
+.. _thrustver: https://github.com/NVIDIA/thrust/releases/tag/1.12.1
 .. |thrustlic| replace:: Apache License 2.0
 .. _thrustlic: https://github.com/NVIDIA/thrust/blob/main/LICENSE
