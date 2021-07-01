@@ -85,6 +85,7 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
   struct InputAttrs {
     std::vector<std::string> input_names;
     std::vector<std::string> input_layouts;
+    std::vector<int> input_batched;
   };
 
   struct InputDescs : Inputs, InputAttrs {
@@ -106,6 +107,7 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
   // Arguments describing inputs
   static constexpr const char* const kInputNames = "input_names";
   static constexpr const char* const kInputLayouts = "input_layouts";
+  static constexpr const char* const kInputBatched = "input_batched";
 
   // Arguments describing outputs
   static constexpr const char* const kOutputShapes = "output_shapes";

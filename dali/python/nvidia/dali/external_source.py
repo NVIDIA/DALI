@@ -615,6 +615,7 @@ Keyword Args
                         op_instance._layout = layout
                 else:
                     op_instance._layout = None
+                op_instance._batch = batch
 
                 group.append(op_instance)
                 op_instance.generate_outputs()
@@ -632,6 +633,7 @@ Keyword Args
             op_instance._group = _ExternalSourceGroup(
                 callback, False, [op_instance], **group_common_kwargs)
             op_instance._layout = layout
+            op_instance._batch = batch
             op_instance.generate_outputs()
 
             return op_instance.unwrapped_outputs
