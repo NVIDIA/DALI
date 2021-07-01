@@ -114,7 +114,7 @@ RandomCropGenerator::GenerateCropWindows(const TensorShape<>& shape,
   std::vector<CropWindow> crop_windows;
   for (std::size_t i = 0; i < N; i++) {
     rand_gen_.seed(seeds[i]);
-    crop_windows.emplace_back(GenerateCropWindowImpl(shape));
+    crop_windows.push_back(GenerateCropWindowImpl(shape));
   }
   return crop_windows;
 }

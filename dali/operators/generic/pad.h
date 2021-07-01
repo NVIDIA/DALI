@@ -100,7 +100,7 @@ class Pad : public Operator<Backend> {
         }
       }
       auto shape = shape_.tensor_shape_span(i);
-      DALI_ENFORCE(axes_.size() == shape.size(),
+      DALI_ENFORCE(static_cast<int>(axes_.size()) == shape.size(),
           make_string(
               "If explicit shape is provided, there should be a value per axis to be padded. "
               "Expected ",
