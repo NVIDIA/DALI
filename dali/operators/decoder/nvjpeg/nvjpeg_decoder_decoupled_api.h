@@ -581,7 +581,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         if (state_hw_batched_ != nullptr) {
           // in some cases hybrid decoder can handle the image but HW decoder can't, we should not
           // error in that case
-          ret = nvjpegJpegStreamParseHeader(handle_, input_data, in_size, hw_decoder_jpeg_stream_);
+          ret = nvjpegJpegStreamParse(handle_, input_data, in_size, 0, 0, hw_decoder_jpeg_stream_);
           if (ret == NVJPEG_STATUS_SUCCESS) {
             int is_supported = -1;
             NVJPEG_CALL(nvjpegDecodeBatchedSupportedEx(handle_, hw_decoder_jpeg_stream_,
