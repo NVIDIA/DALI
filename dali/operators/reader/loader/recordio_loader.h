@@ -73,7 +73,7 @@ class RecordIOLoader : public IndexedFileLoader {
     // skip 0 sized images
     if (size) {
       indices_.emplace_back(temp.back() - file_offsets[file_offset_index],
-          size, file_offset_index);
+                            size, file_offset_index);
     }
     index_file.close();
   }
