@@ -177,7 +177,8 @@ inline void SetupThreadPool(op_type_to_workspace_t<op_type> &ws, const OpGraph &
 
 template <>
 inline void SetupThreadPool<OpType::CPU>(op_type_to_workspace_t<OpType::CPU> &ws, const OpGraph &,
-                                         const OpNode &, ThreadPool *thread_pool, const QueueIdxs &) {
+                                         const OpNode &,
+                                         ThreadPool *thread_pool, const QueueIdxs &) {
   ws.SetThreadPool(thread_pool);
 }
 
