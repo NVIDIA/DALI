@@ -16,6 +16,8 @@
 #include <vector>
 #include "dali/core/random.h"
 #include "dali/core/mm/cuda_vm_resource.h"
+#include "dali/core/mm/mm_test_utils.h"
+#include "dali/core/format.h"
 
 namespace dali {
 namespace mm {
@@ -62,16 +64,19 @@ class VMResourceTest : public ::testing::Test {
     }
   }
 
-  struct va_region_copy : cuda_vm_resource::va_region {
+  // Unlinke normal va_region, this one doesn't release the memory blocks upon destruction
+  struct va_region_backup : cuda_vm_resource::va_region {
     using va_region::va_region;
-    va_region_copy(va_region_copy &&other) = default;
-    ~va_region_copy() {
+    va_region_backup(va_region_backup &&other) = default;
+
+    ~va_region_backup() {
+      // suppress purge
       mapping.clear();
     }
   };
 
-  static va_region_copy Copy(const cuda_vm_resource::va_region &in) {
-    va_region_copy out(in.address_range, in.block_size);
+  static va_region_backup Backup(const cuda_vm_resource::va_region &in) {
+    va_region_backup out(in.address_range, in.block_size);
     out.available_blocks = in.available_blocks;
     out.mapping   = in.mapping;
     out.mapped    = in.mapped;
@@ -102,7 +107,7 @@ class VMResourceTest : public ::testing::Test {
     res.va_add_region(part1);
     ASSERT_EQ(res.va_regions_.size(), 1u);
     MapRandomBlocks(res.va_regions_[0], 10);
-    va_region_copy va1 = Copy(res.va_regions_[0]);
+    va_region_backup va1 = Backup(res.va_regions_[0]);
     res.va_add_region(part2);
     ASSERT_EQ(res.va_regions_.size(), 1u);
     auto &region = res.va_regions_.back();
@@ -127,7 +132,7 @@ class VMResourceTest : public ::testing::Test {
     res.va_add_region(part2);
     ASSERT_EQ(res.va_regions_.size(), 1u);
     MapRandomBlocks(res.va_regions_[0], 10);
-    va_region_copy va1 = Copy(res.va_regions_[0]);
+    va_region_backup va1 = Backup(res.va_regions_[0]);
     res.va_add_region(part1);
     ASSERT_EQ(res.va_regions_.size(), 1u);
     auto &region = res.va_regions_.back();
@@ -154,11 +159,11 @@ class VMResourceTest : public ::testing::Test {
     res.va_add_region(part1);
     ASSERT_EQ(res.va_regions_.size(), 1u);
     MapRandomBlocks(res.va_regions_[0], 10);
-    va_region_copy va1 = Copy(res.va_regions_[0]);
+    va_region_backup va1 = Backup(res.va_regions_[0]);
     res.va_add_region(part3);
     ASSERT_EQ(res.va_regions_.size(), 2u);
     MapRandomBlocks(res.va_regions_[1], 12);
-    va_region_copy va3 = Copy(res.va_regions_[1]);
+    va_region_backup va3 = Backup(res.va_regions_[1]);
     res.va_add_region(part2);
     ASSERT_EQ(res.va_regions_.size(), 1u);
     auto &region = res.va_regions_.back();
@@ -188,6 +193,72 @@ TEST_F(VMResourceTest, RegionExtendAfter) {
 
 TEST_F(VMResourceTest, RegionExtendBefore) {
   this->TestRegionExtendBefore();
+}
+
+std::string format_size(size_t bytes) {
+  std::stringstream ss;
+  print(ss, bytes, " bytes");
+  if (bytes > (1LLU << 34)) {
+    print(ss, " (", bytes >> 30, " GiB");
+  } else if (bytes > (1LLU << 24)) {
+    print(ss, " (", bytes >> 20, " MiB");
+  } else if (bytes > (1LLU << 14)) {
+    print(ss, " (", bytes >> 10, " KiB");
+  }
+  return ss.str();
+}
+
+TEST_F(VMResourceTest, RandomAllocations) {
+  cuda_vm_resource pool;
+  std::mt19937_64 rng(12345);
+  std::bernoulli_distribution is_free(0.4);
+  std::uniform_int_distribution<int> align_dist(0, 8);  // alignment anywhere from 1B to 256B
+  std::poisson_distribution<int> size_dist(128);
+  struct allocation {
+    void *ptr;
+    size_t size, alignment;
+    size_t fill;
+  };
+  std::vector<allocation> allocs;
+
+  int num_iter = 100000;
+
+  for (int i = 0; i < num_iter; i++) {
+    if (is_free(rng) && !allocs.empty()) {
+      auto idx = rng() % allocs.size();
+      allocation a = allocs[idx];
+      //CheckFill(a.ptr, a.size, a.fill);
+      pool.deallocate(a.ptr, a.size, a.alignment);
+      std::swap(allocs[idx], allocs.back());
+      allocs.pop_back();
+    } else {
+      allocation a;
+      a.size = std::max(1, std::min(size_dist(rng), 1<<24));
+      a.alignment = 1 << align_dist(rng);
+      a.fill = rng();
+      a.ptr = pool.allocate(a.size, a.alignment);
+      ASSERT_TRUE(detail::is_aligned(a.ptr, a.alignment));
+      //Fill(a.ptr, a.size, a.fill);
+      allocs.push_back(a);
+    }
+  }
+
+  for (auto &a : allocs) {
+    //CheckFill(a.ptr, a.size, a.fill);
+    pool.deallocate(a.ptr, a.size, a.alignment);
+  }
+  allocs.clear();
+
+  auto stat = pool.get_stat();
+  print(std::cerr,
+    "Peak allocations: ", stat.peak_allocations, "\n"
+    "Peak allocations size: ", format_size(stat.peak_allocated), "\n"
+    "Peak allocated blocks: ", stat.peak_allocated_blocks, "\n"
+    "Peak allocated block size: ", format_size(stat.peak_allocated_blocks), "\n"
+    "VA size: ", format_size(stat.allocated_va), "\n");
+  EXPECT_EQ(stat.curr_allocated, 0u);
+  EXPECT_EQ(stat.curr_allocations, 0u);
+  EXPECT_EQ(stat.total_allocations, stat.total_deallocations);
 }
 
 }  // namespace test

@@ -16,7 +16,8 @@
 #define DALI_CORE_MM_CUDA_VM_RESOURCE_H_
 
 #include <algorithm>
-#include <utility>>
+#include <mutex>
+#include <utility>
 #include <vector>
 #include "dali/core/mm/cu_vm.h"
 
@@ -25,6 +26,7 @@
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/bitmask.h"
+#include "dali/core/spinlock.h"
 
 namespace dali {
 namespace mm {
@@ -46,9 +48,34 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   }
 
   void purge() {
+    lock_guard pool_guard(pool_lock_);
+    mem_lock_guard mem_guard(mem_lock_);
     for (auto &r : va_regions_)
       r.purge();
     va_ranges_.clear();
+  }
+
+  struct Stat {
+    int allocated_blocks;
+    int peak_allocated_blocks;
+    size_t allocated_va;
+    size_t curr_allocated;
+    size_t peak_allocated;
+    size_t curr_free;
+    size_t curr_allocations;
+    size_t peak_allocations;
+    size_t total_allocations;
+    size_t total_deallocations;
+  };
+
+  Stat get_stat() const {
+    lock_guard pool_guard(pool_lock_);
+    return stat_;
+  }
+
+  void clear_stat() {
+    lock_guard pool_guard(pool_lock_);
+    stat_ = {};
   }
 
  private:
@@ -214,20 +241,28 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
 
   void *do_allocate(size_t size, size_t alignment) override {
     adjust_params(size, alignment);
+    if (size == 0)
+      return nullptr;
+    lock_guard pool_guard(pool_lock_);
     // try to get a free region that's already mapped
     void *ptr = try_get_mapped(size, alignment);
-    if (ptr)
+    if (ptr) {
+      stat_add_allocation(size);
       return ptr;
+    }
+    mem_lock_guard mem_guard(mem_lock_);
     ptr = get_va(size, alignment);
     map_storage(ptr, size);
     ptr = try_get_mapped(size, alignment);
     assert(ptr != nullptr);
+    stat_add_allocation(size);
     return ptr;
   }
 
   void *try_get_mapped(size_t size, size_t alignment) {
     char *ptr = static_cast<char*>(free_mapped_.get(size, alignment));
     if (ptr) {
+      stat_take_free(size);
       free_va_.get_specific_block(ptr, ptr + size);
       mark_as_unavailable(ptr, size);
       return ptr;
@@ -274,6 +309,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
               << (void*)hint << std::endl;  // NOLINT
 
     va_add_region(va);
+    stat_va_add(va_size);
   }
 
   /**
@@ -317,6 +353,10 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
 
   void do_deallocate(void *ptr, size_t size, size_t alignment) override {
     adjust_params(size, alignment);
+    if (size == 0)
+      return;
+    lock_guard pool_guard(pool_lock_);
+    stat_add_deallocation(size);
     free_mapped_.put(ptr, size);
     free_va_.put(ptr, size);
     mark_as_available(ptr, size);
@@ -362,7 +402,6 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     } else {
       end = cptr + size;
     }
-
     set_block_avaialbility(start, end, true);
   }
 
@@ -378,6 +417,8 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
 
 
   void set_block_avaialbility(char *start, char *end, bool availability) {
+    if (end == start)
+      return;
     va_region *va = va_find(start);
     assert(va != nullptr);
     assert(va == va_find(end-1));
@@ -411,7 +452,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     }
 
     SmallVector<cuvm::CUMem, 256> free_blocks;
-    get_blocks(free_blocks, blocks_to_map);
+    get_free_blocks(free_blocks, blocks_to_map);
     assert(static_cast<int>(free_blocks.size()) == blocks_to_map);
 
     int i = 0;
@@ -421,13 +462,23 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
         assert(i < static_cast<int>(free_blocks.size()));
         region->map_block(b, std::move(free_blocks[i++]));
       }
-      free_mapped_.put(region->block_ptr(br.begin), (br.end - br.begin) * block_size_);
+      size_t range_size = (br.end - br.begin) * block_size_;
+      free_mapped_.put(region->block_ptr(br.begin), range_size);
+      stat_add_free(range_size);
     }
     assert(i == blocks_to_map);
   }
 
+  /**
+   * @brief Obtains `count` physical storage blocks.
+   *
+   * Obtains `count` physical storage blocks and places them in the collection `out`.
+   * The blocks might be obtained either by:
+   * - unmapping existing mapped but free blocks, if avaialble
+   * - allocating new blocks.
+   */
   template <typename Collection>
-  void get_blocks(Collection &out, int count) {
+  void get_free_blocks(Collection &out, int count) {
     if (count < 1)
       return;
     for (va_region &r : va_regions_) {
@@ -439,14 +490,17 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
           out.push_back(r.unmap_block(block_idx));
           char *ptr = r.block_ptr<char>(block_idx);
           free_mapped_.get_specific_block(ptr, ptr + block_size_);
+          stat_take_free(block_size_);
           count--;
         }
       }
       if (!count)
         return;
     }
-    while (count--)
+    while (count--) {
       out.push_back(cuvm::CUMem::Create(block_size_, device_ordinal_));
+      stat_allocate_block();
+    }
   }
 
 
@@ -465,8 +519,48 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   friend class test::VMResourceTest;
 
   coalescing_free_tree free_mapped_, free_va_;
-  std::mutex  pool_lock_;
-  std::mutex  mem_lock_;
+  using pool_lock_t = spinlock;
+  using mem_lock_t = std::mutex;
+  mutable pool_lock_t pool_lock_;
+  mutable mem_lock_t mem_lock_;
+  using lock_guard = std::lock_guard<pool_lock_t>;
+  using mem_lock_guard = std::lock_guard<mem_lock_t>;
+
+  Stat stat_ = {};
+  void stat_add_allocation(size_t size) {
+    Stat &s = stat_;
+    s.total_allocations++;
+    s.curr_allocations++;
+    if (s.curr_allocations > s.peak_allocations)
+      s.peak_allocations = s.curr_allocations;
+    s.curr_allocated += size;
+    if (s.curr_allocated > s.peak_allocated)
+      s.peak_allocated = s.curr_allocated;
+  }
+
+  void stat_add_deallocation(size_t size) {
+    stat_.curr_allocations--;
+    stat_.total_deallocations++;
+    stat_.curr_allocated -= size;
+  }
+
+  void stat_add_free(size_t count) {
+    stat_.curr_free += count;
+  }
+
+  void stat_take_free(size_t count) {
+    stat_.curr_free -= count;
+  }
+
+  void stat_allocate_block() {
+    stat_.allocated_blocks++;
+    if (stat_.allocated_blocks > stat_.peak_allocated_blocks)
+      stat_.peak_allocated_blocks = stat_.allocated_blocks;
+  }
+
+  void stat_va_add(size_t size) {
+    stat_.allocated_va += size;
+  }
 };
 
 }  // namespace mm
