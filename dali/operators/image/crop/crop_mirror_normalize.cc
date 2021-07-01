@@ -120,7 +120,7 @@ void CropMirrorNormalize<CPUBackend>::RunImpl(HostWorkspace &ws) {
         auto in_view = view<const InputType, Dims>(input);
         auto out_view = view<OutputType, Dims>(output);
         int req_nblocks = std::max(1, 10 * thread_pool.NumThreads() / nsamples);
-        int block_min_sz = 16000;
+        int block_min_sz = 16 << 10;
         kernels::KernelContext ctx;
         for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
           Kernel().Schedule(ctx, out_view[sample_idx], in_view[sample_idx],

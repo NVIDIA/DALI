@@ -251,7 +251,7 @@ DLL_LOCAL  // workaround for GCC bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?
 void SliceFlipNormalizePermutePadKernel(
         ExecutionEngine &exec_engine, OutputType *output, const InputType *input,
         const detail::SliceFlipNormalizePermutePadProcessedArgs<Dims> &args,
-        const SmallVector<OutputType, 8> &fill_values, int min_blk_sz = 16000,
+        const SmallVector<OutputType, 8> &fill_values, int min_blk_sz = 16 << 10,
         int req_nblocks = -1) {
   // Parallelize
   std::array<int, Dims> split_factor;

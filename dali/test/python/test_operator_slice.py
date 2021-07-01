@@ -676,7 +676,7 @@ def test_slice_named_args_errors():
     yield check_slice_named_args_errors, 'cpu', 1
     yield check_slice_named_args_errors, 'gpu', 1
 
-def check_plain_memcpy(device, dtype, batch_size, num_threads):
+def check_no_slice(device, dtype, batch_size, num_threads):
     @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=0)
     def make_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder, random_shuffle=False)
@@ -695,9 +695,9 @@ def check_plain_memcpy(device, dtype, batch_size, num_threads):
             out_img = np.array(outs[out_idx][0])
             np.testing.assert_array_equal(in_img, out_img)
 
-def test_plain_memcpy():
+def test_no_slice():
     batch_size=4
     num_threads=3
     for device in ['cpu', 'gpu']:
         for dtype in [types.UINT8, types.UINT16, types.FLOAT]:
-            yield check_plain_memcpy, device, dtype, batch_size, num_threads
+            yield check_no_slice, device, dtype, batch_size, num_threads

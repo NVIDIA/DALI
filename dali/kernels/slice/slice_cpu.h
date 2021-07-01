@@ -294,15 +294,15 @@ void SliceKernel(ExecutionEngine &exec_engine,
                  const TensorShape<Dims> &out_shape,
                  const TensorShape<Dims> &in_shape,
                  const SliceArgs<OutputType, Dims> &args,
-                 int min_blk_sz = 16000,
+                 int min_blk_sz = 16 << 10,
                  int req_nblocks = -1) {
   if (req_nblocks < 0)
     req_nblocks = exec_engine.NumThreads() * 8;
 
   // If the output and input data type is the same and the slice arguments take the whole extent
   // of the input, then we can simply run memcpy.
-  if (CanRunPlainCopy<OutputType, InputType, Dims>(out_strides, in_strides, out_shape, in_shape,
-                                                   args)) {
+  if (CanRunPlainCopy<OutputType, InputType, Dims>(out_strides, in_strides,
+                                                   out_shape, in_shape, args)) {
     int64_t total_sz = volume(out_shape);
     int64_t nbytes = total_sz * sizeof(OutputType);
     int nblocks = std::min<int64_t>(req_nblocks, div_ceil(total_sz, min_blk_sz));
@@ -371,8 +371,8 @@ void SliceKernel(SequentialExecutionEngine &exec_engine,
 
   // If the output and input data type is the same and the slice arguments take the whole extent
   // of the input, then we can simply run memcpy.
-  if (CanRunPlainCopy<OutputType, InputType, Dims>(out_strides, in_strides, out_shape, in_shape,
-                                                   args)) {
+  if (CanRunPlainCopy<OutputType, InputType, Dims>(out_strides, in_strides,
+                                                   out_shape, in_shape, args)) {
     std::memcpy(out_data, in_data, sizeof(OutputType) * volume(out_shape));
     return;
   }
@@ -420,7 +420,7 @@ class SliceCPU {
                 InTensorCPU<InputType, Dims> in,
                 const SliceArgs<OutputType, Dims> &args,
                 ExecutionEngine &exec_engine,
-                int min_blk_sz = 16000, int req_nblocks = -1) {
+                int min_blk_sz = 16 << 10, int req_nblocks = -1) {
     auto out_strides = GetStrides(out.shape);
     auto in_strides = GetStrides(in.shape);
 
