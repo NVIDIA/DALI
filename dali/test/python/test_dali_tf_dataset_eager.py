@@ -218,6 +218,7 @@ def check_tf_dataset_wrong_input_type(wrong_input_datasets):
                 device_id=pipe.device_id)
         return dali_dataset
 
+@with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_wrong_input_type():
     input_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
     # wrong `input_datasets` type (no dictionary)
@@ -258,6 +259,7 @@ def check_disallowed_es(kwargs, input_datasets):
                 device_id=pipe.device_id)
         return dali_dataset
 
+@with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_disallowed_es():
     in_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
     # no names
@@ -288,6 +290,7 @@ def check_layout(kwargs, input_datasets, layout):
     run_dataset_eager_mode(dali_dataset, 10)
 
 
+@with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_layouts():
     for shape, layout in [((2, 3), "XY"), ((10, 20, 3), "HWC"), ((4, 128, 64, 3), "FHWC")]:
         in_dataset = tf.data.Dataset.from_tensors(np.full(shape, 42)).repeat()
