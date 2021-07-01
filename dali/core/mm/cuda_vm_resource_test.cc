@@ -180,18 +180,26 @@ class VMResourceTest : public ::testing::Test {
 };
 
 TEST_F(VMResourceTest, BasicTest) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory Management not supported on this platform";
   this->TestAlloc();
 }
 
 TEST_F(VMResourceTest, RegionMerge) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory Management not supported on this platform";
   this->TestRegionMerge();
 }
 
 TEST_F(VMResourceTest, RegionExtendAfter) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory Management not supported on this platform";
   this->TestRegionExtendAfter();
 }
 
 TEST_F(VMResourceTest, RegionExtendBefore) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory Management not supported on this platform";
   this->TestRegionExtendBefore();
 }
 
@@ -216,6 +224,9 @@ inline Out microseconds(std::chrono::duration<R, P> d) {
 }
 
 TEST_F(VMResourceTest, RandomAllocations) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory Management not supported on this platform";
+
   cuda_vm_resource pool(-1, 4 << 20);  // use small 4 MiB blocks
   std::mt19937_64 rng(12345);
   std::bernoulli_distribution is_free(0.5);
