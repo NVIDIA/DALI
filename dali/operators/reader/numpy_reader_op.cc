@@ -240,7 +240,7 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
 
   // From 1 to 10 blocks per sample depending on the nthreads/nsamples ratio
   int blocks_per_sample = std::max(1, 10 * nthreads / nsamples);
-  constexpr int kThreshold = 16 << 10;  // smaller samples will not be subdivided
+  constexpr int kThreshold = kernels::kSliceMinBlockSize;  // smaller samples will not be subdivided
 
   for (int i = 0; i < nsamples; i++) {
     const auto& file_i = GetSample(i);

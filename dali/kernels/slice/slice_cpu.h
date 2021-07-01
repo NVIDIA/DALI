@@ -294,7 +294,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
                  const TensorShape<Dims> &out_shape,
                  const TensorShape<Dims> &in_shape,
                  const SliceArgs<OutputType, Dims> &args,
-                 int min_blk_sz = 16 << 10,
+                 int min_blk_sz = kSliceMinBlockSize,
                  int req_nblocks = -1) {
   if (req_nblocks < 0)
     req_nblocks = exec_engine.NumThreads() * 8;
@@ -420,7 +420,7 @@ class SliceCPU {
                 InTensorCPU<InputType, Dims> in,
                 const SliceArgs<OutputType, Dims> &args,
                 ExecutionEngine &exec_engine,
-                int min_blk_sz = 16 << 10, int req_nblocks = -1) {
+                int min_blk_sz = kSliceMinBlockSize, int req_nblocks = -1) {
     auto out_strides = GetStrides(out.shape);
     auto in_strides = GetStrides(in.shape);
 

@@ -26,6 +26,8 @@
 namespace dali {
 namespace kernels {
 
+static constexpr int kSliceMinBlockSize = 16 << 10;
+
 template <typename T, int Dims>
 struct SliceArgs {
   TensorShape<Dims> anchor;
