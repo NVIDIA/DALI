@@ -13,8 +13,8 @@ do_once() {
     CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
 
     # check if CUDA version is at least 11.x
-    if [ "$(echo "$CUDA_VERSION" | tr " " "\n" | sort -rV | head -n 1)" == "110" ]; then
-        # install TF 2.4.x for CUDA 11.x test
+    if [ "${CUDA_VERSION:0:2}" == "11" ]; then
+        # install TF 2.5.x for CUDA 11.x test
         pip install $($topdir/qa/setup_packages.py -i 1 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
     else
         # install TF 2.3.x for CUDA 10.x test
