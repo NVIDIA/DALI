@@ -39,7 +39,8 @@ class InstallerHelper:
         self.is_compatible_with_prebuilt_bin = self.platform_system == 'Linux' and self.platform_machine == 'x86_64'
         self.prebuilt_dir = os.path.join(self.src_path, 'prebuilt')
         self.prebuilt_stub_dir = os.path.join(self.prebuilt_dir, 'stub')
-        self.prebuilt_dali_stub = find('libdali.so', self.prebuilt_stub_dir)[0] or None
+        dali_stubs = find('libdali.so', self.prebuilt_stub_dir)
+        self.prebuilt_dali_stub = dali_stubs[0] if len(dali_stubs) > 0 else None
 
         # If set, checking for prebuilt binaries or compiler version check is disabled
         self.always_build = bool(int(os.getenv('DALI_TF_ALWAYS_BUILD', '0')))
