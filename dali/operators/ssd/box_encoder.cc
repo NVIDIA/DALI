@@ -132,7 +132,7 @@ GetOffsets(vec2 box_center,
 }
 
 void BoxEncoder<CPUBackend>::WriteMatchesToOutput(
-  const vector<std::pair<unsigned, unsigned>> matches, const vector<BoundingBox> &boxes,
+  const vector<std::pair<unsigned, unsigned>> &matches, const vector<BoundingBox> &boxes,
   const int *labels, float *out_boxes, int *out_labels) const {
   if (offset_) {
     for (const auto &match : matches) {

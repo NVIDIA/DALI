@@ -52,7 +52,7 @@ inline Argument *DeserializeProtobufVectorImpl(const DaliProtoPriv& arg) {
   {{serialize_type(T()), false}, DeserializeProtobufImpl<T>},       \
   {{serialize_type(T()), true},  DeserializeProtobufVectorImpl<T>},
 
-Argument *DeserializeProtobuf(const DaliProtoPriv arg) {
+Argument *DeserializeProtobuf(const DaliProtoPriv &arg) {
   // map
   std::map<std::pair<string, bool>, std::function<Argument*(const DaliProtoPriv&)>> fn_map{
     ADD_SERIALIZABLE_ARG(int64)

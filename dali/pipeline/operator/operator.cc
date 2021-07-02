@@ -23,7 +23,7 @@ void OperatorBase::EnforceUniformInputBatchSize(const workspace_t<Backend> &ws) 
     DALI_ENFORCE(curr_batch_size == ws.GetInputBatchSize(i),
                  "Batch size has to be uniform across one iteration.");
   }
-  auto argument_ws = dynamic_cast<const ArgumentWorkspace &>(ws);
+  const ArgumentWorkspace &argument_ws = ws;
   for (const auto &arg : argument_ws) {
     DALI_ENFORCE(
         curr_batch_size == static_cast<decltype(curr_batch_size)>(arg.second.tvec->ntensor()),

@@ -605,10 +605,10 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   //@{
   /** @brief Implicit conversion */
 
-  template <typename U>
-  TensorListView(const TensorListView<Backend, U, sample_ndim> &other)
+  template <typename U, int other_sample_ndim>
+  TensorListView(const TensorListView<Backend, U, other_sample_ndim> &other)
       : Base(other.data, other.shape) {
-    static_assert(sample_ndim == sample_ndim || sample_ndim == DynamicDimensions,
+    static_assert(sample_ndim == other_sample_ndim || sample_ndim == DynamicDimensions,
                   "Cannot change number of dimensions");
     detail::check_implicit_conversion<U, DataType>();
   }

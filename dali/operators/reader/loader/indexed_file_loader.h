@@ -108,7 +108,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       DALI_ENFORCE(fin.good(), "Failed to open file " + index_uris[i]);
       int64 pos, size;
       while (fin >> pos >> size) {
-        indices_.push_back(std::make_tuple(pos, size, i));
+        indices_.emplace_back(pos, size, i);
       }
       fin.close();
     }

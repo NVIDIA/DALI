@@ -22,8 +22,7 @@ namespace dali {
 
 class DALIMeta {
  public:
-  DALIMeta() {
-  }
+  DALIMeta() = default;
 
   explicit DALIMeta(const TensorLayout &layout) : layout_(layout) {
   }

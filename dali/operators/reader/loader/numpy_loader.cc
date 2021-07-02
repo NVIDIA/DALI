@@ -188,7 +188,7 @@ void ParseHeader(FileStream *file, NumpyParseTarget& target) {
   DALI_ENFORCE(nread == header_len, "Can not read header.");
   token[header_len] = '\0';
   header = std::string(reinterpret_cast<const char*>(token.data()));
-  DALI_ENFORCE(header.find("{") != std::string::npos, "Header is corrupted.");
+  DALI_ENFORCE(header.find('{') != std::string::npos, "Header is corrupted.");
   offset += header_len;
   file->Seek(offset);  // prepare file for later reads
 

@@ -98,7 +98,7 @@ void GetPerSampleArgument(std::vector<T> &output, const std::string &argument_na
  * TODO(michalz): rework it somehow to avoid going through this logic for each sample
  */
 template <typename T>
-void GetGeneralizedArg(span<T> result, const std::string name, int sample_idx, const OpSpec& spec,
+void GetGeneralizedArg(span<T> result, const std::string &name, int sample_idx, const OpSpec& spec,
                        const ArgumentWorkspace& ws) {
   int argument_length = result.size();
   if (spec.HasTensorArgument(name)) {

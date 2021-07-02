@@ -65,15 +65,15 @@ class RecordIOLoader : public IndexedFileLoader {
       int64 size = temp[i + 1] - temp[i];
       // skip 0 sized images
       if (size) {
-        indices_.push_back(std::make_tuple(temp[i] - file_offsets[file_offset_index],
-                                          size, file_offset_index));
+        indices_.emplace_back(temp[i] - file_offsets[file_offset_index],
+                              size, file_offset_index);
       }
     }
     int64 size = file_offsets.back() - temp.back();
     // skip 0 sized images
     if (size) {
-      indices_.push_back(std::make_tuple(temp.back() - file_offsets[file_offset_index],
-                                        size, file_offset_index));
+      indices_.emplace_back(temp.back() - file_offsets[file_offset_index],
+                            size, file_offset_index);
     }
     index_file.close();
   }

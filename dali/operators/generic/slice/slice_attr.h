@@ -173,7 +173,7 @@ class NamedSliceAttr {
                                      "]. Got: ", shape_val));
             end_val = anchor_val + shape_val;
           }
-          DALI_ENFORCE(end_val >= i64min && i64max <= i64max,
+          DALI_ENFORCE(end_val >= i64min && end_val <= i64max,
                        make_string("end coordinates out of range [", i64min, ", ", i64max,
                                    "]. Got: ", end_val));
 

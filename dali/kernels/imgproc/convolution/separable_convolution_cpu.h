@@ -65,7 +65,7 @@ struct SeparableConvolutionCpu<Out, In, W, 1, has_channels> {
     return req;
   }
 
-  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> out,
+  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> &out,
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<TensorView<StorageCPU, const W, 1>, axes>& windows,
            W scale = 1) {
@@ -100,7 +100,7 @@ struct SeparableConvolutionCpu<Out, In, W, 2, has_channels> {
     return req;
   }
 
-  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> out,
+  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> &out,
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<TensorView<StorageCPU, const W, 1>, axes>& windows,
            W scale = 1) {
@@ -156,7 +156,7 @@ struct SeparableConvolutionCpu<Out, In, W, 3, has_channels> {
     return req;
   }
 
-  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> out,
+  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> &out,
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<TensorView<StorageCPU, const W, 1>, axes>& windows,
            W scale = 1) {

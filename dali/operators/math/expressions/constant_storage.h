@@ -83,7 +83,7 @@ class ConstantStorage {
   Tensor<Backend> integers_, reals_;
 
   template <typename T>
-  void Rewrite(Tensor<GPUBackend> &result, const std::vector<T> constants,
+  void Rewrite(Tensor<GPUBackend> &result, const std::vector<T> &constants,
                const std::vector<ExprConstant *> &constant_nodes, cudaStream_t stream) {
     Tensor<CPUBackend> result_cpu;
     Rewrite(result_cpu, constants, constant_nodes);
@@ -91,7 +91,7 @@ class ConstantStorage {
   }
 
   template <typename T>
-  void Rewrite(Tensor<CPUBackend> &result, const std::vector<T> constants,
+  void Rewrite(Tensor<CPUBackend> &result, const std::vector<T> &constants,
                const std::vector<ExprConstant *> &constant_nodes, cudaStream_t = NULL) {
     result.Resize({static_cast<int64_t>(constants.size() * kPaddingSize)});
     char *data = result.mutable_data<char>();

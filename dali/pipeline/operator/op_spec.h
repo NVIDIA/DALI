@@ -53,7 +53,7 @@ class DLL_PUBLIC OpSpec {
     }
   };
 
-  DLL_PUBLIC inline OpSpec() {}
+  DLL_PUBLIC inline OpSpec() = default;
 
   /**
    * @brief Returns a full tensor name

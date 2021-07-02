@@ -262,7 +262,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
   class EventList {
    public:
-    inline EventList() {}
+    inline EventList() = default;
     inline EventList(int size, EventPool *event_pool) {
       DALI_ENFORCE(event_pool != nullptr);
       for (int i = 0; i < size; ++i) {
@@ -417,7 +417,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   DALI_ENFORCE(graph->NumOp() > 0, "Graph has no operators.");
   graph->InstantiateOperators();  // ..if not done already
 
-  output_names_ = output_names;
+  output_names_ = std::move(output_names);
   graph_ = graph;
 
   DeviceGuard g(device_id_);
