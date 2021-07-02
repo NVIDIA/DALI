@@ -492,6 +492,8 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       to_map.push_back({ next_unmapped, block_idx });
     }
 
+    mark_as_unavailable(ptr, size);
+
     SmallVector<cuvm::CUMem, 256> free_blocks;
     get_free_blocks(free_blocks, blocks_to_map);
     assert(static_cast<int>(free_blocks.size()) == blocks_to_map);
@@ -507,6 +509,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       free_mapped_.put(region->block_ptr(br.begin), range_size);
       stat_add_free(range_size);
     }
+    mark_as_available(ptr, size);
     assert(i == blocks_to_map);
   }
 
