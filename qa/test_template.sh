@@ -12,6 +12,12 @@ source $topdir/qa/setup_test_common.sh
 pip_packages=$(echo ${pip_packages} | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
 last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
 
+install_pip_pkg() {
+    install_cmd=$1
+    # if no package was found in our download dir, so install it from index
+    ${install_cmd} --no-index || ${install_cmd}
+}
+
 if [ -n "$gather_pip_packages" ]
 then
     # early exit
@@ -65,15 +71,7 @@ do
         if [ -n "$inst" ]; then
             for pkg in ${inst}
             do
-                # turn off error
-                set +e
-                pip install $pkg -f /pip-packages --no-index
-                res=$?
-                set -e
-                # if no package was found in our download dir, so install it from index
-                if [ "$res" != "0" ]; then
-                    pip install $pkg ${extra_indices_string}
-                fi
+                install_pip_pkg "pip install $pkg -f /pip-packages"
             done
 
             # If we just installed tensorflow, we need to reinstall DALI TF plugin
