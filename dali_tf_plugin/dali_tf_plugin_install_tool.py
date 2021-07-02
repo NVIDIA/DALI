@@ -111,13 +111,13 @@ class InstallerHelper:
         print("Importing the TF library to check for errors")
 
         # The DALI TF lib and the DALI stub lib should be at the same directory for check_import to succeed
-        # Unfortunately the symlink is necessary because we can't change LD_LIBRARY_PATH from within the script
+        # Unfortunately the copy is necessary because we can't change LD_LIBRARY_PATH from within the script
         with tempfile.TemporaryDirectory(prefix="check_import_tmp") as tmpdir:
             lib_path_tmpdir = os.path.join(tmpdir, lib_name)
-            os.symlink(lib_path, lib_path_tmpdir)
+            copyfile(lib_path, lib_path_tmpdir)
 
             dali_stub_tmpdir = os.path.join(tmpdir, dali_stub_name)
-            os.symlink(dali_stub, dali_stub_tmpdir)
+            copyfile(dali_stub, dali_stub_tmpdir)
 
             try:
                 print("Loading DALI TF library: ", lib_path_tmpdir)
