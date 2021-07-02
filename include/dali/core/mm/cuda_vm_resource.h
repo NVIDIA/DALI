@@ -175,6 +175,9 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
 
     void map_block(int block_idx, cuvm::CUMem mem) {
       assert(mem.size() == block_size);
+      assert(mapping[block_idx] == CUmemGenericAllocationHandle{});
+      assert(!mapped[block_idx]);
+      assert(!available[block_idx]);
       cuvm::Map(block_dptr(block_idx), mem);
       mapping[block_idx] = mem.release().first;
       mapped[block_idx] = true;
@@ -509,7 +512,6 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
 
     int i = 0;
     for (const block_range &br : to_map) {
-      region->available.fill(br.begin, br.end, true);
       for (int b = br.begin; b < br.end; b++) {
         assert(i < static_cast<int>(free_blocks.size()));
         region->map_block(b, std::move(free_blocks[i++]));
