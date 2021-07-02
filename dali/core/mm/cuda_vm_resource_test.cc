@@ -29,31 +29,33 @@ class VMResourceTest : public ::testing::Test {
  public:
   void TestAlloc() {
     cuda_vm_resource res;
-    res.block_size_ = 32<<20;  // fix the block size at 32 MiB for this test
-    void *ptr = res.allocate(100<<20);
-    void *ptr2 = res.allocate(100<<20);
+    res.block_size_ = 32 << 20;  // fix the block size at 32 MiB for this test
+    const size_t size1 = 100 << 20;  // used for first three allocations
+    const size_t size4 = 150 << 20;  // used for first three allocations
+    void *ptr = res.allocate(size1);
+    void *ptr2 = res.allocate(size1);
     EXPECT_EQ(res.va_regions_.size(), 1u);
     EXPECT_EQ(res.va_regions_.front().mapped.find(false), 7);
-    res.deallocate(ptr, 100<<20);
+    res.deallocate(ptr, size1);
     EXPECT_EQ(res.va_regions_.front().available.find(true), 0);
     EXPECT_EQ(res.va_regions_.front().available.find(false), 3);
-    void *ptr3 = res.allocate(100<<20);
+    void *ptr3 = res.allocate(size1);
     EXPECT_EQ(ptr, ptr3);
     cuda_vm_resource::mem_handle_t blocks[3];
     for (int i = 0; i < 3; i++)
       blocks[i] = res.va_regions_.front().mapping[i];
-    res.deallocate(ptr3, 100<<20);
+    res.deallocate(ptr3, size1);
     // let's request more than was deallocated - it should go at the end of VA range
-    void *ptr4 = res.allocate(150<<20);
-    EXPECT_EQ(ptr4, static_cast<void*>(static_cast<char*>(ptr2) + (100<<20)));
+    void *ptr4 = res.allocate(size4);
+    EXPECT_EQ(ptr4, static_cast<void*>(static_cast<char*>(ptr2) + size1));
     for (int i = 0; i < 3; i++) {
       // ptr4 should start 200 MiB from start, which is block 6
       // block 7 should be still unmapped, hence i+7.
       // Let's check that the 1st 3 blocks have been reused rather than newly allocated.
       EXPECT_EQ(res.va_regions_.back().mapping[i+7], blocks[i]);
     }
-    res.deallocate(ptr2, 100<<20);
-    res.deallocate(ptr4, 150<<20);
+    res.deallocate(ptr2, size1);
+    res.deallocate(ptr4, size4);
   }
 
   void MapRandomBlocks(cuda_vm_resource::va_region &region, int blocks_to_map) {
@@ -66,7 +68,7 @@ class VMResourceTest : public ::testing::Test {
     }
   }
 
-  // Unlinke normal va_region, this one doesn't release the memory blocks upon destruction
+  // Unlike normal va_region, this one doesn't release the memory blocks upon destruction
   struct va_region_backup : cuda_vm_resource::va_region {
     using va_region::va_region;
     va_region_backup(va_region_backup &&other) = default;
@@ -96,6 +98,14 @@ class VMResourceTest : public ::testing::Test {
     }
   }
 
+  void CheckPartEmpty(const cuda_vm_resource::va_region &region, int start, int end) {
+    for (int i = start; i < end; i++) {
+      EXPECT_EQ(region.mapping[i], CUmemGenericAllocationHandle{});
+      EXPECT_FALSE(region.mapped[i]);
+      EXPECT_FALSE(region.available[i]);
+    }
+  }
+
   void TestRegionExtendAfter() {
     cuda_vm_resource res;
     res.block_size_ = 4 << 20;  // 4 MiB
@@ -115,10 +125,7 @@ class VMResourceTest : public ::testing::Test {
     auto &region = res.va_regions_.back();
     ASSERT_EQ(region.num_blocks(), b1 + b2);
     ComparePart(region, 0, va1);
-    for (int i = b1; i < b1 + b2; i++) {
-      EXPECT_FALSE(region.mapped[i]);
-      EXPECT_FALSE(region.mapped[i]);
-    }
+    CheckPartEmpty(region, b1, b1 + b2);
   }
 
   void TestRegionExtendBefore() {
@@ -140,10 +147,7 @@ class VMResourceTest : public ::testing::Test {
     auto &region = res.va_regions_.back();
     ASSERT_EQ(region.num_blocks(), b1 + b2);
     ComparePart(region, b1, va1);
-    for (int i = 0; i < b1; i++) {
-      EXPECT_FALSE(region.mapped[i]);
-      EXPECT_FALSE(region.mapped[i]);
-    }
+    CheckPartEmpty(region, 0, b1);
   }
 
   void TestRegionMerge() {
@@ -172,10 +176,7 @@ class VMResourceTest : public ::testing::Test {
     ASSERT_EQ(region.num_blocks(), b1 + b2 + b3);
     ComparePart(region, 0, va1);
     ComparePart(region, b1 + b2, va3);
-    for (int i = b1; i < b1 + b2; i++) {
-      EXPECT_FALSE(region.mapped[i]);
-      EXPECT_FALSE(region.mapped[i]);
-    }
+    CheckPartEmpty(region, b1, b1 + b2);
   }
 
   std::mt19937_64 rng_{12345};
@@ -288,7 +289,7 @@ TEST_F(VMResourceTest, RandomAllocations) {
     "Average time to deallocate: ", microseconds(dealloc_time) / stat.total_deallocations, " us\n"
     "Peak allocations size: ", format_size(stat.peak_allocated), "\n\n"
     "Peak allocated blocks: ", stat.peak_allocated_blocks, "\n"
-    "Peak allocated physical size: ", format_size(stat.peak_allocated_blocks * stat.block_size),
+    "Peak allocated physical size: ", format_size(stat.peak_allocated_blocks * pool.block_size()),
     "\n"
     "Unmap operations: ", stat.total_unmaps, "\n"
     "VA size: ", format_size(stat.allocated_va), "\n");
