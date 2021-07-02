@@ -19,6 +19,8 @@
 #include "dali/core/mm/mm_test_utils.h"
 #include "dali/core/format.h"
 
+#if DALI_USE_CUDA_VM_MAP
+
 namespace dali {
 namespace mm {
 namespace test {
@@ -299,3 +301,5 @@ TEST_F(VMResourceTest, RandomAllocations) {
 }  // namespace test
 }  // namespace mm
 }  // namespace dali
+
+#endif  // DALI_USE_CUDA_VM_MAP
