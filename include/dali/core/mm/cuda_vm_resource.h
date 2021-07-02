@@ -644,6 +644,11 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   }
 };
 
+namespace detail {
+template <>
+struct can_merge<cuda_vm_resource> : std::true_type {};
+
+}  // namespace detail
 }  // namespace mm
 }  // namespace dali
 
