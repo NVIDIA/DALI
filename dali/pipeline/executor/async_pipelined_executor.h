@@ -41,8 +41,7 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
                           max_num_stream, default_cuda_stream_priority, prefetch_queue_depth),
         cpu_thread_(device_id, set_affinity),
         mixed_thread_(device_id, set_affinity),
-        gpu_thread_(device_id, set_affinity),
-        device_id_(device_id) {}
+        gpu_thread_(device_id, set_affinity) {}
 
   DLL_PUBLIC ~AsyncPipelinedExecutor() override {
     ShutdownQueue();
