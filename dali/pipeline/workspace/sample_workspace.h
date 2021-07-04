@@ -42,7 +42,7 @@ using SampleOutputType = shared_ptr<Tensor<Backend>>;
  */
 class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleOutputType> {
  public:
-  DLL_PUBLIC SampleWorkspace() : data_idx_(-1), thread_idx_(-1), has_stream_(false) {}
+  DLL_PUBLIC SampleWorkspace() : data_idx_(-1), thread_idx_(-1), stream_(0), has_stream_(false) {}
 
   DLL_PUBLIC ~SampleWorkspace() override = default;
 
