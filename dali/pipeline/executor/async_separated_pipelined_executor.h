@@ -101,7 +101,6 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
   }
 
   WorkerThread cpu_thread_, mixed_thread_, gpu_thread_;
-  int device_id_;
 };
 
 }  // namespace dali

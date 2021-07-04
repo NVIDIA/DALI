@@ -340,7 +340,6 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   int num_samples_ = 0;
 
   std::vector<SpatialShape> out_sizes_;
-  BorderType border_;
   TensorView<StorageGPU, const MappingParams, 1> params_gpu_;
   TensorView<StorageCPU, const MappingParams, 1> params_cpu_;
   kernels::ScratchpadAllocator param_mem_;

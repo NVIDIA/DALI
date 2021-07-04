@@ -336,7 +336,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   std::vector<std::string> filenames_;
   std::vector<int> labels_;
 
-  int device_id_;
   int codec_id_;
   bool skip_vfr_check_;
   bool file_list_frame_num_;

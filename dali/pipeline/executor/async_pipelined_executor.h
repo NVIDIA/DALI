@@ -114,7 +114,6 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
   WorkerThread cpu_thread_, mixed_thread_, gpu_thread_;
   int cpu_work_counter_ = 0, mixed_work_counter_ = 0, gpu_work_counter_ = 0;
   std::condition_variable mixed_work_cv_, gpu_work_cv_;
-  int device_id_;
 };
 
 }  // namespace dali
