@@ -28,7 +28,7 @@ void FileLabelLoader::PrepareEmpty(ImageLabelWrapper &image_label) {
 }
 
 void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
-  auto image_pair = image_label_pairs_[current_index_++];
+  const auto &image_pair = image_label_pairs_[current_index_++];
 
   // handle wrap-around
   MoveToNextShard(current_index_);
@@ -72,8 +72,6 @@ void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
   // close the file handle
   current_image->Close();
 
-  // copy the label
-  image_label.label = image_pair.second;
   image_label.image.SetMeta(meta);
 }
 

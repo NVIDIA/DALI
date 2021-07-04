@@ -107,7 +107,6 @@ class CoordTransform : public Operator<Backend>, private MTTransformAttr {
       "CoordTransform expects an input with at least 2 dimensions.");
 
     const int N = input_shape.num_samples();
-    input_pt_dim_ = 0;
     for (int i = 0; i < N; i++) {
       auto sample_shape = input_shape.tensor_shape_span(i);
       if (volume(sample_shape) == 0)
