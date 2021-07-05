@@ -8,7 +8,10 @@ function CLEAN_AND_EXIT {
 
 cd /opt/dali/docs/examples/use_cases/tensorflow/yolov4/src
 
-pip install pycocotools==2.0.0
+python -m pip install --upgrade pip
+python -m pip install Cython
+python -m pip install pycocotools
+python -m pip install pycocotools
 
 python main.py train \
     /data/coco/coco-2017/coco2017/train2017 \

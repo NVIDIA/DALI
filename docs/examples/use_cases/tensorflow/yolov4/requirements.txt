@@ -1,4 +1,4 @@
 matplotlib
 opencv-python
-tensorflow-addons==0.12.1
+tensorflow-addons
 pycocotools
