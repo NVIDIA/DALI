@@ -10,8 +10,9 @@ function CLEAN_AND_EXIT {
 
 cd /opt/dali/docs/examples/use_cases/tensorflow/efficientdet
 
-pip install argparse-utils
-pip install absl-py
+python -m pip install argparse-utils
+python -m pip install absl-py
+python -m pip install Pillow
 
 cd dataset
 
