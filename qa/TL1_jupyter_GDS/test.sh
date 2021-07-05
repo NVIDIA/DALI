@@ -9,7 +9,8 @@ test_body() {
 
     # GDS can't read data from the Docker filesystem.
     # Here we are copying the relevant part of DALI_extra that we need to run the notebook
-    # to a "real" filesystem
+    # to a "real" filesystem. "/scratch" is assumed to be a mounted directory from the "real"
+    # filesystem. If DALI_extra was already in such directory, this copy wouldn't be necessary.
     tmpdir=`mktemp -d "/scratch/numpy_reader_notebook_XXXXXX" 2>/dev/null`
     NEW_DALI_EXTRA=${tmpdir}/DALI_extra
     mkdir -p ${NEW_DALI_EXTRA}/db/3D/MRI/Knee

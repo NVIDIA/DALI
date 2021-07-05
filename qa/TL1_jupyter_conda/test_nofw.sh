@@ -18,7 +18,7 @@ do_once() {
 test_body() {
     # test code
     # test all jupyters except one related to a particular FW,
-    # and one requiring a dedicated HW (multiGPU and OF)
+    # and one requiring a dedicated HW (multiGPU, GDS and OF)
     # optical flow requires TU102 architecture whilst this test can be run on any GPU
     exclude_files="multigpu\|mxnet\|tensorflow\|pytorch\|paddle\|external_input.ipynb\|numpy_reader.ipynb\|optical_flow\|python_operator\|#"
 
