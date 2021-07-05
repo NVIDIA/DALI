@@ -79,7 +79,7 @@ def get_dataset(
 
         input_options = tf.distribute.InputOptions(
             experimental_place_dataset_on_device=True,
-            experimental_fetch_to_device=False,
+            experimental_prefetch_to_device=False,
             experimental_replication_mode=tf.distribute.InputReplicationMode.PER_REPLICA,
         )
 
