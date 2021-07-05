@@ -235,6 +235,12 @@ TEST_F(VMResourceTest, RegionExtendBefore) {
   this->TestRegionExtendBefore();
 }
 
+TEST_F(VMResourceTest, PartialMap) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory Management not supported on this platform";
+  this->TestPartialMap();
+}
+
 std::string format_size(size_t bytes) {
   std::stringstream ss;
   print(ss, bytes, " bytes");
@@ -253,10 +259,6 @@ using perfclock = std::chrono::high_resolution_clock;
 template <typename Out = double, typename R, typename P>
 inline Out microseconds(std::chrono::duration<R, P> d) {
   return std::chrono::duration_cast<std::chrono::duration<Out, std::micro>>(d).count();
-}
-
-TEST_F(VMResourceTest, PartialMap) {
-  this->TestPartialMap();
 }
 
 TEST_F(VMResourceTest, RandomAllocations) {
