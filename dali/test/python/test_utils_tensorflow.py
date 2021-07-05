@@ -340,7 +340,7 @@ def run_tf_dataset_multigpu_eager_mirrored_strategy(get_pipeline_desc=get_image_
     strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
     input_options = tf.distribute.InputOptions(
         experimental_place_dataset_on_device = True,
-        experimental_prefetch_to_device = False,
+        experimental_fetch_to_device = False,
         experimental_replication_mode = tf.distribute.InputReplicationMode.PER_REPLICA)
 
     def dataset_fn(input_context):
