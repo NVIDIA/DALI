@@ -69,7 +69,7 @@ const char* GetVideoChromaFormatString(cudaVideoChromaFormat eChromaFormat) {
         { cudaVideoChromaFormat_444,        "YUV 444"              },
     };
 
-    if (eChromaFormat
+    if (static_cast<size_t>(eChromaFormat)
            < sizeof(aChromaFormatName) / sizeof(aChromaFormatName[0])) {
         return aChromaFormatName[eChromaFormat].name;
     }

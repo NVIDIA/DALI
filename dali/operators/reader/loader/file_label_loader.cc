@@ -28,7 +28,7 @@ void FileLabelLoader::PrepareEmpty(ImageLabelWrapper &image_label) {
 }
 
 void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
-  const auto &image_pair = image_label_pairs_[current_index_++];
+  auto image_pair = image_label_pairs_[current_index_++];
 
   // handle wrap-around
   MoveToNextShard(current_index_);
