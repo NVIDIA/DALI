@@ -62,6 +62,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     output_shape_(max_batch_size_, kOutputDim),
     pinned_buffers_(num_threads_*2),
     jpeg_streams_(num_threads_*2),
+#if IS_HW_DECODER_COMPATIBLE
+    // only create one stream per thread - needed only for parsing
+    hw_decoder_jpeg_streams_(num_threads_),
+#endif
 #if NVJPEG2K_ENABLED
     nvjpeg2k_intermediate_buffer_(),
     nvjpeg2k_dev_alloc_(nvjpeg_memory::GetDeviceAllocatorNvJpeg2k()),
@@ -169,8 +173,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     for (auto &stream : jpeg_streams_) {
       NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &stream));
     }
-    NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &hw_decoder_jpeg_stream_));
-
+    for (auto &stream : hw_decoder_jpeg_streams_) {
+      NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &stream));
+    }
     for (auto &buffer : pinned_buffers_) {
       NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, pinned_allocator_ptr, &buffer));
     }
@@ -251,7 +256,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       for (auto &stream  : jpeg_streams_) {
         NVJPEG_CALL(nvjpegJpegStreamDestroy(stream));
       }
-      NVJPEG_CALL(nvjpegJpegStreamDestroy(hw_decoder_jpeg_stream_));
+      for (auto &stream  : hw_decoder_jpeg_streams_) {
+        NVJPEG_CALL(nvjpegJpegStreamDestroy(stream));
+      }
 
       for (auto &buffer : pinned_buffers_) {
         NVJPEG_CALL(nvjpegBufferPinnedDestroy(buffer));
@@ -501,7 +508,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       data.shape = {height, width, image_info.num_components};
       data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
       data.method = DecodeMethod::Nvjpeg2k;
-      samples_jpeg2k_.push_back(&data);
       return true;
     }
 #endif  // NVJPEG2K_ENABLED
@@ -521,100 +527,125 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     for (int i = 0; i < curr_batch_size; i++) {
       const auto &in = ws.Input<CPUBackend>(0, i);
-      const auto *input_data = in.data<uint8_t>();
       const auto in_size = in.size();
+      thread_pool_.AddWork([this, i, &in, in_size](int tid) {
+        auto *input_data = in.data<uint8_t>();
+        SampleData &data = sample_data_[i];
+        data.clear();
+        data.sample_idx = i;
+        data.file_name = in.GetSourceInfo();
+        data.encoded_length = in_size;
 
-      SampleData &data = sample_data_[i];
-      data.clear();
-      data.sample_idx = i;
-      data.file_name = in.GetSourceInfo();
-      data.encoded_length = in_size;
+        auto cached_shape = CacheImageShape(data.file_name);
+        if (volume(cached_shape) > 0) {
+          data.method = DecodeMethod::Cache;
+          data.shape = cached_shape;
+          output_shape_.set_tensor_shape(i, data.shape);
+          return;
+        }
 
-      auto cached_shape = CacheImageShape(data.file_name);
-      if (volume(cached_shape) > 0) {
-        data.method = DecodeMethod::Cache;
-        data.shape = cached_shape;
-        output_shape_.set_tensor_shape(i, data.shape);
-        samples_cache_.push_back(&data);
-        continue;
-      }
+        int widths[NVJPEG_MAX_COMPONENT], heights[NVJPEG_MAX_COMPONENT], c;
+        nvjpegChromaSubsampling_t subsampling;
+        nvjpegStatus_t ret = nvjpegGetImageInfo(handle_, input_data, in_size, &c,
+                                                &subsampling, widths, heights);
+        bool hw_decode = false;
+        bool nvjpeg_decode = (ret == NVJPEG_STATUS_SUCCESS);
 
-      int widths[NVJPEG_MAX_COMPONENT], heights[NVJPEG_MAX_COMPONENT], c;
-      nvjpegChromaSubsampling_t subsampling;
-      nvjpegStatus_t ret = nvjpegGetImageInfo(handle_, input_data, in_size, &c,
-                                              &subsampling, widths, heights);
-      bool hw_decode = false;
-      bool nvjpeg_decode = (ret == NVJPEG_STATUS_SUCCESS);
+        auto crop_generator = GetCropWindowGenerator(i);
+        if (nvjpeg_decode) {
+          data.shape = {heights[0], widths[0], c};
+          data.subsampling = subsampling;
+        } else if (crop_generator || !ParseNvjpeg2k(data,
+                                                    span<const uint8_t>(input_data, in_size))) {
+          try {
+            data.method = DecodeMethod::Host;
+            auto image = ImageFactory::CreateImage(input_data, in_size, output_image_type_);
+            data.shape = image->PeekShape();
+          } catch (const std::runtime_error &e) {
+            DALI_FAIL(e.what() + ". File: " + data.file_name);
+          }
+        }
+        data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
 
-      auto crop_generator = GetCropWindowGenerator(i);
-      if (nvjpeg_decode) {
-        data.shape = {heights[0], widths[0], c};
-        data.subsampling = subsampling;
-      } else if (crop_generator || !ParseNvjpeg2k(data, span<const uint8_t>(input_data, in_size))) {
-        try {
-          data.method = DecodeMethod::Host;
-          auto image = ImageFactory::CreateImage(input_data, in_size, output_image_type_);
-          data.shape = image->PeekShape();
+        if (crop_generator) {
+          TensorShape<> dims{data.shape[0], data.shape[1]};
+          data.roi = crop_generator(dims, "HW");
+          DALI_ENFORCE(data.roi.IsInRange(dims));
+          output_shape_.set_tensor_shape(
+            i, {data.roi.shape[0], data.roi.shape[1], data.req_nchannels});
+          NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, data.roi.anchor[1], data.roi.anchor[0],
+                                              data.roi.shape[1], data.roi.shape[0]));
+        } else {
+          output_shape_.set_tensor_shape(i, {data.shape[0], data.shape[1], data.req_nchannels});
+          NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, 0, 0, -1, -1));
+        }
+
+        // only when we have ROI info check if nvjpegDecodeBatchedSupportedEx supports it
+        if (nvjpeg_decode) {
+  #if IS_HW_DECODER_COMPATIBLE
+          if (state_hw_batched_ != nullptr) {
+            // in some cases hybrid decoder can handle the image but HW decoder can't, we should not
+            // error in that case
+            ret = nvjpegJpegStreamParse(handle_, input_data, in_size, 0, 0,
+                                        hw_decoder_jpeg_streams_[i]);
+            if (ret == NVJPEG_STATUS_SUCCESS) {
+              int is_supported = -1;
+              NVJPEG_CALL(nvjpegDecodeBatchedSupportedEx(handle_, hw_decoder_jpeg_streams_[i],
+                                                          data.params, &is_supported));
+              hw_decode = is_supported == 0;
+            }
+            if (!hw_decode) {
+              LOG_LINE << "Sample \"" << data.file_name
+                      << "\" can't be handled by the HW decoder and shall be processed by the CUDA "
+                          "hybrid decoder"
+                      << std::endl;
+            }
+          }
+  #endif
+          if (hw_decode) {
+            data.method = DecodeMethod::NvjpegHw;
+          } else {
+            data.method = DecodeMethod::NvjpegCuda;
+          }
+        }
+
+        data.is_progressive = IsProgressiveJPEG(input_data, in_size);
+        if (data.method == DecodeMethod::NvjpegCuda) {
+          int64_t sz = data.roi
+            ? data.roi.shape[1] * (data.roi.anchor[0] + data.roi.shape[0])
+            : data.shape[0] * data.shape[1];
+          if (sz > hybrid_huffman_threshold_ && !data.is_progressive) {
+            data.selected_decoder = &data.decoders[NVJPEG_BACKEND_GPU_HYBRID];
+          } else {
+            data.selected_decoder = &data.decoders[NVJPEG_BACKEND_HYBRID];
+          }
+        }
+      }, in_size);
+    }
+    thread_pool_.RunAll();
+    thread_pool_.WaitForWork();
+
+    for (auto &data : sample_data_) {
+      switch (data.method) {
+        case DecodeMethod::Host:
           samples_host_.push_back(&data);
-        } catch (const std::runtime_error &e) {
-          DALI_FAIL(e.what() + ". File: " + data.file_name);
-        }
-      }
-      data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
-
-      if (crop_generator) {
-        TensorShape<> dims{data.shape[0], data.shape[1]};
-        data.roi = crop_generator(dims, "HW");
-        DALI_ENFORCE(data.roi.IsInRange(dims));
-        output_shape_.set_tensor_shape(
-          i, {data.roi.shape[0], data.roi.shape[1], data.req_nchannels});
-        NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, data.roi.anchor[1], data.roi.anchor[0],
-                                             data.roi.shape[1], data.roi.shape[0]));
-      } else {
-        output_shape_.set_tensor_shape(i, {data.shape[0], data.shape[1], data.req_nchannels});
-        NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, 0, 0, -1, -1));
-      }
-
-      // only when we have ROI info check if nvjpegDecodeBatchedSupportedEx supports it
-      if (nvjpeg_decode) {
-#if IS_HW_DECODER_COMPATIBLE
-        if (state_hw_batched_ != nullptr) {
-          // in some cases hybrid decoder can handle the image but HW decoder can't, we should not
-          // error in that case
-          ret = nvjpegJpegStreamParse(handle_, input_data, in_size, 0, 0, hw_decoder_jpeg_stream_);
-          if (ret == NVJPEG_STATUS_SUCCESS) {
-            int is_supported = -1;
-            NVJPEG_CALL(nvjpegDecodeBatchedSupportedEx(handle_, hw_decoder_jpeg_stream_,
-                                                        data.params, &is_supported));
-            hw_decode = is_supported == 0;
-          }
-          if (!hw_decode) {
-            LOG_LINE << "Sample \"" << data.file_name
-                     << "\" can't be handled by the HW decoder and shall be processed by the CUDA "
-                        "hybrid decoder"
-                     << std::endl;
-          }
-        }
-#endif
-        if (hw_decode) {
-          data.method = DecodeMethod::NvjpegHw;
+          break;
+        case DecodeMethod::NvjpegHw:
           samples_hw_batched_.push_back(&data);
-        } else {
-          data.method = DecodeMethod::NvjpegCuda;
+          break;
+        case DecodeMethod::NvjpegCuda:
           samples_single_.push_back(&data);
-        }
-      }
-
-      data.is_progressive = IsProgressiveJPEG(input_data, in_size);
-      if (data.method == DecodeMethod::NvjpegCuda) {
-        int64_t sz = data.roi
-          ? data.roi.shape[1] * (data.roi.anchor[0] + data.roi.shape[0])
-          : data.shape[0] * data.shape[1];
-        if (sz > hybrid_huffman_threshold_ && !data.is_progressive) {
-          data.selected_decoder = &data.decoders[NVJPEG_BACKEND_GPU_HYBRID];
-        } else {
-          data.selected_decoder = &data.decoders[NVJPEG_BACKEND_HYBRID];
-        }
+          break;
+        case DecodeMethod::Cache:
+          samples_cache_.push_back(&data);
+          break;
+      #if NVJPEG2K_ENABLED
+        case DecodeMethod::Nvjpeg2k:
+          samples_jpeg2k_.push_back(&data);
+          break;
+      #endif  // NVJPEG2K_ENABLED
+        default:
+          DALI_FAIL(make_string("Unknown decoder backend ", static_cast<int>(data.method)));
       }
     }
 
@@ -971,7 +1002,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   // Per thread - double buffered
   std::vector<nvjpegBufferPinned_t> pinned_buffers_;
   std::vector<nvjpegJpegStream_t> jpeg_streams_;
-  nvjpegJpegStream_t hw_decoder_jpeg_stream_;
+  std::vector<nvjpegJpegStream_t> hw_decoder_jpeg_streams_;
 
 #if NVJPEG2K_ENABLED
   // nvjpeg2k
