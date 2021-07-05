@@ -255,7 +255,7 @@ void SliceFlipNormalizePermutePadKernel(
         int req_nblocks = -1) {
   // Parallelize
   std::array<int, Dims> split_factor;
-  uint64_t skip_dim_mask = args.channel_dim >= 0 ? (1 << args.channel_dim) : 0;
+  uint64_t skip_dim_mask = args.channel_dim >= 0 ? 1_u64 << args.channel_dim : 0;
   int nblocks = split_shape(split_factor, args.out_shape,
                             req_nblocks > 0 ? req_nblocks : exec_engine.NumThreads() * 8,
                             min_blk_sz, skip_dim_mask);

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ int number_of_channels(int bpp, int compression_type,
                        const uint8_t* palette_start = nullptr, size_t ncolors = 0,
                        size_t palette_entry_size = 0) {
   if (compression_type == BMP_COMPRESSION_RGB || compression_type == BMP_COMPRESSION_RLE8) {
-    if (bpp <= 8 && ncolors <= (static_cast<size_t>(1) << bpp)) {
+    if (bpp <= 8 && ncolors <= (1_uz << bpp)) {
       return is_color_palette(palette_start, ncolors, palette_entry_size) ? 3 : 1;
     } else if (bpp == 24) {
       return 3;
@@ -95,7 +95,7 @@ Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
     if (bpp <= 8) {
       palette_start = ptr;
       palette_entry_size = 3;
-      ncolors = (1 << bpp);
+      ncolors = (1_uz << bpp);
     }
   } else if (length >= 26 && header_size >= 40) {
     // BITMAPINFOHEADER and later:
@@ -112,7 +112,7 @@ Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
     if (bpp <= 8) {
       palette_start = ptr;
       palette_entry_size = 4;
-      ncolors = ncolors == 0 ? (1 << bpp) : ncolors;
+      ncolors = ncolors == 0 ? 1_uz << bpp : ncolors;
     }
     // sanity check
     if (palette_start != nullptr) {

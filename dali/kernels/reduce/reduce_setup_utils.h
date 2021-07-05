@@ -119,7 +119,7 @@ inline void CheckBatchReduce(const TensorListShape<> &tls, span<const int> axes)
   uint64_t mask = to_bit_mask(axes);
   SmallVector<int, DynamicTensorShapeContainer::static_size> non_reduced;
   for (int a = 0; a < tls.sample_dim(); a++) {
-    if (!(mask & (1 << a)))
+    if (!(mask & (1_u64 << a)))
       non_reduced.push_back(a);
   }
 

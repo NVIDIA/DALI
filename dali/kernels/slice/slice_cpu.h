@@ -321,7 +321,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
   }
 
   std::array<int, Dims> split_factor;
-  uint64_t skip_dim_mask = args.channel_dim >= 0 ? (1 << args.channel_dim) : 0;
+  uint64_t skip_dim_mask = args.channel_dim >= 0 ? (1_u64 << args.channel_dim) : 0;
   int nblocks = split_shape(split_factor, out_shape, req_nblocks, min_blk_sz, skip_dim_mask);
 
   if (nblocks == 1) {
