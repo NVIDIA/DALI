@@ -27,9 +27,10 @@ endforeach(incl_dir)
 separate_arguments(DEFAULT_COMPILER_INCLUDE UNIX_COMMAND  "${DEFAULT_COMPILER_INCLUDE}")
 
 set(NVCUVID_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_nvcuvid_gen.cc")
+find_package(Python COMPONENTS Interpreter)
 add_custom_command(
     OUTPUT ${NVCUVID_GENERATED_STUB}
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../../../tools/stub_generator/stub_codegen.py --unique_prefix=Nvcuvid --
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../../../../tools/stub_generator/stub_codegen.py --unique_prefix=Nvcuvid --
                 "${CMAKE_CURRENT_SOURCE_DIR}/../../../../tools/stub_generator/nvcuvid.json" ${NVCUVID_GENERATED_STUB}
                 "${CMAKE_CURRENT_SOURCE_DIR}/nvcuvid.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
                 "-I${CMAKE_SOURCE_DIR}/include" "-I${CMAKE_SOURCE_DIR}"

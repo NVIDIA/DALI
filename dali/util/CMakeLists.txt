@@ -55,9 +55,10 @@ if(BUILD_NVML)
 
   if (NOT LINK_DRIVER)
     set(NVML_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_nvml_gen.cc")
+    find_package (Python COMPONENTS Interpreter)
     add_custom_command(
         OUTPUT ${NVML_GENERATED_STUB}
-        COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py --unique_prefix=Nvml --
+        COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py --unique_prefix=Nvml --
                     "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/nvml.json" ${NVML_GENERATED_STUB}
                     "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/nvml.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
                     # for some reason QNX fails with 'too many errors emitted' is this is not set

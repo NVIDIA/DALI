@@ -151,9 +151,6 @@ class RecordIOLoader : public IndexedFileLoader {
     }
     tensor.SetMeta(meta);
   }
-
- private:
-  bool should_seek_ = false;
 };
 
 }  // namespace dali

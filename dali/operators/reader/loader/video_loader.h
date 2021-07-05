@@ -160,7 +160,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       dtype_(spec.GetArgument<DALIDataType>("dtype")),
       normalized_(spec.GetArgument<bool>("normalized")),
       filenames_(filenames),
-      device_id_(spec.GetArgument<int>("device_id")),
       codec_id_(0),
       skip_vfr_check_(spec.GetArgument<bool>("skip_vfr_check")),
       file_list_frame_num_(spec.GetArgument<bool>("file_list_frame_num")),
@@ -336,7 +335,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   std::vector<std::string> filenames_;
   std::vector<int> labels_;
 
-  int device_id_;
   int codec_id_;
   bool skip_vfr_check_;
   bool file_list_frame_num_;

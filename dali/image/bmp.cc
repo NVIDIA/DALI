@@ -48,7 +48,7 @@ int number_of_channels(int bpp, int compression_type,
                        const uint8_t* palette_start = nullptr, size_t ncolors = 0,
                        size_t palette_entry_size = 0) {
   if (compression_type == BMP_COMPRESSION_RGB || compression_type == BMP_COMPRESSION_RLE8) {
-    if (bpp <= 8 && ncolors <= static_cast<size_t>((1 << bpp))) {
+    if (bpp <= 8 && ncolors <= (static_cast<size_t>(1) << bpp)) {
       return is_color_palette(palette_start, ncolors, palette_entry_size) ? 3 : 1;
     } else if (bpp == 24) {
       return 3;
