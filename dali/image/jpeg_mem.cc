@@ -1,6 +1,6 @@
 /* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
-Copyright 2019, NVIDIA CORPORATION. All rights reserved.
+Copyright 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -618,7 +618,7 @@ bool CompressInternal(const uint8* srcdata, int width, int height,
     ERROR_LOG << "Invalid image size: " << width << " x " << height << std::endl;
     return false;
   }
-  if (total_size >= (1LL << 29)) {
+  if (total_size >= (1_i64 << 29)) {
     ERROR_LOG << "Image too large: " << total_size << std::endl;
     return false;
   }

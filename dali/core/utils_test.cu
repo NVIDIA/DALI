@@ -19,6 +19,7 @@
 #include "dali/core/span.h"
 
 namespace dali {
+namespace test {
 
 DEVICE_TEST(CoreUtilsDev, Volume, 1, 1) {
   int a0[] = { 42 };
@@ -135,4 +136,5 @@ TEST(CoreUtils, CTZ) {
   }
 }
 
+}  // namespace test
 }  // namespace dali

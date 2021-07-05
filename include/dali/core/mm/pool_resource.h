@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ struct pool_options {
    * Growth stops at this point; larger blocks are allocated only when allocate is called with
    * a larger memory requirements.
    */
-  size_t max_block_size = static_cast<size_t>(-1);  // no limit
+  size_t max_block_size = -1_uz;  // no limit
   /// Minimum size of blocks requested from upstream
   size_t min_block_size = (1 << 12);
   /// The factor by which the allocation size grows until it reaches max_block_size
@@ -83,7 +83,7 @@ constexpr pool_options default_host_pool_opts() noexcept {
 }
 
 constexpr pool_options default_device_pool_opts() noexcept {
-  return { (static_cast<size_t>(1) << 32), (1 << 20), 2.0f, true, true };
+  return { (1_uz << 32), (1 << 20), 2.0f, true, true };
 }
 
 template <memory_kind kind>

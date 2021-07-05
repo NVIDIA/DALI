@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -245,12 +245,12 @@ struct ReduceBaseCPU {
     axes = _axes;
     axis_mask = 0;
     for (int axis : axes) {
-      axis_mask |= static_cast<uint64_t>(1) << axis;
+      axis_mask |= 1_u64 << axis;
     }
   }
 
   void CheckOutput() {
-    if (axis_mask == (static_cast<uint64_t>(1) << ndim()) - 1) {
+    if (axis_mask == (1_u64 << ndim()) - 1) {
       DALI_ENFORCE(
         (output.dim() == 1 || output.dim() == 0 || output.dim() == input.dim()) &&
           output.num_elements() == 1,
@@ -290,7 +290,7 @@ struct ReduceBaseCPU {
     }
     axis_mask = 0;
     for (int axis : axes) {
-      axis_mask |= static_cast<uint64_t>(1) << axis;
+      axis_mask |= 1_u64 << axis;
     }
   }
 
@@ -323,7 +323,7 @@ struct ReduceBaseCPU {
 
   DALI_FORCEINLINE int ndim() const noexcept { return input.shape.size(); }
   DALI_FORCEINLINE bool is_reduced_axis(int axis) const noexcept {
-    return axis_mask & (static_cast<uint64_t>(1) << axis);
+    return axis_mask & (1_u64 << axis);
   }
 
   OutTensorCPU<Dst, -1> output;

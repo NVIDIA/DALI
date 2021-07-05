@@ -194,7 +194,7 @@ class best_fit_free_list {
    */
   void *get(size_t bytes, size_t alignment) {
     block **pbest = nullptr;
-    size_t best_fit = (static_cast<size_t>(-1)) >> 1;  // clear MSB
+    size_t best_fit = (-1_uz) >> 1;  // clear MSB
     for (block **pptr = &head_; *pptr; pptr = &(*pptr)->next) {
       size_t fit = (*pptr)->fit(bytes, alignment);
       if (fit < best_fit) {

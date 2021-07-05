@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -104,7 +104,7 @@ TEST(DeviceBuffer, FromDevice) {
 
 TEST(DeviceBufferFail, Resize) {
   DeviceBuffer<int> db;
-  size_t size = static_cast<size_t>(-1);
+  size_t size = -1_uz;
   EXPECT_THROW(db.resize(size), CUDABadAlloc);
 }
 
