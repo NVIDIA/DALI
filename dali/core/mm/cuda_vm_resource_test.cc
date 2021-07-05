@@ -31,7 +31,7 @@ class VMResourceTest : public ::testing::Test {
     cuda_vm_resource res;
     res.block_size_ = 32 << 20;  // fix the block size at 32 MiB for this test
     const size_t size1 = 100 << 20;  // used for first three allocations
-    const size_t size4 = 150 << 20;  // used for first three allocations
+    const size_t size4 = 150 << 20;  // used for the fourth allocation
     void *ptr = res.allocate(size1);
     void *ptr2 = res.allocate(size1);
     EXPECT_EQ(res.va_regions_.size(), 1u);
@@ -179,6 +179,35 @@ class VMResourceTest : public ::testing::Test {
     CheckPartEmpty(region, b1, b1 + b2);
   }
 
+  void TestPartialMap() {
+    // Test a case when a region to be allocated is partially mapped:
+    cuda_vm_resource res;
+    size_t block_size = 4 << 20;  // 4 MiB;
+    res.block_size_ = block_size;
+    void *p1 = res.allocate(block_size);  // allocate one block
+    void *p2 = res.allocate(block_size);  // allocate another block
+    res.deallocate(p2, block_size);       // now free the second block
+    auto &region = res.va_regions_[0];
+    EXPECT_EQ(region.available_blocks, 1);
+    EXPECT_EQ(region.mapped.find(false), 2);    // 2 mapped blocks
+    EXPECT_EQ(region.available.find(true), 1);  // of which the second is available
+    void *p3 = res.allocate(2 * block_size);
+    EXPECT_EQ(p2, p3);
+    CUDA_CALL(cudaMemset(p1, 0, block_size));
+    CUDA_CALL(cudaMemset(p2, 0, 2 * block_size));
+    CUDA_CALL(cudaDeviceSynchronize());
+    EXPECT_EQ(region.mapped.find(false), 3);
+    for (int i = 0; i < 3; i++) {
+      EXPECT_NE(region.mapping[i], CUmemGenericAllocationHandle{});
+      for (int j = i + 1; j < 3; j++) {
+        EXPECT_NE(region.mapping[i], region.mapping[j]);
+      }
+    }
+    res.deallocate(p1, block_size);
+    res.deallocate(p2, 2 * block_size);
+    EXPECT_EQ(region.available_blocks, 3);
+  }
+
   std::mt19937_64 rng_{12345};
 };
 
@@ -224,6 +253,10 @@ using perfclock = std::chrono::high_resolution_clock;
 template <typename Out = double, typename R, typename P>
 inline Out microseconds(std::chrono::duration<R, P> d) {
   return std::chrono::duration_cast<std::chrono::duration<Out, std::micro>>(d).count();
+}
+
+TEST_F(VMResourceTest, PartialMap) {
+  this->TestPartialMap();
 }
 
 TEST_F(VMResourceTest, RandomAllocations) {

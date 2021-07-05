@@ -241,11 +241,13 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     }
 
     void set_block_availability(char *start, char *end, bool availability) {
+      assert(detail::is_aligned(start, block_size));
+      assert(detail::is_aligned(end,   block_size));
       int start_blk = (start - block_ptr<char>(0)) / block_size;
       int end_blk   = (end   - block_ptr<char>(0)) / block_size;
       int flipped = 0;
       for (int b = available.find(!availability, start_blk); b < end_blk; ) {
-        int first_flipped = available.find(availability, b+1);
+        int first_flipped = std::min<int>(available.find(availability, b+1), end_blk);
         flipped += first_flipped - b;
         b = first_flipped + 1;
       }
@@ -504,6 +506,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       to_map.push_back({ next_unmapped, block_idx });
     }
 
+    // Prevent `get_free_blocks` from unmapping blocks that are already mapped to this range.
     mark_as_unavailable(ptr, size);
 
     SmallVector<cuvm::CUMem, 256> free_blocks;
