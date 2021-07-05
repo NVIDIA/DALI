@@ -16,7 +16,7 @@ python -m pip install -r requirements.txt
 python src/main.py train \
     /data/coco/coco-2017/coco2017/train2017 \
     /data/coco/coco-2017/coco2017/annotations/instances_train2017.json \
-    -b 8 -e 12 -s 3000 -o output.h5 \
+    -b 4 -e 2 -s 4000 -o output.h5 \
     --learning_rate="1e-3" --pipeline dali-gpu  --multigpu --use_mosaic
 
 python src/main.py eval \
