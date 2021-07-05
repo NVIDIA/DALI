@@ -1,4 +1,4 @@
+Cython
 matplotlib
-opencv-python
-tensorflow-addons
+tensorflow-addons==0.13.0
 pycocotools

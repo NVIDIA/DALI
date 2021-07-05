@@ -6,20 +6,20 @@ function CLEAN_AND_EXIT {
     exit $1
 }
 
-cd /opt/dali/docs/examples/use_cases/tensorflow/yolov4/src
+cd /opt/dali/docs/examples/use_cases/tensorflow/yolov4
+
+apt update && apt install python3-opencv -y
 
 python -m pip install --upgrade pip
-python -m pip install Cython
-python -m pip install pycocotools
-python -m pip install pycocotools
+python -m pip install -r requirements.txt
 
-python main.py train \
+python src/main.py train \
     /data/coco/coco-2017/coco2017/train2017 \
     /data/coco/coco-2017/coco2017/annotations/instances_train2017.json \
     -b 8 -e 12 -s 3000 -o output.h5 \
     --learning_rate="1e-3" --pipeline dali-gpu  --multigpu --use_mosaic
 
-python main.py eval \
+python src/main.py eval \
     /data/coco/coco-2017/coco2017/val2017/ \
     /data/coco/coco-2017/coco2017/annotations/instances_val2017.json \
     -b 1 -s 5000 --weights output.h5 2>&1 | tee dali.log
