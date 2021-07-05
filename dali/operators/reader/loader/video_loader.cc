@@ -379,7 +379,8 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
 
     DALI_ENFORCE(skip_vfr_check_ ||
       almost_equal(av_q2d(file.frame_base_), pkt.duration * av_q2d(file.stream_base_), 2),
-      "Variable frame rate videos are unsupported. Check failed for file: " + filename);
+      "Variable frame rate videos are unsupported. This heuristic can yield false positives. "
+      "The check can be disabled via the skip_vfr_check flag. Check failed for file: " + filename);
     av_packet_unref(&pkt);
 
     auto duration = stream->duration;
