@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -660,7 +660,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     } dynamic;
   };
   size_t size_ = 0;
-  static constexpr size_t size_mask = static_cast<size_t>(-1) >> 1;
+  static constexpr size_t size_mask = -1_uz >> 1;
   static constexpr size_t dynamic_flag = ~size_mask;
 
   template <typename U>

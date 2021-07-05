@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -150,7 +150,7 @@ inline void CheckAxes(span<const int> axes, int ndim) {
   for (auto a : axes) {
     if (a < 0 || a >= ndim)
       throw std::out_of_range(make_string("Axis index out of range: ", a, " not in 0..", ndim-1));
-    uint64_t amask = 1ul << a;
+    uint64_t amask = 1_u64 << a;
     if (mask & amask)
       throw std::invalid_argument(make_string("Duplicate axis index ", a));
     mask |= amask;

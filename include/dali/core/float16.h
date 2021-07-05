@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -368,6 +368,7 @@ struct is_fp_or_half {
     std::is_floating_point<T>::value || is_half<T>::value;
 };
 
+namespace literal {
 DALI_HOST_DEV DALI_FORCEINLINE
 float16 operator "" _hf(long double x) {
   return float16(static_cast<double>(x));
@@ -378,6 +379,8 @@ float16 operator "" _hf(unsigned long long int x) {  // NOLINT(runtime/int)
   return float16(x);
 }
 
+}  // namespace literal
+using namespace literal;  // NOLINT
 }  // namespace dali
 
 DALI_HOST_DEV DALI_FORCEINLINE

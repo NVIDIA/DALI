@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ TEST(KernelAlloc, Shared) {
 
 TEST(KernelAllocFail, Host) {
   (void)cudaGetLastError();
-  size_t size = static_cast<size_t>(-1);
+  size_t size = -1_uz;
   EXPECT_THROW(memory::alloc_unique<uint8_t>(AllocType::Host, size), std::bad_alloc);
   EXPECT_THROW(memory::alloc_shared<uint8_t>(AllocType::Host, size), std::bad_alloc);
   EXPECT_EQ(memory::alloc_unique<uint8_t>(AllocType::Host, 0),
@@ -113,7 +113,7 @@ TEST(KernelAllocFail, Host) {
 
 TEST(KernelAllocFail, Pinned) {
   (void)cudaGetLastError();
-  size_t size = static_cast<size_t>(-1);
+  size_t size = -1_uz;
   EXPECT_THROW(memory::alloc_unique<uint8_t>(AllocType::Pinned, size), CUDABadAlloc);
   EXPECT_THROW(memory::alloc_shared<uint8_t>(AllocType::Pinned, size), CUDABadAlloc);
   EXPECT_EQ(memory::alloc_unique<uint8_t>(AllocType::Pinned, 0),
@@ -124,7 +124,7 @@ TEST(KernelAllocFail, Pinned) {
 
 TEST(KernelAllocFail, GPU) {
   (void)cudaGetLastError();
-  size_t size = static_cast<size_t>(-1);
+  size_t size = -1_uz;
   EXPECT_THROW(memory::alloc_unique<uint8_t>(AllocType::GPU, size), CUDABadAlloc);
   EXPECT_THROW(memory::alloc_shared<uint8_t>(AllocType::GPU, size), CUDABadAlloc);
   EXPECT_EQ(memory::alloc_unique<uint8_t>(AllocType::GPU, 0),

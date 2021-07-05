@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "dali/core/api_helper.h"
+#include "dali/core/int_literals.h"
 
 namespace dali {
 
