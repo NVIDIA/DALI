@@ -623,7 +623,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }, in_size);
     }
     thread_pool_.RunAll();
-    thread_pool_.WaitForWork();
 
     for (auto &data : sample_data_) {
       switch (data.method) {
