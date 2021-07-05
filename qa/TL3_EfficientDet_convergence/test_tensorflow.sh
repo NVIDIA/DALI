@@ -10,29 +10,9 @@ function CLEAN_AND_EXIT {
 
 cd /opt/dali/docs/examples/use_cases/tensorflow/efficientdet
 
-python -m pip install argparse-utils
-python -m pip install absl-py
-python -m pip install Pillow
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 
-cd dataset
-
-python create_coco_tfrecord.py \
-            --image_dir /data/coco/coco2017/train2017 \
-            --object_annotations_file /data/coco/coco2017/annotations/instances_train2017.json \
-            --output_file_prefix '../train/train' \
-python create_tfrecord_indexes.py \
-            --tfrecord_file_pattern '../train/*.tfrecord' \
-            --tfrecord2idx_script '/opt/dali/tools/tfrecord2idx' \
-    
-python create_coco_tfrecord.py \
-            --image_dir /data/coco/coco2017/val2017 \
-            --object_annotations_file /data/coco/coco2017/annotations/instances_val2017.json \
-            --output_file_prefix '../val/val' \
-python create_tfrecord_indexes.py \
-            --tfrecord_file_pattern '../val/*.tfrecord' \
-            --tfrecord2idx_script '/opt/dali/tools/tfrecord2idx' \
-
-cd ..
 
 python train.py \
     --train_file_pattern 'train/*.tfrecord' \
