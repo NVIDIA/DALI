@@ -13,7 +13,7 @@ pip_packages=$(echo ${pip_packages} | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
 last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
 
 install_pip_pkg() {
-    install_cmd=$1
+    install_cmd="$@"
     # if no package was found in our download dir, so install it from index
     ${install_cmd} --no-index || ${install_cmd}
 }
