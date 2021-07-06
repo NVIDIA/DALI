@@ -16,13 +16,12 @@ python -m pip install -r requirements.txt
 python src/main.py train \
     /data/coco/coco-2017/coco2017/train2017 \
     /data/coco/coco-2017/coco2017/annotations/instances_train2017.json \
-    -b 4 -e 2 -s 4000 -o output.h5 \
-    --learning_rate="1e-3" --pipeline dali-gpu  --multigpu --use_mosaic
+    -b 4 -e 1 -s 4000 -o output.h5 \
+    --learning_rate="1e-3" --pipeline dali-gpu  --multigpu --use_mosaic \
+    --eval_frequency 1 --eval_steps 100 \
+    --eval_file_root /data/coco/coco-2017/coco2017/val2017 \
+    --eval_annotations /data/coco/coco-2017/coco2017/annotations/instances_val2017.json
 
-python src/main.py eval \
-    /data/coco/coco-2017/coco2017/val2017/ \
-    /data/coco/coco-2017/coco2017/annotations/instances_val2017.json \
-    -b 1 -s 5000 --weights output.h5 2>&1 | tee dali.log
 
 RET=$(tail -n 1 dali.log | awk '{ exit ($NF < 0.2); }')
 
