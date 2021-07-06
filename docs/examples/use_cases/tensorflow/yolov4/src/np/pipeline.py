@@ -38,9 +38,7 @@ class YOLOv4PipelineNumpy:
         return self
 
     def __next__(self):
-
         with tf.device('/cpu:0'):
-
             num = 0
             if self._batch_id == self._num_batches:
                 self._batch_id = 0
@@ -134,7 +132,6 @@ class YOLOv4PipelineNumpy:
                 bboxes[i][: , 0] = 1.0 - bboxes[i][: , 0]
 
     def _mosaic(self, images, bboxes, classes):
-
         def trim_bboxes(bboxes, classes, x0, y0, x1, y1):
             bboxes_ltrb = np.copy(bboxes)
             bboxes_ltrb[ : , 0] -= bboxes[ : , 2] / 2

@@ -30,10 +30,17 @@ class YOLOv4Pipeline:
     def _define_pipeline(self):
         with self._pipe:
             images, bboxes, classes = ops.input(
-                self._file_root, self._annotations_file, self._device_id, self._num_threads, "mixed" if self._use_gpu else "cpu"
+                self._file_root,
+                self._annotations_file,
+                self._device_id,
+                self._num_threads,
+                "mixed" if self._use_gpu else "cpu"
             )
             images = dali.fn.resize(
-                images, resize_x=self._image_size[0], resize_y=self._image_size[1]
+                images,
+                resize_x=self._image_size[0],
+                resize_y=self._image_size[1],
+                interp_type=dali.types.DALIInterpType.INTERP_LINEAR
             )
 
             if self._is_training:
@@ -56,7 +63,7 @@ class YOLOv4Pipeline:
 
             images = dali.fn.cast(images, dtype=dali.types.FLOAT) / 255.0
             classes = dali.fn.cast(
-                dali.fn.transpose(dali.fn.stack(classes), perm=[1, 0]),
+                dali.fn.expand_dims(classes, axes=1),
                 dtype=dali.types.FLOAT
             ) - 1 # subtract one to be consistent with darknet's pretrained model weights
 
