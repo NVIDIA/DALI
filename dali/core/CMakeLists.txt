@@ -31,11 +31,10 @@ endforeach(incl_dir)
 separate_arguments(DEFAULT_COMPILER_INCLUDE UNIX_COMMAND  "${DEFAULT_COMPILER_INCLUDE}")
 
 if (NOT LINK_DRIVER)
-  find_package (Python COMPONENTS Interpreter)
   set(CUDA_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_cuda_gen.cc")
   add_custom_command(
       OUTPUT ${CUDA_GENERATED_STUB}
-      COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py --unique_prefix=Cuda --
+      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py --unique_prefix=Cuda --
                   "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/cuda.json" ${CUDA_GENERATED_STUB}
                   "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cuda.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
                   # for some reason QNX fails with 'too many errors emitted' is this is not set
@@ -56,11 +55,10 @@ endif()
 list(FILTER DALI_CORE_SRCS EXCLUDE REGEX ".*dynlink_cuda.cc")
 
 if (BUILD_CUFILE)
-  find_package (Python COMPONENTS Interpreter)
   set(CUFILE_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_cufile_gen.cc")
   add_custom_command(
       OUTPUT ${CUFILE_GENERATED_STUB}
-      COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py --unique_prefix=Cufile --
+      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py --unique_prefix=Cufile --
                   "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/cufile.json" ${CUFILE_GENERATED_STUB}
                   "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cufile.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
                   # for some reason QNX fails with 'too many errors emitted' is this is not set

@@ -28,9 +28,8 @@
 # target_link_libraries(my_target ${DALI_LIBRARIES})
 ###################################################################
 function(find_dali DALI_INCLUDE_DIR_VAR DALI_LIB_DIR_VAR DALI_LIBRARIES_VAR)
-    find_package(Python COMPONENTS Interpreter)
     execute_process(
-            COMMAND ${Python_EXECUTABLE} -c "import nvidia.dali as dali; print(dali.sysconfig.get_include_dir(), end='')"
+            COMMAND python -c "import nvidia.dali as dali; print(dali.sysconfig.get_include_dir(), end='')"
             OUTPUT_VARIABLE DALI_INCLUDE_DIR
             RESULT_VARIABLE INCLUDE_DIR_RESULT)
 
@@ -39,7 +38,7 @@ function(find_dali DALI_INCLUDE_DIR_VAR DALI_LIB_DIR_VAR DALI_LIBRARIES_VAR)
     endif ()
 
     execute_process(
-            COMMAND ${Python_EXECUTABLE} -c "import nvidia.dali as dali; print(dali.sysconfig.get_lib_dir(), end='')"
+            COMMAND python -c "import nvidia.dali as dali; print(dali.sysconfig.get_lib_dir(), end='')"
             OUTPUT_VARIABLE DALI_LIB_DIR
             RESULT_VARIABLE LIB_DIR_RESULT)
 
