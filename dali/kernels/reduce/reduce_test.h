@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -122,7 +122,7 @@ void RefReduce(const TensorView<StorageCPU, Out> &out, const TensorView<StorageC
 
   int ndim = strides.size();
   for (int i = 0, o = 0; i < ndim; i++) {
-    if (mask & (1 << i)) {
+    if (mask & (1_u64 << i)) {
       if (keep_dims) {
         assert(out.shape[o] == 1);
         o++;

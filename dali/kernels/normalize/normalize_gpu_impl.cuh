@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -273,7 +273,7 @@ class NormalizeImplGPU {
       axes_ = { axes.begin(), axes.end() };
     axis_mask_ = to_bit_mask<uint64_t>(axes_);
     if (scalar_base && scalar_scale) {
-      assert(axis_mask_ == (1 << ndim_) - 1 &&
+      assert(axis_mask_ == (1_u64 << ndim_) - 1 &&
              "Scalar parameters imply that all axes are reduced.");
     }
 
@@ -388,7 +388,7 @@ class NormalizeImplGPU {
       auto dshape = data_shape[i];
       auto pshape = param_shape[p];
       for (int d = 0; d < D; d++) {
-        if (axis_mask_ & (1 << d)) {
+        if (axis_mask_ & (1_u64 << d)) {
           if (pshape[d] != 1) {
             throw std::invalid_argument(make_string("Parameter tensor must have extent 1 "
               "in reduced axes. Got:"
