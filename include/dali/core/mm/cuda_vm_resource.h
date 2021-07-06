@@ -333,23 +333,24 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
 
     cuvm::CUMemAddressRange va;
 
-    SmallVector<CUdeviceptr, 3> hints;
+    SmallVector<CUdeviceptr, 4> hints;
 
     if (va_regions_.empty()) {
       // Calculate the hint address for the allocations for this device.
       // There's some not very significant base and different devices get
       // address spaces separated by at least 2^40 - this should be quite enough.
       hints = {
-        (device_ordinal_ +  1) * (1_u64 << 40),
-        (device_ordinal_ + 17) * (1_u64 << 40),
         (device_ordinal_ + 33) * (1_u64 << 40),
+        (device_ordinal_ + 17) * (1_u64 << 40),
+        (device_ordinal_ +  1) * (1_u64 << 40),
+        (device_ordinal_ +  1) * (1_u64 << 36),
       };
     } else {
       // Try to allocate after the last VA for this device or before the first
       auto &first_va = va_regions_.front();
       auto &last_va = va_regions_.back();
       assert(!va_ranges_.empty());
-      va_size = 2 * va_ranges_.back().size();
+      va_size = std::max(va_size, 2 * va_ranges_.back().size());
       hints = {
         last_va.address_range.end(),
         first_va.address_range.ptr() - va_size
