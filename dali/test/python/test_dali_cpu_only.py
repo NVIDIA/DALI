@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -891,6 +891,17 @@ def test_squeeze_cpu():
         return out
     check_single_input(fn.squeeze, axis_names="YZ", get_data=get_data, input_layout="HWCYZ")
 
+def test_select_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    data = fn.external_source(source=get_data, layout="HWC")
+    data2 = fn.external_source(source=get_data, layout="HWC")
+    data3 = fn.external_source(source=get_data, layout="HWC")
+    idx = fn.random.uniform(range=[0, 3], dtype=types.INT32)
+    pipe.set_outputs(fn.select(data, data2, data3, input_idx=idx))
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
 def test_peek_image_shape_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
@@ -1025,6 +1036,7 @@ tested_methods = [
     "resize_crop_mirror",
     "fast_resize_crop_mirror",
     "segmentation.select_masks",
+    "select",
     "slice",
     "segmentation.random_mask_pixel",
     "transpose",
