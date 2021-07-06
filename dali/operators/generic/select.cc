@@ -29,9 +29,9 @@ and data type of all the inputs must be the same.)")
   .SupportVolumetric()
   .AddArg("input_idx", R"(Index of the input to take the sample from.
 
-This argument contains (per-sample) indices that indicate from which input each
+This argument contains (per-sample) indices that point to the input from which each
 sample is taken.
-Using a negative index will produce an empty tensor with the same number of dimensions as
+Providing a negative index will produce an empty tensor with the same number of dimensions as
 the inputs. Negative indices cannot be used with batches of scalars (0D tensors) since they
 can never be empty.
 )", DALI_INT32, true)
