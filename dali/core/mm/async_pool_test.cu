@@ -20,6 +20,7 @@
 #include "dali/core/dev_buffer.h"
 #include "dali/core/mm/mm_test_utils.h"
 #include "dali/core/cuda_stream.h"
+#include "dali/core/mm/cuda_vm_resource.h"
 #include "rmm/mr/device/pool_memory_resource.hpp"
 
 namespace dali {
@@ -348,6 +349,104 @@ TEST(MMAsyncPool, CrossStreamWithHogs) {
   std::cerr << "Upstream allocations: " << upstream.get_num_allocs() << std::endl;
   upstream.check_leaks();
 }
+
+#if DALI_USE_CUDA_VM_MAP
+
+TEST(MM_VMAsyncPool, MultiThreadedSingleStreamRandom) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
+
+  CUDAStream stream = CUDAStream::Create(true);
+  {
+    vector<block> blocks;
+    std::mutex mtx;
+
+    async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
+
+    vector<std::thread> threads;
+
+    for (int t = 0; t < 10; t++) {
+      threads.push_back(std::thread([&]() {
+        AsyncPoolTest(pool, blocks, mtx, stream);
+      }));
+    }
+    for (auto &t : threads)
+      t.join();
+  }
+}
+
+TEST(MM_VMAsyncPool, MultiThreadedMultiStreamRandom) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
+
+  async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
+
+  vector<std::thread> threads;
+
+  for (int t = 0; t < 10; t++) {
+    threads.push_back(std::thread([&]() {
+      CUDAStream stream = CUDAStream::Create(true);
+      vector<block> blocks;
+      detail::dummy_lock mtx;
+      AsyncPoolTest(pool, blocks, mtx, stream);
+      CUDA_CALL(cudaStreamSynchronize(stream));
+    }));
+  }
+  for (auto &t : threads)
+    t.join();
+}
+
+TEST(MM_VMAsyncPool, MultiStreamRandomWithGPUHogs) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
+
+  async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
+
+  vector<std::thread> threads;
+
+  for (int t = 0; t < 10; t++) {
+    threads.push_back(std::thread([&]() {
+      // 0-th thread uses null stream, which triggers non-async API usage
+      CUDAStream stream = t ? CUDAStream::Create(true) : CUDAStream();
+      vector<block> blocks;
+      detail::dummy_lock mtx;
+      AsyncPoolTest(pool, blocks, mtx, stream, 20000, true);
+      CUDA_CALL(cudaStreamSynchronize(stream));
+    }));
+  }
+  for (auto &t : threads)
+    t.join();
+}
+
+
+
+TEST(MM_VMAsyncPool, CrossStreamWithHogs) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
+
+  async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
+
+  vector<std::thread> threads;
+  vector<CUDAStream> streams;
+
+  vector<block> blocks;
+  std::mutex mtx;
+
+  const int N = 10;
+  streams.resize(N);
+  for (int t = 0; t < N; t++) {
+    if (t != 0)  // keep empty stream at index 0 to mix sync/async allocations
+      streams[t] = CUDAStream::Create(true);
+    threads.push_back(std::thread([&, t]() {
+      AsyncPoolTest(pool, blocks, mtx, streams[t], 10000, true);
+      CUDA_CALL(cudaStreamSynchronize(streams[t]));
+    }));
+  }
+  for (auto &t : threads)
+    t.join();
+}
+
+#endif
 
 }  // namespace mm
 }  // namespace dali

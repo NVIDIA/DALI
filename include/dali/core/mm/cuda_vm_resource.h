@@ -265,8 +265,8 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     size_t                  block_size = 0;
   };
 
-  SmallVector<va_region, 8> va_regions_;
-  SmallVector<cuvm::CUMemAddressRange, 8> va_ranges_;
+  std::vector<va_region> va_regions_;
+  std::vector<cuvm::CUMemAddressRange> va_ranges_;
   size_t initial_va_size_ = 0;
   size_t block_size_ = 0;
   size_t total_mem_ = 0;
@@ -402,7 +402,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
         // Found - now we append the old range (which follows the new one) to the new one...
         region->append(std::move(r));
         // ...and remove the old one
-        va_regions_.erase_at(i);
+        va_regions_.erase(va_regions_.begin() + i);
         break;
       }
     }
@@ -563,7 +563,6 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       return;
     for (va_region &r : va_regions_) {
       if (r.available_blocks) {
-        int block_idx = 0;
         for (int block_idx = r.available.find(true);
              block_idx < r.num_blocks() && count > 0;
              block_idx = r.available.find(true, block_idx+1)) {
