@@ -896,7 +896,7 @@ def test_select_cpu():
     data = fn.external_source(source=get_data, layout="HWC")
     data2 = fn.external_source(source=get_data, layout="HWC")
     data3 = fn.external_source(source=get_data, layout="HWC")
-    idx = fn.random.uniform(range=[0, 3], dtype=types.INT32)
+    idx = fn.random.uniform(range=[0, 2], dtype=types.INT32)
     pipe.set_outputs(fn.select(data, data2, data3, input_idx=idx))
     pipe.build()
     for _ in range(3):

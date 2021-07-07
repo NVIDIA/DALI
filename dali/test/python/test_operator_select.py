@@ -88,7 +88,7 @@ def test_select():
 def test_error_inconsistent_ndim():
     def check(device):
         pipe = Pipeline(1, 3, 0)
-        pipe.set_outputs(fn.select(np.float32([0,1]), np.float32([[2,3,4]]), input_idx=2))
+        pipe.set_outputs(fn.select(np.float32([0,1]), np.float32([[2,3,4]]), input_idx=1))
         pipe.build()
         try:
             pipe.run()
@@ -102,7 +102,7 @@ def test_error_inconsistent_ndim():
 def test_error_inconsistent_type():
     def check(device):
         pipe = Pipeline(1, 3, 0)
-        pipe.set_outputs(fn.select(np.float32([0,1]), np.int32([2,3,4]), input_idx=2))
+        pipe.set_outputs(fn.select(np.float32([0,1]), np.int32([2,3,4]), input_idx=1))
         pipe.build()
         try:
             pipe.run()

@@ -18,11 +18,14 @@
 namespace dali {
 
 DALI_SCHEMA(Select)
-  .DocStr(R"(Builds a batch by selecting each sample from one of the input batches.
+  .DocStr(R"(Builds an output by selecting each sample from one of the inputs.
 
 This operator is useful for conditionally selecting results of different operations.
 The shapes of the corresponding samples in the inputs may differ, but the number of dimensions
-and data type of all the inputs must be the same.)")
+and data type of all the inputs must be the same.
+
+The output layout can be specified via ``layout`` argument or will be taken from the first
+input with a non-empty layout.)")
   .NumInput(1, 99)
   .NumOutput(1)
   .AllowSequences()
@@ -31,6 +34,7 @@ and data type of all the inputs must be the same.)")
 
 This argument contains (per-sample) indices that point to the input from which each
 sample is taken.
+
 Providing a negative index will produce an empty tensor with the same number of dimensions as
 the inputs. Negative indices cannot be used with batches of scalars (0D tensors) since they
 can never be empty.
