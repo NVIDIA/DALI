@@ -49,7 +49,7 @@ class YOLOv4Pipeline:
 
                 if self._use_mosaic:
                     do_mosaic = dali.fn.random.coin_flip()
-                    images_m, bboxes_m, classes_m = ops.mosaic_new(images, bboxes, classes, self._image_size)
+                    images_m, bboxes_m, classes_m = ops.mosaic(images, bboxes, classes, self._image_size)
 
                     images = images * (1.0 - do_mosaic) + images_m * do_mosaic
                     bboxes = ops.select(do_mosaic, bboxes_m, bboxes)
@@ -83,9 +83,3 @@ class YOLOv4Pipeline:
             output_dtypes=output_dtypes,
             device_id=self._device_id
         )
-
-    def build(self):
-        self._pipe.build()
-
-    def run(self):
-        return self._pipe.run()
