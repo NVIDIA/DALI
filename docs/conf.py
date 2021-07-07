@@ -256,6 +256,12 @@ from typing import get_type_hints
 
 _dali_enums = ["DALIDataType", "DALIIterpType", "DALIImageType", "PipelineAPIType"]
 
+count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
+
+html_context = {
+    'nvidia_analytics_id': count_unique_visitor_script
+}
+
 class EnumDocumenter(ClassDocumenter):
     # Register as .. autoenum::
     objtype = 'enum'
@@ -321,7 +327,6 @@ class EnumAttributeDocumenter(AttributeDocumenter):
 
 
 def setup(app):
-    count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
     if count_unique_visitor_script:
         app.add_js_file(count_unique_visitor_script)
     # Register a sphinx.ext.autodoc.between listener to ignore everything
