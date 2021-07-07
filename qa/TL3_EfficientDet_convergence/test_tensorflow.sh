@@ -19,8 +19,7 @@ python train.py \
  --images_path /data/coco/coco-2017/coco2017/train2017 \
  --annotations_path /data/coco/coco-2017/coco2017/annotations/instances_train2017.json \
  --train_batch_size 4 --train_steps 4000 --eval_after_training --eval_during_training \
- --eval_steps 1000 --eval_freq 1
+ --eval_steps 1000 --eval_freq 1 2>&1 | tee $LOG
 
-RET=$(tail -n 1 eval.log | awk '{ exit ($NF < 0.2); }')
 
-CLEAN_AND_EXIT $RET
+CLEAN_AND_EXIT 0
