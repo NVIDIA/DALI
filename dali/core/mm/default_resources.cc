@@ -21,6 +21,7 @@
 #include "dali/core/device_guard.h"
 #include "dali/core/mm/async_pool.h"
 #include "dali/core/mm/composite_resource.h"
+#include "dali/core/mm/cuda_vm_resource.h"
 #include "rmm/mr/device/owning_wrapper.hpp"
 #include "rmm/mr/device/cuda_memory_resource.hpp"
 #include "rmm/mr/device/pool_memory_resource.hpp"
@@ -133,10 +134,19 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   auto upstream = std::make_shared<rmm::mr::cuda_memory_resource>();
   return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(std::move(upstream));
 #else
-  using resource_type = mm::async_pool_resource<mm::memory_kind::device>;
-  static auto upstream = std::make_shared<mm::cuda_malloc_memory_resource>();
-  auto rsrc = std::make_shared<resource_type>(upstream.get());
-  return make_shared_composite_resource(std::move(rsrc), upstream);
+#if DALI_USE_CUDA_VM_MAP
+  if (cuvm::IsSupported()) {
+    using resource_type = mm::async_pool_resource<mm::memory_kind::device, cuda_vm_resource,
+                                                  std::mutex, void>;
+    return std::make_shared<resource_type>();
+  }
+#endif
+  {
+    using resource_type = mm::async_pool_resource<mm::memory_kind::device>;
+    static auto upstream = std::make_shared<mm::cuda_malloc_memory_resource>();
+    auto rsrc = std::make_shared<resource_type>(upstream.get());
+    return make_shared_composite_resource(std::move(rsrc), upstream);
+  }
 #endif
 }
 
