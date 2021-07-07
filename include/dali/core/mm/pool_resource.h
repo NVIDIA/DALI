@@ -511,6 +511,12 @@ class deferred_dealloc_pool : public pool_resource_base<kind, Context, FreeList,
   bool stopped_ = false;
 };
 
+namespace detail {
+
+template <memory_kind kind, typename Context, class FreeList, class LockType>
+struct can_merge<pool_resource_base<kind, Context, FreeList, LockType>> : can_merge<FreeList> {};
+}  // namespace detail
+
 }  // namespace mm
 }  // namespace dali
 
