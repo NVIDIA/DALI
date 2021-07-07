@@ -418,7 +418,28 @@ TEST(MM_VMAsyncPool, MultiStreamRandomWithGPUHogs) {
     t.join();
 }
 
+TEST(MM_VMAsyncPool, CrossStream) {
+  async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
 
+  vector<std::thread> threads;
+  vector<CUDAStream> streams;
+
+  vector<block> blocks;
+  std::mutex mtx;
+
+  const int N = 10;
+  streams.resize(N);
+  for (int t = 0; t < N; t++) {
+    if (t != 0)  // keep empty stream at index 0 to mix sync/async allocations
+      streams[t] = CUDAStream::Create(true);
+    threads.push_back(std::thread([&, t]() {
+      AsyncPoolTest(pool, blocks, mtx, streams[t]);
+      CUDA_CALL(cudaStreamSynchronize(streams[t]));
+    }));
+  }
+  for (auto &t : threads)
+    t.join();
+}
 
 TEST(MM_VMAsyncPool, CrossStreamWithHogs) {
   if (!cuvm::IsSupported())
