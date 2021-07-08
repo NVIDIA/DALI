@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
 #include <string>
 #include "dali/operators/reader/numpy_reader_gpu_op.h"
 #include "dali/pipeline/data/views.h"
@@ -57,7 +58,16 @@ void NumpyReaderGPU::Prefetch() {
     tmp_shapes.set_tensor_shape(data_idx, sample->get_shape());
   }
 
-  curr_tensor_list.Resize(tmp_shapes, ref_type);
+  size_t new_bytes = ref_type.size() * tmp_shapes.num_elements();
+  if (new_bytes > curr_tensor_list.nbytes()) {
+    auto deleter = [](void *ptr) { CUDA_DTOR_CALL(cudaFree(ptr)); };
+    void *raw_mem = nullptr;
+    CUDA_CALL(cudaMalloc(&raw_mem, new_bytes));
+    std::shared_ptr<void> mem(raw_mem, deleter);
+    curr_tensor_list.ShareData(std::move(mem), new_bytes, tmp_shapes, ref_type);
+  } else {
+    curr_tensor_list.Resize(tmp_shapes, ref_type);
+  }
 
   size_t chunk_size = static_cast<size_t>( \
                         div_ceil(static_cast<uint64_t>(curr_tensor_list.nbytes()),
