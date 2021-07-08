@@ -67,24 +67,27 @@ class _CycleIter:
             else:
                 return next(self.it)
 
-class _CycleGenFunc():
-    def __init__(self, gen_func, mode):
+
+class _CycleGenFunc:
+    def __init__(self, gen_func, mode, source_args={}):
         self.source = gen_func
+        self.source_args = source_args
         self.signaling = (mode == "raise")
 
     def __iter__(self):
-        self.it = iter(self.source())
+        self.it = iter(self.source(**self.source_args))
         return self
 
     def __next__(self):
         try:
             return next(self.it)
         except StopIteration:
-            self.it = iter(self.source())
+            self.it = iter(self.source(**self.source_args))
             if self.signaling:
                 raise
             else:
                 return next(self.it)
+
 
 class _ExternalDataBatch:
     def __init__(self, group, pipeline, data, batch_size):
@@ -249,21 +252,23 @@ def _accepted_arg_count(callable):
         callable = callable.__func__
     return callable.__code__.co_argcount - implicit_args
 
-def _get_callback_from_source(source, cycle):
+
+def _get_callback_from_source(source, cycle, source_args):
     iterable = False
     if source is not None:
         try:
             if _cycle_enabled(cycle):
                 if inspect.isgenerator(source):
-                    raise TypeError("Cannot cycle through a generator - if the generator is a result "
+                    raise TypeError(
+                        "Cannot cycle through a generator - if the generator is a result "
                         "of calling a generator function, pass that function instead as `source`.")
                 if _is_generator_function(source):
-                    iterator = iter(_CycleGenFunc(source, cycle))
+                    iterator = iter(_CycleGenFunc(source, cycle, source_args))
                 else:
                     iterator = iter(_CycleIter(source, cycle))
             else:
                 if _is_generator_function(source):
-                    source = source()
+                    source = source(**source_args)
                 iterator = iter(source)
             iterable = True
             callback = lambda: next(iterator)
@@ -273,7 +278,7 @@ def _get_callback_from_source(source, cycle):
             if cycle is not None:
                 raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
             if not callable(source):
-                raise TypeError("Source must be callable, iterable or a parameterless generator function")
+                raise TypeError("Source must be callable, iterable or generator function")
             callback = source
     else:
         callback = None
@@ -282,11 +287,13 @@ def _get_callback_from_source(source, cycle):
         raise ValueError("`cycle` argument is only valid for iterable `source`")
     return callback
 
-class ExternalSource():
+
+class ExternalSource:
     """ExternalSource is a special operator that can provide data to a DALI pipeline
 from Python by several methods.
 
-The simplest and preferred way is to specify a ``source``, which can be a callable or iterable.
+The simplest and preferred way is to specify a ``source``, which can be a callable,
+ iterable or a generator function.
 
 .. note::
     :meth:`nvidia.dali.fn.external_source` operator is partially compatible with TensorFlow
@@ -364,6 +371,11 @@ Keyword Args
     ``iter(source)`` returns a fresh iterator on each call, or a generator function.
     In the latter case, the generator function is called again when more data than was
     yielded by the function is requested.
+    
+    Please note: when the ``source`` is a generator function, and the cycling is turned on (either
+    in ``"quiet"`` or ``"raise"`` mode), after the ``StopIteration`` is raised, the generator
+    is going to be instantiated from scratch. It means, that the generator function will be called
+    again.
 
     Specifying ``"raise"`` can be used with DALI iterators to create a notion of epoch.
 
@@ -372,6 +384,16 @@ Keyword Args
 
     Used when feeding the data in ``iter_setup`` and can be omitted if
     the data is provided by ``source``.
+    
+`source_args` : dict, optional
+    Arguments, that the ``source`` generator function is going to be called with.
+    
+    If the ``source`` is a generator function, the ``ExternalSource`` operator uses it to
+    instantiate the generator object. The ``source_args`` can be used to determine the set
+    of arguments, which will be passed to the generator function, when instantiating the generator.
+    
+    Every key in the dictionary shall be a string, which matches the named argument of the generator
+    function.
 
 `layout` : :ref:`layout str<layout_str_doc>` or list/tuple thereof, optional
     If provided, sets the layout of the data.
@@ -451,10 +473,9 @@ Keyword Args
     in the internal buffer, otherwise parameter is ignored.
 """
 
-    def __init__(
-            self, source=None, num_outputs=None, *, cycle=None, layout=None, name=None,
-            device="cpu", cuda_stream=None, use_copy_kernel=None, batch=None, parallel=None,
-            no_copy=None, prefetch_queue_depth=None, **kwargs):
+    def __init__(self, source=None, num_outputs=None, *, cycle=None, layout=None, name=None,
+                 device="cpu", cuda_stream=None, use_copy_kernel=None, batch=None, parallel=None,
+                 no_copy=None, prefetch_queue_depth=None, source_args: dict = None, **kwargs):
         self._schema = _b.GetSchema("ExternalSource")
         self._spec = _b.OpSpec("ExternalSource")
         self._device = device
@@ -465,7 +486,13 @@ Keyword Args
         import nvidia.dali.ops
         kwargs, self._call_args = nvidia.dali.ops._separate_kwargs(kwargs)
 
-        callback = _get_callback_from_source(source, cycle)
+        if source_args is not None and not _is_generator_function(source):
+            raise TypeError(
+                "`source_args` can be defined if and only if `source` is a generator function")
+        if source_args is None:
+            source_args = {}
+
+        callback = _get_callback_from_source(source, cycle, source_args)
 
         if name is not None and num_outputs is not None:
             raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
@@ -650,8 +677,9 @@ def _is_external_source(op_instance):
     return isinstance(op_instance._op, ExternalSource)
 
 
-def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None,
-                    cuda_stream = None, use_copy_kernel = None, batch = True, **kwargs):
+def external_source(source=None, num_outputs=None, *, cycle=None, name=None, device="cpu",
+                    layout=None, cuda_stream=None, use_copy_kernel=None, batch=True,
+                    source_args: dict = None, **kwargs):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.
@@ -677,12 +705,13 @@ provided memory is copied to the internal buffer.
     if num_outputs is not None:
         if source is None:
             raise ValueError("The parameter ``num_outputs`` is only valid when using ``source`` to "
-                "provide data. To feed multiple external sources in ``feed_input``, use multiple "
-                "``external_source`` nodes.")
+                             "provide data. To feed multiple external sources in ``feed_input``, use multiple "
+                             "``external_source`` nodes.")
 
-    op = ExternalSource(device = device, num_outputs = num_outputs, source = source,
-                        cycle = cycle, layout = layout, cuda_stream = cuda_stream,
-                        use_copy_kernel = use_copy_kernel, batch = batch, **kwargs)
-    return op(name = name)
+    op = ExternalSource(device=device, num_outputs=num_outputs, source=source,
+                        cycle=cycle, layout=layout, cuda_stream=cuda_stream,
+                        use_copy_kernel=use_copy_kernel, batch=batch, source_args=source_args,
+                        **kwargs)
+    return op(name=name)
 
 external_source.__doc__ += ExternalSource._args_doc

@@ -15,7 +15,7 @@
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import Pipeline, pipeline_def
 from test_utils import check_batch
 
 def build_src_pipe(device, layout = None):
@@ -97,7 +97,57 @@ def _test_scalar(device, as_tensors):
         dst = dst_pipe.run()
         check_batch(src[0], dst[0], batch_size, 0, 0, "")
 
+
 def test_scalar():
     for device in ["cpu", "gpu"]:
         for as_tensors in [False, True]:
             yield _test_scalar, device, as_tensors
+
+
+def _generator_with_args(max_size, iters, seed=42):
+    rng = np.random.default_rng(seed=seed)
+    for _ in range(iters):
+        size = rng.integers(1, max_size)
+        yield np.array([rng.integers(0, 200, size=[size], dtype=np.int64)]), \
+              np.array([size], dtype=np.int64)
+
+
+@pipeline_def(num_threads=3, device_id=0)
+def es_with_args_pipe(source_args, device, cycle):
+    source_args['max_size'] = Pipeline.current().max_batch_size
+    ret1, ret2 = fn.external_source(source=_generator_with_args, device=device, num_outputs=2,
+                                    cycle=cycle, source_args=source_args)
+    return ret1, ret2
+
+
+def verify_pipeline(pipeline, device, iters, max_size):
+    for ref in _generator_with_args(max_size, iters):
+        val = pipeline.run()
+        if device == "cpu":
+            assert np.array_equal(val[0].as_array(), ref[0])
+            assert np.array_equal(val[1].as_array(), ref[1])
+        elif device == "gpu":
+            assert np.array_equal(val[0].as_cpu().as_array(), ref[0])
+            assert np.array_equal(val[1].as_cpu().as_array(), ref[1])
+        else:
+            assert False, "Unknown device"
+
+
+def check_es_generator_with_args(device, cycle):
+    iters = 5
+    batch_size = 32
+    source_args = {'iters': iters}
+    pipe = es_with_args_pipe(source_args, device, cycle, batch_size=batch_size)
+    pipe.build()
+
+    verify_pipeline(pipe, device, iters, batch_size)
+    if cycle:
+        verify_pipeline(pipe, device, iters, batch_size)
+
+
+def test_es_generator_with_args():
+    devices = ["cpu", "gpu"]
+    cycle = [True, False]
+    for dv in devices:
+        for cy in cycle:
+            yield check_es_generator_with_args, dv, cy
