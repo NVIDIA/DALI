@@ -419,6 +419,9 @@ TEST(MM_VMAsyncPool, MultiStreamRandomWithGPUHogs) {
 }
 
 TEST(MM_VMAsyncPool, CrossStream) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
+
   async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
 
   vector<std::thread> threads;
