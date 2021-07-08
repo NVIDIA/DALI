@@ -9,3 +9,4 @@ Data Loading
    dataloading_recordio.ipynb
    dataloading_tfrecord.ipynb
    coco_reader.ipynb
+   numpy_reader.ipynb
