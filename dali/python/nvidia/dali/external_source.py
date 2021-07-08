@@ -69,20 +69,20 @@ class _CycleIter:
 
 
 class _CycleGenFunc:
-    def __init__(self, gen_func, mode, source_args={}):
+    def __init__(self, gen_func, mode, gen_func_args={}):
         self.source = gen_func
-        self.source_args = source_args
+        self.gen_func_args = gen_func_args
         self.signaling = (mode == "raise")
 
     def __iter__(self):
-        self.it = iter(self.source(**self.source_args))
+        self.it = iter(self.source(**self.gen_func_args))
         return self
 
     def __next__(self):
         try:
             return next(self.it)
         except StopIteration:
-            self.it = iter(self.source(**self.source_args))
+            self.it = iter(self.source(**self.gen_func_args))
             if self.signaling:
                 raise
             else:
