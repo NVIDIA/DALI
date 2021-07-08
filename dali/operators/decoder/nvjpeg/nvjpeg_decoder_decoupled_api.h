@@ -624,7 +624,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
     thread_pool_.RunAll();
 
-    for (auto &data : sample_data_) {
+    for (int i = 0; i < curr_batch_size; i++) {
+      SampleData &data = sample_data_[i];
       switch (data.method) {
         case DecodeMethod::Host:
           samples_host_.push_back(&data);
