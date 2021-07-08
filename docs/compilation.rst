@@ -173,7 +173,8 @@ disable them.
    | (Optional) |lmdb link|_                | The currently supported version can be check |dali_deps link|_ repository.                  |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | (Optional) |gds link|_                 | Only libcufile is required for the build process, and the installed header needs to land    |
-   |                                        | in `/usr/local/cuda/include` directory.                                                     |
+   |                                        | in `/usr/local/cuda/include` directory. For CUDA 11.4 it can be installed as a part of CUDA |
+   |                                        | toolkit.                                                                                    |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | One or more of the following Deep Learning frameworks:                                                                               |
    |      * |mxnet link|_ ``mxnet-cu90`` or later                                                                                         |

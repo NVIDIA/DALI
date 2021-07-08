@@ -10,13 +10,14 @@ RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.4.0/local_ins
     rm -f cuda_*.run;
 
 RUN NVJPEG2K_VERSION=0.2.0 && \
+    CUFILE_VERSION=1.0.0 && \
     apt-get update && \
     apt-get install wget software-properties-common -y && \
     wget -qO - https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub | apt-key add - && \
     add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/ /" && \
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub && \
     apt-get update && \
-    apt-get install libnvjpeg2k0 libnvjpeg2k-dev -y && \
+    apt-get install libnvjpeg2k0 libnvjpeg2k-dev libcufile-dev-11-4 -y && \
     cp /usr/include/nvjpeg2k* /usr/local/cuda/include/ && \
     cp /usr/lib/x86_64-linux-gnu/libnvjpeg2k* /usr/local/cuda/lib64/ && \
     rm -rf /var/lib/apt/lists/*
