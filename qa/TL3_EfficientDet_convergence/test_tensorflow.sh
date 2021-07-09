@@ -1,10 +1,6 @@
 #!/bin/bash -e
 
 function CLEAN_AND_EXIT {
-    rm -r train
-    rm -r val
-    rm output.h5
-    rm eval.log
     exit $1
 }
 
