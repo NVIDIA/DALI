@@ -107,7 +107,9 @@ void StdCUFileStream::HandleIOError(int64 ret) const {
     std::string errmsg(256, '\0');
     int e = errno;
     auto ret = strerror_r(e, &errmsg[0], errmsg.size());
-    DALI_ENFORCE(ret == 0, make_string("Unknown CUFile error: ", e));
+    if (ret != 0) {
+      DALI_FAIL(make_string("Unknown CUFile error: ", e));
+    }
     DALI_FAIL(
         make_string("CUFile read failed for file ", path_, " with error (", e, "): ", errmsg));
   } else {
