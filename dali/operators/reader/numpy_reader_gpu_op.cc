@@ -59,7 +59,7 @@ void NumpyReaderGPU::Prefetch() {
   }
 
   size_t new_bytes = ref_type.size() * tmp_shapes.num_elements();
-  if (new_bytes > curr_tensor_list.nbytes()) {
+  if (new_bytes > curr_tensor_list.capacity()) {
     auto deleter = [](void *ptr) { CUDA_DTOR_CALL(cudaFree(ptr)); };
     void *raw_mem = nullptr;
     CUDA_CALL(cudaMalloc(&raw_mem, new_bytes));
@@ -73,6 +73,8 @@ void NumpyReaderGPU::Prefetch() {
                         div_ceil(static_cast<uint64_t>(curr_tensor_list.nbytes()),
                                  static_cast<uint64_t>(thread_pool_.NumThreads())));
 
+  DALI_ENFORCE(curr_tensor_list.shares_data() || curr_tensor_list.capacity() == 0,
+    "Error: ordinary allocation used in numpy reader.");
   // read the data
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
     curr_tensor_list.SetMeta(data_idx, curr_batch[data_idx]->get_meta());
