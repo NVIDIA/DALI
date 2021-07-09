@@ -333,35 +333,41 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
 
     cuvm::CUMemAddressRange va;
 
-    SmallVector<CUdeviceptr, 4> hints;
+    struct Hint {
+      CUdeviceptr address;
+      size_t      alignment;
+    };
+    SmallVector<Hint, 4> hints;
 
     if (va_regions_.empty()) {
-      // Calculate the hint address for the allocations for this device.
-      // There's some not very significant base and different devices get
-      // address spaces separated by at least 2^40 - this should be quite enough.
+      // Calculate the alignment for the initial allocations for this device - we start from
+      // 4 TiB nad go down.
+      // The address hint is not important.
       hints = {
-        (device_ordinal_ + 33) * (1_u64 << 40),
-        (device_ordinal_ + 17) * (1_u64 << 40),
-        (device_ordinal_ +  1) * (1_u64 << 40),
-        (device_ordinal_ +  1) * (1_u64 << 36),
+        { 0_zu, 1_zu << 42 },
+        { 0_zu, 1_zu << 40 },
+        { 0_zu, 1_zu << 38 },
+        { 0_zu, 1_zu << 36 }
       };
     } else {
-      // Try to allocate after the last VA for this device or before the first
+      // Try to allocate after the last VA for this device or before the first - calculate
+      // the address hint but ignore alignment.
       auto &first_va = va_regions_.front();
       auto &last_va = va_regions_.back();
       assert(!va_ranges_.empty());
       va_size = std::max(va_size, 2 * va_ranges_.back().size());
       hints = {
-        last_va.address_range.end(),
-        first_va.address_range.ptr() - va_size
+        { last_va.address_range.end(), 0_zu },
+        { first_va.address_range.ptr() - va_size, 0_zu }
       };
     }
 
     // Try to allocate at hinted locations...
     for (auto hint : hints) {
       try {
-        va = cuvm::CUMemAddressRange::Reserve(va_size, 0, hint);
+        va = cuvm::CUMemAddressRange::Reserve(va_size, hint.alignment, hint.address);
         break;
+      } catch (const CUDAError &) {
       } catch (const std::bad_alloc &) {}
     }
     if (!va)  // ...hint failed - allocate anywhere
