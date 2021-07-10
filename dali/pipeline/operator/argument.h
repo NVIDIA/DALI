@@ -122,7 +122,7 @@ class Argument {
 
   inline void clear_name() {
     has_name_ = false;
-    name_ = "";
+    name_.clear();
   }
 
   virtual std::string ToString() const {
