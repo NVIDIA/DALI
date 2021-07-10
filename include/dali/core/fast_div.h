@@ -212,7 +212,7 @@ __host__ __device__ __forceinline__ uint32_t operator/(uint32_t x, fast_div<uint
   return x >> y.shift;
 #else
   if (y.mul) {
-    uint32_t hi = static_cast<uint64_t>(x + y.add) * y.mul >> 32;
+    uint32_t hi = (static_cast<uint64_t>(x) + y.add) * y.mul >> 32;
     return hi >> y.shift;
   } else {
     return x >> y.shift;
