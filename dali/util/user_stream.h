@@ -37,11 +37,8 @@ class DLL_PUBLIC UserStream {
    * @brief Gets UserStream instance
    */
   DLL_PUBLIC static UserStream* Get() {
-    std::lock_guard<std::mutex> lock(m_);
-    if (us_ == nullptr) {
-      us_ = new UserStream();
-    }
-    return us_;
+    static UserStream us;
+    return &us_;
   }
 
   /**
@@ -116,7 +113,6 @@ class DLL_PUBLIC UserStream {
   }
 
   static std::mutex m_;
-  static UserStream * us_;
 
   std::unordered_map<int, cudaStream_t> streams_;
 };

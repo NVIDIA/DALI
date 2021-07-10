@@ -18,7 +18,6 @@
 
 namespace dali {
 
-  UserStream * UserStream::us_ = nullptr;
   std::mutex UserStream::m_;
 
 }  // namespace dali
