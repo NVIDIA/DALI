@@ -10,6 +10,7 @@
 #  NVJPEG_INCLUDE_DIR
 #  NVJPEG_LIBRARY
 
+include(CheckCXXSymbolExists)
 set(NVJPEG_ROOT_DIR "" CACHE PATH "Folder contains NVJPEG")
 
 find_path(NVJPEG_INCLUDE_DIR nvjpeg.h
