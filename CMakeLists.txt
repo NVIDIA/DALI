@@ -14,8 +14,8 @@
 
 cmake_minimum_required(VERSION 3.13)
 
-# allow usage of check_symbol_exists() macro
-include(CheckCXXSymbolExists)
+project(DALI LANGUAGES CUDA CXX C)
+
 include(CheckCXXCompilerFlag)
 include(CMakeDependentOption)
 
@@ -26,14 +26,12 @@ if (POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)
 endif()
 
-project(DALI CUDA CXX C)
 
 set(DALI_ROOT ${PROJECT_SOURCE_DIR})
 set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
 
 parse_cuda_version(${CUDA_VERSION} CUDA_VERSION_MAJOR CUDA_VERSION_MINOR CUDA_VERSION_PATCH CUDA_VERSION_SHORT CUDA_VERSION_SHORT_DIGIT_ONLY)
 
-check_cxx_compiler_flag(-fopenmp      CXX_HAVE_OMP)
 check_cxx_compiler_flag(-fopenmp-simd CXX_HAVE_OMP_SIMD)
 
 # Build options
@@ -263,15 +261,13 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   # CUDA does not support current Clang as host compiler, we need use gcc
   # CMAKE_CUDA_HOST_COMPILER variable operates on paths
   set(CUDA_UNSUPPORTED_COMPILER 0)
-  if (NOT DALI_CLANG_ONLY)
+  if (NOT DALI_CLANG_ONLY AND NOT CMAKE_CUDA_HOST_COMPILER)
     if ("${CMAKE_CUDA_HOST_COMPILER}" MATCHES "clang")
         set(CUDA_UNSUPPORTED_COMPILER 1)
     elseif (CMAKE_CUDA_HOST_COMPILER STREQUAL "")
         set(CUDA_UNSUPPORTED_COMPILER 1)
     endif()
-
     set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_C_COMPILER})
-
   endif()
 
   if(${CUDA_UNSUPPORTED_COMPILER})
