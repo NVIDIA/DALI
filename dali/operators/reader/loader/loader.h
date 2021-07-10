@@ -69,7 +69,7 @@ class Loader {
       device_id_(options.GetArgument<int>("device_id")),
       skip_cached_images_(options.GetArgument<bool>("skip_cached_images")),
       lazy_init_(options.GetArgument<bool>("lazy_init")),
-      loading_flag_(ATOMIC_FLAG_INIT),
+      loading_flag_(false),
       read_sample_counter_(0),
       returned_sample_counter_(0),
       pad_last_batch_(options.GetArgument<bool>("pad_last_batch")),
@@ -213,8 +213,13 @@ class Loader {
   virtual void ReadSample(LoadTarget& tensor) = 0;
 
   void PrepareMetadata() {
-    if (!loading_flag_.test_and_set()) {
+    if (!loading_flag_) {
+      std::lock_guard<std::mutex> l(prepare_metadata_mutex_);
+      if (!loading_flag_) {
         PrepareMetadataImpl();
+        std::atomic_thread_fence(std::memory_order_release);
+        loading_flag_ = true;
+      }
     }
   }
 
@@ -342,8 +347,9 @@ class Loader {
 
   // Indicate whether the dataset preparation has to be done in the constructor or during the
   // first run
+  std::mutex prepare_metadata_mutex_;
   bool lazy_init_;
-  std::atomic_flag loading_flag_;
+  bool loading_flag_;
 
   // Image cache
   std::once_flag fetch_cache_;
