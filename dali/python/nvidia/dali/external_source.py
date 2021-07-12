@@ -15,8 +15,8 @@
 # custom wrappers around ops
 from nvidia.dali import backend as _b
 import inspect
+import functools
 import nvidia.dali.types
-
 
 def _get_batch_shape(data):
     if isinstance(data, (list, tuple, _b.TensorListCPU, _b.TensorListGPU)):
@@ -222,9 +222,14 @@ def _is_generator_function(x):
     where __call__ is a generator function"""
     if inspect.isgeneratorfunction(x):
         return True
+    if isinstance(x, functools.partial):
+        return _is_generator_function(x.func)
+
     if x is None or inspect.isfunction(x) or inspect.ismethod(x):
         return False
     call = getattr(x, "__call__", None)
+    if call == x:
+        return False
     return _is_generator_function(call)
 
 def _cycle_enabled(cycle):
