@@ -19,6 +19,37 @@
 
 namespace dali {
 
+namespace {
+
+std::shared_ptr<uint8_t> gds_alloc(size_t bytes) {
+  uint8_t *ptr = nullptr;
+  CUDA_CALL(cudaMalloc(&ptr, bytes));
+  return std::shared_ptr<uint8_t>(ptr, [](void *mem) {
+    CUDA_DTOR_CALL(cudaFree(mem));
+  });
+}
+
+}  // namespace
+
+NumpyReaderGPU::NumpyReaderGPU(const OpSpec& spec)
+    : NumpyReader<GPUBackend, NumpyFileWrapperGPU>(spec),
+      thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false),
+      sg_(1 << 18, spec.GetArgument<int>("max_batch_size")) {
+  prefetched_batch_tensors_.resize(prefetch_queue_depth_);
+
+  for (auto &t : prefetched_batch_tensors_)
+    t.set_alloc_func(gds_alloc);
+
+  // set a device guard
+  DeviceGuard g(device_id_);
+
+  // init loader
+  bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
+  loader_ = InitLoader<NumpyLoaderGPU>(spec, std::vector<string>(), shuffle_after_epoch);
+
+  kmgr_transpose_.Resize<TransposeKernel>(1, 1);
+}
+
 void NumpyReaderGPU::Prefetch() {
   // We actually prepare the next batch
   DomainTimeRange tr("[DALI][NumpyReaderGPU] Prefetch #" + to_string(curr_batch_producer_),
@@ -58,23 +89,17 @@ void NumpyReaderGPU::Prefetch() {
     tmp_shapes.set_tensor_shape(data_idx, sample->get_shape());
   }
 
-  size_t new_bytes = ref_type.size() * tmp_shapes.num_elements();
-  if (new_bytes > curr_tensor_list.capacity()) {
-    auto deleter = [](void *ptr) { CUDA_DTOR_CALL(cudaFree(ptr)); };
-    void *raw_mem = nullptr;
-    CUDA_CALL(cudaMalloc(&raw_mem, new_bytes));
-    std::shared_ptr<void> mem(raw_mem, deleter);
-    curr_tensor_list.ShareData(std::move(mem), new_bytes, tmp_shapes, ref_type);
-  } else {
-    curr_tensor_list.Resize(tmp_shapes, ref_type);
+  auto *tgt = curr_tensor_list.alloc_func().target<shared_ptr<uint8_t>(*)(size_t)>();
+  if (!tgt || *tgt != &gds_alloc) {
+    curr_tensor_list.Reset();
+    curr_tensor_list.set_alloc_func(gds_alloc);
   }
+  curr_tensor_list.Resize(tmp_shapes, ref_type);
 
   size_t chunk_size = static_cast<size_t>( \
                         div_ceil(static_cast<uint64_t>(curr_tensor_list.nbytes()),
                                  static_cast<uint64_t>(thread_pool_.NumThreads())));
 
-  DALI_ENFORCE(curr_tensor_list.shares_data() || curr_tensor_list.capacity() == 0,
-    "Error: ordinary allocation used in numpy reader.");
   // read the data
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
     curr_tensor_list.SetMeta(data_idx, curr_batch[data_idx]->get_meta());
