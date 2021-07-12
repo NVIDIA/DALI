@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -496,42 +496,21 @@ class Tensor : public Buffer<Backend> {
   Tensor<Backend>(Tensor<Backend> &&t) noexcept {
     // Steal all data and set input to default state
     shape_ = std::move(t.shape_);
-    type_ = t.type_;
-    data_ = t.data_;
-    size_ = t.size_;
-    shares_data_ = t.shares_data_;
-    num_bytes_ = t.num_bytes_;
-    device_ = t.device_;
     meta_ = std::move(t.meta_);
 
     t.shape_ = TensorShape<>();
-    t.type_ = TypeInfo::Create<NoType>();
-    t.data_.reset();
-    t.size_ = 0;
-    t.shares_data_ = false;
-    t.num_bytes_ = 0;
     t.meta_ = {};
+    move_buffer(std::move(t));
   }
 
   Tensor<Backend>& operator=(Tensor<Backend> &&t) noexcept {
     if (&t != this) {
       shape_ = std::move(t.shape_);
-      type_ = t.type_;
-      data_ = t.data_;
-      size_ = t.size_;
-      shares_data_ = t.shares_data_;
-      num_bytes_ = t.num_bytes_;
-      device_ = t.device_;
       meta_ = std::move(t.meta_);
-      pinned_ = t.pinned_;
 
       t.shape_ = TensorShape<>();
-      t.type_ = TypeInfo::Create<NoType>();
-      t.data_.reset();
-      t.size_ = 0;
-      t.shares_data_ = false;
-      t.num_bytes_ = 0;
       t.meta_ = {};
+      move_buffer(std::move(t));
     }
     return *this;
   }

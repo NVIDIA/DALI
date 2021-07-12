@@ -152,7 +152,7 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fo
 
 def test_types_and_shapes():
     cache_header_information = False
-    for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
+    for device in ["gpu"]:
         for fortran_order in [False, True, None]:
             for type in all_numpy_types - unsupported_numpy_types:
                 for ndim in [0, 1, 2, random.choice([3, 4])]:

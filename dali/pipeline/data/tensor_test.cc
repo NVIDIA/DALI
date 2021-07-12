@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/test/dali_test.h"
+#include "dali/core/mm/malloc_resource.h"
 
 namespace dali {
 
@@ -423,6 +424,53 @@ TYPED_TEST(TensorTest, TestResize) {
   for (int i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
   }
+}
+
+TYPED_TEST(TensorTest, TestCustomAlloc) {
+  Tensor<TypeParam> tensor;
+
+  // Get shape
+  auto shape = this->GetRandShape();
+  int allocations = 0;
+  std::function<void*(size_t)> alloc_func;
+  std::function<void(void *)> deleter;
+  if (std::is_same<TypeParam, CPUBackend>::value) {
+    alloc_func = [&](size_t bytes) {
+      return new uint8_t[bytes];
+    };
+    deleter = [&](void *ptr) {
+      free(ptr);
+      allocations--;
+    };
+  } else {
+    alloc_func = [](size_t bytes) {
+      void *ptr;
+      CUDA_CALL(cudaMalloc(&ptr, bytes));
+      return ptr;
+    };
+    deleter = [&](void *ptr) {
+      CUDA_DTOR_CALL(cudaFree(ptr));
+      allocations--;
+    };
+  }
+
+  tensor.set_alloc_func([&](size_t bytes) {
+    allocations++;
+    return std::shared_ptr<uint8_t>(static_cast<uint8_t*>(alloc_func(bytes)), deleter);
+  });
+
+  tensor.Resize(shape);
+
+  // Verify the settings
+  ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
+  ASSERT_EQ(tensor.size(), volume(shape));
+  ASSERT_EQ(tensor.ndim(), shape.size());
+  ASSERT_EQ(allocations, 1);
+  for (int i = 0; i < shape.size(); ++i) {
+    ASSERT_EQ(tensor.dim(i), shape[i]);
+  }
+  tensor.Reset();
+  ASSERT_EQ(allocations, 0);
 }
 
 template <typename Backend, typename T = float>
