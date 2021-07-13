@@ -587,22 +587,22 @@ bool GetImageInfo(const void* srcdata, int datasize, int* width, int* height,
 
   // set up, read header, set image parameters, save size
   jpeg_create_decompress(&cinfo);
-  auto deleter = [](jpeg_decompress_struct* cinfo_ptr) {
-    jpeg_destroy_decompress(cinfo_ptr);
-  };
-  std::unique_ptr<jpeg_decompress_struct, decltype(deleter)> cinfo_RAII(&cinfo, deleter);
 
   if (setjmp(jpeg_jmpbuf)) {
+    jpeg_destroy_decompress(cinfo_ptr);
     return false;
   }
   SetSrc(&cinfo, srcdata, datasize, false);
 
   if (jpeg_read_header(&cinfo, TRUE) != JPEG_HEADER_OK) {
+    jpeg_destroy_decompress(cinfo_ptr);
     return false;
   }
   if (width) *width = cinfo.image_width;
   if (height) *height = cinfo.image_height;
   if (components) *components = cinfo.num_components;
+
+  jpeg_destroy_decompress(cinfo_ptr);
   return true;
 }
 
