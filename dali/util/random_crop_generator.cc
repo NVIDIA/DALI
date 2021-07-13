@@ -79,7 +79,6 @@ CropWindow RandomCropGenerator::GenerateCropWindowImpl(const TensorShape<>& shap
     }
 
     if (attempts_left <= 0) {
-      int h = crop.shape[0], w = crop.shape[1];
       float max_area = area_dis_.b() * W * H;
       float ratio = static_cast<float>(W)/H;
       if (ratio > max_wh_ratio) {

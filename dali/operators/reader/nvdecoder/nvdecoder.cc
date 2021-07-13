@@ -244,14 +244,12 @@ int NvDecoder::handle_decode_(CUVIDPICPARAMS* pic_params) {
   return kNvcuvid_success;
 }
 
-NvDecoder::MappedFrame::MappedFrame()
-    : MappedFrame(nullptr, nullptr, 0) {
-}
-
 NvDecoder::MappedFrame::MappedFrame(CUVIDPARSERDISPINFO* disp_info,
                                     CUvideodecoder decoder,
                                     CUstream stream)
     : disp_info{disp_info}, valid_{false}, decoder_(decoder), params_{0} {
+
+  assert(disp_info);
 
   if (!disp_info->progressive_frame) {
     DALI_FAIL("Got an interlaced frame. We don't do interlaced frames.");
