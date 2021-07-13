@@ -597,11 +597,11 @@ bool GetImageInfo(const void* srcdata, int datasize, int* width, int* height,
   }
   SetSrc(&cinfo, srcdata, datasize, false);
 
-  DALI_ENFORCE(jpeg_read_header(&cinfo, TRUE) == JPEG_HEADER_OK);
+  int decode_status = jpeg_read_header(&cinfo, TRUE);
   if (width) *width = cinfo.image_width;
   if (height) *height = cinfo.image_height;
   if (components) *components = cinfo.num_components;
-  return true;
+  return status == JPEG_HEADER_OK;
 }
 
 // -----------------------------------------------------------------------------
