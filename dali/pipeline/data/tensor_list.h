@@ -329,7 +329,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
       other.shape_ = {};
       other.tensor_views_.clear();
       other.offsets_.clear();
-      other.meta_ = {};
+      other.meta_.clear();
       other.layout_ = {};
 
       move_buffer(std::move(other));

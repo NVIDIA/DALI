@@ -21,6 +21,13 @@ namespace dali {
 
 namespace {
 
+/**
+ * @brief Allocates memory that's suitable for use with GDS / CUfile
+ *
+ * Currently (CUDA 11.4) GPUDirect Storage can work only with memory allocated with cudaMalloc and
+ * cuMemAlloc. Since DALI is transitioning to CUDA Virtual Memory Management for memory
+ * allocation, we need a special allocator that's compatible with GDS.
+ */
 std::shared_ptr<uint8_t> gds_alloc(size_t bytes) {
   uint8_t *ptr = nullptr;
   CUDA_CALL(cudaMalloc(&ptr, bytes));
@@ -89,6 +96,12 @@ void NumpyReaderGPU::Prefetch() {
     tmp_shapes.set_tensor_shape(data_idx, sample->get_shape());
   }
 
+  // Check if the curr_tensor_list has the proper allocator.
+  // Some buffers allocated with a different method can slip in because output buffers
+  // are swapped with ones in prefetched_batch_tensors_ when all samples can be returned
+  // without any changes.
+  // See the line `std::swap(output, prefetched_batch_tensors_[curr_batch_consumer_]);`
+  // in numpy_reader_gpu_op_impl.cu
   auto *tgt = curr_tensor_list.alloc_func().target<shared_ptr<uint8_t>(*)(size_t)>();
   if (!tgt || *tgt != &gds_alloc) {
     curr_tensor_list.Reset();
