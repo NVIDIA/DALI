@@ -597,11 +597,13 @@ bool GetImageInfo(const void* srcdata, int datasize, int* width, int* height,
   }
   SetSrc(&cinfo, srcdata, datasize, false);
 
-  int decode_status = jpeg_read_header(&cinfo, TRUE);
+  if (jpeg_read_header(&cinfo, TRUE) != JPEG_HEADER_OK) {
+    return false;
+  }
   if (width) *width = cinfo.image_width;
   if (height) *height = cinfo.image_height;
   if (components) *components = cinfo.num_components;
-  return status == JPEG_HEADER_OK;
+  return true;
 }
 
 // -----------------------------------------------------------------------------
