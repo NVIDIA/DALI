@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -128,12 +128,26 @@ CallAtExit<Callable> AtExit(Callable &&c) {
   return CallAtExit<Callable>(std::forward<Callable>(c));
 }
 
+bool UseMemoryPool() {
+  static bool value = []() {
+    const char *use_memory_pool_env = std::getenv("DALI_USE_MEM_POOL");
+    // TODO(michalz): In the end, this should default to true:
+    // return !use_memory_pool_env || atoi(use_memory_pool_env)
+    return use_memory_pool_env && atoi(use_memory_pool_env);
+  }();
+  return value;
+}
+
 inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   static CUDARTLoader CUDAInit;
 #ifdef DALI_USE_RMM_DEVICE_RESOURCE
   auto upstream = std::make_shared<rmm::mr::cuda_memory_resource>();
   return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(std::move(upstream));
 #else
+  if (!UseMemoryPool()) {
+    static auto rsrc = std::make_shared<rmm::mr::cuda_memory_resource>();
+    return rsrc;
+  }
 #if DALI_USE_CUDA_VM_MAP
   if (cuvm::IsSupported()) {
     using resource_type = mm::async_pool_resource<mm::memory_kind::device, cuda_vm_resource,
@@ -150,7 +164,28 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
 #endif
 }
 
+class simple_pinned_resource : public mm::async_memory_resource<memory_kind::pinned> {
+ private:
+  void *do_allocate(size_t bytes, size_t alignment) override {
+    return upstream_.allocate(bytes, alignment);
+  }
+  void *do_allocate_async(size_t bytes, size_t alignment, stream_view stream) override {
+    return upstream_.allocate(bytes, alignment);
+  }
+  void do_deallocate(void *mem, size_t bytes, size_t alignment) override {
+    return upstream_.deallocate(mem, bytes, alignment);
+  }
+  void do_deallocate_async(void *mem, size_t bytes, size_t alignment, stream_view stream) override {
+    return upstream_.deallocate(mem, bytes, alignment);
+  }
+  rmm::mr::pinned_memory_resource upstream_;
+};
+
 inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
+  if (!UseMemoryPool()) {
+    static auto upstream = std::make_shared<simple_pinned_resource>();
+    return upstream;
+  }
   using resource_type = mm::async_pool_resource<mm::memory_kind::pinned>;
   static auto upstream = std::make_shared<rmm::mr::pinned_memory_resource>();
   auto rsrc = std::make_shared<resource_type>(upstream.get());

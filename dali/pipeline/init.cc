@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,12 +66,12 @@ void InitializeBufferPolicies() {
 void DALIInit(const OpSpec &cpu_allocator,
               const OpSpec &pinned_cpu_allocator,
               const OpSpec &gpu_allocator) {
-#if DALI_DEBUG
-  subscribe_signals();
-#endif
   (void)cpu_allocator;
   (void)pinned_cpu_allocator;
   (void)gpu_allocator;
+#if DALI_DEBUG
+  subscribe_signals();
+#endif
   InitializeBufferPolicies();
 }
 

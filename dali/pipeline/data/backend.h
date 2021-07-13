@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,12 +24,6 @@
 namespace dali {
 
 class OpSpec;
-
-// TODO(michalz): Remove - this is obsolete now.
-void InitializeBackends(const OpSpec &cpu_allocator,
-    const OpSpec &pinned_cpu_allocator,
-    const OpSpec &gpu_allocator);
-
 
 class DLL_PUBLIC CPUBackend {};
 class DLL_PUBLIC GPUBackend {};
