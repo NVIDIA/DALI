@@ -1,3 +1,11 @@
+<!---
+Thank you for contributing to NVIDIA DALI.
+
+Please fill the relevant information in this PR template.
+
+Fields with `- [ ]` represent check-boxes that can be marked after you create and save the Pull Request.
+--->
+
 ## Description
 - [ ] **Bug fix** (*non-breaking change which fixes an issue*)
 - [ ] **New feature** (*non-breaking change which adds functionality*)
@@ -5,18 +13,18 @@
 - [ ] **Refactoring** (*Redesign of existing code that doesn't affect functionality*)
 - [ ] **Other** (*e.g. Documentation, Tests, Configuration*)
 
-### Describe in detail what happened in this PR
+### What happened in this PR
 <!---
+Please explain what kind of change is in this PR and why it is submitted.
+Any additional context or description of the solution is welcomed.
 Examples:
 - It fixes a bug *bug description*
 - It adds new feature needed because of *why we need this feature*
 - Refactoring to improve *what*
+The *new feature/bugfix* uses *a new data structure/algorithm* to do *X* instead of *Y*.
 --->
 
-#### Fill extra details, if applicable
-- What solution was applied?:
-<!---   Explain solution of the problem, a new feature added here. --->
-
+#### Additional information
 - Affected modules and functionalities:
 <!--- Describe here what was changed, added, removed. --->
 
