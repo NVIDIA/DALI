@@ -86,7 +86,7 @@ Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
   const uint8_t* palette_start = nullptr;
   size_t ncolors = 0;
   size_t palette_entry_size = 0;
-  if (length >= 24 && header_size == 12) {
+  if (length >= 26 && header_size == 12) {
     // BITMAPCOREHEADER:
     // | 32u header | 16u width | 16u height | 16u number of color planes | 16u bits per pixel
     w = ConsumeValue<uint16_t>(ptr);
