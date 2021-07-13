@@ -21,7 +21,7 @@ Examples:
 - It fixes a bug *bug description*
 - It adds new feature needed because of *why we need this feature*
 - Refactoring to improve *what*
-The *new feature/bugfix* uses *a new data structure/algorithm* to do *X* instead of *Y*.
+- The *new feature/bugfix* uses *a new data structure/algorithm* to do *X* instead of *Y*.
 --->
 
 #### Additional information
