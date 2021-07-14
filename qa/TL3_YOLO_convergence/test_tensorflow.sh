@@ -1,8 +1,6 @@
 #!/bin/bash -e
 
 function CLEAN_AND_EXIT {
-    rm dali.log
-    rm output.h5
     exit $1
 }
 
@@ -16,7 +14,7 @@ python -m pip install -r requirements.txt
 python src/main.py train \
     /data/coco/coco-2017/coco2017/train2017 \
     /data/coco/coco-2017/coco2017/annotations/instances_train2017.json \
-    -b 4 -e 1 -s 2000 -o output.h5 \
+    -b 2 -e 1 -s 4000 -o output.h5 \
     --learning_rate="1e-3" --pipeline dali-gpu  --multigpu --use_mosaic \
     --eval_frequency 1 --eval_steps 100 \
     --eval_file_root /data/coco/coco-2017/coco2017/val2017 \
