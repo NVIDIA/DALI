@@ -68,8 +68,8 @@ if __name__ == "__main__":
     subparsers.required = True
 
     parser_infer = subparsers.add_parser("infer")
-    parser_infer.add_argument("--weights", "-w", nargs="?", default="yolov4.weights")
-    parser_infer.add_argument("--classes", "-c", nargs="?", default="coco-labels.txt")
+    parser_infer.add_argument("--weights", "-w", default="yolov4.weights")
+    parser_infer.add_argument("--classes", "-c", default="coco-labels.txt")
     parser_infer.add_argument("--output", "-o")
     parser_infer.add_argument("image")
 
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     parser_eval = subparsers.add_parser("eval")
     parser_eval.add_argument("file_root")
     parser_eval.add_argument("annotations")
-    parser_eval.add_argument("--weights", "-w", nargs="?", default="yolov4.weights")
+    parser_eval.add_argument("--weights", "-w", default="yolov4.weights")
     parser_eval.add_argument("--batch_size", "-b", default=1, type=int)
     parser_eval.add_argument("--steps", "-s", default=1000, type=int)
 
