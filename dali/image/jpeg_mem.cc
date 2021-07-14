@@ -595,7 +595,7 @@ bool GetImageInfo(const void* srcdata, int datasize, int* width, int* height,
   SetSrc(&cinfo, srcdata, datasize, false);
 
   if (jpeg_read_header(&cinfo, TRUE) != JPEG_HEADER_OK) {
-    jpeg_destroy_decompress(cinfo_ptr);
+    jpeg_destroy_decompress(&cinfo);
     return false;
   }
   if (width) *width = cinfo.image_width;
