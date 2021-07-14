@@ -23,8 +23,7 @@ template class Buffer<CPUBackend>;
 template class Buffer<GPUBackend>;
 
 
-DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, GPUBackend *) {
-  (void)pinned;  // this is less-than-ideal design
+DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool /* pinned */, GPUBackend *) {
   const size_t kDevAlignment = 256;  // warp alignment for 32x64-bit
   return mm::alloc_raw_shared<uint8_t, mm::memory_kind::device>(bytes, kDevAlignment);
 }
