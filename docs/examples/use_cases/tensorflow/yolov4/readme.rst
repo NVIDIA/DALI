@@ -1,4 +1,4 @@
-You Only Look Once v4 with DALI and TensorFlow
+You Only Look Once v4 with TensorFlow and DALI
 ==============================================
 
 This example presents a sample implementation of a YOLOv4 network,
