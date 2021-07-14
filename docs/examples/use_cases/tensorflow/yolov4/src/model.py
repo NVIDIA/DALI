@@ -82,7 +82,7 @@ class YOLOv4Model(tf.keras.Model):
         self.classes_num = classes_num
         self.image_size = (image_size[0], image_size[1], 3)
 
-        input = tf.keras.Input(shape=(image_size[0], image_size[1], 3))
+        input = tf.keras.Input(shape=self.image_size)
         output = self.CSPDarknet53WithSPP()(input)
         output = self.YOLOHead()(output)
         super().__init__(input, output)

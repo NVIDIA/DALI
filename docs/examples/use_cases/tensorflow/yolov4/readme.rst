@@ -5,7 +5,7 @@ This example presents a sample implementation of a YOLOv4 network,
 based on the following paper – `Alexey Bochkovskiy, Chien-Yao Wang, Hong-Yuan Mark Liao,
 YOLOv4: Optimal Speed and Accuracy of Object Detection <https://arxiv.org/pdf/2004.10934.pdf>`_.
 
-The following implementation is based on the code available in the `darknet repository <https://github.com/AlexeyAB/darknet>`_.
+The implementation is based on the code available in the `darknet repository <https://github.com/AlexeyAB/darknet>`_.
 
 To run training from scratch on all available GPUs with DALI, run the following command:
 
@@ -145,7 +145,7 @@ Evaluation
 
 .. code-block:: bash
 
-  main.py eval [-h] file_root annotations [--weights WEIGHTS] [--batch_size BATCH_SIZE] [--steps STEPS]
+  usage: main.py eval [-h] file_root annotations [--weights WEIGHTS] [--batch_size BATCH_SIZE] [--steps STEPS]
 
 +-------------------------------------------------+-----------------------------------------------------+
 |                    Argument                     |                    Description                      |
