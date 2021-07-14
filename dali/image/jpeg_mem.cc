@@ -602,7 +602,7 @@ bool GetImageInfo(const void* srcdata, int datasize, int* width, int* height,
   if (height) *height = cinfo.image_height;
   if (components) *components = cinfo.num_components;
 
-  jpeg_destroy_decompress(cinfo_ptr);
+  jpeg_destroy_decompress(&cinfo);
   return true;
 }
 
