@@ -589,7 +589,7 @@ bool GetImageInfo(const void* srcdata, int datasize, int* width, int* height,
   jpeg_create_decompress(&cinfo);
 
   if (setjmp(jpeg_jmpbuf)) {
-    jpeg_destroy_decompress(cinfo_ptr);
+    jpeg_destroy_decompress(&cinfo);
     return false;
   }
   SetSrc(&cinfo, srcdata, datasize, false);
