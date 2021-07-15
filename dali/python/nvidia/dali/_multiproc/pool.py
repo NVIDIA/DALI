@@ -178,12 +178,12 @@ starts thread keeping track of running processes and initializes communication.
         if start_method == 'fork' and _b.HasCudaContext():
             raise RuntimeError(
                 "Error when starting Python worker threads for DALI parallel External Source. "
-                "Cannot fork a process when there is CUDA context already bound to the process. "
-                "CUDA context is acquired during ``Pipeline.build()`` or can be acquired by other "
-                "library that interacts with CUDA, for example DL framework creating CUDA tensors."
+                "Cannot fork a process when there is a CUDA context already bound to the process. "
+                "CUDA context is acquired during ``Pipeline.build()``, or can be acquired by another "
+                "library that interacts with CUDA, for example a DL framework creating CUDA tensors."
                 "If you are trying to build multiple pipelines that use Python workers, you will need to "
                 "call ``start_py_workers`` method on all of them before calling ``build`` method of any pipeline "
-                "to start Python workers before CUDA context is acquired by ``build()`` or other CUDA operation."
+                "to start Python workers before CUDA context is acquired by ``build`` or other CUDA operation."
                 "Alternatively you can change Python workers starting method from ``fork`` to ``spawn`` "
                 "(see DALI Pipeline's ``py_start_method`` option for details). ")
         mp = multiprocessing.get_context(start_method)

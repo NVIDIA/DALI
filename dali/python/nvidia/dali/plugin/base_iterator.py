@@ -32,10 +32,11 @@ class LastBatchPolicy(Enum):
     """
     Describes the last batch policy behavior when there are not enough samples in the epoch
     to fill a whole batch.
-        * FILL - Fills the last batch with the data wrapping up the data set. The precise
-          behavior depends on the reader which may duplicate the last sample to fill the batch
-        * DROP - If the last batch cannot be fully filled by the data from given epoch it is dropped
-        * PARTIAL - Returns the part of the last batch filled with the data relevant to given epoch
+        * FILL - The last batch is filled by either repeating the last sample or by wrapping
+          up the data set. The precise behavior depends on the reader's ``pad_last_batch`` argument
+        * DROP - The last batch is dropped if it cannot be fully filled with data from the current epoch
+        * PARTIAL - The last batch is partially filled with the remaining data from the current epoch,
+          keeping the rest of the samples empty
     """
     FILL = 0
     DROP = 1

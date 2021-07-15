@@ -29,9 +29,10 @@ Here are the iterator options:
    provides the necessary parameters.
 
   .. note::
-    We recommend that you use this option. With this option, the next two options
-    (``size`` and ``last_batch_padded``) are obtained autmatically from pipeline configuration
-    and should not be provided manually for the iterator.
+    We recommend that you use this option, so that the next two options
+    (``size`` and ``last_batch_padded``) are obtained automatically from the pipeline configuration.
+    If it is used, the ``size`` and ``last_batch_padded`` should not be provided explicitly to
+    the iterator.
 
   | This option is more flexible and accurate and takes into account that shard size for a pipeline
     can differ between epochs when the shards are rotated.
@@ -40,13 +41,13 @@ Here are the iterator options:
 - | ``last_batch_padded``: Determines whether the tail of the data consists of data from the next
     shard (``False``) or is duplicated dummy data (``True``).
   | It is applicable when the shard size is not a multiple of the batch size,
-- | ``last_batch_policy`` - Determines the policy about the last batch when the shard size is not
+- | ``last_batch_policy`` - Determines the handling of the last batch when the shard size is not
     divisible by the batch size.
-  | It affects batches only partially filled with the data. It is controlled by the
-    :meth:`~nvidia.dali.plugin.base_iterator.LastBatchPolicy` enum.
+  | It affects batches only partially filled with the data. See
+    :meth:`~nvidia.dali.plugin.base_iterator.LastBatchPolicy` enum for possible values..
 
 - ``fill_last_batch`` – (Deprecated in favour of ``last_batch_policy``) Determines whether the last
-  batch should be full, regardless of  whether the shard size is divisible by the batch size.
+  batch should be full, regardless of whether the shard size is divisible by the batch size.
 
 Enums
 ~~~~~
@@ -73,5 +74,5 @@ only when the ``stick_to_shard`` reader option is enabled and prevents DALI from
 When this occurs, use the first formula.
 
 To address these challenges, use the ``reader_name`` parameter and allow the iterator to
-handle the confguration autmatically.
+handle the configuration automatically.
 
