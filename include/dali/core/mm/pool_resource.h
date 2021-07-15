@@ -18,6 +18,7 @@
 #include <mutex>
 #include <condition_variable>
 #include "dali/core/mm/memory_resource.h"
+#include "dali/core/mm/detail/deferred_dealloc.h"
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/device_guard.h"
@@ -104,12 +105,6 @@ constexpr pool_options default_pool_opts() noexcept {
     return opt;
   }
 }
-
-struct dealloc_params {
-  int sync_device = -1;  // -1 == current device
-  void *ptr = nullptr;
-  size_t bytes = 0, alignment = 0;
-};
 
 namespace detail {
 
@@ -213,6 +208,14 @@ class pool_resource_base : public memory_resource<kind, Context> {
    */
   virtual void flush_deferred() {}  /* no-op */
 
+  bool deferred_dealloc_enabled() const noexcept {
+    return options_.enable_deferred_deallocation;
+  }
+
+  int deferred_dealloc_max_outstanding() const noexcept {
+    return options_.max_outstanding_deallocations;
+  }
+
 
   /**
    * @brief Tries to obtain a block from the internal free list.
@@ -241,6 +244,10 @@ class pool_resource_base : public memory_resource<kind, Context> {
   void deallocate_no_sync(void *ptr, size_t bytes, size_t alignment = alignof(std::max_align_t)) {
     lock_guard guard(lock_);
     free_list_.put(ptr, bytes);
+  }
+
+  constexpr const pool_options &options() const noexcept {
+    return options_;
   }
 
  protected:
@@ -386,135 +393,18 @@ class pool_resource_base : public memory_resource<kind, Context> {
 };
 
 template <memory_kind kind, typename Context, class FreeList, class LockType>
-class deferred_dealloc_pool : public pool_resource_base<kind, Context, FreeList, LockType> {
+class deferred_dealloc_pool
+: public deferred_dealloc_resource<pool_resource_base<kind, Context, FreeList, LockType>> {
  public:
-  static_assert(!std::is_same<LockType, detail::dummy_lock>::value,
-                "This resource is inherently multithreaded and requires a functioning lock.");
-
-  explicit deferred_dealloc_pool(memory_resource<kind, Context> *upstream = nullptr,
-                                 const pool_options &opt = default_pool_opts<kind>())
-  : base(upstream, opt) {}
-
-  ~deferred_dealloc_pool() {
-    if (worker_.joinable()) {
-      stop();
-      worker_.join();
-    }
-    this->bulk_deallocate(make_span(deallocs_[0]));
-    this->bulk_deallocate(make_span(deallocs_[1]));
-  }
-
-  void deferred_deallocate(void *ptr,
-                           size_t bytes,
-                           size_t alignment = alignof(std::max_align_t),
-                           int device_id = -1) {
-    if (!ptr || !bytes)
-      return;  // nothing to do
-    if (device_id < 0) {
-      CUDA_CALL(cudaGetDevice(&device_id));
-    }
-
-    {
-      std::lock_guard<std::mutex> g(mtx_);
-      deallocs_[queue_idx_].push_back({device_id, ptr, bytes, alignment});
-
-      if (!started_)
-        start_worker();
-    }
-    cv_.notify_one();
-  }
-
-
-  int outstanding_dealloc_count() const {
-    return deallocs_[0].size() + deallocs_[1].size();
-  }
-
-  /**
-   * @brief Waits until currently scheduled deallocations are flushed.
-   *
-   * This function waits until the worker notifies that it's completed flushing
-   * current queue (there are two queues). It doesn't wait for the other queue
-   * nor prevent new deallocations from being scheduled.
-   *
-   * This method overrides the default no-op function from pool resource.
-   */
-  void flush_deferred() override {
-    if (!no_pending_deallocs()) {
-      std::unique_lock<std::mutex> ulock(mtx_);
-      if (!no_pending_deallocs())
-        ready_.wait(ulock);
-    }
-  }
-
- protected:
-  // exposed for testing
-  bool no_pending_deallocs() const noexcept {
-    return deallocs_[0].empty() && deallocs_[1].empty();
-  }
-
- private:
-  using base = pool_resource_base<kind, Context, FreeList, LockType>;
-  using dealloc_queue = SmallVector<dealloc_params, 16>;
-
-  void *do_allocate(size_t bytes, size_t alignment) override {
-    if (this->options_.enable_deferred_deallocation) {
-      if (this->outstanding_dealloc_count() > this->options_.max_outstanding_deallocations)
-        this->flush_deferred();
-    }
-    return base::do_allocate(bytes, alignment);
-  }
-
-  void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
-    if (this->options_.enable_deferred_deallocation)
-      this->deferred_deallocate(ptr, bytes, alignment);
-    else
-      base::do_deallocate(ptr, bytes, alignment);
-  }
-
-
-  void start_worker() {
-    worker_ = std::thread([this]() {
-      run();
-    });
-    started_ = true;
-  }
-
-  void run() {
-    std::unique_lock<std::mutex> ulock(mtx_);
-    while (!is_stopped()) {
-      cv_.wait(ulock, [&](){ return !stopped_ || deallocs_[queue_idx_].empty(); });
-      if (is_stopped())
-        break;
-      auto &to_free = deallocs_[queue_idx_];
-      queue_idx_ = 1 - queue_idx_;
-      ulock.unlock();
-      this->bulk_deallocate(make_span(to_free));
-      to_free.clear();
-      ready_.notify_one();
-      ulock.lock();
-    }
-  }
-
-  void stop() {
-    stopped_ = true;
-    cv_.notify_all();
-  }
-
-  bool is_stopped() const noexcept { return stopped_; }
-
-  std::thread worker_;
-  std::mutex mtx_;
-  std::condition_variable cv_, ready_;
-  dealloc_queue deallocs_[2];
-  int queue_idx_ = 0;
-  bool started_ = false;
-  bool stopped_ = false;
+  using base = deferred_dealloc_resource<pool_resource_base<kind, Context, FreeList, LockType>>;
+  using base::base;
 };
 
 namespace detail {
 
 template <memory_kind kind, typename Context, class FreeList, class LockType>
 struct can_merge<pool_resource_base<kind, Context, FreeList, LockType>> : can_merge<FreeList> {};
+
 }  // namespace detail
 
 }  // namespace mm
