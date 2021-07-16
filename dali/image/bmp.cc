@@ -78,6 +78,7 @@ BmpImage::BmpImage(const uint8_t *encoded_buffer, size_t length, DALIImageType i
 
 Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
   DALI_ENFORCE(bmp != nullptr);
+  DALI_ENFORCE(length >= 18);
   auto ptr = bmp + 14;
   uint32_t header_size = ConsumeValue<uint32_t>(ptr);
   int64_t h = 0, w = 0, c = 0;
@@ -85,7 +86,7 @@ Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
   const uint8_t* palette_start = nullptr;
   size_t ncolors = 0;
   size_t palette_entry_size = 0;
-  if (length >= 22 && header_size == 12) {
+  if (length >= 26 && header_size == 12) {
     // BITMAPCOREHEADER:
     // | 32u header | 16u width | 16u height | 16u number of color planes | 16u bits per pixel
     w = ConsumeValue<uint16_t>(ptr);
@@ -97,7 +98,7 @@ Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
       palette_entry_size = 3;
       ncolors = (1_uz << bpp);
     }
-  } else if (length >= 26 && header_size >= 40) {
+  } else if (length >= 50 && header_size >= 40) {
     // BITMAPINFOHEADER and later:
     // | 32u header | 32s width | 32s height | 16u number of color planes | 16u bits per pixel
     // | 32u compression type
