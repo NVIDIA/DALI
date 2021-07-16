@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -177,11 +177,15 @@ starts thread keeping track of running processes and initializes communication.
             raise RuntimeError("Chunk capacity must be positive integer")
         if start_method == 'fork' and _b.HasCudaContext():
             raise RuntimeError(
-                "Cannot fork process when there is CUDA context bound to it. "
-                "Make sure you build pipeline before CUDA context is acquired or change Python workers "
-                "starting method from ``fork`` to ``spawn`` (see Piepline's ``py_start_method`` option). "
+                "Error when starting Python worker threads for DALI parallel External Source. "
+                "Cannot fork a process when there is a CUDA context already bound to the process. "
+                "CUDA context is acquired during ``Pipeline.build()``, or can be acquired by another "
+                "library that interacts with CUDA, for example a DL framework creating CUDA tensors."
                 "If you are trying to build multiple pipelines that use Python workers, you will need to "
-                "call ``start_py_workers`` method on all of them before calling ``build`` method of any pipeline.")
+                "call ``start_py_workers`` method on all of them before calling ``build`` method of any pipeline "
+                "to start Python workers before CUDA context is acquired by ``build`` or other CUDA operation."
+                "Alternatively you can change Python workers starting method from ``fork`` to ``spawn`` "
+                "(see DALI Pipeline's ``py_start_method`` option for details). ")
         mp = multiprocessing.get_context(start_method)
         if num_workers < 1:
             raise RuntimeError("num_workers must be a positive integer")
