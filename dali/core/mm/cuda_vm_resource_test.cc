@@ -188,6 +188,7 @@ class VMResourceTest : public ::testing::Test {
     void *p2 = res.allocate(block_size);  // allocate another block
     res.deallocate(p2, block_size);       // now free the second block
     res.flush_deferred();
+    res.flush_deferred();
     auto &region = res.va_regions_[0];
     EXPECT_EQ(region.available_blocks, 1);
     EXPECT_EQ(region.mapped.find(false), 2);    // 2 mapped blocks
@@ -206,6 +207,7 @@ class VMResourceTest : public ::testing::Test {
     }
     res.deallocate(p1, block_size);
     res.deallocate(p3, 2 * block_size);
+    res.flush_deferred();
     res.flush_deferred();
     EXPECT_EQ(region.available_blocks, 3);
   }
@@ -318,6 +320,7 @@ TEST_F(VMResourceTest, RandomAllocations) {
   }
   allocs.clear();
 
+  pool.flush_deferred();
   pool.flush_deferred();
 
   auto stat = pool.get_stat();
