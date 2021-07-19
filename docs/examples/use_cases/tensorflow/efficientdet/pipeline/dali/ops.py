@@ -172,12 +172,10 @@ def random_crop_resize(
         device=device,
     )
 
-    crop_shape = dali.fn.constant(idata=output_size, device="cpu")
-
     anchors, shapes, bboxes, classes = dali.fn.random_bbox_crop(
         bboxes,
         classes,
-        crop_shape=crop_shape,
+        crop_shape=output_size,
         input_shape=dali.fn.cast(
             dali.fn.cat(scaled_widths, scaled_heights, device="cpu"),
             dtype=dali.types.INT32,
@@ -208,9 +206,9 @@ def random_crop_resize(
 def bbox_to_effdet_format(device, bboxes, image_size):
     w = image_size[0]
     h = image_size[1]
-    M = [0.0, h, 0.0, 0.0,
-         w, 0.0, 0.0, 0.0,
-         0.0, 0.0, 0.0, h,
-         0.0, 0.0, w, 0.0]
+    M = [0.0,   h, 0.0, 0.0,
+           w, 0.0, 0.0, 0.0,
+         0.0, 0.0, 0.0,   h,
+         0.0, 0.0,   w, 0.0]
 
     return dali.fn.coord_transform(bboxes, M=M, device=device)

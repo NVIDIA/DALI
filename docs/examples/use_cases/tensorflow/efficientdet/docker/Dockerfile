@@ -1,4 +1,5 @@
-FROM nvcr.io/nvidia/tensorflow:21.05-tf2-py3
+ARG BASE_VERSION=21.05
+FROM nvcr.io/nvidia/tensorflow:${BASE_VERSION}-tf2-py3
 WORKDIR effdet
 RUN python -m pip install --upgrade pip
 RUN apt update

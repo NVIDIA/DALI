@@ -8,7 +8,6 @@ import os
 import hparams_config
 import utils
 from model import efficientdet_net
-from pipeline.dali import fn_pipeline
 
 
 def run_eval(args):

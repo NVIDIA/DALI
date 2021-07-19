@@ -150,9 +150,9 @@ class EfficientDetNet(tf.keras.Model):
             labels["box_targets_%d" % level] = targets[i + 1]
         labels["mean_num_positives"] = tf.reshape(
             tf.tile(
-                tf.expand_dims(tf.reduce_mean(num_pos), 0), [config.train_batch_size]
+                tf.expand_dims(tf.reduce_mean(num_pos), 0), [config.batch_size]
             ),
-            [config.train_batch_size, 1],
+            [config.batch_size, 1],
         )
 
         return features, labels

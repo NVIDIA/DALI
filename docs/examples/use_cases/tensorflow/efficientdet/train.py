@@ -24,7 +24,7 @@ def run_training(args):
     params = dict(
         config.as_dict(),
         seed=args.seed,
-        train_batch_size=args.train_batch_size,
+        batch_size=args.batch_size,
     )
 
     logging.info(params)
@@ -62,7 +62,7 @@ def run_training(args):
 
     train_dataset = utils.get_dataset(
         args,
-        args.train_batch_size * num_devices,
+        args.batch_size * num_devices,
         True,
         params,
         strategy if num_devices > 1 else None,
@@ -85,7 +85,7 @@ def run_training(args):
     with strategy.scope():
         model = efficientdet_net.EfficientDetNet(params=params)
 
-        global_batch_size = args.train_batch_size * strategy.num_replicas_in_sync
+        global_batch_size = args.batch_size * strategy.num_replicas_in_sync
         model.compile(
             optimizer=optimizers.get_optimizer(
                 params, args.epochs, global_batch_size, args.train_steps
@@ -179,7 +179,7 @@ if __name__ == "__main__":
         required=False,
         help="glob pattern for TFrecord files with training data",
     )
-    parser.add_argument("--train_batch_size", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument(
         "--train_steps", type=int, default=2000, help="number of steps in each epoch"
     )

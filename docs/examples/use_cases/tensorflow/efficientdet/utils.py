@@ -29,7 +29,7 @@ from tensorflow.python.tpu import (
 
 
 class PipelineType(Enum):
-    syntetic = 0
+    synthetic = 0
     tensorflow = 1
     dali_cpu = 2
     dali_gpu = 3
@@ -40,9 +40,9 @@ class InputType(Enum):
     coco = 1
 
 
-def dict_to_namedtuple(字典):
-    NamedTuple = namedtuple("NamedTuple", 字典.keys())
-    return NamedTuple._make(字典.values())
+def dict_to_namedtuple(dict_instance):
+    NamedTuple = namedtuple("NamedTuple", dict_instance.keys())
+    return NamedTuple._make(dict_instance.values())
 
 
 def get_dataset(
@@ -54,7 +54,7 @@ def get_dataset(
         strategy = None
         pipeline = PipelineType.dali_cpu
 
-    if pipeline in [PipelineType.tensorflow, PipelineType.syntetic]:
+    if pipeline in [PipelineType.tensorflow, PipelineType.synthetic]:
         from pipeline.tf.dataloader import InputReader
 
         if is_training:
@@ -66,10 +66,10 @@ def get_dataset(
             params,
             file_pattern,
             is_training=is_training,
-            use_fake_data=(pipeline == PipelineType.syntetic),
+            use_fake_data=(pipeline == PipelineType.synthetic),
         ).get_dataset(total_batch_size)
     elif strategy:
-        from pipeline.dali.fn_pipeline import EfficientDetPipeline
+        from pipeline.dali.efficientdet_pipeline import EfficientDetPipeline
 
         if pipeline == PipelineType.dali_cpu:
             raise ValueError(
@@ -100,7 +100,7 @@ def get_dataset(
         )
 
     else:
-        from pipeline.dali.fn_pipeline import EfficientDetPipeline
+        from pipeline.dali.efficientdet_pipeline import EfficientDetPipeline
 
         cpu_only = pipeline == PipelineType.dali_cpu
         device = "/cpu:0" if cpu_only else "/gpu:0"
