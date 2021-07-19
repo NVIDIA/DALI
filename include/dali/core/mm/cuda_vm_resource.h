@@ -90,7 +90,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
   void synchronize(span<const dealloc_params> params) {
     assert(device_ordinal_ >= 0 && "synchronize called before the resource initialization");
     for (auto &p : params) {
-      if (p.sync_device >= 0 && p.sync_device < device_ordinal_)
+      if (p.sync_device >= 0 && p.sync_device != device_ordinal_)
         throw std::invalid_argument(
           "Cannot synchronize with a different device than used by this resource");
     }
@@ -715,6 +715,10 @@ class cuda_vm_resource : public deferred_dealloc_resource<cuda_vm_resource_base>
 };
 
 namespace detail {
+
+template <>
+struct can_merge<cuda_vm_resource_base> : std::true_type {};
+
 template <>
 struct can_merge<cuda_vm_resource> : std::true_type {};
 
