@@ -28,7 +28,7 @@ namespace test {
 class VMResourceTest : public ::testing::Test {
  public:
   void TestAlloc() {
-    cuda_vm_resource res;
+    cuda_vm_resource_base res;
     res.block_size_ = 32 << 20;  // fix the block size at 32 MiB for this test
     const size_t size1 = 100 << 20;  // used for first three allocations
     const size_t size4 = 150 << 20;  // used for the fourth allocation
@@ -187,6 +187,8 @@ class VMResourceTest : public ::testing::Test {
     void *p1 = res.allocate(block_size);  // allocate one block
     void *p2 = res.allocate(block_size);  // allocate another block
     res.deallocate(p2, block_size);       // now free the second block
+    res.flush_deferred();
+    res.flush_deferred();
     auto &region = res.va_regions_[0];
     EXPECT_EQ(region.available_blocks, 1);
     EXPECT_EQ(region.mapped.find(false), 2);    // 2 mapped blocks
@@ -204,7 +206,9 @@ class VMResourceTest : public ::testing::Test {
       }
     }
     res.deallocate(p1, block_size);
-    res.deallocate(p2, 2 * block_size);
+    res.deallocate(p3, 2 * block_size);
+    res.flush_deferred();
+    res.flush_deferred();
     EXPECT_EQ(region.available_blocks, 3);
   }
 
@@ -315,6 +319,9 @@ TEST_F(VMResourceTest, RandomAllocations) {
     dealloc_time += t1 - t0;
   }
   allocs.clear();
+
+  pool.flush_deferred();
+  pool.flush_deferred();
 
   auto stat = pool.get_stat();
   print(std::cerr,

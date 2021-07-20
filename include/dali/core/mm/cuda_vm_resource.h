@@ -28,6 +28,7 @@
 #include "dali/core/bitmask.h"
 #include "dali/core/spinlock.h"
 #include "dali/core/device_guard.h"
+#include "dali/core/mm/detail/deferred_dealloc.h"
 
 namespace dali {
 namespace mm {
@@ -36,11 +37,11 @@ namespace test {
 class VMResourceTest;
 }  // namespace test
 
-class cuda_vm_resource : public memory_resource<memory_kind::device> {
+class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
  public:
-  explicit cuda_vm_resource(int device_ordinal = -1,
-                            size_t block_size = 0,
-                            size_t initial_va_size = size_t(4) << 30) {
+  explicit cuda_vm_resource_base(int device_ordinal = -1,
+                                 size_t block_size = 0,
+                                 size_t initial_va_size = size_t(4) << 30) {
     device_ordinal_ = device_ordinal;
     if (block_size != 0 && !is_pow2(block_size))
       throw std::invalid_argument("block_size must be a power of 2");
@@ -51,7 +52,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   }
   using mem_handle_t = CUmemGenericAllocationHandle;
 
-  ~cuda_vm_resource() {
+  ~cuda_vm_resource_base() {
     purge();
   }
 
@@ -69,7 +70,32 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   }
 
   void deallocate_no_sync(void *ptr, size_t size, size_t alignment) {
-    deallocate_impl(ptr, size, alignment, false);
+    deallocate_impl(ptr, size, alignment, false, true);
+  }
+
+  /**
+   * @brief Deallocates multiple blocks of memory, but synchronizes only once
+   *
+   * @remarks This function must not use do_deallocate virtual function.
+   */
+  void bulk_deallocate(span<const dealloc_params> params) {
+    if (!params.empty()) {
+      synchronize(params);
+      lock_guard guard(pool_lock_);
+      for (const auto &p : params)
+        deallocate_impl(p.ptr, p.bytes, p.alignment, false, false);
+    }
+  }
+
+  void synchronize(span<const dealloc_params> params) {
+    assert(device_ordinal_ >= 0 && "synchronize called before the resource initialization");
+    for (auto &p : params) {
+      if (p.sync_device >= 0 && p.sync_device != device_ordinal_)
+        throw std::invalid_argument(
+          "Cannot synchronize with a different device than used by this resource");
+    }
+    DeviceGuard dg(device_ordinal_);
+    CUDA_CALL(cudaDeviceSynchronize());
   }
 
   struct Stat {
@@ -102,6 +128,50 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   void clear_stat() {
     lock_guard pool_guard(pool_lock_);
     stat_ = {};
+  }
+
+ protected:
+  bool defer_dealloc_ = false;
+  constexpr bool deferred_dealloc_enabled() const noexcept { return defer_dealloc_; }
+  static constexpr int deferred_dealloc_max_outstanding() { return 16; }
+
+  virtual void flush_deferred() {}
+
+  void do_deallocate(void *ptr, size_t size, size_t alignment) override {
+    deallocate_impl(ptr, size, alignment, true, true);
+  }
+
+  void *do_allocate(size_t size, size_t alignment) override {
+    if (size == 0)
+      return nullptr;
+    adjust_params(size, alignment);
+    std::unique_lock<pool_lock_t> pool_guard(pool_lock_);
+    // try to get a free region that's already mapped
+    void *ptr = try_get_mapped(size, alignment);
+    if (ptr) {
+      stat_add_allocation(size);
+      return ptr;
+    }
+    if (deferred_dealloc_enabled()) {
+      pool_guard.unlock();
+      flush_deferred();
+      pool_guard.lock();
+      ptr = try_get_mapped(size, alignment);
+      if (ptr) {
+        stat_add_allocation(size);
+        return ptr;
+      }
+    }
+    DeviceGuard dg(device_ordinal_);
+    mem_lock_guard mem_guard(mem_lock_);
+    void *va = get_va(size, alignment);
+    map_storage(va, size);
+    ptr = free_mapped_.get_specific_block(va, size);
+    assert(ptr == va);
+    stat_take_free(size);
+    mark_as_unavailable(ptr, size);
+    stat_add_allocation(size);
+    return ptr;
   }
 
  private:
@@ -185,7 +255,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       available_blocks++;
     }
 
-    cuvm::CUMem unmap_block(ptrdiff_t block_idx) {
+    cuvm::CUMem unmap_block(int block_idx) {
       assert(available[block_idx]);
       cuvm::Unmap(block_dptr(block_idx), block_size);
       cuvm::CUMem mem({mapping[block_idx], block_size });
@@ -255,6 +325,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
         available_blocks += flipped;
       else
         available_blocks -= flipped;
+      assert(available_blocks >= 0 && available_blocks <= num_blocks());
       available.fill(start_blk, end_blk, availability);
     }
 
@@ -278,32 +349,13 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     size = align_up(size, alignment);
   }
 
-  void *do_allocate(size_t size, size_t alignment) override {
-    if (size == 0)
-      return nullptr;
-    adjust_params(size, alignment);
-    lock_guard pool_guard(pool_lock_);
-    // try to get a free region that's already mapped
-    void *ptr = try_get_mapped(size, alignment);
-    if (ptr) {
-      stat_add_allocation(size);
-      return ptr;
-    }
-    DeviceGuard dg(device_ordinal_);
-    mem_lock_guard mem_guard(mem_lock_);
-    ptr = get_va(size, alignment);
-    map_storage(ptr, size);
-    ptr = try_get_mapped(size, alignment);
-    assert(ptr != nullptr);
-    stat_add_allocation(size);
-    return ptr;
-  }
-
   void *try_get_mapped(size_t size, size_t alignment) {
     char *ptr = static_cast<char*>(free_mapped_.get(size, alignment));
     if (ptr) {
       stat_take_free(size);
-      free_va_.get_specific_block(ptr, ptr + size);
+      auto *va = free_va_.get_specific_block(ptr, size);
+      (void)va;
+      assert(va == ptr);
       mark_as_unavailable(ptr, size);
       return ptr;
     } else {
@@ -417,19 +469,17 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     free_va_.put(reinterpret_cast<void*>(va.ptr()), va.size());
   }
 
-  void do_deallocate(void *ptr, size_t size, size_t alignment) override {
-    deallocate_impl(ptr, size, alignment, true);
-  }
-
-  void deallocate_impl(void *ptr, size_t size, size_t alignment, bool sync) {
+  void deallocate_impl(void *ptr, size_t size, size_t alignment, bool sync, bool lock) {
     if (size == 0)
       return;
     adjust_params(size, alignment);
-    DeviceGuard dg(device_ordinal_);
     if (sync) {
+      DeviceGuard dg(device_ordinal_);
       CUDA_CALL(cudaDeviceSynchronize());
     }
-    lock_guard pool_guard(pool_lock_);
+    std::unique_lock<pool_lock_t> pool_guard(pool_lock_, std::defer_lock);
+    if (lock)
+      pool_guard.lock();
     stat_add_deallocation(size);
     free_mapped_.put(ptr, size);
     free_va_.put(ptr, size);
@@ -460,6 +510,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
    */
   void mark_as_available(void *ptr, size_t size) {
     char *cptr = static_cast<char *>(ptr);
+    assert(free_mapped_.contains(cptr, cptr + size));
 
     char *start = nullptr, *end = nullptr;
     if (!is_block_aligned(cptr)) {
@@ -522,6 +573,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     };
     SmallVector<block_range, 8> to_map;
     int blocks_to_map = 0;
+
     for (int block_idx = start_block_idx; block_idx < end_block_idx; ) {
       int next_unmapped = region->mapped.find(false, block_idx);
       if (next_unmapped >= end_block_idx)
@@ -552,6 +604,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       stat_add_free(range_size);
     }
     mark_as_available(ptr, size);
+    assert(free_mapped_.contains(ptr, static_cast<char*>(ptr) + size));
     assert(i == blocks_to_map);
   }
 
@@ -575,7 +628,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
           out.push_back(r.unmap_block(block_idx));
           stat_.total_unmaps++;
           char *ptr = r.block_ptr<char>(block_idx);
-          free_mapped_.get_specific_block(ptr, ptr + block_size_);
+          free_mapped_.get_specific_block(ptr, block_size_);
           stat_take_free(block_size_);
           count--;
         }
@@ -605,7 +658,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   friend class test::VMResourceTest;
 
   coalescing_free_tree free_mapped_, free_va_;
-  using pool_lock_t = spinlock;
+  using pool_lock_t = std::mutex;
   using mem_lock_t = std::mutex;
   mutable pool_lock_t pool_lock_;
   mutable mem_lock_t mem_lock_;
@@ -649,7 +702,23 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   }
 };
 
+class cuda_vm_resource : public deferred_dealloc_resource<cuda_vm_resource_base> {
+ public:
+  using base = deferred_dealloc_resource<cuda_vm_resource_base>;
+
+  explicit cuda_vm_resource(int device_ordinal = -1,
+                            size_t block_size = 0,
+                            size_t initial_va_size = size_t(4) << 30)
+  : base(device_ordinal, block_size, initial_va_size) {
+    defer_dealloc_ = true;
+  }
+};
+
 namespace detail {
+
+template <>
+struct can_merge<cuda_vm_resource_base> : std::true_type {};
+
 template <>
 struct can_merge<cuda_vm_resource> : std::true_type {};
 
