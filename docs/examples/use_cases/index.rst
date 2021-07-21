@@ -12,3 +12,4 @@ Use Cases
    paddle/index
    mxnet/mxnet-resnet50.ipynb
    detection_pipeline.ipynb
+   webdataset-externalsource.ipynb
