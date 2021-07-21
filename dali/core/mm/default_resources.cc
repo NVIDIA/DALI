@@ -128,12 +128,30 @@ CallAtExit<Callable> AtExit(Callable &&c) {
   return CallAtExit<Callable>(std::forward<Callable>(c));
 }
 
-bool UseMemoryPool() {
+bool UseDeviceMemoryPool() {
   static bool value = []() {
-    const char *use_memory_pool_env = std::getenv("DALI_USE_MEM_POOL");
+    const char *env = std::getenv("DALI_USE_DEVICE_MEM_POOL");
     // TODO(michalz): In the end, this should default to true:
-    // return !use_memory_pool_env || atoi(use_memory_pool_env)
-    return use_memory_pool_env && atoi(use_memory_pool_env);
+    // return !env || atoi(env)
+    return env && atoi(env);
+  }();
+  return value;
+}
+
+bool UsePinnedMemoryPool() {
+  static bool value = []() {
+    const char *env = std::getenv("DALI_USE_PINNED_MEM_POOL");
+    // TODO(michalz): In the end, this should default to true:
+    // return !env || atoi(env)
+    return env && atoi(env);
+  }();
+  return value;
+}
+
+bool UseVMM() {
+  static bool value = []() {
+    const char *env = std::getenv("DALI_USE_VMM");
+    return !env || atoi(env);
   }();
   return value;
 }
@@ -144,12 +162,12 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   auto upstream = std::make_shared<rmm::mr::cuda_memory_resource>();
   return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(std::move(upstream));
 #else
-  if (!UseMemoryPool()) {
+  if (!UseDeviceMemoryPool()) {
     static auto rsrc = std::make_shared<rmm::mr::cuda_memory_resource>();
     return rsrc;
   }
 #if DALI_USE_CUDA_VM_MAP
-  if (cuvm::IsSupported()) {
+  if (cuvm::IsSupported() && UseVMM()) {
     using resource_type = mm::async_pool_resource<mm::memory_kind::device, cuda_vm_resource,
                                                   std::mutex, void>;
     return std::make_shared<resource_type>();
@@ -182,7 +200,7 @@ class simple_pinned_resource : public mm::async_memory_resource<memory_kind::pin
 };
 
 inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
-  if (!UseMemoryPool()) {
+  if (!UsePinnedMemoryPool()) {
     static auto upstream = std::make_shared<simple_pinned_resource>();
     return upstream;
   }
