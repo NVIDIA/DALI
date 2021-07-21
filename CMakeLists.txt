@@ -71,6 +71,8 @@ cmake_dependent_option(BUILD_LIBTIFF "Build with libtiff support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_LIBSND "Build with suport for libsnd library" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_LIBTAR "Build with suport for libtar library" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
 option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
 
 # NVIDIA libraries
@@ -184,6 +186,7 @@ propagate_option(BUILD_LMDB)
 propagate_option(BUILD_JPEG_TURBO)
 propagate_option(BUILD_LIBTIFF)
 propagate_option(BUILD_LIBSND)
+propagate_option(BUILD_LIBTAR)
 propagate_option(BUILD_FFTS)
 propagate_option(BUILD_NVJPEG)
 propagate_option(BUILD_NVJPEG2K)

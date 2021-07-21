@@ -160,6 +160,56 @@ include_directories(${PROJECT_SOURCE_DIR}/third_party/boost/preprocessor/include
 include_directories(${PROJECT_SOURCE_DIR}/third_party/rapidjson/include)
 
 ##################################################################
+# libtar
+##################################################################
+if(BUILD_LIBTAR)
+  include_directories(SYSTEM third_party/libtar/lib)
+  set(LIBTAR_CONFIGURE_BYPRODUCTS
+    "INSTALL"
+    "Makefile"
+    "Makefile.in"
+    "aclocal.m4"
+    "autoconf/compile"
+    "autom4te.cache/"
+    "config.h"
+    "config.h.in"
+    "config.log"
+    "config.status"
+    "configure"
+    "doc/Makefile"
+    "gitignr"
+    "libtar/Makefile"
+    "libtool"
+    "stamp-h1"
+  )
+  add_custom_command(
+    OUTPUT lib/Makefile
+    COMMAND autoreconf --force --install > configure.log
+    COMMAND ./configure >> configure.log
+    WORKING_DIRECTORY ${DALI_SOURCE_DIR}/third_party/libtar
+    COMMENT "Configuring libtar"
+    BYPRODUCTS ${LIBTAR_CONFIGURE_BYPRODUCTS}
+  )
+  add_custom_command(
+    OUTPUT libtar.a
+    COMMAND "$(MAKE)" > build.log
+    COMMAND cp .libs/libtar.a .
+    COMMAND "$(MAKE)" clean >> build.log
+    DEPENDS Makefile
+    WORKING_DIRECTORY ${DALI_SOURCE_DIR}/third_party/libtar/lib
+    COMMENT "Building libtar"
+  )
+  add_custom_target(libtar_build DEPENDS ${DALI_SOURCE_DIR}/third_party/libtar/lib/libtar.a)
+  add_library(libtar STATIC IMPORTED)
+  add_dependencies(libtar libtar_build)
+  set_target_properties(
+    libtar PROPERTIES
+    LINKER_LANGUAGE C
+    IMPORTED_LOCATION ${DALI_SOURCE_DIR}/third_party/libtar/lib/libtar.a
+  )
+endif()
+
+##################################################################
 # FFTS
 ##################################################################
 if (BUILD_FFTS)

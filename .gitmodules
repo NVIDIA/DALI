@@ -38,3 +38,6 @@
 [submodule "third_party/thrust"]
 	path = third_party/thrust
 	url = https://github.com/NVIDIA/thrust
+[submodule "third_party/libtar"]
+	path = third_party/libtar
+	url = https://repo.or.cz/libtar.git

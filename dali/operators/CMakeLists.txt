@@ -61,9 +61,11 @@ target_link_libraries(dali_operators PRIVATE dynlink_cuda ${DALI_LIBS})
 if (BUILD_NVML)
   target_link_libraries(dali_operators PRIVATE $<TARGET_OBJECTS:dynlink_nvml>)
 endif(BUILD_NVML)
-
 if (BUILD_CUFILE)
   target_link_libraries(dali_operators PRIVATE dynlink_cufile)
+endif()
+if (BUILD_LIBTAR)
+  target_link_libraries(dali_operators PRIVATE libtar)
 endif()
 # Exclude (most) statically linked dali dependencies from the exports of libdali_operators.so
 target_link_libraries(dali_operators PRIVATE "-Wl,--exclude-libs,${exclude_libs}")

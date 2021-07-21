@@ -83,6 +83,7 @@ if (BUILD_CUFILE)
   target_link_libraries(dali PRIVATE dynlink_cufile)
 endif()
 
+################################################
 # Build test suite
 ################################################
 if (BUILD_DALI_PIPELINE AND BUILD_TEST)
@@ -97,6 +98,9 @@ if (BUILD_DALI_PIPELINE AND BUILD_TEST)
   endif(BUILD_NVML)
   if (BUILD_CUFILE)
     target_link_libraries(dali_test PRIVATE dynlink_cufile)
+  endif()
+  if (BUILD_LIBTAR)
+    target_link_libraries(dali_test PRIVATE libtar)
   endif()
   target_link_libraries(dali_test PRIVATE "-pie")
   set_target_properties(dali_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
