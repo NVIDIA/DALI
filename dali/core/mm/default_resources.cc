@@ -156,6 +156,14 @@ bool UseVMM() {
   return value;
 }
 
+bool UseDeferredDealloc() {
+  static bool value = []() {
+    const char *env = std::getenv("DALI_USE_DEFERRED_DEALLOC");
+    return !env || atoi(env);
+  }();
+  return value;
+}
+
 inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   static CUDARTLoader CUDAInit;
 #ifdef DALI_USE_RMM_DEVICE_RESOURCE
@@ -168,16 +176,29 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   }
 #if DALI_USE_CUDA_VM_MAP
   if (cuvm::IsSupported() && UseVMM()) {
-    using resource_type = mm::async_pool_resource<mm::memory_kind::device, cuda_vm_resource,
-                                                  std::mutex, void>;
-    return std::make_shared<resource_type>();
+    if (UseDeferredDealloc()) {
+      using resource_type = mm::async_pool_resource<mm::memory_kind::device, cuda_vm_resource,
+                                                    std::mutex, void>;
+      return std::make_shared<resource_type>();
+    } else {
+      using resource_type = mm::async_pool_resource<mm::memory_kind::device, cuda_vm_resource_base,
+                                                    std::mutex, void>;
+      return std::make_shared<resource_type>();
+    }
   }
 #endif
   {
-    using resource_type = mm::async_pool_resource<mm::memory_kind::device>;
     static auto upstream = std::make_shared<mm::cuda_malloc_memory_resource>();
-    auto rsrc = std::make_shared<resource_type>(upstream.get());
-    return make_shared_composite_resource(std::move(rsrc), upstream);
+    if (UseDeferredDealloc()) {
+      using resource_type = mm::async_pool_resource<mm::memory_kind::device>;
+      auto rsrc = std::make_shared<resource_type>(upstream.get());
+      return make_shared_composite_resource(std::move(rsrc), upstream);
+    } else {
+      using resource_type = mm::async_pool_resource<mm::memory_kind::device,
+              pool_resource_base<memory_kind::device, any_context, coalescing_free_tree, spinlock>>;
+      auto rsrc = std::make_shared<resource_type>(upstream.get());
+      return make_shared_composite_resource(std::move(rsrc), upstream);
+    }
   }
 #endif
 }
@@ -204,10 +225,17 @@ inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
     static auto upstream = std::make_shared<simple_pinned_resource>();
     return upstream;
   }
-  using resource_type = mm::async_pool_resource<mm::memory_kind::pinned>;
   static auto upstream = std::make_shared<rmm::mr::pinned_memory_resource>();
-  auto rsrc = std::make_shared<resource_type>(upstream.get());
-  return make_shared_composite_resource(std::move(rsrc), upstream);
+  if (UseDeferredDealloc()) {
+    using resource_type = mm::async_pool_resource<mm::memory_kind::pinned>;
+    auto rsrc = std::make_shared<resource_type>(upstream.get());
+    return make_shared_composite_resource(std::move(rsrc), upstream);
+  } else {
+    using resource_type = mm::async_pool_resource<mm::memory_kind::pinned,
+        pool_resource_base<memory_kind::pinned, any_context, coalescing_free_tree, spinlock>>;
+    auto rsrc = std::make_shared<resource_type>(upstream.get());
+    return make_shared_composite_resource(std::move(rsrc), upstream);
+  }
 }
 
 template <memory_kind kind>
