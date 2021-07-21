@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,18 +19,20 @@
 #include <string>
 #include <vector>
 
-#include "dali/operators/reader/reader_op.h"
-#include "dali/operators/reader/loader/numpy_loader_gpu.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/transpose/transpose_gpu.h"
+#include "dali/operators/reader/loader/numpy_loader_gpu.h"
+#include "dali/operators/reader/numpy_reader_op.h"
+#include "dali/operators/reader/reader_op.h"
 
 namespace dali {
 
-class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
+class NumpyReaderGPU : public NumpyReader<GPUBackend, NumpyFileWrapperGPU> {
  public:
-  explicit NumpyReaderGPU(const OpSpec& spec) :
-    DataReader<GPUBackend, ImageFileWrapperGPU>(spec),
-    thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false) {
+  explicit NumpyReaderGPU(const OpSpec& spec)
+      : NumpyReader<GPUBackend, NumpyFileWrapperGPU>(spec),
+        thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false),
+        sg_(1 << 18, spec.GetArgument<int>("max_batch_size")) {
     prefetched_batch_tensors_.resize(prefetch_queue_depth_);
 
     // set a device guard
@@ -38,10 +40,9 @@ class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
 
     // init loader
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-    loader_ = InitLoader<NumpyLoaderGPU>(spec, std::vector<string>(),
-                                         shuffle_after_epoch);
+    loader_ = InitLoader<NumpyLoaderGPU>(spec, std::vector<string>(), shuffle_after_epoch);
 
-    kmgr_.Resize<TransposeKernel>(1, 1);
+    kmgr_transpose_.Resize<TransposeKernel>(1, 1);
   }
 
   ~NumpyReaderGPU() override {
@@ -50,7 +51,7 @@ class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
      * destroy the thread pool make sure no one is using it anymore.
      */
 
-    DataReader<GPUBackend, ImageFileWrapperGPU>::StopPrefetchThread();
+    DataReader<GPUBackend, NumpyFileWrapperGPU>::StopPrefetchThread();
   }
 
   // override prefetching here
@@ -63,29 +64,26 @@ class NumpyReaderGPU : public DataReader<GPUBackend, ImageFileWrapperGPU> {
 
   vector<TensorList<GPUBackend>> prefetched_batch_tensors_;
 
-  // helpers for sample types and shapes
-  TensorShape<> GetSampleShape(int sample_idx) {
-    const auto& imfile = GetSample(sample_idx);
-    return imfile.shape;
+  template <typename T, int Dims>
+  TensorListView<StorageGPU, const T, Dims> GetCurrBatchView() {
+    return view<const T, Dims>(prefetched_batch_tensors_[curr_batch_consumer_]);
   }
 
-  TypeInfo GetSampleType(int sample_idx) {
-    const auto& imfile = GetSample(sample_idx);
-    return imfile.type_info;
-  }
-
-  const void* GetSampleRawData(int sample_idx) {
-    return prefetched_batch_tensors_[curr_batch_consumer_].raw_mutable_tensor(sample_idx);
-  }
-
-  bool CanInferOutputs() const override { return false; }
-
+  template <typename T, int Dims>
+  void RunImplTyped(DeviceWorkspace &ws);
   void RunImpl(DeviceWorkspace &ws) override;
+  using Operator<GPUBackend>::RunImpl;
 
-  USE_READER_OPERATOR_MEMBERS(GPUBackend, ImageFileWrapperGPU);
 
+  USE_READER_OPERATOR_MEMBERS(GPUBackend, NumpyFileWrapperGPU);
+
+ private:
   using TransposeKernel = kernels::TransposeGPU;
-  kernels::KernelManager kmgr_;
+  kernels::ScatterGatherGPU sg_;
+  kernels::KernelManager kmgr_transpose_;
+  kernels::KernelManager kmgr_slice_;
+  TensorListShape<> tmp_buf_sh_;
+  TensorList<GPUBackend> tmp_buf_;
 };
 
 }  // namespace dali

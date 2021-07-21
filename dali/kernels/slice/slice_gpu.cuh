@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,20 +16,36 @@
 #define DALI_KERNELS_SLICE_SLICE_GPU_H_
 
 #include <cuda_runtime.h>
-#include <vector>
 #include <utility>
-#include "dali/kernels/slice/slice_kernel_utils.h"
-#include "dali/kernels/kernel.h"
+#include <vector>
 #include "dali/core/common.h"
-#include "dali/core/fast_div.h"
 #include "dali/core/convert.h"
+#include "dali/core/cuda_error.h"
 #include "dali/core/dev_array.h"
 #include "dali/core/error_handling.h"
-#include "dali/core/cuda_error.h"
+#include "dali/core/fast_div.h"
+#include "dali/core/static_switch.h"
 #include "dali/kernels/common/copy.h"
+#include "dali/kernels/common/type_erasure.h"
+#include "dali/kernels/kernel.h"
+#include "dali/kernels/slice/slice_kernel_utils.h"
+
+__device__ DALI_FORCEINLINE bool __ldg(const bool* ptr) {
+  return __ldg(reinterpret_cast<const dali::kernels::type_of_size<sizeof(bool)> *>(ptr));
+}
 
 namespace dali {
 namespace kernels {
+
+namespace {
+
+DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_extent) {
+  // check idx < 0 and idx >= data_extent at once
+  return static_cast<uint64_t>(idx) >= static_cast<uint64_t>(data_extent);
+}
+
+}  // namespace
+
 
 namespace detail {
 
@@ -50,7 +66,7 @@ struct SliceSampleDesc {
   TensorShape<Dims> in_strides;
 };
 
-struct BlockDesc {
+struct SliceBlockDesc {
   int sampleIdx;
   uint64_t offset;
   uint64_t size;
@@ -85,12 +101,6 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
     out[out_idx] = clamp<OutputType>(in[in_idx]);
   }
 }
-
-DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_extent) {
-  // check idx < 0 and idx >= data_extent at once
-  return static_cast<uint64_t>(idx) >= static_cast<uint64_t>(data_extent);
-}
-
 
 /**
  * @brief General algorithm that allows for padding in any dimension
@@ -156,7 +166,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
 }
 
 template <typename OutputType, typename InputType, int Dims, bool SupportPad>
-__global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDesc *blocks) {
+__global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const SliceBlockDesc *blocks) {
   int sampleIdx = blocks[blockIdx.x].sampleIdx;
   uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x;
   uint64_t block_end = blocks[blockIdx.x].offset + blocks[blockIdx.x].size;
@@ -237,8 +247,8 @@ class SliceGPU {
         sample_size / static_cast<float>(kBlockSize));
     }
 
-    se.add<detail::BlockDesc>(AllocType::Host, block_count_);
-    se.add<detail::BlockDesc>(AllocType::GPU, block_count_);
+    se.add<detail::SliceBlockDesc>(AllocType::Host, block_count_);
+    se.add<detail::SliceBlockDesc>(AllocType::GPU, block_count_);
     req.scratch_sizes = se.sizes;
 
     req.output_shapes = { GetOutputShapes<Dims>(in.shape, slice_args) };
@@ -249,8 +259,10 @@ class SliceGPU {
            OutListGPU<OutputType, Dims> &out,
            const InListGPU<InputType, Dims> &in,
            const std::vector<SliceArgs<OutputType, Dims>> &slice_args) {
+    if (block_count_ == 0) {
+      return;  // No data to copy
+    }
     const auto num_samples = in.size();
-
     OutputType *fill_values_cpu =
         context.scratchpad->Allocate<OutputType>(AllocType::Host, num_samples * nfill_values_);
     for (int i = 0; i < in.size(); i++) {
@@ -270,8 +282,8 @@ class SliceGPU {
     // Host memory
     detail::SliceSampleDesc<Dims> *sample_descs_cpu =
         context.scratchpad->Allocate<detail::SliceSampleDesc<Dims>>(AllocType::Host, num_samples);
-    detail::BlockDesc *block_descs_cpu =
-        context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
+    detail::SliceBlockDesc *block_descs_cpu =
+        context.scratchpad->Allocate<detail::SliceBlockDesc>(AllocType::Host, block_count_);
 
     bool any_padded_sample = false;
     std::vector<int64_t> sample_sizes(in.size());
@@ -315,7 +327,7 @@ class SliceGPU {
     }
 
     detail::SliceSampleDesc<Dims> *sample_descs;
-    detail::BlockDesc *block_descs;
+    detail::SliceBlockDesc *block_descs;
     std::tie(sample_descs, block_descs) =
         context.scratchpad->ToContiguousGPU(context.gpu.stream,
                                             make_cspan(sample_descs_cpu, num_samples),
@@ -323,12 +335,10 @@ class SliceGPU {
     CUDA_CALL(cudaGetLastError());
 
     const auto grid = block_count_;
-    if (any_padded_sample)
-      detail::SliceKernel<DALI_TO_GPU_T(OutputType), DALI_TO_GPU_T(InputType), Dims, true>
+    BOOL_SWITCH(any_padded_sample, NeedPad, (
+      detail::SliceKernel<OutputType, InputType, Dims, NeedPad>
         <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
-    else
-      detail::SliceKernel<DALI_TO_GPU_T(OutputType), DALI_TO_GPU_T(InputType), Dims, false>
-        <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
+    ));  // NOLINT
     CUDA_CALL(cudaGetLastError());
   }
 

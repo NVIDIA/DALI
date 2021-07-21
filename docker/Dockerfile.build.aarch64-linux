@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         add-apt-repository ppa:deadsnakes/ppa -y && \
         apt-get update; \
     fi && \
-    apt-get install -y python3.9 python3.9-dev && \
+    apt-get install -y python3.9 python3.9-dev python3.9-distutils && \
     rm -rf /var/lib/apt/lists/* && \
     curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py && \
     # decouple libclang and clang installation so libclang changes are not overriden by clang
@@ -66,8 +66,8 @@ ENV DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA}
 RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI_DEPS_VERSION)}    && \
     git clone ${DALI_DEPS_REPO} /tmp/dali_deps                                                     && \
     cd /tmp/dali_deps                                                                              && \
-    git submodule init                                                                             && \
     git checkout ${DALI_DEPS_VERSION_SHA}                                                          && \
+    git submodule init                                                                             && \
     git submodule update --depth 1 --recursive                                                     && \
     export CC_COMP=aarch64-linux-gnu-gcc                                                           && \
     export CXX_COMP=aarch64-linux-gnu-g++                                                          && \
@@ -129,7 +129,7 @@ CMD WERROR=ON           \
                         -DCUDA_TARGET=/usr/local/cuda-10.2/targets/aarch64-linux" \
     /dali/docker/build_helper.sh                    && \
     rm -rf /dali/${DALI_BUILD_DIR}/nvidia*          && \
-    cd /dali/dali_tf_plugin		            && \
+    cd /dali/dali_tf_plugin                         && \
     bash /dali/dali_tf_plugin/make_dali_tf_sdist.sh && \
     mv /dali_tf_sdist/*.tar.gz /wheelhouse/         && \
     cp -r /wheelhouse /dali/

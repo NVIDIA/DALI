@@ -88,14 +88,14 @@ struct OneHotOpGpuPerfTest : public ::testing::Test {
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
 
-    cudaEventRecord(start, stream_);
+    CUDA_CALL(cudaEventRecord(start, stream_));
     constexpr int kIters = 100;
     for (int i = 0; i < kIters; i++) {
       detail::PopulateOneHot<Out, In><<<grid, block, 0, stream_>>>(
         on_value, off_value, samples_gpu_);
     }
-    cudaEventRecord(end, stream_);
-    cudaDeviceSynchronize();
+    CUDA_CALL(cudaEventRecord(end, stream_));
+    CUDA_CALL(cudaDeviceSynchronize());
     float time;
     CUDA_CALL(cudaEventElapsedTime(&time, start, end));
 

@@ -34,15 +34,15 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |benchmark| replace:: Google Benchmark
 .. _benchmark: https://github.com/google/benchmark
-.. |benchmarkver| replace:: 1.5.2
-.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.5.2
+.. |benchmarkver| replace:: 1.5.5
+.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.5.5
 .. |benchmarklic| replace:: Apache License 2.0
 .. _benchmarklic: https://github.com/google/benchmark/blob/master/LICENSE
 
 .. |preprocessor| replace:: Boost Preprocessor
 .. _preprocessor: https://github.com/boostorg/preprocessor
-.. |preprocessorver| replace:: 1.75.0
-.. _preprocessorver: https://github.com/boostorg/preprocessor/releases/tag/boost-1.75.0
+.. |preprocessorver| replace:: 1.76.0
+.. _preprocessorver: https://github.com/boostorg/preprocessor/releases/tag/boost-1.76.0
 .. |preprocessorlic| replace:: Boost Software License 1.0
 .. _preprocessorlic: https://github.com/boostorg/boost/blob/master/LICENSE_1_0.txt
 
@@ -55,15 +55,15 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |cutlass| replace:: CUTLASS
 .. _cutlass: https://github.com/NVIDIA/cutlass
-.. |cutlassver| replace:: 2.2.0
-.. _cutlassver: https://github.com/NVIDIA/cutlass/releases/tag/v2.2.0
+.. |cutlassver| replace:: 2.5.0
+.. _cutlassver: https://github.com/NVIDIA/cutlass/releases/tag/v2.5.0
 .. |cutlasslic| replace:: BSD 3-Clause License
 .. _cutlasslic: https://github.com/NVIDIA/cutlass/blob/master/LICENSE.txt
 
 .. |dlpack| replace:: DLPack
 .. _dlpack: https://github.com/dmlc/dlpack
-.. |dlpackver| replace:: 0.4
-.. _dlpackver: https://github.com/dmlc/dlpack/releases/tag/v0.4
+.. |dlpackver| replace:: 0.5
+.. _dlpackver: https://github.com/dmlc/dlpack/releases/tag/v0.5
 .. |dlpacklic| replace:: Apache License 2.0
 .. _dlpacklic: https://github.com/dmlc/dlpack/blob/main/LICENSE
 
@@ -76,15 +76,15 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |fmt| replace:: {fmt}
 .. _fmt: https://github.com/fmtlib/fmt
-.. |fmtver| replace:: 7.1.3
-.. _fmtver: https://github.com/fmtlib/fmt/releases/tag/7.1.3
+.. |fmtver| replace:: 8.0.0
+.. _fmtver: https://github.com/fmtlib/fmt/releases/tag/8.0.0
 .. |fmtlic| replace:: MIT License
 .. _fmtlic: https://github.com/fmtlib/fmt/blob/master/LICENSE.rst
 
 .. |googletest| replace:: GoogleTest
 .. _googletest: https://github.com/google/googletest
-.. |googletestver| replace:: 1.10.0
-.. _googletestver: https://github.com/google/googletest/releases/tag/release-1.10.0
+.. |googletestver| replace:: 1.11.0
+.. _googletestver: https://github.com/google/googletest/releases/tag/release-1.11.0
 .. |googletestlic| replace:: BSD 3-Clause License
 .. _googletestlic: https://github.com/google/googletest/blob/master/LICENSE
 
@@ -97,8 +97,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |rapidjson| replace:: RapidJSON
 .. _rapidjson: https://github.com/Tencent/rapidjson
-.. |rapidjsonver| replace:: Top-of-tree (Mar 2, 2021)
-.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/1c2c8e085a8b2561dff17bedb689d2eb0609b689
+.. |rapidjsonver| replace:: Top-of-tree (Jun 14, 2021)
+.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/b557259f8813bed2d79e83bd2f92eb673579a82c
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt
 
@@ -111,14 +111,14 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |spdlog| replace:: spdlog
 .. _spdlog: https://github.com/gabime/spdlog
-.. |spdlogver| replace:: 1.8.2
-.. _spdlogver: https://github.com/gabime/spdlog/releases/tag/v1.8.2
+.. |spdlogver| replace:: 1.8.5
+.. _spdlogver: https://github.com/gabime/spdlog/releases/tag/v1.8.5
 .. |spdloglic| replace:: MIT License
 .. _spdloglic: https://github.com/gabime/spdlog/blob/v1.x/LICENSE
 
 .. |thrust| replace:: Thrust
 .. _thrust: https://github.com/NVIDIA/thrust
-.. |thrustver| replace:: 1.12.0
-.. _thrustver: https://github.com/NVIDIA/thrust/releases/tag/1.12.0
+.. |thrustver| replace:: 1.12.1
+.. _thrustver: https://github.com/NVIDIA/thrust/releases/tag/1.12.1
 .. |thrustlic| replace:: Apache License 2.0
 .. _thrustlic: https://github.com/NVIDIA/thrust/blob/main/LICENSE

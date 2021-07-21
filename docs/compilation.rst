@@ -38,10 +38,11 @@ Building Python Wheel
 Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If needed,
 set the following environment variables:
 
-* | CUDA_VERSION - CUDA toolkit version (10.0, 11.0, 11.1, 11.2 and 11.3.
-  | The default is ``11.3``. Thanks to CUDA extended compatibility mode, CUDA 11.1, 11.2 and 11.3 wheels are
-    named as CUDA 11.0 because it can work with the CUDA 11.0 R450.x driver family. Please update
-    to the latest recommended driver version in that family.
+* | CUDA_VERSION - CUDA toolkit version (10.2 and 11.4 are offiically supported, 10.0, 11.0, 11.1,
+    11.2 and 11.3 are deprecated and may not work).
+  | The default is ``11.4``. Thanks to CUDA extended compatibility mode, CUDA 11.1, 11.2, 11.3
+    and 11.4 wheels are named as CUDA 11.0 because it can work with the CUDA 11.0 R450.x driver
+    family. Please update to the latest recommended driver version in that family.
   | If the value of the CUDA_VERSION is prefixed with `.` then any value ``.XX.Y`` can be passed,
     the supported version check is suppressed, and the user needs to make sure that
     Dockerfile.cudaXXY.deps is present in the `docker/` directory.
@@ -115,33 +116,24 @@ Bare Metal build
 Prerequisites
 ^^^^^^^^^^^^^
 
-For the recommended dependency versions please check https://github.com/NVIDIA/DALI_deps.
-
 .. |cuda link| replace:: **NVIDIA CUDA 10.0**
 .. _cuda link: https://developer.nvidia.com/cuda-downloads
 .. |nvjpeg link| replace:: **nvJPEG library**
 .. _nvjpeg link: https://developer.nvidia.com/nvjpeg
-.. |protobuf link| replace:: **protobuf**
-.. _protobuf link: https://github.com/NVIDIA/DALI_deps
-.. |cmake link| replace:: **CMake**
-.. _cmake link: https://github.com/NVIDIA/DALI_deps
 .. |jpegturbo link| replace:: **libjpeg-turbo**
 .. _jpegturbo link: https://github.com/NVIDIA/DALI_deps
 .. |libtiff link| replace:: **libtiff**
 .. _libtiff link: https://github.com/NVIDIA/DALI_deps
-.. |ffmpeg link| replace:: **FFmpeg**
-.. _ffmpeg link: https://github.com/NVIDIA/DALI_deps
-.. |libsnd link| replace:: **libsnd**
-.. _libsnd link: https://github.com/NVIDIA/DALI_deps
-.. |opencv link| replace:: **OpenCV**
-.. _opencv link: https://github.com/NVIDIA/DALI_deps
 .. |lmdb link| replace:: **liblmdb**
 .. _lmdb link: https://github.com/NVIDIA/DALI_deps
 .. |gcc link| replace:: **GCC**
 .. _gcc link: https://www.gnu.org/software/gcc/
-.. |boost link| replace:: **Boost**
-.. _boost link: https://github.com/NVIDIA/DALI_deps
-
+.. |dali_deps link| replace:: **DALI_deps**
+.. _dali_deps link: https://github.com/NVIDIA/DALI_deps
+.. |ffmpeg link| replace:: **FFmpeg**
+.. _ffmpeg link: https://github.com/NVIDIA/DALI_deps
+.. |libsnd link| replace:: **libsnd**
+.. _libsnd link: https://github.com/NVIDIA/DALI_deps
 .. |mxnet link| replace:: **MXNet 1.5**
 .. _mxnet link: http://mxnet.incubator.apache.org
 .. |pytorch link| replace:: **PyTorch 1.1**
@@ -153,6 +145,13 @@ For the recommended dependency versions please check https://github.com/NVIDIA/D
 .. |gds link| replace:: **GPU Direct Storage**
 .. _gds link: https://developer.nvidia.com/gpudirect-storage
 
+For the recommended dependency versions, links to the projects and the exact build commands used,
+please check https://github.com/NVIDIA/DALI_deps.
+
+The SHA of the currently used version of DALI_deps can be found in DALI_PROJECT_ROOT/DALI_EXTRA_VERSION.
+
+|nvjpeg link|_, |gds link|_, |jpegturbo link|_ and  |libtiff link|_ have an *unofficial* option to
+disable them.
 
 
 .. table::
@@ -162,36 +161,20 @@ For the recommended dependency versions please check https://github.com/NVIDIA/D
    +========================================+=============================================================================================+
    | Linux x64                              |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |gcc link|_ or later                   |                                                                                             |
+   | |gcc link|_                            |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |clang link|_                          | clang and python-clang bindings are needed for compile time code generation. The easiest    |
    |                                        | way to obtain them is 'pip install clang libclang'                                          |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |boost link|_ or later                 | Modules: *preprocessor*.                                                                    |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |cuda link|_                           |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |nvjpeg link|_                         | *This can be unofficially disabled. See below.*                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |protobuf link|_                       |  Supported version: 3.11.1                                                                  |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |cmake link|_ or later                 |                                                                                             |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |jpegturbo link|_ or later             | *This can be unofficially disabled. See below.*                                             |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |libtiff link|_ or later               | *This can be unofficially disabled. See below.*                                             |
-   |                                        | Note: libtiff should be built with zlib support                                             |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |ffmpeg link|_ or later                | We recommend using version 4.2.2 compiled following the *instructions below*.               |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |libsnd link|_ or later                | We recommend using version 1.0.28 compiled following the *instructions below*.              |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |opencv link|_ or later                | Supported version: 4.3.0                                                                    |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | (Optional) |lmdb link|_ or later       |                                                                                             |
+   | (Optional) |lmdb link|_                | The currently supported version can be check |dali_deps link|_ repository.                  |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | (Optional) |gds link|_                 | Only libcufile is required for the build process, and the installed header needs to land    |
-   |                                        | in `/usr/local/cuda/include` directory.                                                     |
+   |                                        | in `/usr/local/cuda/include` directory. For CUDA 11.4 it can be installed as a part of CUDA |
+   |                                        | toolkit.                                                                                    |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | One or more of the following Deep Learning frameworks:                                                                               |
    |      * |mxnet link|_ ``mxnet-cu90`` or later                                                                                         |
@@ -255,7 +238,10 @@ For the recommended dependency versions please check https://github.com/NVIDIA/D
     --disable-devices \
     --disable-filters \
     --disable-bsfs \
+    --disable-decoder=ipu \
     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes && \
+    # adds "| sed 's/\(.*{\)/DALI_\1/' |" to the version file generation command - it prepends "DALI_" to the symbol version
+    sed -i 's/\$\$(M)sed '\''s\/MAJOR\/\$(lib$(NAME)_VERSION_MAJOR)\/'\'' \$\$< | \$(VERSION_SCRIPT_POSTPROCESS_CMD) > \$\$\@/\$\$(M)sed '\''s\/MAJOR\/\$(lib$(NAME)_VERSION_MAJOR)\/'\'' \$\$< | sed '\''s\/\\(\.*{\\)\/DALI_\\1\/'\'' | \$(VERSION_SCRIPT_POSTPROCESS_CMD) > \$\$\@/' ffbuild/library.mak \
     make
 
 .. note::

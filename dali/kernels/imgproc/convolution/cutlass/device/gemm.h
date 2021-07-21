@@ -234,9 +234,7 @@ template <
         OperatorClass_, ArchTag_,
         select_A_t<IsInnerConv, ElementIn_, ElementWindow_>,
         select_B_t<IsInnerConv, ElementIn_, ElementWindow_>,
-        ElementOut_, ElementAccumulator_>::Operator,
-    /// Whether Beta is zero or not
-    bool IsBetaZero = false>
+        ElementOut_, ElementAccumulator_>::Operator>
 class Conv {
  public:
   using ElementIn = ElementIn_;
@@ -264,7 +262,6 @@ class Conv {
   static int const kAlignmentB = AlignmentB;
   static int const kAlignmentC = EpilogueOutputOp::kCount;
   static bool const kSplitKSerial = SplitKSerial;
-  static bool const kIsBetaZero = IsBetaZero;
   static ComplexTransform const kTransformA = ComplexTransform::kNone;
   static ComplexTransform const kTransformB = ComplexTransform::kNone;
   static_assert(kSplitKSerial == false, "Only basic options are supported");
@@ -298,7 +295,6 @@ class Conv {
     kStages,
     kSplitKSerial,
     Operator,
-    kIsBetaZero,
     kIsInnerConv
   >::GemmKernel;
 
@@ -469,8 +465,12 @@ class Conv {
     }
 
     size_t params_sizeof = host_params_.size() * sizeof(SampleParams);
-    cudaMemcpyAsync(params_.params, host_params_.data(), params_sizeof, cudaMemcpyHostToDevice,
-                    stream);
+    result = cudaMemcpyAsync(params_.params, host_params_.data(), params_sizeof,
+                             cudaMemcpyHostToDevice, stream);
+
+    if (result != cudaSuccess) {
+      return Status::kErrorInternal;
+    }
 
     cutlass::Kernel<ConvKernel><<<grid, block, smem_size, stream>>>(params_);
 

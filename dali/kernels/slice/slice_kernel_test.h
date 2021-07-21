@@ -64,8 +64,12 @@ class SliceTest : public ::testing::Test {
   void PrepareData(TestTensorList<InputType, Dims>& test_data) {
     std::vector<int> sample_dims(Dims, static_cast<int>(DimSize));
     sample_dims[0] = DimSize0;
-    sample_dims[1] = DimSize1;
-    sample_dims[2] = DimSize2;
+    if (Dims > 1) {
+      sample_dims[1] = DimSize1;
+    }
+    if (Dims > 2) {
+      sample_dims[2] = DimSize2;
+    }
     TensorListShape<Dims> shape = uniform_list_shape<Dims>(NumSamples, sample_dims);
     test_data.reshape(shape);
 

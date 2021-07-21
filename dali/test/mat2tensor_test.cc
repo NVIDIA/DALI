@@ -58,7 +58,7 @@ namespace {
 
 void CopyAsTensorGpuTest(const cv::Mat &mat) {
   auto tvpair = kernels::copy_as_tensor<kernels::AllocType::Unified>(mat);
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
   auto imgptr = mat.data;
   auto tvptr = tvpair.first.data;
   ASSERT_EQ(mat.rows * mat.cols * mat.channels(), volume(tvpair.first.shape))

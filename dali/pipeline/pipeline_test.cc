@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -227,19 +227,28 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
   Pipeline pipe(batch_size, num_thread, 0);
 
   pipe.AddExternalInput("data");
+  pipe.Build({{"data", "cpu"}});
 
   OpGraph &graph = this->GetGraph(&pipe);
 
   // Validate the graph
-  ASSERT_EQ(graph.NumOp(OpType::CPU), 1);
+  ASSERT_EQ(graph.NumOp(OpType::CPU), 2);
   ASSERT_EQ(graph.NumOp(OpType::MIXED), 0);
   ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
 
   // Validate the gpu source op
-  auto& node = graph.Node(0);
-  ASSERT_EQ(node.id, 0);
-  ASSERT_EQ(node.children.size(), 0);
-  ASSERT_EQ(node.parents.size(), 0);
+  auto& node_external_source = graph.Node(0);
+  ASSERT_EQ(node_external_source.id, 0);
+  ASSERT_EQ(node_external_source.children.size(), 1);
+  ASSERT_EQ(node_external_source.parents.size(), 0);
+  ASSERT_EQ(node_external_source.instance_name, "data");
+
+
+  auto& node_make_contiguous = graph.Node(1);
+  ASSERT_EQ(node_make_contiguous.id, 1);
+  ASSERT_EQ(node_make_contiguous.children.size(), 0);
+  ASSERT_EQ(node_make_contiguous.parents.size(), 1);
+  ASSERT_NE(node_make_contiguous.instance_name.find("MakeContiguous"), std::string::npos);
 }
 
 TYPED_TEST(PipelineTest, TestSerialization) {
@@ -253,7 +262,6 @@ TYPED_TEST(PipelineTest, TestSerialization) {
   this->MakeJPEGBatch(&batch, batch_size);
 
   pipe.AddExternalInput("data");
-  pipe.SetExternalInput("data", batch);
 
   pipe.AddOperator(
       OpSpec("ImageDecoder")
@@ -270,7 +278,6 @@ TYPED_TEST(PipelineTest, TestSerialization) {
   auto serialized = pipe.SerializeToProtobuf();
 
   Pipeline loaded_pipe(serialized, batch_size, num_thread, 0);
-  loaded_pipe.SetExternalInput("data", batch);
 
   vector<std::pair<string, string>> outputs = {{"copied", "gpu"}};
 
@@ -390,7 +397,6 @@ TEST_F(PipelineTestOnce, TestPresize) {
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);
   pipe.AddExternalInput("raw_jpegs");
-  pipe.SetExternalInput("raw_jpegs", data);
 
   pipe.AddOperator(
       OpSpec("DummyPresizeOp")
@@ -445,6 +451,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
                                                {"out_6", "gpu"}, {"out_7", "gpu"}};
 
   pipe.Build(outputs);
+  pipe.SetExternalInput("raw_jpegs", data);
   DeviceWorkspace ws;
   pipe.RunCPU();
   pipe.RunGPU();
@@ -490,7 +497,6 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
   this->MakeJPEGBatch(&batch, batch_size);
 
   pipe.AddExternalInput("data");
-  pipe.SetExternalInput("data", batch);
 
   pipe.AddOperator(
       OpSpec("ImageDecoder")
@@ -508,6 +514,8 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
   vector<std::pair<string, string>> outputs = {{"copied", "gpu"}};
 
   pipe.Build(outputs);
+
+  pipe.SetExternalInput("data", batch);
 
   OpGraph &original_graph = this->GetGraph(&pipe);
 

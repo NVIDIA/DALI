@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy>=1.17 pillow torch"
+pip_packages="nose numpy>=1.17 pillow torch numba scipy librosa"
 
 target_dir=./dali/test/python
 

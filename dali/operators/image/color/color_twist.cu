@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,8 +25,6 @@ using TheKernel = kernels::LinearTransformationGpu<Out, In, 3, 3, 2>;
 }  // namespace
 
 DALI_REGISTER_OPERATOR(Hsv, ColorTwistGpu, GPU)
-DALI_REGISTER_OPERATOR(Brightness, ColorTwistGpu, GPU);
-DALI_REGISTER_OPERATOR(Contrast, ColorTwistGpu, GPU);
 DALI_REGISTER_OPERATOR(Hue, ColorTwistGpu, GPU);
 DALI_REGISTER_OPERATOR(Saturation, ColorTwistGpu, GPU);
 DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistGpu, GPU);

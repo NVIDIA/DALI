@@ -1,0 +1,59 @@
+#!/bin/sh
+
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http:#www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Check copyright notice
+files=`git diff --cached --name-only`
+year=`date +%Y`
+
+git rev-parse -q --verify MERGE_HEAD && \
+    echo "Merge commit, skipping hooks" && exit 0
+
+for f in $files; do
+    head -10 $f | grep -i "Copyright (c)" 2>&1 1>/dev/null \
+        || continue  # Copyright not present in this file
+
+    if ! grep -i -e "$year, NVIDIA CORPORATION" $f 2>&1 1>/dev/null; then
+        need_update_year="$need_update_year $f"
+    fi
+
+    if ! grep -i -e ", NVIDIA CORPORATION & AFFILIATES" $f 2>&1 1>/dev/null; then
+        need_add_affiliates="$need_add_affiliates $f"
+    fi
+done
+
+if [ -n "$need_add_affiliates" ]; then
+    echo "'& AFFILIATES' is missing in the copyright notice of the following files:"
+    for f in $need_add_affiliates; do
+        echo "    $f"
+    done
+    echo ""
+    echo "The first line in the copyright notice should be:"
+    echo "Copyright (c) <year_created>(, <year_updated>, ...) NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+    exit 1
+fi
+
+if [ -n "$need_update_year" ]; then
+    echo "$year is missing in the copyright notice of the following files:"
+    for f in $need_update_year; do
+        echo "    $f"
+    done
+    echo ""
+    echo "The copyright notice should contain the current year, as it was updated:"
+    echo "Copyright (c) <year_created>(, <year_updated>, ...) NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+    exit 1
+fi
+
+exit 0

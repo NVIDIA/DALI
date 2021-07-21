@@ -9,7 +9,8 @@ single-node training on multi-GPU systems. They can be used for benchmarking, or
 as a starting point for implementing and training your own network.
 
 Common utilities for defining CNN networks and performing basic training are
-located in the nvutils directory. The utilities are written in Tensorflow 2.0.
+located in the nvutils directory inside :fileref:`docs/examples/use_cases/tensorflow/resnet-n`.
+The utilities are written in Tensorflow 2.0.
 Use of nvutils is demonstrated in the model script (i.e. resnet.py). The scripts
 support both Keras Fit/Compile and Custom Training Loop (CTL) modes with
 Horovod.

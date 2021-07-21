@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,19 +26,26 @@
 namespace dali {
 namespace kernels {
 
+static constexpr int kSliceMinBlockSize = 16 << 10;
+
 template <typename T, int Dims>
 struct SliceArgs {
   TensorShape<Dims> anchor;
   TensorShape<Dims> shape;
-  SmallVector<T, 3> fill_values = {0, };
+  SmallVector<T, 8> fill_values = {0, };
   int channel_dim = -1;
 };
+
+template <typename T, typename Container>
+const T *GetPtr(const Container &c) {
+  return c.empty() ? nullptr : c.data();
+}
 
 template <int Dims, typename Args>
 void CheckValidOutputShape(const TensorShape<Dims>& in_sample_shape,
                            const TensorShape<Dims>& out_sample_shape,
                            const Args& args) {
-  for (size_t d = 0; d < Dims; d++) {
+  for (int d = 0; d < Dims; d++) {
     DALI_ENFORCE(args.shape[d] <= out_sample_shape[d],
       "Output shape dimension " + std::to_string(d) + " is too small");
   }
@@ -97,6 +104,31 @@ inline std::tuple<int64_t, int64_t, int64_t> CalcPadCopyExtents(int64_t anchor,
       0, std::min(in_extent - std::max<int64_t>(0, anchor), out_extent - pad_before));
   int64_t pad_after = out_extent - pad_before - to_copy;
   return std::tuple<int64_t, int64_t, int64_t>{pad_before, to_copy, pad_after};
+}
+
+
+template <typename OutputType, typename InputType, int Dims>
+bool CanRunPlainCopy(const TensorShape<Dims> &out_strides,
+                     const TensorShape<Dims> &in_strides,
+                     const TensorShape<Dims> &out_shape,
+                     const TensorShape<Dims> &in_shape,
+                     const SliceArgs<OutputType, Dims> &args) {
+  // if there's type conversion we can't run memcpy
+  if (!std::is_same<OutputType, InputType>::value)
+    return false;
+
+  auto default_out_strides = GetStrides(out_shape);
+  auto default_in_strides = GetStrides(in_shape);
+
+  // If the strides are not the default ones, or the window anchor and shape
+  // are different than the bounds of the input, we can't run plain memcpy
+  for (int d = 0; d < Dims; d++) {
+    if (args.anchor[d] != 0 || out_shape[d] != in_shape[d] ||
+        default_out_strides[d] != out_strides[d] ||
+        default_in_strides[d] != in_strides[d])
+      return false;
+  }
+  return true;
 }
 
 }  // namespace kernels

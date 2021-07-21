@@ -12,7 +12,7 @@ for built in data loaders and data iterators in popular deep learning frameworks
 
 Deep learning applications require complex, multi-stage data processing pipelines
 that include loading, decoding, cropping, resizing, and many other augmentations.
-These data processing pipelines, which are currently executed on the CPU, have become a 
+These data processing pipelines, which are currently executed on the CPU, have become a
 bottleneck, limiting the performance and scalability of training and inference.
 
 DALI addresses the problem of the CPU bottleneck by offloading data preprocessing to the
@@ -23,11 +23,11 @@ are handled transparently for the user.
 In addition, the deep learning frameworks have multiple data pre-processing implementations,
 resulting in challenges such as portability of training and inference workflows, and code
 maintainability. Data processing pipelines implemented using DALI are portable because they
-can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle. 
+can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle.
 
 .. image:: /dali.png
     :width: 800
-    :align: center 
+    :align: center
     :alt: DALI Diagram
 
 Highlights
@@ -57,6 +57,20 @@ Highlights
 
 ----
 
+DALI Roadmap
+------------
+
+|dali-roadmap-link|_ a high-level overview of our 2021 plan. You should be aware that this
+roadmap may change at any time and the order below does not reflect any type of priority.
+
+We strongly encourage you to comment on our roadmap and provide us feedback on the mentioned
+GitHub issue.
+
+.. |dali-roadmap-link| replace:: The following issue represents
+.. _dali-roadmap-link: https://github.com/NVIDIA/DALI/issues/2978
+
+----
+
 Installing DALI
 ---------------
 
@@ -64,7 +78,7 @@ To install the latest DALI release for the latest CUDA version (11.x)::
 
     pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda110
 
-DALI comes preinstalled in the TensorFlow, PyTorch, and MXNet containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_ 
+DALI comes preinstalled in the TensorFlow, PyTorch, and MXNet containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_
 (versions 18.07 and later).
 
 For other installation paths (TensorFlow plugin, older CUDA version, nightly and weekly builds, etc),
@@ -86,7 +100,7 @@ An introduction to DALI can be found in the |dali_start|_ page.
 
 More advanced examples can be found in the |dali_examples|_ page.
 
-For an interactive version (Jupyter notebook) of the examples, go to the `docs/examples <https://github.com/NVIDIA/DALI/blob/master/docs/examples>`_
+For an interactive version (Jupyter notebook) of the examples, go to the `docs/examples <https://github.com/NVIDIA/DALI/blob/main/docs/examples>`_
 directory.
 
 **Note:** Select the |release-doc|_ or the |nightly-doc|_, which stays in sync with the main branch,
@@ -99,7 +113,7 @@ depending on your version.
 .. |release-doc| replace:: Latest Release Documentation
 .. _release-doc: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html
 .. |nightly-doc| replace:: Nightly Release Documentation
-.. _nightly-doc: https://docs.nvidia.com/deeplearning/dali/master-user-guide/docs/index.html
+.. _nightly-doc: https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/index.html
 
 ----
 
@@ -137,7 +151,7 @@ Contributing to DALI
 --------------------
 
 We welcome contributions to DALI. To contribute to DALI and make pull requests,
-follow the guidelines outlined in the `Contributing <https://github.com/NVIDIA/DALI/blob/master/CONTRIBUTING.md>`_
+follow the guidelines outlined in the `Contributing <https://github.com/NVIDIA/DALI/blob/main/CONTRIBUTING.md>`_
 document.
 
 If you are looking for a task good for the start please check one from

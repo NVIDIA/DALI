@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
-from nvidia.dali.backend_impl import TensorListGPU
+from nvidia.dali.backend_impl import TensorListGPU, TensorGPU, TensorListCPU
 
 import tempfile
 import subprocess
@@ -221,21 +221,21 @@ def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps=1e-07, max_all
 
 
 class RandomDataIterator(object):
-    def __init__(self, batch_size, shape=(10, 600, 800, 3), dtype=None):
+    def __init__(self, batch_size, shape=(10, 600, 800, 3), dtype=None, seed=0):
         import_numpy()
         # to avoid any numpy reference in the interface
         if dtype is None:
             dtype = np.uint8
         self.batch_size = batch_size
         self.test_data = []
+        self.np_rng = np.random.default_rng(seed=seed)
         for _ in range(self.batch_size):
-            np.random.seed(0)
             if dtype == np.float32:
                 self.test_data.append(
-                    np.array(np.random.rand(*shape) * (1.0), dtype=dtype) - 0.5)
+                    np.array(self.np_rng.random(shape) * (1.0), dtype=dtype) - 0.5)
             else:
                 self.test_data.append(
-                    np.array(np.random.rand(*shape) * 255, dtype=dtype))
+                    np.array(self.np_rng.random(shape) * 255, dtype=dtype))
 
     def __iter__(self):
         self.i = 0
@@ -264,6 +264,8 @@ class RandomlyShapedDataIterator(object):
         self.max_shape = max_shape
         self.dtype = dtype
         self.seed = seed
+        self.np_rng = np.random.default_rng(seed=seed)
+        self.rng = random.Random(seed)
 
     def __iter__(self):
         self.i = 0
@@ -279,17 +281,17 @@ class RandomlyShapedDataIterator(object):
             # Scale between 0.5 and 1.0
             if self.min_shape is None:
                 shape = [
-                    int(self.max_shape[dim] * (0.5 + random.random() * 0.5))
+                    int(self.max_shape[dim] * (0.5 + self.rng.random() * 0.5))
                     for dim in range(len(self.max_shape))]
             else:
-                shape = [random.randint(min_s, max_s)
+                shape = [self.rng.randint(min_s, max_s)
                          for min_s, max_s in zip(self.min_shape, self.max_shape)]
             if self.dtype == np.float32:
                 self.test_data.append(
-                    np.array(np.random.rand(*shape) * (1.0), dtype=self.dtype) - 0.5)
+                    np.array(self.np_rng.random(shape) * (1.0), dtype=self.dtype) - 0.5)
             else:
                 self.test_data.append(
-                    np.array(np.random.rand(*shape) * 255, dtype=self.dtype))
+                    np.array(self.np_rng.random(shape) * 255, dtype=self.dtype))
 
         batch = self.test_data
         self.i = (self.i + 1) % self.n
@@ -508,3 +510,37 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+
+def to_array(dali_out):
+    import_numpy()
+    if isinstance(dali_out, (TensorGPU, TensorListGPU)):
+        dali_out = dali_out.as_cpu()
+    if isinstance(dali_out, TensorListCPU):
+        dali_out = dali_out.as_array()
+    return np.array(dali_out)
+
+def module_functions(cls, prefix = "", remove_prefix = ""):
+    res = []
+    if len(cls.__dict__.keys()) == 0:
+        prefix = prefix.replace(remove_prefix, "")
+        prefix = prefix.lstrip('.')
+        if len(prefix):
+            prefix += '.'
+        else:
+            prefix = ""
+        res.append(prefix + cls.__name__)
+    else:
+        for c in cls.__dict__.keys():
+            if not c.startswith("_") and c not in sys.builtin_module_names:
+                c = cls.__dict__[c]
+                res += module_functions(c, cls.__name__, remove_prefix = remove_prefix)
+    return res
+
+def get_files(path, ext):
+  full_path = os.path.join(get_dali_extra_path(), path)
+  audio_files = [
+      os.path.join(full_path, f) for f in os.listdir(full_path) \
+      if re.match(f".*\.{ext}", f) is not None
+  ]
+  return audio_files

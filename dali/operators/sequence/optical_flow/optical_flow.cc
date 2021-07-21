@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/util/nvml.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/operators/sequence/optical_flow/optical_flow.h"
 
@@ -81,6 +82,40 @@ constexpr int kNInputDims = 4;
 
 template<>
 void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
+  // This is a workaround for an issue with nvcuvid in drivers >460 where concurrent
+  // use on default context and non-default streams may lead to memory corruption.
+  // TODO(michalz): add an upper bound when the problem is fixed
+  cudaStream_t of_stream = ws.stream();
+#if NVML_ENABLED
+  {
+    static float driver_version = []()->float {
+      char version[80];
+      CUDA_CALL(nvmlInitChecked());
+      CUDA_CALL(nvmlSystemGetDriverVersion(version, sizeof version));
+
+      return std::stof(version);
+    }();
+    if (driver_version > 460)
+      of_stream = 0;
+  }
+#else
+  {
+    int driver_cuda_version = 0;
+    CUDA_CALL(cuDriverGetVersion(&driver_cuda_version));
+    if (driver_cuda_version >= 11030)
+      of_stream = 0;
+  }
+#endif
+  if (of_stream != ws.stream()) {
+    DALI_WARN_ONCE("Warning: Running optical flow on a default stream.\n"
+                   "Performance may be affected.");
+  }
+
+  if (of_stream != ws.stream()) {
+    CUDA_CALL(cudaEventRecord(sync_, ws.stream()));
+    CUDA_CALL(cudaStreamWaitEvent(of_stream, sync_, 0));
+  }
+
   if (enable_external_hints_) {
     // Fetch data
     // Input is a TensorList, where every Tensor is a sequence
@@ -91,7 +126,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     // Extract calculation params
     ExtractParams(input, hints);
 
-    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, ws.stream());
+    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, of_stream);
 
     auto out_shape = optical_flow_->GetOutputShape();
     TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());
@@ -107,7 +142,6 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     auto tvlhints = view<const float, kNInputDims>(hints);
     DALI_ENFORCE(tvlhints.size() == nsequences_,
                  "Number of tensors for hints and inputs doesn't match");
-
     for (int sequence_idx = 0; sequence_idx < nsequences_; sequence_idx++) {
       auto sequence_tv = tvlin[sequence_idx];
       auto output_tv = tvlout[sequence_idx];
@@ -132,7 +166,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     // Extract calculation params
     ExtractParams(input);
 
-    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, ws.stream());
+    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, of_stream);
 
     auto out_shape = optical_flow_->GetOutputShape();
     TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());
@@ -158,6 +192,10 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
         optical_flow_->CalcOpticalFlow(ref, in, out);
       }
     }
+  }
+  if (of_stream != ws.stream()) {
+    CUDA_CALL(cudaEventRecord(sync_, of_stream));
+    CUDA_CALL(cudaStreamWaitEvent(ws.stream(), sync_, 0));
   }
 }
 

@@ -167,7 +167,7 @@ TEST_F(CopyTest, CopyReturnTensorViewTestUnified) {
   auto tv = make_tensor_cpu(data_src, shape);
   UniformRandomFill(tv, rng, -1, 1);
   auto tvcpy = copy<AllocType::Unified>(tv);
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
   Check(tv, tvcpy.first);
 }
 
@@ -177,7 +177,7 @@ TEST_F(CopyTest, CopyReturnTensorViewTestHost) {
   auto tv = make_tensor_cpu(data_src, shape);
   UniformRandomFill(tv, rng, -1, 1);
   auto tvcpy = copy<AllocType::Host>(tv);
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
   Check(tv, tvcpy.first);
 }
 

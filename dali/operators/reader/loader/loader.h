@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -149,7 +149,6 @@ class Loader {
       initial_buffer_filled_ = true;
     }
 
-    int samples_to_choose_from = initial_buffer_fill_;
     if (shards_.front().start == shards_.front().end) {
       // If the reader has depleted samples from the given shard, but shards are not equal
       // and we need to pad samples inside batch (even create a whole new dummy batch) using padding

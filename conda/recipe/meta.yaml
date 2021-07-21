@@ -1,5 +1,5 @@
 # (C) Copyright IBM Corp. 2019. All Rights Reserved.
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,37 +64,35 @@ requirements:
   host:
     - python
     - future >=0.17.1
-    - protobuf =3.13.0
-    - libprotobuf-static =3.13.0
-    - libjpeg-turbo >=2.0.3
+    - protobuf >=3.17.2
+    - libprotobuf-static >=3.17.2
+    - libjpeg-turbo >=2.1.0
     - tensorflow-gpu =2.2.0
     - tensorflow-estimator =2.2.0
     - tensorboard =2.2.2
     - dali-opencv
     - dali-ffmpeg
     - boost >=1.67
-    - lmdb >=0.9.22
-    - libtiff >=4.1.0
-    - libsndfile >=1.0.28
-    # 1.3.6 doesn't work well now due to linking issue - conda-forge/libvorbis-feedstock#14
-    - libvorbis 1.3.5
+    - lmdb >=0.9.28
+    - libtiff >=4.3.0
+    - libsndfile >=1.0.31
+    - libvorbis =1.3.7
     # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
     # we link it statically so it doesn't carry the dependency, so we need to add it manually
     - libwebp-base
-    - openjpeg >=2.3.1
+    - openjpeg >=2.4.0
   run:
     - python
     - future >=0.17.1
-    - libjpeg-turbo >=2.0.3
+    - libjpeg-turbo >=2.1.0
     - tensorflow-gpu =2.2.0
     - tensorflow-estimator =2.2.0
     - tensorboard =2.2.2
-    - lmdb >=0.9.22
-    - libtiff >=4.1.0
-    - libsndfile >=1.0.28
-    # 1.3.6 doesn't work well now due to linking issue - conda-forge/libvorbis-feedstock#14
-    - libvorbis 1.3.5
+    - lmdb >=0.9.28
+    - libtiff >=4.3.0
+    - libsndfile >=1.0.31
+    - libvorbis =1.3.7
     # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
     # we link it statically so it doesn't carry the dependency, so we need to add it manually
     - libwebp-base
-    - openjpeg >=2.3.1
+    - openjpeg >=2.4.0

@@ -21,25 +21,41 @@
 #include "dali/operators/random/rng_base_gpu.h"
 #include "dali/operators/random/rng_base_cpu.h"
 
-#define DALI_COINFLIP_TYPES (bool, uint8_t, int32_t)
+#define DALI_COINFLIP_TYPES bool, uint8_t, int32_t
 
 namespace dali {
 
 template <typename Backend>
+struct CoinFlipImpl {
+  using DistType =
+    typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
+        curand_bernoulli_dist,
+        std::bernoulli_distribution>;
+
+  DALI_HOST_DEV explicit CoinFlipImpl() {}
+
+  DALI_HOST_DEV explicit CoinFlipImpl(float prob)
+    : dist_(prob) {}
+
+  template <typename Generator>
+  DALI_HOST_DEV bool Generate(Generator &st) {
+    return dist_(st);
+  }
+
+  DistType dist_;
+};
+
+template <typename Backend>
 class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>, false> {
  public:
-  template <typename T>
-  struct Dist {
-    using type =
-      typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
-          curand_bernoulli_dist,
-          std::bernoulli_distribution>;
-  };
+  using BaseImpl = RNGBase<Backend, CoinFlip<Backend>, false>;
+
+  using Impl = CoinFlipImpl<Backend>;
 
   explicit CoinFlip(const OpSpec &spec)
       : RNGBase<Backend, CoinFlip<Backend>, false>(spec),
         probability_("probability", spec) {
-    backend_data_.ReserveDistsData(sizeof(typename Dist<double>::type) * max_batch_size_);
+    backend_data_.ReserveDistsData(sizeof(Impl) * max_batch_size_);
   }
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
@@ -51,19 +67,21 @@ class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>, false> {
   }
 
   template <typename T>
-  bool SetupDists(typename Dist<T>::type* dists_data, int nsamples) {
+  bool SetupDists(Impl* dists_data, int nsamples) {
     for (int s = 0; s < nsamples; s++) {
-      dists_data[s] = typename Dist<T>::type{probability_[s].data[0]};
+      dists_data[s] = Impl{probability_[s].data[0]};
     }
     return true;
   }
 
   using RNGBase<Backend, CoinFlip<Backend>, false>::RunImpl;
   void RunImpl(workspace_t<Backend> &ws) override {
-    TYPE_SWITCH(dtype_, type2id, T, DALI_COINFLIP_TYPES, (
-      using Dist = typename Dist<T>::type;
-      this->template RunImplTyped<T, Dist>(ws);
-    ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
+    TYPE_SWITCH(dtype_, type2id, T, (DALI_COINFLIP_TYPES), (
+      BaseImpl::template RunImplTyped<T, Impl>(ws);
+    ), (  // NOLINT
+      DALI_FAIL(make_string("Data type ", dtype_, " is currently not supported. "
+                            "Supported types are : ", ListTypeNames<DALI_COINFLIP_TYPES>()));
+    ));  // NOLINT
   }
 
  protected:

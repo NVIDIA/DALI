@@ -28,8 +28,11 @@ struct SampleDescriptor {
   int64_t size;
 };
 
+using BorderType = PreemphasisFilter<GPUBackend>::BorderType;
+
 template <typename OutputType, typename InputType>
-void __global__ PreemphasisFilterKernel(const SampleDescriptor<OutputType, InputType> *samples) {
+void __global__ PreemphasisFilterKernel(const SampleDescriptor<OutputType, InputType> *samples,
+                                        BorderType border_type) {
   const auto &sample = samples[blockIdx.y];
   int64_t block_size = blockDim.x;
   int64_t block_start = block_size * blockIdx.x;
@@ -39,8 +42,16 @@ void __global__ PreemphasisFilterKernel(const SampleDescriptor<OutputType, Input
   if (k >= sample.size)
     return;
 
-  sample.out[k] = sample.in[k] - sample.coeff * sample.in[cuda_max(0l, k-1)];
-  k += grid_stride;
+  if (k == 0) {
+    if (border_type == BorderType::Zero) {
+      sample.out[k] = sample.in[k];
+    } else {
+      // BorderType::Reflect or BorderType::Clamp
+      InputType border = (border_type == BorderType::Reflect) ? sample.in[1] : sample.in[0];
+      sample.out[k] = sample.in[k] - sample.coeff * border;
+    }
+    k += grid_stride;
+  }
   for (; k < sample.size; k += grid_stride)
     sample.out[k] = sample.in[k] - sample.coeff * sample.in[k-1];
 }
@@ -91,7 +102,7 @@ void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
   int block = 256;
   auto blocks_per_sample = std::max(32, 1024 / curr_batch_size);
   dim3 grid(blocks_per_sample, curr_batch_size);
-  detail::PreemphasisFilterKernel<<<grid, block, 0, stream>>>(sample_descs_gpu);
+  detail::PreemphasisFilterKernel<<<grid, block, 0, stream>>>(sample_descs_gpu, border_type_);
 }
 
 void PreemphasisFilterGPU::RunImpl(workspace_t<GPUBackend> &ws) {

@@ -58,7 +58,7 @@ TEST(ResamplingFilters, TestTriangular) {
   auto mem = memory::alloc_unique<float>(AllocType::GPU, size);
   GetFilterValues<<<1, size>>>(mem.get(), f, size, -f.anchor, 1.0f);
   std::vector<float> host(size);
-  cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost));
   for (int i = 0; i < size; i++) {
     float x = (i - f.anchor) * f.scale;
     float ref = std::max(0.0f, 1.0f - fabsf(x));
@@ -81,7 +81,7 @@ TEST(ResamplingFilters, Gaussian) {
   auto mem = memory::alloc_unique<float>(AllocType::GPU, size);
   GetFilterValues<<<1, size>>>(mem.get(), flt, size, -radius, 1);
   std::vector<float> host(size);
-  cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost));
   for (int i = 0; i < size-1; i++) {
     float x = (i - radius);
     float ref = expf(-x*x / (2 * sigma*sigma));
@@ -105,7 +105,7 @@ TEST(ResamplingFilters, Lanczos3) {
   auto mem = memory::alloc_unique<float>(AllocType::GPU, size);
   GetFilterValues<<<1, size>>>(mem.get(), flt, size, -3.0f, 3.0f / radius);
   std::vector<float> host(size);
-  cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost));
   for (int i = 0; i < size; i++) {
     float x = 3.0f * (i - radius) / radius;
     float ref = sinc(x) * sinc(x / 3);
@@ -129,7 +129,7 @@ TEST(ResamplingFilters, Cubic) {
   auto mem = memory::alloc_unique<float>(AllocType::GPU, size);
   GetFilterValues<<<1, size>>>(mem.get(), flt, size, -2.0f, 2.0f / radius);
   std::vector<float> host(size);
-  cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost));
   for (int i = 0; i < size; i++) {
     float x = 2.0f * (i - radius) / radius;
     float ref = CubicWindow(x);

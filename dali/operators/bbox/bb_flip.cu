@@ -155,6 +155,7 @@ void BbFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
       global_horz, per_sample_horz, global_vert, per_sample_vert,
       sample_idx);
   }
+  CUDA_CALL(cudaGetLastError());
 }
 
 DALI_REGISTER_OPERATOR(BbFlip, BbFlipGPU, GPU);

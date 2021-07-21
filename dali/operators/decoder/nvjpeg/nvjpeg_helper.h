@@ -88,13 +88,13 @@ inline nvjpegOutputFormat_t GetFormat(DALIImageType type) {
   switch (type) {
     case DALI_RGB:
     case DALI_ANY_DATA:
+    case DALI_YCbCr:  // purposedly not using NVJPEG_OUTPUT_YUV, as we want to control the
+                      // definition of YCbCr to be consistent with the host backend
       return NVJPEG_OUTPUT_RGBI;
     case DALI_BGR:
       return NVJPEG_OUTPUT_BGRI;
     case DALI_GRAY:
       return NVJPEG_OUTPUT_Y;
-    case DALI_YCbCr:
-      return NVJPEG_OUTPUT_YUV;
     default:
       return NVJPEG_OUTPUT_FORMAT_MAX;  // doesn't matter (will fallback to host decoder)
   }

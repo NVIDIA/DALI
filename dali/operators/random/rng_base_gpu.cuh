@@ -28,31 +28,82 @@ namespace dali {
 
 namespace {
 
+template <bool value>
+using bool_const = std::integral_constant<bool, value>;
+
 template <typename T, typename Dist>
-__device__ __inline__ void Generate(BlockDesc<true> desc,
+__device__ __inline__ void Generate(const SampleDesc &sample,
+                                    const BlockDesc &block,
                                     Dist& dist,
-                                    curandState* __restrict__ rng) {
-  auto out = static_cast<T*>(desc.output);
-  auto in = static_cast<const T*>(desc.input);
-  auto idx_end = desc.offset + desc.size;
-  for (auto idx = desc.offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
-    out[idx] = ConvertSat<T>(dist(in[idx], rng));
+                                    curandState* __restrict__ rng,
+                                    bool_const<true>,     // is_noise_gen
+                                    bool_const<true>) {   // is_per_channel
+  auto out = static_cast<T*>(sample.output);
+  auto in = static_cast<const T*>(sample.input);
+  auto idx_end = block.p_offset + block.p_count;
+  for (auto idx = block.p_offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
+    auto n = dist.Generate(in[idx], rng);
+    dist.Apply(out[idx], in[idx], n);
   }
 }
 
 template <typename T, typename Dist>
-__device__ __inline__ void Generate(BlockDesc<false> desc,
+__device__ __inline__ void Generate(const SampleDesc &sample,
+                                    const BlockDesc &block,
                                     Dist& dist,
-                                    curandState* __restrict__ rng) {
-  auto block_start = static_cast<T*>(desc.output);
-  auto block_end = block_start + desc.size;
-  for (auto out = block_start + threadIdx.x; out < block_end; out += blockDim.x) {
-    *out = ConvertSat<T>(dist(rng));
+                                    curandState* __restrict__ rng,
+                                    bool_const<true>,     // is_noise_gen
+                                    bool_const<false>) {  // is_per_channel
+  auto out = static_cast<T*>(sample.output);
+  auto in = static_cast<const T*>(sample.input);
+  auto idx_end = block.p_offset + block.p_count;
+  for (auto idx = block.p_offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
+    int64_t pos = idx * sample.p_stride;
+    // Implementations that generate noise once for all channels should not depend on the input
+    // to generate the number.
+    auto n = dist.Generate({}, rng);
+    for (int c = 0; c < sample.c_count; c++, pos += sample.c_stride) {
+      dist.Apply(out[pos], in[pos], n);
+    }
   }
 }
 
-template <typename T, typename Dist, bool NeedsInput, bool DefaultDist>
-__global__ void RNGKernel(BlockDesc<NeedsInput>* __restrict__ block_descs,
+template <typename T, typename Dist>
+__device__ __inline__ void Generate(const SampleDesc &sample,
+                                    const BlockDesc &block,
+                                    Dist& dist,
+                                    curandState* __restrict__ rng,
+                                    bool_const<false>,     // is_noise_gen
+                                    bool_const<true>) {    // is_per_channel
+  auto out = static_cast<T*>(sample.output);
+  auto idx_end = block.p_offset + block.p_count;
+  for (auto idx = block.p_offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
+    auto n = dist.Generate(rng);
+    out[idx] = ConvertSat<T>(n);
+  }
+}
+
+template <typename T, typename Dist>
+__device__ __inline__ void Generate(const SampleDesc &sample,
+                                    const BlockDesc &block,
+                                    Dist& dist,
+                                    curandState* __restrict__ rng,
+                                    bool_const<false>,      // is_noise_gen
+                                    bool_const<false>) {    // is_per_channel
+  auto out = static_cast<T*>(sample.output);
+  auto idx_end = block.p_offset + block.p_count;
+  for (auto idx = block.p_offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
+    int64_t pos = idx * sample.p_stride;
+    auto n = dist.Generate(rng);
+    for (int c = 0; c < sample.c_count; c++, pos += sample.c_stride) {
+      out[pos] = ConvertSat<T>(n);
+    }
+  }
+}
+
+template <typename T, typename Dist, bool DefaultDist, bool IsNoiseGen, bool IsPerChannel>
+__global__ void RNGKernel(SampleDesc* __restrict__ sample_descs,
+                          BlockDesc* __restrict__ block_descs,
                           curandState* __restrict__ states,
                           const Dist* __restrict__ dists, int nblocks) {
   int block_size = blockDim.x * blockDim.y;
@@ -62,49 +113,69 @@ __global__ void RNGKernel(BlockDesc<NeedsInput>* __restrict__ block_descs,
   int blk_stride = blockDim.y * gridDim.y;
   int blk = blockIdx.y * blockDim.y + threadIdx.y;
   for (; blk < nblocks; blk += blk_stride) {
-    auto desc = block_descs[blk];
-    Dist dist = DefaultDist ? Dist() : dists[desc.sample_idx];
-    Generate<T, Dist>(desc, dist, rng);
+    auto block = block_descs[blk];
+    auto sample = sample_descs[block.sample_idx];
+    Dist dist = DefaultDist ? Dist() : dists[block.sample_idx];
+    Generate<T, Dist>(sample, block, dist, rng,
+                      bool_const<IsNoiseGen>(), bool_const<IsPerChannel>());
   }
 }
 
 }  // namespace
 
-template <typename Backend, typename Impl, bool NeedsInput>
+template <typename Backend, typename Impl, bool IsNoiseGen>
 template <typename T, typename Dist>
-void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<GPUBackend> &ws) {
-  using Block = BlockDesc<NeedsInput>;
+void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &ws) {
   static_assert(std::is_same<Backend, GPUBackend>::value, "Unexpected backend");
   auto &output = ws.template OutputRef<GPUBackend>(0);
-  auto out_view = view<T>(output);
-  int nsamples = out_view.shape.size();
-  auto blocks_cpu = backend_data_.block_descs_cpu_.get();
-  auto blocks_gpu = backend_data_.block_descs_gpu_.get();
   auto rngs = backend_data_.randomizer_.states();
   int block_sz = backend_data_.block_size_;
   int max_nblocks = backend_data_.max_blocks_;
   int blockdesc_count = -1;
   TensorListView<StorageGPU, const T> in_view;
-  if (NeedsInput) {
+  auto out_view = view<T>(output);
+  int nsamples = out_view.num_samples();
+  if (nsamples == 0) {
+    return;
+  }
+
+  if (IsNoiseGen) {
     const auto& input = ws.template InputRef<GPUBackend>(0);
     in_view = view<const T>(input);
     output.SetLayout(input.GetLayout());
   }
-  blockdesc_count = SetupBlockDescs(
-    blocks_cpu, block_sz, max_nblocks, out_view, in_view);
+
+  // TODO(janton): set layout explicitly from the user for RNG
+  auto layout = output.GetLayout();
+  bool independent_channels = This().PerChannel();
+
+  // Channel dimension is specified only when we follow the "generate once, apply to
+  // all channels" aproach
+  int channel_dim = -1;
+  if (!independent_channels) {
+    channel_dim = layout.empty() ? out_view.shape.sample_dim() - 1 : layout.find('C');
+  }
+
+  auto &samples_cpu = backend_data_.sample_descs_cpu_;
+  auto &samples_gpu = backend_data_.sample_descs_gpu_;
+  SetupSampleDescs(samples_cpu.data(), out_view, in_view, channel_dim);
+  samples_gpu.from_host(samples_cpu, ws.stream());
+
+  auto &blocks_cpu = backend_data_.block_descs_cpu_;
+  auto &blocks_gpu = backend_data_.block_descs_gpu_;
+  blockdesc_count =
+      SetupBlockDescs(blocks_cpu.data(), block_sz, max_nblocks, out_view.shape, channel_dim);
   if (blockdesc_count == 0) {
     return;
   }
+  blocks_gpu.from_host(blocks_cpu, ws.stream());
 
   int64_t blockdesc_max_sz = -1;
   for (int b = 0; b < blockdesc_count; b++) {
-    int64_t block_sz = blocks_cpu[b].size;
+    int64_t block_sz = blocks_cpu[b].p_count;
     if (block_sz > blockdesc_max_sz)
       blockdesc_max_sz = block_sz;
   }
-
-  CUDA_CALL(cudaMemcpyAsync(blocks_gpu, blocks_cpu, sizeof(Block) * blockdesc_count,
-                            cudaMemcpyHostToDevice, ws.stream()));
 
   auto &dists_cpu = backend_data_.dists_cpu_;
   auto &dists_gpu = backend_data_.dists_gpu_;
@@ -124,13 +195,14 @@ void RNGBase<Backend, Impl, NeedsInput>::RunImplTyped(workspace_t<GPUBackend> &w
   gridDim.x = 1;
   gridDim.y = div_ceil(blockdesc_count, blockDim.y);
 
-  if (use_default_dist) {
-    RNGKernel<T, Dist, NeedsInput, true>
-      <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, nullptr, blockdesc_count);
-  } else {
-    RNGKernel<T, Dist, NeedsInput, false>
-      <<<gridDim, blockDim, 0, ws.stream()>>>(blocks_gpu, rngs, dists, blockdesc_count);
-  }
+  VALUE_SWITCH(use_default_dist ? 1 : 0, DefaultDist, (false, true), (
+    VALUE_SWITCH(independent_channels ? 1 : 0, IsPerChannel, (false, true), (
+      RNGKernel<T, Dist, DefaultDist, IsNoiseGen, IsPerChannel>
+        <<<gridDim, blockDim, 0, ws.stream()>>>(samples_gpu, blocks_gpu,
+                                                rngs, dists, blockdesc_count);
+    ), ());  // NOLINT
+  ), ());  // NOLINT
+  CUDA_CALL(cudaGetLastError());
 }
 
 }  // namespace dali

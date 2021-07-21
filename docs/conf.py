@@ -52,7 +52,7 @@ release = str(version_long)
 
 # generate table of supported operators and their devices
 # mock torch required by supported_op_devices
-with mock(["torch"]):
+with mock(["torch", "numba"]):
     sys.path.insert(0, os.path.abspath('./'))
     import operations_table
     operations_table.operations_table("fn_table")
@@ -80,7 +80,7 @@ else:
 version = version + """<br/>
 Version select: <select onChange="window.location.href = this.value" onFocus="this.selectedIndex = {0}">
     <option value="https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html"{1}>Current release</option>
-    <option value="https://docs.nvidia.com/deeplearning/dali/master-user-guide/docs/index.html"{2}>master (unstable)</option>
+    <option value="https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/index.html"{2}>main (unstable)</option>
     <option value="https://docs.nvidia.com/deeplearning/dali/archives/index.html">Older releases</option>
 </select>""".format(option_nr, release_opt, main_opt)
 
@@ -102,6 +102,7 @@ extensions = [
     'IPython.sphinxext.ipython_console_highlighting',
     'nbsphinx',
     'sphinx.ext.intersphinx',
+    'sphinx.ext.autosectionlabel',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -171,7 +172,7 @@ favicon_rel_path = "nvidia.ico"
 subprocess.call(["wget", "-O", favicon_rel_path, "https://docs.nvidia.com/images/nvidia.ico"])
 html_favicon = favicon_rel_path
 
-subprocess.call(["wget", "-O", "dali.png", "https://developer.nvidia.com/sites/default/files/akamai/dali.png"])
+subprocess.call(["wget", "-O", "dali.png", "https://raw.githubusercontent.com/NVIDIA/DALI/main/dali.png"])
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -244,7 +245,7 @@ texinfo_documents = [
 # -- Extension configuration -------------------------------------------------
 extlinks = {'issue': ('https://github.com/NVIDIA/DALI/issues/%s',
                       'issue '),
-            'fileref': ('https://github.com/NVIDIA/DALI/tree/' + (git_sha if git_sha != u'0000000' else "master") + '/%s', ''),}
+            'fileref': ('https://github.com/NVIDIA/DALI/tree/' + (git_sha if git_sha != u'0000000' else "main") + '/%s', ''),}
 
 
 from typing import (
@@ -254,6 +255,12 @@ from typing import get_type_hints
 
 
 _dali_enums = ["DALIDataType", "DALIIterpType", "DALIImageType", "PipelineAPIType"]
+
+count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
+
+html_context = {
+    'nvidia_analytics_id': count_unique_visitor_script
+}
 
 class EnumDocumenter(ClassDocumenter):
     # Register as .. autoenum::
@@ -320,7 +327,6 @@ class EnumAttributeDocumenter(AttributeDocumenter):
 
 
 def setup(app):
-    count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
     if count_unique_visitor_script:
         app.add_js_file(count_unique_visitor_script)
     # Register a sphinx.ext.autodoc.between listener to ignore everything

@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
-import nvidia.dali.fn as fn
-import nvidia.dali.types as types
+from nvidia.dali import Pipeline, pipeline_def, ops, fn, types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
@@ -678,3 +675,29 @@ def check_slice_named_args_errors(device, batch_size):
 def test_slice_named_args_errors():
     yield check_slice_named_args_errors, 'cpu', 1
     yield check_slice_named_args_errors, 'gpu', 1
+
+def check_no_slice(device, dtype, batch_size, num_threads):
+    @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=0)
+    def make_pipe():
+        encoded, _ = fn.readers.caffe(path=caffe_db_folder, random_shuffle=False)
+        image = fn.decoders.image(encoded, device="cpu", output_type=types.RGB)
+        image = fn.cast(image, dtype=dtype)
+        sliced1 = fn.slice(image, 0, 3, axes=(2,))
+        sliced2 = fn.slice(image, rel_start=(0, 0, 0), rel_end=(1, 1, 1), axis_names="HWC")
+        return image, sliced1, sliced2
+    pipe = make_pipe()
+    pipe.build()
+    for _ in range(3):
+        outs = pipe.run()
+        nouts = len(outs)
+        in_img = np.array(outs[0][0])
+        for out_idx in range(1, nouts):
+            out_img = np.array(outs[out_idx][0])
+            np.testing.assert_array_equal(in_img, out_img)
+
+def test_no_slice():
+    batch_size=4
+    num_threads=3
+    for device in ['cpu', 'gpu']:
+        for dtype in [types.UINT8, types.UINT16, types.FLOAT]:
+            yield check_no_slice, device, dtype, batch_size, num_threads

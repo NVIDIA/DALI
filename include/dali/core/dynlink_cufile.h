@@ -62,7 +62,7 @@ class CufileError : public std::runtime_error {
         return "cufile: invalid pointer memory type";
       case CU_FILE_CUDA_POINTER_RANGE_ERROR:
         return "cufile: pointer range exceeds allocated address range";
-      case CU_FILE_CUDA_CONTECUFILE_OPT_MISMATCH:
+      case CU_FILE_CUDA_CONTEXT_MISMATCH:
         return "cufile: cuda context mismatch";
       case CU_FILE_INVALID_MAPPING_SIZE:
         return "cufile: access beyond maximum pinned size";
@@ -130,7 +130,5 @@ inline void cudaResultCheck<CUfileError_t>(CUfileError_t status) {
 }
 
 }  // namespace dali
-
-void cufileInit();
 
 #endif  // DALI_CORE_DYNLINK_CUFILE_H_

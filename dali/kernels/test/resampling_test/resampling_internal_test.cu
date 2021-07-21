@@ -100,7 +100,7 @@ TEST(Resample, HorizontalGaussian) {
     ResampleHorzTestKernel<<<1, dim3(32, 24), ResampleSharedMemSize>>>(
       img_out.data, outW*channels, outW, img_in.data, W*channels, W, H, channels,
       filter, filter.support());
-    cudaDeviceSynchronize();
+    CUDA_CALL(cudaDeviceSynchronize());
   }
 
   cv::Mat out;
@@ -108,7 +108,7 @@ TEST(Resample, HorizontalGaussian) {
   auto img_out_cpu = view_as_tensor<uint8_t, 3>(out);
   auto img_ref_cpu = view_as_tensor<uint8_t, 3>(cv_ref);
   copy(img_out_cpu, img_out);  // NOLINT
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
   EXPECT_NO_FATAL_FAILURE(Check(img_out_cpu, img_ref_cpu, EqualEps(1))) <<
   [&]() {
     cv::Mat diff;
@@ -149,7 +149,7 @@ TEST(Resample, VerticalGaussian) {
     ResampleVertTestKernel<<<1, dim3(32, 24), ResampleSharedMemSize>>>(
       img_out.data, W*channels, outH, img_in.data, W*channels, W, H, channels,
       filter, filter.support());
-    cudaDeviceSynchronize();
+    CUDA_CALL(cudaDeviceSynchronize());
   }
 
   cv::Mat out;
@@ -157,7 +157,7 @@ TEST(Resample, VerticalGaussian) {
   auto img_out_cpu = view_as_tensor<uint8_t, 3>(out);
   auto img_ref_cpu = view_as_tensor<uint8_t, 3>(cv_ref);
   copy(img_out_cpu, img_out);  // NOLINT
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
   EXPECT_NO_FATAL_FAILURE(Check(img_out_cpu, img_ref_cpu, EqualEps(1))) <<
   [&]() {
     cv::Mat diff;
@@ -214,7 +214,7 @@ class ResamplingTest : public ::testing::Test {
       output_.create(img_out_.shape[0], img_out_.shape[1], type);
       auto img_out_cpu = view_as_tensor<uint8_t, 3>(output_);
       copy(img_out_cpu, img_out_);
-      cudaDeviceSynchronize();
+      CUDA_CALL(cudaDeviceSynchronize());
     }
   }
 

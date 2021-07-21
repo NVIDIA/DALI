@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ from test_utils import get_dali_extra_path
 DEBUG_LVL = 0
 SHOW_IMAGES = False
 
+np.random.seed(1234)
 
 data_root = get_dali_extra_path()
 img_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -144,7 +145,7 @@ def get_pipeline(
         use_gpu=False,
         num_out_of_bounds=0
 ):
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=np.random.randint(12345))
     with pipe:
         input, _ = fn.readers.file(file_root=img_dir)
         decoded = fn.decoders.image(input, device='cpu', output_type=types.RGB)
@@ -205,6 +206,9 @@ def manual_verify(batch_size, inp, output, in_idx_l, in_anchors_l, shapes_l, out
         ref = ref.astype(np_type_map[dtype])
         if DEBUG_LVL > 0 and not np.array_equal(out, ref):
             print(f"Error on image {i}")
+            import PIL.Image
+            PIL.Image.fromarray(out).save("multipaste_out.png")
+            PIL.Image.fromarray(ref).save("multipaste_ref.png")
         assert np.array_equal(out, ref)
 
 
@@ -247,7 +251,7 @@ def check_operator_multipaste(bs, pastes, in_size, out_size, even_paste_count, n
         assert not verify_out_of_bounds(bs, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, in_size, out_size)
         manual_verify(bs, input, r, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, [out_size + (3,)] * bs, out_dtype)
     except RuntimeError as e:
-        if "Paste in/out coords should be within inout/output bounds" in str(e):
+        if "Paste in/out coords should be within input/output bounds" in str(e):
             assert verify_out_of_bounds(bs, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, in_size, out_size)
         else:
             assert False

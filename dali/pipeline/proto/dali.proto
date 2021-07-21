@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,7 +61,10 @@ message PipelineDef {
   // Store all container operators
   repeated OpDef op = 5;
 
-  // Explicitly store all external inputs
+  // WARNING! The field below should no longer be used.
+  // This method of serializing External Inputs was removed from DALI and the ExternalSource
+  // operator is now serialized via OpDef as all other ops.
+  // We must keep this field to be able to deserialize legacy pipelines for backward compatibility.
   repeated string external_inputs = 6;
 
   // Store all registered outputs

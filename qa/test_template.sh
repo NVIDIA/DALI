@@ -12,6 +12,12 @@ source $topdir/qa/setup_test_common.sh
 pip_packages=$(echo ${pip_packages} | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
 last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
 
+install_pip_pkg() {
+    install_cmd="$@"
+    # if no package was found in our download dir, so install it from index
+    ${install_cmd} --no-index || ${install_cmd}
+}
+
 if [ -n "$gather_pip_packages" ]
 then
     # early exit
@@ -46,6 +52,13 @@ test_body_wrapper() {(
     test_body
 )}
 
+# get extra index url for given packages
+extra_indices=$($topdir/qa/setup_packages.py -u $pip_packages --cuda ${CUDA_VERSION} -e)
+extra_indices_string=""
+for e in ${extra_indices}; do
+    extra_indices_string="${extra_indices_string} --extra-index-url=${e}"
+done
+
 for i in `seq 0 $last_config_index`;
 do
     echo "Test run $i"
@@ -56,7 +69,10 @@ do
         # install packages
         inst=$($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
         if [ -n "$inst" ]; then
-            pip install $inst -f /pip-packages
+            for pkg in ${inst}
+            do
+                install_pip_pkg "pip install $pkg -f /pip-packages"
+            done
 
             # If we just installed tensorflow, we need to reinstall DALI TF plugin
             if [[ "$inst" == *tensorflow* ]]; then

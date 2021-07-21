@@ -81,16 +81,16 @@ TEST(TransposeGPU, Test4DAll) {
     auto in_gpu  = in.gpu();
     auto out_gpu = out.gpu();
 
-    cudaMemset(out_gpu.data[0], 0xff, shape.num_elements() * sizeof(int));
-    cudaEventRecord(start, ctx.gpu.stream);
+    CUDA_CALL(cudaMemset(out_gpu.data[0], 0xff, shape.num_elements() * sizeof(int)));
+    CUDA_CALL(cudaEventRecord(start, ctx.gpu.stream));
     transpose.Run<int>(ctx, out_gpu, in_gpu);
-    cudaEventRecord(end, ctx.gpu.stream);
+    CUDA_CALL(cudaEventRecord(end, ctx.gpu.stream));
     CUDA_CALL(cudaGetLastError());
 
     auto ref_cpu = ref.cpu();
     auto out_cpu = out.cpu();
     float time;
-    cudaEventElapsedTime(&time, start, end);
+    CUDA_CALL(cudaEventElapsedTime(&time, start, end));
     time *= 1e+6;
     std::cerr << 2*shape.num_elements()*sizeof(int) / time << " GB/s" << "\n";
 
@@ -137,16 +137,16 @@ void RunPerfTest(RNG &rng, const TensorListShape<> &shape, span<const int> perm)
 
   transpose.Run<T>(ctx, out_gpu, in_gpu);  // warm-up
   scratch = sa.GetScratchpad();
-  cudaMemset(out_gpu.data[0], 0xff, shape.num_elements() * sizeof(T));
-  cudaEventRecord(start, ctx.gpu.stream);
+  CUDA_CALL(cudaMemset(out_gpu.data[0], 0xff, shape.num_elements() * sizeof(T)));
+  CUDA_CALL(cudaEventRecord(start, ctx.gpu.stream));
   transpose.Run<T>(ctx, out_gpu, in_gpu);
-  cudaEventRecord(end, ctx.gpu.stream);
+  CUDA_CALL(cudaEventRecord(end, ctx.gpu.stream));
   CUDA_CALL(cudaGetLastError());
 
   auto ref_cpu = ref.cpu();
   auto out_cpu = out.cpu();
   float time;
-  cudaEventElapsedTime(&time, start, end);
+  CUDA_CALL(cudaEventElapsedTime(&time, start, end));
   time *= 1e+6;
   std::cerr << 2*shape.num_elements()*sizeof(T) / time << " GB/s" << "\n";
 

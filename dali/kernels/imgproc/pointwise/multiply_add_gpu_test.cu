@@ -68,7 +68,7 @@ class MultiplyAddGpuTest : public ::testing::Test {
     CUDA_CALL(cudaMemcpy(input_device_, input_host_.data(), input_host_.size() * sizeof(In),
                          cudaMemcpyDefault));
     CUDA_CALL(cudaMalloc(&output_, dataset_size() * sizeof(Out)));
-    cudaDeviceSynchronize();
+    CUDA_CALL(cudaDeviceSynchronize());
 
     verify_test();
   }
@@ -155,7 +155,7 @@ TYPED_TEST(MultiplyAddGpuTest, run_test) {
   auto scratchpad = sa.GetScratchpad();
   c.scratchpad = &scratchpad;
   kernel.Run(c, out, in, this->addends_, this->multipliers_);
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
 
   auto res = copy<AllocType::Host>(out[0]);
   ASSERT_EQ(static_cast<int>(this->ref_output_.size()), res.first.num_elements());

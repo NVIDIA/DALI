@@ -1,5 +1,9 @@
 #!/bin/bash -ex
 
+pip_packages="nose numpy>=1.17"
+
+target_dir=./dali/test/python
+
 test_body() {
   for BINNAME in \
     "dali_core_test.bin" \
@@ -24,6 +28,9 @@ test_body() {
 
     "$FULLPATH" --gtest_filter="HwDecoder*"
   done
+
+  # test decoders on A100 as well
+  nosetests --verbose --attr '!slow' test_operator_decoders_image.py
 }
 
 pushd ../..

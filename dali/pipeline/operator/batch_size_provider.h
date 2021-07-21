@@ -38,8 +38,7 @@ class BatchSizeProvider {
    * Implementation shall assure that it's possible to call NextBatchSize()
    * multiple times for the same batch, before Advance() invocation.
    *
-   * If invoking this function is illegal for any reason,
-   * implementation shall throw std::runtime_error.
+   * When there's no next batch size available, the implementation shall throw std::out_of_range.
    */
   virtual int NextBatchSize() = 0;
 

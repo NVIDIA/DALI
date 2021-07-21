@@ -28,6 +28,7 @@
 #include "dali/kernels/common/scatter_gather.h"
 #include "dali/core/common.h"
 #include "dali/core/spinlock.h"
+#include "dali/core/float16.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/tensor_layout.h"
@@ -118,6 +119,7 @@ enum DALIDataType : int {
   DALI_TENSOR_LAYOUT     = 23,
   DALI_PYTHON_OBJECT     = 24,
   DALI_TENSOR_LAYOUT_VEC = 25,
+  DALI_DATA_TYPE_VEC     = 26,
   DALI_DATATYPE_END      = 1000
 };
 
@@ -206,6 +208,8 @@ inline std::ostream &operator<<(std::ostream &os, DALIDataType t) {
     case DALI_TENSOR_LAYOUT_VEC:
       os << "list of TensorLayout";
       break;
+    case DALI_DATA_TYPE_VEC:
+      os << "list of DALIDataType";
     case DALI_DATATYPE_END:  // fall through
     default:
       os << "Unknown type (type id " << static_cast<int>(t) << ")";
@@ -439,7 +443,7 @@ class DLL_PUBLIC TypeTable {
 
  private:
   // TypeTable should only be referenced through its static members
-  TypeTable() {}
+  TypeTable() = default;
 
   template <typename T>
   DALIDataType RegisterType(DALIDataType dtype) {
@@ -481,6 +485,11 @@ struct TypeNameHelper<std::array<T, N> > {
     return "list of " + TypeTable::GetTypeName<T>();
   }
 };
+
+template <typename... Types>
+auto ListTypeNames() {
+  return make_string_delim(", ", TypeTable::GetTypeID<Types>()...);
+}
 
 template <typename T>
 void TypeInfo::SetType(DALIDataType dtype) {
@@ -556,6 +565,7 @@ DALI_REGISTER_TYPE(std::vector<int>, DALI_INT_VEC);
 DALI_REGISTER_TYPE(std::vector<std::string>, DALI_STRING_VEC);
 DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
 DALI_REGISTER_TYPE(std::vector<TensorLayout>, DALI_TENSOR_LAYOUT_VEC);
+DALI_REGISTER_TYPE(std::vector<DALIDataType>, DALI_DATA_TYPE_VEC);
 
 /**
  * @brief Easily instantiate templates for all types

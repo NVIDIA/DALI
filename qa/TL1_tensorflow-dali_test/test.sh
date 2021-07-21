@@ -1,5 +1,5 @@
 #!/bin/bash -e
-pip_packages=""
+pip_packages="horovod==0.21.3"
 target_dir=./docs/examples/use_cases/tensorflow/resnet-n
 
 do_once() {
@@ -13,12 +13,12 @@ do_once() {
     CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
 
     # check if CUDA version is at least 11.x
-    if [ "$(echo "$CUDA_VERSION" | tr " " "\n" | sort -rV | head -n 1)" == "110" ]; then
-        # install TF 2.4.x for CUDA 11.x test
-        pip install $($topdir/qa/setup_packages.py -i 1 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
+    if [ "${CUDA_VERSION:0:2}" == "11" ]; then
+        # install TF 2.5.x for CUDA 11.x test
+        install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 1 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
     else
         # install TF 2.3.x for CUDA 10.x test
-        pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages
+        install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
     fi
 
     # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
@@ -50,17 +50,15 @@ do_once() {
         echo "plm_rsh_agent = /usr/local/mpi/bin/rsh_warn.sh" >> /usr/local/mpi/etc/openmpi-mca-params.conf
     fi
 
-    if [ ${CUDA_VERSION} -lt 100 ]; then
-        apt-get update && apt-get install -y gcc-4.8 g++-4.8
-    fi
-
     apt-get update && apt-get install -y cmake
     export HOROVOD_GPU_ALLREDUCE=NCCL
     export HOROVOD_NCCL_INCLUDE=/usr/include
     export HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu
     export HOROVOD_NCCL_LINK=SHARED
     export HOROVOD_WITHOUT_PYTORCH=1
-    pip install horovod==0.21.3
+    # horovod is added to `pip_packages` so it can be preloaded, but install it here when
+    # TF is already available and we can set env variables
+    install_pip_pkg "pip install --force-reinstall horovod==0.21.3 -f /pip-packages"
 
     for file in $(ls /data/imagenet/train-val-tfrecord-480-subset);
     do

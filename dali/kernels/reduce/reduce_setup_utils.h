@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -119,7 +119,7 @@ inline void CheckBatchReduce(const TensorListShape<> &tls, span<const int> axes)
   uint64_t mask = to_bit_mask(axes);
   SmallVector<int, DynamicTensorShapeContainer::static_size> non_reduced;
   for (int a = 0; a < tls.sample_dim(); a++) {
-    if (!(mask & (1 << a)))
+    if (!(mask & (1_u64 << a)))
       non_reduced.push_back(a);
   }
 
@@ -150,7 +150,7 @@ inline void CheckAxes(span<const int> axes, int ndim) {
   for (auto a : axes) {
     if (a < 0 || a >= ndim)
       throw std::out_of_range(make_string("Axis index out of range: ", a, " not in 0..", ndim-1));
-    uint64_t amask = 1ul << a;
+    uint64_t amask = 1_u64 << a;
     if (mask & amask)
       throw std::invalid_argument(make_string("Duplicate axis index ", a));
     mask |= amask;

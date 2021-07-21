@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -143,7 +143,7 @@ RandomDataShape(int num_samples, int ndim, int64_t max_volume,
       for (int d = 0; d < ndim; d++) {
         // when reducing samples in the batch, the non-reduced extents must be uniform
         // across all samples
-        sample_shape[d] = reduced_axes & (1 << d) || !reduce_batch || i == 0
+        sample_shape[d] = reduced_axes & (1_u64 << d) || !reduce_batch || i == 0
             ? shape_dist(rng)
             : sh.tensor_shape_span(0)[d];
       }
@@ -213,7 +213,7 @@ class NormalizeImplGPUTest<std::pair<Out, In>> : public ::testing::Test {
       param_shape_.resize(param_samples, ndim);
       for (int i = 0; i < param_samples; i++) {
         for (int d = 0; d < ndim; d++) {
-          bool reduced = axis_mask_ & (1 << d);
+          bool reduced = axis_mask_ & (1_u64 << d);
           param_shape_.tensor_shape_span(i)[d] = reduced ? 1 : data_shape_.tensor_shape_span(i)[d];
         }
       }
@@ -287,13 +287,14 @@ class NormalizeImplGPUTest<std::pair<Out, In>> : public ::testing::Test {
 
 
     auto out_gpu = out_.gpu();
-    cudaMemsetAsync(out_gpu.data[0], 0, sizeof(Out) * out_gpu.num_elements(), ctx.gpu.stream);
+    CUDA_CALL(
+      cudaMemsetAsync(out_gpu.data[0], 0, sizeof(Out) * out_gpu.num_elements(), ctx.gpu.stream));
     Launch(ctx);
-    cudaEventRecord(start, ctx.gpu.stream);
+    CUDA_CALL(cudaEventRecord(start, ctx.gpu.stream));
     Launch(ctx);
-    cudaEventRecord(end, ctx.gpu.stream);
+    CUDA_CALL(cudaEventRecord(end, ctx.gpu.stream));
     float time;
-    cudaDeviceSynchronize();
+    CUDA_CALL(cudaDeviceSynchronize());
     CUDA_CALL(cudaEventElapsedTime(&time, start, end));
     time *= 1e+6f;  // convert to nanoseconds
     int64_t out_size = data_shape_.num_elements() * sizeof(Out);

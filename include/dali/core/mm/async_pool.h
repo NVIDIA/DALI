@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,19 +34,36 @@
 namespace dali {
 namespace mm {
 
-template <memory_kind kind, typename FreeList = free_tree,
-          typename LockType = std::mutex, typename Upstream = memory_resource<kind>>
-class async_pool_base : public stream_aware_memory_resource<kind> {
+template <memory_kind kind,
+    typename GlobalPool = deferred_dealloc_pool<kind, any_context, coalescing_free_tree, spinlock>,
+    typename LockType = std::mutex,
+    typename Upstream = memory_resource<kind>>
+class async_pool_resource : public async_memory_resource<kind> {
  public:
   /**
    * @param upstream       Upstream resource, used by the global pool
    * @param avoid_upstream If true, synchronize with outstanding deallocations before
    *                       using upstream.
    */
-  explicit async_pool_base(Upstream *upstream, bool avoid_upstream = true)
-  : global_pool_(upstream), avoid_upstream_(avoid_upstream) {
+  template <typename P = GlobalPool,
+            typename = std::enable_if_t<std::is_constructible<P, Upstream*, pool_options>::value>>
+  explicit async_pool_resource(Upstream *upstream, bool avoid_upstream = true)
+  : global_pool_(upstream, global_pool_options()), avoid_upstream_(avoid_upstream) {
   }
-  ~async_pool_base() {
+
+  /**
+   * @param upstream       Upstream resource, used by the global pool
+   * @param avoid_upstream If true, synchronize with outstanding deallocations before
+   *                       using upstream.
+   */
+  template <typename... PoolArgs,
+            typename P = GlobalPool,
+            typename = std::enable_if_t<std::is_constructible<P, PoolArgs...>::value>>
+  explicit async_pool_resource(PoolArgs&&...args)
+  : global_pool_(std::forward<PoolArgs>(args)...), avoid_upstream_(false) {
+  }
+
+  ~async_pool_resource() {
     try {
       synchronize();
     } catch (const CUDAError &e) {
@@ -92,11 +109,15 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   }
 
   void do_deallocate(void *mem, size_t bytes, size_t alignment) override {
+    if (!mem || !bytes)
+      return;
     adjust_size_and_alignment(bytes, alignment);
+    sync_scope sync = default_sync_scope<kind>();
+    mm::detail::synchronize(sync);
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char *>(mem);
     pop_block_padding(ptr, bytes, alignment);
-    return global_pool_.deallocate(ptr, bytes, alignment);
+    global_pool_.deallocate(ptr, bytes, alignment);
   }
 
   /**
@@ -364,7 +385,7 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
   void free_ready(PerStreamFreeBlocks &free) {
     auto *f = find_first_ready(free);
     while (f) {
-      global_pool_.deallocate(f->addr, f->bytes, f->alignment);
+      global_pool_.deallocate_no_sync(f->addr, f->bytes, f->alignment);
       f = remove_pending_free(free, f);
     }
   }
@@ -522,9 +543,13 @@ class async_pool_base : public stream_aware_memory_resource<kind> {
    * reuse a part of the block on the same stream and return the rest to the global pool, with
    * the hope of reducing the number of calls to upstream and overall memory consumption.
    */
-  static constexpr bool supports_splitting = detail::can_merge<FreeList>::value;
+  static constexpr bool supports_splitting = detail::can_merge<GlobalPool>::value;
 
-  pool_resource_base<kind, any_context, FreeList, detail::dummy_lock> global_pool_;
+  static constexpr pool_options global_pool_options() {
+    return default_pool_opts<kind>();
+  }
+
+  GlobalPool global_pool_;
 
   int num_pending_frees_ = 0;
   bool avoid_upstream_ = true;

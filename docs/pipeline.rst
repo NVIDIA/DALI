@@ -44,6 +44,62 @@ The resulting graph is:
 
 .. image:: images/two_readers.svg
 
+.. _processing_graph_structure:
+
+Processing Graph Structure
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+DALI pipelines are executed in stages. The stages correspond to the ``device`` parameter
+that can be specified for the operator, and are executed in following order:
+
+#. ``'cpu'`` - operators that accept CPU inputs and produce CPU outputs.
+#. ``'mixed'`` - operators that accept CPU inputs and produce GPU outputs, for exampe :meth:`nvidia.dali.fn.decoders.image`.
+#. ``'gpu'`` - operators that accept GPU inputs and produce GPU outpus.
+
+Data produced by a CPU operator may be explicitly copied to the GPU by calling ``.gpu()``
+on a :class:`~nvidia.dali.pipeline.DataNode` (an output of a DALI operator).
+
+Data that has been produced by a later stage cannot be consumed by an operator executing
+in an earlier stage.
+
+Most DALI operators accept additional keyword arguments used to parametrize their behavior.
+Those named keyword arguments (which are distinct from the positional inputs) can be:
+
+  * Python constants
+  * Argument inputs - outputs of the **CPU** operators - indicated as `TensorList` in the operator's docstring.
+
+In the case of argument inputs, passing output of one operator as a **named keyword argument**
+of other operator will establish a connection in the processing graph.
+
+Those parameters will be computed as a part of DALI pipeline graph every iteration and
+for every sample. Keep in mind, that only CPU operators can be used as argument inputs.
+
+Example::
+
+    @pipeline_def
+    def my_pipeline():
+        img_files, labels = fn.readers.file(file_root='image_dir', device='cpu')
+        # `images` is GPU data (result of Mixed operator)
+        images = fn.decoders.image(img_files, device='mixed')
+        # `coin_flip` must be on CPU so the `flip_params` can be used as argument input
+        flip_param = fn.random.coin_flip(device='cpu')
+        # `images` is input (GPU) and `flip_param` is argument input (CPU)
+        flipped = fn.flip(images, horizontal=flip_param, device='gpu')
+        # `labels` is explicitly marked for transfer to GPU, `flipped` is already GPU
+        return flipped, labels.gpu()
+
+    pipe = my_pipeline(batch_size=4, num_threads=2, device_id=0)
+    pipe.build()
+
+.. note::
+    If the ``device`` parameter is not specified, it is selected automatically based on the
+    placement of the inputs. If there is at least one GPU input, the ``device='gpu'`` is assumed,
+    otherwise ``'cpu'`` is used.
+
+    The example above adds ``device`` parameter explicitly for clarity, but it would work the same
+    if only ``device='mixed'`` was specified for ``fn.decoders.image``.
+
+
 Current Pipeline
 ----------------
 

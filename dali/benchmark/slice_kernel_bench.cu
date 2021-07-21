@@ -82,7 +82,7 @@ class SliceBenchGPU : public DALIBenchmark {
       ctx.scratchpad = &scratchpad;
 
       kernel.Run(ctx, out_tv, in_tv, args_vec);
-      cudaStreamSynchronize(ctx.gpu.stream);
+      CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
       st.counters["FPS"] = benchmark::Counter(st.iterations() + 1,
         benchmark::Counter::kIsRate);
     }

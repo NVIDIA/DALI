@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -372,13 +372,16 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
     AVPacket pkt = AVPacket{};
     while ((ret = av_read_frame(file.fmt_ctx_.get(), &pkt)) >= 0) {
       if (pkt.stream_index == file.vid_stream_idx_) break;
+      av_packet_unref(&pkt);
     }
 
     DALI_ENFORCE(ret >= 0, "Unable to read frame from file :" + filename);
 
     DALI_ENFORCE(skip_vfr_check_ ||
       almost_equal(av_q2d(file.frame_base_), pkt.duration * av_q2d(file.stream_base_), 2),
-      "Variable frame rate videos are unsupported. Check failed for file: " + filename);
+      "Variable frame rate videos are unsupported. This heuristic can yield false positives. "
+      "The check can be disabled via the skip_vfr_check flag. Check failed for file: " + filename);
+    av_packet_unref(&pkt);
 
     auto duration = stream->duration;
     // if no info in the stream check the container
@@ -390,7 +393,8 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
                                      file.frame_base_);
 
     if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC ||
-        codec_id == AV_CODEC_ID_MPEG4 || codec_id == AV_CODEC_ID_VP9) {
+        codec_id == AV_CODEC_ID_MPEG4 || codec_id == AV_CODEC_ID_VP8 ||
+        codec_id == AV_CODEC_ID_VP9 || codec_id == AV_CODEC_ID_MJPEG) {
       const char* filtername = nullptr;
       if (codec_id == AV_CODEC_ID_H264) {
         filtername = "h264_mp4toannexb";
@@ -473,6 +477,12 @@ void VideoLoader::seek(VideoFile& file, int frame) {
       LOG_LINE << "Unable to skip to ts " << seek_time
                 << ": " << av_err2str(ret) << std::endl;
     }
+    /* Flush the bitstream filter handle when using mpeg4_unpack_bframes filter.
+     * When mpeg4_unpack_bframe is used the filter handle stores information
+     * about packed B frames. When we seek in a stream this can confuse the filter
+     * and cause it to drop B-Frames.
+     */
+    av_bsf_flush(file.bsf_ctx_.get());
 
     // todo this seek may be unreliable and will sometimes start after
     // the promised time step.  So we need to calculate the end_time
@@ -724,11 +734,11 @@ void VideoLoader::PrepareEmpty(SequenceWrapper &tensor) {}
 void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     // TODO(spanev) remove the async between the 2 following methods?
     auto& seq_meta = frame_starts_[current_frame_idx_];
-    tensor.initialize(count_, seq_meta.height, seq_meta.width, channels_, dtype_);
+    tensor.initialize(seq_meta.length, count_, seq_meta.height, seq_meta.width, channels_, dtype_);
 
     tensor.read_sample_f = [this,
                             file_name = file_info_[seq_meta.filename_idx].video_file,
-                            index = seq_meta.frame_idx, count = count_, &tensor] () {
+                            index = seq_meta.frame_idx, count = seq_meta.length, &tensor] () {
       push_sequence_to_read(file_name, index, count);
       receive_frames(tensor);
     };

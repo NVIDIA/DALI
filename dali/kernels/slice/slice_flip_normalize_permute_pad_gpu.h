@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -129,6 +129,10 @@ class SliceFlipNormalizePermutePadGpu {
            const InListGPU<InputType, Dims> &in,
            const std::vector<Args> &args) {
     (void) args;
+    if (block_count_ == 0) {
+      return;  // no data to copy
+    }
+
     const auto num_samples = in.size();
 
     float *norm_add_cpu = nullptr, *norm_mul_cpu = nullptr;
@@ -240,18 +244,18 @@ class SliceFlipNormalizePermutePadGpu {
         make_span(sample_descs_cpu, num_samples),
         make_span(block_descs_cpu, block_count_));
 
-    VALUE_SWITCH(need_pad ? 1 : 0, NeedPad, (false, true), (
-      VALUE_SWITCH(need_flip ? 1 : 0, NeedFlip, (false, true), (
-        VALUE_SWITCH(need_normalize_ ? 1 : 0, NeedNormalize, (false, true), (
+    BOOL_SWITCH(need_pad, NeedPad, (
+      BOOL_SWITCH(need_flip, NeedFlip, (
+        BOOL_SWITCH(need_normalize_, NeedNormalize, (
           auto grid = block_count_;
           // need to handle __half due to compilation differences
           detail::SliceFlipNormalizePermutePadKernel
             <NeedPad, NeedFlip, NeedNormalize,
-            DALI_TO_GPU_T(OutputType), DALI_TO_GPU_T(InputType), Dims>
+            OutputType, InputType, Dims>
             <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs_gpu, block_descs_gpu);
-        ), ());  // NOLINT
-      ), ());  // NOLINT
-    ), ());  // NOLINT
+        ));  // NOLINT
+      ));  // NOLINT
+    ));  // NOLINT
 
     CUDA_CALL(cudaGetLastError());
   }

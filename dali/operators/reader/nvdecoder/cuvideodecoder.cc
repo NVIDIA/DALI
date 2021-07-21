@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ const char* GetVideoCodecString(cudaVideoCodec eCodec) {
         { cudaVideoCodec_H264_SVC,  "H.264/SVC"    },
         { cudaVideoCodec_H264_MVC,  "H.264/MVC"    },
         { cudaVideoCodec_HEVC,      "H.265/HEVC"   },
+        { cudaVideoCodec_VP8,       "VP8"          },
         { cudaVideoCodec_VP9,       "VP9"          },
         { cudaVideoCodec_NumCodecs, "Invalid"      },
         { cudaVideoCodec_YUV420,    "YUV  4:2:0"   },

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
   auto in_shape = input.shape();
   int ndim = in_shape.sample_dim();
   int nsamples = in_shape.size();
-  auto nthreads = ws.GetThreadPool().NumThreads();
+  kernels::KernelContext ctx;
   TYPE_SWITCH(input_type_, type2id, InputType, CMN_IN_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, CMN_OUT_TYPES, (
       VALUE_SWITCH(ndim, Dims, CMN_NDIMS, (
@@ -88,13 +88,10 @@ bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
         output_desc[0].type = TypeInfo::Create<OutputType>();
         output_desc[0].shape.resize(nsamples, Dims);
-        kmgr_.Resize<Kernel>(nthreads, nsamples);
-        // Do the kernel setup
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
         for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
           auto in_view = view<const InputType, Dims>(input[sample_idx]);
-          kernels::KernelContext ctx;
-          auto &req = kmgr_.Setup<Kernel>(sample_idx, ctx, in_view, kernel_sample_args[sample_idx]);
+          auto req = Kernel().Setup(ctx, in_view, kernel_sample_args[sample_idx]);
           output_desc[0].shape.set_tensor_shape(sample_idx, req.output_shapes[0][0].shape);
         }
       ), DALI_FAIL(make_string("Not supported number of dimensions:", ndim));); // NOLINT
@@ -120,20 +117,19 @@ void CropMirrorNormalize<CPUBackend>::RunImpl(HostWorkspace &ws) {
         using Kernel = kernels::SliceFlipNormalizePermutePadCpu<OutputType, InputType, Dims>;
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
-        for (int sample_id = 0; sample_id < nsamples; sample_id++) {
-          thread_pool.AddWork(
-            [this, &input, &output, &kernel_sample_args, sample_id](int thread_id) {
-              auto in_view = view<const InputType, Dims>(input[sample_id]);
-              auto out_view = view<OutputType, Dims>(output[sample_id]);
-              auto &args = kernel_sample_args[sample_id];
-              kernels::KernelContext ctx;
-              kmgr_.Run<Kernel>(thread_id, sample_id, ctx, out_view, in_view, args);
-            }, out_shape.tensor_size(sample_id));
+        auto in_view = view<const InputType, Dims>(input);
+        auto out_view = view<OutputType, Dims>(output);
+        int req_nblocks = std::max(1, 10 * thread_pool.NumThreads() / nsamples);
+        kernels::KernelContext ctx;
+        for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+          Kernel().Schedule(ctx, out_view[sample_idx], in_view[sample_idx],
+                            kernel_sample_args[sample_idx],
+                            thread_pool, kernels::kSliceMinBlockSize, req_nblocks);
         }
+        thread_pool.RunAll();
       ), DALI_FAIL(make_string("Not supported number of dimensions:", ndim));); // NOLINT
     ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
   ), DALI_FAIL(make_string("Not supported input type:", input_type_));); // NOLINT
-  thread_pool.RunAll();
 }
 
 }  // namespace dali

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -236,10 +236,12 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   }
 
   void HandleError(const std::string& message = "Unknown exception") {
+    {
+      std::lock_guard<std::mutex> errors_lock(errors_mutex_);
+      errors_.push_back(message);
+    }
     exec_error_ = true;
     ShutdownQueue();
-    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-    errors_.push_back(message);
   }
 
   void PruneUnusedGraphNodes() override;
@@ -260,7 +262,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
   class EventList {
    public:
-    inline EventList() {}
+    inline EventList() = default;
     inline EventList(int size, EventPool *event_pool) {
       DALI_ENFORCE(event_pool != nullptr);
       for (int i = 0; i < size; ++i) {
@@ -326,7 +328,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   EventPool event_pool_;
   ThreadPool thread_pool_;
   std::vector<std::string> errors_;
-  std::mutex errors_mutex_;
+  mutable std::mutex errors_mutex_;
   bool exec_error_;
   QueueSizes queue_sizes_;
   std::vector<tensor_data_store_queue_t> tensor_to_store_queue_;
@@ -360,6 +362,20 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
   template <typename Workspace>
   void RunHelper(OpNode &op_node, Workspace &ws);
+
+  void RethrowError() const {
+    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
+    // TODO(klecki): collect all errors
+    std::string message = errors_.empty()
+                          ? QueuePolicy::IsStopSignaled() && !exec_error_
+                            ? "Stop signaled"
+                            : "Unknown error"
+                          : errors_.front();
+
+    // TODO(michalz): rethrow actual error through std::exception_ptr instead of
+    //                converting everything to runtime_error
+    throw std::runtime_error(message);
+  }
 
   void DiscoverBatchSizeProviders() {
     for (Index i = 0; i < graph_->NumOp(); i++) {
@@ -401,7 +417,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   DALI_ENFORCE(graph->NumOp() > 0, "Graph has no operators.");
   graph->InstantiateOperators();  // ..if not done already
 
-  output_names_ = output_names;
+  output_names_ = std::move(output_names);
   graph_ = graph;
 
   DeviceGuard g(device_id_);
@@ -475,20 +491,13 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   DeviceGuard g(device_id_);
   ws->Clear();
 
-  if (exec_error_ || QueuePolicy::IsStopSignaled()) {
-    // TODO(klecki) collect all errors
-    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-    std::string error = errors_.empty() ? "Unknown error" : errors_.front();
-    throw std::runtime_error(error);
-  }
+  if (exec_error_ || QueuePolicy::IsStopSignaled())
+    RethrowError();
 
   auto output_idx = QueuePolicy::UseOutputIdxs();
 
-  if (exec_error_ || QueuePolicy::IsStopSignaled()) {
-    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-    std::string error = errors_.empty() ? "Unknown error" : errors_.front();
-    throw std::runtime_error(error);
-  }
+  if (exec_error_ || QueuePolicy::IsStopSignaled())
+    RethrowError();
 
   // We need to fill the output workspace with pointers to appropriate output buffers.
   for (size_t i = 0; i < pipeline_outputs_.size(); i++) {

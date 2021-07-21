@@ -224,7 +224,7 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
   OutListGPU<uint8_t, 3> out_tlv = output.gpu();
   for (int i = 0; i < out_tlv.num_samples(); i++) {
     auto tv = out_tlv[i];
-    cudaMemset(tv.data, 0, tv.num_elements()*sizeof(*tv.data));
+    CUDA_CALL(cudaMemset(tv.data, 0, tv.num_elements()*sizeof(*tv.data)));
   }
 
 
@@ -307,7 +307,7 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
   OutListGPU<uint8_t, 3> out_tlv = output.gpu();
   for (int i = 0; i < out_tlv.num_samples(); i++) {
     auto tv = out_tlv[i];
-    cudaMemset(tv.data, 0, tv.num_elements()*sizeof(*tv.data));
+    CUDA_CALL(cudaMemset(tv.data, 0, tv.num_elements()*sizeof(*tv.data)));
   }
 
   for (int i = 0; i < N; i++) {

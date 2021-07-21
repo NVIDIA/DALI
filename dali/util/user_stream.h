@@ -106,7 +106,7 @@ class DLL_PUBLIC UserStream {
   }
 
  private:
-  UserStream() {}
+  UserStream() = default;
 
   size_t GetDeviceForBuffer(const dali::Buffer<GPUBackend> &b) {
     int dev = b.device_id();

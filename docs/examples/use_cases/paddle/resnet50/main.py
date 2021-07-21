@@ -22,6 +22,7 @@ import time
 import numpy as np
 
 from paddle import fluid
+import paddle
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
@@ -41,13 +42,19 @@ def create_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, siz
                                          name="Reader")
         dali_device = 'cpu' if dali_cpu else 'gpu'
         decoder_device = 'cpu' if dali_cpu else 'mixed'
+        # ask nvJPEG to preallocate memory for the biggest sample in ImageNet for CPU and GPU to avoid reallocations in runtime
         device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
         host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
+        # ask HW NVJPEG to allocate memory ahead for the biggest image in the data set to avoid reallocations in runtime
+        preallocate_width_hint = 5980 if decoder_device == 'mixed' else 0
+        preallocate_height_hint = 6430 if decoder_device == 'mixed' else 0
         if is_training:
             images = fn.decoders.image_random_crop(images,
                                                    device=decoder_device, output_type=types.RGB,
                                                    device_memory_padding=device_memory_padding,
                                                    host_memory_padding=host_memory_padding,
+                                                   preallocate_width_hint=preallocate_width_hint,
+                                                   preallocate_height_hint=preallocate_height_hint,
                                                    random_aspect_ratio=[0.8, 1.25],
                                                    random_area=[0.1, 1.0],
                                                    num_attempts=100)
@@ -304,4 +311,7 @@ if __name__ == '__main__':
     FLAGS = parser.parse_args()
     assert FLAGS.data, "error: must provide data path"
 
+    # In PaddlePaddle 2.x, we turn on dynamic graph mode by default, and 'data()' is only supported in static graph mode.
+    # So if you want to use this api, please call 'paddle.enable_static()' before this api to enter static graph mode.
+    paddle.enable_static()
     main()

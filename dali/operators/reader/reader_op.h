@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -127,15 +127,16 @@ class DataReader : public Operator<Backend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    return false;
-  }
-
-  // CPUBackend operators
-  void Run(HostWorkspace &ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
     StartPrefetchThread();
     ConsumerWait();
+    return false;
+  }
 
+  using Operator<Backend>::Run;
+
+  // CPUBackend operators
+  void Run(HostWorkspace &ws) override {
     // consume batch
     DomainTimeRange tr("[DALI][DataReader] Run #" + to_string(curr_batch_consumer_),
                        DomainTimeRange::kViolet);
@@ -175,10 +176,6 @@ class DataReader : public Operator<Backend> {
 
   // GPUBackend operators
   void Run(DeviceWorkspace &ws) override {
-    // If necessary start prefetching thread and wait for a consumable batch
-    StartPrefetchThread();
-    ConsumerWait();
-
     // Consume batch
     Operator<Backend>::Run(ws);
     CUDA_CALL(cudaStreamSynchronize(ws.stream()));
@@ -201,8 +198,20 @@ class DataReader : public Operator<Backend> {
     return ret;
   }
 
-  LoadTarget& GetSample(int sample_idx) {
-    return *prefetched_batch_queue_[curr_batch_consumer_][sample_idx];
+  inline std::vector<std::shared_ptr<LoadTarget>>& GetCurrBatch() {
+    return prefetched_batch_queue_[curr_batch_consumer_];
+  }
+
+  inline const std::vector<std::shared_ptr<LoadTarget>>& GetCurrBatch() const {
+    return prefetched_batch_queue_[curr_batch_consumer_];
+  }
+
+  inline int GetCurrBatchSize() const {
+    return GetCurrBatch().size();
+  }
+
+  inline LoadTarget& GetSample(int sample_idx) {
+    return *GetCurrBatch()[sample_idx];
   }
 
   LoadTargetPtr MoveSample(int sample_idx) {

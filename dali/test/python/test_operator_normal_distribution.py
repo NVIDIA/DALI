@@ -21,7 +21,7 @@ import numpy as np
 import scipy.stats as st
 import random
 
-test_types = [types.INT8, types.INT16, types.INT32, types.FLOAT, types.FLOAT64, types.FLOAT16]
+test_types = [types.INT8, types.INT16, types.INT32, types.FLOAT, types.FLOAT64]
 
 def random_shape(max_shape):
   return np.array(
@@ -109,7 +109,7 @@ def check_normal_distribution(device, dtype, shape=None, use_shape_like_input=Fa
             l = len(data)
 
             # Checking sanity of the data
-            if l >= 100 and dtype in [types.FLOAT, types.FLOAT64, types.FLOAT16]:
+            if l >= 100 and dtype in [types.FLOAT, types.FLOAT64]:
                 # Empirical rule: 
                 # ~68% of the observations within one standard deviation
                 # ~95% of the observations within one standard deviation

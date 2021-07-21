@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ def get_dataset_multi_gpu(strategy):
 
     input_options = tf.distribute.InputOptions(
         experimental_place_dataset_on_device = True,
-        experimental_prefetch_to_device = False,
+        experimental_fetch_to_device = False,
         experimental_replication_mode = tf.distribute.InputReplicationMode.PER_REPLICA)
 
     train_dataset = strategy.distribute_datasets_from_function(dataset_fn, input_options)

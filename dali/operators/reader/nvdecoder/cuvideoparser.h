@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ enum class Codec {
   H264,
   HEVC,
   MPEG4,
+  MJPEG,
+  VP8,
   VP9
 };
 
@@ -51,12 +53,20 @@ class CUVideoParser {
         parser_info_.CodecType = cudaVideoCodec_HEVC;
         parser_info_.ulMaxNumDecodeSurfaces = 20;
         break;
+      case Codec::MJPEG:
+        parser_info_.CodecType = cudaVideoCodec_JPEG;
+        parser_info_.ulMaxNumDecodeSurfaces = 20;
+        break;
       case Codec::MPEG4:
         parser_info_.CodecType = cudaVideoCodec_MPEG4;
         parser_info_.ulMaxNumDecodeSurfaces = 20;
         break;
       case Codec::VP9:
         parser_info_.CodecType = cudaVideoCodec_VP9;
+        parser_info_.ulMaxNumDecodeSurfaces = 20;
+        break;
+      case Codec::VP8:
+        parser_info_.CodecType = cudaVideoCodec_VP8;
         parser_info_.ulMaxNumDecodeSurfaces = 20;
         break;
       default:

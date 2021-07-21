@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cuda_runtime_api.h>
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
 #if SHM_WRAPPER_ENABLED
@@ -38,6 +39,8 @@
 namespace dali {
 namespace python {
 
+
+#if (CUDART_VERSION >= 10200 && CUDART_VERSION < 11100)
 // add this alignment to work around a patchelf bug/feature which
 // changes TLS alignment and break DALI interoperability with CUDA RT
 alignas(0x1000) thread_local volatile bool __backend_impl_force_tls_align;
@@ -45,6 +48,10 @@ alignas(0x1000) thread_local volatile bool __backend_impl_force_tls_align;
 void __backend_impl_force_tls_align_fun(void) {
   __backend_impl_force_tls_align = 0;
 }
+#else
+void __backend_impl_force_tls_align_fun(void) {}
+#endif
+
 
 using namespace pybind11::literals; // NOLINT
 
@@ -152,7 +159,7 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
   auto dlm_tensor_ptr = DLMTensorPtrFromCapsule(capsule);
   const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
   DALI_ENFORCE((std::is_same<SrcBackend, GPUBackend>::value &&
-                  dl_tensor.device.device_type == kDLGPU) ||
+                  dl_tensor.device.device_type == kDLCUDA) ||
                (std::is_same<SrcBackend, CPUBackend>::value &&
                   dl_tensor.device.device_type == kDLCPU),
                "DLPack device type doesn't match Tensor type");
@@ -174,13 +181,13 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
                                     [dlm_tensor_ptr = move(dlm_tensor_ptr)](void*) {}),
                                     bytes, typed_shape, dali_type);
 
-  // according to the docs kDLCPUPinned = kDLCPU | kDLGPU so test it as a the first option
-  if (dl_tensor.device.device_type == kDLCPUPinned) {
+  // according to the docs kDLCUDAHost = kDLCPU | kDLCUDA so test it as a the first option
+  if (dl_tensor.device.device_type == kDLCUDAHost) {
     batch->set_device_id(-1);
     batch->set_pinned(true);
   } else if (dl_tensor.device.device_type == kDLCPU) {
     batch->set_device_id(-1);
-  } else if (dl_tensor.device.device_type == kDLGPU) {
+  } else if (dl_tensor.device.device_type == kDLCUDA) {
     batch->set_device_id(dl_tensor.device.device_id);
   } else {
     DALI_FAIL(make_string("Not supported DLPack device type: ", dl_tensor.device.device_type, "."));
@@ -259,10 +266,10 @@ void ExposeTensorLayout(py::module &m) {
       return expr;\
     })
   DEFINE_LAYOUT_CMP(eq, other  && self == *other);
-  DEFINE_LAYOUT_CMP(ne, !other && self != *other);  // null is not equal to non-null
-  DEFINE_LAYOUT_CMP(lt, !other && self <  *other);  // null precedes non-null
+  DEFINE_LAYOUT_CMP(ne, !other || self != *other);  // null is not equal to non-null
+  DEFINE_LAYOUT_CMP(lt, !other || self <  *other);  // null precedes non-null
   DEFINE_LAYOUT_CMP(gt, other  && self >  *other);
-  DEFINE_LAYOUT_CMP(le, !other && self <= *other);
+  DEFINE_LAYOUT_CMP(le, !other || self <= *other);
   DEFINE_LAYOUT_CMP(ge, other  && self >= *other);
 #undef DEFINE_LAYOUT_CMP
 }
@@ -276,9 +283,9 @@ void ExposeTensor(py::module &m) {
             // do not consume capsule
             auto dlm_tensor_ptr = DLMTensorRawPtrFromCapsule(capsule, false);
             const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
-            list.append(dl_tensor.device.device_type == kDLGPU ||
+            list.append(dl_tensor.device.device_type == kDLCUDA ||
                         dl_tensor.device.device_type == kDLCPU);
-            list.append(dl_tensor.device.device_type == kDLGPU);
+            list.append(dl_tensor.device.device_type == kDLCUDA);
           } else {
             list.append(false);
             list.append(false);
@@ -294,7 +301,7 @@ void ExposeTensor(py::module &m) {
           Python object to be checked
       )code");
 
-  py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
+  auto tensor_cpu_binding = py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
     .def(py::init([](py::capsule &capsule, string layout = "") {
           auto t = std::make_unique<Tensor<CPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
@@ -303,7 +310,7 @@ void ExposeTensor(py::module &m) {
       "object"_a,
       "layout"_a = "",
       R"code(
-      DLPack of Tensor residing in the CPU memory.
+      Wrap a DLPack Tensor residing in the CPU memory.
 
       object : DLPack object
             Python DLPack object
@@ -359,7 +366,7 @@ void ExposeTensor(py::module &m) {
       "layout"_a = "",
       "is_pinned"_a = false,
       R"code(
-      Tensor residing in the CPU memory.
+      Wrap a Tensor residing in the CPU memory.
 
       b : object
             the buffer to wrap into the TensorListCPU object
@@ -417,10 +424,17 @@ void ExposeTensor(py::module &m) {
       )code")
     .def_property("__array_interface__", &ArrayInterfaceRepr<CPUBackend>, nullptr,
       R"code(
-      Returns array interface representation of TensorCPU.
+      Returns Array Interface representation of TensorCPU.
       )code");
+  tensor_cpu_binding.doc() = R"code(
+      Class representing a Tensor residing in host memory. It can be used to access individual
+      samples of a :class:`TensorListCPU` or used to wrap CPU memory that is intended
+      to be passed as an input to DALI.
 
-  py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
+      It is compatible with `Python Buffer Protocol <https://docs.python.org/3/c-api/buffer.html>`_
+      and `NumPy Array Interface <https://numpy.org/doc/stable/reference/arrays.interface.html>`_.)code";
+
+  auto tensor_gpu_binding = py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
     .def(py::init([](py::capsule &capsule, string layout = "") {
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
@@ -429,7 +443,7 @@ void ExposeTensor(py::module &m) {
       "object"_a,
       "layout"_a = "",
       R"code(
-      DLPack of Tensor residing in the GPU memory.
+      Wrap a DLPack Tensor residing in the GPU memory.
 
       object : DLPack object
             Python DLPack object
@@ -445,10 +459,10 @@ void ExposeTensor(py::module &m) {
       "layout"_a = "",
       "device_id"_a = -1,
       R"code(
-      Tensor residing in the GPU memory.
+      Wrap a Tensor residing in the GPU memory that implements CUDA Array Interface.
 
       object : object
-            Python object that implement CUDA Array Interface
+            Python object that implements CUDA Array Interface
       layout : str
             Layout of the data
       device_id: int
@@ -533,8 +547,14 @@ void ExposeTensor(py::module &m) {
       )code")
     .def_property("__cuda_array_interface__",  &ArrayInterfaceRepr<GPUBackend>, nullptr,
       R"code(
-      Returns cuda array interface representation of TensorGPU.
+      Returns CUDA Array Interface (Version 2) representation of TensorGPU.
       )code");
+  tensor_gpu_binding.doc() = R"code(
+      Class representing a Tensor residing in GPU memory. It can be used to access individual
+      samples of a :class:`TensorListGPU` or used to wrap GPU memory that is intended
+      to be passed as an input to DALI.
+
+      It is compatible with `CUDA Array Interface <https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html>`_.)code";
 }
 
 template <typename Backend>
@@ -1192,6 +1212,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("TENSOR_LAYOUT", DALI_TENSOR_LAYOUT)
     .value("PYTHON_OBJECT", DALI_PYTHON_OBJECT)
     .value("_TENSOR_LAYOUT_VEC", DALI_TENSOR_LAYOUT_VEC)
+    .value("_DATA_TYPE_VEC", DALI_DATA_TYPE_VEC)
     .export_values();
 
   // DALIImageType

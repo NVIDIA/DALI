@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -106,7 +106,7 @@ class NormalizeBase : public Operator<Backend> {
     int dim = data_shape_.sample_dim();
     axes_.resize(dim);
     std::iota(axes_.begin(), axes_.end(), 0);
-    axis_mask_ = (1 << dim) - 1;
+    axis_mask_ = (1_u64 << dim) - 1;
     GetParamShapeFromAxes();
   }
 
@@ -233,18 +233,18 @@ class NormalizeBase : public Operator<Backend> {
   void SetAxisMask() {
     axis_mask_ = 0;
     for (auto axis : axes_)
-      axis_mask_ |= 1 << axis;
+      axis_mask_ |= 1_u64 << axis;
   }
 
   bool IsReducedAxis(int axis) const noexcept {
-    return axis_mask_ & (1 << axis);
+    return axis_mask_ & (1_u64 << axis);
   }
 
   bool ShouldCalcMean() const noexcept { return !has_tensor_mean_ && !has_scalar_mean_; }
   bool ShouldCalcStdDev() const noexcept { return !has_tensor_stddev_ && !has_scalar_stddev_; }
   bool IsFullReduction() const noexcept {
     int ndim = data_shape_.sample_dim();
-    return axis_mask_== ((1 << ndim) - 1);
+    return axis_mask_== ((1_u64 << ndim) - 1);
   }
 
  protected:
@@ -268,7 +268,7 @@ class NormalizeBase : public Operator<Backend> {
   int degrees_of_freedom_ = 0;  //!< For Bessel's correction
   DALIDataType input_type_ = DALI_NO_TYPE, output_type_ = DALI_FLOAT;
   std::vector<int> axes_;
-  int axis_mask_ = 0;
+  uint64_t axis_mask_ = 0;
 };
 
 }  // namespace dali

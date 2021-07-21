@@ -104,6 +104,7 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libogg.so.0"
     "${DEPS_PATH}/lib/libvorbis.so.0"
     "${DEPS_PATH}/lib/libvorbisenc.so.2"
+    "${DEPS_PATH}/lib/libopus.so.0"
     "${DEPS_PATH}/lib/libopenjp2.so.7"
     "${DEPS_PATH}/lib/libzstd.so.1"
     "${DEPS_PATH}/lib/libz.so.1"

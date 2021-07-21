@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/operators/reader/nvdecoder/imgproc.h"
 #include "dali/core/device_guard.h"
+#include "dali/util/nvml.h"
 
 namespace dali {
 
@@ -46,7 +47,7 @@ NvDecoder::NvDecoder(int device_id,
                      int max_height,
                      int max_width,
                      int additional_decode_surfaces)
-    : device_id_(device_id), stream_(CUDAStream::Create(true, device_id)),
+    : device_id_(device_id),
       rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
       device_(), parser_(), decoder_(max_height, max_width, additional_decode_surfaces),
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
@@ -56,6 +57,38 @@ NvDecoder::NvDecoder(int device_id,
   DALI_ENFORCE(cuInitChecked(),
     "Failed to load libcuda.so. "
     "Check your library paths and if NVIDIA driver is installed correctly.");
+
+
+  // This is a workaround for an issue with nvcuvid in drivers >460 where concurrent
+  // use on default context and non-default streams may lead to memory corruption.
+  // TODO(michalz): add an upper bound when the problem is fixed
+  bool use_default_stream = false;
+#if NVML_ENABLED
+  {
+    static float driver_version = []()->float {
+      char version[80];
+      CUDA_CALL(nvmlInitChecked());
+      CUDA_CALL(nvmlSystemGetDriverVersion(version, sizeof version));
+
+      return std::stof(version);
+    }();
+    if (driver_version > 460)
+      use_default_stream = true;
+  }
+#else
+  {
+    int driver_cuda_version = 0;
+    CUDA_CALL(cuDriverGetVersion(&driver_cuda_version));
+    if (driver_cuda_version >= 11030)
+      use_default_stream = true;
+  }
+#endif
+  if (use_default_stream) {
+    DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
+    stream_.reset(0);
+  } else {
+    stream_ = CUDAStream::Create(true, device_id);
+  }
 
   CUDA_CALL(cuDeviceGet(&device_, device_id_));
 
@@ -80,6 +113,15 @@ NvDecoder::NvDecoder(int device_id,
 
     case AV_CODEC_ID_VP9:
       codec = Codec::VP9;
+      break;
+
+    case AV_CODEC_ID_VP8:
+      codec = Codec::VP8;
+      break;
+
+
+    case AV_CODEC_ID_MJPEG:
+      codec = Codec::MJPEG;
       break;
 
     default:
@@ -127,7 +169,12 @@ int NvDecoder::decode_av_packet(AVPacket* avpkt, int64_t start_time, AVRational 
   }
 
   // parser_ will call handle_* callbacks after parsing
-  NVCUVID_CALL(cuvidParseVideoData(parser_, &cupkt));
+  auto ret = cuvidParseVideoData(parser_, &cupkt);
+  if (!captured_exception_) {
+    // throw only if we haven't captured any other exception before which is probably processed
+    // right now and we don't want to throw exception in exception
+    NVCUVID_CALL(ret);
+  }
   return 0;
 }
 
@@ -197,14 +244,12 @@ int NvDecoder::handle_decode_(CUVIDPICPARAMS* pic_params) {
   return kNvcuvid_success;
 }
 
-NvDecoder::MappedFrame::MappedFrame()
-    : MappedFrame(nullptr, nullptr, 0) {
-}
-
 NvDecoder::MappedFrame::MappedFrame(CUVIDPARSERDISPINFO* disp_info,
                                     CUvideodecoder decoder,
                                     CUstream stream)
     : disp_info{disp_info}, valid_{false}, decoder_(decoder), params_{0} {
+
+  assert(disp_info);
 
   if (!disp_info->progressive_frame) {
     DALI_FAIL("Got an interlaced frame. We don't do interlaced frames.");
@@ -369,6 +414,16 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
   }
   if (captured_exception_)
     std::rethrow_exception(captured_exception_);
+  if (sequence.count < sequence.max_count) {
+    auto data_size = sequence.count * volume(sequence.frame_shape());
+    auto pad_size = (sequence.max_count - sequence.count) * volume(sequence.frame_shape()) *
+                     dali::TypeTable::GetTypeInfo(sequence.dtype).size();
+    TYPE_SWITCH(dtype_, type2id, OutputType, NVDECODER_SUPPORTED_TYPES, (
+      cudaMemsetAsync(sequence.sequence.mutable_data<OutputType>() + data_size, 0, pad_size,
+                      stream_);
+    ), DALI_FAIL(make_string("Not supported output type:", dtype_, // NOLINT
+        "Only DALI_UINT8 and DALI_FLOAT are supported as the decoder outputs.")););
+  }
   record_sequence_event_(sequence);
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);
   pipe.AddExternalInput("raw_jpegs");
-  pipe.SetExternalInput("raw_jpegs", data);
 
   pipe.AddOperator(
       OpSpec("ImageDecoder")
@@ -103,6 +102,8 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
   // Build and run the pipeline
   vector<std::pair<string, string>> outputs = {{"final_batch", "gpu"}};
   pipe.Build(outputs);
+
+  pipe.SetExternalInput("raw_jpegs", data);
 
   // Run once to allocate the memory
   DeviceWorkspace ws;
@@ -172,8 +173,6 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);
   pipe.AddExternalInput("raw_jpegs");
-  pipe.SetExternalInput("raw_jpegs", data);
-
   // Add a hybrid jpeg decoder
   pipe.AddOperator(
       OpSpec("ImageDecoder")
@@ -237,6 +236,9 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
   // Build and run the pipeline
   vector<std::pair<string, string>> outputs = {{"final", "gpu"}};
   pipe.Build(outputs);
+
+  pipe.SetExternalInput("raw_jpegs", data);
+
 
   // Run once to allocate the memory
   DeviceWorkspace ws;
@@ -305,7 +307,6 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
   TensorList<CPUBackend> data;
   this->MakeJPEGBatch(&data, batch_size);
   pipe.AddExternalInput("raw_jpegs");
-  pipe.SetExternalInput("raw_jpegs", data);
 
   pipe.AddOperator(
               OpSpec("ImageDecoder")
@@ -349,6 +350,8 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
   // Build and run the pipeline
   vector<std::pair<string, string>> outputs = {{"final", "gpu"}};
   pipe.Build(outputs);
+
+  pipe.SetExternalInput("raw_jpegs", data);
 
   // Run once to allocate the memory
   DeviceWorkspace ws;

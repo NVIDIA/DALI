@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -183,6 +183,23 @@ TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode4T) {
 }
 
 #if NVJPEG_VER_MAJOR >= 11
+void PrintDeviceInfo() {
+  unsigned int device_count;
+  if (!nvmlIsInitialized()) {
+    nvml::Init();
+    return;
+  }
+  CUDA_CALL(nvmlDeviceGetCount_v2(&device_count));
+  for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
+    auto info = nvml::GetDeviceInfo(device_idx);
+    std::cerr << "Device " << device_idx
+              << " brand " << info.type
+              << " cc_M " << info.cap_major
+              << " cc_m " << info.cap_minor
+              << std::endl;
+  }
+}
+
 class HwDecoderUtilizationTest : public ::testing::Test {
  public:
   void SetUp() final {
@@ -207,20 +224,9 @@ class HwDecoderUtilizationTest : public ::testing::Test {
 
     auto node = pipeline_.GetOperatorNode(decoder_name_);
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
-      if (nvml::HasCuda11NvmlFunctions()) {
-          unsigned int device_count;
-          CUDA_CALL(nvmlDeviceGetCount_v2(&device_count));
-          for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
-            auto info = nvml::GetDeviceInfo(device_idx);
-            std::cerr << "Device " << device_idx
-                      << " brand " << info.type
-                      << " cc_M " << info.cap_major
-                      << " cc_m " << info.cap_minor
-                      << std::endl;
-          }
-          if (nvml::HasHwDecoder()) {
-            FAIL() << "HW Decoder exists in the system and failed to open";
-          }
+      PrintDeviceInfo();
+      if (nvml::isHWDecoderSupported()) {
+        FAIL() << "HW Decoder exists in the system and failed to open";
       }
       GTEST_SKIP();
     }
@@ -280,8 +286,181 @@ class HwDecoderMemoryPoolTest : public ::testing::Test {
   std::string decoder_name_ = "Lorem Ipsum";
 };
 
-
 TEST_F(HwDecoderMemoryPoolTest, MemoryPoolTest) {
+  this->pipeline_.RunCPU();
+  this->pipeline_.RunGPU();
+}
+
+class HwDecoderSliceUtilizationTest : public ::testing::Test {
+ public:
+  void SetUp() final {
+    dali::string list_root(testing::dali_extra_path() + "/db/single/jpeg");
+
+    auto shape = uniform_list_shape(batch_size_, {2});
+    TensorList<CPUBackend> begin_data;
+    begin_data.set_type(TypeInfo::Create<float>());
+    begin_data.Resize(shape);
+    float crop_x = 0.25f, crop_y = 0.124f;
+    for (int k = 0; k < batch_size_; k++) {
+      begin_data.mutable_tensor<float>(k)[0] = crop_x;
+      begin_data.mutable_tensor<float>(k)[1] = crop_y;
+    }
+
+    TensorList<CPUBackend> crop_data;
+    float crop_w = 0.5f, crop_h = 0.25f;
+    crop_data.set_type(TypeInfo::Create<float>());
+    crop_data.Resize(shape);
+    for (int k = 0; k < batch_size_; k++) {
+      crop_data.mutable_tensor<float>(k)[0] = crop_w;
+      crop_data.mutable_tensor<float>(k)[1] = crop_h;
+    }
+
+    pipeline_.AddOperator(
+            OpSpec("FileReader")
+                    .AddArg("device", "cpu")
+                    .AddArg("file_root", list_root)
+                    .AddOutput("compressed_images", "cpu")
+                    .AddOutput("labels", "cpu"));
+    auto decoder_spec =
+            OpSpec("ImageDecoderSlice")
+                    .AddArg("device", "mixed")
+                    .AddArg("output_type", DALI_RGB)
+                    .AddArg("hw_decoder_load", .7f)
+                    .AddInput("compressed_images", "cpu")
+                    .AddInput("begin_data", "cpu")
+                    .AddInput("crop_data", "cpu")
+                    .AddOutput("images", "gpu");
+    pipeline_.AddExternalInput("begin_data");
+    pipeline_.AddExternalInput("crop_data");
+    pipeline_.AddOperator(decoder_spec, decoder_name_);
+
+    pipeline_.Build(outputs_);
+    pipeline_.SetExternalInput("begin_data", begin_data);
+    pipeline_.SetExternalInput("crop_data", crop_data);
+
+    auto node = pipeline_.GetOperatorNode(decoder_name_);
+    if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+      PrintDeviceInfo();
+      if (nvml::isHWDecoderSupported()) {
+        FAIL() << "HW Decoder exists in the system and failed to open";
+      }
+      GTEST_SKIP();
+    }
+  }
+
+  int batch_size_ = 47;
+  Pipeline pipeline_{batch_size_, 1, 0, -1, false, 2, false};
+  vector<std::pair<string, string>> outputs_ = {{"images", "gpu"}};
+  std::string decoder_name_ = "Lorem Ipsum";
+};
+
+TEST_F(HwDecoderSliceUtilizationTest, UtilizationTest) {
+  this->pipeline_.RunCPU();
+  this->pipeline_.RunGPU();
+
+  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
+  auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
+  auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
+  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  EXPECT_EQ(nsamples_hw, 35) << "HW Decoder malfunction: incorrect number of images decoded in HW";
+  EXPECT_EQ(nsamples_cuda, 12);
+  EXPECT_EQ(nsamples_host, 0)
+                << "Image decoding malfuntion: all images should've been decoded by CUDA or HW";
+}
+
+class HwDecoderCropUtilizationTest : public ::testing::Test {
+ public:
+  void SetUp() final {
+    dali::string list_root(testing::dali_extra_path() + "/db/single/jpeg");
+
+    pipeline_.AddOperator(
+            OpSpec("FileReader")
+                    .AddArg("device", "cpu")
+                    .AddArg("file_root", list_root)
+                    .AddOutput("compressed_images", "cpu")
+                    .AddOutput("labels", "cpu"));
+    auto decoder_spec =
+            OpSpec("ImageDecoderCrop")
+                    .AddArg("device", "mixed")
+                    .AddArg("output_type", DALI_RGB)
+                    .AddArg("hw_decoder_load", .7f)
+                    .AddArg("crop", std::vector<float>{224.0f, 224.0f})
+                    .AddInput("compressed_images", "cpu")
+                    .AddOutput("images", "gpu");
+    pipeline_.AddOperator(decoder_spec, decoder_name_);
+
+    pipeline_.Build(outputs_);
+
+    auto node = pipeline_.GetOperatorNode(decoder_name_);
+    if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+      PrintDeviceInfo();
+      if (nvml::isHWDecoderSupported()) {
+        FAIL() << "HW Decoder exists in the system and failed to open";
+      }
+      GTEST_SKIP();
+    }
+  }
+
+  int batch_size_ = 47;
+  Pipeline pipeline_{batch_size_, 1, 0, -1, false, 2, false};
+  vector<std::pair<string, string>> outputs_ = {{"images", "gpu"}};
+  std::string decoder_name_ = "Lorem Ipsum";
+};
+
+TEST_F(HwDecoderCropUtilizationTest, UtilizationTest) {
+  this->pipeline_.RunCPU();
+  this->pipeline_.RunGPU();
+
+  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
+  auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
+  auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
+  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  EXPECT_EQ(nsamples_hw, 35) << "HW Decoder malfunction: incorrect number of images decoded in HW";
+  EXPECT_EQ(nsamples_cuda, 12);
+  EXPECT_EQ(nsamples_host, 0)
+                << "Image decoding malfuntion: all images should've been decoded by CUDA or HW";
+}
+
+
+class HwDecoderRandomCropUtilizationTest : public ::testing::Test {
+ public:
+  void SetUp() final {
+    dali::string list_root(testing::dali_extra_path() + "/db/single/jpeg");
+
+    pipeline_.AddOperator(
+            OpSpec("FileReader")
+                    .AddArg("device", "cpu")
+                    .AddArg("file_root", list_root)
+                    .AddOutput("compressed_images", "cpu")
+                    .AddOutput("labels", "cpu"));
+    auto decoder_spec =
+            OpSpec("ImageDecoderRandomCrop")
+                    .AddArg("device", "mixed")
+                    .AddArg("output_type", DALI_RGB)
+                    .AddArg("hw_decoder_load", .7f)
+                    .AddInput("compressed_images", "cpu")
+                    .AddOutput("images", "gpu");
+    pipeline_.AddOperator(decoder_spec, decoder_name_);
+
+    pipeline_.Build(outputs_);
+
+    auto node = pipeline_.GetOperatorNode(decoder_name_);
+    if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+      PrintDeviceInfo();
+      if (nvml::isHWDecoderSupported()) {
+        FAIL() << "HW Decoder exists in the system and failed to open";
+      }
+      GTEST_SKIP();
+    }
+  }
+
+  int batch_size_ = 47;
+  Pipeline pipeline_{batch_size_, 1, 0, -1, false, 2, false};
+  vector<std::pair<string, string>> outputs_ = {{"images", "gpu"}};
+  std::string decoder_name_ = "Lorem Ipsum";
+};
+
+TEST_F(HwDecoderRandomCropUtilizationTest, UtilizationTest) {
   this->pipeline_.RunCPU();
   this->pipeline_.RunGPU();
 }

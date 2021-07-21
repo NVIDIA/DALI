@@ -49,7 +49,8 @@ template <typename In, int nvec = sizeof(float)/sizeof(In)>
 void TestConvertLoad(In lo, In hi) {
   int lanes = 16 / sizeof(In);
   In in[lanes];  // NOLINT
-  for (int i = 0; i < lanes; i++) {
+  // promote to int64_t computation to avoid integer overflow
+  for (int64_t i = 0; i < lanes; i++) {
     in[i] = lo + (hi - lo) * i / (lanes - 1);
   }
   float4x<nvec> v = load_f(in);

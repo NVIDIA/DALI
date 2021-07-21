@@ -42,7 +42,7 @@ class OperatorRegistry {
       std::lock_guard<std::mutex> lock(mutex_);
     DALI_ENFORCE(registry_.count(name) == 0,
         "Operator \"" + name + "\" already registered" +
-        (devName != ""? (" for " + devName) : "") + ".");
+        (!devName.empty() ? (" for " + devName) : "") + ".");
     registry_[name] = creator;
   }
 

@@ -74,21 +74,21 @@ TEST(MMTest, MonotonicDeviceResource) {
     monotonic_device_resource<> mr(&upstream);
     void *m1 = mr.allocate(100);
     ASSERT_NE(m1, nullptr);
-    cudaMemset(m1, 0xff, 100);
+    CUDA_CALL(cudaMemset(m1, 0xff, 100));
     void *m2 = mr.allocate(256, 32);
     ASSERT_NE(m2, nullptr);
-    cudaMemset(m2, 0xfe, 256);
+    CUDA_CALL(cudaMemset(m2, 0xfe, 256));
     EXPECT_GE(static_cast<char *>(m2), static_cast<char *>(m1) + 100);
     EXPECT_TRUE(detail::is_aligned(m2, 32));
     EXPECT_LE(static_cast<char *>(m2), static_cast<char *>(m1) + align_up(100, 32));
     void *m3 = mr.allocate(1024);
     ASSERT_NE(m3, nullptr);
-    cudaMemset(m3, 0xfd, 1024);
+    CUDA_CALL(cudaMemset(m3, 0xfd, 1024));
     void *m4 = mr.allocate(64000);
     ASSERT_NE(m4, nullptr);
-    cudaMemset(m4, 0xfc, 64000);
+    CUDA_CALL(cudaMemset(m4, 0xfc, 64000));
   }
-  cudaDeviceSynchronize();
+  CUDA_CALL(cudaDeviceSynchronize());
   upstream.check_leaks();
 }
 

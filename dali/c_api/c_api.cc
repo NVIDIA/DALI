@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <vector>
 #include <map>
 
+#include "dali/core/common.h"
 #include "dali/core/cuda_stream.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
@@ -56,6 +57,23 @@ int PopCurrBatchSize(batch_size_map_t *batch_size_map, int max_batch_size,
   return ret;
 }
 
+/**
+ * @brief Extract ExtSrcNoCopyMode based on the DALI_ext_force_copy and DALI_ext_force_no_copy
+ *
+ * @param flags Flags typically specified in daliSetExternalInput* functions.
+ */
+dali::ExtSrcNoCopyMode GetExternalSourceCopyMode(unsigned int flags) {
+  dali::ExtSrcNoCopyMode no_copy_mode = dali::ExtSrcNoCopyMode::DEFAULT;
+  DALI_ENFORCE(!((flags & DALI_ext_force_copy) && (flags & DALI_ext_force_no_copy)),
+               "External Source cannot be forced to use DALI_ext_force_copy and "
+               "DALI_ext_force_no_copy at the same time.");
+  if (flags & DALI_ext_force_copy) {
+    no_copy_mode = dali::ExtSrcNoCopyMode::FORCE_COPY;
+  } else if (flags & DALI_ext_force_no_copy) {
+    no_copy_mode = dali::ExtSrcNoCopyMode::FORCE_NO_COPY;
+  }
+  return no_copy_mode;
+}
 
 template <typename Backend>
 void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const void *data_ptr,
@@ -82,7 +100,8 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
   data.SetLayout(layout);
   pipeline->SetExternalInput(name, data, stream,
                              flags & DALI_ext_force_sync,
-                             flags & DALI_use_copy_kernel);
+                             flags & DALI_use_copy_kernel,
+                             GetExternalSourceCopyMode(flags));
 }
 
 
@@ -114,7 +133,8 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
   }
   pipeline->SetExternalInput(name, data, stream,
                              flags & DALI_ext_force_sync,
-                             flags & DALI_use_copy_kernel);
+                             flags & DALI_use_copy_kernel,
+                             GetExternalSourceCopyMode(flags));
 }
 
 dali::kernels::AllocType GetAllocType(device_type_t device_type, bool is_pinned) {
@@ -311,6 +331,9 @@ static int64_t *daliShapeAtHelper(dali::DeviceWorkspace *ws, int n, int k) {
   }
 
   c_shape = static_cast<int64_t*>(malloc(sizeof(int64_t) * (shape.size() + 1)));
+  if (!c_shape) {
+    return nullptr;
+  }
   c_shape[shape.size()] = 0;
   memcpy(c_shape, &shape[0], shape.size() * sizeof(int64_t));
   return c_shape;
@@ -457,7 +480,7 @@ void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
                    stream, use_copy_kernel);
   }
   if (sync) {
-    cudaStreamSynchronize(stream);
+    CUDA_CALL(cudaStreamSynchronize(stream));
   }
 }
 
@@ -482,7 +505,7 @@ void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int out
                    stream, use_copy_kernel);
   }
   if (sync) {
-    cudaStreamSynchronize(stream);
+    CUDA_CALL(cudaStreamSynchronize(stream));
   }
 }
 
@@ -541,6 +564,21 @@ void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_n
   meta->shard_id = returned_meta.shard_id;
   meta->pad_last_batch = returned_meta.pad_last_batch;
   meta->stick_to_shard = returned_meta.stick_to_shard;
+}
+
+dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle, const char *operator_name) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  auto *node = pipeline->GetOperatorNode(operator_name);
+  switch (node->op_type) {
+    case dali::OpType::CPU:
+      return dali_backend_t::DALI_BACKEND_CPU;
+    case dali::OpType::GPU:
+      return dali_backend_t::DALI_BACKEND_GPU;
+    case dali::OpType::MIXED:
+      return dali_backend_t::DALI_BACKEND_MIXED;
+    default:
+      DALI_FAIL("Invalid operator type.");
+  }
 }
 
 void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle, daliExecutorMetadata **operator_meta,

@@ -203,6 +203,7 @@ struct mat {
     mat result;
     MAT_ELEMENT_LOOP(i, j)
       result(i, j) = ~at(i, j);
+    return result;
   }
 
 #define DEFINE_ASSIGN_MAT_OP(op)                                    \

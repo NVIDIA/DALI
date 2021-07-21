@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "dali/core/dev_buffer.h"
 #include "dali/core/mm/mm_test_utils.h"
 #include "dali/core/cuda_stream.h"
+#include "dali/core/mm/cuda_vm_resource.h"
 #include "rmm/mr/device/pool_memory_resource.hpp"
 
 namespace dali {
@@ -55,7 +56,7 @@ TEST(MMAsyncPool, SingleStreamReuse) {
   CUDAStream stream = CUDAStream::Create(true);
   test::test_device_resource upstream;
 
-  async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+  async_pool_resource<memory_kind::device> pool(&upstream);
   stream_view sv(stream);
   int size1 = 1<<20;
   void *ptr = pool.allocate_async(size1, sv);
@@ -80,7 +81,7 @@ TEST(MMAsyncPool, TwoStream) {
   int stream_not_busy = 0;
   int success = 0;
   while (success < min_success) {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    async_pool_resource<memory_kind::device> pool(&upstream);
     void *p1 = pool.allocate_async(1000, sv1);
     hog.run(s1);
     pool.deallocate_async(p1, 1000, sv1);
@@ -188,7 +189,6 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
       if (stream) {
         pool.deallocate_async(blk.ptr, blk.size, sv);
       } else {
-        CUDA_CALL(cudaStreamSynchronize(stream));
         pool.deallocate(blk.ptr, blk.size);
       }
     }
@@ -205,7 +205,7 @@ TEST(MMAsyncPool, SingleStreamRandom) {
   test::test_device_resource upstream;
 
   {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    async_pool_resource<memory_kind::device> pool(&upstream);
     vector<block> blocks;
     detail::dummy_lock mtx;
     AsyncPoolTest(pool, blocks, mtx, stream);
@@ -224,7 +224,7 @@ TEST(MMAsyncPool, MultiThreadedSingleStreamRandom) {
     vector<block> blocks;
     std::mutex mtx;
 
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    async_pool_resource<memory_kind::device> pool(&upstream);
 
     vector<std::thread> threads;
 
@@ -245,7 +245,7 @@ TEST(MMAsyncPool, MultiThreadedSingleStreamRandom) {
 TEST(MMAsyncPool, MultiThreadedMultiStreamRandom) {
   mm::test::test_device_resource upstream;
   {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    async_pool_resource<memory_kind::device> pool(&upstream);
 
     vector<std::thread> threads;
 
@@ -269,13 +269,14 @@ TEST(MMAsyncPool, MultiThreadedMultiStreamRandom) {
 TEST(MMAsyncPool, MultiStreamRandomWithGPUHogs) {
   mm::test::test_device_resource upstream;
   {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream, false);
+    async_pool_resource<memory_kind::device> pool(&upstream, false);
 
     vector<std::thread> threads;
 
     for (int t = 0; t < 10; t++) {
       threads.push_back(std::thread([&]() {
-        CUDAStream stream = CUDAStream::Create(true);
+        // 0-th thread uses null stream, which triggers non-async API usage
+        CUDAStream stream = t ? CUDAStream::Create(true) : CUDAStream();
         vector<block> blocks;
         detail::dummy_lock mtx;
         AsyncPoolTest(pool, blocks, mtx, stream, 20000, true);
@@ -294,7 +295,7 @@ TEST(MMAsyncPool, MultiStreamRandomWithGPUHogs) {
 TEST(MMAsyncPool, CrossStream) {
   mm::test::test_device_resource upstream;
   {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream, false);
+    async_pool_resource<memory_kind::device> pool(&upstream, false);
 
     vector<std::thread> threads;
     vector<CUDAStream> streams;
@@ -323,7 +324,7 @@ TEST(MMAsyncPool, CrossStream) {
 TEST(MMAsyncPool, CrossStreamWithHogs) {
   mm::test::test_device_resource upstream;
   {
-    async_pool_base<memory_kind::device, free_tree, std::mutex> pool(&upstream);
+    async_pool_resource<memory_kind::device> pool(&upstream);
 
     vector<std::thread> threads;
     vector<CUDAStream> streams;
@@ -348,6 +349,128 @@ TEST(MMAsyncPool, CrossStreamWithHogs) {
   std::cerr << "Upstream allocations: " << upstream.get_num_allocs() << std::endl;
   upstream.check_leaks();
 }
+
+#if DALI_USE_CUDA_VM_MAP
+
+TEST(MM_VMAsyncPool, MultiThreadedSingleStreamRandom) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
+
+  CUDAStream stream = CUDAStream::Create(true);
+  {
+    vector<block> blocks;
+    std::mutex mtx;
+
+    async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
+
+    vector<std::thread> threads;
+
+    for (int t = 0; t < 10; t++) {
+      threads.push_back(std::thread([&]() {
+        AsyncPoolTest(pool, blocks, mtx, stream);
+      }));
+    }
+    for (auto &t : threads)
+      t.join();
+  }
+}
+
+TEST(MM_VMAsyncPool, MultiThreadedMultiStreamRandom) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
+
+  async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
+
+  vector<std::thread> threads;
+
+  for (int t = 0; t < 10; t++) {
+    threads.push_back(std::thread([&]() {
+      CUDAStream stream = CUDAStream::Create(true);
+      vector<block> blocks;
+      detail::dummy_lock mtx;
+      AsyncPoolTest(pool, blocks, mtx, stream);
+      CUDA_CALL(cudaStreamSynchronize(stream));
+    }));
+  }
+  for (auto &t : threads)
+    t.join();
+}
+
+TEST(MM_VMAsyncPool, MultiStreamRandomWithGPUHogs) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
+
+  async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
+
+  vector<std::thread> threads;
+
+  for (int t = 0; t < 10; t++) {
+    threads.push_back(std::thread([&]() {
+      // 0-th thread uses null stream, which triggers non-async API usage
+      CUDAStream stream = t ? CUDAStream::Create(true) : CUDAStream();
+      vector<block> blocks;
+      detail::dummy_lock mtx;
+      AsyncPoolTest(pool, blocks, mtx, stream, 20000, true);
+      CUDA_CALL(cudaStreamSynchronize(stream));
+    }));
+  }
+  for (auto &t : threads)
+    t.join();
+}
+
+TEST(MM_VMAsyncPool, CrossStream) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
+
+  async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
+
+  vector<std::thread> threads;
+  vector<CUDAStream> streams;
+
+  vector<block> blocks;
+  std::mutex mtx;
+
+  const int N = 10;
+  streams.resize(N);
+  for (int t = 0; t < N; t++) {
+    if (t != 0)  // keep empty stream at index 0 to mix sync/async allocations
+      streams[t] = CUDAStream::Create(true);
+    threads.push_back(std::thread([&, t]() {
+      AsyncPoolTest(pool, blocks, mtx, streams[t]);
+      CUDA_CALL(cudaStreamSynchronize(streams[t]));
+    }));
+  }
+  for (auto &t : threads)
+    t.join();
+}
+
+TEST(MM_VMAsyncPool, CrossStreamWithHogs) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
+
+  async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
+
+  vector<std::thread> threads;
+  vector<CUDAStream> streams;
+
+  vector<block> blocks;
+  std::mutex mtx;
+
+  const int N = 10;
+  streams.resize(N);
+  for (int t = 0; t < N; t++) {
+    if (t != 0)  // keep empty stream at index 0 to mix sync/async allocations
+      streams[t] = CUDAStream::Create(true);
+    threads.push_back(std::thread([&, t]() {
+      AsyncPoolTest(pool, blocks, mtx, streams[t], 10000, true);
+      CUDA_CALL(cudaStreamSynchronize(streams[t]));
+    }));
+  }
+  for (auto &t : threads)
+    t.join();
+}
+
+#endif
 
 }  // namespace mm
 }  // namespace dali

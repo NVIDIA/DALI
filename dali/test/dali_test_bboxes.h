@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #ifndef DALI_TEST_DALI_TEST_BBOXES_H_
 #define DALI_TEST_DALI_TEST_BBOXES_H_
 
@@ -31,7 +31,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     TensorList<CPUBackend> boxes;
     TensorList<CPUBackend> labels;
     this->MakeBBoxesAndLabelsBatch(&boxes, &labels, batch_size, ltrb);
-    this->SetExternalInputs({{"boxes", &boxes}, {"labels", &labels}});
+    this->AddExternalInputs({{"boxes", &boxes}, {"labels", &labels}});
 
     auto pipe = this->GetPipeline();
 
@@ -48,6 +48,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
 
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build(DALISingleOpTest<ImgType>::outputs_);
+    this->FillExternalInputs();
     pipe->RunCPU();
     pipe->RunGPU();
 
@@ -61,7 +62,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
 
-    this->SetExternalInputs(inputs);
+    this->AddExternalInputs(inputs);
 
     auto pipe = this->GetPipeline();
 
@@ -87,6 +88,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
 
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build({{"cropped_images", "gpu"}, {"resized_boxes", "gpu"}});
+    this->FillExternalInputs();
     pipe->RunCPU();
     pipe->RunGPU();
 
@@ -108,7 +110,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->SetBatchSize(batch_size);
     this->SetNumThreads(1);
 
-    this->SetExternalInputs(inputs);
+    this->AddExternalInputs(inputs);
 
     auto pipe = this->GetPipeline();
 
@@ -133,6 +135,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
 
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build({{"cropped_images", "cpu"}, {"resized_boxes", "cpu"}});
+    this->FillExternalInputs();
     pipe->RunCPU();
     pipe->RunGPU();
 

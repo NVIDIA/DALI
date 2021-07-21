@@ -1274,6 +1274,5 @@ example, ``Compose`` automatically arranges copying the data to GPU memory.
 _cpu_ops = _cpu_ops.union({"Compose"})
 _gpu_ops = _gpu_ops.union({"Compose"})
 
-
 _load_ops()
 _load_readers_tfrecord()

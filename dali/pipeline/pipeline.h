@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -106,45 +106,29 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC ~Pipeline() = default;
 
   /**
-   * @brief Creates a placeholder for an external input with the given name
+   * @brief Creates a placeholder for an External Source operator with the given name
+   * (and output of given name).
+   *
+   * Equivalent to inserting ExternalSource with output of given name and specified
+   * device placemnt.
    */
-  DLL_PUBLIC inline int AddExternalInput(const string &name) {
-    DALI_ENFORCE(!built_, "Alterations to the pipeline after "
-        "\"Build()\" has been called are not allowed");
-    // Verify that this name is unique and record it
-    auto it = edge_names_.find(name);
-    DALI_ENFORCE(it == edge_names_.end(), "External input name '" +
-        name + "' conflicts with existing intermediate result name");
-    EdgeMeta meta;
-    meta.has_cpu = true;
-    meta.has_gpu = false;
-    meta.has_contiguous = false;
-    DALI_ENFORCE(edge_names_.insert({name, meta}).second,
-        "ExternalInput name insertion failure.");
-
-    // Create a spec for an ExternalInput op and add it to our graph
-    OpSpec spec =
-      OpSpec("ExternalSource")
-              .AddArg("device", "cpu")
-              .AddOutput(name, "cpu");
-    auto logical_id = GetNextLogicalId();
-    logical_ids_[logical_id];
-    PrepareOpSpec(&spec, logical_id);
-    graph_.AddOp(spec, "__ExternalInput_" + name);
-    external_inputs_.push_back(name);
-    return logical_id;
+  DLL_PUBLIC inline int AddExternalInput(const string &name, const string &device = "cpu") {
+    return AddOperator(OpSpec("ExternalSource")
+                           .AddArg("name", name)
+                           .AddArg("device", device)
+                           .AddOutput(name, device),
+                       name);
   }
 
   template <typename T, typename OperatorBackend>
   void SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr,
-                           cudaStream_t stream = 0, bool sync = false,
-                           bool use_copy_kernel = false) {
+                           cudaStream_t stream = 0, ExtSrcSettingMode ext_src_setting_mode = {}) {
     // Note: we have 2 different Backends here - OperatorBackend and T's Backend (StorageBackend).
     // The StorageBackend is hidden under `T` type.
     auto *source = dynamic_cast<ExternalSource<OperatorBackend> *>(op_ptr);
     DALI_ENFORCE(source != nullptr,
                  "Input name '" + name + "' is not marked as an external input.");
-    source->SetDataSource(tl, stream, sync, use_copy_kernel);
+    source->SetDataSource(tl, stream, ext_src_setting_mode);
   }
 
   /**
@@ -154,12 +138,12 @@ class DLL_PUBLIC Pipeline {
    * @param name name of the input
    * @param tl data
    * @param stream CUDA stream to use in case of GPUBackend
-   * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
-   *             to the internal buffer
+   * @param ext_src_setting_mode Options passed to the External Source describing the behaviour
+   *                        of setting the data.
    */
-  template<typename TL>
+  template <typename TL>
   inline void SetExternalInputHelper(const string &name, const TL &tl, cudaStream_t stream = 0,
-                                     bool sync = false, bool use_copy_kernel = false) {
+                                     ExtSrcSettingMode ext_src_setting_mode = {}) {
     bool is_cpu_node = true;
     OpNodeId node_id;
 
@@ -180,9 +164,9 @@ class DLL_PUBLIC Pipeline {
     OperatorBase *op_ptr = &node.InstantiateOperator();
 
     if (is_cpu_node) {
-      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, stream, sync, use_copy_kernel);
+      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, stream, ext_src_setting_mode);
     } else {
-      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, stream, sync, use_copy_kernel);
+      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, stream, ext_src_setting_mode);
     }
   }
 
@@ -195,12 +179,14 @@ class DLL_PUBLIC Pipeline {
    * @param stream CUDA stream to use in case of GPUBackend
    * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
    *             to the internal buffer
+   * @param no_copy_mode Select whether to use the parameter defined in the External Source or
+   *                     override the mode of operation forcing the copy or no-copy
    */
-  template<typename Backend>
-  DLL_PUBLIC inline void
-  SetExternalInput(const string &name, const TensorList<Backend> &tl, cudaStream_t stream = 0,
-                   bool sync = false, bool use_copy_kernel = false) {
-    SetExternalInputHelper(name, tl, stream, sync, use_copy_kernel);
+  template <typename Backend>
+  DLL_PUBLIC inline void SetExternalInput(
+      const string &name, const TensorList<Backend> &tl, cudaStream_t stream = 0, bool sync = false,
+      bool use_copy_kernel = false, ExtSrcNoCopyMode no_copy_mode = ExtSrcNoCopyMode::DEFAULT) {
+    SetExternalInputHelper(name, tl, stream, {sync, use_copy_kernel, no_copy_mode});
   }
 
 
@@ -212,12 +198,15 @@ class DLL_PUBLIC Pipeline {
    * @param stream CUDA stream to use in case of GPUBackend
    * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
    *             to the internal buffer
+   * @param no_copy_mode Select whether to use the parameter defined in the External Source or
+   *                     override the mode of operation forcing the copy or no-copy
    */
-  template<typename Backend>
-  DLL_PUBLIC inline void
-  SetExternalInput(const string &name, const TensorVector<Backend> &tv, cudaStream_t stream = 0,
-                   bool sync = false, bool use_copy_kernel = false) {
-    SetExternalInputHelper(name, tv, stream, sync, use_copy_kernel);
+  template <typename Backend>
+  DLL_PUBLIC inline void SetExternalInput(
+      const string &name, const TensorVector<Backend> &tv, cudaStream_t stream = 0,
+      bool sync = false, bool use_copy_kernel = false,
+      ExtSrcNoCopyMode no_copy_mode = ExtSrcNoCopyMode::DEFAULT) {
+    SetExternalInputHelper(name, tv, stream, {sync, use_copy_kernel, no_copy_mode});
   }
 
   /**
@@ -523,11 +512,6 @@ class DLL_PUBLIC Pipeline {
   OpGraph graph_;
   std::unique_ptr<ExecutorBase> executor_;
   std::map<string, EdgeMeta> edge_names_;
-
-  // store a list of all OpSpec and external inputs
-  // added, in order to recreate the pipeline in a
-  // serialized form
-  vector<string> external_inputs_;
 
   struct OpDefinition {
     std::string instance_name;

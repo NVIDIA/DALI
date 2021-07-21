@@ -34,8 +34,8 @@ TEST(ExtractWindowsGPU, NonBatchedKernel) {
   int step = 10;
   int length = windows * step - 100;;
   int center = 5;
-  cudaMalloc(&in_gpu, sizeof(float)*length);
-  cudaMalloc(&out_gpu, sizeof(float)*windows*outwinlen);
+  CUDA_CALL(cudaMalloc(&in_gpu, sizeof(float)*length));
+  CUDA_CALL(cudaMalloc(&out_gpu, sizeof(float)*windows*outwinlen));
   std::vector<float> in(length), out(windows*outwinlen);
 
   for (int i = 0; i < length; i++) {
@@ -43,14 +43,15 @@ TEST(ExtractWindowsGPU, NonBatchedKernel) {
   }
 
   for (bool reflect : {true, false}) {
-    cudaMemcpy(in_gpu, in.data(), sizeof(float)*length, cudaMemcpyHostToDevice);
-    cudaMemset(out_gpu, 0xff, sizeof(float)*windows*outwinlen);
+    CUDA_CALL(cudaMemcpy(in_gpu, in.data(), sizeof(float)*length, cudaMemcpyHostToDevice));
+    CUDA_CALL(cudaMemset(out_gpu, 0xff, sizeof(float)*windows*outwinlen));
     int xblocks = div_ceil(length, 32);
     int yblocks = div_ceil(winlen, 32);
     window::ExtractVerticalWindowsKernel<<<dim3(xblocks, yblocks), dim3(32, 32)>>>(
       out_gpu, windows, stride, in_gpu, length, nullptr, winlen, outwinlen, center, step, reflect);
-    cudaMemcpy(out.data(), out_gpu, sizeof(float)*winlen*windows, cudaMemcpyDeviceToHost);
-    cudaDeviceSynchronize();
+    CUDA_CALL(
+      cudaMemcpy(out.data(), out_gpu, sizeof(float)*winlen*windows, cudaMemcpyDeviceToHost));
+    CUDA_CALL(cudaDeviceSynchronize());
 
     for (int w = 0; w < windows; w++) {
       for (int i = 0; i < winlen; i++) {
@@ -136,12 +137,14 @@ void TestBatchedExtract(
   memory::KernelUniquePtr<float> gpu_win;
   if (!window.empty()) {
     gpu_win = memory::alloc_unique<float>(AllocType::GPU, window.size());
-    cudaMemcpy(gpu_win.get(), window.data(), sizeof(float)*window.size(), cudaMemcpyHostToDevice);
+    CUDA_CALL(
+      cudaMemcpy(gpu_win.get(), window.data(), sizeof(float)*window.size(),
+                 cudaMemcpyHostToDevice));
   }
   auto window_gpu = make_tensor_gpu<1>(gpu_win.get(), { window.size() });
   out.reshape(req.output_shapes[0].to_static<2>());
   auto out_gpu = out.gpu(0);
-  cudaMemset(out_gpu.data[0], 0xff, sizeof(float)*out_gpu.shape.num_elements());
+  CUDA_CALL(cudaMemset(out_gpu.data[0], 0xff, sizeof(float)*out_gpu.shape.num_elements()));
   extract->Run(ctx, out_gpu, in_gpu, window_gpu);
   auto out_cpu = out.cpu();
 

@@ -164,7 +164,7 @@ class SepearableConvolutionGpuTestImpl {
 
 
       auto out_cpu_v = output_.cpu(0);
-      cudaDeviceSynchronize();
+      CUDA_CALL(cudaDeviceSynchronize());
       CUDA_CALL(cudaGetLastError());
       double eps = 0.001;
       Check(out_cpu_v, baseline_out_v, EqualEps(eps));

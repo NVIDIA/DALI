@@ -46,8 +46,9 @@ void CopyWithStride<GPUBackend>(void *output, const void *input,
                                 size_t item_size,
                                 cudaStream_t stream) {
   if (!in_strides) {
-    cudaMemcpyAsync(output, input, volume(shape, shape + ndim) * item_size,
-                    cudaMemcpyDeviceToDevice, stream);
+    CUDA_CALL(
+      cudaMemcpyAsync(output, input, volume(shape, shape + ndim) * item_size,
+                      cudaMemcpyDeviceToDevice, stream));
     return;
   }
   DeviceArray<Index, MAX_DIMS> out_strides{};

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,6 +41,12 @@ typedef enum {
   CPU = 0,
   GPU = 1
 } device_type_t;
+
+typedef enum {
+  DALI_BACKEND_CPU = 0,
+  DALI_BACKEND_GPU = 1,
+  DALI_BACKEND_MIXED = 2
+} dali_backend_t;
 
 typedef enum {
   DALI_NO_TYPE  = -1,
@@ -126,7 +132,8 @@ enum {
   /**
    * If memory transfer should be synchronous - applies to GPU memory
    */
-  DALI_ext_force_sync = (1<<0),
+  DALI_ext_force_sync = (1 << 0),
+
   /**
    * If provided CPU memory is page-locked
    */
@@ -137,6 +144,17 @@ enum {
    * Only relevant when the input is either pinned host memory or device memory
    */
   DALI_use_copy_kernel = (1 << 2),
+
+  /**
+   * Override the `no_copy` specified for given External Source and force the data to be copied.
+   */
+  DALI_ext_force_copy = (1 << 3),
+
+  /**
+   * Override the `no_copy` specified for given External Source and pass the data directly to the
+   * Pipeline.
+   */
+  DALI_ext_force_no_copy = (1 << 4),
 };
 
 /**
@@ -182,7 +200,7 @@ DLL_PUBLIC void daliSetExternalInputBatchSize(daliPipelineHandle *pipe_handle, c
  *                   Can be set to NULL.
  * @param stream CUDA stream to use when copying the data onto GPU. Remember to synchronize on the
  *               provided stream.
- * @param flags Extra flags, check DALI_ext_force_sync, DALI_ext_pinned, DALI_use_copy_kernel
+ * @param flags Extra flags, check DALI_ext_* and DALI_use_copy_kernel flags
  */
 DLL_PUBLIC void
 daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,
@@ -407,6 +425,14 @@ DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
  */
 DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
                                       daliReaderMetadata* meta);
+
+/**
+ * @brief Returns the backend of the operator with a given \p operator_name
+ * @param operator_name Name of the operator to query
+ */
+DLL_PUBLIC dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle,
+                                                 const char *operator_name);
+
 /**
  * @brief Obtains the executor statistics
  *  @param operator_meta Pointer to the memory allocated by the function with operator_meta_num

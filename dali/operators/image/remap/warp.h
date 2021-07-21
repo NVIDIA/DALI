@@ -302,7 +302,7 @@ class Warp : public Operator<Backend> {
     output_type_ = output_type_arg_ == DALI_NO_TYPE ? input_type_ : output_type_arg_;
 
     VALUE_SWITCH(This().SpatialDim(), spatial_ndim, (2, 3), (
-      VALUE_SWITCH(This().BorderClamp() ? 1 : 0, UseBorderClamp, (0, 1), (
+      BOOL_SWITCH(This().BorderClamp(), UseBorderClamp, (
           ToStaticType(
             [&](auto &&args) {
             using OutputType = decltype(args.first);
@@ -319,8 +319,7 @@ class Warp : public Operator<Backend> {
               auto param_provider = This().template CreateParamProvider<spatial_ndim, BorderType>();
               impl_.reset(new ImplType(Spec(), std::move(param_provider)));
             }
-          });),
-          (assert(!"impossible")))),
+          });))),
         (DALI_FAIL("Only 2D and 3D warping is supported")));
 
 

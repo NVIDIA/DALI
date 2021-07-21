@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ void TestDiv64(bool quick_test) {
       : ((xx >> 12) << 44) + (xx & 0xfff);
     ASSERT_EQ(x / divisor, x / fast) << " when dividing " << x << " / " << divisor;
   }
-  uint64_t x = 0xFFFFFFFFFFFFFFFEuL;
+  uint64_t x = 0xFFFFFFFFFFFFFFFE_u64;
   ASSERT_EQ(x / divisor, x / fast) << " when dividing " << x << " / " << divisor;
 }
 
@@ -71,17 +71,17 @@ void TestDiv32(bool quick) {
 
 void TestDiv64(bool quick) {
   // use compile-time constants so the compiler can optimize the reference division
-  TestDiv64<0xFFFFFFFFFFFFFFFEuL>(quick);
+  TestDiv64<0xFFFFFFFFFFFFFFFE_u64>(quick);
   TestDiv64<3>(quick);
   TestDiv64<5>(quick);
   TestDiv64<7>(quick);
   TestDiv64<1>(quick);
   TestDiv64<0x800000>(quick);
-  TestDiv64<0x80000000000000uL>(quick);
+  TestDiv64<0x80000000000000_u64>(quick);
   TestDiv64<19>(quick);
   TestDiv64<42>(quick);
-  TestDiv64<12345678901234567uL>(quick);
-  TestDiv64<0x82345678DEADBEEFuL>(quick);
+  TestDiv64<12345678901234567_u64>(quick);
+  TestDiv64<0x82345678DEADBEEF_u64>(quick);
 }
 
 // This test is disabled because it's ridiculously slow - only run when touching fast_div
@@ -123,8 +123,8 @@ DEVICE_TEST(FastDiv, DISABLED_U64_GPU_Slow, dim3(1<<10, 1<<10), (1<<10)) {
   fast.init(divisor);
   uint64_t end = start + (1<<12);
   if (blockIdx.x == gridDim.x - 1 && threadIdx.x == blockDim.x-1) {
-    start = 0xfffffffffffffffeuL - (1<<12);
-    end = 0xffffffffffffffffuL;
+    start = 0xfffffffffffffffe_u64 - (1<<12);
+    end = 0xffffffffffffffff_u64;
   }
   for (uint64_t value = start; value < end; value++) {
     auto ref = value / divisor;
@@ -163,7 +163,7 @@ DEVICE_TEST(FastDiv, U32_GPU, dim3(1<<10, 11), (1<<10)) {
 DEVICE_TEST(FastDiv, U64_GPU, dim3(1<<10, 11), (1<<10)) {
   static constexpr uint64_t divisors[11] = {
     1, 2, 3, 5, 7, 14, 19, 42,
-    0x7fffffffffffffffuL, 0x8000000000000000uL, 0xfffffffffffffffeuL
+    0x7fffffffffffffff_u64, 0x8000000000000000_u64, 0xfffffffffffffffe_u64
   };
   uint64_t start = static_cast<uint64_t>(blockIdx.x * blockDim.x + threadIdx.x) << 44;
   uint64_t divisor = divisors[blockIdx.y];
@@ -171,8 +171,8 @@ DEVICE_TEST(FastDiv, U64_GPU, dim3(1<<10, 11), (1<<10)) {
   fast.init(divisor);
   uint64_t end = start + (1<<12);
   if (blockIdx.x == gridDim.x - 1 && threadIdx.x == blockDim.x-1) {
-    start = 0xfffffffffffffffeuL - (1<<12);
-    end = 0xffffffffffffffffuL;
+    start = 0xfffffffffffffffe_u64 - (1<<12);
+    end = 0xffffffffffffffff_u64;
   }
   for (uint64_t value = start; value < end; value++) {
     auto ref = value / divisor;
@@ -237,14 +237,14 @@ TEST(FastDiv_Host, div_lohi) {
   num = { 0, 1 };
   den = 2;
   q = detail::div_lohi(num.lo, num.hi, den);
-  ref = 1uL << 63;
+  ref = 1_u64 << 63;
   EXPECT_EQ(q, ref);
 
-  num = { 0xCAFEBABEFACEFEEDuL, 0x600DF00DuL };
-  den = 0x600DF00EuL;  // this divisor is only slightly larger than the high word which
+  num = { 0xCAFEBABEFACEFEED_u64, 0x600DF00D_u64 };
+  den = 0x600DF00E_u64;  // this divisor is only slightly larger than the high word which
                        // makes the division more prone to errors, should there be any
   // reference is calculated off-line as ((unsigned __int128)num.hi << 64 | num.lo) / den;
-  ref = 0xFFFFFFFF72BBC9CEuL;
+  ref = 0xFFFFFFFF72BBC9CE_u64;
   q = detail::div_lohi(num.lo, num.hi, den);
   EXPECT_EQ(q, ref);
 }
@@ -255,14 +255,14 @@ DEVICE_TEST(FastDiv_Dev, div_lohi, 1, 1) {
   num = { 0, 1 };
   den = 2;
   q = detail::div_lohi(num.lo, num.hi, den);
-  ref = 1uL << 63;
+  ref = 1_u64 << 63;
   DEV_EXPECT_EQ(q, ref);
 
-  num = { 0xCAFEBABEFACEFEEDuL, 0x600DF00DuL };
-  den = 0x600DF00EuL;  // this divisor is only slightly larger than the high word which
+  num = { 0xCAFEBABEFACEFEED_u64, 0x600DF00D_u64 };
+  den = 0x600DF00E_u64;  // this divisor is only slightly larger than the high word which
                        // makes the division more prone to errors, should there be any
   // reference is calculated off-line as ((unsigned __int128)num.hi << 64 | num.lo) / den;
-  ref = 0xFFFFFFFF72BBC9CEuL;
+  ref = 0xFFFFFFFF72BBC9CE_u64;
   q = detail::div_lohi(num.lo, num.hi, den);
   DEV_EXPECT_EQ(q, ref);
 }
@@ -287,20 +287,20 @@ TYPED_TEST(FastDivPerf, Perf) {
   T d3 = std::max(dist(rng), T(1));
 
   FastDivMod<T><<<1000, 1024>>>(m, d1, d2, d3);
-  cudaEventRecord(start, 0);
+  CUDA_CALL(cudaEventRecord(start, 0));
   FastDivMod<T><<<N, 1024>>>(m, d1, d2, d3);
-  cudaEventRecord(end, 0);
+  CUDA_CALL(cudaEventRecord(end, 0));
   CUDA_CALL(cudaDeviceSynchronize());
   float t_fast = 0;
-  cudaEventElapsedTime(&t_fast, start, end);
+  CUDA_CALL(cudaEventElapsedTime(&t_fast, start, end));
 
   NormalDivMod<<<1000, 1024>>>(m + 1024, d1, d2, d3);
-  cudaEventRecord(start, 0);
+  CUDA_CALL(cudaEventRecord(start, 0));
   NormalDivMod<<<N, 1024>>>(m + 1024, d1, d2, d3);
-  cudaEventRecord(end, 0);
+  CUDA_CALL(cudaEventRecord(end, 0));
   CUDA_CALL(cudaDeviceSynchronize());
   float t_norm = 0;
-  cudaEventElapsedTime(&t_norm, start, end);
+  CUDA_CALL(cudaEventElapsedTime(&t_norm, start, end));
 
   t_norm *= 1e+6;
   t_fast *= 1e+6;

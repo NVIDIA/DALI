@@ -22,42 +22,39 @@ DALI_SCHEMA(ColorSpaceConversion)
     .DocStr(R"code(Converts between various image color models.)code")
     .NumInput(1)
     .NumOutput(1)
-    .InputLayout("HWC")
-    .AddArg("image_type",
-        R"code(The color space of the input image.)code",
-        DALI_IMAGE_TYPE)
-    .AddArg("output_type",
-        R"code(The color space of the output image.)code",
-        DALI_IMAGE_TYPE);
+    .InputLayout({"FDHWC", "FHWC", "DHWC", "HWC"})
+    .AddArg("image_type", R"code(The color space of the input image.)code", DALI_IMAGE_TYPE)
+    .AddArg("output_type", R"code(The color space of the output image.)code", DALI_IMAGE_TYPE)
+    .AllowSequences()
+    .SupportVolumetric();
 
 template <>
-void ColorSpaceConversion<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  const auto &input = ws.Input<CPUBackend>(0);
-  auto &output = ws.Output<CPUBackend>(0);
-  const auto &input_shape = input.shape();
-  auto output_shape = input_shape;
+void ColorSpaceConversion<CPUBackend>::RunImpl(HostWorkspace &ws) {
+  const auto &input = ws.InputRef<CPUBackend>(0);
+  auto &output = ws.OutputRef<CPUBackend>(0);
   output.SetLayout(input.GetLayout());
-
-  const auto H = input_shape[0];
-  const auto W = input_shape[1];
-  const int input_C = NumberOfChannels(input_type_);
-  const int output_C = NumberOfChannels(output_type_);
-
-  DALI_ENFORCE(input_shape[2] == input_C,
-    "Incorrect number of channels for input");
-  output_shape[2] = output_C;
-  output.Resize(output_shape);
-
-  auto pImgInp = input.template data<uint8>();
-
-  const int input_channel_flag = GetOpenCvChannelType(input_C);
-  const cv::Mat cv_input_img = CreateMatFromPtr(H, W, input_channel_flag, pImgInp);
-
-  auto pImgOut = output.template mutable_data<uint8>();
-  const int output_channel_flag = GetOpenCvChannelType(output_C);
-  cv::Mat cv_output_img = CreateMatFromPtr(H, W, output_channel_flag, pImgOut);
-
-  OpenCvColorConversion(input_type_, cv_input_img, output_type_, cv_output_img);
+  auto in_view = view<const uint8_t>(input);
+  auto out_view = view<uint8_t>(output);
+  const auto &in_sh = in_view.shape;
+  const auto &out_sh = out_view.shape;
+  int nsamples = in_sh.num_samples();
+  int ndim = in_sh.sample_dim();
+  auto& thread_pool = ws.GetThreadPool();
+  for (int i = 0; i < nsamples; i++) {
+    thread_pool.AddWork(
+      [&, i](int thread_id) {
+        auto in_sample_sh = in_sh.tensor_shape_span(i);
+        // flatten any leading dimensions together with the height
+        int height = volume(in_sample_sh.begin(), in_sample_sh.end() - 2);
+        int width  = in_sample_sh[ndim - 2];
+        auto cv_in =
+          CreateMatFromPtr(height, width, GetOpenCvChannelType(in_nchannels_), in_view[i].data);
+        auto cv_out =
+          CreateMatFromPtr(height, width, GetOpenCvChannelType(out_nchannels_), out_view[i].data);
+        OpenCvColorConversion(input_type_, cv_in, output_type_, cv_out);
+      }, in_sh.tensor_size(i));
+  }
+  thread_pool.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(ColorSpaceConversion, ColorSpaceConversion<CPUBackend>, CPU);

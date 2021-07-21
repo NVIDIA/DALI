@@ -41,19 +41,6 @@ __inline__ __device__ vec<N, T> avg2(vec<N, T> a, vec<N, T> b) {
   IMPL_VEC_ELEMENTWISE(ConvertSat<T>((a[i] + b[i]) * 0.5f));
 }
 
-template <typename T>
-__inline__ __device__ vec<3, T> ycbcr_to_rgb(const vec<3, T> ycbcr) {
-    float y  = static_cast<float>(ycbcr.x);
-    float cb = static_cast<float>(ycbcr.y) - 128.0f;
-    float cr = static_cast<float>(ycbcr.z) - 128.0f;
-    vec<3, T> rgb;
-    rgb.x = ConvertSat<T>(y + 1.402f * cr);
-    rgb.y = ConvertSat<T>(y - 0.34413629f * cb - 0.71413629f * cr);
-    rgb.z = ConvertSat<T>(y + 1.772f * cb);
-    return rgb;
-}
-
-
 template <typename T, bool horz_subsample, bool vert_subsample>
 struct YCbCrSubsampled {
   static constexpr int kLumaLen = (1+horz_subsample)*(1+vert_subsample);
@@ -111,17 +98,18 @@ template <bool horz_subsample, bool vert_subsample, typename T>
 __inline__ __device__
 void ycbcr_to_rgb_subsampled(ivec2 offset, const Surface2D<uint8_t>& out,
                              YCbCrSubsampled<T, horz_subsample, vert_subsample> ycbcr) {
+  using kernels::color::jpeg::ycbcr_to_rgb;
   int y = offset.y;
   int x = offset.x;
-  write_vec(out, {x, y}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[0], ycbcr.cb, ycbcr.cr)));
+  write_vec(out, {x, y}, ycbcr_to_rgb<T>(vec<3, T>(ycbcr.luma[0], ycbcr.cb, ycbcr.cr)));
   if (horz_subsample && vert_subsample) {
-    write_vec(out, {x + 1, y}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
-    write_vec(out, {x, y + 1}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[2], ycbcr.cb, ycbcr.cr)));
-    write_vec(out, {x + 1, y + 1}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[3], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x + 1, y}, ycbcr_to_rgb<T>(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x, y + 1}, ycbcr_to_rgb<T>(vec<3, T>(ycbcr.luma[2], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x + 1, y + 1}, ycbcr_to_rgb<T>(vec<3, T>(ycbcr.luma[3], ycbcr.cb, ycbcr.cr)));
   } else if (horz_subsample) {
-    write_vec(out, {x + 1, y}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x + 1, y}, ycbcr_to_rgb<T>(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
   } else if (vert_subsample) {
-    write_vec(out, {x, y + 1}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x, y + 1}, ycbcr_to_rgb<T>(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
   }
 }
 

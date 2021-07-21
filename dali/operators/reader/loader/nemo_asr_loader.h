@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,11 +39,16 @@ struct NemoAsrEntry {
   std::string audio_filepath;
   double duration = kDefaultDuration;  // in seconds, optional
   double offset = 0.0;  // in seconds, optional
+  int64_t index = -1;
   std::string text;  // transcription
 };
 
 class AsrSample {
  public:
+  int64_t index() const {
+    return index_;
+  }
+
   const std::string& text() const {
     return text_;
   }
@@ -76,6 +81,7 @@ class AsrSample {
     return *decoder_;
   }
 
+  int64_t index_ = 0;
   std::string text_;
   AudioMetadata audio_meta_;
   std::string audio_filepath_;  // for tensor metadata purposes
@@ -87,9 +93,17 @@ class AsrSample {
 
 namespace detail {
 
+/**
+ * @brief Parses the contents of a manifest file and populates a vector of NemoAsrEntry
+ * @param min_duration Minimum audio duration, in seconds. Shorter samples will be filtered out.
+ * @param max_duration Maximum audio duration, in seconds. Longer samples will be filtered out.
+ * @param read_text If True, the parser will read the text transcript from the manifest.
+ *                  If False, the text field is ignored.
+ */
 DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream &manifest_file,
                               double min_duration = kDefaultDuration,
-                              double max_duration = kDefaultDuration);
+                              double max_duration = kDefaultDuration,
+                              bool read_text = true);
 
 }  // namespace detail
 
@@ -105,6 +119,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
         min_duration_(spec.GetArgument<float>("min_duration")),
         max_duration_(spec.GetArgument<float>("max_duration")),
+        read_text_(spec.GetArgument<bool>("read_text")),
         num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))),
         decode_scratch_(num_threads_),
         resample_scratch_(num_threads_) {
@@ -164,6 +179,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   DALIDataType dtype_;
   double min_duration_;
   double max_duration_;
+  bool read_text_;
   int num_threads_;
   kernels::signal::resampling::Resampler resampler_;
   std::vector<std::vector<float>> decode_scratch_;

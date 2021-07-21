@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -219,20 +219,64 @@ def test_nemo_asr_reader_alias():
 
 def test_nemo_asr_reader_pad_last_batch():
   batch_size = 128
-  @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+  @pipeline_def(device_id=0, num_threads=4)
   def nemo_asr_pad_last_batch_pipe():
     audio = fn.readers.nemo_asr(manifest_filepaths=[nemo_asr_manifest], pad_last_batch=True,
                                 read_sample_rate = False, read_text = False)
-    return audio
-  pipe = nemo_asr_pad_last_batch_pipe()
-  pipe.build()
 
-  dataset_len = len(names)
-  assert dataset_len < batch_size
-  # Checking that the decoding doesn't fail due to race conditions
-  for _ in range(10):
-    audio = pipe.run()[0]
-    last_sample = np.array(audio[dataset_len])
-    for i in range(dataset_len+1, batch_size):
-      padded_sample = np.array(audio[i])
-      np.testing.assert_array_equal(padded_sample, last_sample)
+    return audio
+
+  def _testimpl_nemo_asr_reader_pad_last_batch(batch_size):
+    pipe = nemo_asr_pad_last_batch_pipe(batch_size=batch_size)
+    pipe.build()
+
+    dataset_len = len(names)
+    assert dataset_len % batch_size > 0  # Checking that we need to pad
+    sample_idx = 0
+    for it in range(10):
+      audio = pipe.run()[0]
+      sample_idx = it * batch_size
+      if sample_idx > dataset_len:
+        sample_idx = 0
+      last_sample = None
+      padded_sample = None
+      for i in range(batch_size):
+        if sample_idx == dataset_len - 1:
+          last_sample = np.array(audio[i])
+        elif sample_idx >= dataset_len:
+          padded_sample = np.array(audio[i])
+          np.testing.assert_array_equal(padded_sample, last_sample)
+        sample_idx += 1
+
+  # The manifest has 3 samples, of lengths 10000, 54321, 12345
+
+  # With batch size 2, batches will contain lengths: [10000, 54321], [12345, 12345], [10000, 54321], ...
+  # This is meant to reproduce an error found when combining pad_last_sample=True, using ShareData
+  # to replicate the last sample, and trying to resize to a bigger buffer after ShareData.
+  yield _testimpl_nemo_asr_reader_pad_last_batch, 2
+
+  # Trying to catch race conditions (A lot of samples in the batch to be replicated)
+  yield _testimpl_nemo_asr_reader_pad_last_batch, 128
+
+def test_read_idxs(batch_size=10, reader_seed=12345):
+  @pipeline_def(device_id=0, num_threads=4)
+  def nemo_asr_reader_read_idxs(reader_seed=reader_seed):
+    audio, idx = fn.readers.nemo_asr(manifest_filepaths=[nemo_asr_manifest], random_shuffle=True, seed=reader_seed,
+                                     read_sample_rate=False, read_text=False, read_idxs=True)
+    return audio, idx
+  seed = 12345
+  pipe1 = nemo_asr_reader_read_idxs(batch_size=batch_size, reader_seed=seed)
+  pipe1.build()
+  pipe2 = nemo_asr_reader_read_idxs(batch_size=batch_size, reader_seed=seed)
+  pipe2.build()
+
+  total_samples = len(names)
+
+  for iter in range(3):
+    audio1, idx1 = pipe1.run()
+    audio2, idx2 = pipe2.run()
+    for s in range(batch_size):
+      np.testing.assert_array_equal(np.array(audio1[s]), np.array(audio2[s]))
+      np.testing.assert_array_equal(np.array(idx1[s]), np.array(idx2[s]))
+      idx = np.array(idx1[s])[0]
+      assert idx >= 0 and idx < total_samples

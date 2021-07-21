@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,9 +17,11 @@
 
 #include "tensorflow/core/framework/op.h"
 
-#define EIGEN_USE_GPU  // for Eigen::GpuDevice
-#include "tensorflow/core/framework/op_kernel.h"
+// for Eigen::GpuDevice
+#define EIGEN_USE_GPU
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 
+#include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/register_types.h"
 #include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/framework/tensor_shape.h"
@@ -27,12 +29,12 @@
 
 #define USE_TF_ALLOCATOR 0
 #if USE_TF_ALLOCATOR
-#include "tfallocator.h"
+#include "dali_tf_plugin/tfallocator.h"
 #endif
 
 #include "dali/c_api.h"
 #include "dali/core/common.h"
-#include "dali_shape_helper.h"
+#include "dali_tf_plugin/dali_helper.h"
 
 typedef std::chrono::high_resolution_clock Clock;
 
@@ -42,7 +44,7 @@ namespace tf = tensorflow;
     do {                                                                           \
       try {                                                                        \
         FUNC;                                                                      \
-      } catch (std::exception &e) {                                            \
+      } catch (std::exception &e) {                                                \
         std::string error = "DALI " + std::string(#FUNC)                           \
                             + " failed: " + std::string(e.what());                 \
         std::cout << error << std::endl;                                           \
@@ -321,7 +323,8 @@ class DaliOp : public tf::OpKernel {
           break;
       }
 
-      TF_DALI_CALL(daliOutputCopy(&pipe_handle_, dst, i, this->device_type_, stream, DALI_ext_default));
+      TF_DALI_CALL(
+          daliOutputCopy(&pipe_handle_, dst, i, this->device_type_, stream, DALI_ext_default));
       if (should_be_sparse_tensor) {
         ++j;
         // copy out shape

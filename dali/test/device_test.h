@@ -25,11 +25,44 @@
 namespace dali {
 namespace testing {
 
-struct TestStatus {
+struct TestStatusBlock {
   bool failed;
   bool fatal;
   int num_messages;
 };
+
+struct TestStatus {
+  TestStatusBlock host, *device = nullptr;
+  bool Init() {
+    ASSERT_EQ(cudaSuccess, cudaMalloc(&device, sizeof(TestStatusBlock)))
+      << "Cannot allocate test status block", false;
+    if (device == nullptr)
+      return false;  // this should never happen - it is here to silence static analysis errors
+    ASSERT_EQ(cudaSuccess, cudaMemset(device, 0, sizeof(TestStatusBlock)))
+      << "Cannot clear test status block", false;
+    return true;
+  }
+
+  cudaError_t to_host() {
+    return cudaMemcpy(&host, device, sizeof(TestStatusBlock), cudaMemcpyDeviceToHost);
+  }
+
+  ~TestStatus() {
+    if (device) {
+      EXPECT_EQ(cudaSuccess, cudaFree(device))
+        << "Cannot deallocate test status block";
+      device = nullptr;
+    }
+  }
+};
+
+
+/**
+ * @brief For silencing static analysis _once_ instead of in every macro expansion
+ */
+inline void ClearCudaError() {
+  (void)cudaGetLastError();
+}
 
 }  // namespace testing
 }  // namespace dali
@@ -118,22 +151,22 @@ struct TestStatus {
 #define DECLARE_TEST_KERNEL(suite_name, test_name)\
 template <typename... Args>\
 __global__ void suite_name##_##test_name##_kernel( \
-    dali::testing::TestStatus *test_status, Args... args)
+    dali::testing::TestStatusBlock *test_status, Args... args)
 
 #define DEFINE_TEST_KERNEL(suite_name, test_name, ...) \
 __device__ void suite_name##_##test_name##_body( \
-    dali::testing::TestStatus &test_status, ##__VA_ARGS__); \
+    dali::testing::TestStatusBlock &test_status, ##__VA_ARGS__); \
 \
 template <typename... Args>\
 __global__ void suite_name##_##test_name##_kernel(\
-      dali::testing::TestStatus *test_status, Args... args) { \
+      dali::testing::TestStatusBlock *test_status, Args... args) { \
   if (!test_status->fatal) {\
     __syncthreads(); \
     suite_name##_##test_name##_body(*test_status, args...); \
   } \
 } \
 __device__ void suite_name##_##test_name##_body( \
-    dali::testing::TestStatus &test_status, ##__VA_ARGS__)
+    dali::testing::TestStatusBlock &test_status, ##__VA_ARGS__)
 
 #define TEST_KERNEL_NAME(suite_name, test_name) suite_name##_##test_name##_kernel
 
@@ -145,25 +178,21 @@ __device__ void suite_name##_##test_name##_body( \
  * @param block - CUDA block size
  * @param ... - extra parameters passed to the kernel invocation, if any
  */
-#define DEVICE_TEST_CASE_BODY(suite_name, test_name, grid, block, ...) \
-  using TestStatus = dali::testing::TestStatus; \
-  TestStatus *status = nullptr; \
-  cudaMalloc(reinterpret_cast<void**>(&status), sizeof(TestStatus)); \
-  ASSERT_NE(status, nullptr) << "Cannot allocate test status block"; \
-  cudaMemset(status, 0, sizeof(TestStatus)); \
-  cudaGetLastError(); \
-  suite_name##_##test_name##_kernel<<<grid, block>>>(status, ##__VA_ARGS__); \
-  dali::testing::TestStatus host_status = {0}; \
-  cudaMemcpy(&host_status, status, sizeof(TestStatus), cudaMemcpyDeviceToHost); \
-  cudaFree(status); \
-  auto err = cudaGetLastError(); \
-  EXPECT_EQ(err, cudaSuccess) << "CUDA error: " \
-    << cudaGetErrorName(err) << " " << cudaGetErrorString(err); \
-  if (err == cudaErrorIllegalAddress || err == cudaErrorIllegalInstruction) { \
+#define DEVICE_TEST_CASE_BODY(suite_name, test_name, grid, block, ...)                  \
+  dali::testing::TestStatus status;                                                     \
+  if (!status.Init())                                                                   \
+    return;                                                                             \
+  dali::testing::ClearCudaError();                                                      \
+  suite_name##_##test_name##_kernel<<<grid, block>>>(status.device, ##__VA_ARGS__);     \
+  auto err = status.to_host();                                                          \
+  dali::testing::ClearCudaError();                                                      \
+  EXPECT_EQ(err, cudaSuccess) << "CUDA error: " << cudaGetErrorName(err) << " "         \
+                              << cudaGetErrorString(err);                               \
+  if (err == cudaErrorIllegalAddress || err == cudaErrorIllegalInstruction) {           \
     std::cerr << "A fatal CUDA error was reported. Resetting the device!" << std::endl; \
-    exit(err); \
-  } \
-  EXPECT_FALSE(host_status.failed) << "There were errors in device code";
+    exit(err);                                                                          \
+  }                                                                                     \
+  EXPECT_FALSE(status.host.failed) << "There were errors in device code";
 
 /**
  * Simple test of a device function

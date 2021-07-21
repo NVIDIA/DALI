@@ -111,4 +111,12 @@ TYPED_TEST(TypesTest, TestRegisteredType) {
   ASSERT_EQ(type.name(), this->TypeName());
 }
 
+TEST(ListTypeNames, ListTypeNames) {
+  auto str1 = ListTypeNames<uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t,
+                            int64_t, float, double, float16>();
+  auto expected_str1 =
+      "uint8, int8, uint16, int16, uint32, int32, uint64, int64, float, double, float16";
+  ASSERT_EQ(str1, expected_str1);
+}
+
 }  // namespace dali

@@ -116,6 +116,7 @@ class GridMaskGpu {
     ), (  // NOLINT
       GridMaskKernel<Type, 0><<<grid, block, 0, ctx.gpu.stream>>>(samples_gpu, blocks_gpu);
     ));  // NOLINT
+    CUDA_CALL(cudaGetLastError());
   }
 };
 

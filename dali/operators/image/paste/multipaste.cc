@@ -26,60 +26,47 @@ This operator can also change the type of data.)code")
 .InputDox(0, "images", "3D TensorList", R"code(Batch of input images.
 
 Assumes HWC layout.)code")
-.AddArg("in_ids", R"code(1D TensorList of type int.
+.AddArg("in_ids", R"code(Indices of the inputs to paste data from.)code",
+        DALI_INT_VEC, true)
+.AddOptionalArg<int>("in_anchors", R"code(Absolute coordinates of LU corner
+of the source region.
 
-Indexes from what inputs to paste data in each iteration.)code", DALI_INT32, true)
-.AddOptionalArg<int>("in_anchors", R"code(2D TensorList of type int64
+The anchors are represented as 2D tensors where the first dimension corresponds to the
+elements of ``in_ids`` and the second one is equal to the number of dimensions of the
+data, excluding channels.
 
-Absolute values of LU corner of the selection for each iteration.
-Zeros are used if this is omitted.)code", nullptr, true)
-.AddOptionalArg<int>("shapes", R"code(2D TensorList of type int64
+If not provided, all anchors are zero.)code", nullptr, true)
+.AddOptionalArg<int>("shapes", R"code(Shape of the paste regions.
 
-Absolute values of size of the selection for each iteration.
-Input size is used if this is omitted.)code", nullptr, true)
-.AddOptionalArg<int>("out_anchors", R"code(2D TensorList of type int64
+The shapes are represented as 2D tensors where the first dimension corresponds to the
+elements of ``in_ids`` and the second one is equal to the number of dimensions of the
+data, excluding channels.
 
-Absolute values of LU corner of the paste for each iteration.
-Zeros are used if omitted.)code", nullptr, true)
+If not provided, the input shape is used.)code", nullptr, true)
+.AddOptionalArg<int>("out_anchors", R"code(Absolute coordinates of LU corner
+of the destination region.
+
+The anchors are represented as 2D tensors where the first dimension corresponds to the
+elements of ``in_ids`` and the second one is equal to the number of dimensions of the
+data, excluding channels.
+
+If not provided, all anchors are zero.)code", nullptr, true)
 .AddArg("output_size",
-R"code(Output size.)code", DALI_INT_VEC, true)
+R"code(Shape of the output.)code", DALI_INT_VEC, true)
 .AddOptionalArg("dtype",
 R"code(Output data type. If not set, the input type is used.)code", DALI_NO_TYPE)
 .NumOutput(1);
 
-DALI_REGISTER_OPERATOR(MultiPaste, MultiPasteCPU, CPU)
-
-bool MultiPasteCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
-                              const workspace_t<CPUBackend> &ws) {
-  AcquireArguments(spec_, ws);
-
-  const auto &images = ws.template InputRef<CPUBackend>(0);
-  const auto &output = ws.template OutputRef<CPUBackend>(0);
-  output_desc.resize(1);
-
-  TYPE_SWITCH(images.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
-          {
-            using Kernel = kernels::PasteCPU<OutputType, InputType>;
-            kernel_manager_.Initialize<Kernel>();
-            TensorListShape<> sh = images.shape();
-            TensorListShape<> shapes(sh.num_samples(), sh.sample_dim());
-            for (int i = 0; i < sh.num_samples(); i++) {
-              const TensorShape<> &out_sh = { output_size_[i].data[0],
-                                              output_size_[i].data[1], sh[i][2] };
-              shapes.set_tensor_shape(i, out_sh);
-            }
-
-            output_desc[0] = {shapes, TypeTable::GetTypeInfo(output_type_)};
-          }
-      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", images.type().id())))  // NOLINT
-  return true;
+template <typename OutputType, typename InputType>
+void MultiPasteCPU::SetupTyped(const workspace_t<CPUBackend> & /*ws*/,
+                               const TensorListShape<> & /*out_shape*/) {
+  using Kernel = kernels::PasteCPU<OutputType, InputType>;
+  kernel_manager_.Initialize<Kernel>();
 }
 
 
-template<typename InputType, typename OutputType>
-void MultiPasteCPU::RunImplExplicitlyTyped(workspace_t<CPUBackend> &ws) {
+template <typename OutputType, typename InputType>
+void MultiPasteCPU::RunTyped(workspace_t<CPUBackend> &ws) {
   const auto &images = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
 
@@ -146,14 +133,6 @@ void MultiPasteCPU::RunImplExplicitlyTyped(workspace_t<CPUBackend> &ws) {
   tp.RunAll();
 }
 
-
-void MultiPasteCPU::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto input_type_id = ws.template InputRef<CPUBackend>(0).type().id();
-  TYPE_SWITCH(input_type_id, type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
-              RunImplExplicitlyTyped<InputType, OutputType>(ws);
-      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input_type_id)))  // NOLINT
-}
+DALI_REGISTER_OPERATOR(MultiPaste, MultiPasteCPU, CPU)
 
 }  // namespace dali

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -79,6 +79,45 @@ TEST(MMBestFitFreeList, PutGetMoveGet) {
   EXPECT_EQ(l2.get(100, 2), a+10);
 }
 
+
+template <typename FreeList>
+void TestCoalescingRemoveIf() {
+  FreeList fl;
+  char storage alignas(16)[4000];
+  char *a = storage + 128;   // thank you, overzealous compiler!
+  ASSERT_FALSE(fl.remove_if_in_list(a, 1));  // total removed: 250..750
+  fl.put(a, 500);
+  fl.put(a + 500, 500);
+  ASSERT_FALSE(fl.remove_if_in_list(a + 2000, 1));  // totally outside
+  ASSERT_FALSE(fl.remove_if_in_list(a - 100, 10));
+
+  ASSERT_FALSE(fl.remove_if_in_list(a + 1000, 1));  // edge case
+  ASSERT_FALSE(fl.remove_if_in_list(a - 100, 100));
+
+  ASSERT_FALSE(fl.remove_if_in_list(a + 500, 501));  // overlaps, but exceeds
+  ASSERT_FALSE(fl.remove_if_in_list(a - 1, 100));
+
+  ASSERT_TRUE(fl.remove_if_in_list(a + 250, 500));  // total removed: 250..750
+
+  ASSERT_FALSE(fl.remove_if_in_list(a + 250, 500));  // already removed
+  ASSERT_FALSE(fl.remove_if_in_list(a + 300, 500));  // overlaps removed piece
+  ASSERT_FALSE(fl.remove_if_in_list(a + 200, 500));
+
+  ASSERT_TRUE(fl.remove_if_in_list(a + 200, 50));  // total removed: 200..750
+  ASSERT_TRUE(fl.remove_if_in_list(a, 50));  // total removed: 0..50, 200..750
+  EXPECT_EQ(fl.get(150, 1), a + 50);  // there's a gap at 50..200
+  EXPECT_EQ(fl.get(250, 128), nullptr);  // there's a block large enough, but not aligned to 128
+  EXPECT_EQ(fl.get(250, 1), a + 750);
+  EXPECT_EQ(fl.get(1, 1), nullptr);  // the free list should be empty now
+
+  // reset the free list
+  fl.put(a, 1000);
+  ASSERT_TRUE(fl.remove_if_in_list(a + 250, 500));  // total removed: 250..750
+  fl.put(a + 250, 500);  // put back
+  EXPECT_EQ(fl.get(1000, 1), a);
+  EXPECT_EQ(fl.get(1, 1), nullptr);  // the free list should be empty now
+}
+
 template <typename FreeList>
 void TestCoalescingPutGet() {
   FreeList fl;
@@ -144,8 +183,133 @@ TEST(MMCoalescingFreeList, PutGet) {
   TestCoalescingPutGet<coalescing_free_list>();
 }
 
-TEST(MMFreeTree, PutGet) {
-  TestCoalescingPutGet<free_tree>();
+TEST(MMCoalescingFreeTree, PutGet) {
+  TestCoalescingPutGet<coalescing_free_tree>();
+}
+
+TEST(MMBestFitFreeList, RemoveIf) {
+  best_fit_free_list fl;
+  char storage alignas(16)[4000];
+  char *a = storage + 128;   // thank you, overzealous compiler!
+  fl.put(a, 100);
+  fl.put(a + 100, 200);
+  fl.put(a + 300, 700);
+  ASSERT_FALSE(fl.remove_if_in_list(a - 100, 1));
+  ASSERT_FALSE(fl.remove_if_in_list(a, 1));
+  ASSERT_FALSE(fl.remove_if_in_list(a + 100, 1));
+  ASSERT_FALSE(fl.remove_if_in_list(a + 300, 1));
+  ASSERT_FALSE(fl.remove_if_in_list(a + 1000, 1));
+  ASSERT_FALSE(fl.remove_if_in_list(a + 30, 70));
+
+  ASSERT_TRUE(fl.remove_if_in_list(a + 100, 200));
+  ASSERT_TRUE(fl.remove_if_in_list(a + 300, 700));
+  ASSERT_TRUE(fl.remove_if_in_list(a, 100));
+}
+
+TEST(MMCoalescingFreeList, RemoveIf) {
+  TestCoalescingRemoveIf<coalescing_free_list>();
+}
+
+TEST(MMCoalescingFreeTree, RemoveIf) {
+  TestCoalescingRemoveIf<coalescing_free_tree>();
+}
+
+TEST(MMCoalescingFreeTree, Contains) {
+  coalescing_free_tree fl;
+  char a alignas(16)[4000];
+  fl.put(a, 63);
+  fl.put(a + 64, 2);
+  EXPECT_TRUE(fl.contains(a, a + 63));
+  EXPECT_TRUE(fl.contains(a + 10, a + 63));
+  EXPECT_TRUE(fl.contains(a + 10, a + 13));
+  EXPECT_TRUE(fl.contains(a + 64, a + 66));
+
+  EXPECT_FALSE(fl.contains(a, a + 64));
+  EXPECT_FALSE(fl.contains(a + 63, a + 65));
+  EXPECT_FALSE(fl.contains(a + 64, a + 67));
+}
+
+TEST(MMBestFitFreeTree, Alignment) {
+  best_fit_free_tree fl;
+  fl.max_padding_ratio = 10;
+  // workaround for large alignment bug in GCC
+  char unaligned[4096+1024];
+  char *storage = detail::align_ptr(unaligned, 1024);
+  fl.put(storage+1, 1024);
+  EXPECT_EQ(fl.get(1024, 512), nullptr) << "Block out of range or misaligned";
+  fl.put(storage+1025, 2047);
+  EXPECT_EQ(fl.get(1024, 512), storage + 1536);
+}
+
+
+TEST(MMCoalescingFreeTree, Alignment) {
+  coalescing_free_tree fl;
+  // workaround for large alignment bug in GCC
+  char unaligned[4096+1024];
+  char *storage = detail::align_ptr(unaligned, 1024);
+  fl.put(storage+1, 1024);
+  EXPECT_EQ(fl.get(1024, 512), nullptr) << "Block out of range or misaligned";
+  fl.put(storage+1025, 2047);
+  EXPECT_EQ(fl.get(1024, 512), storage + 512);
+}
+
+TEST(MMBestFitFreeTree, PaddingLimit) {
+  best_fit_free_tree fl;
+  fl.max_padding_ratio = 1.5;
+  char storage alignas(16)[1024];
+  fl.put(storage, 1024);
+  EXPECT_EQ(fl.get(512,        16), nullptr) << "Excessive padding - should fail!";
+  EXPECT_EQ(fl.get(1024*2/3,   16), nullptr) << "Excessive padding - should fail!";
+  EXPECT_EQ(fl.get(1024*2/3+1, 16), storage) << "Should return the only block.";
+}
+
+
+TEST(MMBestFitFreeTree, BestFit) {
+  best_fit_free_tree fl;
+  fl.max_padding_ratio = 1.5;
+  char storage alignas(16)[4096];
+  fl.put(storage, 1024);
+  fl.put(storage+1024, 256);
+  fl.put(storage+1280, 2048);
+  EXPECT_EQ(fl.get(1, 1), nullptr) << "Too much padding - should fail";
+  char *p1 = static_cast<char*>(fl.get(200, 1));
+  EXPECT_EQ(p1, storage+1024);
+  EXPECT_EQ(fl.get(200, 1), nullptr) << "Good block already spent";
+  char *p2 = static_cast<char *>(fl.get(1000, 1));
+  EXPECT_EQ(p2, storage) << "Not a best-fitting block";
+  EXPECT_EQ(fl.get(1000, 16), nullptr) << "Good block already spent";
+  char *p3 = static_cast<char *>(fl.get(2000, 1));
+  EXPECT_EQ(p3, storage + 1280) << "Not the only remaining block.";
+}
+
+TEST(MMBestFitFreeTree, RestorePadding) {
+  best_fit_free_tree fl;
+  fl.max_padding_ratio = 2;
+  char storage alignas(16)[1024];
+  fl.put(storage, 1024);
+  void *ptr = fl.get(512, 512);
+  EXPECT_TRUE(detail::is_aligned(ptr, 512)) << "Block not aligned";
+  EXPECT_GE(static_cast<char*>(ptr), storage) << "Block out of bounds";
+  EXPECT_LE(static_cast<char*>(ptr) + 512, storage + 1024) << "Block out of bounds";
+  fl.put(ptr, 512);
+  EXPECT_NE(fl.get(1024, 16), nullptr)
+    << "Cannot allocate a block of original block size - padding not restored?";
+}
+
+TEST(MMBestFitFreeTree, RemoveIf) {
+  best_fit_free_tree fl;
+  char storage alignas(16)[4000];
+  char *a = storage + 128;   // thank you, overzealous compiler!
+  fl.put(a + 0, 1024);
+  fl.put(a + 1024, 512);
+  fl.put(a + 1536, 1024);
+  ASSERT_FALSE(fl.remove_if_in_list(storage, 128));
+  ASSERT_FALSE(fl.remove_if_in_list(a, 512));
+  ASSERT_FALSE(fl.remove_if_in_list(a, 1536));
+  ASSERT_FALSE(fl.remove_if_in_list(a + 1024, 1536));
+  ASSERT_TRUE(fl.remove_if_in_list(a + 1024, 512));
+  ASSERT_TRUE(fl.remove_if_in_list(a + 1536, 1024));
+  ASSERT_TRUE(fl.remove_if_in_list(a + 0, 1024));
 }
 
 
@@ -163,9 +327,9 @@ class test_coalescing_free_list : public coalescing_free_list {
   }
 };
 
-class test_free_tree : public free_tree {
+class test_coalescing_free_tree : public coalescing_free_tree {
  public:
-  void CheckEqual(const test_free_tree &ref) {
+  void CheckEqual(const test_coalescing_free_tree &ref) {
     for (auto it1 = by_addr_.cbegin(), it2 = ref.by_addr_.cbegin();
          it1 != by_addr_.cend() || it2 != ref.by_addr_.cend();
          ++it1, ++it2) {
@@ -182,8 +346,8 @@ TEST(MMCoalescingFreeList, Merge) {
   TestMerge<test_coalescing_free_list>();
 }
 
-TEST(MMFreeTree, Merge) {
-  TestMerge<test_free_tree>();
+TEST(MMCoalescingFreeTree, Merge) {
+  TestMerge<test_coalescing_free_tree>();
 }
 
 }  // namespace test

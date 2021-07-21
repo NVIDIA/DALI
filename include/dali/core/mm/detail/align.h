@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,6 +41,15 @@ DALI_HOST_DEV
 constexpr T *align_ptr(T *ptr, A alignment) noexcept {
   return u2ptr<T>(align_up(ptr2u(ptr), alignment));
 }
+
+template <typename T, typename A>
+DALI_HOST_DEV
+constexpr T *align_ptr_down(T *ptr, A alignment) noexcept {
+  // Cast to proper unsigned type first, then clear LSB.
+  // Negation clears least significant bits, producing the desired mask.
+  return u2ptr<T>(ptr2u(ptr) & -static_cast<uintptr_t>(alignment));
+}
+
 
 DALI_HOST_DEV
 constexpr bool is_aligned(void *ptr, size_t alignment) noexcept {

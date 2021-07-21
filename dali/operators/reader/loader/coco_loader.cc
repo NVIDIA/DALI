@@ -265,7 +265,7 @@ void ParseCategories(LookaheadParser &parser, std::map<int, int> &category_ids) 
       }
     }
     DALI_ENFORCE(id != -1, "Missing category ID in the JSON annotations file");
-    category_ids.insert(std::make_pair(id, new_id));
+    category_ids.emplace(id, new_id);
     new_id++;
   }
 }

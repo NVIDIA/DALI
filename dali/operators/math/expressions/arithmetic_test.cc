@@ -228,7 +228,7 @@ class BinaryArithmeticOpsTest
     auto *result = ws.OutputRef<Backend>(0).template data<T>();
     vector<T> result_cpu(shape.num_elements());
     MemCopy(result_cpu.data(), result, shape.num_elements() * sizeof(T));
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
 
     int64_t offset = 0;
     for (int i = 0; i < shape.num_samples(); i++) {
@@ -345,7 +345,7 @@ TEST(ArithmeticOpsTest, GenericPipeline) {
   vector<int32_t> result2_cpu(batch_size * tensor_elements);
 
   MemCopy(result2_cpu.data(), result2, batch_size * tensor_elements * sizeof(int));
-  cudaStreamSynchronize(0);
+  CUDA_CALL(cudaStreamSynchronize(0));
   for (int i = 0; i < batch_size * tensor_elements; i++) {
     EXPECT_EQ(result[i], data[i] + data[i]);
     EXPECT_EQ(result2_cpu[i], data[i] * (data[i] + data[i]));
@@ -403,7 +403,7 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
   vector<float> result1_cpu(batch_size * tensor_elements);
 
   MemCopy(result1_cpu.data(), result1, batch_size * tensor_elements * sizeof(float));
-  cudaStreamSynchronize(0);
+  CUDA_CALL(cudaStreamSynchronize(0));
   for (int i = 0; i < batch_size * tensor_elements; i++) {
     EXPECT_EQ(result0[i], static_cast<float>(data0[i]) / data1[i]);
     EXPECT_EQ(result1_cpu[i], static_cast<float>(data0[i]) / data1[i]);
@@ -524,7 +524,7 @@ class ArithmeticOpsScalarTest :  public ::testing::TestWithParam<shape_sequence>
       vector<int> result1_cpu(result_shape.num_elements());
 
       MemCopy(result1_cpu.data(), result1, result_shape.num_elements() * sizeof(int));
-      cudaStreamSynchronize(0);
+      CUDA_CALL(cudaStreamSynchronize(0));
 
       int64_t offset_out = 0;
       int64_t offset_in[2] = {0, 0};
@@ -666,7 +666,7 @@ TEST(ArithmeticOpsTest, UnaryPipeline) {
   vector<int32_t> result1_cpu(batch_size * tensor_elements);
 
   MemCopy(result1_cpu.data(), result1, batch_size * tensor_elements * sizeof(int));
-  cudaStreamSynchronize(0);
+  CUDA_CALL(cudaStreamSynchronize(0));
   for (int i = 0; i < batch_size * tensor_elements; i++) {
     EXPECT_EQ(result0[i], -i);
     EXPECT_EQ(result1_cpu[i], -i);

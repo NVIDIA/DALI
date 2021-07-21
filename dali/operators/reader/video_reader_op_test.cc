@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -151,7 +151,7 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
 
   TensorList<CPUBackend> labels_cpu;
   labels_cpu.Copy(labels_output, 0);
-  cudaStreamSynchronize(0);
+  CUDA_CALL(cudaStreamSynchronize(0));
   labels_cpu.set_type(TypeInfo::Create<int>());
   const int *labels = static_cast<const int *>(labels_cpu.raw_data());
 
@@ -292,6 +292,82 @@ TEST_F(VideoReaderTest, Vp9Profile2) {
   ASSERT_EQ(frames_shape[0][0], sequence_length);
 }
 
+
+TEST_F(VideoReaderTest, Vp8Profile0) {
+  Pipeline pipe(1, 1, 0);
+  const int sequence_length = 60;
+
+  // richer FFmpeg configuration leads to different behaviour of VFR heuristics so dissable it for
+  // this video
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("skip_vfr_check", true)
+                       .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                                     "/db/video/vp8/vp8.webm"})
+                       .AddOutput("frames", "gpu"));
+
+  DeviceWorkspace ws;
+  try {
+    pipe.Build(this->Outputs());
+
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+  } catch (const std::exception &e) {
+    if (IsUnsupportedCodec(e.what())) {
+      GTEST_SKIP() << "Skipped because of unsupported codec. Original error:\n" << e.what();
+    } else {
+      throw;
+    }
+  }
+
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
+  const auto &frames_shape = frames_output.shape();
+
+  ASSERT_EQ(frames_shape.size(), 1);
+  ASSERT_EQ(frames_shape[0][0], sequence_length);
+}
+
+TEST_F(VideoReaderTest, MJpeg) {
+  Pipeline pipe(1, 1, 0);
+  const int sequence_length = 60;
+  const string unsupported_exception_msg =
+      "Decoder hardware does not support this video codec"
+      " and/or chroma format";
+
+  // richer FFmpeg configuration leads to different behaviour of VFR heuristics so dissable it for
+  // this video
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("skip_vfr_check", true)
+                       .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                                     "/db/video/mjpeg/mjpeg.avi"})
+                       .AddOutput("frames", "gpu"));
+
+  DeviceWorkspace ws;
+  try {
+    pipe.Build(this->Outputs());
+
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+  } catch (const std::exception &e) {
+    if (IsUnsupportedCodec(e.what())) {
+      GTEST_SKIP() << "Skipped because of unsupported codec. Original error:\n" << e.what();
+    } else {
+      throw;
+    }
+  }
+
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
+  const auto &frames_shape = frames_output.shape();
+
+  ASSERT_EQ(frames_shape.size(), 1);
+  ASSERT_EQ(frames_shape[0][0], sequence_length);
+}
+
 TEST_F(VideoReaderTest, FrameLabels) {
   const int sequence_length = 1;
   const int iterations = 256;
@@ -326,7 +402,7 @@ TEST_F(VideoReaderTest, FrameLabels) {
     labels_cpu.Copy(label_gpu, 0);
     TensorList<CPUBackend> frame_num_cpu;
     frame_num_cpu.Copy(frame_num_gpu, 0);
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
 
     const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
     const int *label = static_cast<const int *>(labels_cpu.raw_data());
@@ -373,7 +449,7 @@ TEST_F(VideoReaderTest, FrameLabelsFilenames) {
     labels_cpu.Copy(label_gpu, 0);
     TensorList<CPUBackend> frame_num_cpu;
     frame_num_cpu.Copy(frame_num_gpu, 0);
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
 
     const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
     const int *label = static_cast<const int *>(labels_cpu.raw_data());
@@ -421,7 +497,7 @@ TEST_F(VideoReaderTest, LabelsFilenames) {
     labels_cpu.Copy(label_gpu, 0);
     TensorList<CPUBackend> frame_num_cpu;
     frame_num_cpu.Copy(frame_num_gpu, 0);
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
 
     const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
     const int *label = static_cast<const int *>(labels_cpu.raw_data());
@@ -472,7 +548,7 @@ TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
     frame_num_cpu.Copy(frame_num_gpu, 0);
     TensorList<CPUBackend> timestamps_cpu;
     timestamps_cpu.Copy(timestamp_gpu, 0);
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
 
     const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
     const int *label = static_cast<const int *>(labels_cpu.raw_data());
@@ -535,7 +611,7 @@ TEST_F(VideoReaderTest, TimestampLabels) {
     timestamps_cpu.Copy(timestamp_gpu, 0);
     TensorList<CPUBackend> frame_num_cpu;
     frame_num_cpu.Copy(frame_num_gpu, 0);
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
 
     const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
     const int *label = static_cast<const int *>(labels_cpu.raw_data());
@@ -580,7 +656,7 @@ TEST_F(VideoReaderTest, StartEndLabels) {
     labels_cpu.Copy(label_gpu, 0);
     TensorList<CPUBackend> timestamps_cpu;
     timestamps_cpu.Copy(frame_num_gpu, 0);
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
 
     const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
     const int *label = static_cast<const int *>(labels_cpu.raw_data());

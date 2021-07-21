@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "dali/core/api_helper.h"
+#include "dali/core/int_literals.h"
 
 namespace dali {
 
@@ -110,7 +111,6 @@ enum DALIImageType {
   DALI_YCbCr        = 3,
   DALI_ANY_DATA     = 4
 };
-
 
 inline bool IsColor(DALIImageType type) {
   return type == DALI_RGB || type == DALI_BGR || type == DALI_YCbCr;

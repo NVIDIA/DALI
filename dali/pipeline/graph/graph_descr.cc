@@ -86,7 +86,7 @@ StorageDevice ParseStorageDevice(const std::string &io_device) {
 }  // namespace
 
 OpNode& OpGraph::PlaceNewOp(OpType op_type, const OpSpec &op_spec, std::string instance_name) {
-  op_nodes_.push_back(OpNode());
+  op_nodes_.emplace_back();
   auto &node = op_nodes_.back();
   node.id = op_nodes_.size() - 1;
   node.spec = op_spec;
@@ -99,7 +99,7 @@ OpNode& OpGraph::PlaceNewOp(OpType op_type, const OpSpec &op_spec, std::string i
 }
 
 TensorNode& OpGraph::PlaceNewTensor() {
-  tensor_nodes_.push_back(TensorNode());
+  tensor_nodes_.emplace_back();
   tensor_nodes_.back().id = tensor_nodes_.size() - 1;
   return tensor_nodes_.back();
 }

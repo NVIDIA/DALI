@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <utility>
 #include <initializer_list>
 
+#include "dali/core/int_literals.h"
 #include "dali/core/host_dev.h"
 #include "dali/core/force_inline.h"
 #include "dali/core/span.h"
@@ -142,6 +143,52 @@ constexpr std::enable_if_t<std::is_integral<T>::value, int> ilog2(T x) {
     n++;
   return n;
 }
+
+
+/**
+ * @brief Count Trailing Zeros (CTZ)
+ *
+ * @return The number of trailing (LSB) zeros or the number of bits in the argument,
+ *         if it's equal to 0.
+ */
+template <typename Integer>
+DALI_HOST_DEV DALI_FORCEINLINE
+std::enable_if_t<std::is_integral<Integer>::value, int> ctz(Integer word) {
+  std::make_unsigned_t<Integer> uword = word;
+  if (uword == 0)
+    return sizeof(uword) * 8;
+  // The hardware can check for multiple bits at a time, so we don't have to scan sequentially
+  int bit = 0;
+  if (sizeof(uword) > 4 && (uword & 0xffffffffu) == 0) {
+    bit += 32;
+    const int shift32 = sizeof(uword) > 4 ? 32 : 0;  // workaround undefined shift warning
+    uword >>= shift32;
+  }
+  if (sizeof(uword) > 2 && (uword & 0xffffu) == 0) {
+    bit += 16;
+    const int shift16 = sizeof(uword) > 2 ? 16 : 0;  // workaround undefined shift warning
+    uword >>= shift16;
+  }
+  if (sizeof(uword) > 1 && (uword & 0xffu) == 0) {
+    bit += 8;
+    const int shift8 = sizeof(uword) > 1 ? 8 : 0;  // workaround undefined shift warning
+    uword >>= shift8;
+  }
+  if ((uword & 0xfu) == 0) {
+    bit += 4;
+    uword >>= 4;
+  }
+  if ((uword & 0x3u) == 0) {
+    bit += 2;
+    uword >>= 2;
+  }
+  if ((uword & 0x1u) == 0) {
+    bit += 1;
+    uword >>= 1;
+  }
+  return bit;
+}
+
 
 /**
  * @brief Returns an integer where bits at indicies in `bit_indices` are set to 1.

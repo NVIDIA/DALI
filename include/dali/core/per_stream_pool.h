@@ -21,6 +21,7 @@
 #include <utility>
 #include <mutex>
 #include "dali/core/cuda_event.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 
@@ -157,7 +158,7 @@ class PerStreamPool {
   template <typename... ObjectConstructorArgs>
   ObjectLease Get(cudaStream_t stream, ObjectConstructorArgs&&... args) {
     int device = -1;
-    cudaGetDevice(&device);
+    CUDA_CALL(cudaGetDevice(&device));
     return Get(device, stream, std::forward<ObjectConstructorArgs>(args)...);
   }
 
@@ -165,7 +166,7 @@ class PerStreamPool {
   friend class ObjectLease;
 
   void Release(std::unique_ptr<ListNode> node) {
-    cudaEventRecord(node->event, node->stream);
+    CUDA_DTOR_CALL(cudaEventRecord(node->event, node->stream));
     std::lock_guard<mutex_type> guard(lock_);
     node->next = std::move(pending_);
     pending_ = std::move(node);

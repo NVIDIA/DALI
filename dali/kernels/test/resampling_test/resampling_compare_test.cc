@@ -151,7 +151,7 @@ TEST_P(ResamplingCompareTest, ResamplingKernelAPI) {
   OutListGPU<uint8_t, 3> out_gpu = output_gpu.gpu();
   for (int i = 0; i < out_gpu.num_samples(); i++) {
     auto tv = out_gpu[i];
-    cudaMemset(tv.data, 0, tv.num_elements()*sizeof(*tv.data));
+    CUDA_CALL(cudaMemset(tv.data, 0, tv.num_elements()*sizeof(*tv.data)));
   }
 
   OutListCPU<uint8_t, 3> out_cpu = output_cpu.cpu();

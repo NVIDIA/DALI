@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ class SliceBaseCpu : public OpImplBase<CPUBackend> {
 
  private:
   std::vector<SliceArgs> args_;
-  kernels::KernelManager kmgr_;
 };
 
 template <typename OutputType, typename InputType, int Dims>
@@ -58,12 +57,11 @@ bool SliceBaseCpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc
   output_desc[0].type = TypeInfo::Create<OutputType>();
   output_desc[0].shape.resize(nsamples, Dims);
 
-  kmgr_.Resize<Kernel>(nthreads, nsamples);
   kernels::KernelContext ctx;
   auto in_view = view<const InputType, Dims>(input);
   for (int i = 0; i < nsamples; i++) {
     auto in_view = view<const InputType, Dims>(input[i]);
-    auto req = kmgr_.Setup<Kernel>(i, ctx, in_view, args_[i]);
+    auto req = Kernel().Setup(ctx, in_view, args_[i]);
     auto out_shape = req.output_shapes[0][0].shape;
     output_desc[0].shape.set_tensor_shape(i, out_shape);
   }
@@ -74,20 +72,23 @@ template <typename OutputType, typename InputType, int Dims>
 void SliceBaseCpu<OutputType, InputType, Dims>::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
+  output.SetLayout(input.GetLayout());
+
   int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
   auto out_shape = output.shape();
+
+  auto in_view = view<const InputType, Dims>(input);
+  auto out_view = view<OutputType, Dims>(output);
+
+  int req_nblocks = std::max(1, 10 * thread_pool.NumThreads() / nsamples);
+  int block_threshold = 16000;
+  kernels::KernelContext ctx;
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-    thread_pool.AddWork(
-      [this, &input, &output, sample_idx](int thread_id) {
-        auto in_view = view<const InputType, Dims>(input[sample_idx]);
-        auto out_view = view<OutputType, Dims>(output[sample_idx]);
-        kernels::KernelContext ctx;
-        kmgr_.Run<Kernel>(thread_id, sample_idx, ctx, out_view, in_view, args_[sample_idx]);
-      }, out_shape.tensor_size(sample_idx));
+    Kernel().Schedule(ctx, out_view[sample_idx], in_view[sample_idx],
+                      args_[sample_idx], thread_pool, block_threshold, req_nblocks);
   }
-  thread_pool.RunAll();
-  output.SetLayout(input.GetLayout());
+  thread_pool.RunAll();  // work starts now
 }
 
 template <>

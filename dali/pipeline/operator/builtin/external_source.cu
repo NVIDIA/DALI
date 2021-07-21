@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,27 +32,26 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     state_.pop_front();
     // even with no_copy we may have copied from TensorVector to TensorList and we
     // need to sync with that
-    if (!no_copy_ || state_info.copied_shared_data) {
+    if (!state_info.no_copy || state_info.copied_shared_data) {
       internal_copy_to_storage = copy_to_storage_events_.PopFront();
     }
   }
 
   auto &output = ws.Output<GPUBackend>(0);
   cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
-  if (!no_copy_ || state_info.copied_shared_data) {
+  if (!state_info.no_copy || state_info.copied_shared_data) {
     CUDA_CALL(cudaStreamWaitEvent(stream_used, *internal_copy_to_storage.front(), 0));
   }
 
   std::swap(output, *tensor_list_elm.front());
 
-  if (!no_copy_ || state_info.copied_shared_data) {
+  if (!state_info.no_copy || state_info.copied_shared_data) {
     RecycleBuffer(tensor_list_elm, &internal_copy_to_storage);
   } else {
     RecycleBuffer(tensor_list_elm);
   }
 }
 
-DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<GPUBackend>, GPU);
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<GPUBackend>, GPU);
 
 }  // namespace dali

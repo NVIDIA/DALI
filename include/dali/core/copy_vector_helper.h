@@ -28,7 +28,7 @@ void copy_vector(std::vector<T> &out, const std::vector<S> &in) {
   out.reserve(in.size());
   out.clear();
   for (decltype(auto) v : in) {
-    out.emplace_back(v);
+    out.emplace_back(static_cast<T>(v));
   }
 }
 
