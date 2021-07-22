@@ -61,7 +61,9 @@ def prepare_cuts(
         no_intersections=False,
         full_input=False,
         in_anchor_top_left=False,
+        in_anchor_range=None,
         out_anchor_top_left=False,
+        out_anchor_range=None,
         out_of_bounds_count=0,
 ):
     # Those two will not work together
@@ -84,11 +86,21 @@ def prepare_cuts(
                     ) + 1
                 ) for i in range(dim)] if not full_input else input_size
 
-                in_anchor = [np.int32(np.random.randint(input_size[i] - shape[i] + 1)) for i in range(dim)] \
-                    if not in_anchor_top_left else [0] * dim
+                if in_anchor_top_left:
+                    in_anchor = [0] * dim
+                elif in_anchor_range is not None:
+                    in_anchor = [np.int32(np.random.randint(in_anchor_range[0][i], in_anchor_range[1][i])) for i in range(dim)]
+                    if full_input:
+                        shape = [np.int32(input_size[i] - in_anchor[i]) for i in range(dim)]
+                else:
+                    in_anchor = [np.int32(np.random.randint(input_size[i] - shape[i] + 1)) for i in range(dim)]
 
-                out_anchor = [np.int32(np.random.randint(output_size[i] - shape[i] + 1)) for i in range(dim)] \
-                    if not out_anchor_top_left else [0] * dim
+                if out_anchor_top_left:
+                    out_anchor = [0] * dim
+                elif out_anchor_range is not None:
+                    out_anchor = [np.int32(np.random.randint(out_anchor_range[0][i], out_anchor_range[1][i])) for i in range(dim)]
+                else:
+                    out_anchor = [np.int32(np.random.randint(output_size[i] - shape[i] + 1)) for i in range(dim)]
 
                 if no_intersections:
                     is_ok = True
@@ -141,7 +153,9 @@ def get_pipeline(
         no_intersections=True,
         full_input=False,
         in_anchor_top_left=False,
+        in_anchor_range=None,
         out_anchor_top_left=False,
+        out_anchor_range=None,
         use_gpu=False,
         num_out_of_bounds=0
 ):
@@ -152,7 +166,8 @@ def get_pipeline(
         resized = fn.resize(decoded, resize_x=in_size[1], resize_y=in_size[0])
         in_idx_l, in_anchors_l, shapes_l, out_anchors_l = prepare_cuts(
             k, batch_size, in_size, out_size, even_paste_count,
-            no_intersections, full_input, in_anchor_top_left, out_anchor_top_left, num_out_of_bounds)
+            no_intersections, full_input, in_anchor_top_left, in_anchor_range,
+            out_anchor_top_left, out_anchor_range, num_out_of_bounds)
         in_idx = fn.external_source(lambda: in_idx_l)
         in_anchors = fn.external_source(lambda: in_anchors_l)
         shapes = fn.external_source(lambda: shapes_l)
@@ -227,7 +242,7 @@ def show_images(batch_size, image_batch):
 
 
 def check_operator_multipaste(bs, pastes, in_size, out_size, even_paste_count, no_intersections, full_input, in_anchor_top_left,
-                              out_anchor_top_left, out_dtype, num_out_of_bounds, device):
+                              in_anchor_range, out_anchor_top_left, out_anchor_range, out_dtype, num_out_of_bounds, device):
     pipe, in_idx_l, in_anchors_l, shapes_l, out_anchors_l = get_pipeline(
         batch_size=bs,
         in_size=in_size,
@@ -238,7 +253,9 @@ def check_operator_multipaste(bs, pastes, in_size, out_size, even_paste_count, n
         no_intersections=no_intersections,
         full_input=full_input,
         in_anchor_top_left=in_anchor_top_left,
+        in_anchor_range=in_anchor_range,
         out_anchor_top_left=out_anchor_top_left,
+        out_anchor_range=out_anchor_range,
         num_out_of_bounds=num_out_of_bounds,
         use_gpu=device == 'gpu'
     )
@@ -265,27 +282,29 @@ def test_operator_multipaste():
         # - output dimensions
         # - should each output have same number of pastes
         # - should generated pastes have no intersections
-        # - should "shapes" parameter be omitted (pastes full input)
+        # - should "shapes" parameter be omitted (shape to cover from input anchor to input end)
         # - should "in_anchors" parameter be omitted
+        # - (Optional) in_anchor value range ((xmin, y_min), (xmax, ymax))
         # - should "out_anchors" parameter be omitted
+        # - (Optional) out_anchor value range ((xmin, y_min), (xmax, ymax))
         # - output dtype
-        # - backend
         # - number of out-of-bounds anchor changes
-        [4, 2, (128, 256), (128, 128), False, False, False, False, False, types.UINT8, 0],
-        [4, 2, (256, 128), (128, 128), False, True, False, False, False, types.UINT8, 0],
-        [4, 2, (128, 128), (256, 128), True, False, False, False, False, types.UINT8, 0],
-        [4, 2, (128, 128), (128, 256), True, True, False, False, False, types.UINT8, 0],
+        [4, 2, (128, 256), (128, 128), False, False, False, False, None, False, None, types.UINT8, 0],
+        [4, 2, (256, 128), (128, 128), False, True, False, False, None, False, None, types.UINT8, 0],
+        [4, 2, (128, 128), (256, 128), True, False, False, False, None, False, None, types.UINT8, 0],
+        [4, 2, (128, 128), (128, 256), True, True, False, False, None, False, None, types.UINT8, 0],
 
-        [4, 2, (64, 64), (128, 128), False, False, True, False, False, types.UINT8, 0],
-        [4, 2, (64, 64), (128, 128), False, False, False, True, False, types.UINT8, 0],
-        [4, 2, (64, 64), (128, 128), False, False, False, False, True, types.UINT8, 0],
+        [4, 2, (64, 64), (128, 128), False, False, True, False, None, False, None, types.UINT8, 0],
+        [4, 2, (64, 64), (128, 128), False, False, True, False, ((10, 10), (20, 20)), False, None, types.UINT8, 0],
+        [4, 2, (64, 64), (128, 128), False, False, False, True, None, False, None, types.UINT8, 0],
+        [4, 2, (64, 64), (128, 128), False, False, False, False, None, True, None, types.UINT8, 0],
 
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.UINT8, 0],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT16, 0],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.INT32, 0],
-        [4, 2, (128, 128), (128, 128), False, False, False, False, False, types.FLOAT, 0],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, None, False, None, types.UINT8, 0],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, None, False, None, types.INT16, 0],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, None, False, None, types.INT32, 0],
+        [4, 2, (128, 128), (128, 128), False, False, False, False, None, False, None, types.FLOAT, 0],
 
-        [4, 2, (128, 256), (128, 128), False, False, False, False, False, types.UINT8, 4],
+        [4, 2, (128, 256), (128, 128), False, False, False, False, None, False, None, types.UINT8, 4],
     ]
     for t in tests:
         yield (check_operator_multipaste, *t, "cpu")
