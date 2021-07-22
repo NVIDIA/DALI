@@ -51,6 +51,16 @@ class _SourceDescription:
             return "Generator function source: `{}` with cycle: `{}`.".format(self.source, self.cycle)
 
 
+_tf_sample_error_msg = (
+    "Unsupported callback return type. Expected NumPy array, PyTorch or MXNet cpu tensors, "
+    "DALI TensorCPU representing sample. Got `{}` instead.")
+
+
+_tf_batch_error_msg = (
+    "Unsupported callback return type. Expected NumPy array, PyTorch or MXNet cpu tensors, "
+    "DALI TensorCPU, list of those types or DALI TensorListCPU representing batch. Got `{}` instead.")
+
+
 def _assert_cpu_sample_data_type(sample, error_str="Unsupported callback return type. Got: `{}`."):
     import_numpy()
     if isinstance(sample, np.ndarray):
@@ -120,13 +130,13 @@ def _batch_to_numpy(batch, error_str="Unsupported callback return type. Got: `{}
 # TODO(klecki): Maybe keep this data here instead of doing the copy twice
 def _inspect_data(data, is_batched):
     if is_batched:
-        as_numpy = _batch_to_numpy(data)
+        as_numpy = _batch_to_numpy(data, _tf_batch_error_msg)
         if isinstance(as_numpy, list):
             return as_numpy[0].dtype, (None,) * (as_numpy[0].ndim + 1) # TODO(klecki): HANDLE THE LISTS
         else:
             return as_numpy.dtype, (None,) * as_numpy.ndim
     else:
-        as_numpy = _sample_to_numpy(data)
+        as_numpy = _sample_to_numpy(data, _tf_sample_error_msg)
         return as_numpy.dtype, (None,) * as_numpy.ndim
 
 
@@ -155,7 +165,7 @@ def get_batch_iterable_from_callback(source_desc):
             else:
                 result = self.source(self.iteration)
             self.iteration += 1
-            return _batch_to_numpy(result)
+            return _batch_to_numpy(result, _tf_batch_error_msg)
 
     return CallableBatchIterator, dtype, shape
 
@@ -191,7 +201,7 @@ def get_sample_iterable_from_callback(source_desc, batch_size):
             if self.idx_in_batch == batch_size:
                 self.idx_in_batch = 0
                 self.iteration += 1
-            return _sample_to_numpy(result)
+            return _sample_to_numpy(result, _tf_sample_error_msg)
 
     return CallableSampleIterator, dtype, shape
 
@@ -217,17 +227,22 @@ def get_iterable_from_callback(source_desc, is_batched):
             else:
                 result = self.source()
             if is_batched:
-                return _batch_to_numpy(result)
+                return _batch_to_numpy(result, _tf_batch_error_msg)
             else:
-                return _sample_to_numpy(result)
+                return _sample_to_numpy(result, _tf_sample_error_msg)
 
     return CallableIterator, dtype, shape
 
 
-def get_iterable_from_iterable(source_desc, is_batched):
-    """Wrap iterable into another iterable while peeking the first element
+def get_iterable_from_iterable_or_generator(source_desc, is_batched):
+    """Wrap iterable or generator function into another iterable while peeking the first element
+
+    If the source is generator function it must be called first.
     """
-    first_iter = iter(source_desc.source)
+    if source_desc.kind == _SourceKind.GENERATOR_FUNC:
+        first_iter = iter(source_desc.source())
+    else:
+        first_iter = iter(source_desc.source)
     first =  next(first_iter)
     dtype, shape = _inspect_data(first, is_batched)
 
@@ -242,7 +257,10 @@ def get_iterable_from_iterable(source_desc, is_batched):
                 self.it = PeekFirstGenerator.first_iterator
                 PeekFirstGenerator.first_iterator = None
             else:
-                self.it = iter(self.source)
+                if source_desc.kind == _SourceKind.GENERATOR_FUNC:
+                    self.it = iter(source_desc.source())
+                else:
+                    first_iter = iter(source_desc.source)
             return self
 
         def __next__(self):
@@ -252,44 +270,9 @@ def get_iterable_from_iterable(source_desc, is_batched):
             else:
                 result = next(self.it)
             if is_batched:
-                return _batch_to_numpy(result)
+                return _batch_to_numpy(result, _tf_batch_error_msg)
             else:
-                return _sample_to_numpy(result)
-
-    return PeekFirstGenerator, dtype, shape
-
-def get_iterable_from_generator(source_desc, is_batched):
-    """Wrap iterable into another iterable while peeking the first element
-    """
-    # TODO(klecki): difference from the get_iterable_from_iterable is that we need to call the source
-    first_iter = iter(source_desc.source())
-    first =  next(first_iter)
-    dtype, shape = _inspect_data(first, is_batched)
-
-    class PeekFirstGenerator:
-        first_iterator = first_iter
-        first_value = first
-        def __init__(self):
-            self.source = source_desc.source
-
-        def __iter__(self):
-            if PeekFirstGenerator.first_iterator is not None:
-                self.it = PeekFirstGenerator.first_iterator
-                PeekFirstGenerator.first_iterator = None
-            else:
-                self.it = iter(self.source())
-            return self
-
-        def __next__(self):
-            if PeekFirstGenerator.first_value is not None:
-                result = PeekFirstGenerator.first_value
-                PeekFirstGenerator.first_value = None
-            else:
-                result = next(self.it)
-            if is_batched:
-                return _batch_to_numpy(result)
-            else:
-                return _sample_to_numpy(result)
+                return _sample_to_numpy(result, _tf_sample_error_msg)
 
     return PeekFirstGenerator, dtype, shape
 
@@ -309,8 +292,6 @@ def _get_generator_from_source_desc(source_desc, batch_size, is_batched):
         else:
             # No inputs, plain iteration
             return get_iterable_from_callback(source_desc, is_batched)
-    elif source_desc.kind == _SourceKind.ITERABLE:
-        return get_iterable_from_iterable(source_desc, is_batched)
     else:
-        # Generator Func
-        return get_iterable_from_generator(source_desc, is_batched)
+        # Generator Func or iterable
+        return get_iterable_from_iterable_or_generator(source_desc, is_batched)
