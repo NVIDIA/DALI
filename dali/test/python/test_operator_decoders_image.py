@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -88,7 +88,6 @@ def test_image_decoder():
                     run_decode(data_path, batch_size, device, threads)
                     yield log, img_type, batch_size, device, threads
 
-# TODO(januszl): check padding behavior
 @pipeline_def
 def create_decoder_slice_pipeline(data_path, device):
     jpegs, _ = fn.readers.file(file_root = data_path,
@@ -117,7 +116,6 @@ def create_decoder_slice_pipeline(data_path, device):
 
     return images_sliced_1, images_sliced_2
 
-# TODO(januszl): check padding behavior
 @pipeline_def
 def create_decoder_crop_pipeline(data_path, device):
     jpegs, _ = fn.readers.file(file_root = data_path,
@@ -335,3 +333,31 @@ def test_image_decoder_slice_alias():
     for device in ["cpu", "mixed"]:
         for use_fast_idct in [True, False]:
             yield check_image_decoder_slice_alias, new_op, old_op, data_path, device, use_fast_idct
+
+def testimpl_image_decoder_crop_error_oob(device):
+    file_root = os.path.join(test_data_root, good_path, "jpeg")
+    @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
+    def pipe(device):
+        encoded, _ = fn.readers.file(file_root=file_root)
+        decoded = fn.decoders.image_crop(encoded, device=device, crop_w=10000)
+        return decoded
+    p = pipe(device)
+    assert_raises(RuntimeError, p.run)
+
+def test_image_decoder_crop_error_oob():
+    for device in ['cpu', 'gpu']:
+        yield testimpl_image_decoder_crop_error_oob, device
+
+def testimpl_image_decoder_slice_error_oob(device):
+    file_root = os.path.join(test_data_root, good_path, "jpeg")
+    @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
+    def pipe(device):
+        encoded, _ = fn.readers.file(file_root=file_root)
+        decoded = fn.decoders.image_slice(encoded, device=device, end=[10000], axes=[1])
+        return decoded
+    p = pipe(device)
+    assert_raises(RuntimeError, p.run)
+
+def test_image_decoder_slice_error_oob():
+    for device in ['cpu', 'gpu']:
+        yield testimpl_image_decoder_slice_error_oob, device
