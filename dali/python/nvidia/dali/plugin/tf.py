@@ -45,6 +45,9 @@ _experimental_dataset_docstring = """Experimental variant of
 :class:`~nvidia.dali.plugin.tf.DALIDataset`. This dataset adds support for input tf.data.Datasets.
 Support for input tf.data.Datasets is available only for TensorFlow 2.4.1 and newer.
 
+Input dataset specification
+---------------------------
+
 Each of the input datasets must be mapped to a :meth:`~nvidia.dali.fn.external_source` operator
 that will represent the input to the DALI pipeline. In the pipeline the input is represented as
 the ``name`` parameter of :meth:`~nvidia.dali.fn.external_source`. Input datasets must be provided
@@ -67,6 +70,21 @@ In per-sample mode DALIDataset will query the inputs dataset ``batch_size``-time
 that would be fed into the DALI Pipeline.
 In per-sample mode, each sample produced by the input dataset can have a different shape,
 but the number of dimension and the layout must remain constant.
+
+External Source with ``source`` parameter
+-----------------------------------------
+
+This experimental DALIDataset accepts pipelines with :meth:`~nvidia.dali.fn.external_source`
+nodes that have ``source`` parameter specified.
+In that case, the ``source`` will be converted automatically into appropriate
+``tf.data.Dataset.from_generator`` dataset with correct placement and
+``tf.data.experimental.copy_to_device`` directives.
+
+Those nodes can also work in per-sample or in batch mode. The data in batch mode must be
+a dense, uniform tensor (each sample has the same dimensions). Only CPU data is accepted.
+
+This allows TensorFlow DALIDataset to work with most Pipelines that have External Source
+``source`` already specified.
 
 .. warning::
     This class is experimental and its API might change without notice.
@@ -126,6 +144,28 @@ Parameters
             with GPU argument must be first applied to input.
 """
 
+
+_experimental_input_docstring = """Wrapper for an input passed to DALIDataset.
+Allows to pass additional options that can override some of the ones specified
+in the External Source node in the Python Pipeline object.
+Passing None indicates, that the value should be looked up in the pipeline definition.
+
+Parameters
+----------
+dataset : tf.data.Dataset
+    The dataset used as input
+layout : str, optional, default = None
+    Layout of the input. If None, the layout will be taken from the corresponding
+    External Source node in the Python Pipeline object. If it is not provided there,
+    empty layout will be used.
+batch: bool, optional, default = False
+    Batch mode of given input. If None, the batch mode will be taken from the
+    corresponding External Source node in the Python Pipeline object.
+
+    If the ``batch = False``, the input dataset is considered sample input.
+
+    If the ``batch = True``, the input dataset is expected to return batches.
+"""
 
 def serialize_pipeline(pipeline):
     try:
@@ -738,27 +778,6 @@ if dataset_inputs_compatible_tensorflow():
         _insert_experimental_member(DALIDatasetWithInputs, "DALIDatasetWithInputs")
 
         class Input:
-            """Wrapper for an input passed to DALIDataset. Allows to pass additional options that
-            can override some of the ones specified in the External Source node in the
-            Python Pipeline object. Passing None indicates, that the value should be looked up
-            in the pipeline definition.
-
-            Parameters
-            ----------
-            dataset : tf.data.Dataset
-                The dataset used as input
-            layout : str, optional, default = None
-                Layout of the input. If None, the layout will be taken from the corresponding
-                External Source node in the Python Pipeline object. If it is not provided there,
-                empty layout will be used.
-            batch: bool, optional, default = False
-                Batch mode of given input. If None, the batch mode will be taken from the
-                corresponding External Source node in the Python Pipeline object.
-
-                If the ``batch = False``, the input dataset is considered sample input.
-
-                If the ``batch = True``, the input dataset is expected to return batches.
-            """
             def __init__(self, dataset, *, layout=None, batch=False):
                 if not isinstance(dataset, dataset_ops.DatasetV2):
                     raise TypeError(
@@ -768,6 +787,8 @@ if dataset_inputs_compatible_tensorflow():
                 self.dataset = dataset
                 self.layout = layout
                 self.batch = batch
+
+        Input.__doc__ = _experimental_input_docstring
 
         _insert_experimental_member(Input, "Input")
 
@@ -787,6 +808,8 @@ else:
         class Input:
             def __init__(self, *args, **kwargs):
                 pass
+
+        Input.__doc__ = _experimental_input_docstring
 
         _insert_experimental_member(Input, "Input")
 
