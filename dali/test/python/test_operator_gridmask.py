@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,9 +40,9 @@ def get_random_pipeline(device, batch_size):
     input, _ = fn.readers.file(file_root=img_dir)
     decoded = fn.decoders.image(input, device='cpu', output_type=types.RGB)
     decoded = decoded.gpu() if device == 'gpu' else decoded
-    tile = fn.cast(fn.uniform(range=(50, 200)), dtype=types.INT32)
-    ratio = fn.uniform(range=(0.3, 0.7))
-    angle = fn.uniform(range=(-math.pi, math.pi))
+    tile = fn.cast(fn.random.uniform(range=(50, 200)), dtype=types.INT32)
+    ratio = fn.random.uniform(range=(0.3, 0.7))
+    angle = fn.random.uniform(range=(-math.pi, math.pi))
     grided = fn.grid_mask(decoded, device=device, tile=tile, ratio=ratio, angle=angle)
     pipe.set_outputs(grided, decoded, tile, ratio, angle)
   return pipe

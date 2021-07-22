@@ -1,4 +1,4 @@
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -54,10 +54,10 @@ def create_coco_pipeline(default_boxes, args):
                        resize_y=300,
                        min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
 
-    saturation = fn.uniform(range=[0.5, 1.5])
-    contrast = fn.uniform(range=[0.5, 1.5])
-    brightness = fn.uniform(range=[0.875, 1.125])
-    hue = fn.uniform(range=[-0.5, 0.5])
+    saturation = fn.random.uniform(range=[0.5, 1.5])
+    contrast = fn.random.uniform(range=[0.5, 1.5])
+    brightness = fn.random.uniform(range=[0.875, 1.125])
+    hue = fn.random.uniform(range=[-0.5, 0.5])
 
     images = fn.hsv(images, dtype=types.FLOAT, hue=hue, saturation=saturation)  # use float to avoid clipping and
                                                          # quantizing the intermediate result

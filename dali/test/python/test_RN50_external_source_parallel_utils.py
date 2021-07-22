@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -124,7 +124,7 @@ class CV2SampleLoaderPerm(CV2SampleLoader):
 
 def common_pipeline(images):
     images = dali.fn.random_resized_crop(images, device="gpu", size=(224, 224))
-    rng = dali.fn.coin_flip(probability=0.5)
+    rng = dali.fn.random.coin_flip(probability=0.5)
     images = dali.fn.crop_mirror_normalize(
         images, mirror=rng,
         device="gpu",

@@ -21,8 +21,8 @@ def create_video_reader_pipeline(sequence_length, files, crop_size):
                               normalized=False, random_shuffle=True, image_type=types.RGB,
                               dtype=types.UINT8, initial_fill=16, pad_last_batch=True, name="Reader")
     images = fn.crop(images, crop=crop_size, dtype=types.FLOAT,
-                     crop_pos_x=fn.uniform(range=(0.0, 1.0)),
-                     crop_pos_y=fn.uniform(range=(0.0, 1.0)))
+                     crop_pos_x=fn.random.uniform(range=(0.0, 1.0)),
+                     crop_pos_y=fn.random.uniform(range=(0.0, 1.0)))
 
     images = fn.transpose(images, perm=[3, 0, 1, 2])
 
