@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ def check_operator_power_spectrum(device, batch_size, input_shape, nfft, axis):
     compare_pipelines(
         PowerSpectrumPipeline(device, batch_size, iter(eii1), axis=axis, nfft=nfft),
         PowerSpectrumNumpyPipeline(device, batch_size, iter(eii2), axis=axis, nfft=nfft),
-        batch_size=batch_size, N_iterations=5, eps=1e-04)
+        batch_size=batch_size, N_iterations=3, eps=1e-04)
 
 def test_operator_power_spectrum():
     for device in ['cpu']:
@@ -99,4 +99,3 @@ def test_operator_power_spectrum():
                                       (16, 0, (16, 2)),
                                       (8, 1, (2, 8, 2))]:
                 yield check_operator_power_spectrum, device, batch_size, shape, nfft, axis
-

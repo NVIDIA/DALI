@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ def test_color_twist_vs_old():
     rand_it2 = RandomDataIterator(batch_size, shape=(1024, 512, 3))
     compare_pipelines(ColorTwistPipeline(batch_size, seed, iter(rand_it1), kind="new"),
                       ColorTwistPipeline(batch_size, seed, iter(rand_it2), kind="old"),
-                      batch_size=batch_size, N_iterations=16, eps=1)
+                      batch_size=batch_size, N_iterations=3, eps=1)
 
 
 def test_color_twist_vs_cpu():
@@ -62,4 +62,4 @@ def test_color_twist_vs_cpu():
     rand_it2 = RandomDataIterator(batch_size, shape=(1024, 512, 3))
     compare_pipelines(ColorTwistPipeline(batch_size, seed, iter(rand_it1), kind="new"),
                       ColorTwistPipeline(batch_size, seed, iter(rand_it2), kind="oldCpu"),
-                      batch_size=batch_size, N_iterations=16, eps=1)
+                      batch_size=batch_size, N_iterations=3, eps=1)

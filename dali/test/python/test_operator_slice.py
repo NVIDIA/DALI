@@ -348,7 +348,7 @@ def check_slice_synth_data_vs_numpy(device, batch_size, input_shape, layout, axe
         SliceSynthDataPipelinePythonOp(batch_size, layout, iter(eiis[0]), iter(eii_args[1]),
             axes=axes, axis_names=axis_names, normalized_anchor=normalized_anchor,
             normalized_shape=normalized_shape, input_type=input_type, output_type=output_type),
-        batch_size=batch_size, N_iterations=5)
+        batch_size=batch_size, N_iterations=3)
 
 def test_slice_synth_data_vs_numpy():
     for device in ["cpu", "gpu"]:
@@ -385,7 +385,7 @@ def check_slice_vs_fused_decoder(device, batch_size, axes, axis_names):
     compare_pipelines(
         SlicePipeline(device, batch_size, iter(eii_args[0]), axes=axes, axis_names=axis_names, is_fused_decoder=False),
         SlicePipeline(device, batch_size, iter(eii_args[1]), axes=axes, axis_names=axis_names, is_fused_decoder=True),
-        batch_size=batch_size, N_iterations=5)
+        batch_size=batch_size, N_iterations=3)
 
 def test_slice_vs_fused_decoder():
     for device in ["cpu", "gpu"]:
@@ -401,7 +401,7 @@ def check_slice_vs_numpy(device, batch_size, axes, axis_names):
     compare_pipelines(
         SlicePipeline(device, batch_size, iter(eii_args[0]), axes=axes, axis_names=axis_names),
         SlicePythonOp(batch_size, iter(eii_args[1]), axes=axes, axis_names=axis_names),
-        batch_size=batch_size, N_iterations=5)
+        batch_size=batch_size, N_iterations=3)
 
 def test_slice_vs_numpy():
     for device in ["cpu", "gpu"]:

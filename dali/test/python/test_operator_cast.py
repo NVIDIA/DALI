@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ def check_cast_operator_float16(device, batch_size):
     compare_pipelines(
         CastPipeline(device, batch_size, iter(eii1), [types.FLOAT16, types.FLOAT]),
         CastPipeline(device, batch_size, iter(eii2), [types.FLOAT]),
-        batch_size=batch_size, N_iterations=5)
+        batch_size=batch_size, N_iterations=3)
 
 def test_cast_operator_float16():
     for device in ['cpu', 'gpu']:

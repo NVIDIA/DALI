@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,20 +45,6 @@ class FlipPipeline(Pipeline):
             images = images.gpu()
         images = self.flip(images)
         return images
-
-
-def check_flip_cpu_vs_gpu(batch_size, vertical, horizontal):
-    compare_pipelines(FlipPipeline('cpu', batch_size, is_vertical=vertical, is_horizontal=horizontal),
-                      FlipPipeline('gpu', batch_size, is_vertical=vertical, is_horizontal=horizontal),
-                      batch_size=batch_size, N_iterations=5)
-
-def test_flip_cpu_vs_gpu():
-    for batch_size in {1, 8, 32}:
-        for vertical in [0,1]:
-            for horizontal in [0,1]:
-                yield check_flip_cpu_vs_gpu, batch_size, vertical, horizontal
-
-
 
 class SynthFlipPipeline(Pipeline):
     def __init__(self, batch_size, layout, data_iterator, device):
@@ -124,7 +110,7 @@ def check_flip(batch_size, layout, shape, device):
     eiis = [RandomDataIterator(batch_size, shape=shape) for k in range(2)]
     compare_pipelines(SynthFlipPipeline(batch_size, layout, iter(eiis[0]), device),
                       SynthPythonFlipPipeline(batch_size, layout, iter(eiis[1])),
-                      batch_size=batch_size, N_iterations=5)
+                      batch_size=batch_size, N_iterations=3)
 
 
 def test_flip_vs_numpy():

@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,41 +64,6 @@ class CropMirrorNormalizePipeline(Pipeline):
         images = self.cmn(images, mirror=rng)
         return images
 
-def check_cmn_cpu_vs_gpu(batch_size, dtype, output_layout, mirror_probability, mean, std, scale, shift, pad_output):
-    iterations = 8 if batch_size == 1 else 1
-
-    eps, max_err = (1e-5, 1e-5) if dtype == types.FLOAT else (0.3, 0.6)
-    compare_pipelines(CropMirrorNormalizePipeline('cpu', batch_size, dtype=dtype,
-                                                  output_layout=output_layout, mirror_probability=mirror_probability,
-                                                  mean=mean, std=std, scale=scale, shift=shift, pad_output=pad_output),
-                      CropMirrorNormalizePipeline('gpu', batch_size, dtype=dtype,
-                                                  output_layout=output_layout, mirror_probability=mirror_probability,
-                                                  mean=mean, std=std, scale=scale, shift=shift, pad_output=pad_output),
-                      batch_size=batch_size, N_iterations=iterations, eps=eps, max_allowed_error=max_err)
-
-def test_cmn_cpu_vs_gpu():
-    norm_data = [ ([0., 0., 0.], [1., 1., 1.]),
-                    ([0.5 * 255], [0.225 * 255]),
-                    ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229 * 255, 0.224 * 255, 0.225 * 255]) ]
-
-    type_scale_shift = [(types.FLOAT, None, None),
-                        (types.FLOAT16, None, None),
-                        (types.UINT8, 64, 128),
-                        (types.INT8, 50, 5)]
-
-    np.random.seed(31337)
-
-    for batch_size in [1, 8]:
-        for output_layout in ["HWC", "CHW"]:
-            mirror_probs = [0.5] if batch_size > 1 else [0.0, 1.0]
-            for mirror_probability in mirror_probs:
-                for pad_output in [False, True]:
-                    mean, std = norm_data[np.random.randint(0, len(norm_data))]
-                    dtype, default_scale, default_shift = type_scale_shift[np.random.randint(0, len(type_scale_shift))]
-                    shift = default_shift if mean and mean[0] > 1 else None
-                    scale = default_scale if std and std[0] > 1 else None
-                    yield check_cmn_cpu_vs_gpu, batch_size, dtype, output_layout, mirror_probability, mean, std, scale, shift, pad_output
-
 class NoCropPipeline(Pipeline):
     def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1, decoder_only=False):
         super(NoCropPipeline, self).__init__(batch_size, num_threads, device_id)
@@ -126,7 +91,7 @@ class NoCropPipeline(Pipeline):
 def check_cmn_no_crop_args_vs_decoder_only(device, batch_size):
     compare_pipelines(NoCropPipeline(device, batch_size, decoder_only=True),
                       NoCropPipeline(device, batch_size, decoder_only=False),
-                      batch_size=batch_size, N_iterations=10)
+                      batch_size=batch_size, N_iterations=3)
 
 def test_cmn_no_crop_args_vs_decoder_only():
     for device in {'cpu'}:

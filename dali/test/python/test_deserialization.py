@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ def check_deserialization(batch_size, num_threads, shape):
     ref_pipe = TestPipeline(batch_size=batch_size, num_threads=num_threads, shape=shape)
     serialized = ref_pipe.serialize()
     test_pipe = Pipeline.deserialize(serialized)
-    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size, N_iterations=10)
+    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size, N_iterations=3)
 
 
 def check_deserialization_with_params(batch_size, num_threads, shape):
@@ -42,7 +42,7 @@ def check_deserialization_with_params(batch_size, num_threads, shape):
     ref_pipe = TestPipeline(batch_size=batch_size ** 2, num_threads=num_threads + 1, shape=shape)
     test_pipe = Pipeline.deserialize(serialized, batch_size=batch_size ** 2,
                                      num_threads=num_threads + 1)
-    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size ** 2, N_iterations=10)
+    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size ** 2, N_iterations=3)
 
 
 def check_deserialization_from_file(batch_size, num_threads, shape):
@@ -50,7 +50,7 @@ def check_deserialization_from_file(batch_size, num_threads, shape):
     ref_pipe = TestPipeline(batch_size=batch_size, num_threads=num_threads, shape=shape)
     ref_pipe.serialize(filename=filename)
     test_pipe = Pipeline.deserialize(filename=filename)
-    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size, N_iterations=10)
+    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size, N_iterations=3)
 
 
 def check_deserialization_from_file_with_params(batch_size, num_threads, shape):
@@ -60,7 +60,7 @@ def check_deserialization_from_file_with_params(batch_size, num_threads, shape):
     ref_pipe = TestPipeline(batch_size=batch_size ** 2, num_threads=num_threads + 1, shape=shape)
     test_pipe = Pipeline.deserialize(filename=filename, batch_size=batch_size ** 2,
                                      num_threads=num_threads + 1)
-    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size ** 2, N_iterations=10)
+    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size ** 2, N_iterations=3)
 
 
 def test_deserialization():

@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ def check_operator_to_decibels_vs_python(device, batch_size, input_shape,
                           multiplier=multiplier, reference=reference, cutoff_db=cutoff_db),
         ToDecibelsPythonPipeline(device, batch_size, iter(eii2),
                           multiplier=multiplier, reference=reference, cutoff_db=cutoff_db),
-        batch_size=batch_size, N_iterations=5, eps=1e-04)
+        batch_size=batch_size, N_iterations=3, eps=1e-04)
 
 def test_operator_to_decibels_vs_python():
     for device in ['cpu', 'gpu']:
@@ -145,7 +145,7 @@ def check_natural_logarithm(device, batch_size, input_shape):
     compare_pipelines(
         NLDaliPipeline(device, iter(eii1), batch_size),
         NLPythonPipeline(iter(eii2), batch_size),
-        batch_size=batch_size, N_iterations=5, eps=1e-04)
+        batch_size=batch_size, N_iterations=3, eps=1e-04)
 
 
 def test_operator_natural_logarithm():
