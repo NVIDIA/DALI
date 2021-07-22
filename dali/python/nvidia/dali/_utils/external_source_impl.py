@@ -408,7 +408,7 @@ def get_iterable_from_iterable_or_generator(source_desc, is_batched):
                 if source_desc.kind == SourceKind.GENERATOR_FUNC:
                     self.it = iter(source_desc.source())
                 else:
-                    first_iter = iter(source_desc.source)
+                    self.it = iter(source_desc.source)
             return self
 
         def __next__(self):
