@@ -45,14 +45,15 @@ _experimental_dataset_docstring = """Experimental variant of
 :class:`~nvidia.dali.plugin.tf.DALIDataset`. This dataset adds support for input tf.data.Datasets.
 Support for input tf.data.Datasets is available only for TensorFlow 2.4.1 and newer.
 
-Input dataset specification
----------------------------
+**Input dataset specification**
 
 Each of the input datasets must be mapped to a :meth:`~nvidia.dali.fn.external_source` operator
 that will represent the input to the DALI pipeline. In the pipeline the input is represented as
 the ``name`` parameter of :meth:`~nvidia.dali.fn.external_source`. Input datasets must be provided
 as a mapping from that ``name`` to the dataset object via the ``input_datasets`` dictionary argument
 of DALIDatasetWithInputs.
+
+**Per-sample and batch mode**
 
 The input datasets can operate in per-sample mode or in batch mode.
 
@@ -71,8 +72,7 @@ that would be fed into the DALI Pipeline.
 In per-sample mode, each sample produced by the input dataset can have a different shape,
 but the number of dimension and the layout must remain constant.
 
-External Source with ``source`` parameter
------------------------------------------
+**External Source with** ``source`` **parameter**
 
 This experimental DALIDataset accepts pipelines with :meth:`~nvidia.dali.fn.external_source`
 nodes that have ``source`` parameter specified.
