@@ -174,6 +174,7 @@ if(BUILD_LIBTAR)
     "config.h"
     "config.h.in"
     "config.log"
+    "config.out"
     "config.status"
     "configure"
     "doc/Makefile"
@@ -182,22 +183,24 @@ if(BUILD_LIBTAR)
     "libtool"
     "stamp-h1"
   )
+  list(TRANSFORM LIBTAR_CONFIGURE_BYPRODUCTS PREPEND ${DALI_SOURCE_DIR}/third_party/libtar/)
   add_custom_command(
-    OUTPUT lib/Makefile
-    COMMAND autoreconf --force --install > configure.log
-    COMMAND ./configure >> configure.log
+    OUTPUT ${DALI_SOURCE_DIR}/third_party/libtar/lib/Makefile
+    COMMAND autoreconf --force --install > config.out
+    COMMAND ./configure >> config.out
     WORKING_DIRECTORY ${DALI_SOURCE_DIR}/third_party/libtar
     COMMENT "Configuring libtar"
     BYPRODUCTS ${LIBTAR_CONFIGURE_BYPRODUCTS}
   )
   add_custom_command(
-    OUTPUT libtar.a
+    OUTPUT ${DALI_SOURCE_DIR}/third_party/libtar/lib/libtar.a
     COMMAND "$(MAKE)" > build.log
     COMMAND cp .libs/libtar.a .
     COMMAND "$(MAKE)" clean >> build.log
-    DEPENDS Makefile
+    DEPENDS ${DALI_SOURCE_DIR}/third_party/libtar/lib/Makefile
     WORKING_DIRECTORY ${DALI_SOURCE_DIR}/third_party/libtar/lib
     COMMENT "Building libtar"
+    BYPRODUCTS ${DALI_SOURCE_DIR}/third_party/libtar/lib/build.log
   )
   add_custom_target(libtar_build DEPENDS ${DALI_SOURCE_DIR}/third_party/libtar/lib/libtar.a)
   add_library(libtar STATIC IMPORTED)
