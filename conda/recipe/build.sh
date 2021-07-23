@@ -70,6 +70,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_NVJPEG2K=${BUILD_NVJPEG2K}                  \
       -DBUILD_LIBTIFF=${BUILD_LIBTIFF:-ON}                \
       -DBUILD_LIBSND=${BUILD_LIBSND:-ON}                  \
+      -DBUILD_LIBTAR=${BUILD_LIBTAR:-ON}                  \
       -DBUILD_FFTS=${BUILD_FFTS:-ON}                      \
       -DBUILD_NVOF=${BUILD_NVOF:-ON}                      \
       -DBUILD_NVDEC=${BUILD_NVDEC:-ON}                    \
