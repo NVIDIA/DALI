@@ -20,7 +20,7 @@ from tensorflow.python.framework import tensor_shape
 from nvidia.dali import types
 from nvidia.dali import internal as _internal
 
-from nvidia.dali.external_source import _is_external_source, _is_external_source_with_callback, _cycle_enabled
+from nvidia.dali.external_source import _is_external_source, _is_external_source_with_callback, _has_external_source, _cycle_enabled
 
 from nvidia.dali._utils.callbacks import _get_generator_from_source_desc
 
@@ -370,6 +370,7 @@ def _get_current_device_spec():
         return tf.DeviceSpec.from_string(spec.display_name)
 
 
+
 if dataset_compatible_tensorflow():
     from tensorflow.python.framework import ops
     from tensorflow.python.data.ops import dataset_ops
@@ -577,6 +578,15 @@ if dataset_compatible_tensorflow():
         def _setup_inputs(self, input_datasets):
             """Verify the input specification and assign it to private members in
             normalized form."""
+
+
+            # If no inputs are specified, input handling is no-op
+            if input_datasets is None and not _has_external_source(self._pipeline_instance):
+                self._input_datasets = ()
+                self._input_names = ()
+                self._input_layouts = ()
+                self._input_batched = ()
+                return
 
             self._assert_pipeline_instance()
 

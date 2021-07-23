@@ -554,6 +554,15 @@ def _is_external_source(op_instance):
     return isinstance(op_instance._op, ExternalSource)
 
 
+def _has_external_source(pipeline):
+    if not pipeline._py_graph_built:
+        pipeline._build_graph()
+    for op in pipeline._ops:
+        if _is_external_source(op):
+            return True
+    return False
+
+
 def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None,
                     cuda_stream = None, use_copy_kernel = None, batch = True, **kwargs):
     """Creates a data node which is populated with data from a Python source.
