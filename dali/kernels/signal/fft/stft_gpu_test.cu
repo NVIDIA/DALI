@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -101,8 +101,13 @@ void RefSpectrum(const OutTensorCPU<T, 2> &ref_out, const float *in, int n,
   assert(out_nfft <= nfft);
   vector<T> ref(out_nfft);
 
+  // When the nfft is larger than the window lenght, we center the window
+  // (padding with zeros on both side)
+  assert(n <= nfft);
+  int in_win_start = n < nfft ? (nfft - n) / 2 : 0;
+
   for (int i = 0; i < nout; i++) {
-    RefExtractWindow(ref_wnd.data(), i, in, n, args);
+    RefExtractWindow(ref_wnd.data() + in_win_start, i, in, n, args);
     for (int j = 0; j < window.size(); j++)
       ref_wnd[j] *= window[j];
 

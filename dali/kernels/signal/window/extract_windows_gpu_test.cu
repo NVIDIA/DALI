@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ TEST(ExtractWindowsGPU, NonBatchedKernel) {
   int windows = 80;
   int stride = windows;
   int step = 10;
-  int length = windows * step - 100;;
+  int length = windows * step - 100;
   int center = 5;
   CUDA_CALL(cudaMalloc(&in_gpu, sizeof(float)*length));
   CUDA_CALL(cudaMalloc(&out_gpu, sizeof(float)*windows*outwinlen));
@@ -47,15 +47,23 @@ TEST(ExtractWindowsGPU, NonBatchedKernel) {
     CUDA_CALL(cudaMemset(out_gpu, 0xff, sizeof(float)*windows*outwinlen));
     int xblocks = div_ceil(length, 32);
     int yblocks = div_ceil(winlen, 32);
+    int win_data_start = (outwinlen - winlen) / 2;
+
     window::ExtractVerticalWindowsKernel<<<dim3(xblocks, yblocks), dim3(32, 32)>>>(
-      out_gpu, windows, stride, in_gpu, length, nullptr, winlen, outwinlen, center, step, reflect);
-    CUDA_CALL(
-      cudaMemcpy(out.data(), out_gpu, sizeof(float)*winlen*windows, cudaMemcpyDeviceToHost));
+        out_gpu, windows, stride, in_gpu, length, nullptr, outwinlen, win_data_start, winlen,
+        center, step, reflect);
+    CUDA_CALL(cudaMemcpy(out.data(), out_gpu, sizeof(float) * outwinlen * windows,
+                         cudaMemcpyDeviceToHost));
     CUDA_CALL(cudaDeviceSynchronize());
 
     for (int w = 0; w < windows; w++) {
-      for (int i = 0; i < winlen; i++) {
-        int idx = w * step + i - center;
+      int i = 0;
+      for (; i < win_data_start; i++) {
+        EXPECT_EQ(out[w + i*stride], 0)
+          << "padding @ window = " << w << ", index = " << i;
+      }
+      for (int j = 0; j < winlen; j++, i++) {
+        int idx = w * step + j - center;
         if (reflect)
           idx = boundary::idx_reflect_101(idx, 0, length);
 
@@ -63,7 +71,7 @@ TEST(ExtractWindowsGPU, NonBatchedKernel) {
         EXPECT_EQ(out[w + i*stride], ref)
           << "@ window = " << w << ", index = " << i;
       }
-      for (int i = winlen; i < outwinlen; i++) {
+      for (; i < outwinlen; i++) {
         EXPECT_EQ(out[w + i*stride], 0)
           << "padding @ window = " << w << ", index = " << i;
       }
@@ -119,7 +127,7 @@ void TestBatchedExtract(
   args.padding = padding;
 
   int out_win_len_actual = out_win_len < 0 ? args.window_length : out_win_len;
-
+  int in_win_start = (out_win_len_actual - args.window_length) / 2;
 
   KernelContext ctx;
 
@@ -163,23 +171,25 @@ void TestBatchedExtract(
     ptrdiff_t window_stride = vertical ? 1 : out_cpu.shape[out_sample][1];
 
     for (int w = 0; w < nwnd; w++, ofs += window_stride) {
-        int i = 0;
-        for (; i < args.window_length; i++) {
-        ptrdiff_t idx = w * args.window_step + i - args.window_center;
+      int i = 0;
+      for (; i < in_win_start; i++) {
+        ASSERT_EQ(out_cpu.data[out_sample][ofs + i * sample_stride], 0)
+            << "padding @ sample = " << sample << ", window = " << w << ", index = " << i;
+      }
+      for (int j = 0 ; j < args.window_length; j++, i++) {
+        ptrdiff_t idx = w * args.window_step + j - args.window_center;
         if (args.padding == Padding::Reflect) {
           idx = boundary::idx_reflect_101(idx, length);
         }
-        float ref = idx >= 0 && idx < length ? in_cpu.data[sample][idx] : 0;
+        float ref = idx >= 0 && idx < length ? in_cpu.data[sample][idx] : 0.0f;
         if (!window.empty())
-          ref *= window[i];
-        ASSERT_EQ(out_cpu.data[out_sample][ofs + i*sample_stride], ref)
-          << "@ sample = " << sample
-          << ", window = " << w << ", index = " << i;
+          ref *= window[j];
+        ASSERT_EQ(out_cpu.data[out_sample][ofs + i * sample_stride], ref)
+            << "@ sample = " << sample << ", window = " << w << ", index = " << i;
       }
       for (; i < out_win_len_actual; i++) {
-        ASSERT_EQ(out_cpu.data[out_sample][ofs + i*sample_stride], 0)
-          << "padding @ sample = " << sample
-          << ", window = " << w << ", index = " << i;
+        ASSERT_EQ(out_cpu.data[out_sample][ofs + i * sample_stride], 0)
+            << "padding @ sample = " << sample << ", window = " << w << ", index = " << i;
       }
     }
   }
