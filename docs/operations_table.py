@@ -109,6 +109,7 @@ def get_module_header(fn_module_name, op_name_max_len):
     s += "~" * len(header) + "\n"
     s += ".. table:: " + "\n"
     s += "   :widths: {}, {}, {}\n\n".format(op_name_max_len, 48, 150)
+    # s += "   :width: {}\n\n".format(op_name_max_len + 48 + 150)
     return s
 
 
