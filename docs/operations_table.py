@@ -5,6 +5,8 @@ import nvidia.dali.plugin.pytorch
 import nvidia.dali.plugin.numba.experimental
 import sys
 
+from autodoc_submodules import get_modules, fn_modules
+
 # Dictionary with modules that can have registered Ops
 ops_modules = {
     'nvidia.dali.ops': nvidia.dali.ops,
@@ -87,43 +89,70 @@ def fn_to_op_table(out_filename):
         f.write(doc_table)
 
 
+def get_op_module(op):
+    op_full_name, submodule, op_name = ops._process_op_name(op)
+    for (module_name, module) in ops_modules.items():
+        m = module
+        for part in submodule:
+            m = getattr(m, part, None)
+            if m is None:
+                break
+        if m is not None and hasattr(m, op_name):
+            return module_name
+    raise ValueError("Module for {} not found".format(op_full_name))
+
+
+def get_module_header(fn_module_name, op_name_max_len):
+    s = "\n\n"
+    header = fn_module_name + " module list \n"
+    s += header
+    s += "~" * len(header) + "\n"
+    s += ".. table:: " + "\n"
+    s += "   :widths: {}, {}, {}\n\n".format(op_name_max_len, 48, 150)
+    return s
+
+
 def operations_table(out_filename):
-    formater = '{:{c}<{op_name_max_len}} {:{c}^48} {:{c}<150}\n'
+    formater = '   {:{c}<{op_name_max_len}} {:{c}^48} {:{c}<150}\n'
     doc_table = ''
     doc_table += '\n.. currentmodule:: nvidia.dali.fn\n\n'
-    doc_table += formater.format('', '', '', op_name_max_len = op_name_max_len, c='=')
-    doc_table += formater.format('Function', 'Device support', 'Short description', op_name_max_len = op_name_max_len, c=' ')
-    doc_table += formater.format('', '', '', op_name_max_len = op_name_max_len, c='=')
-    for op in sorted(all_ops, key=name_sort):
-        op_full_name, submodule, op_name = ops._process_op_name(op)
-        schema = b.TryGetSchema(op)
-        short_descr = ''
-        devices = []
-        if op in cpu_ops:
-            devices += ['CPU']
-        if op in mix_ops:
-            devices += ['Mixed']
-        if op in gpu_ops:
-            devices += ['GPU']
-        devices_str = ', '.join(devices)
-        if schema:
-            if schema.IsDocHidden():
-                continue
-            full_doc = schema.Dox()
-        else:
-            full_doc = eval('ops.' + op).__doc__
-        short_descr = full_doc.split("\n\n")[0].replace('\n', ' ')
-        for (module_name, module) in ops_modules.items():
-            m = module
-            for part in submodule:
-                m = getattr(m, part, None)
-                if m is None:
-                    break
-            if m is not None and hasattr(m, op_name):
+    sorted_ops = sorted(all_ops, key=name_sort)
+    for module in get_modules(fn_modules):
+        doc_table += get_module_header(module, op_name_max_len)
+
+        doc_table += formater.format('', '', '', op_name_max_len = op_name_max_len, c='=')
+        doc_table += formater.format('Function', 'Device support', 'Short description', op_name_max_len = op_name_max_len, c=' ')
+        doc_table += formater.format('', '', '', op_name_max_len = op_name_max_len, c='=')
+
+        for op in sorted_ops:
+            op_full_name, submodule, op_name = ops._process_op_name(op)
+            module_name = get_op_module(op)
+            full_module_path = to_fn_module(module_name) + '.'.join(['']+submodule)
+            if full_module_path == module:
+                schema = b.TryGetSchema(op)
+                short_descr = ''
+                devices = []
+                if op in cpu_ops:
+                    devices += ['CPU']
+                if op in mix_ops:
+                    devices += ['Mixed']
+                if op in gpu_ops:
+                    devices += ['GPU']
+                devices_str = ', '.join(devices)
+                if schema:
+                    if schema.IsDocHidden():
+                        continue
+                    full_doc = schema.Dox()
+                else:
+                    full_doc = eval('ops.' + op).__doc__
+                short_descr = full_doc.split("\n\n")[0].replace('\n', ' ')
+
                 fn_string = link_formatter.format(op = to_fn_name(op_full_name), module = to_fn_module(module_name))
-        op_doc = formater.format(fn_string, devices_str, short_descr, op_name_max_len = op_name_max_len, c=' ')
-        doc_table += op_doc
-    doc_table += formater.format('', '', '', op_name_max_len = op_name_max_len, c='=')
+                op_doc = formater.format(fn_string, devices_str, short_descr, op_name_max_len = op_name_max_len, c=' ')
+                doc_table += op_doc
+
+        doc_table += formater.format('', '', '', op_name_max_len = op_name_max_len, c='=')
+
     with open(out_filename, 'w') as f:
         f.write(doc_table)
 

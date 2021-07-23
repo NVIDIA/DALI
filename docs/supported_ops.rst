@@ -13,6 +13,9 @@ The constraints for defining the processing pipeline can be found in
 
 The following table lists all available operations available in DALI:
 
+Operations list
+^^^^^^^^^^^^^^^
+
 .. include:: fn_table
 
 Modules
