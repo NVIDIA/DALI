@@ -111,6 +111,7 @@ CMD WERROR=ON           \
     BUILD_JPEG_TURBO=ON \
     BUILD_LIBTIFF=ON    \
     BUILD_LIBSND=ON     \
+    BUILD_LIBTAR=ON     \
     BUILD_FFTS=ON       \
     BUILD_NVJPEG=OFF    \
     BUILD_NVJPEG2K=OFF  \
