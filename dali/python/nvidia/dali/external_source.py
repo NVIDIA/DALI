@@ -14,10 +14,8 @@
 
 # custom wrappers around ops
 from nvidia.dali import backend as _b
-import inspect
-import functools
 import nvidia.dali.types
-from nvidia.dali._utils.callbacks import _SourceKind, _SourceDescription
+from nvidia.dali._utils.external_source_impl import get_callback_from_source, accepted_arg_count
 
 def _get_batch_shape(data):
     if isinstance(data, (list, tuple, _b.TensorListCPU, _b.TensorListGPU)):
@@ -49,44 +47,6 @@ def _check_data_batch(data, batch_size, layout):
         if layout is not None and layout != "" and dim != len(layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
 
-class _CycleIter:
-    def __init__(self, iterable, mode):
-        self.source = iterable
-        self.signaling = (mode == "raise")
-
-    def __iter__(self):
-        self.it = iter(self.source)
-        return self
-
-    def __next__(self):
-        try:
-            return next(self.it)
-        except StopIteration:
-            self.it = iter(self.source)
-            if self.signaling:
-                raise
-            else:
-                return next(self.it)
-
-class _CycleGenFunc():
-    def __init__(self, gen_func, mode):
-        self.source = gen_func
-        self.signaling = (mode == "raise")
-
-    def __iter__(self):
-        self.it = iter(self.source())
-        return self
-
-    def __next__(self):
-        try:
-            return next(self.it)
-        except StopIteration:
-            self.it = iter(self.source())
-            if self.signaling:
-                raise
-            else:
-                return next(self.it)
-
 class _ExternalDataBatch:
     def __init__(self, group, pipeline, data, batch_size):
         self._group = group
@@ -116,7 +76,7 @@ class _ExternalSourceGroup(object):
         self.parallel = parallel
         self.prefetch_queue_depth = prefetch_queue_depth
         if callback is not None:
-            arg_count = _accepted_arg_count(callback)
+            arg_count = accepted_arg_count(callback)
             if arg_count not in [0, 1]:
                 raise TypeError("External source callback must be a callable with 0 or 1 argument")
             self.accepts_arg = arg_count > 0
@@ -218,102 +178,6 @@ class _ExternalSourceGroup(object):
             op = self.instances[0]
             pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
 
-def _is_generator_function(x):
-    """Checks whether x is a generator function or a callable object
-    where __call__ is a generator function"""
-    if inspect.isgeneratorfunction(x):
-        return True
-    if isinstance(x, functools.partial):
-        return _is_generator_function(x.func)
-
-    if x is None or inspect.isfunction(x) or inspect.ismethod(x):
-        return False
-    call = getattr(x, "__call__", None)
-    if call == x:
-        return False
-    return _is_generator_function(call)
-
-def _cycle_enabled(cycle):
-    if cycle is None:
-        return False
-    if cycle == False or cycle == "no":
-        return False
-    if cycle == True or cycle == "quiet" or cycle == "raise":
-        return True
-    raise ValueError("""Invalid value {} for the argument `cycle`. Valid values are
-  - "no", False or None - cycling disabled
-  - "quiet", True - quietly rewind the data
-  - "raise" - raise StopIteration on each rewind.""".format(repr(cycle)))
-
-def _accepted_arg_count(callable):
-    if not inspect.isfunction(callable) and not inspect.ismethod(callable) and hasattr(callable, '__call__'):
-        callable = callable.__call__
-    if not inspect.ismethod(callable):
-        implicit_args = 0
-    else:
-        implicit_args = 1
-        callable = callable.__func__
-    return callable.__code__.co_argcount - implicit_args
-
-def _get_callback_from_source(source, cycle):
-    """Repack the source into a unified callback function. Additionally prepare the _SourceDescription.
-
-    Returns
-    -------
-    callback, _SourceDescription
-    """
-    iterable = False
-    desc = None
-    if source is not None:
-        try:
-            if _cycle_enabled(cycle):
-                if inspect.isgenerator(source):
-                    raise TypeError("Cannot cycle through a generator - if the generator is a result "
-                        "of calling a generator function, pass that function instead as `source`.")
-                if _is_generator_function(source):
-                    # We got a generator function, each call returns new "generator iterator"
-                    desc = _SourceDescription(source, _SourceKind.GENERATOR_FUNC, False, cycle)
-                    iterator = iter(_CycleGenFunc(source, cycle))
-                else:
-                    # We hopefully got an iterable, iter(source) should return new iterator.
-                    # TODO(klecki): Iterators are self-iterable (they return self from `iter()`),
-                    #               add a check if we have iterable and not iterator here,
-                    #               so we can better support cycle.
-                    desc = _SourceDescription(source, _SourceKind.ITERABLE, False, cycle)
-                    iterator = iter(_CycleIter(source, cycle))
-            else:
-                # In non-cycling case, we go over the data once.
-                if _is_generator_function(source):
-                    # If we got a generator, we extract the "generator iterator"
-                    desc = _SourceDescription(source, _SourceKind.GENERATOR_FUNC, False, cycle)
-                    source = source()
-                else:
-                    desc = _SourceDescription(source, _SourceKind.ITERABLE, False, cycle)
-
-                # We try to use the iterable/iterator.
-                # If this is callable instead, we will throw an error containing 'not iterable'
-                # in the error message.
-                iterator = iter(source)
-            iterable = True
-            callback = lambda: next(iterator)
-        except TypeError as err:
-            if "not iterable" not in str(err):
-                raise(err)
-            if cycle is not None:
-                raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
-            if not callable(source):
-                raise TypeError("Source must be callable, iterable or a parameterless generator function")
-            # We got a callable
-            desc = _SourceDescription(source, _SourceKind.CALLABLE,
-                                      _accepted_arg_count(source) > 0, cycle)
-            callback = source
-    else:
-        desc = None
-        callback = None
-
-    if not iterable and cycle:
-        raise ValueError("`cycle` argument is only valid for iterable `source`")
-    return callback, desc
 
 class ExternalSource():
     """ExternalSource is a special operator that can provide data to a DALI pipeline
@@ -498,7 +362,7 @@ Keyword Args
         import nvidia.dali.ops
         kwargs, self._call_args = nvidia.dali.ops._separate_kwargs(kwargs)
 
-        callback, source_desc = _get_callback_from_source(source, cycle)
+        callback, source_desc = get_callback_from_source(source, cycle)
 
         if name is not None and num_outputs is not None:
             raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
@@ -552,7 +416,7 @@ Keyword Args
         else:
             if self._callback is not None:
                 raise RuntimeError("``source`` already specified in constructor.")
-            callback, source_desc = _get_callback_from_source(source, cycle)
+            callback, source_desc = get_callback_from_source(source, cycle)
 
             # Keep the metadata for Pipeline inspection
             self._source_desc = source_desc
