@@ -5,7 +5,7 @@ test_nose() {
                             test_functional_api.py \
                             test_backend_impl.py \
                             test_dali_variable_batch_size.py
-                            test_callbacks_utils.py); do
+                            test_external_source_impl_utils.py); do
         nosetests --verbose --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
     done
 }

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali._utils import callbacks
+from nvidia.dali._utils import external_source_impl
 from nvidia.dali import tensors
 from nose.tools import assert_equals, raises
 from nose.plugins.attrib import attr
@@ -34,15 +34,15 @@ test_array = np.array([[42, 42], [42, 42]], dtype=np.uint8)
 
 def run_checks(samples_allowed, batches_allowed, samples_disallowed, batches_disallowed):
     for sample, baseline in samples_allowed:
-        yield passes_assert, callbacks.assert_cpu_sample_data_type, sample
-        yield converts, callbacks.sample_to_numpy, sample, baseline
+        yield passes_assert, external_source_impl.assert_cpu_sample_data_type, sample
+        yield converts, external_source_impl.sample_to_numpy, sample, baseline
     for sample, baseline in samples_allowed + batches_allowed:
-        yield passes_assert, callbacks.assert_cpu_batch_data_type, sample
-        yield converts, callbacks.batch_to_numpy, sample, baseline
+        yield passes_assert, external_source_impl.assert_cpu_batch_data_type, sample
+        yield converts, external_source_impl.batch_to_numpy, sample, baseline
     for sample in samples_disallowed:
-        yield raises_assert, callbacks.assert_cpu_sample_data_type, sample
+        yield raises_assert, external_source_impl.assert_cpu_sample_data_type, sample
     for sample in samples_disallowed + batches_disallowed:
-        yield raises_assert, callbacks.assert_cpu_batch_data_type, sample
+        yield raises_assert, external_source_impl.assert_cpu_batch_data_type, sample
 
 
 def test_regular_containers():
