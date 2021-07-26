@@ -37,19 +37,17 @@ def is_gds_supported(device_id=0):
     if is_gds_supported_var is not None:
         return is_gds_supported_var
 
-    # The latest GDS do work with other < 6.0 compute capability
-    # leave this code just in case we need to add a different check
-    # compute_cap = 0
-    # try:
-    #     import pynvml
-    #     pynvml.nvmlInit()
-    #     handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
-    #     compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
-    #     compute_cap = compute_cap[0] + compute_cap[1] / 10.
-    # except ModuleNotFoundError:
-    #     pass
+    compute_cap = 0
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+        compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
+        compute_cap = compute_cap[0] + compute_cap[1] / 10.
+    except ModuleNotFoundError:
+        pass
 
-    is_gds_supported_var = platform.processor() == "x86_64"
+    is_gds_supported_var = platform.processor() == "x86_64" and compute_cap >= 6.0
     return is_gds_supported_var
 
 def create_numpy_file(filename, shape, typ, fortran_order):
