@@ -1,17 +1,35 @@
-#include <cstdlib>
-#include <fcntl.h>
-#include <future>
-#include <algorithm>
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 #include "dali/operators/reader/loader/libtar_utils.h"
+
+#include <fcntl.h>
+
+#include <algorithm>
+#include <cstdlib>
+#include <future>
+#include <string>
+#include <utility>
+
 #include "dali/core/error_handling.h"
 
 namespace dali {
 namespace detail {
 
-TarArchive::TarArchive(const string& filepath) {
+TarArchive::TarArchive(const std::string& filepath) {
   if (tar_open(&handle, filepath.c_str(), nullptr, O_RDONLY, 0, TAR_GNU)) {
-    string error = "Could not open the tar archive at ";
+    std::string error = "Could not open the tar archive at ";
     error += filepath;
     DALI_ERROR(error);
     handle = nullptr;
@@ -31,13 +49,13 @@ bool TarArchive::Next() {
     return;
   }
 
-  if(tar_skip_regfile(handle)) {
+  if (tar_skip_regfile(handle)) {
     TryClose();
   }
 
   buffer_init = false;
 
-  return CheckEnd();
+  return !CheckEnd();
 }
 
 inline bool TarArchive::CheckEnd() {
@@ -46,23 +64,23 @@ inline bool TarArchive::CheckEnd() {
 
 void TarArchive::TryClose() {
   if (handle && tar_close(handle)) {
-    string error = "Could not close the tar archive at ";
+    std::string error = "Could not close the tar archive at ";
     error += handle->pathname;
     DALI_ERROR(error);
   }
   handle = nullptr;
 }
 
-string TarArchive::FileName() {
+std::string TarArchive::FileName() {
   return CheckEnd() ? "" : th_get_pathname(handle);
 }
 
-string TarArchive::FileRead(uint64 count) {
+std::string TarArchive::FileRead(uint64 count) {
   if (CheckEnd()) {
     return "";
   }
-  
-  string out;
+
+  std::string out;
   BufferTryInit();
   while (buffer_size == T_BLOCKSIZE && count) {
     count -= BufferRead(out, count);
@@ -90,8 +108,8 @@ inline void TarArchive::BufferTryInit() {
   }
 }
 
-inline uint64 TarArchive::BufferRead(string& out, uint64 count) {
-  count = std::min(count, (uint64)buffer_size - buffer_offset);
+inline uint64 TarArchive::BufferRead(std::string& out, uint64 count) {
+  count = std::min(count, static_cast<uint64>(buffer_size - buffer_offset));
   out.append(buffer + buffer_offset, count);
   buffer_offset += count;
 }
