@@ -15,7 +15,10 @@
 # custom wrappers around ops
 from nvidia.dali import backend as _b
 import nvidia.dali.types
-from nvidia.dali._utils.external_source_impl import get_callback_from_source, accepted_arg_count
+from nvidia.dali._utils.external_source_impl import \
+        get_callback_from_source as _get_callback_from_source, \
+        accepted_arg_count as _accepted_arg_count
+
 
 def _get_batch_shape(data):
     if isinstance(data, (list, tuple, _b.TensorListCPU, _b.TensorListGPU)):
@@ -76,7 +79,7 @@ class _ExternalSourceGroup(object):
         self.parallel = parallel
         self.prefetch_queue_depth = prefetch_queue_depth
         if callback is not None:
-            arg_count = accepted_arg_count(callback)
+            arg_count = _accepted_arg_count(callback)
             if arg_count not in [0, 1]:
                 raise TypeError("External source callback must be a callable with 0 or 1 argument")
             self.accepts_arg = arg_count > 0
@@ -362,7 +365,7 @@ Keyword Args
         import nvidia.dali.ops
         kwargs, self._call_args = nvidia.dali.ops._separate_kwargs(kwargs)
 
-        callback, source_desc = get_callback_from_source(source, cycle)
+        callback, source_desc = _get_callback_from_source(source, cycle)
 
         if name is not None and num_outputs is not None:
             raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
@@ -416,7 +419,7 @@ Keyword Args
         else:
             if self._callback is not None:
                 raise RuntimeError("``source`` already specified in constructor.")
-            callback, source_desc = get_callback_from_source(source, cycle)
+            callback, source_desc = _get_callback_from_source(source, cycle)
 
             # Keep the metadata for Pipeline inspection
             self._source_desc = source_desc

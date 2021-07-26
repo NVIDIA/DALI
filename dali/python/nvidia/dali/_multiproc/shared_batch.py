@@ -13,7 +13,9 @@
 # limitations under the License.
 
 from nvidia.dali._multiproc import shared_mem
-from nvidia.dali._utils.external_source_impl import assert_cpu_sample_data_type, sample_to_numpy
+from nvidia.dali._utils.external_source_impl import \
+        assert_cpu_sample_data_type as _assert_cpu_sample_data_type, \
+        sample_to_numpy as _sample_to_numpy
 import pickle
 
 
@@ -146,7 +148,7 @@ class SharedMemChunk:
 
 def assert_valid_data_type(sample):
     """Check if the output of the callback is type that can be serialized"""
-    _apply_to_sample(lambda x : assert_cpu_sample_data_type(x, _sample_error_msg), sample)
+    _apply_to_sample(lambda x : _assert_cpu_sample_data_type(x, _sample_error_msg), sample)
 
 
 def _apply_to_sample(func, sample, *args, nest_with_sample=0):
@@ -215,7 +217,7 @@ class SharedBatchWriter:
     def _write_batch(self, batch):
         if not batch:
             return
-        batch = [(idx, _apply_to_sample(lambda x: sample_to_numpy(x, _sample_error_msg), sample))
+        batch = [(idx, _apply_to_sample(lambda x: _sample_to_numpy(x, _sample_error_msg), sample))
                  for idx, sample in batch]
         meta, data_size = self._prepare_samples_meta(batch)
         serialized_meta = pickle.dumps(meta)
