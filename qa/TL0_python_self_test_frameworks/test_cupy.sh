@@ -8,6 +8,7 @@ test_body() {
     nosetests --verbose test_gpu_python_function_operator.py
     nosetests --verbose test_backend_impl_gpu.py
     nosetests --verbose test_external_source_cupy.py
+    nosetests --verbose --attr 'cupy' test_external_source_impl_utils.py
 }
 
 pushd ../..
