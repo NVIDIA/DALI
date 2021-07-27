@@ -76,11 +76,9 @@ class YOLOv4Pipeline:
 
             bboxes = ops.ltrb_to_xywh(bboxes)
 
-            images = dali.fn.cast(images, dtype=dali.types.FLOAT) / 255.0
-            classes = dali.fn.cast(
-                dali.fn.expand_dims(classes, axes=1),
-                dtype=dali.types.FLOAT
-            ) - 1 # subtract one to be consistent with darknet's pretrained model weights
+            images = images * (1.0 / 255.0)
+            # subtract one to be consistent with darknet's pretrained model weights
+            classes = dali.fn.expand_dims(classes, axes=1) - 1.0
 
             labels = dali.fn.cat(bboxes, classes, axis=1)
             labels = dali.fn.pad(labels, fill_value=-1)

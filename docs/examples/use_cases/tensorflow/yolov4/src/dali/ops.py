@@ -52,9 +52,11 @@ def bbox_adjust_ltrb(bboxes, shape_x, shape_y, pos_x, pos_y):
 # Selects if_true or if_false tensor based on the predicate value.
 # predicate should take integer value equal to either 0 or 1.
 # if_true and if_false should be 2D tensors with equal size along axis 1.
+# Note: this function is a workaround and should be replaced
+# with the dedicated operator once available
 def select(predicate, if_true, if_false):
-    true_shape = dali.fn.cast(dali.fn.shapes(if_true), dtype=dali.types.DALIDataType.INT32)
-    false_shape = dali.fn.cast(dali.fn.shapes(if_false), dtype=dali.types.DALIDataType.INT32)
+    true_shape = dali.fn.shapes(if_true, dtype=dali.types.DALIDataType.INT32)
+    false_shape = dali.fn.shapes(if_false, dtype=dali.types.DALIDataType.INT32)
 
     joined = dali.fn.cat(if_true, if_false)
     sh = predicate * true_shape + (1 - predicate) * false_shape
@@ -103,7 +105,8 @@ def mosaic(images, bboxes, labels, image_size):
             total_num_attempts=64
         )
 
-        in_anchor = dali.fn.stack(dali.fn.reductions.sum(in_anchor), dali.fn.reductions.sum(in_anchor)) - in_anchor
+        # swap coordinates (x, y) -> (y, x)
+        in_anchor = dali.fn.reductions.sum(in_anchor) - in_anchor
         in_anchor_c = dali.fn.cast(in_anchor, dtype=dali.types.DALIDataType.INT32)
 
         return idx, bbx, lbl, in_anchor_c, shape
