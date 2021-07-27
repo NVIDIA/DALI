@@ -129,7 +129,7 @@ class deferred_dealloc_resource : public BaseResource {
 
   void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
     if (this->deferred_dealloc_enabled())
-      this->deferred_deallocate(ptr, bytes, alignment);
+      this->deferred_deallocate(ptr, bytes, alignment, this->device_ordinal());
     else
       base::do_deallocate(ptr, bytes, alignment);
   }
@@ -143,6 +143,9 @@ class deferred_dealloc_resource : public BaseResource {
   }
 
   void run() {
+    int default_device = this->device_ordinal();
+    if (default_device >= 0)
+      CUDA_CALL(cudaSetDevice(default_device));
     std::unique_lock<std::mutex> ulock(mtx_);
     while (!is_stopped()) {
       cv_.wait(ulock, [&](){ return stopped_ || !deallocs_[queue_idx_].empty(); });
