@@ -21,6 +21,7 @@ import pickle
 
 np = None
 
+
 def _div_ceil(a, b):
     """Calculate ceil of a/b without decaying to float."""
     return -(-a // b)
@@ -28,6 +29,7 @@ def _div_ceil(a, b):
 def _align_up(x, alignment):
     """ Align x up to multiple of alignment"""
     return _div_ceil(x, alignment) * alignment
+
 
 def import_numpy():
     global np
