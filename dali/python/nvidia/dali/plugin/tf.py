@@ -20,9 +20,9 @@ from tensorflow.python.framework import tensor_shape
 from nvidia.dali import types
 from nvidia.dali import internal as _internal
 
-from nvidia.dali.external_source import _is_external_source, _is_external_source_with_callback, _has_external_source, _cycle_enabled
+from nvidia.dali.external_source import _is_external_source, _is_external_source_with_callback, _has_external_source
 
-from nvidia.dali._utils.callbacks import _get_generator_from_source_desc
+from nvidia.dali._utils.external_source_impl import _get_generator_from_source_desc, _cycle_enabled
 
 from collections import Iterable
 from distutils.version import LooseVersion
