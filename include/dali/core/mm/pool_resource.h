@@ -208,6 +208,10 @@ class pool_resource_base : public memory_resource<kind, Context> {
    */
   virtual void flush_deferred() {}  /* no-op */
 
+  int device_ordinal() const noexcept {
+    return device_ordinal_;
+  }
+
   bool deferred_dealloc_enabled() const noexcept {
     return options_.enable_deferred_deallocation;
   }
@@ -283,8 +287,15 @@ class pool_resource_base : public memory_resource<kind, Context> {
     deallocate_no_sync(ptr, bytes, alignment);
   }
 
+  void set_default_device() {
+    if (options_.sync == sync_scope::device && device_ordinal_ < 0) {
+      CUDA_CALL(cudaGetDevice(&device_ordinal_));
+    }
+  }
+
   void *get_upstream_block(size_t &blk_size, size_t min_bytes, size_t alignment) {
     upstream_lock_guard uguard(upstream_lock_);
+    set_default_device();
     blk_size = next_block_size(min_bytes);
     bool tried_return_to_upstream = false;
     void *new_block = nullptr;
@@ -380,6 +391,7 @@ class pool_resource_base : public memory_resource<kind, Context> {
   LockType lock_;
   pool_options options_;
   size_t next_block_size_ = 0;
+  int device_ordinal_ = -1;
 
   struct UpstreamBlock {
     void *ptr;
