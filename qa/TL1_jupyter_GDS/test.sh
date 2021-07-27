@@ -1,10 +1,22 @@
 #!/bin/bash -e
 
 # used pip packages
-pip_packages="jupyter matplotlib numpy"
+pip_packages="jupyter matplotlib numpy nvidia-ml-py==11.450.51"
 target_dir=./docs/examples/
 
 test_body() {
+    is_gds_supported=$(python -c 'import platform; \
+                                  import pynvml; \
+                                  pynvml.nvmlInit(); \
+                                  handle = pynvml.nvmlDeviceGetHandleByIndex(0); \
+                                  compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle); \
+                                  compute_cap = compute_cap[0] + compute_cap[1] / 10.; \
+                                  print(platform.processor() == "x86_64" and compute_cap >= 6.0)')
+    if [ "$is_gds_supported" != "True" ]
+    then
+        echo "GDS is not supported in that platform"
+        exit 0
+    fi
     test_files=("general/data_loading/numpy_reader.ipynb")
 
     # GDS can't read data from the Docker filesystem.
