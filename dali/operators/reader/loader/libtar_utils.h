@@ -33,27 +33,25 @@ class TarArchive {
   TarArchive(TarArchive&&);
   ~TarArchive();
 
-  bool Next();
-  bool CheckEnd();
+  bool NextFile();
+  bool IsAtFile();
 
-  std::string FileName();
-  std::string FileRead(uint64 count);
-  bool Eof();
+  std::string GetFileName() const;
+  uint64 GetFileSize() const;
+
+  std::string Read();
+  std::string Read(uint64 count);
+  bool Eof() const;
 
  private:
   TAR* handle;
-  std::mutex mutex;
+  std::string filename;
+  uint64 filesize;
+  uint64 readsize;
 
+  void InitNextFile();
   void TryClose();
-
-  void BufferTryInit();
-  uint64 BufferRead(dali::string&, uint64);
-  void BufferUpdate();
-
-  char buffer[T_BLOCKSIZE];
-  uint8 buffer_offset;
-  uint8 buffer_size;
-  bool buffer_init;
+  void TryLibtar(int, std::string&&);
 };
 
 }  // namespace detail

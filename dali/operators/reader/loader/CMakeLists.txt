@@ -52,4 +52,12 @@ if (BUILD_LIBSND)
     "${CMAKE_CURRENT_SOURCE_DIR}/nemo_asr_loader_test.cc")
 endif()
 
+if (BUILD_LIBTAR)
+  set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
+    "${CMAKE_CURRENT_SOURCE_DIR}/libtar_utils.cc")
+  set(DALI_OPERATOR_TEST_SRCS ${DALI_OEPERATOR_TEST_SRCS}
+    "${CMAKE_CURRENT_SOURCE_DIR}/libtar_utils.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/libtar_utils_test.cc")
+endif()
+
 set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS} PARENT_SCOPE)

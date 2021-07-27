@@ -15,6 +15,7 @@
 #include "dali/operators/reader/loader/libtar_utils.h"
 
 #include <fcntl.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <cstdlib>
@@ -22,21 +23,27 @@
 #include <string>
 #include <utility>
 
+#include <iostream>
+
 #include "dali/core/error_handling.h"
+#include "dali/operators/reader/loader/filesystem.h"
 
 namespace dali {
 namespace detail {
 
+// Constructors
 TarArchive::TarArchive(const std::string& filepath) {
-  if (tar_open(&handle, filepath.c_str(), nullptr, O_RDONLY, 0, TAR_GNU)) {
-    std::string error = "Could not open the tar archive at ";
-    error += filepath;
-    DALI_ERROR(error);
-    handle = nullptr;
-  }
+  TryLibtar(tar_open(&handle, filepath.c_str(), nullptr, O_RDONLY, 0, TAR_GNU),
+            "Could not open tha tar archive at");
+  InitNextFile();
 }
 
-TarArchive::TarArchive(TarArchive&& other) : handle(other.handle) {
+TarArchive::TarArchive(TarArchive&& other)
+    : handle(other.handle),
+      filename(other.filename),
+      filesize(other.filesize),
+      leftovers(other.leftovers),
+      readsize(other.readsize) {
   other.handle = nullptr;
 }
 
@@ -44,79 +51,104 @@ TarArchive::~TarArchive() {
   TryClose();
 }
 
-bool TarArchive::Next() {
-  if (CheckEnd()) {
+// Archive Access Methods
+
+
+bool TarArchive::NextFile() {
+  if (!IsAtFile()) {
+    return false;
+  }
+
+  TryLibtar(lseek(handle->fd, filesize - readsize, SEEK_CUR), "Could not skip to the next tar registry at");
+  InitNextFile();
+  return IsAtFile();
+}
+
+inline bool TarArchive::IsAtFile() {
+  return handle != nullptr;
+}
+
+// File Access Methods
+std::string TarArchive::GetFileName() const {
+  return filename;
+}
+
+uint64 TarArchive::GetFileSize() const {
+  return filesize;
+}
+
+std::string TarArchive::Read() {
+  const uint64 leftover_size = leftovers.size();
+  const uint64 blocks =
+      ((filesize - readsize - leftover_size) + T_BLOCKSIZE - 1) / T_BLOCKSIZE;  // for rounding up
+
+  std::string out(std::move(leftovers));
+  leftovers.clear();
+
+  out.resize(filesize - readsize);
+  out.reserve(leftover_size + blocks * T_BLOCKSIZE);
+  handle->type->readfunc(handle->fd, (char*)(out.data() + leftover_size), blocks * T_BLOCKSIZE);
+  readsize += out.size();
+  return out;
+}
+
+std::string TarArchive::Read(uint64 count) {
+  count = std::min(count, filesize - readsize);
+  const uint64 leftover_size = leftovers.size();
+  const uint64 blocks =
+      ((count - readsize - leftover_size) + T_BLOCKSIZE - 1) / T_BLOCKSIZE;  // for rounding up
+
+  std::string out(std::move(leftovers));
+
+  out.resize(leftover_size + blocks * T_BLOCKSIZE);
+  for (uint64 i = leftover_size; i < count; i += T_BLOCKSIZE) {
+    tar_block_read(handle, out.data() + i);
+  }
+
+  readsize += count;
+
+  leftovers = std::move(out.substr(count, readsize));
+  out.resize(count);
+
+  return out;
+}
+
+bool TarArchive::Eof() const {
+  return readsize == filesize;
+}
+
+// Private Helper Functions
+inline void TarArchive::InitNextFile() {
+  int errorcode = th_read(handle);
+  if (errorcode) {
+    std::cerr << "ErrorCode for th_read: " << errorcode << std::endl;
+    TryClose();
     return;
   }
+  TryLibtar(!TH_ISREG(handle), "Found a non-file entry at");
 
-  if (tar_skip_regfile(handle)) {
-    TryClose();
+  filename = th_get_pathname(handle);
+  filesize = th_get_size(handle);
+  readsize = 0;
+}
+
+inline void TarArchive::TryClose() {
+  if (handle) {
+    std::cerr << "The handle is getting closed" << std::endl;
+    TryLibtar(tar_close(handle), "Could not close the tar archive at");
+    handle = nullptr;
   }
-
-  buffer_init = false;
-
-  return !CheckEnd();
 }
 
-inline bool TarArchive::CheckEnd() {
-  return handle == nullptr;
-}
-
-void TarArchive::TryClose() {
-  if (handle && tar_close(handle)) {
-    std::string error = "Could not close the tar archive at ";
-    error += handle->pathname;
-    DALI_ERROR(error);
-  }
-  handle = nullptr;
-}
-
-std::string TarArchive::FileName() {
-  return CheckEnd() ? "" : th_get_pathname(handle);
-}
-
-std::string TarArchive::FileRead(uint64 count) {
-  if (CheckEnd()) {
-    return "";
-  }
-
-  std::string out;
-  BufferTryInit();
-  while (buffer_size == T_BLOCKSIZE && count) {
-    count -= BufferRead(out, count);
-    if (buffer_offset == T_BLOCKSIZE) {
-      BufferUpdate();
+void TarArchive::TryLibtar(int exitcode, std::string&& error_msg) {
+  if (exitcode) {
+    if (handle) {
+      DALI_ERROR(error_msg + " " + handle->pathname);
+      handle = nullptr;
+    } else {
+      DALI_ERROR("Could not access a tar archive");
     }
   }
-
-  return std::move(out);
-}
-
-bool TarArchive::Eof() {
-  if (CheckEnd()) {
-    return true;
-  }
-
-  BufferTryInit();
-  return buffer_size == buffer_offset;
-}
-
-inline void TarArchive::BufferTryInit() {
-  if (!buffer_init) {
-    BufferUpdate();
-    buffer_init = true;
-  }
-}
-
-inline uint64 TarArchive::BufferRead(std::string& out, uint64 count) {
-  count = std::min(count, static_cast<uint64>(buffer_size - buffer_offset));
-  out.append(buffer + buffer_offset, count);
-  buffer_offset += count;
-}
-
-inline void TarArchive::BufferUpdate() {
-  buffer_offset = 0;
-  buffer_size = tar_block_read(handle, buffer);
 }
 
 }  // namespace detail
