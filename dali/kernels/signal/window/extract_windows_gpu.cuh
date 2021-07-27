@@ -37,23 +37,24 @@ constexpr int kBlock = 32;
  * This function reads kBlock elements from kBlock windows to shared memory
  * and stores the transposed result to output in columns.
  *
- * @param first_window_idx  Index of the first window processed by a blcok
- * @param dst           destination buffer
- * @param num_windows   maximum number of windows to extract from given input
- * @param stride        stride, in elements, between respective samples in consecutive windows
- * @param src           input signal
- * @param length        length, in samples, of the signal
- * @param window        window function
- * @param out_win_len   length, in samples, of the output window;
- *                      if `in_win_len` < `out_win_len`, output is zero-padded
- * @param in_win_len    length, in samples, of the window
- * @param win_center    center of the window function; typically win_len/2
- * @param step          step, in samples, between consecutive windows in the input
- * @param reflect       if true, reflect the signal at ends, otherwise zero-pad
- * @param page          which shared memory buffer to use; page flipping
- *                      saves one __syncthreads
- * @tparam num_pages    number of shared memory buffers to use; should be 2 if a single CUDA
- *                      block processes multiple chuncks of data, otherwise 1.
+ * @param first_window_idx  Index of the first window processed by a block
+ * @param dst               destination buffer
+ * @param num_windows       maximum number of windows to extract from given input
+ * @param stride            stride, in elements, between respective samples in consecutive windows
+ * @param src               input signal
+ * @param length            length, in samples, of the signal
+ * @param window            window function
+ * @param out_win_len       length, in samples, of the output window;
+ *                          if `in_win_len` < `out_win_len`, output is zero-padded
+ * @param in_window_start   window start offset within the output window
+ * @param in_win_len        length, in samples, of the window
+ * @param win_center        center of the window function; typically win_len/2
+ * @param step              step, in samples, between consecutive windows in the input
+ * @param reflect           if true, reflect the signal at ends, otherwise zero-pad
+ * @param page              which shared memory buffer to use; page flipping
+ *                          saves one __syncthreads
+ * @tparam num_pages        number of shared memory buffers to use; should be 2 if a single CUDA
+ *                          block processes multiple chuncks of data, otherwise 1.
  *
  * @remarks This function must be executed by all (or no) threads in a block!
  */
@@ -64,7 +65,7 @@ __device__ void ExtractVerticalWindowsBlock(
     const Src *__restrict__ src, ptrdiff_t length,
     const float *__restrict__ window,
     int out_win_len,
-    int in_win_start,  // window start offset within the output window
+    int in_win_start,
     int in_win_len,
     int win_center,
     int step,
