@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-logging.getLogger('tensorflow').disabled = True
-
 import tensorflow as tf
 import numpy as np
 from nvidia.dali import Pipeline, pipeline_def
