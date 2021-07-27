@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <random>
+#include <utility>
 #include <vector>
 #include <cmath>
 #include <complex>
@@ -34,7 +35,7 @@ namespace fft {
 
 void RefExtractWindow(float *out,
                       int window_index, const float *in, int n,
-                      const StftArgs &args) {
+                      const StftArgs &args, const float *win_fn = nullptr) {
   int center = args.padding != Padding::None ? args.window_center : 0;
   if (center == -1)
     center = args.window_length / 2;
@@ -51,7 +52,7 @@ void RefExtractWindow(float *out,
     } else {
       assert(args.padding == Padding::Zero);
     }
-    out[i] = v;
+    out[i] = win_fn ? v * win_fn[i] : v;
   }
 }
 
@@ -101,10 +102,11 @@ void RefSpectrum(const OutTensorCPU<T, 2> &ref_out, const float *in, int n,
   assert(out_nfft <= nfft);
   vector<T> ref(out_nfft);
 
+  // When the nfft is larger than the window lenght, we center the window
+  // (padding with zeros on both side)
+  int in_win_start = args.window_length < nfft ? (nfft - args.window_length) / 2 : 0;
   for (int i = 0; i < nout; i++) {
-    RefExtractWindow(ref_wnd.data(), i, in, n, args);
-    for (int j = 0; j < window.size(); j++)
-      ref_wnd[j] *= window[j];
+    RefExtractWindow(ref_wnd.data() + in_win_start, i, in, n, args, window.data());
 
     fft(ref_fft.data(), ref_wnd.data());
     RefPostprocess(make_span(ref), make_span(ref_fft), args.spectrum_type);
@@ -181,8 +183,10 @@ template <typename OutputType, FftSpectrumType spectrum_type, bool time_major>
 class StftGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
 : public ::testing::Test {
  public:
+  const FftSpectrumType spectrum_type_ = spectrum_type;
+
   template <typename Kernel>
-  void Run() {
+  void Run(StftArgs args) {
     std::mt19937_64 rng(1234);
 
     Kernel stft;
@@ -193,6 +197,7 @@ class StftGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
       {{ 1, 2, 3, 4, 5, 6, 7, 8 }},
       {{ 0xffff, 0xfff, 0xff, 99, 77, 66, 55, 44 }}
     };
+    int nfft = args.nfft < 0 ? args.window_length : args.nfft;
 
     for (auto &in_shape : in_shapes) {
       TestTensorList<float, 1> in;
@@ -204,14 +209,6 @@ class StftGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
       for (int i = 0; i < N; i++) {
         testing::GenerateTestWave(rng, in_cpu.data[i], lengths[i], 30, lengths[i] / 5);
       }
-
-      StftArgs args;
-      args.axis = 0;
-      args.spectrum_type = spectrum_type;
-      args.window_length = 128;
-      args.window_center = 64;
-      args.window_step = 64;
-      args.padding = signal::Padding::Reflect;
 
       window.reshape({{TensorShape<1>{args.window_length}}});
       auto window_span = make_span(window.cpu().data[0], args.window_length);
@@ -228,7 +225,7 @@ class StftGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
       ASSERT_EQ(out_shape.num_samples(), N);
 
       for (int i = 0; i < N; i++) {
-        TensorShape<2> ts = { args.num_windows(lengths[i]), args.window_length / 2 + 1 };
+        TensorShape<2> ts = { args.num_windows(lengths[i]), nfft / 2 + 1 };
         if (!time_major)
           std::swap(ts[0], ts[1]);
         EXPECT_EQ(out_shape[i], ts);
@@ -245,14 +242,14 @@ class StftGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
 
       TestTensorList<OutputType, 2> ref;
       RefSpectrum(ref, in_cpu, args, window_span);
-      Check(out_cpu, ref.cpu(), EqualEpsRel(1e-5, 1e-4));
+      Check(out_cpu, ref.cpu(), EqualEpsRel(2e-5, 2e-4));
     }
   }
 
-  void TestBatched() {
+  void TestBatched(StftArgs args) {
     const bool is_float = std::is_same<OutputType, float>::value;
     using Kernel = std::conditional_t<is_float, SpectrogramGPU, StftGPU>;
-    Run<Kernel>();
+    Run<Kernel>(std::move(args));
   }
 };
 
@@ -267,10 +264,30 @@ using StftTypes = ::testing::Types<
 
 TYPED_TEST_SUITE(StftGPUTest, StftTypes);
 
+TYPED_TEST(StftGPUTest, TestBatched_DefaultNfft) {
+  StftArgs args;
+  args.axis = 0;
+  args.spectrum_type = this->spectrum_type_;
+  args.window_length = 64;
+  args.nfft = -1;  // default
+  args.window_center = 30;
+  args.window_step = 40;
+  args.padding = signal::Padding::Reflect;
 
+  this->TestBatched(args);
+}
 
-TYPED_TEST(StftGPUTest, TestBatched) {
-  this->TestBatched();
+TYPED_TEST(StftGPUTest, TestBatched_DifferentWindowLenAndNfft) {
+  StftArgs args;
+  args.axis = 0;
+  args.spectrum_type = this->spectrum_type_;
+  args.window_length = 200;
+  args.nfft = 256;
+  args.window_center = 100;
+  args.window_step = 120;
+  args.padding = signal::Padding::Reflect;
+
+  this->TestBatched(args);
 }
 
 
