@@ -28,7 +28,7 @@ def import_numpy():
         try:
             import numpy as np
         except ImportError:
-            raise RuntimeError('Could not import numpy. Please make sure you have numpy '
+             RuntimeError('Could not import numpy. Please make sure you have numpy '
                                'installed before you use parallel mode.')
 
 
@@ -275,10 +275,11 @@ def get_callback_from_source(source, cycle):
 
 # TODO(klecki): Maybe keep this data here instead of doing the copy twice
 def _inspect_data(data, is_batched):
+    # TODO(klecki): Add asserts for uniform input batches (as well as output batches)
     if is_batched:
         as_numpy = batch_to_numpy(data, _tf_batch_error_msg)
         if isinstance(as_numpy, list):
-            return as_numpy[0].dtype, (None,) * (as_numpy[0].ndim + 1) # TODO(klecki): HANDLE THE LISTS
+            return as_numpy[0].dtype, (None,) * (as_numpy[0].ndim + 1)
         else:
             return as_numpy.dtype, (None,) * as_numpy.ndim
     else:

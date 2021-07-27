@@ -116,7 +116,7 @@ def get_iterable_generator(dtype, iter_limit=1000, batch_size=None, dense=True):
 
 
 # generator, is_batched, cycle
-# TODO(klecki): raise is currently broken
+# TODO(klecki): cycle='raise' is currently not supported, and probably never will be
 es_configurations = [
     (get_sample_one_arg_callback, False, None),
     (get_batch_one_arg_callback, True, None),
