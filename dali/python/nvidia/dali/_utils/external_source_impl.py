@@ -28,7 +28,7 @@ def import_numpy():
         try:
             import numpy as np
         except ImportError:
-             RuntimeError('Could not import numpy. Please make sure you have numpy '
+            raise RuntimeError('Could not import numpy. Please make sure you have numpy '
                                'installed before you use parallel mode.')
 
 
@@ -393,7 +393,7 @@ def get_iterable_from_iterable_or_generator(source_desc, is_batched):
     else:
         first_iter = iter(source_desc.source)
     first =  next(first_iter)
-    dtype, shape = inspect_data(first, is_batched)
+    dtype, shape = _inspect_data(first, is_batched)
 
     class PeekFirstGenerator:
         first_iterator = first_iter
