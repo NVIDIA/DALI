@@ -1,0 +1,4 @@
+Cython
+matplotlib
+tensorflow-addons==0.11.2
+pycocotools
