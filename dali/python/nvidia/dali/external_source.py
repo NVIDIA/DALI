@@ -346,7 +346,7 @@ Keyword Args
     Only callables that accept one argument (:meth:`~nvidia.dali.types.SampleInfo` objects that
     represent the index of the requested sample) can be used as ``source`` when ``parallel`` is
     set to True. It can be a function or an object implementing ``__call__`` operator, which
-    allows to add some initial state to the object instance.
+    allows to add an initial state to the object instance.
 
     Keep in mind, that **copies** of the ``source`` will be distributed between Python workers,
     and no global state can be shared between them.
