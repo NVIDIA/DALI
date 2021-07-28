@@ -342,6 +342,15 @@ Keyword Args
 
     When ``parallel`` is set to True, ``source`` must return NumPy/MXNet/PyTorch CPU array,
     TensorCPU, or tuple/list of these types with length matching num_outputs.
+
+    Only callables that accept one argument (:meth:`~nvidia.dali.types.SampleInfo` objects that
+    represent the index of the requested sample) can be used as ``source`` when ``parallel`` is
+    set to True. It can be a function or an object implementing ``__call__`` operator, which
+    allows to add some initial state to the object instance.
+
+    Keep in mind, that **copies** of the ``source`` will be distributed between Python workers,
+    and no global state can be shared between them.
+
     The ``source`` callback must raise StopIteration when the end of data is reached.
 
     Setting ``parallel`` to True makes the external source work in per-sample mode.
