@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,49 @@ from nose.tools import raises, with_setup
 from test_pool_utils import *
 from test_utils import compare_pipelines
 from test_external_source_parallel_utils import *
+
+
+def no_arg_fun():
+    pass
+
+
+def multi_arg_fun(a, b, c):
+    pass
+
+
+class Iterable:
+    def __init__(self):
+        pass
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return np.full((2, 2), 42)
+
+
+def generator_fun():
+    while True:
+        yield np.full((2, 2), 42)
+
+
+disallowed_sources = [
+    no_arg_fun,
+    multi_arg_fun,
+    Iterable(),
+    generator_fun
+]
+
+
+@raises(TypeError)
+def check_source_build(source):
+    pipe = create_pipe(source, 'cpu', 10, py_num_workers=4, py_start_method='spawn', parallel=True)
+    pipe.build()
+
+
+def test_wrong_source():
+    for source in disallowed_sources:
+        yield check_source_build, source
 
 
 # Test that we can launch several CPU-only pipelines by fork as we don't touch CUDA context.
@@ -51,6 +94,7 @@ def test_parallel_no_workers():
     capture_processes(parallel_pipe._py_pool)
     assert parallel_pipe._py_pool is None
     assert parallel_pipe._py_pool_started == False
+
 
 @with_setup(setup_function, teardown_function)
 def test_parallel_fork():
