@@ -17,7 +17,8 @@ from nvidia.dali import backend as _b
 import nvidia.dali.types
 from nvidia.dali._utils.external_source_impl import \
         get_callback_from_source as _get_callback_from_source, \
-        accepted_arg_count as _accepted_arg_count
+        accepted_arg_count as _accepted_arg_count, \
+        SourceKind as _SourceKind
 
 
 def _get_batch_shape(data):
@@ -416,6 +417,7 @@ Keyword Args
                     raise ValueError("The argument ``cycle`` can only be specified if ``source`` is a "
                                      "reusable iterable or a generator function.")
             callback = self._callback
+            source_desc = self._source_desc
         else:
             if self._callback is not None:
                 raise RuntimeError("``source`` already specified in constructor.")
@@ -464,6 +466,20 @@ Keyword Args
                 raise ValueError(
                     "``prefetch_queue_depth`` must be a positive integer, got {}.".format(
                         prefetch_queue_depth))
+            if source_desc.kind == _SourceKind.CALLABLE:
+                if not source_desc.has_inputs:
+                    raise TypeError(("External Source in parallel mode (when `parallel=True`) "
+                            "accepts as `source` only callables that accept exactly one "
+                            "argument of type `nvidia.dali.types.SampleInfo`. This argument "
+                            "represents the requested sample index. Got a callable that does not "
+                            "accept arguments instead."))
+            else:
+                what = "an iterable" if source_desc.kind == _SourceKind.ITERABLE else "a generator function"
+                raise TypeError(("External Source in parallel mode (when `parallel=True`) accepts "
+                        "as `source` only callables that accept exactly one argument of type"
+                        "`nvidia.dali.types.SampleInfo`. This argument represents the requested "
+                        "sample index. Got {} instead.\nOnly callables allow to distribute work "
+                        "between worker processes without duplicating it.").format(what))
         else:
             if prefetch_queue_depth is not None:
                 raise ValueError("The argument `prefetch_queue_depth` is valid only for " +
