@@ -25,7 +25,7 @@ namespace dali {
     .AddOptionalArg<int>("step_" #idx, "Range step", nullptr)
 
 
-DALI_SCHEMA(_Subscript)
+DALI_SCHEMA(TensorSubscript)
     .MakeDocHidden()
     .DocStr(R"(Applies NumPy-like indexing to a batch of tensors.)")
     .NumInput(1)
@@ -90,6 +90,6 @@ void TensorSubscript<CPUBackend>::RunTyped(HostWorkspace &ws) {
   tp.RunAll();
 }
 
-DALI_REGISTER_OPERATOR(_Subscript, TensorSubscript<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(TensorSubscript, TensorSubscript<CPUBackend>, CPU);
 
 }  // namespace dali

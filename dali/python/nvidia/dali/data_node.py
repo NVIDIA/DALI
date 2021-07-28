@@ -122,6 +122,34 @@ class DataNode(object):
                 " represent computations in DALI Pipeline see the \"Mathematical Expressions\""
                 " section of DALI documentation."))
 
+    def __getitem__(self, val):
+        idxs = []
+        def process_index(idx):
+            if idx is None:
+                idxs.append((None, None, None, None))
+            elif isinstance(idx, slice):
+                if idx.step is not None and idx.step != 1:
+                    raise NotImplementedError("Slicing with non-unit step is not implemented.")
+                idxs.append((None, idx.start, idx.stop, None))
+            else:
+                idxs.append((idx, None, None, None))
+
+        if not isinstance(val, tuple):
+            process_index(val)
+        else:
+            for v in val:
+                process_index(v)
+
+        kwargs = {}
+        for i, (at, lo, hi, step) in enumerate(idxs):
+            if at:   kwargs["at_%i"%i] = at
+            if lo:   kwargs["lo_%i"%i] = lo
+            if hi:   kwargs["hi_%i"%i] = hi
+            if step: kwargs["step_%i"%i] = step
+
+        import nvidia.dali.fn
+        return nvidia.dali.fn.tensor_subscript(self, **kwargs)
+
 
 def _check(maybe_node):
     if not isinstance(maybe_node, DataNode):
