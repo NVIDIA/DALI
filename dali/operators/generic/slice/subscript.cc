@@ -19,10 +19,10 @@
 namespace dali {
 
 #define INDEX_ARGS(idx) \
-     AddOptionalArg<int>("at_" #idx, "Position index", nullptr) \
-    .AddOptionalArg<int>("lo_" #idx, "Range start", nullptr) \
-    .AddOptionalArg<int>("hi_" #idx, "Range end", nullptr) \
-    .AddOptionalArg<int>("step_" #idx, "Range step", nullptr)
+     AddOptionalArg<int>("at_" #idx, "Position index", nullptr, true) \
+    .AddOptionalArg<int>("lo_" #idx, "Range start", nullptr, true) \
+    .AddOptionalArg<int>("hi_" #idx, "Range end", nullptr, true) \
+    .AddOptionalArg<int>("step_" #idx, "Range step", nullptr, true)
 
 
 DALI_SCHEMA(TensorSubscript)

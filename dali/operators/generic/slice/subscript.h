@@ -44,6 +44,7 @@ enum class ArgSource {
 
 struct SubscriptArg {
   void Init(const OpSpec &spec, const std::string &name) {
+    this->name = name;
     src = spec.HasTensorArgument(name)
               ? ArgSource::Input
               : spec.HasArgument(name)
@@ -276,7 +277,7 @@ class TensorSubscript : public Operator<Backend> {
     auto &output = ws.template OutputRef<Backend>(0);
     output.SetLayout(GetOutputLayout(input.GetLayout()));
     VALUE_SWITCH(simplified_in_shape_.sample_dim(), ndim,
-      (1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),
+      (1,  2,  3,  4,  5,  6/*,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16*/),
       (VALUE_SWITCH(input.type().size(), element_size, (1, 2, 4, 8),
         (RunTyped<ndim, element_size>(ws);),
         (DALI_FAIL(make_string("Unsupported input type: ", input.type().id()));))),
