@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -132,8 +132,16 @@ TEST_F(CopyTest, ListNonContiguous) {
 TEST_F(CopyTest, HostDevUnifiedHost) {
   float data_src[kSize];
   float data_dst[kSize] = { 0 };
-  auto data_gpu = memory::alloc_unique<float>(AllocType::GPU, kSize);
-  auto data_unified = memory::alloc_unique<float>(AllocType::Unified, kSize);
+  kernels::memory::KernelUniquePtr<float> data_gpu, data_unified;
+  try {
+    data_gpu = memory::alloc_unique<float>(AllocType::GPU, kSize);
+    data_unified = memory::alloc_unique<float>(AllocType::Unified, kSize);
+  } catch (const CUDAError &e) {
+    if ((e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
+        (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported)) {
+      GTEST_SKIP() << "Unified memory not supported on this platform";
+    }
+  }
   auto src = make_tensor_cpu(data_src, shape);
   auto gpu = make_tensor_gpu(data_gpu.get(), shape);
   auto unified = make_tensor<StorageUnified>(data_unified.get(), shape);
@@ -148,8 +156,16 @@ TEST_F(CopyTest, HostDevUnifiedHost) {
 TEST_F(CopyTest, HostUnifiedDevHost) {
   float data_src[kSize];
   float data_dst[kSize] = { 0 };
-  auto data_gpu = memory::alloc_unique<float>(AllocType::GPU, kSize);
-  auto data_unified = memory::alloc_unique<float>(AllocType::Unified, kSize);
+  kernels::memory::KernelUniquePtr<float> data_gpu, data_unified;
+  try {
+    data_gpu = memory::alloc_unique<float>(AllocType::GPU, kSize);
+    data_unified = memory::alloc_unique<float>(AllocType::Unified, kSize);
+  } catch (const CUDAError &e) {
+    if ((e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
+        (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported)) {
+      GTEST_SKIP() << "Unified memory not supported on this platform";
+    }
+  }
   auto src = make_tensor_cpu(data_src, shape);
   auto gpu = make_tensor_gpu(data_gpu.get(), shape);
   auto unified = make_tensor<StorageUnified>(data_unified.get(), shape);
@@ -166,9 +182,16 @@ TEST_F(CopyTest, CopyReturnTensorViewTestUnified) {
   float data_src[kSize];
   auto tv = make_tensor_cpu(data_src, shape);
   UniformRandomFill(tv, rng, -1, 1);
-  auto tvcpy = copy<AllocType::Unified>(tv);
-  CUDA_CALL(cudaDeviceSynchronize());
-  Check(tv, tvcpy.first);
+  try {
+    auto tvcpy = copy<AllocType::Unified>(tv);
+    CUDA_CALL(cudaDeviceSynchronize());
+    Check(tv, tvcpy.first);
+  } catch (const CUDAError &e) {
+    if ((e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
+        (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported)) {
+      GTEST_SKIP() << "Unified memory not supported on this platform";
+    }
+  }
 }
 
 

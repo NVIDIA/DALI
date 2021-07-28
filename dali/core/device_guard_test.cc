@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,130 +16,145 @@
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
+#include "dali/core/cuda_error.h"
+#include "dali/core/unique_handle.h"
 
 namespace dali {
 
 TEST(DeviceGuard, ConstructorWithDevice) {
   int test_device = 0;
   int guard_device = 0;
-  int current_device;
+  int current_device = 0;
   int count = 1;
 
-  EXPECT_EQ(cuInitChecked(), true);
-  EXPECT_EQ(cudaGetDeviceCount(&count), cudaSuccess);
+  ASSERT_TRUE(cuInitChecked());
+  CUDA_CALL(cudaGetDeviceCount(&count));
   if (count > 1) {
     guard_device = 1;
   }
 
-  EXPECT_EQ(cudaSetDevice(test_device), cudaSuccess);
-  EXPECT_EQ(cudaGetDevice(&current_device), cudaSuccess);
+  CUDA_CALL(cudaSetDevice(test_device));
+  CUDA_CALL(cudaGetDevice(&current_device));
   EXPECT_EQ(current_device, test_device);
   {
     DeviceGuard g(guard_device);
-    EXPECT_EQ(cudaGetDevice(&current_device), cudaSuccess);
+    CUDA_CALL(cudaGetDevice(&current_device));
     EXPECT_EQ(current_device, guard_device);
   }
-  EXPECT_EQ(cudaGetDevice(&current_device), cudaSuccess);
+  CUDA_CALL(cudaGetDevice(&current_device));
   EXPECT_EQ(current_device, test_device);
 }
 
 TEST(DeviceGuard, ConstructorNoArgs) {
   int test_device = 0;
   int guard_device = 0;
-  int current_device;
+  int current_device = 0;
   int count = 1;
 
-  EXPECT_EQ(cuInitChecked(), true);
-  EXPECT_EQ(cudaGetDeviceCount(&count), cudaSuccess);
+  ASSERT_TRUE(cuInitChecked());
+  CUDA_CALL(cudaGetDeviceCount(&count));
   if (count > 1) {
     guard_device = 1;
   }
 
-  EXPECT_EQ(cudaSetDevice(test_device), cudaSuccess);
-  EXPECT_EQ(cudaGetDevice(&current_device), cudaSuccess);
+  CUDA_CALL(cudaSetDevice(test_device));
+  CUDA_CALL(cudaGetDevice(&current_device));
   EXPECT_EQ(current_device, test_device);
   {
     DeviceGuard g;
-    EXPECT_EQ(cudaSetDevice(guard_device), cudaSuccess);
-    EXPECT_EQ(cudaGetDevice(&current_device), cudaSuccess);
+    CUDA_CALL(cudaSetDevice(guard_device));
+    CUDA_CALL(cudaGetDevice(&current_device));
     EXPECT_EQ(current_device, guard_device);
   }
-  EXPECT_EQ(cudaGetDevice(&current_device), cudaSuccess);
+  CUDA_CALL(cudaGetDevice(&current_device));
   EXPECT_EQ(current_device, test_device);
 }
 
+namespace {
+struct CUDAContext : UniqueHandle<CUcontext, CUDAContext> {
+  DALI_INHERIT_UNIQUE_HANDLE(CUcontext, CUDAContext);
+  static CUDAContext Create(int flags, CUdevice dev) {
+    CUcontext ctx;
+    CUDA_CALL(cuCtxCreate(&ctx, 0, dev));
+    return CUDAContext(ctx);
+  }
+
+  static void DestroyHandle(CUcontext ctx) {
+    CUDA_DTOR_CALL(cuCtxDestroy(ctx));
+  }
+};
+
+}  // namespace
+
 TEST(DeviceGuard, Checkcontext) {
   int test_device = 0;
-  CUdevice cu_test_device;
-  CUcontext cu_test_ctx;
+  CUdevice cu_test_device = 0;
   int guard_device = 0;
   int current_device;
-  CUdevice cu_current_device;
-  CUcontext cu_current_ctx;
+  CUdevice cu_current_device = 0;
+  CUcontext cu_current_ctx = nullptr;
   int count = 1;
 
-  EXPECT_EQ(cuInitChecked(), true);
-  EXPECT_EQ(cudaGetDeviceCount(&count), cudaSuccess);
+  ASSERT_TRUE(cuInitChecked());
+  CUDA_CALL(cudaGetDeviceCount(&count));
   if (count > 1) {
     guard_device = 1;
   }
 
-  EXPECT_EQ(cuDeviceGet(&cu_test_device, test_device), CUDA_SUCCESS);
-  EXPECT_EQ(cuCtxCreate(&cu_test_ctx, 0, cu_test_device), CUDA_SUCCESS);
-  EXPECT_EQ(cuCtxSetCurrent(cu_test_ctx), CUDA_SUCCESS);
-  EXPECT_EQ(cuCtxGetCurrent(&cu_current_ctx), CUDA_SUCCESS);
-  EXPECT_EQ(cuCtxGetDevice(&cu_current_device), CUDA_SUCCESS);
+  CUDA_CALL(cuDeviceGet(&cu_test_device, test_device));
+  auto cu_test_ctx = CUDAContext::Create(0, cu_test_device);
+  CUDA_CALL(cuCtxSetCurrent(cu_test_ctx));
+  CUDA_CALL(cuCtxGetCurrent(&cu_current_ctx));
+  CUDA_CALL(cuCtxGetDevice(&cu_current_device));
   EXPECT_EQ(cu_current_ctx, cu_test_ctx);
   EXPECT_EQ(cu_current_device, cu_test_device);
   {
     DeviceGuard g(guard_device);
-    EXPECT_EQ(cudaGetDevice(&current_device), cudaSuccess);
+    CUDA_CALL(cudaGetDevice(&current_device));
     EXPECT_EQ(current_device, guard_device);
-    EXPECT_EQ(cuCtxGetCurrent(&cu_current_ctx), CUDA_SUCCESS);
+    CUDA_CALL(cuCtxGetCurrent(&cu_current_ctx));
     EXPECT_NE(cu_current_ctx, cu_test_ctx);
   }
-  EXPECT_EQ(cuCtxGetCurrent(&cu_current_ctx), CUDA_SUCCESS);
-  EXPECT_EQ(cuCtxGetDevice(&cu_current_device), CUDA_SUCCESS);
+  CUDA_CALL(cuCtxGetCurrent(&cu_current_ctx));
+  CUDA_CALL(cuCtxGetDevice(&cu_current_device));
   EXPECT_EQ(cu_current_ctx, cu_test_ctx);
   EXPECT_EQ(cu_current_device, cu_test_device);
-  cuCtxDestroy(cu_test_ctx);
 }
 
 TEST(DeviceGuard, CheckcontextNoArgs) {
   int test_device = 0;
-  CUdevice cu_test_device;
-  CUcontext cu_test_ctx;
+  CUdevice cu_test_device = 0;
+  CUcontext cu_current_ctx = nullptr;
   int guard_device = 0;
   int current_device;
-  CUdevice cu_current_device;
-  CUcontext cu_current_ctx;
+  CUdevice cu_current_device = 0;
   int count = 1;
 
-  EXPECT_EQ(cuInitChecked(), true);
+  ASSERT_TRUE(cuInitChecked());
   EXPECT_EQ(cudaGetDeviceCount(&count), cudaSuccess);
   if (count > 1) {
     guard_device = 1;
   }
 
-  EXPECT_EQ(cuDeviceGet(&cu_test_device, test_device), CUDA_SUCCESS);
-  EXPECT_EQ(cuCtxCreate(&cu_test_ctx, 0, cu_test_device), CUDA_SUCCESS);
-  EXPECT_EQ(cuCtxSetCurrent(cu_test_ctx), CUDA_SUCCESS);
-  EXPECT_EQ(cuCtxGetCurrent(&cu_current_ctx), CUDA_SUCCESS);
-  EXPECT_EQ(cuCtxGetDevice(&cu_current_device), CUDA_SUCCESS);
+  CUDA_CALL(cuDeviceGet(&cu_test_device, test_device));
+  auto cu_test_ctx = CUDAContext::Create(0, cu_test_device);
+
+  CUDA_CALL(cuCtxSetCurrent(cu_test_ctx));
+  CUDA_CALL(cuCtxGetCurrent(&cu_current_ctx));
+  CUDA_CALL(cuCtxGetDevice(&cu_current_device));
   EXPECT_EQ(cu_current_ctx, cu_test_ctx);
   EXPECT_EQ(cu_current_device, cu_test_device);
   {
     DeviceGuard g;
-    EXPECT_EQ(cudaSetDevice(guard_device), cudaSuccess);
-    EXPECT_EQ(cudaGetDevice(&current_device), cudaSuccess);
-    EXPECT_EQ(cuCtxGetCurrent(&cu_current_ctx), CUDA_SUCCESS);
+    CUDA_CALL(cudaSetDevice(guard_device));
+    CUDA_CALL(cudaGetDevice(&current_device));
+    CUDA_CALL(cuCtxGetCurrent(&cu_current_ctx));
     EXPECT_NE(cu_current_ctx, cu_test_ctx);
   }
-  EXPECT_EQ(cuCtxGetCurrent(&cu_current_ctx), CUDA_SUCCESS);
-  EXPECT_EQ(cuCtxGetDevice(&cu_current_device), CUDA_SUCCESS);
+  CUDA_CALL(cuCtxGetCurrent(&cu_current_ctx));
+  CUDA_CALL(cuCtxGetDevice(&cu_current_device));
   EXPECT_EQ(cu_current_ctx, cu_test_ctx);
   EXPECT_EQ(cu_current_device, cu_test_device);
-  cuCtxDestroy(cu_test_ctx);
 }
 
 }  // namespace dali

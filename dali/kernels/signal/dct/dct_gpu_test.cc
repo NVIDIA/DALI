@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -240,7 +240,7 @@ TEST_P(Dct1DGpuPerfTest, DISABLED_PerfTest) {
   int64_t in_elems = in_shape_.num_elements();
   int64_t cosine_elems = 0;
   for (int i = 0; i < n_tables; ++i) {
-    cosine_elems += ndct_ * (60 + i);
+    cosine_elems += static_cast<int64_t>(ndct_) * (60 + i);
   }
   int64_t mem_size = sizeof(float) * (out_elems + in_elems + cosine_elems);
   input.reshape(in_shape_);

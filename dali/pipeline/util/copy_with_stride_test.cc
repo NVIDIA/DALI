@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,9 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <memory>
 #include "dali/pipeline/util/copy_with_stride.h"
+#include "dali/core/dev_buffer.h"
 
 namespace dali {
 
@@ -60,11 +62,10 @@ TEST(CopyWithStrideTest, OneDimGPU) {
   float h_data[] = {1, 2, 3, 4, 5, 6};
   Index stride = 2 * sizeof(float);
   Index shape = 3;
-  float *data;
-  CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&data), sizeof(float) * 6));
+  DeviceBuffer<float> data, out;
+  data.from_host(h_data);
+  out.resize(data.size());
   CUDA_CALL(cudaMemcpy(data, h_data, sizeof(float) * 6, cudaMemcpyHostToDevice));
-  float *out;
-  CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&out), sizeof(float) * 3));
   CopyWithStride<GPUBackend>(out, data, &stride, &shape, 1, sizeof(float));
   std::array<float, 3> h_out;
   CUDA_CALL(cudaMemcpy(h_out.data(), out, 3 * sizeof(float), cudaMemcpyDeviceToHost));
@@ -78,11 +79,10 @@ TEST(CopyWithStrideTest, TwoDimsGPU) {
                      41, 42, 43, 44};
   Index stride[] = {8 * sizeof(size_t), sizeof(size_t)};
   Index shape[] = {2, 4};
-  size_t *data;
-  CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&data), sizeof(size_t) * 16));
+  DeviceBuffer<size_t> data, out;
+  data.from_host(h_data);
+  out.resize(data.size());
   CUDA_CALL(cudaMemcpy(data, h_data, sizeof(size_t) * 16, cudaMemcpyHostToDevice));
-  size_t *out;
-  CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&out), sizeof(size_t) * 8));
   CopyWithStride<GPUBackend>(out, data, stride, shape, 2, sizeof(size_t));
   std::array<size_t , 8> h_out;
   CUDA_CALL(cudaMemcpy(h_out.data(), out, 8 * sizeof(size_t), cudaMemcpyDeviceToHost));
@@ -98,11 +98,10 @@ TEST(CopyWithStrideTest, SimpleCopyGPU) {
                     7, 8};
   Index stride[] = {4, 2, 1};
   Index shape[] = {2, 2, 2};
-  uint8 *data;
-  CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&data), sizeof(uint8) * 8));
+  DeviceBuffer<uint8> data, out;
+  data.from_host(h_data);
+  out.resize(data.size());
   CUDA_CALL(cudaMemcpy(data, h_data, sizeof(uint8) * 8, cudaMemcpyHostToDevice));
-  uint8 *out;
-  CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&out), sizeof(uint8) * 8));
   CopyWithStride<GPUBackend>(out, data, stride, shape, 3, sizeof(uint8));
   std::array<uint8 , 8> h_out;
   CUDA_CALL(cudaMemcpy(h_out.data(), out, 8 * sizeof(uint8), cudaMemcpyDeviceToHost));

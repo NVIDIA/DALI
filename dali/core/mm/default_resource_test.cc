@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/device_guard.h"
+#include "dali/core/dev_buffer.h"
 
 namespace dali {
 namespace mm {
@@ -40,8 +41,8 @@ TEST(MMDefaultResource, GetResource_Host) {
 }
 
 TEST(MMDefaultResource, GetResource_Pinned) {
-  char *dev = nullptr;
-  CUDA_CALL(cudaMalloc(&dev, 1000));
+  DeviceBuffer<char> dev;
+  dev.resize(1000);
   CUDA_CALL(cudaMemset(dev, 0, 1000));
 
   auto *rsrc = GetDefaultResource<memory_kind::pinned>();
@@ -64,37 +65,39 @@ TEST(MMDefaultResource, GetResource_Pinned) {
 
   for (int i = 0; i < 1000; i++)
     EXPECT_EQ(back_copy[i], static_cast<char>(i + 42));
-
-  CUDA_CALL(cudaFree(dev));
 }
 
 TEST(MMDefaultResource, GetResource_Device) {
   char *stage = nullptr;
   CUDA_CALL(cudaMallocHost(&stage, 2000));
-  char *back_copy = stage + 1000;
-  memset(back_copy, 0, 10000);
-  for (int i = 0; i < 1000; i++)
-    stage[i] = i + 42;
+  try {
+    char *back_copy = stage + 1000;
+    memset(back_copy, 0, 10000);
+    for (int i = 0; i < 1000; i++)
+      stage[i] = i + 42;
 
-  auto *rsrc = GetDefaultResource<memory_kind::device>();
-  ASSERT_NE(rsrc, nullptr);
+    auto *rsrc = GetDefaultResource<memory_kind::device>();
+    ASSERT_NE(rsrc, nullptr);
 
-  CUDAStream stream = CUDAStream::Create(true);
-  char *mem = static_cast<char*>(rsrc->allocate(1000, 32));
-  ASSERT_NE(mem, nullptr);
+    CUDAStream stream = CUDAStream::Create(true);
+    char *mem = static_cast<char*>(rsrc->allocate(1000, 32));
+    ASSERT_NE(mem, nullptr);
 
-  EXPECT_TRUE(mm::detail::is_aligned(mem, 32));
-  CUDA_CALL(cudaMemcpyAsync(mem, stage, 1000, cudaMemcpyHostToDevice, stream));
-  CUDA_CALL(cudaMemcpyAsync(back_copy, mem, 1000, cudaMemcpyDeviceToHost, stream));
-  rsrc->deallocate_async(mem, 1000, 32, stream_view(stream));
-  CUDAEvent event = CUDAEvent::Create();
-  CUDA_CALL(cudaEventRecord(event, stream));
-  stream = CUDAStream();  // destroy the stream, it should still complete just fine
-  CUDA_CALL(cudaEventSynchronize(event));
+    EXPECT_TRUE(mm::detail::is_aligned(mem, 32));
+    CUDA_CALL(cudaMemcpyAsync(mem, stage, 1000, cudaMemcpyHostToDevice, stream));
+    CUDA_CALL(cudaMemcpyAsync(back_copy, mem, 1000, cudaMemcpyDeviceToHost, stream));
+    rsrc->deallocate_async(mem, 1000, 32, stream_view(stream));
+    CUDAEvent event = CUDAEvent::Create();
+    CUDA_CALL(cudaEventRecord(event, stream));
+    stream = CUDAStream();  // destroy the stream, it should still complete just fine
+    CUDA_CALL(cudaEventSynchronize(event));
 
-  for (int i = 0; i < 1000; i++)
-    EXPECT_EQ(back_copy[i], static_cast<char>(i + 42));
-
+    for (int i = 0; i < 1000; i++)
+      EXPECT_EQ(back_copy[i], static_cast<char>(i + 42));
+  } catch (...) {
+    CUDA_DTOR_CALL(cudaFreeHost(stage));
+    throw;
+  }
   CUDA_CALL(cudaFreeHost(stage));
 }
 
