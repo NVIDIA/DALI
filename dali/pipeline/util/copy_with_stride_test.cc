@@ -65,7 +65,6 @@ TEST(CopyWithStrideTest, OneDimGPU) {
   DeviceBuffer<float> data, out;
   data.from_host(h_data);
   out.resize(data.size());
-  CUDA_CALL(cudaMemcpy(data, h_data, sizeof(float) * 6, cudaMemcpyHostToDevice));
   CopyWithStride<GPUBackend>(out, data, &stride, &shape, 1, sizeof(float));
   std::array<float, 3> h_out;
   CUDA_CALL(cudaMemcpy(h_out.data(), out, 3 * sizeof(float), cudaMemcpyDeviceToHost));
@@ -82,7 +81,6 @@ TEST(CopyWithStrideTest, TwoDimsGPU) {
   DeviceBuffer<size_t> data, out;
   data.from_host(h_data);
   out.resize(data.size());
-  CUDA_CALL(cudaMemcpy(data, h_data, sizeof(size_t) * 16, cudaMemcpyHostToDevice));
   CopyWithStride<GPUBackend>(out, data, stride, shape, 2, sizeof(size_t));
   std::array<size_t , 8> h_out;
   CUDA_CALL(cudaMemcpy(h_out.data(), out, 8 * sizeof(size_t), cudaMemcpyDeviceToHost));
@@ -101,7 +99,6 @@ TEST(CopyWithStrideTest, SimpleCopyGPU) {
   DeviceBuffer<uint8> data, out;
   data.from_host(h_data);
   out.resize(data.size());
-  CUDA_CALL(cudaMemcpy(data, h_data, sizeof(uint8) * 8, cudaMemcpyHostToDevice));
   CopyWithStride<GPUBackend>(out, data, stride, shape, 3, sizeof(uint8));
   std::array<uint8 , 8> h_out;
   CUDA_CALL(cudaMemcpy(h_out.data(), out, 8 * sizeof(uint8), cudaMemcpyDeviceToHost));
