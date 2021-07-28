@@ -32,6 +32,7 @@
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/util/npp.h"
+#include "dali/util/nvml.h"
 #include "dali/image/image_factory.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/core/device_guard.h"
@@ -97,6 +98,25 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     if (try_init_hw_decoder &&
         nvjpegCreate(NVJPEG_BACKEND_HARDWARE, NULL, &handle_) == NVJPEG_STATUS_SUCCESS) {
+    // disable HW decoder for drivers < 455.x as the memory pool for it is not available
+    // and multi GPU performance is far from perfect due to frequent memory allocations
+#if NVML_ENABLED
+    char version[80];
+    CUDA_CALL(nvmlInitChecked());
+    CUDA_CALL(nvmlSystemGetDriverVersion(version, sizeof version));
+
+    float driverVersion = 0;
+    driverVersion = std::stof(version);
+    if (driverVersion < 455) {
+      try_init_hw_decoder = false,
+      hw_decoder_load_ = 0;
+      NVJPEG_CALL(nvjpegDestroy(handle_));
+      LOG_LINE << "NVJPEG_BACKEND_HARDWARE is disabled due to performance reason" << std::endl;
+      NVJPEG_CALL(nvjpegCreateSimple(&handle_));
+      DALI_WARN("Due to performance reason HW NVJPEG decoder is disbaled for the driver "
+                "older than 455.x");
+    }
+#endif
       LOG_LINE << "Using NVJPEG_BACKEND_HARDWARE" << std::endl;
       NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
       hw_decoder_images_staging_.set_pinned(true);
