@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -166,6 +166,9 @@ with *OpenCV* or other specific libraries, such as *libtiff*.
 
 If used with a ``mixed`` backend, and the hardware is available, the operator will use
 a dedicated hardware decoder.
+
+.. warning::
+  Due to performance reasons, hardware decoder is disabled for driver < 455.x
 
 The output of the decoder is in *HWC* layout.
 
