@@ -272,12 +272,13 @@ class TensorSubscript : public Operator<Backend> {
     auto &output = ws.template OutputRef<Backend>(0);
     output.SetLayout(GetOutputLayout(input.GetLayout()));
     VALUE_SWITCH(simplified_in_shape_.sample_dim(), ndim,
-      ( 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,  // NOLINT
-      17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32),
+      (1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),
       (VALUE_SWITCH(input.type().size(), element_size, (1, 2, 4, 8),
         (RunTyped<ndim, element_size>(ws);),
         (DALI_FAIL(make_string("Unsupported input type: ", input.type().id()));))),
-      (DALI_FAIL(make_string("Too many dimensions in the input"));)
+      (DALI_FAIL("Subscript too complex.\n"
+        "The subscript operator supports up to 32 total and up to  16 non-collapsible dimensions.\n"
+        "Adjacent dimensions from which no index or slice is taken can be collapsed.");)
     );  // NOLINT
   }
 
