@@ -261,7 +261,11 @@ class TensorSubscript : public Operator<Backend> {
   TensorLayout GetOutputLayout(const TensorLayout &input_layout) const {
     if (input_layout.empty())
       return {};
-    return permute(input_layout, out_dim_map_);
+    TensorLayout out_layout;
+    out_layout.resize(out_dim_map_.size());
+    for (int i = 0; i < out_layout.ndim(); i++)
+      out_layout[i] = input_layout[out_dim_map_[i]];
+    return out_layout;
   }
 
   bool CanInferOutputs() const override { return true; }
