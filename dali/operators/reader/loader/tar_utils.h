@@ -12,48 +12,54 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_LIBTAR_UTILS_H_
-#define DALI_OPERATORS_READER_LOADER_LIBTAR_UTILS_H_
+#ifndef DALI_OPERATORS_READER_LOADER_TAR_UTILS_H_
+#define DALI_OPERATORS_READER_LOADER_TAR_UTILS_H_
 
-#include <libtar.h>
-
-#include <cstddef>
-#include <iterator>
+#include <fstream>
 #include <mutex>
 #include <string>
-
 #include "dali/core/common.h"
+#include "dali/util/file.h"
 
 namespace dali {
 namespace detail {
 
 class TarArchive {
  public:
-  explicit TarArchive(const std::string& filepath);
+  TarArchive();
+  TarArchive(std::unique_ptr<FileStream>&& stream);
   TarArchive(TarArchive&&);
   ~TarArchive();
 
   bool NextFile();
-  bool IsAtFile();
+  bool IsAtFile() const;
 
   std::string GetFileName() const;
   uint64 GetFileSize() const;
 
-  std::string Read();
-  std::string Read(uint64 count);
+  std::vector<uint8_t> Read();
+  std::vector<uint8_t> Read(uint64 count);
   bool Eof() const;
 
  private:
-  TAR* handle;
+  std::unique_ptr<FileStream> stream;
+  bool eof;
   std::string filename;
   uint64 filesize;
-  uint64 readsize;
+  uint64 readoffset;
 
-  void InitNextFile();
-  void TryClose();
-  void TryLibtar(int, std::string&&);
+  int instance_handle;
+  bool ParseHeader();
+
+  uint64 archiveoffset;
+  void Skip(int64 count);
+
+  int Register();
 };
+
+extern std::mutex instances_mutex;
+extern vector<TarArchive*> instances;
 
 }  // namespace detail
 }  // namespace dali
-#endif  // DALI_OPERATORS_READER_LOADER_LIBTAR_UTILS_H_
+#endif  // DALI_OPERATORS_READER_LOADER_TAR_UTILS_H_
