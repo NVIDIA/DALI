@@ -53,7 +53,7 @@ struct MMBasicResourceTest : public ::testing::Test {
 
   void OOMTest() {
     Resource res;
-    EXPECT_THROW((res.allocate(static_cast<size_t>(-1L) / 2)), std::bad_alloc);
+    EXPECT_THROW((res.allocate(static_cast<size_t>(-1L) / 4)), std::bad_alloc);
     // TODO(michalz): Remove when error handling is fixed in RMM
     (void)cudaGetLastError();
   }

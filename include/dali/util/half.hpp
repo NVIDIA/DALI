@@ -971,11 +971,8 @@ namespace half_float
 
    public:
 		/// Default constructor.
-		/// This initializes the half to 0. Although this does not match the builtin types' default-initialization semantics
-		/// and may be less efficient than no initialization, it is needed to provide proper value-initialization semantics.
-		HALF_CONSTEXPR
 		CAFFE_UTIL_HD
-		half() : data_() {}
+		half() = default;
 
     template<typename H>
     CAFFE_UTIL_HD
