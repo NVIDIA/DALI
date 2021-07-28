@@ -143,25 +143,33 @@ class DataNode(object):
         idxs = []
         new_axes = []
         new_axis_names = []
+
+        # returns True if this index adds a new output dimension
         def process_index(idx, dim):
             if idx is None:
                 idxs.append((None, None, None, None))
+                return True
             elif isinstance(idx, slice):
                 if idx.step is not None and idx.step != 1:
                     raise NotImplementedError("Slicing with non-unit step is not implemented.")
                 idxs.append((None, idx.start, idx.stop, None))
+                return True
             elif isinstance(idx, _NewAxis):
                 new_axes.append(dim)
                 if idx.name is not None:
                     new_axis_names.append(idx.name)
+                return True
             else:
                 idxs.append((idx, None, None, None))
+                return False
 
         if not isinstance(val, tuple):
             process_index(val, 0)
         else:
-            for d, v in enumerate(val):
-                process_index(v, d)
+            d = 0
+            for v in val:
+                if process_index(v, d):
+                    d += 1
 
         if len(new_axis_names) != 0:
             if len(new_axis_names) != len(new_axes):
