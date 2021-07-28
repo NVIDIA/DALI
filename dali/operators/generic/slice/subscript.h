@@ -24,6 +24,7 @@
 #include "dali/core/static_switch.h"
 #include "dali/core/util.h"
 #include "dali/core/math_util.h"
+#include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/kernels/kernel_manager.h"
@@ -257,13 +258,22 @@ class TensorSubscript : public Operator<Backend> {
     }
   }
 
+  TensorLayout GetOutputLayout(const TensorLayout &input_layout) const {
+    if (input_layout.empty())
+      return {};
+    return permute(input_layout, out_dim_map_);
+  }
+
   bool CanInferOutputs() const override { return true; }
 
+  using Operator<Backend>::RunImpl;
   void RunImpl(workspace_t<Backend> &ws) override {
     const auto &input = ws.template InputRef<Backend>(0);
+    auto &output = ws.template OutputRef<Backend>(0);
+    output.SetLayout(GetOutputLayout(input.GetLayout()));
     VALUE_SWITCH(simplified_in_shape_.sample_dim(), ndim,
-      ( 1,  2,  3,  4,  5,  6,  7,  8/*,  9, 10, 11, 12, 13, 14, 15, 16,  // NOLINT
-      17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32*/),  // NOLINT
+      ( 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,  // NOLINT
+      17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32),
       (VALUE_SWITCH(input.type().size(), element_size, (1, 2, 4, 8),
         (RunTyped<ndim, element_size>(ws);),
         (DALI_FAIL(make_string("Unsupported input type: ", input.type().id()));))),
@@ -292,7 +302,7 @@ class TensorSubscript : public Operator<Backend> {
   SmallVector<int, 6> out_dim_map_;
 
   kernels::KernelManager kmgr_;
-  any args_;
+  any ctx_;
 };
 
 

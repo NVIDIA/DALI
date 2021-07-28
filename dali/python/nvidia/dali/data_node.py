@@ -16,6 +16,8 @@
 
 import sys
 
+from numpy.lib.arraysetops import isin
+
 def _arithm_op(*args, **kwargs):
     import nvidia.dali.ops
     # Fully circular imports don't work. We need to import _arithm_op late and
@@ -23,6 +25,23 @@ def _arithm_op(*args, **kwargs):
     setattr(sys.modules[__name__], "_arithm_op", nvidia.dali.ops._arithm_op)
     return nvidia.dali.ops._arithm_op(*args, **kwargs)
 
+class _NewAxis:
+    def __init__(self, name = None):
+        if name is not None:
+            if not isinstance(name, str):
+                raise TypeError("Axis name must be a single-character string")
+            if len(name) != 1:
+                raise ValueError("Axis name must be a single-character string")
+        self._name = name
+
+    @property
+    def name(self):
+        return self._name
+
+    def __call__(self, name = None):
+        return _NewAxis(name)
+
+newaxis = _NewAxis()
 
 class DataNode(object):
     """This class is a symbolic representation of a TensorList and is used at graph definition
@@ -124,31 +143,52 @@ class DataNode(object):
 
     def __getitem__(self, val):
         idxs = []
-        def process_index(idx):
+        new_axes = []
+        new_axis_names = []
+        def process_index(idx, dim):
             if idx is None:
                 idxs.append((None, None, None, None))
             elif isinstance(idx, slice):
                 if idx.step is not None and idx.step != 1:
                     raise NotImplementedError("Slicing with non-unit step is not implemented.")
                 idxs.append((None, idx.start, idx.stop, None))
+            elif isinstance(idx, _NewAxis):
+                new_axes.append(dim)
+                if idx.name is not None:
+                    new_axis_names.append(idx.name)
             else:
                 idxs.append((idx, None, None, None))
 
         if not isinstance(val, tuple):
-            process_index(val)
+            process_index(val, 0)
         else:
-            for v in val:
-                process_index(v)
+            for d, v in enumerate(val):
+                process_index(v, d)
 
-        kwargs = {}
+        if len(new_axis_names) != 0:
+            if len(new_axis_names) != len(new_axes):
+                raise ValueError("New axis name must be specified for all axes or none.");
+            new_axis_names = "".join(new_axis_names)
+        else:
+            new_axis_names = None
+
+        slice_args = {}
         for i, (at, lo, hi, step) in enumerate(idxs):
-            if at:   kwargs["at_%i"%i] = at
-            if lo:   kwargs["lo_%i"%i] = lo
-            if hi:   kwargs["hi_%i"%i] = hi
-            if step: kwargs["step_%i"%i] = step
+            if at   is not None: slice_args["at_%i"%i] = at
+            if lo   is not None: slice_args["lo_%i"%i] = lo
+            if hi   is not None: slice_args["hi_%i"%i] = hi
+            if step is not None: slice_args["step_%i"%i] = step
 
-        import nvidia.dali.fn
-        return nvidia.dali.fn.tensor_subscript(self, **kwargs)
+        if len(slice_args) == 0:
+            sliced = self
+        else:
+            import nvidia.dali.fn
+            sliced = nvidia.dali.fn.tensor_subscript(self, **slice_args)
+        if len(new_axes) == 0:
+            return sliced
+        else:
+            import nvidia.dali.fn
+            return nvidia.dali.fn.expand_dims(sliced, axes=new_axes, new_axis_names=new_axis_names)
 
 
 def _check(maybe_node):
