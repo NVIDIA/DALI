@@ -38,8 +38,7 @@ NVIDIA DALI Documentation
 
    pipeline
    data_types
-   supported_ops
-   math
+   data_manip
    framework_plugins
    supported_ops_legacy
 
