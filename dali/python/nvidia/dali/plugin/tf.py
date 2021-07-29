@@ -153,13 +153,13 @@ Passing None indicates, that the value should be looked up in the pipeline defin
 Parameters
 ----------
 dataset : tf.data.Dataset
-    The dataset used as input
+    The dataset used as an input
 layout : str, optional, default = None
     Layout of the input. If None, the layout will be taken from the corresponding
     External Source node in the Python Pipeline object. If it is not provided there,
     empty layout will be used.
 batch: bool, optional, default = False
-    Batch mode of given input. If None, the batch mode will be taken from the
+    Batch mode of a given input. If None, the batch mode will be taken from the
     corresponding External Source node in the Python Pipeline object.
 
     If the ``batch = False``, the input dataset is considered sample input.
@@ -312,17 +312,17 @@ def _get_external_source_param(input_name, input_value, name_es_map, param_name)
     """Get value of the parameter `param_name` specified for the External Source node
        named `input_name`. It can be specified either via `input_value` or in the op instance
        passed in `name_es_map`.
-       non-None value in input_value overwrites the one specified in Op instances, otherwise,
-       the one from pipeline definition (the op instance) is used.
+       Not `None` value in `input_value` overwrites the one specified in the Operator instances.
+       Otherwise, the one from pipeline definition (the op instance) is used.
 
     Parameters
     ----------
     input_name : str
         Name of the input
     input_value : Input, optional
-        Description of input
+        Description of the input
     name_es_map : dict[str, ExternalSource]
-        Mapping from External Source names to op nodes.
+        Mapping from the External Source names to operator nodes.
     param_name : str
         name of the parameter we want to access
     """
@@ -648,8 +648,6 @@ if dataset_compatible_tensorflow():
 
         def _get_name_es_instance_map(self):
             """Return mappings between name of External Source and the op.
-
-            Check if the
 
             Returns
             -------
