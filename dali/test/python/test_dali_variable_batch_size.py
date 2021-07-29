@@ -27,6 +27,7 @@ from test_detection_pipeline import coco_anchors
 from test_optical_flow import load_frames
 import inspect
 import os
+import re
 import random
 import nose
 from nose.plugins.attrib import attr
@@ -74,6 +75,7 @@ def is_of_supported(device_id=0):
         compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
         compute_cap = compute_cap[0] + compute_cap[1] / 10.
     except ModuleNotFoundError:
+        print("NVML not found")
         pass
 
     is_of_supported_var = compute_cap >= 7.5
@@ -1000,7 +1002,7 @@ def test_segmentation_select_masks():
 
 def test_optical_flow():
     if not is_of_supported():
-        raise nose.SkipTest('Optial Flow is not supported on this platform')
+        raise nose.SkipTest('Optical Flow is not supported on this platform')
 
     def pipe(max_batch_size, input_data, device, input_layout=None):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
@@ -1015,6 +1017,19 @@ def test_optical_flow():
     input_data = [[load_frames()[0] for _ in range(bs)] for bs in bach_sizes]
     check_pipeline(input_data, pipeline_fn=pipe, devices=["gpu"], input_layout="FHWC")
 
+def test_tensor_subscript():
+    def pipe(max_batch_size, input_data, device, input_layout):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        data = fn.external_source(source=input_data, cycle=False, device=device,
+                                  layout=input_layout)
+        processed = data[2,:-2:,1]
+        pipe.set_outputs(processed)
+        return pipe
+
+    check_pipeline(generate_data(31, 13, (160, 80, 3), lo=0, hi=255, dtype=np.uint8),
+                   pipeline_fn=pipe, input_layout="HWC")
+    check_pipeline(generate_data(31, 13, (5, 160, 80, 3), lo=0, hi=255, dtype=np.uint8),
+                   pipeline_fn=pipe, input_layout="FHWC")
 
 tested_methods = [
     "audio_decoder",
@@ -1113,6 +1128,7 @@ tested_methods = [
     "arithmetic_generic_op",
     "segmentation.select_masks",
     "expand_dims",
+    "tensor_subscript",
     "transforms.rotation",
     "transforms.shear",
     "transforms.crop",
@@ -1163,9 +1179,8 @@ tested_methods = [
 ]
 
 excluded_methods = [
+    "hidden.*",
     "multi_paste",              # ToDo - crashes
-    "hidden.transform_translation", # intentional
-    "hidden.arithmetic_generic_op", # intentional
     "coco_reader",              # readers do do not support variable batch size yet
     "sequence_reader",          # readers do do not support variable batch size yet
     "numpy_reader",             # readers do do not support variable batch size yet
@@ -1188,12 +1203,13 @@ excluded_methods = [
     "readers.nemo_asr",         # readers do do not support variable batch size yet
     "readers.video",            # readers do do not support variable batch size yet
     "readers.video_resize",     # readers do do not support variable batch size yet
-
 ]
 
 def test_coverage():
-    methods = module_functions(fn, remove_prefix = "nvidia.dali.fn")
+    methods = module_functions(fn, remove_prefix="nvidia.dali.fn")
     methods += module_functions(dmath, remove_prefix = "nvidia.dali")
-    covered = tested_methods + excluded_methods
+    exclude = "|".join(["(^" + x.replace(".", "\.").replace("*", ".*").replace("?", ".") + "$)" for x in excluded_methods])
+    exclude = re.compile(exclude)
+    methods = [x for x in methods if not exclude.match(x)]
     # we are fine with covering more we can easily list, like numba
-    assert set(methods).difference(set(covered)) == set(), "Test doesn't cover:\n {}".format(set(methods) - set(covered))
+    assert set(methods).difference(set(tested_methods)) == set(), "Test doesn't cover:\n {}".format(set(methods) - set(tested_methods))

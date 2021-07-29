@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ from test_audio_decoder_utils import generate_waveforms
 import scipy.io.wavfile
 from PIL import Image, ImageEnhance
 from test_detection_pipeline import coco_anchors
+import re
 
 import numpy as np
 from nose.tools import assert_raises
@@ -921,6 +922,14 @@ def test_separated_exec_setup():
         t_cpu = a_cpu.at(i)
         assert(np.sum(np.abs(t_cpu - t_raw)) == 0)
 
+def test_tensor_subscript():
+    pipe = Pipeline(batch_size=3, num_threads=3, device_id=None)
+    input = fn.external_source(source=get_data)
+    pipe.set_outputs(input[1:,:-1,1])
+    pipe.build()
+    out, = pipe.run()
+    assert out.at(0).shape == np.zeros(test_data_shape)[1:,:-1,1].shape
+
 tested_methods = [
     "audio_decoder",
     "image_decoder",
@@ -1044,6 +1053,7 @@ tested_methods = [
     "multi_paste",
     "roi_random_crop",
     "segmentation.random_object_bbox",
+    "tensor_subscript",
     "math.ceil",
     "math.clamp",
     "math.tanh",
@@ -1078,9 +1088,8 @@ tested_methods = [
 ]
 
 excluded_methods = [
+    "hidden.*",
     "jitter",               # not supported for CPU
-    "hidden.arithmetic_generic_op", #internal
-    "hidden.transform_translation", #internal
     "video_reader",         # not supported for CPU
     "video_reader_resize",  # not supported for CPU
     "readers.video",        # not supported for CPU
@@ -1090,7 +1099,9 @@ excluded_methods = [
 
 def test_coverage():
     methods = module_functions(fn, remove_prefix="nvidia.dali.fn")
-    methods += module_functions(dmath, remove_prefix="nvidia.dali")
-    covered = tested_methods + excluded_methods
+    methods += module_functions(dmath, remove_prefix = "nvidia.dali")
+    exclude = "|".join(["(^" + x.replace(".", "\.").replace("*", ".*").replace("?", ".") + "$)" for x in excluded_methods])
+    exclude = re.compile(exclude)
+    methods = [x for x in methods if not exclude.match(x)]
     # we are fine with covering more we can easily list, like numba
-    assert set(methods).difference(set(covered)) == set(), "Test doesn't cover:\n {}".format(set(methods) - set(covered))
+    assert set(methods).difference(set(tested_methods)) == set(), "Test doesn't cover:\n {}".format(set(methods) - set(tested_methods))
