@@ -100,11 +100,11 @@ struct SubscriptInfo {
     if (at.IsDefined()) {
       if (lo.IsDefined() || hi.IsDefined()) {
         DALI_FAIL(make_string("The subscriptg for dimension ", i,
-                              " is specified both as an index and as a range."));
+                              " must not be specified both as an index and as a range."));
       }
       if (step.IsDefined()) {
         DALI_FAIL(make_string("The subscriptg for dimension ", i,
-                              " is specified as an index - it cannot have a step."));
+                              " must not be specified as an index - it cannot have a step."));
       }
     }
   }
@@ -295,7 +295,7 @@ class TensorSubscript : public Operator<Backend> {
     auto &output = ws.template OutputRef<Backend>(0);
     output.SetLayout(GetOutputLayout(input.GetLayout()));
     VALUE_SWITCH(simplified_in_shape_.sample_dim(), ndim,
-      (1,  2,  3,  4,  5/*,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16*/),
+      (1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),
       (VALUE_SWITCH(input.type().size(), element_size, (1, 2, 4, 8),
         (RunTyped<ndim, element_size>(ws);),
         (DALI_FAIL(make_string("Unsupported input type: ", input.type().id()));))),
