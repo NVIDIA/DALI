@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -274,7 +274,7 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
     auto it = plans_.upper_bound(max_plan);
     assert(it != plans_.begin());
     --it;
-    int batch = it->first;
+    int64_t batch = it->first;  // widen for multiplication
 
     max_stream = std::max(max_stream, stream_idx);
     PlanInfo &pi = it->second;

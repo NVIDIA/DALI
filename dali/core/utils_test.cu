@@ -17,6 +17,7 @@
 #include "dali/core/dev_array.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/span.h"
+#include "dali/core/dev_buffer.h"
 
 namespace dali {
 namespace test {
@@ -64,14 +65,13 @@ DEFINE_TEST_KERNEL(CoreUtilsDev, Span, span<float> data) {
 TEST(CoreUtilsDev, Span) {
   using T = float;
   const int N = 1000;
-  T *dev_data;
-  CUDA_CALL(cudaMalloc(&dev_data, sizeof(T)*N));
-  DEVICE_TEST_CASE_BODY(CoreUtilsDev, Span, div_ceil(N, 256), 256, make_span(dev_data, N));
+  DeviceBuffer<T> dev_data;
+  dev_data.resize(N);
+  DEVICE_TEST_CASE_BODY(CoreUtilsDev, Span, div_ceil(N, 256), 256, make_span(dev_data.data(), N));
   T host_data[N];
   CUDA_CALL(cudaMemcpy(host_data, dev_data, sizeof(host_data), cudaMemcpyDeviceToHost));
   for (int i = 0; i < N; i++)
     EXPECT_EQ(host_data[i], i + 5);
-  CUDA_CALL(cudaFree(dev_data));
 }
 
 TEST(CoreUtils, SpanFlatten) {

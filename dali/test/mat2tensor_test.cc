@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,14 +57,21 @@ TEST(Mat2Tensor, View) {
 namespace {
 
 void CopyAsTensorGpuTest(const cv::Mat &mat) {
-  auto tvpair = kernels::copy_as_tensor<kernels::AllocType::Unified>(mat);
-  CUDA_CALL(cudaDeviceSynchronize());
-  auto imgptr = mat.data;
-  auto tvptr = tvpair.first.data;
-  ASSERT_EQ(mat.rows * mat.cols * mat.channels(), volume(tvpair.first.shape))
-                        << "Sizes don't match";
-  for (int i = 0; i < mat.cols * mat.rows * mat.channels(); i++) {
-    EXPECT_EQ(imgptr[i], tvptr[i]) << "Test failed at i=" << i;
+  try {
+    auto tvpair = kernels::copy_as_tensor<kernels::AllocType::Unified>(mat);
+    CUDA_CALL(cudaDeviceSynchronize());
+    auto imgptr = mat.data;
+    auto tvptr = tvpair.first.data;
+    ASSERT_EQ(mat.rows * mat.cols * mat.channels(), volume(tvpair.first.shape))
+                          << "Sizes don't match";
+    for (int i = 0; i < mat.cols * mat.rows * mat.channels(); i++) {
+      EXPECT_EQ(imgptr[i], tvptr[i]) << "Test failed at i=" << i;
+    }
+  } catch (const CUDAError &e) {
+    if ((e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
+        (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported)) {
+      GTEST_SKIP() << "Unified memory not supported on this platform";
+    }
   }
 }
 
