@@ -15,9 +15,10 @@
 #ifndef DALI_OPERATORS_READER_LOADER_TAR_UTILS_H_
 #define DALI_OPERATORS_READER_LOADER_TAR_UTILS_H_
 
-#include <fstream>
+#include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 #include "dali/core/common.h"
 #include "dali/util/file.h"
 
@@ -27,7 +28,7 @@ namespace detail {
 class TarArchive {
  public:
   TarArchive();
-  TarArchive(std::unique_ptr<FileStream>&& stream);
+  explicit TarArchive(std::unique_ptr<FileStream>&& stream);
   TarArchive(TarArchive&&);
   ~TarArchive();
 

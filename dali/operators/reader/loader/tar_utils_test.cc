@@ -18,10 +18,13 @@
 #include <libtar.h>
 #include <algorithm>
 #include <future>
+#include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 #include "dali/operators/reader/loader/filesystem.h"
 #include "dali/util/std_file.h"
+
 
 namespace dali {
 namespace detail {
@@ -29,12 +32,13 @@ namespace detail {
 void TestArchiveEntries(TarArchive& archive, const std::vector<std::string>& prefixes, int beg,
                         int end, bool preread) {
   for (int idx = beg; idx < end; idx++) {
-    for (int prefix_idx = 0; prefix_idx < (int)prefixes.size(); prefix_idx++) {
+    for (int prefix_idx = 0; prefix_idx < static_cast<int>(prefixes.size()); prefix_idx++) {
       if (preread) {
         archive.Read();
       }
       ASSERT_EQ(archive.GetFileName(), to_string(idx) + prefixes[prefix_idx]);
-      bool tmp = archive.NextFile() ^ (idx == end - 1 && prefix_idx == (int)prefixes.size() - 1);
+      bool tmp = archive.NextFile() ^
+                 (idx == end - 1 && prefix_idx == static_cast<int>(prefixes.size()) - 1);
       ASSERT_TRUE(tmp);
     }
   }

@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <cstdarg>
 #include <cstdlib>
-#include <iostream>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -88,7 +87,7 @@ std::vector<uint8_t> TarArchive::Read(uint64 count) {
   if (eof) {
     return vector<uint8_t>();
   }
-  count = std::max(std::min(count, filesize - readoffset), (uint64)0);
+  count = std::max(std::min(count, filesize - readoffset), static_cast<uint64>(0));
   std::vector<uint8_t> out(count);
   uint64 num_read_bytes = stream->Read(out.data(), count);
   readoffset += num_read_bytes;
