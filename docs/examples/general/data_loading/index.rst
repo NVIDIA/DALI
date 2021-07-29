@@ -5,6 +5,8 @@ Data Loading
    :maxdepth: 2
 
    external_input.ipynb
+   parallel_external_source.ipynb
+   parallel_external_source_fork.ipynb
    dataloading_lmdb.ipynb
    dataloading_recordio.ipynb
    dataloading_tfrecord.ipynb
