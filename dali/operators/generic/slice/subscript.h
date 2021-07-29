@@ -24,6 +24,7 @@
 #include "dali/core/static_switch.h"
 #include "dali/core/util.h"
 #include "dali/core/math_util.h"
+#include "dali/core/tensor_shape_print.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
@@ -193,9 +194,9 @@ class TensorSubscript : public Operator<Backend> {
         int64_t in_extent = in_shape.tensor_shape_span(i)[d];
         int64_t at = s.at.values[i];
         int64_t idx = at < 0 ? in_extent + at : at;
-        DALI_ENFORCE(idx >= 0 && idx < in_extent, make_string("Tensor index out of range!\n"
-          "Index ", idx, " at axis ", d, " is out of range for a tensor of shape ", in_shape[i],
-          ". Detected while processing sample #", idx));
+        DALI_ENFORCE(idx >= 0 && idx < in_extent, make_string("Index ", idx, " is out of range "
+          "for axis ", d, " of length ", in_extent, "\n"
+          "Detected while processing sample #", i, " of shape (", in_shape[i], ")"));
         lo_.tensor_shape_span(i)[d] = idx;
         hi_.tensor_shape_span(i)[d] = idx + 1;
         shape_.tensor_shape_span(i)[d] = 1;
