@@ -143,17 +143,24 @@ class TensorSubscript : public Operator<Backend> {
 
   void InitArgs() {
     subscripts_.resize(kMaxSubscripts);
-    int num_subscripts = 0;
+    int last_subscript = -1;
     for (int i = 0; i < kMaxSubscripts; i++) {
       SubscriptInfo &s = subscripts_[i];
       s.Init(spec_, i);
-
-
       if (s.IsDefined()) {
-        num_subscripts = i + 1;
+        last_subscript = i;
       }
     }
-    subscripts_.resize(num_subscripts);
+
+    int nsub = last_subscript + 1;
+    if (spec_.TryGetArgument(nsub_declared_, "num_subscripts")) {
+      DALI_ENFORCE(nsub_declared_ >= nsub, make_string("The internal argument `num_subscripts` "
+      "declares fewer (", nsub_declared_, ") subscripts than actually provided (", nsub, ")."));
+    } else {
+      // Not declared? No problem, just use the actual number.
+      nsub_declared_ = nsub;
+    }
+    subscripts_.resize(nsub);
   }
 
   bool SetupImpl(vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override {
@@ -170,7 +177,9 @@ class TensorSubscript : public Operator<Backend> {
   void GetRanges(const workspace_t<Backend> &ws, const TensorListShape<> &in_shape) {
     int nsub = subscripts_.size();
     int ndim = in_shape.sample_dim();
-    DALI_ENFORCE(ndim >= nsub, "Too many indices.");
+    DALI_ENFORCE(ndim >= nsub_declared_,
+        make_string("Too many indices (", nsub_declared_, ") for a ", ndim, "D tensor."));
+
     int nsamples = in_shape.num_samples();
     lo_.resize(nsamples, ndim);
     hi_ = in_shape;
@@ -194,9 +203,10 @@ class TensorSubscript : public Operator<Backend> {
         int64_t in_extent = in_shape.tensor_shape_span(i)[d];
         int64_t at = s.at.values[i];
         int64_t idx = at < 0 ? in_extent + at : at;
-        DALI_ENFORCE(idx >= 0 && idx < in_extent, make_string("Index ", idx, " is out of range "
-          "for axis ", d, " of length ", in_extent, "\n"
-          "Detected while processing sample #", i, " of shape (", in_shape[i], ")"));
+        if (idx < 0 || idx >= in_extent)
+          DALI_FAIL(make_string("Index ", at, " is out of range "
+            "for axis ", d, " of length ", in_extent, "\n"
+            "Detected while processing sample #", i, " of shape (", in_shape[i], ")"));
         lo_.tensor_shape_span(i)[d] = idx;
         hi_.tensor_shape_span(i)[d] = idx + 1;
         shape_.tensor_shape_span(i)[d] = 1;
@@ -231,14 +241,14 @@ class TensorSubscript : public Operator<Backend> {
     int nsub = subscripts_.size();
 
     out_dim_map_.clear();
-    dim_groups_.clear();
+    collapsed_dims_.clear();
 
     int group_start = 0;
     int d = 0;
     for (; d < nsub; d++) {
       if (subscripts_[d].IsDefined()) {
         if (d != group_start)
-          dim_groups_.push_back({ group_start, d - group_start });
+          collapsed_dims_.push_back({ group_start, d - group_start });
         group_start = d + 1;
       }
 
@@ -251,18 +261,18 @@ class TensorSubscript : public Operator<Backend> {
     }
 
     if (in_dims != group_start)
-      dim_groups_.push_back({ group_start, in_dims - group_start });
+      collapsed_dims_.push_back({ group_start, in_dims - group_start });
 
-    collapse_dims(simplified_in_shape_, in_shape, dim_groups_);
-    collapse_dims(simplified_out_shape_, shape_, dim_groups_);
-    collapse_dims(simplified_anchor_, lo_, dim_groups_);
+    collapse_dims(simplified_in_shape_, in_shape, collapsed_dims_);
+    collapse_dims(simplified_out_shape_, shape_, collapsed_dims_);
+    collapse_dims(simplified_anchor_, lo_, collapsed_dims_);
 
     out_shape.resize(in_shape.num_samples(), out_dim_map_.size());
     for (int i = 0; i < out_shape.num_samples(); i++) {
-      auto out_sample = out_shape.tensor_shape_span(i);
+      auto out_sample_shape = out_shape.tensor_shape_span(i);
       auto sh = shape_.tensor_shape_span(i);
       for (int d = 0; d < out_shape.sample_dim(); d++) {
-        out_sample[d] = sh[out_dim_map_[d]];
+        out_sample_shape[d] = sh[out_dim_map_[d]];
       }
     }
   }
@@ -299,6 +309,8 @@ class TensorSubscript : public Operator<Backend> {
   template <int ndim, int element_size>
   void RunTyped(workspace_t<Backend> &ws);
 
+  // Number of declared subscripts - this may include the full-range ones.
+  int nsub_declared_ = -1;
   vector<SubscriptInfo> subscripts_;
 
   // Ranges, steps and output shapes in input space - that is, not including
@@ -306,7 +318,7 @@ class TensorSubscript : public Operator<Backend> {
   TensorListShape<> lo_, hi_, step_, shape_;
 
   // Grouping of indices, used for simplification
-  SmallVector<std::pair<int, int>, 6> dim_groups_;
+  SmallVector<std::pair<int, int>, 6> collapsed_dims_;
   // Input shape where adjacent dimensions are collapsed where there's no indexing done
   TensorListShape<> simplified_in_shape_;
   // Output anchor & shape simplified in the same way as input shape

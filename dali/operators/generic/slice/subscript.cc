@@ -30,6 +30,8 @@ DALI_SCHEMA(TensorSubscript)
     .DocStr(R"(Applies NumPy-like indexing to a batch of tensors.)")
     .NumInput(1)
     .NumOutput(1)
+    .AddOptionalArg<int>("num_subscripts",
+      "Number of subscripts supplied, including full-range - used for validation only.", nullptr)
     .INDEX_ARGS(0)
     .INDEX_ARGS(1)
     .INDEX_ARGS(2)

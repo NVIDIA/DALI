@@ -110,13 +110,15 @@ def test_constant_ranges():
     yield _test_indexing, data_gen, "AB", "ACB",    lambda x: x[:,dali.newaxis("C"),:],     lambda x: x[:,np.newaxis,:]
     yield _test_indexing, data_gen, "AB", "C",      lambda x: x[1,dali.newaxis("C"),1],     lambda x: x[1,np.newaxis,1]
 
-def _test_inconsistent_args(device, args):
+def _test_invalid_args(device, args, run):
     data = [np.uint8([[1,2,3]]),np.uint8([[1,2]])]
     pipe = Pipeline(1, 1, 0)
     src = fn.external_source(lambda: data, device=device)
     pipe.set_outputs(fn.tensor_subscript(src, **args))
     with assert_raises(RuntimeError):
         pipe.build()
+        if run:
+            pipe.run()
 
 def test_inconsistent_args():
     for device in ["cpu", "gpu"]:
@@ -124,7 +126,15 @@ def test_inconsistent_args():
                 { "lo_0":0, "at_0":0 },
                 { "at_0":0, "step_0":1 },
             ]:
-            yield _test_inconsistent_args, device, args
+            yield _test_invalid_args, device, args, False
+
+def test_unsupported_step():
+    for device in ["cpu", "gpu"]:
+        for args in [
+                { "step_0": 2},
+                { "step_1": -1},
+            ]:
+            yield _test_invalid_args, device, args, True
 
 def _test_out_of_range(device, idx):
     data = [np.uint8([1,2,3]),np.uint8([1,2])]
@@ -138,3 +148,19 @@ def test_out_of_range():
     for device in ["cpu", "gpu"]:
         for idx in [-3, 2]:
             yield _test_out_of_range, device, idx
+
+
+def _test_too_many_indices(device):
+    # NOTE: There's a know issue that the number of dimensions is not checked if the
+    # tensor is indexed only with full-range subscripts (':') - in this case, the whole operation
+    # is a no-op.
+    data = [np.uint8([1,2,3]),np.uint8([1,2])]
+    src = fn.external_source(lambda: data, device=device)
+    pipe = index_pipe(src, lambda x: x[1,:])
+    with assert_raises(RuntimeError):
+        pipe.build()
+        _ = pipe.run()
+
+def test_too_many_indices():
+    for device in ["cpu", "gpu"]:
+        yield _test_too_many_indices, device

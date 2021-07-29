@@ -185,15 +185,15 @@ class DataNode(object):
             if hi   is not None: slice_args["hi_%i"%i] = hi
             if step is not None: slice_args["step_%i"%i] = step
 
+        import nvidia.dali.fn
         if len(slice_args) == 0:
             sliced = self
         else:
-            import nvidia.dali.fn
-            sliced = nvidia.dali.fn.tensor_subscript(self, **slice_args)
+            print("num_subscripts", len(idxs))
+            sliced = nvidia.dali.fn.tensor_subscript(self, **slice_args, num_subscripts=len(idxs))
         if len(new_axes) == 0:
             return sliced
         else:
-            import nvidia.dali.fn
             return nvidia.dali.fn.expand_dims(sliced, axes=new_axes, new_axis_names=new_axis_names)
 
 
