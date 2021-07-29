@@ -20,7 +20,9 @@ from tensorflow.python.framework import tensor_shape
 from nvidia.dali import types
 from nvidia.dali import internal as _internal
 
-from nvidia.dali.external_source import _is_external_source
+from nvidia.dali.external_source import _is_external_source, _is_external_source_with_callback, _has_external_source
+
+from nvidia.dali._utils.external_source_impl import _get_generator_from_source_desc, _cycle_enabled
 
 from collections import Iterable
 from distutils.version import LooseVersion
@@ -43,11 +45,15 @@ _experimental_dataset_docstring = """Experimental variant of
 :class:`~nvidia.dali.plugin.tf.DALIDataset`. This dataset adds support for input tf.data.Datasets.
 Support for input tf.data.Datasets is available only for TensorFlow 2.4.1 and newer.
 
+**Input dataset specification**
+
 Each of the input datasets must be mapped to a :meth:`~nvidia.dali.fn.external_source` operator
 that will represent the input to the DALI pipeline. In the pipeline the input is represented as
 the ``name`` parameter of :meth:`~nvidia.dali.fn.external_source`. Input datasets must be provided
 as a mapping from that ``name`` to the dataset object via the ``input_datasets`` dictionary argument
 of DALIDatasetWithInputs.
+
+**Per-sample and batch mode**
 
 The input datasets can operate in per-sample mode or in batch mode.
 
@@ -65,6 +71,20 @@ In per-sample mode DALIDataset will query the inputs dataset ``batch_size``-time
 that would be fed into the DALI Pipeline.
 In per-sample mode, each sample produced by the input dataset can have a different shape,
 but the number of dimension and the layout must remain constant.
+
+**External Source with** ``source`` **parameter**
+
+This experimental DALIDataset accepts pipelines with :meth:`~nvidia.dali.fn.external_source`
+nodes that have ``source`` parameter specified.
+In that case, the ``source`` will be converted automatically into appropriate
+``tf.data.Dataset.from_generator`` dataset with correct placement and
+``tf.data.experimental.copy_to_device`` directives.
+
+Those nodes can also work in per-sample or in batch mode. The data in batch mode must be
+a dense, uniform tensor (each sample has the same dimensions). Only CPU data is accepted.
+
+This allows TensorFlow DALIDataset to work with most Pipelines that have External Source
+``source`` already specified.
 
 .. warning::
     This class is experimental and its API might change without notice.
@@ -124,6 +144,28 @@ Parameters
             with GPU argument must be first applied to input.
 """
 
+
+_experimental_input_docstring = """Wrapper for an input passed to DALIDataset.
+Allows to pass additional options that can override some of the ones specified
+in the External Source node in the Python Pipeline object.
+Passing None indicates, that the value should be looked up in the pipeline definition.
+
+Parameters
+----------
+dataset : tf.data.Dataset
+    The dataset used as an input
+layout : str, optional, default = None
+    Layout of the input. If None, the layout will be taken from the corresponding
+    External Source node in the Python Pipeline object. If it is not provided there,
+    empty layout will be used.
+batch: bool, optional, default = False
+    Batch mode of a given input. If None, the batch mode will be taken from the
+    corresponding External Source node in the Python Pipeline object.
+
+    If the ``batch = False``, the input dataset is considered sample input.
+
+    If the ``batch = True``, the input dataset is expected to return batches.
+"""
 
 def serialize_pipeline(pipeline):
     try:
@@ -267,6 +309,23 @@ def _insert_experimental_member(member, name):
     setattr(experimental_module, name, member)
 
 def _get_external_source_param(input_name, input_value, name_es_map, param_name):
+    """Get value of the parameter `param_name` specified for the External Source node
+       named `input_name`. It can be specified either via `input_value` or in the op instance
+       passed in `name_es_map`.
+       Not `None` value in `input_value` overwrites the one specified in the Operator instances.
+       Otherwise, the one from pipeline definition (the op instance) is used.
+
+    Parameters
+    ----------
+    input_name : str
+        Name of the input
+    input_value : Input, optional
+        Description of the input
+    name_es_map : dict[str, ExternalSource]
+        Mapping from the External Source names to operator nodes.
+    param_name : str
+        name of the parameter we want to access
+    """
     def get_param_from_pipe(input_name, name_es_map, param_name):
         es_op = name_es_map[input_name]
         # Check the OpInstance and the `_op`
@@ -280,6 +339,36 @@ def _get_external_source_param(input_name, input_value, name_es_map, param_name)
         return get_param_from_pipe(input_name, name_es_map, param_name)
     else:
         return getattr(input_value, param_name)
+
+
+def _get_signature(dtype, shape):
+    # TODO(klecki): Find out how we can use ragged tensors for non-uniform batches
+    return tf.TensorSpec(shape=shape, dtype=dtype)
+
+
+def _get_current_device_spec():
+    """Best guess at checking the current device string in eager and graph mode.
+
+    Using callable in `with tf.device(...)` for Graph mode will probably break it.
+    The graph in use is assumed to be current default graph.
+    """
+    if tf.executing_eagerly():
+        # We are not using this `tf.device` with `with ...`,
+        # so we do not change the context, it returns _EagerDeviceContext
+        dummy_context_manager = tf.device(None)
+        # Get the eager.context singleton instance for this thread
+        context = dummy_context_manager._ctx
+        # DeviceSpec
+        return context.device_spec
+    else:
+        # Get the default graf, we assume that it's the one in use
+        g = tf.compat.v1.get_default_graph()
+        # Get the top element of _UserDeviceSpec stack - `with tf.device()` pushes to the stack
+        # in graph mode.
+        spec = g._device_function_stack.peek_top_obj()
+        # Try to normalize to DeviceSpec
+        return tf.DeviceSpec.from_string(spec.display_name)
+
 
 
 if dataset_compatible_tensorflow():
@@ -358,31 +447,30 @@ if dataset_compatible_tensorflow():
 
             super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
 
-        def _setup_inputs(self, input_datasets):
-            """Verify the input specification and assign it to private members in
-            normalized form."""
+        def _input_lists_from_input_datasets(self, input_datasets, name_es_map):
+            """Extract the input specification from the input_datasets dictionary.
+
+            Validate if the inputs exist in the pipeline and the types are correct
+
+            Returns
+            -------
+            list, list, list, list
+                input_datasets, input_names, input_layouts, input_batched
+            """
+
             if input_datasets is None:
-                # Make them explicitly empty for the internal representations
-                self._input_datasets = ()
-                self._input_names = ()
-                self._input_layouts = ()
-                self._input_batched = ()
-                return
-
-            self._assert_pipeline_instance()
-
-            name_es_map = self._get_name_es_instance_map()
-
-            input_datasets_list = []
-            input_names_list = []
-            input_layouts_list = []
-            input_batched_list = []
+                return [], [], [], []
 
             def _get_dataset(value):
                 if isinstance(value, dataset_ops.DatasetV2):
                     return value
                 else:
                     return value.dataset
+
+            in_datasets_list = []
+            in_names_list = []
+            in_layouts_list = []
+            in_batched_list = []
 
             error_str = (
                 "`input_datasets` must be a dictionary that maps input names (the `name` "
@@ -419,8 +507,8 @@ if dataset_compatible_tensorflow():
                                       "Source nodes are: {}.").format(input_name,
                                                                       list(name_es_map.keys())))
 
-                input_names_list.append(input_name)
-                input_datasets_list.append(_get_dataset(input_value))
+                in_names_list.append(input_name)
+                in_datasets_list.append(_get_dataset(input_value))
 
                 if is_dataset_only:
                     # Set the defaults used in lookup
@@ -430,29 +518,113 @@ if dataset_compatible_tensorflow():
 
                 # TODO(klecki): Do we want all Python-only ES parameters to be overridable here?
                 layout = _get_external_source_param(input_name, as_input, name_es_map, 'layout')
-                input_layouts_list.append(layout or "")
+                in_layouts_list.append(layout or "")
 
                 # Batched mode is supported by default
                 batched = _get_external_source_param(input_name, as_input, name_es_map, 'batch')
-                input_batched_list.append(batched if batched is not None else True)
+                in_batched_list.append(batched if batched is not None else True)
+
+            return in_datasets_list, in_names_list, in_layouts_list, in_batched_list
+
+
+        def _input_lists_from_source(self, callbacked_es_map):
+
+            # TODO(klecki): Warn about this in the doc.
+            # We do it only when the users wants to use ExternalSource with `source` specified,
+            # as it has some additional limitations.
+
+            # Capture the device that DALI was placed, as we may need to copy the CPU callbacks
+            # to that device.
+            dali_device_spec = _get_current_device_spec()
+            is_dali_on_gpu = dali_device_spec.device_type == "GPU"
+
+            in_datasets_list = []
+            in_names_list = []
+            in_layouts_list = []
+            in_batched_list = []
+
+            for input_name, external_source in callbacked_es_map.items():
+                in_names_list.append(input_name)
+                layout = _get_external_source_param(input_name, None, callbacked_es_map, 'layout')
+                in_layouts_list.append(layout or "")
+
+                # Batched mode is supported by default
+                batched = _get_external_source_param(input_name, None, callbacked_es_map, 'batch')
+                in_batched_list.append(batched if batched is not None else True)
+
+                source_desc = external_source._op._source_desc
+                if source_desc.cycle == 'raise':
+                    raise NotImplementedError(("External Source node: '{}' got argument "
+                                               "cycle='raise' which is not supported.").format(input_name))
+
+                # All generator datasets must be placed on CPU.
+                with tf.device('/cpu:0'):
+                    tf_gen, dtype, shape = _get_generator_from_source_desc(
+                        source_desc, self._batch_size, external_source._batch)
+                    # dataset = tf.data.Dataset.from_generator(tf_gen, output_types=dtype)
+                    signature = _get_signature(dtype, shape)
+                    dataset = tf.data.Dataset.from_generator(tf_gen, output_signature=signature)
+                    if _cycle_enabled(source_desc.cycle):
+                        dataset = dataset.repeat()
+                    # if DALIDataset was placed on GPU, we need to add the copy targetting
+                    # that device (with proper id).
+                    if is_dali_on_gpu:
+                        dataset = dataset.apply(tf.data.experimental.copy_to_device(dali_device_spec.to_string()))
+                    in_datasets_list.append(dataset)
+
+            return in_datasets_list, in_names_list, in_layouts_list, in_batched_list
+
+
+        def _setup_inputs(self, input_datasets):
+            """Verify the input specification and assign it to private members in
+            normalized form."""
+
+
+            # If no inputs are specified, input handling is no-op
+            if input_datasets is None and not _has_external_source(self._pipeline_instance):
+                self._input_datasets = ()
+                self._input_names = ()
+                self._input_layouts = ()
+                self._input_batched = ()
+                return
+
+            self._assert_pipeline_instance()
+
+            # To not check everywhere for None
+            if input_datasets is None:
+                input_datasets = {}
+
+            name_es_map, callbacked_es_map = self._get_name_es_instance_map()
+
+            inputs_from_dict = self._input_lists_from_input_datasets(input_datasets, name_es_map)
+
+            inputs_from_source = self._input_lists_from_source(callbacked_es_map)
+
+            # Check if someone passed an entry in `input_datasets` for the ES with callback
+            if not input_datasets.keys().isdisjoint(callbacked_es_map.keys()):
+                overlapped = input_datasets.keys().intersection(callbacked_es_map.keys())
+                raise ValueError(("Double specification of External Source input is not allowed. "
+                                  "External Source nodes named: `{}` got inputs specified via "
+                                  "`input_datasets` DALIDataset argument and ExternalSource "
+                                  "`source` argument at the same time.").format(overlapped))
 
             # We covered all inputs
-            non_matched = set(name_es_map.keys()) - set(input_datasets.keys())
+            non_matched = set(name_es_map.keys()) - set(input_datasets.keys()) - set(callbacked_es_map.keys())
             if len(non_matched) != 0:
                 raise ValueError(("Found External Source nodes in the Pipeline, that were not "
                                   "assigned any inputs. Nodes without inputs: \n{}.\nNodes that "
                                   "were assigned inputs:\n{}.").format(list(non_matched), list(input_datasets.keys())))
 
-            self._input_datasets = tuple(input_datasets_list)
-            self._input_names = tuple(input_names_list)
-            self._input_layouts = tuple(input_layouts_list)
+
+            self._input_datasets = tuple(inputs_from_dict[0] + inputs_from_source[0])
+            self._input_names = tuple(inputs_from_dict[1] + inputs_from_source[1])
+            self._input_layouts = tuple(inputs_from_dict[2] + inputs_from_source[2])
             # Map it to integers, to pass as vector<int> instead of vector<bool> to C++
-            self._input_batched = tuple(int(b) for b in input_batched_list)
+            self._input_batched = tuple(int(b) for b in inputs_from_dict[3] + inputs_from_source[3])
 
         def _assert_pipeline_instance(self):
             """Ensure that the pipeline is built, and check if the Python part is available.
             """
-            #
             self._pipeline_instance.build()
             if not self._pipeline_instance._py_graph_built and self._pipeline_instance._built:
                 raise ValueError("Deserialized pipelines cannot be used with `input_datasets`. "
@@ -467,9 +639,6 @@ if dataset_compatible_tensorflow():
                                  "(with `num_outputs=None`), named (with `name` argument "
                                  "specified) External Source nodes are supported as inputs "
                                  "for DALIDataset integration.")
-            if external_source._op._callback is not None:
-                raise NotImplementedError("External Source with `callback` specified as input "
-                                          "for DALIDataset are not supported yet.")
             if external_source._op._name is None:
                 raise ValueError("Found External Source node in the Pipeline that was "
                                  "not named (no `name` argument set). Only single-output "
@@ -478,12 +647,25 @@ if dataset_compatible_tensorflow():
                                  "for DALIDataset integration.")
 
         def _get_name_es_instance_map(self):
+            """Return mappings between name of External Source and the op.
+
+            Returns
+            -------
+            mapping for placeholders nodes, mapping for nodes with Python source
+                Two mappings are returned, separating the placeholder nodes without a `source`
+                and nodes that got a `source` parameter.
+            """
             name_es = {}
+            name_es_with_callback = {}
             for op in self._pipeline_instance._ops:
-                if _is_external_source(op):
+                if _is_external_source_with_callback(op):
+                    # use the internal op name (generated automatically in most cases)
+                    name_es_with_callback[op.name] = op
+                elif _is_external_source(op):
                     self._assert_correct_external_sources(op)
+                    # use the user provided name
                     name_es[op._op._name] = op
-            return name_es
+            return name_es, name_es_with_callback
 
         def _check_dtypes(self, values, expected_elem_type):
             """Check whether `values` is instance of `expected_elem_type`
@@ -604,27 +786,6 @@ if dataset_inputs_compatible_tensorflow():
         _insert_experimental_member(DALIDatasetWithInputs, "DALIDatasetWithInputs")
 
         class Input:
-            """Wrapper for an input passed to DALIDataset. Allows to pass additional options that
-            can override some of the ones specified in the External Source node in the
-            Python Pipeline object. Passing None indicates, that the value should be looked up
-            in the pipeline definition.
-
-            Parameters
-            ----------
-            dataset : tf.data.Dataset
-                The dataset used as input
-            layout : str, optional, default = None
-                Layout of the input. If None, the layout will be taken from the corresponding
-                External Source node in the Python Pipeline object. If it is not provided there,
-                empty layout will be used.
-            batch: bool, optional, default = False
-                Batch mode of given input. If None, the batch mode will be taken from the
-                corresponding External Source node in the Python Pipeline object.
-
-                If the ``batch = False``, the input dataset is considered sample input.
-
-                If the ``batch = True``, the input dataset is expected to return batches.
-            """
             def __init__(self, dataset, *, layout=None, batch=False):
                 if not isinstance(dataset, dataset_ops.DatasetV2):
                     raise TypeError(
@@ -634,6 +795,8 @@ if dataset_inputs_compatible_tensorflow():
                 self.dataset = dataset
                 self.layout = layout
                 self.batch = batch
+
+        Input.__doc__ = _experimental_input_docstring
 
         _insert_experimental_member(Input, "Input")
 
@@ -653,6 +816,8 @@ else:
         class Input:
             def __init__(self, *args, **kwargs):
                 pass
+
+        Input.__doc__ = _experimental_input_docstring
 
         _insert_experimental_member(Input, "Input")
 

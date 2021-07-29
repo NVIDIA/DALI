@@ -237,11 +237,11 @@ def compare(dataset_results, standalone_results, iterations=-1,  num_devices=1):
         iterations = len(standalone_results)
 
     # list [iterations] of tuple [devices] of tuple [outputs] of tensors representing batch
-    assert len(dataset_results) == iterations
+    assert len(dataset_results) == iterations, f'Got {len(dataset_results)} dataset results for {iterations} iterations'
     for it in range(iterations):
         for device_id in range(num_devices):
             for tf_data, dali_data in zip(dataset_results[it][device_id], standalone_results[it][device_id]):
-                np.testing.assert_array_equal(tf_data, dali_data)
+                np.testing.assert_array_equal(tf_data, dali_data, f'Iteration {it}, x = tf_data, y = DALI baseline')
 
 
 def run_tf_dataset_graph(device, device_id=0, get_pipeline_desc=get_image_pipeline,

@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import tensorflow as tf
+import numpy as np
 from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.plugin.tf as dali_tf
 from nvidia.dali.plugin.tf.experimental import DALIDatasetWithInputs, Input
 from test_utils_tensorflow import *
 from test_dali_tf_dataset_pipelines import *
+from test_dali_tf_es_pipelines import *
 from nose.tools import raises, with_setup
 import random as random
 import itertools
@@ -288,6 +290,18 @@ def check_layout(kwargs, input_datasets, layout):
                 device_id=pipe.device_id)
 
     run_dataset_eager_mode(dali_dataset, 10)
+
+
+def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
+    run_tf_dataset_eager_mode(dev,
+        get_pipeline_desc=get_external_source_pipe(es_args, dtype, ed_dev),
+        to_dataset=external_source_to_tf_dataset,
+        to_stop_iter=True)
+
+
+@with_setup(skip_inputs_for_incompatible_tf)
+def test_tf_with_dali_external_source():
+    yield from gen_tf_with_dali_external_source(run_tf_with_dali_external_source)
 
 
 @with_setup(skip_inputs_for_incompatible_tf)

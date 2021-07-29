@@ -15,6 +15,7 @@
 import tensorflow
 from test_utils_tensorflow import *
 from test_dali_tf_dataset_pipelines import *
+from test_dali_tf_es_pipelines import *
 from nose.tools import raises, with_setup
 import random as random
 import itertools
@@ -166,6 +167,17 @@ def test_tf_dataset_multi_input():
             for batches in list(itertools.product([True, False], repeat=len(input_names))):
                 yield run_tf_dataset_multi_input, dev, starts, names, batches
 
+
+def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
+    run_tf_dataset_graph(dev,
+        get_pipeline_desc=get_external_source_pipe(es_args, dtype, ed_dev),
+        to_dataset=external_source_to_tf_dataset,
+        to_stop_iter=True)
+
+
+@with_setup(skip_inputs_for_incompatible_tf)
+def test_tf_with_dali_external_source():
+    yield from gen_tf_with_dali_external_source(run_tf_with_dali_external_source)
 
 
 @raises(Exception)
