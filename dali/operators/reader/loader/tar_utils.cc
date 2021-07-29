@@ -28,22 +28,47 @@ namespace detail {
 constexpr uint64 kBlockSize = 512;
 constexpr uint64 kEmptyEofBlocks = 2;
 
-TarArchive::TarArchive() : stream(), eof(true), instance_handle(-1), archiveoffset(0) {}
+std::mutex instances_mutex;
+vector<TarArchive*> instances;
+
+int Register(TarArchive* archive) {
+  std::lock_guard<std::mutex> instances_lock(instances_mutex);
+  int instance_handle = -1;
+  for (auto& instances_entry : instances) {
+    if (instances_entry != nullptr) {
+      continue;
+    }
+    instances_entry = archive;
+    instance_handle = &instances_entry - instances.data();
+  }
+  if (instance_handle == -1) {
+    instance_handle = instances.size();
+    instances.push_back(archive);
+  }
+  return instance_handle;
+}
+
 TarArchive::TarArchive(std::unique_ptr<FileStream>&& stream)
     : stream(std::forward<std::unique_ptr<FileStream>>(stream)),
       eof(false),
-      instance_handle(Register()),
+      instance_handle(Register(this)),
       archiveoffset(0) {
   this->stream->Seek(0);
   ParseHeader();
 }
-TarArchive::TarArchive(TarArchive&& other)
-    : stream(std::move(other.stream)),
-      eof(other.eof),
-      filename(other.filename),
-      filesize(other.filesize),
-      readoffset(other.readoffset),
-      archiveoffset(other.archiveoffset) {
+
+TarArchive::TarArchive(TarArchive&& other) {
+  *this = std::forward<TarArchive>(other);
+}
+
+TarArchive& TarArchive::operator=(TarArchive&& other) {
+  stream = std::move(other.stream);
+  eof = other.eof;
+  filename = other.filename;
+  filesize = other.filesize;
+  readoffset = other.readoffset;
+  archiveoffset = other.archiveoffset;
+
   std::lock_guard<std::mutex> instances_lock(instances_mutex);
   instances[instance_handle] = nullptr;
   instance_handle = other.instance_handle;
@@ -112,8 +137,6 @@ int LibtarOpenTarArchive(const char*, int oflags, ...) {
   return instance_handle;
 }
 
-std::mutex instances_mutex;
-vector<TarArchive*> instances;
 
 inline bool TarArchive::ParseHeader() {
   TAR* handle;
@@ -145,22 +168,6 @@ inline bool TarArchive::ParseHeader() {
   return errorcode;
 }
 
-int TarArchive::Register() {
-  std::lock_guard<std::mutex> instances_lock(instances_mutex);
-  int instance_handle = -1;
-  for (auto& instances_entry : instances) {
-    if (instances_entry != nullptr) {
-      continue;
-    }
-    instances_entry = this;
-    instance_handle = &instances_entry - instances.data();
-  }
-  if (instance_handle == -1) {
-    instance_handle = instances.size();
-    instances.push_back(this);
-  }
-  return instance_handle;
-}
 
 }  // namespace detail
 }  // namespace dali

@@ -24,13 +24,13 @@
 
 namespace dali {
 namespace detail {
-
 class TarArchive {
  public:
-  TarArchive();
+  TarArchive() = default;
   explicit TarArchive(std::unique_ptr<FileStream>&& stream);
   TarArchive(TarArchive&&);
   ~TarArchive();
+  TarArchive& operator=(TarArchive&&);
 
   bool NextFile();
   bool IsAtFile() const;
@@ -44,22 +44,17 @@ class TarArchive {
 
  private:
   std::unique_ptr<FileStream> stream;
-  bool eof;
-  std::string filename;
-  uint64 filesize;
-  uint64 readoffset;
+  bool eof = true;
+  std::string filename = "";
+  uint64 filesize = 0;
+  uint64 readoffset = 0;
 
-  int instance_handle;
+  int instance_handle = -1;
   bool ParseHeader();
 
-  uint64 archiveoffset;
+  uint64 archiveoffset = 0;
   void Skip(int64 count);
-
-  int Register();
 };
-
-extern std::mutex instances_mutex;
-extern vector<TarArchive*> instances;
 
 }  // namespace detail
 }  // namespace dali
