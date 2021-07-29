@@ -173,6 +173,9 @@ class TensorSubscript : public Operator<Backend> {
     int nsamples = in_shape.num_samples();
     lo_.resize(nsamples, ndim);
     hi_ = in_shape;
+    step_.resize(nsamples, ndim);
+    for (auto &s : step_.shapes)
+      s = 1;
     shape_ = in_shape;
 
     for (int d = 0; d < nsub; d++) {
@@ -184,10 +187,6 @@ class TensorSubscript : public Operator<Backend> {
 
   void GetRange(SubscriptInfo &s, int d, const TensorListShape<> &in_shape) {
     int nsamples = in_shape.num_samples();
-
-    for (int64_t step : s.step.values) {
-      DALI_ENFORCE(step == 1, "Strided indexing is not implemted");
-    }
 
     if (s.IsIndex()) {
       for (int i = 0; i < nsamples; i++) {
@@ -207,13 +206,21 @@ class TensorSubscript : public Operator<Backend> {
         int64_t in_extent = in_shape.tensor_shape_span(i)[d];
         int64_t lo = s.lo.IsDefined() ? s.lo.values[i] : 0;
         int64_t hi = s.hi.IsDefined() ? s.hi.values[i] : in_extent;
+        int64_t step = s.step.IsDefined() ? s.step.values[i] : 1;
+        DALI_ENFORCE(step == 1, "Indexing with non-unit step is not implemented");
         if (lo < 0) lo += in_extent;
         if (hi < 0) hi += in_extent;
         lo = clamp(lo, 0_i64, in_extent);
         hi = clamp(hi, 0_i64, in_extent);
         lo_.tensor_shape_span(i)[d] = lo;
         hi_.tensor_shape_span(i)[d] = hi;
-        shape_.tensor_shape_span(i)[d] = abs(hi - lo);
+        step_.tensor_shape_span(i)[d] = step;
+
+        int64_t out_extent = step > 0 ? div_ceil(hi - lo,  step)
+                                      : div_ceil(lo - hi, -step);
+        if (out_extent < 0)
+          out_extent = 0;
+        shape_.tensor_shape_span(i)[d] = out_extent;
       }
     }
   }
@@ -277,7 +284,7 @@ class TensorSubscript : public Operator<Backend> {
     auto &output = ws.template OutputRef<Backend>(0);
     output.SetLayout(GetOutputLayout(input.GetLayout()));
     VALUE_SWITCH(simplified_in_shape_.sample_dim(), ndim,
-      (1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),
+      (1,  2,  3,  4,  5/*,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16*/),
       (VALUE_SWITCH(input.type().size(), element_size, (1, 2, 4, 8),
         (RunTyped<ndim, element_size>(ws);),
         (DALI_FAIL(make_string("Unsupported input type: ", input.type().id()));))),
@@ -293,9 +300,9 @@ class TensorSubscript : public Operator<Backend> {
 
   vector<SubscriptInfo> subscripts_;
 
-  // Ranges and output shapes in input space - that is, not including
+  // Ranges, steps and output shapes in input space - that is, not including
   // the dimensions which are removed by indexing or ones collapsed as a result of simplification.
-  TensorListShape<> lo_, hi_, shape_;
+  TensorListShape<> lo_, hi_, step_, shape_;
 
   // Grouping of indices, used for simplification
   SmallVector<std::pair<int, int>, 6> dim_groups_;
