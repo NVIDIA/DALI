@@ -116,7 +116,7 @@ endif()
 ##################################################################
 if(BUILD_LIBTAR)
   find_library(libtar_LIBS
-          NAMES libtar.a
+          NAMES tar libtar
           PATHS ${CMAKE_SYSTEM_PREFIX_PATH} ${LIBTAR_ROOT_DIR} "/usr/local"
           PATH_SUFFIXES lib lib64)
   if(${libtar_LIBS} STREQUAL libtar_LIBS-NOTFOUND)
@@ -124,6 +124,7 @@ if(BUILD_LIBTAR)
   endif()
   message(STATUS "Found libtar: ${libtar_LIBS}")
   list(APPEND DALI_LIBS ${libtar_LIBS})
+  list(APPEND DALI_EXCLUDES libtar.a)
 endif()
 
 

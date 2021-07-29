@@ -17,11 +17,5 @@ if (BUILD_TEST)
 
   # get all the test srcs
   file(GLOB tmp *.cc *.cu *.h)
-
-  # remove the libtar test if is not built
-  if (NOT BUIlD_LIBTAR)
-    list(REMOVE_ITEM tmp "${DALI_ROOT}/dali/test/test_libtar.cc")
-  endif()
-
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
 endif()

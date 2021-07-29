@@ -40,14 +40,14 @@ if (BUILD_NVDEC)
     "${CMAKE_CURRENT_SOURCE_DIR}/video_loader.cc")
 endif()
 
-#set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS}
-#  "${CMAKE_CURRENT_SOURCE_DIR}/loader_test.cc"
-#  "${CMAKE_CURRENT_SOURCE_DIR}/sequence_loader_test.cc"
-#  "${CMAKE_CURRENT_SOURCE_DIR}/numpy_loader_test.cc")
+set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS}
+  "${CMAKE_CURRENT_SOURCE_DIR}/loader_test.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/sequence_loader_test.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/numpy_loader_test.cc")
 
 if (BUILD_LIBSND)
-#  set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS}
-#    "${CMAKE_CURRENT_SOURCE_DIR}/nemo_asr_loader_test.cc")
+  set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS}
+   "${CMAKE_CURRENT_SOURCE_DIR}/nemo_asr_loader_test.cc")
 endif()
 
 if (BUILD_LIBTAR)
