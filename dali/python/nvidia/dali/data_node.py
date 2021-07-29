@@ -55,6 +55,9 @@ class DataNode(object):
         self.device = device
         self.source = source
 
+    def __iter__(self):
+        raise TypeError("DALI DataNode objects are not iterable")
+
     # Note: Regardless of whether we want the cpu or gpu version
     # of a tensor, we keep the source argument the same so that
     # the pipeline can backtrack through the user-defined graph
