@@ -55,16 +55,16 @@ TEST(LibTarUtilsTestSimple, LongNameIndexing) {
   }
 }
 
-void TestArchiveEntries(TarArchive& archive, const std::vector<std::string>& prefixes, int beg,
-                        int end, bool preread) {
+void TestArchiveEntries(TarArchive& archive, const std::vector<std::string>& prefixes,
+                        int beg, int end, bool preread) {
   for (int idx = beg; idx < end; idx++) {
-    for (int prefix_idx = 0; prefix_idx < static_cast<int>(prefixes.size()); prefix_idx++) {
+    for (size_t prefix_idx = 0_uz; prefix_idx < prefixes.size(); prefix_idx++) {
       if (preread) {
         archive.Read();
       }
       ASSERT_EQ(archive.GetFileName(), to_string(idx) + prefixes[prefix_idx]);
       ASSERT_TRUE(archive.NextFile() ^
-                  (idx == end - 1 && prefix_idx == static_cast<int>(prefixes.size()) - 1));
+                  (idx == end - 1 && prefix_idx == prefixes.size() - 1));
     }
   }
 
@@ -124,34 +124,34 @@ auto SimpleTarTestsValues() {
   vector<SimpleTarTestsData> values;
 
   SimpleTarTestsData filepaths[] = {
-      {dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
-                                   "db/webdataset/MNIST/devel-0.tar"),
-       false,
-       false,
-       2000,
-       3000,
-       {".cls", ".jpg"}},
-      {dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
-                                   "db/webdataset/sample-tar/empty.tar"),
-       false,
-       false,
-       0,
-       0,
-       {}},
-      {dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
-                                   "db/webdataset/sample-tar/v7.tar"),
-       false,
-       false,
-       0,
-       1000,
-       {""}},
-      {dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
-                                   "db/webdataset/sample-tar/oldgnu.tar"),
-       false,
-       false,
-       0,
-       1000,
-       {""}}};
+      { dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+                                    "db/webdataset/MNIST/devel-0.tar"),
+        false,
+        false,
+        2000,
+        3000,
+        {".cls", ".jpg"} },
+      { dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+                                    "db/webdataset/sample-tar/empty.tar"),
+        false,
+        false,
+        0,
+        0,
+        {} },
+      { dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+                                    "db/webdataset/sample-tar/v7.tar"),
+        false,
+        false,
+        0,
+        1000,
+        {""} },
+      { dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+                                    "db/webdataset/sample-tar/oldgnu.tar"),
+        false,
+        false,
+        0,
+        1000,
+        {""} } };
 
   for (auto& filepath : filepaths) {
     for (int read_ahead = 0; read_ahead <= 1; read_ahead++) {
@@ -188,16 +188,18 @@ class MultiTarTests : public ::testing::TestWithParam<bool> {
 };
 
 TEST_P(MultiTarTests, Index) {
-  std::future<void> threads[kMultithreadedSamples];
+  std::future<void> tasks[kMultithreadedSamples];
 
   for (int idx = 0; idx < kMultithreadedSamples; idx++) {
-    threads[idx] = std::async(std::launch::async, [=] {
+    tasks[idx] = std::async(std::launch::async, [=] {
       TestArchiveEntries(*archives[idx], {".cls", ".jpg"}, ranges[idx].first, ranges[idx].second,
                          GetParam());
     });
   }
 
-  std::for_each(threads, threads + kMultithreadedSamples, [](auto& thread) { thread.wait(); });
+  for (auto& task : tasks) {
+    task.wait();
+  }
 }
 
 INSTANTIATE_TEST_CASE_P(LibTarUtilsTestMultithreaded, MultiTarTests,

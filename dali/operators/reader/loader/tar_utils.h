@@ -27,7 +27,7 @@ namespace detail {
 class TarArchive {
  public:
   TarArchive() = default;
-  explicit TarArchive(std::unique_ptr<FileStream>&& stream);
+  explicit TarArchive(std::unique_ptr<FileStream> stream);
   TarArchive(TarArchive&&);
   ~TarArchive();
   TarArchive& operator=(TarArchive&&);
