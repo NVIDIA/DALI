@@ -246,6 +246,7 @@ def compare(dataset_results, standalone_results, iterations=-1,  num_devices=1):
 
 def run_tf_dataset_graph(device, device_id=0, get_pipeline_desc=get_image_pipeline,
         to_dataset=to_image_dataset, to_stop_iter=False):
+    tf.compat.v1.reset_default_graph()
     batch_size = 12
     num_threads = 4
     iterations = 10
