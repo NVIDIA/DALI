@@ -71,7 +71,7 @@ do
         if [ -n "$inst" ]; then
             for pkg in ${inst}
             do
-                install_pip_pkg "pip install $pkg -f /pip-packages"
+                install_pip_pkg "pip install $pkg -f /pip-packages ${extra_indices_string}"
             done
 
             # If we just installed tensorflow, we need to reinstall DALI TF plugin
