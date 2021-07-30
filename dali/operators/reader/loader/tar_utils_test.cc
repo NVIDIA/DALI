@@ -37,8 +37,8 @@ TEST(LibTarUtilsTestSimple, Interface) {
   ASSERT_EQ(archive.GetFileName(), "0.jpg");
   int filesize = archive.GetFileSize();
   ASSERT_FALSE(archive.Eof());
-  uint8_t buffer[filesize];
-  archive.Read(buffer, 10);
+  vector<uint8_t> buffer(filesize);
+  archive.Read(buffer.data(), 10);
   ASSERT_FALSE(archive.Eof());
   ASSERT_EQ(archive.GetFileSize(), filesize);
   std::shared_ptr<void> contents = archive.ReadFile();
@@ -115,8 +115,8 @@ TEST_P(SimpleTarTests, Contents) {
     } while ((count += T_BLOCKSIZE) < filesize);
     libtar_contents.resize(filesize);
 
-    uint8_t file[archive.GetFileSize()];
-    archive.Read(file, archive.GetFileSize());
+    vector<uint8_t> file(archive.GetFileSize());
+    archive.Read(file.data(), archive.GetFileSize());
 
     for (size_t idx = 0; idx < libtar_contents.size(); idx++) {
       ASSERT_EQ(file[idx], libtar_contents[idx]);
