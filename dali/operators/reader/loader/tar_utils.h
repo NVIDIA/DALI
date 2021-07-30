@@ -38,14 +38,14 @@ class TarArchive {
   std::string GetFileName() const;
   uint64_t GetFileSize() const;
 
-  std::shared_ptr<uint8_t> ReadFile();
-  uint64_t Read(uint8_t* buffer, uint64_t count);
+  std::shared_ptr<void> ReadFile();
+  size_t Read(uint8_t* buffer, size_t count);
   bool Eof() const;
 
  private:
   std::unique_ptr<FileStream> stream;
   bool eof = true;
-  std::string filename = "";
+  std::string filename;
   uint64_t filesize = 0;
   uint64_t readoffset = 0;
 
@@ -53,7 +53,7 @@ class TarArchive {
   bool ParseHeader();
 
   uint64_t archiveoffset = 0;
-  void Skip(int64 count);
+  void Skip(int64_t count);
 };
 
 }  // namespace detail

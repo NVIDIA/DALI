@@ -37,12 +37,12 @@ TEST(LibTarUtilsTestSimple, Interface) {
   ASSERT_EQ(archive.GetFileName(), "0.jpg");
   int filesize = archive.GetFileSize();
   ASSERT_FALSE(archive.Eof());
-  uint8_t buffer[10];
+  uint8_t buffer[filesize];
   archive.Read(buffer, 10);
   ASSERT_FALSE(archive.Eof());
   ASSERT_EQ(archive.GetFileSize(), filesize);
-  archive.ReadFile();
-  ASSERT_TRUE(archive.Eof());
+  std::shared_ptr<void> contents = archive.ReadFile();
+  ASSERT_TRUE(archive.Eof() ^ (contents == nullptr));
 }
 
 TEST(LibTarUtilsTestSimple, LongNameIndexing) {
@@ -115,10 +115,11 @@ TEST_P(SimpleTarTests, Contents) {
     } while ((count += T_BLOCKSIZE) < filesize);
     libtar_contents.resize(filesize);
 
-    shared_ptr<uint8_t> file = archive.ReadFile();
+    uint8_t file[archive.GetFileSize()];
+    archive.Read(file, archive.GetFileSize());
 
-    for (int idx = 0; idx < libtar_contents.size(); idx++) {
-      ASSERT_EQ(file.get()[idx], libtar_contents[idx]);
+    for (size_t idx = 0; idx < libtar_contents.size(); idx++) {
+      ASSERT_EQ(file[idx], libtar_contents[idx]);
     }
   } while (archive.NextFile());
   ASSERT_EQ(th_read(handle), 1);

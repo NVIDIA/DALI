@@ -22,13 +22,18 @@
 #include <tuple>
 #include <utility>
 #include "dali/core/error_handling.h"
+#include "dali/core/math_util.h"
+#include "dali/core/util.h"
 
 namespace dali {
 namespace detail {
 
 namespace {
 
-constexpr uint64_t kBlockSize = 512;
+constexpr uint64_t kBlockSize = T_BLOCKSIZE;
+static_assert(is_pow2(kBlockSize),
+              "The implementation assumes that the block size is a power of 2");
+
 constexpr uint64_t kEmptyEofBlocks = 2;
 constexpr uint64_t kTarArchiveBufferInitSize = 1;
 
@@ -36,8 +41,6 @@ std::mutex instances_mutex;
 std::list<std::vector<TarArchive*>> instances_registry = {
     std::vector<TarArchive*>(kTarArchiveBufferInitSize)};
 TarArchive** instances = instances_registry.back().data();
-
-}  // namespace
 
 int Register(TarArchive* archive) {
   std::lock_guard<std::mutex> instances_lock(instances_mutex);
@@ -62,6 +65,8 @@ int Register(TarArchive* archive) {
 inline void Unregister(int instance_handle) {
   instances[instance_handle] = nullptr;
 }
+
+}  // namespace
 
 TarArchive::TarArchive(std::unique_ptr<FileStream> stream)
     : stream(std::move(stream)), eof(false), instance_handle(Register(this)), archiveoffset(0) {
@@ -92,7 +97,7 @@ TarArchive& TarArchive::operator=(TarArchive&& other) {
 }
 
 uint64_t RoundToBlockSize(uint64_t count) {
-  return ((count + kBlockSize - 1) / kBlockSize) * kBlockSize;
+  return align_up(count, kBlockSize);
 }
 
 bool TarArchive::NextFile() {
@@ -116,24 +121,26 @@ uint64_t TarArchive::GetFileSize() const {
   return filesize;
 }
 
-std::shared_ptr<uint8_t> TarArchive::ReadFile() {
+std::shared_ptr<void> TarArchive::ReadFile() {
   archiveoffset -= readoffset;
   readoffset = 0;
   stream->Seek(archiveoffset);
-  auto buffer = std::shared_ptr<uint8_t>(new uint8_t[filesize], [](uint8_t* ptr) { delete[] ptr; });
-  Read(buffer.get(), filesize);
-  return buffer;
+  auto out = stream->Get(filesize);
+  if (out != nullptr) {
+    archiveoffset += readoffset = filesize;
+  }
+  return out;
 }
 
-uint64_t TarArchive::Read(uint8_t* buffer, uint64_t count) {
+size_t TarArchive::Read(uint8_t* buffer, size_t count) {
   if (eof) {
     return 0;
   }
-  count = std::max(std::min(count, filesize - readoffset), 0_u64);
+  count = clamp(filesize - readoffset, 0_u64, count);
   uint64_t num_read_bytes = stream->Read(buffer, count);
   readoffset += num_read_bytes;
   archiveoffset += num_read_bytes;
-  return count;
+  return num_read_bytes;
 }
 
 bool TarArchive::Eof() const {
@@ -172,7 +179,7 @@ inline bool TarArchive::ParseHeader() {
     filename = "";
     filesize = 0;
     if (errorcode == -1) {
-      DALI_FAIL(R"(Corrupted tar file at )" + handle->pathname);
+      DALI_FAIL("Corrupted tar file at " + handle->pathname);
     }
   } else {
     filename = th_get_pathname(handle);
