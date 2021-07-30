@@ -4,7 +4,7 @@ function CLEAN_AND_EXIT {
     exit $1
 }
 
-cd /opt/dali/docs/examples/use_cases/tensorflow/efficientdet
+pushd /opt/dali/docs/examples/use_cases/tensorflow/efficientdet
 
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
@@ -17,5 +17,6 @@ python train.py \
  --train_batch_size 4 --train_steps 4000 --eval_after_training --eval_during_training \
  --eval_steps 1000 --eval_freq 1 2>&1 | tee $LOG
 
+popd
 
 CLEAN_AND_EXIT 0

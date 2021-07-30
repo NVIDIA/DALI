@@ -46,12 +46,10 @@ def run_training(args):
         os.environ["TF_DETERMINISTIC_OPS"] = "1"
         os.environ["TF_CUDNN_DETERMINISTIC"] = "1"
 
-    physical_devices = tf.config.list_physical_devices("GPU")
-    for gpu_instance in physical_devices:
-        tf.config.experimental.set_memory_growth(gpu_instance, True)
-    tf.config.set_soft_device_placement(True)
+    utils.setup_gpus()
 
     num_devices = 1
+    physical_devices = tf.config.list_physical_devices("GPU")
     multi_gpu = args.multi_gpu
     if multi_gpu is not None and len(multi_gpu) != 1 and len(physical_devices) > 1:
         devices = [f"GPU:{gpu}" for gpu in multi_gpu] if len(multi_gpu) != 0 else None
@@ -141,92 +139,101 @@ def run_training(args):
             print("Evaluation after training:")
             model.evaluate(eval_dataset, steps=args.eval_steps)
 
-        model.save_weights(args.output)
+        model.save_weights(args.output_filename)
 
 
 if __name__ == "__main__":
     import argparse
     from argparse_utils import enum_action
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=utils.SmartFormatter)
     parser.add_argument(
         "--initial_epoch",
         type=int,
         default=0,
-        help="epoch from which to start training",
+        help="Epoch from which to start training.",
     )
     parser.add_argument(
-        "--epochs", type=int, default=300, help="epoch on which training should finish"
+        "--epochs", type=int, default=300, help="Epoch on which training should finish."
     )
     parser.add_argument(
-        "--input",
+        "--input_type",
         action=enum_action(utils.InputType),
         required=True,
-        help="input type",
+        help="Input type.",
     )
     parser.add_argument(
         "--images_path",
-        required=False,
-        help="Path to COCO images",
+        help="Path to COCO images.",
     )
     parser.add_argument(
         "--annotations_path",
-        required=False,
-        help="Path to COCO annotations",
+        help="Path to COCO annotations.",
     )
     parser.add_argument(
         "--train_file_pattern",
-        required=False,
-        help="glob pattern for TFrecord files with training data",
+        help="TFrecord files glob pattern for files with training data.",
     )
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument(
-        "--train_steps", type=int, default=2000, help="number of steps in each epoch"
+        "--train_steps",
+        type=int,
+        default=2000,
+        help="Number of steps (iterations) in each epoch.",
     )
     parser.add_argument(
         "--eval_file_pattern",
-        help="glob pattern for TFrecord files with evaluation data, "
-        "defaults to TRAIN_FILE_PATTERN if not given",
+        help="TFrecord files glob pattern for files with evaluation data, "
+        "defaults to `train_file_pattern` if not given.",
     )
     parser.add_argument(
-        "--eval_steps", type=int, default=5000, help="number of examples to evaluate"
+        "--eval_steps",
+        type=int,
+        default=5000,
+        help="Number of examples to evaluate during each evaluation.",
     )
     parser.add_argument(
-        "--eval_freq", type=int, default=1, help="during training evalutaion frequency"
+        "--eval_freq", type=int, default=1, help="During training evaluation frequency."
     )
     parser.add_argument(
         "--eval_during_training",
         action="store_true",
-        help="whether to run evaluation every EVAL_FREQ epochs",
+        help="Whether to run evaluation every `eval_freq` epochs.",
     )
     parser.add_argument(
         "--eval_after_training",
         action="store_true",
-        help="whether to run evaluation after finished training",
+        help="Whether to run evaluation after finished training.",
     )
     parser.add_argument(
-        "--pipeline",
+        "--pipeline_type",
         action=enum_action(utils.PipelineType),
         required=True,
-        help="pipeline type",
+        help="R|Pipeline type used while loading and preprocessing data. One of:\n"
+        "tensorflow – pipeline used in original EfficientDet implementation on https://github.com/google/automl/tree/master/efficientdet;\n"
+        "synthetic – like `tensorflow` pipeline type but repeats one batch endlessly;\n"
+        "dali_gpu – pipeline which uses Nvidia Data Loading Library (DALI) to run part of data preprocessing on GPUs to improve efficiency;\n"
+        "dalu_cpu – like `dali_gpu` pipeline type but restricted to run only on CPU.",
     )
     parser.add_argument(
         "--multi_gpu",
         nargs="*",
         type=int,
-        help="list of GPUs to use, defaults to all visible GPUs",
+        help="List of GPUs to use, if empty defaults to all visible GPUs.",
     )
     parser.add_argument("--seed", type=int)
     parser.add_argument(
-        "--hparams", default="", help="string or filename with parameters"
+        "--hparams", default="", help="String or filename with parameters."
     )
     parser.add_argument("--model_name", default="efficientdet-d1")
     parser.add_argument(
-        "--output", default="output.h5", help="filename for final weights to save"
+        "--output_filename",
+        default="output.h5",
+        help="Filename for final weights to save.",
     )
     parser.add_argument("--start_weights")
-    parser.add_argument("--log_dir", help="directory for tensorboard logs")
-    parser.add_argument("--ckpt_dir", help="directory for saving weights each step")
+    parser.add_argument("--log_dir", help="Directory for tensorboard logs.")
+    parser.add_argument("--ckpt_dir", help="Directory for saving weights each step.")
 
     args = parser.parse_args()
     run_training(vars(args))

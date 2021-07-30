@@ -15,6 +15,7 @@
 """Common utils."""
 from typing import Text, Tuple, Union
 import tensorflow as tf
+import argparse
 import tensorflow.compat.v1 as tf1
 from enum import Enum
 from collections import namedtuple
@@ -40,22 +41,40 @@ class InputType(Enum):
     coco = 1
 
 
+# argparse multiline argument help according to: https://stackoverflow.com/a/22157136
+class SmartFormatter(argparse.HelpFormatter):
+    def _split_lines(self, text, width):
+        if text.startswith("R|"):
+            return text[2:].splitlines()
+        # this is the RawTextHelpFormatter._split_lines
+        return argparse.HelpFormatter._split_lines(self, text, width)
+
+
 def dict_to_namedtuple(dict_instance):
     NamedTuple = namedtuple("NamedTuple", dict_instance.keys())
     return NamedTuple._make(dict_instance.values())
 
 
-def get_dataset(
-    args, total_batch_size, is_training, params, strategy=None
-):
-    pipeline = args.pipeline
-    
+def setup_gpus():
+    for gpu_instance in tf.config.list_physical_devices("GPU"):
+        tf.config.experimental.set_memory_growth(gpu_instance, True)
+    tf.config.set_soft_device_placement(True)
+
+
+def get_dataset(args, total_batch_size, is_training, params, strategy=None):
+    pipeline = args.pipeline_type
+
     if strategy and not is_training and pipeline == PipelineType.dali_gpu:
         strategy = None
         pipeline = PipelineType.dali_cpu
 
     if pipeline in [PipelineType.tensorflow, PipelineType.synthetic]:
         from pipeline.tf.dataloader import InputReader
+
+        if args.input_type != InputType.tfrecord:
+            raise ValueError(
+                "tensorflow and syntax pipelines are only compatible with tfrecord input type :<"
+            )
 
         if is_training:
             file_pattern = args.train_file_pattern
@@ -73,7 +92,7 @@ def get_dataset(
 
         if pipeline == PipelineType.dali_cpu:
             raise ValueError(
-                "dali_cpu pipeline is not compatible with mulit_gpu mode :<"
+                "dali_cpu pipeline is not compatible with multi_gpu mode :<"
             )
 
         def dali_dataset_fn(input_context):

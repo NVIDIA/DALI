@@ -57,23 +57,21 @@ def input_tfrecord(
     xmax = inputs["image/object/bbox/xmax"]
     ymin = inputs["image/object/bbox/ymin"]
     ymax = inputs["image/object/bbox/ymax"]
-    bboxes = dali.fn.transpose(
-        dali.fn.stack(xmin, ymin, xmax, ymax), perm=[1, 0], device="cpu"
-    )
-    classes = dali.fn.cast(
-        inputs["image/object/class/label"], dtype=dali.types.INT32, device="cpu"
-    )
+    bboxes = dali.fn.transpose(dali.fn.stack(xmin, ymin, xmax, ymax), perm=[1, 0])
+    classes = dali.fn.cast(inputs["image/object/class/label"], dtype=dali.types.INT32)
     return (
         images,
         bboxes,
         classes,
-        dali.fn.cast(inputs["image/width"], dtype=dali.types.FLOAT),
-        dali.fn.cast(inputs["image/height"], dtype=dali.types.FLOAT),
+        dali.fn.cast(
+            dali.fn.cat(inputs["image/height"], inputs["image/width"]),
+            dtype=dali.types.FLOAT,
+        ),
     )
 
 
 def input_coco(
-        images_path, annotations_path, device, shard_id, num_shards, random_shuffle=True
+    images_path, annotations_path, device, shard_id, num_shards, random_shuffle=True
 ):
     encoded, bboxes, classes = dali.fn.readers.coco(
         file_root=images_path,
@@ -82,8 +80,8 @@ def input_coco(
         ltrb=True,
         shard_id=shard_id,
         num_shards=num_shards,
-        random_shuffle=random_shuffle)   
-
+        random_shuffle=random_shuffle,
+    )
 
     images = dali.fn.decoders.image(
         encoded,
@@ -91,84 +89,63 @@ def input_coco(
         output_type=dali.types.RGB,
     )
 
-    shape = dali.fn.peek_image_shape(encoded)
-    h = dali.fn.slice(shape, 0, 1, axes=(0,))
-    w = dali.fn.slice(shape, 1, 1, axes=(0,))
+    shape = dali.fn.peek_image_shape(encoded, type=dali.types.FLOAT)
 
-    return (
-        images,
-        bboxes,
-        classes,
-        dali.fn.cast(w, dtype=dali.types.FLOAT),
-        dali.fn.cast(h, dtype=dali.types.FLOAT),
-    )
+    return (images, bboxes, classes, shapes)
 
 
 def normalize_flip(device, images, bboxes, p=0.5):
-    flip = dali.fn.random.coin_flip(probability=p, device="cpu")
+    flip = dali.fn.random.coin_flip(probability=p)
     images = dali.fn.crop_mirror_normalize(
         images,
-        mirror=flip.gpu() if device == "gpu" else flip,
+        mirror=flip,
         mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
         std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
         output_layout=dali.types.NHWC,
         device=device,
     )
-    bboxes = dali.fn.bb_flip(bboxes, horizontal=flip, ltrb=True, device="cpu")
+    bboxes = dali.fn.bb_flip(bboxes, horizontal=flip, ltrb=True)
     return images, bboxes
 
 
-def gridmask(device, images, widths, heights):
-    if device == "gpu":
-        widths = widths.gpu()
-        heights = heights.gpu()
+def gridmask(device, images, shapes):
 
-    ratio = 0.4
-    angle = (
-        dali.fn.random.normal(mean=-1, stddev=1, device=device)
-        * 10.0
-        * (math.pi / 180.0)
-    )
+    p = dali.fn.random.coin_flip()
+    ratio = 0.4 * p
+    angle = dali.fn.random.normal(mean=-1, stddev=1) * 10.0 * (math.pi / 180.0)
 
-    l = dali.math.min(0.5 * heights, 0.3 * widths, device=device)
-    r = dali.math.max(0.5 * heights, 0.3 * widths, device=device)
+    l = dali.math.min(0.5 * shapes[0], 0.3 * shapes[1])
+    r = dali.math.max(0.5 * shapes[0], 0.3 * shapes[1])
     tile = dali.fn.cast(
-        (dali.fn.random.uniform(range=[0.0, 1.0], device=device) * (r - l) + l),
+        (dali.fn.random.uniform(range=[0.0, 1.0]) * (r - l) + l),
         dtype=dali.types.INT32,
-        device=device,
     )
 
     gridmask = dali.fn.grid_mask(
         images, ratio=ratio, angle=angle, tile=tile, device=device
     )
 
-    p = dali.fn.random.coin_flip(device=device)
-    images = images * (1 - p) + gridmask * p
-
     return images
 
 
 def random_crop_resize(
-    device, images, bboxes, classes, widths, heights, output_size, scaling=[0.1, 2.0]
+    device, images, bboxes, classes, shapes, output_size, scaling=[0.1, 2.0]
 ):
 
     if scaling is None:
         scale_factor = 1.0
     else:
-        scale_factor = dali.fn.random.uniform(range=scaling, device="cpu")
+        scale_factor = dali.fn.random.uniform(range=scaling)
 
-    scaled_x = scale_factor * output_size[0]
-    scaled_y = scale_factor * output_size[1]
-
-    image_scale = dali.math.min(scaled_x / widths, scaled_y / heights)
-
-    scaled_widths = widths * image_scale
-    scaled_heights = heights * image_scale
+    image_scale = dali.math.min(
+        scale_factor * output_size[0] / shapes[1],
+        scale_factor * output_size[1] / shapes[0],
+    )
+    scaled_sizes = shapes * image_scale
 
     images = dali.fn.resize(
         images,
-        resize_x=scaled_widths.gpu() if device == "gpu" else scaled_widths,
-        resize_y=scaled_heights.gpu() if device == "gpu" else scaled_heights,
+        size=scaled_sizes,
         device=device,
     )
 
@@ -176,11 +153,7 @@ def random_crop_resize(
         bboxes,
         classes,
         crop_shape=output_size,
-        input_shape=dali.fn.cast(
-            dali.fn.cat(scaled_widths, scaled_heights, device="cpu"),
-            dtype=dali.types.INT32,
-            device="cpu",
-        ),
+        input_shape=dali.fn.cast(scaled_sizes, dtype=dali.types.INT32),
         bbox_layout="xyXY",
         allow_no_crop=False,
         total_num_attempts=64,
@@ -198,8 +171,8 @@ def random_crop_resize(
 
     return (
         images,
-        bboxes.gpu() if device == "gpu" else bboxes,
-        classes.gpu() if device == "gpu" else classes,
+        bboxes,
+        classes,
     )
 
 
