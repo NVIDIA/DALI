@@ -48,11 +48,9 @@ class TarArchive {
   std::string filename;
   uint64_t filesize = 0;
   uint64_t readoffset = 0;
-
+  uint64_t archiveoffset = 0;
   int instance_handle = -1;
   bool ParseHeader();
-
-  uint64_t archiveoffset = 0;
   void Skip(int64_t count);
 };
 

@@ -69,7 +69,7 @@ inline void Unregister(int instance_handle) {
 }  // namespace
 
 TarArchive::TarArchive(std::unique_ptr<FileStream> stream)
-    : stream(std::move(stream)), eof(false), instance_handle(Register(this)), archiveoffset(0) {
+    : stream(std::move(stream)), eof(false), archiveoffset(0), instance_handle(Register(this)) {
   this->stream->Seek(0);
   ParseHeader();
 }
