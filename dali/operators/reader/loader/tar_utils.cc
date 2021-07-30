@@ -75,24 +75,35 @@ TarArchive::TarArchive(std::unique_ptr<FileStream> stream)
 }
 
 TarArchive::TarArchive(TarArchive&& other) {
-  *this = static_cast<TarArchive&&>(other);
+  *this = std::move(other);
 }
 
 TarArchive::~TarArchive() {
-  Unregister(instance_handle);
+  if (instance_handle >= 0) {
+    Unregister(instance_handle);
+  }
 }
 
 TarArchive& TarArchive::operator=(TarArchive&& other) {
   stream = std::move(other.stream);
   eof = other.eof;
-  filename = other.filename;
+  filename = std::move(other.filename);
   filesize = other.filesize;
   readoffset = other.readoffset;
   archiveoffset = other.archiveoffset;
 
-  std::lock_guard<std::mutex> instances_lock(instances_mutex);
-  instances[instance_handle] = nullptr;
+  if (instance_handle >= 0) {
+    Unregister(instance_handle);
+  }
   instance_handle = other.instance_handle;
+
+  other.filename = "";
+  other.filesize = 0;
+  other.readoffset = 0;
+  other.archiveoffset = 0;
+  other.instance_handle = -1;
+  other.eof = true;
+
   return *this;
 }
 
