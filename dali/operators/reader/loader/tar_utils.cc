@@ -34,8 +34,7 @@ constexpr uint64_t kTarArchiveBufferInitSize = 1;
 
 std::mutex instances_mutex;
 std::list<std::vector<TarArchive*>> instances_registry = {
-    std::vector<TarArchive*>(kTarArchiveBufferInitSize)
-};
+    std::vector<TarArchive*>(kTarArchiveBufferInitSize)};
 TarArchive** instances = instances_registry.back().data();
 
 }  // namespace
@@ -65,10 +64,7 @@ inline void Unregister(int instance_handle) {
 }
 
 TarArchive::TarArchive(std::unique_ptr<FileStream> stream)
-    : stream(std::move(stream)),
-      eof(false),
-      instance_handle(Register(this)),
-      archiveoffset(0) {
+    : stream(std::move(stream)), eof(false), instance_handle(Register(this)), archiveoffset(0) {
   this->stream->Seek(0);
   ParseHeader();
 }
@@ -120,20 +116,24 @@ uint64_t TarArchive::GetFileSize() const {
   return filesize;
 }
 
-std::vector<uint8_t> TarArchive::Read() {
-  return Read(filesize - readoffset);
+std::shared_ptr<uint8_t> TarArchive::ReadFile() {
+  archiveoffset -= readoffset;
+  readoffset = 0;
+  stream->Seek(archiveoffset);
+  auto buffer = std::shared_ptr<uint8_t>(new uint8_t[filesize], [](uint8_t* ptr) { delete[] ptr; });
+  Read(buffer.get(), filesize);
+  return buffer;
 }
 
-std::vector<uint8_t> TarArchive::Read(uint64_t count) {
+uint64_t TarArchive::Read(uint8_t* buffer, uint64_t count) {
   if (eof) {
-    return vector<uint8_t>();
+    return 0;
   }
   count = std::max(std::min(count, filesize - readoffset), 0_u64);
-  std::vector<uint8_t> out(count);
-  uint64_t num_read_bytes = stream->Read(out.data(), count);
+  uint64_t num_read_bytes = stream->Read(buffer, count);
   readoffset += num_read_bytes;
   archiveoffset += num_read_bytes;
-  return out;
+  return count;
 }
 
 bool TarArchive::Eof() const {

@@ -38,8 +38,8 @@ class TarArchive {
   std::string GetFileName() const;
   uint64_t GetFileSize() const;
 
-  std::vector<uint8_t> Read();
-  std::vector<uint8_t> Read(uint64_t count);
+  std::shared_ptr<uint8_t> ReadFile();
+  uint64_t Read(uint8_t* buffer, uint64_t count);
   bool Eof() const;
 
  private:
