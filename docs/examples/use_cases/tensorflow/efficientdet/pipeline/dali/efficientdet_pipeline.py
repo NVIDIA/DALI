@@ -40,7 +40,7 @@ class EfficientDetPipeline:
         self._image_size = params["image_size"]
         self._gridmask = params["grid_mask"]
 
-        self._input = args.input_type
+        self._input_type = args.input_type
         if self._input_type == InputType.tfrecord:
             if is_training:
                 file_pattern = args.train_file_pattern
@@ -86,7 +86,7 @@ class EfficientDetPipeline:
     def _define_pipeline(self):
         with self._pipe:
             if self._input_type == InputType.tfrecord:
-                images, bboxes, classes, shapes = ops_util.input_tfrecord(
+                images, bboxes, classes, widths, heights = ops_util.input_tfrecord(
                     self._tfrecord_files,
                     self._tfrecord_idxs,
                     device=self._device,
@@ -95,7 +95,7 @@ class EfficientDetPipeline:
                     random_shuffle=self._is_training,
                 )
             elif self._input_type == InputType.coco:
-                images, bboxes, classes, shapes = ops_util.input_coco(
+                images, bboxes, classes, widths, heights = ops_util.input_coco(
                     self._images_path,
                     self._annotations_path,
                     device=self._device,
@@ -105,7 +105,7 @@ class EfficientDetPipeline:
                 )
 
             if self._is_training and self._gridmask:
-                images = ops_util.gridmask(self._device, images, shapes)
+                images = ops_util.gridmask(self._device, images, widths, heights)
 
             images, bboxes = ops_util.normalize_flip(
                 self._device, images, bboxes, 0.5 if self._is_training else 0.0
@@ -116,10 +116,15 @@ class EfficientDetPipeline:
                 images,
                 bboxes,
                 classes,
-                shapes,
+                widths,
+                heights,
                 self._image_size,
                 [0.1, 2.0] if self._is_training else None,
             )
+
+            if self._device == "gpu":
+                bboxes = bboxes.gpu()
+                classes = classes.gpu()
 
             enc_bboxes, enc_classes = dali.fn.box_encoder(
                 bboxes, classes, anchors=self._boxes, offset=True, device=self._device

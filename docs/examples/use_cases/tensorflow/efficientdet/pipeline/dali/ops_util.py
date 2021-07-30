@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import math
 import nvidia.dali as dali
 
 
@@ -63,10 +64,8 @@ def input_tfrecord(
         images,
         bboxes,
         classes,
-        dali.fn.cast(
-            dali.fn.cat(inputs["image/height"], inputs["image/width"]),
-            dtype=dali.types.FLOAT,
-        ),
+        dali.fn.cast(inputs["image/width"], dtype=dali.types.FLOAT),
+        dali.fn.cast(inputs["image/height"], dtype=dali.types.FLOAT),
     )
 
 
@@ -90,8 +89,16 @@ def input_coco(
     )
 
     shape = dali.fn.peek_image_shape(encoded, type=dali.types.FLOAT)
+    heights = dali.fn.slice(shape, 0, 1, axes=(0,))
+    widths = dali.fn.slice(shape, 1, 1, axes=(0,))
 
-    return (images, bboxes, classes, shapes)
+    return (
+        images,
+        bboxes,
+        classes,
+        widths,
+        heights,
+    )
 
 
 def normalize_flip(device, images, bboxes, p=0.5):
@@ -108,14 +115,14 @@ def normalize_flip(device, images, bboxes, p=0.5):
     return images, bboxes
 
 
-def gridmask(device, images, shapes):
+def gridmask(device, images, widths, heights):
 
     p = dali.fn.random.coin_flip()
     ratio = 0.4 * p
     angle = dali.fn.random.normal(mean=-1, stddev=1) * 10.0 * (math.pi / 180.0)
 
-    l = dali.math.min(0.5 * shapes[0], 0.3 * shapes[1])
-    r = dali.math.max(0.5 * shapes[0], 0.3 * shapes[1])
+    l = dali.math.min(0.5 * heights, 0.3 * widths)
+    r = dali.math.max(0.5 * heights, 0.3 * widths)
     tile = dali.fn.cast(
         (dali.fn.random.uniform(range=[0.0, 1.0]) * (r - l) + l),
         dtype=dali.types.INT32,
@@ -129,7 +136,7 @@ def gridmask(device, images, shapes):
 
 
 def random_crop_resize(
-    device, images, bboxes, classes, shapes, output_size, scaling=[0.1, 2.0]
+    device, images, bboxes, classes, widths, heights, output_size, scaling=[0.1, 2.0]
 ):
 
     if scaling is None:
@@ -137,11 +144,12 @@ def random_crop_resize(
     else:
         scale_factor = dali.fn.random.uniform(range=scaling)
 
+    sizes = dali.fn.cat(widths, heights)
     image_scale = dali.math.min(
-        scale_factor * output_size[0] / shapes[1],
-        scale_factor * output_size[1] / shapes[0],
+        scale_factor * output_size[0] / widths,
+        scale_factor * output_size[1] / heights,
     )
-    scaled_sizes = shapes * image_scale
+    scaled_sizes = sizes * image_scale
 
     images = dali.fn.resize(
         images,
