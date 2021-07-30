@@ -16,6 +16,10 @@
 
 import sys
 
+from numpy.lib import utils
+from . import _utils
+from ._utils import hacks
+
 def _arithm_op(*args, **kwargs):
     import nvidia.dali.ops
     # Fully circular imports don't work. We need to import _arithm_op late and
@@ -55,8 +59,6 @@ class DataNode(object):
         self.device = device
         self.source = source
 
-    def __iter__(self):
-        raise TypeError("DALI DataNode objects are not iterable")
 
     # Note: Regardless of whether we want the cpu or gpu version
     # of a tensor, we keep the source argument the same so that
@@ -199,6 +201,7 @@ class DataNode(object):
         else:
             return nvidia.dali.fn.expand_dims(sliced, axes=new_axes, new_axis_names=new_axis_names)
 
+_utils.hacks.not_iterable(DataNode)
 
 def _check(maybe_node):
     if not isinstance(maybe_node, DataNode):

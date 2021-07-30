@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from numpy.lib.arraysetops import isin
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU, TensorGPU, TensorListCPU
+import nvidia.dali._utils.hacks as hacks
 
 import tempfile
 import subprocess
@@ -24,6 +26,19 @@ import os
 import sys
 import random
 import re
+
+def test_not_iterable():
+    import collections.abc
+    class X:
+        def __iter__(self):
+            pass
+    class Y:
+        def __iter__(self):
+            pass
+    assert isinstance(X(), collections.abc.Iterable)
+    hacks.not_iterable(X)
+    assert not isinstance(X(), collections.abc.Iterable)
+    assert isinstance(Y(), collections.abc.Iterable)
 
 
 def get_dali_extra_path():
