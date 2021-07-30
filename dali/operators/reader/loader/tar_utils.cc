@@ -127,7 +127,8 @@ std::shared_ptr<void> TarArchive::ReadFile() {
   stream->Seek(archiveoffset);
   auto out = stream->Get(filesize);
   if (out != nullptr) {
-    archiveoffset += readoffset = filesize;
+    archiveoffset += filesize;
+    readoffset = filesize;
   }
   return out;
 }
