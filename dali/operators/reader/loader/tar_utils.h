@@ -44,12 +44,12 @@ class TarArchive {
 
  private:
   std::unique_ptr<FileStream> stream;
-  bool eof = true;
   std::string filename;
   uint64_t filesize = 0;
   uint64_t readoffset = 0;
   uint64_t archiveoffset = 0;
   int instance_handle = -1;
+  bool eof = true;
   bool ParseHeader();
   void Skip(int64_t count);
 };
