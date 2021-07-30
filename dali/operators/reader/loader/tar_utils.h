@@ -36,23 +36,23 @@ class TarArchive {
   bool IsAtFile() const;
 
   std::string GetFileName() const;
-  uint64 GetFileSize() const;
+  uint64_t GetFileSize() const;
 
   std::vector<uint8_t> Read();
-  std::vector<uint8_t> Read(uint64 count);
+  std::vector<uint8_t> Read(uint64_t count);
   bool Eof() const;
 
  private:
   std::unique_ptr<FileStream> stream;
   bool eof = true;
   std::string filename = "";
-  uint64 filesize = 0;
-  uint64 readoffset = 0;
+  uint64_t filesize = 0;
+  uint64_t readoffset = 0;
 
   int instance_handle = -1;
   bool ParseHeader();
 
-  uint64 archiveoffset = 0;
+  uint64_t archiveoffset = 0;
   void Skip(int64 count);
 };
 

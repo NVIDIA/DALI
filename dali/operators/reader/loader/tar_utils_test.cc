@@ -63,9 +63,8 @@ void TestArchiveEntries(TarArchive& archive, const std::vector<std::string>& pre
         archive.Read();
       }
       ASSERT_EQ(archive.GetFileName(), to_string(idx) + prefixes[prefix_idx]);
-      bool tmp = archive.NextFile() ^
-                 (idx == end - 1 && prefix_idx == static_cast<int>(prefixes.size()) - 1);
-      ASSERT_TRUE(tmp);
+      ASSERT_TRUE(archive.NextFile() ^
+                  (idx == end - 1 && prefix_idx == static_cast<int>(prefixes.size()) - 1));
     }
   }
 
@@ -106,8 +105,8 @@ TEST_P(SimpleTarTests, Contents) {
   do {
     th_read(handle);
     vector<uint8_t> libtar_contents;
-    uint64 count = 0;
-    uint64 filesize = th_get_size(handle);
+    uint64_t count = 0;
+    uint64_t filesize = th_get_size(handle);
 
     do {
       libtar_contents.resize(libtar_contents.size() + T_BLOCKSIZE);
@@ -174,11 +173,7 @@ constexpr int kMultithreadedSamples = 3;
 class MultiTarTests : public ::testing::TestWithParam<bool> {
  protected:
   std::unique_ptr<TarArchive> archives[kMultithreadedSamples];
-  const std::pair<int, int> ranges[kMultithreadedSamples] = {
-    {2000, 3000},
-    {0, 1000},
-    {1000, 2000}
-  };
+  const std::pair<int, int> ranges[kMultithreadedSamples] = {{2000, 3000}, {0, 1000}, {1000, 2000}};
   void SetUp() override {
     std::string filepath_prefix(
         dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"), "db/webdataset/MNIST/devel-"));
@@ -196,12 +191,10 @@ TEST_P(MultiTarTests, Index) {
   std::future<void> threads[kMultithreadedSamples];
 
   for (int idx = 0; idx < kMultithreadedSamples; idx++) {
-    threads[idx] = std::async(
-        std::launch::async,
-        [](std::unique_ptr<TarArchive>& archive, int beg, int end) {
-          TestArchiveEntries(*archive, {".cls", ".jpg"}, beg, end, GetParam());
-        },
-        std::ref(archives[idx]), ranges[idx].first, ranges[idx].second);
+    threads[idx] = std::async(std::launch::async, [=] {
+      TestArchiveEntries(*archives[idx], {".cls", ".jpg"}, ranges[idx].first, ranges[idx].second,
+                         GetParam());
+    });
   }
 
   std::for_each(threads, threads + kMultithreadedSamples, [](auto& thread) { thread.wait(); });
@@ -209,7 +202,6 @@ TEST_P(MultiTarTests, Index) {
 
 INSTANTIATE_TEST_CASE_P(LibTarUtilsTestMultithreaded, MultiTarTests,
                         ::testing::Values(false, true));
-
 
 }  // namespace detail
 }  // namespace dali

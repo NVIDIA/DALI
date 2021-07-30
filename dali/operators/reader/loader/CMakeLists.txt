@@ -47,7 +47,7 @@ set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS}
 
 if (BUILD_LIBSND)
   set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS}
-   "${CMAKE_CURRENT_SOURCE_DIR}/nemo_asr_loader_test.cc")
+    "${CMAKE_CURRENT_SOURCE_DIR}/nemo_asr_loader_test.cc")
 endif()
 
 if (BUILD_LIBTAR)

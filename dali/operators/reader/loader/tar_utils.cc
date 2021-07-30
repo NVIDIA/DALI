@@ -25,27 +25,50 @@
 namespace dali {
 namespace detail {
 
-constexpr uint64 kBlockSize = 512;
-constexpr uint64 kEmptyEofBlocks = 2;
+template <int N>
+struct InstancesNode {
+  std::array<TarArchive*, N> buffer = {};
+  unique_ptr<InstancesNode<N>> next = nullptr;
+};
+
+constexpr uint64_t kBlockSize = 512;
+constexpr uint64_t kEmptyEofBlocks = 2;
+constexpr uint64_t kArchiveInstancesBufferSize = 1;
 
 std::mutex instances_mutex;
-vector<TarArchive*> instances;
+InstancesNode<kArchiveInstancesBufferSize> instances;
 
 int Register(TarArchive* archive) {
   std::lock_guard<std::mutex> instances_lock(instances_mutex);
   int instance_handle = -1;
-  for (auto& instances_entry : instances) {
-    if (instances_entry != nullptr) {
-      continue;
+  int instance_handle_offset = 0;
+  InstancesNode<kArchiveInstancesBufferSize>* __restrict__ instances_node = &instances;
+  while (instance_handle == -1) {
+    for (auto& instances_entry : instances_node->buffer) {
+      if (instances_entry != nullptr) {
+        continue;
+      }
+      instances_entry = archive;
+      instance_handle = &instances_entry - instances_node->buffer.data() + instance_handle_offset;
     }
-    instances_entry = archive;
-    instance_handle = &instances_entry - instances.data();
-  }
-  if (instance_handle == -1) {
-    instance_handle = instances.size();
-    instances.push_back(archive);
+    if (instance_handle == -1) {
+      if (!instances_node->next) {
+        instances_node->next.reset(new InstancesNode<kArchiveInstancesBufferSize>());
+      }
+      instances_node = (instances_node->next).get();
+      instance_handle_offset += kArchiveInstancesBufferSize;
+    }
   }
   return instance_handle;
+}
+
+TarArchive*& GetInstance(int instance_handle) {
+  InstancesNode<kArchiveInstancesBufferSize>* __restrict__ instances_node = &instances;
+  while(instance_handle >= static_cast<int>(kArchiveInstancesBufferSize)) {
+    instances_node = (instances_node->next).get();
+    instance_handle -= kArchiveInstancesBufferSize;
+  }
+  return instances_node->buffer[instance_handle];
 }
 
 TarArchive::TarArchive(std::unique_ptr<FileStream>&& stream)
@@ -70,17 +93,16 @@ TarArchive& TarArchive::operator=(TarArchive&& other) {
   archiveoffset = other.archiveoffset;
 
   std::lock_guard<std::mutex> instances_lock(instances_mutex);
-  instances[instance_handle] = nullptr;
+  instances.buffer[instance_handle] = nullptr;
   instance_handle = other.instance_handle;
   return *this;
 }
 
 TarArchive::~TarArchive() {
-  std::lock_guard<std::mutex> instances_lock(instances_mutex);
-  instances[instance_handle] = nullptr;
+  GetInstance(instance_handle) = nullptr;
 }
 
-uint64 RoundToBlockSize(uint64 count) {
+uint64_t RoundToBlockSize(uint64_t count) {
   return ((count + kBlockSize - 1) / kBlockSize) * kBlockSize;
 }
 
@@ -101,7 +123,7 @@ std::string TarArchive::GetFileName() const {
   return filename;
 }
 
-uint64 TarArchive::GetFileSize() const {
+uint64_t TarArchive::GetFileSize() const {
   return filesize;
 }
 
@@ -109,13 +131,13 @@ std::vector<uint8_t> TarArchive::Read() {
   return Read(filesize - readoffset);
 }
 
-std::vector<uint8_t> TarArchive::Read(uint64 count) {
+std::vector<uint8_t> TarArchive::Read(uint64_t count) {
   if (eof) {
     return vector<uint8_t>();
   }
   count = std::max(std::min(count, filesize - readoffset), static_cast<uint64>(0));
   std::vector<uint8_t> out(count);
-  uint64 num_read_bytes = stream->Read(out.data(), count);
+  uint64_t num_read_bytes = stream->Read(out.data(), count);
   readoffset += num_read_bytes;
   archiveoffset += num_read_bytes;
   return out;
@@ -143,7 +165,7 @@ inline bool TarArchive::ParseHeader() {
   TAR* handle;
   tartype_t type = {LibtarOpenTarArchive, [](int) -> int { return 0; },
                     [](int instance_handle, void* buf, size_t count) -> ssize_t {
-                      const auto current_archive = instances[instance_handle];
+                      const auto current_archive = GetInstance(instance_handle);
                       const ssize_t num_read =
                           current_archive->stream->Read(reinterpret_cast<uint8_t*>(buf), count);
                       current_archive->archiveoffset += num_read;
