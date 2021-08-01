@@ -24,6 +24,7 @@
 #include "dali/image/tiff.h"
 #endif
 #include "dali/image/pnm.h"
+#include "dali/image/webp.h"
 
 namespace dali {
 
@@ -34,7 +35,6 @@ bool CheckIsJPEG(const uint8 *jpeg, int) {
   return (jpeg[0] == 255) && (jpeg[1] == 216);
 }
 
-
 bool CheckIsPNG(const uint8_t *png, int size) {
   DALI_ENFORCE(png);
   // first bytes should be: 89 50 4E 47 0D 0A 1A 0A (hex)
@@ -43,26 +43,28 @@ bool CheckIsPNG(const uint8_t *png, int size) {
           png[4] == 13 && png[5] == 10 && png[6] == 26 && png[7] == 10);
 }
 
-
 bool CheckIsGIF(const uint8_t *gif, int size) {
   DALI_ENFORCE(gif);
   return (size >= 10 && gif[0] == 'G' && gif[1] == 'I' && gif[2] == 'F' && gif[3] == '8' &&
           (gif[4] == '7' || gif[4] == '9') && gif[5] == 'a');
 }
 
-
 bool CheckIsBMP(const uint8_t *bmp, int size) {
   return (size > 2 && bmp[0] == 'B' && bmp[1] == 'M');
 }
 
 bool CheckIsPNM(const uint8_t *pnm, int size) {
-    return (size > 2 && pnm[0] == 'P' && pnm[1] >= '1' && pnm[1] <= '6');
+  return (size > 2 && pnm[0] == 'P' && pnm[1] >= '1' && pnm[1] <= '6');
 }
 
+bool CheckIsWebP(const uint8_t *webp, int size) {
+  DALI_ENFORCE(webp);
+  return (size > 12 && webp[0] == 'R' && webp[1] == 'I' && webp[2] == 'F' && webp[3] == 'F' &&
+          webp[8] == 'W' && webp[9] == 'E' && webp[10] == 'B' && webp[11] == 'P');
+}
 
 constexpr std::array<int, 4> header_intel = {77, 77, 0, 42};
 constexpr std::array<int, 4> header_motorola = {73, 73, 42, 0};
-
 
 bool CheckIsTiff(const uint8_t *tiff, int size) {
   DALI_ENFORCE(tiff);
@@ -85,7 +87,7 @@ ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImage
   DALI_ENFORCE(CheckIsPNG(encoded_image, length) + CheckIsBMP(encoded_image, length) +
                CheckIsGIF(encoded_image, length) + CheckIsJPEG(encoded_image, length) +
                CheckIsTiff(encoded_image, length) + CheckIsPNM(encoded_image, length) +
-               CheckIsJPEG2k(encoded_image, length) == 1,
+               CheckIsJPEG2k(encoded_image, length) + CheckIsWebP(encoded_image, length) == 1,
                "Encoded image has ambiguous format");
   if (CheckIsPNG(encoded_image, length)) {
     return std::make_unique<PngImage>(encoded_image, length, image_type);
@@ -105,6 +107,8 @@ ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImage
 #else
     return std::make_unique<TiffImage>(encoded_image, length, image_type);
 #endif
+  } else if (CheckIsWebP(encoded_image, length)) {
+    return std::make_unique<WebpImage>(encoded_image, length, image_type);
   }
   return std::make_unique<GenericImage>(encoded_image, length, image_type);
 }
