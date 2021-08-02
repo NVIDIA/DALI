@@ -15,8 +15,6 @@
 #pylint: disable=no-member
 
 import sys
-
-from numpy.lib import utils
 from . import _utils
 from ._utils import hacks
 
