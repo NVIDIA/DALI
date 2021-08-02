@@ -153,6 +153,7 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
 
 void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
   auto &output = ws.OutputRef<GPUBackend>(0);
+  output.Resize(output_shape_, output_type_);
   int ndim = output.shape().sample_dim();
   auto dtype = output.type().id();
   VALUE_SWITCH(ndim, Dims, NUMPY_ALLOWED_DIMS, (

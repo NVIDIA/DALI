@@ -48,7 +48,7 @@ class NumpyReader : public DataReader<Backend, Target> {
   }
 
   bool CanInferOutputs() const override {
-    return true;
+    return false;
   }
 
   USE_READER_OPERATOR_MEMBERS(Backend, Target);
@@ -61,9 +61,10 @@ class NumpyReader : public DataReader<Backend, Target> {
 
     int batch_size = GetCurrBatchSize();
     const auto& file_0 = GetSample(0);
-    TypeInfo output_type = file_0.get_type();
+    output_type_ = file_0.get_type();
     int ndim = file_0.get_shape().sample_dim();
-    TensorListShape<> sh(batch_size, ndim);
+    auto &sh = output_shape_;
+    sh.resize(batch_size, ndim);
 
     bool has_roi_args = slice_attr_.template ProcessArguments<Backend>(ws, batch_size, ndim);
     rois_.clear();
@@ -87,10 +88,10 @@ class NumpyReader : public DataReader<Backend, Target> {
                       file_0.filename, "\" with ", ndim, " dimensions and \"", file_i.filename,
                       "\" with ", file_i.get_shape().sample_dim(), " dimensions"));
       DALI_ENFORCE(
-          file_i.get_type().id() == output_type.id(),
+          file_i.get_type().id() == output_type_.id(),
           make_string("Inconsistent data: All samples in the batch must have the same data type. "
                       "Got \"",
-                      file_0.filename, "\" with data type ", output_type.id(), " and \"",
+                      file_0.filename, "\" with data type ", output_type_.id(), " and \"",
                       file_i.filename, "\" with data type ", file_i.get_type().id()));
 
       bool is_transposed = file_i.fortran_order;
@@ -139,9 +140,9 @@ class NumpyReader : public DataReader<Backend, Target> {
       need_transpose_[i] = is_transposed;
     }
     output_desc.resize(1);
-    output_desc[0].shape = std::move(sh);
-    output_desc[0].type = output_type;
-    return true;
+    output_desc[0].shape = output_shape_;
+    output_desc[0].type = output_type_;
+    return false;
   }
 
   NamedSliceAttr slice_attr_;
@@ -151,6 +152,8 @@ class NumpyReader : public DataReader<Backend, Target> {
 
   std::vector<bool> need_transpose_;
   std::vector<bool> need_slice_;
+  TensorListShape<> output_shape_;
+  TypeInfo output_type_;
 };
 
 class NumpyReaderCPU : public NumpyReader<CPUBackend, NumpyFileWrapper> {

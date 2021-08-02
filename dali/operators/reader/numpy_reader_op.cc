@@ -232,7 +232,8 @@ functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
 
 void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
-  const auto &out_sh = output.shape();
+  output.Resize(output_shape_, output_type_);
+  const auto &out_sh = output_shape_;
   int ndim = out_sh.sample_dim();
   int nsamples = out_sh.num_samples();
   auto &thread_pool = ws.GetThreadPool();
