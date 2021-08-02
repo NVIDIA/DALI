@@ -94,4 +94,41 @@ void TensorSubscript<CPUBackend>::RunTyped(HostWorkspace &ws) {
 
 DALI_REGISTER_OPERATOR(TensorSubscript, TensorSubscript<CPUBackend>, CPU);
 
+DALI_SCHEMA(SubscriptDimCheck)
+    .MakeDocHidden()
+    .DocStr(R"(Checks that the input has at least `num_subscripts` dimensions.
+
+This operator is used internally when all indices are empty (:) and just verifieis
+that the input has sufficient number of dimensions and passes through the input.)")
+    .NumInput(1)
+    .NumOutput(1)
+    .PassThrough({{0, 0}})
+    .AddArg("num_subscripts",
+      "Number of subscripts supplied, which is the minimum required in the input.", DALI_INT32);
+
+
+template <typename Backend>
+struct SubscriptDimCheck : public Operator<Backend> {
+  explicit SubscriptDimCheck(const OpSpec &spec) : Operator<Backend>(spec) {
+    num_subscripts_ = spec.GetArgument<int>("num_subscripts");
+  }
+
+  virtual bool SetupImpl(vector<OutputDesc> &desc, const workspace_t<Backend> &ws) {
+    return false;
+  }
+
+  void RunImpl(workspace_t<Backend> &ws) override {
+    auto &in = ws.template InputRef<Backend>(0);
+    DALI_ENFORCE(num_subscripts_ <= in.sample_dim(), make_string("Too many indices (",
+      num_subscripts_, ") for a ", in.sample_dim(), "-D tensor."));
+    auto &out = ws.template OutputRef<Backend>(0);
+    out.ShareData(&in);
+  }
+
+  int num_subscripts_ = 0;
+};
+
+DALI_REGISTER_OPERATOR(SubscriptDimCheck, SubscriptDimCheck<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(SubscriptDimCheck, SubscriptDimCheck<GPUBackend>, GPU);
+
 }  // namespace dali

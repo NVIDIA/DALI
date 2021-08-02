@@ -353,7 +353,7 @@ void TensorVector<Backend>::ShareData(TensorVector<Backend> *tv) {
   state_ = tv->state_;
   pinned_ = tv->is_pinned();
 
-  if (tv->tl_->raw_data()) {
+  if (IsValidType(tv->tl_->type())) {
     tl_->ShareData(tv->tl_.get());
   } else {
     tl_->Reset();

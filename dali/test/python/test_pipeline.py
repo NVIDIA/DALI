@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1609,6 +1609,21 @@ def test_properties():
 
     p = my_pipe(device_id=0, seed=1234, num_threads=3, set_affinity=True, py_num_workers=3)
 
+def test_not_iterable():
+    import nvidia.dali._utils.hacks as hacks
+    import collections.abc
+    class X:
+        def __iter__(self):
+            pass
+    class Y:
+        def __iter__(self):
+            pass
+    assert isinstance(X(), collections.abc.Iterable)
+    hacks.not_iterable(X)
+    assert not isinstance(X(), collections.abc.Iterable)
+    assert isinstance(Y(), collections.abc.Iterable)
+    hacks.not_iterable(Y)
+    assert not isinstance(Y(), collections.abc.Iterable)
 
 @pipeline_def(batch_size=1, num_threads=1, device_id=0)
 def _identity_pipe():

@@ -37,7 +37,7 @@ def _hook_iterable_check():
         _not_iterable = (_NotIterable,)
 
 def not_iterable(cls, add_iter=True):
-    """Makes an object non-iterable by raising a TypeError in add_iter and suppressing
+    """Makes an object non-iterable by raising a TypeError in __iter__ and suppressing
     the detection of the object as an instance of collections.abc.Iterable.
     """
     _hook_iterable_check()

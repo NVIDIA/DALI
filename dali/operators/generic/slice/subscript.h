@@ -181,8 +181,7 @@ class TensorSubscript : public Operator<Backend> {
         make_string("Too many indices (", nsub_declared_, ") for a ", ndim, "D tensor."));
 
     int nsamples = in_shape.num_samples();
-    lo_.resize(nsamples, ndim);
-    hi_ = in_shape;
+    start_.resize(nsamples, ndim);
     step_.resize(nsamples, ndim);
     for (auto &s : step_.shapes)
       s = 1;
@@ -207,8 +206,7 @@ class TensorSubscript : public Operator<Backend> {
           DALI_FAIL(make_string("Index ", at, " is out of range "
             "for axis ", d, " of length ", in_extent, "\n"
             "Detected while processing sample #", i, " of shape (", in_shape[i], ")"));
-        lo_.tensor_shape_span(i)[d] = idx;
-        hi_.tensor_shape_span(i)[d] = idx + 1;
+        start_.tensor_shape_span(i)[d] = idx;
         shape_.tensor_shape_span(i)[d] = 1;
       }
     }
@@ -218,15 +216,18 @@ class TensorSubscript : public Operator<Backend> {
         int64_t lo = s.lo.IsDefined() ? s.lo.values[i] : 0;
         int64_t hi = s.hi.IsDefined() ? s.hi.values[i] : in_extent;
         int64_t step = s.step.IsDefined() ? s.step.values[i] : 1;
+        // TODO(michalz) Remove when strides are supported
         DALI_ENFORCE(step == 1, "Indexing with non-unit step is not implemented");
         if (lo < 0) lo += in_extent;
         if (hi < 0) hi += in_extent;
         lo = clamp(lo, 0_i64, in_extent);
         hi = clamp(hi, 0_i64, in_extent);
-        lo_.tensor_shape_span(i)[d] = lo;
-        hi_.tensor_shape_span(i)[d] = hi;
+        start_.tensor_shape_span(i)[d] = lo;
         step_.tensor_shape_span(i)[d] = step;
 
+        // NOTE: this code is currently not used, since the underlying kernels
+        //       don't support strides.
+        // TODO(michalz): Remove this comment when strides are supported.
         int64_t out_extent = step > 0 ? div_ceil(hi - lo,  step)
                                       : div_ceil(lo - hi, -step);
         if (out_extent < 0)
@@ -265,14 +266,14 @@ class TensorSubscript : public Operator<Backend> {
 
     collapse_dims(simplified_in_shape_, in_shape, collapsed_dims_);
     collapse_dims(simplified_out_shape_, shape_, collapsed_dims_);
-    collapse_dims(simplified_anchor_, lo_, collapsed_dims_);
+    collapse_dims(simplified_anchor_, start_, collapsed_dims_);
 
     out_shape.resize(in_shape.num_samples(), out_dim_map_.size());
     for (int i = 0; i < out_shape.num_samples(); i++) {
       auto out_sample_shape = out_shape.tensor_shape_span(i);
-      auto sh = shape_.tensor_shape_span(i);
+      auto sample_shape = shape_.tensor_shape_span(i);
       for (int d = 0; d < out_shape.sample_dim(); d++) {
-        out_sample_shape[d] = sh[out_dim_map_[d]];
+        out_sample_shape[d] = sample_shape[out_dim_map_[d]];
       }
     }
   }
@@ -300,7 +301,7 @@ class TensorSubscript : public Operator<Backend> {
         (RunTyped<ndim, element_size>(ws);),
         (DALI_FAIL(make_string("Unsupported input type: ", input.type().id()));))),
       (DALI_FAIL("Subscript too complex.\n"
-        "The subscript operator supports up to 32 total and up to  16 non-collapsible dimensions.\n"
+        "The subscript operator supports up to 32 total and up to 16 non-collapsible dimensions.\n"
         "Adjacent dimensions from which no index or slice is taken can be collapsed.");)
     );  // NOLINT
   }
@@ -315,7 +316,7 @@ class TensorSubscript : public Operator<Backend> {
 
   // Ranges, steps and output shapes in input space - that is, not including
   // the dimensions which are removed by indexing or ones collapsed as a result of simplification.
-  TensorListShape<> lo_, hi_, step_, shape_;
+  TensorListShape<> start_, step_, shape_;
 
   // Grouping of indices, used for simplification
   SmallVector<std::pair<int, int>, 6> collapsed_dims_;
@@ -330,7 +331,6 @@ class TensorSubscript : public Operator<Backend> {
   kernels::KernelManager kmgr_;
   any ctx_;
 };
-
 
 }  // namespace dali
 

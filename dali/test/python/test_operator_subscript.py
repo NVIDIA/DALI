@@ -78,7 +78,7 @@ def test_swapped_ends():
 def test_noop():
     node = dali.types.Constant(np.float32([1,2,2]))
     indexed = node[:]
-    assert node is indexed
+    assert "SubscriptDimCheck" in indexed.name
 
 def test_runtime_indexing():
     def data_gen():
@@ -151,15 +151,23 @@ def test_out_of_range():
 
 
 def _test_too_many_indices(device):
-    # NOTE: There's a know issue that the number of dimensions is not checked if the
-    # tensor is indexed only with full-range subscripts (':') - in this case, the whole operation
-    # is a no-op.
     data = [np.uint8([1,2,3]),np.uint8([1,2])]
     src = fn.external_source(lambda: data, device=device)
     pipe = index_pipe(src, lambda x: x[1,:])
     with assert_raises(RuntimeError):
         pipe.build()
         _ = pipe.run()
+
+    pipe = index_pipe(src, lambda x: x[:,:])
+    with assert_raises(RuntimeError):
+        pipe.build()
+        _ = pipe.run()
+
+    pipe = index_pipe(src, lambda x: x[:,:,dali.newaxis])
+    with assert_raises(RuntimeError):
+        pipe.build()
+        _ = pipe.run()
+
 
 def test_too_many_indices():
     for device in ["cpu", "gpu"]:
