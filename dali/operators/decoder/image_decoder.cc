@@ -175,8 +175,8 @@ The output of the decoder is in *HWC* layout.
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
 Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.
 
-.. node::
-  WebP decoding currently only support the simple file format (lossy and lossless compression).
+.. note::
+  WebP decoding currently only supports the simple file format (lossy and lossless compression).
   For details on the different WebP file formats, see
   https://developers.google.com/speed/webp/docs/riff_container
 

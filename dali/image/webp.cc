@@ -30,6 +30,7 @@ Image::Shape WebpImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t leng
   if (vp8_data[0] == 'V' && vp8_data[1] == 'P' && vp8_data[2] == '8' && vp8_data[3] == ' ') {
     // Simple file format (lossy)
     // https://datatracker.ietf.org/doc/html/rfc6386#section-9.1
+    DALI_ENFORCE(length >= 30);
 
     // Verify the sync code
     // According to my understanding of the standard, the sync code should start at vp8_data[7]
@@ -49,6 +50,7 @@ Image::Shape WebpImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t leng
   } else if (vp8_data[0] == 'V' && vp8_data[1] == 'P' && vp8_data[2] == '8' && vp8_data[3] == 'L') {
     // Simple file format (lossless)
     // https://developers.google.com/speed/webp/docs/webp_lossless_bitstream_specification#2_riff_header
+    DALI_ENFORCE(length >= 25);
 
     // Verify the signature byte
     if (vp8_data[8] != 0x2F) {
