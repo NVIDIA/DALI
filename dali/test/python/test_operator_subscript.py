@@ -154,20 +154,23 @@ def _test_too_many_indices(device):
     data = [np.uint8([1,2,3]),np.uint8([1,2])]
     src = fn.external_source(lambda: data, device=device)
     pipe = index_pipe(src, lambda x: x[1,:])
+
+    # Verified by tensor_subscript
     with assert_raises(RuntimeError):
         pipe.build()
         _ = pipe.run()
 
+    # Verified by subscript_dim_check
     pipe = index_pipe(src, lambda x: x[:,:])
     with assert_raises(RuntimeError):
         pipe.build()
         _ = pipe.run()
 
+    # Verified by expand_dims
     pipe = index_pipe(src, lambda x: x[:,:,dali.newaxis])
     with assert_raises(RuntimeError):
         pipe.build()
         _ = pipe.run()
-
 
 def test_too_many_indices():
     for device in ["cpu", "gpu"]:

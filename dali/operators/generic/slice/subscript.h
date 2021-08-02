@@ -174,6 +174,9 @@ class TensorSubscript : public Operator<Backend> {
     return true;
   }
 
+  /**
+   * @brief Calculates the input ranges from the arguments and the input shape.
+   */
   void GetRanges(const workspace_t<Backend> &ws, const TensorListShape<> &in_shape) {
     int nsub = subscripts_.size();
     int ndim = in_shape.sample_dim();
@@ -194,6 +197,9 @@ class TensorSubscript : public Operator<Backend> {
     }
   }
 
+  /**
+   * @brief Calculates the input range for one dimension `d`
+   */
   void GetRange(SubscriptInfo &s, int d, const TensorListShape<> &in_shape) {
     int nsamples = in_shape.num_samples();
 
@@ -237,6 +243,21 @@ class TensorSubscript : public Operator<Backend> {
     }
   }
 
+  /**
+   * @brief Produces output shape as well as some intermediate shapes and anchors
+   *
+   * There are three shape spaces:
+   * - Input shape space
+   * - Output shape space - with the dimensions indexed by scalars removed
+   * - Simplified shape space - the scalar-indexed dimensions are kept, but the
+   *   adjacent non-sliced dimensions are collapsed to facilitate processing.
+   *
+   * The output shape is, obviously, in output space.
+   * There's also a smplified output shape, simplified input shape and anchors, all in the
+   * simplified shape space.
+   * This function calculates the collapsed groups for simplification as well as calculates
+   * all the aforementioned shapes and achors.
+   */
   void ProcessShapes(TensorListShape<> &out_shape, const TensorListShape<> &in_shape) {
     int in_dims = in_shape.sample_dim();
     int nsub = subscripts_.size();
