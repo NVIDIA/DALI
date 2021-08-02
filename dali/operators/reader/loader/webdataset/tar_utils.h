@@ -26,7 +26,7 @@ namespace dali {
 namespace detail {
 /**
  * @brief Used to access .tar archives
- * 
+ *
  * The class is used to access tar archives through the FileStream of the user's choice.
  * There are 2 cursors that it keeps track of:
  *   - archive cursor - Keeps track of which file the archive is currently at.
@@ -40,7 +40,7 @@ namespace detail {
  *   - File contents access methods:
  *     - @ref GetFileName - Returns the name of the file the archive cursor currently points at.
  *     - @ref GetFileSize - Returns the size of the archive cursor currently points at (in bytes).
- *     - @ref ReadFile - Reads the contents of the file and returns them. In the case of success 
+ *     - @ref ReadFile - Reads the contents of the file and returns them. In the case of success
  *                       places the file cursor at the end of file. In the other case keeps the file
  *                       cursor intact.
  *     - @ref Read - Reads the given number of bytes into a given buffer, assuming that said buffer
@@ -58,7 +58,7 @@ class TarArchive {
 
   /**
    * @brief Advances the archive to look at the next file in the tarball.
-   * 
+   *
    * @returns Whether it has got any more files to read (or has reached the end of the archive).
    */
   bool NextFile();
@@ -69,12 +69,13 @@ class TarArchive {
 
   /**
    * @brief Returns the name of the file in the archive that is currently being viewed.
+   * @remark The returned reference is invalidated upon a move operation or moving to the next file.
    */
-  std::string GetFileName() const;
+  const std::string& GetFileName() const;
   /**
    * @brief Returns the size (in bytes) of the file in the archive that is currently being viewed.
    */
-  uint64_t GetFileSize() const;
+  size_t GetFileSize() const;
 
   /**
    * @brief Reads the contents of the file and returns them.
@@ -85,7 +86,7 @@ class TarArchive {
    */
   std::shared_ptr<void> ReadFile();
   /**
-   * @brief 
+   * @brief
    * Reads the given number of bytes into a given buffer, assuming that said buffer
    * is big enough to perform this operation. Returns the number of bytes actually read.
    * @param buffer the buffer to read the data into
@@ -100,14 +101,16 @@ class TarArchive {
 
  private:
   std::unique_ptr<FileStream> stream_;
+  void* handle_ = nullptr;  // handle to the TAR struct
+  friend ssize_t LibtarReadTarArchive(int, void*, size_t);
   std::string filename_;
-  uint64_t filesize_ = 0;
-  uint64_t readoffset_ = 0;
-  uint64_t archiveoffset_ = 0;
+  size_t filesize_ = 0;
+  size_t readoffset_ = 0;
+  size_t archiveoffset_ = 0;
   int instance_handle_ = -1;
   bool eof_ = true;
   bool ParseHeader();
-  void Skip(int64_t count);
+  void Skip(size_t count);
 };
 
 }  // namespace detail

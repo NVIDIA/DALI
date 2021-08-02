@@ -32,17 +32,24 @@ TEST(LibTarUtilsTestSimple, Interface) {
   std::string filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
                                                    "db/webdataset/MNIST/devel-1.tar"));
   TarArchive archive(TarArchive(TarArchive(FileStream::Open(filepath, false, false))));
+  
   ASSERT_TRUE(archive.NextFile());
   ASSERT_FALSE(archive.EndOfArchive());
+  
   ASSERT_EQ(archive.GetFileName(), "0.jpg");
   int filesize = archive.GetFileSize();
   ASSERT_FALSE(archive.EndOfFile());
+  
   vector<uint8_t> buffer(filesize);
   archive.Read(buffer.data(), 10);
   ASSERT_FALSE(archive.EndOfFile());
   ASSERT_EQ(archive.GetFileSize(), filesize);
-  std::shared_ptr<void> contents = archive.ReadFile();
-  ASSERT_TRUE(archive.EndOfFile() ^ (contents == nullptr));
+  
+  ASSERT_TRUE(archive.ReadFile() == nullptr);
+  
+  archive.Read(buffer.data() + 10, filesize);
+  ASSERT_TRUE(archive.EndOfFile());
+  ASSERT_EQ(archive.GetFileSize(), filesize);
 }
 
 TEST(LibTarUtilsTestSimple, LongNameIndexing) {

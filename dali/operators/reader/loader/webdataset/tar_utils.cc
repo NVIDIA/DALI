@@ -30,7 +30,7 @@ namespace detail {
 
 namespace {
 
-constexpr uint64_t kBlockSize = T_BLOCKSIZE;
+constexpr size_t kBlockSize = T_BLOCKSIZE;
 static_assert(is_pow2(kBlockSize),
               "The implementation assumes that the block size is a power of 2");
 
@@ -66,13 +66,41 @@ inline void Unregister(int instance_handle_) {
   instances[instance_handle_] = nullptr;
 }
 
+inline TAR* ToTarHandle(void* handle) {
+  return reinterpret_cast<TAR*>(handle);
+}
+
+inline TAR** ToTarHandle(void** handle) {
+  return reinterpret_cast<TAR**>(handle);
+}
+
 }  // namespace
+
+ssize_t LibtarReadTarArchive(int instance_handle_, void* buf, size_t count) {
+  const auto current_archive = instances[instance_handle_];
+  const ssize_t num_read = current_archive->stream_->Read(reinterpret_cast<uint8_t*>(buf), count);
+  current_archive->archiveoffset_ += num_read;
+  return num_read;
+}
+
+int LibtarOpenTarArchive(const char*, int oflags, ...) {
+  va_list args;
+  va_start(args, oflags);
+  const int instance_handle_ = va_arg(args, int);
+  va_end(args);
+  return instance_handle_;
+}
+
+static tartype_t kTarArchiveType = {LibtarOpenTarArchive, [](int) -> int { return 0; },
+                                    LibtarReadTarArchive,
+                                    [](int, const void*, size_t) -> ssize_t { return 0; }};
 
 TarArchive::TarArchive(std::unique_ptr<FileStream> stream_)
     : stream_(std::move(stream_)),
       archiveoffset_(0),
       instance_handle_(Register(this)),
       eof_(false) {
+  tar_open(ToTarHandle(&handle_), "", &kTarArchiveType, 0, instance_handle_, TAR_GNU);
   this->stream_->Seek(0);
   ParseHeader();
 }
@@ -82,29 +110,25 @@ TarArchive::TarArchive(TarArchive&& other) {
 }
 
 TarArchive::~TarArchive() {
-  if (instance_handle_ >= 0) {
-    Unregister(instance_handle_);
-  }
+  Invalidate();
 }
 
 TarArchive& TarArchive::operator=(TarArchive&& other) {
   if (&other != this) {
     stream_ = std::move(other.stream_);
-    std::tie(filename_, other.filename_) = std::forward_as_tuple(std::move(other.filename_), "");
-    std::tie(filesize_, other.filesize_) = std::forward_as_tuple(other.filesize_, 0);
-    std::tie(readoffset_, other.readoffset_) = std::forward_as_tuple(other.readoffset_, 0);
-    std::tie(archiveoffset_, other.archiveoffset_) = std::forward_as_tuple(other.archiveoffset_, 0);
-    std::tie(eof_, other.eof_) = std::forward_as_tuple(other.eof_, true);
-
-    if (instance_handle_ >= 0) {
-      Unregister(instance_handle_);
-    }
-    instance_handle_ = other.instance_handle_;
+    std::swap(handle_, other.handle_);
+    std::swap(filename_, other.filename_);
+    std::swap(filesize_, other.filesize_);
+    std::swap(readoffset_, other.readoffset_);
+    std::swap(archiveoffset_, other.archiveoffset_);
+    std::swap(eof_, other.eof_);
+    std::swap(instance_handle_, other.instance_handle_);
+    other.Invalidate();
   }
   return *this;
 }
 
-uint64_t RoundToBlockSize(uint64_t count) {
+constexpr size_t RoundToBlockSize(size_t count) {
   return align_up(count, kBlockSize);
 }
 
@@ -121,17 +145,17 @@ bool TarArchive::EndOfArchive() const {
   return eof_;
 }
 
-std::string TarArchive::GetFileName() const {
+const std::string& TarArchive::GetFileName() const {
   return filename_;
 }
 
-uint64_t TarArchive::GetFileSize() const {
+size_t TarArchive::GetFileSize() const {
   return filesize_;
 }
 
 std::shared_ptr<void> TarArchive::ReadFile() {
   archiveoffset_ -= readoffset_;
-  int old_readoffset = readoffset_;
+  size_t old_readoffset = readoffset_;
   readoffset_ = 0;
   stream_->Seek(archiveoffset_);
   auto out = stream_->Get(filesize_);
@@ -150,7 +174,7 @@ size_t TarArchive::Read(uint8_t* buffer, size_t count) {
     return 0;
   }
   count = clamp(filesize_ - readoffset_, 0_u64, count);
-  uint64_t num_read_bytes = stream_->Read(buffer, count);
+  size_t num_read_bytes = stream_->Read(buffer, count);
   readoffset_ += num_read_bytes;
   archiveoffset_ += num_read_bytes;
   return num_read_bytes;
@@ -160,46 +184,40 @@ bool TarArchive::EndOfFile() const {
   return readoffset_ >= filesize_;
 }
 
-inline void TarArchive::Skip(int64 count) {
+inline void TarArchive::Skip(size_t count) {
   stream_->Seek(archiveoffset_ += count);
   readoffset_ += count;
 }
 
-int LibtarOpenTarArchive(const char*, int oflags, ...) {
-  va_list args;
-  va_start(args, oflags);
-  const int instance_handle_ = va_arg(args, int);
-  va_end(args);
-  return instance_handle_;
-}
-
-
 inline bool TarArchive::ParseHeader() {
-  TAR* handle;
-  tartype_t type = {LibtarOpenTarArchive, [](int) -> int { return 0; },
-                    [](int instance_handle_, void* buf, size_t count) -> ssize_t {
-                      const auto current_archive = instances[instance_handle_];
-                      const ssize_t num_read =
-                          current_archive->stream_->Read(reinterpret_cast<uint8_t*>(buf), count);
-                      current_archive->archiveoffset_ += num_read;
-                      return num_read;
-                    },
-                    [](int, const void*, size_t) -> ssize_t { return 0; }};
-  tar_open(&handle, "", &type, 0, instance_handle_, TAR_GNU);
-
-  int errorcode = th_read(handle);
+  int errorcode = th_read(ToTarHandle(handle_));
   if (errorcode) {
-    DALI_ENFORCE(errorcode != -1, (std::string)"Corrupted tar file at " + handle->pathname);
+    DALI_ENFORCE(errorcode != -1,
+                 (std::string) "Corrupted tar file at " + ToTarHandle(handle_)->pathname);
     filename_ = "";
     filesize_ = 0;
   } else {
-    filename_ = th_get_pathname(handle);
-    filesize_ = th_get_size(handle);
+    filename_ = th_get_pathname(ToTarHandle(handle_));
+    filesize_ = th_get_size(ToTarHandle(handle_));
   }
   readoffset_ = 0;
-
-  tar_close(handle);
   return errorcode;
+}
+
+void TarArchive::Invalidate() {
+  if (handle_ != nullptr) {
+    tar_close(ToTarHandle(handle_));
+  }
+  handle_ = nullptr;
+  filename_ = "";
+  filesize_ = 0;
+  readoffset_ = 0;
+  archiveoffset_ = 0;
+  eof_ = true;
+  if (instance_handle_ >= 0) {
+    Unregister(instance_handle_);
+  }
+  instance_handle_ = -1;
 }
 
 
