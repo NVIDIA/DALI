@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_TAR_UTILS_H_
-#define DALI_OPERATORS_READER_LOADER_TAR_UTILS_H_
+#ifndef DALI_OPERATORS_READER_LOADER_WEBDATASET_TAR_UTILS_H_
+#define DALI_OPERATORS_READER_LOADER_WEBDATASET_TAR_UTILS_H_
 
 #include <memory>
 #include <mutex>
@@ -34,19 +34,14 @@ namespace detail {
  *                   after each advancement of the archive cursor.
  * There are also two associated sets of methods that the user may use:
  *   - Files iteration methods:
- *     - @ref NextFile - Advanced the archive cursor to the next file. Returns whether it
- *                       has reached the end of archive.
- *     - @ref EndOfArchive - Whether it has reached the end of archive.
+ *     - @ref NextFile
+ *     - @ref EndOfArchive
  *   - File contents access methods:
- *     - @ref GetFileName - Returns the name of the file the archive cursor currently points at.
- *     - @ref GetFileSize - Returns the size of the archive cursor currently points at (in bytes).
- *     - @ref ReadFile - Reads the contents of the file and returns them. In the case of success
- *                       places the file cursor at the end of file. In the other case keeps the file
- *                       cursor intact.
- *     - @ref Read - Reads the given number of bytes into a given buffer, assuming that said buffer
- *                   is big enough to perform this operation. Returns the number of bytes actually
- *                   read.
- *     - @ref EndOfFile - Returns whether the file cursor is at the end of file.
+ *     - @ref GetFileName
+ *     - @ref GetFileSize
+ *     - @ref ReadFile
+ *     - @ref Read
+ *     - @ref EndOfFile
  */
 class TarArchive {
  public:
@@ -111,8 +106,9 @@ class TarArchive {
   bool eof_ = true;
   bool ParseHeader();
   void Skip(size_t count);
+  void Invalidate();  // resets objects to default values
 };
 
 }  // namespace detail
 }  // namespace dali
-#endif  // DALI_OPERATORS_READER_LOADER_TAR_UTILS_H_
+#endif  // DALI_OPERATORS_READER_LOADER_WEBDATASET_TAR_UTILS_H_

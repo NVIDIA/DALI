@@ -30,23 +30,34 @@ namespace detail {
 
 TEST(LibTarUtilsTestSimple, Interface) {
   std::string filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
-                                                   "db/webdataset/MNIST/devel-1.tar"));
-  TarArchive archive(TarArchive(TarArchive(FileStream::Open(filepath, false, false))));
-  
+                                                   "db/webdataset/MNIST/devel-2.tar"));
+  std::string dummy_filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+                                                         "db/webdataset/MNIST/devel-1.tar"));
+
+  TarArchive dummy_archive(FileStream::Open(dummy_filepath, false, false));
+  TarArchive intermediate_archive(std::move(dummy_archive));
+  TarArchive archive(FileStream::Open(filepath, false, false));
+  archive = std::move(intermediate_archive);
+
+  ASSERT_FALSE(dummy_archive.NextFile());
+  ASSERT_TRUE(dummy_archive.EndOfArchive());
+  ASSERT_FALSE(intermediate_archive.NextFile());
+  ASSERT_TRUE(intermediate_archive.EndOfArchive());
+
   ASSERT_TRUE(archive.NextFile());
   ASSERT_FALSE(archive.EndOfArchive());
-  
+
   ASSERT_EQ(archive.GetFileName(), "0.jpg");
   int filesize = archive.GetFileSize();
   ASSERT_FALSE(archive.EndOfFile());
-  
+
   vector<uint8_t> buffer(filesize);
   archive.Read(buffer.data(), 10);
   ASSERT_FALSE(archive.EndOfFile());
   ASSERT_EQ(archive.GetFileSize(), filesize);
-  
+
   ASSERT_TRUE(archive.ReadFile() == nullptr);
-  
+
   archive.Read(buffer.data() + 10, filesize);
   ASSERT_TRUE(archive.EndOfFile());
   ASSERT_EQ(archive.GetFileSize(), filesize);
@@ -55,7 +66,7 @@ TEST(LibTarUtilsTestSimple, Interface) {
 TEST(LibTarUtilsTestSimple, LongNameIndexing) {
   std::string filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
                                                    "db/webdataset/sample-tar/gnu.tar"));
-  TarArchive archive(TarArchive(TarArchive(FileStream::Open(filepath, false, false))));
+  TarArchive archive(FileStream::Open(filepath, false, false));
   std::string name_prefix(128, '#');
   for (int idx = 0; idx < 1000; idx++) {
     ASSERT_EQ(archive.GetFileName(), name_prefix + to_string(idx));
@@ -178,7 +189,7 @@ auto SimpleTarTestsValues() {
   return testing::ValuesIn(values.begin(), values.end());
 }
 
-INSTANTIATE_TEST_CASE_P(LibTarUtilsTestParametrized, SimpleTarTests, SimpleTarTestsValues());
+INSTANTIATE_TEST_SUITE_P(LibTarUtilsTestParametrized, SimpleTarTests, SimpleTarTestsValues());
 
 
 constexpr int kMultithreadedSamples = 3;
@@ -215,7 +226,7 @@ TEST_P(MultiTarTests, Index) {
   }
 }
 
-INSTANTIATE_TEST_CASE_P(LibTarUtilsTestMultithreaded, MultiTarTests,
+INSTANTIATE_TEST_SUITE_P(LibTarUtilsTestMultithreaded, MultiTarTests,
                         ::testing::Values(false, true));
 
 }  // namespace detail

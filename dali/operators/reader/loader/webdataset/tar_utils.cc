@@ -123,6 +123,10 @@ TarArchive& TarArchive::operator=(TarArchive&& other) {
     std::swap(archiveoffset_, other.archiveoffset_);
     std::swap(eof_, other.eof_);
     std::swap(instance_handle_, other.instance_handle_);
+    if (instance_handle_ >= 0) {
+      std::lock_guard<std::mutex> instances_lock(instances_mutex);
+      instances[instance_handle_] = this;
+    }
     other.Invalidate();
   }
   return *this;
@@ -194,8 +198,7 @@ inline bool TarArchive::ParseHeader() {
   if (errorcode) {
     DALI_ENFORCE(errorcode != -1,
                  (std::string) "Corrupted tar file at " + ToTarHandle(handle_)->pathname);
-    filename_ = "";
-    filesize_ = 0;
+    Invalidate();
   } else {
     filename_ = th_get_pathname(ToTarHandle(handle_));
     filesize_ = th_get_size(ToTarHandle(handle_));
@@ -205,10 +208,11 @@ inline bool TarArchive::ParseHeader() {
 }
 
 void TarArchive::Invalidate() {
+  stream_.reset();
   if (handle_ != nullptr) {
     tar_close(ToTarHandle(handle_));
+    handle_ = nullptr;
   }
-  handle_ = nullptr;
   filename_ = "";
   filesize_ = 0;
   readoffset_ = 0;
