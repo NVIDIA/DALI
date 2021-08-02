@@ -89,9 +89,9 @@ def check_bad_device(device_id):
     pipe.set_outputs(outs)
     assert_raises(RuntimeError, pipe.build)
 
-#def test_gpu_op_bad_device():
-#    for device_id in [None, 0]:
-#        yield check_bad_device, device_id
+def test_gpu_op_bad_device():
+    for device_id in [None, 0]:
+        yield check_bad_device, device_id
 
 def check_mixed_op_bad_device(device_id):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=device_id)
@@ -100,9 +100,9 @@ def check_mixed_op_bad_device(device_id):
     pipe.set_outputs(decoded)
     assert_raises(RuntimeError, pipe.build)
 
-#def test_mixed_op_bad_device():
-#    for device_id in [None, 0]:
-#        yield check_bad_device, device_id
+def test_mixed_op_bad_device():
+    for device_id in [None, 0]:
+        yield check_bad_device, device_id
 
 def test_image_decoder_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)

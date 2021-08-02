@@ -172,3 +172,16 @@ def _test_too_many_indices(device):
 def test_too_many_indices():
     for device in ["cpu", "gpu"]:
         yield _test_too_many_indices, device
+
+def test_stride_not_implemented():
+    data = [np.uint8([1,2,3]),np.uint8([1,2])]
+    src = fn.external_source(lambda: data)
+    src[::1]
+    with assert_raises(NotImplementedError):
+        src[::2]
+
+def test_ellipsis_not_implemented():
+    data = [np.uint8([1,2,3]),np.uint8([1,2])]
+    src = fn.external_source(lambda: data)
+    with assert_raises(NotImplementedError):
+        src[...,:1]

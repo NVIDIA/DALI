@@ -152,6 +152,7 @@ class DataNode(object):
         # returns True if this index adds a new output dimension
         def process_index(idx, dim):
             if idx is None:
+                print("DUPA!")
                 idxs.append((None, None, None, None))
                 return True
             elif isinstance(idx, slice):
@@ -164,6 +165,10 @@ class DataNode(object):
                 if idx.name is not None:
                     new_axis_names.append(idx.name)
                 return True
+            elif idx is Ellipsis:
+                raise NotImplementedError("Ellipsis in indexing is not implemented")
+            elif isinstance(idx, (float, str)):
+                raise TypeError("Invalid type for an index: ", type)
             else:
                 idxs.append((idx, None, None, None))
                 return False
