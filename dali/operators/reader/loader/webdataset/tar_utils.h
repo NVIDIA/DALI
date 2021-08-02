@@ -35,21 +35,20 @@ namespace detail {
  * There are also two associated sets of methods that the user may use:
  *   - Files iteration methods:
  *     - @ref NextFile - Advanced the archive cursor to the next file. Returns whether it
- *                       encountered a file (or the end of the archive).
- *     - @ref IsAtFile - Used to check if the archive cursor is currently at some file (not at the
- *                       end of the archive).
+ *                       has reached the end of archive.
+ *     - @ref EndOfArchive - Whether it has reached the end of archive.
  *   - File contents access methods:
- *     - @ref GetFileName - Returns the name of the file currently viewed.
- *     - @ref GetFileSize - Returns the size of the file currently viewed (in bytes).
+ *     - @ref GetFileName - Returns the name of the file the archive cursor currently points at.
+ *     - @ref GetFileSize - Returns the size of the archive cursor currently points at (in bytes).
  *     - @ref ReadFile - Reads the contents of the file and returns them. In the case of success 
  *                       places the file cursor at the end of file. In the other case keeps the file
  *                       cursor intact.
  *     - @ref Read - Reads the given number of bytes into a given buffer, assuming that said buffer
  *                   is big enough to perform this operation. Returns the number of bytes actually
  *                   read.
- *     - @ref Eof - Returns whether the file cursor is at the end of file.
+ *     - @ref EndOfFile - Returns whether the file cursor is at the end of file.
  */
-class TarArchive final {
+class TarArchive {
  public:
   TarArchive() = default;
   explicit TarArchive(std::unique_ptr<FileStream> stream_);
@@ -57,15 +56,47 @@ class TarArchive final {
   ~TarArchive();
   TarArchive& operator=(TarArchive&&);
 
+  /**
+   * @brief Advances the archive to look at the next file in the tarball.
+   * 
+   * @returns Whether it has got any more files to read (or has reached the end of the archive).
+   */
   bool NextFile();
-  bool IsAtFile() const;
+  /**
+   * @brief Returns whether it has reached the end of archive.
+   */
+  bool EndOfArchive() const;
 
+  /**
+   * @brief Returns the name of the file in the archive that is currently being viewed.
+   */
   std::string GetFileName() const;
+  /**
+   * @brief Returns the size (in bytes) of the file in the archive that is currently being viewed.
+   */
   uint64_t GetFileSize() const;
 
+  /**
+   * @brief Reads the contents of the file and returns them.
+   * Reads the contents of the file and returns them. In the case of success places the read head
+   * at the end of file. In the other case keeps the read head intact. Depends on the behaviour of
+   * the Get function of the provided FileStream.
+   * @return The pointer to the full contents of the file, or nullptr if it cannot perform that.
+   */
   std::shared_ptr<void> ReadFile();
+  /**
+   * @brief 
+   * Reads the given number of bytes into a given buffer, assuming that said buffer
+   * is big enough to perform this operation. Returns the number of bytes actually read.
+   * @param buffer the buffer to read the data into
+   * @param count the maximum number of bytes to read
+   * @returns the number of bytes actually read to the buffer
+   */
   size_t Read(uint8_t* buffer, size_t count);
-  bool Eof() const;
+  /**
+   * @brief Returns whether the file cursor is at the end of file.
+   */
+  bool EndOfFile() const;
 
  private:
   std::unique_ptr<FileStream> stream_;

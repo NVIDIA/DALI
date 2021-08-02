@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/reader/loader/tar_utils.h"
+#include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include <libtar.h>
 #include <algorithm>
 #include <cstdarg>
@@ -117,8 +117,8 @@ bool TarArchive::NextFile() {
   return !eof_;
 }
 
-bool TarArchive::IsAtFile() const {
-  return !eof_;
+bool TarArchive::EndOfArchive() const {
+  return eof_;
 }
 
 std::string TarArchive::GetFileName() const {
@@ -156,7 +156,7 @@ size_t TarArchive::Read(uint8_t* buffer, size_t count) {
   return num_read_bytes;
 }
 
-bool TarArchive::Eof() const {
+bool TarArchive::EndOfFile() const {
   return readoffset_ >= filesize_;
 }
 

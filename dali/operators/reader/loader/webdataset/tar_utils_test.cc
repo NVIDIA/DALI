@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/reader/loader/tar_utils.h"
+#include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include <fcntl.h>
 #include <gtest/gtest.h>
 #include <libtar.h>
@@ -33,16 +33,16 @@ TEST(LibTarUtilsTestSimple, Interface) {
                                                    "db/webdataset/MNIST/devel-1.tar"));
   TarArchive archive(TarArchive(TarArchive(FileStream::Open(filepath, false, false))));
   ASSERT_TRUE(archive.NextFile());
-  ASSERT_TRUE(archive.IsAtFile());
+  ASSERT_FALSE(archive.EndOfArchive());
   ASSERT_EQ(archive.GetFileName(), "0.jpg");
   int filesize = archive.GetFileSize();
-  ASSERT_FALSE(archive.Eof());
+  ASSERT_FALSE(archive.EndOfFile());
   vector<uint8_t> buffer(filesize);
   archive.Read(buffer.data(), 10);
-  ASSERT_FALSE(archive.Eof());
+  ASSERT_FALSE(archive.EndOfFile());
   ASSERT_EQ(archive.GetFileSize(), filesize);
   std::shared_ptr<void> contents = archive.ReadFile();
-  ASSERT_TRUE(archive.Eof() ^ (contents == nullptr));
+  ASSERT_TRUE(archive.EndOfFile() ^ (contents == nullptr));
 }
 
 TEST(LibTarUtilsTestSimple, LongNameIndexing) {
