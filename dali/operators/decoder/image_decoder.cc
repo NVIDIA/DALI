@@ -158,7 +158,7 @@ allocation might be useful to determine suitable values for ``device_memory_padd
       false);
 
 DALI_SCHEMA(decoders__Image)
-.DocStr(R"code(Decodes images.
+  .DocStr(R"code(Decodes images.
 
 For jpeg images, depending on the backend selected ("mixed" and "cpu"), the implementation uses
 the *nvJPEG* library or *libjpeg-turbo*, respectively. Other image formats are decoded
