@@ -99,12 +99,12 @@ struct SubscriptInfo {
 
     if (at.IsDefined()) {
       if (lo.IsDefined() || hi.IsDefined()) {
-        DALI_FAIL(make_string("The subscriptg for dimension ", i,
+        DALI_FAIL(make_string("The subscript for dimension ", i,
                               " must not be specified both as an index and as a range."));
       }
       if (step.IsDefined()) {
-        DALI_FAIL(make_string("The subscriptg for dimension ", i,
-                              " must not be specified as an index - it cannot have a step."));
+        DALI_FAIL(make_string("The subscript for dimension ", i,
+                              " was specified as index - it cannot have a step."));
       }
     }
   }

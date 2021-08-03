@@ -150,7 +150,6 @@ class DataNode(object):
         # returns True if this index adds a new output dimension
         def process_index(idx, dim):
             if idx is None:
-                print("DUPA!")
                 idxs.append((None, None, None, None))
                 return True
             elif isinstance(idx, slice):
@@ -196,10 +195,8 @@ class DataNode(object):
         import nvidia.dali.fn
         if len(slice_args) == 0:
             if len(new_axes) == 0 or new_axes[-1] < len(idxs):
-                print("Adding dim check for ", len(idxs))
                 sliced = nvidia.dali.fn.subscript_dim_check(self, num_subscripts=len(idxs))
             else:
-                print("Dim check will be performed by expand_dims.")
                 sliced = self
         else:
             sliced = nvidia.dali.fn.tensor_subscript(self, **slice_args, num_subscripts=len(idxs))

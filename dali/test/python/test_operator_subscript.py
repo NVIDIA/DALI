@@ -102,7 +102,7 @@ def test_runtime_indexing():
             assert np.array_equal(ref, cpu.at(i))
             assert np.array_equal(ref, gpu.as_cpu().at(i))
 
-def test_constant_ranges():
+def test_new_axis():
     def data_gen():
         return [np.float32([[0,1,2],[3,4,5]]), np.float32([[0,1],[2,3],[4,5]])]
     yield _test_indexing, data_gen, "AB", "",       lambda x: x[1:,dali.newaxis,:2],        lambda x: x[1:,np.newaxis,:2]
@@ -110,23 +110,25 @@ def test_constant_ranges():
     yield _test_indexing, data_gen, "AB", "ACB",    lambda x: x[:,dali.newaxis("C"),:],     lambda x: x[:,np.newaxis,:]
     yield _test_indexing, data_gen, "AB", "C",      lambda x: x[1,dali.newaxis("C"),1],     lambda x: x[1,np.newaxis,1]
 
-def _test_invalid_args(device, args, run):
+def _test_invalid_args(device, args, message, run):
     data = [np.uint8([[1,2,3]]),np.uint8([[1,2]])]
-    pipe = Pipeline(1, 1, 0)
+    pipe = Pipeline(2, 1, 0)
     src = fn.external_source(lambda: data, device=device)
     pipe.set_outputs(fn.tensor_subscript(src, **args))
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError) as err:
         pipe.build()
         if run:
             pipe.run()
+    if message is not None:
+        assert message in str(err.exception)
 
 def test_inconsistent_args():
     for device in ["cpu", "gpu"]:
-        for args in [
-                { "lo_0":0, "at_0":0 },
-                { "at_0":0, "step_0":1 },
+        for args, message in [
+                ({ "lo_0":0, "at_0":0 }, "both as an index"),
+                ({ "at_0":0, "step_0":1 }, "cannot have a step")
             ]:
-            yield _test_invalid_args, device, args, False
+            yield _test_invalid_args, device, args, message, False
 
 def test_unsupported_step():
     for device in ["cpu", "gpu"]:
@@ -134,15 +136,16 @@ def test_unsupported_step():
                 { "step_0": 2},
                 { "step_1": -1},
             ]:
-            yield _test_invalid_args, device, args, True
+            yield _test_invalid_args, device, args, "not implemented", True
 
 def _test_out_of_range(device, idx):
     data = [np.uint8([1,2,3]),np.uint8([1,2])]
     src = fn.external_source(lambda: data, device=device)
     pipe = index_pipe(src, lambda x: x[idx])
     pipe.build()
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError) as err:
         _ = pipe.run()
+    assert "out of range" in str(err.exception)
 
 def test_out_of_range():
     for device in ["cpu", "gpu"]:
@@ -156,21 +159,33 @@ def _test_too_many_indices(device):
     pipe = index_pipe(src, lambda x: x[1,:])
 
     # Verified by tensor_subscript
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError) as err:
         pipe.build()
         _ = pipe.run()
+    print(str(err))
+    assert "Too many indices" in str(err.exception)
 
     # Verified by subscript_dim_check
     pipe = index_pipe(src, lambda x: x[:,:])
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError) as err:
         pipe.build()
         _ = pipe.run()
+    assert "Too many indices" in str(err.exception)
 
     # Verified by expand_dims
     pipe = index_pipe(src, lambda x: x[:,:,dali.newaxis])
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError) as err:
         pipe.build()
         _ = pipe.run()
+    assert "not enough dimensions" in str(err.exception)
+
+    # Verified by subscript_dim_check
+    pipe = index_pipe(src, lambda x: x[:,dali.newaxis,:])
+    with assert_raises(RuntimeError) as err:
+        pipe.build()
+        _ = pipe.run()
+    assert "Too many indices" in str(err.exception)
+
 
 def test_too_many_indices():
     for device in ["cpu", "gpu"]:

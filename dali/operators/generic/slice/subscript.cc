@@ -113,7 +113,7 @@ struct SubscriptDimCheck : public Operator<Backend> {
     num_subscripts_ = spec.GetArgument<int>("num_subscripts");
   }
 
-  virtual bool SetupImpl(vector<OutputDesc> &desc, const workspace_t<Backend> &ws) {
+  bool SetupImpl(vector<OutputDesc> &desc, const workspace_t<Backend> &ws) override {
     return false;
   }
 
