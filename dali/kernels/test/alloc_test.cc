@@ -38,10 +38,9 @@ TEST(KernelAlloc, AllocFree) {
       EXPECT_EQ(cudaGetLastError(), 0) << "Error when freeing for " << names[i];
     } catch (const CUDAError &e) {
       // skip this case if Unified is not supported
-      if (!(e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) &&
-          !(e.is_rt_api() && e.rt_error() == cudaErrorNotSupported)) {
-        EXPECT_TRUE(false);
-      }
+      bool not_supported = (e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
+                           (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported);
+      EXPECT_TRUE(not_supported) << "Unexpected CUDA exception: " << e.what();
     }
   }
 }
@@ -96,10 +95,9 @@ TEST(KernelAlloc, Unique) {
       EXPECT_EQ(cudaGetLastError(), 0) << "Error when freeing for " << names[i];
     } catch (const CUDAError &e) {
       // skip this case if Unified is not supported
-      if (!(e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) &&
-          !(e.is_rt_api() && e.rt_error() == cudaErrorNotSupported)) {
-        EXPECT_TRUE(false);
-      }
+      bool not_supported = (e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
+                           (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported);
+      EXPECT_TRUE(not_supported) << "Unexpected CUDA exception: " << e.what();
     }
   }
 }
@@ -120,10 +118,9 @@ TEST(KernelAlloc, Shared) {
       EXPECT_EQ(cudaGetLastError(), 0) << "Error when freeing for " << names[i];
     } catch (const CUDAError &e) {
       // skip this case if Unified is not supported
-      if (!(e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) &&
-          !(e.is_rt_api() && e.rt_error() == cudaErrorNotSupported)) {
-        EXPECT_TRUE(false);
-      }
+      bool not_supported = (e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
+                           (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported);
+      EXPECT_TRUE(not_supported) << "Unexpected CUDA exception: " << e.what();
     }
   }
 }
