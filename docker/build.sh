@@ -161,6 +161,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_NVOF=${BUILD_NVOF}                  \
                                         BUILD_NVDEC=${BUILD_NVDEC}                \
                                         BUILD_LIBSND=${BUILD_LIBSND}              \
+                                        BUILD_LIBTAR=${BUILD_LIBTAR}              \
                                         BUILD_NVML=${BUILD_NVML}                  \
                                         BUILD_FFTS=${BUILD_FFTS}                  \
                                         BUILD_CUFILE=${BUILD_CUFILE}              \

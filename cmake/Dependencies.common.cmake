@@ -112,6 +112,23 @@ if(BUILD_LIBSND)
 endif()
 
 ##################################################################
+# libtar
+##################################################################
+if(BUILD_LIBTAR)
+  find_library(libtar_LIBS
+          NAMES libtar.a tar libtar
+          PATHS ${CMAKE_SYSTEM_PREFIX_PATH} ${LIBTAR_ROOT_DIR} "/usr/local"
+          PATH_SUFFIXES lib lib64)
+  if(${libtar_LIBS} STREQUAL libtar_LIBS-NOTFOUND)
+    message(FATAL_ERROR "libtar could not be found. Try to specify it's location with `-DLIBTAR_ROOT_DIR`.")
+  endif()
+  message(STATUS "Found libtar: ${libtar_LIBS}")
+  list(APPEND DALI_LIBS ${libtar_LIBS})
+  list(APPEND DALI_EXCLUDES libtar.a)
+endif()
+
+
+##################################################################
 # FFmpeg
 ##################################################################
 if(BUILD_FFMPEG)
