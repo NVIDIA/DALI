@@ -131,9 +131,7 @@ CallAtExit<Callable> AtExit(Callable &&c) {
 bool UseDeviceMemoryPool() {
   static bool value = []() {
     const char *env = std::getenv("DALI_USE_DEVICE_MEM_POOL");
-    // TODO(michalz): In the end, this should default to true:
-    // return !env || atoi(env)
-    return env && atoi(env);
+    return !env || atoi(env);
   }();
   return value;
 }
@@ -141,9 +139,7 @@ bool UseDeviceMemoryPool() {
 bool UsePinnedMemoryPool() {
   static bool value = []() {
     const char *env = std::getenv("DALI_USE_PINNED_MEM_POOL");
-    // TODO(michalz): In the end, this should default to true:
-    // return !env || atoi(env)
-    return env && atoi(env);
+    return !env || atoi(env);
   }();
   return value;
 }
