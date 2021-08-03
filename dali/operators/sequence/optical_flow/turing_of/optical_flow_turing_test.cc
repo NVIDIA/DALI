@@ -146,12 +146,12 @@ TEST_F(OpticalFlowTuringKernelTest, FlowVectorTest) {
   tested.resize(reference_data.size());
   tested_host.resize(reference_data.size());
 
-  optical_flow::kernel::EncodeFlowComponents(input, tested, pitch, width, height, 0);
+  optical_flow::kernel::EncodeFlowComponents(input.data(), tested.data(), pitch, width, height, 0);
   CUDA_CALL(cudaDeviceSynchronize());
   copyD2H(tested_host.data(), tested.data(), tested_host.size());
 
   for (size_t i = 0; i < reference_data.size(); i++) {
-    EXPECT_EQ(reference_data[i], tested[i]) << "Failed on index: " << i;
+    EXPECT_EQ(reference_data[i], tested_host[i]) << "Failed on index: " << i;
   }
 }
 
