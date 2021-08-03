@@ -162,7 +162,6 @@ def _test_too_many_indices(device):
     with assert_raises(RuntimeError) as err:
         pipe.build()
         _ = pipe.run()
-    print(str(err))
     assert "Too many indices" in str(err.exception)
 
     # Verified by subscript_dim_check
