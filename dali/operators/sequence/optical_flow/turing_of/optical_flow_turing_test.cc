@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "dali/kernels/common/copy.h"
 #include "dali/operators/sequence/optical_flow/turing_of/optical_flow_turing.h"
 #include "dali/core/cuda_utils.h"
+#include "dali/core/dev_buffer.h"
 
 namespace dali {
 namespace optical_flow {
@@ -45,24 +46,23 @@ class OpticalFlowTuringKernelTest : public ::testing::Test {
   template<bool Grayscale, typename ColorConversion>
   void ColorConversionTest(ColorConversion cc, std::vector<uint8_t> input_data,
                            std::vector<uint8_t> reference_data) {
-    uint8_t *input, *tested;
-    CUDA_CALL(cudaMallocManaged(&input, input_data.size()));
-    CUDA_CALL(cudaMallocManaged(&tested, reference_data.size()));
-    CUDA_CALL(cudaMemcpy(input, input_data.data(), input_data.size(), cudaMemcpyDefault));
+    DeviceBuffer<uint8_t> input, tested;
+    std::vector<uint8_t> tested_host;
+    input.from_host(input_data);
+    tested.resize(reference_data.size());
+    tested_host.resize(reference_data.size());
 
     auto w = Grayscale ? width_gray_ : width_;
     auto h = Grayscale ? height_gray_ : height_;
     auto p = Grayscale ? pitch_gray_ : pitch_;
 
-    cc(input, tested, p, w, h, 0);
+    cc(input.data(), tested.data(), p, w, h, 0);
     CUDA_CALL(cudaDeviceSynchronize());
+    copyD2H(tested_host.data(), tested.data(), tested_host.size());
 
     for (size_t i = 0; i < reference_data.size(); i++) {
-      EXPECT_EQ(reference_data[i], tested[i]) << "Failed on index: " << i;
+      EXPECT_EQ(reference_data[i], tested_host[i]) << "Failed on index: " << i;
     }
-
-    CUDA_CALL(cudaFree(tested));
-    CUDA_CALL(cudaFree(input));
   }
 
 
@@ -139,22 +139,20 @@ TEST_F(OpticalFlowTuringKernelTest, FlowVectorTest) {
           2.53125, 2.78125, 2.53125, 7.96875, 0.06250, 0.56250, 1.09375, 7.96875,
   };
   size_t width = 8, pitch = 10, height = 6;
-  float *input;
-  int16_t *tested;
-  CUDA_CALL(cudaMallocManaged(&input, test_data.size() * sizeof(float)));
-  CUDA_CALL(cudaMallocManaged(&tested, reference_data.size() * sizeof(int16_t)));
-  CUDA_CALL(
-          cudaMemcpy(input, test_data.data(), test_data.size() * sizeof(float), cudaMemcpyDefault));
+  DeviceBuffer<float> input;
+  DeviceBuffer<int16_t> tested;
+  std::vector<int16_t> tested_host;
+  input.from_host(test_data);
+  tested.resize(reference_data.size());
+  tested_host.resize(reference_data.size());
 
   optical_flow::kernel::EncodeFlowComponents(input, tested, pitch, width, height, 0);
   CUDA_CALL(cudaDeviceSynchronize());
+  copyD2H(tested_host.data(), tested.data(), tested_host.size());
 
   for (size_t i = 0; i < reference_data.size(); i++) {
     EXPECT_EQ(reference_data[i], tested[i]) << "Failed on index: " << i;
   }
-
-  CUDA_CALL(cudaFree(tested));
-  CUDA_CALL(cudaFree(input));
 }
 
 }  // namespace kernel
