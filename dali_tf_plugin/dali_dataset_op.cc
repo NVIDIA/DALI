@@ -94,6 +94,17 @@ class DALIDatasetOp::Dataset : public DatasetBase {
 
   std::unique_ptr<IteratorBase> MakeIteratorInternal(const string &prefix) const override;
 
+  /**
+   * @brief Current implementation disables splits. For newer TF versions, it is
+   * necessary to implement InputDatasets to get rid of the warnings, but adding it would enable
+   * automatic SplitProvider for DALIDataset. As DALI has its own concept of shards, we do not
+   * handle splits as of now, so it is disabled explicitly.
+   */
+  Status MakeSplitProviders(
+      std::vector<std::unique_ptr<SplitProvider>>* split_providers) const override;
+
+  Status InputDatasets(std::vector<const DatasetBase*>* inputs) const override;
+
   const DataTypeVector &output_dtypes() const override {
     return dtypes_;
   }
@@ -889,6 +900,28 @@ std::unique_ptr<IteratorBase> DALIDatasetOp::Dataset::MakeIteratorInternal(
 
   return absl::make_unique<Iterator>(Iterator::Params{this, strings::StrCat(prefix, "::DALI")},
                                      pipeline_handle, pipeline_def_.enable_memory_stats);
+}
+
+
+Status DALIDatasetOp::Dataset::MakeSplitProviders(
+    std::vector<std::unique_ptr<SplitProvider>> *split_providers) const {
+  return errors::Unimplemented(
+      "Cannot create split providers for dataset of type DALIDataset, "
+      ", because the dataset does not support this functionality yet. "
+      "Please use DALI sharding for iterating over parts of the dataset.");
+}
+
+
+Status DALIDatasetOp::Dataset::InputDatasets(std::vector<const DatasetBase *> *inputs) const {
+  if (!HasInputs()) {
+    inputs->clear();
+    return Status::OK();
+  }
+  inputs->resize(NumInputs());
+  for (int i = 0; i < NumInputs(); i++) {
+    inputs->operator[](i) = input_desc_.inputs[i];
+  }
+  return Status::OK();
 }
 
 
