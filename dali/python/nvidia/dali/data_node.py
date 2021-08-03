@@ -193,10 +193,15 @@ class DataNode(object):
 
         import nvidia.dali.fn
         if len(slice_args) == 0:
-            if len(new_axes) == 0 or not isinstance(val[-1], _NewAxis):
-                sliced = nvidia.dali.fn.subscript_dim_check(self, num_subscripts=len(idxs))
+            # No true slicing arguments - only full range : and dali.newaxis.
+            # We need to ensure there are enough dimensions in the input for the number of
+            # full-range axes.
+            # If the last index is a newaxis, then ExpandDims will make sure that it makes sense.
+            # Otherwise we need to add an additional check.
+            if len(new_axes) > 0 and isinstance(val[-1], _NewAxis):
+                sliced = self  # no check needed, ExpandDims will do the trick
             else:
-                sliced = self
+                sliced = nvidia.dali.fn.subscript_dim_check(self, num_subscripts=len(idxs))
         else:
             sliced = nvidia.dali.fn.tensor_subscript(self, **slice_args, num_subscripts=len(idxs))
         if len(new_axes) == 0:
