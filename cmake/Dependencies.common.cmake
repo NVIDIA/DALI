@@ -116,7 +116,7 @@ endif()
 ##################################################################
 if(BUILD_LIBTAR)
   find_library(libtar_LIBS
-          NAMES tar libtar
+          NAMES libtar.a tar libtar
           PATHS ${CMAKE_SYSTEM_PREFIX_PATH} ${LIBTAR_ROOT_DIR} "/usr/local"
           PATH_SUFFIXES lib lib64)
   if(${libtar_LIBS} STREQUAL libtar_LIBS-NOTFOUND)

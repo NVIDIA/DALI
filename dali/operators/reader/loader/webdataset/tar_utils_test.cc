@@ -23,7 +23,7 @@
 #include <utility>
 #include <vector>
 #include "dali/operators/reader/loader/filesystem.h"
-#include "dali/util/std_file.h"
+#include "dali/util/file.h"
 
 namespace dali {
 namespace detail {

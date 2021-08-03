@@ -83,6 +83,7 @@ if (BUILD_CUFILE)
   target_link_libraries(dali PRIVATE dynlink_cufile)
 endif()
 
+###############################################
 # Build test suite
 ################################################
 if (BUILD_DALI_PIPELINE AND BUILD_TEST)

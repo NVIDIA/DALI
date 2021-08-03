@@ -43,7 +43,7 @@ namespace detail {
  *     - @ref Read
  *     - @ref EndOfFile
  */
-class TarArchive {
+class DLL_PUBLIC TarArchive {
  public:
   TarArchive() = default;
   explicit TarArchive(std::unique_ptr<FileStream> stream_);
