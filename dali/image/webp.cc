@@ -59,12 +59,13 @@ Image::Shape WebpImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t leng
     }
 
     // VP8L shape information starts after the sync code
-    const uint32_t shape_data = ReadValueLE<uint32_t>(vp8_data + 9);
-    const int64_t W = (shape_data & 0x00003FFF) + 1;
-    const int64_t H = ((shape_data & 0x0FFFC000) >> 14) + 1;
+    const uint32_t features = ReadValueLE<uint32_t>(vp8_data + 9);
+    const int64_t W = (features & 0x00003FFF) + 1;
+    const int64_t H = ((features & 0x0FFFC000) >> 14) + 1;
+    const int8_t alpha = (features & 0x10000000) >> 28;
 
     // VP8L always uses RGBA
-    return {H, W, 4};
+    return {H, W, 3 + alpha};
   } else if (vp8_data[0] == 'V' && vp8_data[1] == 'P' && vp8_data[2] == '8' && vp8_data[3] == 'X') {
     // Extended file format
     DALI_FAIL("WebP extended file format is not supported.");
