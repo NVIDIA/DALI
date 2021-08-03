@@ -179,11 +179,12 @@ def _test_too_many_indices(device):
     assert "not enough dimensions" in str(err.exception)
 
     # Verified by subscript_dim_check
-    pipe = index_pipe(src, lambda x: x[:,dali.newaxis,:])
+    pipe = index_pipe(src, lambda x: x[dali.newaxis,:,dali.newaxis,:])
     with assert_raises(RuntimeError) as err:
         pipe.build()
         _ = pipe.run()
     assert "Too many indices" in str(err.exception)
+
 
 
 def test_too_many_indices():

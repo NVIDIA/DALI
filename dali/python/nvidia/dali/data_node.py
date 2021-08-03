@@ -171,12 +171,11 @@ class DataNode(object):
                 return False
 
         if not isinstance(val, tuple):
-            process_index(val, 0)
-        else:
-            d = 0
-            for v in val:
-                if process_index(v, d):
-                    d += 1
+            val = (val,)
+        d = 0
+        for v in val:
+            if process_index(v, d):
+                d += 1
 
         if len(new_axis_names) != 0:
             if len(new_axis_names) != len(new_axes):
@@ -194,7 +193,7 @@ class DataNode(object):
 
         import nvidia.dali.fn
         if len(slice_args) == 0:
-            if len(new_axes) == 0 or new_axes[-1] < len(idxs):
+            if len(new_axes) == 0 or not isinstance(val[-1], _NewAxis):
                 sliced = nvidia.dali.fn.subscript_dim_check(self, num_subscripts=len(idxs))
             else:
                 sliced = self
