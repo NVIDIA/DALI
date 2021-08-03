@@ -930,6 +930,9 @@ def test_tensor_subscript():
     out, = pipe.run()
     assert out.at(0).shape == np.zeros(test_data_shape)[1:,:-1,1].shape
 
+def test_subscript_dim_check():
+    check_single_input(fn.subscript_dim_check, num_subscripts=3)
+
 tested_methods = [
     "audio_decoder",
     "image_decoder",
@@ -1054,6 +1057,7 @@ tested_methods = [
     "roi_random_crop",
     "segmentation.random_object_bbox",
     "tensor_subscript",
+    "subscript_dim_check",
     "math.ceil",
     "math.clamp",
     "math.tanh",

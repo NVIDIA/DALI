@@ -1031,6 +1031,12 @@ def test_tensor_subscript():
     check_pipeline(generate_data(31, 13, (5, 160, 80, 3), lo=0, hi=255, dtype=np.uint8),
                    pipeline_fn=pipe, input_layout="FHWC")
 
+def test_subscript_dim_check():
+    check_pipeline(generate_data(31, 13, array_1d_shape_generator, lo=0, hi=255, dtype=np.uint8),
+                   single_op_pipeline,
+                   operator_fn=fn.subscript_dim_check, num_subscripts=1)
+
+
 tested_methods = [
     "audio_decoder",
     "image_decoder",
@@ -1129,6 +1135,7 @@ tested_methods = [
     "segmentation.select_masks",
     "expand_dims",
     "tensor_subscript",
+    "subscript_dim_check",
     "transforms.rotation",
     "transforms.shear",
     "transforms.crop",
