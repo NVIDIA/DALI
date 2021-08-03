@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ def _testimpl_expand_dims(axes, new_axis_names, layout, shapes, expected_out_sha
         for i in range(batch_size):
             out_arr = np.array(outs[0][i])
             assert out_arr.shape == expected_out_shapes[i]
-            
+
 
 def test_expand_dims():
     # axes, new_axis_names, layout, shapes, expected_shapes, expected_layout
@@ -51,6 +51,7 @@ def test_expand_dims():
         ([0, 1], "", "", [()], [(1, 1)], ""),
         ([0], "", "HW", [(10, 20)], [(1, 10, 20)], ""),
         ([4, 3], "AB", "XYZ", [(10, 20, 30)], [(10, 20, 30, 1, 1)], "XYZBA"),
+        ([0], "X", "", [()], [(1,)], "X")
     ]
     for axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout in args:
         yield _testimpl_expand_dims, axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout
