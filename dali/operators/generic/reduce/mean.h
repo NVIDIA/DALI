@@ -15,7 +15,7 @@
 #ifndef DALI_OPERATORS_GENERIC_REDUCE_MEAN_H__
 #define DALI_OPERATORS_GENERIC_REDUCE_MEAN_H__
 
-#include "include/dali/core/static_map.h"
+#include "dali/core/static_map.h"
 #include "dali/operators/generic/reduce/reduce.h"
 
 /// Definition of mapping between input types and possible output types
