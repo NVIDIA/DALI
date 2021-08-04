@@ -27,7 +27,7 @@ namespace dali {
  */
 static const std::vector<std::string> kKnownImageExtensions = {".jpg", ".jpeg", ".png", ".bmp",
                                                                ".tif", ".tiff", ".pnm", ".ppm",
-                                                               ".pgm", ".pbm", ".jp2"};
+                                                               ".pgm", ".pbm", ".jp2", ".webp"};
 
 static const std::vector<std::string> kKnownAudioExtensions = {".flac", ".ogg", ".wav"};
 
