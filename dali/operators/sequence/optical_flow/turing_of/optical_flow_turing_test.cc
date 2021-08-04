@@ -147,7 +147,7 @@ TEST_F(OpticalFlowTuringKernelTest, FlowVectorTest) {
   tested.resize(reference_data.size());
   tested_host.resize(reference_data.size());
 
-  cudaMemset(tested.data(), 0x5C, tested.size());
+  cudaMemset(tested.data(), 0x5C, tested.size()*sizeof(int16_t));
   optical_flow::kernel::EncodeFlowComponents(input.data(), tested.data(), pitch, width, height, 0);
   CUDA_CALL(cudaDeviceSynchronize());
   copyD2H(tested_host.data(), tested.data(), reference_data.size());
