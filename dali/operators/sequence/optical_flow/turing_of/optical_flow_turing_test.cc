@@ -56,6 +56,7 @@ class OpticalFlowTuringKernelTest : public ::testing::Test {
     auto h = Grayscale ? height_gray_ : height_;
     auto p = Grayscale ? pitch_gray_ : pitch_;
 
+    cudaMemset(tested.data(), 0x5C, tested.size());
     cc(input.data(), tested.data(), p, w, h, 0);
     CUDA_CALL(cudaDeviceSynchronize());
     copyD2H(tested_host.data(), tested.data(), tested_host.size());
@@ -67,12 +68,12 @@ class OpticalFlowTuringKernelTest : public ::testing::Test {
 
 
   const std::vector<uint8_t> reference_data_ = {
-          73, 5, 47, 255, 71, 30, 1, 255, 0, 0,
-          80, 41, 60, 255, 60, 85, 41, 255, 0, 0,
-          55, 66, 4, 255, 94, 59, 47, 255, 0, 0,
-          64, 83, 96, 255, 61, 30, 95, 255, 0, 0,
-          88, 95, 63, 255, 96, 78, 16, 255, 0, 0,
-          81, 89, 81, 255, 2, 18, 35, 255, 0, 0,
+          73, 5, 47, 255, 71, 30, 1, 255, 0x5C, 0x5C,
+          80, 41, 60, 255, 60, 85, 41, 255, 0x5C, 0x5C,
+          55, 66, 4, 255, 94, 59, 47, 255, 0x5C, 0x5C,
+          64, 83, 96, 255, 61, 30, 95, 255, 0x5C, 0x5C,
+          88, 95, 63, 255, 96, 78, 16, 255, 0x5C, 0x5C,
+          81, 89, 81, 255, 2, 18, 35, 255, 0x5C, 0x5C,
   };
   const std::vector<uint8_t> rgb_data_ = {
           73, 5, 47, 71, 30, 1,
@@ -146,14 +147,14 @@ TEST_F(OpticalFlowTuringKernelTest, FlowVectorTest) {
   tested.resize(reference_data.size());
   tested_host.resize(reference_data.size());
 
-  cudaMemset(tested.data(), 0x5C, reference_data.size());
+  cudaMemset(tested.data(), 0x5C, tested.size());
   optical_flow::kernel::EncodeFlowComponents(input.data(), tested.data(), pitch, width, height, 0);
   CUDA_CALL(cudaDeviceSynchronize());
-  copyD2H(tested_host.data(), tested.data(), tested_host.size());
+  copyD2H(tested_host.data(), tested.data(), reference_data.size());
 
-    for (size_t i = 0; i < reference_data.size(); i++) {
-      EXPECT_EQ(reference_data[i], tested_host[i]) << "Failed on index: " << i;
-    }
+  for (size_t i = 0; i < reference_data.size(); i++) {
+    EXPECT_EQ(reference_data[i], tested_host[i]) << "Failed on index: " << i;
+  }
 }
 
 }  // namespace kernel
