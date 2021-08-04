@@ -317,6 +317,30 @@ void daliOutputRelease(daliPipelineHandle *pipe_handle) {
 
 
 template<typename T>
+static int64_t daliIsUniformShapeAtHelper(dali::DeviceWorkspace *ws, int n) {
+  int64_t *c_shape = nullptr;
+  std::vector<dali::Index> shape;
+  const auto &out_tensor_list = ws->Output<T>(n);
+  return is_uniform(out_tensor_list.shape());
+}
+
+
+static int64_t daliIsUniformShapeAtTypedHelper(daliPipelineHandle* pipe_handle, int n) {
+  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
+  if (ws->OutputIsType<dali::CPUBackend>(n)) {
+    return daliIsUniformShapeAtHelper<dali::CPUBackend>(ws, n);
+  } else {
+    return daliIsUniformShapeAtHelper<dali::GPUBackend>(ws, n);
+  }
+}
+
+
+int64_t daliIsUniformShapeAt(daliPipelineHandle* pipe_handle, int n) {
+  return daliIsUniformShapeAtTypedHelper(pipe_handle, n);
+}
+
+
+template<typename T>
 static int64_t *daliShapeAtHelper(dali::DeviceWorkspace *ws, int n, int k) {
   int64_t *c_shape = nullptr;
   std::vector<dali::Index> shape;

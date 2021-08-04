@@ -34,6 +34,10 @@ def test_tf_dataset_gpu():
 def test_tf_dataset_cpu():
     run_tf_dataset_eager_mode('cpu')
 
+# Return differently sized images to check if DALIDataset can handle this case gracefully
+@raises(Exception)
+def test_mixed_size_pipeline():
+    run_tf_dataset_eager_mode('gpu', get_pipeline_desc=get_mix_size_image_pipeline)
 
 def run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch):
     tensor = np.full(shape, value, dtype)
@@ -268,8 +272,10 @@ def test_tf_dataset_disallowed_es():
     yield check_disallowed_es, {}, {}
     # num_outputs
     yield check_disallowed_es, {'name': 'a', 'num_outputs': 1}, {'a': in_dataset}
-    # source provided
+    # source provided, so we don't have valid placeholder
     yield check_disallowed_es, {'name': 'a', 'source': []}, {'a': in_dataset}
+    # misnamed placeholder
+    yield check_disallowed_es, {'name': 'b'}, {'a': in_dataset}
 
 
 def check_layout(kwargs, input_datasets, layout):

@@ -506,10 +506,11 @@ if dataset_compatible_tensorflow():
 
                 # there is External Source with name equal to `input_name`
                 if input_name not in name_es_map.keys():
-                    raise ValueError(("Did not find an External Source node with name='{}' in "
-                                      "the provided pipeline - required by the name specified "
-                                      "in the `input_datasets`. Names of available External "
-                                      "Source nodes are: {}.").format(input_name,
+                    raise ValueError(("Did not find an External Source placeholder node with "
+                                      "name='{}' in the provided pipeline - required by the name "
+                                      "specified in the `input_datasets`. Names of available  "
+                                      "placeholder External Source nodes are: {}. Placeholder "
+                                      "nodes cannot have `source` argument specified.").format(input_name,
                                                                       list(name_es_map.keys())))
 
                 in_names_list.append(input_name)
@@ -647,17 +648,23 @@ if dataset_compatible_tensorflow():
         def _assert_correct_external_sources(self, external_source):
             """Validate that the external source nodes used are properly configured"""
             if external_source._op._num_outputs is not None:
-                raise ValueError("Found External Source node in the Pipeline that was "
-                                 "created with `num_outputs` parameter. Only single-output "
+                raise ValueError("Found placeholder External Source node (without `source` "
+                                 "argument) in the Pipeline that was created with `num_outputs` "
+                                 "`num_outputs` parameter. Only single-output "
                                  "(with `num_outputs=None`), named (with `name` argument "
                                  "specified) External Source nodes are supported as inputs "
-                                 "for DALIDataset integration.")
+                                 "placeholders for DALIDataset integration. "
+                                 "Alternatively, External Source can be used with `source` "
+                                 "parameter specified.")
             if external_source._op._name is None:
-                raise ValueError("Found External Source node in the Pipeline that was "
-                                 "not named (no `name` argument set). Only single-output "
+                raise ValueError("Found placeholder External Source node (without `source` "
+                                 "argument) in the Pipeline that was not named "
+                                 "(no `name` argument set). Only single-output "
                                  "(with `num_outputs=None`), named (with `name` argument "
                                  "specified) External Source nodes are supported as inputs "
-                                 "for DALIDataset integration.")
+                                 "placeholders for DALIDataset integration. "
+                                 "Alternatively, External Source can be used with `source` "
+                                 "parameter specified.")
 
         def _get_name_es_instance_map(self):
             """Return mappings between name of External Source and the op.

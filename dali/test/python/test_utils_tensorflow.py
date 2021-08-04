@@ -88,6 +88,36 @@ def expect_iter_end(should_raise, exception_type):
 #
 # ################################################################################################ #
 
+def get_mix_size_image_pipeline(batch_size, num_threads, device, device_id=0, shard_id=0, num_shards=1,
+        def_for_dataset=False):
+    test_data_root = os.environ['DALI_EXTRA_PATH']
+    file_root = os.path.join(test_data_root, 'db', 'coco_dummy', 'images')
+    annotations_file = os.path.join(
+        test_data_root, 'db', 'coco_dummy', 'instances.json')
+
+    pipe = Pipeline(batch_size, num_threads, device_id)
+    with pipe:
+        jpegs, _, _, image_ids = fn.readers.coco(
+            file_root=file_root,
+            annotations_file=annotations_file,
+            shard_id=shard_id,
+            num_shards=num_shards,
+            ratio=False,
+            image_ids=True)
+        images = fn.decoders.image(
+            jpegs,
+            device=('mixed' if device == 'gpu' else 'cpu'),
+            output_type=types.RGB)
+
+        pipe.set_outputs(images)
+
+    shapes = ((batch_size, None, None, None),)
+    dtypes = (tf.float32,)
+
+    return pipe, shapes, dtypes
+
+
+
 def get_image_pipeline(batch_size, num_threads, device, device_id=0, shard_id=0, num_shards=1,
         def_for_dataset=False):
     test_data_root = os.environ['DALI_EXTRA_PATH']

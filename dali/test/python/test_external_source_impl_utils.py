@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from nvidia.dali._utils import external_source_impl
-from nvidia.dali import tensors
+from nvidia.dali import tensors, pipeline_def
+import nvidia.dali.fn as fn
 from nose.tools import assert_equals, raises
 from nose.plugins.attrib import attr
 import numpy as np
@@ -23,7 +24,11 @@ def passes_assert(callback, sample):
     assert_equals(callback(sample), True)
 
 @raises(TypeError)
-def raises_assert(callback, sample):
+def raises_type_error(callback, sample):
+    callback(sample)
+
+# @raises(ValueError)
+def raises_value_error(callback, sample):
     callback(sample)
 
 def converts(callback, sample, baseline):
@@ -40,9 +45,21 @@ def run_checks(samples_allowed, batches_allowed, samples_disallowed, batches_dis
         yield passes_assert, external_source_impl.assert_cpu_batch_data_type, sample
         yield converts, external_source_impl.batch_to_numpy, sample, baseline
     for sample in samples_disallowed:
-        yield raises_assert, external_source_impl.assert_cpu_sample_data_type, sample
+        yield raises_type_error, external_source_impl.assert_cpu_sample_data_type, sample
     for sample in samples_disallowed + batches_disallowed:
-        yield raises_assert, external_source_impl.assert_cpu_batch_data_type, sample
+        yield raises_type_error, external_source_impl.assert_cpu_batch_data_type, sample
+
+
+def non_uniform_tl():
+    def get_samples():
+        return [np.array([42, 42]), np.array([1, 2, 3])]
+
+    @pipeline_def(batch_size=2, num_threads=4, device_id=0)
+    def pipe():
+        return fn.external_source(source=get_samples)
+    p = pipe()
+    p.build()
+    return p.run()[0]
 
 
 def test_regular_containers():
@@ -58,6 +75,15 @@ def test_regular_containers():
         (tensors.TensorListCPU(test_array), test_array),
     ]
     yield from run_checks(samples_cpu, batches_cpu, [], [])
+
+
+def test_non_uniform_batch():
+    batches_disallowed = [
+        [test_array, np.array([[42, 42]], dtype=np.uint8)],
+        non_uniform_tl()
+    ]
+    for b in batches_disallowed:
+        yield raises_value_error, external_source_impl.batch_to_numpy, b
 
 
 @attr('pytorch')

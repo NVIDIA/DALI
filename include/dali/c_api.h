@@ -299,8 +299,18 @@ DLL_PUBLIC void daliShareOutput(daliPipelineHandle *pipe_handle);
 DLL_PUBLIC void daliOutputRelease(daliPipelineHandle *pipe_handle);
 
 /**
- * @brief Return the shape of the output tensor
- * stored at position `n` in the pipeline.
+ * @brief Returns 1 if the the output batch stored at position `n` in the pipeline can
+ * be represented as dense, uniform tensor. Otherwise 0.
+ *
+ * This function may only be called after
+ * calling Output function.
+ */
+DLL_PUBLIC int64_t daliIsUniformShapeAt(daliPipelineHandle *pipe_handle, int n);
+
+/**
+ * @brief Return the shape of the output tensor stored at position `n` in the pipeline.
+ * Valid only if daliIsUniformShapeAt() returns 1.
+ *
  * This function may only be called after
  * calling Output function.
  * @remarks Caller is responsible to 'free' the memory returned

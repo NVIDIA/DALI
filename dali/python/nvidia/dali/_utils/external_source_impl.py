@@ -65,6 +65,10 @@ _tf_batch_error_msg = (
     "Unsupported callback return type. Expected NumPy array, PyTorch or MXNet cpu tensors, "
     "DALI TensorCPU, list of those types or DALI TensorListCPU representing batch. Got `{}` instead.")
 
+_tf_uniform_error_msg = (
+    "Unsupported callback return value. TensorFlow requires that the batches produced by input "
+    "datasets or ExternalSource `source` callback in batch mode (that is when batch=True) "
+    " are dense and uniform - this means that every sample has the same shape. Got `{}` instead.")
 
 def assert_cpu_sample_data_type(sample, error_str="Unsupported callback return type. Got: `{}`."):
     import_numpy()
@@ -120,14 +124,24 @@ def sample_to_numpy(sample, error_str="Unsupported callback return type. Got: `{
     raise TypeError(error_str.format(type(sample)))
 
 
-def batch_to_numpy(batch, error_str="Unsupported callback return type. Got: `{}`."):
+def batch_to_numpy(
+        batch,
+        error_str="Unsupported callback return type. Got: `{}`.",
+        check_uniform=True,
+        non_uniform_str="Got non-uniform batch of tensors as input. Uniform input is required, got {}."):
     import_numpy()
     assert_cpu_batch_data_type(batch, error_str)
     if isinstance(batch, tensors.TensorListCPU):
-        # TODO(klecki): samples that are not uniform
+        if check_uniform and not batch.is_dense_tensor():
+            raise ValueError(non_uniform_str.format(batch))
         return batch.as_array()
     elif isinstance(batch, list):
-        return [sample_to_numpy(sample, error_str) for sample in batch]
+        result = [sample_to_numpy(sample, error_str) for sample in batch]
+        if check_uniform:
+            first_shape = result[0].shape
+            for (i, sample) in enumerate(result):
+                if first_shape != sample.shape:
+                    raise ValueError(non_uniform_str.format(batch))
     else:
         return sample_to_numpy(batch, error_str)
 
@@ -277,7 +291,7 @@ def get_callback_from_source(source, cycle):
 def _inspect_data(data, is_batched):
     # TODO(klecki): Add asserts for uniform input batches (as well as output batches)
     if is_batched:
-        as_numpy = batch_to_numpy(data, _tf_batch_error_msg)
+        as_numpy = batch_to_numpy(data, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg)
         if isinstance(as_numpy, list):
             return as_numpy[0].dtype, (None,) * (as_numpy[0].ndim + 1)
         else:
@@ -312,7 +326,7 @@ def get_batch_iterable_from_callback(source_desc):
             else:
                 result = self.source(self.iteration)
             self.iteration += 1
-            return batch_to_numpy(result, _tf_batch_error_msg)
+            return batch_to_numpy(result, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg)
 
     return CallableBatchIterator, dtype, shape
 
@@ -376,7 +390,7 @@ def get_iterable_from_callback(source_desc, is_batched):
             else:
                 result = self.source()
             if is_batched:
-                return batch_to_numpy(result, _tf_batch_error_msg)
+                return batch_to_numpy(result, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg)
             else:
                 return sample_to_numpy(result, _tf_sample_error_msg)
 
@@ -419,7 +433,7 @@ def get_iterable_from_iterable_or_generator(source_desc, is_batched):
             else:
                 result = next(self.it)
             if is_batched:
-                return batch_to_numpy(result, _tf_batch_error_msg)
+                return batch_to_numpy(result, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg)
             else:
                 return sample_to_numpy(result, _tf_sample_error_msg)
 
