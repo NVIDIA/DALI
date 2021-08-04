@@ -27,7 +27,7 @@ def passes_assert(callback, sample):
 def raises_type_error(callback, sample):
     callback(sample)
 
-# @raises(ValueError)
+@raises(ValueError)
 def raises_value_error(callback, sample):
     callback(sample)
 
