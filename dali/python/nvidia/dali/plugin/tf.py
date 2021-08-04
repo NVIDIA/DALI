@@ -584,12 +584,6 @@ if dataset_compatible_tensorflow():
         def _setup_inputs(self, input_datasets):
             """Verify the input specification and assign it to private members in
             normalized form.
-
-            Raises
-            ------
-            ValueError
-                Raises type error when there is no support for External Source, but
-                ES nodes are detected
             """
 
             has_es = _has_external_source(self._pipeline_instance)
@@ -775,7 +769,7 @@ if dataset_compatible_tensorflow():
             dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
 
             # TODO(klecki): Remove this when we move support for inputs from experimental.
-                # We detected External Source nodes in the Pipeline
+            # We detected External Source nodes in the Pipeline
             if _has_external_source(dataset_impl._pipeline_instance):
                 raise ValueError(("DALIDataset got a DALI pipeline containing External Source "
                     "operator nodes. External Source nodes can be used to express placeholders "
