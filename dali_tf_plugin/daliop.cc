@@ -14,6 +14,7 @@
 
 #include <cuda_runtime_api.h>
 #include <chrono>
+#include <sstream>
 
 #include "tensorflow/core/framework/op.h"
 
@@ -129,6 +130,7 @@ class DaliOp : public tf::OpKernel {
       OP_REQUIRES_OK(context, tf::errors::Internal("Cannot output sparse tensors on the GPU"));
     }
     this->device_id_ = device_id;
+    this->batch_size = max_batch_size;
     LOG_LINE << "Initializing...\n";
 
     if (max_batch_size < 0) {
@@ -226,6 +228,31 @@ class DaliOp : public tf::OpKernel {
       unsigned dims = 0;
       std::vector<tf::int64> max_dims;
       if (!should_be_sparse_tensor) {
+        bool is_uniform = false;
+        TF_DALI_CALL(is_uniform = daliIsUniformShapeAt(&pipe_handle_, i));
+        if (!is_uniform) {
+          std::stringstream shapes;
+          for (int sample_id = 0; sample_id < batch_size; sample_id++) {
+            AutoCPtr<int64_t> dali_shape;
+            TF_DALI_CALL(dali_shape = AutoCPtr<int64_t>(
+                             daliShapeAtSample(&pipe_handle_, i, sample_id)));
+
+            shapes << DaliToShape(dali_shape);
+            if (sample_id < batch_size - 1) {
+              shapes << ", ";
+            }
+          }
+          OP_REQUIRES(
+              context,
+              is_uniform,
+              tensorflow::errors::FailedPrecondition(
+                  "Batch output at index '", i,
+                  "' from DALI pipeline is not uniform - individual samples have different "
+                  "dimensions. This output cannot be represented as single, dense Tensor, which is "
+                  "required by TensorFlow. Ensure that all the samples that you produce in given "
+                  "batch have equal shape. Or use sparse output representation. Got shapes: ",
+                  shapes.str()));
+        }
         tf::TensorShape data_output_shape;
         TF_DALI_CALL(data_output_shape = DaliToShape(AutoCPtr<int64_t>(
                      daliShapeAt(&pipe_handle_, i))));
@@ -360,6 +387,7 @@ class DaliOp : public tf::OpKernel {
   std::vector<tf::TensorShape> shapes_;
   tf::DataTypeVector types_;
   int device_id_;
+  int batch_size;
   int prefetch_queue_depth_;
   device_type_t device_type_;
   std::vector<bool> sparse_;

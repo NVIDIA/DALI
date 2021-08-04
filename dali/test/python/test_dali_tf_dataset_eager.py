@@ -35,7 +35,7 @@ def test_tf_dataset_cpu():
     run_tf_dataset_eager_mode('cpu')
 
 # Return differently sized images to check if DALIDataset can handle this case gracefully
-@raises(Exception)
+@raises(tf.errors.FailedPreconditionError)
 def test_mixed_size_pipeline():
     run_tf_dataset_eager_mode('gpu', get_pipeline_desc=get_mix_size_image_pipeline)
 
@@ -331,13 +331,12 @@ def test_tf_experimental_inputs_disabled():
                         input_datasets={"test" : tf.data.Dataset.from_tensors(np.int32([42, 42]))})
 
 
-# Test if the ValueError is raised for external source with source.
+# Test if the ValueError is raised for external source with `source`.
 @raises(ValueError)
 def test_tf_experimental_source_disabled():
     pipe = Pipeline(10, 4, 0)
     with pipe:
         input = fn.external_source(source=lambda : np.full((4, 4), 0), batch=False)
-        # Rely on the Pad internal check to ensure that External Source set layout
         pipe.set_outputs(fn.pad(input))
     dali_tf.DALIDataset(
         pipe,

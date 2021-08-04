@@ -21,7 +21,7 @@ import numpy as np
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-from test_utils import to_array
+from test_utils import to_array, get_dali_extra_path
 
 import tensorflow as tf
 from tensorflow.python.client import device_lib
@@ -29,7 +29,6 @@ from nose import SkipTest
 from distutils.version import LooseVersion
 import math
 from contextlib import contextmanager
-
 
 def skip_for_incompatible_tf():
     if not dali_tf.dataset_distributed_compatible_tensorflow():
@@ -90,7 +89,7 @@ def expect_iter_end(should_raise, exception_type):
 
 def get_mix_size_image_pipeline(batch_size, num_threads, device, device_id=0, shard_id=0, num_shards=1,
         def_for_dataset=False):
-    test_data_root = os.environ['DALI_EXTRA_PATH']
+    test_data_root = get_dali_extra_path()
     file_root = os.path.join(test_data_root, 'db', 'coco_dummy', 'images')
     annotations_file = os.path.join(
         test_data_root, 'db', 'coco_dummy', 'instances.json')
@@ -120,7 +119,7 @@ def get_mix_size_image_pipeline(batch_size, num_threads, device, device_id=0, sh
 
 def get_image_pipeline(batch_size, num_threads, device, device_id=0, shard_id=0, num_shards=1,
         def_for_dataset=False):
-    test_data_root = os.environ['DALI_EXTRA_PATH']
+    test_data_root = get_dali_extra_path()
     file_root = os.path.join(test_data_root, 'db', 'coco_dummy', 'images')
     annotations_file = os.path.join(
         test_data_root, 'db', 'coco_dummy', 'instances.json')

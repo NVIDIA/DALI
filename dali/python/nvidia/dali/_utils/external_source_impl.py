@@ -67,7 +67,7 @@ _tf_batch_error_msg = (
 
 _tf_uniform_error_msg = (
     "Unsupported callback return value. TensorFlow requires that the batches produced by input "
-    "datasets or ExternalSource `source` callback in batch mode (that is when batch=True) "
+    "datasets or External Source `source` callback in batch mode (that is when batch=True) "
     " are dense and uniform - this means that every sample has the same shape. Got `{}` instead.")
 
 def assert_cpu_sample_data_type(sample, error_str="Unsupported callback return type. Got: `{}`."):
@@ -127,21 +127,20 @@ def sample_to_numpy(sample, error_str="Unsupported callback return type. Got: `{
 def batch_to_numpy(
         batch,
         error_str="Unsupported callback return type. Got: `{}`.",
-        check_uniform=True,
-        non_uniform_str="Got non-uniform batch of tensors as input. Uniform input is required, got {}."):
+        non_uniform_str="Uniform input is required (batch of tensors of equal shapes), got {}."):
     import_numpy()
     assert_cpu_batch_data_type(batch, error_str)
     if isinstance(batch, tensors.TensorListCPU):
-        if check_uniform and not batch.is_dense_tensor():
+        if not batch.is_dense_tensor():
             raise ValueError(non_uniform_str.format(batch))
         return batch.as_array()
     elif isinstance(batch, list):
         result = [sample_to_numpy(sample, error_str) for sample in batch]
-        if check_uniform:
-            first_shape = result[0].shape
-            for (i, sample) in enumerate(result):
-                if first_shape != sample.shape:
-                    raise ValueError(non_uniform_str.format(batch))
+        first_shape = result[0].shape
+        for sample in result:
+            if first_shape != sample.shape:
+                raise ValueError(non_uniform_str.format(batch))
+        return np.stack(result)
     else:
         return sample_to_numpy(batch, error_str)
 

@@ -443,7 +443,6 @@ if dataset_compatible_tensorflow():
             self._output_dtypes = output_dtypes
             self._fail_on_device_mismatch = fail_on_device_mismatch
 
-            print(self.__class__.__name__)
             self._setup_inputs(input_datasets)
 
             self._structure = structure.convert_legacy_structure(self._output_dtypes,
