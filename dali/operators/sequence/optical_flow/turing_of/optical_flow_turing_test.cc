@@ -56,7 +56,7 @@ class OpticalFlowTuringKernelTest : public ::testing::Test {
     auto h = Grayscale ? height_gray_ : height_;
     auto p = Grayscale ? pitch_gray_ : pitch_;
 
-    cudaMemset(tested.data(), 0x5C, tested.size());
+    cudaMemset(tested.data(), 0x5C, tested.size()*sizeof(tested[0]));
     cc(input.data(), tested.data(), p, w, h, 0);
     CUDA_CALL(cudaDeviceSynchronize());
     copyD2H(tested_host.data(), tested.data(), tested_host.size());
@@ -147,7 +147,7 @@ TEST_F(OpticalFlowTuringKernelTest, FlowVectorTest) {
   tested.resize(reference_data.size());
   tested_host.resize(reference_data.size());
 
-  cudaMemset(tested.data(), 0x5C, tested.size()*sizeof(int16_t));
+  cudaMemset(tested.data(), 0x5C, tested.size()*sizeof(tested[0]));
   optical_flow::kernel::EncodeFlowComponents(input.data(), tested.data(), pitch, width, height, 0);
   CUDA_CALL(cudaDeviceSynchronize());
   copyD2H(tested_host.data(), tested.data(), reference_data.size());
