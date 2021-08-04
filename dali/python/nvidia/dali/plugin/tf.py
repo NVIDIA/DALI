@@ -385,6 +385,10 @@ if dataset_compatible_tensorflow():
         return options
 
     class _DALIDatasetV2(dataset_ops.DatasetV2):
+        @classmethod
+        def experimental_constructor(cls):
+            return cls(randint(0, 33))
+
         def __init__(
                 self,
                 pipeline,
@@ -439,6 +443,7 @@ if dataset_compatible_tensorflow():
             self._output_dtypes = output_dtypes
             self._fail_on_device_mismatch = fail_on_device_mismatch
 
+            print(self.__class__.__name__)
             self._setup_inputs(input_datasets)
 
             self._structure = structure.convert_legacy_structure(self._output_dtypes,
@@ -577,11 +582,19 @@ if dataset_compatible_tensorflow():
 
         def _setup_inputs(self, input_datasets):
             """Verify the input specification and assign it to private members in
-            normalized form."""
+            normalized form.
 
+            Raises
+            ------
+            ValueError
+                Raises type error when there is no support for External Source, but
+                ES nodes are detected
+            """
+
+            has_es = _has_external_source(self._pipeline_instance)
 
             # If no inputs are specified, input handling is no-op
-            if input_datasets is None and not _has_external_source(self._pipeline_instance):
+            if input_datasets is None and not has_es:
                 self._input_datasets = ()
                 self._input_names = ()
                 self._input_layouts = ()
@@ -744,11 +757,25 @@ if dataset_compatible_tensorflow():
     class DALIDataset(dataset_ops._OptionsDataset):
         @functools.wraps(_DALIDatasetV2.__init__)
         def __init__(self, pipeline, **kwargs):
+
+            # TODO(klecki): Remove this when we move support for inputs from experimental.
             for disallowed_kwarg in _experimental_kwargs:
                 if disallowed_kwarg in kwargs.keys():
-                    raise TypeError("__init__() got an unexpected keyword argument '{}'".format(
+                    raise TypeError((
+                        "__init__() got an unexpected keyword argument '{}'. "
+                        "Dataset inputs are allowed only in 'experimental.DALIDatasetWithInputs'.").format(
                         disallowed_kwarg))
             dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
+
+            # TODO(klecki): Remove this when we move support for inputs from experimental.
+                # We detected External Source nodes in the Pipeline
+            if _has_external_source(dataset_impl._pipeline_instance):
+                raise ValueError(("DALIDataset got a DALI pipeline containing External Source "
+                    "operator nodes. External Source nodes can be used to express placeholders "
+                    "for tf.data.Dataset inputs to DALI or to run user-provided Python code "
+                    "via `source` parameter. Support for Dataset inputs and External Source's "
+                    "`source` is allowed only in 'experimental.DALIDatasetWithInputs'."))
+
             super(DALIDataset, self).__init__(dataset_impl, dataset_options())
 
 else:

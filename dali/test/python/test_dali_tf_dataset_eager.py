@@ -325,6 +325,20 @@ def test_tf_experimental_inputs_disabled():
                         input_datasets={"test" : tf.data.Dataset.from_tensors(np.int32([42, 42]))})
 
 
+# Test if the ValueError is raised for external source with source.
+@raises(ValueError)
+def test_tf_experimental_source_disabled():
+    pipe = Pipeline(10, 4, 0)
+    with pipe:
+        input = fn.external_source(source=lambda : np.full((4, 4), 0), batch=False)
+        # Rely on the Pad internal check to ensure that External Source set layout
+        pipe.set_outputs(fn.pad(input))
+    dali_tf.DALIDataset(
+        pipe,
+        output_dtypes=tf.int32)
+
+
+
 # This test should be private (name starts with _) as it is called separately in L1
 def _test_tf_dataset_other_gpu():
     run_tf_dataset_eager_mode('gpu', 1)
