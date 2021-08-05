@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -95,12 +95,12 @@ void TestStatelessReduction3D(bool mean, Preprocess pre, Postprocess post) {
 
   for (auto &axes : axes_sets) {
     TensorShape<> out_shape;
-    int reduction_mask = 0;
+    unsigned reduction_mask = 0;
     for (auto a : axes)
       reduction_mask |= (1 << a);
     int64_t den = 1;
     for (int d = 0; d < 3; d++) {
-      if (!(reduction_mask & (1 << d))) {
+      if (!(reduction_mask & (1u << d))) {
         out_shape.shape.push_back(in.shape[d]);
       } else {
         if (mean)

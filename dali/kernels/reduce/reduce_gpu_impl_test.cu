@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -225,7 +225,7 @@ TEST(ReduceImpl, TestCheckBatchReduce) {
   for (unsigned mask = 0; mask < 16; mask++) {
     axes.clear();
     for (int a = 0; a < 4; a++) {
-      if (mask & (1 << a))
+      if (mask & (1u << a))
         axes.push_back(a);
     }
     if ((mask & must_reduce) == must_reduce) {

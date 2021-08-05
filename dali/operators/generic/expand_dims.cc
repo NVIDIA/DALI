@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,9 +29,9 @@ DALI_SCHEMA(ExpandDims)
     .DocStr(R"code(Insert new dimension(s) with extent 1 to the data shape.
 
 The new dimensions are inserted at the positions specified by ``axes``.
-  
-If ``new_axis_names`` is provided, the new dimension names will be inserted in the data layout, 
-at the positions specified by ``axes``. If ``new_axis_names`` is not provided, the output data 
+
+If ``new_axis_names`` is provided, the new dimension names will be inserted in the data layout,
+at the positions specified by ``axes``. If ``new_axis_names`` is not provided, the output data
 layout will be empty.")code")
   .NumInput(1)
   .NumOutput(1)
@@ -42,7 +42,7 @@ layout will be empty.")code")
   .AddArg("axes", R"code(Indices at which the new dimensions are inserted.)code",
     DALI_INT_VEC, true)
   .AddOptionalArg("new_axis_names", R"code(Names of the new dimensions in the data layout.
-  
+
 The length of ``new_axis_names`` must match the length of ``axes``.
 If argument isn't be provided, the layout will be cleared.)code", TensorLayout(""));
 
@@ -125,7 +125,7 @@ void ExpandDims<Backend>::GenerateSrcDims(const Workspace &ws) {
     out_layout += in_layout.empty() ? 0 : in_layout[d];
     this->src_dims_.push_back(d++);
   }
-  if (!in_layout.empty()) {
+  if (!in_layout.empty() || ndim == 0) {
     this->layout_ = use_new_axis_names_arg_ ? out_layout : TensorLayout();
   }
 }

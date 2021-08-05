@@ -122,7 +122,7 @@ class NvDecoder {
 
   class MappedFrame {
    public:
-    MappedFrame();
+    MappedFrame() = delete;
     MappedFrame(CUVIDPARSERDISPINFO* disp_info, CUvideodecoder decoder,
                 CUstream stream);
     ~MappedFrame();

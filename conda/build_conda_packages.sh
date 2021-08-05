@@ -32,6 +32,9 @@ conda build ${CONDA_BUILD_OPTIONS} third_party/dali_opencv/recipe
 # but wiht mpeg4_unpack_bframes enabled
 conda build ${CONDA_BUILD_OPTIONS} third_party/dali_ffmpeg/recipe
 
+# build custom libtar to include the latest fixes on top of 1.2.20
+conda build ${CONDA_BUILD_OPTIONS} third_party/dali_libtar/recipe
+
 # Building DALI package
 conda build ${CONDA_BUILD_OPTIONS} recipe
 

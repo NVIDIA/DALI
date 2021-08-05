@@ -18,7 +18,7 @@
 #include <type_traits>
 
 #include "dali/core/cuda_utils.h"
-#include "include/dali/core/float16.h"
+#include "dali/core/float16.h"
 
 namespace cutlass {
 

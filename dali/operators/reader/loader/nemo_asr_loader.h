@@ -81,7 +81,7 @@ class AsrSample {
     return *decoder_;
   }
 
-  int64_t index_;
+  int64_t index_ = 0;
   std::string text_;
   AudioMetadata audio_meta_;
   std::string audio_filepath_;  // for tensor metadata purposes

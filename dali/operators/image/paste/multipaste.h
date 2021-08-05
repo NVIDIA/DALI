@@ -73,7 +73,7 @@ class MultiPasteOp : public Operator<Backend> {
       , output_size_("output_size", spec)
       , in_idx_("in_ids", spec)
       , in_anchors_("in_anchors", spec)
-      , in_shapes_("shapes", spec)
+      , shapes_("shapes", spec)
       , out_anchors_("out_anchors", spec) {
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1, 1);
@@ -114,8 +114,8 @@ class MultiPasteOp : public Operator<Backend> {
     if (in_anchors_.IsDefined()) {
       in_anchors_.Acquire(spec, ws, curr_batch_size, false);
     }
-    if (in_shapes_.IsDefined()) {
-      in_shapes_.Acquire(spec, ws, curr_batch_size, false);
+    if (shapes_.IsDefined()) {
+      shapes_.Acquire(spec, ws, curr_batch_size, false);
     }
     input_type_ = ws.template InputRef<Backend>(0).type().id();
     output_type_ =
@@ -146,11 +146,11 @@ class MultiPasteOp : public Operator<Backend> {
                      make_string("Unexpected number of dimensions for ``in_anchors``. Expected ",
                      spatial_ndim_, ", got ", in_anchors_[i].shape[1]));
       }
-      if (in_shapes_.IsDefined()) {
-        DALI_ENFORCE(in_shapes_[i].shape[0] == n_paste, "in_shapes must be same length as in_idx");
-        DALI_ENFORCE(in_shapes_[i].shape[1] == spatial_ndim_,
-                     make_string("Unexpected number of dimensions for ``in_shapes``. Expected ",
-                     spatial_ndim_, ", got ", in_shapes_[i].shape[1]));
+      if (shapes_.IsDefined()) {
+        DALI_ENFORCE(shapes_[i].shape[0] == n_paste, "shapes must be same length as in_idx");
+        DALI_ENFORCE(shapes_[i].shape[1] == spatial_ndim_,
+                     make_string("Unexpected number of dimensions for ``shapes``. Expected ",
+                     spatial_ndim_, ", got ", shapes_[i].shape[1]));
       }
       if (out_anchors_.IsDefined()) {
         DALI_ENFORCE(out_anchors_[i].shape[0] == n_paste,
@@ -162,24 +162,27 @@ class MultiPasteOp : public Operator<Backend> {
 
       bool found_intersection = false;
       for (int j = 0; j < n_paste; j++) {
-        auto out_anchor = GetOutAnchors(i, j);
-        auto in_anchor = GetInAnchors(i, j);
         auto j_idx = in_idx_[i].data[j];
-        auto in_shape = Coords(raw_input_size_mem_.data() + spatial_ndim_ * j_idx,
-                               dali::TensorShape<>(spatial_ndim_));
-        const auto &shape = GetShape(i, j, in_shape);
+        auto out_anchor_j = GetOutAnchors(i, j);
+        auto in_anchor_j = GetInAnchors(i, j);
+        auto in_shape_j = GetInputShape(j_idx);
+        auto shape_j = GetShape(i, j, in_shape_j, in_anchor_j);
+        auto shape_j_view = Coords{shape_j.data(), coords_sh_};
         for (int k = 0; k < spatial_ndim_; k++) {
-          DALI_ENFORCE(out_anchor.data[k] >= 0 && in_anchor.data[k] >= 0 &&
-                       out_anchor.data[k] + shape.data[k] <= output_size_[i].data[k] &&
-                       in_anchor.data[k] + shape.data[k] <= in_shape.data[k],
+          DALI_ENFORCE(out_anchor_j.data[k] >= 0 && in_anchor_j.data[k] >= 0 &&
+                       out_anchor_j.data[k] + shape_j[k] <= output_size_[i].data[k] &&
+                       in_anchor_j.data[k] + shape_j[k] <= in_shape_j.data[k],
                        "Paste in/out coords should be within input/output bounds.");
         }
 
         for (int k = 0; k < j; k++) {
           auto k_idx = in_idx_[i].data[k];
-          if (Intersects(out_anchor, shape, GetOutAnchors(i, k), GetShape(
-                  i, k, Coords(raw_input_size_mem_.data() + spatial_ndim_ * k_idx,
-                               dali::TensorShape<>(spatial_ndim_))))) {
+          auto out_anchor_k = GetOutAnchors(i, k);
+          auto in_anchor_k = GetInAnchors(i, k);
+          auto in_shape_k = GetInputShape(k_idx);;
+          auto shape_k = GetShape(i, k, in_shape_k, in_anchor_k);
+          auto shape_k_view = Coords{shape_k.data(), coords_sh_};
+          if (Intersects(out_anchor_j, shape_j_view, out_anchor_k, shape_k_view)) {
             found_intersection = true;
             break;
           }
@@ -244,16 +247,36 @@ class MultiPasteOp : public Operator<Backend> {
            : zero_anchors_;
   }
 
-  inline Coords GetShape(int sample_num, int paste_num, Coords default_shape) const {
-    return in_shapes_.IsDefined()
-           ? subtensor(in_shapes_[sample_num], paste_num)
-           : default_shape;
+  inline SmallVector<int, 4> GetShape(int sample_num, int paste_num, Coords in_shape,
+                                      Coords in_anchor = {}) const {
+    SmallVector<int, 4> sh;
+    if (shapes_.IsDefined()) {
+      auto sh_view = subtensor(shapes_[sample_num], paste_num);
+      sh.resize(sh_view.num_elements());
+      for (size_t d = 0; d < sh.size(); d++)
+        sh[d] = sh_view.data[d];
+    } else {
+      sh.resize(in_shape.num_elements());
+      if (in_anchor.data) {
+        assert(in_shape.num_elements() == in_anchor.num_elements());
+        for (size_t d = 0; d < sh.size(); d++)
+          sh[d] = in_shape.data[d] - in_anchor.data[d];
+      } else {
+        for (size_t d = 0; d < sh.size(); d++)
+          sh[d] = in_shape.data[d];
+      }
+    }
+    return sh;
   }
 
   inline Coords GetOutAnchors(int sample_num, int paste_num) const {
     return out_anchors_.IsDefined()
            ? subtensor(out_anchors_[sample_num], paste_num)
            : zero_anchors_;
+  }
+
+  inline Coords GetInputShape(int sample_num) {
+    return Coords{raw_input_size_mem_.data() + spatial_ndim_ * sample_num, coords_sh_};
   }
 
   USE_OPERATOR_MEMBERS();
@@ -263,13 +286,14 @@ class MultiPasteOp : public Operator<Backend> {
 
   ArgValue<int, 1> in_idx_;
   ArgValue<int, 2> in_anchors_;
-  ArgValue<int, 2> in_shapes_;
+  ArgValue<int, 2> shapes_;
   ArgValue<int, 2> out_anchors_;
 
   SmallVector<int, 4> zeros_;
   Coords zero_anchors_;
 
   const int spatial_ndim_ = 2;
+  const TensorShape<> coords_sh_ = TensorShape<>(2);
 
   kernels::KernelManager kernel_manager_;
 

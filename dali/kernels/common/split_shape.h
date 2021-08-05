@@ -46,7 +46,7 @@ int split_shape(SplitFactor& split_factor, const Shape& in_shape, int min_nblock
 
   int64_t vol = volume(in_shape);
   for (int d = 0, nblocks = 1; d < ndim && nblocks < min_nblocks && vol > min_sz; d++) {
-    if (skip_dim_mask & (1 << d))
+    if (skip_dim_mask & (1_u64 << d))
       continue;
     int n = in_shape[d];
     int &b = split_factor[d];

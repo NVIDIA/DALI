@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ TEST(Error, CudaAlloc_Drv) {
 
 TEST(Error, CudaAlloc) {
   void *mem = nullptr;
-  size_t sz = 1LL << 62;
+  size_t sz = 1_uz << 62;
   EXPECT_THROW(CUDA_CALL(cudaMalloc(&mem, sz)), CUDABadAlloc);
 }
 

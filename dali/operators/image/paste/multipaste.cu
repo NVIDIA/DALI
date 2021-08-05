@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,10 +42,9 @@ void MultiPasteGPU::InitSamples(const TensorListShape<> &out_shape) {
       int from_sample = in_idx_[i].data[j];
       auto in_anchor_view = GetInAnchors(i, j);
       auto out_anchor_view = GetOutAnchors(i, j);
-      auto shape_view = GetShape(i, j, Coords(
-          raw_input_size_mem_.data() + spatial_ndim_ * from_sample,
-          dali::TensorShape<>(spatial_ndim_)));
-      to_vec(sample.inputs[j].size,       shape_view.data);
+      auto in_shape_view = GetInputShape(from_sample);
+      auto region_shape = GetShape(i, j, in_shape_view, in_anchor_view);
+      to_vec(sample.inputs[j].size,       region_shape);
       to_vec(sample.inputs[j].in_anchor,  in_anchor_view.data);
       to_vec(sample.inputs[j].out_anchor, out_anchor_view.data);
       sample.inputs[j].in_idx = from_sample;

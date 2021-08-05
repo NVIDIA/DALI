@@ -173,7 +173,8 @@ disable them.
    | (Optional) |lmdb link|_                | The currently supported version can be check |dali_deps link|_ repository.                  |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | (Optional) |gds link|_                 | Only libcufile is required for the build process, and the installed header needs to land    |
-   |                                        | in `/usr/local/cuda/include` directory.                                                     |
+   |                                        | in `/usr/local/cuda/include` directory. For CUDA 11.4 it can be installed as a part of CUDA |
+   |                                        | toolkit.                                                                                    |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | One or more of the following Deep Learning frameworks:                                                                               |
    |      * |mxnet link|_ ``mxnet-cu90`` or later                                                                                         |
@@ -361,6 +362,7 @@ Optional CMake Build Parameters
 -  ``BUILD_LIBTIFF`` - build with ``libtiff`` support (default: ON)
 -  ``BUILD_FFTS`` - build with ``ffts`` support (default: ON)
 -  ``BUILD_LIBSND`` - build with libsnd support (default: ON)
+-  ``BUILD_LIBTAR`` - build with libtar support (default: ON)
 -  ``BUILD_NVOF`` - build with ``NVIDIA OPTICAL FLOW SDK`` support (default: ON)
 -  ``BUILD_NVDEC`` - build with ``NVIDIA NVDEC`` support (default: ON)
 -  ``BUILD_NVML`` - build with ``NVIDIA Management Library`` (``NVML``) support (default: ON)

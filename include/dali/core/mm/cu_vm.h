@@ -147,16 +147,16 @@ class CUMemAddressRange : public UniqueHandle<CUAddressRange, CUMemAddressRange>
 
 /**
  * @brief Gets default CUmemAllocationProp for allocating memory on given device.
- * @param device_id device ordinal or -1 for current device.
+ * @param device_ordinal device ordinal or -1 for current device.
  */
-inline CUmemAllocationProp DeviceMemProp(int device_id = -1) {
+inline CUmemAllocationProp DeviceMemProp(int device_ordinal = -1) {
   CUmemAllocationProp prop = {};
-  if (device_id < 0) {
-    CUDA_CALL(cudaGetDevice(&device_id));
+  if (device_ordinal < 0) {
+    CUDA_CALL(cudaGetDevice(&device_ordinal));
   }
   prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
   prop.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
-  prop.location.id = device_id;
+  prop.location.id = device_ordinal;
   return prop;
 }
 
@@ -194,11 +194,11 @@ class CUMem : public UniqueHandle<CUMemAllocation, CUMem> {
    * The memory must be mapped to a virtual address range before being accessible.
    * @see cuvm::Map
    *
-   * @param size      Size, in bytes
-   * @param device_id The identifier of the device on which the memory is going to be located.
+   * @param size           Size, in bytes
+   * @param device_ordinal The ordinal of the device on which the memory is going to be located.
    */
-  static CUMem Create(size_t size, int device_id = -1) {
-    return Create(size, DeviceMemProp(device_id));
+  static CUMem Create(size_t size, int device_ordinal = -1) {
+    return Create(size, DeviceMemProp(device_ordinal));
   }
 
   /**

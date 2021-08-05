@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import numpy as np
 from nose.tools import assert_raises
 from test_utils import check_output
 import random
+import functools
 from collections import Iterable
 datapy = np
 
@@ -325,6 +326,15 @@ def test_external_source_collection():
     pipe.build()
     run_and_check(pipe, batches)
 
+def test_external_source_iterate_ndarray():
+    pipe = Pipeline(4, 3, 0)
+
+    batch = make_array([1.5,2.5,2,3], dtype=datapy.float32)
+
+    pipe.set_outputs(fn.external_source(batch, batch=False))
+    pipe.build()
+    run_and_check(pipe, [batch])
+
 
 def test_external_source_collection_cycling():
     pipe = Pipeline(1, 3, 0)
@@ -419,6 +429,21 @@ def test_external_source_gen_function_cycle():
             yield [make_array([i + 1.5], dtype=datapy.float32)]
 
     pipe.set_outputs(fn.external_source(gen, cycle = True))
+    pipe.build()
+
+    for _ in range(3):
+        for i in range(5):
+            check_output(pipe.run(), [np.array([i + 1.5], dtype=np.float32)])
+
+
+def test_external_source_gen_function_partial():
+    pipe = Pipeline(1, 3, 0)
+
+    def gen(base):
+        for i in range(5):
+            yield [make_array([i + base], dtype=datapy.float32)]
+
+    pipe.set_outputs(fn.external_source(functools.partial(gen, 1.5), cycle = True))
     pipe.build()
 
     for _ in range(3):

@@ -194,7 +194,7 @@ class best_fit_free_list {
    */
   void *get(size_t bytes, size_t alignment) {
     block **pbest = nullptr;
-    size_t best_fit = (static_cast<size_t>(-1)) >> 1;  // clear MSB
+    size_t best_fit = (-1_uz) >> 1;  // clear MSB
     for (block **pptr = &head_; *pptr; pptr = &(*pptr)->next) {
       size_t fit = (*pptr)->fit(bytes, alignment);
       if (fit < best_fit) {
@@ -603,6 +603,15 @@ class coalescing_free_tree {
   }
 
   /**
+   * @brief Retrieves a specific memory region from the free tree.
+   *
+   * If the block is not covered by the free tree, nullptr is returned.
+   */
+  void *get_specific_block(void *start, size_t size) {
+    return get_specific_block(start, static_cast<char*>(start) + size);
+  }
+
+  /**
    * @brief Removes given memory range from the tree, if present
    *
    * This function checks if the tree contains given address range and if it does,
@@ -614,7 +623,7 @@ class coalescing_free_tree {
    * @return True, if the block was successfully removed from the tree.
    */
   bool remove_if_in_list(void *base, size_t size) {
-    return get_specific_block(base, static_cast<char*>(base)+size) != nullptr;
+    return get_specific_block(base, size) != nullptr;
   }
 
   /**
@@ -631,6 +640,9 @@ class coalescing_free_tree {
     auto prev = next != by_addr_.begin() ? std::prev(next) : next;
     bool join_prev = prev != next && prev->first + prev->second == addr;
     bool join_next = next != by_addr_.end() && next->first == addr + size;
+
+    assert(next == by_addr_.end() || next->first >= addr + size);
+    assert(prev == next || prev->first + prev->second <= addr);
 
     if (join_prev) {
       by_size_.erase({ prev->second, prev->first });
@@ -754,10 +766,20 @@ class best_fit_free_tree {
   }
 
   /**
+   * @brief Retrieves a specific memory region from the free tree.
+   *
+   * If the exact block is not found, the function fails - no splitting occurs
+   */
+  void *get_specific_block(void *start, size_t size) {
+    return get_specific_block(start, static_cast<char*>(start) + size);
+  }
+
+
+  /**
    * @brief Removes a block from the tree if _exactly_ this block is free - no splitting occurs
    */
   bool remove_if_in_list(void *base, size_t size) {
-    return get_specific_block(base, static_cast<char*>(base)+size) != nullptr;
+    return get_specific_block(base, size) != nullptr;
   }
 
   detail::pooled_set<std::pair<size_t, char *>, true> by_size_;

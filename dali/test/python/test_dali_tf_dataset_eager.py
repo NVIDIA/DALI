@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import tensorflow as tf
+import numpy as np
 from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.plugin.tf as dali_tf
 from nvidia.dali.plugin.tf.experimental import DALIDatasetWithInputs, Input
 from test_utils_tensorflow import *
 from test_dali_tf_dataset_pipelines import *
+from test_dali_tf_es_pipelines import *
 from nose.tools import raises, with_setup
 import random as random
 import itertools
@@ -32,6 +34,10 @@ def test_tf_dataset_gpu():
 def test_tf_dataset_cpu():
     run_tf_dataset_eager_mode('cpu')
 
+# Return differently sized images to check if DALIDataset can handle this case gracefully
+@raises(tf.errors.FailedPreconditionError)
+def test_mixed_size_pipeline():
+    run_tf_dataset_eager_mode('gpu', get_pipeline_desc=get_mix_size_image_pipeline)
 
 def run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch):
     tensor = np.full(shape, value, dtype)
@@ -266,8 +272,10 @@ def test_tf_dataset_disallowed_es():
     yield check_disallowed_es, {}, {}
     # num_outputs
     yield check_disallowed_es, {'name': 'a', 'num_outputs': 1}, {'a': in_dataset}
-    # source provided
+    # source provided, so we don't have valid placeholder
     yield check_disallowed_es, {'name': 'a', 'source': []}, {'a': in_dataset}
+    # misnamed placeholder
+    yield check_disallowed_es, {'name': 'b'}, {'a': in_dataset}
 
 
 def check_layout(kwargs, input_datasets, layout):
@@ -290,6 +298,18 @@ def check_layout(kwargs, input_datasets, layout):
     run_dataset_eager_mode(dali_dataset, 10)
 
 
+def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
+    run_tf_dataset_eager_mode(dev,
+        get_pipeline_desc=get_external_source_pipe(es_args, dtype, ed_dev),
+        to_dataset=external_source_to_tf_dataset,
+        to_stop_iter=True)
+
+
+@with_setup(skip_inputs_for_incompatible_tf)
+def test_tf_with_dali_external_source():
+    yield from gen_tf_with_dali_external_source(run_tf_with_dali_external_source)
+
+
 @with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_layouts():
     for shape, layout in [((2, 3), "XY"), ((10, 20, 3), "HWC"), ((4, 128, 64, 3), "FHWC")]:
@@ -309,6 +329,19 @@ def test_tf_experimental_inputs_disabled():
     pipeline = get_image_pipeline(4, 4, 'cpu', 0)
     dali_tf.DALIDataset(pipeline,
                         input_datasets={"test" : tf.data.Dataset.from_tensors(np.int32([42, 42]))})
+
+
+# Test if the ValueError is raised for external source with `source`.
+@raises(ValueError)
+def test_tf_experimental_source_disabled():
+    pipe = Pipeline(10, 4, 0)
+    with pipe:
+        input = fn.external_source(source=lambda : np.full((4, 4), 0), batch=False)
+        pipe.set_outputs(fn.pad(input))
+    dali_tf.DALIDataset(
+        pipe,
+        output_dtypes=tf.int32)
+
 
 
 # This test should be private (name starts with _) as it is called separately in L1

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -198,7 +198,7 @@ struct DropDims {
       volumes[i] = vol_total;
       kept_volumes[i] = vol_kept;
       vol_total *= shape[i];
-      if ((axis_mask & (1 << i)) == 0) {
+      if ((axis_mask & (1u << i)) == 0) {
         vol_kept *= shape[i];
         kept_dims++;
       } else {
@@ -214,7 +214,7 @@ struct DropDims {
 
     for (int i = 0; i < d - 1; i++) {
       assert(volumes[i] > 1);  // simplification should make this impossible
-      if (axis_mask & (1 << i)) {
+      if (axis_mask & (1u << i)) {
         mod(nmod++, volumes[i]);
       } else {
         div(ndiv, volumes[i]);

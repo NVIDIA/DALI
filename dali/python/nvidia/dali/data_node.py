@@ -15,6 +15,8 @@
 #pylint: disable=no-member
 
 import sys
+from . import _utils
+from ._utils import hacks
 
 def _arithm_op(*args, **kwargs):
     import nvidia.dali.ops
@@ -23,6 +25,23 @@ def _arithm_op(*args, **kwargs):
     setattr(sys.modules[__name__], "_arithm_op", nvidia.dali.ops._arithm_op)
     return nvidia.dali.ops._arithm_op(*args, **kwargs)
 
+class _NewAxis:
+    def __init__(self, name = None):
+        if name is not None:
+            if not isinstance(name, str):
+                raise TypeError("Axis name must be a single-character string")
+            if len(name) != 1:
+                raise ValueError("Axis name must be a single-character string")
+        self._name = name
+
+    @property
+    def name(self):
+        return self._name
+
+    def __call__(self, name = None):
+        return _NewAxis(name)
+
+newaxis = _NewAxis()
 
 class DataNode(object):
     """This class is a symbolic representation of a TensorList and is used at graph definition
@@ -37,6 +56,7 @@ class DataNode(object):
         self.name = name
         self.device = device
         self.source = source
+
 
     # Note: Regardless of whether we want the cpu or gpu version
     # of a tensor, we keep the source argument the same so that
@@ -122,6 +142,74 @@ class DataNode(object):
                 " represent computations in DALI Pipeline see the \"Mathematical Expressions\""
                 " section of DALI documentation."))
 
+    def __getitem__(self, val):
+        idxs = []
+        new_axes = []
+        new_axis_names = []
+
+        # returns True if this index adds a new output dimension
+        def process_index(idx, dim):
+            if idx is None:
+                idxs.append((None, None, None, None))
+                return True
+            elif isinstance(idx, slice):
+                if idx.step is not None and idx.step != 1:
+                    raise NotImplementedError("Slicing with non-unit step is not implemented.")
+                idxs.append((None, idx.start, idx.stop, None))
+                return True
+            elif isinstance(idx, _NewAxis):
+                new_axes.append(dim)
+                if idx.name is not None:
+                    new_axis_names.append(idx.name)
+                return True
+            elif idx is Ellipsis:
+                raise NotImplementedError("Ellipsis in indexing is not implemented")
+            elif isinstance(idx, (float, str)):
+                raise TypeError("Invalid type for an index: ", type)
+            else:
+                idxs.append((idx, None, None, None))
+                return False
+
+        if not isinstance(val, tuple):
+            val = (val,)
+        d = 0
+        for v in val:
+            if process_index(v, d):
+                d += 1
+
+        if len(new_axis_names) != 0:
+            if len(new_axis_names) != len(new_axes):
+                raise ValueError("New axis name must be specified for all axes or none.");
+            new_axis_names = "".join(new_axis_names)
+        else:
+            new_axis_names = None
+
+        slice_args = {}
+        for i, (at, lo, hi, step) in enumerate(idxs):
+            if at   is not None: slice_args["at_%i"%i] = at
+            if lo   is not None: slice_args["lo_%i"%i] = lo
+            if hi   is not None: slice_args["hi_%i"%i] = hi
+            if step is not None: slice_args["step_%i"%i] = step
+
+        import nvidia.dali.fn
+        if len(slice_args) == 0:
+            # No true slicing arguments - only full range : and dali.newaxis.
+            # We need to ensure there are enough dimensions in the input for the number of
+            # full-range axes.
+            # If the last index is a newaxis, then ExpandDims will make sure that it makes sense.
+            # Otherwise we need to add an additional check.
+            if len(new_axes) > 0 and isinstance(val[-1], _NewAxis):
+                sliced = self  # no check needed, ExpandDims will do the trick
+            else:
+                sliced = nvidia.dali.fn.subscript_dim_check(self, num_subscripts=len(idxs))
+        else:
+            sliced = nvidia.dali.fn.tensor_subscript(self, **slice_args, num_subscripts=len(idxs))
+        if len(new_axes) == 0:
+            return sliced
+        else:
+            return nvidia.dali.fn.expand_dims(sliced, axes=new_axes, new_axis_names=new_axis_names)
+
+_utils.hacks.not_iterable(DataNode)
 
 def _check(maybe_node):
     if not isinstance(maybe_node, DataNode):

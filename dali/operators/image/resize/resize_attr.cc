@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ other extents and ``mode`` argument.)code", {}, true)
 Here is a list of supported modes:
 
 * | ``"default"`` - image is resized to the specified size.
-  | Missing extents are scaled with the average scale of the provided ones extents.
+  | Missing extents are scaled with the average scale of the provided ones.
 * | ``"stretch"`` - image is resized to the specified size.
   | Missing extents are not scaled at all.
 * | ``"not_larger"`` - image is resized, keeping the aspect ratio, so that no extent of the

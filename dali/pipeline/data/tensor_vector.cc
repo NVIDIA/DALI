@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -353,7 +353,7 @@ void TensorVector<Backend>::ShareData(TensorVector<Backend> *tv) {
   state_ = tv->state_;
   pinned_ = tv->is_pinned();
 
-  if (tv->tl_->raw_data()) {
+  if (IsValidType(tv->tl_->type())) {
     tl_->ShareData(tv->tl_.get());
   } else {
     tl_->Reset();
@@ -461,6 +461,8 @@ void TensorVector<Backend>::update_view(int idx) {
     tensors_[idx]->ShareData(std::shared_ptr<void>(ptr, ViewRefDeleter{&views_count_}),
                              volume(tl_->tensor_shape(idx)) * tl_->type().size(), shape,
                              tl_->type());
+  } else if (IsValidType(tl_->type())) {
+    tensors_[idx]->set_type(tl_->type());
   }
   tensors_[idx]->SetMeta(tl_->GetMeta(idx));
 }

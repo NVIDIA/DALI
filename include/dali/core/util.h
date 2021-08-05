@@ -21,6 +21,7 @@
 #include <utility>
 #include <initializer_list>
 
+#include "dali/core/int_literals.h"
 #include "dali/core/host_dev.h"
 #include "dali/core/force_inline.h"
 #include "dali/core/span.h"

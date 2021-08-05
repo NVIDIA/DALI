@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -106,7 +106,10 @@ void StdCUFileStream::HandleIOError(int64 ret) const {
   if (ret == -1) {
     std::string errmsg(256, '\0');
     int e = errno;
-    strerror_r(e, &errmsg[0], errmsg.size());
+    auto ret = strerror_r(e, &errmsg[0], errmsg.size());
+    if (ret != 0) {
+      DALI_FAIL(make_string("Unknown CUFile error: ", e));
+    }
     DALI_FAIL(
         make_string("CUFile read failed for file ", path_, " with error (", e, "): ", errmsg));
   } else {

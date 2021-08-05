@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ int number_of_channels(int bpp, int compression_type,
                        const uint8_t* palette_start = nullptr, size_t ncolors = 0,
                        size_t palette_entry_size = 0) {
   if (compression_type == BMP_COMPRESSION_RGB || compression_type == BMP_COMPRESSION_RLE8) {
-    if (bpp <= 8 && ncolors <= static_cast<size_t>((1 << bpp))) {
+    if (bpp <= 8 && ncolors <= (1_uz << bpp)) {
       return is_color_palette(palette_start, ncolors, palette_entry_size) ? 3 : 1;
     } else if (bpp == 24) {
       return 3;
@@ -78,6 +78,7 @@ BmpImage::BmpImage(const uint8_t *encoded_buffer, size_t length, DALIImageType i
 
 Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
   DALI_ENFORCE(bmp != nullptr);
+  DALI_ENFORCE(length >= 18);
   auto ptr = bmp + 14;
   uint32_t header_size = ConsumeValue<uint32_t>(ptr);
   int64_t h = 0, w = 0, c = 0;
@@ -85,7 +86,7 @@ Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
   const uint8_t* palette_start = nullptr;
   size_t ncolors = 0;
   size_t palette_entry_size = 0;
-  if (length >= 22 && header_size == 12) {
+  if (length >= 26 && header_size == 12) {
     // BITMAPCOREHEADER:
     // | 32u header | 16u width | 16u height | 16u number of color planes | 16u bits per pixel
     w = ConsumeValue<uint16_t>(ptr);
@@ -95,9 +96,9 @@ Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
     if (bpp <= 8) {
       palette_start = ptr;
       palette_entry_size = 3;
-      ncolors = (1 << bpp);
+      ncolors = (1_uz << bpp);
     }
-  } else if (length >= 26 && header_size >= 40) {
+  } else if (length >= 50 && header_size >= 40) {
     // BITMAPINFOHEADER and later:
     // | 32u header | 32s width | 32s height | 16u number of color planes | 16u bits per pixel
     // | 32u compression type
@@ -112,7 +113,7 @@ Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
     if (bpp <= 8) {
       palette_start = ptr;
       palette_entry_size = 4;
-      ncolors = ncolors == 0 ? (1 << bpp) : ncolors;
+      ncolors = ncolors == 0 ? 1_uz << bpp : ncolors;
     }
     // sanity check
     if (palette_start != nullptr) {

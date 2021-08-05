@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -167,10 +167,18 @@ with *OpenCV* or other specific libraries, such as *libtiff*.
 If used with a ``mixed`` backend, and the hardware is available, the operator will use
 a dedicated hardware decoder.
 
+.. warning::
+  Due to performance reasons, hardware decoder is disabled for driver < 455.x
+
 The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
 Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.
+
+.. note::
+  WebP decoding currently only supports the simple file format (lossy and lossless compression).
+  For details on the different WebP file formats, see
+  https://developers.google.com/speed/webp/docs/riff_container
 
 .. note::
   EXIF orientation metadata is disregarded.)code")
@@ -191,7 +199,7 @@ image format, it will decode the entire image and crop the selected ROI.
 
 The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
 
 .. note::
   JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
@@ -217,7 +225,7 @@ image format, it will decode the entire image and crop the selected ROI.
 
 The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
 
 .. note::
   JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
@@ -268,7 +276,7 @@ image format, it will decode the entire image and crop the selected ROI.
 
 The output of the decoder is in the *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000.
+Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
 
 .. note::
   JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use

@@ -14,8 +14,11 @@
 
 # custom wrappers around ops
 from nvidia.dali import backend as _b
-import inspect
 import nvidia.dali.types
+from nvidia.dali._utils.external_source_impl import \
+        get_callback_from_source as _get_callback_from_source, \
+        accepted_arg_count as _accepted_arg_count, \
+        SourceKind as _SourceKind
 
 
 def _get_batch_shape(data):
@@ -47,44 +50,6 @@ def _check_data_batch(data, batch_size, layout):
                     raise RuntimeError("All tensors in a batch must have the same number of dimensions")
         if layout is not None and layout != "" and dim != len(layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
-
-class _CycleIter:
-    def __init__(self, iterable, mode):
-        self.source = iterable
-        self.signaling = (mode == "raise")
-
-    def __iter__(self):
-        self.it = iter(self.source)
-        return self
-
-    def __next__(self):
-        try:
-            return next(self.it)
-        except StopIteration:
-            self.it = iter(self.source)
-            if self.signaling:
-                raise
-            else:
-                return next(self.it)
-
-class _CycleGenFunc():
-    def __init__(self, gen_func, mode):
-        self.source = gen_func
-        self.signaling = (mode == "raise")
-
-    def __iter__(self):
-        self.it = iter(self.source())
-        return self
-
-    def __next__(self):
-        try:
-            return next(self.it)
-        except StopIteration:
-            self.it = iter(self.source())
-            if self.signaling:
-                raise
-            else:
-                return next(self.it)
 
 class _ExternalDataBatch:
     def __init__(self, group, pipeline, data, batch_size):
@@ -217,70 +182,6 @@ class _ExternalSourceGroup(object):
             op = self.instances[0]
             pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
 
-def _is_generator_function(x):
-    """Checks whether x is a generator function or a callable object
-    where __call__ is a generator function"""
-    if inspect.isgeneratorfunction(x):
-        return True
-    if x is None or inspect.isfunction(x) or inspect.ismethod(x):
-        return False
-    call = getattr(x, "__call__", None)
-    return _is_generator_function(call)
-
-def _cycle_enabled(cycle):
-    if cycle is None:
-        return False
-    if cycle == False or cycle == "no":
-        return False
-    if cycle == True or cycle == "quiet" or cycle == "raise":
-        return True
-    raise ValueError("""Invalid value {} for the argument `cycle`. Valid values are
-  - "no", False or None - cycling disabled
-  - "quiet", True - quietly rewind the data
-  - "raise" - raise StopIteration on each rewind.""".format(repr(cycle)))
-
-def _accepted_arg_count(callable):
-    if not inspect.isfunction(callable) and not inspect.ismethod(callable) and hasattr(callable, '__call__'):
-        callable = callable.__call__
-    if not inspect.ismethod(callable):
-        implicit_args = 0
-    else:
-        implicit_args = 1
-        callable = callable.__func__
-    return callable.__code__.co_argcount - implicit_args
-
-def _get_callback_from_source(source, cycle):
-    iterable = False
-    if source is not None:
-        try:
-            if _cycle_enabled(cycle):
-                if inspect.isgenerator(source):
-                    raise TypeError("Cannot cycle through a generator - if the generator is a result "
-                        "of calling a generator function, pass that function instead as `source`.")
-                if _is_generator_function(source):
-                    iterator = iter(_CycleGenFunc(source, cycle))
-                else:
-                    iterator = iter(_CycleIter(source, cycle))
-            else:
-                if _is_generator_function(source):
-                    source = source()
-                iterator = iter(source)
-            iterable = True
-            callback = lambda: next(iterator)
-        except TypeError as err:
-            if "not iterable" not in str(err):
-                raise(err)
-            if cycle is not None:
-                raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
-            if not callable(source):
-                raise TypeError("Source must be callable, iterable or a parameterless generator function")
-            callback = source
-    else:
-        callback = None
-
-    if not iterable and cycle:
-        raise ValueError("`cycle` argument is only valid for iterable `source`")
-    return callback
 
 class ExternalSource():
     """ExternalSource is a special operator that can provide data to a DALI pipeline
@@ -441,6 +342,15 @@ Keyword Args
 
     When ``parallel`` is set to True, ``source`` must return NumPy/MXNet/PyTorch CPU array,
     TensorCPU, or tuple/list of these types with length matching num_outputs.
+
+    Only callables that accept one argument (:meth:`~nvidia.dali.types.SampleInfo` objects that
+    represent the index of the requested sample) can be used as ``source`` when ``parallel`` is
+    set to True. It can be a function or an object implementing ``__call__`` operator, which
+    allows to add an initial state to the object instance.
+
+    Keep in mind, that **copies** of the ``source`` will be distributed between Python workers,
+    and no global state can be shared between them.
+
     The ``source`` callback must raise StopIteration when the end of data is reached.
 
     Setting ``parallel`` to True makes the external source work in per-sample mode.
@@ -465,7 +375,7 @@ Keyword Args
         import nvidia.dali.ops
         kwargs, self._call_args = nvidia.dali.ops._separate_kwargs(kwargs)
 
-        callback = _get_callback_from_source(source, cycle)
+        callback, source_desc = _get_callback_from_source(source, cycle)
 
         if name is not None and num_outputs is not None:
             raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
@@ -474,6 +384,7 @@ Keyword Args
         self._num_outputs = num_outputs
         self._batch = batch
         self._callback = callback
+        self._source_desc = source_desc
         self._parallel = parallel
         self._no_copy = no_copy
         self._prefetch_queue_depth = prefetch_queue_depth
@@ -515,10 +426,14 @@ Keyword Args
                     raise ValueError("The argument ``cycle`` can only be specified if ``source`` is a "
                                      "reusable iterable or a generator function.")
             callback = self._callback
+            source_desc = self._source_desc
         else:
             if self._callback is not None:
                 raise RuntimeError("``source`` already specified in constructor.")
-            callback = _get_callback_from_source(source, cycle)
+            callback, source_desc = _get_callback_from_source(source, cycle)
+
+            # Keep the metadata for Pipeline inspection
+            self._source_desc = source_desc
 
         if parallel is None:
             parallel = self._parallel or False
@@ -560,6 +475,20 @@ Keyword Args
                 raise ValueError(
                     "``prefetch_queue_depth`` must be a positive integer, got {}.".format(
                         prefetch_queue_depth))
+            if source_desc.kind == _SourceKind.CALLABLE:
+                if not source_desc.has_inputs:
+                    raise TypeError(("External Source in parallel mode (when `parallel=True`) "
+                            "accepts as `source` only callables that accept exactly one "
+                            "argument of type `nvidia.dali.types.SampleInfo`. This argument "
+                            "represents the requested sample index. Got a callable that does not "
+                            "accept arguments instead."))
+            else:
+                what = "an iterable" if source_desc.kind == _SourceKind.ITERABLE else "a generator function"
+                raise TypeError(("External Source in parallel mode (when `parallel=True`) accepts "
+                        "as `source` only callables that accept exactly one argument of type"
+                        "`nvidia.dali.types.SampleInfo`. This argument represents the requested "
+                        "sample index. Got {} instead.\nOnly callables allow to distribute work "
+                        "between worker processes without duplicating it.").format(what))
         else:
             if prefetch_queue_depth is not None:
                 raise ValueError("The argument `prefetch_queue_depth` is valid only for " +
@@ -648,6 +577,15 @@ def _is_external_source_with_callback(op_instance):
 
 def _is_external_source(op_instance):
     return isinstance(op_instance._op, ExternalSource)
+
+
+def _has_external_source(pipeline):
+    if not pipeline._py_graph_built:
+        pipeline._build_graph()
+    for op in pipeline._ops:
+        if _is_external_source(op):
+            return True
+    return False
 
 
 def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None,

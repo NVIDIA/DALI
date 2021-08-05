@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,8 +34,10 @@
 namespace dali {
 namespace mm {
 
-template <memory_kind kind, typename FreeList = coalescing_free_tree,
-          typename LockType = std::mutex, typename Upstream = memory_resource<kind>>
+template <memory_kind kind,
+    typename GlobalPool = deferred_dealloc_pool<kind, any_context, coalescing_free_tree, spinlock>,
+    typename LockType = std::mutex,
+    typename Upstream = memory_resource<kind>>
 class async_pool_resource : public async_memory_resource<kind> {
  public:
   /**
@@ -43,9 +45,24 @@ class async_pool_resource : public async_memory_resource<kind> {
    * @param avoid_upstream If true, synchronize with outstanding deallocations before
    *                       using upstream.
    */
+  template <typename P = GlobalPool,
+            typename = std::enable_if_t<std::is_constructible<P, Upstream*, pool_options>::value>>
   explicit async_pool_resource(Upstream *upstream, bool avoid_upstream = true)
   : global_pool_(upstream, global_pool_options()), avoid_upstream_(avoid_upstream) {
   }
+
+  /**
+   * @param upstream       Upstream resource, used by the global pool
+   * @param avoid_upstream If true, synchronize with outstanding deallocations before
+   *                       using upstream.
+   */
+  template <typename... PoolArgs,
+            typename P = GlobalPool,
+            typename = std::enable_if_t<std::is_constructible<P, PoolArgs...>::value>>
+  explicit async_pool_resource(PoolArgs&&...args)
+  : global_pool_(std::forward<PoolArgs>(args)...), avoid_upstream_(false) {
+  }
+
   ~async_pool_resource() {
     try {
       synchronize();
@@ -526,13 +543,13 @@ class async_pool_resource : public async_memory_resource<kind> {
    * reuse a part of the block on the same stream and return the rest to the global pool, with
    * the hope of reducing the number of calls to upstream and overall memory consumption.
    */
-  static constexpr bool supports_splitting = detail::can_merge<FreeList>::value;
+  static constexpr bool supports_splitting = detail::can_merge<GlobalPool>::value;
 
   static constexpr pool_options global_pool_options() {
     return default_pool_opts<kind>();
   }
 
-  deferred_dealloc_pool<kind, any_context, FreeList, spinlock> global_pool_;
+  GlobalPool global_pool_;
 
   int num_pending_frees_ = 0;
   bool avoid_upstream_ = true;

@@ -12,6 +12,7 @@ test_body() {
     nosetests --verbose test_external_source_pytorch_dlpack.py
     nosetests --verbose test_external_source_parallel_pytorch.py
     nosetests --verbose test_backend_impl_torch_dlpack.py
+    nosetests --verbose --attr 'pytorch' test_external_source_impl_utils.py
 }
 
 pushd ../..

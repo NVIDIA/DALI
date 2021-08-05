@@ -21,7 +21,7 @@ import numpy as np
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-from test_utils import to_array
+from test_utils import to_array, get_dali_extra_path
 
 import tensorflow as tf
 from tensorflow.python.client import device_lib
@@ -29,7 +29,6 @@ from nose import SkipTest
 from distutils.version import LooseVersion
 import math
 from contextlib import contextmanager
-
 
 def skip_for_incompatible_tf():
     if not dali_tf.dataset_distributed_compatible_tensorflow():
@@ -88,9 +87,39 @@ def expect_iter_end(should_raise, exception_type):
 #
 # ################################################################################################ #
 
+def get_mix_size_image_pipeline(batch_size, num_threads, device, device_id=0, shard_id=0, num_shards=1,
+        def_for_dataset=False):
+    test_data_root = get_dali_extra_path()
+    file_root = os.path.join(test_data_root, 'db', 'coco_dummy', 'images')
+    annotations_file = os.path.join(
+        test_data_root, 'db', 'coco_dummy', 'instances.json')
+
+    pipe = Pipeline(batch_size, num_threads, device_id)
+    with pipe:
+        jpegs, _, _, image_ids = fn.readers.coco(
+            file_root=file_root,
+            annotations_file=annotations_file,
+            shard_id=shard_id,
+            num_shards=num_shards,
+            ratio=False,
+            image_ids=True)
+        images = fn.decoders.image(
+            jpegs,
+            device=('mixed' if device == 'gpu' else 'cpu'),
+            output_type=types.RGB)
+
+        pipe.set_outputs(images)
+
+    shapes = ((batch_size, None, None, None),)
+    dtypes = (tf.float32,)
+
+    return pipe, shapes, dtypes
+
+
+
 def get_image_pipeline(batch_size, num_threads, device, device_id=0, shard_id=0, num_shards=1,
         def_for_dataset=False):
-    test_data_root = os.environ['DALI_EXTRA_PATH']
+    test_data_root = get_dali_extra_path()
     file_root = os.path.join(test_data_root, 'db', 'coco_dummy', 'images')
     annotations_file = os.path.join(
         test_data_root, 'db', 'coco_dummy', 'instances.json')
@@ -237,15 +266,16 @@ def compare(dataset_results, standalone_results, iterations=-1,  num_devices=1):
         iterations = len(standalone_results)
 
     # list [iterations] of tuple [devices] of tuple [outputs] of tensors representing batch
-    assert len(dataset_results) == iterations
+    assert len(dataset_results) == iterations, f'Got {len(dataset_results)} dataset results for {iterations} iterations'
     for it in range(iterations):
         for device_id in range(num_devices):
             for tf_data, dali_data in zip(dataset_results[it][device_id], standalone_results[it][device_id]):
-                np.testing.assert_array_equal(tf_data, dali_data)
+                np.testing.assert_array_equal(tf_data, dali_data, f'Iteration {it}, x = tf_data, y = DALI baseline')
 
 
 def run_tf_dataset_graph(device, device_id=0, get_pipeline_desc=get_image_pipeline,
         to_dataset=to_image_dataset, to_stop_iter=False):
+    tf.compat.v1.reset_default_graph()
     batch_size = 12
     num_threads = 4
     iterations = 10
@@ -340,7 +370,7 @@ def run_tf_dataset_multigpu_eager_mirrored_strategy(get_pipeline_desc=get_image_
     strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
     input_options = tf.distribute.InputOptions(
         experimental_place_dataset_on_device = True,
-        experimental_prefetch_to_device = False,
+        experimental_fetch_to_device = False,
         experimental_replication_mode = tf.distribute.InputReplicationMode.PER_REPLICA)
 
     def dataset_fn(input_context):

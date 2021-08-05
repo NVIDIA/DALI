@@ -62,7 +62,7 @@ def decoder_pipe(data_path, device, use_fast_idct=False, memory_stats=False):
 test_data_root = get_dali_extra_path()
 good_path = 'db/single'
 missnamed_path = 'db/single/missnamed'
-test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k'}
+test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k', 'webp'}
 test_missnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
 
 def run_decode(data_path, batch, device, threads, memory_stats=False):
@@ -193,7 +193,7 @@ def test_image_decoder_fused():
     for test_fun in [create_decoder_slice_pipeline, create_decoder_crop_pipeline, create_decoder_random_crop_pipeline]:
         if test_fun == create_decoder_random_crop_pipeline:
             # random_resized_crop can properly handle border as it has pixels that are cropped out, while
-            # plain resize folowing image_decoder_random_crop cannot do that and must duplicate the border pixels
+            # plain resize following image_decoder_random_crop cannot do that and must duplicate the border pixels
             validation_fun = lambda x, y: np.mean(np.abs(x - y) < 0.5)
         else:
             validation_fun = lambda x, y: np.allclose(x, y)

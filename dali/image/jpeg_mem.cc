@@ -1,6 +1,6 @@
 /* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
-Copyright 2019, NVIDIA CORPORATION. All rights reserved.
+Copyright 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -578,27 +578,31 @@ bool GetImageInfo(const void* srcdata, int datasize, int* width, int* height,
 
   // Initialize libjpeg structures to have a memory source
   // Modify the usual jpeg error manager to catch fatal errors.
-  struct jpeg_decompress_struct cinfo;
+  struct jpeg_decompress_struct cinfo{};
   struct jpeg_error_mgr jerr;
   jmp_buf jpeg_jmpbuf;
   cinfo.err = jpeg_std_error(&jerr);
   cinfo.client_data = &jpeg_jmpbuf;
   jerr.error_exit = CatchError;
-  if (setjmp(jpeg_jmpbuf)) {
-    return false;
-  }
 
   // set up, read header, set image parameters, save size
   jpeg_create_decompress(&cinfo);
+
+  if (setjmp(jpeg_jmpbuf)) {
+    jpeg_destroy_decompress(&cinfo);
+    return false;
+  }
   SetSrc(&cinfo, srcdata, datasize, false);
 
-  DALI_ENFORCE(jpeg_read_header(&cinfo, TRUE) == JPEG_HEADER_OK);
+  if (jpeg_read_header(&cinfo, TRUE) != JPEG_HEADER_OK) {
+    jpeg_destroy_decompress(&cinfo);
+    return false;
+  }
   if (width) *width = cinfo.image_width;
   if (height) *height = cinfo.image_height;
   if (components) *components = cinfo.num_components;
 
   jpeg_destroy_decompress(&cinfo);
-
   return true;
 }
 
@@ -618,7 +622,7 @@ bool CompressInternal(const uint8* srcdata, int width, int height,
     ERROR_LOG << "Invalid image size: " << width << " x " << height << std::endl;
     return false;
   }
-  if (total_size >= (1LL << 29)) {
+  if (total_size >= (1_i64 << 29)) {
     ERROR_LOG << "Image too large: " << total_size << std::endl;
     return false;
   }

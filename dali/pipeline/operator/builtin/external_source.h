@@ -30,7 +30,7 @@
 #include "dali/pipeline/operator/batch_size_provider.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/worker_thread.h"
-#include "include/dali/core/common.h"
+#include "dali/core/common.h"
 
 namespace dali {
 

@@ -41,8 +41,7 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
                                    prefetch_queue_depth),
         cpu_thread_(device_id, set_affinity),
         mixed_thread_(device_id, set_affinity),
-        gpu_thread_(device_id, set_affinity),
-        device_id_(device_id) {}
+        gpu_thread_(device_id, set_affinity) {}
 
   DLL_PUBLIC ~AsyncSeparatedPipelinedExecutor() override {
     ShutdownQueue();
@@ -101,7 +100,6 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
   }
 
   WorkerThread cpu_thread_, mixed_thread_, gpu_thread_;
-  int device_id_;
 };
 
 }  // namespace dali

@@ -39,7 +39,8 @@ class InstallerHelper:
         self.is_compatible_with_prebuilt_bin = self.platform_system == 'Linux' and self.platform_machine == 'x86_64'
         self.prebuilt_dir = os.path.join(self.src_path, 'prebuilt')
         self.prebuilt_stub_dir = os.path.join(self.prebuilt_dir, 'stub')
-        self.prebuilt_dali_stub = find('libdali.so', self.prebuilt_stub_dir)[0] or None
+        dali_stubs = find('libdali.so', self.prebuilt_stub_dir)
+        self.prebuilt_dali_stub = dali_stubs[0] if len(dali_stubs) > 0 else None
 
         # If set, checking for prebuilt binaries or compiler version check is disabled
         self.always_build = bool(int(os.getenv('DALI_TF_ALWAYS_BUILD', '0')))
@@ -111,13 +112,13 @@ class InstallerHelper:
         print("Importing the TF library to check for errors")
 
         # The DALI TF lib and the DALI stub lib should be at the same directory for check_import to succeed
-        # Unfortunately the symlink is necessary because we can't change LD_LIBRARY_PATH from within the script
+        # Unfortunately the copy is necessary because we can't change LD_LIBRARY_PATH from within the script
         with tempfile.TemporaryDirectory(prefix="check_import_tmp") as tmpdir:
             lib_path_tmpdir = os.path.join(tmpdir, lib_name)
-            os.symlink(lib_path, lib_path_tmpdir)
+            copyfile(lib_path, lib_path_tmpdir)
 
             dali_stub_tmpdir = os.path.join(tmpdir, dali_stub_name)
-            os.symlink(dali_stub, dali_stub_tmpdir)
+            copyfile(dali_stub, dali_stub_tmpdir)
 
             try:
                 print("Loading DALI TF library: ", lib_path_tmpdir)

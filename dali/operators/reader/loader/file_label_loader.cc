@@ -72,8 +72,6 @@ void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
   // close the file handle
   current_image->Close();
 
-  // copy the label
-  image_label.label = image_pair.second;
   image_label.image.SetMeta(meta);
 }
 

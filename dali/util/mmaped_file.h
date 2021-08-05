@@ -43,7 +43,6 @@ class MmapedFileStream : public FileStream {
   std::shared_ptr<void> p_;
   size_t length_;
   size_t pos_;
-  string path_;
   bool read_ahead_whole_file_;
 };
 

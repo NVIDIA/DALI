@@ -100,7 +100,7 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   const int initial_fill = 10;
 #if defined(__powerpc64__) || defined(__x86_64__)
   float driverVersion = 0;
-  char version[80];
+  char version[NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE];
 
 #if NVML_ENABLED
   if (nvmlInitChecked() != NVML_SUCCESS) {

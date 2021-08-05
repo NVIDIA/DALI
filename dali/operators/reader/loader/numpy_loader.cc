@@ -237,7 +237,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     target.data.SetMeta(meta);
     target.data.set_type(TypeInfo::Create<uint8_t>());
     target.data.Resize({0});
-    target.filename = "";
+    target.filename.clear();
     return;
   }
 

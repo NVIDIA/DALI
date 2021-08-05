@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -109,6 +109,11 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
   assert(transform_axis_ >= 0);
   assert(nfft_ > 0);
   assert(n <= nfft_);
+
+  // When the nfft is larger than the window lenght, we center the window
+  // (padding with zeros on both side)
+  int in_win_start = n < nfft_ ? (nfft_ - n) / 2 : 0;
+
   bool use_real_impl = can_use_real_impl(nfft_);
 
   auto in_buf_sz = size_in_buf(nfft_);
@@ -129,19 +134,20 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
   ForAxis(
     out.data, in.data, out_shape.data(), out_strides.data(), in_shape.data(), in_strides.data(),
     transform_axis_, out.dim(),
-    [this, &args, use_real_impl, out_buf, in_buf](
+    [this, &args, use_real_impl, out_buf, in_buf, in_win_start](
       OutputType *out_data, const InputType *in_data,
       int64_t out_size, int64_t out_stride, int64_t in_size, int64_t in_stride) {
         int64_t in_idx = 0;
         if (use_real_impl) {
           for (int i = 0; i < in_size; i++) {
-            in_buf[i] = ConvertSat<float>(in_data[in_idx]);
+            in_buf[in_win_start + i] = ConvertSat<float>(in_data[in_idx]);
             in_idx += in_stride;
           }
         } else {
           for (int i = 0; i < in_size; i++) {
-            in_buf[2 * i] = ConvertSat<float>(in_data[in_idx]);
-            in_buf[2 * i + 1] = 0.0f;
+            int64_t off = 2 * (in_win_start + i);
+            in_buf[off] = ConvertSat<float>(in_data[in_idx]);
+            in_buf[off + 1] = 0.0f;
             in_idx += in_stride;
           }
         }

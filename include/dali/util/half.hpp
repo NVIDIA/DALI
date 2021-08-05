@@ -971,11 +971,8 @@ namespace half_float
 
    public:
 		/// Default constructor.
-		/// This initializes the half to 0. Although this does not match the builtin types' default-initialization semantics
-		/// and may be less efficient than no initialization, it is needed to provide proper value-initialization semantics.
-		HALF_CONSTEXPR
 		CAFFE_UTIL_HD
-		half() : data_() {}
+		half() = default;
 
     template<typename H>
     CAFFE_UTIL_HD
@@ -1016,12 +1013,10 @@ namespace half_float
       assign(static_cast<float>(rhs));
     }
 
-    // Copy constructor overriding the one above
-    // It avoids half->float->half path
+    /// Trivial copy constructor.
 	HALF_CONSTEXPR
     CAFFE_UTIL_HD
-    half(const half& rhs) :
-      data_(rhs.data_) {}
+    half(const half &) = default;
 
 //		explicit half(float rhs) : data_(detail::float2half<round_style>(rhs)) {}
     CAFFE_UTIL_HD

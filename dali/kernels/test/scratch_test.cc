@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018 - 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -153,17 +153,24 @@ TEST(Scratch, ScratchpadAllocator) {
   ScratchpadAllocator sa;
   const size_t N = ScratchpadAllocator::NumAllocTypes;
   int sizes[N];
-  for (size_t i = 0; i < N; i++) {
-    AllocType type = AllocType(i);
-    sizes[i] = 1024 + 256 * i;
-    sa.Reserve(type, sizes[i]);
-  }
-  auto s = sa.GetScratchpad();
-  for (size_t i = 0; i < N; i++) {
-    float margin = sa.Policy(static_cast<AllocType>(i)).Margin;
-    EXPECT_GE(s.allocs[i].total(), sizes[i]) << "Memory block smaller than requested";
-    EXPECT_LE(s.allocs[i].total(), sizes[i] * (1 + margin) + 64) << "Too much padding";
-    EXPECT_EQ(s.allocs[i].used(), 0) << "New scratchpad should be unused";
+  try {
+    for (size_t i = 0; i < N; i++) {
+      AllocType type = AllocType(i);
+      sizes[i] = 1024 + 256 * i;
+      sa.Reserve(type, sizes[i]);
+    }
+    auto s = sa.GetScratchpad();
+    for (size_t i = 0; i < N; i++) {
+      float margin = sa.Policy(static_cast<AllocType>(i)).Margin;
+      EXPECT_GE(s.allocs[i].total(), sizes[i]) << "Memory block smaller than requested";
+      EXPECT_LE(s.allocs[i].total(), sizes[i] * (1 + margin) + 64) << "Too much padding";
+      EXPECT_EQ(s.allocs[i].used(), 0) << "New scratchpad should be unused";
+    }
+  } catch (const CUDAError &e) {
+    if ((e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
+        (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported)) {
+      GTEST_SKIP() << "Unified memory not supported on this platform";
+    }
   }
 }
 

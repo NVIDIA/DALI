@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,12 @@ namespace mm {
  */
 class malloc_memory_resource : public host_memory_resource {
   void *do_allocate(size_t bytes, size_t alignment) override {
-    return memalign(alignment, bytes + sizeof(int));
+    if (bytes == 0)
+      return nullptr;
+    void *ptr = memalign(alignment, bytes + sizeof(int));
+    if (!ptr)
+      throw std::bad_alloc();
+    return ptr;
   }
 
   void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {

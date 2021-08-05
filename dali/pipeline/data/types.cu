@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,9 @@ namespace dali {
 namespace detail {
 
 __global__ void CopyKernel(uint8_t *dst, const uint8_t *src, int64_t n) {
-  for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x) {
+  int64_t step = static_cast<int64_t>(blockDim.x) * gridDim.x;
+  int64_t start = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  for (int64_t i = start; i < n; i += step) {
     dst[i] = src[i];
   }
 }

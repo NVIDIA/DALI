@@ -182,7 +182,7 @@ class CropMirrorNormalize : public Operator<Backend> {
 
     int ndim = in_shape.sample_dim();
     int nsamples = in_shape.size();
-    DALI_ENFORCE(ndim >= 3 || ndim <= 5,
+    DALI_ENFORCE(ndim >= 3 && ndim <= 5,
       make_string("Unexpected number of dimensions: ", ndim));
     DALI_ENFORCE(input_layout_.ndim() == ndim);
     int spatial_ndim = ImageLayoutInfo::NumSpatialDims(input_layout_);

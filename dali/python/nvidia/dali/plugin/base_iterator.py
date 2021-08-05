@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,13 +30,13 @@ def _iterator_deprecation_warning():
 @unique
 class LastBatchPolicy(Enum):
     """
-        Describes the last batch policy behavior when there are not enough samples in the epoch
-        to fill a whole batch.
-
-        FILL - Fills the last batch with the data wrapping up the data set. The precise
-               behavior depends on the reader which may duplicate the last sample to fill the batch
-        DROP - If the last batch cannot be fully filled by the data from given epoch it is dropped
-        PARTIAL - Returns the part of the last batch filled with the data relevant to given epoch
+    Describes the last batch policy behavior when there are not enough samples in the epoch
+    to fill a whole batch.
+        * FILL - The last batch is filled by either repeating the last sample or by wrapping
+          up the data set. The precise behavior depends on the reader's ``pad_last_batch`` argument
+        * DROP - The last batch is dropped if it cannot be fully filled with data from the current epoch
+        * PARTIAL - The last batch is partially filled with the remaining data from the current epoch,
+          keeping the rest of the samples empty
     """
     FILL = 0
     DROP = 1

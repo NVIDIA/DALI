@@ -315,6 +315,14 @@ void daliOutputRelease(daliPipelineHandle *pipe_handle) {
   pipeline->ReleaseOutputs();
 }
 
+int64_t daliOutputHasUniformShape(daliPipelineHandle* pipe_handle, int i) {
+  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
+  if (ws->OutputIsType<dali::CPUBackend>(i)) {
+    return is_uniform(ws->Output<dali::CPUBackend>(i).shape());
+  } else {
+    return is_uniform(ws->Output<dali::GPUBackend>(i).shape());
+  }
+}
 
 template<typename T>
 static int64_t *daliShapeAtHelper(dali::DeviceWorkspace *ws, int n, int k) {

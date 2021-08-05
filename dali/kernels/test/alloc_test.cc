@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,12 +25,23 @@ TEST(KernelAlloc, AllocFree) {
   size_t size = 1<<20;  // 1 MiB
   const char *names[static_cast<int>(AllocType::Count)] = { "Host", "Pinned", "GPU", "Unified" };
   for (int i = 0; i < static_cast<int>(AllocType::Count); i++) {
-    AllocType alloc = static_cast<AllocType>(i);
-    void *mem = memory::Allocate(alloc, size);
-    EXPECT_EQ(cudaGetLastError(), 0) << "Error when allocating for " << names[i];
-    ASSERT_NE(mem, nullptr);
-    memory::GetDeleter(alloc)(mem);
-    EXPECT_EQ(cudaGetLastError(), 0) << "Error when freeing for " << names[i];
+    try {
+      AllocType alloc = static_cast<AllocType>(i);
+      void *mem = memory::Allocate(alloc, size);
+      EXPECT_EQ(cudaGetLastError(), 0) << "Error when allocating for " << names[i];
+      // use ThrowMemoryError to call cudaGetLastError from the kernel libray
+      // (and use CUDA rt status from there)
+      if (!mem) {
+        memory::ThrowMemoryError(alloc, size);
+      }
+      memory::GetDeleter(alloc)(mem);
+      EXPECT_EQ(cudaGetLastError(), 0) << "Error when freeing for " << names[i];
+    } catch (const CUDAError &e) {
+      // skip this case if Unified is not supported
+      bool not_supported = (e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
+                           (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported);
+      EXPECT_TRUE(not_supported) << "Unexpected CUDA exception: " << e.what();
+    }
   }
 }
 
@@ -75,12 +86,19 @@ TEST(KernelAlloc, Unique) {
   size_t size = 1<<20;  // 1 M
   const char *names[static_cast<int>(AllocType::Count)] = { "Host", "Pinned", "GPU", "Unified" };
   for (int i = 0; i < static_cast<int>(AllocType::Count); i++) {
-    AllocType alloc = static_cast<AllocType>(i);
-    auto ptr = memory::alloc_unique<float>(alloc, size);
-    EXPECT_EQ(cudaGetLastError(), 0) << "Error when allocating for " << names[i];
-    ASSERT_NE(ptr, nullptr);
-    ptr.reset();
-    EXPECT_EQ(cudaGetLastError(), 0) << "Error when freeing for " << names[i];
+    try {
+      AllocType alloc = static_cast<AllocType>(i);
+      auto ptr = memory::alloc_unique<float>(alloc, size);
+      EXPECT_EQ(cudaGetLastError(), 0) << "Error when allocating for " << names[i];
+      ASSERT_NE(ptr, nullptr);
+      ptr.reset();
+      EXPECT_EQ(cudaGetLastError(), 0) << "Error when freeing for " << names[i];
+    } catch (const CUDAError &e) {
+      // skip this case if Unified is not supported
+      bool not_supported = (e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
+                           (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported);
+      EXPECT_TRUE(not_supported) << "Unexpected CUDA exception: " << e.what();
+    }
   }
 }
 
@@ -88,21 +106,28 @@ TEST(KernelAlloc, Shared) {
   size_t size = 1<<20;  // 1 M
   const char *names[static_cast<int>(AllocType::Count)] = { "Host", "Pinned", "GPU", "Unified" };
   for (int i = 0; i < static_cast<int>(AllocType::Count); i++) {
-    AllocType alloc = static_cast<AllocType>(i);
-    std::shared_ptr<float> ptr = memory::alloc_shared<float>(alloc, size);
-    EXPECT_EQ(cudaGetLastError(), 0) << "Error when allocating for " << names[i];
-    std::shared_ptr<float> ptr2 = ptr;
-    ASSERT_NE(ptr, nullptr);
-    ASSERT_NE(ptr2, nullptr);
-    ptr.reset();
-    ptr2.reset();
-    EXPECT_EQ(cudaGetLastError(), 0) << "Error when freeing for " << names[i];
+    try {
+      AllocType alloc = static_cast<AllocType>(i);
+      std::shared_ptr<float> ptr = memory::alloc_shared<float>(alloc, size);
+      EXPECT_EQ(cudaGetLastError(), 0) << "Error when allocating for " << names[i];
+      std::shared_ptr<float> ptr2 = ptr;
+      ASSERT_NE(ptr, nullptr);
+      ASSERT_NE(ptr2, nullptr);
+      ptr.reset();
+      ptr2.reset();
+      EXPECT_EQ(cudaGetLastError(), 0) << "Error when freeing for " << names[i];
+    } catch (const CUDAError &e) {
+      // skip this case if Unified is not supported
+      bool not_supported = (e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
+                           (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported);
+      EXPECT_TRUE(not_supported) << "Unexpected CUDA exception: " << e.what();
+    }
   }
 }
 
 TEST(KernelAllocFail, Host) {
   (void)cudaGetLastError();
-  size_t size = static_cast<size_t>(-1);
+  size_t size = -1_uz;
   EXPECT_THROW(memory::alloc_unique<uint8_t>(AllocType::Host, size), std::bad_alloc);
   EXPECT_THROW(memory::alloc_shared<uint8_t>(AllocType::Host, size), std::bad_alloc);
   EXPECT_EQ(memory::alloc_unique<uint8_t>(AllocType::Host, 0),
@@ -113,7 +138,7 @@ TEST(KernelAllocFail, Host) {
 
 TEST(KernelAllocFail, Pinned) {
   (void)cudaGetLastError();
-  size_t size = static_cast<size_t>(-1);
+  size_t size = -1_uz;
   EXPECT_THROW(memory::alloc_unique<uint8_t>(AllocType::Pinned, size), CUDABadAlloc);
   EXPECT_THROW(memory::alloc_shared<uint8_t>(AllocType::Pinned, size), CUDABadAlloc);
   EXPECT_EQ(memory::alloc_unique<uint8_t>(AllocType::Pinned, 0),
@@ -124,7 +149,7 @@ TEST(KernelAllocFail, Pinned) {
 
 TEST(KernelAllocFail, GPU) {
   (void)cudaGetLastError();
-  size_t size = static_cast<size_t>(-1);
+  size_t size = -1_uz;
   EXPECT_THROW(memory::alloc_unique<uint8_t>(AllocType::GPU, size), CUDABadAlloc);
   EXPECT_THROW(memory::alloc_shared<uint8_t>(AllocType::GPU, size), CUDABadAlloc);
   EXPECT_EQ(memory::alloc_unique<uint8_t>(AllocType::GPU, 0),
