@@ -326,6 +326,15 @@ def test_external_source_collection():
     pipe.build()
     run_and_check(pipe, batches)
 
+def test_external_source_iterate_ndarray():
+    pipe = Pipeline(4, 3, 0)
+
+    batch = make_array([1.5,2.5,2,3], dtype=datapy.float32)
+
+    pipe.set_outputs(fn.external_source(batch, batch=False))
+    pipe.build()
+    run_and_check(pipe, [batch])
+
 
 def test_external_source_collection_cycling():
     pipe = Pipeline(1, 3, 0)

@@ -183,7 +183,7 @@ def _is_generator_function(x):
     if x is None or inspect.isfunction(x) or inspect.ismethod(x):
         return False
     call = getattr(x, "__call__", None)
-    if call == x:
+    if call is x:
         return False
     return _is_generator_function(call)
 
