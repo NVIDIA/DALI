@@ -1,5 +1,7 @@
-Operations
-==========
+.. _operation reference:
+
+Operation Reference
+===================
 
 .. currentmodule:: nvidia.dali
 

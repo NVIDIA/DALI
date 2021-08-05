@@ -1,3 +1,5 @@
+.. _datanode indexing:
+
 Indexing
 ========
 
@@ -17,7 +19,8 @@ The snippet above extracts the third (index 2) byte from the files.
 
 .. note::
     The batch dimension is implicit and cannot be indexed. In this example, the index 2
-    is broadcast to the whole batch. The section :ref:`Run-time indices` for per-sample indexing.
+    is broadcast to the whole batch. See the section :ref:`Run-time indices` for per-sample
+    indexing.
 
 Indexing from the end
 ~~~~~~~~~~~~~~~~~~~~~
