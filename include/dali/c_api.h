@@ -305,11 +305,11 @@ DLL_PUBLIC void daliOutputRelease(daliPipelineHandle *pipe_handle);
  * This function may only be called after
  * calling Output function.
  */
-DLL_PUBLIC int64_t daliIsUniformShapeAt(daliPipelineHandle *pipe_handle, int n);
+DLL_PUBLIC int64_t daliOutputHasUniformShape(daliPipelineHandle *pipe_handle, int i);
 
 /**
  * @brief Return the shape of the output tensor stored at position `n` in the pipeline.
- * Valid only if daliIsUniformShapeAt() returns 1.
+ * Valid only if daliOutputHasUniformShape() returns 1.
  *
  * This function may only be called after
  * calling Output function.

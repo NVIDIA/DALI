@@ -130,7 +130,7 @@ class DaliOp : public tf::OpKernel {
       OP_REQUIRES_OK(context, tf::errors::Internal("Cannot output sparse tensors on the GPU"));
     }
     this->device_id_ = device_id;
-    this->batch_size = max_batch_size;
+    this->batch_size_ = max_batch_size;
     LOG_LINE << "Initializing...\n";
 
     if (max_batch_size < 0) {
@@ -229,16 +229,16 @@ class DaliOp : public tf::OpKernel {
       std::vector<tf::int64> max_dims;
       if (!should_be_sparse_tensor) {
         bool is_uniform = false;
-        TF_DALI_CALL(is_uniform = daliIsUniformShapeAt(&pipe_handle_, i));
+        TF_DALI_CALL(is_uniform = daliOutputHasUniformShape(&pipe_handle_, i));
         if (!is_uniform) {
           std::stringstream shapes;
-          for (int sample_id = 0; sample_id < batch_size; sample_id++) {
+          for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
             AutoCPtr<int64_t> dali_shape;
             TF_DALI_CALL(dali_shape = AutoCPtr<int64_t>(
                              daliShapeAtSample(&pipe_handle_, i, sample_id)));
 
             shapes << DaliToShape(dali_shape);
-            if (sample_id < batch_size - 1) {
+            if (sample_id < batch_size_ - 1) {
               shapes << ", ";
             }
           }
@@ -387,7 +387,7 @@ class DaliOp : public tf::OpKernel {
   std::vector<tf::TensorShape> shapes_;
   tf::DataTypeVector types_;
   int device_id_;
-  int batch_size;
+  int batch_size_;
   int prefetch_queue_depth_;
   device_type_t device_type_;
   std::vector<bool> sparse_;

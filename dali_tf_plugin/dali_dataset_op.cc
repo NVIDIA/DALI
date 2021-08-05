@@ -516,7 +516,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     for (int out_id = 0; out_id < num_outputs; ++out_id) {
       TensorShape output_shape;
       bool is_uniform = false;
-      TF_DALI_CALL(is_uniform = daliIsUniformShapeAt(&pipeline_handle_, out_id));
+      TF_DALI_CALL(is_uniform = daliOutputHasUniformShape(&pipeline_handle_, out_id));
 
       if (!is_uniform) {
         std::stringstream shapes;

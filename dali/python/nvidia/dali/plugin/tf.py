@@ -765,17 +765,15 @@ if dataset_compatible_tensorflow():
                         "__init__() got an unexpected keyword argument '{}'. "
                         "Dataset inputs are allowed only in 'experimental.DALIDatasetWithInputs'.").format(
                         disallowed_kwarg))
-            dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
-
-            # TODO(klecki): Remove this when we move support for inputs from experimental.
             # We detected External Source nodes in the Pipeline
-            if _has_external_source(dataset_impl._pipeline_instance):
+            if _has_external_source(pipeline):
                 raise ValueError(("DALIDataset got a DALI pipeline containing External Source "
                     "operator nodes. External Source nodes can be used to express placeholders "
                     "for tf.data.Dataset inputs to DALI or to run user-provided Python code "
                     "via `source` parameter. Support for Dataset inputs and External Source's "
                     "`source` is allowed only in 'experimental.DALIDatasetWithInputs'."))
 
+            dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
             super(DALIDataset, self).__init__(dataset_impl, dataset_options())
 
 else:
