@@ -34,6 +34,10 @@ def test_tf_dataset_gpu():
 def test_tf_dataset_cpu():
     run_tf_dataset_eager_mode('cpu')
 
+# Return differently sized images to check if DALIDataset can handle this case gracefully
+@raises(tf.errors.FailedPreconditionError)
+def test_mixed_size_pipeline():
+    run_tf_dataset_eager_mode('gpu', get_pipeline_desc=get_mix_size_image_pipeline)
 
 def run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch):
     tensor = np.full(shape, value, dtype)
@@ -268,8 +272,10 @@ def test_tf_dataset_disallowed_es():
     yield check_disallowed_es, {}, {}
     # num_outputs
     yield check_disallowed_es, {'name': 'a', 'num_outputs': 1}, {'a': in_dataset}
-    # source provided
+    # source provided, so we don't have valid placeholder
     yield check_disallowed_es, {'name': 'a', 'source': []}, {'a': in_dataset}
+    # misnamed placeholder
+    yield check_disallowed_es, {'name': 'b'}, {'a': in_dataset}
 
 
 def check_layout(kwargs, input_datasets, layout):
@@ -323,6 +329,19 @@ def test_tf_experimental_inputs_disabled():
     pipeline = get_image_pipeline(4, 4, 'cpu', 0)
     dali_tf.DALIDataset(pipeline,
                         input_datasets={"test" : tf.data.Dataset.from_tensors(np.int32([42, 42]))})
+
+
+# Test if the ValueError is raised for external source with `source`.
+@raises(ValueError)
+def test_tf_experimental_source_disabled():
+    pipe = Pipeline(10, 4, 0)
+    with pipe:
+        input = fn.external_source(source=lambda : np.full((4, 4), 0), batch=False)
+        pipe.set_outputs(fn.pad(input))
+    dali_tf.DALIDataset(
+        pipe,
+        output_dtypes=tf.int32)
+
 
 
 # This test should be private (name starts with _) as it is called separately in L1

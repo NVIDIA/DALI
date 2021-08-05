@@ -515,15 +515,39 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 
     for (int out_id = 0; out_id < num_outputs; ++out_id) {
       TensorShape output_shape;
+      bool is_uniform = false;
+      TF_DALI_CALL(is_uniform = daliOutputHasUniformShape(&pipeline_handle_, out_id));
 
-      auto dali_shape = DaliToShape(AutoCPtr<int64_t>(daliShapeAt(&pipeline_handle_, out_id)));
+      if (!is_uniform) {
+        std::stringstream shapes;
+        for (int sample_id = 0; sample_id < dataset()->pipeline_def_.batch_size; sample_id++) {
+          AutoCPtr<int64_t> dali_shape;
+          TF_DALI_CALL(dali_shape = AutoCPtr<int64_t>(
+                           daliShapeAtSample(&pipeline_handle_, out_id, sample_id)));
+
+          shapes << DaliToShape(dali_shape);
+          if (sample_id < dataset()->pipeline_def_.batch_size - 1) {
+            shapes << ", ";
+          }
+        }
+        return errors::FailedPrecondition(
+            "Batch output at index '", out_id,
+            "' from DALI pipeline is not uniform - individual samples have different dimensions. "
+            "This output cannot be represented as single, dense Tensor, which is required by "
+            "TensorFlow. Ensure that all the samples that you produce in given batch have equal "
+            "shape. Got shapes: ", shapes.str());
+      }
+      AutoCPtr<int64_t> dali_batch_shape;
+      TF_DALI_CALL(dali_batch_shape = AutoCPtr<int64_t>(daliShapeAt(&pipeline_handle_, out_id)));
+      auto dali_shape = DaliToShape(dali_batch_shape);
       auto status = GetCompatibleShape(output_shape, dataset()->shapes_[out_id], dali_shape,
                                        dataset()->pipeline_def_.batch_size, out_id);
       if (status != Status::OK()) {
         return status;
       }
 
-      auto dali_type = daliTypeAt(&pipeline_handle_, out_id);
+      dali_data_type_t dali_type = DALI_NO_TYPE;
+      TF_DALI_CALL(dali_type = daliTypeAt(&pipeline_handle_, out_id));
       auto tf_type = DaliToTfType(dali_type);
 
       if (tf_type != dataset()->dtypes_[out_id]) {

@@ -385,6 +385,10 @@ if dataset_compatible_tensorflow():
         return options
 
     class _DALIDatasetV2(dataset_ops.DatasetV2):
+        @classmethod
+        def experimental_constructor(cls):
+            return cls(randint(0, 33))
+
         def __init__(
                 self,
                 pipeline,
@@ -501,10 +505,11 @@ if dataset_compatible_tensorflow():
 
                 # there is External Source with name equal to `input_name`
                 if input_name not in name_es_map.keys():
-                    raise ValueError(("Did not find an External Source node with name='{}' in "
-                                      "the provided pipeline - required by the name specified "
-                                      "in the `input_datasets`. Names of available External "
-                                      "Source nodes are: {}.").format(input_name,
+                    raise ValueError(("Did not find an External Source placeholder node with "
+                                      "name='{}' in the provided pipeline - required by the name "
+                                      "specified in the `input_datasets`. Names of available  "
+                                      "placeholder External Source nodes are: {}. Placeholder "
+                                      "nodes cannot have `source` argument specified.").format(input_name,
                                                                       list(name_es_map.keys())))
 
                 in_names_list.append(input_name)
@@ -577,11 +582,13 @@ if dataset_compatible_tensorflow():
 
         def _setup_inputs(self, input_datasets):
             """Verify the input specification and assign it to private members in
-            normalized form."""
+            normalized form.
+            """
 
+            has_es = _has_external_source(self._pipeline_instance)
 
             # If no inputs are specified, input handling is no-op
-            if input_datasets is None and not _has_external_source(self._pipeline_instance):
+            if input_datasets is None and not has_es:
                 self._input_datasets = ()
                 self._input_names = ()
                 self._input_layouts = ()
@@ -634,17 +641,23 @@ if dataset_compatible_tensorflow():
         def _assert_correct_external_sources(self, external_source):
             """Validate that the external source nodes used are properly configured"""
             if external_source._op._num_outputs is not None:
-                raise ValueError("Found External Source node in the Pipeline that was "
-                                 "created with `num_outputs` parameter. Only single-output "
+                raise ValueError("Found placeholder External Source node (without `source` "
+                                 "argument) in the Pipeline that was created with `num_outputs` "
+                                 "`num_outputs` parameter. Only single-output "
                                  "(with `num_outputs=None`), named (with `name` argument "
                                  "specified) External Source nodes are supported as inputs "
-                                 "for DALIDataset integration.")
+                                 "placeholders for DALIDataset integration. "
+                                 "Alternatively, External Source can be used with `source` "
+                                 "parameter specified.")
             if external_source._op._name is None:
-                raise ValueError("Found External Source node in the Pipeline that was "
-                                 "not named (no `name` argument set). Only single-output "
+                raise ValueError("Found placeholder External Source node (without `source` "
+                                 "argument) in the Pipeline that was not named "
+                                 "(no `name` argument set). Only single-output "
                                  "(with `num_outputs=None`), named (with `name` argument "
                                  "specified) External Source nodes are supported as inputs "
-                                 "for DALIDataset integration.")
+                                 "placeholders for DALIDataset integration. "
+                                 "Alternatively, External Source can be used with `source` "
+                                 "parameter specified.")
 
         def _get_name_es_instance_map(self):
             """Return mappings between name of External Source and the op.
@@ -744,10 +757,22 @@ if dataset_compatible_tensorflow():
     class DALIDataset(dataset_ops._OptionsDataset):
         @functools.wraps(_DALIDatasetV2.__init__)
         def __init__(self, pipeline, **kwargs):
+
+            # TODO(klecki): Remove this when we move support for inputs from experimental.
             for disallowed_kwarg in _experimental_kwargs:
                 if disallowed_kwarg in kwargs.keys():
-                    raise TypeError("__init__() got an unexpected keyword argument '{}'".format(
+                    raise TypeError((
+                        "__init__() got an unexpected keyword argument '{}'. "
+                        "Dataset inputs are allowed only in 'experimental.DALIDatasetWithInputs'.").format(
                         disallowed_kwarg))
+            # We detected External Source nodes in the Pipeline
+            if _has_external_source(pipeline):
+                raise ValueError(("DALIDataset got a DALI pipeline containing External Source "
+                    "operator nodes. External Source nodes can be used to express placeholders "
+                    "for tf.data.Dataset inputs to DALI or to run user-provided Python code "
+                    "via `source` parameter. Support for Dataset inputs and External Source's "
+                    "`source` is allowed only in 'experimental.DALIDatasetWithInputs'."))
+
             dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
             super(DALIDataset, self).__init__(dataset_impl, dataset_options())
 
