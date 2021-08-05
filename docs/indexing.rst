@@ -12,10 +12,13 @@ Scalar indexing
 
 The simplest case is scalar indexing with a constant index::
 
-    raw_files = fn.readers.file(...)
-    third_bytes = raw_files[2]
+    images = fn.decoders.image(...)
+    sizes = fn.sizes(images)  # height, width, channels
 
-The snippet above extracts the third (index 2) byte from the files.
+    heights = sizes[0]
+    widths  = sizes[1]
+
+The snippet above extracts the width and height from a 3-element tensors representing image sizes
 
 .. note::
     The batch dimension is implicit and cannot be indexed. In this example, the index 2
@@ -28,9 +31,8 @@ Indexing from the end
 Negative indices can be used to index the tensor starting from the end. The index of -1 denotes
 the last element::
 
-    last_bytes = raw_files[-1]
-    penultimate_bytes = raw_files[-2]
-
+    channels = sizes[-1]   # channels go last
+    widths = sizes[-2]     # widths are the innermost dimension after channels
 
 Run-time indices
 ~~~~~~~~~~~~~~~~
@@ -38,8 +40,15 @@ Run-time indices
 Indexing by constant is often insufficient. With DALI, you can use a result of other computations
 to access tensor elements::
 
+    raw_files = fn.readers.file(...)
     length = fn.shapes(raw_files)[0]
-    index = fn.cast(fn.random.uniform(range=(0, 1)) * length, dtype=dali.types.INT64)
+
+    # calculate a random index from 0 to file_length-1
+    random_01 = fn.random.uniform(range=(0, 1))  # random numbers in range [0..1)
+    index = fn.floor(random_01 * length)  # calculate indices from [0..length)
+    index = fn.cast(index, dtype=dali.types.INT64)  # cast the index to integer - required for indexing
+
+    # extract a random byte
     random_byte = raw_files[index]
 
 Here, a byte at random index will be extracted from each sample. ``index`` is a data node which
@@ -55,7 +64,7 @@ Ranges
 
 To extract multiple values (or slices), the Python list slicing systax can be used::
 
-    header = raw_files[:16]
+    header = raw_files[:16]  # extract 16-byte headers from files in the batch
 
 If the start of the slice is omitted, the slice starts at 0. If the end is omitted, the slice
 ends at the end of given axis. Negative indices can be used for both start and end of the slice.
@@ -67,10 +76,10 @@ Multidimensional indexing
 The index can contain multiple axes, separated by comma. If an index is a scalar, the corresponding
 dimension is removed from the output::
 
-    image = fn.decoders.image(jpegs, device="mixed")  # RGB images in HWC layout
-    red =   image[:,:,0]
-    green = image[:,:,1]
-    blue =  image[:,:,2]
+    images = fn.decoders.image(jpegs, device="mixed")  # RGB images in HWC layout
+    red =   images[:,:,0]
+    green = images[:,:,1]
+    blue =  images[:,:,2]
 
 The ``red``, ``green``, ``blue`` are 2D tensors.
 
@@ -115,7 +124,7 @@ layout name for this axis::
 
     image = ...             # layout HWC
     first_row = image[0]    # layout WC
-    last_col = image[:,-1]  # lauout HWC
+    last_col = image[:,-1]  # lauout HC
     red = image[:,:,0]      # layout HW
 
 
