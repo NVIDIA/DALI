@@ -121,15 +121,16 @@ TEST_P(SimpleTarTests, Contents) {
   TAR* handle;
   ASSERT_EQ(tar_open(&handle, GetParam().filepath.c_str(), NULL, O_RDONLY, 0, TAR_GNU), 0);
 
-  do {
-    th_read(handle);
+  while(!archive.EndOfArchive()) {
+    ASSERT_EQ(th_read(handle), 0);
     vector<uint8_t> libtar_contents;
     uint64_t count = 0;
     uint64_t filesize = th_get_size(handle);
+    ASSERT_EQ(archive.GetFileSize(), filesize);
 
     do {
       libtar_contents.resize(libtar_contents.size() + T_BLOCKSIZE);
-      tar_block_read(handle, libtar_contents.data() + libtar_contents.size() - T_BLOCKSIZE);
+      ASSERT_EQ(tar_block_read(handle, libtar_contents.data() + libtar_contents.size() - T_BLOCKSIZE), T_BLOCKSIZE);
     } while ((count += T_BLOCKSIZE) < filesize);
     libtar_contents.resize(filesize);
 
@@ -139,7 +140,8 @@ TEST_P(SimpleTarTests, Contents) {
     for (size_t idx = 0; idx < libtar_contents.size(); idx++) {
       ASSERT_EQ(file[idx], libtar_contents[idx]);
     }
-  } while (archive.NextFile());
+    archive.NextFile();
+  }
   ASSERT_EQ(th_read(handle), 1);
   ASSERT_EQ(tar_close(handle), 0);
 }

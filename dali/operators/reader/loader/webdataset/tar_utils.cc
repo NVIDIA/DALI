@@ -76,14 +76,14 @@ inline TAR** ToTarHandle(void** handle) {
 
 }  // namespace
 
-ssize_t LibtarReadTarArchive(int instance_handle_, void* buf, size_t count) {
+static ssize_t LibtarReadTarArchive(int instance_handle_, void* buf, size_t count) {
   const auto current_archive = instances[instance_handle_];
   const ssize_t num_read = current_archive->stream_->Read(reinterpret_cast<uint8_t*>(buf), count);
   current_archive->archiveoffset_ += num_read;
   return num_read;
 }
 
-int LibtarOpenTarArchive(const char*, int oflags, ...) {
+static int LibtarOpenTarArchive(const char*, int oflags, ...) {
   va_list args;
   va_start(args, oflags);
   const int instance_handle_ = va_arg(args, int);
