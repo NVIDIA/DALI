@@ -27,10 +27,6 @@ source:
 build:
   number: 0
   string: dali_libtar
-  skip: True  # [win]
-  run_exports:
-    # no idea, going with minor pin
-    - {{ pin_subpackage('dali-libtar', max_pin='x.x') }}
 
 requirements:
   build:
