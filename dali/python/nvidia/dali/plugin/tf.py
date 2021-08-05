@@ -824,12 +824,22 @@ else:
     _load_experimental_dataset()
 
 DALIDataset.__doc__ = """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI
-    pipeline. It supports TensorFlow 1.15 and 2.x family
+    pipeline. It supports TensorFlow 1.15 and 2.x family.
 
+    `DALIDataset` can be placed on CPU and GPU.
 
     Please keep in mind that TensorFlow allocates almost all available device memory by default.
     This might cause errors in DALI due to insufficient memory. On how to change this behaviour
     please look into the TensorFlow documentation, as it may differ based on your use case.
+
+    .. warning::
+       Most TensorFlow Datasets have only CPU variant. To process GPU-placed `DALIDataset` by other
+       TensorFlow dataset you need to first copy it back to CPU using explicit `copy_to_device`
+       - roundtrip from CPU to GPU back to CPU would probably degrade performance a lot and is
+       thus discouraged.
+
+       Additionally, it is advised to not use datasets like `repeat()` or similar after
+       `DALIDataset`, which may interfere with DALI memory allocations and prefetching.
 
     Parameters
     ----------
