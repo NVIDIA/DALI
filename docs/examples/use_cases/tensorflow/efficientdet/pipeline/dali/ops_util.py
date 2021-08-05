@@ -101,21 +101,20 @@ def input_coco(
     )
 
 
-def normalize_flip(device, images, bboxes, p=0.5):
+def normalize_flip(images, bboxes, p=0.5):
     flip = dali.fn.random.coin_flip(probability=p)
     images = dali.fn.crop_mirror_normalize(
         images,
         mirror=flip,
         mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
         std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
-        output_layout=dali.types.NHWC,
-        device=device,
+        output_layout=dali.types.NHWC
     )
     bboxes = dali.fn.bb_flip(bboxes, horizontal=flip, ltrb=True)
     return images, bboxes
 
 
-def gridmask(device, images, widths, heights):
+def gridmask(images, widths, heights):
 
     p = dali.fn.random.coin_flip()
     ratio = 0.4 * p
@@ -129,14 +128,14 @@ def gridmask(device, images, widths, heights):
     )
 
     gridmask = dali.fn.grid_mask(
-        images, ratio=ratio, angle=angle, tile=tile, device=device
+        images, ratio=ratio, angle=angle, tile=tile
     )
 
     return images
 
 
 def random_crop_resize(
-    device, images, bboxes, classes, widths, heights, output_size, scaling=[0.1, 2.0]
+    images, bboxes, classes, widths, heights, output_size, scaling=[0.1, 2.0]
 ):
 
     if scaling is None:
@@ -144,7 +143,7 @@ def random_crop_resize(
     else:
         scale_factor = dali.fn.random.uniform(range=scaling)
 
-    sizes = dali.fn.cat(widths, heights)
+    sizes = dali.fn.cat(heights, widths)
     image_scale = dali.math.min(
         scale_factor * output_size[0] / widths,
         scale_factor * output_size[1] / heights,
@@ -153,8 +152,7 @@ def random_crop_resize(
 
     images = dali.fn.resize(
         images,
-        size=scaled_sizes,
-        device=device,
+        size=scaled_sizes
     )
 
     anchors, shapes, bboxes, classes = dali.fn.random_bbox_crop(
@@ -173,8 +171,7 @@ def random_crop_resize(
         shapes,
         normalized_anchor=False,
         normalized_shape=False,
-        out_of_bounds_policy="pad",
-        device=device,
+        out_of_bounds_policy="pad"
     )
 
     return (
@@ -184,7 +181,7 @@ def random_crop_resize(
     )
 
 
-def bbox_to_effdet_format(device, bboxes, image_size):
+def bbox_to_effdet_format(bboxes, image_size):
     w = image_size[0]
     h = image_size[1]
     M = [0.0,   h, 0.0, 0.0,
@@ -192,4 +189,4 @@ def bbox_to_effdet_format(device, bboxes, image_size):
          0.0, 0.0, 0.0,   h,
          0.0, 0.0,   w, 0.0]
 
-    return dali.fn.coord_transform(bboxes, M=M, device=device)
+    return dali.fn.coord_transform(bboxes, M=M)

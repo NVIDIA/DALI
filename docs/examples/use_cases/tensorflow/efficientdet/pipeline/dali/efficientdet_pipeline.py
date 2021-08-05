@@ -13,6 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 import nvidia.dali as dali
+from nvidia.dali import pipeline_def
 import nvidia.dali.plugin.tf as dali_tf
 import tensorflow as tf
 import math
@@ -51,7 +52,7 @@ class EfficientDetPipeline:
             self._tfrecord_idxs = [
                 filename + "_idx" for filename in self._tfrecord_files
             ]
-        elif self._input_type == InputType.coco:
+        else:
             self._images_path = args.images_path
             self._annotations_path = args.annotations_path
 
@@ -67,13 +68,12 @@ class EfficientDetPipeline:
         self._max_instances_per_image = params["max_instances_per_image"] or 100
         seed = params["seed"] or -1
 
-        self._pipe = dali.pipeline.Pipeline(
+        self._pipe = self._define_pipeline(
             batch_size=self._batch_size,
             num_threads=self._num_shards,
             device_id=device_id,
             seed=seed,
         )
-        self._define_pipeline()
 
     def _get_boxes(self):
         boxes_t = self._anchors.boxes[:, 0] / self._image_size[0]
@@ -83,97 +83,92 @@ class EfficientDetPipeline:
         boxes = tf.transpose(tf.stack([boxes_l, boxes_t, boxes_r, boxes_b]))
         return tf.reshape(boxes, boxes.shape[0] * 4).numpy().tolist()
 
+    @pipeline_def
     def _define_pipeline(self):
-        with self._pipe:
-            if self._input_type == InputType.tfrecord:
-                images, bboxes, classes, widths, heights = ops_util.input_tfrecord(
-                    self._tfrecord_files,
-                    self._tfrecord_idxs,
-                    device=self._device,
-                    shard_id=self._shard_id,
-                    num_shards=self._num_shards,
-                    random_shuffle=self._is_training,
-                )
-            elif self._input_type == InputType.coco:
-                images, bboxes, classes, widths, heights = ops_util.input_coco(
-                    self._images_path,
-                    self._annotations_path,
-                    device=self._device,
-                    shard_id=self._shard_id,
-                    num_shards=self._num_shards,
-                    random_shuffle=self._is_training,
-                )
-
-            if self._is_training and self._gridmask:
-                images = ops_util.gridmask(self._device, images, widths, heights)
-
-            images, bboxes = ops_util.normalize_flip(
-                self._device, images, bboxes, 0.5 if self._is_training else 0.0
-            )
-
-            images, bboxes, classes = ops_util.random_crop_resize(
-                self._device,
-                images,
-                bboxes,
-                classes,
-                widths,
-                heights,
-                self._image_size,
-                [0.1, 2.0] if self._is_training else None,
-            )
-
-            if self._device == "gpu":
-                bboxes = bboxes.gpu()
-                classes = classes.gpu()
-
-            enc_bboxes, enc_classes = dali.fn.box_encoder(
-                bboxes, classes, anchors=self._boxes, offset=True, device=self._device
-            )
-            num_positives = dali.fn.reductions.sum(
-                dali.fn.cast(enc_classes != 0, dtype=dali.types.FLOAT),
+        if self._input_type == InputType.tfrecord:
+            images, bboxes, classes, widths, heights = ops_util.input_tfrecord(
+                self._tfrecord_files,
+                self._tfrecord_idxs,
                 device=self._device,
+                shard_id=self._shard_id,
+                num_shards=self._num_shards,
+                random_shuffle=self._is_training,
             )
-            enc_classes -= 1
-
-            # convert to tlbr
-            enc_bboxes = dali.fn.coord_transform(
-                enc_bboxes,
-                M=[0, 1, 0, 0,
-                   1, 0, 0, 0,
-                   0, 0, 0, 1,
-                   0, 0, 1, 0],
+        elif self._input_type == InputType.coco:
+            images, bboxes, classes, widths, heights = ops_util.input_coco(
+                self._images_path,
+                self._annotations_path,
                 device=self._device,
+                shard_id=self._shard_id,
+                num_shards=self._num_shards,
+                random_shuffle=self._is_training,
             )
 
-            # split into layers by size
-            enc_bboxes_layers, enc_classes_layers = self._unpack_labels(
-                enc_bboxes, enc_classes
-            )
+        if self._is_training and self._gridmask:
+            images = ops_util.gridmask(images, widths, heights)
 
-            # interleave enc_bboxes_layers and enc_classes_layers
-            enc_layers = [
-                item
-                for pair in zip(enc_classes_layers, enc_bboxes_layers)
-                for item in pair
-            ]
+        images, bboxes = ops_util.normalize_flip(
+            images, bboxes, 0.5 if self._is_training else 0.0
+        )
 
-            bboxes = ops_util.bbox_to_effdet_format(
-                self._device, bboxes, self._image_size
-            )
-            bboxes = dali.fn.pad(
-                bboxes,
-                fill_value=-1,
-                shape=(self._max_instances_per_image, 4),
-                device=self._device,
-            )
-            classes = dali.fn.pad(
-                classes,
-                fill_value=-1,
-                shape=(self._max_instances_per_image,),
-                device=self._device,
-            )
+        images, bboxes, classes = ops_util.random_crop_resize(
+            images,
+            bboxes,
+            classes,
+            widths,
+            heights,
+            self._image_size,
+            [0.1, 2.0] if self._is_training else None,
+        )
 
-            self._pipe.set_outputs(images, num_positives, bboxes, classes, *enc_layers)
+        if self._device == "gpu":
+            bboxes = bboxes.gpu()
+            classes = classes.gpu()
+
+        enc_bboxes, enc_classes = dali.fn.box_encoder(
+            bboxes, classes, anchors=self._boxes, offset=True
+        )
+        num_positives = dali.fn.reductions.sum(
+            dali.fn.cast(enc_classes != 0, dtype=dali.types.FLOAT),
+        )
+        enc_classes -= 1
+
+        # convert to tlbr
+        enc_bboxes = dali.fn.coord_transform(
+            enc_bboxes,
+            M=[0, 1, 0, 0,
+                1, 0, 0, 0,
+                0, 0, 0, 1,
+                0, 0, 1, 0]
+        )
+
+        # split into layers by size
+        enc_bboxes_layers, enc_classes_layers = self._unpack_labels(
+            enc_bboxes, enc_classes
+        )
+
+        # interleave enc_bboxes_layers and enc_classes_layers
+        enc_layers = [
+            item
+            for pair in zip(enc_classes_layers, enc_bboxes_layers)
+            for item in pair
+        ]
+
+        bboxes = ops_util.bbox_to_effdet_format(
+            bboxes, self._image_size
+        )
+        bboxes = dali.fn.pad(
+            bboxes,
+            fill_value=-1,
+            shape=(self._max_instances_per_image, 4),
+        )
+        classes = dali.fn.pad(
+            classes,
+            fill_value=-1,
+            shape=(self._max_instances_per_image,),
+        )
+
+        return images, num_positives, bboxes, classes, *enc_layers
 
     def _unpack_labels(self, enc_bboxes, enc_classes):
         # from keras/anchors.py

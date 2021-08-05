@@ -110,7 +110,7 @@ def get_dataset(args, total_batch_size, is_training, params, strategy=None):
 
         input_options = tf.distribute.InputOptions(
             experimental_place_dataset_on_device=True,
-            experimental_prefetch_to_device=False,
+            experimental_fetch_to_device=False,
             experimental_replication_mode=tf.distribute.InputReplicationMode.PER_REPLICA,
         )
 
