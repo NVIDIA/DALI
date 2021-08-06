@@ -238,10 +238,13 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     if (device_ordinal_ < 0) {
       CUDA_CALL(cudaGetDevice(&device_ordinal_));
     }
-    if (block_size_ == 0) {
+    DeviceGuard dg(device_ordinal_);
+    if (total_mem_ == 0) {
       CUdevice device;
       CUDA_CALL(cuDeviceGet(&device, device_ordinal_));
       CUDA_CALL(cuDeviceTotalMem(&total_mem_, device));
+    }
+    if (block_size_ == 0) {
       size_t grain = cuvm::GetAddressGranularity();
       block_size_ = std::max(grain,  // at least grain, for correctness
                              std::min<size_t>(next_pow2(total_mem_ >> 8),  // capacity-dependent...
