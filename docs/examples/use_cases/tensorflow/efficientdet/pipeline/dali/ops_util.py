@@ -89,8 +89,8 @@ def input_coco(
     )
 
     shape = dali.fn.peek_image_shape(encoded, type=dali.types.FLOAT)
-    heights = dali.fn.slice(shape, 0, 1, axes=(0,))
-    widths = dali.fn.slice(shape, 1, 1, axes=(0,))
+    heights = shape[0]
+    widths = shape[1]
 
     return (
         images,
@@ -143,12 +143,12 @@ def random_crop_resize(
     else:
         scale_factor = dali.fn.random.uniform(range=scaling)
 
-    sizes = dali.fn.cat(heights, widths)
+    sizes = dali.fn.stack(heights, widths)
     image_scale = dali.math.min(
         scale_factor * output_size[0] / widths,
         scale_factor * output_size[1] / heights,
     )
-    scaled_sizes = sizes * image_scale
+    scaled_sizes = dali.math.floor(sizes * image_scale + 0.5)
 
     images = dali.fn.resize(
         images,
