@@ -18,17 +18,19 @@
 #include <algorithm>
 #include <mutex>
 #include <condition_variable>
+#include <string>
 #include <utility>
 #include <vector>
 #include "dali/core/mm/cu_vm.h"
 
 #if DALI_USE_CUDA_VM_MAP
+#include "dali/core/bitmask.h"
+#include "dali/core/device_guard.h"
+#include "dali/core/format.h"
+#include "dali/core/spinlock.h"
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
-#include "dali/core/bitmask.h"
-#include "dali/core/spinlock.h"
-#include "dali/core/device_guard.h"
 #include "dali/core/mm/detail/deferred_dealloc.h"
 
 namespace dali {
