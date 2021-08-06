@@ -42,9 +42,9 @@ the last element::
 Indexing with run-time values
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Indexing by constant is often insufficient. With DALI, you can use a result of other computations
-to access tensor elements. In the example below, we use a run-time defined index to access
-an element at a random position within a tensor::
+Indexing with a constant is often insufficient. With DALI, you can use a result of other
+computations to access tensor elements. In the example below, we use a run-time defined index to
+access an element at a random position within a tensor::
 
     raw_files = fn.readers.file(...)
     length = fn.shapes(raw_files)[0]
@@ -79,8 +79,8 @@ Either end can be a constant, a run-time value (a DataNode) or can be skipped.
 Multidimensional selection
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The slection can contain multiple axes, separated by comma. If an index is a scalar, the
-corresponding dimension is removed from the output::
+For multidimensional data, you can specify multiple, comma-separated selections.
+If a selection is an index, the corresponding dimension is removed from the output::
 
     images = fn.decoders.image(jpegs, device="mixed")  # RGB images in HWC layout
     red =   images[:,:,0]

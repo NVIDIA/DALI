@@ -21,7 +21,11 @@ DALI_SCHEMA(Slice)
     .DocStr(
         R"code(Extracts a subtensor, or slice.
 
-The slice can be specified by proving the start and end coordinates, or start coordinates 
+.. note::
+    For generic indexing and slicing you can use Python indexing systax.
+    See :ref:`datanode indexing` for details.
+
+The slice can be specified by proving the start and end coordinates, or start coordinates
 and shape of the slice. Both coordinates and shapes can be provided in absolute or relative terms.
 
 The slice arguments can be specified by the following named arguments:
