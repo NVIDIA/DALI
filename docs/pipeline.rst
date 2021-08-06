@@ -25,6 +25,10 @@ DALI pipeline is represented as a graph of operations. There are two kinds of no
    returned from calls to operators and passing them as inputs to other operators establishes
    connections in the graph.
 
+The data nodes can be transformed by calling :ref:`operator functions<operation reference>`.
+They also support Python-style :ref:`indexing<Indexing>` and can be incorporated in
+:ref:`mathematical expressions<mathematical expressions>`.
+
 Example::
 
     @pipeline_def  # create a pipeline with processing graph defined by the function below

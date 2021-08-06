@@ -1,5 +1,7 @@
-Operations
-==========
+.. _operation reference:
+
+Operation Reference
+===================
 
 .. currentmodule:: nvidia.dali
 
@@ -14,8 +16,5 @@ The constraints for defining the processing pipeline can be found in
 The following table lists all available operations available in DALI:
 
 .. include:: fn_table
-
-Modules
-^^^^^^^
 
 .. include:: fn_autodoc

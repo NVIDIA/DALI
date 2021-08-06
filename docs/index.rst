@@ -38,10 +38,11 @@ NVIDIA DALI Documentation
 
    pipeline
    data_types
-   supported_ops
    math
-   framework_plugins
+   indexing
+   supported_ops
    supported_ops_legacy
+   framework_plugins
 
 .. toctree::
    :hidden:
