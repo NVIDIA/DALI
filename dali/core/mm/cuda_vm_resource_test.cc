@@ -342,6 +342,9 @@ TEST_F(VMResourceTest, RandomAllocations) {
 }
 
 TEST_F(VMResourceTest, OOM) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory Management not supported on this platform";
+
   auto hog = []() {
     cuda_vm_resource_base pool(-1, 64 << 20);  // use large 64 MiB blocks
     size_t size = 512_uz << 20;
