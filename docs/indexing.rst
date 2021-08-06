@@ -1,29 +1,34 @@
 .. _datanode indexing:
 
-Indexing
-========
+Indexing and Slicing
+====================
 
 .. currentmodule:: nvidia.dali
 
-DALI data nodes can be indexed and sliced using familiar Python syntax for array indexing.
+DALI data nodes can be indexed and sliced using familiar Python syntax for array indexing ``x[sel]``
+where ``x`` is a DALI data node and ``sel`` is the *selection*. The selection can be an *index* or
+a *slice*.
 
-Scalar indexing
-~~~~~~~~~~~~~~~
+Indexing
+~~~~~~~~
 
 The simplest case is scalar indexing with a constant index::
 
     images = fn.decoders.image(...)
     sizes = fn.sizes(images)  # height, width, channels
 
-    heights = sizes[0]
-    widths  = sizes[1]
+    height = sizes[0]
+    width  = sizes[1]
 
-The snippet above extracts the width and height from a 3-element tensors representing image sizes
+The snippet above extracts the width and height from a 3-element tensor representing image size.
 
 .. note::
-    The batch dimension is implicit and cannot be indexed. In this example, the index 2
-    is broadcast to the whole batch. See the section :ref:`Run-time indices` for per-sample
+    The batch dimension is implicit and cannot be indexed. In this example, the indices
+    are broadcast to the whole batch. See :ref:`Indexing with run-time values` for per-sample
     indexing.
+
+    See :func:`fn.permute_batch` for an operator which can access data from a different sample
+    in the batch.
 
 Indexing from the end
 ~~~~~~~~~~~~~~~~~~~~~
@@ -34,11 +39,12 @@ the last element::
     channels = sizes[-1]   # channels go last
     widths = sizes[-2]     # widths are the innermost dimension after channels
 
-Run-time indices
-~~~~~~~~~~~~~~~~
+Indexing with run-time values
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Indexing by constant is often insufficient. With DALI, you can use a result of other computations
-to access tensor elements::
+to access tensor elements. In the example below, we use a run-time defined index to access
+an element at a random position within a tensor::
 
     raw_files = fn.readers.file(...)
     length = fn.shapes(raw_files)[0]
@@ -59,8 +65,8 @@ for the respective sample in ``raw_files``.
     The index must be a result of a CPU operator.
 
 
-Ranges
-~~~~~~
+Slicing
+~~~~~~~
 
 To extract multiple values (or slices), the Python list slicing systax can be used::
 
@@ -70,11 +76,11 @@ If the start of the slice is omitted, the slice starts at 0. If the end is omitt
 ends at the end of given axis. Negative indices can be used for both start and end of the slice.
 Either end can be a constant, a run-time value (a DataNode) or can be skipped.
 
-Multidimensional indexing
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Multidimensional selection
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The index can contain multiple axes, separated by comma. If an index is a scalar, the corresponding
-dimension is removed from the output::
+The slection can contain multiple axes, separated by comma. If an index is a scalar, the
+corresponding dimension is removed from the output::
 
     images = fn.decoders.image(jpegs, device="mixed")  # RGB images in HWC layout
     red =   images[:,:,0]
@@ -83,21 +89,19 @@ dimension is removed from the output::
 
 The ``red``, ``green``, ``blue`` are 2D tensors.
 
-Using ranges doesn't remove dimensions::
+Slicing keeps the sliced dimensions even if the length of the slice is 1::
 
-    letterboxed = image[20:-20,:,:]   # the result is still a 3D HWC tensor
+    green_with_channel = images[:,:,1:2]  # the last dimension is kept
+
+When indexing and slicing multidimensional data, the trailing dimenions can be omitted. This is
+equivalent to passing a full-range slice to all trailing dimensions::
+
+    wide = letterboxed[20:-20,:,:]   # slice height, keep width and channels
+    wide = letterboxed[20:-20,:]     # this line is equivalent to the previous one
+    wide = letterboxed[20:-20]       # ...and so is this one
 
 .. note::
     See also :func:`fn.crop` and :func:`fn.slice` for operations tailored for image processing.
-
-When indexing a Multidimensional tensor, the trailing dimensions can be skipped - in this case,
-they are treated as if full range was specified::
-
-    video = ... # a 4D tensor in FHWC layout
-    fifth_frame = video[5]         # equivalent to...
-    fifth_frame = video[5,:]       # ...equivalent to...
-    fifth_frame = video[5,:,:]     # ...equivalent to...
-    fifth_frame = video[5,:,:,:]
 
 Strided slices
 ~~~~~~~~~~~~~~
@@ -116,15 +120,15 @@ size 1 in the output::
 Layout specifiers
 ~~~~~~~~~~~~~~~~~
 
-DALI tensors can have a layout specifier which affects how the data is interpreted by some
-operators - typically, an image would have ``"HWC"`` layout.
+DALI tensors can have a :ref:`layout specifier<data layouts>` which affects how the data is
+interpreted by some operators - typically, an image would have ``"HWC"`` layout.
 
 When applying a scalar index to an axis, that axis is removed from the output along with the
 layout name for this axis::
 
     image = ...             # layout HWC
     first_row = image[0]    # layout WC
-    last_col = image[:,-1]  # lauout HC
+    last_col = image[:,-1]  # layout HC
     red = image[:,:,0]      # layout HW
 
 

@@ -1,3 +1,5 @@
+.. _data layouts
+
 Tensor Layout String format
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
