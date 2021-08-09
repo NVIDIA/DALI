@@ -36,6 +36,13 @@ class DLL_PUBLIC TarArchive {
   TarArchive& operator=(TarArchive&&);
 
   /**
+   * @brief Seeks a certain offset in the file containing the archive.
+   * 
+   * @warning Do not use unless you know the tar file format
+   * @warning Only seek to the beginning of a header
+   */
+  void Seek(size_t);
+  /**
    * @brief Advances the archive to look at the next file in the tarball.
    *
    * @returns Whether it has got any more files to read (or has reached the end of the archive).
