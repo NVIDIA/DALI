@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -56,15 +56,11 @@ void __backend_impl_force_tls_align_fun(void) {}
 using namespace pybind11::literals; // NOLINT
 
 static void* ctypes_void_ptr(const py::object& object) {
-  PyObject *p_ptr = object.ptr();
-  if (!PyObject_HasAttr(p_ptr, PyUnicode_FromString("value"))) {
+  auto ptr_as_int = getattr(object, "value", py::cast<py::none>(Py_None));
+  if (ptr_as_int.is(py::cast<py::none>(Py_None))) {
     return nullptr;
   }
-  PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
-  if (ptr_as_int == Py_None) {
-    return nullptr;
-  }
-  void *ptr = PyLong_AsVoidPtr(ptr_as_int);
+  void *ptr = PyLong_AsVoidPtr(ptr_as_int.ptr());
   return ptr;
 }
 
@@ -199,15 +195,11 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
 template <typename TensorType>
 void FillTensorFromCudaArray(const py::object object, TensorType *batch, int device_id,
                              string layout) {
-  PyObject *p_ptr = object.ptr();
-  if (!PyObject_HasAttr(p_ptr, PyUnicode_FromString("__cuda_array_interface__"))) {
-    DALI_FAIL("Provided object doesn't support cuda array interface protocol")
-  }
-  PyObject *ptr_intf = PyObject_GetAttr(p_ptr, PyUnicode_FromString("__cuda_array_interface__"));
-  if (ptr_intf == Py_None) {
+  py::dict cu_a_interface = getattr(object, "__cuda_array_interface__",
+                                    py::cast<py::none>(Py_None));
+  if (cu_a_interface.is(py::cast<py::none>(Py_None))) {
     DALI_FAIL("Provided object doesn't support cuda array interface protocol.")
   }
-  py::dict cu_a_interface = py::reinterpret_borrow<py::dict>(ptr_intf);
 
   DALI_ENFORCE(cu_a_interface.contains("typestr") &&
                 // see detail::PyUnicode_Check_Permissive implementation
