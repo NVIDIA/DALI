@@ -14,6 +14,7 @@
 
 #include "dali/operators/reader/webdataset_reader_op.h"
 #include <string>
+#include <algorithm>
 
 namespace dali {
 
@@ -38,9 +39,10 @@ DALI_SCHEMA(readers_Webdataset)
         )code")
     .NumInput(0)
     .OutputFn([](const OpSpec& spec){
-      return spec.GetRepeatedArgument<std::string>("ext").size();
+      auto ext = spec.GetArgument<std::string>("ext");
+      return ext == "" ? 0 : std::count(ext.begin(), ext.end(), WebdatasetLoader::kExtDelim);
     })
-    .AddArg("urls",
+    .AddArg("uris",
             R"code(To be filled in)code",
             DALI_STRING_VEC)
     .AddArg("configs",
@@ -48,9 +50,9 @@ DALI_SCHEMA(readers_Webdataset)
             DALI_STRING_VEC)
     .AddArg("ext",
             R"code(To be filled in)code",
-            DALI_STRING_VEC)
-    .AddOptionalArg("component_mode",
-                    R"code(To be filled in: empty, fail)code", std::string("empty"))
+            DALI_STRING)
+    .AddOptionalArg("fail_on_missing_component",
+                    R"code(To be filled in)code", false)
     .AddOptionalArg("dtype",
                     R"code(To be filled in: numeric)code",
                     DALI_INT8);
