@@ -56,8 +56,8 @@ void __backend_impl_force_tls_align_fun(void) {}
 using namespace pybind11::literals; // NOLINT
 
 static void* ctypes_void_ptr(const py::object& object) {
-  auto ptr_as_int = getattr(object, "value", py::cast<py::none>(Py_None));
-  if (ptr_as_int.is(py::cast<py::none>(Py_None))) {
+  auto ptr_as_int = getattr(object, "value", py::none());
+  if (ptr_as_int.is_none()) {
     return nullptr;
   }
   void *ptr = PyLong_AsVoidPtr(ptr_as_int.ptr());
@@ -195,9 +195,8 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
 template <typename TensorType>
 void FillTensorFromCudaArray(const py::object object, TensorType *batch, int device_id,
                              string layout) {
-  py::dict cu_a_interface = getattr(object, "__cuda_array_interface__",
-                                    py::cast<py::none>(Py_None));
-  if (cu_a_interface.is(py::cast<py::none>(Py_None))) {
+  py::dict cu_a_interface = getattr(object, "__cuda_array_interface__", py::none());
+  if (cu_a_interface.is_none()) {
     DALI_FAIL("Provided object doesn't support cuda array interface protocol.")
   }
 
