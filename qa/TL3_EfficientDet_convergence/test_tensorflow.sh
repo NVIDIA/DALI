@@ -15,8 +15,8 @@ python train.py                                                                 
     --input_type coco                                                                               \
     --images_path /data/coco/coco-2017/coco2017/train2017                                           \
     --annotations_path /data/coco/coco-2017/coco2017/annotations/instances_train2017.json           \
-    --batch_size 4                                                                                  \
-    --train_steps 4000                                                                              \
+    --batch_size 3                                                                                  \
+    --train_steps 6000                                                                              \
     --eval_steps 1000                                                                               \
     --eval_freq 1                                                                                   \
     --pipeline_type dali_gpu                                                                        \
