@@ -72,7 +72,7 @@ if __name__ == "__main__":
         "tensorflow – pipeline used in original EfficientDet implementation on https://github.com/google/automl/tree/master/efficientdet;\n"
         "synthetic – like `tensorflow` pipeline type but repeats one batch endlessly;\n"
         "dali_gpu – pipeline which uses Nvidia Data Loading Library (DALI) to run part of data preprocessing on GPUs to improve efficiency;\n"
-        "dalu_cpu – like `dali_gpu` pipeline type but restricted to run only on CPU.",
+        "dali_cpu – like `dali_gpu` pipeline type but restricted to run only on CPU.",
     )
     parser.add_argument(
         "--weights", default="output.h5", help="Name of the file with model weights."

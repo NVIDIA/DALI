@@ -190,10 +190,10 @@ if __name__ == "__main__":
         "--eval_steps",
         type=int,
         default=5000,
-        help="Number of examples to evaluate during each evaluation.",
+        help="Number of examples to process during each evaluation.",
     )
     parser.add_argument(
-        "--eval_freq", type=int, default=1, help="During training evaluation frequency."
+        "--eval_freq", type=int, default=1, help="Run the evaluation every `eval_freq` iterations."
     )
     parser.add_argument(
         "--eval_during_training",
@@ -212,8 +212,8 @@ if __name__ == "__main__":
         help="R|Pipeline type used while loading and preprocessing data. One of:\n"
         "tensorflow – pipeline used in original EfficientDet implementation on https://github.com/google/automl/tree/master/efficientdet;\n"
         "synthetic – like `tensorflow` pipeline type but repeats one batch endlessly;\n"
-        "dali_gpu – pipeline which uses Nvidia Data Loading Library (DALI) to run part of data preprocessing on GPUs to improve efficiency;\n"
-        "dalu_cpu – like `dali_gpu` pipeline type but restricted to run only on CPU.",
+        "dali_gpu – pipeline which uses NVIDIA DALI to run part of data preprocessing on GPUs to improve efficiency;\n"
+        "dali_cpu – like `dali_gpu` pipeline type but restricted to run only on CPU.",
     )
     parser.add_argument(
         "--multi_gpu",
