@@ -193,7 +193,7 @@ if __name__ == "__main__":
         help="Number of examples to process during each evaluation.",
     )
     parser.add_argument(
-        "--eval_freq", type=int, default=1, help="Run the evaluation every `eval_freq` iterations."
+        "--eval_freq", type=int, default=1, help="Run the evaluation every `eval_freq` epochs."
     )
     parser.add_argument(
         "--eval_during_training",
