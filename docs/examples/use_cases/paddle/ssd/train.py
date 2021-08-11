@@ -1,5 +1,5 @@
 # Copyright (c) 2019 PaddlePaddle Authors. All Rights Reserved.
-# Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,14 +71,14 @@ def create_coco_pipeline(file_root,
                            min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
 
         # use float to avoid clipping and quantizing the intermediate result
-        images = fn.hsv(images, dtype=types.FLOAT, hue=fn.uniform(range=[-0.5, 0.5]),
-                        saturation=fn.uniform(range=[0.5, 1.5]))
+        images = fn.hsv(images, dtype=types.FLOAT, hue=fn.random.uniform(range=[-0.5, 0.5]),
+                        saturation=fn.random.uniform(range=[0.5, 1.5]))
 
         images = fn.brightness_contrast(images,
                                         contrast_center = 128,  # input is in float, but in 0..255 range
                                         dtype = types.UINT8,
-                                        brightness = fn.uniform(range=[0.875, 1.125]),
-                                        contrast = fn.uniform(range=[0.5, 1.5]))
+                                        brightness = fn.random.uniform(range=[0.875, 1.125]),
+                                        contrast = fn.random.uniform(range=[0.5, 1.5]))
 
         bboxes = fn.bb_flip(bboxes, ltrb=True, horizontal=flip_coin)
         images = fn.crop_mirror_normalize(images,

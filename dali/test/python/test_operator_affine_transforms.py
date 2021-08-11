@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -103,7 +103,7 @@ def check_transform_scale_op(scale, center=None, has_input = False, reverse_orde
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
     with pipe:
         if has_input:
-            T0 = fn.uniform(range=(-1, 1), shape=(ndim, ndim+1))
+            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))
             T1 = fn.transforms.scale(T0, device='cpu', scale=scale, center=center, ndim=ndim, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
