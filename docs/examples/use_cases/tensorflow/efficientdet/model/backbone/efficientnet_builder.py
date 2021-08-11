@@ -190,7 +190,7 @@ def efficientnet(
         relu_fn=tf.nn.swish,
         # The default is TPU-specific batch norm.
         # The alternative is tf.layers.BatchNormalization.
-        batch_norm=utils.TpuBatchNormalization,  # TPU-specific requirement.
+        batch_norm=utils.BatchNormalization,  # TPU-specific requirement.
         use_se=True,
         clip_projection_output=False,
     )
@@ -219,107 +219,24 @@ def get_model_params(model_name, override_params):
     return blocks_args, global_params
 
 
-def build_model(
-    images,
-    model_name,
-    training,
-    override_params=None,
-    model_dir=None,
-    fine_tuning=False,
-    features_only=False,
-    pooled_features_only=False,
-):
-    """A helper function to create a model and return predicted logits.
+def get_model(model_name, override_params={}):
+    """A helper function to create and return model.
 
     Args:
-      images: input images tensor.
       model_name: string, the predefined model name.
-      training: boolean, whether the model is constructed for training.
       override_params: A dictionary of params for overriding. Fields must exist in
         efficientnet_model.GlobalParams.
-      model_dir: string, optional model dir for saving configs.
-      fine_tuning: boolean, whether the model is used for finetuning.
-      features_only: build the base feature network only (excluding final
-        1x1 conv layer, global pooling, dropout and fc head).
-      pooled_features_only: build the base network for features extraction (after
-        1x1 conv layer and global pooling, but before dropout and fc head).
 
     Returns:
-      logits: the logits tensor of classes.
-      endpoints: the endpoints for each layer.
+      created model
 
     Raises:
       When model_name specified an undefined model, raises NotImplementedError.
       When override_params has invalid fields, raises ValueError.
     """
-    assert isinstance(images, tf.Tensor)
-    assert not (features_only and pooled_features_only)
 
-    # For backward compatibility.
-    if override_params and override_params.get("drop_connect_rate", None):
-        override_params["survival_prob"] = 1 - override_params["drop_connect_rate"]
-
-    if not training or fine_tuning:
-        if not override_params:
-            override_params = {}
-        override_params["batch_norm"] = utils.BatchNormalization
-        if fine_tuning:
-            override_params["relu_fn"] = functools.partial(swish, use_native=False)
-    blocks_args, global_params = get_model_params(model_name, override_params)
-
-    if model_dir:
-        param_file = os.path.join(model_dir, "model_params.txt")
-        if not tf.io.gfile.exists(param_file):
-            if not tf.io.gfile.exists(model_dir):
-                tf.io.gfile.makedirs(model_dir)
-            with tf.io.gfile.GFile(param_file, "w") as f:
-                logging.info("writing to %s", param_file)
-                f.write("model_name= %s\n\n" % model_name)
-                f.write("global_params= %s\n\n" % str(global_params))
-                f.write("blocks_args= %s\n\n" % str(blocks_args))
-
-    model = efficientnet_model.Model(blocks_args, global_params, model_name)
-    outputs = model(
-        images,
-        training=training,
-        features_only=features_only,
-        pooled_features_only=pooled_features_only,
-    )
-    features, endpoints = outputs[0], outputs[1:]
-    if features_only:
-        features = tf.identity(features, "features")
-    elif pooled_features_only:
-        features = tf.identity(features, "pooled_features")
+    if model_name.startswith("efficientnet-"):
+        blocks_args, global_params = get_model_params(model_name, override_params)
+        return efficientnet_model.Model(blocks_args, global_params, model_name)
     else:
-        features = tf.identity(features, "logits")
-    return features, endpoints
-
-
-def build_model_base(images, model_name, training, override_params=None):
-    """Create a base feature network and return the features before pooling.
-
-    Args:
-      images: input images tensor.
-      model_name: string, the predefined model name.
-      training: boolean, whether the model is constructed for training.
-      override_params: A dictionary of params for overriding. Fields must exist in
-        efficientnet_model.GlobalParams.
-
-    Returns:
-      features: base features before pooling.
-      endpoints: the endpoints for each layer.
-
-    Raises:
-      When model_name specified an undefined model, raises NotImplementedError.
-      When override_params has invalid fields, raises ValueError.
-    """
-    assert isinstance(images, tf.Tensor)
-    # For backward compatibility.
-    if override_params and override_params.get("drop_connect_rate", None):
-        override_params["survival_prob"] = 1 - override_params["drop_connect_rate"]
-
-    blocks_args, global_params = get_model_params(model_name, override_params)
-
-    model = efficientnet_model.Model(blocks_args, global_params, model_name)
-    outputs = model(images, training=training, features_only=True)
-    return outputs[0], outputs[1:]
+        raise ValueError("Unknown model name {}".format(model_name))

@@ -15,7 +15,7 @@
 r"""Generate TFRecord index files necessary when using DALI preprocessing.
 
 Example usage:
-    python create_tfrecord_indexes.py  --dali_dir=~/DALI  \
+    python create_tfrecord_indexes.py  --tfrecord2idx_script=~/DALI/tools/tfrecord2idx  \
         --tfrecord_file_pattern=tfrecord/pascal*.tfrecord
 """
 from absl import app
@@ -28,7 +28,7 @@ import os.path
 
 flags.DEFINE_string("tfrecord_file_pattern", None, "Glob for tfrecord files.")
 flags.DEFINE_string(
-    "dali_dir", None, "Absolute path to root directory of DALI library installation."
+    "tfrecord2idx_script", None, "Absolute path to tfrecord2idx script."
 )
 FLAGS = flags.FLAGS
 
@@ -36,19 +36,19 @@ FLAGS = flags.FLAGS
 def main(_):
     if FLAGS.tfrecord_file_pattern is None:
         raise RuntimeError("Must specify --tfrecord_file_pattern.")
-    if FLAGS.dali_dir is None:
-        raise RuntimeError("Must specify --dali_dir.")
+    if FLAGS.tfrecord2idx_script is None:
+        raise RuntimeError("Must specify --tfrecord2idx_script")
 
     tfrecord_files = glob(FLAGS.tfrecord_file_pattern)
     tfrecord_idxs = [filename + "_idx" for filename in tfrecord_files]
-    tfrecord2idx_script = os.path.join(FLAGS.dali_dir, "tools", "tfrecord2idx")
-    if not os.path.isfile(tfrecord2idx_script):
-        raise ValueError("{FLAGS.dali_dir} does not lead to valid DALI installation.")
+    if not os.path.isfile(FLAGS.tfrecord2idx_script):
+        raise ValueError(
+            "{FLAGS.tfrecord2idx_script} does not lead to valid tfrecord2idx script."
+        )
 
     for tfrecord, tfrecord_idx in zip(tfrecord_files, tfrecord_idxs):
-        if not os.path.isfile(tfrecord_idx):
-            logging.info(f"Generating index file for {tfrecord}")
-            call([tfrecord2idx_script, tfrecord, tfrecord_idx])
+        logging.info(f"Generating index file for {tfrecord}")
+        call([FLAGS.tfrecord2idx_script, tfrecord, tfrecord_idx])
 
 
 if __name__ == "__main__":
