@@ -195,10 +195,11 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
 template <typename TensorType>
 void FillTensorFromCudaArray(const py::object object, TensorType *batch, int device_id,
                              string layout) {
-  py::dict cu_a_interface = getattr(object, "__cuda_array_interface__", py::none());
-  if (cu_a_interface.is_none()) {
+  auto cu_a_interface_val = getattr(object, "__cuda_array_interface__", py::none());
+  if (cu_a_interface_val.is_none()) {
     DALI_FAIL("Provided object doesn't support cuda array interface protocol.")
   }
+  py::dict cu_a_interface = py::cast<py::dict>(cu_a_interface_val);
 
   DALI_ENFORCE(cu_a_interface.contains("typestr") &&
                 // see detail::PyUnicode_Check_Permissive implementation
