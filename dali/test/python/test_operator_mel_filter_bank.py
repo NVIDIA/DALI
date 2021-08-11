@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -126,7 +126,7 @@ def check_operator_mel_filter_bank_vs_python(device, batch_size, max_shape,
         MelFilterBankPythonPipeline(device, batch_size, iter(eii2),
                                     nfilter=nfilter, sample_rate=sample_rate, freq_low=freq_low, freq_high=freq_high,
                                     normalize=normalize, mel_formula=mel_formula, layout=layout),
-        batch_size=batch_size, N_iterations=5, eps=1e-03)
+        batch_size=batch_size, N_iterations=3, eps=1e-03)
 
 def test_operator_mel_filter_bank_vs_python():
     for device in ['cpu', 'gpu']:

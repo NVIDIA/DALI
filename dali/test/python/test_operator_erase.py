@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -143,7 +143,7 @@ def check_operator_erase_vs_python(device, batch_size, input_shape,
                       shape=shape, axis_names=axis_names, axes=axes, fill_value=fill_value),
         ErasePythonPipeline(device, batch_size, input_layout, iter(eii2), anchor=anchor,
                             shape=shape, axis_names=axis_names, axes=axes, fill_value=fill_value),
-        batch_size=batch_size, N_iterations=5, eps=1e-04, expected_layout=input_layout)
+        batch_size=batch_size, N_iterations=3, eps=1e-04, expected_layout=input_layout)
 
 
 def test_operator_erase_vs_python():
@@ -193,7 +193,7 @@ def check_operator_erase_with_normalized_coords(device, batch_size, input_shape,
                       axis_names=axis_names, axes=None, fill_value = 0),
         ErasePipeline(device, batch_size, input_layout, iter(eii1),
                       anchor=anchor, shape=shape, axis_names=axis_names, axes=None, fill_value = 0),
-        batch_size=batch_size, N_iterations=5, eps=1e-04)
+        batch_size=batch_size, N_iterations=3, eps=1e-04)
 
 
 def test_operator_erase_with_normalized_coords():

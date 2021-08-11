@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -166,8 +166,7 @@ def check_multichannel_synth_data_vs_numpy(tested_operator, device, batch_size, 
     eii2 = RandomDataIterator(batch_size, shape=shape)
     compare_pipelines(MultichannelSynthPipeline(device, batch_size, "HWC", iter(eii1), tested_operator=tested_operator),
                       MultichannelSynthPythonOpPipeline(get_numpy_func(tested_operator), batch_size, "HWC", iter(eii2)),
-                      batch_size=batch_size, N_iterations=10,
-                      eps = 0.2)
+                      batch_size=batch_size, N_iterations=3, eps = 0.2)
 
 def test_multichannel_synth_data_vs_numpy():
     full_pipeline_case = None
@@ -237,8 +236,7 @@ class MultichannelPythonOpPipeline(Pipeline):
 def check_full_pipe_multichannel_vs_numpy(device, batch_size):
     compare_pipelines(MultichannelPipeline(device, batch_size),
                       MultichannelPythonOpPipeline(full_pipe_func, batch_size),
-                      batch_size=batch_size, N_iterations=10,
-                      eps = 1e-03)
+                      batch_size=batch_size, N_iterations=3, eps = 1e-03)
 
 def test_full_pipe_multichannel_vs_numpy():
     for device in {'cpu', 'gpu'}:

@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -105,7 +105,7 @@ def check_operator_mfcc_vs_python(device, batch_size, input_shape,
                      axis=axis, dct_type=dct_type, lifter=lifter, n_mfcc=n_mfcc, norm=norm),
         MFCCPythonPipeline(device, batch_size, iter(eii2),
                            axis=axis, dct_type=dct_type, lifter=lifter, n_mfcc=n_mfcc, norm=norm),
-        batch_size=batch_size, N_iterations=5, eps=1e-03)
+        batch_size=batch_size, N_iterations=3, eps=1e-03)
 
 def test_operator_mfcc_vs_python():
     for device in ['cpu', 'gpu']:

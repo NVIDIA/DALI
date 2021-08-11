@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -89,7 +89,7 @@ def check_transpose_vs_numpy(device, batch_size, dim, total_volume, permutation)
     eii2 = RandomlyShapedDataIterator(batch_size, max_shape=max_shape)
     compare_pipelines(TransposePipeline(device, batch_size, "", iter(eii1), permutation=permutation),
                       PythonOpPipeline(lambda x: transpose_func(x, permutation), batch_size, "", iter(eii2)),
-                      batch_size=batch_size, N_iterations=5)
+                      batch_size=batch_size, N_iterations=3)
 
 def all_permutations(n):
     return itertools.permutations(range(n))
@@ -135,4 +135,3 @@ def test_transpose_layout():
                      ((1, 0, 2), None, None, "ABC")]:
                     yield check_transpose_layout, device, batch_size, shape, \
                         in_layout, permutation, transpose_layout, out_layout_arg
-
