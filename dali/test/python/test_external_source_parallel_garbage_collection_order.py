@@ -42,7 +42,7 @@ def create_py_file_reader(images_dir):
     return py_file_reader
 
 
-@pipeline_def(py_start_method='fork', batch_size=batch_size)
+@pipeline_def
 def simple_pipeline():
     jpegs, labels = fn.external_source(source=create_py_file_reader(images_dir), num_outputs=2, parallel=True, batch=False)
     images = fn.decoders.image(jpegs, device="cpu")
