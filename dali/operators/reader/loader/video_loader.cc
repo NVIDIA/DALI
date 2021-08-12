@@ -533,6 +533,7 @@ void VideoLoader::read_file() {
     bool is_first_frame = true;
     bool key = false;
     bool seek_must_succeed = false;
+    bool past_second_key_frame = false;
 
     while (av_read_frame(file.fmt_ctx_.get(), &raw_pkt) >= 0) {
       auto pkt = pkt_ptr(&raw_pkt, av_packet_unref);
@@ -585,10 +586,16 @@ void VideoLoader::read_file() {
           if (!is_first_frame) {
             nonkey_frame_count = 0;
             if (frame > req.frame + req.count) {
-              // Found a key frame past the requested range. We can stop searching
+              // Found a second key frame past the requested range. We can stop searching
               // (If there were missing frames in the range they won't be found after
               // the next key frame)
-              break;
+              // in case HEVC it seems that preceding frames can appear after a given key frame
+              // but rather not after the next one
+              if (past_second_key_frame) {
+                past_second_key_frame = false;
+                break;
+              }
+              past_second_key_frame = true;
             }
           }
           seek_must_succeed = false;
