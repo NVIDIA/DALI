@@ -552,10 +552,10 @@ Parameters
 
     def _setup_pipe_pool_dependency(self):
         if self._py_pool_started:
-            # Pipeline backend doesn't really do anything with the pool, sole point of this call
-            # is to ensure lifetime of the pool exceeds the lifetime of the pipeline's backend
-            # so that shared memory managed by the pool is not freed before pipline is garbage collected.
-            # Otherwise pipline may try to access freed memory which leads to crashes at the Python teardown
+            # The sole point of this call is to ensure the lifetime of the pool exceeds the lifetime
+            # of the pipeline's backend, so that shared memory managed by the pool is not freed
+            # before pipline's backend is garbage collected.
+            # Otherwise the backend may try to access unmmaped memory which leads to crashes at the Python teardown.
             self._pipe.SetPyObjDependency(self._py_pool)
 
     def _start_py_workers(self):
