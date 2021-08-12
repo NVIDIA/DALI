@@ -18,6 +18,7 @@ from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
 from nvidia.dali._multiproc.pool import WorkerPool
+from nvidia.dali._multiproc.reducers import DaliForkingPicklerReducer
 from nvidia.dali.backend import CheckDLPackCapsule
 from threading import local as tls
 from . import data_node as _data_node
@@ -141,7 +142,8 @@ Parameters
                  exec_async=True, bytes_per_sample=0,
                  set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
                  *,
-                 enable_memory_stats=False, py_num_workers=1, py_start_method="fork"):
+                 enable_memory_stats=False, py_num_workers=1, py_start_method="fork",
+                 py_reducer=DaliForkingPicklerReducer):
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads
@@ -172,6 +174,7 @@ Parameters
         self._default_cuda_stream_priority = default_cuda_stream_priority
         self._py_num_workers = py_num_workers
         self._py_start_method = py_start_method
+        self._py_reducer = py_reducer
         self._api_type = None
         self._skip_api_check = False
         self._graph_out = None
@@ -562,7 +565,8 @@ Parameters
         if not self._parallel_input_callbacks:
             return
         self._py_pool = WorkerPool.from_groups(
-            self._parallel_input_callbacks, self._prefetch_queue_depth, self._py_start_method, self._py_num_workers)
+            self._parallel_input_callbacks, self._prefetch_queue_depth, self._py_start_method,
+            self._py_num_workers, py_reducer=self._py_reducer)
         # ensure processes started by the pool are termineted when pipeline is no longer used
         weakref.finalize(self, lambda pool : pool.close(), self._py_pool)
         self._py_pool_started = True

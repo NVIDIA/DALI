@@ -22,7 +22,7 @@ from nvidia.dali._multiproc.worker import worker
 from nvidia.dali._multiproc.messages import ScheduledTasks
 from nvidia.dali._multiproc.shared_batch import SharedBatchMeta
 from nvidia.dali._multiproc.shared_batch import deserialize_batch, import_numpy
-from nvidia.dali._multiproc import shared_mem
+from nvidia.dali._multiproc import shared_mem, reducers
 
 
 class SharedBatchesConsumer:
@@ -168,7 +168,7 @@ starts thread keeping track of running processes and initializes communication.
 
     def __init__(
             self, callbacks, prefetch_queue_depths, num_workers=1, start_method="fork",
-            initial_chunk_size=1024 * 1024):
+            initial_chunk_size=1024 * 1024, py_reducer=None):
         if len(callbacks) != len(prefetch_queue_depths):
             raise RuntimeError("Number of prefetch queues must match number of callbacks")
         if any(prefetch_queue_depth <= 0 for prefetch_queue_depth in prefetch_queue_depths):
@@ -187,6 +187,7 @@ starts thread keeping track of running processes and initializes communication.
                 "Alternatively you can change Python workers starting method from ``fork`` to ``spawn`` "
                 "(see DALI Pipeline's ``py_start_method`` option for details). ")
         mp = multiprocessing.get_context(start_method)
+        custom_pickler = reducers.register_reducers(mp, py_reducer)
         if num_workers < 1:
             raise RuntimeError("num_workers must be a positive integer")
         self._num_workers = num_workers
@@ -202,10 +203,14 @@ starts thread keeping track of running processes and initializes communication.
             task_r, task_w = mp.Pipe(duplex=False)
             res_r, res_w = mp.Pipe(duplex=False)
             sock_reader, sock_writer = socket.socketpair()
+            if custom_pickler is None:
+                callbacks_ = callbacks
+            else:
+                callbacks_ = custom_pickler.dumps(callbacks)
             process = mp.Process(
                 target=worker,
-                args=(i, callbacks, prefetch_queue_depths, initial_chunk_size,
-                      task_r, res_w, sock_writer),
+                args=(i, callbacks_, prefetch_queue_depths, initial_chunk_size,
+                      task_r, res_w, sock_writer, custom_pickler),
             )
             self._task_pipes.append(task_w)
             self._res_pipes.append(res_r)
@@ -350,7 +355,7 @@ class WorkerPool:
     @classmethod
     def from_groups(
             cls, groups, keep_alive_queue_size, start_method="fork", num_workers=1,
-            initial_chunk_size=1024 * 1024):
+            initial_chunk_size=1024 * 1024, py_reducer=None):
         """Creates new WorkerPool instance for given list of ExternalSource groups.
 
         Parameters
@@ -371,7 +376,7 @@ class WorkerPool:
         """
         callbacks = [group.callback for group in groups]
         queue_depths = [keep_alive_queue_size + group.prefetch_queue_depth for group in groups]
-        pool = ProcPool(callbacks, queue_depths, num_workers, start_method, initial_chunk_size)
+        pool = ProcPool(callbacks, queue_depths, num_workers, start_method, initial_chunk_size, py_reducer)
         return cls(len(callbacks), queue_depths, pool)
 
     def schedule_batch(self, context_i, batch_i, dst_chunk_i, tasks):
