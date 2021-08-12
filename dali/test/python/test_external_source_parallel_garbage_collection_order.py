@@ -22,29 +22,19 @@ import numpy as np
 
 
 data_root = get_dali_extra_path()
-images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
-batch_size = 16
+jpeg_file = os.path.join(data_root, 'db', 'single', 'jpeg', '510', 'ship-1083562_640.jpg')
+batch_size = 4
 
 
-def create_py_file_reader(images_dir):
-    with open(os.path.join(images_dir, "image_list.txt"), 'r') as f:
-        file_label = [line.rstrip().split(' ') for line in f if line != '']
-        files, labels = zip(*file_label)
-
-    def py_file_reader(sample_info):
-        sample_idx = sample_info.idx_in_epoch
-        jpeg_filename = files[sample_idx]
-        label = np.int32([labels[sample_idx]])
-        with open(os.path.join(images_dir, jpeg_filename), 'rb') as f:
-            encoded_img = np.frombuffer(f.read(), dtype=np.uint8)
-        return encoded_img, label
-
-    return py_file_reader
+def cb(sample_info):
+    encoded_img = np.fromfile(jpeg_file, dtype=np.uint8)
+    label = 1
+    return encoded_img, np.int32([label])
 
 
 @pipeline_def
 def simple_pipeline():
-    jpegs, labels = fn.external_source(source=create_py_file_reader(images_dir), num_outputs=2, parallel=True, batch=False)
+    jpegs, labels = fn.external_source(source=cb, num_outputs=2, parallel=True, batch=False)
     images = fn.decoders.image(jpegs, device="cpu")
     return images, labels
 
