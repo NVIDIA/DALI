@@ -1418,6 +1418,8 @@ PYBIND11_MODULE(backend_impl, m) {
         "list"_a,
         "cuda_stream"_a = py::none(),
         "use_copy_kernel"_a = false)
+    .def("SetPyObjDependency",
+      [](Pipeline *p, py::object obj) {}, "obj"_a, py::keep_alive<1, 2>())
     .def("SerializeToProtobuf",
         [](Pipeline *p) -> py::bytes {
           string s = p->SerializeToProtobuf();

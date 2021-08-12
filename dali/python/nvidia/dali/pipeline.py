@@ -550,13 +550,20 @@ Parameters
         self._setup_input_callbacks()
         self._py_graph_built = True
 
+    def _setup_pipe_pool_dependency(self):
+        if self._py_pool_started:
+            # The sole point of this call is to ensure the lifetime of the pool exceeds the lifetime
+            # of the pipeline's backend, so that shared memory managed by the pool is not freed
+            # before pipline's backend is garbage collected.
+            # Otherwise the backend may try to access unmmaped memory which leads to crashes at the Python teardown.
+            self._pipe.SetPyObjDependency(self._py_pool)
+
     def _start_py_workers(self):
         if not self._parallel_input_callbacks:
             return
         self._py_pool = WorkerPool.from_groups(
             self._parallel_input_callbacks, self._prefetch_queue_depth, self._py_start_method, self._py_num_workers)
-        # pool instance releases shared memory when garbage collected, thus it must outlive the pipeline instance
-        # when external source is used with no_copy=True
+        # ensure processes started by the pool are termineted when pipeline is no longer used
         weakref.finalize(self, lambda pool : pool.close(), self._py_pool)
         self._py_pool_started = True
 
@@ -657,6 +664,7 @@ Parameters
         self.start_py_workers()
         if not self._backend_prepared:
             self._init_pipeline_backend()
+        self._setup_pipe_pool_dependency()
 
         self._pipe.Build(self._names_and_devices)
         self._built = True
