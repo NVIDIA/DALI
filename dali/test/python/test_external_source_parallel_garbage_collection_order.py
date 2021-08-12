@@ -20,11 +20,9 @@ from test_utils import get_dali_extra_path
 
 import numpy as np
 
-
 data_root = get_dali_extra_path()
 jpeg_file = os.path.join(data_root, 'db', 'single', 'jpeg', '510', 'ship-1083562_640.jpg')
 batch_size = 4
-
 
 def cb(sample_info):
     encoded_img = np.fromfile(jpeg_file, dtype=np.uint8)
@@ -39,11 +37,31 @@ def simple_pipeline():
     return images, labels
 
 
-def test_no_segfault():
+def _test_no_segfault(method, workers_num):
     """
     This may cause segmentation fault on Python teardown if shared memory wrappers managed by the py_pool
     are garbage collected before pipeline's backend
     """
-    pipe = simple_pipeline(batch_size=batch_size, py_start_method='fork', num_threads=4, prefetch_queue_depth=2, device_id=0)
+    pipe = simple_pipeline(
+        py_start_method=method, py_num_workers=workers_num,
+        batch_size=batch_size, num_threads=4, prefetch_queue_depth=2, device_id=0)
     pipe.build()
     pipe.run()
+
+def test_no_segfault():
+    import multiprocessing
+    import signal
+
+    for method in ['fork', 'spawn']:
+        # Repeat test a few times as garbage collection order failure is subject to race condition
+        # and tended to exit properly once in a while
+        for _ in range(2):
+            for workers_num in range(1, 5):
+                mp = multiprocessing.get_context("spawn")
+                process = mp.Process(target=_test_no_segfault, args=(method, workers_num))
+                process.start()
+                process.join()
+                if process.exitcode != os.EX_OK:
+                    if signal.SIGSEGV == -process.exitcode:
+                        raise RuntimeError("Process terminated with signal SIGSEGV")
+                    raise RuntimeError("Process exited with {} code".format(process.exitcode))
