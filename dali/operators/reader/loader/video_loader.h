@@ -163,6 +163,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       codec_id_(0),
       skip_vfr_check_(spec.GetArgument<bool>("skip_vfr_check")),
       file_list_frame_num_(spec.GetArgument<bool>("file_list_frame_num")),
+      file_list_include_preceding_frame_(spec.GetArgument<bool>(
+                                                          "file_list_include_preceding_frame")),
       pad_sequences_(spec.GetArgument<bool>("pad_sequences")),
       stats_({0, 0, 0, 0, 0}),
       current_frame_idx_(-1),
@@ -170,6 +172,11 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     DALI_ENFORCE(stride_ > 0, "Stride should be > 0");
     if (step_ < 0)
       step_ = count_ * stride_;
+    if (!file_list_include_preceding_frame_) {
+      DALI_WARN("`file_list_include_preceding_frame_` is set to false (or not set at all). In "
+                "future releases, the default behavior would be changed to True and the argument "
+                "will be removed.");
+    }
 
     bool use_labels = spec.TryGetRepeatedArgument(labels_, "labels");
     file_info_ = filesystem::get_file_label_pair(file_root_, filenames_, use_labels, labels_,
@@ -245,15 +252,33 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
         } else {
           auto frame_rate = av_inv_q(file.frame_base_);
           if (start >= 0) {
-            start_frame = static_cast<int>(std::ceil(start * av_q2d(frame_rate)));
+            if (file_list_include_preceding_frame_) {
+              start_frame = static_cast<int>(std::floor(start * av_q2d(frame_rate)));
+            } else {
+              start_frame = static_cast<int>(std::ceil(start * av_q2d(frame_rate)));
+            }
           } else {
-            start_frame = file.frame_count_ +
-                          static_cast<int>(std::ceil(start * av_q2d(frame_rate)));
+            if (file_list_include_preceding_frame_) {
+              start_frame = file.frame_count_ +
+                            static_cast<int>(std::floor(start * av_q2d(frame_rate)));
+            } else {
+              start_frame = file.frame_count_ +
+                            static_cast<int>(std::ceil(start * av_q2d(frame_rate)));
+            }
           }
-          if (end > 0) {
-            end_frame = static_cast<int>(std::floor(end * av_q2d(frame_rate)));
+          if (file_list_include_preceding_frame_) {
+            if (end > 0) {
+              end_frame = static_cast<int>(std::ceil(end * av_q2d(frame_rate)));
+            } else {
+              end_frame = file.frame_count_ + static_cast<int>(std::ceil(end * av_q2d(frame_rate)));
+            }
           } else {
-            end_frame = file.frame_count_ + static_cast<int>(std::floor(end * av_q2d(frame_rate)));
+            if (end > 0) {
+              end_frame = static_cast<int>(std::floor(end * av_q2d(frame_rate)));
+            } else {
+              end_frame = file.frame_count_ +
+                          static_cast<int>(std::floor(end * av_q2d(frame_rate)));
+            }
           }
 
           DALI_ENFORCE(start_frame <= end_frame, "Start time number should be lesser or equal "
@@ -338,6 +363,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   int codec_id_;
   bool skip_vfr_check_;
   bool file_list_frame_num_;
+  bool file_list_include_preceding_frame_;
   bool pad_sequences_;
   VideoLoaderStats stats_;
 
