@@ -15,7 +15,7 @@ do_once() {
     # check if CUDA version is at least 11.x
     if [ "${CUDA_VERSION:0:2}" == "11" ]; then
         # install TF 2.5.x for CUDA 11.x test
-        install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 1 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
+        install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
     else
         # install TF 2.3.x for CUDA 10.x test
         install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
