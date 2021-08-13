@@ -533,7 +533,11 @@ void VideoLoader::read_file() {
     bool is_first_frame = true;
     bool key = false;
     bool seek_must_succeed = false;
-    bool past_second_key_frame = false;
+    // how many key frames following the last requested frames we need to see so far
+    int key_frames_count = 0;
+    // how many key frames following the last requested frames we need to see before we stop
+    // feeding the decoder
+    const int key_frames_treshold = 1;
 
     while (av_read_frame(file.fmt_ctx_.get(), &raw_pkt) >= 0) {
       auto pkt = pkt_ptr(&raw_pkt, av_packet_unref);
@@ -591,11 +595,11 @@ void VideoLoader::read_file() {
               // the next key frame)
               // in case HEVC it seems that preceding frames can appear after a given key frame
               // but rather not after the next one
-              if (past_second_key_frame) {
-                past_second_key_frame = false;
+              if (key_frames_count > key_frames_treshold) {
+                key_frames_count = 0;
                 break;
               }
-              past_second_key_frame = true;
+              ++key_frames_count;
             }
           }
           seek_must_succeed = false;
