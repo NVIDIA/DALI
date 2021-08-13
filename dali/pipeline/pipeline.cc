@@ -90,8 +90,20 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
 
     // If not given, take parameters from the serialized pipeline
     this->max_batch_size_ = batch_size == -1 ? def.batch_size() : batch_size;
+    DALI_ENFORCE(this->max_batch_size_ > 0, make_string("You are trying to create a pipeline with ",
+                                                        "an incorrect batch size (",
+                                                        this->max_batch_size_,
+                                                        "). Please set the batch_size argument ",
+                                                        "to a positive integer."));
     this->device_id_ = device_id == -1 ? def.device_id() : device_id;
+    DALI_ENFORCE(this->device_id_ >= 0, make_string("You are trying to create a pipeline with ",
+                                                    "a negative device id (", this->device_id_,
+                                                    "). Please set a correct device_id."));
     this->num_threads_ = num_threads == -1 ? static_cast<int>(def.num_threads()) : num_threads;
+    DALI_ENFORCE(this->num_threads_ > 0, make_string("You are trying to create a pipeline with ",
+                                                     "an incorrect number of worker threads (",
+                                                     this->num_threads_, "). Please set the ",
+                                                     "num_threads argument to a positive integer."));
     seed = seed == -1 ? def.seed() : seed;
 
     Init(this->max_batch_size_, this->num_threads_,
