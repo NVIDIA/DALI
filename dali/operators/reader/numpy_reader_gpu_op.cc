@@ -15,6 +15,7 @@
 #include <memory>
 #include <string>
 #include <rmm/mr/device/cuda_memory_resource.hpp>
+#include "dali/core/mm/memory.h"
 #include "dali/operators/reader/numpy_reader_gpu_op.h"
 #include "dali/pipeline/data/views.h"
 
