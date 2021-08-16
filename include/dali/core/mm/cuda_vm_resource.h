@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <mutex>
+#include <condition_variable>
 #include <utility>
 #include <vector>
 #include "dali/core/mm/cu_vm.h"
