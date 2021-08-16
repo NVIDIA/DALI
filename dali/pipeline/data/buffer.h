@@ -28,7 +28,6 @@
 #include "dali/core/device_guard.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/util.h"
-#include "dali/core/mm/memory.h"
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
@@ -216,31 +215,6 @@ class DLL_PUBLIC Buffer {
    */
   const AllocFunc &alloc_func() const noexcept {
     return allocate_;
-  }
-
-  /**
-   * @brief Sets the memory resource while will be used for allocating memory for this
-   *        buffer
-   *
-   * @remarks Experimental - subject to change
-   *
-   * TODO(michalz): Use resource_view, when ready
-   * TODO(michalz): Stream awareness
-   * TODO(michalz): Add some kind of getter?
-   */
-  template <typename MemoryResource>
-  inline void set_memory_resource(MemoryResource *mr) {
-    if (mr != nullptr) {
-      set_alloc_func([mr](size_t bytes) {
-        return mm::alloc_raw_shared<uint8_t>(mr, bytes, kPadding);
-      });
-    } else {
-      set_memory_resource(nullptr);
-    }
-  }
-
-  inline void set_memory_resource(std::nullptr_t) {
-    set_alloc_func({});
   }
 
   /**
