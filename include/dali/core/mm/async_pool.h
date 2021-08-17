@@ -113,6 +113,8 @@ class async_pool_resource : public async_memory_resource<kind> {
       return;
     adjust_size_and_alignment(bytes, alignment);
     bool deferred = global_pool_.deferred_dealloc_enabled();
+    // If not deferred, we need to synchronize here (outside of the lock, to avoid blocking
+    // concurrent allocations).
     if (!deferred) {
       sync_scope sync = default_sync_scope<kind>();
       mm::detail::synchronize(sync);
@@ -120,9 +122,9 @@ class async_pool_resource : public async_memory_resource<kind> {
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char *>(mem);
     pop_block_padding(ptr, bytes, alignment);
-    if (deferred)
+    if (deferred)  // deferred - just use deallocate, it will schedule synchronization
       global_pool_.deallocate(ptr, bytes, alignment);
-    else
+    else  // not deferred - don't synchronize, we've done it already
       global_pool_.deallocate_no_sync(ptr, bytes, alignment);
   }
 
