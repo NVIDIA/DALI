@@ -131,12 +131,12 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     stat_ = {};
   }
 
- protected:
-  bool defer_dealloc_ = false;
   constexpr bool deferred_dealloc_enabled() const noexcept { return defer_dealloc_; }
   static constexpr int deferred_dealloc_max_outstanding() { return 16; }
-
   virtual void flush_deferred() {}
+
+ protected:
+  bool defer_dealloc_ = false;
 
   void do_deallocate(void *ptr, size_t size, size_t alignment) override {
     deallocate_impl(ptr, size, alignment, true, true);
