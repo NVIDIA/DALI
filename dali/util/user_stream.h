@@ -38,7 +38,7 @@ class DLL_PUBLIC UserStream {
    */
   DLL_PUBLIC static UserStream* Get() {
     static UserStream us;
-    return &us_;
+    return &us;
   }
 
   /**
