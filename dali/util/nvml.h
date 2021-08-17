@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -250,6 +250,20 @@ inline bool HasCuda11NvmlFunctions() {
     return false;
   }
   return nvmlHasCuda11NvmlFunctions();
+}
+
+inline float GetDriverVersion() {
+  if (!nvmlIsInitialized()) {
+    return 0;
+  }
+
+  float driver_version = 0;
+  char version[NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE];
+
+  CUDA_CALL(nvmlSystemGetDriverVersion(version, sizeof version));
+  driver_version = std::stof(version);
+
+  return driver_version;
 }
 
 #if (CUDART_VERSION >= 11000)

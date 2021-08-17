@@ -100,19 +100,12 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   const int initial_fill = 10;
 #if defined(__powerpc64__) || defined(__x86_64__)
   float driverVersion = 0;
-  char version[NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE];
 
 #if NVML_ENABLED
-  if (nvmlInitChecked() != NVML_SUCCESS) {
-    FAIL() << "nvmlInitChecked() failed";
-  }
-
-  if (nvmlSystemGetDriverVersion(version, sizeof version) != NVML_SUCCESS) {
-    FAIL() << "nvmlSystemGetDriverVersion failed!";
-  }
+  nvml::Init();
+  driverVersion = nvml::GetDriverVersion();
 #endif
 
-  driverVersion = std::stof(version);
 
 #if defined(__powerpc64__)
   std::cerr << "Test case running on powerpc64, driver version " << driverVersion << '\n';
@@ -175,6 +168,11 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
         FAIL() << "Unexpected label";
     }
   }
+
+#if NVML_ENABLED
+  nvml::Shutdown();
+#endif
+
 }
 
 TEST_F(VideoReaderTest, PackedBFrames) {
