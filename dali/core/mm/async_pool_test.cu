@@ -253,7 +253,7 @@ TEST(MMAsyncPool, MultiThreadedMultiStreamRandom) {
       threads.push_back(std::thread([&]() {
         CUDAStream stream = CUDAStream::Create(true);
         vector<block> blocks;
-        detail::dummy_lock mtx;
+        spinlock mtx;
         AsyncPoolTest(pool, blocks, mtx, stream);
         CUDA_CALL(cudaStreamSynchronize(stream));
       }));
@@ -278,7 +278,7 @@ TEST(MMAsyncPool, MultiStreamRandomWithGPUHogs) {
         // 0-th thread uses null stream, which triggers non-async API usage
         CUDAStream stream = t ? CUDAStream::Create(true) : CUDAStream();
         vector<block> blocks;
-        detail::dummy_lock mtx;
+        spinlock mtx;
         AsyncPoolTest(pool, blocks, mtx, stream, 20000, true);
         CUDA_CALL(cudaStreamSynchronize(stream));
       }));
@@ -387,7 +387,7 @@ TEST(MM_VMAsyncPool, MultiThreadedMultiStreamRandom) {
     threads.push_back(std::thread([&]() {
       CUDAStream stream = CUDAStream::Create(true);
       vector<block> blocks;
-      detail::dummy_lock mtx;
+      spinlock mtx;
       AsyncPoolTest(pool, blocks, mtx, stream);
       CUDA_CALL(cudaStreamSynchronize(stream));
     }));
@@ -409,7 +409,7 @@ TEST(MM_VMAsyncPool, MultiStreamRandomWithGPUHogs) {
       // 0-th thread uses null stream, which triggers non-async API usage
       CUDAStream stream = t ? CUDAStream::Create(true) : CUDAStream();
       vector<block> blocks;
-      detail::dummy_lock mtx;
+      spinlock mtx;
       AsyncPoolTest(pool, blocks, mtx, stream, 20000, true);
       CUDA_CALL(cudaStreamSynchronize(stream));
     }));

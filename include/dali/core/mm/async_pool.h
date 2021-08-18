@@ -103,6 +103,8 @@ class async_pool_resource : public async_memory_resource<kind> {
   }
 
   void *do_allocate(size_t bytes, size_t alignment) override {
+    if (!bytes)
+      return nullptr;
     adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
     return allocate_from_global_pool(bytes, alignment);
@@ -140,6 +142,8 @@ class async_pool_resource : public async_memory_resource<kind> {
    * may be sufficient, there may be no satisfactory block.
    */
   void *do_allocate_async(size_t bytes, size_t alignment, stream_view stream) override {
+    if (!bytes)
+      return nullptr;
     adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
     auto it = stream_free_.find(stream.value());
@@ -186,6 +190,8 @@ class async_pool_resource : public async_memory_resource<kind> {
   }
 
   void do_deallocate_async(void *mem, size_t bytes, size_t alignment, stream_view stream) override {
+    if (!mem || !bytes)
+      return;
     adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char*>(mem);

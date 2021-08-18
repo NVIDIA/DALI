@@ -17,6 +17,8 @@
 
 #include <mutex>
 #include <condition_variable>
+#include <iostream>
+#include <stdexcept>
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/detail/deferred_dealloc.h"
 #include "dali/core/mm/detail/free_list.h"
@@ -165,6 +167,7 @@ class pool_resource_base : public memory_resource<kind, Context> {
       lock_guard guard(lock_);
       for (const dealloc_params &par : params) {
         free_list_.put(par.ptr, par.bytes);
+        track_deallocation(par.ptr, par.bytes, par.alignment);
       }
     }
   }
@@ -234,7 +237,10 @@ class pool_resource_base : public memory_resource<kind, Context> {
 
     {
       lock_guard guard(lock_);
-      return free_list_.get(bytes, alignment);
+      void *ptr = free_list_.get(bytes, alignment);
+      if (ptr)
+        track_allocation(ptr, bytes, alignment);
+      return ptr;
     }
   }
 
@@ -248,6 +254,7 @@ class pool_resource_base : public memory_resource<kind, Context> {
   void deallocate_no_sync(void *ptr, size_t bytes, size_t alignment = alignof(std::max_align_t)) {
     lock_guard guard(lock_);
     free_list_.put(ptr, bytes);
+    track_deallocation(ptr, bytes, alignment);
   }
 
   constexpr const pool_options &options() const noexcept {
@@ -262,8 +269,10 @@ class pool_resource_base : public memory_resource<kind, Context> {
     {
       lock_guard guard(lock_);
       void *ptr = free_list_.get(bytes, alignment);
-      if (ptr)
+      if (ptr) {
+        track_allocation(ptr, bytes, alignment);
         return ptr;
+      }
     }
     alignment = std::max(alignment, options_.upstream_alignment);
     size_t blk_size = bytes;
@@ -272,11 +281,14 @@ class pool_resource_base : public memory_resource<kind, Context> {
     if (blk_size == bytes) {
       // we've allocated a block exactly of the required size - there's little
       // chance that it will be merged with anything in the pool, so we'll return it as-is
+      lock_guard guard(lock_);
+      track_allocation(new_block, bytes, alignment);
       return new_block;
     } else {
       // we've allocated an oversized block - put the remainder in the free list
       lock_guard guard(lock_);
       free_list_.put(static_cast<char *>(new_block) + bytes, blk_size - bytes);
+      track_allocation(new_block, bytes, alignment);
       return new_block;
     }
   }
@@ -299,6 +311,8 @@ class pool_resource_base : public memory_resource<kind, Context> {
     blk_size = next_block_size(min_bytes);
     bool tried_return_to_upstream = false;
     void *new_block = nullptr;
+    print(std::cerr, "Attempting to get an upstream block of size ", min_bytes,
+          " aligned to ", alignment, "\n");
     for (;;) {
       try {
         new_block = upstream_->allocate(blk_size, alignment);
@@ -358,6 +372,14 @@ class pool_resource_base : public memory_resource<kind, Context> {
       upstream_->deallocate(new_block, blk_size, alignment);
       throw;
     }
+    print(std::cerr, "Upstream blocks:\n");
+    size_t total = 0;
+    for (auto &blk : blocks_) {
+      print(std::cerr, "  ", blk.ptr, " ", blk.bytes, " % ", blk.alignment, "\n");
+      total += blk.bytes;
+    }
+    print(std::cerr, "Total upstream allocations: ", total, "\n");
+
     return new_block;
   }
 
@@ -382,6 +404,26 @@ class pool_resource_base : public memory_resource<kind, Context> {
     next_block_size_ = std::min<size_t>(actual_block_size, options_.max_block_size);
     return actual_block_size;
   }
+
+  void track_allocation(void *ptr, size_t size, size_t alignment) {
+    curr_allocated_ += size;
+    if (curr_allocated_ > max_allocated_) {
+      max_allocated_ = curr_allocated_;
+      print(std::cerr, "Peak allocation size: ", max_allocated_, "\n");
+    }
+    allocations_++;
+  }
+
+  void track_deallocation(void *ptr, size_t size, size_t alignment) {
+    deallocations_++;
+    curr_allocated_ -= size;
+    if (curr_allocated_ < 0)
+      throw std::logic_error("Deallocated more memory than was allocated!");
+  }
+
+  ssize_t curr_allocated_ = 0;
+  ssize_t max_allocated_ = 0;
+  ssize_t allocations_ = 0, deallocations_ = 0;
 
   memory_resource<kind, Context> *upstream_;
   FreeList free_list_;
