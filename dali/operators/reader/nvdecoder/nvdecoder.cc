@@ -65,13 +65,8 @@ NvDecoder::NvDecoder(int device_id,
   bool use_default_stream = false;
 #if NVML_ENABLED
   {
-    static float driver_version = []()->float {
-      char version[80];
-      CUDA_CALL(nvmlInitChecked());
-      CUDA_CALL(nvmlSystemGetDriverVersion(version, sizeof version));
-
-      return std::stof(version);
-    }();
+    nvml::Init();
+    static float driver_version = nvml::GetDriverVersion();
     if (driver_version > 460)
       use_default_stream = true;
   }
@@ -140,7 +135,12 @@ NvDecoder::NvDecoder(int device_id,
 bool NvDecoder::initialized() const {
     return parser_.initialized();
 }
-NvDecoder::~NvDecoder() = default;
+
+NvDecoder::~NvDecoder() {
+#if NVML_ENABLED
+  nvml::Shutdown();
+#endif
+}
 
 int NvDecoder::decode_av_packet(AVPacket* avpkt, int64_t start_time, AVRational stream_base) {
   if (stop_) {
