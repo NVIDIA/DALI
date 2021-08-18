@@ -167,14 +167,14 @@ def _create_and_compare_simple_pipelines(cb, batch_size, py_num_workers=2, py_re
 @register_case(tests_dali_pickling)
 @raises(PicklingError)
 def _test_global_function_pickled_by_reference(name, py_reducer=None):
-    # modify callback name so that attempt to pickle by reference fails
+    # modify callback name so that an attempt to pickle by reference, which is default Python behavior, fails
     _simple_callback.__name__ = _simple_callback.__qualname__ = "simple_callback"
     _create_and_compare_simple_pipelines(_simple_callback, batch_size=4, py_num_workers=2, py_reducer=py_reducer)
 
 
 @register_case(tests_dali_pickling)
 def _test_pickle_by_value_decorator_on_global_function(name, py_reducer=None):
-    # modify callback name so that attempt to pickle by reference would fail
+    # modify callback name so that an attempt to pickle by reference, which is default Python behavior, would fail
     _simple_callback_by_value.__name__ = _simple_callback_by_value.__qualname__ = "simple_callback_by_value"
     _create_and_compare_simple_pipelines(_simple_callback_by_value, batch_size=4, py_num_workers=2, py_reducer=py_reducer)
 
@@ -188,6 +188,7 @@ def _test_global_function_wrapped_in_lambda_by_reference(name, py_reducer=None):
 
 @register_case(tests_dali_pickling)
 def _test_global_function_wrapped_in_lambda_by_value(name, py_reducer=None):
+    # modify callback name so that an attempt to pickle by reference, which is default Python behavior, would fail
     callback_idx_by_value.__name__ = callback_idx_by_value.__qualname__ = "_scrambled_name"
     _create_and_compare_simple_pipelines(lambda x : callback_idx_by_value(x.idx_in_epoch), batch_size=8, py_num_workers=2, py_reducer=py_reducer)
 
