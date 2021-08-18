@@ -543,3 +543,19 @@ def get_files(path, ext):
       if re.match(f".*\.{ext}", f) is not None
   ]
   return audio_files
+
+
+def _test_omitted():
+    print("Omitting tests suite for Python3.8+ serialization")
+
+
+def restrict_python_version(major, minor=None):
+
+    def decorator(test_case):
+        version_info = sys.version_info
+        if version_info.major > major or \
+                (version_info.major == major and (minor is None or version_info.minor >= minor)):
+            return test_case
+        return _test_omitted
+
+    return decorator
