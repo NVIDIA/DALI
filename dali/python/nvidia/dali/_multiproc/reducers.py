@@ -102,19 +102,38 @@ class DaliForkingPicklerReducer(multiprocessing.reduction.AbstractReducer):
 
 
 def register_reducers(mp, reducer):
+    """
+    If `reducer` implements multiprocessing.reduction.AbstractReducer then it is set in the multiprocessing 
+    context `mp`, so that multiprocessing uses it over default Python pickler. In such case nothing is returned 
+    and no additional pickling is required along the way, because custom reducer is expected to handle
+    pickling accordingly.
+    Alternatively, reducer might be a CustomPickler instance that will be returned from the function and
+    used to create additional layer of pickling - external source callbacks will be first serialized using 
+    provided CustomPickler and then passed to multiprocessing where, in the serialized form, they will be 
+    forwarded by default Python pickler. CustomPickler must itself be picklable.
+    Instead of providing CustomPickler instance directly, you can either provide module that contains 
+    *dumps* and *loads* functions or a tuple where first item is the module and next optional two items are
+    dictionaries of kwargs that should be passed to dumps and loads methods respectively.
+    """
+    if reducer is None:
+        return
     if inspect.isclass(reducer) and issubclass(reducer, multiprocessing.reduction.AbstractReducer):
-        # Python before 3.8 doesn't support customization of functions pickling
+        # Python versions lower than 3.8 don't support customization of functions pickling 
+        # as it is utilized in DaliForkingPicklerReducer
         version_info = sys.version_info
-        if version_info.major >= 3 and version_info.minor >= 8:
+        if not issubclass(reducer, DaliForkingPicklerReducer) or\
+                (version_info.major > 3 or (version_info.major == 3 and version_info.minor >= 8)):
             mp.reducer = reducer
-    elif isinstance(reducer, CustomPickler):
+        return
+    if isinstance(reducer, CustomPickler):
         return reducer
-    elif hasattr(reducer, 'dumps') and hasattr(reducer, 'loads'):
+    if hasattr(reducer, 'dumps') and hasattr(reducer, 'loads'):
         return CustomPickler.of_reducer(reducer)
-    elif isinstance(reducer, (tuple, list)):
+    if isinstance(reducer, (tuple, list)):
         params = [None] * 3
         for i, item in enumerate(reducer):
             params[i] = item
         reducer, kwargs_dumps, kwargs_loads = params
         return CustomPickler.of_reducer(reducer, kwargs_dumps, kwargs_loads)
+    raise ValueError("Unsupported reducer value provided.")
 
