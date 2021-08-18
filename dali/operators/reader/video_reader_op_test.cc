@@ -172,7 +172,6 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
 #if NVML_ENABLED
   nvml::Shutdown();
 #endif
-
 }
 
 TEST_F(VideoReaderTest, PackedBFrames) {
