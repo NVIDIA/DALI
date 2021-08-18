@@ -162,15 +162,15 @@ bool UseDeferredDealloc() {
 
 inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   static CUDARTLoader CUDAInit;
-#ifdef DALI_USE_RMM_DEVICE_RESOURCE
-  auto upstream = std::make_shared<rmm::mr::cuda_memory_resource>();
-  return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(std::move(upstream));
-#else
   if (!UseDeviceMemoryPool()) {
     static auto rsrc = std::make_shared<rmm::mr::cuda_memory_resource>();
     return rsrc;
   }
-#if DALI_USE_CUDA_VM_MAP
+#ifdef DALI_USE_RMM_DEVICE_RESOURCE
+  auto upstream = std::make_shared<rmm::mr::cuda_memory_resource>();
+  return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(std::move(upstream));
+#else
+  #if DALI_USE_CUDA_VM_MAP
   if (cuvm::IsSupported() && UseVMM()) {
     if (UseDeferredDealloc()) {
       using resource_type = mm::async_pool_resource<mm::memory_kind::device, cuda_vm_resource,
@@ -182,7 +182,7 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
       return std::make_shared<resource_type>();
     }
   }
-#endif
+  #endif  // DALI_USE_CUDA_VM_MAP
   {
     static auto upstream = std::make_shared<mm::cuda_malloc_memory_resource>();
     if (UseDeferredDealloc()) {
@@ -196,7 +196,7 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
       return make_shared_composite_resource(std::move(rsrc), upstream);
     }
   }
-#endif
+#endif  // DALI_USE_RMM_DEVICE_RESOURCE
 }
 
 class simple_pinned_resource : public mm::async_memory_resource<memory_kind::pinned> {
@@ -204,13 +204,13 @@ class simple_pinned_resource : public mm::async_memory_resource<memory_kind::pin
   void *do_allocate(size_t bytes, size_t alignment) override {
     return upstream_.allocate(bytes, alignment);
   }
-  void *do_allocate_async(size_t bytes, size_t alignment, stream_view stream) override {
+  void *do_allocate_async(size_t bytes, size_t alignment, stream_view) override {
     return upstream_.allocate(bytes, alignment);
   }
   void do_deallocate(void *mem, size_t bytes, size_t alignment) override {
     return upstream_.deallocate(mem, bytes, alignment);
   }
-  void do_deallocate_async(void *mem, size_t bytes, size_t alignment, stream_view stream) override {
+  void do_deallocate_async(void *mem, size_t bytes, size_t alignment, stream_view) override {
     return upstream_.deallocate(mem, bytes, alignment);
   }
   rmm::mr::pinned_memory_resource upstream_;
