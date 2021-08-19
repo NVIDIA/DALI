@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import multiprocessing
 import numpy as np
 from nose.tools import raises
 from pickle import PicklingError
@@ -22,6 +23,25 @@ import nvidia.dali.fn as fn
 import nvidia.dali.pickling as dali_pickling
 
 from test_utils import get_dali_extra_path, restrict_python_version
+
+# Register dummy reducer for custom type to check if DaliForkingPicklerReducer did not interfere with
+# multiprocessing register of custom types reducer (for instace PyTorch relies on them)
+# (note this approach doesn't work with native Python types like functions)
+class DummyCb:
+    
+    def __call__(self, sample_info):
+        return np.int32([1])
+
+class DummyCb42:
+    
+    def __call__(self, sample_info):
+        return np.int32([42])
+
+
+def crazy_reducer(obj):
+    return DummyCb42().__reduce__()
+
+multiprocessing.reduction.register(DummyCb, crazy_reducer)
 
 
 tests_dali_pickling = []
@@ -96,13 +116,10 @@ def create_closure_callback_img_reader(data_set_size):
     return py_file_reader
 
 
-def create_simple_pipeline(callback, batch_size, parallel=True, py_num_workers=None, py_reducer=None):
+def create_simple_pipeline(callback, py_callback_pickler, batch_size, parallel=True, py_num_workers=None):
 
-    extra = {}
-    if py_reducer is not None:
-        extra['py_reducer'] = py_reducer
-
-    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, py_num_workers=py_num_workers, py_start_method="spawn", **extra)
+    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, py_num_workers=py_num_workers,
+        py_start_method="spawn", py_callback_pickler=py_callback_pickler)
     def crate_pipline():
         outputs = fn.external_source(
             source=callback,
@@ -112,13 +129,10 @@ def create_simple_pipeline(callback, batch_size, parallel=True, py_num_workers=N
     return crate_pipline()
 
 
-def create_decoding_pipeline(callback, batch_size, parallel=True, py_num_workers=None, py_reducer=None):
+def create_decoding_pipeline(callback, py_callback_pickler, batch_size, parallel=True, py_num_workers=None):
 
-    extra = {}
-    if py_reducer is not None:
-        extra['py_reducer'] = py_reducer
-
-    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, py_num_workers=py_num_workers, py_start_method="spawn", **extra)
+    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, py_num_workers=py_num_workers,
+        py_start_method="spawn", py_callback_pickler=py_callback_pickler)
     def crate_pipline():
         jpegs, labels = fn.external_source(
             source=callback, num_outputs=2,
@@ -153,11 +167,12 @@ def _build_and_compare_pipelines_epochs(epochs_num, batch_size, parallel_pipelin
             serial_pipeline.reset()
 
 
-def _create_and_compare_simple_pipelines(cb, batch_size, py_num_workers=2, py_reducer=None):
+def _create_and_compare_simple_pipelines(cb, py_callback_pickler, batch_size, py_num_workers=2):
     parallel_pipeline = create_simple_pipeline(
-        cb, batch_size=batch_size, py_num_workers=py_num_workers, parallel=True, py_reducer=py_reducer)
+        cb, py_callback_pickler, batch_size=batch_size, py_num_workers=py_num_workers, parallel=True)
+    print(parallel_pipeline._py_callback_pickler)
     serial_pipeline = create_simple_pipeline(
-        cb, batch_size=batch_size, parallel=False)
+        cb, None, batch_size=batch_size, parallel=False)
     parallel_pipeline.build()
     serial_pipeline.build()
     for _ in range(3):
@@ -165,45 +180,57 @@ def _create_and_compare_simple_pipelines(cb, batch_size, py_num_workers=2, py_re
 
 
 @register_case(tests_dali_pickling)
+def _test_if_custom_type_reducers_are_respected_by_dali_reducer(name, py_callback_pickler):
+    batch_size = 8
+    parallel_pipeline = create_simple_pipeline(
+        DummyCb(), None, batch_size=batch_size, py_num_workers=2, parallel=True)
+    parallel_pipeline.build()
+    (batch,) = parallel_pipeline.run()
+    assert len(batch) == batch_size
+    for i in range(batch_size):
+        assert np.array_equal(batch[i], np.int32([42]))
+
+
+@register_case(tests_dali_pickling)
 @raises(PicklingError)
-def _test_global_function_pickled_by_reference(name, py_reducer=None):
+def _test_global_function_pickled_by_reference(name, py_callback_pickler):
     # modify callback name so that an attempt to pickle by reference, which is default Python behavior, fails
     _simple_callback.__name__ = _simple_callback.__qualname__ = "simple_callback"
-    _create_and_compare_simple_pipelines(_simple_callback, batch_size=4, py_num_workers=2, py_reducer=py_reducer)
+    _create_and_compare_simple_pipelines(_simple_callback, py_callback_pickler, batch_size=4, py_num_workers=2)
 
 
 @register_case(tests_dali_pickling)
-def _test_pickle_by_value_decorator_on_global_function(name, py_reducer=None):
+def _test_pickle_by_value_decorator_on_global_function(name, py_callback_pickler):
     # modify callback name so that an attempt to pickle by reference, which is default Python behavior, would fail
     _simple_callback_by_value.__name__ = _simple_callback_by_value.__qualname__ = "simple_callback_by_value"
-    _create_and_compare_simple_pipelines(_simple_callback_by_value, batch_size=4, py_num_workers=2, py_reducer=py_reducer)
+    _create_and_compare_simple_pipelines(_simple_callback_by_value, py_callback_pickler, batch_size=4, py_num_workers=2)
 
 
 @register_case(tests_dali_pickling)
 @register_case(tests_dill_pickling)
 @register_case(tests_cloudpickle_pickling)
-def _test_global_function_wrapped_in_lambda_by_reference(name, py_reducer=None):
-    _create_and_compare_simple_pipelines(lambda x : callback_idx(x.idx_in_epoch), batch_size=8, py_num_workers=2, py_reducer=py_reducer)
+def _test_py_callback_pickler_set_to_none_enforces_plain_python_pickler_usage(name, py_callback_pickler):
+    _create_and_compare_simple_pipelines(lambda x : callback_idx(x.idx_in_epoch), py_callback_pickler, batch_size=8, py_num_workers=2)
 
 
 @register_case(tests_dali_pickling)
-def _test_global_function_wrapped_in_lambda_by_value(name, py_reducer=None):
+def _test_global_function_wrapped_in_lambda_by_value(name, py_callback_pickler):
     # modify callback name so that an attempt to pickle by reference, which is default Python behavior, would fail
     callback_idx_by_value.__name__ = callback_idx_by_value.__qualname__ = "_scrambled_name"
-    _create_and_compare_simple_pipelines(lambda x : callback_idx_by_value(x.idx_in_epoch), batch_size=8, py_num_workers=2, py_reducer=py_reducer)
+    _create_and_compare_simple_pipelines(lambda x : callback_idx_by_value(x.idx_in_epoch), py_callback_pickler, batch_size=8, py_num_workers=2)
 
 
 @register_case(tests_dali_pickling)
 @register_case(tests_dill_pickling)
 @register_case(tests_cloudpickle_pickling)
-def _test_lambda_np_full(name, py_reducer=None):
-    _create_and_compare_simple_pipelines(lambda x : np.full((100, 100), x.idx_in_epoch), batch_size=8, py_num_workers=2, py_reducer=py_reducer)
+def _test_lambda_np_full(name, py_callback_pickler):
+    _create_and_compare_simple_pipelines(lambda x : np.full((100, 100), x.idx_in_epoch), py_callback_pickler, batch_size=8, py_num_workers=2)
 
 
 @register_case(tests_dali_pickling)
 @register_case(tests_dill_pickling)
 @register_case(tests_cloudpickle_pickling)
-def _test_lambda_np_readfromfile(name, py_reducer=None):
+def _test_lambda_np_readfromfile(name, py_callback_pickler):
     data_root = get_dali_extra_path()
     images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 
@@ -213,101 +240,111 @@ def _test_lambda_np_readfromfile(name, py_reducer=None):
 
     _create_and_compare_simple_pipelines(
         lambda x : (np.fromfile(os.path.join(images_dir, files[x.idx_in_epoch % len(files)]), dtype=np.uint8)),
-        batch_size=8, py_num_workers=2, py_reducer=py_reducer)
+        py_callback_pickler, batch_size=8, py_num_workers=2)
 
 
 @register_case(tests_dali_pickling)
 @register_case(tests_cloudpickle_pickling)
-def _test_mutually_recursive_functions(name, py_reducer=None):
+def _test_mutually_recursive_functions(name, py_callback_pickler):
     div_by_2 = lambda n, acc=0 : acc if n <= 0 else add_one(n // 2, acc)
     add_one = lambda n, acc : div_by_2(n, acc + 1)
     _create_and_compare_simple_pipelines(
         lambda x : np.int32([div_by_2(x.idx_in_epoch)]),
-        batch_size=15, py_num_workers=2, py_reducer=py_reducer)
+        py_callback_pickler, batch_size=15, py_num_workers=2)
 
 
 @register_case(tests_dali_pickling)
 @register_case(tests_cloudpickle_pickling)
-def _test_builtin_functions_usage_in_cb(name, py_reducer=None):
+def _test_builtin_functions_usage_in_cb(name, py_callback_pickler):
     div_by_2 = lambda n, acc=0 : acc if n <= 0 else add_one(n // 2, acc)
     add_one = lambda n, acc : div_by_2(n, acc + 1)
     _create_and_compare_simple_pipelines(
         lambda x : np.int32([div_by_2(x.idx_in_epoch)]) + len(dir(np)),
-        batch_size=15, py_num_workers=2, py_reducer=py_reducer)
+        py_callback_pickler, batch_size=15, py_num_workers=2)
+
+
+@register_case(tests_dali_pickling)
+@register_case(tests_cloudpickle_pickling)
+def _test_builtin_functions_usage_in_cb(name, py_callback_pickler):
+    div_by_2 = lambda n, acc=0 : acc if n <= 0 else add_one(n // 2, acc)
+    add_one = lambda n, acc : div_by_2(n, acc + 1)
+    _create_and_compare_simple_pipelines(
+        lambda x : np.int32([div_by_2(x.idx_in_epoch)]) + len(dir(np)),
+        py_callback_pickler, batch_size=15, py_num_workers=2)
 
 
 @register_case(tests_dali_pickling)
 @register_case(tests_dill_pickling)
 @register_case(tests_cloudpickle_pickling)
-def _test_module_dependency(name, py_reducer=None):
+def _test_module_dependency(name, py_callback_pickler):
     import import_module_test_helper
     _create_and_compare_simple_pipelines(
         lambda x : import_module_test_helper.cb(x),
-        batch_size=15, py_num_workers=2, py_reducer=py_reducer)
+        py_callback_pickler, batch_size=15, py_num_workers=2)
 
 
 @register_case(tests_dali_pickling)
 @register_case(tests_dill_pickling)
 @register_case(tests_cloudpickle_pickling)
-def _test_module_dependency_unqualified(name, py_reducer=None):
+def _test_module_dependency_unqualified(name, py_callback_pickler):
     from import_module_test_helper import cb
     _create_and_compare_simple_pipelines(
         lambda x : cb(x),
-        batch_size=15, py_num_workers=2, py_reducer=py_reducer)
+        py_callback_pickler, batch_size=15, py_num_workers=2)
 
 
 @register_case(tests_dali_pickling)
 @register_case(tests_dill_pickling)
 @register_case(tests_cloudpickle_pickling)
-def _test_module_dependency_by_reference(name, py_reducer=None):
+def _test_module_dependency_by_reference(name, py_callback_pickler):
     from import_module_test_helper import cb
     _create_and_compare_simple_pipelines(
-        cb, batch_size=15, py_num_workers=2, py_reducer=py_reducer)
+        cb, py_callback_pickler, batch_size=15, py_num_workers=2)
 
 
 @register_case(tests_dali_pickling)
 @register_case(tests_dill_pickling)
 @register_case(tests_cloudpickle_pickling)
-def _test_accessing_global_np_list(name, py_reducer=None):
+def _test_accessing_global_np_list(name, py_callback_pickler):
     _create_and_compare_simple_pipelines(
-        lambda x : global_numpy_arrays[x.idx_in_epoch % len(global_numpy_arrays)],
-        batch_size=9, py_num_workers=2, py_reducer=py_reducer)
+        lambda x : global_numpy_arrays[x.idx_in_epoch % len(global_numpy_arrays)], py_callback_pickler,
+        batch_size=9, py_num_workers=2)
 
 
-def __test_numpy_closure(shape, py_reducer):
+def __test_numpy_closure(shape, py_callback_pickler):
     batch_size = 8
     epochs_num = 3
     callback = create_closure_callback_numpy(shape, data_set_size=epochs_num * batch_size)
-    parallel_pipeline = create_simple_pipeline(callback, batch_size=batch_size, py_num_workers=2, parallel=True, py_reducer=py_reducer)
-    serial_pipeline = create_simple_pipeline(callback, batch_size=batch_size, parallel=False)
+    parallel_pipeline = create_simple_pipeline(callback, py_callback_pickler, batch_size=batch_size, py_num_workers=2, parallel=True)
+    serial_pipeline = create_simple_pipeline(callback, None, batch_size=batch_size, parallel=False)
     _build_and_compare_pipelines_epochs(epochs_num, batch_size, parallel_pipeline, serial_pipeline)
 
 
 @register_case(tests_dali_pickling)
 @register_case(tests_dill_pickling)
 @register_case(tests_cloudpickle_pickling)
-def _test_numpy_closure(name, py_reducer=None):
+def _test_numpy_closure(name, py_callback_pickler):
     for shape in [tuple(), (5, 5, 5,)]:
-        yield __test_numpy_closure, shape, py_reducer
+        yield __test_numpy_closure, shape, py_callback_pickler
 
 
 @register_case(tests_dali_pickling)
 @register_case(tests_dill_pickling)
 @register_case(tests_cloudpickle_pickling)
-def _test_reader_closure(name, py_reducer=None):
+def _test_reader_closure(name, py_callback_pickler):
     batch_size = 7
     batches_in_epoch = 3
     epochs_num = 3
     callback = create_closure_callback_img_reader(data_set_size=batches_in_epoch * batch_size)
-    parallel_pipeline = create_decoding_pipeline(callback, batch_size=batch_size, py_num_workers=2, parallel=True, py_reducer=py_reducer)
-    serial_pipeline = create_decoding_pipeline(callback, batch_size=batch_size, parallel=False)
+    parallel_pipeline = create_decoding_pipeline(callback, py_callback_pickler, batch_size=batch_size, py_num_workers=2, parallel=True)
+    serial_pipeline = create_decoding_pipeline(callback, None, batch_size=batch_size, parallel=False)
     _build_and_compare_pipelines_epochs(epochs_num, batch_size, parallel_pipeline, serial_pipeline)
 
 
 @restrict_python_version(3, 8)
 def test_dali_pickling():
     for i, test in enumerate(tests_dali_pickling, start=1):
-        yield test, "{}. {}".format(i, test.__name__.strip('_'))
+        yield test, "{}. {}".format(i, test.__name__.strip('_')), None
 
 
 def test_cloudpickle_pickling():

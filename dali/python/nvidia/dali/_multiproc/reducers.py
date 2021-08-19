@@ -19,7 +19,7 @@ import types
 import marshal
 import importlib
 import multiprocessing
-from nvidia.dali.pickling import CustomPickler
+import warnings
 
 dummy_lambda = lambda : 0
 
@@ -96,44 +96,33 @@ def dump(obj, file, protocol=2):
 
 
 class DaliForkingPicklerReducer(multiprocessing.reduction.AbstractReducer):
+    """
+    Multiprocessing reducer compatible with Python 3.8 and above that makes it possible to
+    serialize local functions and lambdas, and handles @pickle_by_value decorated functions.
+    """
     ForkingPickler = DaliForkingPickler
     register = DaliForkingPickler.register
     dump = dump
 
 
-def register_reducers(mp, reducer):
+def register_dali_reducer(mp=None):
     """
-    If `reducer` implements multiprocessing.reduction.AbstractReducer then it is set in the multiprocessing 
-    context `mp`, so that multiprocessing uses it over default Python pickler. In such case nothing is returned 
-    and no additional pickling is required along the way, because custom reducer is expected to handle
-    pickling accordingly.
-    Alternatively, reducer might be a CustomPickler instance that will be returned from the function and
-    used to create additional layer of pickling - external source callbacks will be first serialized using 
-    provided CustomPickler and then passed to multiprocessing where, in the serialized form, they will be 
-    forwarded by default Python pickler. CustomPickler must itself be picklable.
-    Instead of providing CustomPickler instance directly, you can either provide module that contains 
-    *dumps* and *loads* functions or a tuple where first item is the module and next optional two items are
-    dictionaries of kwargs that should be passed to dumps and loads methods respectively.
+    Replaces default multiprocessing reducer with `DaliForkingPicklerReducer` that
+    supports serialization of local functions and lambdas.
+    Custom serialization of native Python types is supported in Python 3.8 and above.
+    To be effective, replacement must be done before multiprocessing *spawn* context is used
+    anywhere in the process, so if multiprocessing package is used outside of DALI 
+    it may be needed to manually call the function at the beggining of the script.
     """
-    if reducer is None:
-        return
-    if inspect.isclass(reducer) and issubclass(reducer, multiprocessing.reduction.AbstractReducer):
-        # Python versions lower than 3.8 don't support customization of functions pickling 
-        # as it is utilized in DaliForkingPicklerReducer
-        version_info = sys.version_info
-        if not issubclass(reducer, DaliForkingPicklerReducer) or\
-                (version_info.major > 3 or (version_info.major == 3 and version_info.minor >= 8)):
-            mp.reducer = reducer
-        return
-    if isinstance(reducer, CustomPickler):
-        return reducer
-    if hasattr(reducer, 'dumps') and hasattr(reducer, 'loads'):
-        return CustomPickler.of_reducer(reducer)
-    if isinstance(reducer, (tuple, list)):
-        params = [None] * 3
-        for i, item in enumerate(reducer):
-            params[i] = item
-        reducer, kwargs_dumps, kwargs_loads = params
-        return CustomPickler.of_reducer(reducer, kwargs_dumps, kwargs_loads)
-    raise ValueError("Unsupported reducer value provided.")
-
+    if mp is None:
+        mp = multiprocessing.get_context("spawn")
+    version_info = sys.version_info
+    if version_info.major > 3 or (version_info.major == 3 and version_info.minor >= 8):
+        if mp.reducer == multiprocessing.reduction: # check if it is default Python reducer
+            mp.reducer = DaliForkingPicklerReducer
+        elif not inspect.isclass(mp.reducer) or not issubclass(mp.reducer, DaliForkingPicklerReducer):
+            warnings.warn(
+                "DALI skipped registering custom multiprocessing reducer in multiprocessing spawn context"                
+                "because there is already different custom reducer set ({}). Passing local functions and lambdas "
+                "as callbacks to parallel ExternalSource may not be supported.".format(mp.reducer), Warning, stacklevel=2)
+        
