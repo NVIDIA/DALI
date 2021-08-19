@@ -119,6 +119,8 @@ inline void synchronize_all_devices() {
     CUDA_CALL(cuDeviceGet(&device, i));
     unsigned flags = 0;
     int active = 0;
+    // Check if there's an active primary context for the device - if there is, we shoud
+    // synchronize with that device; otherwise we can skip it.
     CUDA_CALL(cuDevicePrimaryCtxGetState(device, &flags, &active));
     if (active) {
       CUDA_CALL(cudaSetDevice(i));
