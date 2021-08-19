@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,8 +17,10 @@
 
 #include <cstring>
 #include <vector>
+#include <type_traits>
 
 #include "dali/pipeline/operator/operator.h"
+#include "dali/kernels/common/scatter_gather.h"
 
 namespace dali {
 
@@ -26,18 +28,48 @@ template <typename Backend>
 class Copy : public Operator<Backend> {
  public:
   inline explicit Copy(const OpSpec &spec) :
-    Operator<Backend>(spec) {}
+    Operator<Backend>(spec), scatter_gather_(kMaxSizePerBlock) {}
 
   inline ~Copy() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(Copy);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    return false;
+  bool CanInferOutputs() const override {
+    return true;
   }
 
-  void RunImpl(Workspace<Backend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    output_desc.resize(1);
+    const auto &input = ws.template InputRef<Backend>(0);
+    output_desc[0].type = input.type();
+    output_desc[0].shape = input.shape();
+    return true;
+  }
+
+  void RunImpl(workspace_t<Backend> &ws) override {
+    auto &input = ws.template InputRef<Backend>(0);
+    auto data_type_size = input.type().size();
+    auto &output = ws.template OutputRef<Backend>(0);
+    output.SetLayout(input.GetLayout());
+    for (unsigned int i = 0; i < input.ntensor(); i++) {
+      auto tensor_shape = input.tensor_shape(i);
+      auto tensor_size = volume(tensor_shape);
+      scatter_gather_.AddCopy(output.raw_mutable_tensor(i), input.raw_tensor(i),
+                              tensor_size * data_type_size);
+    }
+    RunCopies(ws);
+  }
+
+  void RunCopies(workspace_t<Backend> &ws);
+
+  std::conditional_t<
+      std::is_same<Backend, CPUBackend>::value,
+      kernels::ScatterGatherCPU,
+      kernels::ScatterGatherGPU> scatter_gather_;
+  // 16 MB per block for CPU, 256 kB per block for GPU
+  static constexpr size_t kMaxSizePerBlock =
+      std::is_same<Backend, CPUBackend>::value ? 1 << 24 : 1 << 18;
 };
 
 }  // namespace dali

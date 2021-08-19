@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ size_t Coalesce(span<CopyRange> ranges) {
 
 }  // namespace detail
 
-void ScatterGatherGPU::MakeBlocks() {
+void ScatterGatherBase::MakeBlocks() {
   size_t max_size = 0;
 
   for (auto &r : ranges_) {
@@ -93,7 +93,7 @@ void ScatterGatherGPU::ReserveGPUBlocks() {
   }
 }
 
-__global__ void BatchCopy(const ScatterGatherGPU::CopyRange *ranges) {
+__global__ void BatchCopy(const ScatterGatherBase::CopyRange *ranges) {
   auto range = ranges[blockIdx.x];
 
   for (size_t i = threadIdx.x; i < range.size; i += blockDim.x) {
