@@ -174,14 +174,17 @@ class pool_resource_base : public memory_resource<kind, Context> {
 
   void synchronize(span<const dealloc_params> params) {
     if (options_.sync == sync_scope::device) {
+      int curr_device = -1;
+      CUDA_CALL(cudaGetDevice(&curr_device));
+      DeviceGuard dg;
+
       int prev = -1;
       const int kMaxDevices = 256;
       uint32_t dev_mask[kMaxDevices >> 5] = {};  // NOLINT - linter doesn't notice it's a constant expression
       for (const dealloc_params &par : params) {
         int dev = par.sync_device;
-        if (dev < 0) {
-          CUDA_CALL(cudaGetDevice(&dev));
-        }
+        if (dev < 0)
+          dev = device_ordinal_ >= 0 ? device_ordinal_ : curr_device;
         if (dev < kMaxDevices) {  // that should do in all realistic cases
           int bin = dev >> 5;
           uint32_t mask = 1 << (dev & 31);
@@ -191,7 +194,7 @@ class pool_resource_base : public memory_resource<kind, Context> {
         } else if (dev == prev) {  // if there's a highly unlikely system with >256 devices
           continue;                // we just check if the device is the same as previous or not
         }
-        DeviceGuard dg(dev);
+        CUDA_CALL(cudaSetDevice(dev));
         CUDA_CALL(cudaDeviceSynchronize());
         prev = dev;
       }
