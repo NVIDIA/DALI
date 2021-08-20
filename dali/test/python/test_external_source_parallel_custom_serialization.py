@@ -173,7 +173,6 @@ def _build_and_compare_pipelines_epochs(epochs_num, batch_size, parallel_pipelin
 def _create_and_compare_simple_pipelines(cb, py_callback_pickler, batch_size, py_num_workers=2):
     parallel_pipeline = create_simple_pipeline(
         cb, py_callback_pickler, batch_size=batch_size, py_num_workers=py_num_workers, parallel=True)
-    print(parallel_pipeline._py_callback_pickler)
     serial_pipeline = create_simple_pipeline(
         cb, None, batch_size=batch_size, parallel=False)
     parallel_pipeline.build()
@@ -218,7 +217,6 @@ def _test_pickle_passes_extra_dumps_loads_params_function(name, py_callback_pick
     parallel_pipeline = create_simple_pipeline(
         callback_const_84, (this_module, {'special_dumps_param': 42}, {'special_loads_param': 84}),
         batch_size=batch_size, py_num_workers=2, parallel=True)
-    print(parallel_pipeline._py_callback_pickler)
     serial_pipeline = create_simple_pipeline(
         callback_const_42, None, batch_size=batch_size, parallel=False)
     parallel_pipeline.build()

@@ -14,7 +14,6 @@
 
 import inspect
 import pickle
-import inspect
 import sys
 import types
 import marshal
@@ -106,7 +105,6 @@ class CustomPickler:
     def create(cls, py_callback_pickler):
         if py_callback_pickler is None or isinstance(py_callback_pickler, cls):
             return py_callback_pickler
-        print(py_callback_pickler, dir(py_callback_pickler))
         if hasattr(py_callback_pickler, 'dumps') and hasattr(py_callback_pickler, 'loads'):
             return cls.of_reducer(py_callback_pickler)
         if isinstance(py_callback_pickler, (tuple, list)):

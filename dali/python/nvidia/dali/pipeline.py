@@ -154,7 +154,7 @@ Parameters
     If you run Python3.8 or newer and use default `nvidia.dali.pickling` you can hint DALI to serialize
     global functions by value rather than by reference by decorating them
     with `@dali.pickling.pickle_by_value`. It may be especially useful when working with
-    Jupiter notebook to work around the issue of worker process being unable to import
+    Jupyter notebook to work around the issue of worker process being unable to import
     the callback defined as a global function inside the notebook.
 """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
