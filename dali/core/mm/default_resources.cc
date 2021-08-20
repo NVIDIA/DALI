@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -152,8 +152,11 @@ const std::shared_ptr<default_memory_resource_t<kind>> &ShareDefaultResourceImpl
 
 template <>
 const std::shared_ptr<host_memory_resource> &ShareDefaultResourceImpl<memory_kind::host>() {
-  if (!g_resources.host)
-    g_resources.host = CreateDefaultHostResource();
+  if (!g_resources.host) {
+    std::lock_guard<std::mutex> lock(g_resources.mtx);
+    if (!g_resources.host)
+      g_resources.host = CreateDefaultHostResource();
+  }
   return g_resources.host;
 }
 
