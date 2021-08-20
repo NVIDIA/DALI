@@ -94,6 +94,31 @@ TEST_F(VideoReaderTest, ConstantFrameRate) {
   ASSERT_EQ(frames_shape[0][0], sequence_length);
 }
 
+TEST_F(VideoReaderTest, CpuConstantFrameRate) {
+  Pipeline pipe(1, 1, 0);
+  const int sequence_length = 60;
+
+  pipe.AddOperator(OpSpec("readers__Video")
+                       .AddArg("device", "cpu")
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                                     "/db/video/cfr_test.mp4"})
+                       .AddOutput("frames", "cpu"));
+
+  pipe.Build(this->Outputs());
+
+  DeviceWorkspace ws;
+  pipe.RunCPU();
+  pipe.RunGPU();
+  pipe.Outputs(&ws);
+
+  const auto &frames_output = ws.Output<dali::CPUBackend>(0);
+  const auto &frames_shape = frames_output.shape();
+
+  ASSERT_EQ(frames_shape.size(), 1);
+  ASSERT_EQ(frames_shape[0][0], sequence_length);
+}
+
 TEST_F(VideoReaderTest, MultipleVideoResolution) {
   const int batch_size = 10;
   const int sequence_length = 1;
