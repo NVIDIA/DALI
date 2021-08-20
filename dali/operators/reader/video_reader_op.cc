@@ -162,24 +162,23 @@ the end frame number will be rounded down.
 
 Frame numbers start from 0.)code", false)
   .AddOptionalArg("file_list_include_preceding_frame",
-      R"code(Changes the behavior how `file_list` start and end frame timestamps are translated
-to the frame number.
+      R"code(Changes the behavior how ``file_list`` start and end frame timestamps are translated
+to a frame number.
 
 If the start/end timestamps are provided in file_list as timestamps, the start frame is
-calculated as `ceil(start_time_stamp * FPS)` and the end as `floor(end_time_stamp * FPS)`.
-If this option is turned on the equation changes to `floor(start_time_stamp * FPS)` and
-`ceil(end_time_stamp * FPS)` respectively. In effect, the first returned frame is no later, and
-the end frame no earlier than provided timestamps what is more aligned with how the visible
+calculated as ``ceil(start_time_stamp * FPS)`` and the end as ``floor(end_time_stamp * FPS)``.
+If this argument is set to True, the equation changes to ``floor(start_time_stamp * FPS)`` and
+``ceil(end_time_stamp * FPS)`` respectively. In effect, the first returned frame is not later, and
+the end frame not earlier, than the provided timestamps. This behavior is more aligned with how the visible
 timestamps are correlated with displayed video frames.
 
 .. note::
 
-  When `file_list_frame_num` is set this option doesn't take any effect.
+  When ``file_list_frame_num`` is set to True, this option does not take any effect.
 
 .. warning::
 
-  This option is meant to preserve the legacy behavior. It will be removed in the following
-  releases and the default behavior would be changed to ``file_list_include_preceding_frame=True``.
+  This option is available for legacy behavior compatibility.
 )code", false)
   .AddOptionalArg("pad_sequences",
       R"code(Allows creation of incomplete sequences if there is an insufficient number
