@@ -102,7 +102,8 @@ struct DefaultResources {
 #define g_resources (DefaultResources::instance())
 
 inline std::shared_ptr<host_memory_resource> CreateDefaultHostResource() {
-  return std::make_shared<malloc_memory_resource>();
+  static auto rsrc = std::make_shared<malloc_memory_resource>();
+  return rsrc;
 }
 
 struct CUDARTLoader {
