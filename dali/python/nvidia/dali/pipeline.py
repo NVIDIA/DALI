@@ -18,6 +18,7 @@ from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
 from nvidia.dali._multiproc.pool import WorkerPool
+from nvidia.dali import pickling as dali_pickle
 from nvidia.dali.backend import CheckDLPackCapsule
 from threading import local as tls
 from . import data_node as _data_node
@@ -135,28 +136,26 @@ Parameters
     you will need to call :meth:`start_py_workers` before calling :meth:`build` of any
     of the pipelines. You can find more details and caveats of both methods in Python's
     ``multiprocessing`` module documentation.
-`py_callback_pickler` : module or tuple, default = None
+`py_callback_pickler` : module or tuple, default = nvidia.dali.pickling
     If `py_start_method` is set to *spawn* callback passed to parallel ExternalSource must be picklable.
-    By default Python multiprocessing package doesn't support serialization of lambdas and local functions.
-    Since Python 3.8 DALI extends multiprocessing pickler to handle these, but if you need to serialize
-    more complex objects like locally created classes or you run older version of Python
-    you can provide here external serialization package such as dill or cloudpickle 
-    that contains two methods: `dumps` and `loads` that will be used to serialize
+    If run in Python3.8 or newer, DALI uses customized pickle (`nvidia.dali.pickling`) when
+    serializing callbacks to support serialization of local functions and lambdas.
+
+    However, if you need to serialize more complex objects like local classes or you are running
+    older version of Python you can provide external serialization package such as dill or cloudpickle
+    that implements two methods: `dumps` and `loads` to make DALI use them to serialize
     external source callbacks.
-    
-    Valid values for `py_callback_pickler` is either a module/object containing 
-    dumps and loads methods or a tuple where first item is the module/object and the next 
+
+    Valid value for `py_callback_pickler` is either a module/object implementing
+    dumps and loads methods or a tuple where first item is the module/object and the next
     two optional parameters are extra kwargs to be passed when calling dumps and loads respectively.
-    Methods and kwargs must itself be picklable.
+    Provided methods and kwargs must themselves be picklable.
 
-    DALI can only extend multiprocessing pickler if multiprocessing *spawn* context has not been
-    previously used in the process, so if the script uses multiprocessing outside of DALI
-    you may need to call dali.pickling.register_dali_reducer function manually at the begining of the script
-
-    If you run Python3.8 or above in the Jupiter notebook you may wish to use `@dali.pickling.pickle_by_value`
-    decorator on any top level function that is passed as a callback to parallel ExternalSource,
-    to hint DALI to serialize the callback by value rather than by reference
-    to work around the issues with importing functions defined inside the notebook in the worker process.
+    If you run Python3.8 or newer and use default `nvidia.dali.pickling` you can hint DALI to serialize
+    global functions by value rather than by reference by decorating them
+    with `@dali.pickling.pickle_by_value`. It may be especially useful when working with
+    Jupiter notebook to work around the issue of worker process being unable to import
+    the callback defined as a global function inside the notebook.
 """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
@@ -164,7 +163,7 @@ Parameters
                  set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
                  *,
                  enable_memory_stats=False, py_num_workers=1, py_start_method="fork",
-                 py_callback_pickler=None):
+                 py_callback_pickler=dali_pickle):
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads

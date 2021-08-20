@@ -13,36 +13,15 @@
 # limitations under the License.
 
 import os
-import multiprocessing
 import numpy as np
 from nose.tools import raises
 from pickle import PicklingError
 
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
-import nvidia.dali.pickling as dali_pickling
+import nvidia.dali.pickling as dali_pickle
 
 from test_utils import get_dali_extra_path, restrict_python_version
-
-# Register dummy reducer for custom type to check if DaliForkingPicklerReducer did not interfere with
-# multiprocessing register of custom types reducer (for instace PyTorch relies on them)
-# (note this approach doesn't work with native Python types like functions)
-class DummyCb:
-    
-    def __call__(self, sample_info):
-        return np.int32([1])
-
-class DummyCb42:
-    
-    def __call__(self, sample_info):
-        return np.int32([42])
-
-
-def crazy_reducer(obj):
-    return DummyCb42().__reduce__()
-
-multiprocessing.reduction.register(DummyCb, crazy_reducer)
-
 
 tests_dali_pickling = []
 
@@ -63,18 +42,42 @@ def _simple_callback(sample_info):
     return np.full((5, 6), sample_info.idx_in_epoch, dtype=np.int32)
 
 
-@dali_pickling.pickle_by_value
+@dali_pickle.pickle_by_value
 def _simple_callback_by_value(sample_info):
     return np.full((5, 6), sample_info.idx_in_epoch, dtype=np.int32)
+
+
+def callback_const_42(sample_info):
+    return np.full((10, 20), 42, dtype=np.uint8)
+
+def callback_const_84(sample_info):
+    return np.full((10, 20), 84, dtype=np.uint8)
 
 
 def callback_idx(i):
     return np.full((10, 20), i, dtype=np.uint8)
 
 
-@dali_pickling.pickle_by_value
+@dali_pickle.pickle_by_value
 def callback_idx_by_value(i):
     return np.full((10, 20), i, dtype=np.uint8)
+
+
+class NoDumpsParam(ValueError):
+    pass
+
+
+def dumps(obj, **kwargs):
+    if kwargs.get('special_dumps_param') != 42:
+        raise NoDumpsParam("Expected special_dumps_pram among kwargs, got {}".format(kwargs))
+    return dali_pickle.dumps(obj)
+
+
+def loads(data, **kwargs):
+    callbacks = dali_pickle.loads(data)
+    if kwargs.get('special_loads_param') == 84:
+        return [cb if cb.__name__ != 'callback_const_84' else callback_const_42 for cb in callbacks]
+    return callbacks
 
 
 # use process pid to assert that arrays were passed by value
@@ -180,18 +183,6 @@ def _create_and_compare_simple_pipelines(cb, py_callback_pickler, batch_size, py
 
 
 @register_case(tests_dali_pickling)
-def _test_if_custom_type_reducers_are_respected_by_dali_reducer(name, py_callback_pickler):
-    batch_size = 8
-    parallel_pipeline = create_simple_pipeline(
-        DummyCb(), None, batch_size=batch_size, py_num_workers=2, parallel=True)
-    parallel_pipeline.build()
-    (batch,) = parallel_pipeline.run()
-    assert len(batch) == batch_size
-    for i in range(batch_size):
-        assert np.array_equal(batch[i], np.int32([42]))
-
-
-@register_case(tests_dali_pickling)
 @raises(PicklingError)
 def _test_global_function_pickled_by_reference(name, py_callback_pickler):
     # modify callback name so that an attempt to pickle by reference, which is default Python behavior, fails
@@ -204,6 +195,36 @@ def _test_pickle_by_value_decorator_on_global_function(name, py_callback_pickler
     # modify callback name so that an attempt to pickle by reference, which is default Python behavior, would fail
     _simple_callback_by_value.__name__ = _simple_callback_by_value.__qualname__ = "simple_callback_by_value"
     _create_and_compare_simple_pipelines(_simple_callback_by_value, py_callback_pickler, batch_size=4, py_num_workers=2)
+
+
+@register_case(tests_dali_pickling)
+@raises(NoDumpsParam)
+def _test_pickle_does_not_pass_extra_params_function(name, py_callback_pickler):
+    this_module = __import__(__name__)
+    _create_and_compare_simple_pipelines(callback_const_42, this_module, batch_size=4, py_num_workers=2)
+
+
+@register_case(tests_dali_pickling)
+def _test_pickle_passes_extra_dumps_params_function(name, py_callback_pickler):
+    this_module = __import__(__name__)
+    _create_and_compare_simple_pipelines(callback_const_42, (this_module, {'special_dumps_param': 42}), batch_size=4, py_num_workers=2)
+
+
+@register_case(tests_dali_pickling)
+def _test_pickle_passes_extra_dumps_loads_params_function(name, py_callback_pickler):
+    this_module = __import__(__name__)
+    batch_size = 4
+    # this_module.loads replaces callback_const_84 to callback_const_42 iff it receives special_loads_param
+    parallel_pipeline = create_simple_pipeline(
+        callback_const_84, (this_module, {'special_dumps_param': 42}, {'special_loads_param': 84}),
+        batch_size=batch_size, py_num_workers=2, parallel=True)
+    print(parallel_pipeline._py_callback_pickler)
+    serial_pipeline = create_simple_pipeline(
+        callback_const_42, None, batch_size=batch_size, parallel=False)
+    parallel_pipeline.build()
+    serial_pipeline.build()
+    for _ in range(3):
+        _run_and_compare_outputs(batch_size, parallel_pipeline, serial_pipeline)
 
 
 @register_case(tests_dali_pickling)
@@ -344,7 +365,7 @@ def _test_reader_closure(name, py_callback_pickler):
 @restrict_python_version(3, 8)
 def test_dali_pickling():
     for i, test in enumerate(tests_dali_pickling, start=1):
-        yield test, "{}. {}".format(i, test.__name__.strip('_')), None
+        yield test, "{}. {}".format(i, test.__name__.strip('_')), dali_pickle
 
 
 def test_cloudpickle_pickling():
