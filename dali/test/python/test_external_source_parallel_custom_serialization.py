@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import copyreg
 import numpy as np
 from nose.tools import raises
 from pickle import PicklingError
@@ -28,6 +29,10 @@ tests_dali_pickling = []
 tests_dill_pickling = []
 
 tests_cloudpickle_pickling = []
+
+
+class UseDefault:
+    pass
 
 
 def register_case(suite):
@@ -50,8 +55,13 @@ def _simple_callback_by_value(sample_info):
 def callback_const_42(sample_info):
     return np.full((10, 20), 42, dtype=np.uint8)
 
+
 def callback_const_84(sample_info):
     return np.full((10, 20), 84, dtype=np.uint8)
+
+
+def standard_global_callback(sample_info):
+    return np.full((10, 20), sample_info.idx_in_batch, dtype=np.uint8)
 
 
 def callback_idx(i):
@@ -78,6 +88,26 @@ def loads(data, **kwargs):
     if kwargs.get('special_loads_param') == 84:
         return [cb if cb.__name__ != 'callback_const_84' else callback_const_42 for cb in callbacks]
     return callbacks
+
+
+# Register dummy reducer for custom type to check if DALI pickler did not interfere with
+# ability to register custom reducers for user defined types
+class DummyCb:
+
+    def __call__(self, sample_info):
+        return np.int32([1])
+
+class DummyCb42:
+
+    def __call__(self, sample_info):
+        return np.int32([42])
+
+
+def crazy_reducer(obj):
+    return DummyCb42().__reduce__()
+
+
+copyreg.pickle(DummyCb, crazy_reducer)
 
 
 # use process pid to assert that arrays were passed by value
@@ -121,8 +151,12 @@ def create_closure_callback_img_reader(data_set_size):
 
 def create_simple_pipeline(callback, py_callback_pickler, batch_size, parallel=True, py_num_workers=None):
 
+    extra = {}
+    if py_callback_pickler != UseDefault:
+        extra['py_callback_pickler'] = py_callback_pickler
+
     @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, py_num_workers=py_num_workers,
-        py_start_method="spawn", py_callback_pickler=py_callback_pickler)
+        py_start_method="spawn", **extra)
     def crate_pipline():
         outputs = fn.external_source(
             source=callback,
@@ -134,8 +168,12 @@ def create_simple_pipeline(callback, py_callback_pickler, batch_size, parallel=T
 
 def create_decoding_pipeline(callback, py_callback_pickler, batch_size, parallel=True, py_num_workers=None):
 
+    extra = {}
+    if py_callback_pickler != UseDefault:
+        extra['py_callback_pickler'] = py_callback_pickler
+
     @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, py_num_workers=py_num_workers,
-        py_start_method="spawn", py_callback_pickler=py_callback_pickler)
+        py_start_method="spawn", **extra)
     def crate_pipline():
         jpegs, labels = fn.external_source(
             source=callback, num_outputs=2,
@@ -174,11 +212,27 @@ def _create_and_compare_simple_pipelines(cb, py_callback_pickler, batch_size, py
     parallel_pipeline = create_simple_pipeline(
         cb, py_callback_pickler, batch_size=batch_size, py_num_workers=py_num_workers, parallel=True)
     serial_pipeline = create_simple_pipeline(
-        cb, None, batch_size=batch_size, parallel=False)
+        cb, UseDefault, batch_size=batch_size, parallel=False)
     parallel_pipeline.build()
     serial_pipeline.build()
     for _ in range(3):
         _run_and_compare_outputs(batch_size, parallel_pipeline, serial_pipeline)
+
+
+# Run this one as sanity check that standard serialization is not broken by the change
+def test_standard_global_function_serialization():
+    _create_and_compare_simple_pipelines(standard_global_callback, UseDefault, batch_size=4, py_num_workers=2)
+
+
+def test_if_custom_type_reducers_are_respected_by_dali_reducer():
+    batch_size = 8
+    parallel_pipeline = create_simple_pipeline(
+        DummyCb(), None, batch_size=batch_size, py_num_workers=2, parallel=True)
+    parallel_pipeline.build()
+    (batch,) = parallel_pipeline.run()
+    assert len(batch) == batch_size
+    for i in range(batch_size):
+        assert np.array_equal(batch[i], np.int32([42]))
 
 
 @register_case(tests_dali_pickling)
@@ -218,7 +272,7 @@ def _test_pickle_passes_extra_dumps_loads_params_function(name, py_callback_pick
         callback_const_84, (this_module, {'special_dumps_param': 42}, {'special_loads_param': 84}),
         batch_size=batch_size, py_num_workers=2, parallel=True)
     serial_pipeline = create_simple_pipeline(
-        callback_const_42, None, batch_size=batch_size, parallel=False)
+        callback_const_42, UseDefault, batch_size=batch_size, parallel=False)
     parallel_pipeline.build()
     serial_pipeline.build()
     for _ in range(3):
@@ -335,7 +389,7 @@ def __test_numpy_closure(shape, py_callback_pickler):
     epochs_num = 3
     callback = create_closure_callback_numpy(shape, data_set_size=epochs_num * batch_size)
     parallel_pipeline = create_simple_pipeline(callback, py_callback_pickler, batch_size=batch_size, py_num_workers=2, parallel=True)
-    serial_pipeline = create_simple_pipeline(callback, None, batch_size=batch_size, parallel=False)
+    serial_pipeline = create_simple_pipeline(callback, UseDefault, batch_size=batch_size, parallel=False)
     _build_and_compare_pipelines_epochs(epochs_num, batch_size, parallel_pipeline, serial_pipeline)
 
 
@@ -356,14 +410,14 @@ def _test_reader_closure(name, py_callback_pickler):
     epochs_num = 3
     callback = create_closure_callback_img_reader(data_set_size=batches_in_epoch * batch_size)
     parallel_pipeline = create_decoding_pipeline(callback, py_callback_pickler, batch_size=batch_size, py_num_workers=2, parallel=True)
-    serial_pipeline = create_decoding_pipeline(callback, None, batch_size=batch_size, parallel=False)
+    serial_pipeline = create_decoding_pipeline(callback, UseDefault, batch_size=batch_size, parallel=False)
     _build_and_compare_pipelines_epochs(epochs_num, batch_size, parallel_pipeline, serial_pipeline)
 
 
 @restrict_python_version(3, 8)
 def test_dali_pickling():
     for i, test in enumerate(tests_dali_pickling, start=1):
-        yield test, "{}. {}".format(i, test.__name__.strip('_')), dali_pickle
+        yield test, "{}. {}".format(i, test.__name__.strip('_')), UseDefault
 
 
 def test_cloudpickle_pickling():
