@@ -163,8 +163,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       codec_id_(0),
       skip_vfr_check_(spec.GetArgument<bool>("skip_vfr_check")),
       file_list_frame_num_(spec.GetArgument<bool>("file_list_frame_num")),
-      file_list_include_preceding_frame_(spec.GetArgument<bool>(
-                                                          "file_list_include_preceding_frame")),
+      file_list_include_preceding_frame_(
+        spec.GetArgument<bool>("file_list_include_preceding_frame")),
       pad_sequences_(spec.GetArgument<bool>("pad_sequences")),
       stats_({0, 0, 0, 0, 0}),
       current_frame_idx_(-1),
@@ -173,8 +173,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     if (step_ < 0)
       step_ = count_ * stride_;
     if (!file_list_include_preceding_frame_) {
-      DALI_WARN("``file_list_include_preceding_frame_`` is set to False (or not set at all). In "
-                "future releases, the default behavior would be changed to True..");
+      DALI_WARN("``file_list_include_preceding_frame`` is set to False (or not set at all). In "
+                "future releases, the default behavior would be changed to True.");
     }
 
     bool use_labels = spec.TryGetRepeatedArgument(labels_, "labels");
@@ -265,15 +265,15 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
                             static_cast<int>(std::ceil(start * av_q2d(frame_rate)));
             }
           }
-          if (file_list_include_preceding_frame_) {
-            if (end > 0) {
+          if (end > 0) {
+            if (file_list_include_preceding_frame_) {
               end_frame = static_cast<int>(std::ceil(end * av_q2d(frame_rate)));
             } else {
-              end_frame = file.frame_count_ + static_cast<int>(std::ceil(end * av_q2d(frame_rate)));
+              end_frame = static_cast<int>(std::floor(end * av_q2d(frame_rate)));
             }
           } else {
-            if (end > 0) {
-              end_frame = static_cast<int>(std::floor(end * av_q2d(frame_rate)));
+            if (file_list_include_preceding_frame_) {
+              end_frame = file.frame_count_ + static_cast<int>(std::ceil(end * av_q2d(frame_rate)));
             } else {
               end_frame = file.frame_count_ +
                           static_cast<int>(std::floor(end * av_q2d(frame_rate)));
