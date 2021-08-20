@@ -255,14 +255,15 @@ class pool_resource_base : public memory_resource<kind, Context> {
     if (!bytes)
       return nullptr;
 
-    {
-      lock_guard guard(lock_);
-      void *ptr = free_list_.get(bytes, alignment);
-      if (ptr)
-        return ptr;
-    }
+    if (void *ptr = try_allocate_from_free(bytes, alignment))
+      return ptr;
     alignment = std::max(alignment, options_.upstream_alignment);
     size_t blk_size = bytes;
+
+    upstream_lock_guard uguard(upstream_lock_);
+    // try again to avoid upstream allocation stampede
+    if (void *ptr = try_allocate_from_free(bytes, alignment))
+      return ptr;
     void *new_block = get_upstream_block(blk_size, bytes, alignment);
     assert(new_block);
     if (blk_size == bytes) {
@@ -284,7 +285,6 @@ class pool_resource_base : public memory_resource<kind, Context> {
   }
 
   void *get_upstream_block(size_t &blk_size, size_t min_bytes, size_t alignment) {
-    upstream_lock_guard uguard(upstream_lock_);
     blk_size = next_block_size(min_bytes);
     bool tried_return_to_upstream = false;
     void *new_block = nullptr;
