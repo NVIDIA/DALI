@@ -257,13 +257,15 @@ class pool_resource_base : public memory_resource<kind, Context> {
 
     if (void *ptr = try_allocate_from_free(bytes, alignment))
       return ptr;
-    alignment = std::max(alignment, options_.upstream_alignment);
-    size_t blk_size = bytes;
 
     upstream_lock_guard uguard(upstream_lock_);
     // try again to avoid upstream allocation stampede
     if (void *ptr = try_allocate_from_free(bytes, alignment))
       return ptr;
+
+    alignment = std::max(alignment, options_.upstream_alignment);
+    size_t blk_size = bytes;
+
     void *new_block = get_upstream_block(blk_size, bytes, alignment);
     assert(new_block);
     if (blk_size == bytes) {
