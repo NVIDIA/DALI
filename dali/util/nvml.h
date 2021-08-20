@@ -252,19 +252,19 @@ inline bool HasCuda11NvmlFunctions() {
   return nvmlHasCuda11NvmlFunctions();
 }
 
+
+namespace impl {
+
+float GetDriverVersion();
+
+}  // namespace impl
+
+
 inline float GetDriverVersion() {
-  if (!nvmlIsInitialized()) {
-    return 0;
-  }
-
-  float driver_version = 0;
-  char version[NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE];
-
-  CUDA_CALL(nvmlSystemGetDriverVersion(version, sizeof version));
-  driver_version = std::stof(version);
-
-  return driver_version;
+  static float version = impl::GetDriverVersion();
+  return version;
 }
+
 
 #if (CUDART_VERSION >= 11000)
 
