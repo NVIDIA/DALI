@@ -60,10 +60,12 @@ class VideoPipe(Pipeline):
         return output
 
 class VideoPipeList(Pipeline):
-    def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT, step=-1, stride=1):
+    def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT, step=-1, stride=1,
+                 file_list_frame_num=True, file_list_include_preceding_frame=False):
         super(VideoPipeList, self).__init__(batch_size, num_threads=2, device_id=device_id)
         self.input = ops.readers.Video(device="gpu", file_list=data, sequence_length=sequence_length,
-                                       step=step, stride=stride, file_list_frame_num=True)
+                                       step=step, stride=stride, file_list_frame_num=file_list_frame_num,
+                                       file_list_include_preceding_frame=file_list_include_preceding_frame)
 
     def define_graph(self):
         output = self.input(name="Reader")
@@ -170,6 +172,39 @@ def test_file_list_starts_ends_videopipeline():
     ]
     for r in ranges:
         yield _test_file_list_starts_videopipeline, r[0], r[1]
+
+def _create_file_list_include_preceding_frame_pipe(file_list_include_preceding_frame):
+    files = sorted(os.listdir(VIDEO_DIRECTORY))
+    list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+    # make sure that this is close enough to show only one frame
+    list_file.write("{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, 0.111, 0.112))
+    list_file.close()
+
+    pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name, sequence_length=1, file_list_frame_num=False,
+                         file_list_include_preceding_frame=file_list_include_preceding_frame)
+
+    return pipe, list_file.name
+
+def test_file_list_include_preceding_frame():
+    pipe, list_file_name = _create_file_list_include_preceding_frame_pipe(True)
+    pipe.build()
+
+    os.remove(list_file_name)
+    for _ in range(3):
+        pipe.run()
+    seq_num = pipe.reader_meta("Reader")["epoch_size"]
+
+    assert seq_num == 1, "Expected to get only 1 sample, received {}".format(seq_num)
+
+
+def test_file_list_include_preceding_frame_fail():
+    pipe, list_file_name = _create_file_list_include_preceding_frame_pipe(False)
+
+    # there should be no valid sequences
+    assert_raises(RuntimeError, pipe.build)
+
+    os.remove(list_file_name)
+
 
 def _test_file_list_empty_videopipeline(start, end):
     files = sorted(os.listdir(VIDEO_DIRECTORY))
