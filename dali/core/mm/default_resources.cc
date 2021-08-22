@@ -132,7 +132,7 @@ CallAtExit<Callable> AtExit(Callable &&c) {
 bool UseDeviceMemoryPool() {
   static bool value = []() {
     const char *env = std::getenv("DALI_USE_DEVICE_MEM_POOL");
-    return env && atoi(env);
+    return !env || atoi(env);
   }();
   return value;
 }
