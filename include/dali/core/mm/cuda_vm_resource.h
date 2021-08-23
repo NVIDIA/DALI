@@ -410,8 +410,8 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
       assert(!va_ranges_.empty());
       va_size = std::max(va_size, 2 * va_ranges_.back().size());
       hints = {
-        { last_va.address_range.end(), 0_zu },
-        { first_va.address_range.ptr() - va_size, 0_zu }
+        { last_va.address_range.end(), block_size_ },
+        { first_va.address_range.ptr() - va_size, block_size_ }
       };
     }
 
@@ -423,8 +423,8 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
       } catch (const CUDAError &) {
       } catch (const std::bad_alloc &) {}
     }
-    if (!va)  // ...hint failed - allocate anywhere
-      va = cuvm::CUMemAddressRange::Reserve(va_size, 0, 0);
+    if (!va)  // ...hint failed - allocate anywhere, just align to block_size_
+      va = cuvm::CUMemAddressRange::Reserve(va_size, block_size_, 0);
 
     va_ranges_.push_back(std::move(va));
     va_add_region(va_ranges_.back());
