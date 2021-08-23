@@ -103,7 +103,7 @@ TarArchive::TarArchive(std::unique_ptr<FileStream> stream_, size_t offset)
       eof_(false) {
   tar_open(ToTarHandle(&handle_), "", &kTarArchiveType, 0, instance_handle_, TAR_GNU);
   this->stream_->Seek(0);
-  Skip(archiveoffset_);
+  Skip(offset);
   ParseHeader();
 }
 
