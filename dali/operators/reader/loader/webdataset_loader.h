@@ -35,10 +35,10 @@ class WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUBackend>>> {
 
   size_t total_size_;                      // total size of all input archives
   vector<detail::TarArchive> wds_shards_;  // archives for all wds shards
-  size_t first_wds_shard_offset_;          // the index of the first wds shard to use
+  size_t first_wds_shard_index_;           // the index of the first wds shard to use
   size_t first_sample_offset_;  // the offset of the first sample in the wds_shards[0]; later used
                                 // for seeking
-  size_t current_wds_shard_index_; // current archive that is being read
+  size_t current_wds_shard_index_;  // current archive that is being read
 };
 
 }  // namespace dali
