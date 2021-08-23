@@ -14,6 +14,7 @@
 
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include <libtar.h>
+#include <cstring>
 #include <algorithm>
 #include <cstdarg>
 #include <cstdlib>
@@ -24,6 +25,8 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/math_util.h"
 #include "dali/core/util.h"
+
+#include <iostream>
 
 namespace dali {
 namespace detail {
@@ -140,7 +143,9 @@ bool TarArchive::NextFile() {
   if (eof_) {
     return false;
   }
-  Skip(RoundToBlockSize(filesize_) - readoffset_);
+  const size_t skipped = RoundToBlockSize(filesize_) - readoffset_;
+  if(Invalidate())
+  Skip();
   eof_ = ParseHeader();
   return !eof_;
 }
@@ -193,6 +198,7 @@ bool TarArchive::EndOfFile() const {
 }
 
 inline void TarArchive::Skip(size_t count) {
+  std::cout << archiveoffset_ << ' ' << stream_->Size() << std::endl;
   stream_->Seek(archiveoffset_ += count);
   readoffset_ += count;
 }
