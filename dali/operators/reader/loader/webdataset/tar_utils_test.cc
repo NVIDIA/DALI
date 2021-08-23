@@ -48,6 +48,7 @@ TEST(LibTarUtilsTestSimple, Interface) {
   ASSERT_FALSE(archive.EndOfArchive());
 
   ASSERT_EQ(archive.GetFileName(), "0.jpg");
+  ASSERT_EQ(archive.GetFileType(), TarArchive::ENTRY_FILE);
   int filesize = archive.GetFileSize();
   ASSERT_FALSE(archive.EndOfFile());
 
@@ -70,6 +71,7 @@ TEST(LibTarUtilsTestSimple, LongNameIndexing) {
   std::string name_prefix(128, '#');
   for (int idx = 0; idx < 1000; idx++) {
     ASSERT_EQ(archive.GetFileName(), name_prefix + to_string(idx));
+    ASSERT_EQ(archive.GetFileType(), TarArchive::ENTRY_FILE);
     archive.NextFile();
   }
 }
@@ -82,6 +84,7 @@ void TestArchiveEntries(TarArchive& archive, const std::vector<std::string>& pre
         archive.ReadFile();
       }
       ASSERT_EQ(archive.GetFileName(), to_string(idx) + prefixes[prefix_idx]);
+      ASSERT_EQ(archive.GetFileType(), TarArchive::ENTRY_FILE);
       ASSERT_TRUE(archive.NextFile() ^
                   (idx == end - 1 && prefix_idx == prefixes.size() - 1));
     }
@@ -89,6 +92,7 @@ void TestArchiveEntries(TarArchive& archive, const std::vector<std::string>& pre
 
   ASSERT_FALSE(archive.NextFile());
   ASSERT_EQ(archive.GetFileName(), "");
+  ASSERT_EQ(archive.GetFileType(), TarArchive::ENTRY_FILE);
   ASSERT_EQ(archive.GetFileSize(), 0);
 }
 
@@ -195,6 +199,36 @@ auto SimpleTarTestsValues() {
 
 INSTANTIATE_TEST_SUITE_P(LibTarUtilsTestParametrized, SimpleTarTests, SimpleTarTestsValues());
 
+TEST(SimpleTarTests, Types) {
+  std::string filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+                                                   "db/webdataset/sample-tar/types.tar"));
+  TarArchive::EntryType types[14] = {
+    TarArchive::ENTRY_BLOCKDEV,
+    TarArchive::ENTRY_CHARDEV,
+    TarArchive::ENTRY_DIR,
+    TarArchive::ENTRY_FIFO,
+    TarArchive::ENTRY_FILE,
+    TarArchive::ENTRY_SYMLINK,
+    TarArchive::ENTRY_HARDLINK,
+    TarArchive::ENTRY_BLOCKDEV,
+    TarArchive::ENTRY_CHARDEV,
+    TarArchive::ENTRY_DIR,
+    TarArchive::ENTRY_FIFO,
+    TarArchive::ENTRY_FILE,
+    TarArchive::ENTRY_SYMLINK,
+    TarArchive::ENTRY_HARDLINK
+  };
+
+  TarArchive archive(FileStream::Open(filepath, false, false));
+  for(int i = 0; i < 14; i++) {
+    ASSERT_EQ(archive.GetFileType(), types[i]);
+    if (types[i] != TarArchive::ENTRY_FILE) {
+      ASSERT_EQ(archive.GetFileSize(), 0);
+    }
+    archive.NextFile();
+  }
+  ASSERT_TRUE(archive.EndOfArchive());
+}
 
 constexpr int kMultithreadedSamples = 3;
 

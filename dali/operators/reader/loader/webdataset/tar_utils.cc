@@ -157,6 +157,10 @@ size_t TarArchive::GetFileSize() const {
   return filesize_;
 }
 
+TarArchive::EntryType TarArchive::GetFileType() const {
+  return filetype_;
+}
+
 std::shared_ptr<void> TarArchive::ReadFile() {
   archiveoffset_ -= readoffset_;
   size_t old_readoffset = readoffset_;
@@ -202,6 +206,23 @@ inline bool TarArchive::ParseHeader() {
   } else {
     filename_ = th_get_pathname(ToTarHandle(handle_));
     filesize_ = th_get_size(ToTarHandle(handle_));
+
+    if (TH_ISREG(ToTarHandle(handle_))) {
+      filetype_ = ENTRY_FILE;
+    } else if (TH_ISDIR(ToTarHandle(handle_))) {
+      filetype_ = ENTRY_DIR;
+    } else if (TH_ISLNK(ToTarHandle(handle_))) {
+      filetype_ = ENTRY_HARDLINK;
+    } else if (TH_ISSYM(ToTarHandle(handle_))) {
+      filetype_ = ENTRY_SYMLINK;
+    } else if (TH_ISCHR(ToTarHandle(handle_))) {
+      filetype_ = ENTRY_CHARDEV;
+    } else if (TH_ISBLK(ToTarHandle(handle_))) {
+      filetype_ = ENTRY_BLOCKDEV;
+    } else {
+      DALI_ENFORCE(TH_ISFIFO(ToTarHandle(handle_)), "Entry type in a tar archive not recognized");
+      filetype_ = ENTRY_FIFO;
+    }
   }
   readoffset_ = 0;
   return errorcode;

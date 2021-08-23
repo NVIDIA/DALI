@@ -62,15 +62,30 @@ class DLL_PUBLIC TarArchive {
    */
   bool EndOfArchive() const;
 
+  enum EntryType {
+    ENTRY_FILE = 0,
+    ENTRY_DIR,
+    ENTRY_HARDLINK,
+    ENTRY_SYMLINK,
+    ENTRY_CHARDEV,
+    ENTRY_BLOCKDEV,
+    ENTRY_FIFO
+  };
+
   /**
    * @brief Returns the name of the file in the archive that is currently being viewed.
    * @remark The returned reference is invalidated upon a move operation or moving to the next file.
    */
   const std::string& GetFileName() const;
   /**
-   * @brief Returns the size (in bytes) of the file in the archive that is currently being viewed.
+   * @brief Returns the size (in bytes) of the file in the archive that is currently being viewed. 
+   * @remark Will be 0 for any entry type other than a file
    */
   size_t GetFileSize() const;
+  /**
+   * @brief Returns the type of the entry in the archive
+   */
+  EntryType GetFileType() const;
 
   /**
    * @brief Reads the contents of the file and returns them.
@@ -100,6 +115,7 @@ class DLL_PUBLIC TarArchive {
   friend ssize_t LibtarReadTarArchive(int, void*, size_t);
   std::string filename_;
   size_t filesize_ = 0;
+  EntryType filetype_ = ENTRY_FILE;
   size_t readoffset_ = 0;
   size_t archiveoffset_ = 0;
   int instance_handle_ = -1;
