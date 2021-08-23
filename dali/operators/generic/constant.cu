@@ -78,7 +78,7 @@ void FillTensorList(
   kernels::ScatterGatherGPU scatter_gather;
 
   for (int i = 1; i < shape.num_samples(); i++) {
-    scatter_gather_.AddCopy(dst.mutable_tensor<Dst>(i), dst.mutable_tensor<Dst>(0),
+    scatter_gather.AddCopy(dst.mutable_tensor<Dst>(i), dst.mutable_tensor<Dst>(0),
                             sample_size * sizeof(Dst));
   }
   scatter_gather.Run(stream);
