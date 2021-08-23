@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -88,13 +88,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   cudaStream_t of_stream = ws.stream();
 #if NVML_ENABLED
   {
-    static float driver_version = []()->float {
-      char version[80];
-      CUDA_CALL(nvmlInitChecked());
-      CUDA_CALL(nvmlSystemGetDriverVersion(version, sizeof version));
-
-      return std::stof(version);
-    }();
+    static float driver_version = nvml::GetDriverVersion();
     if (driver_version > 460)
       of_stream = 0;
   }
@@ -197,6 +191,13 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     CUDA_CALL(cudaEventRecord(sync_, of_stream));
     CUDA_CALL(cudaStreamWaitEvent(ws.stream(), sync_, 0));
   }
+}
+
+template <>
+OpticalFlow<GPUBackend>::~OpticalFlow() {
+#if NVML_ENABLED
+  nvml::Shutdown();
+#endif
 }
 
 }  // namespace dali

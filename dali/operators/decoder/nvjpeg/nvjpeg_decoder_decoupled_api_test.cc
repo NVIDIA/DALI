@@ -200,6 +200,18 @@ void PrintDeviceInfo() {
   }
 }
 
+/**
+ * @brief Return true if current configuration should be using HW decoder
+ */
+bool ShouldUseHwDecoder() {
+  // HW decoder is disabled for drivers < 455.x, see
+  // dali/operators/decoder/nvjpeg/nvjpeg_decoder_decoupled_api.h for details
+  static float driver_version = nvml::GetDriverVersion();
+  static bool device_supports_hw_decoder = nvml::isHWDecoderSupported();
+  return device_supports_hw_decoder && driver_version >= 455;
+}
+
+
 class HwDecoderUtilizationTest : public ::testing::Test {
  public:
   void SetUp() final {
@@ -225,7 +237,7 @@ class HwDecoderUtilizationTest : public ::testing::Test {
     auto node = pipeline_.GetOperatorNode(decoder_name_);
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
       PrintDeviceInfo();
-      if (nvml::isHWDecoderSupported()) {
+      if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
       }
       GTEST_SKIP();
@@ -341,7 +353,7 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
     auto node = pipeline_.GetOperatorNode(decoder_name_);
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
       PrintDeviceInfo();
-      if (nvml::isHWDecoderSupported()) {
+      if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
       }
       GTEST_SKIP();
@@ -394,7 +406,7 @@ class HwDecoderCropUtilizationTest : public ::testing::Test {
     auto node = pipeline_.GetOperatorNode(decoder_name_);
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
       PrintDeviceInfo();
-      if (nvml::isHWDecoderSupported()) {
+      if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
       }
       GTEST_SKIP();
@@ -447,7 +459,7 @@ class HwDecoderRandomCropUtilizationTest : public ::testing::Test {
     auto node = pipeline_.GetOperatorNode(decoder_name_);
     if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
       PrintDeviceInfo();
-      if (nvml::isHWDecoderSupported()) {
+      if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
       }
       GTEST_SKIP();

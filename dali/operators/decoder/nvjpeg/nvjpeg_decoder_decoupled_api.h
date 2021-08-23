@@ -101,12 +101,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     // disable HW decoder for drivers < 455.x as the memory pool for it is not available
     // and multi GPU performance is far from perfect due to frequent memory allocations
 #if NVML_ENABLED
-      char version[NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE];
-      CUDA_CALL(nvmlInitChecked());
-      CUDA_CALL(nvmlSystemGetDriverVersion(version, sizeof version));
-
-      float driverVersion = 0;
-      driverVersion = std::stof(version);
+      nvml::Init();
+      float driverVersion = nvml::GetDriverVersion();
       if (driverVersion < 455) {
         try_init_hw_decoder = false,
         hw_decoder_load_ = 0;
@@ -269,6 +265,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   ~nvJPEGDecoder() override {
     try {
       DeviceGuard g(device_id_);
+
+#if NVML_ENABLED
+      nvml::Shutdown();
+#endif
 
       sample_data_.clear();
 

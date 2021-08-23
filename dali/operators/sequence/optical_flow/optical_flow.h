@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,11 +18,12 @@
 #include <memory>
 #include <vector>
 #include "dali/core/cuda_event.h"
-#include "dali/pipeline/data/views.h"
-#include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/operator/operator.h"
 #include "dali/operators/sequence/optical_flow/optical_flow_adapter/optical_flow_stub.h"
 #include "dali/operators/sequence/optical_flow/turing_of/optical_flow_turing.h"
+#include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/util/nvml.h"
 
 namespace dali {
 
@@ -68,9 +69,12 @@ class OpticalFlow : public Operator<Backend> {
                  "Incorrect number of inputs. Expected: 2, Obtained: " +
                  std::to_string(spec.NumInput()));
     sync_ = CUDAEvent::Create(device_id_);
+#if NVML_ENABLED
+    nvml::Init();
+#endif
   }
 
-  ~OpticalFlow() = default;
+  ~OpticalFlow();
   DISABLE_COPY_MOVE_ASSIGN(OpticalFlow);
 
  protected:
