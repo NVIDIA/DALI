@@ -228,9 +228,10 @@ inline bool TarArchive::ParseHeader() {
       filetype_ = ENTRY_CHARDEV;
     } else if (TH_ISBLK(ToTarHandle(handle_))) {
       filetype_ = ENTRY_BLOCKDEV;
-    } else {
-      DALI_ENFORCE(TH_ISFIFO(ToTarHandle(handle_)), "Entry type in a tar archive not recognized");
+    } else if (TH_ISFIFO(ToTarHandle(handle_))) {
       filetype_ = ENTRY_FIFO;
+    } else {
+      DALI_FAIL("Entry type in a tar archive not recognized");
     }
   }
   readoffset_ = 0;

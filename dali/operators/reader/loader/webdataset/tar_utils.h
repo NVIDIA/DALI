@@ -39,6 +39,7 @@ namespace detail {
  *   - File contents access methods:
  *     - @ref GetFileName
  *     - @ref GetFileSize
+ *     - @ref GetFileType
  *     - @ref ReadFile
  *     - @ref Read
  *     - @ref EndOfFile
