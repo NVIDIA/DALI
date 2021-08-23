@@ -15,8 +15,10 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <algorithm>
-#include "dali/kernels/common/scatter_gather.h"
+
 #include "dali/core/cuda_error.h"
+#include "dali/kernels/alloc.h"
+#include "dali/kernels/common/scatter_gather.h"
 #include "dali/pipeline/util/thread_pool.h"
 
 namespace dali {
@@ -67,6 +69,22 @@ class ScatterGatherTest : public testing::Test {
   void Run(ScatterGatherGPU &sg, cudaStream_t stream, bool reset, ScatterGatherBase::Method method,
            ThreadPool &) {
     sg.Run(stream, reset, method);
+  }
+
+  void Memcpy(void *dst, const void *src, size_t size, AllocType alloc, cudaMemcpyKind kind) {
+    if (alloc == AllocType::Host) {
+      memcpy(dst, src, size);
+    } else {
+      CUDA_CALL(cudaMemcpy(dst, src, size, kind));
+    }
+  }
+
+  void Memset(void *dst, int c, size_t size, AllocType alloc) {
+    if (alloc == AllocType::Host) {
+      memset(dst, c, size);
+    } else {
+      CUDA_CALL(cudaMemset(dst, c, size));
+    }
   }
 };
 
@@ -119,13 +137,8 @@ TYPED_TEST_P(ScatterGatherTest, Copy) {
   std::random_shuffle(ranges.begin(), ranges.end());
   std::random_shuffle(back_ranges.begin(), back_ranges.end());
 
-  if (alloc == AllocType::Host) {
-    memcpy(in_ptr.get(), in.data(), in.size());
-    memset(out_ptr.get(), 0, out.size());
-  } else {
-    CUDA_CALL(cudaMemcpy(in_ptr.get(), in.data(), in.size(), cudaMemcpyHostToDevice));
-    CUDA_CALL(cudaMemset(out_ptr.get(), 0, out.size()));
-  }
+  this->Memcpy(in_ptr.get(), in.data(), in.size(), alloc, cudaMemcpyHostToDevice);
+  this->Memset(out_ptr.get(), 0, out.size(), alloc);
 
   TypeParam sg(64);
   ThreadPool tp(4, 0, false);
@@ -135,19 +148,12 @@ TYPED_TEST_P(ScatterGatherTest, Copy) {
   this->Run(sg, 0, true, TypeParam::Method::Kernel, tp);
 
   // copy back
-  if (alloc == AllocType::Host) {
-    memset(in_ptr.get(), 0, in.size());
-  } else {
-    CUDA_CALL(cudaMemset(in_ptr.get(), 0, in.size()));
-  }
+  this->Memset(in_ptr.get(), 0, out.size(), alloc);
   for (auto &r : back_ranges)
     sg.AddCopy(r.dst, r.src, r.size);
   this->Run(sg, 0, true, TypeParam::Method::Memcpy, tp);
-  if (alloc == AllocType::Host) {
-    memcpy(out.data(), in_ptr.get(), in.size());
-  } else {
-    CUDA_CALL(cudaMemcpy(out.data(), in_ptr.get(), in.size(), cudaMemcpyDeviceToHost));
-  }
+
+  this->Memcpy(out.data(), in_ptr.get(), in.size(), alloc, cudaMemcpyDeviceToHost);
 
   EXPECT_EQ(in, out);
 }

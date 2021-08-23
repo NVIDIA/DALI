@@ -131,9 +131,9 @@ class ElementExtract : public Operator<Backend> {
       std::is_same<Backend, CPUBackend>::value,
       kernels::ScatterGatherCPU,
       kernels::ScatterGatherGPU> scatter_gather_;
-  // 1 MB per block for CPU, 256 kB per block for GPU
+  // 256 kB per block for GPU
   static constexpr size_t kMaxSizePerBlock =
-      std::is_same<Backend, CPUBackend>::value ? 1 << 20 : 1 << 18;
+      std::is_same<Backend, CPUBackend>::value ? kernels::ScatterGatherCPU::kAnyBlockSize : 1 << 18;
 };
 
 }  // namespace dali

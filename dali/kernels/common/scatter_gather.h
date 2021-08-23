@@ -18,10 +18,11 @@
 #include <cuda_runtime.h>
 #include <cstdint>
 #include <cstring>
+#include <queue>
 #include <vector>
 #include "dali/core/api_helper.h"
+#include "dali/core/dev_buffer.h"
 #include "dali/core/span.h"
-#include "dali/kernels/alloc.h"
 
 namespace dali {
 namespace kernels {
@@ -42,21 +43,15 @@ DLL_PUBLIC size_t Coalesce(span<CopyRange> ranges);
 class DLL_PUBLIC ScatterGatherBase {
  public:
   static constexpr size_t kDefaultBlockSize = 64<<10;
+  // Special value to indicate that blocks should not be splitted
+  static constexpr size_t kAnyBlockSize = -1;
 
   ScatterGatherBase() = default;
 
-  ScatterGatherBase(size_t max_size_per_block, size_t estimated_num_blocks)
-  : max_size_per_block_(max_size_per_block) {
-    blocks_.reserve(estimated_num_blocks);
-  }
-
-  explicit ScatterGatherBase(size_t max_size_per_block)
-      : ScatterGatherBase(max_size_per_block, 0) {}
+  explicit ScatterGatherBase(size_t max_size_per_block) : max_size_per_block_(max_size_per_block) {}
 
   ScatterGatherBase(size_t max_size_per_block, size_t total_size, size_t num_ranges)
-  : ScatterGatherBase(
-      max_size_per_block,
-      (total_size + num_ranges * (max_size_per_block - 1)) / max_size_per_block) {
+      : max_size_per_block_(max_size_per_block) {
     ranges_.reserve(num_ranges);
   }
 
@@ -65,7 +60,6 @@ class DLL_PUBLIC ScatterGatherBase {
    */
   void Reset() {
     ranges_.clear();
-    blocks_.clear();
   }
 
   /**
@@ -101,12 +95,9 @@ class DLL_PUBLIC ScatterGatherBase {
   /**
    * @brief Divides ranges so they don't exceed `max_block_size_`
    */
-  void MakeBlocks();
+  size_t MakeBlocks(std::vector<CopyRange> &blocks, const std::vector<CopyRange> &ranges);
 
   size_t max_size_per_block_ = kDefaultBlockSize;
-  std::vector<CopyRange> blocks_;
-  size_t block_capacity_ = 0;
-  size_t size_per_block_ = 0;
 };
 
 
@@ -120,18 +111,16 @@ class DLL_PUBLIC ScatterGatherGPU : public ScatterGatherBase {
   ScatterGatherGPU() = default;
 
   ScatterGatherGPU(size_t max_size_per_block, size_t estimated_num_blocks)
-      : ScatterGatherBase(max_size_per_block, estimated_num_blocks) {
-    ReserveGPUBlocks();
+      : ScatterGatherBase(max_size_per_block) {
+    blocks_.reserve(estimated_num_blocks);
+    blocks_dev_.reserve(estimated_num_blocks);
   }
 
-  explicit ScatterGatherGPU(size_t max_size_per_block) : ScatterGatherBase(max_size_per_block) {
-    ReserveGPUBlocks();
-  }
+  explicit ScatterGatherGPU(size_t max_size_per_block) : ScatterGatherBase(max_size_per_block) {}
 
   ScatterGatherGPU(size_t max_size_per_block, size_t total_size, size_t num_ranges)
-      : ScatterGatherBase(max_size_per_block, total_size, num_ranges) {
-    ReserveGPUBlocks();
-  }
+      : ScatterGatherGPU(max_size_per_block, (total_size + num_ranges * (max_size_per_block - 1)) /
+                                                 max_size_per_block) {}
 
   /**
    * @brief Executes the copies
@@ -144,15 +133,26 @@ class DLL_PUBLIC ScatterGatherGPU : public ScatterGatherBase {
   Run(cudaStream_t stream, bool reset = true, Method method = Method::Default,
       cudaMemcpyKind memcpyKind = cudaMemcpyDefault);
 
+  /**
+   * @brief Clear any registered range copies
+   */
+  void Reset() {
+    ScatterGatherBase::Reset();
+    blocks_.clear();
+    blocks_dev_.clear();
+  }
+
   using CopyRange = detail::CopyRange;
 
  private:
   /**
-   * @brief Reserves GPU memory for the description of the blocks.
+   * @brief Divides ranges so they don't exceed `max_block_size_`
    */
-  void ReserveGPUBlocks();
+  void MakeBlocks();
 
-  kernels::memory::KernelUniquePtr<CopyRange> blocks_dev_;
+  std::vector<CopyRange> blocks_;
+  DeviceBuffer<CopyRange> blocks_dev_;
+  size_t size_per_block_ = 0;
 };
 
 
@@ -161,18 +161,19 @@ class DLL_PUBLIC ScatterGatherGPU : public ScatterGatherBase {
  */
 class DLL_PUBLIC ScatterGatherCPU : public ScatterGatherBase {
  public:
-  static constexpr size_t kDefaultBlockSize = 64<<10;
-
   ScatterGatherCPU() = default;
 
   ScatterGatherCPU(size_t max_size_per_block, size_t estimated_num_blocks)
-      : ScatterGatherBase(max_size_per_block, estimated_num_blocks) {}
+      : ScatterGatherBase(max_size_per_block) {
+    heap_.resize(estimated_num_blocks);
+    blocks_.resize(estimated_num_blocks);
+  }
 
   explicit ScatterGatherCPU(size_t max_size_per_block) : ScatterGatherBase(max_size_per_block) {}
 
   ScatterGatherCPU(size_t max_size_per_block, size_t total_size, size_t num_ranges)
-      : ScatterGatherBase(max_size_per_block, total_size, num_ranges) {}
-
+      : ScatterGatherCPU(max_size_per_block, (total_size + num_ranges * (max_size_per_block - 1)) /
+                                                 max_size_per_block) {}
 
   /**
    * @brief Executes the copies
@@ -180,18 +181,52 @@ class DLL_PUBLIC ScatterGatherCPU : public ScatterGatherBase {
    * @param reset       - if true, calls Reset after processing is over
    */
   template <typename ExecutionEngine>
-  DLL_PUBLIC void Run(ExecutionEngine &exec_engine, bool reset = true) {
+  void Run(ExecutionEngine &exec_engine, bool reset = true) {
     Coalesce();
+
+    size_t total_size = 0;
     for (auto &r : ranges_) {
-      exec_engine.AddWork([=](int thread_id) { std::memcpy(r.dst, r.src, r.size); }, r.size);
+      total_size += r.size;
     }
-    exec_engine.RunAll();
+
+    if (total_size < kSmallSizeThreshold) {
+      for (auto &r : ranges_) {
+        std::memcpy(r.dst, r.src, r.size);
+      }
+    } else {
+      MakeBlocks(exec_engine.NumThreads() * kTasksMultiplier);
+      for (auto &r : blocks_) {
+        exec_engine.AddWork([=](int thread_id) { std::memcpy(r.dst, r.src, r.size); }, r.size);
+      }
+      exec_engine.RunAll();
+    }
 
     if (reset)
       Reset();
   }
 
+  void Reset() {
+    ScatterGatherBase::Reset();
+    heap_.clear();
+    blocks_.clear();
+  }
+
   using CopyRange = detail::CopyRange;
+
+ private:
+  /**
+   * @brief Divides ranges so there are at least `blocks_lower_limit` elements that don't exceed
+   * `max_block_size_`.
+   */
+  void MakeBlocks(size_t blocks_lower_limit);
+
+  std::vector<CopyRange> heap_;
+  std::vector<CopyRange> blocks_;
+
+  // Sizes below this threshold will be copied without using the pool/execution engine
+  static constexpr size_t kSmallSizeThreshold = 1 << 11;
+  // At least how many more tasks we want compared to the number of worker threads in exec engine
+  static constexpr size_t kTasksMultiplier = 3;
 };
 
 }  // namespace kernels
