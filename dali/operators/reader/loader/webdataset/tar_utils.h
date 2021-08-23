@@ -46,7 +46,7 @@ namespace detail {
 class DLL_PUBLIC TarArchive {
  public:
   TarArchive() = default;
-  explicit TarArchive(std::unique_ptr<FileStream> stream_);
+  explicit TarArchive(std::unique_ptr<FileStream> stream_, size_t offset = 0);
   TarArchive(TarArchive&&);
   ~TarArchive();
   TarArchive& operator=(TarArchive&&);

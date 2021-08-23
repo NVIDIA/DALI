@@ -221,20 +221,14 @@ TEST(SimpleTarTests, Types) {
 
   TarArchive archive(FileStream::Open(filepath, false, true));
   for(int i = 0; i < 14; i++) {
-    std::cout << "GOT HERE: " << i << std::endl;
     ASSERT_EQ(archive.GetFileType(), types[i]);
-    std::cout << "A" << std::endl;
     ASSERT_EQ(archive.GetFileName(), to_string(i) + (types[i] == TarArchive::ENTRY_DIR ? "/" : ""));
-    std::cout << "B" << std::endl;
     if (types[i] != TarArchive::ENTRY_FILE) {
       ASSERT_EQ(archive.GetFileSize(), 0);
     }
-    std::cout << "C" << std::endl;
     archive.NextFile();
-    std::cout << "AND HERE: " << i << std::endl;
   }
   ASSERT_TRUE(archive.EndOfArchive());
-  std::cout << "THE END" << std::endl;
 }
 
 constexpr int kMultithreadedSamples = 3;
