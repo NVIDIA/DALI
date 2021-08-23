@@ -29,7 +29,7 @@ constexpr uintptr_t ptr2u(void *p) noexcept {
   return static_cast<char*>(p) - static_cast<char*>(nullptr);
 }
 
-template <typename T>
+template <typename T = void>
 DALI_HOST_DEV
 constexpr T *u2ptr(uintptr_t i) noexcept {
   // reinterpret_cast is not a constant expression - use a series of static casts instead

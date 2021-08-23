@@ -426,6 +426,10 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     if (!va)  // ...hint failed - allocate anywhere, just align to block_size_
       va = cuvm::CUMemAddressRange::Reserve(va_size, block_size_, 0);
 
+    if (!mm::detail::is_aligned(detail::u2ptr(va.ptr()), block_size_))
+      throw std::logic_error("The VA region is not aligned to block size!\n"
+        "This should never happen.");
+
     va_ranges_.push_back(std::move(va));
     va_add_region(va_ranges_.back());
     stat_va_add(va_size);
