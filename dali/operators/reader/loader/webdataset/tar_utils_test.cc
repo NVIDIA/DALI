@@ -155,34 +155,34 @@ auto SimpleTarTestsValues() {
   vector<SimpleTarTestsData> values;
 
   SimpleTarTestsData filepaths[] = {
-      {dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
-                                   "db/webdataset/MNIST/devel-0.tar"),
-       false,
-       false,
-       2000,
-       3000,
-       {".cls", ".jpg"}},
-      {dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
-                                   "db/webdataset/sample-tar/empty.tar"),
-       false,
-       false,
-       0,
-       0,
-       {}},
-      {dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
-                                   "db/webdataset/sample-tar/v7.tar"),
-       false,
-       false,
-       0,
-       1000,
-       {""}},
-      {dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
-                                   "db/webdataset/sample-tar/oldgnu.tar"),
-       false,
-       false,
-       0,
-       1000,
-       {""}}};
+      { dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+                                    "db/webdataset/MNIST/devel-0.tar"),
+        false,
+        false,
+        2000,
+        3000,
+        {".cls", ".jpg"} },
+      { dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+                                    "db/webdataset/sample-tar/empty.tar"),
+        false,
+        false,
+        0,
+        0,
+        {} },
+      { dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+                                    "db/webdataset/sample-tar/v7.tar"),
+        false,
+        false,
+        0,
+        1000,
+        {""} },
+      { dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+                                    "db/webdataset/sample-tar/oldgnu.tar"),
+        false,
+        false,
+        0,
+        1000,
+        {""} } };
 
   for (auto& filepath : filepaths) {
     for (int read_ahead = 0; read_ahead <= 1; read_ahead++) {
@@ -268,7 +268,7 @@ TEST_P(MultiTarTests, Index) {
 }
 
 INSTANTIATE_TEST_SUITE_P(LibTarUtilsTestMultithreaded, MultiTarTests,
-                         ::testing::Values(false, true));
+                        ::testing::Values(false, true));
 
 }  // namespace detail
 }  // namespace dali
