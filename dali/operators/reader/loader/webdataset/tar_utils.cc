@@ -26,8 +26,6 @@
 #include "dali/core/math_util.h"
 #include "dali/core/util.h"
 
-#include <iostream>
-
 namespace dali {
 namespace detail {
 
