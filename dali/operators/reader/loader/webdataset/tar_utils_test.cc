@@ -47,13 +47,7 @@ TEST(LibTarUtilsTestSimple, Interface) {
   ASSERT_TRUE(intermediate_archive.EndOfArchive());
 
   ASSERT_TRUE(archive.NextFile());
-  archive.Seek(0);
-  ASSERT_EQ(archive.GetFileName(), "0.cls");
   ASSERT_FALSE(archive.EndOfArchive());
-
-  ASSERT_TRUE(archive.NextFile());
-  ASSERT_FALSE(archive.EndOfArchive());
-
 
   ASSERT_EQ(archive.GetFileName(), "0.jpg");
   ASSERT_EQ(archive.GetFileType(), TarArchive::ENTRY_FILE);

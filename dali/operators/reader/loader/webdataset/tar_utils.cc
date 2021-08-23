@@ -136,12 +136,6 @@ constexpr size_t RoundToBlockSize(size_t count) {
   return align_up(count, kBlockSize);
 }
 
-void TarArchive::Seek(size_t offset) {
-  DALI_ENFORCE(offset < stream_->Size(), "Tired to seek outside of the tar archive");
-  stream_->Seek(archiveoffset_ = offset);
-  eof_ = ParseHeader();
-}
-
 bool TarArchive::NextFile() {
   if (eof_) {
     return false;
