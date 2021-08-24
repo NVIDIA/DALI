@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -85,7 +85,11 @@ def gaussian_baseline(image, sigma, window_size, axes=2, skip_axes=0, dtype=np.u
     filters.reverse()
     for i in reversed(range(axes)):
         axis = i + skip_axes
-        image = convolve1d(np.float32(image), filters[i], axis, mode="mirror")
+        if image.shape[axis] == 1:
+            mode = "nearest"
+        else:
+            mode = "mirror"
+        image = convolve1d(np.float32(image), filters[i], axis, mode=mode)
     if dtype == np.float32:
         return image
     else:
@@ -171,9 +175,10 @@ def count_skip_axes(layout):
 
 def check_generic_gaussian_blur(
         batch_size, sigma, window_size, shape, layout, axes, op_type="cpu", in_dtype=np.uint8,
-        out_dtype=types.NO_TYPE):
+        out_dtype=types.NO_TYPE, random_shape=True):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-    data = RandomlyShapedDataIterator(batch_size, max_shape=shape, dtype=in_dtype)
+    min_shape = None if random_shape else shape
+    data = RandomlyShapedDataIterator(batch_size, min_shape=min_shape, max_shape=shape, dtype=in_dtype)
     # Extract the numpy type from DALI, we can have float32 or the same as input
     if out_dtype == types.NO_TYPE:
         result_type = in_dtype
@@ -222,6 +227,11 @@ def test_generic_gaussian_blur():
     for dev in ["cpu", "gpu"]:
         for (t_in, t_out) in [(np.uint8, types.NO_TYPE), (np.float32, types.FLOAT), (np.uint8, types.FLOAT)]:
             yield from generate_generic_cases(dev, t_in, t_out)
+
+def test_one_sized_extent():
+    for dev in ["cpu", "gpu"]:
+        for shape, layout in [((10, 1, 3), "HWC"), ((1, 10, 3), "HWC"), ((1, 10), "HW"), ((10, 1), "HW")]:
+            yield check_generic_gaussian_blur, 10, 2.0, 5, shape, layout, 2, dev, np.float32, types.FLOAT, False
 
 
 @attr('slow')

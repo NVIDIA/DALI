@@ -184,7 +184,7 @@ namespace threadblock {
 ///  x,  x,  x,  x,  x,  x,  x,  2,
 ///
 /// Row "-2" of "kernel matrix" would multiply column "-2" of the image, which is equal to column
-/// "2" of the image. By the distributive properties of multiplication. We can add the coefficients
+/// "2" of the image. By the distributive properties of multiplication, we can add the coefficients
 /// of row -2 and 2 to get the same result without the need to extend the matrices,
 /// thus the matrix will contain a sum of given kernel elements in given positions:
 ///
@@ -198,7 +198,7 @@ namespace threadblock {
 ///  x,     x,     x,     x,     x,     2,     1,    0,
 ///
 /// To generate specific coordinate (row, col), we check how far it is from diagonal:
-/// dist_diag = row - col <- negative means we're above, that number maps to the base winodw element
+/// dist_diag = row - col <- negative means we're above, that number maps to the base window element
 /// we need to use.
 /// When handling the borders, we need to check the distance to the top and bottom of the matrix.
 /// For the "top" border, we would use elements that are twice the distance to the top from
@@ -214,7 +214,7 @@ namespace threadblock {
 /// Same when going to the bottom, 1 + 2 * 6 = 13 - also out.
 /// Note that, when the distance is 0, we don't add the additional coefficients in this border mode.
 ///
-/// Make channel number > 1 will cause additional gaps in the kernel when looking at the
+/// Makeing the channel number > 1 will cause additional gaps in the kernel when looking at the
 /// columns of "kernel matrix" for example (again without border) for channels = 3,
 /// part of the matrix:
 ///
@@ -830,6 +830,10 @@ class PositionPredicatedTileIterator<Shape_, Element_, layout::PitchLinear, Adva
       // so it is not repeated by every addition - effectively we would change the channel)
       dist_first = (dist_first / Channels()) * Channels();
       dist_last = (dist_last / Channels()) * Channels();
+    }
+    // prevent infinite loop for input of size 1, see FillAlignedWindows for details
+    if (dist_first == 0 && dist_last == 0) {
+      return;
     }
     int neg_abs_element = abs_window_element;
     while (true) {
