@@ -1347,7 +1347,7 @@ void collapse_dims(TensorListShape<out_ndim> &result,
  * @param shape Shape to be collapsed
  * @param dim_groups Description of dimension groups in `shape` {starting_dimension_idx, size}.
  *                   The groups must be sorted by start index.
- *                   Unlisted dimensions are implictly preserved (as if they were in a group
+ *                   Unlisted dimensions are implicitly preserved (as if they were in a group
  *                   of size 1)
  * @return The output shape, with collapsed dimension groups
  */
