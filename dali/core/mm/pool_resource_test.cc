@@ -229,9 +229,11 @@ void PoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, int max_iters = 200
       uint8_t fill = fill_dist(rng);
       void *ptr = pool.allocate(size);
       ASSERT_NE(ptr, nullptr);
-      if (size <= 2048) {
+      if (size <= 2048) {  // small block - fill it entirely in one go
         memset(ptr, fill, size);
       } else {
+        // large block - only fill the beginning and the end in order to save time - this test
+        // must be fast or it will fail to detect race conditions.
         memset(ptr, fill, 1024);
         memset(static_cast<char*>(ptr) + size - 1024, fill, 1024);
       }
@@ -251,6 +253,8 @@ void PoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, int max_iters = 200
         blocks.pop_back();
       }
 
+      // For small blocks (up to 2 KiB), check the whole block - for larger blocks,
+      // just check the first and last 1 KiB.
       size_t part1 = blk.size <= 2048 ? blk.size : 1024;
       size_t part2 = blk.size <= 2048 ? 0 : 1024;
 
