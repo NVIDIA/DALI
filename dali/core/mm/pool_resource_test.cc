@@ -293,11 +293,12 @@ TEST(MMPoolResource, ParallelDeferred) {
         PoolTest(pool, blocks, mtx, 50000);
       });
     }
+
     for (auto &t : threads)
       t.join();
+
     for (auto &blk : blocks)
       pool.deallocate(blk.ptr, blk.size);
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
   upstream.check_leaks();
 }
