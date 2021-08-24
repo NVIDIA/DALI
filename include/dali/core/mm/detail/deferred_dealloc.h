@@ -59,6 +59,7 @@ class deferred_dealloc_resource : public BaseResource {
     if (worker_.joinable()) {
       stop();
       worker_.join();
+      ready_.notify_all();
     }
     this->bulk_deallocate(make_span(deallocs_[0]));
     this->bulk_deallocate(make_span(deallocs_[1]));
@@ -104,7 +105,7 @@ class deferred_dealloc_resource : public BaseResource {
   void flush_deferred() override {
     if (!no_pending_deallocs()) {
       std::unique_lock<std::mutex> ulock(mtx_);
-      if (!no_pending_deallocs())
+      if (!no_pending_deallocs() && !stopped_)
         ready_.wait(ulock);
     }
   }
@@ -152,7 +153,7 @@ class deferred_dealloc_resource : public BaseResource {
       ulock.unlock();
       this->bulk_deallocate(make_span(to_free));
       to_free.clear();
-      ready_.notify_one();
+      ready_.notify_all();
       ulock.lock();
     }
   }
