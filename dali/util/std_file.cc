@@ -41,6 +41,10 @@ void StdFileStream::Seek(int64 pos) {
                "Seek operation did not succeed: " + std::string(std::strerror(errno)));
 }
 
+int64 StdFileStream::Tell() {
+  return std::ftell(fp_);
+}
+
 size_t StdFileStream::Read(uint8_t* buffer, size_t n_bytes) {
   size_t n_read = std::fread(buffer, 1, n_bytes, fp_);
   return n_read;

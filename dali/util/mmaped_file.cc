@@ -175,6 +175,10 @@ void MmapedFileStream::Seek(int64 pos) {
   pos_ = pos;
 }
 
+int64 MmapedFileStream::Tell() {
+  return pos_
+}
+
 // This method saves a memcpy
 shared_ptr<void> MmapedFileStream::Get(size_t n_bytes) {
   if (pos_ + n_bytes > length_) {

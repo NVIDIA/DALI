@@ -102,6 +102,10 @@ void StdCUFileStream::Seek(int64 pos) {
   pos_ = pos;
 }
 
+int64 StdCUFileStream::Tell() {
+  return pos_;
+}
+
 void StdCUFileStream::HandleIOError(int64 ret) const {
   if (ret == -1) {
     std::string errmsg(256, '\0');
