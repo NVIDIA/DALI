@@ -51,7 +51,8 @@ class DLL_PUBLIC TarArchive {
    */
   void Seek(size_t offset);
 
-  enum EntryType {
+  enum EntryType
+  {
     ENTRY_FILE = 0,
     ENTRY_DIR,
     ENTRY_HARDLINK,
@@ -109,10 +110,8 @@ class DLL_PUBLIC TarArchive {
   EntryType filetype_ = ENTRY_FILE;
 
   size_t readoffset_ = 0;
-  size_t archiveoffset_ = 0;
 
-  bool eof_ = true;  // when this is true the value of readoffset_, archiveoffset_ and stream_
-                     // offset is undefined
+  bool eof_ = true;  // when this is true the value of readoffset_ and stream_ offset is undefined
   void SetEof();
 
   void ParseHeader();

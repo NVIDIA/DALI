@@ -176,7 +176,7 @@ void MmapedFileStream::Seek(int64 pos) {
 }
 
 int64 MmapedFileStream::Tell() {
-  return pos_
+  return pos_;
 }
 
 // This method saves a memcpy
