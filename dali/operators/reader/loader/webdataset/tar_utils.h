@@ -25,24 +25,7 @@
 namespace dali {
 namespace detail {
 /**
- * @brief Used to access .tar archives
- *
- * The class is used to access tar archives through the FileStream of the user's choice.
- * There are 2 cursors that it keeps track of:
- *   - archive cursor - Keeps track of which file the archive is currently at.
- *   - file cursor - Keeps track of which byte of the file is currently going to be read. Gets reset
- *                   after each advancement of the archive cursor.
- * There are also two associated sets of methods that the user may use:
- *   - Files iteration methods:
- *     - @ref NextFile
- *     - @ref EndOfArchive
- *   - File contents access methods:
- *     - @ref GetFileName
- *     - @ref GetFileSize
- *     - @ref GetFileType
- *     - @ref ReadFile
- *     - @ref Read
- *     - @ref EndOfFile
+ * @brief Used to access .tar archives through the given FileStream
  */
 class DLL_PUBLIC TarArchive {
  public:

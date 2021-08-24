@@ -79,7 +79,7 @@ TEST(LibTarUtilsTestSimple, LongNameIndexing) {
 TEST(LibTarUtilsTestSimple, Types) {
   std::string filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
                                                    "db/webdataset/sample-tar/types.tar"));
-  TarArchive::EntryType types[14] = {
+  std::vector<TarArchive::EntryType> types = {
       TarArchive::ENTRY_BLOCKDEV, TarArchive::ENTRY_CHARDEV,  TarArchive::ENTRY_DIR,
       TarArchive::ENTRY_FIFO,     TarArchive::ENTRY_FILE,     TarArchive::ENTRY_SYMLINK,
       TarArchive::ENTRY_HARDLINK, TarArchive::ENTRY_BLOCKDEV, TarArchive::ENTRY_CHARDEV,
@@ -87,7 +87,7 @@ TEST(LibTarUtilsTestSimple, Types) {
       TarArchive::ENTRY_SYMLINK,  TarArchive::ENTRY_HARDLINK};
 
   TarArchive archive(FileStream::Open(filepath, false, true));
-  for (int i = 0; i < 14; i++) {
+  for (size_t i = 0; i < types.size(); i++) {
     ASSERT_EQ(archive.GetFileType(), types[i]);
     ASSERT_EQ(archive.GetFileName(), to_string(i) + (types[i] == TarArchive::ENTRY_DIR ? "/" : ""));
     if (types[i] != TarArchive::ENTRY_FILE) {

@@ -158,7 +158,7 @@ bool TarArchive::EndOfArchive() const {
 }
 
 void TarArchive::Seek(size_t offset) {
-  DALI_ENFORCE(offset % T_BLOCKSIZE == 0, "Invalid tar archive offset");
+  assert(offset % T_BLOCKSIZE == 0);
   readoffset_ = 0;
   archiveoffset_ = offset;
   if (archiveoffset_ >= stream_->Size()) {
