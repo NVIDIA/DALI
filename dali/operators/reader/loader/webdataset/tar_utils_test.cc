@@ -76,6 +76,42 @@ TEST(LibTarUtilsTestSimple, LongNameIndexing) {
   }
 }
 
+TEST(LibTarUtilsTestSimple, Types) {
+  std::string filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+                                                   "db/webdataset/sample-tar/types.tar"));
+  TarArchive::EntryType types[14] = {
+      TarArchive::ENTRY_BLOCKDEV, TarArchive::ENTRY_CHARDEV,  TarArchive::ENTRY_DIR,
+      TarArchive::ENTRY_FIFO,     TarArchive::ENTRY_FILE,     TarArchive::ENTRY_SYMLINK,
+      TarArchive::ENTRY_HARDLINK, TarArchive::ENTRY_BLOCKDEV, TarArchive::ENTRY_CHARDEV,
+      TarArchive::ENTRY_DIR,      TarArchive::ENTRY_FIFO,     TarArchive::ENTRY_FILE,
+      TarArchive::ENTRY_SYMLINK,  TarArchive::ENTRY_HARDLINK};
+
+  TarArchive archive(FileStream::Open(filepath, false, true));
+  for (int i = 0; i < 14; i++) {
+    ASSERT_EQ(archive.GetFileType(), types[i]);
+    ASSERT_EQ(archive.GetFileName(), to_string(i) + (types[i] == TarArchive::ENTRY_DIR ? "/" : ""));
+    if (types[i] != TarArchive::ENTRY_FILE) {
+      ASSERT_EQ(archive.GetFileSize(), 0);
+    }
+    archive.NextFile();
+  }
+  ASSERT_TRUE(archive.EndOfArchive());
+}
+
+TEST(LibTarUtilsTestSimple, Offset) {
+  std::string filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+                                                   "db/webdataset/sample-tar/types.tar"));
+
+  TarArchive archive(FileStream::Open(filepath, false, true));
+  archive.Seek(7 * T_BLOCKSIZE);
+  for (int i = 7; i < 14; i++) {
+    ASSERT_EQ(archive.GetFileName(),
+              to_string(i) + (archive.GetFileType() == TarArchive::ENTRY_DIR ? "/" : ""));
+    archive.NextFile();
+  }
+  ASSERT_TRUE(archive.EndOfArchive());
+}
+
 void TestArchiveEntries(TarArchive& archive, const std::vector<std::string>& prefixes, int beg,
                         int end, bool preread) {
   for (int idx = beg; idx < end; idx++) {
@@ -197,41 +233,6 @@ auto SimpleTarTestsValues() {
 }
 
 INSTANTIATE_TEST_SUITE_P(LibTarUtilsTestParametrized, SimpleTarTests, SimpleTarTestsValues());
-
-TEST(SimpleTarTests, Types) {
-  std::string filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
-                                                   "db/webdataset/sample-tar/types.tar"));
-  TarArchive::EntryType types[14] = {
-      TarArchive::ENTRY_BLOCKDEV, TarArchive::ENTRY_CHARDEV,  TarArchive::ENTRY_DIR,
-      TarArchive::ENTRY_FIFO,     TarArchive::ENTRY_FILE,     TarArchive::ENTRY_SYMLINK,
-      TarArchive::ENTRY_HARDLINK, TarArchive::ENTRY_BLOCKDEV, TarArchive::ENTRY_CHARDEV,
-      TarArchive::ENTRY_DIR,      TarArchive::ENTRY_FIFO,     TarArchive::ENTRY_FILE,
-      TarArchive::ENTRY_SYMLINK,  TarArchive::ENTRY_HARDLINK};
-
-  TarArchive archive(FileStream::Open(filepath, false, true));
-  for (int i = 0; i < 14; i++) {
-    ASSERT_EQ(archive.GetFileType(), types[i]);
-    ASSERT_EQ(archive.GetFileName(), to_string(i) + (types[i] == TarArchive::ENTRY_DIR ? "/" : ""));
-    if (types[i] != TarArchive::ENTRY_FILE) {
-      ASSERT_EQ(archive.GetFileSize(), 0);
-    }
-    archive.NextFile();
-  }
-  ASSERT_TRUE(archive.EndOfArchive());
-}
-
-TEST(SimpleTarTests, Offset) {
-  std::string filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
-                                                   "db/webdataset/sample-tar/types.tar"));
-
-  TarArchive archive(FileStream::Open(filepath, false, true), 7 * 512);
-  for (int i = 7; i < 14; i++) {
-    ASSERT_EQ(archive.GetFileName(),
-              to_string(i) + (archive.GetFileType() == TarArchive::ENTRY_DIR ? "/" : ""));
-    archive.NextFile();
-  }
-  ASSERT_TRUE(archive.EndOfArchive());
-}
 
 constexpr int kMultithreadedSamples = 3;
 

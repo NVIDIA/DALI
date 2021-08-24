@@ -96,14 +96,13 @@ static tartype_t kTarArchiveType = {LibtarOpenTarArchive, [](int) -> int { retur
                                     LibtarReadTarArchive,
                                     [](int, const void*, size_t) -> ssize_t { return 0; }};
 
-TarArchive::TarArchive(std::unique_ptr<FileStream> stream_, size_t offset)
+TarArchive::TarArchive(std::unique_ptr<FileStream> stream_)
     : stream_(std::move(stream_)),
-      archiveoffset_(0),
       instance_handle_(Register(this)),
-      eof_(false) {
+      archiveoffset_(0),
+      eof_(this->stream_->Size() == 0) {
   tar_open(ToTarHandle(&handle_), "", &kTarArchiveType, 0, instance_handle_, TAR_GNU);
   this->stream_->Seek(0);
-  Skip(offset);
   ParseHeader();
 }
 
@@ -121,6 +120,7 @@ TarArchive& TarArchive::operator=(TarArchive&& other) {
     std::swap(handle_, other.handle_);
     std::swap(filename_, other.filename_);
     std::swap(filesize_, other.filesize_);
+    std::swap(filetype_, other.filetype_);
     std::swap(readoffset_, other.readoffset_);
     std::swap(archiveoffset_, other.archiveoffset_);
     std::swap(eof_, other.eof_);
@@ -142,16 +142,31 @@ bool TarArchive::NextFile() {
   if (eof_) {
     return false;
   }
-  Skip(RoundToBlockSize(filesize_) - readoffset_);
-  if (eof_) {
+
+  if ((archiveoffset_ += RoundToBlockSize(filesize_) - readoffset_) >= stream_->Size()) {
+    SetEof();
     return false;
   }
-  eof_ = ParseHeader();
+  stream_->Seek(archiveoffset_);
+
+  ParseHeader();
   return !eof_;
 }
 
 bool TarArchive::EndOfArchive() const {
   return eof_;
+}
+
+void TarArchive::Seek(size_t offset) {
+  DALI_ENFORCE(offset % T_BLOCKSIZE == 0, "Invalid tar archive offset");
+  readoffset_ = 0;
+  archiveoffset_ = offset;
+  if (archiveoffset_ >= stream_->Size()) {
+    SetEof();
+    return;
+  }
+  stream_->Seek(archiveoffset_);
+  ParseHeader();
 }
 
 const std::string& TarArchive::GetFileName() const {
@@ -171,6 +186,7 @@ std::shared_ptr<void> TarArchive::ReadFile() {
   size_t old_readoffset = readoffset_;
   readoffset_ = 0;
   stream_->Seek(archiveoffset_);
+
   auto out = stream_->Get(filesize_);
   if (out != nullptr) {
     archiveoffset_ += filesize_;
@@ -197,21 +213,22 @@ bool TarArchive::EndOfFile() const {
   return readoffset_ >= filesize_;
 }
 
-inline void TarArchive::Skip(size_t count) {
-  if ((archiveoffset_ += count) >= stream_->Size()) {
-    Invalidate();
-    return;
-  }
-  stream_->Seek(archiveoffset_);
-  readoffset_ += count;
+inline void TarArchive::SetEof() {
+  eof_ = true;
+  filename_ = "";
+  filesize_ = 0;
+  filetype_ = ENTRY_FILE;
 }
 
-inline bool TarArchive::ParseHeader() {
+inline void TarArchive::ParseHeader() {
+  if (eof_) {
+    return;
+  }
   int errorcode = th_read(ToTarHandle(handle_));
   if (errorcode) {
     DALI_ENFORCE(errorcode != -1,
                  (std::string) "Corrupted tar file at " + ToTarHandle(handle_)->pathname);
-    Invalidate();
+    SetEof();
   } else {
     filename_ = th_get_pathname(ToTarHandle(handle_));
     filesize_ = th_get_size(ToTarHandle(handle_));
@@ -235,7 +252,6 @@ inline bool TarArchive::ParseHeader() {
     }
   }
   readoffset_ = 0;
-  return errorcode;
 }
 
 void TarArchive::Invalidate() {
@@ -244,11 +260,9 @@ void TarArchive::Invalidate() {
     tar_close(ToTarHandle(handle_));
     handle_ = nullptr;
   }
-  filename_ = "";
-  filesize_ = 0;
   readoffset_ = 0;
   archiveoffset_ = 0;
-  eof_ = true;
+  SetEof();
   if (instance_handle_ >= 0) {
     Unregister(instance_handle_);
   }

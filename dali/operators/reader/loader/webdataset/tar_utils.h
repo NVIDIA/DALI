@@ -47,7 +47,7 @@ namespace detail {
 class DLL_PUBLIC TarArchive {
  public:
   TarArchive() = default;
-  explicit TarArchive(std::unique_ptr<FileStream> stream_, size_t offset = 0);
+  explicit TarArchive(std::unique_ptr<FileStream> stream_);
   TarArchive(TarArchive&&);
   ~TarArchive();
   TarArchive& operator=(TarArchive&&);
@@ -62,6 +62,11 @@ class DLL_PUBLIC TarArchive {
    * @brief Returns whether it has reached the end of archive.
    */
   bool EndOfArchive() const;
+  /**
+   * @brief Sets the offset to which the stream pointer should go.
+   * @remark The offset must point to a file header; other values will cause undefined behaviour.
+   */
+  void Seek(size_t offset);
 
   enum EntryType {
     ENTRY_FILE = 0,
@@ -79,7 +84,7 @@ class DLL_PUBLIC TarArchive {
    */
   const std::string& GetFileName() const;
   /**
-   * @brief Returns the size (in bytes) of the file in the archive that is currently being viewed. 
+   * @brief Returns the size (in bytes) of the file in the archive that is currently being viewed.
    * @remark Will be 0 for any entry type other than a file
    */
   size_t GetFileSize() const;
@@ -112,17 +117,22 @@ class DLL_PUBLIC TarArchive {
 
  private:
   std::unique_ptr<FileStream> stream_;
+  int instance_handle_ = -1;
   void* handle_ = nullptr;  // handle to the TAR struct
   friend ssize_t LibtarReadTarArchive(int, void*, size_t);
+
   std::string filename_;
   size_t filesize_ = 0;
   EntryType filetype_ = ENTRY_FILE;
+
   size_t readoffset_ = 0;
   size_t archiveoffset_ = 0;
-  int instance_handle_ = -1;
-  bool eof_ = true;
-  bool ParseHeader();
-  void Skip(size_t count);
+
+  bool eof_ = true;  // when this is true the value of readoffset_, archiveoffset_ and stream_
+                     // offset is undefined
+  void SetEof();
+
+  void ParseHeader();
   void Invalidate();  // resets objects to default values
 };
 
