@@ -99,10 +99,10 @@ static tartype_t kTarArchiveType = {LibtarOpenTarArchive, [](int) -> int { retur
 TarArchive::TarArchive(std::unique_ptr<FileStream> stream_)
     : stream_(std::move(stream_)),
       instance_handle_(Register(this)),
-      archiveoffset_(0),
-      eof_(this->stream_->Size() == 0) {
+      archiveoffset_(0) {
   tar_open(ToTarHandle(&handle_), "", &kTarArchiveType, 0, instance_handle_, TAR_GNU);
   this->stream_->Seek(0);
+  eof_ = this->stream_->Size() == 0;
   ParseHeader();
 }
 
