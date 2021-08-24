@@ -152,7 +152,7 @@ class deferred_dealloc_resource : public BaseResource {
       ulock.unlock();
       this->bulk_deallocate(make_span(to_free));
       to_free.clear();
-      ready_.notify_one();
+      ready_.notify_all();
       ulock.lock();
     }
   }
