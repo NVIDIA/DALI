@@ -18,23 +18,8 @@
 namespace dali {
 
 /**
- * @param output                - output bounding boxes
- * @param input                 - input bounding boxes
- * @param num_boxes             - number of bounding boxes in the input
- * @param sample_indices        - when using per-sample flip, contains sample indices for each
- *                                bounding box in the input tensor list
- * @param per_sample_horizontal - per-sample flag indicating whether bounding boxes from
- *
- *                                 a given sample should be flipped horizontally; may by NULL
- *
- * @param per_sample_vertical   - per-sample flag indicating whether bounding boxes from
- *
- *                                 a given sample should be flipped vertically; may be NULL
- *
- * @param global_horizontal     - whether to flip horizontally; overriden by
- *                                per_sample_horizontal, if specified
- * @param global_vertical       - whether to flip vertically; overriden by
- *                                per_sample_vertical, if specified
+ * @param samples - Sample description (input/output pointer + flipping configuration)
+ * @param blocks  - Mapping the current CUDA block to range within particular sample
  */
 template <bool ltrb>
 __global__ void BbFlipKernel(const BbFlipSampleDesc *samples, const kernels::BlockDesc<1> *blocks) {
@@ -54,8 +39,8 @@ __global__ void BbFlipKernel(const BbFlipSampleDesc *samples, const kernels::Blo
       out[3] = v ? 1.0f - in[1] : in[3];
     } else {
       // No range checking required if the parenthesis is respected in the two lines below.
-      // If the original bounding box satisfies the condition that x + w <= 1.0f, then the expression
-      // 1.0f - (x + w) is guaranteed to yield a non-negative result. QED.
+      // If the original bounding box satisfies the condition that x + w <= 1.0f, then the
+      // expression 1.0f - (x + w) is guaranteed to yield a non-negative result. QED.
       out[0] = h ? 1.0f - (in[0] + in[2]) : in[0];
       out[1] = v ? 1.0f - (in[1] + in[3]) : in[1];
       out[2] = in[2];  // width and
@@ -65,7 +50,7 @@ __global__ void BbFlipKernel(const BbFlipSampleDesc *samples, const kernels::Blo
 }
 
 TensorListShape<2> GetNormalizedShape(const TensorListShape<-1> &shape) {
-  if (shape.sample_dim() == 2)  {
+  if (shape.sample_dim() == 2) {
     return shape.to_static<2>();
   }
   if (shape.sample_dim() > 2) {
@@ -86,20 +71,23 @@ void BbFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   auto nsamples = shape.num_samples();
   auto &output = ws.OutputRef<GPUBackend>(0);
 
-  DALI_ENFORCE(IsType<float>(input.type()), "Expected input data as float;"
-               " got " + input.type().name());
+  DALI_ENFORCE(IsType<float>(input.type()),
+               "Expected input data as float;"
+               " got " +
+                   input.type().name());
   DALI_ENFORCE(input.size() % 4 == 0,
                "Input data size must be a multiple of 4 if it contains bounding boxes;"
-               " got " + std::to_string(input.size()));
+               " got " +
+                   std::to_string(input.size()));
 
 
   for (int sample = 0; sample < nsamples; sample++) {
     auto dim = shape[sample].sample_dim();
 
-    DALI_ENFORCE(dim < 2 || shape[sample][dim-1] == 4,
-                  "If bounding box tensor is >= 2D, innermost dimension must be 4");
+    DALI_ENFORCE(dim < 2 || shape[sample][dim - 1] == 4,
+                 "If bounding box tensor is >= 2D, innermost dimension must be 4");
     DALI_ENFORCE(dim > 1 || shape[sample][0] % 4 == 0,
-                  "Flat representation of bounding boxes must have size divisible by 4");
+                 "Flat representation of bounding boxes must have size divisible by 4");
   }
 
   TensorListShape<2> strong_shape = GetNormalizedShape(shape);
