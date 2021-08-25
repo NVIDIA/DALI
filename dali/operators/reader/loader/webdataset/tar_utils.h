@@ -49,7 +49,7 @@ class DLL_PUBLIC TarArchive {
    * @brief Sets the offset to which the stream pointer should go.
    * @remark The offset must point to a file header; other values will cause undefined behaviour.
    */
-  void Seek(size_t offset);
+  void Seek(int64_t offset);
 
   enum EntryType
   {
