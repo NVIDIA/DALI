@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,45 +19,15 @@
 #include <memory>
 
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/data/allocator.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 
-// Called by "DALIInit" to set up polymorphic pointers
-// to user-defined memory allocators
-void InitializeBackends(const OpSpec &cpu_allocator,
-    const OpSpec &pinned_cpu_allocator,
-    const OpSpec &gpu_allocator);
+class OpSpec;
 
-DLL_PUBLIC void SetCPUAllocator(const OpSpec& allocator);
-DLL_PUBLIC void SetPinnedCPUAllocator(const OpSpec& allocator);
-DLL_PUBLIC void SetGPUAllocator(const OpSpec& allocator);
-DLL_PUBLIC void SetGPUAllocator(std::unique_ptr<GPUAllocator> allocator);
-
-GPUAllocator& GetGPUAllocator();
-/**
- * @brief Provides access to GPU allocator and other GPU meta-data.
- */
-class DLL_PUBLIC GPUBackend final {
- public:
-  DLL_PUBLIC static void* New(size_t bytes, bool);
-  DLL_PUBLIC static void Delete(void *ptr, size_t bytes, bool);
-};
-
-/**
- * @brief Dummy Backend class to differentiate
- * Mixed ops.
- */
-class DLL_PUBLIC MixedBackend final {};
-
-/**
- * @brief Provides access to CPU allocator and other cpu meta-data
- */
-class DLL_PUBLIC CPUBackend final {
- public:
-  DLL_PUBLIC static void* New(size_t bytes, bool pinned);
-  DLL_PUBLIC static void Delete(void *ptr, size_t bytes, bool pinned);
-};
+class DLL_PUBLIC CPUBackend {};
+class DLL_PUBLIC GPUBackend {};
+class DLL_PUBLIC MixedBackend {};
 
 // Utility to copy between backends
 inline void MemCopy(void *dst, const void *src, size_t bytes, cudaStream_t stream = 0) {

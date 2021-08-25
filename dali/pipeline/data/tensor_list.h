@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,29 +58,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
   DLL_PUBLIC TensorList<Backend>(TensorList<Backend> &&other) noexcept {
     // Steal all data and set input to default state
-    data_ = other.data_;
-    shape_ = std::move(other.shape_);
-    size_ = other.size_;
-    offsets_ = std::move(other.offsets_);
-    type_ = other.type_;
-    num_bytes_ = other.num_bytes_;
-    device_ = other.device_;
-    tensor_views_ = std::move(other.tensor_views_);
-    shares_data_ = other.shares_data_;
-    pinned_ = other.pinned_;
-    meta_ = std::move(other.meta_);
-    layout_ = std::move(other.layout_);
-
-    other.data_ = nullptr;
-    other.shape_ = {};
-    other.size_ = 0;
-    other.offsets_ = {};
-    other.type_ = TypeInfo::Create<NoType>();
-    other.num_bytes_ = 0;
-    other.tensor_views_.clear();
-    other.shares_data_ = false;
-    other.meta_ = {};
-    other.layout_ = {};
+    *this = std::move(other);
   }
 
   DLL_PUBLIC ~TensorList() = default;
@@ -342,30 +320,19 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
   DLL_PUBLIC inline TensorList<Backend>& operator=(TensorList<Backend> &&other) noexcept {
     if (&other != this) {
-      // Steal all data and set input to default state
-      data_ = other.data_;
       shape_ = std::move(other.shape_);
-      size_ = other.size_;
       offsets_ = std::move(other.offsets_);
-      type_ = other.type_;
-      num_bytes_ = other.num_bytes_;
-      device_ = other.device_;
       tensor_views_ = std::move(other.tensor_views_);
-      shares_data_ = other.shares_data_;
-      pinned_ = other.pinned_;
       meta_ = std::move(other.meta_);
       layout_ = std::move(other.layout_);
 
-      other.data_ = nullptr;
       other.shape_ = {};
-      other.size_ = 0;
-      other.offsets_ = {};
-      other.type_ = TypeInfo::Create<NoType>();
-      other.num_bytes_ = 0;
       other.tensor_views_.clear();
-      other.shares_data_ = false;
-      other.meta_ = {};
+      other.offsets_.clear();
+      other.meta_.clear();
       other.layout_ = {};
+
+      move_buffer(std::move(other));
     }
     return *this;
   }

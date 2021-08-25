@@ -21,6 +21,7 @@
 #include <numeric>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "dali/core/common.h"
@@ -33,6 +34,14 @@ namespace dali {
 
 class GPUBackend;
 class CPUBackend;
+
+DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, GPUBackend *);
+DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, CPUBackend *);
+
+template <typename Backend>
+inline shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned) {
+  return AllocBuffer(bytes, pinned, static_cast<Backend*>(nullptr));
+}
 
 // Helper function to get a string of the data shape
 inline string ShapeString(vector<Index> shape) {
@@ -183,12 +192,38 @@ class DLL_PUBLIC Buffer {
     return type_;
   }
 
+  using AllocFunc = std::function<shared_ptr<uint8_t>(size_t)>;
+
+  /**
+   * @brief Sets a custom allocation function.
+   *
+   * Sets a custom allocation function. The allocation function returns
+   * a shared pointer with a matching deleter.
+   *
+   * @remarks Experimental - subject to change
+   */
+  inline void set_alloc_func(AllocFunc allocate) {
+    allocate_ = std::move(allocate);
+  }
+
+  /**
+   * @brief Returns the current custom allocation function.
+   *
+   * @return Allocation function. If not set, an empty function object is returned.
+   *
+   * @remarks Experimental - subject to change
+   */
+  const AllocFunc &alloc_func() const noexcept {
+    return allocate_;
+  }
+
   /**
    * @brief Sets the type of allocation (pinned/non-pinned) for
    * CPU buffers
    */
   inline void set_pinned(bool pinned) {
     DALI_ENFORCE(!data_, "Can only set allocation mode before first allocation");
+    DALI_ENFORCE(!allocate_, "Cannot set allocation mode when a custom allocator is used.");
     pinned_ = pinned;
   }
 
@@ -254,8 +289,8 @@ class DLL_PUBLIC Buffer {
                  "Cannot reallocate Buffer if it is sharing data. "
                  "Clear the status by `Reset()` first.");
     data_.reset();
-    data_.reset(Backend::New(new_num_bytes, pinned_),
-                std::bind(FreeMemory, std::placeholders::_1, new_num_bytes, device_, pinned_));
+    data_ = allocate_ ? allocate_(new_num_bytes)
+                      : AllocBuffer<Backend>(new_num_bytes, pinned_);
 
     num_bytes_ = new_num_bytes;
   }
@@ -263,6 +298,7 @@ class DLL_PUBLIC Buffer {
   void reset() {
     type_ = TypeInfo::Create<NoType>();
     data_.reset();
+    allocate_ = {};
     size_ = 0;
     shares_data_ = false;
     num_bytes_ = 0;
@@ -296,12 +332,6 @@ class DLL_PUBLIC Buffer {
   static constexpr double kMaxGrowthFactor = 4;
 
  protected:
-  static void FreeMemory(void* ptr, size_t bytes, int device, bool pinned) {
-    // for device ==  CPU_ONLY_DEVICE_ID it is noop
-    DeviceGuard g(device);
-    Backend::Delete(ptr, bytes, pinned);
-  }
-
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
     ResizeHelper(new_size, type_);
@@ -349,6 +379,19 @@ class DLL_PUBLIC Buffer {
     }
   }
 
+  void move_buffer(Buffer &&buffer) {
+    type_         = std::move(buffer.type_);
+    data_         = std::move(buffer.data_);
+    allocate_     = std::move(buffer.allocate_);
+    size_         = buffer.size_;
+    num_bytes_    = buffer.num_bytes_;
+    device_       = buffer.device_;
+    shares_data_  = buffer.shares_data_;
+    pinned_       = buffer.pinned_;
+
+    buffer.reset();
+  }
+
   static double growth_factor_;
   static double shrink_threshold_;
   // round to 1kB
@@ -356,6 +399,7 @@ class DLL_PUBLIC Buffer {
 
   TypeInfo type_ = {};               // Data type of underlying storage
   shared_ptr<void> data_ = nullptr;  // Pointer to underlying storage
+  AllocFunc allocate_;               // Custom allocation function
   Index size_ = 0;                   // The number of elements in the buffer
   size_t num_bytes_ = 0;             // To keep track of the true size of the underlying allocation
   int device_ = CPU_ONLY_DEVICE_ID;  // device the buffer was allocated on
@@ -385,7 +429,8 @@ DLL_PUBLIC constexpr double Buffer<Backend>::kMaxGrowthFactor;
   using Buffer<Backend>::shares_data_; \
   using Buffer<Backend>::num_bytes_;   \
   using Buffer<Backend>::device_;      \
-  using Buffer<Backend>::pinned_
+  using Buffer<Backend>::pinned_;      \
+  using Buffer<Backend>::move_buffer
 
 
 }  // namespace dali

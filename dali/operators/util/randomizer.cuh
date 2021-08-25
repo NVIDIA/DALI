@@ -20,7 +20,6 @@
 #include <memory>
 #include "dali/core/device_guard.h"
 #include "dali/kernels/alloc.h"
-#include "dali/pipeline/data/backend.h"
 #include <curand_kernel.h>  // NOLINT
 
 namespace dali {

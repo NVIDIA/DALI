@@ -35,11 +35,11 @@ void NumpyLoaderGPU::RegisterBuffer(void *buffer, size_t total_size) {
         // the right buffer is registered already, return
         return;
       } else {
-        cuFileBufDeregister(iter->first);
+        CUDA_CALL(cuFileBufDeregister(iter->first));
       }
     }
     // no buffer found or with different size so register again
-    cuFileBufRegister(dptr, total_size, 0);
+    CUDA_CALL(cuFileBufRegister(dptr, total_size, 0));
     reg_lock.lock();
     reg_buff_[dptr] = total_size;
   }

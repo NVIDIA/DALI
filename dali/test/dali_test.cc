@@ -16,7 +16,6 @@
 #include <gtest/gtest.h>
 
 #include "dali/pipeline/init.h"
-#include "dali/pipeline/data/allocator.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/test/dali_cuda_finalize_test.h"
 #include "dali/test/dali_test_config.h"

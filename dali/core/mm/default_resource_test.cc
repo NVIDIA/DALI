@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <thread>
+#include <rmm/mr/device/cuda_memory_resource.hpp>
 #include "dali/core/mm/default_resources.h"
 #include "dali/core/mm/detail/align.h"
 #include "dali/core/cuda_stream.h"
@@ -112,8 +113,12 @@ TEST(MMDefaultResource, GetResource_MultiDevice) {
     vector<async_memory_resource<memory_kind::device>*> resources(ndev, nullptr);
     for (int i = 0; i < ndev; i++) {
       resources[i] = GetDefaultDeviceResource(i);
-      for (int j = 0; j < i; j++) {
-        EXPECT_NE(resources[i], resources[j]) << "Got the same resource for different devices";
+      EXPECT_NE(resources[i], nullptr);
+      // If we're using plain cudaMalloc, the resource will be the same for all devices
+      if (!dynamic_cast<rmm::mr::cuda_memory_resource*>(resources[i])) {
+        for (int j = 0; j < i; j++) {
+          EXPECT_NE(resources[i], resources[j]) << "Got the same resource for different devices";
+        }
       }
     }
 

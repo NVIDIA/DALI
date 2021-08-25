@@ -341,6 +341,23 @@ TEST_F(VMResourceTest, RandomAllocations) {
   EXPECT_EQ(stat.total_allocations, stat.total_deallocations);
 }
 
+TEST_F(VMResourceTest, OOM) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory Management not supported on this platform";
+
+  auto hog = []() {
+    cuda_vm_resource_base pool(-1, 64 << 20);  // use large 64 MiB blocks
+    size_t size = 512_uz << 20;
+    while (size) {
+      print(std::cerr, "Allocating a block of size ", size, "\n");
+      void *ptr = pool.allocate(size);
+      pool.deallocate(ptr, size);
+      size <<= 1;
+    }
+  };
+  EXPECT_THROW(hog(), std::bad_alloc);
+}
+
 }  // namespace test
 }  // namespace mm
 }  // namespace dali

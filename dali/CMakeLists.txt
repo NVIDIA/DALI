@@ -188,4 +188,22 @@ if (BUILD_PYTHON)
     TARGET install_headers
     COMMAND cp -r "${PROJECT_SOURCE_DIR}/include/." "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}"
   )
+
+  # Copy rmm include files
+  add_custom_command(
+    TARGET install_headers
+    COMMAND cp -r "${PROJECT_SOURCE_DIR}/third_party/rmm/include/." "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}/"
+  )
+
+  # Copy rmm include files
+  add_custom_command(
+    TARGET install_headers
+    COMMAND cp -r "${PROJECT_SOURCE_DIR}/third_party/spdlog/include/." "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}/"
+  )
+
+  # Copy rmm include files
+  add_custom_command(
+    TARGET install_headers
+    COMMAND cp -r "${PROJECT_SOURCE_DIR}/third_party/fmt/include/." "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}/"
+  )
 endif()
