@@ -219,8 +219,11 @@ void PoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, int max_iters = 200
   std::poisson_distribution<> size_dist(1<<20);
   const int max_size = 1 << 26;
   std::bernoulli_distribution action_dist;
+  std::bernoulli_distribution flush_dist(0.01);
   std::uniform_int_distribution<> fill_dist(1, 255);
   for (int i = 0; i < max_iters; i++) {
+    if (flush_dist(rng))
+      pool.flush_deferred();
     if (action_dist(rng) || blocks.empty()) {
       size_t size;
       do {
@@ -288,7 +291,7 @@ TEST(MMPoolResource, ParallelDeferred) {
     std::vector<block> blocks;
     spinlock mtx;
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 4; i++) {
       threads.emplace_back([&]() {
         PoolTest(pool, blocks, mtx, 50000);
       });
