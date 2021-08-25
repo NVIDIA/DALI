@@ -205,7 +205,7 @@ inline void TarArchive::SetEof() {
   eof_ = true;
   filename_ = "";
   filesize_ = 0;
-  filetype_ = ENTRY_FILE;
+  filetype_ = ENTRY_NONE;
 }
 
 inline void TarArchive::ParseHeader() {

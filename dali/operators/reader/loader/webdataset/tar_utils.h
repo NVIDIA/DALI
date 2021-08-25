@@ -53,7 +53,8 @@ class DLL_PUBLIC TarArchive {
 
   enum EntryType
   {
-    ENTRY_FILE = 0,
+    ENTRY_NONE = 0,
+    ENTRY_FILE,
     ENTRY_DIR,
     ENTRY_HARDLINK,
     ENTRY_SYMLINK,
@@ -107,7 +108,7 @@ class DLL_PUBLIC TarArchive {
 
   std::string filename_;
   size_t filesize_ = 0;
-  EntryType filetype_ = ENTRY_FILE;
+  EntryType filetype_ = ENTRY_NONE;
 
   size_t readoffset_ = 0;
 
