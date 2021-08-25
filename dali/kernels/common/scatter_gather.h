@@ -18,6 +18,7 @@
 #include <cuda_runtime.h>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <queue>
 #include <vector>
 #include "dali/core/api_helper.h"
@@ -44,7 +45,7 @@ class DLL_PUBLIC ScatterGatherBase {
  public:
   static constexpr size_t kDefaultBlockSize = 64<<10;
   // Special value to indicate that blocks should not be splitted
-  static constexpr size_t kAnyBlockSize = -1;
+  static constexpr size_t kAnyBlockSize = std::numeric_limits<size_t>::max();
 
   ScatterGatherBase() = default;
 
