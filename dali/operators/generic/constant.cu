@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include "dali/core/convert.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/kernels/common/scatter_gather.h"
 
 namespace dali {
 
@@ -43,6 +44,7 @@ __global__ void Fill(void *data, size_t count, Placeholder<size, alignment> valu
     static_cast<Placeholder<size, alignment>*>(data)[i] = value;
 }
 
+// TODO(klecki): [Conditional] - replace by sharing repeated sample
 template <typename Dst, typename Src>
 void FillTensorList(
       TensorList<GPUBackend> &dst, const TensorListShape<> &shape, const std::vector<Src> &src,
@@ -51,35 +53,35 @@ void FillTensorList(
   if (shape.num_samples() == 0)
     return;
 
-  if (src.size() == 1) {
-    int64_t size = shape.num_elements();
-    int64_t threads = 1024;
-    int64_t blocks = div_ceil(size, threads);
-    Dst *data = dst.mutable_data<Dst>();
 
-    Fill<<<dim3(blocks), dim3(threads), 0, stream>>>(data, size, opaque(ConvertSat<Dst>(src[0])));
+  int64_t sample_size = shape[0].num_elements();
+
+  if (src.size() == 1) {
+    int64_t threads = 1024;
+    int64_t blocks = div_ceil(sample_size, threads);
+    Dst *data = dst.mutable_tensor<Dst>(0);
+
+    Fill<<<dim3(blocks), dim3(threads), 0, stream>>>(data, sample_size,
+                                                     opaque(ConvertSat<Dst>(src[0])));
   } else {
     SmallVector<Dst, 64> tmp;
+    assert(src.size() == sample_size);
     tmp.resize(src.size());
     for (size_t i = 0; i < tmp.size(); i++)
       tmp[i] = ConvertSat<Dst>(src[i]);
 
     int n = tmp.size() * sizeof(Dst);
-    int N = shape.num_samples();
     CUDA_CALL(
       cudaMemcpyAsync(dst.mutable_tensor<Dst>(0), tmp.data(), n, cudaMemcpyHostToDevice, stream));
-    int copied = 1;
-    // this loop doubles the data in GPU memory, so that there are log2(N) memcpys at most
-    while (copied < N) {
-      int to_copy = copied;
-      if (copied + to_copy > N)
-        to_copy = N - copied;
-      CUDA_CALL(
-        cudaMemcpyAsync(dst.mutable_tensor<Dst>(copied), dst.mutable_tensor<Dst>(0), n * to_copy,
-                        cudaMemcpyDeviceToDevice, stream));
-      copied += to_copy;
-    }
   }
+
+  kernels::ScatterGatherGPU scatter_gather;
+
+  for (int i = 1; i < shape.num_samples(); i++) {
+    scatter_gather.AddCopy(dst.mutable_tensor<Dst>(i), dst.mutable_tensor<Dst>(0),
+                            sample_size * sizeof(Dst));
+  }
+  scatter_gather.Run(stream);
 }
 
 }  // namespace
