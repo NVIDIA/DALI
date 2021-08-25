@@ -22,6 +22,18 @@ import io
 
 dummy_lambda = lambda : 0
 
+# unfortunately inspect.getclosurevars does not yield global names referenced by
+# the code syntactically nested inside the function, this includes nested functions
+# and list comprehension, for instance in case of [exp1 for exp2 in exp3] occuring inside
+# a function, references from exp1 would be omitted
+def get_global_references_from_nested_code(code, global_scope, global_refs):
+    for constant in code.co_consts:
+        if inspect.iscode(constant):
+            closure = tuple(types.CellType(None) for _ in range(len(constant.co_freevars)))
+            dummy_function = types.FunctionType(constant, global_scope, 'dummy_function', closure=closure)
+            global_refs.update(inspect.getclosurevars(dummy_function).globals)
+            get_global_references_from_nested_code(constant, global_scope, global_refs)
+
 def set_funcion_state(fun, state):
     fun.__globals__.update(state['global_refs'])
     fun.__defaults__ = state['defaults']
@@ -29,8 +41,8 @@ def set_funcion_state(fun, state):
 
 def function_unpickle(name, qualname, code, closure):
     code = marshal.loads(code)
-    globs = {'__builtins__': __builtins__}
-    fun = types.FunctionType(code, globs, name, closure=closure)
+    global_scope = {'__builtins__': __builtins__}
+    fun = types.FunctionType(code, global_scope, name, closure=closure)
     fun.__qualname__ = qualname
     return fun
 
@@ -38,8 +50,10 @@ def function_by_value_reducer(fun):
     cl_vars = inspect.getclosurevars(fun)
     code = marshal.dumps(fun.__code__)
     basic_def = (fun.__name__, fun.__qualname__, code, fun.__closure__)
+    global_refs = dict(cl_vars.globals)
+    get_global_references_from_nested_code(fun.__code__, fun.__globals__, global_refs)
     fun_context = {
-        'global_refs': cl_vars.globals,
+        'global_refs': global_refs,
         'defaults': fun.__defaults__,
         'kwdefaults': fun.__kwdefaults__
     }
@@ -106,17 +120,17 @@ class CustomPickler:
         if py_callback_pickler is None or isinstance(py_callback_pickler, cls):
             return py_callback_pickler
         if hasattr(py_callback_pickler, 'dumps') and hasattr(py_callback_pickler, 'loads'):
-            return cls.of_reducer(py_callback_pickler)
+            return cls.create_from_reducer(py_callback_pickler)
         if isinstance(py_callback_pickler, (tuple, list)):
             params = [None] * 3
             for i, item in enumerate(py_callback_pickler):
                 params[i] = item
             reducer, kwargs_dumps, kwargs_loads = params
-            return cls.of_reducer(reducer, kwargs_dumps, kwargs_loads)
+            return cls.create_from_reducer(reducer, kwargs_dumps, kwargs_loads)
         raise ValueError("Unsupported py_callback_pickler value provided.")
 
     @classmethod
-    def of_reducer(cls, reducer, dumps_kwargs=None, loads_kwargs=None):
+    def create_from_reducer(cls, reducer, dumps_kwargs=None, loads_kwargs=None):
         return cls(reducer.dumps, reducer.loads, dumps_kwargs, loads_kwargs)
 
     def __init__(self, dumps, loads, dumps_kwargs, loads_kwargs):

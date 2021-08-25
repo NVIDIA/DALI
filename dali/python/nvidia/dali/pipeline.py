@@ -144,14 +144,17 @@ Parameters
     However, if you need to serialize more complex objects like local classes or you are running
     older version of Python you can provide external serialization package such as dill or cloudpickle
     that implements two methods: `dumps` and `loads` to make DALI use them to serialize
-    external source callbacks.
+    external source callbacks. You can pass a module directly as ``py_callback_pickler``::
+        
+        import dill
+        src = fn.external_source(lambda sample_info: 42, batch=False, parallel=True, py_callback_pickler=dill)
 
-    Valid value for `py_callback_pickler` is either a module/object implementing
-    dumps and loads methods or a tuple where first item is the module/object and the next
+    A valid value for `py_callback_pickler` is either a module/object implementing
+    ``dumps`` and ``loads`` methods or a tuple where first item is the module/object and the next
     two optional parameters are extra kwargs to be passed when calling dumps and loads respectively.
     Provided methods and kwargs must themselves be picklable.
 
-    If you run Python3.8 or newer and use default `nvidia.dali.pickling` you can hint DALI to serialize
+    If you run Python3.8 or newer and use the default `nvidia.dali.pickling` you can hint DALI to serialize
     global functions by value rather than by reference by decorating them
     with `@dali.pickling.pickle_by_value`. It may be especially useful when working with
     Jupyter notebook to work around the issue of worker process being unable to import

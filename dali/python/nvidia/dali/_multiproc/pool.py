@@ -205,12 +205,12 @@ starts thread keeping track of running processes and initializes communication.
             res_r, res_w = mp.Pipe(duplex=False)
             sock_reader, sock_writer = socket.socketpair()
             if callback_pickler is None:
-                callbacks_ = callbacks
+                callbacks_arg = callbacks
             else:
-                callbacks_ = callback_pickler.dumps(callbacks)
+                callbacks_arg = callback_pickler.dumps(callbacks)
             process = mp.Process(
                 target=worker,
-                args=(i, callbacks_, prefetch_queue_depths, initial_chunk_size,
+                args=(i, callbacks_arg, prefetch_queue_depths, initial_chunk_size,
                       task_r, res_w, sock_writer, callback_pickler),
             )
             self._task_pipes.append(task_w)
