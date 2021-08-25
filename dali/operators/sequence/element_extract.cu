@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,13 +17,6 @@
 #include "dali/operators/sequence/element_extract.h"
 
 namespace dali {
-
-template <>
-void ElementExtract<GPUBackend>::AddCopy(DeviceWorkspace &ws, void *dst, const void *src,
-                                         size_t volume, const TypeInfo &type) {
-  scatter_gather_.AddCopy(dst, src, volume * type.size());
-}
-
 
 template <>
 void ElementExtract<GPUBackend>::RunCopies(DeviceWorkspace &ws) {

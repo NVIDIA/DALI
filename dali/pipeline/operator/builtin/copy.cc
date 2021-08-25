@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,18 +16,9 @@
 
 namespace dali {
 
-template<>
-void Copy<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  auto &input = ws.Input<CPUBackend>(0);
-  auto &output = ws.Output<CPUBackend>(0);
-  output.set_type(input.type());
-  output.SetLayout(input.GetLayout());
-  output.ResizeLike(input);
-
-  TypeInfo type = input.type();
-  type.Copy<CPUBackend, CPUBackend>(
-      output.raw_mutable_data(),
-      input.raw_data(), input.size(), 0);
+template <>
+void Copy<CPUBackend>::RunCopies(HostWorkspace &ws) {
+  scatter_gather_.Run(ws.GetThreadPool(), true);
 }
 
 DALI_REGISTER_OPERATOR(Copy, Copy<CPUBackend>, CPU);
