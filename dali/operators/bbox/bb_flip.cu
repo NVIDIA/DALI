@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dali/operators/bbox/bb_flip.cuh>
 #include <vector>
+#include "dali/operators/bbox/bb_flip.cuh"
 
 namespace dali {
 
@@ -37,43 +37,53 @@ namespace dali {
  *                                per_sample_vertical, if specified
  */
 template <bool ltrb>
-__global__ void BbFlipKernel(float *output, const float *input, size_t num_boxes,
-                             bool global_horizontal, const int *per_sample_horizontal,
-                             bool global_vertical, const int *per_sample_vertical,
-                             const int *sample_indices) {
-  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= num_boxes)
-    return;
+__global__ void BbFlipKernel(const BbFlipSampleDesc *samples, const kernels::BlockDesc<1> *blocks) {
+  const auto &block = blocks[blockIdx.x];
+  const auto &sample = samples[block.sample_idx];
 
-  bool h = per_sample_horizontal
-         ? per_sample_horizontal[sample_indices[idx]]
-         : global_horizontal;
-  bool v = per_sample_vertical
-         ? per_sample_vertical[sample_indices[idx]]
-         : global_vertical;
+  for (int idx = threadIdx.x + block.start.x; idx < block.end.x; idx += blockDim.x) {
+    bool h = sample.horz;
+    bool v = sample.vert;
 
-  const auto *in = &input[4 * idx];
-  auto *out = &output[4 * idx];
-  if (ltrb) {
-    out[0] = h ? 1.0f - in[2] : in[0];
-    out[1] = v ? 1.0f - in[3] : in[1];
-    out[2] = h ? 1.0f - in[0] : in[2];
-    out[3] = v ? 1.0f - in[1] : in[3];
-  } else {
-    // No range checking required if the parenthesis is respected in the two lines below.
-    // If the original bounding box satisfies the condition that x + w <= 1.0f, then the expression
-    // 1.0f - (x + w) is guaranteed to yield a non-negative result. QED.
-    out[0] = h ? 1.0f - (in[0] + in[2]) : in[0];
-    out[1] = v ? 1.0f - (in[1] + in[3]) : in[1];
-    out[2] = in[2];  // width and
-    out[3] = in[3];  // height remain unaffected
+    const auto *in = &sample.input[4 * idx];
+    auto *out = &sample.output[4 * idx];
+    if (ltrb) {
+      out[0] = h ? 1.0f - in[2] : in[0];
+      out[1] = v ? 1.0f - in[3] : in[1];
+      out[2] = h ? 1.0f - in[0] : in[2];
+      out[3] = v ? 1.0f - in[1] : in[3];
+    } else {
+      // No range checking required if the parenthesis is respected in the two lines below.
+      // If the original bounding box satisfies the condition that x + w <= 1.0f, then the expression
+      // 1.0f - (x + w) is guaranteed to yield a non-negative result. QED.
+      out[0] = h ? 1.0f - (in[0] + in[2]) : in[0];
+      out[1] = v ? 1.0f - (in[1] + in[3]) : in[1];
+      out[2] = in[2];  // width and
+      out[3] = in[3];  // height remain unaffected
+    }
   }
+}
+
+TensorListShape<2> GetNormalizedShape(const TensorListShape<-1> &shape) {
+  if (shape.sample_dim() == 2)  {
+    return shape.to_static<2>();
+  }
+  if (shape.sample_dim() > 2) {
+    std::array<std::pair<int, int>, 1> collapse_group = {{{0, shape.sample_dim() - 1}}};
+    return collapse_dims<2>(shape, collapse_group);
+  }
+  TensorListShape<2> result(shape.num_samples(), 2);
+  for (int i = 0; i < shape.num_samples(); i++) {
+    auto tspan = shape.tensor_shape_span(i);
+    result.set_tensor_shape(i, {tspan[0] / 4, 4});
+  }
+  return result;
 }
 
 void BbFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   auto &input = ws.InputRef<GPUBackend>(0);
-  auto shape = input.shape();
-  auto nsamples = shape.size();
+  const auto &shape = input.shape();
+  auto nsamples = shape.num_samples();
   auto &output = ws.OutputRef<GPUBackend>(0);
 
   DALI_ENFORCE(IsType<float>(input.type()), "Expected input data as float;"
@@ -82,78 +92,47 @@ void BbFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
                "Input data size must be a multiple of 4 if it contains bounding boxes;"
                " got " + std::to_string(input.size()));
 
+
+  for (int sample = 0; sample < nsamples; sample++) {
+    auto dim = shape[sample].sample_dim();
+
+    DALI_ENFORCE(dim < 2 || shape[sample][dim-1] == 4,
+                  "If bounding box tensor is >= 2D, innermost dimension must be 4");
+    DALI_ENFORCE(dim > 1 || shape[sample][0] % 4 == 0,
+                  "Flat representation of bounding boxes must have size divisible by 4");
+  }
+
+  TensorListShape<2> strong_shape = GetNormalizedShape(shape);
+
+  block_setup_.SetupBlocks(strong_shape, true);
+  blocks_dev_.from_host(block_setup_.Blocks(), ws.stream());
+
+  samples_.resize(nsamples);
+
   auto stream = ws.stream();
 
   const auto num_boxes = input.size() / 4;
-
-  const int *sample_idx = nullptr;
-  const int *per_sample_horz = nullptr;
-  const int *per_sample_vert = nullptr;
-
-  if (horz_.IsArgInput() || vert_.IsArgInput()) {
-    std::vector<int> indices;
-    indices.reserve(num_boxes);
-
-    // populate the index map
-    for (int sample = 0; sample < nsamples; sample++) {
-      auto dim = shape[sample].size();
-
-      DALI_ENFORCE(dim < 2 || shape[sample][dim-1] == 4,
-                   "If bounding box tensor is >= 2D, innermost dimension must be 4");
-      DALI_ENFORCE(dim > 1 || shape[sample][0] % 4 == 0,
-                   "Flat representation of bouding boxes must have size divisible by 4");
-
-      size_t sample_boxes = dim == 2 ? shape[sample][0] : shape[sample][0] / 4;
-      for (size_t i = 0; i < sample_boxes ; i++) {
-        indices.push_back(sample);
-      }
-    }
-    idx2sample_.Copy(indices, stream);
-
-    if (horz_.IsArgInput()) {
-      auto &horz_view = horz_.get();
-      assert(horz_view.is_contiguous());
-      assert(horz_view.shape.num_elements() == nsamples);
-      horz_gpu_.Resize({nsamples});
-      CUDA_CALL(cudaMemcpyAsync(horz_gpu_.mutable_data<int>(), horz_view.data[0],
-                      nsamples * sizeof(int),
-                      cudaMemcpyHostToDevice, stream));
-      per_sample_horz = horz_gpu_.data<int>();
-    }
-
-    if (vert_.IsArgInput()) {
-      auto &vert_view = horz_.get();
-      assert(vert_view.is_contiguous());
-      assert(vert_view.shape.num_elements() == nsamples);
-      vert_gpu_.Resize({nsamples});
-      CUDA_CALL(cudaMemcpyAsync(vert_gpu_.mutable_data<int>(), vert_view.data[0],
-                      nsamples * sizeof(int),
-                      cudaMemcpyHostToDevice, stream));
-      per_sample_vert = vert_gpu_.data<int>();
-    }
-    sample_idx = idx2sample_.data<int>();
-  }
-
-  bool global_horz = !per_sample_horz && horz_[0].data[0];
-  bool global_vert = !per_sample_vert && vert_[0].data[0];
 
   if (num_boxes == 0) {
     return;
   }
 
-  const unsigned block = num_boxes < 1024 ? num_boxes : 1024;
-  const unsigned grid = (num_boxes + block - 1) / block;
+  for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+    samples_[sample_idx].output = output.mutable_tensor<float>(sample_idx);
+    samples_[sample_idx].input = input.tensor<float>(sample_idx);
+    samples_[sample_idx].horz = horz_[sample_idx].data[0];
+    samples_[sample_idx].vert = vert_[sample_idx].data[0];
+  }
+
+  samples_dev_.from_host(samples_, ws.stream());
+
+  dim3 grid = block_setup_.GridDim();
+  dim3 block = block_setup_.BlockDim();
 
   if (ltrb_) {
-    BbFlipKernel<true><<<grid, block, 0, stream>>>(
-      output.mutable_data<float>(), input.data<float>(), num_boxes,
-      global_horz, per_sample_horz, global_vert, per_sample_vert,
-      sample_idx);
+    BbFlipKernel<true><<<grid, block, 0, stream>>>(samples_dev_.data(), blocks_dev_.data());
   } else {
-    BbFlipKernel<false><<<grid, block, 0, stream>>>(
-      output.mutable_data<float>(), input.data<float>(), num_boxes,
-      global_horz, per_sample_horz, global_vert, per_sample_vert,
-      sample_idx);
+    BbFlipKernel<false><<<grid, block, 0, stream>>>(samples_dev_.data(), blocks_dev_.data());
   }
   CUDA_CALL(cudaGetLastError());
 }

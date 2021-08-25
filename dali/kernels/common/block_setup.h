@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -267,7 +267,9 @@ class BlockSetup {
 
     // Make the blocks as evenly distributed as possible over the target area,
     // but maintain alignment to CUDA block dim.
-    for (int i = 0; i < 2; i++) {  // only XY dimensions
+
+    constexpr int xy_dim = ndim > 1 ? 2 : 1;
+    for (int i = 0; i < xy_dim; i++) {  // only XY dimensions
       int blocks_in_axis = div_ceil(uniform_output_size_[i], uniform_block_size_[i]);
       int even_block_size = div_ceil(uniform_output_size_[i], blocks_in_axis);
 
@@ -277,8 +279,8 @@ class BlockSetup {
     }
 
     grid_dim_ = {
-      div_ceil(uniform_output_size_.x, uniform_block_size_.x),
-      div_ceil(uniform_output_size_.y, uniform_block_size_.y),
+      div_ceil(uniform_output_size_[0], uniform_block_size_[0]),
+      ndim > 1 ? div_ceil(uniform_output_size_[1], uniform_block_size_[1]) : 1,
       output_shape.num_samples() * z_blocks_per_sample_
     };
   }
