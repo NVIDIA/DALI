@@ -102,7 +102,7 @@ void StdCUFileStream::Seek(int64 pos) {
   pos_ = pos;
 }
 
-int64 StdCUFileStream::Tell() {
+int64 StdCUFileStream::Tell() const {
   return pos_;
 }
 

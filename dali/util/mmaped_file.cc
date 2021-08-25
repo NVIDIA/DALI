@@ -175,7 +175,7 @@ void MmapedFileStream::Seek(int64 pos) {
   pos_ = pos;
 }
 
-int64 MmapedFileStream::Tell() {
+int64 MmapedFileStream::Tell() const {
   return pos_;
 }
 

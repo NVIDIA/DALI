@@ -39,7 +39,7 @@ class StdCUFileStream : public CUFileStream {
   size_t Read(uint8_t* cpu_buffer, size_t n_bytes) override;
   size_t Pos() const;
   void Seek(int64 pos) override;
-  int64 Tell() override;
+  int64 Tell() const override;
   void HandleIOError(int64 ret) const;
   size_t Size() const override;
 

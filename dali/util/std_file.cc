@@ -41,7 +41,7 @@ void StdFileStream::Seek(int64 pos) {
                "Seek operation did not succeed: " + std::string(std::strerror(errno)));
 }
 
-int64 StdFileStream::Tell() {
+int64 StdFileStream::Tell() const {
   return std::ftell(fp_);
 }
 
