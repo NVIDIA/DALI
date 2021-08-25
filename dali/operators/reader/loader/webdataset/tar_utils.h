@@ -25,23 +25,7 @@
 namespace dali {
 namespace detail {
 /**
- * @brief Used to access .tar archives
- *
- * The class is used to access tar archives through the FileStream of the user's choice.
- * There are 2 cursors that it keeps track of:
- *   - archive cursor - Keeps track of which file the archive is currently at.
- *   - file cursor - Keeps track of which byte of the file is currently going to be read. Gets reset
- *                   after each advancement of the archive cursor.
- * There are also two associated sets of methods that the user may use:
- *   - Files iteration methods:
- *     - @ref NextFile
- *     - @ref EndOfArchive
- *   - File contents access methods:
- *     - @ref GetFileName
- *     - @ref GetFileSize
- *     - @ref ReadFile
- *     - @ref Read
- *     - @ref EndOfFile
+ * @brief Used to access .tar archives through the given FileStream
  */
 class DLL_PUBLIC TarArchive {
  public:
@@ -61,6 +45,22 @@ class DLL_PUBLIC TarArchive {
    * @brief Returns whether it has reached the end of archive.
    */
   bool EndOfArchive() const;
+  /**
+   * @brief Sets the offset to which the stream pointer should go.
+   * @remark The offset must point to a file header; other values will cause undefined behaviour.
+   */
+  void Seek(int64_t offset);
+
+  enum EntryType {
+    ENTRY_NONE = 0,
+    ENTRY_FILE,
+    ENTRY_DIR,
+    ENTRY_HARDLINK,
+    ENTRY_SYMLINK,
+    ENTRY_CHARDEV,
+    ENTRY_BLOCKDEV,
+    ENTRY_FIFO
+  };
 
   /**
    * @brief Returns the name of the file in the archive that is currently being viewed.
@@ -69,8 +69,13 @@ class DLL_PUBLIC TarArchive {
   const std::string& GetFileName() const;
   /**
    * @brief Returns the size (in bytes) of the file in the archive that is currently being viewed.
+   * @remark Will be 0 for any entry type other than a file
    */
   size_t GetFileSize() const;
+  /**
+   * @brief Returns the type of the entry in the archive
+   */
+  EntryType GetFileType() const;
 
   /**
    * @brief Reads the contents of the file and returns them.
@@ -96,16 +101,20 @@ class DLL_PUBLIC TarArchive {
 
  private:
   std::unique_ptr<FileStream> stream_;
+  int instance_handle_ = -1;
   void* handle_ = nullptr;  // handle to the TAR struct
   friend ssize_t LibtarReadTarArchive(int, void*, size_t);
+
   std::string filename_;
   size_t filesize_ = 0;
+  EntryType filetype_ = ENTRY_NONE;
+
   size_t readoffset_ = 0;
-  size_t archiveoffset_ = 0;
-  int instance_handle_ = -1;
-  bool eof_ = true;
-  bool ParseHeader();
-  void Skip(size_t count);
+
+  bool eof_ = true;  // when this is true the value of readoffset_ and stream_ offset is undefined
+  void SetEof();
+
+  void ParseHeader();
   void Invalidate();  // resets objects to default values
 };
 

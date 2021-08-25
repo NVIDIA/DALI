@@ -31,6 +31,7 @@ class StdFileStream : public FileStream {
   shared_ptr<void>  Get(size_t n_bytes) override;
   size_t Read(uint8_t * buffer, size_t n_bytes) override;
   void Seek(int64 pos) override;
+  int64 Tell() const override;
   size_t Size() const override;
 
   ~StdFileStream() override {
