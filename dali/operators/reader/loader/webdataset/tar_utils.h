@@ -51,8 +51,7 @@ class DLL_PUBLIC TarArchive {
    */
   void Seek(int64_t offset);
 
-  enum EntryType
-  {
+  enum EntryType {
     ENTRY_NONE = 0,
     ENTRY_FILE,
     ENTRY_DIR,

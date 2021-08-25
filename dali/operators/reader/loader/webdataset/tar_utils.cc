@@ -159,7 +159,7 @@ bool TarArchive::EndOfArchive() const {
 void TarArchive::Seek(int64_t offset) {
   assert(offset % T_BLOCKSIZE == 0);
   readoffset_ = 0;
-  if (offset >= stream_->Size()) {
+  if (static_cast<size_t>(offset) >= stream_->Size()) {
     SetEof();
     return;
   }

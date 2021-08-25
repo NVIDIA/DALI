@@ -127,7 +127,7 @@ void TestArchiveEntries(TarArchive& archive, const std::vector<std::string>& pre
 
   ASSERT_FALSE(archive.NextFile());
   ASSERT_EQ(archive.GetFileName(), "");
-  ASSERT_EQ(archive.GetFileType(), TarArchive::ENTRY_FILE);
+  ASSERT_EQ(archive.GetFileType(), TarArchive::ENTRY_NONE);
   ASSERT_EQ(archive.GetFileSize(), 0);
 }
 
