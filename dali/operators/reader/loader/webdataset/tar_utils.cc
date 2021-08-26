@@ -120,7 +120,7 @@ TarArchive& TarArchive::operator=(TarArchive&& other) {
     std::swap(filesize_, other.filesize_);
     std::swap(filetype_, other.filetype_);
     std::swap(readoffset_, other.readoffset_);
-    std::swap(last_header_, other.last_header_);
+    std::swap(current_header_, other.current_header_);
     std::swap(eof_, other.eof_);
     std::swap(instance_handle_, other.instance_handle_);
     if (instance_handle_ >= 0) {
@@ -147,9 +147,9 @@ bool TarArchive::NextFile() {
     SetEof();
     return false;
   }
-  
+
   stream_->Seek(stream_->Tell() + RoundToBlockSize(filesize_) - readoffset_);
-  last_header_ = stream_->Tell();
+  current_header_ = stream_->Tell();
   ParseHeader();
   return !eof_;
 }
@@ -158,7 +158,7 @@ bool TarArchive::EndOfArchive() const {
   return eof_;
 }
 
-void TarArchive::Seek(int64_t offset) {
+void TarArchive::SeekArchive(int64_t offset) {
   assert(offset % T_BLOCKSIZE == 0);
   readoffset_ = 0;
   if (static_cast<size_t>(offset) >= stream_->Size()) {
@@ -166,12 +166,12 @@ void TarArchive::Seek(int64_t offset) {
     return;
   }
   stream_->Seek(offset);
-  last_header_ = stream_->Tell();
+  current_header_ = stream_->Tell();
   ParseHeader();
 }
 
-int64_t TarArchive::Tell() const {
-  return last_header_;
+int64_t TarArchive::TellArchive() const {
+  return current_header_;
 }
 
 const std::string& TarArchive::GetFileName() const {
@@ -215,7 +215,7 @@ inline void TarArchive::SetEof() {
   filename_ = "";
   filesize_ = 0;
   filetype_ = ENTRY_NONE;
-  last_header_ = stream_ ? stream_->Size() : 0;
+  current_header_ = stream_ ? stream_->Size() : 0;
 }
 
 inline void TarArchive::ParseHeader() {

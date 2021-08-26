@@ -92,7 +92,7 @@ TEST(LibTarUtilsTestSimple, Types) {
     ASSERT_EQ(archive.GetFileType(), types[i]);
     ASSERT_EQ(archive.GetFileName(), to_string(i) + (types[i] == TarArchive::ENTRY_DIR ? "/" : ""));
     ASSERT_EQ(archive.GetFileSize(), 0);
-    ASSERT_EQ(archive.Tell(), i * T_BLOCKSIZE);
+    ASSERT_EQ(archive.TellArchive(), i * T_BLOCKSIZE);
     archive.NextFile();
   }
   ASSERT_TRUE(archive.EndOfArchive());
@@ -103,8 +103,8 @@ TEST(LibTarUtilsTestSimple, Offset) {
                                                    "db/webdataset/sample-tar/types.tar"));
 
   TarArchive archive(FileStream::Open(filepath, false, true));
-  archive.Seek(7 * T_BLOCKSIZE);
-  ASSERT_EQ(archive.Tell(), 7 * T_BLOCKSIZE);
+  archive.SeekArchive(7 * T_BLOCKSIZE);
+  ASSERT_EQ(archive.TellArchive(), 7 * T_BLOCKSIZE);
   for (int i = 7; i < 14; i++) {
     ASSERT_EQ(archive.GetFileName(),
               to_string(i) + (archive.GetFileType() == TarArchive::ENTRY_DIR ? "/" : ""));
@@ -123,7 +123,7 @@ void TestArchiveEntries(TarArchive& archive, const std::vector<std::string>& pre
       }
       ASSERT_EQ(archive.GetFileName(), to_string(idx) + prefixes[prefix_idx]);
       ASSERT_EQ(archive.GetFileType(), TarArchive::ENTRY_FILE);
-      ASSERT_EQ(archive.Tell(), total_size);
+      ASSERT_EQ(archive.TellArchive(), total_size);
       total_size += align_up(archive.GetFileSize(), T_BLOCKSIZE) + T_BLOCKSIZE;
       ASSERT_TRUE(archive.NextFile() ^ (idx == end - 1 && prefix_idx == prefixes.size() - 1));
     }
