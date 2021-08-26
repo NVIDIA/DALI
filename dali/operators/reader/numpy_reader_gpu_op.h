@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "dali/kernels/kernel_manager.h"
+#include "dali/kernels/common/scatter_gather.h"
 #include "dali/kernels/transpose/transpose_gpu.h"
 #include "dali/operators/reader/loader/numpy_loader_gpu.h"
 #include "dali/operators/reader/numpy_reader_op.h"
