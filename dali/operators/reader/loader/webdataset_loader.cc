@@ -44,6 +44,8 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
 
   std::string sample_name;
   std::tie(sample_name, std::ignore) = SplitName(current_wds_shard.GetFileName());
+
+
 }
 
 Index WebdatasetLoader::SizeImpl() {
@@ -51,6 +53,12 @@ Index WebdatasetLoader::SizeImpl() {
 }
 
 void WebdatasetLoader::PrepareMetadataImpl() {
+  if (!dont_use_mmap_) {
+      mmap_reserver_ = FileStream::MappingReserver(
+                                  static_cast<unsigned int>(initial_buffer_fill_));
+    }
+    copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
+
   // collecting wds shard sizes from the config files
   vector<size_t> shard_sizes;
   for (auto& config_path : configs_) {

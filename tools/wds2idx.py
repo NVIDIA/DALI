@@ -70,16 +70,26 @@ class IndexCreator():
         self.close()
         self.open()
 
+    @staticmethod
+    def split_name(filepath): # translated from the matching function in c++
+        base_name_pos = filepath.rfind('\\') + 1
+        dot_pos = filepath.rfind('.')
+        if dot_pos <= base_name_pos:
+            return filepath[base_name_pos:], ""
+        return filepath[:dot_pos], filepath[dot_pos + 1:]
+
+
     def create_index(self):
         """Creates the index file from open record file
         """
         self.reset()
 
-        # Has to parse the archive first because needs the number of files in the archive
         pre_time = time.time()
-        data = []
         counter = 0
         report_step = 100000
+
+        # Parse the archive first for the file offsets
+        data = []
         for member in iter(self.farchive):
             if counter % report_step == 0:
                   cur_time = time.time()
@@ -92,7 +102,7 @@ class IndexCreator():
             if counter % report_step == 0:
                   cur_time = time.time()
                   print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: index")
-            self.fidx.write(f"{offset} {name}\n")
+            self.fidx.write(f"{offset}\n")
             counter += 1
         
         cur_time = time.time()
