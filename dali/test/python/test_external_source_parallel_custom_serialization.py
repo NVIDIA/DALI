@@ -259,6 +259,27 @@ def _create_and_compare_simple_pipelines(cb, py_callback_pickler, batch_size, py
         _run_and_compare_outputs(batch_size, parallel_pipeline, serial_pipeline)
 
 
+# It uses fork method to start so need to be run as the first test
+def test_no_pickling_in_forking_mode():
+    batch_size = 8
+    # modify callback name so that an attempt to pickle it in spawn mode would fail
+    _simple_callback.__name__ = _simple_callback.__qualname__ = "simple_callback"
+
+    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, py_num_workers=2,
+        py_start_method="fork")
+    def create_pipline(parallel):
+        outputs = fn.external_source(
+            source=_simple_callback,
+            batch=False, parallel=parallel)
+        return outputs
+    parallel_pipeline = create_pipline(parallel=True)
+    serial_pipeline = create_pipline(parallel=False)
+    parallel_pipeline.build()
+    serial_pipeline.build()
+    for _ in range(3):
+        _run_and_compare_outputs(batch_size, parallel_pipeline, serial_pipeline)
+
+
 # Run this one as sanity check that standard serialization is not broken by the change
 def test_standard_global_function_serialization():
     _create_and_compare_simple_pipelines(standard_global_callback, None, batch_size=4, py_num_workers=2)

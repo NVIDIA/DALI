@@ -188,7 +188,10 @@ starts thread keeping track of running processes and initializes communication.
                 "Alternatively you can change Python workers starting method from ``fork`` to ``spawn`` "
                 "(see DALI Pipeline's ``py_start_method`` option for details). ")
         mp = multiprocessing.get_context(start_method)
-        callback_pickler = pickling.CustomPickler.create(py_callback_pickler)
+        if start_method != "spawn":
+            callback_pickler = None
+        else:
+            callback_pickler = pickling.CustomPickler.create(py_callback_pickler)
         if num_workers < 1:
             raise RuntimeError("num_workers must be a positive integer")
         self._num_workers = num_workers
