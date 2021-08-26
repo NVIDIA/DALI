@@ -40,7 +40,6 @@ template <>
 void Cast<GPUBackend>::PrepareBlocks(const DeviceWorkspace &ws) {
   const auto &input = ws.InputRef<GPUBackend>(0);
   const auto &input_shape = input.shape();
-  // std::pair<int, int> collapsed_dims = {0, }
   std::array<std::pair<int, int>, 1> collapse_groups = {{{0, input_shape.sample_dim()}}};
   auto collapsed_shape = collapse_dims<1>(input.shape(), collapse_groups);
 
