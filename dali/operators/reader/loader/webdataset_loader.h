@@ -27,12 +27,14 @@ class WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUBackend>>> {
   void Reset(bool wrap_to_shard) override;
 
  private:
+  // inputs
   std::vector<std::string> uris_;
   std::vector<std::string> configs_;
   std::vector<std::string> ext_;
   bool fail_on_missing_component_;
   DALIDataType dtype_;
 
+  // sample position management
   size_t total_size_;                      // total size of all input archives
   vector<detail::TarArchive> wds_shards_;  // archives for all wds shards
   size_t first_wds_shard_index_;           // the index of the first wds shard to use
