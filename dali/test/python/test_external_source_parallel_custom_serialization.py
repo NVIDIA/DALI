@@ -76,11 +76,11 @@ class NoDumpsParam(ValueError):
 def dumps(obj, **kwargs):
     if kwargs.get('special_dumps_param') != 42:
         raise NoDumpsParam("Expected special_dumps_param among kwargs, got {}".format(kwargs))
-    return dali_pickle.dumps(obj)
+    return dali_pickle._DaliPickle.dumps(obj)
 
 
 def loads(data, **kwargs):
-    callbacks = dali_pickle.loads(data)
+    callbacks = dali_pickle._DaliPickle.loads(data)
     if kwargs.get('special_loads_param') == 84:
         return [cb if cb.__name__ != 'callback_const_84' else callback_const_42 for cb in callbacks]
     return callbacks
@@ -171,14 +171,16 @@ def create_callback_with_list_comprehension_referencing_global_var():
     return get_data
 
 
-def create_simple_pipeline(callback, py_callback_pickler, batch_size, parallel=True, py_num_workers=None):
+def create_simple_pipeline(callback, py_callback_pickler, batch_size, parallel=True, py_num_workers=None, py_start_method="spawn"):
 
     extra = {}
-    if py_callback_pickler is not None:
-        extra['py_callback_pickler'] = py_callback_pickler
+    if parallel:
+        extra["py_num_workers"] = py_num_workers
+        extra["py_start_method"] = py_start_method
+        if py_callback_pickler is not None:
+            extra['py_callback_pickler'] = py_callback_pickler
 
-    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, py_num_workers=py_num_workers,
-        py_start_method="spawn", **extra)
+    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, **extra)
     def create_pipline():
         outputs = fn.external_source(
             source=callback,
@@ -188,14 +190,16 @@ def create_simple_pipeline(callback, py_callback_pickler, batch_size, parallel=T
     return create_pipline()
 
 
-def create_stacking_pipeline(callback, py_callback_pickler, batch_size, parallel=True, py_num_workers=None):
+def create_stacking_pipeline(callback, py_callback_pickler, batch_size, parallel=True, py_num_workers=None, py_start_method="spawn"):
 
     extra = {}
-    if py_callback_pickler is not None:
-        extra['py_callback_pickler'] = py_callback_pickler
+    if parallel:
+        extra["py_num_workers"] = py_num_workers
+        extra["py_start_method"] = py_start_method
+        if py_callback_pickler is not None:
+            extra['py_callback_pickler'] = py_callback_pickler
 
-    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, py_num_workers=py_num_workers,
-        py_start_method="spawn", **extra)
+    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, **extra)
     def create_pipline():
         jpegs = fn.external_source(source=callback, num_outputs=sequence_lenght * 2, parallel=parallel, batch=False)
         images = fn.decoders.image(jpegs, device="cpu")
@@ -206,14 +210,16 @@ def create_stacking_pipeline(callback, py_callback_pickler, batch_size, parallel
     return create_pipline()
 
 
-def create_decoding_pipeline(callback, py_callback_pickler, batch_size, parallel=True, py_num_workers=None):
+def create_decoding_pipeline(callback, py_callback_pickler, batch_size, parallel=True, py_num_workers=None, py_start_method="spawn"):
 
     extra = {}
-    if py_callback_pickler is not None:
-        extra['py_callback_pickler'] = py_callback_pickler
+    if parallel:
+        extra["py_num_workers"] = py_num_workers
+        extra["py_start_method"] = py_start_method
+        if py_callback_pickler is not None:
+            extra['py_callback_pickler'] = py_callback_pickler
 
-    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, py_num_workers=py_num_workers,
-        py_start_method="spawn", **extra)
+    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, **extra)
     def create_pipline():
         jpegs, labels = fn.external_source(
             source=callback, num_outputs=2,
@@ -248,9 +254,10 @@ def _build_and_compare_pipelines_epochs(epochs_num, batch_size, parallel_pipelin
             serial_pipeline.reset()
 
 
-def _create_and_compare_simple_pipelines(cb, py_callback_pickler, batch_size, py_num_workers=2):
+def _create_and_compare_simple_pipelines(cb, py_callback_pickler, batch_size, py_num_workers=2, py_start_method="spawn"):
     parallel_pipeline = create_simple_pipeline(
-        cb, py_callback_pickler, batch_size=batch_size, py_num_workers=py_num_workers, parallel=True)
+        cb, py_callback_pickler, batch_size=batch_size, py_num_workers=py_num_workers,
+        py_start_method=py_start_method, parallel=True)
     serial_pipeline = create_simple_pipeline(
         cb, None, batch_size=batch_size, parallel=False)
     parallel_pipeline.build()
@@ -261,23 +268,9 @@ def _create_and_compare_simple_pipelines(cb, py_callback_pickler, batch_size, py
 
 # It uses fork method to start so need to be run as the first test
 def test_no_pickling_in_forking_mode():
-    batch_size = 8
     # modify callback name so that an attempt to pickle it in spawn mode would fail
     _simple_callback.__name__ = _simple_callback.__qualname__ = "simple_callback"
-
-    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, py_num_workers=2,
-        py_start_method="fork")
-    def create_pipline(parallel):
-        outputs = fn.external_source(
-            source=_simple_callback,
-            batch=False, parallel=parallel)
-        return outputs
-    parallel_pipeline = create_pipline(parallel=True)
-    serial_pipeline = create_pipline(parallel=False)
-    parallel_pipeline.build()
-    serial_pipeline.build()
-    for _ in range(3):
-        _run_and_compare_outputs(batch_size, parallel_pipeline, serial_pipeline)
+    _create_and_compare_simple_pipelines(_simple_callback, None, batch_size=8, py_num_workers=2, py_start_method="fork")
 
 
 # Run this one as sanity check that standard serialization is not broken by the change

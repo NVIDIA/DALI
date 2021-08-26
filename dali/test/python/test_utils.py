@@ -549,7 +549,7 @@ def _test_skipped(reason=None):
     print("Test skipped." if reason is None else f"Test skipped: {reason}")
 
 
-def restrict_python_version(major, minor=None, reason=None):
+def restrict_python_version(major, minor=None):
 
     def decorator(test_case):
         version_info = sys.version_info

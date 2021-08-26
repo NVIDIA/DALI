@@ -191,7 +191,7 @@ starts thread keeping track of running processes and initializes communication.
         if start_method != "spawn":
             callback_pickler = None
         else:
-            callback_pickler = pickling.CustomPickler.create(py_callback_pickler)
+            callback_pickler = pickling._CustomPickler.create(py_callback_pickler)
         if num_workers < 1:
             raise RuntimeError("num_workers must be a positive integer")
         self._num_workers = num_workers
