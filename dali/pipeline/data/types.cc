@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ const auto &_type_info_##Id = TypeTable::GetTypeID<Type>()
 
 #include "dali/pipeline/data/backend.h"
 #include "dali/core/per_stream_pool.h"
+#include "dali/kernels/common/scatter_gather.h"
 
 namespace dali {
 
