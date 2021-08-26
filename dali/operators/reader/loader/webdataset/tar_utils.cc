@@ -120,6 +120,7 @@ TarArchive& TarArchive::operator=(TarArchive&& other) {
     std::swap(filesize_, other.filesize_);
     std::swap(filetype_, other.filetype_);
     std::swap(readoffset_, other.readoffset_);
+    std::swap(last_header_, other.last_header_);
     std::swap(eof_, other.eof_);
     std::swap(instance_handle_, other.instance_handle_);
     if (instance_handle_ >= 0) {
@@ -147,7 +148,7 @@ bool TarArchive::NextFile() {
     return false;
   }
   stream_->Seek(stream_->Tell() + RoundToBlockSize(filesize_) - readoffset_);
-
+  last_header_ = stream_->Tell();
   ParseHeader();
   return !eof_;
 }
@@ -164,7 +165,12 @@ void TarArchive::Seek(int64_t offset) {
     return;
   }
   stream_->Seek(offset);
+  last_header_ = stream_->Tell();
   ParseHeader();
+}
+
+int64_t TarArchive::Tell() const {
+  return last_header_;
 }
 
 const std::string& TarArchive::GetFileName() const {
@@ -208,6 +214,7 @@ inline void TarArchive::SetEof() {
   filename_ = "";
   filesize_ = 0;
   filetype_ = ENTRY_NONE;
+  last_header_ = stream_ ? stream_->Size() : 0;
 }
 
 inline void TarArchive::ParseHeader() {
@@ -245,13 +252,13 @@ inline void TarArchive::ParseHeader() {
 }
 
 void TarArchive::Invalidate() {
-  stream_.reset();
   if (handle_ != nullptr) {
     tar_close(ToTarHandle(handle_));
     handle_ = nullptr;
   }
   readoffset_ = 0;
   SetEof();
+  stream_.reset();
   if (instance_handle_ >= 0) {
     Unregister(instance_handle_);
   }
