@@ -109,7 +109,7 @@ TarArchive::TarArchive(TarArchive&& other) {
 }
 
 TarArchive::~TarArchive() {
-  Invalidate();
+  Close();
 }
 
 TarArchive& TarArchive::operator=(TarArchive&& other) {
@@ -120,13 +120,14 @@ TarArchive& TarArchive::operator=(TarArchive&& other) {
     std::swap(filesize_, other.filesize_);
     std::swap(filetype_, other.filetype_);
     std::swap(readoffset_, other.readoffset_);
+    std::swap(current_header_, other.current_header_);
     std::swap(eof_, other.eof_);
     std::swap(instance_handle_, other.instance_handle_);
     if (instance_handle_ >= 0) {
       std::lock_guard<std::mutex> instances_lock(instances_mutex);
       instances[instance_handle_] = this;
     }
-    other.Invalidate();
+    other.Close();
   }
   return *this;
 }
@@ -146,8 +147,9 @@ bool TarArchive::NextFile() {
     SetEof();
     return false;
   }
-  stream_->Seek(stream_->Tell() + RoundToBlockSize(filesize_) - readoffset_);
 
+  stream_->Seek(stream_->Tell() + RoundToBlockSize(filesize_) - readoffset_);
+  current_header_ = stream_->Tell();
   ParseHeader();
   return !eof_;
 }
@@ -156,7 +158,7 @@ bool TarArchive::EndOfArchive() const {
   return eof_;
 }
 
-void TarArchive::Seek(int64_t offset) {
+void TarArchive::SeekArchive(int64_t offset) {
   assert(offset % T_BLOCKSIZE == 0);
   readoffset_ = 0;
   if (static_cast<size_t>(offset) >= stream_->Size()) {
@@ -164,7 +166,12 @@ void TarArchive::Seek(int64_t offset) {
     return;
   }
   stream_->Seek(offset);
+  current_header_ = stream_->Tell();
   ParseHeader();
+}
+
+int64_t TarArchive::TellArchive() const {
+  return current_header_;
 }
 
 const std::string& TarArchive::GetFileName() const {
@@ -208,6 +215,7 @@ inline void TarArchive::SetEof() {
   filename_ = "";
   filesize_ = 0;
   filetype_ = ENTRY_NONE;
+  current_header_ = stream_ ? stream_->Size() : 0;
 }
 
 inline void TarArchive::ParseHeader() {
@@ -244,14 +252,14 @@ inline void TarArchive::ParseHeader() {
   readoffset_ = 0;
 }
 
-void TarArchive::Invalidate() {
-  stream_.reset();
+void TarArchive::Close() {
   if (handle_ != nullptr) {
     tar_close(ToTarHandle(handle_));
     handle_ = nullptr;
   }
   readoffset_ = 0;
   SetEof();
+  stream_.reset();
   if (instance_handle_ >= 0) {
     Unregister(instance_handle_);
   }

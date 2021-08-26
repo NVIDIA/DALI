@@ -24,6 +24,7 @@
 #include <vector>
 #include "dali/operators/reader/loader/filesystem.h"
 #include "dali/util/file.h"
+#include "dali/core/util.h"
 
 namespace dali {
 namespace detail {
@@ -53,7 +54,7 @@ TEST(LibTarUtilsTestSimple, Interface) {
   ASSERT_FALSE(archive.EndOfFile());
 
   vector<uint8_t> buffer(filesize);
-  archive.Read(buffer.data(), 10);
+  archive.Read(buffer.data(), 10_u8);
   ASSERT_FALSE(archive.EndOfFile());
   ASSERT_EQ(archive.GetFileSize(), filesize);
 
@@ -90,9 +91,8 @@ TEST(LibTarUtilsTestSimple, Types) {
   for (size_t i = 0; i < types.size(); i++) {
     ASSERT_EQ(archive.GetFileType(), types[i]);
     ASSERT_EQ(archive.GetFileName(), to_string(i) + (types[i] == TarArchive::ENTRY_DIR ? "/" : ""));
-    if (types[i] != TarArchive::ENTRY_FILE) {
-      ASSERT_EQ(archive.GetFileSize(), 0);
-    }
+    ASSERT_EQ(archive.GetFileSize(), 0_uz);
+    ASSERT_EQ(archive.TellArchive(), i * T_BLOCKSIZE);
     archive.NextFile();
   }
   ASSERT_TRUE(archive.EndOfArchive());
@@ -103,7 +103,8 @@ TEST(LibTarUtilsTestSimple, Offset) {
                                                    "db/webdataset/sample-tar/types.tar"));
 
   TarArchive archive(FileStream::Open(filepath, false, true));
-  archive.Seek(7 * T_BLOCKSIZE);
+  archive.SeekArchive(7 * T_BLOCKSIZE);
+  ASSERT_EQ(archive.TellArchive(), 7 * T_BLOCKSIZE);
   for (int i = 7; i < 14; i++) {
     ASSERT_EQ(archive.GetFileName(),
               to_string(i) + (archive.GetFileType() == TarArchive::ENTRY_DIR ? "/" : ""));
@@ -114,13 +115,16 @@ TEST(LibTarUtilsTestSimple, Offset) {
 
 void TestArchiveEntries(TarArchive& archive, const std::vector<std::string>& prefixes, int beg,
                         int end, bool preread) {
+  size_t total_size = 0;
   for (int idx = beg; idx < end; idx++) {
-    for (size_t prefix_idx = 0_uz; prefix_idx < prefixes.size(); prefix_idx++) {
+    for (size_t prefix_idx = 0; prefix_idx < prefixes.size(); prefix_idx++) {
       if (preread) {
         archive.ReadFile();
       }
       ASSERT_EQ(archive.GetFileName(), to_string(idx) + prefixes[prefix_idx]);
       ASSERT_EQ(archive.GetFileType(), TarArchive::ENTRY_FILE);
+      ASSERT_EQ(archive.TellArchive(), total_size);
+      total_size += align_up(archive.GetFileSize(), T_BLOCKSIZE) + T_BLOCKSIZE;
       ASSERT_TRUE(archive.NextFile() ^ (idx == end - 1 && prefix_idx == prefixes.size() - 1));
     }
   }
@@ -128,7 +132,7 @@ void TestArchiveEntries(TarArchive& archive, const std::vector<std::string>& pre
   ASSERT_FALSE(archive.NextFile());
   ASSERT_EQ(archive.GetFileName(), "");
   ASSERT_EQ(archive.GetFileType(), TarArchive::ENTRY_NONE);
-  ASSERT_EQ(archive.GetFileSize(), 0);
+  ASSERT_EQ(archive.GetFileSize(), 0_uz);
 }
 
 struct SimpleTarTestsData {
