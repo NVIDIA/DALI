@@ -120,7 +120,7 @@ class DLL_PUBLIC TarArchive {
   void SetEof();
 
   void ParseHeader();
-  void Invalidate();  // resets objects to default values
+  void Close();  // resets objects to default values
 };
 
 }  // namespace detail

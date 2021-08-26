@@ -54,7 +54,7 @@ TEST(LibTarUtilsTestSimple, Interface) {
   ASSERT_FALSE(archive.EndOfFile());
 
   vector<uint8_t> buffer(filesize);
-  archive.Read(buffer.data(), 10);
+  archive.Read(buffer.data(), 10_u8);
   ASSERT_FALSE(archive.EndOfFile());
   ASSERT_EQ(archive.GetFileSize(), filesize);
 
@@ -91,7 +91,7 @@ TEST(LibTarUtilsTestSimple, Types) {
   for (size_t i = 0; i < types.size(); i++) {
     ASSERT_EQ(archive.GetFileType(), types[i]);
     ASSERT_EQ(archive.GetFileName(), to_string(i) + (types[i] == TarArchive::ENTRY_DIR ? "/" : ""));
-    ASSERT_EQ(archive.GetFileSize(), 0);
+    ASSERT_EQ(archive.GetFileSize(), 0_uz);
     ASSERT_EQ(archive.TellArchive(), i * T_BLOCKSIZE);
     archive.NextFile();
   }
@@ -132,7 +132,7 @@ void TestArchiveEntries(TarArchive& archive, const std::vector<std::string>& pre
   ASSERT_FALSE(archive.NextFile());
   ASSERT_EQ(archive.GetFileName(), "");
   ASSERT_EQ(archive.GetFileType(), TarArchive::ENTRY_NONE);
-  ASSERT_EQ(archive.GetFileSize(), 0);
+  ASSERT_EQ(archive.GetFileSize(), 0_uz);
 }
 
 struct SimpleTarTestsData {
