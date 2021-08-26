@@ -16,9 +16,10 @@
 #ifndef DALI_CORE_MM_DETAIL_DEFERRED_DEALLOC_H_
 #define DALI_CORE_MM_DETAIL_DEFERRED_DEALLOC_H_
 
+#include <condition_variable>
 #include <cstddef>
-#include <thread>
 #include <mutex>
+#include <thread>
 #include "dali/core/mm/detail/util.h"
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/small_vector.h"
