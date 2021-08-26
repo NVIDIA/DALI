@@ -115,9 +115,9 @@ TEST(LibTarUtilsTestSimple, Offset) {
 
 void TestArchiveEntries(TarArchive& archive, const std::vector<std::string>& prefixes, int beg,
                         int end, bool preread) {
-  size_t total_size = 0_uz;
+  size_t total_size = 0;
   for (int idx = beg; idx < end; idx++) {
-    for (size_t prefix_idx = 0_uz; prefix_idx < prefixes.size(); prefix_idx++) {
+    for (size_t prefix_idx = 0; prefix_idx < prefixes.size(); prefix_idx++) {
       if (preread) {
         archive.ReadFile();
       }
