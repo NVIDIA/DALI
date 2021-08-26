@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,8 +81,11 @@ inline int64_t ReducedVolume(const TensorListShape<> &shape, span<const int> axe
 
 template <typename T>
 void UniformFill(TensorList<CPUBackend> &tl, const T &value) {
-  T *data = tl.mutable_data<T>();
-  std::fill(data, data + tl.size(), value);
+  const auto &shape = tl.shape();
+  for (int i = 0; i < shape.num_samples(); i++) {
+    T *data = tl.mutable_tensor<T>(i);
+    std::fill(data, data + shape.tensor_size(i), value);
+  }
 }
 
 /**
