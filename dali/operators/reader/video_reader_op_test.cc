@@ -146,6 +146,9 @@ TEST_F(VideoReaderTest, CpuConstantFrameRate) {
     .AddArg(
       "file_root",
       std::string{testing::dali_extra_path() + "/db/video/cfr_frames"})
+    .AddArg(
+      "file_list",
+      std::string{testing::dali_extra_path() + "/db/video/cfr_frames/file_list.txt"})
     .AddOutput("encoded", "cpu")
     .AddOutput("labels", "cpu"));
   pipe.AddOperator(OpSpec("ImageDecoder")
@@ -153,7 +156,7 @@ TEST_F(VideoReaderTest, CpuConstantFrameRate) {
     .AddInput("encoded", "cpu")
     .AddOutput("decoded", "cpu"));
 
-  pipe.Build({{"frames", "gpu"}, {"decoded", "cpu"}});
+  pipe.Build({{"frames", "cpu"}, {"decoded", "cpu"}});
 
   for (int i = 0; i < 180; ++i) {
     DeviceWorkspace ws;
@@ -161,7 +164,7 @@ TEST_F(VideoReaderTest, CpuConstantFrameRate) {
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
-    const auto &frame_video_output = ws.Output<dali::GPUBackend>(0);
+    const auto &frame_video_output = ws.Output<dali::CPUBackend>(0);
     const auto &frame_image_output = ws.Output<dali::CPUBackend>(1);
 
     vector<uint8_t> frame_video(720 * 1280 * 3);

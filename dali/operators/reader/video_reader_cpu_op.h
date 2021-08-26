@@ -15,42 +15,26 @@
 #ifndef DALI_OPERATORS_READER_VIDEO_READER_CPU_OP_H_
 #define DALI_OPERATORS_READER_VIDEO_READER_CPU_OP_H_
 
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/avutil.h>
+}
+
 #include <string>
 #include <vector>
 #include <algorithm>
 
-#include "dali/operators/reader/loader/video_loader.h"
+#include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/reader_op.h"
 
 namespace dali {
-
-class VideoLoaderCPU : public Loader<CPUBackend, SequenceWrapper> {
-public:
-  explicit inline VideoLoaderCPU(const OpSpec &spec) : 
-    Loader<CPUBackend, SequenceWrapper>(spec) {
-  }
-
-  void ReadSample(SequenceWrapper &tensor) override {
-  }
-
-protected:
-  Index SizeImpl() override {
-    return 0;
-  }
-
-private:
-  void Reset(bool wrap_to_shard) override {
-  } 
-
-};
-
-
-class VideoReaderCPU : public DataReader<CPUBackend, SequenceWrapper> {
+class VideoReaderCPU : public DataReader<CPUBackend, Tensor<CPUBackend>> {
  public:
-  explicit VideoReaderCPU(const OpSpec &spec)
-      : DataReader<CPUBackend, SequenceWrapper>(spec) {
-        loader_ = InitLoader<VideoLoaderCPU>(spec);
-      }
+  explicit VideoReaderCPU(const OpSpec &spec);
+
+ protected:
+  void RunImpl(SampleWorkspace &ws) override;
 };
 
 }  // namespace dali
