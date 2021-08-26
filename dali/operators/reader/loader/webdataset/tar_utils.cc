@@ -147,6 +147,7 @@ bool TarArchive::NextFile() {
     SetEof();
     return false;
   }
+  
   stream_->Seek(stream_->Tell() + RoundToBlockSize(filesize_) - readoffset_);
   last_header_ = stream_->Tell();
   ParseHeader();
