@@ -34,11 +34,11 @@
 namespace dali {
 namespace mm {
 
-template <memory_kind kind,
-    typename GlobalPool = deferred_dealloc_pool<kind, any_context, coalescing_free_tree, spinlock>,
+template <typename Kind,
+    typename GlobalPool = deferred_dealloc_pool<Kind, any_context, coalescing_free_tree, spinlock>,
     typename LockType = std::mutex,
-    typename Upstream = memory_resource<kind>>
-class async_pool_resource : public async_memory_resource<kind> {
+    typename Upstream = memory_resource<Kind>>
+class async_pool_resource : public async_memory_resource<Kind> {
  public:
   /**
    * @param upstream       Upstream resource, used by the global pool
@@ -116,7 +116,7 @@ class async_pool_resource : public async_memory_resource<kind> {
     // If not deferred, we need to synchronize here (outside of the lock, to avoid blocking
     // concurrent allocations).
     if (!deferred) {
-      sync_scope sync = default_sync_scope<kind>();
+      sync_scope sync = default_sync_scope<Kind>();
       mm::detail::synchronize(sync);
     }
     std::lock_guard<LockType> guard(lock_);
@@ -558,7 +558,7 @@ class async_pool_resource : public async_memory_resource<kind> {
   static constexpr bool supports_splitting = detail::can_merge<GlobalPool>::value;
 
   static constexpr pool_options global_pool_options() {
-    return default_pool_opts<kind>();
+    return default_pool_opts<Kind>();
   }
 
   GlobalPool global_pool_;

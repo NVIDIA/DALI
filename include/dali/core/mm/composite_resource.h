@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,11 +26,11 @@ namespace mm {
 
 namespace detail {
 
-template <memory_kind kind, typename Context>
-memory_resource<kind, Context> &GetResourceInterface(const memory_resource<kind, Context> &);
+template <typename Kind, typename Context>
+memory_resource<Kind, Context> &GetResourceInterface(const memory_resource<Kind, Context> &);
 
-template <memory_kind kind>
-async_memory_resource<kind> &GetResourceInterface(const async_memory_resource<kind> &);
+template <typename Kind>
+async_memory_resource<Kind> &GetResourceInterface(const async_memory_resource<Kind> &);
 
 template <typename Resource>
 using resource_interface_t = std::remove_reference_t<
@@ -40,6 +40,7 @@ using resource_interface_t = std::remove_reference_t<
 template <typename Interface, typename Resource, typename...Extra>
 class CompositeResourceBase : public Interface {
  public:
+  using memory_kind = typename Resource::memory_kind;
   CompositeResourceBase() = default;
 
   template <typename... ExtraArgs>
@@ -55,7 +56,7 @@ class CompositeResourceBase : public Interface {
   std::shared_ptr<Resource> resource;
 
  private:
-  bool do_is_equal(const memory_resource<Resource::kind> &other) const noexcept override {
+  bool do_is_equal(const memory_resource<memory_kind> &other) const noexcept override {
     if (auto *other_composite = dynamic_cast<const CompositeResourceBase *>(&other)) {
       if ((resource != nullptr) != (other_composite->resource != nullptr))
         return false;  // one is null, the other is not
@@ -77,19 +78,19 @@ class CompositeResourceBase : public Interface {
 template <typename Interface, typename Resource, typename... Extra>
 class CompositeResourceImpl;
 
-template <memory_kind kind, typename Context, typename Resource, typename... Extra>
-class CompositeResourceImpl<memory_resource<kind, Context>, Resource, Extra...>
-: public CompositeResourceBase<memory_resource<kind, Context>, Resource, Extra...> {
+template <typename Kind, typename Context, typename Resource, typename... Extra>
+class CompositeResourceImpl<memory_resource<Kind, Context>, Resource, Extra...>
+: public CompositeResourceBase<memory_resource<Kind, Context>, Resource, Extra...> {
  public:
-  using Base = CompositeResourceBase<memory_resource<kind, Context>, Resource, Extra...>;
+  using Base = CompositeResourceBase<memory_resource<Kind, Context>, Resource, Extra...>;
   using Base::Base;
 };
 
-template <memory_kind kind, typename Resource, typename... Extra>
-class CompositeResourceImpl<async_memory_resource<kind>, Resource, Extra...>
-: public CompositeResourceBase<async_memory_resource<kind>, Resource, Extra...> {
+template <typename Kind, typename Resource, typename... Extra>
+class CompositeResourceImpl<async_memory_resource<Kind>, Resource, Extra...>
+: public CompositeResourceBase<async_memory_resource<Kind>, Resource, Extra...> {
  public:
-  using Base = CompositeResourceBase<async_memory_resource<kind>, Resource, Extra...>;
+  using Base = CompositeResourceBase<async_memory_resource<Kind>, Resource, Extra...>;
   using Base::Base;
 
  private:

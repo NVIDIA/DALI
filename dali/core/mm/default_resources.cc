@@ -235,8 +235,8 @@ inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
   }
 }
 
-template <memory_kind kind>
-const std::shared_ptr<default_memory_resource_t<kind>> &ShareDefaultResourceImpl();
+template <typename Kind>
+const std::shared_ptr<default_memory_resource_t<Kind>> &ShareDefaultResourceImpl();
 
 template <>
 const std::shared_ptr<host_memory_resource> &ShareDefaultResourceImpl<memory_kind::host>() {
@@ -365,19 +365,19 @@ void SetDefaultResource<memory_kind::device>(device_async_resource *resource, bo
   SetDefaultResource<memory_kind::device>(wrap(resource, own));
 }
 
-template <memory_kind kind> DLL_PUBLIC
-std::shared_ptr<default_memory_resource_t<kind>> ShareDefaultResource() {
-  return ShareDefaultResourceImpl<kind>();
+template <typename Kind> DLL_PUBLIC
+std::shared_ptr<default_memory_resource_t<Kind>> ShareDefaultResource() {
+  return ShareDefaultResourceImpl<Kind>();
 }
 
-template <memory_kind kind> DLL_PUBLIC
-default_memory_resource_t<kind> *GetDefaultResource() {
-  return ShareDefaultResourceImpl<kind>().get();
+template <typename Kind> DLL_PUBLIC
+default_memory_resource_t<Kind> *GetDefaultResource() {
+  return ShareDefaultResourceImpl<Kind>().get();
 }
 
-#define INSTANTIATE_DEFAULT_RESOURCE_GETTERS(kind) \
-template DLL_PUBLIC std::shared_ptr<default_memory_resource_t<kind>> ShareDefaultResource<kind>(); \
-template DLL_PUBLIC default_memory_resource_t<kind> *GetDefaultResource<kind>();
+#define INSTANTIATE_DEFAULT_RESOURCE_GETTERS(Kind) \
+template DLL_PUBLIC std::shared_ptr<default_memory_resource_t<Kind>> ShareDefaultResource<Kind>(); \
+template DLL_PUBLIC default_memory_resource_t<Kind> *GetDefaultResource<Kind>();
 
 INSTANTIATE_DEFAULT_RESOURCE_GETTERS(memory_kind::host);
 INSTANTIATE_DEFAULT_RESOURCE_GETTERS(memory_kind::pinned);

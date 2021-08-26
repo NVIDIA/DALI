@@ -87,23 +87,35 @@ constexpr pool_options default_device_pool_opts() noexcept {
   return { (1_uz << 32), (1 << 20), 2.0f, true, true };
 }
 
-template <memory_kind kind>
+template <typename Kind>
 constexpr sync_scope default_sync_scope() {
-  return kind == memory_kind::device ? sync_scope::device
-                                     : kind == memory_kind::host ? sync_scope::none
-                                                                 : sync_scope::system;
+  return sync_scope::system;  // pinned, managed
 }
 
-template <memory_kind kind>
+template <>
+constexpr sync_scope default_sync_scope<memory_kind::host>() {
+  return sync_scope::none;
+}
+
+template <>
+constexpr sync_scope default_sync_scope<memory_kind::device>() {
+  return sync_scope::device;
+}
+
+template <typename Kind>
 constexpr pool_options default_pool_opts() noexcept {
-  if (kind == memory_kind::host) {
-    return default_host_pool_opts();
-  } else {
-    auto opt = default_device_pool_opts();
-    opt.sync = default_sync_scope<kind>();
-    opt.enable_deferred_deallocation = true;
-    return opt;
-  }
+  auto opt = default_device_pool_opts();
+  opt.sync = default_sync_scope<Kind>();
+  opt.enable_deferred_deallocation = true;
+  return opt;
+}
+
+template <>
+constexpr pool_options default_pool_opts<memory_kind::host>() noexcept {
+  auto opt = default_device_pool_opts();
+  opt.sync = default_sync_scope<memory_kind::host>();
+  opt.enable_deferred_deallocation = true;
+  return opt;
 }
 
 namespace detail {
@@ -137,11 +149,11 @@ inline void synchronize(sync_scope scope) {
 
 }  // namespace detail
 
-template <memory_kind kind, typename Context, class FreeList, class LockType>
-class pool_resource_base : public memory_resource<kind, Context> {
+template <typename Kind, typename Context, class FreeList, class LockType>
+class pool_resource_base : public memory_resource<Kind, Context> {
  public:
-  explicit pool_resource_base(memory_resource<kind, Context> *upstream = nullptr,
-                              const pool_options &opt = default_pool_opts<kind>())
+  explicit pool_resource_base(memory_resource<Kind, Context> *upstream = nullptr,
+                              const pool_options &opt = default_pool_opts<Kind>())
   : upstream_(upstream), options_(opt) {
      next_block_size_ = opt.min_block_size;
   }
@@ -393,7 +405,7 @@ class pool_resource_base : public memory_resource<kind, Context> {
     return actual_block_size;
   }
 
-  memory_resource<kind, Context> *upstream_;
+  memory_resource<Kind, Context> *upstream_;
   FreeList free_list_;
 
   // locking order: upstream_lock_, lock_
@@ -414,21 +426,21 @@ class pool_resource_base : public memory_resource<kind, Context> {
   using upstream_lock_guard = std::lock_guard<std::mutex>;
 };
 
-template <memory_kind kind, typename Context, class FreeList, class LockType>
+template <typename Kind, typename Context, class FreeList, class LockType>
 class deferred_dealloc_pool
-: public deferred_dealloc_resource<pool_resource_base<kind, Context, FreeList, LockType>> {
+: public deferred_dealloc_resource<pool_resource_base<Kind, Context, FreeList, LockType>> {
  public:
-  using base = deferred_dealloc_resource<pool_resource_base<kind, Context, FreeList, LockType>>;
+  using base = deferred_dealloc_resource<pool_resource_base<Kind, Context, FreeList, LockType>>;
   using base::base;
 };
 
 namespace detail {
 
-template <memory_kind kind, typename Context, class FreeList, class LockType>
-struct can_merge<pool_resource_base<kind, Context, FreeList, LockType>> : can_merge<FreeList> {};
+template <typename Kind, typename Context, class FreeList, class LockType>
+struct can_merge<pool_resource_base<Kind, Context, FreeList, LockType>> : can_merge<FreeList> {};
 
-template <memory_kind kind, typename Context, class FreeList, class LockType>
-struct can_merge<deferred_dealloc_pool<kind, Context, FreeList, LockType>> : can_merge<FreeList> {};
+template <typename Kind, typename Context, class FreeList, class LockType>
+struct can_merge<deferred_dealloc_pool<Kind, Context, FreeList, LockType>> : can_merge<FreeList> {};
 
 }  // namespace detail
 

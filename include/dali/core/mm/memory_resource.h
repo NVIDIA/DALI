@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,16 +39,17 @@ namespace dali {
  */
 namespace mm {
 
+namespace memory_kind = rmm::mr::memory_kind;
+
 using rmm::mr::memory_resource;
 using rmm::mr::host_memory_resource;
-using rmm::mr::memory_kind;
 using pinned_memory_resource = memory_resource<memory_kind::pinned>;
 using pinned_malloc_memory_resource = rmm::mr::pinned_memory_resource;
 using stream_view = rmm::cuda_stream_view;
 using rmm::mr::any_context;
 
-template <memory_kind kind>
-using async_memory_resource = rmm::mr::stream_ordered_memory_resource<kind>;
+template <typename Kind>
+using async_memory_resource = rmm::mr::stream_ordered_memory_resource<Kind>;
 
 using device_async_resource = async_memory_resource<memory_kind::device>;
 using pinned_async_resource = async_memory_resource<memory_kind::pinned>;
@@ -58,9 +59,11 @@ struct stream_context {
 };
 
 namespace detail {
-constexpr bool is_host_memory(memory_kind kind) {
-  return kind == memory_kind::host || kind == memory_kind::pinned;
-}
+
+template <typename Kind>
+constexpr bool is_host_memory = std::is_same<Kind, memory_kind::host>::value ||
+                                std::is_same<Kind, memory_kind::pinned>::value;
+
 }  // namespace detail
 
 }  // namespace mm

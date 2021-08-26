@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,14 +63,14 @@ struct AsyncDeleter {
 /**
  * @brief Obtains a type-erased deleter for given memory resource and allocation parameters.
  */
-template <memory_kind kind, typename Context>
-Deleter GetDeleter(memory_resource<kind, Context> *resource, size_t size, size_t alignment) {
+template <typename Kind, typename Context>
+Deleter GetDeleter(memory_resource<Kind, Context> *resource, size_t size, size_t alignment) {
   Deleter del;
   del.resource = static_cast<void *>(resource);
   del.size = size;
   del.alignment = alignment;
   del.free = [](void *res_vptr, void *mem, size_t sz, size_t align) {
-    static_cast<memory_resource<kind, Context>*>(res_vptr)->deallocate(mem, sz, align);
+    static_cast<memory_resource<Kind, Context>*>(res_vptr)->deallocate(mem, sz, align);
   };
   return del;
 }
@@ -79,8 +79,8 @@ Deleter GetDeleter(memory_resource<kind, Context> *resource, size_t size, size_t
  * @brief Obtains a type-erased asynchonous deleter for given memory resource,
  *        allocation parameters and stream.
  */
-template <memory_kind kind>
-AsyncDeleter GetDeleter(async_memory_resource<kind> *resource,
+template <typename Kind>
+AsyncDeleter GetDeleter(async_memory_resource<Kind> *resource,
                         size_t size, size_t alignment, cudaStream_t stream) {
   AsyncDeleter del;
   del.resource = static_cast<void *>(resource);
@@ -88,7 +88,7 @@ AsyncDeleter GetDeleter(async_memory_resource<kind> *resource,
   del.alignment = alignment;
   del.release_on_stream = stream;
   del.free = [](void *res_vptr, void *mem, size_t sz, size_t align, cudaStream_t s) {
-    auto *rsrc = static_cast<async_memory_resource<kind>*>(res_vptr);
+    auto *rsrc = static_cast<async_memory_resource<Kind>*>(res_vptr);
     if (s != host_sync) {
       rsrc->deallocate_async(mem, sz, align, s);
     } else {
@@ -129,8 +129,8 @@ void set_dealloc_stream(async_uptr<T> &ptr, cudaStream_t stream) {
  * @tparam kind     The kind of requested memory.
  * @tparam Context  The execution context in which the memory will be available.
  */
-template <memory_kind kind, typename Context>
-std::pair<void*, Deleter> alloc_raw(memory_resource<kind, Context> *mr,
+template <typename Kind, typename Context>
+std::pair<void*, Deleter> alloc_raw(memory_resource<Kind, Context> *mr,
                                     size_t bytes, size_t alignment = alignof(std::max_align_t)) {
   void *mem = mr->allocate(bytes, alignment);
   return { mem, GetDeleter(mr, bytes, alignment) };
@@ -148,9 +148,9 @@ std::pair<void*, Deleter> alloc_raw(memory_resource<kind, Context> *mr,
  * @param alignment Alignment of the requested memory
  * @tparam kind     The kind of requested memory.
  */
-template <memory_kind kind>
+template <typename Kind>
 auto alloc_raw(size_t bytes, size_t alignment = alignof(std::max_align_t)) {
-  return alloc_raw(GetDefaultResource<kind>(), bytes, alignment);
+  return alloc_raw(GetDefaultResource<Kind>(), bytes, alignment);
 }
 
 
@@ -170,8 +170,8 @@ auto alloc_raw(size_t bytes, size_t alignment = alignof(std::max_align_t)) {
  * @tparam kind     The kind of requested memory.
  * @tparam Context  The execution context in which the memory will be available.
  */
-template <typename T, memory_kind kind, typename Context>
-uptr<T> alloc_raw_unique(memory_resource<kind, Context> *mr, size_t count,
+template <typename T, typename Kind, typename Context>
+uptr<T> alloc_raw_unique(memory_resource<Kind, Context> *mr, size_t count,
                          size_t alignment = alignof(T)) {
   size_t bytes = sizeof(T) * count;
   auto mem_del = alloc_raw(mr, bytes, alignment);
@@ -192,9 +192,9 @@ uptr<T> alloc_raw_unique(memory_resource<kind, Context> *mr, size_t count,
  * @tparam T        Type of the object for which the storage is allocated.
  * @tparam kind     The kind of requested memory.
  */
-template <typename T, memory_kind kind>
+template <typename T, typename Kind>
 auto alloc_raw_unique(size_t count, size_t alignment = alignof(T)) {
-  return alloc_raw_unique<T>(GetDefaultResource<kind>(), count, alignment);
+  return alloc_raw_unique<T>(GetDefaultResource<Kind>(), count, alignment);
 }
 
 
@@ -215,8 +215,8 @@ auto alloc_raw_unique(size_t count, size_t alignment = alignof(T)) {
  * @tparam kind     The kind of requested memory.
  * @tparam Context  The execution context in which the memory will be available.
  */
-template <typename T, memory_kind kind, typename Context>
-std::shared_ptr<T> alloc_raw_shared(memory_resource<kind, Context> *mr, size_t count,
+template <typename T, typename Kind, typename Context>
+std::shared_ptr<T> alloc_raw_shared(memory_resource<Kind, Context> *mr, size_t count,
                                     size_t alignment = alignof(T)) {
   size_t bytes = sizeof(T) * count;
   auto mem_del = alloc_raw(mr, bytes, alignment);
@@ -236,9 +236,9 @@ std::shared_ptr<T> alloc_raw_shared(memory_resource<kind, Context> *mr, size_t c
  * @tparam T        Type of the object for which the storage is allocated.
  * @tparam kind     The kind of requested memory.
  */
-template <typename T, memory_kind kind>
+template <typename T, typename Kind>
 auto alloc_raw_shared(size_t count, size_t alignment = alignof(T)) {
-  return alloc_raw_shared<T>(GetDefaultResource<kind>(), count, alignment);
+  return alloc_raw_shared<T>(GetDefaultResource<Kind>(), count, alignment);
 }
 
 /**
@@ -265,8 +265,8 @@ auto alloc_raw_shared(size_t count, size_t alignment = alignof(T)) {
  * @param alignment       Alignment of the requested memory
  * @tparam kind           The kind of requested memory.
  */
-template <memory_kind kind>
-std::pair<void*, AsyncDeleter> alloc_raw_async(async_memory_resource<kind> *mr,
+template <typename Kind>
+std::pair<void*, AsyncDeleter> alloc_raw_async(async_memory_resource<Kind> *mr,
                                                size_t bytes,
                                                cudaStream_t alloc_stream,
                                                cudaStream_t dealloc_stream,
@@ -300,12 +300,12 @@ std::pair<void*, AsyncDeleter> alloc_raw_async(async_memory_resource<kind> *mr,
  * @param alignment       Alignment of the requested memory
  * @tparam kind           The kind of requested memory.
  */
-template <memory_kind kind>
+template <typename Kind>
 auto alloc_raw_async(size_t bytes,
                      cudaStream_t alloc_stream,
                      cudaStream_t dealloc_stream,
                      size_t alignment = alignof(std::max_align_t)) {
-  return alloc_raw_async<kind>(GetDefaultResource<kind>(), bytes, alignment,
+  return alloc_raw_async<Kind>(GetDefaultResource<Kind>(), bytes, alignment,
                                alloc_stream, dealloc_stream);
 }
 
@@ -337,8 +337,8 @@ auto alloc_raw_async(size_t bytes,
  * @tparam T              Type of the object for which the storage is allocated.
  * @tparam kind           The kind of requested memory.
  */
-template <typename T, memory_kind kind>
-async_uptr<T> alloc_raw_async_unique(async_memory_resource<kind> *mr,
+template <typename T, typename Kind>
+async_uptr<T> alloc_raw_async_unique(async_memory_resource<Kind> *mr,
                                      size_t count,
                                      cudaStream_t alloc_stream,
                                      cudaStream_t dealloc_stream,
@@ -375,12 +375,12 @@ async_uptr<T> alloc_raw_async_unique(async_memory_resource<kind> *mr,
  * @tparam T              Type of the object for which the storage is allocated.
  * @tparam kind           The kind of requested memory.
  */
-template <typename T, memory_kind kind>
+template <typename T, typename Kind>
 auto alloc_raw_async_unique(size_t count,
                             cudaStream_t alloc_stream,
                             cudaStream_t dealloc_stream,
                             size_t alignment = alignof(T)) {
-  return alloc_raw_async_unique<T>(GetDefaultResource<kind>(),
+  return alloc_raw_async_unique<T>(GetDefaultResource<Kind>(),
                                    count, alloc_stream, dealloc_stream, alignment);
 }
 
@@ -414,8 +414,8 @@ auto alloc_raw_async_unique(size_t count,
  * @tparam T              Type of the object for which the storage is allocated.
  * @tparam kind           The kind of requested memory.
  */
-template <typename T, memory_kind kind>
-std::shared_ptr<T> alloc_raw_async_shared(async_memory_resource<kind> *mr,
+template <typename T, typename Kind>
+std::shared_ptr<T> alloc_raw_async_shared(async_memory_resource<Kind> *mr,
                                           size_t count,
                                           cudaStream_t alloc_stream,
                                           cudaStream_t dealloc_stream,
@@ -452,12 +452,12 @@ std::shared_ptr<T> alloc_raw_async_shared(async_memory_resource<kind> *mr,
  * @tparam T              Type of the object for which the storage is allocated.
  * @tparam kind           The kind of requested memory.
  */
-template <typename T, memory_kind kind>
+template <typename T, typename Kind>
 auto alloc_raw_async_shared(size_t count,
                             cudaStream_t alloc_stream,
                             cudaStream_t dealloc_stream,
                             size_t alignment = alignof(T)) {
-  return alloc_raw_async_shared<T>(GetDefaultResource<kind>(),
+  return alloc_raw_async_shared<T>(GetDefaultResource<Kind>(),
                                    count, alloc_stream, dealloc_stream, alignment);
 }
 
