@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy>=1.17 librosa scipy nvidia-ml-py==11.450.51 psutil"
+pip_packages="nose numpy>=1.17 librosa scipy nvidia-ml-py==11.450.51 psutil dill cloudpickle"
 
 target_dir=./dali/test/python
 

@@ -543,3 +543,19 @@ def get_files(path, ext):
       if re.match(f".*\.{ext}", f) is not None
   ]
   return audio_files
+
+
+def _test_skipped(reason=None):
+    print("Test skipped." if reason is None else f"Test skipped: {reason}")
+
+
+def restrict_python_version(major, minor=None):
+
+    def decorator(test_case):
+        version_info = sys.version_info
+        if version_info.major > major or \
+                (version_info.major == major and (minor is None or version_info.minor >= minor)):
+            return test_case
+        return lambda: _test_skipped(f"Insufficient Python version {version_info.major}.{version_info.minor} - required {major}.{minor}")
+
+    return decorator
