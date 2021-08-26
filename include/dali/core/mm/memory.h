@@ -126,7 +126,7 @@ void set_dealloc_stream(async_uptr<T> &ptr, cudaStream_t stream) {
  * @param mr        Memory resources to allocate the memory from.
  * @param bytes     Size, in bytes, of the memory being allocated
  * @param alignment Alignment of the requested memory
- * @tparam kind     The kind of requested memory.
+ * @tparam Kind     The kind of requested memory.
  * @tparam Context  The execution context in which the memory will be available.
  */
 template <typename Kind, typename Context>
@@ -140,13 +140,13 @@ std::pair<void*, Deleter> alloc_raw(memory_resource<Kind, Context> *mr,
 /**
  * @brief Allocates uninitialized storage of size `bytes` with requested `alignment`.
  *
- * The memory is obtained from the default memory resource of given `kind`.
+ * The memory is obtained from the default memory resource of given `Kind`.
  * The return value is a pointer-deleter pair that can be used for building smart pointers.
  * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
  * @param bytes     Size, in bytes, of the memory being allocated
  * @param alignment Alignment of the requested memory
- * @tparam kind     The kind of requested memory.
+ * @tparam Kind     The kind of requested memory.
  */
 template <typename Kind>
 auto alloc_raw(size_t bytes, size_t alignment = alignof(std::max_align_t)) {
@@ -167,7 +167,7 @@ auto alloc_raw(size_t bytes, size_t alignment = alignof(std::max_align_t)) {
  * @param mr        Memory resources to allocate the memory from.
  * @param count     Number of objects for which the storage should suffice.
  * @tparam T        Type of the object for which the storage is allocated.
- * @tparam kind     The kind of requested memory.
+ * @tparam Kind     The kind of requested memory.
  * @tparam Context  The execution context in which the memory will be available.
  */
 template <typename T, typename Kind, typename Context>
@@ -181,7 +181,7 @@ uptr<T> alloc_raw_unique(memory_resource<Kind, Context> *mr, size_t count,
 /**
  * @brief Allocates uninitialized storage for `count` objects of type `T`
  *
- * The memory is obtained from the default memory resource of given `kind`.
+ * The memory is obtained from the default memory resource of given `Kind`.
  * The size of memory is at least sizeof(T) * count and the default alignment is alignof(T).
  * The return value is a unique pointer with a deleter that will safely dispose of the allocated
  * buffer, but does not call destructors of the objects.
@@ -190,7 +190,7 @@ uptr<T> alloc_raw_unique(memory_resource<Kind, Context> *mr, size_t count,
  * @param count     Number of objects for which the storage should suffice.
  * @param alignment Alignment, in bytes; defaults to the alignment required by `T`
  * @tparam T        Type of the object for which the storage is allocated.
- * @tparam kind     The kind of requested memory.
+ * @tparam Kind     The kind of requested memory.
  */
 template <typename T, typename Kind>
 auto alloc_raw_unique(size_t count, size_t alignment = alignof(T)) {
@@ -212,7 +212,7 @@ auto alloc_raw_unique(size_t count, size_t alignment = alignof(T)) {
  * @param count     Number of objects for which the storage should suffice.
  * @param alignment Alignment, in bytes; defaults to the alignment required by `T`
  * @tparam T        Type of the object for which the storage is allocated.
- * @tparam kind     The kind of requested memory.
+ * @tparam Kind     The kind of requested memory.
  * @tparam Context  The execution context in which the memory will be available.
  */
 template <typename T, typename Kind, typename Context>
@@ -226,7 +226,7 @@ std::shared_ptr<T> alloc_raw_shared(memory_resource<Kind, Context> *mr, size_t c
 /**
  * @brief Allocates uninitialized storage for `count` objects of type `T`
  *
- * The memory is obtained from the default memory resource of given `kind`.
+ * The memory is obtained from the default memory resource of given `Kind`.
  * The size of memory is at least sizeof(T) * count and the default alignment is alignof(T).
  * The return value is a shared pointer with a deleter that will safely dispose of the allocated
  * buffer, but does not call destructors of the objects.
@@ -234,7 +234,7 @@ std::shared_ptr<T> alloc_raw_shared(memory_resource<Kind, Context> *mr, size_t c
  *
  * @param count     Number of objects for which the storage should suffice.
  * @tparam T        Type of the object for which the storage is allocated.
- * @tparam kind     The kind of requested memory.
+ * @tparam Kind     The kind of requested memory.
  */
 template <typename T, typename Kind>
 auto alloc_raw_shared(size_t count, size_t alignment = alignof(T)) {
@@ -263,7 +263,7 @@ auto alloc_raw_shared(size_t count, size_t alignment = alignof(T)) {
  * @param dealloc_stream  The CUDA stream which is guaranteed to finish all work scheduled
  *                        before the deallocation of the memory.
  * @param alignment       Alignment of the requested memory
- * @tparam kind           The kind of requested memory.
+ * @tparam Kind           The kind of requested memory.
  */
 template <typename Kind>
 std::pair<void*, AsyncDeleter> alloc_raw_async(async_memory_resource<Kind> *mr,
@@ -289,7 +289,7 @@ std::pair<void*, AsyncDeleter> alloc_raw_async(async_memory_resource<Kind> *mr,
  * that if there's still some work pending on `dealloc_stream`, it will finish before the memory
  * returned by this function is freed. Use `host_sync` for host-synchronous execution.
  *
- * The memory is obtained from the default resource of given `kind` with stream semantics.
+ * The memory is obtained from the default resource of given `Kind` with stream semantics.
  * The return value is a pointer-deleter pair.
  * If the allocation fails, `std::bad_alloc` or a derived exception is thrown.
  *
@@ -298,7 +298,7 @@ std::pair<void*, AsyncDeleter> alloc_raw_async(async_memory_resource<Kind> *mr,
  * @param dealloc_stream  The CUDA stream which is guaranteed to finish all work scheduled
  *                        before the deallocation of the memory.
  * @param alignment       Alignment of the requested memory
- * @tparam kind           The kind of requested memory.
+ * @tparam Kind           The kind of requested memory.
  */
 template <typename Kind>
 auto alloc_raw_async(size_t bytes,
@@ -335,7 +335,7 @@ auto alloc_raw_async(size_t bytes,
  *                        before the deallocation of the memory.
  * @param alignment       Alignment of the requested memory, defaults to alignof(T)
  * @tparam T              Type of the object for which the storage is allocated.
- * @tparam kind           The kind of requested memory.
+ * @tparam Kind           The kind of requested memory.
  */
 template <typename T, typename Kind>
 async_uptr<T> alloc_raw_async_unique(async_memory_resource<Kind> *mr,
@@ -361,7 +361,7 @@ async_uptr<T> alloc_raw_async_unique(async_memory_resource<Kind> *mr,
  * returned by this function is freed. Use `host_sync` for host-synchronous execution.
  *
  * This function allocates raw memory with suitable size and alignment to accommodate `count`
- * object of type `T`. The memory is obtained from the default memory resource of given `kind`.
+ * object of type `T`. The memory is obtained from the default memory resource of given `Kind`.
  * The size of memory is at least sizeof(T) * count and the alignment is at least alignof(T).
  * The return value is a unique pointer with a deleter that will safely dispose of the allocated
  * buffer, but does not call destructors of the objects.
@@ -373,7 +373,7 @@ async_uptr<T> alloc_raw_async_unique(async_memory_resource<Kind> *mr,
  *                        before the deallocation of the memory.
  * @param alignment       Alignment of the requested memory, defaults to alignof(T)
  * @tparam T              Type of the object for which the storage is allocated.
- * @tparam kind           The kind of requested memory.
+ * @tparam Kind           The kind of requested memory.
  */
 template <typename T, typename Kind>
 auto alloc_raw_async_unique(size_t count,
@@ -412,7 +412,7 @@ auto alloc_raw_async_unique(size_t count,
  *                        before the deallocation of the memory.
  * @param alignment       Alignment of the requested memory, defaults to alignof(T)
  * @tparam T              Type of the object for which the storage is allocated.
- * @tparam kind           The kind of requested memory.
+ * @tparam Kind           The kind of requested memory.
  */
 template <typename T, typename Kind>
 std::shared_ptr<T> alloc_raw_async_shared(async_memory_resource<Kind> *mr,
@@ -438,7 +438,7 @@ std::shared_ptr<T> alloc_raw_async_shared(async_memory_resource<Kind> *mr,
  * returned by this function is freed. Use `host_sync` for host-synchronous execution.
  *
  * This function allocates raw memory with suitable size and alignment to accommodate `count`
- * object of type `T`. The memory is obtained from the default memory resource of given `kind`.
+ * object of type `T`. The memory is obtained from the default memory resource of given `Kind`.
  * The size of memory is at least sizeof(T) * count and the alignment is at least alignof(T).
  * The return value is a shared pointer with a deleter that will safely dispose of the allocated
  * buffer, but does not call destructors of the objects.
@@ -450,7 +450,7 @@ std::shared_ptr<T> alloc_raw_async_shared(async_memory_resource<Kind> *mr,
  *                        before the deallocation of the memory.
  * @param alignment       Alignment of the requested memory, defaults to alignof(T)
  * @tparam T              Type of the object for which the storage is allocated.
- * @tparam kind           The kind of requested memory.
+ * @tparam Kind           The kind of requested memory.
  */
 template <typename T, typename Kind>
 auto alloc_raw_async_shared(size_t count,
