@@ -411,16 +411,6 @@ def _test_builtin_functions_usage_in_cb(name, py_callback_pickler):
 
 
 @register_case(tests_dali_pickling)
-@register_case(tests_cloudpickle_pickling)
-def _test_builtin_functions_usage_in_cb(name, py_callback_pickler):
-    div_by_2 = lambda n, acc=0 : acc if n <= 0 else add_one(n // 2, acc)
-    add_one = lambda n, acc : div_by_2(n, acc + 1)
-    _create_and_compare_simple_pipelines(
-        lambda x : np.int32([div_by_2(x.idx_in_epoch)]) + len(dir(np)),
-        py_callback_pickler, batch_size=15, py_num_workers=2)
-
-
-@register_case(tests_dali_pickling)
 @register_case(tests_dill_pickling)
 @register_case(tests_cloudpickle_pickling)
 def _test_module_dependency(name, py_callback_pickler):
