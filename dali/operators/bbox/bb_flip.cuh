@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,8 +18,18 @@
 #include <vector>
 #include "dali/operators/bbox/bb_flip.h"
 #include "dali/pipeline/operator/arg_helper.h"
+#include "dali/core/dev_buffer.h"
+#include "dali/core/tensor_shape.h"
+#include "dali/kernels/common/block_setup.h"
 
 namespace dali {
+
+struct BbFlipSampleDesc {
+  float *output;
+  const float *input;
+  bool horz;
+  bool vert;
+};
 
 class BbFlipGPU : public BbFlip<GPUBackend> {
  public:
@@ -41,9 +51,12 @@ class BbFlipGPU : public BbFlip<GPUBackend> {
   Tensor<GPUBackend> horz_gpu_;
   Tensor<GPUBackend> vert_gpu_;
 
-  // contains a map from box index to sample index - used
-  // for accessing per-sample horz/vert arguments.
-  Tensor<GPUBackend> idx2sample_;
+  using GpuBlockSetup = kernels::BlockSetup<1, 1>;
+
+  GpuBlockSetup block_setup_;
+  std::vector<BbFlipSampleDesc> samples_;
+  DeviceBuffer<GpuBlockSetup::BlockDesc> blocks_dev_;
+  DeviceBuffer<BbFlipSampleDesc> samples_dev_;
 };
 
 
