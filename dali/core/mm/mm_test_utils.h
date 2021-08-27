@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -167,16 +167,16 @@ class test_resource_wrapper_impl {
   }
 };
 
-template <memory_kind kind, typename Context, bool owning, bool security_check,
+template <typename Kind, typename Context, bool owning, bool security_check,
           typename Upstream>
-class test_resource_wrapper<owning, security_check, memory_resource<kind, Context>, Upstream>
-: public memory_resource<kind, Context>
+class test_resource_wrapper<owning, security_check, memory_resource<Kind, Context>, Upstream>
+: public memory_resource<Kind, Context>
 , public test_resource_wrapper_impl<owning, security_check, Upstream> {
-  static_assert(!security_check || kind != memory_kind::device,
+  static_assert(!security_check || !std::is_same<Kind, memory_kind::device>::value,
                 "Cannot place a security cookie in device memory");
 
   using test_resource_wrapper_impl<owning, security_check, Upstream>::test_resource_wrapper_impl;
-  bool do_is_equal(const memory_resource<kind, Context> &other) const noexcept override {
+  bool do_is_equal(const memory_resource<Kind, Context> &other) const noexcept override {
     if (auto *oth = dynamic_cast<const test_resource_wrapper*>(&other))
       return this->upstream_->is_equal(*oth->upstream_);
     else
@@ -201,16 +201,16 @@ class test_resource_wrapper<owning, security_check, memory_resource<kind, Contex
 };
 
 
-template <memory_kind kind, bool owning, bool security_check,
+template <typename Kind, bool owning, bool security_check,
           typename Upstream>
-class test_resource_wrapper<owning, security_check, async_memory_resource<kind>, Upstream>
-: public async_memory_resource<kind>
+class test_resource_wrapper<owning, security_check, async_memory_resource<Kind>, Upstream>
+: public async_memory_resource<Kind>
 , public test_resource_wrapper_impl<owning, security_check, Upstream> {
-  static_assert(!security_check || kind != memory_kind::device,
+  static_assert(!security_check || !std::is_same<Kind, memory_kind::device>::value,
                 "Cannot place a security cookie in device memory");
 
   using test_resource_wrapper_impl<owning, security_check, Upstream>::test_resource_wrapper_impl;
-  bool do_is_equal(const memory_resource<kind> &other) const noexcept override {
+  bool do_is_equal(const memory_resource<Kind> &other) const noexcept override {
     if (auto *oth = dynamic_cast<const test_resource_wrapper*>(&other))
       return this->upstream_->is_equal(*oth->upstream_);
     else
@@ -266,9 +266,9 @@ struct test_device_resource
   test_device_resource() : test_resource_wrapper(&cuda_malloc_memory_resource::instance()) {}
 };
 
-template <memory_kind kind, bool owning, typename Upstream = async_memory_resource<kind>>
+template <typename Kind, bool owning, typename Upstream = async_memory_resource<Kind>>
 using test_stream_resource = test_resource_wrapper<
-    owning, detail::is_host_memory(kind), async_memory_resource<kind>, Upstream>;
+    owning, detail::is_host_memory<Kind>, async_memory_resource<Kind>, Upstream>;
 
 
 class test_dev_pool_resource : public test_stream_resource<memory_kind::device, true> {

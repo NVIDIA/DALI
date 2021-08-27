@@ -131,8 +131,8 @@ TEST(MMDefaultResource, GetResource_MultiDevice) {
   }
 }
 
-template <memory_kind kind, bool async = (kind != memory_kind::host)>
-class DummyResource : public memory_resource<kind> {
+template <typename Kind, bool async = !std::is_same<Kind, memory_kind::host>::value>
+class DummyResource : public memory_resource<Kind> {
   void *do_allocate(size_t, size_t) override {
     return nullptr;
   }
@@ -141,8 +141,8 @@ class DummyResource : public memory_resource<kind> {
   }
 };
 
-template <memory_kind kind>
-class DummyResource<kind, true> : public async_memory_resource<kind> {
+template <typename Kind>
+class DummyResource<Kind, true> : public async_memory_resource<Kind> {
   void *do_allocate(size_t, size_t) override {
     return nullptr;
   }
@@ -156,12 +156,12 @@ class DummyResource<kind, true> : public async_memory_resource<kind> {
   }
 };
 
-template <memory_kind kind>
+template <typename Kind>
 void TestSetDefaultResource() {
-  DummyResource<kind> dummy;
-  SetDefaultResource<kind>(&dummy);
-  EXPECT_EQ(GetDefaultResource<kind>(), &dummy);
-  SetDefaultResource<kind>(nullptr);
+  DummyResource<Kind> dummy;
+  SetDefaultResource<Kind>(&dummy);
+  EXPECT_EQ(GetDefaultResource<Kind>(), &dummy);
+  SetDefaultResource<Kind>(nullptr);
 }
 
 // TODO(michalz): When memory_kind is a tag type, switch to TYPED_TEST

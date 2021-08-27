@@ -145,16 +145,16 @@ TEST(MMPoolResource, TestBulkDeallocate) {
 
 namespace {
 
-template <memory_kind kind, typename Context = any_context>
+template <typename Kind, typename Context = any_context>
 class test_defer_dealloc
-    : public deferred_dealloc_pool<kind, Context, coalescing_free_tree, spinlock> {
+    : public deferred_dealloc_pool<Kind, Context, coalescing_free_tree, spinlock> {
  public:
-  using pool = deferred_dealloc_pool<kind, Context, coalescing_free_tree, spinlock>;
+  using pool = deferred_dealloc_pool<Kind, Context, coalescing_free_tree, spinlock>;
   bool ready() const noexcept {
     return this->no_pending_deallocs();
   }
 
-  explicit test_defer_dealloc(memory_resource<kind, Context> *upstream) : pool(upstream) {}
+  explicit test_defer_dealloc(memory_resource<Kind, Context> *upstream) : pool(upstream) {}
 
   void check() {
     // wait up to 1 second for the deferred deallocations to drain
