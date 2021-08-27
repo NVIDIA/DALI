@@ -112,10 +112,7 @@ constexpr pool_options default_pool_opts() noexcept {
 
 template <>
 constexpr pool_options default_pool_opts<memory_kind::host>() noexcept {
-  auto opt = default_device_pool_opts();
-  opt.sync = default_sync_scope<memory_kind::host>();
-  opt.enable_deferred_deallocation = true;
-  return opt;
+  return default_host_pool_opts();
 }
 
 namespace detail {
