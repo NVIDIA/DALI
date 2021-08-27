@@ -51,8 +51,8 @@ DALI_SCHEMA(readers_Webdataset)
     .AddArg("ext",
             R"code(To be filled in)code",
             DALI_STRING)
-    .AddOptionalArg("fail_on_missing_component",
-                    R"code(To be filled in)code", false)
+    .AddOptionalArg("missing_component_behavior",
+                    R"code(To be filled in)code", "")
     .AddOptionalArg("dtype",
                     R"code(To be filled in: numeric)code",
                     DALI_INT8);

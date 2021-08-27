@@ -72,10 +72,12 @@ class IndexCreator():
 
     @staticmethod
     def split_name(filepath): # translated from the matching function in c++
+        """Splits the webdataset into the basename and the extension
+        """
         base_name_pos = filepath.rfind('\\') + 1
-        dot_pos = filepath.rfind('.')
-        if dot_pos <= base_name_pos:
-            return filepath[base_name_pos:], ""
+        dot_pos = filepath.find('.', base_name_pos + 1)
+        if dot_pos == -1:
+            return filepath
         return filepath[:dot_pos], filepath[dot_pos + 1:]
 
 
@@ -90,19 +92,34 @@ class IndexCreator():
 
         # Parse the archive first for the file offsets
         data = []
+        last_skipped = 0
         for member in iter(self.farchive):
             if counter % report_step == 0:
-                  cur_time = time.time()
-                  print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: collect")
-            data.append((member.name, member.offset))
+                cur_time = time.time()
+                print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: collect")
             counter += 1
 
-        self.fidx.write(f"{len(data)}\n")
-        for name, offset in data:
+            if member.type != tarfile.REGTYPE or member.name.startswith('.'):
+                last_skipped = member.offset
+                continue
+            last_skipped = self.farchive.fileobj.tell()
+            basename, extension = IndexCreator.split_name(member.name)
+            offset = member.offset
+            if not data or data[-1][0] != basename:
+                data.append((offset, [extension]))
+            else:
+                data[-1][1].append(extension)
+        
+        if not data:
+            raise ValueError("Webdataset Tar File empty")
+
+        # Then construct the index file out of it
+        self.fidx.write(f"{last_skipped} {len(data)}\n")
+        for offset, extensions in data:
             if counter % report_step == 0:
-                  cur_time = time.time()
-                  print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: index")
-            self.fidx.write(f"{offset}\n")
+                cur_time = time.time()
+                print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: index")
+            self.fidx.write(f"{offset} {' '.join(extensions)}\n")
             counter += 1
         
         cur_time = time.time()
