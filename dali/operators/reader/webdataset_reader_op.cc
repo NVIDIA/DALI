@@ -50,7 +50,7 @@ DALI_SCHEMA(readers_Webdataset)
             DALI_STRING_VEC)
     .AddArg("ext",
             R"code(To be filled in)code",
-            DALI_STRING)
+            DALI_STRING_VEC)
     .AddOptionalArg("missing_component_behavior",
                     R"code(To be filled in)code", "")
     .AddOptionalArg("dtype",
