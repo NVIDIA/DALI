@@ -6,25 +6,27 @@ namespace dali {
 
 inline WebdatasetLoader::MissingExt WebdatasetLoader::Str2MissingExt(
     std::string missing_component_behavior) {
-  boost::algorithm::to_lower(missing_component_behavior);
-  boost::algorithm::erase_all(missing_component_behavior, '_');
+  std::remove(missing_component_behavior.begin(), missing_component_behavior.end(), '_');
+  std::transform(missing_component_behavior.begin(), missing_component_behavior.end(),
+                 missing_component_behavior.begin(), static_cast<int(*)(int)>(std::tolower));
   if (missing_component_behavior == "") {
-    return MissingExt::FillEmpty;
+    return MissingExt::Empty;
   } else if (missing_component_behavior == "skip") {
     return MissingExt::Skip;
   } else if (missing_component_behavior == "fillempty") {
-    return MissingExt::FillEmpty;
+    return MissingExt::Empty;
   } else if (missing_component_behavior == "raise") {
-    return MissingExt::RaiseError;
+    return MissingExt::Raise;
   } else if (missing_component_behavior == "raiseerror") {
-    return MissingExt::RaiseError;
+    return MissingExt::Raise;
   } else {
     return MissingExt::Invalid;
   }
 }
 
 WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
-    : uris_(spec.GetRepeatedArgument<std::string>("uris")),
+    : Loader(spec),
+      uris_(spec.GetRepeatedArgument<std::string>("uris")),
       configs_(spec.GetRepeatedArgument<std::string>("configs")),
       missing_component_behavior_(
           Str2MissingExt(spec.GetArgument<std::string>("missing_component_behavior"))),
@@ -37,7 +39,19 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
   DALI_ENFORCE(IsIntegral(dtype_) || IsFloatingPoint(dtype_),
                "Only numeric output types are supported");
 
-  boost::split(ext_, spec.GetArgument<std::string>("ext"), kExtDelim);
+  std::vector<std::string> samples_exts = spec.GetRepeatedArgument<std::string>("ext");
+
+  for (size_t exts_idx = 0; exts_idx < samples_exts.size(); exts_idx++) {
+    std::stringstream exts_stream(samples_exts[exts_idx]);
+    std::string ext;
+    while (std::getline(exts_stream, ext, ';')) {
+      if (ext_map_[ext].empty() || ext_map_[ext].back() != exts_idx) {
+        ext_map_[ext].push_back(exts_idx);
+      }
+    }
+  }
+
+  ext_ = std::unordered_set<std::string>(samples_exts.begin(), samples_exts.end());
 }
 
 WebdatasetLoader::~WebdatasetLoader() {}
@@ -56,9 +70,9 @@ inline Index WebdatasetLoader::GetCurrentSampleIndex() {
   return wds_shards_prefixsums_[current_wds_shard_index_] + current_sample_index_;
 }
 
-void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
+void WebdatasetLoader::ReadSample(
+    vector<Tensor<CPUBackend>>& sample) {  // TODO(barci2): Implement sample reading
   MoveToNextShard(GetCurrentSampleIndex());
-  
 }
 
 Index WebdatasetLoader::SizeImpl() {
@@ -69,11 +83,18 @@ inline WebdatasetLoader::SampleConfig ParseSampleConfig(std::ifstream& config,
                                                         std::string config_path) {
   WebdatasetLoader::SampleConfig out;
   config >> out.start_offset;
+  out.end_offset = std::numeric_limits<decltype(out.end_offset)>::infinity();
+
   std::string extensions;
-  getline(config, extensions);
-  boost::split(out.extensions, std::move(extensions), ' ');
-  DALI_ENFORCE(out.extensions.size() > 0,
-               "Malformed index file at " + config_path);  // config validity check
+  std::getline(config, extensions);
+  
+  std::stringstream extensions_stream(extensions);
+  std::string extension;
+  while(std::getline(extensions_stream, extension)) {
+    out.extensions.insert(extension);
+  }
+  DALI_ENFORCE(out.extensions.size() > 0_uz,
+               "Malformed index file at '" + config_path "'");  // config validity check
   return out;
 }
 
@@ -83,14 +104,29 @@ inline std::vector<WebdatasetLoader::SampleConfig> WebdatasetLoader::ParseConfig
   size_t config_size;
   size_t sample_config_num = 0;  // for config validity check
   config >> config_size >> sample_config_num;
-  DALI_ENFORCE(sample_config_num > 0,
-               "Empty index file at " + config_path);  // config validity check
+  DALI_ENFORCE(sample_config_num > 0_uz,
+               "Empty index file at '" + config_path + "'");  // config validity check
+
   std::vector<SampleConfig> out;
   out.reserve(sample_config_num);
+
   for (size_t sample_index = 0; sample_index < sample_config_num; sample_index++) {
     SampleConfig new_sample = ParseSampleConfig(config, config_path);
-    if (out.size()) {
-      out.back().end_offset = new_sample.start_offset;
+    if (!out.empty()) {
+      out.back().end_offset = std::min(out.back().end_offset, new_sample.start_offset);
+    }
+
+    // filtering out samples without the necessary extensions
+    if (!std::includes(ext_.begin(), ext_.end(), new_sample.extensions.begin(),
+                       new_sample.extensions.end())) {
+      switch (missing_component_behavior_) {
+        case MissingExt::Empty:
+          break;
+        case MissingExt::Skip:
+          continue;
+        case MissingExt::Raise:
+          DALI_ERROR("Underfull sample detected in index file at '" + config_path + "'");
+      };
     }
     out.push_back(std::move(new_sample));
   }
