@@ -21,9 +21,10 @@
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/cutlass/device/gemm.h"
-#include "dali/kernels/kernel.h"
-#include "dali/pipeline/util/operator_impl_utils.h"
 #include "dali/kernels/imgproc/convolution/cutlass/utility.h"
+#include "dali/kernels/kernel.h"
+#include "dali/kernels/reduce/online_reducer.h"
+#include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
 namespace kernels {
@@ -273,12 +274,12 @@ struct ConvolutionGpu {
       // for input of extent equal 1, so we compact the kernel to 1 element (what would effectively
       // happen either way) and just lookup that one elemnt in the CUTLASS kernels
       if (in_shape[i][axis] == 1) {
-        std::array<W, 1> tmp_window = {W{0}};
-        for (int win_elem = 0; win_elem < window.tensor_shape_span(i)[0] / 2; win_elem++) {
-          tmp_window[0] += window.tensor_data(i)[win_elem];
-          tmp_window[0] += window.tensor_data(i)[window.tensor_shape_span(i)[0] - win_elem - 1];
+        OnlineReducer<W, reductions::sum> r;
+        r.reset();
+        for (int win_elem = 0; win_elem < window.tensor_shape_span(i)[0]; win_elem++) {
+          r.add(window.tensor_data(i)[win_elem]);
         }
-        tmp_window[0] += window.tensor_data(i)[window.tensor_shape_span(i)[0] / 2];
+        std::array<W, 1> tmp_window = {r.result()};
         auto window_src = make_span(tmp_window.data(), 1);
         FillAlignedWindow(window_tmp_buffer_host, i, window_src, in_shape);
       } else {

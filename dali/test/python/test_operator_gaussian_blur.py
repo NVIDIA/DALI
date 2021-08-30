@@ -230,8 +230,10 @@ def test_generic_gaussian_blur():
 
 def test_one_sized_extent():
     for dev in ["cpu", "gpu"]:
-        for shape, layout in [((10, 1, 3), "HWC"), ((1, 10, 3), "HWC"), ((1, 10), "HW"), ((10, 1), "HW")]:
-            yield check_generic_gaussian_blur, 10, 2.0, 5, shape, layout, 2, dev, np.float32, types.FLOAT, False
+        for shape, layout in [((1, 10, 6), "DHW"), ((10, 1, 3), "HWC"), ((1, 10, 3), "HWC"),
+                              ((1, 10), "HW"), ((10, 1), "HW")]:
+            axes = len(layout) - ("C" in layout)
+            yield check_generic_gaussian_blur, 10, 2.0, 5, shape, layout, axes, dev, np.float32, types.FLOAT, False
 
 
 @attr('slow')

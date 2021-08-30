@@ -214,7 +214,7 @@ namespace threadblock {
 /// Same when going to the bottom, 1 + 2 * 6 = 13 - also out.
 /// Note that, when the distance is 0, we don't add the additional coefficients in this border mode.
 ///
-/// Makeing the channel number > 1 will cause additional gaps in the kernel when looking at the
+/// Making the channel number > 1 will cause additional gaps in the kernel when looking at the
 /// columns of "kernel matrix" for example (again without border) for channels = 3,
 /// part of the matrix:
 ///
