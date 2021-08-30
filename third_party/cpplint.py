@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # Copyright (c) 2009 Google Inc. All rights reserved.
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -4480,7 +4480,8 @@ def _ClassifyInclude(fileinfo, include, is_system):
             or include.endswith(".hpp") \
             or include.endswith(".hxx") \
             or include.endswith(".H") \
-            or include.endswith(".hh")
+            or include.endswith(".hh") \
+            or '.' not in include[include.rfind('/')]  # no extension
 
   if is_system:
     if is_cpp_h:
