@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,16 +15,10 @@
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import nvidia.dali as dali
-from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
-import os
 import random
-from test_utils import check_batch
 from test_utils import compare_pipelines
-from test_utils import RandomDataIterator
-from test_utils import get_dali_extra_path
+from test_utils import RandomlyShapedDataIterator
 
 class LookupTablePipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, data_shape, data_layout, dtype, num_threads=1,
@@ -76,10 +70,9 @@ class LookupTablePythonOpPipeline(Pipeline):
 
         def lookup_table_func(input_data):
             return function(input_data,
-                            shape=data_shape,
                             dictionary=dictionary,
                             default_value=default_value)
-        self.lookup = ops.PythonFunction(function=lookup_table_func, output_layouts=data_layout)
+        self.lookup = ops.PythonFunction(function=lookup_table_func, output_layouts=data_layout, batch_processing=False)
         self.cast = ops.Cast(dtype=dtype)
 
     def define_graph(self):
@@ -92,7 +85,7 @@ class LookupTablePythonOpPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.data_layout)
 
-def lookup_func(image, shape, dictionary, default_value):
+def lookup_func(image, dictionary, default_value):
     arr = [default_value for k in range(0x1000)]
     for k in dictionary.keys():
         arr[k] = dictionary[k]
@@ -100,8 +93,8 @@ def lookup_func(image, shape, dictionary, default_value):
     return lut[image]
 
 def check_lookup_table_vs_python_op(device, batch_size, layout, shape, dtype, dictionary_type, default_value):
-    eii1 = RandomDataIterator(batch_size, shape=shape)
-    eii2 = RandomDataIterator(batch_size, shape=shape)
+    eii1 = RandomlyShapedDataIterator(batch_size, max_shape=shape)
+    eii2 = RandomlyShapedDataIterator(batch_size, max_shape=shape)
     if dictionary_type == 'empty':
         dictionary = {}
     elif dictionary_type == 'random':

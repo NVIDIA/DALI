@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,11 +17,14 @@
 namespace dali {
 
 template<>
-void LookupTable<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  const auto &input = ws.Input<CPUBackend>(0);
-  auto &output = ws.Output<CPUBackend>(0);
+void LookupTable<CPUBackend>::RunImpl(HostWorkspace &ws) {
+  const auto &input = ws.InputRef<CPUBackend>(0);
+  const auto &shape = input.shape();
+  auto &output = ws.OutputRef<CPUBackend>(0);
   output.SetLayout(input.GetLayout());
-  auto data_size = input.size();
+
+  auto &tp = ws.GetThreadPool();
+
   TYPE_SWITCH(input.type().id(), dali::type2id, InputType, LUT_IN_TYPES, (
     TYPE_SWITCH(output_type_, dali::type2id, OutputType, LUT_OUT_TYPES, (
       // We do not check the key range when the type range is smaller than the supported range
@@ -30,21 +33,32 @@ void LookupTable<CPUBackend>::RunImpl(SampleWorkspace &ws) {
        && !std::is_same<InputType, uint16_t>::value;
       constexpr auto max_key = ConvertSat<InputType>(kMaxKey);
 
-      auto *out_data = output.mutable_data<OutputType>();
-      const auto *in_data = input.data<InputType>();
       OutputType default_value = ConvertSat<OutputType>(default_value_f_);
-      OutputType* lookup_table = static_cast<OutputType*>(value_mem_.get());
-      for (int i = 0; i < data_size; i++) {
-        InputType key = in_data[i];
-        if (check_range) {
-          out_data[i] = (std::is_unsigned<InputType>::value || key >= 0) && key <= max_key ?
-            lookup_table[key] : default_value;
-        } else {
-          out_data[i] = lookup_table[key];
-        }
+      const OutputType *lookup_table = static_cast<OutputType *>(value_mem_.get());
+
+      for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
+        auto data_size = shape.tensor_size(sample_idx);
+        auto *out_data = output[sample_idx].mutable_data<OutputType>();
+        const auto *in_data = input[sample_idx].data<InputType>();
+        tp.AddWork(
+            [=](int thread_id) {
+              for (int64_t i = 0; i < data_size; i++) {
+                InputType key = in_data[i];
+                if (check_range) {
+                  out_data[i] = (std::is_unsigned<InputType>::value || key >= 0) && key <= max_key ?
+                                    lookup_table[key] :
+                                    default_value;
+                } else {
+                  out_data[i] = lookup_table[key];
+                }
+              }
+            },
+            data_size);
       }
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)); );       // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())); );     // NOLINT
+
+  tp.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(LookupTable, LookupTable<CPUBackend>, CPU);
