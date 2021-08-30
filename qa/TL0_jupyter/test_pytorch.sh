@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="pillow jupyter numpy matplotlib torch torchvision webdataset"
+pip_packages="pillow jupyter numpy matplotlib torch torchvision webdataset pyyaml"
 target_dir=./docs/examples
 
 test_body() {
