@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -100,7 +100,7 @@ class SepearableConvolutionGpuTestImpl {
     SeparableConvolutionGpu<float, float, float, kAxes, kChannels, kFrames> kernel_gpu;
 
     for (float scale : {0.75f, 1.0f, 1.25f, 0.5f}) {
-      ReshapeData(1.0f);
+      ReshapeData(scale);
       FillData();
 
       auto baseline_out_v = baseline_output_.cpu();

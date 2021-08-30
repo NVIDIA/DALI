@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,9 +21,10 @@
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/cutlass/device/gemm.h"
-#include "dali/kernels/kernel.h"
-#include "dali/pipeline/util/operator_impl_utils.h"
 #include "dali/kernels/imgproc/convolution/cutlass/utility.h"
+#include "dali/kernels/kernel.h"
+#include "dali/kernels/reduce/online_reducer.h"
+#include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
 namespace kernels {
@@ -126,6 +127,11 @@ struct ConvolutionGpu {
         size[0] = volume(sample_shape.begin(), sample_shape.begin() + axis);
         // width
         size[1] = sample_shape[axis];
+        // Special case for extent equal 1, see FillAlignedWindows for details
+        if (size[1] == 1) {
+          window_size = 1;
+          window_anchor = 0;
+        }
         int row_stride = sample_shape[axis] * num_channels;
         auto* window_gpu =
             reinterpret_cast<cutlass_W*>(window_tmp_buffer_gpu + i * kWindowCopyBufferSize);
@@ -160,6 +166,11 @@ struct ConvolutionGpu {
         size[0] = sample_shape[axis];
         // width
         size[1] = volume(sample_shape.begin() + axis + 1, sample_shape.end());
+        // Special case for extent equal 1, see FillAlignedWindows for details
+        if (size[0] == 1) {
+          window_size = 1;
+          window_anchor = 0;
+        }
         auto strides = GetStrides(sample_shape);
         int row_stride = strides[axis];
         int planes = volume(sample_shape.begin(), sample_shape.begin() + axis);
@@ -236,17 +247,45 @@ struct ConvolutionGpu {
                 "Selected axis must be in [0, ndim) when there is no channel axis, or in [0, ndim "
                 "- 1) for channel-last input");
 
-  void FillAlignedWindows(span<W> window_tmp_buffer_host,
-                         const TensorListView<StorageCPU, const W, 1>& window,
+
+  void FillAlignedWindow(span<W> window_tmp_buffer_host, int window_idx, span<const W> window_src,
                          const TensorListShape<ndim>& in_shape) {
+    using dst_win_t = typename CutlassConv::ConvWindowConfiguration::template PaddedWindowBuffer<W>;
+    int num_channels = has_channels ? in_shape[window_idx][ndim - 1] : 1;
+    auto window_padded_dst = dst_win_t(&window_tmp_buffer_host[window_idx * kWindowCopyBufferSize]);
+    CutlassConv::ConvWindowConfiguration::prepare_window(window_padded_dst, window_src,
+                                                         num_channels);
+  }
+
+  /**
+   * @brief Repack kernel windows from packed TLV representation to a padded layout
+   * suitablbe for CUTLASS kernel taking into account the shape.
+   *
+   * For axis of extent 1 the kernel window is compacted to 1 element.
+   */
+  void FillAlignedWindows(span<W> window_tmp_buffer_host,
+                          const TensorListView<StorageCPU, const W, 1>& window,
+                          const TensorListShape<ndim>& in_shape) {
     for (int i = 0; i < window.num_samples(); i++) {
-      using dst_win_t =
-          typename CutlassConv::ConvWindowConfiguration::template PaddedWindowBuffer<W>;
-      int num_channels = has_channels ? in_shape[i][ndim - 1] : 1;
-      auto window_src = make_span(window.tensor_data(i), window.tensor_shape_span(i)[0]);
-      auto window_padded_dst = dst_win_t(&window_tmp_buffer_host[i * kWindowCopyBufferSize]);
-      CutlassConv::ConvWindowConfiguration::prepare_window(window_padded_dst, window_src,
-                                                           num_channels);
+      // Special case, for axis with extent 1 - we need to sum the window to 1 element,
+      // to make it work with border reflect 101. For the CPU version, the reflect 101
+      // works as border repeat - so with 1 elements it works by calculating
+      // (sum(window) * input_element). The kernel matrix generation ends as infinite loop
+      // for input of extent equal 1, so we compact the kernel to 1 element (what would effectively
+      // happen either way) and just lookup that one elemnt in the CUTLASS kernels
+      if (in_shape[i][axis] == 1) {
+        OnlineReducer<W, reductions::sum> r;
+        r.reset();
+        for (int win_elem = 0; win_elem < window.tensor_shape_span(i)[0]; win_elem++) {
+          r.add(window.tensor_data(i)[win_elem]);
+        }
+        std::array<W, 1> tmp_window = {r.result()};
+        auto window_src = make_span(tmp_window.data(), 1);
+        FillAlignedWindow(window_tmp_buffer_host, i, window_src, in_shape);
+      } else {
+        auto window_src = make_span(window.tensor_data(i), window.tensor_shape_span(i)[0]);
+        FillAlignedWindow(window_tmp_buffer_host, i, window_src, in_shape);
+      }
     }
   }
 };
