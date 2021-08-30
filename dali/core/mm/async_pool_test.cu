@@ -21,7 +21,6 @@
 #include "dali/core/mm/mm_test_utils.h"
 #include "dali/core/cuda_stream.h"
 #include "dali/core/mm/cuda_vm_resource.h"
-#include "rmm/mr/device/pool_memory_resource.hpp"
 
 namespace dali {
 namespace mm {
