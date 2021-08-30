@@ -111,8 +111,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |spdlog| replace:: spdlog
 .. _spdlog: https://github.com/gabime/spdlog
-.. |spdlogver| replace:: 1.9.0
-.. _spdlogver: https://github.com/gabime/spdlog/releases/tag/v1.9.0
+.. |spdlogver| replace:: 1.9.2
+.. _spdlogver: https://github.com/gabime/spdlog/releases/tag/v1.9.2
 .. |spdloglic| replace:: MIT License
 .. _spdloglic: https://github.com/gabime/spdlog/blob/v1.x/LICENSE
 
