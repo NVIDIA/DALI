@@ -15,17 +15,6 @@
 #ifndef DALI_OPERATORS_READER_VIDEO_READER_CPU_OP_H_
 #define DALI_OPERATORS_READER_VIDEO_READER_CPU_OP_H_
 
-extern "C" {
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/avutil.h>
-}
-
-#include <string>
-#include <vector>
-#include <algorithm>
-
-#include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/reader_op.h"
 
 namespace dali {
