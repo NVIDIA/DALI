@@ -954,25 +954,12 @@ Status DALIDatasetOp::Dataset::InputDatasets(std::vector<const DatasetBase *> *i
 
 #if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 4 && TF_MINOR_VERSION < 6
 
-  /**
-   * @brief Current implementation disables splits. For newer TF versions, it is
-   * necessary to implement InputDatasets to get rid of the warnings, but adding it would enable
-   * automatic SplitProvider for DALIDataset. As DALI has its own concept of shards, we do not
-   * handle splits as of now, so it is disabled explicitly.
-   */
 Status DALIDatasetOp::Dataset::MakeSplitProvider(std::unique_ptr<SplitProvider> *) const {
   return MakeSplitProvidersImpl();
 }
 
-
 #elif TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 6)
 
-  /**
-   * @brief Current implementation disables splits. For newer TF versions, it is
-   * necessary to implement InputDatasets to get rid of the warnings, but adding it would enable
-   * automatic SplitProvider for DALIDataset. As DALI has its own concept of shards, we do not
-   * handle splits as of now, so it is disabled explicitly.
-   */
 Status DALIDatasetOp::Dataset::MakeSplitProviders(
     std::vector<std::unique_ptr<SplitProvider>> *) const {
   return MakeSplitProvidersImpl();
