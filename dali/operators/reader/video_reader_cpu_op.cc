@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -102,9 +102,6 @@ public:
     auto &video_file = video_files_[0];
 
     ++current_index_;
-    // char str[4];
-    // snprintf(str, 4, "%03d", current_index_-1);
-    // string path = "/home/awolant/Downloads/frames/" + string(str) + ".png";
     MoveToNextShard(current_index_);
 
     sample.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
@@ -150,10 +147,7 @@ public:
       sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height, dest, dest_linesize);
 
       ++frames_count;
-
-      // TensorView<StorageCPU, uint8_t> tv(data, TensorShape<3>{720, 1280, 3});
-      // testing::SaveImage(path.c_str(), tv);
-
+      
       if (frames_count == sequence_len_) {
         break;
       }
@@ -188,9 +182,6 @@ public:
     sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height, dest, dest_linesize);
 
     ++frames_count;
-
-    // TensorView<StorageCPU, uint8_t> tv(data, TensorShape<3>{720, 1280, 3});
-    // testing::SaveImage(path.c_str(), tv);
 
     if (frames_count == sequence_len_) {
       return;
