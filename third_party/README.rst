@@ -90,8 +90,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |pybind11| replace:: pybind11
 .. _pybind11: https://github.com/pybind/pybind11
-.. |pybind11ver| replace:: 2.7.0
-.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.7.0
+.. |pybind11ver| replace:: 2.7.1
+.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.7.1
 .. |pybind11lic| replace:: BSD 3-Clause License
 .. _pybind11lic: https://github.com/pybind/pybind11/blob/master/LICENSE
 
