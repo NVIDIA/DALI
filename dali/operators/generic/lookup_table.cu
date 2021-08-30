@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <limits>
+#include <utility>
 #include "dali/core/convert.h"
 #include "dali/core/span.h"
 #include "dali/operators/generic/lookup_table.h"
