@@ -15,6 +15,7 @@
 #include <memory>
 #include <string>
 #include "dali/core/mm/memory.h"
+#include "dali/core/mm/malloc_resource.h"
 #include "dali/operators/reader/numpy_reader_gpu_op.h"
 #include "dali/pipeline/data/views.h"
 
