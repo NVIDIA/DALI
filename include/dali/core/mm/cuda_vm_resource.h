@@ -172,7 +172,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     }
   }
 
-  constexpr bool deferred_dealloc_enabled() const noexcept { return defer_dealloc_; }
+  bool deferred_dealloc_enabled() const noexcept { return defer_dealloc_; }
   static constexpr int deferred_dealloc_max_outstanding() { return 16; }
   virtual void flush_deferred() {}
 

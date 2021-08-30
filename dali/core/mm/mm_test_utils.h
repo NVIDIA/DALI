@@ -194,7 +194,7 @@ class test_resource_wrapper<owning, security_check, memory_resource<Kind, Contex
     }, ptr, bytes, alignment);
   }
 
-  virtual Context do_get_context() const noexcept {
+  Context do_get_context() const noexcept override {
     return this->upstream_->get_context();
   }
 };

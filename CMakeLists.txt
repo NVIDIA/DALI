@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -254,6 +254,8 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-command-line-argument")
     # Ignore warnings coming from cutlass
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --system-header-prefix=cutlass/")
+    # Enable SFINAE with ellipsis in device code
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Xclang -fcuda-allow-variadic-functions")
   endif()
 
   # CUDA does not support current Clang as host compiler, we need use gcc

@@ -380,7 +380,7 @@ class pool_resource_base : public memory_resource<Kind, Context> {
     return new_block;
   }
 
-  virtual Context do_get_context() const noexcept {
+  Context do_get_context() const noexcept override {
     return upstream_->get_context();
   }
 
