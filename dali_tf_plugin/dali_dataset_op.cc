@@ -94,6 +94,9 @@ class DALIDatasetOp::Dataset : public DatasetBase {
 
   std::unique_ptr<IteratorBase> MakeIteratorInternal(const string &prefix) const override;
 
+
+#if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 4)
+
   /**
    * @brief Current implementation disables splits. For newer TF versions, it is
    * necessary to implement InputDatasets to get rid of the warnings, but adding it would enable
@@ -104,6 +107,9 @@ class DALIDatasetOp::Dataset : public DatasetBase {
       std::vector<std::unique_ptr<SplitProvider>>* split_providers) const override;
 
   Status InputDatasets(std::vector<const DatasetBase*>* inputs) const override;
+
+#endif
+
 
   const DataTypeVector &output_dtypes() const override {
     return dtypes_;
@@ -903,6 +909,8 @@ std::unique_ptr<IteratorBase> DALIDatasetOp::Dataset::MakeIteratorInternal(
 }
 
 
+#if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 4)
+
 Status DALIDatasetOp::Dataset::MakeSplitProviders(
     std::vector<std::unique_ptr<SplitProvider>> *split_providers) const {
   return errors::Unimplemented(
@@ -923,6 +931,8 @@ Status DALIDatasetOp::Dataset::InputDatasets(std::vector<const DatasetBase *> *i
   }
   return Status::OK();
 }
+
+#endif
 
 
 // Regestrations
