@@ -94,6 +94,38 @@ class DALIDatasetOp::Dataset : public DatasetBase {
 
   std::unique_ptr<IteratorBase> MakeIteratorInternal(const string &prefix) const override;
 
+
+#if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 4)
+
+  Status InputDatasets(std::vector<const DatasetBase*>* inputs) const override;
+
+#endif
+
+
+#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 4 && TF_MINOR_VERSION < 6
+
+  /**
+   * @brief Current implementation disables splits. For newer TF versions, it is
+   * necessary to implement InputDatasets to get rid of the warnings, but adding it would enable
+   * automatic SplitProvider for DALIDataset. As DALI has its own concept of shards, we do not
+   * handle splits as of now, so it is disabled explicitly.
+   */
+  Status MakeSplitProvider(std::unique_ptr<SplitProvider> *split_provider) const override;
+
+#elif TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 6)
+
+  /**
+   * @brief Current implementation disables splits. For newer TF versions, it is
+   * necessary to implement InputDatasets to get rid of the warnings, but adding it would enable
+   * automatic SplitProvider for DALIDataset. As DALI has its own concept of shards, we do not
+   * handle splits as of now, so it is disabled explicitly.
+   */
+  Status MakeSplitProviders(
+      std::vector<std::unique_ptr<SplitProvider>> *split_providers) const override;
+
+#endif
+
+
   const DataTypeVector &output_dtypes() const override {
     return dtypes_;
   }
@@ -890,6 +922,50 @@ std::unique_ptr<IteratorBase> DALIDatasetOp::Dataset::MakeIteratorInternal(
   return absl::make_unique<Iterator>(Iterator::Params{this, strings::StrCat(prefix, "::DALI")},
                                      pipeline_handle, pipeline_def_.enable_memory_stats);
 }
+
+
+#if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 4)
+
+namespace {
+
+Status MakeSplitProvidersImpl() {
+  return errors::Unimplemented(
+      "Cannot create split providers for dataset of type DALIDataset, "
+      ", because the dataset does not support this functionality yet. "
+      "Please use DALI sharding for iterating over parts of the dataset.");
+}
+
+}  // namespace
+
+
+Status DALIDatasetOp::Dataset::InputDatasets(std::vector<const DatasetBase *> *inputs) const {
+  if (!HasInputs()) {
+    inputs->clear();
+    return Status::OK();
+  }
+  inputs->resize(NumInputs());
+  for (int i = 0; i < NumInputs(); i++) {
+    inputs->operator[](i) = input_desc_.inputs[i];
+  }
+  return Status::OK();
+}
+
+#endif
+
+#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 4 && TF_MINOR_VERSION < 6
+
+Status DALIDatasetOp::Dataset::MakeSplitProvider(std::unique_ptr<SplitProvider> *) const {
+  return MakeSplitProvidersImpl();
+}
+
+#elif TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 6)
+
+Status DALIDatasetOp::Dataset::MakeSplitProviders(
+    std::vector<std::unique_ptr<SplitProvider>> *) const {
+  return MakeSplitProvidersImpl();
+}
+
+#endif
 
 
 // Regestrations
