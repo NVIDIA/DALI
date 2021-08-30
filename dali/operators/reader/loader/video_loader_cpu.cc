@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern "C" {
-#include <libswscale/swscale.h>
-}
-
 #include "dali/operators/reader/loader/video_loader_cpu.h"
 
 namespace dali {
@@ -38,6 +34,57 @@ VideoFileCPU::VideoFileCPU(std::string &filename) {
   codec_ctx_ = avcodec_alloc_context3(codec_);
   avcodec_parameters_to_context(codec_ctx_, codec_params_);
   avcodec_open2(codec_ctx_, codec_, nullptr);
+  frame_ = av_frame_alloc();
+  packet_ = av_packet_alloc();
+}
+
+bool VideoFileCPU::ReadNextFrame(uint8_t *data) {
+  int ret = -1;
+  while(av_read_frame(ctx_, packet_) >= 0) {
+    if (packet_->stream_index != stream_id_) {
+      continue;
+    }
+
+    if (avcodec_send_packet(codec_ctx_, packet_) < 0) {
+      DALI_FAIL("Failed to send packet to decoder");
+    }
+
+    ret = avcodec_receive_frame(codec_ctx_, frame_);
+
+    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+      continue;
+    }
+
+    if (sws_ctx_ == nullptr) {
+      sws_ctx_ = sws_getContext(
+        frame_->width, 
+        frame_->height, 
+        codec_ctx_->pix_fmt, 
+        frame_->width, 
+        frame_->height, 
+        AV_PIX_FMT_RGB24, 
+        SWS_BILINEAR, 
+        nullptr, 
+        nullptr, 
+        nullptr);
+    }
+
+    dest_[0] = data;
+    dest_linesize_[0] = frame_->width * 3;
+    sws_scale(sws_ctx_, frame_->data, frame_->linesize, 0, frame_->height, dest_, dest_linesize_);
+    return true;
+  }
+
+  avcodec_send_packet(codec_ctx_, nullptr);
+  if (avcodec_receive_frame(codec_ctx_, frame_) < 0) {
+    return false;
+  }
+
+  dest_[0] = data;
+  dest_linesize_[0] = frame_->width * 3;
+  sws_scale(sws_ctx_, frame_->data, frame_->linesize, 0, frame_->height, dest_, dest_linesize_);
+
+  return true;
 }
 
 
@@ -50,85 +97,19 @@ void VideoLoaderCPU::ReadSample(Tensor<CPUBackend> &sample) {
 
   sample.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
   sample.Resize(
-    TensorShape<4>{sequence_len_, video_file.width(), video_file.height(), video_file.channels_});
+    TensorShape<4>{sequence_len_, video_file.Width(), video_file.Height(), video_file.channels_});
 
   //TODO: przesunąć na kolejną ramkę z sekwencji (sekwencja jest dłuższa niż jedna ramka)
   auto data = sample.mutable_data<uint8_t>();
 
-  AVFrame *frame = av_frame_alloc();
-  AVPacket *packet = av_packet_alloc();
-
   int ret = -1;
   int frames_count = 0;
-  while ((ret = av_read_frame(video_file.ctx_, packet)) >= 0) {
-    if (packet->stream_index != video_file.stream_id_) {
-      continue;
-    }
-
-    ret = avcodec_send_packet(video_file.codec_ctx_, packet);
-    ret = avcodec_receive_frame(video_file.codec_ctx_, frame);
-
-    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-      continue;
-    }
-
-    
-
-    SwsContext  *sws_ctx = sws_getContext(
-      frame->width, 
-      frame->height, 
-      video_file.codec_ctx_->pix_fmt, 
-      frame->width, 
-      frame->height, 
-      AV_PIX_FMT_RGB24, 
-      SWS_BILINEAR, 
-      nullptr, 
-      nullptr, 
-      nullptr);
-
-    uint8_t *dest[4] = {data, nullptr, nullptr, nullptr};
-    int dest_linesize[4] = {frame->width * 3, 0, 0, 0};
-    sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height, dest, dest_linesize);
-
+  while (video_file.ReadNextFrame(data)) {
     ++frames_count;
     
     if (frames_count == sequence_len_) {
       break;
     }
-  }
-
-  if (frames_count == sequence_len_) {
-    return;
-  }
-
-  ret = avcodec_send_packet(video_file.codec_ctx_, nullptr);
-
-  ret = avcodec_receive_frame(video_file.codec_ctx_, frame);
-
-  if (ret < 0) {
-    return;
-  }
-
-  SwsContext  *sws_ctx = sws_getContext(
-    frame->width, 
-    frame->height, 
-    video_file.codec_ctx_->pix_fmt, 
-    frame->width, 
-    frame->height, 
-    AV_PIX_FMT_RGB24, 
-    SWS_BILINEAR, 
-    nullptr, 
-    nullptr, 
-    nullptr);
-
-  uint8_t *dest[4] = {data, nullptr, nullptr, nullptr};
-  int dest_linesize[4] = {frame->width * 3, 0, 0, 0};
-  sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height, dest, dest_linesize);
-
-  ++frames_count;
-
-  if (frames_count == sequence_len_) {
-    return;
   }
 }
 
@@ -141,7 +122,7 @@ void VideoLoaderCPU::PrepareMetadataImpl() {
     video_files_.push_back(VideoFileCPU(filename));
   }
 
-  for (int start = 0; start + sequence_len_ <= video_files_[0].nb_frames(); start += sequence_len_) {
+  for (int start = 0; start + sequence_len_ <= video_files_[0].NumFrames(); start += sequence_len_) {
     sample_spans_.push_back(VideoSampleSpan(start, start + sequence_len_));
   }
 }

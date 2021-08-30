@@ -19,11 +19,8 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
+#include <libswscale/swscale.h>
 }
-
-#include <string>
-#include <vector>
-#include <algorithm>
 
 #include "dali/operators/reader/loader/loader.h"
 
@@ -32,26 +29,28 @@ class VideoFileCPU {
  public:
   VideoFileCPU(std::string &filename);
 
-  int64_t nb_frames() const {
+  int64_t NumFrames() const {
     return ctx_->streams[stream_id_]->nb_frames;
   }
 
-  int width() const {
+  int Width() const {
     return codec_params_->width;
   }
 
-  int height() const {
+  int Height() const {
     return codec_params_->height;
   }
 
-  void read_next_frame(uint8_t *data) {
-
-  }
+  // Reads next frame of the video and wraps at the end
+  bool ReadNextFrame(uint8_t *data);
 
   AVFormatContext *ctx_ = nullptr;
   AVCodec *codec_ = nullptr;
   AVCodecParameters *codec_params_ = nullptr;
   AVCodecContext *codec_ctx_ = nullptr;
+  AVFrame *frame_ = nullptr;
+  AVPacket *packet_ = nullptr;
+  SwsContext  *sws_ctx_ = nullptr;
   int stream_id_ = -1;
 
   int width_;
@@ -59,6 +58,9 @@ class VideoFileCPU {
   int channels_ = 3;
 
   int read_frames = 0;
+
+  uint8_t *dest_[4] = {nullptr, nullptr, nullptr, nullptr};
+  int dest_linesize_[4] = {0, 0, 0, 0};
 };
 
 class VideoSampleSpan {

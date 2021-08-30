@@ -13,19 +13,12 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <cmath>
-#include <cstring>
-#include <iomanip>
-
-#include <algorithm>
-#include <thread>
-#include <functional>
-#include <vector>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/dali_test_config.h"
-#include "dali/test/cv_mat_utils.h"
-#include "dali/util/nvml_wrap.h"
 
 
 namespace dali {
@@ -113,9 +106,9 @@ class VideoReaderCpuTest : public ::testing::Test {
 
   const int Channels() const { return 3; }
 
-  const int Width() const { return 1280; }
+  const int Width() const { return gt_frames_[0].cols; }
 
-  const int Height() const { return 720; }
+  const int Height() const { return gt_frames_[0].rows; }
 
   const int FrameSize() const { return Height() * Width() * Channels(); }
 
@@ -132,14 +125,14 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
     .AddArg("device", "cpu")
     .AddArg("sequence_length", sequence_length)
     .AddArg(
-      "filenames", 
+      "filenames",
       std::vector<std::string>{
         testing::dali_extra_path() + "/db/video/cfr_test.mp4"})
     .AddOutput("frames", "cpu"));
 
   pipe.Build({{"frames", "cpu"}});
 
-  for (int i = 0; i < this->NumFrames(); ++i) {
+  for (int frame_id = 0; frame_id < this->NumFrames(); ++frame_id) {
     DeviceWorkspace ws;
     pipe.RunCPU();
     pipe.RunGPU();
@@ -148,7 +141,7 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
     const auto &frame_video_output = ws.Output<dali::CPUBackend>(0);
 
     detail::comapre_frames(
-      frame_video_output.data<uint8_t>(), this->gt_frames_[i].data, this->FrameSize());
+      frame_video_output.data<uint8_t>(), this->gt_frames_[frame_id].data, this->FrameSize());
   }
 }
 }  // namespace dali
