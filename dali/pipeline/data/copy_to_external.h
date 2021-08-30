@@ -84,7 +84,7 @@ inline void CopyToExternalImpl(void** dsts,
   }
 }
 
-template <typename SrcBackend>
+template <typename DstKind, typename SrcBackend>
 inline void CopyToExternal(void* dst, AllocType dst_alloc_type,
                            const Buffer<SrcBackend> &src,
                            cudaStream_t stream, bool use_copy_kernel) {

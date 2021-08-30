@@ -18,7 +18,8 @@
 #include <array>
 #include <utility>
 #include <type_traits>
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
+#include "dali/core/mm/memory_kind.h"
 #include "dali/kernels/context.h"
 
 namespace dali {
@@ -105,12 +106,13 @@ struct PreallocatedScratchpad : Scratchpad {
   std::array<BumpAllocator, size_t(AllocType::Count)> allocs;
 };
 
+
 /**
  * @brief Implements an ever-growing scratchpad
  */
 class ScratchpadAllocator {
  public:
-  static constexpr size_t NumAllocTypes = static_cast<size_t>(AllocType::Count);
+  static constexpr size_t NumAllocTypes = static_cast<size_t>(mm::memory_kind_id::count);
 
   /**
    * @brief Describes scratch memory allocation policy
@@ -178,8 +180,9 @@ class ScratchpadAllocator {
    * @remarks If reallocation happens, any `Scratchpad` returned by `GetScratchpad`
    *          is invalidated.
    */
-  void Reserve(AllocType type, size_t size) {
-    size_t index = static_cast<size_t>(type);
+  template <typename MemoryKind>
+  void Reserve(size_t size) {
+    size_t index = static_cast<size_t>(mm::kind2id<Kind>);
     auto &buf = buffers_[index];
 
     constexpr size_t alignment = 64;
@@ -234,7 +237,7 @@ class ScratchpadAllocator {
 
  private:
   struct Buffer {
-    memory::KernelUniquePtr<char> mem;
+    mm::uptr<char> mem;
     size_t capacity = 0, padding = 0;
     AllocPolicy policy = {};
   };

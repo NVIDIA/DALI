@@ -22,7 +22,7 @@
 #include <algorithm>
 #include <type_traits>
 #include "dali/core/tensor_view.h"
-#include "dali/kernels/alloc_type.h"
+#include "dali/core/mm/memory_resource.h"
 
 namespace dali {
 namespace kernels {
@@ -50,39 +50,39 @@ ToContiguousGPUMem(Scratchpad &scratchpad, cudaStream_t stream, const Collection
  */
 class Scratchpad {
  public:
-  /**
-   * @brief Allocates `bytes` bytes of memory in `alloc_type`, with specified `alignment`
-   */
-  virtual void *Alloc(AllocType alloc_type, size_t bytes, size_t alignment) = 0;
+  template <typename MemoryKind>
+  inline void *Alloc(size_t bytes, size_t alignment) {
+    return Alloc(bytes, alignment, mm::memory_kind*(nullptr));
+  }
 
   /**
    * @brief Allocates storage for a Tensor of elements `T` and given `shape`
    *        in the memory of type `alloc_type`.
    */
-  template <AllocType alloc_type, typename T, int dim>
-  TensorView<AllocBackend<alloc_type>, T, dim> AllocTensor(TensorShape<dim> shape) {
-    return { Allocate<T>(alloc_type, volume(shape)), std::move(shape) };
+  template <typename MemoryKind, typename T, int dim>
+  TensorView<AllocBackend<MemoryKind>, T, dim> AllocTensor(TensorShape<dim> shape) {
+    return { Allocate<MemoryKind, T>(volume(shape)), std::move(shape) };
   }
 
   /**
    * @brief Allocates storage for a TensorList of elements `T` and given `shape`
    *        in the memory of type `alloc_type`.
    */
-  template <AllocType alloc_type, typename T, int dim>
-  TensorListView<AllocBackend<alloc_type>, T, dim>
+  template <typename MemoryKind, typename T, int dim>
+  TensorListView<AllocBackend<MemoryKind>, T, dim>
   AllocTensorList(const std::vector<TensorShape<dim>> &shape) {
-    return AllocTensorList<alloc_type, T, dim>(TensorListShape<dim>(shape));
+    return AllocTensorList<MemoryKind, T, dim>(TensorListShape<dim>(shape));
   }
 
   /**
    * @brief Allocates storage for a TensorList of elements `T` and given `shape`
    *        in the memory of type `alloc_type`.
    */
-  template <AllocType alloc_type, typename T, int dim>
-  TensorListView<AllocBackend<alloc_type>, T, dim>
+  template <typename MemoryKind, typename T, int dim>
+  TensorListView<AllocBackend<MemoryKind>, T, dim>
   AllocTensorList(TensorListShape<dim> shape) {
-    T *data = Allocate<T>(alloc_type, shape.num_elements());
-    TensorListView<AllocBackend<alloc_type>, T, dim> tlv(data, std::move(shape));
+    T *data = Allocate<MemoryKind, T>(shape.num_elements());
+    TensorListView<AllocBackend<MemoryKind>, T, dim> tlv(data, std::move(shape));
     return tlv;
   }
 
@@ -90,15 +90,15 @@ class Scratchpad {
    * @brief Allocates memory suitable for storing `count` items of type `T` in the
    *        memory of type `alloc_type`.
    */
-  template <typename T>
-  T *Allocate(AllocType alloc_type, size_t count, size_t alignment = alignof(T)) {
-    return reinterpret_cast<T*>(Alloc(alloc_type, count*sizeof(T), alignment));
+  template <typename MemoryKind, typename T>
+  T *Allocate(size_t count, size_t alignment = alignof(T)) {
+    return reinterpret_cast<T*>(Alloc<MemoryKind>(count*sizeof(T), alignment));
   }
 
   template <typename Collection, typename T = std::remove_const_t<element_t<Collection>>>
   if_array_like<Collection, T*>
   ToGPU(cudaStream_t stream, const Collection &c) {
-    T *ptr = Allocate<T>(AllocType::GPU, size(c));
+    T *ptr = Allocate<mm::memory_kind::device, T>(size(c));
     CUDA_CALL(cudaMemcpyAsync(ptr, &c[0], size(c) * sizeof(T), cudaMemcpyHostToDevice, stream));
     return ptr;
   }
@@ -106,7 +106,7 @@ class Scratchpad {
   template <typename Collection, typename T = std::remove_const_t<element_t<Collection>>>
   if_iterable<Collection, T*>
   ToHost(const Collection &c) {
-    T *ptr = Allocate<T>(AllocType::Host, size(c));
+    T *ptr = Allocate<mm::memory_kind::host, T>(size(c));
     std::copy(begin(c), end(c), ptr);
     return ptr;
   }
@@ -114,15 +114,15 @@ class Scratchpad {
   template <typename Collection, typename T = std::remove_const_t<element_t<Collection>>>
   if_iterable<Collection, T*>
   ToPinned(const Collection &c) {
-    T *ptr = Allocate<T>(AllocType::Pinned, size(c));
+    T *ptr = Allocate<mm::memory_kind::pinned>(size(c));
     std::copy(begin(c), end(c), ptr);
     return ptr;
   }
 
   template <typename Collection, typename T = std::remove_const_t<element_t<Collection>>>
   if_iterable<Collection, T*>
-  ToUnified(const Collection &c) {
-    T *ptr = Allocate<T>(AllocType::Unified, size(c));
+  ToManaged(const Collection &c) {
+    T *ptr = Allocate<mm::memory_kind::managed, T>(size(c));
     std::copy(begin(c), end(c), ptr);
     return ptr;
   }
@@ -138,6 +138,11 @@ class Scratchpad {
   }
 
  protected:
+  virtual void *Alloc(size_t bytes, size_t alignment, mm::memory_kind::host*) = 0;
+  virtual void *Alloc(size_t bytes, size_t alignment, mm::memory_kind::pinned*) = 0;
+  virtual void *Alloc(size_t bytes, size_t alignment, mm::memory_kind::device*) = 0;
+  virtual void *Alloc(size_t bytes, size_t alignment, mm::memory_kind::managed*) = 0;
+
   ~Scratchpad() = default;
 };
 
