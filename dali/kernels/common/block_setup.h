@@ -41,6 +41,37 @@ struct BlockDesc {
  *                       additional spatial dimension (e.g. for linear operations in CHW layout)\n
  *                       -1 indicates there are only spatial dimensions, all of which
  *                       participate in layout calculation.
+ *
+ * Typical usage:
+ * * Generate blocks based on the shape by calling SetupBlocks.
+ * * Copy the calculated BlockDesc to GPU - can be accessed by Blocks()
+ * * Run the kernel with GridDim() and BlockDim() and pass the BlockDesc to it.
+ *
+ * Each kernel block should process the given multidimensional data range [start, end), for
+ * given sample. Typically additional array of sample descriptors with input/output pointers
+ * and per-sample parameters is passed.
+ *
+ * __global__ void
+ * ProcessingKernel(const SampleDescriptor<2> *samples, const BlockDesc<2> *blocks) {
+ *   const auto &block = blocks[blockIdx.x];
+ *   const auto &sample = samples[block.sample_idx];
+ *
+ *   const auto *in = sample.in;
+ *   auto *out = sample.out;
+ *
+ *   for (int y = threadIdx.y + block.start.y; y < block.end.y; y += blockDim.y) {
+ *     for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
+ *       out[y * sample.out_pitch.x + x] = Foo(in[y * sample.in_pitch.x + x], sample.param);
+ *     }
+ *   }
+ * }
+ *
+ * Note that by default for non-uniform blocks, the BlockDim.z == 1 - all dimensions apart from
+ * the outermost two should be iterated over programatically and not by blocks of threads.
+ *
+ * @remark Depending on whether the uniform block coverage (see SetupBlocks) is used or not,
+ * the calculated grid dimension allow to iterate over blocks with blockIdx.z or blockIdx.x
+ * respectively.
  */
 template <int _ndim, int _channel_dim>
 class BlockSetup {
@@ -59,6 +90,15 @@ class BlockSetup {
     SetDefaultBlockSize(block_size);
   }
 
+  /**
+   * @brief Generate block descriptors for given shape.
+   *
+   * @param output_shape - shape to cover with blocks
+   * @param force_variable_size - true to always treat the shape as non-uniform
+   *
+   * @remark If the input is detected to be uniform and the `force_variable_size` is not used,
+   * the blocks should be indexed with blockIdx.z instead of blockIdx.x
+   */
   void SetupBlocks(const TensorListShape<tensor_ndim> &output_shape,
                    bool force_variable_size = false) {
     blocks_.clear();
@@ -70,6 +110,10 @@ class BlockSetup {
       VariableSizeSetup(output_shape);
   }
 
+  /**
+   * @brief Prepare TensorListShape based on `in_shape` number of channels and spatial output
+   * dimensions provided in `output_sizes`.
+   */
   TensorListShape<tensor_ndim> GetOutputShape(
       const TensorListShape<tensor_ndim> &in_shape,
       span<const TensorShape<ndim>> output_sizes) {
@@ -88,7 +132,10 @@ class BlockSetup {
     return shape;
   }
 
-
+  /**
+   * @brief Check if `out_shape` matches the number of channels of `in_shape` and spatial dimensions
+   * of `output_sizes` as if it was generated with GetOutputShape(in_shape, output_sizes).
+   */
   void ValidateOutputShape(
       const TensorListShape<tensor_ndim> &out_shape,
       const TensorListShape<tensor_ndim> &in_shape,

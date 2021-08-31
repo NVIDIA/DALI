@@ -15,15 +15,10 @@
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import nvidia.dali as dali
-from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
 
-from test_utils import check_batch
 from test_utils import compare_pipelines
-from test_utils import RandomDataIterator
-from test_utils import get_dali_extra_path
+from test_utils import RandomlyShapedDataIterator
 
 class CastPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, cast_dtypes, num_threads=1, device_id=0):
@@ -45,16 +40,18 @@ class CastPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
 
-def check_cast_operator_float16(device, batch_size):
+def check_cast_operator_float16(device, batch_size, in_type, out_type):
     input_shape=(300, 400, 3)
-    eii1 = RandomDataIterator(batch_size, shape=input_shape)
-    eii2 = RandomDataIterator(batch_size, shape=input_shape)
+    eii1 = RandomlyShapedDataIterator(batch_size, max_shape=input_shape, dtype=in_type)
+    eii2 = RandomlyShapedDataIterator(batch_size, max_shape=input_shape, dtype=in_type)
     compare_pipelines(
-        CastPipeline(device, batch_size, iter(eii1), [types.FLOAT16, types.FLOAT]),
-        CastPipeline(device, batch_size, iter(eii2), [types.FLOAT]),
-        batch_size=batch_size, N_iterations=3)
+        CastPipeline(device, batch_size, iter(eii1), [types.FLOAT16, out_type]),
+        CastPipeline(device, batch_size, iter(eii2), [out_type]),
+        batch_size=batch_size, N_iterations=5)
 
 def test_cast_operator_float16():
     for device in ['cpu', 'gpu']:
         for batch_size in [3]:
-            yield check_cast_operator_float16, device, batch_size
+            for in_type in [np.uint8, np.int64]:
+                for out_type in [types.FLOAT, types.INT8]:
+                    yield check_cast_operator_float16, device, batch_size, in_type, out_type
