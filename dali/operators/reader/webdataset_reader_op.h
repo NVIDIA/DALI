@@ -25,6 +25,10 @@ class WebdatasetReader : public DataReader<CPUBackend, vector<Tensor<CPUBackend>
  public:
   explicit WebdatasetReader(const OpSpec& spec)
       : DataReader<CPUBackend, vector<Tensor<CPUBackend>>>(spec) {
+    std::cout << "TEST" << std::endl;
+    std::cout << "TEST" << std::endl;
+    std::cout << "TEST" << std::endl;
+    std::cout << "TEST" << std::endl;
     loader_ = InitLoader<WebdatasetLoader>(spec);
   }
 

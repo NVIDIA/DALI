@@ -13,15 +13,15 @@
 // limitations under the License.
 
 #include "dali/operators/reader/webdataset_reader_op.h"
-#include <string>
 #include <algorithm>
+#include <string>
 
 namespace dali {
 
 void WebdatasetReader::RunImpl(HostWorkspace& ws) {
   int num_outputs = ws.NumOutput();
   int num_samples = GetCurrBatchSize();
-  
+
   for (int data_idx = 0; data_idx < num_samples; data_idx++) {
     auto& sample = GetSample(data_idx);
     for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
@@ -30,31 +30,23 @@ void WebdatasetReader::RunImpl(HostWorkspace& ws) {
   }
 }
 
-DALI_REGISTER_OPERATOR(readers__Webdataset, WebdatasetReader, CPU);
-
-DALI_SCHEMA(readers_Webdataset)
+DALI_SCHEMA(readers__Webdataset)
     .DocStr(
         R"code(
           To be filled in
         )code")
     .NumInput(0)
-    .OutputFn([](const OpSpec& spec){
-      auto ext = spec.GetArgument<std::string>("ext");
-      return ext == "" ? 0 : std::count(ext.begin(), ext.end(), WebdatasetLoader::kExtDelim);
+    .OutputFn([](const OpSpec& spec) {
+      return spec.GetRepeatedArgument<std::string>("ext").size();
     })
-    .AddArg("uris",
-            R"code(To be filled in)code",
-            DALI_STRING_VEC)
-    .AddArg("configs",
-            R"code(To be filled in)code",
-            DALI_STRING_VEC)
-    .AddArg("ext",
-            R"code(To be filled in)code",
-            DALI_STRING_VEC)
-    .AddOptionalArg("missing_component_behavior",
-                    R"code(To be filled in)code", "")
-    .AddOptionalArg("dtype",
-                    R"code(To be filled in: numeric)code",
-                    DALI_INT8);
+    .AddArg("uris", R"code(To be filled in)code", DALI_STRING_VEC)
+    .AddArg("configs", R"code(To be filled in)code", DALI_STRING_VEC)
+    .AddArg("ext", R"code(To be filled in)code", DALI_STRING_VEC)
+    .AddOptionalArg("missing_component_behavior", R"code(To be filled in)code", "")
+    .AddOptionalArg("dtype", R"code(To be filled in: numeric)code", DALI_DATA_TYPE_VEC,
+                    nullptr)  // default is a vector of uint8
+    .AddParent("LoaderBase");
 
-}
+DALI_REGISTER_OPERATOR(readers__Webdataset, WebdatasetReader, CPU);
+
+}  // namespace dali

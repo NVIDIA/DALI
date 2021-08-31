@@ -43,7 +43,7 @@ class IndexCreator():
     def __init__(self, uri, idx_path):
         self.uri = uri
         self.idx_path = idx_path
-        self.farchive = tarfile.TarFile(self.uri)
+        self.farchive = tarfile.open(self.uri)
         self.fidx = open(self.idx_path, 'w')
 
     def open(self):
@@ -88,28 +88,29 @@ class IndexCreator():
 
         pre_time = time.time()
         counter = 0
-        report_step = 100000
+        report_step = 10000
 
         # Parse the archive first for the file offsets
         data = []
         last_skipped = 0
-        for member in iter(self.farchive):
+        for member in self.farchive:
             if counter % report_step == 0:
                 cur_time = time.time()
                 print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: collect")
             counter += 1
 
-            if member.type != tarfile.REGTYPE or member.name.startswith('.'):
-                last_skipped = member.offset
-                continue
-            last_skipped = self.farchive.fileobj.tell()
-            basename, extension = IndexCreator.split_name(member.name)
-            offset = member.offset
-            if not data or data[-1][0] != basename:
-                data.append((offset, [extension]))
-            else:
-                data[-1][1].append(extension)
-        
+            #if member.type != tarfile.REGTYPE or member.name.startswith('.'):
+            #    last_skipped = member.offset
+            #    continue
+            #last_skipped = self.farchive.fileobj.tell()
+            #basename, extension = IndexCreator.split_name(member.name)
+            #offset = member.offset
+            #if not data or data[-1][0] != basename:
+            #    data.append((offset, [extension]))
+            #else:
+            #    data[-1][1].append(extension)
+        return
+
         if not data:
             raise ValueError("Webdataset Tar File empty")
 
