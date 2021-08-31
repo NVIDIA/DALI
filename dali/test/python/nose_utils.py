@@ -17,7 +17,7 @@ import re
 import fnmatch
 
 
-def assert_raises(exception, *args, **kwargs):
+def assert_raises(exception, *args, glob=None, regex=None, match_case=None, **kwargs):
 
     """
     Wrapper combining `nose.tools.assert_raises` and `nose.tools.assert_raises_regex`.
@@ -27,10 +27,6 @@ def assert_raises(exception, *args, **kwargs):
     To enforce case sensitive check pass ``match_case=True``.
     Don't specify `match_case` if passing already compiled regex pattern.
     """
-
-    glob = kwargs.pop("glob", None)
-    regex = kwargs.pop("regex", None)
-    match_case = kwargs.pop("match_case", None)
 
     if glob is None and regex is None:
         return tools.assert_raises(exception, *args, **kwargs)
@@ -42,6 +38,11 @@ def assert_raises(exception, *args, **kwargs):
         if not isinstance(glob, str):
             raise ValueError("Glob pattern must be a string")
         pattern = fnmatch.translate(glob)
+        # fnmatch adds special character to match the end of the string, so that when used
+        # with re.match it, by default, matches the whole string. Here, it's going to be used
+        # with re.search so it would be weird to enforce matching the suffix, but not the prefix.
+        if pattern[-2:] == r"\Z":
+            pattern = pattern[:-2]
     else: # regex is not None
         if match_case is not None and not isinstance(regex, str):
             raise ValueError("Regex must be a string if `match_case` is specified when calling assert_raises_pattern")
@@ -59,7 +60,7 @@ def raises(exception, glob=None, regex=None, match_case=None):
     To assert that the test case raises Exception with the message matching given glob pattern
         @raises(Exception, "abc * def")
         def test():
-            raise Exception("It's: abc 42 def")
+            raise Exception("It's: abc 42 def, and has some suffix.")
 
     To assert that the test case raises Exception with the message matching given regex pattern
         @raises(Exception, regex="abc[0-9]{2}def")
@@ -71,11 +72,10 @@ def raises(exception, glob=None, regex=None, match_case=None):
         def test():
             raise Exception("This message is not checked")
 
-    The subtle difference with regular @raises is that in order to match against any
-    of a number of exception classes, you have to pass them as a single tuple (or list) of callases
-    rather than specifying each as separtate argument.
-
     By default, the check is not case-sensitive, to change that pass `match_case`=True.
+
+    You can pass a tuple of exception classes to assert that the raised exception is
+    an instance of at least one of the classes.
     """
 
     def decorator(func):
