@@ -42,8 +42,36 @@ struct BlockDesc {
  *                       -1 indicates there are only spatial dimensions, all of which
  *                       participate in layout calculation.
  *
- * @remark Depending on whether the uniform block coverage is used or not, the calculated
- * grid dimension allow to iterate over blocks with blockIdx.z or blockIdx.x respectively.
+ * Typical usage:
+ * * Generate blocks based on the shape by calling SetupBlocks.
+ * * Copy the calculated BlockDesc to GPU - can be accessed by Blocks()
+ * * Run the kernel with GridDim() and BlockDim() and pass the BlockDesc to it.
+ *
+ * Each kernel block should process the given multidimensional data range [start, end), for
+ * given sample. Typically additional array of sample descriptors with input/output pointers
+ * and per-sample parameters is passed.
+ *
+ * __global__ void
+ * ProcessingKernel(const SampleDescriptor<2> *samples, const BlockDesc<2> *blocks) {
+ *   const auto &block = blocks[blockIdx.x];
+ *   const auto &sample = samples[block.sample_idx];
+ *
+ *   const auto *in = sample.in;
+ *   auto *out = sample.out;
+ *
+ *   for (int y = threadIdx.y + block.start.y; y < block.end.y; y += blockDim.y) {
+ *     for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
+ *       out[y * sample.out_pitch.x + x] = Foo(in[y * sample.in_pitch.x + x], sample.param);
+ *     }
+ *   }
+ * }
+ *
+ * Note that by default for non-uniform blocks, the BlockDim.z == 1 - all dimensions apart from
+ * the outermost two should be iterated over programatically and not by blocks of threads.
+ *
+ * @remark Depending on whether the uniform block coverage (see SetupBlocks) is used or not,
+ * the calculated grid dimension allow to iterate over blocks with blockIdx.z or blockIdx.x
+ * respectively.
  */
 template <int _ndim, int _channel_dim>
 class BlockSetup {

@@ -19,7 +19,7 @@
 namespace dali {
 
 template <typename OType, typename IType>
-inline void CPUHelper(OType *out, const IType *in, size_t N) {
+inline void CpuHelper(OType *out, const IType *in, size_t N) {
   for (size_t i = 0; i < N; ++i) {
     out[i] = ConvertSat<OType>(in[i]);
   }
@@ -46,7 +46,7 @@ void Cast<CPUBackend>::RunImpl(HostWorkspace &ws) {
         auto *out = output[sample_id].mutable_data<OType>();
         const auto *in = input[sample_id].data<IType>();
         auto size = input_shape.tensor_size(sample_id);
-        tp.AddWork([out, in, size](int thread_id) { CPUHelper<OType, IType>(out, in, size); },
+        tp.AddWork([out, in, size](int thread_id) { CpuHelper<OType, IType>(out, in, size); },
                    size);
       }
 
