@@ -238,8 +238,12 @@ endif()
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register -Wsign-compare")
 
-  # TODO(klecki): Plethora of warnings that should be adressed as a followup
+  # Settings specific to builds where Clang is used for compiling CUDA code
   if (DALI_CLANG_ONLY)
+    # Enable SFINAE with ellipsis in device code
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Xclang -fcuda-allow-variadic-functions")
+
+    # TODO(klecki): Plethora of warnings that should be adressed as a followup
     # std::abs have no effect on unsigned value in a templated call
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-absolute-value")
     # convert.h when the bigger values are not representable
@@ -254,8 +258,6 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-command-line-argument")
     # Ignore warnings coming from cutlass
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --system-header-prefix=cutlass/")
-    # Enable SFINAE with ellipsis in device code
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Xclang -fcuda-allow-variadic-functions")
   endif()
 
   # CUDA does not support current Clang as host compiler, we need use gcc

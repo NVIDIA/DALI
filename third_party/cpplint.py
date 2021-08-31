@@ -4476,12 +4476,20 @@ def _ClassifyInclude(fileinfo, include, is_system):
   """
   # This is a list of all standard c++ header files, except
   # those already checked for above.
+
+  def basename(name):
+    # os-dependent delimiters are allowed (e.g. backslash '\' in Windows)
+    name = os.path.split(name)[1]
+    # C allows slash ('/') as path delimiter on all systems
+    name = name.split('/')[-1]
+    return name
+
   is_cpp_h = include in _CPP_HEADERS \
             or include.endswith(".hpp") \
             or include.endswith(".hxx") \
             or include.endswith(".H") \
             or include.endswith(".hh") \
-            or '.' not in include[include.rfind('/')]  # no extension
+            or '.' not in basename(include)  # no extension
 
   if is_system:
     if is_cpp_h:
