@@ -15,7 +15,7 @@
 import os
 import copyreg
 import numpy as np
-from nose_utils import raises_pattern
+from nose_utils import raises
 from pickle import PicklingError
 
 from nvidia.dali import pipeline_def
@@ -286,7 +286,7 @@ def test_if_custom_type_reducers_are_respected_by_dali_reducer():
 
 
 @register_case(tests_dali_pickling)
-@raises_pattern(PicklingError, "Can't pickle * attribute lookup simple_callback on * failed")
+@raises(PicklingError, "Can't pickle * attribute lookup simple_callback on * failed")
 def _test_global_function_pickled_by_reference(name, py_callback_pickler):
     # modify callback name so that an attempt to pickle by reference, which is default Python behavior, fails
     _simple_callback.__name__ = _simple_callback.__qualname__ = "simple_callback"
@@ -301,7 +301,7 @@ def _test_pickle_by_value_decorator_on_global_function(name, py_callback_pickler
 
 
 @register_case(tests_dali_pickling)
-@raises_pattern(ValueError, "Expected special_dumps_param among kwargs, got *")
+@raises(ValueError, "Expected special_dumps_param among kwargs, got *")
 def _test_pickle_does_not_pass_extra_params_function(name, py_callback_pickler):
     this_module = __import__(__name__)
     _create_and_compare_simple_pipelines(callback_const_42, this_module, batch_size=4, py_num_workers=2)

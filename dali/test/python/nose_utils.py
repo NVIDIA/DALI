@@ -17,46 +17,71 @@ import re
 import fnmatch
 
 
-def assert_raises_pattern(exception, pattern, *args, **kwargs):
+def assert_raises(exception, *args, **kwargs):
 
     """
-    There already is an assert_raises_regex function available in nose.tools
-    (which is actually a method assertRaisesRegex copied from python's unittest.TestCase dummy instance).
-    This is a simple wrapper around the function that allows to:
-    * specify if the pattern searching should be case-sensitive (by default it is not, use `match_case`=True to change that)
-    * use simple glob pattern instead of regex (specify `use_glob`=False if you want to use regex)
-
-    `exception` can be either a class or list of classes
+    Wrapper combining `nose.tools.assert_raises` and `nose.tools.assert_raises_regex`.
+    Specify ``regex=pattern`` or ``glob=pattern`` to check error message of expected exception against the pattern.
+    Value for `glob` must be a string, `regex` can be either a literal or compiled regex pattern.
+    By default, the check will ignore case, if called with `glob` or a literal for `regex`.
+    To enforce case sensitive check pass ``match_case=True``.
+    Don't specify `match_case` if passing already compiled regex pattern.
     """
 
+    glob = kwargs.pop("glob", None)
+    regex = kwargs.pop("regex", None)
     match_case = kwargs.pop("match_case", None)
-    use_glob = kwargs.pop("use_glob", None)
 
-    if not isinstance(pattern, str): # it could be an already compiled regex
-        if use_glob is not None or match_case is not None:
-            raise ValueError("Pattern must be a string if `match_case` or `use_glob` is specified when calling assert_raises_pattern")
-    else:
-        if use_glob is None:
-            use_glob = True
-        if match_case is None:
-            match_case = False
+    if glob is None and regex is None:
+        return tools.assert_raises(exception, *args, **kwargs)
 
-        if use_glob:
-            pattern = fnmatch.translate(pattern)
-        flags = 0
-        if not match_case:
-            flags |= re.IGNORECASE
-        pattern = re.compile(pattern, flags)
+    if glob is not None and regex is not None:
+        raise ValueError("You should specify at most one of `glob` and `regex` parameters but not both")
+
+    if glob is not None:
+        if not isinstance(glob, str):
+            raise ValueError("Glob pattern must be a string")
+        pattern = fnmatch.translate(glob)
+    else: # regex is not None
+        if match_case is not None and not isinstance(regex, str):
+            raise ValueError("Regex must be a string if `match_case` is specified when calling assert_raises_pattern")
+        pattern = regex
+
+    if isinstance(pattern, str) and not match_case: # ignore case by default
+        pattern = re.compile(pattern, re.IGNORECASE)
 
     return tools.assert_raises_regex(exception, pattern, *args, **kwargs)
 
 
-def raises_pattern(exception, pattern, match_case=None, use_glob=None):
+def raises(exception, glob=None, regex=None, match_case=None):
+
+    """
+    To assert that the test case raises Exception with the message matching given glob pattern
+        @raises(Exception, "abc * def")
+        def test():
+            raise Exception("It's: abc 42 def")
+
+    To assert that the test case raises Exception with the message matching given regex pattern
+        @raises(Exception, regex="abc[0-9]{2}def")
+        def test():
+            raise Exception("It's: abc42def, and has some suffix too.")
+
+    You can also use it like regular nose.raises
+        @raises(Exception)
+        def test():
+            raise Exception("This message is not checked")
+
+    The subtle difference with regular @raises is that in order to match against any
+    of a number of exception classes, you have to pass them as a single tuple (or list) of callases
+    rather than specifying each as separtate argument.
+
+    By default, the check is not case-sensitive, to change that pass `match_case`=True.
+    """
 
     def decorator(func):
 
         def new_func(*args, **kwargs):
-            with assert_raises_pattern(exception, pattern, match_case=match_case, use_glob=use_glob):
+            with assert_raises(exception, glob=glob, regex=regex, match_case=match_case):
                 return func(*args, **kwargs)
 
         return tools.make_decorator(func)(new_func)
