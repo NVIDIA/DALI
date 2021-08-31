@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,18 +43,18 @@ namespace kernels {
 template <int ndims>
 using Roi = Box<ndims, int>;
 
-template <int n>
+template <int n, typename T = int32_t>
 DALI_HOST_DEV
-ivec<n> shape2vec(const TensorShape<n> &shape) {
-  ivec<n> ret;
+vec<n, T> shape2vec(const TensorShape<n> &shape) {
+  vec<n, T> ret;
   for (int i = 0; i < n; i++)
     ret[n-1-i] = shape[i];
   return ret;
 }
 
-template <int n>
+template <int n, typename T>
 DALI_HOST_DEV
-TensorShape<n> vec2shape(const ivec<n> &shape_vec) {
+TensorShape<n> vec2shape(const vec<n, T> &shape_vec) {
   TensorShape<n> ret;
   for (int i = 0; i < n; i++)
     ret[n-1-i] = shape_vec[i];
