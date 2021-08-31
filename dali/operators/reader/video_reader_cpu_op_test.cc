@@ -118,7 +118,7 @@ class VideoReaderCpuTest : public ::testing::Test {
 
 
 TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
-  Pipeline pipe(1, 1, 0);
+  Pipeline pipe(1, 4, 0);
   const int sequence_length = 1;
 
   pipe.AddOperator(OpSpec("readers__Video")
@@ -132,7 +132,7 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
 
   pipe.Build({{"frames", "cpu"}});
 
-  for (int frame_id = 0; frame_id < this->NumFrames(); ++frame_id) {
+  for (int frame_id = 0; frame_id < this->NumFrames() * 2 + 10; ++frame_id) {
     DeviceWorkspace ws;
     pipe.RunCPU();
     pipe.RunGPU();
@@ -141,7 +141,7 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
     const auto &frame_video_output = ws.Output<dali::CPUBackend>(0);
 
     detail::comapre_frames(
-      frame_video_output.data<uint8_t>(), this->gt_frames_[frame_id].data, this->FrameSize());
+      frame_video_output.data<uint8_t>(), this->gt_frames_[frame_id % this->NumFrames()].data, this->FrameSize());
   }
 }
 }  // namespace dali

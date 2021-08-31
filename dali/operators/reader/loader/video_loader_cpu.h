@@ -57,10 +57,15 @@ class VideoFileCPU {
   int height_;
   int channels_ = 3;
 
-  int read_frames = 0;
-
   uint8_t *dest_[4] = {nullptr, nullptr, nullptr, nullptr};
   int dest_linesize_[4] = {0, 0, 0, 0};
+
+ private:
+  bool ReadRegularFrame(uint8_t *data);
+
+  bool ReadFlushFrame(uint8_t *data);
+
+  bool flush_state_ = false;
 };
 
 class VideoSampleSpan {

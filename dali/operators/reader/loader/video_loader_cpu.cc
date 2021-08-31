@@ -38,46 +38,64 @@ VideoFileCPU::VideoFileCPU(std::string &filename) {
   packet_ = av_packet_alloc();
 }
 
+bool ReadRegularFrame(uint8_t *data) {
+  return false;
+}
+
+bool ReadFlushFrame(uint8_t *data) {
+  return false;
+}
+
 bool VideoFileCPU::ReadNextFrame(uint8_t *data) {
   int ret = -1;
-  while(av_read_frame(ctx_, packet_) >= 0) {
-    if (packet_->stream_index != stream_id_) {
-      continue;
+
+  if (!flush_state_) {
+    while(av_read_frame(ctx_, packet_) >= 0) {
+      if (packet_->stream_index != stream_id_) {
+        continue;
+      }
+
+      if (avcodec_send_packet(codec_ctx_, packet_) < 0) {
+        DALI_FAIL("Failed to send packet to decoder");
+      }
+
+      ret = avcodec_receive_frame(codec_ctx_, frame_);
+
+      if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+        continue;
+      }
+
+      if (sws_ctx_ == nullptr) {
+        sws_ctx_ = sws_getContext(
+          frame_->width, 
+          frame_->height, 
+          codec_ctx_->pix_fmt, 
+          frame_->width, 
+          frame_->height, 
+          AV_PIX_FMT_RGB24, 
+          SWS_BILINEAR, 
+          nullptr, 
+          nullptr, 
+          nullptr);
+      }
+
+      dest_[0] = data;
+      dest_linesize_[0] = frame_->width * 3;
+      sws_scale(sws_ctx_, frame_->data, frame_->linesize, 0, frame_->height, dest_, dest_linesize_);
+      return true;
     }
-
-    if (avcodec_send_packet(codec_ctx_, packet_) < 0) {
-      DALI_FAIL("Failed to send packet to decoder");
-    }
-
-    ret = avcodec_receive_frame(codec_ctx_, frame_);
-
-    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-      continue;
-    }
-
-    if (sws_ctx_ == nullptr) {
-      sws_ctx_ = sws_getContext(
-        frame_->width, 
-        frame_->height, 
-        codec_ctx_->pix_fmt, 
-        frame_->width, 
-        frame_->height, 
-        AV_PIX_FMT_RGB24, 
-        SWS_BILINEAR, 
-        nullptr, 
-        nullptr, 
-        nullptr);
-    }
-
-    dest_[0] = data;
-    dest_linesize_[0] = frame_->width * 3;
-    sws_scale(sws_ctx_, frame_->data, frame_->linesize, 0, frame_->height, dest_, dest_linesize_);
-    return true;
   }
 
-  avcodec_send_packet(codec_ctx_, nullptr);
+  if (!flush_state_) {
+    avcodec_send_packet(codec_ctx_, nullptr);
+    flush_state_ = true;
+  }
+
   if (avcodec_receive_frame(codec_ctx_, frame_) < 0) {
-    return false;
+    flush_state_ = false;
+    int ret = av_seek_frame(ctx_, stream_id_, 0, AVSEEK_FLAG_FRAME);
+    avcodec_flush_buffers(codec_ctx_);
+    return ReadNextFrame(data);
   }
 
   dest_[0] = data;
