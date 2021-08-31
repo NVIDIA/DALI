@@ -365,6 +365,47 @@ TEST_F(VideoReaderTest, MJpeg) {
   ASSERT_EQ(frames_shape[0][0], sequence_length);
 }
 
+TEST_F(VideoReaderTest, HEVC) {
+  Pipeline pipe(16, 1, 0);
+  const int sequence_length = 3;
+  const string unsupported_exception_msg =
+      "Decoder hardware does not support this video codec"
+      " and/or chroma format";
+
+  // richer FFmpeg configuration leads to different behaviour of VFR heuristics so dissable it for
+  // this video
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("skip_vfr_check", true)
+                       .AddArg("filenames", std::vector<std::string>
+                             {testing::dali_extra_path() +"/db/video/hevc/sintel_trailer-720p.mp4"})
+                       .AddOutput("frames", "gpu"));
+
+  DeviceWorkspace ws;
+  constexpr int iterations = 10;
+  try {
+    pipe.Build(this->Outputs());
+    for (int i = 0; i < iterations; ++i) {
+      pipe.RunCPU();
+      pipe.RunGPU();
+      pipe.Outputs(&ws);
+    }
+  } catch (const std::exception &e) {
+    if (IsUnsupportedCodec(e.what())) {
+      GTEST_SKIP() << "Skipped because of unsupported codec. Original error:\n" << e.what();
+    } else {
+      throw;
+    }
+  }
+
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
+  const auto &frames_shape = frames_output.shape();
+
+  ASSERT_EQ(frames_shape.size(), 16);
+  ASSERT_EQ(frames_shape[0][0], sequence_length);
+}
+
 TEST_F(VideoReaderTest, FrameLabels) {
   const int sequence_length = 1;
   const int iterations = 256;
