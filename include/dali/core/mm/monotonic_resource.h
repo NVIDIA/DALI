@@ -163,7 +163,7 @@ class monotonic_memory_resource<Kind, Context, true> : public memory_resource<Ki
   void do_deallocate(void *data, size_t bytes, size_t alignment) override {
   }
 
-  virtual Context do_get_context() const noexcept {
+  Context do_get_context() const noexcept override {
     return upstream_->get_context();
   }
 
@@ -258,7 +258,7 @@ class monotonic_memory_resource<Kind, Context, false> : public memory_resource<K
   void do_deallocate(void *data, size_t bytes, size_t alignment) override {
   }
 
-  virtual Context do_get_context() const noexcept {
+  Context do_get_context() const noexcept override {
     return upstream_->get_context();
   }
 

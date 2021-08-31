@@ -18,10 +18,7 @@
 #include <cuda_runtime.h>
 #include <cstddef>
 
-#include <rmm/mr/memory_resource.hpp>
-#include <rmm/mr/host/host_memory_resource.hpp>
-#include <rmm/mr/host/pinned_memory_resource.hpp>
-#include <rmm/mr/device/device_memory_resource.hpp>
+#include <cuda/memory_resource>
 
 namespace dali {
 
@@ -39,17 +36,19 @@ namespace dali {
  */
 namespace mm {
 
-namespace memory_kind = rmm::mr::memory_kind;
+namespace memory_kind = cuda::memory_kind;
 
-using rmm::mr::memory_resource;
-using rmm::mr::host_memory_resource;
+using cuda::any_context;
+using cuda::memory_resource;
+using cuda::resource_view;
+using cuda::stream_ordered_resource_view;
+
+using host_memory_resource = memory_resource<memory_kind::host>;
 using pinned_memory_resource = memory_resource<memory_kind::pinned>;
-using pinned_malloc_memory_resource = rmm::mr::pinned_memory_resource;
-using stream_view = rmm::cuda_stream_view;
-using rmm::mr::any_context;
+using cuda::stream_view;
 
 template <typename Kind>
-using async_memory_resource = rmm::mr::stream_ordered_memory_resource<Kind>;
+using async_memory_resource = cuda::stream_ordered_memory_resource<Kind>;
 
 using device_async_resource = async_memory_resource<memory_kind::device>;
 using pinned_async_resource = async_memory_resource<memory_kind::pinned>;

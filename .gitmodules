@@ -26,15 +26,9 @@
 [submodule "third_party/cocoapi"]
 	path = third_party/cocoapi
 	url = https://github.com/cocodataset/cocoapi
-[submodule "third_party/rmm"]
-	path = third_party/rmm
-	url = https://github.com/mzient/rmm.git
-[submodule "third_party/spdlog"]
-	path = third_party/spdlog
-	url = https://github.com/gabime/spdlog.git
-[submodule "third_party/fmt"]
-	path = third_party/fmt
-	url = https://github.com/fmtlib/fmt
 [submodule "third_party/thrust"]
 	path = third_party/thrust
 	url = https://github.com/NVIDIA/thrust
+[submodule "third_party/libcudacxx"]
+	path = third_party/libcudacxx
+	url = https://github.com/mzient/libcudacxx.git

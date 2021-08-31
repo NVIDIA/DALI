@@ -144,7 +144,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
       return nullptr;
     adjust_size_and_alignment(bytes, alignment);
     std::lock_guard<LockType> guard(lock_);
-    auto it = stream_free_.find(stream.value());
+    auto it = stream_free_.find(stream.get());
     void *ptr;
     if (it != stream_free_.end()) {
       ptr = try_allocate(it->second, bytes, alignment);
@@ -194,7 +194,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char*>(mem);
     pop_block_padding(ptr, bytes, alignment);
-    deallocate_async_impl(stream_free_[stream.value()], ptr, bytes, alignment, stream.value());
+    deallocate_async_impl(stream_free_[stream.get()], ptr, bytes, alignment, stream.get());
   }
 
   /**

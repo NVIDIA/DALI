@@ -21,10 +21,9 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
-#include <rmm/mr/device/pool_memory_resource.hpp>
-#include <rmm/mr/device/cuda_memory_resource.hpp>
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/malloc_resource.h"
+#include "dali/core/mm/async_pool.h"
 #include "dali/core/mm/detail/util.h"
 
 namespace dali {
@@ -172,7 +171,7 @@ template <typename Kind, typename Context, bool owning, bool security_check,
 class test_resource_wrapper<owning, security_check, memory_resource<Kind, Context>, Upstream>
 : public memory_resource<Kind, Context>
 , public test_resource_wrapper_impl<owning, security_check, Upstream> {
-  static_assert(!security_check || !std::is_same<Kind, memory_kind::device>::value,
+  static_assert(!security_check || !std::is_same<Kind, mm::memory_kind::device>::value,
                 "Cannot place a security cookie in device memory");
 
   using test_resource_wrapper_impl<owning, security_check, Upstream>::test_resource_wrapper_impl;
@@ -195,7 +194,7 @@ class test_resource_wrapper<owning, security_check, memory_resource<Kind, Contex
     }, ptr, bytes, alignment);
   }
 
-  virtual Context do_get_context() const noexcept {
+  Context do_get_context() const noexcept override {
     return this->upstream_->get_context();
   }
 };
@@ -206,7 +205,7 @@ template <typename Kind, bool owning, bool security_check,
 class test_resource_wrapper<owning, security_check, async_memory_resource<Kind>, Upstream>
 : public async_memory_resource<Kind>
 , public test_resource_wrapper_impl<owning, security_check, Upstream> {
-  static_assert(!security_check || !std::is_same<Kind, memory_kind::device>::value,
+  static_assert(!security_check || !std::is_same<Kind, mm::memory_kind::device>::value,
                 "Cannot place a security cookie in device memory");
 
   using test_resource_wrapper_impl<owning, security_check, Upstream>::test_resource_wrapper_impl;
@@ -274,11 +273,9 @@ using test_stream_resource = test_resource_wrapper<
 class test_dev_pool_resource : public test_stream_resource<memory_kind::device, true> {
  public:
   test_dev_pool_resource() {
-    reset(new rmm::mr::pool_memory_resource<rmm::mr::cuda_memory_resource>(&cuda_mr_));
+    using resource = async_pool_resource<mm::memory_kind::device>;
+    reset(new resource(&cuda_malloc_memory_resource::instance()));
   }
-
- private:
-  rmm::mr::cuda_memory_resource cuda_mr_;
 };
 
 

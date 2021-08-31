@@ -14,8 +14,8 @@
 
 #include <memory>
 #include <string>
-#include <rmm/mr/device/cuda_memory_resource.hpp>
 #include "dali/core/mm/memory.h"
+#include "dali/core/mm/malloc_resource.h"
 #include "dali/operators/reader/numpy_reader_gpu_op.h"
 #include "dali/pipeline/data/views.h"
 
@@ -104,7 +104,7 @@ void NumpyReaderGPU::Prefetch() {
   // without any changes.
   // See the line `std::swap(output, prefetched_batch_tensors_[curr_batch_consumer_]);`
   // in numpy_reader_gpu_op_impl.cu
-  if (!dynamic_cast<rmm::mr::cuda_memory_resource*>(mm::GetDefaultDeviceResource())) {
+  if (!dynamic_cast<mm::cuda_malloc_memory_resource*>(mm::GetDefaultDeviceResource())) {
     auto *tgt = curr_tensor_list.alloc_func().target<shared_ptr<uint8_t>(*)(size_t)>();
     if (!tgt || *tgt != &gds_alloc) {
       curr_tensor_list.Reset();

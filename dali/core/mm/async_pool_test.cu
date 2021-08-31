@@ -21,7 +21,6 @@
 #include "dali/core/mm/mm_test_utils.h"
 #include "dali/core/cuda_stream.h"
 #include "dali/core/mm/cuda_vm_resource.h"
-#include "rmm/mr/device/pool_memory_resource.hpp"
 
 namespace dali {
 namespace mm {
@@ -163,12 +162,14 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
       CUDA_CALL(cudaMemsetAsync(ptr, fill, size, stream));
       {
         std::lock_guard<Mutex> guard(mtx);
+        (void)guard;  // for dummy mutexes
         blocks.push_back({ ptr, size, fill, stream });
       }
     } else {
       block blk;
       {
         std::lock_guard<Mutex> guard(mtx);
+        (void)guard;  // for dummy mutexes
         if (blocks.empty())
           continue;
         int i = std::uniform_int_distribution<>(0, blocks.size()-1)(rng);
