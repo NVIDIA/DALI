@@ -23,6 +23,7 @@
 #include <type_traits>
 #include "dali/core/tensor_view.h"
 #include "dali/core/mm/memory_resource.h"
+#include "dali/core/backend_tags.h"
 
 namespace dali {
 namespace kernels {
