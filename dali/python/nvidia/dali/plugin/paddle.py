@@ -136,10 +136,6 @@ class DALIGenericIterator(_DaliBaseIterator):
     General DALI iterator for Paddle. It can return any number of
     outputs from the DALI pipeline in the form of Paddle's Tensors.
 
-    Please keep in mind that Tensors returned by the iterator are
-    still owned by DALI. They are valid till the next iterator call.
-    If the content needs to be preserved please copy it to another tensor.
-
     Parameters
     ----------
     pipelines : list of nvidia.dali.Pipeline
@@ -166,6 +162,7 @@ class DALIGenericIterator(_DaliBaseIterator):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
+    dynamic_shape : any, optional, used only for a backward compatibility purpose
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
 
@@ -243,10 +240,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                                    last_batch_padded,
                                    last_batch_policy,
                                    prepare_first_batch=prepare_first_batch)
-        self._dynamic_shape = dynamic_shape
 
-        # Use double-buffering of data batches
-        self._data_batches = [None for i in range(self._num_gpus)]
         self._counter = 0
 
         self._first_batch = None
@@ -264,6 +258,8 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         # Gather outputs
         outputs = self._get_outputs()
+
+        data_batches = [None for i in range(self._num_gpus)]
 
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
@@ -307,25 +303,15 @@ class DALIGenericIterator(_DaliBaseIterator):
                 else:
                     category_place[cat] = pd_cpu_place
 
-            if self._data_batches[i] is None:
-                pd_tensors = {}
-                for cat, lod in self.normalized_map.items():
-                    lod_tensor = fluid.core.LoDTensor()
-                    lod_tensor._set_dims(category_shapes[cat])
-                    pd_tensors[cat] = lod_tensor
-                self._data_batches[i] = pd_tensors
-            else:
-                pd_tensors = self._data_batches[i]
+            pd_tensors = {}
+            for cat, lod in self.normalized_map.items():
+                lod_tensor = fluid.core.LoDTensor()
+                lod_tensor._set_dims(category_shapes[cat])
+                pd_tensors[cat] = lod_tensor
+            data_batches[i] = pd_tensors
 
             # Copy data from DALI Tensors to LoDTensors
             for cat, tensor in category_tensors.items():
-                if hasattr(tensor, 'shape'):  # could be tensor list
-                    assert self._dynamic_shape or \
-                        tensor.shape() == pd_tensors[cat].shape(), \
-                        ("Shapes do not match: DALI tensor has size {0}, "
-                         "but LoDTensor has size {1}".format(
-                             tensor.shape(), pd_tensors[cat].shape()))
-
                 lod_tensor = pd_tensors[cat]
                 lod_tensor._set_dims(category_shapes[cat])
                 seq_len = category_lengths[cat]
@@ -342,7 +328,7 @@ class DALIGenericIterator(_DaliBaseIterator):
             if_drop, left = self._remove_padded()
             if np.any(if_drop):
                 output = []
-                for batch, to_copy in zip(self._data_batches, left):
+                for batch, to_copy in zip(data_batches, left):
                     batch = batch.copy()
                     for cat in self.output_map:
                         batch[cat] = lod_tensor_clip(batch[cat], to_copy)
@@ -367,7 +353,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 # 1) Grab everything from the relevant GPUs.
                 # 2) Grab the right data from the last GPU.
                 # 3) Append data together correctly and return.
-                output = self._data_batches[0:num_gpus_to_grab]
+                output = data_batches[0:num_gpus_to_grab]
                 output[-1] = output[-1].copy()
                 for cat in self.output_map:
                     lod_tensor = output[-1][cat]
@@ -375,7 +361,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                         lod_tensor, data_from_last_gpu)
                 return output
 
-        return self._data_batches
+        return data_batches
 
 
 class DALIClassificationIterator(DALIGenericIterator):
@@ -394,10 +380,6 @@ class DALIClassificationIterator(DALIGenericIterator):
     .. code-block:: python
 
        DALIGenericIterator(pipelines, ["data", "label"], reader_name)
-
-    Please keep in mind that Tensors returned by the iterator are
-    still owned by DALI. They are valid till the next iterator call.
-    If the content needs to be preserved please copy it to another tensor.
 
     Parameters
     ----------
@@ -419,11 +401,7 @@ class DALIClassificationIterator(DALIGenericIterator):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    dynamic_shape: bool, optional, default = False
-                 Whether the shape of the output of the DALI pipeline can
-                 change during execution. If True, the LoDtensor will be resized accordingly
-                 if the shape of DALI returned tensors changes during execution.
-                 If False, the iterator will fail in case of change.
+    dynamic_shape : any, optional, used only for a backward compatibility purpose
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
 
