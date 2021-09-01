@@ -27,6 +27,7 @@
 #include <vector>
 #include "dali/core/convert.h"
 #include "dali/core/dev_buffer.h"
+#include "dali/core/host_dev.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/kernels/common/block_setup.h"
@@ -133,6 +134,22 @@ class LookupTable : public Operator<Backend> {
 
   USE_OPERATOR_MEMBERS();
 };
+
+template <typename Backend, typename Output, typename Input>
+DALI_HOST_DEV
+void DoLookup(Output &output, Input key, const Output *lookup_table, Output default_value) {
+  // We do not check the key range when the type range is smaller than the supported range
+  constexpr bool check_range =
+      !std::is_same<Input, uint8_t>::value && !std::is_same<Input, uint16_t>::value;
+  constexpr auto max_key = ConvertSat<Input>(LookupTable<Backend>::kMaxKey);
+
+  if (check_range) {
+    output = (std::is_unsigned<Input>::value || key >= 0) && key <= max_key ? lookup_table[key] :
+                                                                              default_value;
+  } else {
+    output = lookup_table[key];
+  }
+}
 
 }  // namespace dali
 

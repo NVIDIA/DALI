@@ -14,9 +14,32 @@
 
 #include "dali/operators/generic/lookup_table.h"
 
+
 namespace dali {
 
-template<>
+namespace {
+
+template <typename Output, typename Input>
+void LookupValuesImpl(ThreadPool &tp, TensorVector<CPUBackend> &output,
+                      const TensorVector<CPUBackend> &input, const TensorListShape<> &shape,
+                      const Output *lookup_table, const Output default_value) {
+  for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
+    auto data_size = shape.tensor_size(sample_idx);
+    auto *out_data = output[sample_idx].mutable_data<Output>();
+    const auto *in_data = input[sample_idx].data<Input>();
+    tp.AddWork(
+        [=](int thread_id) {
+          for (int64_t i = 0; i < data_size; i++) {
+            DoLookup<CPUBackend>(out_data[i], in_data[i], lookup_table, default_value);
+          }
+        },
+        data_size);
+  }
+}
+
+}  // namespace
+
+template <>
 void LookupTable<CPUBackend>::RunImpl(HostWorkspace &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   const auto &shape = input.shape();
@@ -25,36 +48,14 @@ void LookupTable<CPUBackend>::RunImpl(HostWorkspace &ws) {
 
   auto &tp = ws.GetThreadPool();
 
-  TYPE_SWITCH(input.type().id(), dali::type2id, InputType, LUT_IN_TYPES, (
-    TYPE_SWITCH(output_type_, dali::type2id, OutputType, LUT_OUT_TYPES, (
-      // We do not check the key range when the type range is smaller than the supported range
-      constexpr bool check_range =
-          !std::is_same<InputType, uint8_t>::value
-       && !std::is_same<InputType, uint16_t>::value;
-      constexpr auto max_key = ConvertSat<InputType>(kMaxKey);
+  TYPE_SWITCH(input.type().id(), dali::type2id, Input, LUT_IN_TYPES, (
+    TYPE_SWITCH(output_type_, dali::type2id, Output, LUT_OUT_TYPES, (
 
-      OutputType default_value = ConvertSat<OutputType>(default_value_f_);
-      const OutputType *lookup_table = static_cast<OutputType *>(value_mem_.get());
+      auto default_value = ConvertSat<Output>(default_value_f_);
+      const auto *lookup_table = static_cast<Output *>(value_mem_.get());
 
-      for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
-        auto data_size = shape.tensor_size(sample_idx);
-        auto *out_data = output[sample_idx].mutable_data<OutputType>();
-        const auto *in_data = input[sample_idx].data<InputType>();
-        tp.AddWork(
-            [=](int thread_id) {
-              for (int64_t i = 0; i < data_size; i++) {
-                InputType key = in_data[i];
-                if (check_range) {
-                  out_data[i] = (std::is_unsigned<InputType>::value || key >= 0) && key <= max_key ?
-                                    lookup_table[key] :
-                                    default_value;
-                } else {
-                  out_data[i] = lookup_table[key];
-                }
-              }
-            },
-            data_size);
-      }
+      LookupValuesImpl<Output, Input>(tp, output, input, shape, lookup_table, default_value);
+
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)); );       // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())); );     // NOLINT
 

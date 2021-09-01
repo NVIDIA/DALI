@@ -22,30 +22,16 @@ namespace dali {
 
 namespace detail {
 
-constexpr auto kMaxKey = LookupTable<GPUBackend>::kMaxKey;
-
 template <typename OutputType, typename InputType>
 __global__ void LookupValuesImpl(const LutSampleDesc *samples, const kernels::BlockDesc<1> *blocks,
                                  const OutputType *lookup_table, const OutputType default_value) {
-  // We do not check the key range when the type range is smaller than the supported range
-  constexpr bool check_range =
-      !std::is_same<InputType, uint8_t>::value && !std::is_same<InputType, uint16_t>::value;
-  constexpr auto max_key = ConvertSat<InputType>(kMaxKey);
-
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
 
   auto *output = reinterpret_cast<OutputType *>(sample.output);
   const auto *input = reinterpret_cast<const InputType *>(sample.input);
   for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
-    const auto key = input[x];
-    if (check_range) {
-      output[x] = (std::is_unsigned<InputType>::value || key >= 0) && key <= max_key ?
-                      lookup_table[key] :
-                      default_value;
-    } else {
-      output[x] = lookup_table[key];
-    }
+    DoLookup<GPUBackend>(output[x], input[x], lookup_table, default_value);
   }
 }
 
@@ -68,8 +54,7 @@ void LookupTable<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   }
   samples_dev_.from_host(samples_, stream);
 
-  std::array<std::pair<int, int>, 1> collapse_groups = {{{0, shape.sample_dim()}}};
-  auto collapsed_shape = collapse_dims<1>(shape, collapse_groups);
+  auto collapsed_shape = collapse_dims<1>(shape, {std::make_pair(0, shape.sample_dim())});
 
   block_setup_.SetupBlocks(collapsed_shape, true);
   blocks_dev_.from_host(block_setup_.Blocks(), stream);
