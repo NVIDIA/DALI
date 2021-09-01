@@ -92,7 +92,7 @@ class BlockSetup {
   template <int ndim>
   using coord_vec = std::conditional_t<ndim == 1, i64vec<1>, ivec<ndim>>;
 
-  using coord_element_t = std::conditional_t<ndim == 1, int64_t, int32_t>;
+  using coord_t = std::conditional_t<ndim == 1, int64_t, int32_t>;
 
   /**
    * @brief Configure how much data the block size will have to cover.
@@ -217,7 +217,7 @@ class BlockSetup {
     return uniform_block_size_;
   }
 
-  coord_element_t UniformZBlocksPerSample() const {
+  coord_t UniformZBlocksPerSample() const {
     assert((z_blocks_per_sample_ & (z_blocks_per_sample_-1)) == 0 &&
            "z_block_per_sample_ must be a power of 2");
     return z_blocks_per_sample_;
@@ -226,7 +226,7 @@ class BlockSetup {
   bool IsUniformSize() const { return is_uniform_; }
 
   static inline coord_vec<ndim> shape2size(const TensorShape<tensor_ndim> &shape) {
-    return shape2vec<ndim, typename coord_vec<ndim>::element_t>(skip_dim<channel_dim>(shape));
+    return shape2vec<ndim, coord_t>(skip_dim<channel_dim>(shape));
   }
 
  private:
@@ -236,14 +236,14 @@ class BlockSetup {
   coord_vec<ndim> uniform_block_size_, uniform_output_size_;
   coord_vec<ndim> default_block_size_;
   int z_blocks_per_sample_ = 1;
-  coord_element_t max_block_elements_;
+  coord_t max_block_elements_;
   bool is_uniform_ = false;
   int block_volume_scale_ = 4;
 
   template <int d>
   void MakeBlocks(BlockDesc blk, coord_vec<ndim> size, coord_vec<ndim> block_size,
                   std::integral_constant<int, d>) {
-    for (coord_element_t i = 0; i < size[d]; i += block_size[d]) {
+    for (coord_t i = 0; i < size[d]; i += block_size[d]) {
       blk.start[d] = i;
       blk.end[d] = std::min(i + block_size[d], size[d]);
       if (d > 0) {
@@ -269,10 +269,10 @@ class BlockSetup {
       switch (i) {
       case 0:
       case 1:
-        ret[i] = std::min<coord_element_t>(shape[i], default_block_size_[i]);
+        ret[i] = std::min<coord_t>(shape[i], default_block_size_[i]);
         break;
       case 2:
-        ret[i] = std::max<coord_element_t>(1, ret[0]*ret[1] / max_block_elements_);
+        ret[i] = std::max<coord_t>(1, ret[0]*ret[1] / max_block_elements_);
         break;
       default:
         ret[i] = 1;
@@ -289,7 +289,7 @@ class BlockSetup {
   template <int n>
   std::enable_if_t<(n > 2), coord_vec<n>> SetZBlocksPerSample(coord_vec<n> block) {
     z_blocks_per_sample_ = 1;
-    coord_element_t depth = block[2];
+    coord_t depth = block[2];
     while (volume(block) > max_block_elements_ && block[2] > 0) {
       z_blocks_per_sample_ <<= 1;
       block[2] = div_ceil(depth, z_blocks_per_sample_);
@@ -342,8 +342,8 @@ class BlockSetup {
 
     constexpr int xy_dim = ndim > 1 ? 2 : 1;
     for (int i = 0; i < xy_dim; i++) {  // only XY dimensions
-      coord_element_t blocks_in_axis = div_ceil(uniform_output_size_[i], uniform_block_size_[i]);
-      coord_element_t even_block_size = div_ceil(uniform_output_size_[i], blocks_in_axis);
+      coord_t blocks_in_axis = div_ceil(uniform_output_size_[i], uniform_block_size_[i]);
+      coord_t even_block_size = div_ceil(uniform_output_size_[i], blocks_in_axis);
 
       // a note on div_ceil + mul combo:
       // can't use align_up, because block_dim_ does not need to be a power of 2
