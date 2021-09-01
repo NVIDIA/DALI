@@ -399,7 +399,7 @@ class DLL_PUBLIC Buffer {
 
   TypeInfo type_ = {};               // Data type of underlying storage
   shared_ptr<void> data_ = nullptr;  // Pointer to underlying storage
-  AllocFunc allocate_;               // Custom allocation function
+  AllocFunc allocate_ = {};          // Custom allocation function
   Index size_ = 0;                   // The number of elements in the buffer
   size_t num_bytes_ = 0;             // To keep track of the true size of the underlying allocation
   int device_ = CPU_ONLY_DEVICE_ID;  // device the buffer was allocated on
