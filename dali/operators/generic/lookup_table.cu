@@ -30,7 +30,7 @@ __global__ void LookupValuesImpl(const LutSampleDesc *samples, const kernels::Bl
 
   auto *output = reinterpret_cast<OutputType *>(sample.output);
   const auto *input = reinterpret_cast<const InputType *>(sample.input);
-  for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
+  for (int64_t x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
     DoLookup<GPUBackend>(output[x], input[x], lookup_table, default_value);
   }
 }
