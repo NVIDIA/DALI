@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,40 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/generic/lookup_table.h"
 #include <limits>
-#include "dali/core/span.h"
+#include <utility>
 #include "dali/core/convert.h"
+#include "dali/core/span.h"
+#include "dali/operators/generic/lookup_table.h"
 
 namespace dali {
 
 namespace detail {
 
-constexpr auto kMaxKey = LookupTable<GPUBackend>::kMaxKey;
-
 template <typename OutputType, typename InputType>
-__global__ void
-LookupValuesImpl(OutputType *output,
-                 const InputType *input,
-                 size_t data_size,
-                 const OutputType* lookup_table,
-                 const OutputType default_value) {
-  // We do not check the key range when the type range is smaller than the supported range
-  constexpr bool check_range =
-       !std::is_same<InputType, uint8_t>::value
-    && !std::is_same<InputType, uint16_t>::value;
-  constexpr auto max_key = ConvertSat<InputType>(kMaxKey);
+__global__ void LookupValuesImpl(const LutSampleDesc *samples, const kernels::BlockDesc<1> *blocks,
+                                 const OutputType *lookup_table, const OutputType default_value) {
+  const auto &block = blocks[blockIdx.x];
+  const auto &sample = samples[block.sample_idx];
 
-  size_t tid = blockDim.x * blockIdx.x + threadIdx.x;
-  if (tid >= data_size)
-    return;
-
-  const auto key = input[tid];
-  if (check_range) {
-    output[tid] = (std::is_unsigned<InputType>::value || key >= 0) && key <= max_key ?
-      lookup_table[key] : default_value;
-  } else {
-    output[tid] = lookup_table[key];
+  auto *output = reinterpret_cast<OutputType *>(sample.output);
+  const auto *input = reinterpret_cast<const InputType *>(sample.input);
+  for (int64_t x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
+    DoLookup<GPUBackend>(output[x], input[x], lookup_table, default_value);
   }
 }
 
@@ -53,28 +39,38 @@ LookupValuesImpl(OutputType *output,
 
 template<>
 void LookupTable<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  const auto &input = ws.Input<GPUBackend>(0);
-  auto &output = ws.Output<GPUBackend>(0);
+  const auto &input = ws.InputRef<GPUBackend>(0);
+  const auto &shape = input.shape();
+  auto &output = ws.OutputRef<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
-  auto data_size = input.size();
-  constexpr int kThreads = 512;
-  const int blocks = (data_size + kThreads - 1) / kThreads;
+
   const auto stream = ws.stream();
-  Tensor<GPUBackend> lookup_table_gpu;
+
+  auto num_samples = shape.num_samples();
+  samples_.resize(num_samples);
+  for (int sample_id = 0; sample_id < num_samples; sample_id++) {
+    samples_[sample_id].output = output.raw_mutable_tensor(sample_id);
+    samples_[sample_id].input = input.raw_tensor(sample_id);
+  }
+  samples_dev_.from_host(samples_, stream);
+
+  auto collapsed_shape = collapse_dims<1>(shape, {std::make_pair(0, shape.sample_dim())});
+
+  block_setup_.SetupBlocks(collapsed_shape, true);
+  blocks_dev_.from_host(block_setup_.Blocks(), stream);
 
   TYPE_SWITCH(input.type().id(), dali::type2id, InputType, LUT_IN_TYPES, (
     TYPE_SWITCH(output_type_, dali::type2id, OutputType, LUT_OUT_TYPES, (
-      auto *out_data = output.mutable_data<OutputType>();
-      const auto *in_data = input.data<InputType>();
 
-      OutputType *tensor_lut_cpu = static_cast<OutputType*>(value_mem_.get());
-      lookup_table_gpu.Copy(make_span(tensor_lut_cpu, kLookupTableSize), stream);
-      const OutputType *lookup_table = lookup_table_gpu.data<OutputType>();
+      const OutputType *lookup_table = lut_.data<OutputType>();
       OutputType default_value = ConvertSat<OutputType>(default_value_f_);
 
-      detail::LookupValuesImpl<OutputType, InputType><<<blocks, kThreads, 0, stream>>>(
-        out_data, in_data, data_size,
-        lookup_table, default_value);
+      dim3 grid_dim = block_setup_.GridDim();
+      dim3 block_dim = block_setup_.BlockDim();
+
+      detail::LookupValuesImpl<OutputType, InputType><<<grid_dim, block_dim, 0, stream>>>(
+          samples_dev_.data(), blocks_dev_.data(), lookup_table, default_value);
+
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)); );       // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())); );     // NOLINT
 }
