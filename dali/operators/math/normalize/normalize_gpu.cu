@@ -131,7 +131,7 @@ Normalize<GPUBackend>::BroadcastMean(KernelContext &ctx, float value) const {
   mean_gpu.data.resize(param_shape_.num_samples());
   // allocate enough memory to hold the largest sample...
   int64_t max_sample_size = MaxSampleSize(param_shape_);
-  float *gpu_mean_data = ctx.scratchpad->Allocate<mm::memory_kind::device, float>(max_sample_size);
+  float *gpu_mean_data = ctx.scratchpad->AllocateGPU<float>(max_sample_size);
   int grid = div_ceil(max_sample_size, 1024);
   int block = std::min<int64_t>(max_sample_size, 1024);
   // ...fill it with given value...

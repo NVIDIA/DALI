@@ -185,8 +185,8 @@ struct SeparableResampleCPU  {
         tmp_shapes[i] = shape_cat(vec2shape(desc.tmp_shape(i)), desc.channels);
       }
 
-      float *tmp_buf = context.scratchpad->Allocate<mm::memory_kind::host, float>(setup.memory.tmp_size);
-      void *filter_mem = context.scratchpad->Allocate<mm::memory_kind::host, int32_t>(
+      float *tmp_buf = context.scratchpad->AllocateHost<float>(setup.memory.tmp_size);
+      void *filter_mem = context.scratchpad->AllocateHost<int32_t>(
           setup.memory.coeffs_size + setup.memory.indices_size);
 
       Surface<spatial_ndim, float> tmp_surf = {}, tmp_prev = {};

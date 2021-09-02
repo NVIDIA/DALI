@@ -264,7 +264,7 @@ class SliceGPU {
     }
     const auto num_samples = in.size();
     OutputType *fill_values_cpu =
-        context.scratchpad->Allocate<mm::memory_kind::host, OutputType>(num_samples * nfill_values_);
+        context.scratchpad->AllocateHost<OutputType>(num_samples * nfill_values_);
     for (int i = 0; i < in.size(); i++) {
       if (default_fill_values_) {
         assert(nfill_values_ == 1);
@@ -281,9 +281,9 @@ class SliceGPU {
 
     // Host memory
     detail::SliceSampleDesc<Dims> *sample_descs_cpu =
-        context.scratchpad->Allocate<mm::memory_kind::host, detail::SliceSampleDesc<Dims>>(num_samples);
+        context.scratchpad->AllocateHost<detail::SliceSampleDesc<Dims>>(num_samples);
     detail::SliceBlockDesc *block_descs_cpu =
-        context.scratchpad->Allocate<mm::memory_kind::host, detail::SliceBlockDesc>(block_count_);
+        context.scratchpad->AllocateHost<detail::SliceBlockDesc>(block_count_);
 
     bool any_padded_sample = false;
     std::vector<int64_t> sample_sizes(in.size());

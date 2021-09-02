@@ -186,12 +186,11 @@ DLL_PUBLIC void Dct1DGpu<OutputType, InputType>::Run(KernelContext &ctx,
                                                      const InListGPU<InputType> &in,
                                                      InTensorGPU<float, 1> lifter_coeffs) {
   OutputType *cpu_cos_table[2];
-  cpu_cos_table[0] =
-    ctx.scratchpad->Allocate<mm::memory_kind::pinned, OutputType>(max_cos_table_size_);
+  cpu_cos_table[0] = ctx.scratchpad->AllocatePinned<OutputType>(max_cos_table_size_);
   if (cos_tables_.size() > 1) {
-    cpu_cos_table[1] =
-      ctx.scratchpad->Allocate<mm::memory_kind::pinned, OutputType>(max_cos_table_size_);
+    cpu_cos_table[1] = ctx.scratchpad->AllocatePinned<OutputType>(max_cos_table_size_);
   }
+
   int i = 0;
   for (auto &table_entry : cos_tables_) {
     auto cpu_table = cpu_cos_table[i % 2];

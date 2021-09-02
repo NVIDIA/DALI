@@ -139,19 +139,18 @@ struct SeparableResamplingGPUImpl : Interface {
   Run(KernelContext &context, const Output &out, const Input &in, const Params &params) {
     cudaStream_t stream = context.gpu.stream;
 
-    SampleDesc *descs_gpu = context.scratchpad->Allocate<mm::memory_kind::device, SampleDesc>(
-        setup.sample_descs.size());
+    SampleDesc *descs_gpu = context.scratchpad->AllocateGPU<SampleDesc>(setup.sample_descs.size());
 
     int blocks_in_all_passes = 0;
     for (auto x : setup.total_blocks)
       blocks_in_all_passes += x;
 
     OutTensorCPU<BlockDesc, 1> sample_lookup_cpu = {
-      context.scratchpad->Allocate<mm::memory_kind::host, BlockDesc>(blocks_in_all_passes),
+      context.scratchpad->AllocateHost<BlockDesc>(blocks_in_all_passes),
       { blocks_in_all_passes }
     };
     OutTensorGPU<BlockDesc, 1> sample_lookup_gpu = {
-      context.scratchpad->Allocate<mm::memory_kind::device, BlockDesc>(blocks_in_all_passes),
+      context.scratchpad->AllocateGPU<BlockDesc>(blocks_in_all_passes),
       { blocks_in_all_passes }
     };
     setup.InitializeSampleLookup(sample_lookup_cpu);
@@ -167,8 +166,7 @@ struct SeparableResamplingGPUImpl : Interface {
       pass_lookup_offset += setup.total_blocks[pass];
     }
 
-    auto *tmp_mem = context.scratchpad->Allocate<mm::memory_kind::device, IntermediateElement>(
-          GetTmpMemSize());
+    auto *tmp_mem = context.scratchpad->AllocateGPU<IntermediateElement>(GetTmpMemSize());
 
     size_t odd_offset = GetOddTmpOffset();
     for (int t = 0; t < setup.num_tmp_buffers; t++) {

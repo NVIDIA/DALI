@@ -45,10 +45,8 @@ void TensorJoinImplGPU<T, new_axis>::Run(
   int N = out.num_samples();
   int N_in = N * njoin;
 
-  auto output_descs_cpu = make_span(
-    ctx.scratchpad->Allocate<mm::memory_kind::host, OutputDesc<T>>(N), N);
-  auto input_descs_cpu  = make_span(
-    ctx.scratchpad->Allocate<mm::memory_kind::host, InputDesc<T>>(N_in), N_in);
+  auto output_descs_cpu = make_span(ctx.scratchpad->AllocateHost<OutputDesc<T>>(N), N);
+  auto input_descs_cpu  = make_span(ctx.scratchpad->AllocateHost<InputDesc<T>>(N_in), N_in);
 
   FillDescs(output_descs_cpu, input_descs_cpu, out, in_lists, axis_);
 

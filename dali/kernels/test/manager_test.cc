@@ -45,7 +45,7 @@ struct TestKernel {
   void Run(KernelContext &ctx,
            const OutListGPU<float, 3> &out,
            const InListGPU<float, 3> &in, int arg1, float arg2) {
-    EXPECT_NE((ctx.scratchpad->Allocate<mm::memory_kind::device, int>(arg1+100)), nullptr);
+    EXPECT_NE(ctx.scratchpad->AllocateGPU<int>(arg1+100), nullptr);
     EXPECT_EQ(out.shape, in.shape);
   }
 };

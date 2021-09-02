@@ -118,7 +118,7 @@ class TensorJoinGPU : public tensor_join::TensorJoinImplGPU<type_of_size<sizeof(
   void Run(KernelContext &ctx, const OutListGPU<T> &out,
            span<const InListGPU<T, in_ndim>> in_lists) {
     int njoin = in_lists.size();
-    auto *in_list_ptrs = ctx.scratchpad->Allocate<mm::memory_kind::host, const InListU *>(njoin);
+    auto *in_list_ptrs = ctx.scratchpad->AllocateHost<const InListU *>(njoin);
     for (int i = 0; i < njoin; i++)
       in_list_ptrs[i] = reinterpret_cast<const InListU *>(&in_lists[i]);
     Base::Run(ctx, reinterpret_cast<const OutListGPU<U> &>(out), make_span(in_list_ptrs, njoin));

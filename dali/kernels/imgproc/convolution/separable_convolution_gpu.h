@@ -111,8 +111,7 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
            const std::array<TensorListView<StorageCPU, const W, 1>, axes>& windows,
            const std::array<span<const int>, 2> anchors = {},
            float scale = 1) {
-    auto *tmp = ctx.scratchpad->Allocate<mm::memory_kind::device, Intermediate>(
-            in.shape.num_elements());
+    auto *tmp = ctx.scratchpad->AllocateGPU<Intermediate>(in.shape.num_elements());
 
     auto intermediate = TensorListView<StorageGPU, Intermediate, ndim>(tmp, in.shape);
 
@@ -177,7 +176,7 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
            const std::array<span<const int>, 3> anchors = {},
            float scale = 1) {
     int intermediate_count = kUseOutAsIntermediate ? 1 : 2;
-    auto* tmp = ctx.scratchpad->Allocate<mm::memory_kind::device, Intermediate>(
+    auto* tmp = ctx.scratchpad->AllocateGPU<Intermediate>(
         in.shape.num_elements() * intermediate_count);
     TensorListView<StorageGPU, Intermediate, ndim> intermediate_inner, intermediate_outer;
     if (kUseOutAsIntermediate) {
@@ -196,7 +195,6 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
       auto kind_id = static_cast<mm::memory_kind_id>(i);
       sub_scratch.allocs[i] = BumpAllocator(
         static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
-
     }
 
     KernelContext sub_ctx = ctx;

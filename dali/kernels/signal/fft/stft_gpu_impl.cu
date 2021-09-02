@@ -153,9 +153,10 @@ void StftImplGPU::CreateStreams(int new_num_streams) {
 void StftImplGPU::ReserveTempStorage(ScratchpadEstimator &se) {
   // TODO(michalz) - try in-place transform to reduce memory footprint
   // extracted windows
-  se.add<mm::memory_kind::device, float>(num_temp_windows() * transform_in_size(), alignof(float2));
+  se.add<mm::memory_kind::device, float>(num_temp_windows() * transform_in_size(),
+                                         alignof(float2));
   // transform output
-  se.add<mm::memory_kind::device, float2>(num_temp_windows() * transform_out_size(), alignof(float2));
+  se.add<mm::memory_kind::device, float2>(num_temp_windows() * transform_out_size());
 
   int windows_left = total_windows_;
   int max_plan = num_temp_windows();
@@ -174,7 +175,8 @@ void StftImplGPU::ReserveTempStorage(ScratchpadEstimator &se) {
   max_work_size_ = max_work;
 
   for (size_t i = 0; i < streams_.size(); i++)
-    se.add<mm::memory_kind::device, char>(max_work, alignof(double2));  // make each allocation aligned
+    // make each allocation aligned to a complex number
+    se.add<mm::memory_kind::device, char>(max_work, alignof(double2));
 }
 
 void StftImplGPU::ValidateParams(ExecutionContext &ctx) {
@@ -242,7 +244,7 @@ void StftImplGPU::StoreRealResult(ExecutionContext &ctx) {
 }
 
 void StftImplGPU::RunTransform(ExecutionContext &ctx) {
-  float2 *fft_out = ctx.scratchpad()->Allocate<mm::memory_kind::device, float2>(
+  float2 *fft_out = ctx.scratchpad()->AllocateGPU<float2>(
       num_temp_windows() * transform_out_size());
   transform_out_.set_contiguous_data(fft_out);
   assert(transform_in_.is_contiguous());
@@ -250,7 +252,7 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
 
   SmallVector<char *, kMaxStreams> work;
   for (size_t i = 0; i < streams_.size(); i++)
-    work[i] = ctx.scratchpad()->Allocate<mm::memory_kind::device, char>(max_work_size_, 16);
+    work[i] = ctx.scratchpad()->AllocateGPU<char>(max_work_size_, 16);
 
   int64_t windows_left = total_windows_;
   int64_t max_plan = num_temp_windows();
@@ -300,7 +302,7 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
 }
 
 void StftImplGPU::ExtractWindows(ExecutionContext &ctx) {
-  float *fft_in = ctx.scratchpad()->Allocate<mm::memory_kind::device, float>(
+  float *fft_in = ctx.scratchpad()->AllocateGPU<float>(
       num_temp_windows() * transform_in_size(), alignof(float2));
   transform_in_.set_contiguous_data(fft_in);
 

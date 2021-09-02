@@ -110,7 +110,7 @@ ToContiguousHostMem(Scratchpad &scratchpad, const Collections &... c) {
   size_t alignment = detail::variadic_max(alignof(element_t<Collections>)...);
   size_t total_size = std::get<N>(offsets);
 
-  auto *tmp = scratchpad.Allocate<mm::memory_kind::host, char>(total_size, alignment);
+  auto *tmp = scratchpad.AllocateHost<char>(total_size, alignment);
   detail::copy_to_buffer(tmp, &offsets[0], c...);
 
   return detail::GetCollectionPtrs(tmp, &offsets[0], c...);

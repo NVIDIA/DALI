@@ -74,22 +74,22 @@ class DLL_PUBLIC ReduceAllGPU {
     auto* out_start = out[0].data;
 
     auto num_samples = in.size();
-    auto* sample_data = context.scratchpad->Allocate<mm::memory_kind::host, const In*>(num_samples);
-    auto* sample_size = context.scratchpad->Allocate<mm::memory_kind::host, int64_t>(num_samples);
+    auto* sample_data = context.scratchpad->AllocateHost<const In*>(num_samples);
+    auto* sample_size = context.scratchpad->AllocateHost<int64_t>(num_samples);
     for (int i = 0; i < num_samples; i++) {
       sample_data[i] = in.tensor_data(i);
       sample_size[i] = volume(in.tensor_shape(i));
     }
 
-    auto* sample_data_gpu = context.scratchpad->Allocate<mm::memory_kind::device, const In*>(num_samples);
-    auto* sample_size_gpu = context.scratchpad->Allocate<mm::memory_kind::device, int64_t>(num_samples);
+    auto* sample_data_gpu = context.scratchpad->AllocateGPU<const In*>(num_samples);
+    auto* sample_size_gpu = context.scratchpad->AllocateGPU<int64_t>(num_samples);
     // Single memcpy, since the data in the scratchpad is contiguous
     CUDA_CALL(
       cudaMemcpyAsync(sample_data_gpu, sample_data,
                       num_samples * sizeof(const In*) + num_samples * sizeof(int64_t),
                       cudaMemcpyHostToDevice, context.gpu.stream));
 
-    auto* buffer_gpu = context.scratchpad->Allocate<mm::memory_kind::device, Out>(tmp_buffer_size_);
+    auto* buffer_gpu = context.scratchpad->AllocateGPU<Out>(tmp_buffer_size_);
 
     // The reduction is divided into two stages. To minimize the precision error due to
     // accumulating numbers sequentially, we use `blocks_per_sample_ = sqrt(max_sample_size)`

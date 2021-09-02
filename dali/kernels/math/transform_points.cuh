@@ -74,7 +74,7 @@ class TransformPointsGPU {
   void Run(KernelContext &ctx, const OutListGPU<Out> &out, const InListGPU<In> &in,
            span<const mat<out_pt_dim, in_pt_dim>> M, span<const vec<out_pt_dim>> T) {
     int N = in.shape.num_samples();
-    auto *host_descs = ctx.scratchpad->Allocate<mm::memory_kind::host, SampleDesc>(N);
+    auto *host_descs = ctx.scratchpad->AllocateHost<SampleDesc>(N);
     int64_t max_size = 0;
     for (int i = 0, i_m = 0, i_t = 0; i < N; i++) {
       host_descs[i].out = out.data[i];

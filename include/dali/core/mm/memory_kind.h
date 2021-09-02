@@ -61,4 +61,4 @@ DALI_MAP_MEM_KIND(managed);
 }  // namespace mm
 }  // namespace dali
 
-#endif  // DALI_CORE_MM_MEMORY_H_
+#endif  // DALI_CORE_MM_MEMORY_KIND_H_

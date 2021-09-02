@@ -118,12 +118,12 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
 
   auto in_buf_sz = size_in_buf(nfft_);
   // ffts requires 32-byte aligned memory
-  float* in_buf = context.scratchpad->Allocate<mm::memory_kind::host, float>(in_buf_sz, 32);
+  float* in_buf = context.scratchpad->AllocateHost<float>(in_buf_sz, 32);
   memset(in_buf, 0, in_buf_sz*sizeof(float));
 
   auto out_buf_sz = size_out_buf(nfft_);
   // ffts requires 32-byte aligned memory
-  float* out_buf = context.scratchpad->Allocate<mm::memory_kind::host, float>(out_buf_sz, 32);
+  float* out_buf = context.scratchpad->AllocateHost<float>(out_buf_sz, 32);
   memset(out_buf, 0, out_buf_sz*sizeof(float));
 
   auto in_shape = in.shape;

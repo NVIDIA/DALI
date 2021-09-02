@@ -150,7 +150,7 @@ TEST(Scratch, PreallocatedScratchpad) {
       double *p3 = pad.Allocate<Kind, double>(1);
       EXPECT_TRUE(is_aligned(p2));
       EXPECT_EQ((pad.Allocate<Kind, char>(1)), reinterpret_cast<char*>(p3) + 1*sizeof(*p3));
-    ), (assert(!"Unreachable code");));
+    ), (assert(!"Unreachable code");));  // NOLINT
   }
 }
 

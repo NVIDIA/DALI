@@ -222,7 +222,7 @@ class ScratchpadAllocator {
     TYPE_SWITCH(id, mm::kind2id, MemoryKind, (mm::memory_kind::host, mm::memory_kind::pinned,
                                               mm::memory_kind::device, mm::memory_kind::managed), (
        Reserve<MemoryKind>(size);
-    ), (assert(!"Incorrect memory kind")));
+    ), (assert(!"Incorrect memory kind")));  // NOLINT
   }
 
   /**

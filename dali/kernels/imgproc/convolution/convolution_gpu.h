@@ -98,7 +98,7 @@ struct ConvolutionGpu {
             num_samples,
             ") or no anchors for windows centered by default, got: ", window_anchors.size(), "."));
     auto* window_tmp_buffer_host_ptr =
-        ctx.scratchpad->Allocate<mm::memory_kind::host, W>(num_samples * kWindowCopyBufferSize);
+        ctx.scratchpad->AllocateHost<W>(num_samples * kWindowCopyBufferSize);
     span<W> window_tmp_buffer_host(window_tmp_buffer_host_ptr, num_samples * kWindowCopyBufferSize);
 
     // Pad and align windows in tmp memory, transfer the aligned windows to GPU
@@ -108,7 +108,8 @@ struct ConvolutionGpu {
 
     Arguments args;
     args.device_params_ptr =
-        ctx.scratchpad->Allocate<mm::memory_kind::device, typename CutlassConv::SampleParams>(num_samples);
+        ctx.scratchpad->AllocateGPU<typename CutlassConv::SampleParams>(num_samples);
+
     if (kIsInnerConv) {
       // Inner (innermost) - repack arguments
       for (int i = 0; i < num_samples; i++) {

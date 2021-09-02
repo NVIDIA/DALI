@@ -326,8 +326,7 @@ struct ConvolutionCpu {
            const TensorView<StorageCPU, const W, 1>& window, float scale = 1) {
     auto diameter = window.num_elements();
     int input_window_buf_size = GetInputWindowBufSize(in.shape, diameter);
-    auto* input_window_buffer =
-        ctx.scratchpad->Allocate<mm::memory_kind::host, In>(input_window_buf_size);
+    auto* input_window_buffer = ctx.scratchpad->AllocateHost<In>(input_window_buf_size);
     auto strides = GetStrides(in.shape);
 
     if (axis == ndim - has_channels - 1 &&

@@ -313,8 +313,8 @@ class ToFreqMajorSpectrum : public FFTPostprocess<Out, In> {
     if (!N)
       return;
 
-    SampleDesc *cpu_samples = ctx.scratchpad->Allocate<mm::memory_kind::host, SampleDesc>(N);
-    BlockDesc *cpu_blocks = ctx.scratchpad->Allocate<mm::memory_kind::host, BlockDesc>(nblocks_);
+    SampleDesc *cpu_samples = ctx.scratchpad->AllocateHost<SampleDesc>(N);
+    BlockDesc *cpu_blocks = ctx.scratchpad->AllocateHost<BlockDesc>(nblocks_);
 
     int nfft = in.shape[0][1];
 

@@ -77,7 +77,7 @@ void ToDecibelsGpu<T>::Run(KernelContext &context, const OutListGPU<T, DynamicDi
   const T* max_values_data = max_values.empty() ? nullptr : max_values[0].data;
 
   auto num_samples = in.size();
-  auto* sample_data = context.scratchpad->Allocate<mm::memory_kind::host, SampleDesc<T>>(num_samples);
+  auto* sample_data = context.scratchpad->AllocateHost<SampleDesc<T>>(num_samples);
 
   for (int i = 0; i < num_samples; i++) {
     auto &sample = sample_data[i];
@@ -87,7 +87,7 @@ void ToDecibelsGpu<T>::Run(KernelContext &context, const OutListGPU<T, DynamicDi
     assert(sample.size == volume(out.tensor_shape(i)));
   }
 
-  auto* sample_data_gpu = context.scratchpad->Allocate<mm::memory_kind::device, SampleDesc<T>>(num_samples);
+  auto* sample_data_gpu = context.scratchpad->AllocateGPU<SampleDesc<T>>(num_samples);
   CUDA_CALL(
     cudaMemcpyAsync(sample_data_gpu, sample_data, num_samples * sizeof(SampleDesc<T>),
                     cudaMemcpyHostToDevice, context.gpu.stream));

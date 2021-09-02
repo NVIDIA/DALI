@@ -425,8 +425,8 @@ struct ExtractVerticalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
 
     int N = in.num_samples();
 
-    auto *cpu_samples = ctx.scratchpad->Allocate<mm::memory_kind::host, SampleDesc>(N);
-    auto *cpu_blocks = ctx.scratchpad->Allocate<mm::memory_kind::host, BlockDesc>(nblocks);
+    auto *cpu_samples = ctx.scratchpad->AllocateHost<SampleDesc>(N);
+    auto *cpu_blocks = ctx.scratchpad->AllocateHost<BlockDesc>(nblocks);
 
     assert(!window.data || window.shape[0] == args.window_length);
 
@@ -607,9 +607,9 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
 
     int N = in.num_samples();
 
-    auto *cpu_samples = ctx.scratchpad->Allocate<mm::memory_kind::host, SampleDesc>(N);
-    auto *cpu_blocks = ctx.scratchpad->Allocate<mm::memory_kind::host, BlockDesc>(grid_dim);
-    auto *cpu_pad_blocks = ctx.scratchpad->Allocate<mm::memory_kind::host, PadBlock>(pad_grid.z);
+    auto *cpu_samples = ctx.scratchpad->AllocateHost<SampleDesc>(N);
+    auto *cpu_blocks = ctx.scratchpad->AllocateHost<BlockDesc>(grid_dim);
+    auto *cpu_pad_blocks = ctx.scratchpad->AllocateHost<PadBlock>(pad_grid.z);
 
     assert(!window.data || window.shape[0] == args.window_length);
 

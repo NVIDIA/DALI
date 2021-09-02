@@ -78,7 +78,7 @@ class Scratchpad {
 
   /**
    * @brief Allocates storage for a TensorList of elements `T` and given `shape`
-   *        in the memory of type `alloc_type`.
+   *        in the memory of kind `MemoryKind`.
    */
   template <typename MemoryKind, typename T, int dim>
   TensorListView<kind2storage<MemoryKind>, T, dim>
@@ -90,17 +90,49 @@ class Scratchpad {
 
   /**
    * @brief Allocates memory suitable for storing `count` items of type `T` in the
-   *        memory of type `alloc_type`.
+   *        memory of kind `MemoryKind`.
    */
   template <typename MemoryKind, typename T>
   T *Allocate(size_t count, size_t alignment = alignof(T)) {
     return reinterpret_cast<T*>(Alloc<MemoryKind>(count*sizeof(T), alignment));
   }
 
+  /**
+   * @brief Allocates memory suitable for storing `count` items of type `T` on GPU
+   */
+  template <typename T>
+  T *AllocateGPU(size_t count, size_t alignment = alignof(T)) {
+    return Allocate<mm::memory_kind::device, T>(count, alignment);
+  }
+
+  /**
+   * @brief Allocates memory suitable for storing `count` items of type `T` in host memory
+   */
+  template <typename T>
+  T *AllocateHost(size_t count, size_t alignment = alignof(T)) {
+    return Allocate<mm::memory_kind::host, T>(count, alignment);
+  }
+
+  /**
+   * @brief Allocates memory suitable for storing `count` items of type `T` in host pinned memory
+   */
+  template <typename T>
+  T *AllocatePinned(size_t count, size_t alignment = alignof(T)) {
+    return Allocate<mm::memory_kind::pinned, T>(count, alignment);
+  }
+
+  /**
+   * @brief Allocates memory suitable for storing `count` items of type `T` in managed memory
+   */
+  template <typename T>
+  T *AllocateManaged(size_t count, size_t alignment = alignof(T)) {
+    return Allocate<mm::memory_kind::managed, T>(count, alignment);
+  }
+
   template <typename Collection, typename T = std::remove_const_t<element_t<Collection>>>
   if_array_like<Collection, T*>
   ToGPU(cudaStream_t stream, const Collection &c) {
-    T *ptr = Allocate<mm::memory_kind::device, T>(size(c));
+    T *ptr = AllocateGPU<T>(size(c));
     CUDA_CALL(cudaMemcpyAsync(ptr, &c[0], size(c) * sizeof(T), cudaMemcpyHostToDevice, stream));
     return ptr;
   }
@@ -108,7 +140,7 @@ class Scratchpad {
   template <typename Collection, typename T = std::remove_const_t<element_t<Collection>>>
   if_iterable<Collection, T*>
   ToHost(const Collection &c) {
-    T *ptr = Allocate<mm::memory_kind::host, T>(size(c));
+    T *ptr = AllocateHost<T>(size(c));
     std::copy(begin(c), end(c), ptr);
     return ptr;
   }

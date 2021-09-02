@@ -128,7 +128,8 @@ inline void CopyToExternal(void*const* dsts, const Buffer<SrcBackend> &src,
  * @brief Run-time dispatch - DO NOT USE unless really necessary
  */
 template <typename SrcBackend>
-inline void CopyToExternal(void*const* dsts, mm::memory_kind_id kind_id, const Buffer<SrcBackend> &src,
+inline void CopyToExternal(void*const* dsts, mm::memory_kind_id kind_id,
+                           const Buffer<SrcBackend> &src,
                            cudaStream_t stream, bool use_copy_kernel) {
   TYPE_SWITCH(kind_id, mm::kind2id, Kind, (mm::memory_kind::host,
                                            mm::memory_kind::pinned,

@@ -420,8 +420,8 @@ class ReduceImplGPU {
 
     ctx.stream = kctx.gpu.stream;
     ctx.work_area.buffer_sizes = buffer_sizes_;
-    ctx.work_area.host_memory = kctx.scratchpad->Allocate<mm::memory_kind::host, char>(host_mem_size, 64);
-    ctx.work_area.gpu_memory = kctx.scratchpad->Allocate<mm::memory_kind::device, char>(gpu_mem_size, 64);
+    ctx.work_area.host_memory = kctx.scratchpad->AllocateHost<char>(host_mem_size, 64);
+    ctx.work_area.gpu_memory = kctx.scratchpad->AllocateGPU<char>(gpu_mem_size, 64);
 
     ctx.input = reshape(in, in_shape_, true);
     ctx.output = reshape(out, out_shape_, true);
@@ -523,7 +523,8 @@ class ReduceImplGPU {
     // Now reserve the scratchpad - it's overaligned, because the buffer is opaque
     // and may contain any type - possibly with alignment requirements.
     se.add<mm::memory_kind::host, uint8_t>(buffer_sizes_.param_buffers, 64);
-    se.add<mm::memory_kind::device, uint8_t>(buffer_sizes_.param_buffers + buffer_sizes_.io_buffers, 64);
+    se.add<mm::memory_kind::device, uint8_t>(
+      buffer_sizes_.param_buffers + buffer_sizes_.io_buffers, 64);
   }
 
   /**
