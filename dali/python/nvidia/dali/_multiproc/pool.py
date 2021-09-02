@@ -16,7 +16,7 @@ import os
 import socket
 import threading
 import multiprocessing
-from collections import OrderedDict
+from collections import deque
 from nvidia.dali import backend as _b
 from nvidia.dali import pickling
 from nvidia.dali._multiproc.worker import worker
@@ -103,24 +103,30 @@ received so far.
 
     def __init__(self):
         self.batch_consumer = SharedBatchesConsumer()
+        self.batch_i = 0  # internal counter of ever scheduled batches
         self.reset()
 
     def reset(self):
         self.partially_received = {}
-        self.scheduled = OrderedDict()
+        self.scheduled = {}
         self.iter_failed = {}
+        self.tasks_queue = deque()
 
-    def push_scheduled(self, batch_i, tasks):
-        """Mark batch of given id as scheduled with all passed tasks. Initialize structures
-        for receiving the results.
-        """
-        if batch_i in self.scheduled:
-            raise RuntimeError("Given batch has already been scheduled")
-        self.partially_received[batch_i] = {}
-        self.scheduled[batch_i] = tasks
+    def push_scheduled(self, tasks):
+        self.batch_i += 1
+        self.partially_received[self.batch_i] = {}
+        self.scheduled[self.batch_i] = tasks
+        self.tasks_queue.append(self.batch_i)
+        return self.batch_i
+
+    def clear_task(self, batch_i):
+        del self.partially_received[batch_i]
+        del self.scheduled[batch_i]
+        if batch_i in self.iter_failed:
+            del self.iter_failed[batch_i]
 
     def pop_scheduled(self):
-        return self.scheduled.popitem(last=False)
+        return self.tasks_queue.popleft()
 
     def handle_error(self, batch_i):
         """Check if given batch reported an error and raise it"""
@@ -128,7 +134,7 @@ received so far.
         try:
             if batch_i in self.iter_failed:
                 exception, traceback_str = self.iter_failed[batch_i]
-                self.clear_scheduled(batch_i)
+                self.clear_task(batch_i)
                 if isinstance(exception, StopIteration):
                     raise exception
                 else:
@@ -153,20 +159,16 @@ received so far.
     def is_cleared(self, batch_i):
         return batch_i not in self.partially_received
 
-    def is_not_received(self, batch_i, tasks):
+    def is_not_received(self, batch_i):
         """Check if we didn't receive all results for given tasks and batch_i"""
-        return len(self.partially_received[batch_i]) < len(tasks)
+        return len(self.partially_received[batch_i]) < len(self.scheduled[batch_i])
 
-    def clear_scheduled(self, batch_i):
-        del self.partially_received[batch_i]
-        if batch_i in self.iter_failed:
-            del self.iter_failed[batch_i]
-
-    def get_batch(self, batch_i, tasks):
+    def take_batch(self, batch_i):
         """Return the full batch, mark it as cleared and consumed"""
+        tasks = self.scheduled[batch_i]
         full_batch = self.partially_received[batch_i]
         res = [full_batch[i] for i, _ in tasks]
-        self.clear_scheduled(batch_i)
+        self.clear_task(batch_i)
         return res
 
     def receive_chunk(self, batch_i, sock, serialized_batch):
@@ -396,7 +398,7 @@ class WorkerPool:
         pool = ProcPool(callbacks, queue_depths, num_workers, start_method, initial_chunk_size, py_callback_pickler)
         return cls(len(callbacks), queue_depths, pool)
 
-    def schedule_batch(self, context_i, batch_i, dst_chunk_i, tasks):
+    def schedule_batch(self, context_i, dst_chunk_i, tasks):
         """Distribute `tasks` among workers to run them by calling `context_i`th callaback
 
         Parameters
@@ -404,8 +406,6 @@ class WorkerPool:
         `context_i` : int
             Specifies which callback will be used to run the task, it must be the index corresponding
             to the order of callbacks passed when constructing WorkerPool.
-        `batch_i` : int
-            Ordinal of the batch that tasks list corresponds to.
         `dst_chunk_i` : int
             Index of the memory chunk in the circular buffer to store the output in
         `tasks` : list of (nvidia.dali.types.SampleInfo,)
@@ -421,9 +421,8 @@ class WorkerPool:
             # or failed with error, once user receives batch that raised exception they should reset
             # the context before scheduling new tasks
             return
+        batch_i = context.push_scheduled(tasks)
         self._distribute(context_i, batch_i, dst_chunk_i, tasks)
-        # TODO check if raising from doubly scheduled task makes sense?
-        context.push_scheduled(batch_i, tasks)
 
     def _distribute(self, context_i, batch_i, dst_chunk_i, tasks):
         num_workers = self.pool.num_workers
@@ -453,11 +452,11 @@ class WorkerPool:
         """
         context = self.contexts[context_i]
         assert len(context.scheduled) > 0, "No task has been scheduled"
-        batch_i, tasks = context.pop_scheduled()
-        while context.is_not_received(batch_i, tasks) and not context.is_error(batch_i):
+        batch_i = context.pop_scheduled()
+        while context.is_not_received(batch_i) and not context.is_error(batch_i):
             self._receive_chunk()
         context.handle_error(batch_i)
-        res = context.get_batch(batch_i, tasks)
+        res = context.take_batch(batch_i)
         return res
 
     def _receive_chunk(self):

@@ -79,7 +79,6 @@ class _ExternalSourceGroup(object):
         self.current_iter = 0
         self.current_sample = 0
         self.flat_iter_idx = 0  # flat index of the next iteration, not affected by reset
-        self.scheduled_job_idx = 0  # sequential index of the parallel job, successful or not
         self.scheduled_ahead = 0  # number of batches scheduled ahead for parallel ext. src.
         self.parallel = parallel
         self.prefetch_queue_depth = prefetch_queue_depth
@@ -134,10 +133,9 @@ class _ExternalSourceGroup(object):
     def schedule_batch(self, pool, context_i, lead, batch_size, epoch_idx):
         """Schedule computing new batch from source callback by the parallel pool."""
         dst_chunk_i = (self.flat_iter_idx + lead) % pool.queue_depths[context_i]
-        pool.schedule_batch(context_i, self.scheduled_job_idx, dst_chunk_i, [
+        pool.schedule_batch(context_i, dst_chunk_i, [
             self.callback_args(i, epoch_idx, batch_size, lead) for i in range(batch_size)
         ])
-        self.scheduled_job_idx += 1
 
     def schedule_and_receive(self, pipeline, pool, context_i, batch_size, epoch_idx):
         """Obtain the computed results of calling source callback in parallel pool and feed
