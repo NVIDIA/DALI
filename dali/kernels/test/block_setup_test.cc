@@ -180,7 +180,7 @@ TEST(BlockSetup, SetupBlocks_Variable_1D) {
     { 733 },
   });
 
-  BlockSetup<1, -1> setup(16);
+  BlockSetup<1, -1> setup(1 << 16);
   setup.SetDefaultBlockSize({1024});
   static_assert(setup.tensor_ndim == 1, "Incorrectly inferred tensor_ndim");
   setup.SetupBlocks(TLS);
@@ -212,7 +212,7 @@ TEST(BlockSetup, SetupBlocks_Variable_1D_Ch) {
     { 733, 3 },
   });
 
-  BlockSetup<1, 1> setup(16);
+  BlockSetup<1, 1> setup(1 << 16);
   setup.SetDefaultBlockSize({1024});
   static_assert(setup.tensor_ndim == 2, "Incorrectly inferred tensor_ndim");
   setup.SetupBlocks(TLS);
