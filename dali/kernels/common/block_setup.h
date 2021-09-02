@@ -25,10 +25,24 @@
 namespace dali {
 namespace kernels {
 
+/**
+ * @brief Block descriptor specifying multidimensional range for given sample.
+ */
 template <int ndim>
 struct BlockDesc {
   int sample_idx;
   ivec<ndim> start, end;
+};
+
+/**
+ * @brief Block descriptor specifying range in given sample.
+ *
+ * Specialization for 1 dim to support 64bit addressing range.
+ */
+template <>
+struct BlockDesc<1> {
+  int sample_idx;
+  i64vec<1> start, end;
 };
 
 /**
@@ -83,12 +97,23 @@ class BlockSetup {
     "Channel dimension must be in range [0..ndim] or -1 (no channel dim)");
   using BlockDesc = kernels::BlockDesc<ndim>;
 
-  BlockSetup() {
-    ivec<ndim> block_size(1);
+  using coord_vec = std::conditional_t<ndim == 1, i64vec<1>, ivec<ndim>>;
+
+  using coord_t = std::conditional_t<ndim == 1, int64_t, int32_t>;
+
+  /**
+   * @brief Configure how much data the block size will have to cover.
+   *
+   * The block will cover block_volume_scale * volume(BlockSize())
+   */
+  explicit BlockSetup(int block_volume_scale) : block_volume_scale_(block_volume_scale) {
+    coord_vec block_size(1);
     for (int i = 0; i < ndim && i < 2; i++)
       block_size[i] = 256;
     SetDefaultBlockSize(block_size);
   }
+
+  BlockSetup() : BlockSetup(4) {}
 
   /**
    * @brief Generate block descriptors for given shape.
@@ -182,24 +207,24 @@ class BlockSetup {
     return grid_dim_;
   }
 
-  void SetDefaultBlockSize(ivec<ndim> block_size) {
+  void SetDefaultBlockSize(coord_vec block_size) {
     default_block_size_ = block_size;
-    max_block_elements_ = 4*volume(block_size);
+    max_block_elements_ = block_volume_scale_ * volume(block_size);
   }
 
   span<const BlockDesc> Blocks() const { return make_span(blocks_); }
 
-  ivec<ndim> UniformOutputSize() const {
+  coord_vec UniformOutputSize() const {
     assert(is_uniform_);
     return uniform_output_size_;
   }
 
-  ivec<ndim> UniformBlockSize() const {
+  coord_vec UniformBlockSize() const {
     assert(is_uniform_);
     return uniform_block_size_;
   }
 
-  int UniformZBlocksPerSample() const {
+  coord_t UniformZBlocksPerSample() const {
     assert((z_blocks_per_sample_ & (z_blocks_per_sample_-1)) == 0 &&
            "z_block_per_sample_ must be a power of 2");
     return z_blocks_per_sample_;
@@ -207,24 +232,25 @@ class BlockSetup {
 
   bool IsUniformSize() const { return is_uniform_; }
 
-  static inline ivec<ndim> shape2size(const TensorShape<tensor_ndim> &shape) {
-    return shape2vec(skip_dim<channel_dim>(shape));
+  static inline coord_vec shape2size(const TensorShape<tensor_ndim> &shape) {
+    return shape2vec<ndim, coord_t>(skip_dim<channel_dim>(shape));
   }
 
  private:
   std::vector<BlockDesc> blocks_;
   ivec3 block_dim_{32, 32, 1};
   ivec3 grid_dim_{1, 1, 1};
-  ivec<ndim> uniform_block_size_, uniform_output_size_;
-  ivec<ndim> default_block_size_;
+  coord_vec uniform_block_size_, uniform_output_size_;
+  coord_vec default_block_size_;
   int z_blocks_per_sample_ = 1;
-  int max_block_elements_;
+  coord_t max_block_elements_;
   bool is_uniform_ = false;
+  int block_volume_scale_ = 4;
 
   template <int d>
-  void MakeBlocks(BlockDesc blk, ivec<ndim> size, ivec<ndim> block_size,
+  void MakeBlocks(BlockDesc blk, coord_vec size, coord_vec block_size,
                   std::integral_constant<int, d>) {
-    for (int i = 0; i < size[d]; i += block_size[d]) {
+    for (coord_t i = 0; i < size[d]; i += block_size[d]) {
       blk.start[d] = i;
       blk.end[d] = std::min(i + block_size[d], size[d]);
       if (d > 0) {
@@ -236,23 +262,24 @@ class BlockSetup {
     }
   }
 
-  void MakeBlocks(int sample_idx, ivec<ndim> size, ivec<ndim> block_size) {
+  void MakeBlocks(int sample_idx, coord_vec size, coord_vec block_size) {
     BlockDesc blk;
     blk.sample_idx = sample_idx;
     MakeBlocks<ndim-1>(blk, size, block_size, {});
     grid_dim_ = ivec3(blocks_.size(), 1, 1);
   }
 
-  ivec<ndim> VariableBlockSize(const ivec<ndim> &shape) const {
-    ivec<ndim> ret;
+  template <int n>
+  std::enable_if_t<(n >= 2), coord_vec> VariableBlockSize(const coord_vec &shape) const {
+    coord_vec ret;
     for (int i = 0; i < ndim; i++) {
       switch (i) {
       case 0:
       case 1:
-        ret[i] = std::min<int>(shape[i], default_block_size_[i]);
+        ret[i] = std::min<coord_t>(shape[i], default_block_size_[i]);
         break;
       case 2:
-        ret[i] = std::max<int>(1, ret[0]*ret[1] / max_block_elements_);
+        ret[i] = std::max<coord_t>(1, ret[0]*ret[1] / max_block_elements_);
         break;
       default:
         ret[i] = 1;
@@ -262,9 +289,14 @@ class BlockSetup {
   }
 
   template <int n>
-  std::enable_if_t<(n > 2), ivec<n>> SetZBlocksPerSample(ivec<n> block) {
+  std::enable_if_t<(n == 1), coord_vec> VariableBlockSize(const coord_vec &shape) const {
+    return min(shape, coord_vec{max_block_elements_});
+  }
+
+  template <int n>
+  std::enable_if_t<(n > 2), coord_vec> SetZBlocksPerSample(coord_vec block) {
     z_blocks_per_sample_ = 1;
-    int depth = block[2];
+    coord_t depth = block[2];
     while (volume(block) > max_block_elements_ && block[2] > 0) {
       z_blocks_per_sample_ <<= 1;
       block[2] = div_ceil(depth, z_blocks_per_sample_);
@@ -273,13 +305,13 @@ class BlockSetup {
   }
 
   template <int n>
-  std::enable_if_t<(n <= 2), ivec<n>> SetZBlocksPerSample(ivec<n> block) {
+  std::enable_if_t<(n <= 2), coord_vec> SetZBlocksPerSample(coord_vec block) {
     z_blocks_per_sample_ = 1;
     return block;  // no Z coordinate to adjust
   }
 
-  ivec<ndim> SetUniformBlockSize(const ivec<ndim> &shape) {
-    ivec<ndim> ret;
+  coord_vec SetUniformBlockSize(const coord_vec &shape) {
+    coord_vec ret;
     for (int i = 0; i < ndim; i++) {
       switch (i) {
       case 0:
@@ -292,15 +324,15 @@ class BlockSetup {
       }
     }
 
-    ret = SetZBlocksPerSample(ret);
+    ret = SetZBlocksPerSample<ndim>(ret);
     uniform_block_size_ = min(shape, ret);
     return uniform_block_size_;
   }
 
   void VariableSizeSetup(const TensorListShape<tensor_ndim> &output_shape) {
     for (int i = 0; i < output_shape.num_samples(); i++) {
-      ivec<ndim> size = shape2size(output_shape[i]);
-      ivec<ndim> block_size = VariableBlockSize(size);
+      coord_vec size = shape2size(output_shape[i]);
+      coord_vec block_size = VariableBlockSize<ndim>(size);
       MakeBlocks(i, size, block_size);
     }
   }
@@ -317,8 +349,8 @@ class BlockSetup {
 
     constexpr int xy_dim = ndim > 1 ? 2 : 1;
     for (int i = 0; i < xy_dim; i++) {  // only XY dimensions
-      int blocks_in_axis = div_ceil(uniform_output_size_[i], uniform_block_size_[i]);
-      int even_block_size = div_ceil(uniform_output_size_[i], blocks_in_axis);
+      coord_t blocks_in_axis = div_ceil(uniform_output_size_[i], uniform_block_size_[i]);
+      coord_t even_block_size = div_ceil(uniform_output_size_[i], blocks_in_axis);
 
       // a note on div_ceil + mul combo:
       // can't use align_up, because block_dim_ does not need to be a power of 2
