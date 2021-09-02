@@ -25,12 +25,20 @@
 namespace dali {
 namespace kernels {
 
+/**
+ * @brief Block descriptor specifying multidimensional range for given sample.
+ */
 template <int ndim>
 struct BlockDesc {
   int sample_idx;
   ivec<ndim> start, end;
 };
 
+/**
+ * @brief Block descriptor specifying range in given sample.
+ *
+ * Specialization for 1 dim to support 64bit addressing range.
+ */
 template <>
 struct BlockDesc<1> {
   int sample_idx;
