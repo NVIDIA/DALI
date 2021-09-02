@@ -77,9 +77,9 @@ struct ConvolutionGpu {
                    make_string("Window is too big for sample ", i, ", got: ", window_size[i][0],
                                ", expected at most: ", kMaxWindowSize / num_channels, "."));
     }
-    se.add<W>(AllocType::Host, num_samples * kWindowCopyBufferSize);
-    se.add<W>(AllocType::GPU, num_samples * kWindowCopyBufferSize);
-    se.add<typename CutlassConv::SampleParams>(AllocType::GPU, num_samples);
+    se.add<mm::memory_kind::host, W>(num_samples * kWindowCopyBufferSize);
+    se.add<mm::memory_kind::device, W>(num_samples * kWindowCopyBufferSize);
+    se.add<mm::memory_kind::device, typename CutlassConv::SampleParams>(num_samples);
     req.scratch_sizes = se.sizes;
     req.output_shapes.push_back(in_shape);
     return req;
@@ -98,7 +98,7 @@ struct ConvolutionGpu {
             num_samples,
             ") or no anchors for windows centered by default, got: ", window_anchors.size(), "."));
     auto* window_tmp_buffer_host_ptr =
-        ctx.scratchpad->Allocate<W>(AllocType::Host, num_samples * kWindowCopyBufferSize);
+        ctx.scratchpad->Allocate<mm::memory_kind::host, W>(num_samples * kWindowCopyBufferSize);
     span<W> window_tmp_buffer_host(window_tmp_buffer_host_ptr, num_samples * kWindowCopyBufferSize);
 
     // Pad and align windows in tmp memory, transfer the aligned windows to GPU
@@ -108,7 +108,7 @@ struct ConvolutionGpu {
 
     Arguments args;
     args.device_params_ptr =
-        ctx.scratchpad->Allocate<typename CutlassConv::SampleParams>(AllocType::GPU, num_samples);
+        ctx.scratchpad->Allocate<mm::memory_kind::device, typename CutlassConv::SampleParams>(num_samples);
     if (kIsInnerConv) {
       // Inner (innermost) - repack arguments
       for (int i = 0; i < num_samples; i++) {

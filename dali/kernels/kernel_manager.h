@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #ifndef DALI_KERNELS_KERNEL_MANAGER_H_
 #define DALI_KERNELS_KERNEL_MANAGER_H_
 
+#include <cassert>
 #include <memory>
 #include <utility>
 #include <atomic>
@@ -22,6 +23,7 @@
 #include "dali/kernels/context.h"
 #include "dali/kernels/kernel_req.h"
 #include "dali/core/small_vector.h"
+#include "dali/core/mm/memory_kind.h"
 
 namespace dali {
 namespace kernels {
@@ -84,8 +86,8 @@ struct AnyKernelInstance {
  */
 class DLL_PUBLIC KernelManager {
  public:
-  static constexpr size_t NumAllocTypes = ScratchpadAllocator::NumAllocTypes;
-  using ScratchSizes = std::array<size_t, NumAllocTypes>;
+  static constexpr size_t NumMemKinds = ScratchpadAllocator::NumMemKinds;
+  using ScratchSizes = std::array<size_t, NumMemKinds>;
 
   /**
    * @brief Creates `num_threads` scratchpads and `num_instances` slots for kernels
@@ -294,15 +296,17 @@ class DLL_PUBLIC KernelManager {
    * All calls to ScratchpadAllocator::Reserve followint this call will request at least
    * bytes memory for given allocation type.
    */
-  void SetMemoryHint(AllocType type, size_t bytes) {
-    int alloc_idx = static_cast<int>(type);
+  template <typename MemoryKind>
+  void SetMemoryHint(size_t bytes) {
+    size_t alloc_idx = static_cast<size_t>(mm::kind2id_v<MemoryKind>);
+    assert(alloc_idx < max_scratch_sizes.size());
     atomic_max(max_scratch_sizes[alloc_idx], bytes);
   }
 
  private:
   SmallVector<AnyKernelInstance, 1> instances;
   SmallVector<ScratchpadAllocator, 1> scratchpads;
-  std::array<std::atomic_size_t, NumAllocTypes> max_scratch_sizes{};
+  std::array<std::atomic_size_t, NumMemKinds> max_scratch_sizes{};
 };
 
 }  // namespace kernels

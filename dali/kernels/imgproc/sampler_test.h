@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 
 #include <gtest/gtest.h>
 #include <random>
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/imgproc/surface.h"
 
@@ -74,14 +74,14 @@ struct SamplerTestData {
 
   const T *GetGPUData() {
     if (!gpu_storage) {
-      gpu_storage = memory::alloc_unique<T>(AllocType::GPU, D*W*H*C);
+      gpu_storage = mm::alloc_raw_unique<T, mm::memory_kind::device>(D*W*H*C);
       CUDA_CALL(
         cudaMemcpy(gpu_storage.get(), GetCPUData(), sizeof(T)*D*W*H*C, cudaMemcpyHostToDevice));
     }
     return gpu_storage.get();
   }
 
-  memory::KernelUniquePtr<T> gpu_storage;
+  mm::uptr<T> gpu_storage;
 };
 
 }  // namespace kernels

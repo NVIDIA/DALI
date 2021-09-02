@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -131,7 +131,7 @@ Normalize<GPUBackend>::BroadcastMean(KernelContext &ctx, float value) const {
   mean_gpu.data.resize(param_shape_.num_samples());
   // allocate enough memory to hold the largest sample...
   int64_t max_sample_size = MaxSampleSize(param_shape_);
-  float *gpu_mean_data = ctx.scratchpad->Allocate<float>(AllocType::GPU, max_sample_size);
+  float *gpu_mean_data = ctx.scratchpad->Allocate<mm::memory_kind::device, float>(max_sample_size);
   int grid = div_ceil(max_sample_size, 1024);
   int block = std::min<int64_t>(max_sample_size, 1024);
   // ...fill it with given value...
@@ -157,18 +157,18 @@ void Normalize<GPUBackend>::SetupTyped(const DeviceWorkspace &ws) {
   // estimate memory requirements for intermediate buffers
 
   if (!has_scalar_mean_) {
-    se.add<float>(AllocType::GPU, param_volume);
+    se.add<mm::memory_kind::device, float>(param_volume);
   } else {
     if (ShouldCalcStdDev()) {
       // StdDev kernel requires the mean to have the same shape as the output.
       // We can save memory by broadcasting the mean only to the size of the largest sample
       // and repeat the pointer for all samples.
-      se.add<float>(AllocType::GPU, MaxSampleSize(param_shape_));
+      se.add<mm::memory_kind::device, float>(MaxSampleSize(param_shape_));
     }
   }
 
   if (!has_scalar_stddev_) {
-    se.add<float>(AllocType::GPU, param_volume);
+    se.add<mm::memory_kind::device, float>(param_volume);
   }
 
   // setup and get memory requirements from kernels
@@ -225,13 +225,13 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   OutListGPU<float> mean_gpu, stddev_gpu;
 
   if (!has_scalar_mean_) {
-    mean_gpu = scratch.AllocTensorList<AllocType::GPU, float>(param_shape_);
+    mean_gpu = scratch.AllocTensorList<mm::memory_kind::device, float>(param_shape_);
   } else if (ShouldCalcStdDev()) {
     mean_gpu = BroadcastMean(ctx, scalar_mean);
   }
 
   if (!has_scalar_stddev_) {
-    stddev_gpu = scratch.AllocTensorList<AllocType::GPU, float>(param_shape_);
+    stddev_gpu = scratch.AllocTensorList<mm::memory_kind::device, float>(param_shape_);
   }
 
   if (ShouldCalcMean()) {

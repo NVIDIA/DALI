@@ -52,6 +52,7 @@ using async_memory_resource = cuda::stream_ordered_memory_resource<Kind>;
 
 using device_async_resource = async_memory_resource<memory_kind::device>;
 using pinned_async_resource = async_memory_resource<memory_kind::pinned>;
+using managed_async_resource = async_memory_resource<memory_kind::managed>;
 
 struct stream_context {
   stream_view stream;
@@ -60,8 +61,7 @@ struct stream_context {
 namespace detail {
 
 template <typename Kind>
-constexpr bool is_host_memory = std::is_same<Kind, memory_kind::host>::value ||
-                                std::is_same<Kind, memory_kind::pinned>::value;
+constexpr bool is_host_accessible = cuda::kind_has_property<Kind, cuda::memory_access::host>::value;
 
 }  // namespace detail
 

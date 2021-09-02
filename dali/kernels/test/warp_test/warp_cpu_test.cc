@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 #include "dali/test/mat2tensor.h"
 #include "dali/test/test_tensors.h"
 #include "dali/kernels/scratch.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/core/geom/transform.h"
 #include "dali/kernels/test/warp_test/warp_test_helper.h"

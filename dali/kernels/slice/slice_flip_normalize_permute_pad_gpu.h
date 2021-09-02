@@ -88,18 +88,18 @@ class SliceFlipNormalizePermutePadGpu {
     }
 
     if (need_normalize_) {
-      se.add<float>(AllocType::Host, num_samples * norm_args_size_);
-      se.add<float>(AllocType::Host, num_samples * norm_args_size_);
-      se.add<float>(AllocType::GPU,  num_samples * norm_args_size_);
-      se.add<float>(AllocType::GPU,  num_samples * norm_args_size_);
+      se.add<mm::memory_kind::host, float>(num_samples * norm_args_size_);
+      se.add<mm::memory_kind::host, float>(num_samples * norm_args_size_);
+      se.add<mm::memory_kind::device, float>(num_samples * norm_args_size_);
+      se.add<mm::memory_kind::device, float>(num_samples * norm_args_size_);
     }
 
     assert(nfill_values_ > 0);
-    se.add<OutputType>(AllocType::Host, num_samples * nfill_values_);
-    se.add<OutputType>(AllocType::GPU, num_samples * nfill_values_);
+    se.add<mm::memory_kind::host, OutputType>(num_samples * nfill_values_);
+    se.add<mm::memory_kind::device, OutputType>(num_samples * nfill_values_);
 
-    se.add<detail::SampleDesc<Dims>>(AllocType::Host, num_samples);
-    se.add<detail::SampleDesc<Dims>>(AllocType::GPU, num_samples);
+    se.add<mm::memory_kind::host, detail::SampleDesc<Dims>>(num_samples);
+    se.add<mm::memory_kind::device, detail::SampleDesc<Dims>>(num_samples);
 
     block_count_ = 0;
     for (auto &elem : args) {
@@ -108,8 +108,8 @@ class SliceFlipNormalizePermutePadGpu {
         sample_size / static_cast<float>(kBlockSize));
     }
 
-    se.add<detail::BlockDesc>(AllocType::Host, block_count_);
-    se.add<detail::BlockDesc>(AllocType::GPU, block_count_);
+    se.add<mm::memory_kind::host, detail::BlockDesc>(block_count_);
+    se.add<mm::memory_kind::device, detail::BlockDesc>(block_count_);
     req.scratch_sizes = se.sizes;
 
     auto in_shapes = in.shape;
@@ -139,9 +139,9 @@ class SliceFlipNormalizePermutePadGpu {
     float *norm_add_gpu = nullptr, *norm_mul_gpu = nullptr;
     if (need_normalize_) {
       norm_add_cpu =
-          context.scratchpad->Allocate<float>(AllocType::Host, num_samples * norm_args_size_);
+          context.scratchpad->Allocate<mm::memory_kind::host, float>(num_samples * norm_args_size_);
       norm_mul_cpu =
-          context.scratchpad->Allocate<float>(AllocType::Host, num_samples * norm_args_size_);
+          context.scratchpad->Allocate<mm::memory_kind::host, float>(num_samples * norm_args_size_);
       for (int i = 0; i < num_samples; i++) {
         auto &sample_args = processed_args_[i];
         auto *norm_add_data = norm_add_cpu + i * norm_args_size_;
@@ -160,7 +160,7 @@ class SliceFlipNormalizePermutePadGpu {
 
     assert(nfill_values_ > 0);
     OutputType *fill_values_cpu =
-        context.scratchpad->Allocate<OutputType>(AllocType::Host, num_samples * nfill_values_);
+        context.scratchpad->Allocate<mm::memory_kind::host, OutputType>(num_samples * nfill_values_);
     for (int i = 0; i < num_samples; i++) {
       auto *fill_values = fill_values_cpu + i * nfill_values_;
       auto &sample_args = processed_args_[i];
@@ -171,9 +171,9 @@ class SliceFlipNormalizePermutePadGpu {
         context.gpu.stream, make_span(fill_values_cpu, num_samples * nfill_values_));
 
     auto *sample_descs_cpu =
-        context.scratchpad->Allocate<detail::SampleDesc<Dims>>(AllocType::Host, num_samples);
+        context.scratchpad->Allocate<mm::memory_kind::host, detail::SampleDesc<Dims>>(num_samples);
     auto *block_descs_cpu =
-        context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
+        context.scratchpad->Allocate<mm::memory_kind::host, detail::BlockDesc>(block_count_);
 
     bool need_pad = false, need_flip = false;
     for (int i = 0; i < in.size(); i++) {

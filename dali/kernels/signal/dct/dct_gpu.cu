@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -150,7 +150,7 @@ KernelRequirements Dct1DGpu<OutputType, InputType>::Setup(KernelContext &ctx,
     }
     if (cos_tables_.find({n, arg}) == cos_tables_.end()) {
       cos_tables_[{n, arg}] = nullptr;
-      se.add<OutputType>(AllocType::GPU, n * arg.ndct);
+      se.add<mm::memory_kind::device, OutputType>(n * arg.ndct);
       if (n * arg.ndct > max_cos_table_size_) {
         max_cos_table_size_ = n * arg.ndct;
       }
@@ -163,17 +163,17 @@ KernelRequirements Dct1DGpu<OutputType, InputType>::Setup(KernelContext &ctx,
     sample_shape[axis_] = arg.ndct;
     out_shape.set_tensor_shape(s, sample_shape);
   }
-  se.add<OutputType>(AllocType::Pinned, max_cos_table_size_);
+  se.add<mm::memory_kind::pinned, OutputType>(max_cos_table_size_);
   if (cos_tables_.size() > 1) {
-    se.add<OutputType>(AllocType::Pinned, max_cos_table_size_);
+    se.add<mm::memory_kind::pinned, OutputType>(max_cos_table_size_);
   }
-  se.add<SampleDesc>(AllocType::GPU, in.num_samples());
+  se.add<mm::memory_kind::device, SampleDesc>(in.num_samples());
   if (inner_axis_) {
     block_setup_inner_.Setup(reduced_shape);
-    se.add<BlockSetupInner::BlockDesc>(AllocType::GPU, block_setup_inner_.Blocks().size());
+    se.add<mm::memory_kind::device, BlockSetupInner::BlockDesc>(block_setup_inner_.Blocks().size());
   } else {
     block_setup_.SetupBlocks(reduced_shape, true);
-    se.add<BlockDesc<3>>(AllocType::GPU, block_setup_.Blocks().size());
+    se.add<mm::memory_kind::device, BlockDesc<3>>(block_setup_.Blocks().size());
   }
   req.output_shapes = {out_shape};
   req.scratch_sizes = se.sizes;
@@ -187,10 +187,10 @@ DLL_PUBLIC void Dct1DGpu<OutputType, InputType>::Run(KernelContext &ctx,
                                                      InTensorGPU<float, 1> lifter_coeffs) {
   OutputType *cpu_cos_table[2];
   cpu_cos_table[0] =
-    ctx.scratchpad->Allocate<OutputType>(AllocType::Pinned, max_cos_table_size_);
+    ctx.scratchpad->Allocate<mm::memory_kind::pinned, OutputType>(max_cos_table_size_);
   if (cos_tables_.size() > 1) {
     cpu_cos_table[1] =
-      ctx.scratchpad->Allocate<OutputType>(AllocType::Pinned, max_cos_table_size_);
+      ctx.scratchpad->Allocate<mm::memory_kind::pinned, OutputType>(max_cos_table_size_);
   }
   int i = 0;
   for (auto &table_entry : cos_tables_) {

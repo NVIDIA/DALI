@@ -28,7 +28,7 @@
 #include "dali/operators/decoder/nvjpeg/nvjpeg_memory.h"
 #include "dali/operators/decoder/nvjpeg/nvjpeg2k_helper.h"
 #include "dali/operators/decoder/cache/cached_decoder_impl.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/util/npp.h"

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -148,8 +148,7 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
   void CopyWindowToDevice(cudaStream_t stream) {
     if (gpu_window_ptr)
       return;  // already there
-    gpu_window_ptr = kernels::memory::alloc_unique<float>(
-                        kernels::AllocType::GPU, args.window_length);
+    gpu_window_ptr = mm::alloc_raw_unique<mm::memory_kind::device, float>(args.window_length);
     gpu_window = make_tensor_gpu<1>(gpu_window_ptr.get(), { args.window_length });
     CUDA_CALL(cudaMemcpyAsync(gpu_window_ptr.get(), cpu_window.data(),
                               args.window_length * sizeof(float),
@@ -159,7 +158,7 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
   KernelManager kmgr;
   StftArgs args;
   vector<float> cpu_window;
-  kernels::memory::KernelUniquePtr<float> gpu_window_ptr;
+  mm::uptr<float> gpu_window_ptr;
   TensorView<StorageGPU, float, 1> gpu_window;
   TensorListShape<1> in_shape_1D;
   TensorLayout layout;

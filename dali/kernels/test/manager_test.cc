@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ struct TestKernel {
   KernelRequirements Setup(KernelContext &ctx,
                            const InListGPU<float, 3> &in, int arg1, float arg2) {
     ScratchpadEstimator se;
-    se.add<int>(AllocType::GPU, arg1 + 100);
+    se.add<mm::memory_kind::device, int>(arg1 + 100);
     KernelRequirements req = {};
     req.output_shapes.push_back(in.shape);
     req.scratch_sizes = se.sizes;
@@ -45,7 +45,7 @@ struct TestKernel {
   void Run(KernelContext &ctx,
            const OutListGPU<float, 3> &out,
            const InListGPU<float, 3> &in, int arg1, float arg2) {
-    EXPECT_NE(ctx.scratchpad->Allocate<int>(AllocType::GPU, arg1+100), nullptr);
+    EXPECT_NE((ctx.scratchpad->Allocate<mm::memory_kind::device, int>(arg1+100)), nullptr);
     EXPECT_EQ(out.shape, in.shape);
   }
 };

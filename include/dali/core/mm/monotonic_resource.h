@@ -76,7 +76,7 @@ class monotonic_buffer_resource : public memory_resource<Kind, Context> {
 };
 
 template <typename Kind, typename Context = any_context,
-          bool host_impl = detail::is_host_memory<Kind>>
+          bool host_impl = detail::is_host_accessible<Kind>>
 class monotonic_memory_resource;
 
 /**

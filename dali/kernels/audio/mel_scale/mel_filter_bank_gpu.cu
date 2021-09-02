@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -132,10 +132,10 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
   }
 
   void Setup(ScratchpadEstimator &se, const TensorListShape<> &in_shape) {
-    se.add<int>(AllocType::GPU, interval_ends_.size());
-    se.add<T>(AllocType::GPU, weights_down_.size());
+    se.add<mm::memory_kind::device, int>(interval_ends_.size());
+    se.add<mm::memory_kind::device, T>(weights_down_.size());
     if (args_.normalize)
-      se.add<T>(AllocType::GPU, norm_factors_.size());
+      se.add<mm::memory_kind::device, T>(norm_factors_.size());
 
     inner_fft_ = true;
     for (int s = 0; s < in_shape.size(); s++) {
@@ -198,7 +198,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
         }
       }
     }
-    se.add<BlockDesc<T>>(AllocType::GPU, block_descs_.size());
+    se.add<mm::memory_kind::device, BlockDesc<T>>(block_descs_.size());
   }
 
   void SetupBlockDescsInnerFft(ScratchpadEstimator &se, const TensorListShape<> &in_shape) {
@@ -214,7 +214,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
         block_descs_.push_back(BlockDesc<T>{nullptr, nullptr, {b * kBlockDim1, sample_size}});
       }
     }
-    se.add<BlockDesc<T>>(AllocType::GPU, block_descs_.size());
+    se.add<mm::memory_kind::device, BlockDesc<T>>(block_descs_.size());
   }
 
   void FillBlockDescsOuterFft(const T* const* in_list, T **out_list) {

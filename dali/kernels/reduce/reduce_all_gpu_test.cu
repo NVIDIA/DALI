@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <random>
 #include <vector>
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/kernels/reduce/reduce_all_gpu_impl.cuh"
 #include "dali/kernels/reduce/reduce_all_kernel_gpu.h"
 #include "dali/kernels/reduce/reduce_test.h"
@@ -59,8 +59,8 @@ void ReduceAllGPUTest<Reduction>::TestReduceAll() {
   int nblock = 1024;
   int n_out0 = std::min<int>(div_ceil(n_in, nblock), 1024);
   int n_out = n_out0 + 1;
-  auto in_data = memory::alloc_unique<float>(AllocType::GPU, n_in);
-  auto out_data = memory::alloc_unique<float>(AllocType::GPU, n_out);
+  auto in_data = mm::alloc_raw_unique<float, mm::memory_kind::device>(n_in);
+  auto out_data = mm::alloc_raw_unique<float, mm::memory_kind::device>(n_out);
   std::vector<float> in_cpu(n_in), out_cpu(n_out);
   for (auto &x : in_cpu)
     x = dist(rng);
@@ -122,14 +122,14 @@ void ReduceAllGPUTest<Reduction>::TestReduceBatched() {
   int n_out0 = samples * n_out_per_sample;
   int n_out = n_out0 + samples;
   dim3 grid(n_out_per_sample, samples);
-  auto in_data = memory::alloc_unique<float>(AllocType::GPU, n_in);
-  auto out_data = memory::alloc_unique<float>(AllocType::GPU, n_out);
+  auto in_data = mm::alloc_raw_unique<float, mm::memory_kind::device>(n_in);
+  auto out_data = mm::alloc_raw_unique<float, mm::memory_kind::device>(n_out);
   std::vector<float> in_cpu(n_in), out_cpu(n_out);
   for (auto &x : in_cpu)
     x = dist(rng);
 
-  auto gpu_dev_ptrs = memory::alloc_unique<const float*>(AllocType::GPU, samples);
-  auto gpu_sizes = memory::alloc_unique<int64_t>(AllocType::GPU, samples);
+  auto gpu_dev_ptrs = mm::alloc_raw_unique<const float*, mm::memory_kind::device>(samples);
+  auto gpu_sizes = mm::alloc_raw_unique<int64_t, mm::memory_kind::device>(samples);
   vector<const float *> host_ptrs(samples);
   vector<const float *> cpu_dev_ptrs(samples);
   int64_t offset = 0;

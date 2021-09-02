@@ -130,16 +130,63 @@ class pinned_malloc_memory_resource : public pinned_async_resource {
   }
 
   bool do_is_equal(const memory_resource<memory_kind> &other) const noexcept override {
-    return dynamic_cast<const cuda_malloc_memory_resource*>(&other) != nullptr;
+    return dynamic_cast<const pinned_malloc_memory_resource*>(&other) != nullptr;
   }
 
  public:
-  static cuda_malloc_memory_resource &instance() {
-    static cuda_malloc_memory_resource inst;
+  static pinned_malloc_memory_resource &instance() {
+    static pinned_malloc_memory_resource inst;
     return inst;
   }
 };
 
+/**
+ * @brief A memory resource that directly calls cudaMallocManaged and cudaFree.
+ */
+class managed_malloc_memory_resource : public managed_async_resource {
+  const size_t kGuaranteedAlignment = 256;
+
+  void *do_allocate(size_t bytes, size_t alignment) override {
+    if (bytes == 0)
+      return nullptr;
+    if (kGuaranteedAlignment < 256)
+      alignment = 1;  // cudaMallocManaged guarantees suffcient alignment - avoid overhead
+
+    return detail::aligned_alloc([](size_t size) {
+      void *mem = nullptr;
+      CUDA_CALL(cudaMallocManaged(&mem, size | 1));  // |1 to prevent accidental coalescing
+      return mem;
+    }, bytes, alignment);
+  }
+
+  void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
+    if (ptr) {
+      if (kGuaranteedAlignment < 256)
+        alignment = 1;  // cudaMallocManaged guarantees suffcient alignment - avoid overhead
+      detail::aligned_dealloc([](void *ptr, size_t) {
+        CUDA_DTOR_CALL(cudaFree(ptr));
+      }, ptr, bytes, alignment);
+    }
+  }
+
+  void *do_allocate_async(size_t bytes, size_t alignment, stream_view) override {
+    return allocate(bytes, alignment);
+  }
+
+  void do_deallocate_async(void *mem, size_t bytes, size_t alignment, stream_view) override {
+    return deallocate(mem, bytes, alignment);
+  }
+
+  bool do_is_equal(const memory_resource<memory_kind> &other) const noexcept override {
+    return dynamic_cast<const cuda_malloc_memory_resource*>(&other) != nullptr;
+  }
+
+ public:
+  static managed_malloc_memory_resource &instance() {
+    static managed_malloc_memory_resource inst;
+    return inst;
+  }
+};
 
 }  // namespace mm
 }  // namespace dali

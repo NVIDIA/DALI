@@ -17,11 +17,13 @@
 
 #include <type_traits>
 #include "dali/core/mm/memory_resource.h"
-#include "dali/core/backend_tags.h"
 
 namespace dali {
 namespace mm {
 
+/**
+ * @brief For run-time dispatch of memory kind - DO NOT USE unless REALLY necessary
+ */
 enum memory_kind_id {
   host = 0,
   pinned,
@@ -42,27 +44,19 @@ struct id2kind_helper;
 template <memory_kind_id id>
 using id2kind = typename id2kind_helper<id>::type;
 
-#define DALI_MAP_MEM_KIND(Lind) \
+#define DALI_MAP_MEM_KIND(Kind) \
 template <> \
-struct kind2id<memory_kind::Kind>
+struct kind2id<memory_kind::Kind> \
 : std::integral_constant<memory_kind_id, memory_kind_id::Kind> {}; \
 template <> \
-struct kind2id<memory_kind_id::Kind> { \
+struct id2kind_helper<memory_kind_id::Kind> { \
   using type = memory_kind::Kind; \
 }
 
-DALI_MAP_MEM_KIND(host)
-DALI_MAP_MEM_KIND(pinned)
-DALI_MAP_MEM_KIND(device)
-DALI_MAP_MEM_KIND(managed)
-
-template <typename Kind>
-struct kind2backend_helper {
-
-};
-
-template <typename Kind>
-struct kind2backend_helper;
+DALI_MAP_MEM_KIND(host);
+DALI_MAP_MEM_KIND(pinned);
+DALI_MAP_MEM_KIND(device);
+DALI_MAP_MEM_KIND(managed);
 
 }  // namespace mm
 }  // namespace dali

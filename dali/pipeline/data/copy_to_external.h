@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,23 +17,30 @@
 
 #include <cuda_runtime.h>
 #include "dali/core/static_switch.h"
-#include "dali/kernels/alloc_type.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/core/mm/memory_kind.h"
 
 namespace dali {
 
-using kernels::AllocType;
+namespace detail {
 
-template <AllocType alloc_type>
-struct alloc_to_backend {
+template <typename MemoryKind>
+struct kind2backend {
   using type = CPUBackend;
 };
 
 template <>
-struct alloc_to_backend<AllocType::GPU> {
+struct kind2backend<mm::memory_kind::device> {
   using type = GPUBackend;
 };
+
+template <>
+struct kind2backend<mm::memory_kind::managed> {
+  using type = GPUBackend;
+};
+
+}  // namespace detail
 
 template <typename DstBackend, typename SrcBackend>
 inline void CopyToExternalImpl(void* dst,
@@ -46,7 +53,7 @@ inline void CopyToExternalImpl(void* dst,
 }
 
 template <typename DstBackend, typename SrcBackend>
-inline void CopyToExternalImpl(void** dsts,
+inline void CopyToExternalImpl(void*const* dsts,
                                const TensorList<SrcBackend> &src,
                                cudaStream_t stream, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
@@ -85,27 +92,50 @@ inline void CopyToExternalImpl(void** dsts,
 }
 
 template <typename DstKind, typename SrcBackend>
-inline void CopyToExternal(void* dst, AllocType dst_alloc_type,
-                           const Buffer<SrcBackend> &src,
+inline void CopyToExternal(void* dst, const Buffer<SrcBackend> &src,
                            cudaStream_t stream, bool use_copy_kernel) {
-  VALUE_SWITCH(dst_alloc_type, DstType, (AllocType::Host, AllocType::Pinned, AllocType::GPU), (
-    use_copy_kernel &= (DstType == AllocType::GPU || DstType == AllocType::Pinned) &&
-                       (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
-    using DstBackend = alloc_to_backend<DstType>::type;
-    CopyToExternalImpl<DstBackend, SrcBackend>(dst, src, stream, use_copy_kernel);
-  ), ());  // NOLINT
+  bool src_device_access = (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
+  bool dst_device_access = cuda::kind_has_property<DstKind, cuda::memory_access::device>::value;
+  use_copy_kernel &= dst_device_access && src_device_access;
+  using DstBackend = typename detail::kind2backend<DstKind>::type;
+  CopyToExternalImpl<DstBackend, SrcBackend>(dst, src, stream, use_copy_kernel);
 }
 
+/**
+ * @brief Run-time dispatch - DO NOT USE unless really necessary
+ */
 template <typename SrcBackend>
-inline void CopyToExternal(void** dsts, AllocType dst_alloc_type,
-                           const TensorList<SrcBackend> &src,
+inline void CopyToExternal(void* dst, mm::memory_kind_id kind_id, const Buffer<SrcBackend> &src,
                            cudaStream_t stream, bool use_copy_kernel) {
-  VALUE_SWITCH(dst_alloc_type, DstType, (AllocType::Host, AllocType::Pinned, AllocType::GPU), (
-    use_copy_kernel &= (DstType == AllocType::GPU || DstType == AllocType::Pinned) &&
-                       (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
-    using DstBackend = alloc_to_backend<DstType>::type;
-    CopyToExternalImpl<DstBackend, SrcBackend>(dsts, src, stream, use_copy_kernel);
-  ), ());  // NOLINT
+  TYPE_SWITCH(kind_id, mm::kind2id, Kind, (mm::memory_kind::host,
+                                           mm::memory_kind::pinned,
+                                           mm::memory_kind::device,
+                                           mm::memory_kind::managed),
+    (CopyToExternal<Kind, SrcBackend>(dst, src, stream, use_copy_kernel)),
+    (throw std::logic_error("Unreachable code - invalid memory kind.")));
+}
+template <typename DstKind, typename SrcBackend>
+inline void CopyToExternal(void*const* dsts, const Buffer<SrcBackend> &src,
+                           cudaStream_t stream, bool use_copy_kernel) {
+  bool src_device_access = (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
+  bool dst_device_access = cuda::kind_has_property<DstKind, cuda::memory_access::device>::value;
+  use_copy_kernel &= dst_device_access && src_device_access;
+  using DstBackend = typename detail::kind2backend<DstKind>::type;
+  CopyToExternal<DstBackend, SrcBackend>(dsts, src, stream, use_copy_kernel);
+}
+
+/**
+ * @brief Run-time dispatch - DO NOT USE unless really necessary
+ */
+template <typename SrcBackend>
+inline void CopyToExternal(void*const* dsts, mm::memory_kind_id kind_id, const Buffer<SrcBackend> &src,
+                           cudaStream_t stream, bool use_copy_kernel) {
+  TYPE_SWITCH(kind_id, mm::kind2id, Kind, (mm::memory_kind::host,
+                                           mm::memory_kind::pinned,
+                                           mm::memory_kind::device,
+                                           mm::memory_kind::managed),
+    (CopyToExternal<Kind, SrcBackend>(dsts, src, stream, use_copy_kernel)),
+    (throw std::logic_error("Unreachable code - invalid memory kind.")));
 }
 
 }  // namespace dali

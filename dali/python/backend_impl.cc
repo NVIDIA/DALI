@@ -392,7 +392,7 @@ void ExposeTensor(py::module &m) {
     })
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {
-          CopyToExternal(ctypes_void_ptr(p), kernels::AllocType::Host, t, 0, false);
+          CopyToExternal<mm::memory_kind::host>(ctypes_void_ptr(p), t, 0, false);
         },
       "ptr"_a,
       R"code(
@@ -504,7 +504,7 @@ void ExposeTensor(py::module &m) {
           cudaStream_t stream = cuda_stream.is_none()
                 ? UserStream::Get()->GetStream(t)
                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-          CopyToExternal(ptr, kernels::AllocType::GPU, t, stream, use_copy_kernel);
+          CopyToExternal<mm::memory_kind::device>(ptr, t, stream, use_copy_kernel);
           if (!non_blocking) {
             CUDA_CALL(cudaStreamSynchronize(stream));
           }
@@ -764,7 +764,7 @@ void ExposeTensorList(py::module &m) {
       )code")
     .def("copy_to_external",
         [](TensorList<CPUBackend> &tl, py::object p) {
-          CopyToExternal(ctypes_void_ptr(p), kernels::AllocType::Host, tl, 0, false);
+          CopyToExternal<mm::memory_kind::host>(ctypes_void_ptr(p), tl, 0, false);
         },
       R"code(
       Copy the contents of this `TensorList` to an external pointer
@@ -889,7 +889,7 @@ void ExposeTensorList(py::module &m) {
           cudaStream_t stream = cuda_stream.is_none()
                 ? UserStream::Get()->GetStream(t)
                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-          CopyToExternal(ptr, AllocType::GPU, t, stream, use_copy_kernel);
+          CopyToExternal<mm::memory_kind::device>(ptr, t, stream, use_copy_kernel);
           if (!non_blocking) {
             CUDA_CALL(cudaStreamSynchronize(stream));
           }

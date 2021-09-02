@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -70,8 +70,8 @@ class GridMaskGpu {
     req.output_shapes = {in.shape};
     ScratchpadEstimator se;
     block_setup_.SetupBlocks(in.shape, true);
-    se.add<SampleDesc>(AllocType::GPU, in.num_samples());
-    se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
+    se.add<mm::memory_kind::device, SampleDesc>(in.num_samples());
+    se.add<mm::memory_kind::device, BlockDesc>(block_setup_.Blocks().size());
     req.scratch_sizes = se.sizes;
     return req;
   }

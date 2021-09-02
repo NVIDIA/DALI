@@ -40,6 +40,7 @@ struct DefaultResources {
   ~DefaultResources() {
     ReleasePinned();
     ReleaseDevice();
+    ReleaseManaged();
     ReleaseHost();
   }
 
@@ -50,11 +51,16 @@ struct DefaultResources {
 
   std::shared_ptr<host_memory_resource> host;
   std::shared_ptr<pinned_async_resource> pinned_async;
+  std::shared_ptr<managed_async_resource> managed;
   std::vector<std::shared_ptr<device_async_resource>> device;
   std::mutex mtx;
 
   void ReleasePinned() {
     Release(pinned_async);
+  }
+
+  void ReleaseManaged() {
+    Release(managed);
   }
 
   void ReleaseDevice() {
@@ -210,6 +216,12 @@ inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
   }
 }
 
+inline std::shared_ptr<managed_async_resource> CreateDefaultManagedResource() {
+  static auto rsrc = std::make_shared<mm::managed_malloc_memory_resource>();
+  return rsrc;
+}
+
+
 template <typename Kind>
 const std::shared_ptr<default_memory_resource_t<Kind>> &ShareDefaultResourceImpl();
 
@@ -236,6 +248,21 @@ const std::shared_ptr<pinned_async_resource> &ShareDefaultResourceImpl<memory_ki
     }
   }
   return g_resources.pinned_async;
+}
+
+template <>
+const std::shared_ptr<managed_async_resource> &ShareDefaultResourceImpl<memory_kind::managed>() {
+  if (!g_resources.managed) {
+    std::lock_guard<std::mutex> lock(g_resources.mtx);
+    if (!g_resources.managed) {
+      static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
+      static auto cleanup = AtExit([] {
+        g_resources.ReleaseManaged();
+      });
+      g_resources.managed = CreateDefaultManagedResource();
+    }
+  }
+  return g_resources.managed;
 }
 
 const std::shared_ptr<device_async_resource> &ShareDefaultDeviceResourceImpl(int device_id) {
@@ -357,6 +384,7 @@ template DLL_PUBLIC default_memory_resource_t<Kind> *GetDefaultResource<Kind>();
 INSTANTIATE_DEFAULT_RESOURCE_GETTERS(memory_kind::host);
 INSTANTIATE_DEFAULT_RESOURCE_GETTERS(memory_kind::pinned);
 INSTANTIATE_DEFAULT_RESOURCE_GETTERS(memory_kind::device);
+INSTANTIATE_DEFAULT_RESOURCE_GETTERS(memory_kind::managed);
 
 DLL_PUBLIC
 std::shared_ptr<device_async_resource> ShareDefaultDeviceResource(int device_id) {

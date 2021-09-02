@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 #include <unordered_map>
 #include "dali/core/error_handling.h"
 #include "dali/core/span.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/pipeline/data/backend.h"
 
 namespace dali {
@@ -31,7 +31,7 @@ ImageCacheBlob::ImageCacheBlob(std::size_t cache_size,
     , stats_enabled_(stats_enabled) {
   DALI_ENFORCE(image_size_threshold <= cache_size_, "Cache size should fit at least one image");
 
-  buffer_ = kernels::memory::alloc_unique<uint8_t>(kernels::AllocType::GPU, cache_size_);
+  buffer_ = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(cache_size_);
   DALI_ENFORCE(buffer_ != nullptr);
   tail_ = buffer_.get();
   buffer_end_ = buffer_.get() + cache_size_;

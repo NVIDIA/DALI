@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ void init_states(const size_t N, uint64_t seed, curandState *states) {
 
 curand_states::curand_states(uint64_t seed, size_t len) : len_(len) {
   CUDAStream tmp_stream = CUDAStream::Create(true);
-  states_mem_ = kernels::memory::alloc_shared<curandState>(kernels::AllocType::GPU, len);
+  states_mem_ = mm:alloc_raw_shared<mm::memory_kind::device, curandState>(klen);
   states_ = states_mem_.get();
   static constexpr int kBlockSize = 256;
   int grid = div_ceil(len_, kBlockSize);

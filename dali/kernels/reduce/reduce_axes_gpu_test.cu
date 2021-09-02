@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
   // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 #include "dali/core/dev_buffer.h"
 #include "dali/kernels/reduce/reduce_axes_gpu_impl.cuh"
 #include "dali/kernels/reduce/reduce_test.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/core/format.h"

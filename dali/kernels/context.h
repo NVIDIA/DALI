@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include <type_traits>
 #include "dali/core/tensor_view.h"
 #include "dali/core/mm/memory_resource.h"
+#include "dali/core/mm/memory_kind.h"
 #include "dali/core/backend_tags.h"
 
 namespace dali {
@@ -53,7 +54,7 @@ class Scratchpad {
  public:
   template <typename MemoryKind>
   inline void *Alloc(size_t bytes, size_t alignment) {
-    return Alloc(bytes, alignment, mm::memory_kind*(nullptr));
+    return Alloc(mm::kind2id_v<MemoryKind>, bytes, alignment);
   }
 
   /**
@@ -61,7 +62,7 @@ class Scratchpad {
    *        in the memory of type `alloc_type`.
    */
   template <typename MemoryKind, typename T, int dim>
-  TensorView<AllocBackend<MemoryKind>, T, dim> AllocTensor(TensorShape<dim> shape) {
+  TensorView<kind2storage<MemoryKind>, T, dim> AllocTensor(TensorShape<dim> shape) {
     return { Allocate<MemoryKind, T>(volume(shape)), std::move(shape) };
   }
 
@@ -70,7 +71,7 @@ class Scratchpad {
    *        in the memory of type `alloc_type`.
    */
   template <typename MemoryKind, typename T, int dim>
-  TensorListView<AllocBackend<MemoryKind>, T, dim>
+  TensorListView<kind2storage<MemoryKind>, T, dim>
   AllocTensorList(const std::vector<TensorShape<dim>> &shape) {
     return AllocTensorList<MemoryKind, T, dim>(TensorListShape<dim>(shape));
   }
@@ -80,10 +81,10 @@ class Scratchpad {
    *        in the memory of type `alloc_type`.
    */
   template <typename MemoryKind, typename T, int dim>
-  TensorListView<AllocBackend<MemoryKind>, T, dim>
+  TensorListView<kind2storage<MemoryKind>, T, dim>
   AllocTensorList(TensorListShape<dim> shape) {
     T *data = Allocate<MemoryKind, T>(shape.num_elements());
-    TensorListView<AllocBackend<MemoryKind>, T, dim> tlv(data, std::move(shape));
+    TensorListView<kind2storage<MemoryKind>, T, dim> tlv(data, std::move(shape));
     return tlv;
   }
 
@@ -138,12 +139,9 @@ class Scratchpad {
     return ToContiguousGPUMem(*this, stream, collections...);
   }
 
- protected:
-  virtual void *Alloc(size_t bytes, size_t alignment, mm::memory_kind::host*) = 0;
-  virtual void *Alloc(size_t bytes, size_t alignment, mm::memory_kind::pinned*) = 0;
-  virtual void *Alloc(size_t bytes, size_t alignment, mm::memory_kind::device*) = 0;
-  virtual void *Alloc(size_t bytes, size_t alignment, mm::memory_kind::managed*) = 0;
+  virtual void *Alloc(mm::memory_kind_id kind_id, size_t bytes, size_t alignment) = 0;
 
+ protected:
   ~Scratchpad() = default;
 };
 

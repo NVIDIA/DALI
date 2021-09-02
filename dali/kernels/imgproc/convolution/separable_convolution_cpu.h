@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ struct SeparableConvolutionCpu<Out, In, W, 2, has_channels> {
     KernelRequirements req;
 
     ScratchpadEstimator se;
-    se.add<Intermediate>(AllocType::Host, volume(in_shape));
+    se.add<mm::memory_kind::host, Intermediate>(volume(in_shape));
     req.scratch_sizes = se.sizes;
     req.output_shapes.push_back(uniform_list_shape<ndim>(1, in_shape));
 
@@ -104,15 +104,17 @@ struct SeparableConvolutionCpu<Out, In, W, 2, has_channels> {
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<TensorView<StorageCPU, const W, 1>, axes>& windows,
            W scale = 1) {
-    auto *tmp = ctx.scratchpad->Allocate<Intermediate>(AllocType::Host, volume(in.shape));
+    auto *tmp = ctx.scratchpad->Allocate<mm::memory_kind::host, Intermediate>(volume(in.shape));
     auto intermediate = TensorView<StorageCPU, Intermediate, ndim>(tmp, in.shape);
 
     // Prepare the scratchpad with all the remaining memory requested by sub-kernels
+    // TODO(michalz): Get rid of this run-time memory kind dispatch
     PreallocatedScratchpad sub_scratch;
     for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
       auto sz = sub_scratch_sizes_[i];
-      auto alloc_type = static_cast<AllocType>(i);
-      sub_scratch.allocs[i] = BumpAllocator(ctx.scratchpad->Allocate<char>(alloc_type, sz, 64), sz);
+      auto kind_id = static_cast<mm::memory_kind_id>(i);
+      sub_scratch.allocs[i] = BumpAllocator(
+        static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
     }
 
     KernelContext sub_ctx = ctx;
@@ -140,7 +142,7 @@ struct SeparableConvolutionCpu<Out, In, W, 3, has_channels> {
     KernelRequirements req;
 
     ScratchpadEstimator se;
-    se.add<Intermediate>(AllocType::Host, volume(in_shape));
+    se.add<mm::memory_kind::host, Intermediate>(volume(in_shape));
     req.scratch_sizes = se.sizes;
     req.output_shapes.push_back(uniform_list_shape<ndim>(1, in_shape));
 
@@ -160,15 +162,17 @@ struct SeparableConvolutionCpu<Out, In, W, 3, has_channels> {
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<TensorView<StorageCPU, const W, 1>, axes>& windows,
            W scale = 1) {
-    auto* tmp = ctx.scratchpad->Allocate<Intermediate>(AllocType::Host, volume(in.shape));
+    auto* tmp = ctx.scratchpad->Allocate<mm::memory_kind::host, Intermediate>(volume(in.shape));
     auto intermediate = TensorView<StorageCPU, Intermediate, ndim>(tmp, in.shape);
 
     // Prepare the scratchpad with all the remaining memory requested by sub-kernels
+    // TODO(michalz): Get rid of this run-time memory kind dispatch
     PreallocatedScratchpad sub_scratch;
     for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
       auto sz = sub_scratch_sizes_[i];
-      auto alloc_type = static_cast<AllocType>(i);
-      sub_scratch.allocs[i] = BumpAllocator(ctx.scratchpad->Allocate<char>(alloc_type, sz, 64), sz);
+      auto kind_id = static_cast<mm::memory_kind_id>(i);
+      sub_scratch.allocs[i] = BumpAllocator(
+        static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
     }
 
     KernelContext sub_ctx = ctx;

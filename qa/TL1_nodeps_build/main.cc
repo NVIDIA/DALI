@@ -1,6 +1,6 @@
 #include <iostream>
 #include "dali/kernels/alloc_type.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 
 int main(int argc, char **argv) {
   // Just using some dali kernel functions

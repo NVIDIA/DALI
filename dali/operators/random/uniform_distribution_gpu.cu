@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #include <vector>
 #include <utility>
 #include "dali/core/convert.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/kernels/common/scatter_gather.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/operators/random/rng_base_gpu.cuh"

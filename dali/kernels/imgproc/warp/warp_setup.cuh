@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,8 +64,8 @@ class WarpSetup : public BlockSetup<spatial_ndim, spatial_ndim> {
 
     KernelRequirements req = {};
     ScratchpadEstimator se;
-    se.add<SampleDesc>(AllocType::GPU, output_shape.num_samples());
-    se.add<BlockDesc>(AllocType::GPU, Blocks().size());
+    se.add<mm::memory_kind::device, SampleDesc>(output_shape.num_samples());
+    se.add<mm::memory_kind::device, BlockDesc>(Blocks().size());
     req.output_shapes = { output_shape };
     req.scratch_sizes = se.sizes;
     return req;

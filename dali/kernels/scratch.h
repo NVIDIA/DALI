@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,10 @@
 #define DALI_KERNELS_SCRATCH_H_
 
 #include <array>
+#include <cassert>
 #include <utility>
 #include <type_traits>
+#include "dali/core/static_switch.h"
 #include "dali/core/mm/memory.h"
 #include "dali/core/mm/memory_kind.h"
 #include "dali/kernels/context.h"
@@ -82,8 +84,7 @@ struct PreallocatedScratchpad : Scratchpad {
   PreallocatedScratchpad() = default;
 
   explicit PreallocatedScratchpad(
-      std::array<BumpAllocator,
-      size_t(AllocType::Count)> &&allocs)
+      std::array<BumpAllocator, size_t(mm::memory_kind_id::count)> &&allocs)
   : allocs(std::move(allocs)) {}
 
   void Clear() {
@@ -92,10 +93,11 @@ struct PreallocatedScratchpad : Scratchpad {
     }
   }
 
-  void *Alloc(AllocType alloc, size_t bytes, size_t alignment) override {
+  void *Alloc(mm::memory_kind_id kind_id, size_t bytes, size_t alignment) override {
     if (bytes == 0)
       return nullptr;
-    auto &A = allocs[(size_t)alloc];
+    assert((size_t)kind_id < allocs.size());
+    auto &A = allocs[(size_t)kind_id];
     uintptr_t ptr = reinterpret_cast<uintptr_t>(A.next());
     // Calculate the padding needed to satisfy alignmnent requirements
     uintptr_t padding = (alignment-1) & (-ptr);
@@ -103,7 +105,7 @@ struct PreallocatedScratchpad : Scratchpad {
     return A.alloc(bytes);
   }
 
-  std::array<BumpAllocator, size_t(AllocType::Count)> allocs;
+  std::array<BumpAllocator, size_t(mm::memory_kind_id::count)> allocs;
 };
 
 
@@ -112,7 +114,7 @@ struct PreallocatedScratchpad : Scratchpad {
  */
 class ScratchpadAllocator {
  public:
-  static constexpr size_t NumAllocTypes = static_cast<size_t>(mm::memory_kind_id::count);
+  static constexpr size_t NumMemKinds = static_cast<size_t>(mm::memory_kind_id::count);
 
   /**
    * @brief Describes scratch memory allocation policy
@@ -141,15 +143,22 @@ class ScratchpadAllocator {
    * @brief Returns reference to the current
    *        allocation policy for given allocation type.
    */
-  AllocPolicy &Policy(AllocType type) {
-    return buffers_[static_cast<int>(type)].policy;
-  }
+  template <typename MemoryKind>
+  AllocPolicy &Policy()             { return Policy(mm::kind2id_v<MemoryKind>); }
+
+  template <typename MemoryKind>
+  const AllocPolicy &Policy() const { return Policy(mm::kind2id_v<MemoryKind>); }
+
 
   /**
    * @brief Returns allocation policy for given allocation type
    */
-  const AllocPolicy &Policy(AllocType type) const {
-    return buffers_[static_cast<int>(type)].policy;
+  AllocPolicy &Policy(mm::memory_kind_id kind) {
+    return buffers_[static_cast<int>(kind)].policy;
+  }
+
+  const AllocPolicy &Policy(mm::memory_kind_id kind) const {
+    return buffers_[static_cast<int>(kind)].policy;
   }
 
   /**
@@ -169,20 +178,20 @@ class ScratchpadAllocator {
    *
    * See `Reserve(AllocType, size_t)` for details.
    */
-  void Reserve(std::array<size_t, NumAllocTypes> sizes) {
-    for (size_t idx = 0; idx < NumAllocTypes; idx++) {
-      Reserve(AllocType(idx), sizes[idx]);
+  void Reserve(std::array<size_t, NumMemKinds> sizes) {
+    for (size_t idx = 0; idx < NumMemKinds; idx++) {
+      Reserve(mm::memory_kind_id(idx), sizes[idx]);
     }
   }
 
   /**
-   * @brief Ensures that at least `sizes` bytes of memory are available in storage `type`
+   * @brief Ensures that at least `size` bytes of memory are available in storage `type`
    * @remarks If reallocation happens, any `Scratchpad` returned by `GetScratchpad`
    *          is invalidated.
    */
   template <typename MemoryKind>
   void Reserve(size_t size) {
-    size_t index = static_cast<size_t>(mm::kind2id<Kind>);
+    size_t index = static_cast<size_t>(mm::kind2id_v<MemoryKind>);
     auto &buf = buffers_[index];
 
     constexpr size_t alignment = 64;
@@ -196,7 +205,7 @@ class ScratchpadAllocator {
 
     if (new_capacity != buf.capacity) {
       buf.mem.reset();
-      buf.mem = memory::alloc_unique<char>(type, new_capacity + alignment);
+      buf.mem = mm::alloc_raw_unique<char, MemoryKind>(new_capacity + alignment);
       uintptr_t ptr = reinterpret_cast<uintptr_t>(buf.mem.get());
       size_t padding = (alignment-1) & (-ptr);
       buf.capacity = new_capacity + alignment - padding;
@@ -205,20 +214,40 @@ class ScratchpadAllocator {
   }
 
   /**
+   * @brief Ensures that at least `size` bytes of memory are available in storage `type`
+   * @remarks For use ONLY inside loops or when the use of run-time dispatch of the memory
+   *          kind is justified. Otherwise, use the overload with type argument MemoryKind.
+   */
+  void Reserve(mm::memory_kind_id id, size_t size) {
+    TYPE_SWITCH(id, mm::kind2id, MemoryKind, (mm::memory_kind::host, mm::memory_kind::pinned,
+                                              mm::memory_kind::device, mm::memory_kind::managed), (
+       Reserve<MemoryKind>(size);
+    ), (assert(!"Incorrect memory kind")));
+  }
+
+  /**
    * @brief Returns allocator's capacities for all allocation types
    */
-  std::array<size_t, NumAllocTypes> Capacities() const noexcept {
-    std::array<size_t, NumAllocTypes> capacities;
+  std::array<size_t, NumMemKinds> Capacities() const noexcept {
+    std::array<size_t, NumMemKinds> capacities;
     for (size_t i = 0; i < buffers_.size(); i++)
       capacities[i] = buffers_[i].capacity;
     return capacities;
   }
 
   /**
-   * @brief Returns allocator's capacity for given allocation type
+   * @brief Returns allocator's capacity for given memory kind
    */
-  size_t Capacity(AllocType type) const noexcept {
-    return buffers_[static_cast<size_t>(type)].capacity;
+  size_t Capacity(mm::memory_kind_id kind_id) const noexcept {
+    return buffers_[static_cast<size_t>(kind_id)].capacity;
+  }
+
+  /**
+   * @brief Returns allocator's capacity for given memory kind
+   */
+  template <typename MemoryKind>
+  size_t Capacity() const noexcept {
+    return Capacity(mm::kind2id_v<MemoryKind>);
   }
 
   /**
@@ -228,7 +257,7 @@ class ScratchpadAllocator {
    */
   PreallocatedScratchpad GetScratchpad() {
     PreallocatedScratchpad scratchpad;
-    for (size_t idx = 0; idx < NumAllocTypes; idx++) {
+    for (size_t idx = 0; idx < NumMemKinds; idx++) {
       auto &buf = buffers_[idx];
       scratchpad.allocs[idx] = { buf.mem.get() + buf.padding, buf.capacity };
     }
@@ -241,7 +270,7 @@ class ScratchpadAllocator {
     size_t capacity = 0, padding = 0;
     AllocPolicy policy = {};
   };
-  std::array<Buffer, NumAllocTypes> buffers_;
+  std::array<Buffer, NumMemKinds> buffers_;
 };
 
 }  // namespace kernels

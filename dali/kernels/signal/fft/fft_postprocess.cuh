@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -300,10 +300,10 @@ class ToFreqMajorSpectrum : public FFTPostprocess<Out, In> {
       nblocks += div_ceil(nwindows, block_size_);
     }
     nblocks_ = nblocks;
-    se.add<SampleDesc>(AllocType::GPU, N);
-    se.add<BlockDesc>(AllocType::GPU, nblocks);
-    se.add<SampleDesc>(AllocType::Host, N);
-    se.add<BlockDesc>(AllocType::Host, nblocks);
+    se.add<mm::memory_kind::device, SampleDesc>(N);
+    se.add<mm::memory_kind::device, BlockDesc>(nblocks);
+    se.add<mm::memory_kind::host, SampleDesc>(N);
+    se.add<mm::memory_kind::host, BlockDesc>(nblocks);
     req.scratch_sizes = se.sizes;
     return req;
   }
@@ -313,8 +313,8 @@ class ToFreqMajorSpectrum : public FFTPostprocess<Out, In> {
     if (!N)
       return;
 
-    SampleDesc *cpu_samples = ctx.scratchpad->Allocate<SampleDesc>(AllocType::Host, N);
-    BlockDesc *cpu_blocks = ctx.scratchpad->Allocate<BlockDesc>(AllocType::Host, nblocks_);
+    SampleDesc *cpu_samples = ctx.scratchpad->Allocate<mm::memory_kind::host, SampleDesc>(N);
+    BlockDesc *cpu_blocks = ctx.scratchpad->Allocate<mm::memory_kind::host, BlockDesc>(nblocks_);
 
     int nfft = in.shape[0][1];
 

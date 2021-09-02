@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,12 +34,12 @@ TEST(Scratchpad, ToContiguous) {
   std::iota(floats.begin(), floats.end(), 1);
   std::iota(shorts.begin(), shorts.end(), 1);
 
-  se.add<char>(AllocType::GPU, chars.size());
-  se.add<float>(AllocType::GPU, floats.size());
-  se.add<int16_t>(AllocType::GPU, shorts.size());
-  se.add<char>(AllocType::Host, chars.size());
-  se.add<float>(AllocType::Host, floats.size());
-  se.add<int16_t>(AllocType::Host, shorts.size());
+  se.add<mm::memory_kind::device, char>(chars.size());
+  se.add<mm::memory_kind::device, float>(floats.size());
+  se.add<mm::memory_kind::device, int16_t>(shorts.size());
+  se.add<mm::memory_kind::host, char>(chars.size());
+  se.add<mm::memory_kind::host, float>(floats.size());
+  se.add<mm::memory_kind::host, int16_t>(shorts.size());
   ScratchpadAllocator sa;
   sa.Reserve(se.sizes);
   auto scratchpad = sa.GetScratchpad();
