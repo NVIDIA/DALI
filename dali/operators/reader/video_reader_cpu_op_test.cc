@@ -88,7 +88,7 @@ void comapre_frames(const uint8_t *frame, const uint8_t *gt, size_t size) {
 class VideoReaderCpuTest : public ::testing::Test {
  public:
   VideoReaderCpuTest() {
-    std::string frames_path = testing::dali_extra_path() + "/db/video/cfr_frames/";
+    std::string frames_path = testing::dali_extra_path() + "/db/video/cfr/frames/";
     char id_str[4];
   
     for (int i = 0; i < NumFrames(); ++i) {
@@ -102,7 +102,7 @@ class VideoReaderCpuTest : public ::testing::Test {
     }
   }
 
-  const int NumFrames() const { return 180; }
+  const int NumFrames() const { return 50; }
 
   const int Channels() const { return 3; }
 
@@ -127,7 +127,7 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
     .AddArg(
       "filenames",
       std::vector<std::string>{
-        testing::dali_extra_path() + "/db/video/cfr_test.mp4"})
+        testing::dali_extra_path() + "/db/video/cfr/test.mp4"})
     .AddOutput("frames", "cpu"));
 
   pipe.Build({{"frames", "cpu"}});

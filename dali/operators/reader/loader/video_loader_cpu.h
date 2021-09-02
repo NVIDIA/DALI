@@ -25,12 +25,18 @@ extern "C" {
 #include "dali/operators/reader/loader/loader.h"
 
 namespace dali {
+struct IndexEntry {
+  bool is_keyframe;
+  int last_keyframe_id;
+  int pts;
+};
+
 class VideoFileCPU {
  public:
   VideoFileCPU(std::string &filename);
 
   int64_t NumFrames() const {
-    return ctx_->streams[stream_id_]->nb_frames;
+    return num_frames_;
   }
 
   int Width() const {
@@ -41,8 +47,12 @@ class VideoFileCPU {
     return codec_params_->height;
   }
 
+  int FrameSize() const {
+    return channels_ * Width() * Height();
+  }
+
   // Reads next frame of the video and wraps at the end
-  bool ReadNextFrame(uint8_t *data);
+  void ReadNextFrame(uint8_t *data);
 
   AVFormatContext *ctx_ = nullptr;
   AVCodec *codec_ = nullptr;
@@ -53,17 +63,24 @@ class VideoFileCPU {
   SwsContext  *sws_ctx_ = nullptr;
   int stream_id_ = -1;
 
-  int width_;
-  int height_;
   int channels_ = 3;
+  int num_frames_ = 0;
+
+  std::vector<IndexEntry> index_;
 
   uint8_t *dest_[4] = {nullptr, nullptr, nullptr, nullptr};
   int dest_linesize_[4] = {0, 0, 0, 0};
 
  private:
-  bool ReadRegularFrame(uint8_t *data);
+  bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true);
 
-  bool ReadFlushFrame(uint8_t *data);
+  bool ReadFlushFrame(uint8_t *data, bool copy_to_output = true);
+
+  void SeekFrame(int frame_id);
+
+  void CopyToOutput(uint8_t *data);
+
+  void BuildIndex();
 
   bool flush_state_ = false;
 };
