@@ -46,6 +46,7 @@ void VideoFileCPU::BuildIndex() {
     IndexEntry entry;
     entry.is_keyframe = frame_->key_frame;
     entry.pts = frame_->pts;
+    entry.is_flush_frame = false;
     
     if (entry.is_keyframe) {
       last_keyframe = index_.size();
@@ -56,23 +57,22 @@ void VideoFileCPU::BuildIndex() {
   }
   while(ReadFlushFrame(nullptr, false)) {
     IndexEntry entry;
-    entry.is_keyframe = frame_->key_frame;
+    entry.is_keyframe = false;
     entry.pts = frame_->pts;
-    
-    if (entry.is_keyframe) {
-      last_keyframe = index_.size();
-    }
+    entry.is_flush_frame = true;
     entry.last_keyframe_id = last_keyframe;
     index_.push_back(entry);
     ++num_frames_;
   }
-  SeekFrame(0);
+  Reset();
 }
 
 void VideoFileCPU::CopyToOutput(uint8_t *data) {
   dest_[0] = data;
   dest_linesize_[0] = frame_->width * 3;
-  sws_scale(sws_ctx_, frame_->data, frame_->linesize, 0, frame_->height, dest_, dest_linesize_);
+  if (sws_scale(sws_ctx_, frame_->data, frame_->linesize, 0, frame_->height, dest_, dest_linesize_) < 0) {
+    DALI_FAIL("");
+  }
 }
 
 bool VideoFileCPU::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
@@ -116,9 +116,27 @@ bool VideoFileCPU::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
   return false;
 }
 
-void VideoFileCPU::SeekFrame(int frame_id) {
+void VideoFileCPU::Reset() {
   av_seek_frame(ctx_, stream_id_, 0, AVSEEK_FLAG_FRAME);
   avcodec_flush_buffers(codec_ctx_);
+}
+
+void VideoFileCPU::SeekFrame(int frame_id) {
+  auto &frame_entry = index_[frame_id];
+  int keyframe_id = frame_entry.last_keyframe_id;
+  auto &keyframe_entry = index_[keyframe_id];
+
+  // Seeking while on flush frame. Need to reset flush state
+  if (flush_state_) {
+    flush_state_ = false;
+  }
+ 
+  av_seek_frame(ctx_, stream_id_, keyframe_entry.pts, AVSEEK_FLAG_FRAME);
+  avcodec_flush_buffers(codec_ctx_);
+
+  for (int i = 0; i < (frame_id - keyframe_id); ++i) {
+    ReadNextFrame(nullptr, false);
+  }
 }
 
 bool VideoFileCPU::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
@@ -139,19 +157,19 @@ bool VideoFileCPU::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
   return true;
 }
 
-void VideoFileCPU::ReadNextFrame(uint8_t *data) {
+void VideoFileCPU::ReadNextFrame(uint8_t *data, bool copy_to_output) {
   if (!flush_state_) {
-      if (ReadRegularFrame(data)) {
+      if (ReadRegularFrame(data, copy_to_output)) {
         return;
       }
   }
-  if (ReadFlushFrame(data)) {
+  if (ReadFlushFrame(data, copy_to_output)) {
     return;
   }
 
-  SeekFrame(0);
+  Reset();
 
-  if (!ReadRegularFrame(data)) {
+  if (!ReadRegularFrame(data, copy_to_output)) {
     DALI_FAIL("Error while reading frame");
   }
 }
@@ -169,6 +187,7 @@ void VideoLoaderCPU::ReadSample(Tensor<CPUBackend> &sample) {
     TensorShape<4>{sequence_len_, video_file.Width(), video_file.Height(), video_file.channels_});
 
   auto data = sample.mutable_data<uint8_t>();
+  video_file.SeekFrame(sample_span.start_);
 
   for (int i = 0; i < sequence_len_; ++i) {
     video_file.ReadNextFrame(data + i * video_file.FrameSize());

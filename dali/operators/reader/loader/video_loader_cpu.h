@@ -29,6 +29,7 @@ struct IndexEntry {
   bool is_keyframe;
   int last_keyframe_id;
   int pts;
+  bool is_flush_frame;
 };
 
 class VideoFileCPU {
@@ -52,7 +53,9 @@ class VideoFileCPU {
   }
 
   // Reads next frame of the video and wraps at the end
-  void ReadNextFrame(uint8_t *data);
+  void ReadNextFrame(uint8_t *data, bool copy_to_output = true);
+
+  void SeekFrame(int frame_id);
 
   AVFormatContext *ctx_ = nullptr;
   AVCodec *codec_ = nullptr;
@@ -76,11 +79,11 @@ class VideoFileCPU {
 
   bool ReadFlushFrame(uint8_t *data, bool copy_to_output = true);
 
-  void SeekFrame(int frame_id);
-
   void CopyToOutput(uint8_t *data);
 
   void BuildIndex();
+
+  void Reset();
 
   bool flush_state_ = false;
 };
