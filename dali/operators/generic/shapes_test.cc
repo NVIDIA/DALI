@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,25 +52,21 @@ struct ShapesTestArgs {
 template <typename TestArgs>
 class ShapesOpTest;
 
-template <typename Backend>
-static std::vector<std::unique_ptr<TensorList<Backend>>> inputs;
-
-
 template <typename OutputBackend, typename InputBackend, typename OutputType>
 class ShapesOpTest<ShapesTestArgs<OutputBackend, InputBackend, OutputType>>
 : public testing::DaliOperatorTest {
  public:
   using TestArgs = ShapesTestArgs<OutputBackend, InputBackend, OutputType>;
 
+  std::vector<std::unique_ptr<TensorList<InputBackend>>> inputs;
+
   ShapesOpTest() {
-    if (inputs<InputBackend>.empty()) {
-      std::mt19937_64 rng(12345);
-      for (int dim = 1; dim <= 6; dim++) {
-        inputs<InputBackend>.emplace_back(new TensorList<InputBackend>());
-        inputs<InputBackend>.back()->set_pinned(false);
-        int num_samples = 1 << (8-dim);  // Start with 128 and halve with each new dimension
-        GenerateShapeTestInputs(*inputs<InputBackend>.back(), rng, num_samples, dim);
-      }
+    std::mt19937_64 rng(12345);
+    for (int dim = 1; dim <= 6; dim++) {
+      inputs.emplace_back(new TensorList<InputBackend>());
+      inputs.back()->set_pinned(false);
+      int num_samples = 1 << (8-dim);  // Start with 128 and halve with each new dimension
+      GenerateShapeTestInputs(*inputs.back(), rng, num_samples, dim);
     }
   }
 
@@ -82,7 +78,7 @@ class ShapesOpTest<ShapesTestArgs<OutputBackend, InputBackend, OutputType>>
     testing::Arguments args;
     args.emplace("dtype", TestArgs::type_id());
     args.emplace("device", testing::detail::BackendStringName<OutputBackend>());
-    for (auto &in : inputs<InputBackend>) {
+    for (auto &in : inputs) {
       testing::TensorListWrapper out;
       this->RunTest(in.get(), out, args, VerifyShape);
     }
