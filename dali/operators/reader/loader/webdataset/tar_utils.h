@@ -103,6 +103,12 @@ class DLL_PUBLIC TarArchive {
    */
   bool EndOfFile() const;
 
+  /**
+   * @brief Frees the filestream and prepeares the archive for later usage
+   * 
+   */
+  void Close();
+
  private:
   std::unique_ptr<FileStream> stream_;
   int instance_handle_ = -1;
@@ -120,7 +126,6 @@ class DLL_PUBLIC TarArchive {
   void SetEof();
 
   void ParseHeader();
-  void Close();  // resets objects to default values
 };
 
 }  // namespace detail
