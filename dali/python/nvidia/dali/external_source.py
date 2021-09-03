@@ -14,6 +14,7 @@
 
 # custom wrappers around ops
 from nvidia.dali import backend as _b
+from nvidia.dali._multiproc.pool import WorkBatch
 import nvidia.dali.types
 from nvidia.dali._utils.external_source_impl import \
         get_callback_from_source as _get_callback_from_source, \
@@ -63,12 +64,13 @@ class _ExternalDataBatch:
 
 class _ExternalSourceGroup(object):
     def __init__(
-            self, callback, is_multioutput, instances=[], *,
+            self, callback, source_desc, is_multioutput, instances=[], *,
             cuda_stream=None, use_copy_kernel=None, batch=True, parallel=False,
             prefetch_queue_depth=None, batch_info=None):
         self.instances = list(instances)  # we need a copy!
         self.is_multioutput = is_multioutput
         self.callback = callback
+        self.source_desc = source_desc
         self._cuda_stream = cuda_stream
         self.use_copy_kernel = use_copy_kernel
         self.batch = batch
@@ -132,10 +134,13 @@ class _ExternalSourceGroup(object):
 
     def schedule_batch(self, pool, context_i, lead, batch_size, epoch_idx):
         """Schedule computing new batch from source callback by the parallel pool."""
-        dst_chunk_i = (self.flat_iter_idx + lead) % pool.queue_depths[context_i]
-        pool.schedule_batch(context_i, dst_chunk_i, [
-            self.callback_args(i, epoch_idx, batch_size, lead) for i in range(batch_size)
-        ])
+        dst_chunk_i = (self.flat_iter_idx + lead) % pool.contexts[context_i].queue_depth
+        if self.batch:
+            pool.schedule_batch(context_i, dst_chunk_i, WorkBatch.batch_mode(
+                self.callback_args(None, epoch_idx, lead=lead)))
+        else:
+            pool.schedule_batch(context_i, dst_chunk_i, WorkBatch.sample_mode(
+                self.callback_args(i, epoch_idx, batch_size, lead) for i in range(batch_size)))
 
     def schedule_and_receive(self, pipeline, pool, context_i, batch_size, epoch_idx):
         """Obtain the computed results of calling source callback in parallel pool and feed
@@ -312,7 +317,7 @@ Keyword Args
     .. note::
         This is applicable only when copying data to and from GPU memory.
 
-`blocking` : bool, optional
+`blocking` : bool, optional  [TODO] does it do anything?
     Determines whether the external source should wait until data is available or just fail
     when the data is not available.
 
@@ -488,27 +493,10 @@ Keyword Args
             if not no_copy:
                 raise ValueError("The argument ``no_copy`` cannot be specified to False " +
                     " when used with ``parallel=True``.")
-            if batch:
-                raise ValueError("ExternalSource can be run in parallel only in per-sample " +
-                    "(``batch=False``) mode.")
             if prefetch_queue_depth < 1:
                 raise ValueError(
                     "``prefetch_queue_depth`` must be a positive integer, got {}.".format(
                         prefetch_queue_depth))
-            if source_desc.kind == _SourceKind.CALLABLE:
-                if not source_desc.has_inputs:
-                    raise TypeError(("External Source in parallel mode (when `parallel=True`) "
-                            "accepts as `source` only callables that accept exactly one "
-                            "argument of type `nvidia.dali.types.SampleInfo`. This argument "
-                            "represents the requested sample index. Got a callable that does not "
-                            "accept arguments instead."))
-            else:
-                what = "an iterable" if source_desc.kind == _SourceKind.ITERABLE else "a generator function"
-                raise TypeError(("External Source in parallel mode (when `parallel=True`) accepts "
-                        "as `source` only callables that accept exactly one argument of type"
-                        "`nvidia.dali.types.SampleInfo`. This argument represents the requested "
-                        "sample index. Got {} instead.\nOnly callables allow to distribute work "
-                        "between worker processes without duplicating it.").format(what))
         else:
             if prefetch_queue_depth is not None:
                 raise ValueError("The argument `prefetch_queue_depth` is valid only for " +
@@ -552,7 +540,7 @@ Keyword Args
         if self._num_outputs is not None:
             outputs = []
             kwargs = {"no_copy": no_copy}
-            group = _ExternalSourceGroup(callback, True, **group_common_kwargs)
+            group = _ExternalSourceGroup(callback, source_desc, True, **group_common_kwargs)
             for i in range(self._num_outputs):
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
@@ -581,7 +569,7 @@ Keyword Args
             op_instance._callback = callback
             op_instance._output_index = None
             op_instance._group = _ExternalSourceGroup(
-                callback, False, [op_instance], **group_common_kwargs)
+                callback, source_desc, False, [op_instance], **group_common_kwargs)
             op_instance._layout = layout
             op_instance._batch = batch
             op_instance.generate_outputs()

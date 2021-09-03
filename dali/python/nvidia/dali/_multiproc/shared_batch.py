@@ -68,16 +68,14 @@ class SharedBatchMeta:
     meta data passed through shared memory (SampleMeta).
     """
 
-    def __init__(self, mem_chunk_id, capacity, meta_offset, meta_size):
-        self.mem_chunk_id = mem_chunk_id
+    def __init__(self, capacity, meta_offset, meta_size):
         self.capacity = capacity
         self.meta_offset = meta_offset
         self.meta_size = meta_size
 
     @classmethod
     def from_writer(cls, writer):
-        return cls(writer.mem_batch.mem_chunk_id, writer.mem_batch.capacity, writer.data_size,
-                   writer.meta_data_size)
+        return cls(writer.shm_chunk.capacity, writer.data_size, writer.meta_data_size)
 
 
 def deserialize_sample(buffer: shared_mem.SharedMem, sample):
@@ -118,32 +116,7 @@ def deserialize_batch(buffer: shared_mem.SharedMem, shared_batch_meta: SharedBat
         List of indexed deserialized samples
     """
     samples = deserialize_sample_meta(buffer, shared_batch_meta)
-    return [(idx, deserialize_sample(buffer, sample)) for (idx, sample) in samples]
-
-
-class SharedMemChunk:
-    """Simple wrapper around shared memory chunks. Most importantly adds mem_chunk_id used
-    to identify chunks in the communication between parent and worker process
-    (shared memory handles/file descriptors cannot serve this purpose easily as the same
-    mapped memory chunk can have different handles in both processes).
-    """
-
-    def __init__(self, mem_chunk_id: str, capacity: int):
-        # mem_chunk_id must be unique among all workers and callbacks in the pool,
-        # used to identify shared memory chunks in the communication between processes
-        self.mem_chunk_id = mem_chunk_id
-        self.shm_chunk = shared_mem.SharedMem.allocate(capacity)
-        self.capacity = capacity
-
-    def resize(self, new_capacity):
-        self.shm_chunk.resize(new_capacity, trunc=True)
-        self.capacity = new_capacity
-
-    def close(self):
-        # Shared memory handle and mapping will be freed automatically when shm pybind wrapper gets
-        # garbage collected anyway, but you can be so nice to free them as soon as you know
-        # you won't use them
-        self.shm_chunk.close()
+    return [deserialize_sample(buffer, sample) for sample in samples]
 
 
 def assert_valid_data_type(sample):
@@ -178,20 +151,20 @@ def _apply_to_sample(func, sample, *args, nest_with_sample=0):
 
 class SharedBatchWriter:
     """SharedBatchWriter can serialize and write batch into given shared
-    memory chunk (``mem_batch``).
+    memory chunk (``shm_chunk``).
     """
 
     SAMPLE_ALIGNMENT = 128
     BUFFER_ALIGNMENT = 4096
 
-    def __init__(self, mem_batch: SharedMemChunk, batch):
+    def __init__(self, shm_chunk: shared_mem.SharedMem, batch):
         import_numpy()
-        self.mem_batch = mem_batch
+        self.shm_chunk = shm_chunk
         self.data_size = 0
         self.meta_data_size = 0
         self._write_batch(batch)
 
-    def _prepare_samples_meta(self, indexed_samples):
+    def _prepare_samples_meta(self, samples):
         """Calculate metadata and total size of data to be serialized"""
         data_size = 0
 
@@ -201,9 +174,7 @@ class SharedBatchWriter:
             data_size = offset + np_array.nbytes
             return SampleMeta(offset, np_array.shape, np_array.dtype, np_array.nbytes)
 
-        meta = []
-        for idx, sample in indexed_samples:
-            meta.append((idx, _apply_to_sample(make_meta, sample)))
+        meta = [_apply_to_sample(make_meta, sample) for sample in samples]
         return meta, data_size
 
     def _add_array_to_batch(self, np_array, meta, memview):
@@ -217,20 +188,19 @@ class SharedBatchWriter:
     def _write_batch(self, batch):
         if not batch:
             return
-        batch = [(idx, _apply_to_sample(lambda x: _sample_to_numpy(x, _sample_error_msg), sample))
-                 for idx, sample in batch]
+        batch = [_apply_to_sample(lambda x: _sample_to_numpy(x, _sample_error_msg), sample)
+                 for sample in batch]
         meta, data_size = self._prepare_samples_meta(batch)
         serialized_meta = pickle.dumps(meta)
         self.meta_data_size = len(serialized_meta)
         self.data_size = _align_up(data_size, self.SAMPLE_ALIGNMENT)
         needed_capacity = self.data_size + self.meta_data_size
-        if self.mem_batch.capacity < needed_capacity:
-            new_capacity = max(needed_capacity, 2 * self.mem_batch.capacity)
+        if self.shm_chunk.capacity < needed_capacity:
+            new_capacity = max(needed_capacity, 2 * self.shm_chunk.capacity)
             new_capacity = _align_up(new_capacity, self.BUFFER_ALIGNMENT)
-            self.mem_batch.resize(new_capacity)
-        memview = self.mem_batch.shm_chunk.buf
-        for (idx, sample), (meta_idx, sample_meta) in zip(batch, meta):
-            assert idx == meta_idx
+            self.shm_chunk.resize(new_capacity, trunc=True)
+        memview = self.shm_chunk.buf
+        for sample, sample_meta in zip(batch, meta):
             _apply_to_sample(self._add_array_to_batch, sample, sample_meta, memview, nest_with_sample=1)
         # copy meta data at the end of shared memory chunk
         buffer = memview[self.data_size:(self.data_size + self.meta_data_size)]
@@ -238,14 +208,14 @@ class SharedBatchWriter:
 
 
 
-def write_batch(mem_batch: SharedMemChunk, batch):
-    """Serialize and write the indexed data batch `batch` into the shared memory `mem_batch`.
+def write_batch(shm_chunk: shared_mem.SharedMem, batch):
+    """Serialize and write the indexed data batch `batch` into the shared memory `shm_chunk`.
 
     Returns description of serialized memory.
 
     Parameters
     ----------
-    mem_batch : SharedMemChunk
+    shm_chunk : shared_mem.SharedMem
         Target memory to write to.
     batch : List of (idx, Sample)
         Batch of data to be serialized
@@ -254,5 +224,5 @@ def write_batch(mem_batch: SharedMemChunk, batch):
     -------
         SharedBatchMeta
     """
-    sbw = SharedBatchWriter(mem_batch, batch)
+    sbw = SharedBatchWriter(shm_chunk, batch)
     return SharedBatchMeta.from_writer(sbw)

@@ -14,16 +14,11 @@
 
 import os
 import argparse
-import time
 import cv2
 import numpy as np
 
 import nvidia.dali as dali
 import nvidia.dali.types as types
-from nvidia.dali.plugin.base_iterator import LastBatchPolicy
-
-from test_utils import AverageMeter
-
 
 class FilesDataSet:
 
@@ -83,9 +78,9 @@ class ShuffledFilesDataSet(FilesDataSet):
         return super().get_sample(self.perm[sample_idx], epoch_idx)
 
 
-class SampleLoader(object):
+class SampleLoader:
 
-    DATA_SET = FilesDataSet
+    DATA_SET = ShuffledFilesDataSet
 
     def __init__(self, data_path):
         self.data_path = data_path
@@ -102,24 +97,37 @@ class SampleLoader(object):
         return self.DATA_SET(data_path=self.data_path)
 
     def read_file(self, file_path):
-        with open(file_path, 'rb') as f:
-            return f.read()
+        return np.fromfile(file_path, dtype=np.uint8)
 
     def __call__(self, sample_info):
         file_path, class_no = self.data_set.get_sample(sample_info.idx_in_epoch, sample_info.epoch_idx)
         return self.read_file(file_path), np.array([class_no])
 
 
-class CV2SampleLoader(SampleLoader):
+class BatchLoader(SampleLoader):
+
+    def __init__(self, data_path, batch_size):
+        super().__init__(data_path)
+        self.batch_size = batch_size
+
+    def __call__(self, batch_i):
+        files_paths, labels = tuple(zip(*[self.data_set.get_sample(self.batch_size * batch_i + i, batch_i) for i in range(self.batch_size)]))
+        return [self.read_file(file_path) for file_path in files_paths], np.array(labels)
+
+
+class CV2MixIn:
 
     def read_file(self, file_path):
         img = cv2.imread(file_path)
         return img
 
 
-class CV2SampleLoaderPerm(CV2SampleLoader):
+class CV2SampleLoader(CV2MixIn, SampleLoader):
+    pass
 
-    DATA_SET = ShuffledFilesDataSet
+
+class CV2BatchLoader(CV2MixIn, BatchLoader):
+    pass
 
 
 def common_pipeline(images):
@@ -136,56 +144,78 @@ def common_pipeline(images):
     return images
 
 
-def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch,
-                         reader_queue_depth, **kwargs,):
+def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch_queue_depth,
+                         reader_queue_depth, mixed_decode, **kwargs,):
     pipe = dali.pipeline.Pipeline(
         batch_size=batch_size, num_threads=num_threads, device_id=device_id,
-        prefetch_queue_depth=prefetch)
+        prefetch_queue_depth=prefetch_queue_depth)
     with pipe:
         images, labels = dali.fn.readers.file(
             name="Reader",
             file_root=data_path,
             prefetch_queue_depth=reader_queue_depth,
             random_shuffle=True,)
-        images = dali.fn.decoders.image(images, device="cpu", output_type=types.RGB)
-        images = common_pipeline(images.gpu())
+        if mixed_decode:
+            images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
+            images = common_pipeline(images)
+        else:
+            images = dali.fn.decoders.image(images, device="cpu", output_type=types.RGB)
+            images = common_pipeline(images.gpu())
         pipe.set_outputs(images, labels)
     return pipe
 
 
 class ExternalSourcePipeline(dali.pipeline.Pipeline):
 
-    def __init__(self, data_path, **kwargs):
+    def __init__(self, data_path, mixed_decode, batch_mode=False, **kwargs):
         super().__init__(**kwargs)
-        self.loader = CV2SampleLoaderPerm(data_path)
+        if mixed_decode:
+            loader_sample, loader_batch = SampleLoader, BatchLoader
+        else:
+            loader_sample, loader_batch = CV2SampleLoader, CV2BatchLoader
+        if batch_mode:
+            self.loader = loader_batch(data_path, batch_size=kwargs['batch_size'])
+        else:
+            self.loader = loader_sample(data_path)
 
     def epoch_size(self, *args, **kwargs):
         return len(self.loader.data_set)
 
 
 def external_source_pipeline(
-        data_path, batch_size, num_threads, device_id, prefetch, reader_queue_depth, **kwargs,):
+        data_path, batch_size, num_threads, device_id, prefetch_queue_depth, reader_queue_depth, mixed_decode,
+        batch_mode=False, **kwargs):
     pipe = ExternalSourcePipeline(
-        batch_size=batch_size, num_threads=num_threads, device_id=device_id, data_path=data_path)
+        batch_size=batch_size, num_threads=num_threads, device_id=device_id, data_path=data_path,
+        batch_mode=batch_mode, prefetch_queue_depth=prefetch_queue_depth, mixed_decode=mixed_decode)
     with pipe:
-        images, labels = dali.fn.external_source(pipe.loader, batch=False, num_outputs=2)
-        images = common_pipeline(images.gpu())
+        images, labels = dali.fn.external_source(pipe.loader, batch=batch_mode, num_outputs=2)
+        if mixed_decode:
+            images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
+        else:
+            images = images.gpu()
+        images = common_pipeline(images)
         pipe.set_outputs(images, labels)
     return pipe
 
 
 def external_source_parallel_pipeline(
-        data_path, batch_size, num_threads, device_id, prefetch, reader_queue_depth,
-        py_num_workers=None, py_start_method="fork"):
+        data_path, batch_size, num_threads, device_id, prefetch_queue_depth, reader_queue_depth, mixed_decode,
+        py_num_workers=None, py_start_method="fork", batch_mode=False):
     pipe = ExternalSourcePipeline(
         batch_size=batch_size, num_threads=num_threads, device_id=device_id,
-        prefetch_queue_depth=prefetch, py_start_method=py_start_method,
-        py_num_workers=py_num_workers, data_path=data_path)
+        prefetch_queue_depth=prefetch_queue_depth, py_start_method=py_start_method,
+        py_num_workers=py_num_workers, data_path=data_path, batch_mode=batch_mode,
+        mixed_decode=mixed_decode)
     with pipe:
         images, labels = dali.fn.external_source(
-            pipe.loader, num_outputs=2, batch=False, parallel=True,
+            pipe.loader, num_outputs=2, batch=batch_mode, parallel=True,
             prefetch_queue_depth=reader_queue_depth)
-        images = common_pipeline(images.gpu())
+        if mixed_decode:
+            images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
+        else:
+            images = images.gpu()
+        images = common_pipeline(images)
         pipe.set_outputs(images, labels)
     return pipe
 
@@ -225,6 +255,10 @@ def parse_test_arguments(supports_distributed):
     parser.add_argument(
         "--test_pipes", nargs="+", default=["parallel", "file_reader", "scalar"],
         help="Pipelines to be tested, allowed values: 'parallel', 'file_reader', 'scalar'")
+    parser.add_argument('--batch_mode', default=False, type=bool,
+                        help='Should ExternalSource be run in batch mode (or sample mode if False)')
+    parser.add_argument('--mixed_decode', default=False, type=bool,
+                        help='Decode with mixed decoder or on cpu and move with tensor.gpu()')
 
     if supports_distributed:
         parser.add_argument('--local_rank', default=0, type=int,

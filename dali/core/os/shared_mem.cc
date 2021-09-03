@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -143,9 +143,16 @@ uint8_t *SharedMem::get_raw_ptr() {
   return !memory_mapping_ ? nullptr : memory_mapping_.get_raw_ptr();
 }
 
+void SharedMem::seal() {
+  shm_handle_.reset();
+}
+
 void SharedMem::resize(uint64_t size, bool trunc) {
   size_ = size * sizeof(uint8_t);
   if (trunc) {
+    if (!shm_handle_) {
+      throw std::runtime_error("Cannot resize memory - no valid shared memory handle.");
+    }
     POSIX_CALL_EX(ftruncate(shm_handle_, size_), "Failed to resize shared memory.");
   }
   if (memory_mapping_) {

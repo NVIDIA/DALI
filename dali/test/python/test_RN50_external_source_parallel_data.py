@@ -38,10 +38,12 @@ def iteration_test(args):
             num_threads=args.workers,
             device_id=gpu,
             data_path=args.data_path,
-            prefetch=args.prefetch,
+            prefetch_queue_depth=args.prefetch,
             reader_queue_depth=args.reader_queue_depth,
             py_start_method=args.worker_init,
-            py_num_workers=args.py_workers
+            py_num_workers=args.py_workers,
+            batch_mode=args.batch_mode,
+            mixed_decode=args.mixed_decode,
         ) for gpu in range(args.gpus)]
         # First start the Python workers, so we fork without CUDA context.
         for pipe in pipes:

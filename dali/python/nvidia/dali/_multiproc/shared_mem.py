@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ class SharedMem:
         if handle is None:
             handle = -1
         self.shm = _b.SharedMem(handle, size)
+        self.capacity = size
 
     def __getattr__(self, key):
         # lazily evaluate and cache 'buf' property, so that it is created only once and only when requested
@@ -91,6 +92,7 @@ class SharedMem:
         if 'buf' in self.__dict__:
             del self.__dict__['buf']
         self.shm.resize(size, trunc)
+        self.capacity = size
 
     def close(self):
         """Removes maping of the memory into process address space and closes related handle.
@@ -101,3 +103,11 @@ class SharedMem:
         """
         self.buf = None
         self.shm.close()
+
+    def seal(self):
+        """Closes file descriptor for underlying shared memory, from now process cannot resize
+           underlying memory with this handle but still can adjust mapping if the underlying shared memory
+           is resized, for instance, by another process.
+           This means that call to resize with ``trunc``= True will be invalid.
+        """
+        self.shm.seal()

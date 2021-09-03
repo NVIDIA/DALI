@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -152,6 +152,8 @@ class DLL_PUBLIC SharedMem {
    * or just remap to the new size.
    */
   DLL_PUBLIC void resize(uint64_t size, bool trunc = false);
+
+  DLL_PUBLIC void seal();
 
   DLL_PUBLIC void close();
 

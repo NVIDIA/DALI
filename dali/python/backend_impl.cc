@@ -1174,6 +1174,7 @@ PYBIND11_MODULE(backend_impl, m) {
              return py::memoryview::from_buffer(ptr, {shm->size()}, {sizeof(uint8_t)});
            })
       .def("resize", &SharedMem::resize)
+      .def("seal", &SharedMem::seal)
       .def("close", &SharedMem::close);
 
 #endif
