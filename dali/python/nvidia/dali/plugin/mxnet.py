@@ -58,8 +58,8 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
         dali_type = dali_tensor.dtype()
     dali_type = np.dtype(dali_type)
 
-    assert dali_type == arr.dtype, ("Type of DALI Tensor/TensorList"
-            " doesn't match MXNet tensor type: {} vs {}".format(dali_type, np.dtype(arr.dtype)))
+    assert dali_type == arr.dtype, ("The element type of DALI Tensor/TensorList"
+	        " doesn't match the element type of the target MXNet NDArray: {} vs {}".format(dali_type, np.dtype(arr.dtype)))
 
     # Wait until arr is no longer used by the engine
     _wait_to_write(arr)

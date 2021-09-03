@@ -346,7 +346,7 @@ def check_mxnet_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
     if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
         assert_raises(AssertionError, MXNetIterator, pipes, [
                       ("ids", MXNetIterator.DATA_TAG)], reader_name="Reader", last_batch_policy=last_batch_policy,
-                      glob="It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size.")
+                      glob="It seems that there is no data in the pipeline*last_batch_policy*")
         return
     else:
         dali_train_iter = MXNetIterator(pipes, [(
@@ -1497,7 +1497,7 @@ def test_mxnet_feed_ndarray():
     pipe.build()
     out = pipe.run()[0]
     mxnet_tensor = mxnet.nd.empty([1], None, np.int8)
-    assert_raises(AssertionError, feed_ndarray, out, mxnet_tensor, glob="Type of DALI Tensor/TensorList doesn't match MXNet tensor type:*")
+    assert_raises(AssertionError, feed_ndarray, out, mxnet_tensor, glob="The element type of DALI Tensor/TensorList doesn't match the element type of the target MXNet NDArray")
 
 
 def test_pytorch_feed_ndarray():
@@ -1508,4 +1508,4 @@ def test_pytorch_feed_ndarray():
     pipe.build()
     out = pipe.run()[0]
     torch_tensor = torch.empty((1), dtype=torch.int8, device = 'cpu')
-    assert_raises(AssertionError, feed_ndarray, out, torch_tensor, glob="Type of DALI Tensor/TensorList doesn't match Torch tensor type:*")
+    assert_raises(AssertionError, feed_ndarray, out, torch_tensor, glob="The element type of DALI Tensor/TensorList doesn't match the element type of the target PyTorch Tensor:")
