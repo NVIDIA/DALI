@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -100,9 +100,9 @@ const TestSample &FindSample(const TestSample (&dataset)[N], const Roi &roi) {
 template<size_t Idx, typename Backend, size_t N>
 std::unique_ptr<TensorList<Backend>> ToTensorList(const TestSample (&sample)[N]) {
   std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
-  tl->Resize(uniform_list_shape(N, {kBbStructSize}));
-  auto ptr = tl->template mutable_data<float>();
   for (size_t n = 0; n < N; n++) {
+  tl->Resize(uniform_list_shape(N, {kBbStructSize}));
+    auto *ptr = tl->template mutable_tensor<float>(n);
     for (size_t i = 0; i < kBbStructSize; i++) {
       *ptr++ = sample[n][Idx][i];
     }
@@ -112,9 +112,9 @@ std::unique_ptr<TensorList<Backend>> ToTensorList(const TestSample (&sample)[N])
 
 template <typename Backend>
 std::vector<Roi> FromTensorListPtr(const TensorList<Backend> *tl) {
-  auto ptr = tl->template data<float>();
   std::vector<Roi> ret;
   for (size_t i = 0; i < tl->ntensor(); i++) {
+    auto *ptr = tl->template tensor<float>(i);
     Roi roi;
     for (float &val : roi) {
       val = *ptr++;
