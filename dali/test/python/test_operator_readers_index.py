@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import os.path
 import tempfile
 import numpy as np
 from test_utils import compare_pipelines, get_dali_extra_path
-from nose.tools import assert_raises
+from nose_utils import assert_raises
 
 def skip_second(src, dst):
     with open(src, 'r') as tmp_f:
@@ -115,7 +115,10 @@ def test_wrong_feature_shape():
     pipe.set_outputs(input['image/encoded'], input['image/object/class/label'], input['image/object/bbox'])
     pipe.build()
     # the error is raised because FixedLenFeature is used with insufficient shape to house the input
-    assert_raises(RuntimeError, pipe.run)
+    assert_raises(RuntimeError,
+                  pipe.run,
+                  glob="Error when executing CPU operator*readers*tfrecord*"
+                  "Output tensor shape is too small*1*Expected at least 4 elements")
 
 
 batch_size_alias_test=64
