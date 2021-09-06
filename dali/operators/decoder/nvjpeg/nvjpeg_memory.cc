@@ -75,6 +75,11 @@ struct MallocLikeWrapper {
 };
 
 template <typename MemoryKind>
+spinlock MallocLikeWrapper<MemoryKind>::lock_;
+template <typename MemoryKind>
+std::unordered_map<void *, mm::Deleter> MallocLikeWrapper<MemoryKind>::outstanding_allocs_;
+
+template <typename MemoryKind>
 MallocLikeWrapper<MemoryKind> &GetAllocator() {
   static MallocLikeWrapper<MemoryKind> wrapper;
   return wrapper;

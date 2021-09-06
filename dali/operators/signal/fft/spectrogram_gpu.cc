@@ -148,7 +148,7 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
   void CopyWindowToDevice(cudaStream_t stream) {
     if (gpu_window_ptr)
       return;  // already there
-    gpu_window_ptr = mm::alloc_raw_unique<mm::memory_kind::device, float>(args.window_length);
+    gpu_window_ptr = mm::alloc_raw_unique<float, mm::memory_kind::device>(args.window_length);
     gpu_window = make_tensor_gpu<1>(gpu_window_ptr.get(), { args.window_length });
     CUDA_CALL(cudaMemcpyAsync(gpu_window_ptr.get(), cpu_window.data(),
                               args.window_length * sizeof(float),

@@ -75,7 +75,7 @@ class WarpAffineParamProvider
           M.transform(i, j) = matrix[k];
       if (invert)
         M = M.inv();
-      auto *params = this->AllocParams<mm::memory_kind::host>();
+      auto *params = this->template AllocParams<mm::memory_kind::host>();
       for (int i = 0; i < num_samples_; i++)
         params[i] = M;
     }
@@ -120,7 +120,7 @@ class WarpAffineParamProvider
     CheckParamInput(input);
 
     if (invert) {
-      auto *params = this->AllocParams<mm::memory_kind::host>();
+      auto *params = this->template AllocParams<mm::memory_kind::host>();
       for (int i = 0; i < num_samples_; i++) {
         params[i] = static_cast<const MappingParams *>(input.raw_tensor(i))->inv();
       }
@@ -138,7 +138,7 @@ class WarpAffineParamProvider
     CheckParamInput(input);
 
     if (!input.IsContiguous() || invert) {
-      auto *params = this->AllocParams<mm::memory_kind::host>();
+      auto *params = this->template AllocParams<mm::memory_kind::host>();
       for (int i = 0; i < num_samples_; i++) {
         if (invert)
           params[i] = static_cast<const MappingParams *>(input[i].raw_data())->inv();
@@ -156,7 +156,7 @@ class WarpAffineParamProvider
 
     auto input_mappings = static_cast<const MappingParams *>(input.raw_data());
     if (invert) {
-      auto output = this->AllocParams<mm::memory_kind::device>();
+      auto output = this->template AllocParams<mm::memory_kind::device>();
       InvertTransformsGPU<spatial_ndim>(output, input_mappings, num_samples_, this->GetStream());
     } else {
       params_gpu_.data = input_mappings;

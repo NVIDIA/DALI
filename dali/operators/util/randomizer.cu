@@ -33,7 +33,7 @@ void init_states(const size_t N, uint64_t seed, curandState *states) {
 
 curand_states::curand_states(uint64_t seed, size_t len) : len_(len) {
   CUDAStream tmp_stream = CUDAStream::Create(true);
-  states_mem_ = mm:alloc_raw_shared<mm::memory_kind::device, curandState>(klen);
+  states_mem_ = mm::alloc_raw_shared<curandState, mm::memory_kind::device>(len);
   states_ = states_mem_.get();
   static constexpr int kBlockSize = 256;
   int grid = div_ceil(len_, kBlockSize);

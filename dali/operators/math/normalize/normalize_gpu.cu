@@ -80,7 +80,7 @@ inline void MaxInPlace(ToUpdate &inout, const Other &other) {
   }
 }
 
-using scratch_sizes_t = std::array<size_t, static_cast<size_t>(AllocType::Count)>;
+using scratch_sizes_t = dali::kernels::scratch_sizes_t;
 
 class ScratchpadSnapshot {
  public:
@@ -193,9 +193,14 @@ void Normalize<GPUBackend>::SetupTyped(const DeviceWorkspace &ws) {
     MaxInPlace(req.scratch_sizes, stddev_req.scratch_sizes);
   }
 
-  for (size_t i = 0; i < se.sizes.size(); i++) {
-    se.add<uint8_t>(static_cast<AllocType>(i), req.scratch_sizes[i], 64);
-  }
+  se.add<mm::memory_kind::host, char>(
+    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::host)], 64);
+  se.add<mm::memory_kind::pinned, char>(
+    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::pinned)], 64);
+  se.add<mm::memory_kind::device, char>(
+    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::device)], 64);
+  se.add<mm::memory_kind::managed, char>(
+    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::managed)], 64);
 
   alloc_.Reserve(se.sizes);
 }

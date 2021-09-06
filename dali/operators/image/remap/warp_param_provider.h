@@ -174,7 +174,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
    */
   TensorView<StorageGPU, const MappingParams, 1> ParamsGPU() {
     if (!params_gpu_.data && params_cpu_.data) {
-      auto *p = AllocParams(kernels::AllocType::GPU, params_cpu_.num_elements());
+      auto *p = AllocParams<mm::memory_kind::device>(params_cpu_.num_elements());
       auto tmp = make_tensor_gpu(p, params_cpu_.shape);
       kernels::copy(tmp, params_cpu_, GetStream());
     }
@@ -189,7 +189,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
    */
   TensorView<StorageCPU, const MappingParams, 1> ParamsCPU() {
     if (!params_cpu_.data && params_gpu_.data) {
-      auto *p = AllocParams(kernels::AllocType::Host, params_gpu_.num_elements());
+      auto *p = AllocParams<mm::memory_kind::host>(params_gpu_.num_elements());
       auto tmp = make_tensor_cpu(p, params_cpu_.shape);
       cudaStream_t stream = GetStream();
       kernels::copy(tmp, params_gpu_, stream);
@@ -330,7 +330,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   MappingParams *AllocParams(int count) {
     param_mem_.Reserve<MemoryKind>(count * sizeof(MappingParams));
     auto scratch = param_mem_.GetScratchpad();
-    auto tmp = scratch.template AllocTensor<mm::memory_kind, MappingParams, 1>(count);
+    auto tmp = scratch.template AllocTensor<MemoryKind, MappingParams, 1>(count);
     SelectParamView<MemoryKind>() = tmp;
     return tmp.data;
   }
