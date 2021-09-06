@@ -176,7 +176,7 @@ class ScratchpadAllocator {
   /**
    * @brief Reserves memory for all allocation types.
    *
-   * See `Reserve(AllocType, size_t)` for details.
+   * See `Reserve<MemoryKind>(size_t)` for details.
    */
   void Reserve(std::array<size_t, NumMemKinds> sizes) {
     for (size_t idx = 0; idx < NumMemKinds; idx++) {
