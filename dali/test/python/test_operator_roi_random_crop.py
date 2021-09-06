@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import nvidia.dali.types as types
 import nvidia.dali.math as math
 from test_utils import check_batch, dali_type
 import random
-from nose.tools import assert_raises
+from nose_utils import assert_raises
 
 np.random.seed(4321)
 
@@ -134,8 +134,7 @@ def test_roi_random_crop():
                 crop_extent_min, crop_extent_max, in_shape_min, in_shape_max, niter
 
 def check_roi_random_crop_error(shape_like_in=None, in_shape=None, crop_shape=None, roi_start=None,
-                                roi_shape=None, roi_end=None):
-    ndim = 2
+                                roi_shape=None, roi_end=None, error_msg=""):
     batch_size = 3
     niter = 3
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
@@ -149,10 +148,10 @@ def check_roi_random_crop_error(shape_like_in=None, in_shape=None, crop_shape=No
                                  roi_end=roi_end,
                                  device='cpu')
     pipe.set_outputs(out)
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, regex=error_msg):
         pipe.build()
         for _ in range(niter):
-            outputs = pipe.run()
+            pipe.run()
 
 def test_roi_random_crop_error_incompatible_args():
     in_shape = np.array([4, 4])
@@ -160,21 +159,20 @@ def test_roi_random_crop_error_incompatible_args():
     roi_start = np.array([1, 1])
     roi_shape = np.array([1, 1])
     roi_end = np.array([2, 2])
-    yield check_roi_random_crop_error, np.zeros(in_shape), in_shape, crop_shape, roi_start, roi_shape, None
-    yield check_roi_random_crop_error, np.zeros(in_shape), None, crop_shape, roi_start, roi_shape, roi_end
+    yield check_roi_random_crop_error, np.zeros(in_shape), in_shape, crop_shape, roi_start, roi_shape, None, "Assert on \"\(in_shape_arg_.IsDefined\(\) \+ \(ws.NumInput\(\) == 1\)\) == 1\""
+    yield check_roi_random_crop_error, np.zeros(in_shape), None, crop_shape, roi_start, roi_shape, roi_end, "Assert on \"\(roi_end_.IsDefined\(\) \+ roi_shape_.IsDefined\(\)\) == 1\" failed: Either ROI end or ROI shape should be defined, but not both"
 
 def test_roi_random_crop_error_wrong_args():
     in_shape = np.array([4, 4])
     crop_shape = np.array([2, 2])
     roi_start = np.array([1, 1])
     roi_shape = np.array([1, 1])
-    roi_end = np.array([2, 2])
     # Negative shape
-    yield check_roi_random_crop_error, None, np.array([-4, 4]), crop_shape, roi_start, roi_shape, None
-    yield check_roi_random_crop_error, None, in_shape, np.array([1, -1]), roi_start, roi_shape, None
+    yield check_roi_random_crop_error, None, np.array([-4, 4]), crop_shape, roi_start, roi_shape, None, "Assert on \"sample_sh\[d\] >= 0\" failed: Input shape can't be negative."
+    yield check_roi_random_crop_error, None, in_shape, np.array([1, -1]), roi_start, roi_shape, None, "Assert on \"crop_shape_\[s\].data\[d\] >= 0\" failed: Crop shape can't be negative"
     # Out of bounds ROI
-    yield check_roi_random_crop_error, None, in_shape, crop_shape, np.array([-1, -1]), roi_shape, None
-    yield check_roi_random_crop_error, None, in_shape, crop_shape, roi_start, np.array([4, 4]), None
-    yield check_roi_random_crop_error, None, in_shape, crop_shape, roi_start, None, np.array([5, 5])
+    yield check_roi_random_crop_error, None, in_shape, crop_shape, np.array([-1, -1]), roi_shape, None, "Assert on \"roi_start_\[s\].data\[d\] >= 0 && sample_sh\[d\] >= roi_end\" failed: ROI can't be out of bounds."
+    yield check_roi_random_crop_error, None, in_shape, crop_shape, roi_start, np.array([4, 4]), None, "Assert on \"roi_start_\[s\].data\[d\] >= 0 && sample_sh\[d\] >= roi_end\" failed: ROI can't be out of bounds."
+    yield check_roi_random_crop_error, None, in_shape, crop_shape, roi_start, None, np.array([5, 5]), " Assert on \"roi_start_\[s\\].data\[d\] >= 0 && sample_sh\[d\] >= roi_end_\[s\].data\[d\]\" failed: ROI can't be out of bounds."
     # Out of bounds crop
-    yield check_roi_random_crop_error, None, in_shape, np.array([10, 10]), roi_start, roi_shape, None
+    yield check_roi_random_crop_error, None, in_shape, np.array([10, 10]), roi_start, roi_shape, None, " Assert on \"sample_sh\[d\] >= crop_shape_\[s\].data\[d\]\" failed: Cropping shape can't be bigger than the input shape."

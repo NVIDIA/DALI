@@ -24,7 +24,7 @@ from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 import math
 import librosa as librosa
-from nose.tools import *
+from nose_utils import assert_raises
 
 class MFCCPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, axis=0, dct_type=2, lifter=1.0, n_mfcc=20,
@@ -120,23 +120,23 @@ def test_operator_mfcc_vs_python():
                         yield check_operator_mfcc_vs_python, device, batch_size, shape, \
                             axis, dct_type, lifter, n_mfcc, norm
 
-@raises(RuntimeError)
 def check_operator_mfcc_wrong_args(device, batch_size, input_shape,
-                                   axis, dct_type, lifter, n_mfcc, norm):
-    eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
-    pipe = MFCCPipeline(device, batch_size, iter(eii1),
-                        axis=axis, dct_type=dct_type, lifter=lifter, n_mfcc=n_mfcc, norm=norm)
-    pipe.build()
-    pipe.run()
+                                   axis, dct_type, lifter, n_mfcc, norm, msg):
+    with assert_raises(RuntimeError, regex=msg):
+        eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+        pipe = MFCCPipeline(device, batch_size, iter(eii1),
+                            axis=axis, dct_type=dct_type, lifter=lifter, n_mfcc=n_mfcc, norm=norm)
+        pipe.build()
+        pipe.run()
 
 def test_operator_mfcc_wrong_args():
     batch_size = 3
     for device in ['cpu', 'gpu']:
-        for dct_type, norm, axis, n_mfcc, lifter, shape in \
-            [(1, True, 0, 20, 0.0, (100, 100)),  # DCT-I ortho-normalization is not supported
-            (2, False, -1, 20, 0.0, (100, 100)),  # axis out of bounds
-            (2, False, 2, 20, 0.0, (100, 100)),  # axis out of bounds
-            (10, False, 0, 20, 0.0, (100, 100)),  # not supported DCT type
+        for dct_type, norm, axis, n_mfcc, lifter, shape, msg in \
+            [(1, True, 0, 20, 0.0, (100, 100), "Assert on \"arg.dct_type != 1\" failed: Ortho-normalization is not supported for DCT type I"),  # DCT-I ortho-normalization is not supported
+             (2, False, -1, 20, 0.0, (100, 100), "Assert on \"axis_ >= 0\" failed"),  # axis out of bounds
+             (2, False, 2, 20, 0.0, (100, 100), "Assert on \"axis_ >= 0 && axis_ < ndim\" failed: Axis [\d]+ is out of bounds \[[\d]+,[\d]+\)"),  # axis out of bounds
+             (10, False, 0, 20, 0.0, (100, 100), "Assert on \"arg.dct_type >= 1 && arg.dct_type <= 4\" failed: Unsupported DCT type: 10. Supported types are: 1, 2, 3, 4"),  # not supported DCT type
             ]:
             yield check_operator_mfcc_wrong_args, device, batch_size, shape, \
-                axis, dct_type, lifter, n_mfcc, norm
+                axis, dct_type, lifter, n_mfcc, norm, msg

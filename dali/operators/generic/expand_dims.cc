@@ -59,7 +59,7 @@ ExpandDims<Backend>::ExpandDims(const OpSpec &spec)
   if (!new_axis_names.empty()) {
     DALI_ENFORCE(new_axis_names.size() == axes.size(), make_string("Specified ", axes.size(),
       " new dimensions, but layout contains only ",
-      new_axis_names.size(), " new dimension names"));
+      static_cast<int>(new_axis_names.size()), " new dimension names"));
   }
   this->use_src_dims_ = true;
 

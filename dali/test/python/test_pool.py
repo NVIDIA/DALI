@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,8 @@ from functools import wraps
 import numpy as np
 import os
 import time
-from nose.tools import raises, with_setup
+from nose.tools import with_setup
+from nose_utils import raises
 
 from test_pool_utils import *
 
@@ -250,7 +251,7 @@ def test_pool_many_ctxs_many_workers(start_method):
 def invalid_callback():
     return "42"
 
-@raises(Exception)
+@raises(Exception, glob="Unsupported callback return type. Expected NumPy array, PyTorch or MXNet cpu tensors, DALI TensorCPU, or list or tuple of them representing sample. Got")
 @with_setup(setup_function, teardown_function)
 def test_pool_invalid_return():
     callbacks = [invalid_callback]
