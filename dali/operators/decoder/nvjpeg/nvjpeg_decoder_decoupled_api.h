@@ -178,11 +178,11 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     for (auto thread_id : thread_pool_.GetThreadIds()) {
       if (device_memory_padding > 0) {
-        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::GPU, device_memory_padding);
+        nvjpeg_memory::AddBuffer<mm::memory_kind::device>(thread_id, device_memory_padding);
       }
       if (host_memory_padding > 0) {
-        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::Pinned, host_memory_padding);
-        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::Pinned, host_memory_padding);
+        nvjpeg_memory::AddBuffer<mm::memory_kind::pinned>(thread_id, host_memory_padding);
+        nvjpeg_memory::AddBuffer<mm::memory_kind::pinned>(thread_id, host_memory_padding);
       }
     }
 
@@ -230,17 +230,17 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       if (device_memory_padding_jpeg2k > 0) {
         // Adding smaller buffers that are allocated by nvjpeg2k on startup.
         // The sizes were obtained empirically.
-        nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 1024);
-        nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 4 * 1024);
-        nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 16 * 1024);
+        nvjpeg_memory::AddBuffer<mm::memory_kind::device>(nvjpeg2k_thread_id, 1024);
+        nvjpeg_memory::AddBuffer<mm::memory_kind::device>(nvjpeg2k_thread_id, 4 * 1024);
+        nvjpeg_memory::AddBuffer<mm::memory_kind::device>(nvjpeg2k_thread_id, 16 * 1024);
         nvjpeg2k_intermediate_buffer_.resize(device_memory_padding_jpeg2k / 8);
-        nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU,
+        nvjpeg_memory::AddBuffer<mm::memory_kind::device>(nvjpeg2k_thread_id,
                                  device_memory_padding_jpeg2k);
-        nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU,
+        nvjpeg_memory::AddBuffer<mm::memory_kind::device>(nvjpeg2k_thread_id,
                                  device_memory_padding_jpeg2k);
       }
       if (host_memory_padding_jpeg2k > 0) {
-        nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::Pinned,
+        nvjpeg_memory::AddBuffer<mm::memory_kind::pinned>(nvjpeg2k_thread_id,
                                  host_memory_padding_jpeg2k);
       }
       nvjpeg2k_decoder_ = NvJPEG2KDecodeState(nvjpeg2k_handle_);
