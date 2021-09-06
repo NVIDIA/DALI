@@ -365,6 +365,10 @@ void WebdatasetLoader::PrepareMetadataImpl() {
                     std::to_string(TypeTable::GetTypeInfo(dtypes_[sample_index]).size()) +
                     " bytes");
             was_sample_assigned[sample_index] = true;
+          } else {
+            DALI_WARN_ONCE(
+                "Several components corresponding to a single output detected. Only the first one "
+                "shall be returend.");
           }
         }
       }
