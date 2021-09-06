@@ -53,7 +53,7 @@ inline void CopyToExternalImpl(void* dst,
 }
 
 template <typename DstBackend, typename SrcBackend>
-inline void CopyToExternalImpl(void*const* dsts,
+inline void CopyToExternalImpl(void** dsts,
                                const TensorList<SrcBackend> &src,
                                cudaStream_t stream, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
@@ -114,22 +114,23 @@ inline void CopyToExternal(void* dst, mm::memory_kind_id kind_id, const Buffer<S
     (CopyToExternal<Kind, SrcBackend>(dst, src, stream, use_copy_kernel)),
     (throw std::logic_error("Unreachable code - invalid memory kind.")));
 }
+
 template <typename DstKind, typename SrcBackend>
-inline void CopyToExternal(void*const* dsts, const Buffer<SrcBackend> &src,
+inline void CopyToExternal(void** dsts, const TensorList<SrcBackend> &src,
                            cudaStream_t stream, bool use_copy_kernel) {
   bool src_device_access = (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
   bool dst_device_access = cuda::kind_has_property<DstKind, cuda::memory_access::device>::value;
   use_copy_kernel &= dst_device_access && src_device_access;
   using DstBackend = typename detail::kind2backend<DstKind>::type;
-  CopyToExternal<DstBackend, SrcBackend>(dsts, src, stream, use_copy_kernel);
+  CopyToExternalImpl<DstBackend, SrcBackend>(dsts, src, stream, use_copy_kernel);
 }
 
 /**
  * @brief Run-time dispatch - DO NOT USE unless really necessary
  */
 template <typename SrcBackend>
-inline void CopyToExternal(void*const* dsts, mm::memory_kind_id kind_id,
-                           const Buffer<SrcBackend> &src,
+inline void CopyToExternal(void** dsts, mm::memory_kind_id kind_id,
+                           const TensorList<SrcBackend> &src,
                            cudaStream_t stream, bool use_copy_kernel) {
   TYPE_SWITCH(kind_id, mm::kind2id, Kind, (mm::memory_kind::host,
                                            mm::memory_kind::pinned,
