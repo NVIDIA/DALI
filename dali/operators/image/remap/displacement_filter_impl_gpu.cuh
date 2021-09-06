@@ -222,7 +222,7 @@ class DisplacementFilter<GPUBackend, Displacement,
       interp_type_(spec.GetArgument<DALIInterpType>("interp_type")),
       flat_block_setup_(32),
       channel_block_setup_(32) {
-    channel_block_setup_.SetDefaultBlockSize({256});
+    channel_block_setup_.SetDefaultBlockSize({kAlignedBlockDim});
     has_mask_ = spec.HasTensorArgument("mask");
     DALI_ENFORCE(interp_type_ == DALI_INTERP_NN || interp_type_ == DALI_INTERP_LINEAR,
         "Unsupported interpolation type, only NN and LINEAR are supported for this operation");
@@ -373,14 +373,16 @@ class DisplacementFilter<GPUBackend, Displacement,
       dim3 block_dim = channel_block_setup_.BlockDim();
       switch (C) {
         case 1:
-          DisplacementKernel_aligned32bit<T, 1, per_channel_transform, 256, Displacement,
-                                          interp_type><<<grid_dim, 256, 0, stream>>>(
-              samples_dev_.data(), blocks_dev_.data(), fill_value_, displace_);
+          DisplacementKernel_aligned32bit<T, 1, per_channel_transform, kAlignedBlockDim,
+                                          Displacement, interp_type>
+              <<<grid_dim, block_dim, 0, stream>>>(samples_dev_.data(), blocks_dev_.data(),
+                                                   fill_value_, displace_);
           return;
         case 3:
-          DisplacementKernel_aligned32bit<T, 3, per_channel_transform, 256, Displacement,
-                                          interp_type><<<grid_dim, 256, 0, stream>>>(
-              samples_dev_.data(), blocks_dev_.data(), fill_value_, displace_);
+          DisplacementKernel_aligned32bit<T, 3, per_channel_transform, kAlignedBlockDim,
+                                          Displacement, interp_type>
+              <<<grid_dim, block_dim, 0, stream>>>(samples_dev_.data(), blocks_dev_.data(),
+                                                   fill_value_, displace_);
           return;
         default:
           break;
@@ -403,6 +405,8 @@ class DisplacementFilter<GPUBackend, Displacement,
   // the aligned kernel.
   using FlatBlockSetup = kernels::BlockSetup<1, -1>;
   using ChannelBlockSetup = kernels::BlockSetup<1, 1>;
+
+  static constexpr int kAlignedBlockDim = 256;
 
   FlatBlockSetup flat_block_setup_;
   ChannelBlockSetup channel_block_setup_;
