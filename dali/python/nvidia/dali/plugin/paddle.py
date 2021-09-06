@@ -76,8 +76,6 @@ def feed_ndarray(dali_tensor, ptr, cuda_stream=None):
 
     c_type_pointer = ctypes.c_void_p(ptr)
     if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
-        if cuda_stream is not None:
-            fluid.core._cuda_synchronize()
         dali_tensor.copy_to_external(
             c_type_pointer, None if cuda_stream is None else ctypes.c_void_p(cuda_stream))
     else:
@@ -306,17 +304,19 @@ class DALIGenericIterator(_DaliBaseIterator):
                     category_place[cat] = pd_cpu_place
 
             pd_tensors = {}
-            for cat, lod in self.normalized_map.items():
+            for cat, tensor in category_tensors.items():
                 lod_tensor = fluid.core.LoDTensor()
+                pd_tensors[cat] = lod_tensor
                 lod_tensor._set_dims(category_shapes[cat])
                 seq_len = category_lengths[cat]
                 lod_tensor.set_recursive_sequence_lengths(seq_len)
-                pd_tensors[cat] = lod_tensor
+                lod_tensor._mutable_data(category_place[cat],
+                                         category_pd_type[cat])
             data_batches[i] = pd_tensors
 
-            # Copy data from DALI Tensors to LoDTensors
+            fluid.core._cuda_synchronize(pd_gpu_place)
             for cat, tensor in category_tensors.items():
-                ptr = lod_tensor._mutable_data(category_place[cat],
+                ptr = pd_tensors[cat]._mutable_data(category_place[cat],
                                                category_pd_type[cat])
                 feed_ndarray(tensor, ptr)
 
