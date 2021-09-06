@@ -53,7 +53,7 @@ namespace detail {
     }
 
     DALI_ENFORCE(input_shape.sample_dim() > 1,
-                 "Input must have at least two dimenstions - outermost for sequence and at least "
+                 "Input must have at least two dimensions - outermost for sequence and at least "
                  "one for data elements.");
 
     for (int i = 0; i < input_shape.num_samples(); ++i) {
