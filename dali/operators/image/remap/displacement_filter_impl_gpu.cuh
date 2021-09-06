@@ -335,7 +335,7 @@ class DisplacementFilter<GPUBackend, Displacement,
     // all H*W
     int C = shape.tensor_shape_span(0)[2];  // First element
     uint64_t maxPower2 = (uint64_t)-1;
-    for (size_t i = 0; i < num_samples; ++i) {
+    for (int64_t i = 0; i < num_samples; ++i) {
       if (C != shape.tensor_shape_span(i)[2]) {
         C = -1;  // Not all C are the same
       }
