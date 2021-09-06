@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,8 @@
 # so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
 
 import mxnet as mx
-from nose.tools import raises, with_setup
+from nose_utils import raises
+from nose.tools import with_setup
 
 from test_pool_utils import *
 from test_external_source_parallel_utils import *
@@ -40,7 +41,9 @@ class ExtCallbackMXCuda(ExtCallback):
         return mx.nd.array(a, dtype=a.dtype, ctx=mx.gpu(0))
 
 
-@raises(Exception)
+@raises(Exception, "Exception traceback received from worker thread*"
+                   "TypeError: Unsupported callback return type. GPU tensors are not supported. "
+                   "Got an MXNet GPU tensor.")
 @with_setup(setup_function, teardown_function)
 def test_mxnet_cuda():
     callback = ExtCallbackMXCuda((4, 5), 10, np.int32)
