@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend import TensorGPU, TensorListGPU
+from nvidia.dali.backend import TensorGPU, TensorListGPU, TensorListCPU
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 from nvidia.dali import types
@@ -51,6 +51,14 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
                     In most cases, using pytorch's current stream is expected (for example,
                     if we are copying to a tensor allocated with torch.zeros(...))
     """
+    if isinstance(dali_tensor, (TensorListCPU, TensorListGPU)):
+        dali_type = dali_tensor[0].dtype()
+    else:
+        dali_type = dali_tensor.dtype()
+    dali_type = np.dtype(dali_type)
+
+    assert to_torch_type[dali_type] == arr.dtype, ("The element type of DALI Tensor/TensorList"
+            " doesn't match the element type of the target PyTorch Tensor: {} vs {}".format(to_torch_type[dali_type], arr.dtype))
     assert dali_tensor.shape() == list(arr.size()), \
             ("Shapes do not match: DALI tensor has size {0}"
             ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))

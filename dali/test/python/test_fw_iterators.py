@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,13 +13,14 @@
 # limitations under the License.
 
 import math
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import Pipeline, pipeline_def
 import nvidia.dali.types as types
 import nvidia.dali.fn as fn
 import numpy as np
 import os
 from test_utils import get_dali_extra_path
-from nose.tools import raises, assert_raises, nottest
+from nose.tools import nottest
+from nose_utils import raises, assert_raises
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy as LastBatchPolicy
 import random
 
@@ -344,7 +345,8 @@ def check_mxnet_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
 
     if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
         assert_raises(AssertionError, MXNetIterator, pipes, [
-                      ("ids", MXNetIterator.DATA_TAG)], reader_name="Reader", last_batch_policy=last_batch_policy)
+                      ("ids", MXNetIterator.DATA_TAG)], reader_name="Reader", last_batch_policy=last_batch_policy,
+                      glob="It seems that there is no data in the pipeline*last_batch_policy*")
         return
     else:
         dali_train_iter = MXNetIterator(pipes, [(
@@ -518,7 +520,8 @@ def check_gluon_iterator_pass_reader_name(shards_num, pipes_number, batch_size, 
 
     if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
         assert_raises(AssertionError, GluonIterator, pipes,
-                      reader_name="Reader", last_batch_policy=last_batch_policy)
+                      reader_name="Reader", last_batch_policy=last_batch_policy,
+                      glob="It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size.")
         return
     else:
         dali_train_iter = GluonIterator(
@@ -782,7 +785,8 @@ def check_pytorch_iterator_pass_reader_name(shards_num, pipes_number, batch_size
 
     if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
         assert_raises(AssertionError, PyTorchIterator, pipes, output_map=[
-                      "data"], reader_name="Reader", last_batch_policy=last_batch_policy)
+                      "data"], reader_name="Reader", last_batch_policy=last_batch_policy,
+                      glob="It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size.")
         return
     else:
         dali_train_iter = PyTorchIterator(pipes, output_map=[
@@ -932,7 +936,8 @@ def check_paddle_iterator_pass_reader_name(shards_num, pipes_number, batch_size,
 
     if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
         assert_raises(AssertionError, PaddleIterator, pipes, output_map=[
-                      "data"], reader_name="Reader", last_batch_policy=last_batch_policy)
+                      "data"], reader_name="Reader", last_batch_policy=last_batch_policy,
+                      glob="It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size.")
         return
     else:
         dali_train_iter = PaddleIterator(pipes, output_map=[
@@ -1039,7 +1044,7 @@ def check_stop_iter(fw_iter, iterator_name, batch_size, epochs, iter_num, total_
         assert(count == min(total_iter_num, iter_num * epochs))
 
 
-@raises(Exception)
+@raises(Exception, glob="Negative size is supported only for a single pipeline")
 def check_stop_iter_fail_multi(fw_iter):
     batch_size = 1
     iter_num = 1
@@ -1048,7 +1053,7 @@ def check_stop_iter_fail_multi(fw_iter):
     fw_iter(pipes, -1, False)
 
 
-@raises(Exception)
+@raises(Exception, glob="Size cannot be 0")
 def check_stop_iter_fail_single(fw_iter):
     batch_size = 1
     iter_num = 1
@@ -1465,7 +1470,6 @@ def test_mxnet_prepare_first_batch():
     check_prepare_first_batch(MXNetIterator, [("data", MXNetIterator.DATA_TAG)],
                               to_np=lambda x: x.data[0].asnumpy(), dynamic_shape=True)
 
-
 def test_gluon_prepare_first_batch():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
     check_prepare_first_batch(GluonIterator, output_types=[GluonIterator.DENSE_TAG],
@@ -1480,3 +1484,28 @@ def test_paddle_prepare_first_batch():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     check_prepare_first_batch(PaddleIterator, output_map=["data"],
                               to_np=lambda x: np.array(x["data"]))
+
+@pipeline_def
+def feed_ndarray_test_pipeline():
+    return np.array([1], dtype=np.float)
+
+def test_mxnet_feed_ndarray():
+    from nvidia.dali.plugin.mxnet import feed_ndarray
+    import mxnet
+
+    pipe = feed_ndarray_test_pipeline(batch_size=1, num_threads=1, device_id=0)
+    pipe.build()
+    out = pipe.run()[0]
+    mxnet_tensor = mxnet.nd.empty([1], None, np.int8)
+    assert_raises(AssertionError, feed_ndarray, out, mxnet_tensor, glob="The element type of DALI Tensor/TensorList doesn't match the element type of the target MXNet NDArray")
+
+
+def test_pytorch_feed_ndarray():
+    from nvidia.dali.plugin.pytorch import feed_ndarray
+    import torch
+
+    pipe = feed_ndarray_test_pipeline(batch_size=1, num_threads=1, device_id=0)
+    pipe.build()
+    out = pipe.run()[0]
+    torch_tensor = torch.empty((1), dtype=torch.int8, device = 'cpu')
+    assert_raises(AssertionError, feed_ndarray, out, torch_tensor, glob="The element type of DALI Tensor/TensorList doesn't match the element type of the target PyTorch Tensor:")
