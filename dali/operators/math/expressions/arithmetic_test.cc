@@ -671,8 +671,8 @@ TEST(ArithmeticOpsTest, UnaryPipeline) {
     MemCopy(result1_cpu.data(), result1, tensor_elements * sizeof(int));
     CUDA_CALL(cudaStreamSynchronize(0));
     for (int i = 0; i < tensor_elements; i++) {
-      EXPECT_EQ(result0[i], -i);
-      EXPECT_EQ(result1_cpu[i], -i);
+      EXPECT_EQ(result0[i], -(sample_id * tensor_elements + i));
+      EXPECT_EQ(result1_cpu[i], -(sample_id * tensor_elements + i));
     }
   }
 }
