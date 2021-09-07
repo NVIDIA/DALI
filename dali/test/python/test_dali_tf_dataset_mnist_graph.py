@@ -29,7 +29,7 @@ def test_keras_single_cpu():
     run_keras_single_device('cpu', 0)
 
 
-@raises(Exception, "TF device and DALI device mismatch. TF*: CPU, DALI*: GPU for output*")
+@raises(Exception, "TF device and DALI device mismatch. TF*: CPU, DALI*: GPU for output")
 def test_keras_wrong_placement_gpu():
     with tf.device('cpu:0'):
         model = keras_model()
@@ -41,7 +41,7 @@ def test_keras_wrong_placement_gpu():
         steps_per_epoch=ITERATIONS)
 
 
-@raises(Exception, "TF device and DALI device mismatch. TF*: GPU, DALI*: CPU for output*")
+@raises(Exception, "TF device and DALI device mismatch. TF*: GPU, DALI*: CPU for output")
 def test_keras_wrong_placement_cpu():
     with tf.device('gpu:0'):
         model = keras_model()

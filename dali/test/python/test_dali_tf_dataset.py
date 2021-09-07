@@ -39,7 +39,7 @@ def test_different_num_shapes_dtypes():
             num_threads=num_threads)
 
 
-@raises(RuntimeError, "*some operators*cannot be used with TensorFlow Dataset API and DALIIterator")
+@raises(RuntimeError, "some operators*cannot be used with TensorFlow Dataset API and DALIIterator")
 def test_python_operator_not_allowed_in_tf_dataset_error():
     pipeline = Pipeline(1, 1, 0, exec_pipelined=False, exec_async=False)
     with pipeline:

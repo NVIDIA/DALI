@@ -144,19 +144,21 @@ def test_element_extract_layout():
 
 def test_raises():
     with assert_raises(RuntimeError,
-                       glob="Input must have at least two dimensions*"
-                       "outermost for sequence*at least one for data"):
+                       glob="Input must have at least two dimensions - outermost for sequence and"
+                            " at least one for data elements."):
         check_element_extract([4], "F", [1, 3], "cpu")
 
     for shape, layout in [([6, 1], "XF"), ([8, 10, 3], "HWC")]:
         with assert_raises(RuntimeError,
-                           glob="Input layout must describe a sequence*start with 'F', got*instead"):
+                           glob="Input layout must describe a sequence - it must start with 'F',"
+                                " got '*' instead."):
             check_element_extract(shape, layout, [1, 3], "cpu")
 
     with assert_raises(RuntimeError,
-                       glob="Index*10*from *element_map* out of bounds for*sequence length*6*"):
+                       glob="Index `10` from `element_map` is out of bounds for sample with"
+                            " sequence length equal `6`"):
         check_element_extract([6, 1], "FX", [10], "cpu")
 
     with assert_raises(RuntimeError,
-                       glob="Negative indices in *element_map* not allowed, found: *-5*"):
+                       glob="Negative indices in `element_map` are not allowed, found: -5"):
         check_element_extract([6, 1], "FX", [-5], "cpu")
