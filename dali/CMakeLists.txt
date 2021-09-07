@@ -192,6 +192,6 @@ if (BUILD_PYTHON)
   # Copy libcu++ include files
   add_custom_command(
     TARGET install_headers
-    COMMAND cp -r "${PROJECT_SOURCE_DIR}/third_party/libcudacxx/include/." "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}/"
+    COMMAND cp -rL "${PROJECT_SOURCE_DIR}/third_party/libcudacxx/include/." "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}/"
   )
 endif()
