@@ -30,7 +30,7 @@ def webdataset_raw_pipeline(
     pad_last_batch=False,
     lazy_init=False,
     read_ahead=False,
-    stick_to_shard=False
+    stick_to_shard=False,
 ):
     out = readers.webdataset(
         uris=uris,
@@ -68,7 +68,7 @@ def file_reader_pipeline(
     pad_last_batch=False,
     lazy_init=False,
     read_ahead=False,
-    stick_to_shard=False
+    stick_to_shard=False,
 ):
     if type(exts) != list:
         exts = [exts]
@@ -95,7 +95,10 @@ def file_reader_pipeline(
 def generate_temp_index_file(tar_file_path):
     global wds2idx_script
     temp_index_file = tempfile.NamedTemporaryFile()
-    call([wds2idx_script, tar_file_path, temp_index_file.name], stdout=open(os.devnull, "wb"))
+    assert_equal (
+        call([wds2idx_script, tar_file_path, temp_index_file.name], stdout=open(os.devnull, "wb"))
+        , 0
+    )
     return temp_index_file
 
 

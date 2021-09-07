@@ -269,14 +269,11 @@ def test_dtypes():
     wds_pipeline = webdataset_raw_pipeline(
         tar_file_path,
         index_file.name,
-        ["float16", "int32", "float64"] * 2,
+        ["float16", "int32", "float64"],
         dtypes=[
-            dali.types.DALIDataType.FLOAT16,
-            dali.types.DALIDataType.INT32,
-            dali.types.DALIDataType.FLOAT64,
-            dali.types.DALIDataType.INT8,
-            dali.types.DALIDataType.INT8,
-            dali.types.DALIDataType.INT8,
+            dali.types.FLOAT16,
+            dali.types.INT32,
+            dali.types.FLOAT64
         ],
         batch_size=test_batch_size,
         device_id=0,
@@ -285,7 +282,7 @@ def test_dtypes():
     wds_pipeline.build()
     for sample_idx in range(num_samples):
         if sample_idx % test_batch_size == 0:
-            f16, i32, f64, f16b, i32b, f64b = wds_pipeline.run()
+            f16, i32, f64 = wds_pipeline.run()
         assert (f16.as_array()[sample_idx % test_batch_size] == [float(sample_idx)] * 10).all()
         assert (i32.as_array()[sample_idx % test_batch_size] == [int(sample_idx)] * 10).all()
         assert (f64.as_array()[sample_idx % test_batch_size] == [float(sample_idx)] * 10).all()

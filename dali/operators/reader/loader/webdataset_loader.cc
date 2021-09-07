@@ -303,9 +303,11 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
     } else {
       uint8_t* shared_tensor_data =
           ShareDataPointer(sample, sample_was_set, extension, source_info, size);
-      uint64_t n_read = current_wds_shard.Read(static_cast<uint8_t*>(shared_tensor_data), size);
-      DALI_ENFORCE(static_cast<int64_t>(n_read) == size,
-                   "Error reading from a file " + uris_[current_wds_shard_index_]);
+      if (shared_tensor_data) {
+        uint64_t n_read = current_wds_shard.Read(static_cast<uint8_t*>(shared_tensor_data), size);
+        DALI_ENFORCE(static_cast<int64_t>(n_read) == size,
+                     "Error reading from a file " + uris_[current_wds_shard_index_]);
+      }
     }
 
     current_wds_shard.NextFile();
