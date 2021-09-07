@@ -262,7 +262,7 @@ inline void CheckArithmeticOnBooleans(ExprFunc &func) {
       DALI_ENFORCE(
           !inputs_are_bool,
           make_string("Inputs to arithmetic operator `", to_string(op),
-                      "` cannot be booleans. Consider using bitwise operators `|`, `&`, `^` or "
+                      "` cannot be booleans. Consider using bitwise operators `|`, `&`, `^` or a"
                       "numeric type as one of the inputs to force type promotions of the booleans. "
                       "Note: using `*` (multiplication) is still allowed for boolean inputs."));
     }
