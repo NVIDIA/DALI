@@ -667,7 +667,7 @@ bool_disallowed = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x ** y), "**")]
 
 def test_bool_disallowed():
-    error_msg = "[Ii]nput[s]? to arithmetic operator `[\S]*` cannot be [a]?[ ]?boolean[s]?. Consider using bitwise operator[s]?"
+    error_msg = "Input[s]? to arithmetic operator `[\S]*` cannot be [a]?[ ]?boolean[s]?. Consider using bitwise operator[s]?"
     for kinds in unary_input_kinds:
         for (op, _, op_desc, _, _) in math_function_operations:
             yield check_raises_re, kinds, np.bool_, op, shape_small, op_desc, error_msg
