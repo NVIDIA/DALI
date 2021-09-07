@@ -19,13 +19,13 @@ This part of the repository contains extra dependencies required to build DALI, 
 +-----------------+---------------------+---------------------+
 | |googletest|_   | |googletestver|_    | |googletestlic|_    |
 +-----------------+---------------------+---------------------+
+| |libcudacxx|_   | |libcudacxxver|_    | |libcudacxxlic|_    |
++-----------------+---------------------+---------------------+
 | |pybind11|_     | |pybind11ver|_      | |pybind11lic|_      |
 +-----------------+---------------------+---------------------+
 | |rapidjson|_    | |rapidjsonver|_     | |rapidjsonlic|_     |
 +-----------------+---------------------+---------------------+
 | |thrust|_       | |thrustver|_        | |thrustlic|_        |
-+-----------------+---------------------+---------------------+
-| |libcudacxx|_   | |libcudacxxver|_    | |libcudacxxlic|_    |
 +-----------------+---------------------+---------------------+
 
 .. |benchmark| replace:: Google Benchmark
@@ -77,6 +77,13 @@ This part of the repository contains extra dependencies required to build DALI, 
 .. |googletestlic| replace:: BSD 3-Clause License
 .. _googletestlic: https://github.com/google/googletest/blob/master/LICENSE
 
+.. |libcudacxx| replace:: libcu++
+.. _libcudacxx: https://github.com/mzient/libcudacxx.git
+.. |libcudacxxver| replace:: Custom fork (Aug 30, 2021)
+.. _libcudacxxver: https://github.com/mzient/libcudacxx/tree/863f11a16cced8b7aacfc639dacb419843a300e8
+.. |libcudacxxlic| replace:: Apache License v2.0 with LLVM Exceptions
+.. _libcudacxxlic: https://github.com/mzient/libcudacxx/blob/main/LICENSE.TXT
+
 .. |pybind11| replace:: pybind11
 .. _pybind11: https://github.com/pybind/pybind11
 .. |pybind11ver| replace:: 2.7.1
@@ -97,10 +104,3 @@ This part of the repository contains extra dependencies required to build DALI, 
 .. _thrustver: https://github.com/NVIDIA/thrust/releases/tag/1.14.0
 .. |thrustlic| replace:: Apache License 2.0
 .. _thrustlic: https://github.com/NVIDIA/thrust/blob/main/LICENSE
-
-.. |libcudacxx| replace:: libcu++
-.. _libcudacxx: https://github.com/mzient/libcudacxx.git
-.. |libcudacxxver| replace:: Custom fork (Aug 30, 2021)
-.. _libcudacxxver: https://github.com/mzient/libcudacxx/tree/863f11a16cced8b7aacfc639dacb419843a300e8
-.. |libcudacxxlic| replace:: Apache License v2.0 with LLVM Exceptions
-.. _libcudacxxlic: https://github.com/mzient/libcudacxx/blob/main/LICENSE.TXT
