@@ -667,7 +667,7 @@ bool_disallowed = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x ** y), "**")]
 
 def test_bool_disallowed():
-    error_msg = "Assert on \"!inputs_are_bool\" failed: [Ii]nput[s]? to arithmetic operator `[\S]*` cannot be [a]?[ ]?boolean[s]?. Consider using bitwise operator[s]?"
+    error_msg = "[Ii]nput[s]? to arithmetic operator `[\S]*` cannot be [a]?[ ]?boolean[s]?. Consider using bitwise operator[s]?"
     for kinds in unary_input_kinds:
         for (op, _, op_desc, _, _) in math_function_operations:
             yield check_raises_re, kinds, np.bool_, op, shape_small, op_desc, error_msg
@@ -679,7 +679,7 @@ def test_bool_disallowed():
             yield check_raises_re, kinds, (np.bool_, np.bool_, np.bool_), op, shape_small, op_desc, error_msg
 
 def test_bitwise_disallowed():
-    error_msg = "Assert on \"inputs_are_integral\" failed: Inputs to bitwise operator `[\S]*` must be of integral type."
+    error_msg = "Inputs to bitwise operator `[\S]*` must be of integral type."
     for kinds in bin_input_kinds:
         for (op, op_desc) in bitwise_operations:
             for types_in in itertools.product(selected_input_types, selected_input_types):

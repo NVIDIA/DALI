@@ -58,10 +58,10 @@ def test_expand_dims():
 
 def test_expand_dims_throw_error():
     args = [
-        ([4], None, None, [(10, 20, 30)], "Assert on \"d < ndim\" failed: Data has not enough dimensions to add new axes at specified indices."),
-        ([0, -1], None, None, [(10, 20, 30)], "Assert on \"0 <= axis\" failed: Axis value can't be negative"),
-        ([2, 0, 2], "AB", "XYZ", [(10, 20, 30)], "Assert on \"new_axis_names.size\(\) == axes.size\(\)\" failed: Specified [\d]+ new dimensions, but layout contains only [\d]+ new dimension names"),
-        ([2], "C", None, [(10, 20, 30)], "Assert on \"!use_new_axis_names_arg_\" failed: Specifying ``new_axis_names`` requires an input with a proper layout."),
+        ([4], None, None, [(10, 20, 30)], "Data has not enough dimensions to add new axes at specified indices."),
+        ([0, -1], None, None, [(10, 20, 30)], "Axis value can't be negative"),
+        ([2, 0, 2], "AB", "XYZ", [(10, 20, 30)], "Specified [\d]+ new dimensions, but layout contains only [\d]+ new dimension names"),
+        ([2], "C", None, [(10, 20, 30)], "Specifying ``new_axis_names`` requires an input with a proper layout."),
     ]
     for axes, new_axis_names, layout, shapes, err_msg in args:
         pipe = expand_dims_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, axes=axes, new_axis_names=new_axis_names, layout=layout)
