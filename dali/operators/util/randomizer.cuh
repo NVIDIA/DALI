@@ -19,7 +19,6 @@
 #include <math.h>
 #include <memory>
 #include "dali/core/device_guard.h"
-#include "dali/core/mm/memory.h"
 #include <curand_kernel.h>  // NOLINT
 
 namespace dali {

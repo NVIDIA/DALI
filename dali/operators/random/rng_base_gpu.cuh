@@ -18,7 +18,6 @@
 #include <utility>
 #include <vector>
 #include "dali/core/convert.h"
-#include "dali/core/mm/memory.h"
 #include "dali/operators/random/rng_base_gpu.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/batch_rng.h"

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,12 @@ namespace mm {
 
 /**
  * @brief For run-time dispatch of memory kind - DO NOT USE unless REALLY necessary
+ *
+ * Enums corresponding to four basic memory kinds. This is useful for some legacy code or for
+ * situations where different types of memory are grouped in, say, an array. Its use, however,
+ * should be avoided, as in most cases the memory kind is known at compile time and, since
+ * memory resources for different memory kinds are incompatible, its use will, sooner or later,
+ * require a TYPE_SWITCH.
  */
 enum memory_kind_id {
   host = 0,
@@ -39,17 +45,17 @@ template <typename Kind>
 constexpr auto kind2id_v = kind2id<Kind>::value;
 
 template <memory_kind_id id>
-struct id2kind_helper;
+struct id2kind;
 
 template <memory_kind_id id>
-using id2kind = typename id2kind_helper<id>::type;
+using id2kind_t = typename id2kind<id>::type;
 
 #define DALI_MAP_MEM_KIND(Kind) \
 template <> \
 struct kind2id<memory_kind::Kind> \
 : std::integral_constant<memory_kind_id, memory_kind_id::Kind> {}; \
 template <> \
-struct id2kind_helper<memory_kind_id::Kind> { \
+struct id2kind<memory_kind_id::Kind> { \
   using type = memory_kind::Kind; \
 }
 

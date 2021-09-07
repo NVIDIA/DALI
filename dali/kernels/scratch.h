@@ -140,12 +140,14 @@ class ScratchpadAllocator {
   };
 
   /**
-   * @brief Returns reference to the current
-   *        allocation policy for given allocation type.
+   * @brief Returns reference to the current allocation policy for a given memory kind.
    */
   template <typename MemoryKind>
-  AllocPolicy &Policy()             { return Policy(mm::kind2id_v<MemoryKind>); }
+  AllocPolicy &Policy() { return Policy(mm::kind2id_v<MemoryKind>); }
 
+  /**
+   * @brief Returns reference to the current allocation policy for a given memory kind.
+   */
   template <typename MemoryKind>
   const AllocPolicy &Policy() const { return Policy(mm::kind2id_v<MemoryKind>); }
 

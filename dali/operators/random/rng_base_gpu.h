@@ -20,7 +20,6 @@
 #include "dali/core/convert.h"
 #include "dali/core/dev_buffer.h"
 #include "dali/core/span.h"
-#include "dali/core/mm/memory.h"
 #include "dali/operators/random/rng_base.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/batch_rng.h"

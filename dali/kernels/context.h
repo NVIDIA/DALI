@@ -52,6 +52,9 @@ ToContiguousGPUMem(Scratchpad &scratchpad, cudaStream_t stream, const Collection
  */
 class Scratchpad {
  public:
+  /**
+   * @brief Allocates `bytes` bytes of memory of `MemoryKind`, with specified `alignment`.
+   */
   template <typename MemoryKind>
   inline void *Alloc(size_t bytes, size_t alignment) {
     return Alloc(mm::kind2id_v<MemoryKind>, bytes, alignment);

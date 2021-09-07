@@ -15,6 +15,7 @@
 #include "dali/operators/util/randomizer.cuh"
 #include "dali/core/cuda_stream.h"
 #include "dali/core/util.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 

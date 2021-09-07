@@ -19,7 +19,6 @@
 #include "dali/core/dev_buffer.h"
 #include "dali/kernels/reduce/reduce_axes_gpu_impl.cuh"
 #include "dali/kernels/reduce/reduce_test.h"
-#include "dali/core/mm/memory.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/core/format.h"

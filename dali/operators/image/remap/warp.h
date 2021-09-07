@@ -24,7 +24,6 @@
 
 #include "dali/core/static_switch.h"
 #include "dali/core/tuple_helpers.h"
-#include "dali/core/mm/memory.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/imgproc/warp_cpu.h"
 #include "dali/kernels/imgproc/warp_gpu.h"
