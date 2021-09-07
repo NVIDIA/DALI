@@ -17,19 +17,15 @@ This part of the repository contains extra dependencies required to build DALI, 
 +-----------------+---------------------+---------------------+
 | |ffts|_         | |fftsver|_          | |fftslic|_          |
 +-----------------+---------------------+---------------------+
-| |fmt|_          | |fmtver|_           | |fmtlic|_           |
-+-----------------+---------------------+---------------------+
 | |googletest|_   | |googletestver|_    | |googletestlic|_    |
 +-----------------+---------------------+---------------------+
 | |pybind11|_     | |pybind11ver|_      | |pybind11lic|_      |
 +-----------------+---------------------+---------------------+
 | |rapidjson|_    | |rapidjsonver|_     | |rapidjsonlic|_     |
 +-----------------+---------------------+---------------------+
-| |rmm|_          | |rmmver|_           | |rmmlic|_           |
-+-----------------+---------------------+---------------------+
-| |spdlog|_       | |spdlogver|_        | |spdloglic|_        |
-+-----------------+---------------------+---------------------+
 | |thrust|_       | |thrustver|_        | |thrustlic|_        |
++-----------------+---------------------+---------------------+
+| |libcudacxx|_   | |libcudacxxver|_    | |libcudacxxlic|_    |
 +-----------------+---------------------+---------------------+
 
 .. |benchmark| replace:: Google Benchmark
@@ -74,13 +70,6 @@ This part of the repository contains extra dependencies required to build DALI, 
 .. |fftslic| replace:: BSD 3-Clause License
 .. _fftslic: https://github.com/JanuszL/ffts/blob/master/COPYRIGHT
 
-.. |fmt| replace:: {fmt}
-.. _fmt: https://github.com/fmtlib/fmt
-.. |fmtver| replace:: 8.0.1
-.. _fmtver: https://github.com/fmtlib/fmt/releases/tag/8.0.1
-.. |fmtlic| replace:: MIT License
-.. _fmtlic: https://github.com/fmtlib/fmt/blob/master/LICENSE.rst
-
 .. |googletest| replace:: GoogleTest
 .. _googletest: https://github.com/google/googletest
 .. |googletestver| replace:: 1.11.0
@@ -102,23 +91,16 @@ This part of the repository contains extra dependencies required to build DALI, 
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt
 
-.. |rmm| replace:: RMM
-.. _rmm: https://github.com/mzient/rmm
-.. |rmmver| replace:: Custom fork top-of-tree (Mar 1, 2021)
-.. _rmmver: https://github.com/mzient/rmm/tree/ae8cecc6b006d9d0e49f972b47db37f965f6da16
-.. |rmmlic| replace:: Apache License 2.0
-.. _rmmlic: https://github.com/mzient/rmm/blob/branch-0.18/LICENSE
-
-.. |spdlog| replace:: spdlog
-.. _spdlog: https://github.com/gabime/spdlog
-.. |spdlogver| replace:: 1.9.2
-.. _spdlogver: https://github.com/gabime/spdlog/releases/tag/v1.9.2
-.. |spdloglic| replace:: MIT License
-.. _spdloglic: https://github.com/gabime/spdlog/blob/v1.x/LICENSE
-
 .. |thrust| replace:: Thrust
 .. _thrust: https://github.com/NVIDIA/thrust
 .. |thrustver| replace:: 1.14.0
 .. _thrustver: https://github.com/NVIDIA/thrust/releases/tag/1.14.0
 .. |thrustlic| replace:: Apache License 2.0
 .. _thrustlic: https://github.com/NVIDIA/thrust/blob/main/LICENSE
+
+.. |libcudacxx| replace:: libcu++
+.. _libcudacxx: https://github.com/mzient/libcudacxx.git
+.. |libcudacxxver| replace:: Custom fork (Aug 30, 2021)
+.. _libcudacxxver: https://github.com/mzient/libcudacxx/tree/863f11a16cced8b7aacfc639dacb419843a300e8
+.. |libcudacxxlic| replace:: Apache License v2.0 with LLVM Exceptions
+.. _libcudacxxlic: https://github.com/mzient/libcudacxx/blob/main/LICENSE.TXT
