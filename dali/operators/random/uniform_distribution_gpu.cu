@@ -14,6 +14,7 @@
 
 #include <vector>
 #include <utility>
+#include "dali/operators/random/rng_base_gpu.cuh"
 #include "dali/operators/random/uniform_distribution.h"
 
 namespace dali {

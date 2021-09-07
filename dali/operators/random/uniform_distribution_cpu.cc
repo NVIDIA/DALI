@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <vector>
+#include "dali/operators/random/rng_base_cpu.h"
 #include "dali/operators/random/uniform_distribution.h"
 
 namespace dali {
