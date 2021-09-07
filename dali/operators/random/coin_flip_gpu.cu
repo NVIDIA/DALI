@@ -16,7 +16,6 @@
 #include <utility>
 #include "dali/core/convert.h"
 #include "dali/core/dev_buffer.h"
-#include "dali/core/mm/memory.h"
 #include "dali/operators/random/rng_base_gpu.cuh"
 #include "dali/operators/random/coin_flip.h"
 
