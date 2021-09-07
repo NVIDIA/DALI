@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,26 +29,6 @@ namespace utils {
 
 /// List of all devices used in testing framework
 DLL_PUBLIC extern const std::vector<Arguments> kDevices;
-
-/**
- * Remove const pointer: const T* -> T
- */
-template<typename T>
-using remove_cp = std::remove_const_t<std::remove_pointer_t<T>>;
-
-
-/**
- * Assigns pointer to raw data of provided TensorList.
- * @param tl
- * @param destination
- */
-template<typename T, typename Backend>
-void pointer_to_data(const TensorList<Backend> &tl, T &destination) {
-  static_assert(std::is_pointer<T>::value, "T is not a pointer");
-  static_assert(std::is_fundamental<remove_cp<T>>::value,
-                "T is a pointer to non-fundamental type");
-  destination = tl.template data<remove_cp<T>>();
-}
 
 }  // namespace utils
 
