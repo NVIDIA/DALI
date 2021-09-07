@@ -151,7 +151,7 @@ class Scratchpad {
   template <typename Collection, typename T = std::remove_const_t<element_t<Collection>>>
   if_iterable<Collection, T*>
   ToPinned(const Collection &c) {
-    T *ptr = Allocate<mm::memory_kind::pinned>(size(c));
+    T *ptr = AllocatePinned<T>(size(c));
     std::copy(begin(c), end(c), ptr);
     return ptr;
   }
@@ -159,7 +159,7 @@ class Scratchpad {
   template <typename Collection, typename T = std::remove_const_t<element_t<Collection>>>
   if_iterable<Collection, T*>
   ToManaged(const Collection &c) {
-    T *ptr = Allocate<mm::memory_kind::managed, T>(size(c));
+    T *ptr = AllocateManaged<T>(size(c));
     std::copy(begin(c), end(c), ptr);
     return ptr;
   }
