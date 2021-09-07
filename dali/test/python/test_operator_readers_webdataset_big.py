@@ -29,7 +29,7 @@ def cross_check(
             ["a.a;a.b", "b.a;b.b"],
             batch_size=batch_size,
             device_id=0,
-            num_threads=1,
+            num_threads=10,
             dont_use_mmap=dont_use_mmap,
             num_shards=num_shards,
             shard_id=shard_id,
@@ -45,7 +45,7 @@ def cross_check(
             ["a.a", "b.a"],
             batch_size=batch_size,
             device_id=0,
-            num_threads=1,
+            num_threads=10,
             dont_use_mmap=True,
             num_shards=num_shards,
             shard_id=shard_id,
@@ -74,16 +74,16 @@ def test_cross_check():
             read_ahead,
             stick_to_shard,
         )
-        for dont_use_mmap in (True, False)
+        for dont_use_mmap in (False, True)
         for stick_to_shard in (False, True)
         for read_ahead in (False, True)
         for lazy_init in (False, True)
         for pad_last_batch in (False, True)
         for skip_cached_images in (False, True)
-        for batch_size in (1, 4, 8)
-        for num_shards in (1, 10, 100, 1000)
-        for shard_id in range(0, num_shards, math.ceil(num_shards / 10))
-        for prefetch_queue_depth in range(1, batch_size + 1)
+        for batch_size in (1, 8)
+        for num_shards in (1, 100)
+        for shard_id in {0, num_shards-1}
+        for prefetch_queue_depth in (1, 8)
     ]
 
     for args in scenarios:
