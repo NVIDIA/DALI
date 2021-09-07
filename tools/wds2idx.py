@@ -22,7 +22,8 @@ import time
 import argparse
 import subprocess
 
-class IndexCreator():
+
+class IndexCreator:
     """Reads `Webdataset` data format, and creates index file
     that enables random access.
 
@@ -41,15 +42,16 @@ class IndexCreator():
     idx_path : str
         Path to the index file, that will be created/overwritten.
     """
+
     def __init__(self, uri, idx_path):
         self.uri = uri
         self.idx_path = idx_path
-        self.fidx = open(self.idx_path, 'w')
+        self.fidx = open(self.idx_path, "w")
 
     def open(self):
         """Opens the archive and index files and sets their read heads to 0."""
         if self.fidx.closed:
-            self.fidx = open(self.idx_path, 'w')
+            self.fidx = open(self.idx_path, "w")
         else:
             self.fidx.seek(0)
 
@@ -64,19 +66,16 @@ class IndexCreator():
         self.open()
 
     @staticmethod
-    def split_name(filepath): # translated from the matching function in c++
-        """Splits the webdataset into the basename and the extension
-        """
-        base_name_pos = filepath.rfind('\\') + 1
-        dot_pos = filepath.find('.', base_name_pos + 1)
+    def split_name(filepath):  # translated from the matching function in c++
+        """Splits the webdataset into the basename and the extension"""
+        base_name_pos = filepath.rfind("\\") + 1
+        dot_pos = filepath.find(".", base_name_pos + 1)
         if dot_pos == -1:
             return filepath, ""
-        return filepath[:dot_pos], filepath[dot_pos + 1:]
-
+        return filepath[:dot_pos], filepath[dot_pos + 1 :]
 
     def create_index(self):
-        """Creates the index file from open record file
-        """
+        """Creates the index file from open record file"""
         self.reset()
 
         pre_time = time.time()
@@ -84,11 +83,19 @@ class IndexCreator():
         report_step = 100000
 
         print(f"time: {time.time() - pre_time:.2f} count: {counter} stage: collect")
-        tar_blocks_proc = subprocess.Popen(["tar", "--list", "--block-num", "--file", self.uri], stdout=subprocess.PIPE)
-        tar_types_sizes_proc = subprocess.Popen(["tar", "--verbose", "--list", "--file", self.uri], stdout=subprocess.PIPE)
+        tar_blocks_proc = subprocess.Popen(
+            ["tar", "--list", "--block-num", "--file", self.uri],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        tar_types_sizes_proc = subprocess.Popen(
+            ["tar", "--verbose", "--list", "--file", self.uri],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
 
-        tar_blocks = tar_blocks_proc.communicate()[0].split(b'\n')
-        tar_types_sizes = tar_types_sizes_proc.communicate()[0].split(b'\n')
+        tar_blocks = tar_blocks_proc.communicate()[0].split(b"\n")
+        tar_types_sizes = tar_types_sizes_proc.communicate()[0].split(b"\n")
 
         last_blocks_line = None
         for blocks_line in reversed(tar_blocks):
@@ -96,9 +103,10 @@ class IndexCreator():
                 last_blocks_line = blocks_line
                 break
 
-        print(str(b'\n'.join(tar_blocks), "ascii"))
-
-        total_size = int(last_blocks_line[last_blocks_line.find(b'block') + 6 : last_blocks_line.find(b':')]) * 512
+        total_size = (
+            int(last_blocks_line[last_blocks_line.find(b"block") + 6 : last_blocks_line.find(b":")])
+            * 512
+        )
 
         tar_data = zip(tar_blocks, tar_types_sizes)
         tar_data = filter(lambda line: not not line[0] and not not line[1], tar_data)
@@ -113,20 +121,20 @@ class IndexCreator():
                 print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: collect")
             counter += 1
 
-            offset = int(blocks_line[blocks_line.find(b'block') + 6 : blocks_line.find(b':')]) * 512
-            name = str(blocks_line[blocks_line.find(b':') + 2:], 'ascii')
+            offset = int(blocks_line[blocks_line.find(b"block") + 6 : blocks_line.find(b":")]) * 512
+            name = str(blocks_line[blocks_line.find(b":") + 2 :], "ascii")
             entry_type = types_sizes_line[0:1]
 
-            if entry_type != b'-' or name.startswith('.'):
+            if entry_type != b"-" or name.startswith("."):
                 continue
 
             # Extracting size
-            size = types_sizes_line[:-len(name)]
-            size = size[:size.rfind(b'-') - 8] # "... <size> 20yy-mm-...."
-            size = int(size[size.rfind(b' '):])
+            size = types_sizes_line[: -len(name)]
+            size = size[: size.rfind(b"-") - 8]  # "... <size> 20yy-mm-...."
+            size = int(size[size.rfind(b" ") :])
 
             basename, extension = IndexCreator.split_name(name)
-            
+
             if last_basename != basename:
                 data.append((offset, [(extension, size)]))
                 last_basename = basename
@@ -142,24 +150,29 @@ class IndexCreator():
             if counter % report_step == 0:
                 cur_time = time.time()
                 print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: index")
-            self.fidx.write(f"""{offset} {' '.join(
+            self.fidx.write(
+                f"""{offset} {' '.join(
                 map(lambda ext_size: str(ext_size[0]) + ' ' + str(ext_size[1]), extensions_sizes)
-            )}\n""")
+            )}\n"""
+            )
             counter += 1
-        
+
         cur_time = time.time()
         print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: done")
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description='Create an index file from .tar file')
-    parser.add_argument('archive', help='path to .tar file.')
-    parser.add_argument('index', help='path to index file.')
+        description="Create an index file from .tar file",
+    )
+    parser.add_argument("archive", help="path to .tar file.")
+    parser.add_argument("index", help="path to index file.")
     args = parser.parse_args()
     args.archive = os.path.abspath(args.archive)
     args.index = os.path.abspath(args.index)
     return args
+
 
 def main():
     args = parse_args()
@@ -167,5 +180,6 @@ def main():
     creator.create_index()
     creator.close()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

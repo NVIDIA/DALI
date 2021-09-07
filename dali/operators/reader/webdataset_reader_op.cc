@@ -22,7 +22,6 @@ namespace dali {
 void WebdatasetReader::RunImpl(HostWorkspace& ws) {
   int num_outputs = ws.NumOutput();
   int num_samples = GetCurrBatchSize();
-  std::cerr << "RunImpl num_outputs = " << num_outputs << std::endl;
 
   for (int data_idx = 0; data_idx < num_samples; data_idx++) {
     auto& sample = GetSample(data_idx);
@@ -31,7 +30,7 @@ void WebdatasetReader::RunImpl(HostWorkspace& ws) {
       ws.OutputRef<CPUBackend>(output_idx)[data_idx].set_type(sample[output_idx].type());
       ws.OutputRef<CPUBackend>(output_idx)[data_idx].SetMeta(sample[output_idx].GetMeta());
       std::memcpy(ws.OutputRef<CPUBackend>(output_idx)[data_idx].raw_mutable_data(),
-                  sample[output_idx].raw_data(), sample[output_idx].size());
+                  sample[output_idx].raw_data(), sample[output_idx].nbytes());
     }
   }
 }

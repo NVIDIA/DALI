@@ -1,5 +1,6 @@
 from test_operator_readers_webdataset_base import *
 
+
 def test_single_ext_from_many():
     global test_batch_size
     num_samples = 1000
@@ -8,7 +9,9 @@ def test_single_ext_from_many():
     index_file = generate_temp_index_file(tar_file_path)
 
     extract_dir = generate_temp_extract(tar_file_path)
-    equivalent_files = sorted(glob(extract_dir.name + "/*"))
+    equivalent_files = sorted(
+        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+    )
 
     compare_pipelines(
         webdataset_raw_pipeline(
@@ -34,7 +37,9 @@ def test_all_ext_from_many():
     index_file = generate_temp_index_file(tar_file_path)
 
     extract_dir = generate_temp_extract(tar_file_path)
-    equivalent_files = sorted(glob(extract_dir.name + "/*"))
+    equivalent_files = sorted(
+        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+    )
 
     compare_pipelines(
         webdataset_raw_pipeline(
@@ -61,7 +66,10 @@ def test_hidden():
 
     extract_dir = generate_temp_extract(tar_file_path)
     equivalent_files = list(
-        filter(lambda s: s.endswith(".txt"), sorted(glob(extract_dir.name + "/*")))
+        filter(
+            lambda s: s.endswith(".txt"),
+            sorted(glob(extract_dir.name + "/*")),
+        )
     )
 
     compare_pipelines(
@@ -89,18 +97,21 @@ def test_hidden():
         num_threads=1,
     )
     wds_pipeline.build()
-    assert_equal(wds_pipeline.epoch_size().values()[0] == num_samples)
+    assert_equal(list(wds_pipeline.epoch_size().values())[0], num_samples)
 
 
 def test_non_files():
     global test_batch_size
     num_samples = 8
-    tar_file_path = get_dali_extra_path() + "/db/webdataset/sample-tar/types_components.tar"
+    tar_file_path = get_dali_extra_path() + "/db/webdataset/sample-tar/types_contents.tar"
     index_file = generate_temp_index_file(tar_file_path)
 
     extract_dir = generate_temp_extract(tar_file_path)
     equivalent_files = list(
-        filter(lambda s: s.endswith(".txt"), sorted(glob(extract_dir.name + "/*")))
+        filter(
+            lambda s: s.endswith(".txt"),
+            sorted(glob(extract_dir.name + "/*")),
+        )
     )
     compare_pipelines(
         webdataset_raw_pipeline(
@@ -122,12 +133,13 @@ def test_non_files():
 def test_return_empty():
     global test_batch_size
     num_samples = 1000
-    # only the first 500 samples are full, the rest only has .jpg
     tar_file_path = get_dali_extra_path() + "/db/webdataset/MNIST/missing.tar"
     index_file = generate_temp_index_file(tar_file_path)
 
     extract_dir = generate_temp_extract(tar_file_path)
-    equivalent_files = sorted(glob(extract_dir.name + "/*"))
+    equivalent_files = sorted(
+        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+    )
 
     compare_pipelines(
         webdataset_raw_pipeline(
@@ -154,7 +166,14 @@ def test_skip_sample():
     index_file = generate_temp_index_file(tar_file_path)
 
     extract_dir = generate_temp_extract(tar_file_path)
-    equivalent_files = sorted(glob(extract_dir.name + "/*"))[:num_samples]
+    equivalent_files = list(
+        filter(
+            lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]) < 2500,
+            sorted(
+                glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+            ),
+        )
+    )
 
     compare_pipelines(
         webdataset_raw_pipeline(
@@ -182,7 +201,7 @@ def test_skip_sample():
         num_threads=1,
     )
     wds_pipeline.build()
-    assert_equal(wds_pipeline.epoch_size().values()[0] == num_samples)
+    assert_equal(list(wds_pipeline.epoch_size().values())[0], num_samples)
 
 
 def test_raise_error_on_missing():
@@ -192,7 +211,9 @@ def test_raise_error_on_missing():
     index_file = generate_temp_index_file(tar_file_path)
 
     extract_dir = generate_temp_extract(tar_file_path)
-    equivalent_files = sorted(glob(extract_dir.name + "/*"))[:num_samples]
+    equivalent_files = sorted(
+        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+    )[:num_samples]
 
     wds_pipeline = webdataset_raw_pipeline(
         tar_file_path,
@@ -203,19 +224,19 @@ def test_raise_error_on_missing():
         device_id=0,
         num_threads=1,
     )
-    assert_raises(wds_pipeline.build())
+    assert_raises(RuntimeError, wds_pipeline.build)
 
 
 def test_different_components():
     global test_batch_size
     num_samples = 1000
-    tar_file_path = (
-        get_dali_extra_path() + "/db/webdataset/MNIST/scrambled.tar"
-    )  # has some of the .cls files changed up for .txt files
+    tar_file_path = get_dali_extra_path() + "/db/webdataset/MNIST/scrambled.tar"
     index_file = generate_temp_index_file(tar_file_path)
 
     extract_dir = generate_temp_extract(tar_file_path)
-    equivalent_files = sorted(glob(extract_dir.name + "/*"))
+    equivalent_files = sorted(
+        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+    )
 
     compare_pipelines(
         webdataset_raw_pipeline(
@@ -248,11 +269,14 @@ def test_dtypes():
     wds_pipeline = webdataset_raw_pipeline(
         tar_file_path,
         index_file.name,
-        ["float16", "int32", "float64"],
-        dtype=[
+        ["float16", "int32", "float64"] * 2,
+        dtypes=[
             dali.types.DALIDataType.FLOAT16,
             dali.types.DALIDataType.INT32,
             dali.types.DALIDataType.FLOAT64,
+            dali.types.DALIDataType.INT8,
+            dali.types.DALIDataType.INT8,
+            dali.types.DALIDataType.INT8,
         ],
         batch_size=test_batch_size,
         device_id=0,
@@ -260,11 +284,11 @@ def test_dtypes():
     )
     wds_pipeline.build()
     for sample_idx in range(num_samples):
-        f16, i32, f64 = wds_pipeline.run()
-        for batch_idx in range(test_batch_size):
-            assert all(f16.as_array() == [float(sample_idx * test_batch_size + batch_idx)] * 10)
-            assert all(i32.as_array() == [int(sample_idx * test_batch_size + batch_idx)] * 10)
-            assert all(f64.as_array() == [float(sample_idx * test_batch_size + batch_idx)] * 10)
+        if sample_idx % test_batch_size == 0:
+            f16, i32, f64, f16b, i32b, f64b = wds_pipeline.run()
+        assert (f16.as_array()[sample_idx % test_batch_size] == [float(sample_idx)] * 10).all()
+        assert (i32.as_array()[sample_idx % test_batch_size] == [int(sample_idx)] * 10).all()
+        assert (f64.as_array()[sample_idx % test_batch_size] == [float(sample_idx)] * 10).all()
 
 
 def test_wds_sharding():
@@ -279,7 +303,13 @@ def test_wds_sharding():
 
     extract_dirs = [generate_temp_extract(tar_file_path) for tar_file_path in tar_file_paths]
     equivalent_files = sum(
-        list(sorted(glob(extract_dir.name + "/*")) for extract_dir in extract_dirs), []
+        list(
+            sorted(
+                glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+            )
+            for extract_dir in extract_dirs
+        ),
+        [],
     )
 
     compare_pipelines(
@@ -302,6 +332,7 @@ def test_wds_sharding():
         math.ceil(num_samples / test_batch_size),
     )
 
+
 def test_ambiguous_components():
     global test_batch_size
     num_samples = 1000
@@ -310,7 +341,9 @@ def test_ambiguous_components():
     index_file = generate_temp_index_file(tar_file_path)
 
     extract_dir = generate_temp_extract(tar_file_path)
-    equivalent_files = sorted(glob(extract_dir.name + "/*"))
+    equivalent_files = sorted(
+        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+    )
 
     compare_pipelines(
         webdataset_raw_pipeline(
@@ -327,3 +360,71 @@ def test_ambiguous_components():
         test_batch_size,
         math.ceil(num_samples / test_batch_size),
     )
+
+
+def test_common_files():
+    global test_batch_size
+    num_samples = 1000
+    tar_file_path = get_dali_extra_path() + "/db/webdataset/MNIST/devel-0.tar"
+    index_file = generate_temp_index_file(tar_file_path)
+
+    extract_dir = generate_temp_extract(tar_file_path)
+    equivalent_files = sorted(glob(extract_dir.name + "/*"))
+
+    compare_pipelines(
+        webdataset_raw_pipeline(
+            tar_file_path,
+            index_file.name,
+            ["jpg", "cls"] * 10,
+            batch_size=test_batch_size,
+            device_id=0,
+            num_threads=1,
+        ),
+        file_reader_pipeline(
+            equivalent_files,
+            ["jpg", "cls"] * 10,
+            batch_size=test_batch_size,
+            device_id=0,
+            num_threads=1,
+        ),
+        test_batch_size,
+        math.ceil(num_samples / test_batch_size),
+    )
+
+
+def test_sharding():
+    global test_batch_size
+    num_samples = 1000
+    tar_file_path = get_dali_extra_path() + "/db/webdataset/MNIST/devel-0.tar"
+    index_file = generate_temp_index_file(tar_file_path)
+
+    extract_dir = generate_temp_extract(tar_file_path)
+    equivalent_files = sorted(
+        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+    )
+
+    num_shards = 100
+    for shard_id in range(num_shards):
+        compare_pipelines(
+            webdataset_raw_pipeline(
+                tar_file_path,
+                index_file.name,
+                ["jpg", "cls"],
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            file_reader_pipeline(
+                equivalent_files,
+                ["jpg", "cls"],
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            test_batch_size,
+            math.ceil(num_samples / num_shards / test_batch_size) * 2,
+        )

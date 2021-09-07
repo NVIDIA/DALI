@@ -72,7 +72,8 @@ inline std::vector<SampleConfig> ParseConfig(MissingExtBehavior missing_componen
     }
 
     // filtering out samples without the required extensions
-    if (std::all_of(ext.begin(), ext.end(), [&](std::set<std::string> extension_set) {
+    bool discard = false;
+    if (!std::all_of(ext.begin(), ext.end(), [&](std::set<std::string> extension_set) {
           for (auto& component_config : new_sample.config_metadata) {
             if (extension_set.count(component_config.ext)) {
               return true;
@@ -82,12 +83,17 @@ inline std::vector<SampleConfig> ParseConfig(MissingExtBehavior missing_componen
         })) {
       switch (missing_component_behavior) {
         case MissingExtBehavior::Skip:
-          continue;
+          // std::cerr << "Discarding the sample number " << sample_index << std::endl;
+          discard = true;
+          break;
         case MissingExtBehavior::Raise:
-          DALI_ERROR("Underfull sample detected in index file at " + config_path);
+          DALI_FAIL("Underful sample detected in index file at " + config_path);
         default:
           break;
       };
+    }
+    if (discard) {
+      continue;
     }
 
     out.push_back(std::move(new_sample));
@@ -156,7 +162,7 @@ WebdatasetLoader::~WebdatasetLoader() {}
 void WebdatasetLoader::PrepareEmpty(vector<Tensor<CPUBackend>>& empty) {
   empty = std::vector<Tensor<CPUBackend>>(ext_.size());
   for (auto& tensor : empty) {
-    tensor.Resize({tensor_init_bytes_});
+    tensor.reserve(tensor_init_bytes_);
   }
 }
 
@@ -210,12 +216,13 @@ inline uint8_t* WebdatasetLoader::ShareDataPointer(std::vector<Tensor<CPUBackend
           sample[component_index].Reset();
         }
         sample[component_index].reserve(size);
-        sample[component_index].Resize(size / dtype_info.size(), dtype_info);
+        sample[component_index].Resize({size / static_cast<int64_t>(dtype_info.size())},
+                                       dtype_info);
         shared_tensor_data = reinterpret_cast<uint8_t*>(sample[component_index].raw_mutable_data());
       } else {
         DALI_ENFORCE(size % static_cast<int64_t>(dtype_info.size()) == 0,
                      "Index file at " + configs_[current_wds_shard_index_] +
-                         " reporting component sizes different to actual")
+                         " reporting component sizes different to actual");
         sample[component_index].ShareData(
             shared_tensor_data, size, {size / static_cast<int64_t>(dtype_info.size())}, dtype_info);
       }
@@ -250,10 +257,11 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
   auto& current_sample = wds_shards_metadata_[current_wds_shard_index_][current_sample_index_];
   current_wds_shard.SeekArchive(current_sample.start_offset);
 
-  std::cerr << "Started reading sample with the following config: start_offset = "
-            << current_sample.start_offset << " end_offset = " << current_sample.end_offset
-            << " current_wds_shard position = " << current_wds_shard.TellArchive()
-            << " current_wds_shard EndOfArchive " << current_wds_shard.EndOfArchive() << std::endl;
+  // std::cerr << "Started reading sample with the following config: start_offset = "
+  //           << current_sample.start_offset << " end_offset = " << current_sample.end_offset
+  //           << " current_wds_shard position = " << current_wds_shard.TellArchive()
+  //           << " current_wds_shard EndOfArchive " << current_wds_shard.EndOfArchive() <<
+  //           std::endl;
 
   vector<char> sample_was_set(sample.size(), false);
   while (current_wds_shard.TellArchive() < current_sample.end_offset) {
@@ -262,8 +270,8 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
                      " reporting a file longer than actual (archive reached an offset " +
                      std::to_string(current_wds_shard.TellArchive()) +
                      " and the sample is supposed to end at " +
-                     std::to_string(current_sample.end_offset) ")");
-    std::cerr << "Reading a file with a name " << current_wds_shard.GetFileName() << std::endl;
+                     std::to_string(current_sample.end_offset) + ")");
+    // std::cerr << "Reading a file with a name " << current_wds_shard.GetFileName() << std::endl;
     // Check in case of encountering a tar entry that is not a file
     if (current_wds_shard.GetFileType() != detail::TarArchive::ENTRY_FILE) {
       current_wds_shard.NextFile();
@@ -319,11 +327,11 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
     current_sample_index_ = 0;
   }
 
-  std::cerr << "ReadSample Tensor types: ";
-  for (auto& t : sample) {
-    std::cerr << t.type().id() << ' ';
-  }
-  std::cerr << std::endl;
+  // std::cerr << "ReadSample Tensor types: ";
+  // for (auto& t : sample) {
+  //   std::cerr << t.type().id() << ' ';
+  // }
+  // std::cerr << std::endl;
 }
 
 Index WebdatasetLoader::SizeImpl() {
@@ -392,10 +400,8 @@ void WebdatasetLoader::PrepareMetadataImpl() {
   first_sample_index_ = first_index_ - wds_shards_prefixsums_[first_wds_shard_index_];
 
   // initializing the first reader
-  if (stick_to_shard_) {
-    current_wds_shard_index_ = first_wds_shard_index_;
-    current_sample_index_ = first_sample_index_;
-  }
+  current_wds_shard_index_ = first_wds_shard_index_;
+  current_sample_index_ = first_sample_index_;
 }
 
 void WebdatasetLoader::Reset(bool wrap_to_shard) {
