@@ -1,3 +1,17 @@
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #ifndef DALI_OPERATORS_READER_LOADER_WEBDATASET_LOADER_H_
 #define DALI_OPERATORS_READER_LOADER_WEBDATASET_LOADER_H_
 
@@ -6,6 +20,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <utility>
+#include <memory>
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include "dali/pipeline/data/tensor.h"
@@ -19,8 +35,7 @@ const std::set<DALIDataType> kSupportedTypes = {DALI_UINT8,   DALI_UINT16, DALI_
                                                 DALI_INT8,    DALI_INT16,  DALI_INT32,  DALI_INT64,
                                                 DALI_FLOAT16, DALI_FLOAT,  DALI_FLOAT64};
 
-enum class MissingExtBehavior
-{
+enum class MissingExtBehavior {
   Empty,
   Skip,
   Raise,
@@ -91,7 +106,7 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   std::vector<detail::TarArchive> wds_shards_;  // archives for all wds shards
   std::vector<Index> wds_shards_prefixsums_;    // prefix sum of numbers of samples in wds shards
 
-  size_t first_wds_shard_index_ = 0;    // the index of the first wds shard to use
+  size_t first_wds_shard_index_ = 0;    // the index of the first wds shard to use
   size_t current_wds_shard_index_ = 0;  // current archive that is being read
   size_t first_sample_index_ = 0;       // index of the first sample in the first wds shard to use
   size_t current_sample_index_ = 0;  // index of the current sample read from the current wds shard

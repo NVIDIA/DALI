@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_READER_WEBDATASET_READER_OP_H_
 #define DALI_OPERATORS_READER_WEBDATASET_READER_OP_H_
 
+#include <vector>
 #include "dali/operators/reader/loader/webdataset_loader.h"
 #include "dali/operators/reader/reader_op.h"
 #include "dali/pipeline/data/tensor.h"
