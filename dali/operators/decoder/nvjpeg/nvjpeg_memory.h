@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 #include <nvjpeg.h>
 #include <thread>
 #include "dali/operators/decoder/nvjpeg/nvjpeg2k_helper.h"
-#include "dali/core/mm/memory.h"
+#include "dali/kernels/alloc_type.h"
 
 namespace dali {
 
@@ -29,14 +29,12 @@ namespace nvjpeg_memory {
  *        If no buffer that satisfies the requested arguments already exists in the pool, an allocation
  *        will take place
  */
-template <typename MemoryKind>
-void* GetBuffer(std::thread::id thread_id, size_t size);
+void* GetBuffer(std::thread::id thread_id, kernels::AllocType alloc_type, size_t size);
 
 /**
  * @brief Adds a new buffer to the pool for a given thread id, to be consumed later by ``GetBuffer``
  */
-template <typename MemoryKind>
-void AddBuffer(std::thread::id thread_id, size_t size);
+void AddBuffer(std::thread::id thread_id, kernels::AllocType alloc_type, size_t size);
 
 /**
  * @brief Deletes all the buffers associated with a given thread id
@@ -47,6 +45,11 @@ void DeleteAllBuffers(std::thread::id thread_id);
  * @brief Enables/disables nvJPEG allocation statistics collection
  */
 void SetEnableMemStats(bool enabled);
+
+/**
+ * @brief Adds an allocation to the statistics
+ */
+void AddMemStats(kernels::AllocType alloc_type, size_t size);
 
 /**
  * @brief Prints nvJPEG memory allocation statistics
