@@ -37,7 +37,7 @@ test_body() {
     pushd ${TMP_DIR2}
     cmake -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc -DBUILD_DALI_NODEPS=ON -DSTATIC_LIBS=OFF \
           -DCMAKE_INSTALL_PREFIX=${TMP_DIR3} ${DALI_DIR}
-    make -j install dali_core dali_kernels
+    make -j install dali_core dali_kernels install_headers
     popd
     rm -rf ${TMP_DIR2}
 
