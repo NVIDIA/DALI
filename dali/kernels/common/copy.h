@@ -144,11 +144,11 @@ void copy(const TensorListView<StorageOut, TOut, NDimOut> &out,
  * @return The output consists of new TensorView along with pointer to its memory (as the TensorView doesn't own any)
  */
 template<typename DstKind, typename SrcBackend, typename T, int ndims>
-std::pair<TensorView<kind2storage<DstKind>, dali::remove_const_t<T>, ndims>,
+std::pair<TensorView<kind2storage_t<DstKind>, dali::remove_const_t<T>, ndims>,
           mm::uptr<dali::remove_const_t<T>>>
 copy(const TensorView <SrcBackend, T, ndims> &src) {
   auto mem = mm::alloc_raw_unique<dali::remove_const_t<T>, DstKind>(volume(src.shape));
-  auto tv = make_tensor<kind2storage<DstKind>, ndims>(mem.get(), src.shape);
+  auto tv = make_tensor<kind2storage_t<DstKind>, ndims>(mem.get(), src.shape);
   kernels::copy(tv, src);
   return std::make_pair(tv, std::move(mem));
 }

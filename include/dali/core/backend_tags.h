@@ -56,30 +56,30 @@ template<class ComputeBackend>
 using compute_to_storage_t = typename compute_to_storage<ComputeBackend>::type;
 
 template <typename MemoryKind>
-struct kind2storage_helper;
+struct kind2storage;
 
 template <>
-struct kind2storage_helper<cuda::memory_kind::host> {
+struct kind2storage<cuda::memory_kind::host> {
   using type = StorageCPU;
 };
 
 template <>
-struct kind2storage_helper<cuda::memory_kind::pinned> {
+struct kind2storage<cuda::memory_kind::pinned> {
   using type = StorageCPU;
 };
 
 template <>
-struct kind2storage_helper<cuda::memory_kind::device> {
+struct kind2storage<cuda::memory_kind::device> {
   using type = StorageGPU;
 };
 
 template <>
-struct kind2storage_helper<cuda::memory_kind::managed> {
+struct kind2storage<cuda::memory_kind::managed> {
   using type = StorageUnified;
 };
 
 template <typename MemoryKind>
-using kind2storage = typename kind2storage_helper<MemoryKind>::type;
+using kind2storage_t = typename kind2storage<MemoryKind>::type;
 
 }  // namespace dali
 

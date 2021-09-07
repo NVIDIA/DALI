@@ -65,7 +65,7 @@ class Scratchpad {
    *        in the memory of type `alloc_type`.
    */
   template <typename MemoryKind, typename T, int dim>
-  TensorView<kind2storage<MemoryKind>, T, dim> AllocTensor(TensorShape<dim> shape) {
+  TensorView<kind2storage_t<MemoryKind>, T, dim> AllocTensor(TensorShape<dim> shape) {
     return { Allocate<MemoryKind, T>(volume(shape)), std::move(shape) };
   }
 
@@ -74,7 +74,7 @@ class Scratchpad {
    *        in the memory of type `alloc_type`.
    */
   template <typename MemoryKind, typename T, int dim>
-  TensorListView<kind2storage<MemoryKind>, T, dim>
+  TensorListView<kind2storage_t<MemoryKind>, T, dim>
   AllocTensorList(const std::vector<TensorShape<dim>> &shape) {
     return AllocTensorList<MemoryKind, T, dim>(TensorListShape<dim>(shape));
   }
@@ -84,10 +84,10 @@ class Scratchpad {
    *        in the memory of kind `MemoryKind`.
    */
   template <typename MemoryKind, typename T, int dim>
-  TensorListView<kind2storage<MemoryKind>, T, dim>
+  TensorListView<kind2storage_t<MemoryKind>, T, dim>
   AllocTensorList(TensorListShape<dim> shape) {
     T *data = Allocate<MemoryKind, T>(shape.num_elements());
-    TensorListView<kind2storage<MemoryKind>, T, dim> tlv(data, std::move(shape));
+    TensorListView<kind2storage_t<MemoryKind>, T, dim> tlv(data, std::move(shape));
     return tlv;
   }
 
