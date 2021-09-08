@@ -92,15 +92,12 @@ __global__ void DisplacementKernel(const DisplacementSampleDesc *samples,
   auto end = block.end.x;
   for (int64_t out_idx = threadIdx.x + start; out_idx < end; out_idx += blockDim.x) {
     if (m) {
-      // int64_t idx = out_idx;
-      // const int c = idx % C;
-      // idx /= C;
-      // const int w = idx % W;
-      // idx /= W;
-      // const int h = idx;
-      const int c = out_idx % C;
-      const int w = (out_idx / C) % W;
-      const int h = (out_idx / W / C);
+      int64_t idx = out_idx;
+      const int c = idx % C;
+      idx /= C;
+      const int w = idx % W;
+      idx /= W;
+      const int h = idx;
 
       image_out[out_idx] = GetPixelValueSingleC<T, Displacement, interp_type>(
           h, w, c, H, W, C, image_in, displace, fill_value);
@@ -225,9 +222,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   explicit DisplacementFilter(const OpSpec &spec) :
       Operator(spec),
       displace_(spec),
-      interp_type_(spec.GetArgument<DALIInterpType>("interp_type")),
-      flat_block_setup_(32),
-      channel_block_setup_(32) {
+      interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     channel_block_setup_.SetBlockDim(ivec3{kAlignedBlockDim, 1, 1});
     has_mask_ = spec.HasTensorArgument("mask");
     DALI_ENFORCE(interp_type_ == DALI_INTERP_NN || interp_type_ == DALI_INTERP_LINEAR,
@@ -416,8 +411,8 @@ class DisplacementFilter<GPUBackend, Displacement,
 
   static constexpr int kAlignedBlockDim = 256;
 
-  FlatBlockSetup flat_block_setup_;
-  ChannelBlockSetup channel_block_setup_;
+  FlatBlockSetup flat_block_setup_{32};
+  ChannelBlockSetup channel_block_setup_{32};
   std::vector<DisplacementSampleDesc> samples_;
 
   DeviceBuffer<kernels::BlockDesc<1>> blocks_dev_;
