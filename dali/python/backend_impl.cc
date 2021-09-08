@@ -712,7 +712,7 @@ void ExposeTensorList(py::module &m) {
                 "buffer info for tensor w/ invalid type.");
             DALI_ENFORCE(tl.IsDenseTensor(),
                         "Tensors in the list must have the same shape");
-            raw_mutable_data = tl.raw_mutable_data();
+            raw_mutable_data = nullptr; //tl.raw_mutable_data();
           }
 
           if (IsValidType(tl.type())) {
@@ -794,7 +794,7 @@ void ExposeTensorList(py::module &m) {
       py::return_value_policy::reference_internal)
     .def("data_ptr",
         [](TensorList<CPUBackend> &tl) {
-          return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(tl.raw_mutable_data()));
+          return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(nullptr)); //tl.raw_mutable_data()
         },
       R"code(
       Returns the address of the first element of TensorList.
@@ -966,7 +966,7 @@ void ExposeTensorList(py::module &m) {
       py::return_value_policy::reference_internal)
     .def("data_ptr",
         [](TensorList<GPUBackend> &tl) {
-          return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(tl.raw_mutable_data()));
+          return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(nullptr)); // tl.raw_mutable_data()
         },
       R"code(
       Returns the address of the first element of TensorList.

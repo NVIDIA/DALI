@@ -125,7 +125,7 @@ class WarpAffineParamProvider
         params[i] = static_cast<const MappingParams *>(input.raw_tensor(i))->inv();
       }
     } else {
-      params_cpu_.data = static_cast<const MappingParams *>(input.raw_data());
+      // params_cpu_.data = static_cast<const MappingParams *>(input.raw_data());
       params_cpu_.shape = { num_samples_ };
     }
   }
@@ -154,7 +154,7 @@ class WarpAffineParamProvider
   void UseInputAsParams(const TensorList<GPUBackend> &input, bool invert) {
     CheckParamInput(input);
 
-    auto input_mappings = static_cast<const MappingParams *>(input.raw_data());
+    auto input_mappings = static_cast<const MappingParams *>(nullptr); //input.raw_data()
     if (invert) {
       auto output = this->template AllocParams<mm::memory_kind::device>();
       InvertTransformsGPU<spatial_ndim>(output, input_mappings, num_samples_, this->GetStream());
