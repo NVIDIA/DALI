@@ -1,5 +1,6 @@
 from test_operator_readers_webdataset_base import *
 
+
 def cross_check(
     dont_use_mmap,
     batch_size,
@@ -12,20 +13,29 @@ def cross_check(
     read_ahead,
     stick_to_shard,
 ):
-    num_samples = 100
-    tar_file_path = get_dali_extra_path() + "/db/webdataset/sample-tar/cross.tar"
-    index_file = generate_temp_index_file(tar_file_path)
+    num_multiplications = 5
+    num_samples = 100 * num_multiplications
+    tar_file_paths = [
+        get_dali_extra_path() + "/db/webdataset/sample-tar/cross.tar"
+    ] * num_multiplications
+    index_files = [generate_temp_index_file(tar_file_path) for tar_file_path in tar_file_paths]
 
-    extract_dir = generate_temp_extract(tar_file_path)
-    equivalent_files = list(sorted(
-        glob(extract_dir.name + "/*"),
-        key=lambda s: (int(s[s.rfind("/") + 1 : s.find(".")]), s),
-    ))
+    extract_dirs = [generate_temp_extract(tar_file_path) for tar_file_path in tar_file_paths]
+    equivalent_files = sum(
+        (
+            sorted(
+                glob(extract_dir.name + "/*"),
+                key=lambda s: (int(s[s.rfind("/") + 1 : s.find(".")]), s),
+            )
+            for extract_dir in extract_dirs
+        ),
+        [],
+    )
 
     compare_pipelines(
         webdataset_raw_pipeline(
-            tar_file_path,
-            index_file.name,
+            tar_file_paths,
+            [index_file.name for index_file in index_files],
             ["a.a;a.b", "b.a;b.b"],
             batch_size=batch_size,
             device_id=0,
@@ -60,6 +70,7 @@ def cross_check(
         math.ceil(num_samples / test_batch_size),
     )
 
+
 def test_cross_check():
     scenarios = [
         (
@@ -82,7 +93,7 @@ def test_cross_check():
         for skip_cached_images in (False, True)
         for batch_size in (1, 8)
         for num_shards in (1, 100)
-        for shard_id in {0, num_shards-1}
+        for shard_id in {0, num_shards - 1}
         for prefetch_queue_depth in (1, 8)
     ]
 
