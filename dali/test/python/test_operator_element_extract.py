@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ from nvidia.dali.pipeline import Pipeline
 from nvidia.dali import fn, pipeline_def
 import nvidia.dali.ops as ops
 from test_utils import RandomlyShapedDataIterator, to_array
-from nose.tools import raises
+from nose_utils import assert_raises
 
 import numpy as np
 
@@ -142,12 +142,23 @@ def test_element_extract_layout():
     for device in ["cpu", "gpu"]:
         yield check_element_extract, [4, 3, 3], "FXY", [0, 1, 2, 3, 3, 2, 1, 0], device
 
-@raises(RuntimeError)
-def check_element_extract_raises(shape, layout, element_map, dev):
-    check_element_extract(shape, layout, element_map, dev)
-
 def test_raises():
-    for shape, layout in [([4], "F"), ([6, 1], "XF"), ([8, 10, 3], "HWC")]:
-        yield check_element_extract_raises, shape, layout, [1, 3], "cpu"
-    yield check_element_extract_raises, [6, 1], "FX", [10], "cpu"
-    yield check_element_extract_raises, [6, 1], "FX", [-5], "cpu"
+    with assert_raises(RuntimeError,
+                       glob="Input must have at least two dimensions - outermost for sequence and"
+                            " at least one for data elements."):
+        check_element_extract([4], "F", [1, 3], "cpu")
+
+    for shape, layout in [([6, 1], "XF"), ([8, 10, 3], "HWC")]:
+        with assert_raises(RuntimeError,
+                           glob="Input layout must describe a sequence - it must start with 'F',"
+                                " got '*' instead."):
+            check_element_extract(shape, layout, [1, 3], "cpu")
+
+    with assert_raises(RuntimeError,
+                       glob="Index `10` from `element_map` is out of bounds for sample with"
+                            " sequence length equal `6`"):
+        check_element_extract([6, 1], "FX", [10], "cpu")
+
+    with assert_raises(RuntimeError,
+                       glob="Negative indices in `element_map` are not allowed, found: -5"):
+        check_element_extract([6, 1], "FX", [-5], "cpu")

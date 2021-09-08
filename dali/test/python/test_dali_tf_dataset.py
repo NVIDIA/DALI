@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,37 +17,31 @@ import numpy as np
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.plugin.tf as dali_tf
-from nose.tools import raises
+from nose_utils import raises
 
 from test_utils_tensorflow import get_image_pipeline
 
 
-@raises(Exception)
+@raises(ValueError, "Two structures don't have the same sequence length*length 3*length 2")
 def test_different_num_shapes_dtypes():
     batch_size = 12
     num_threads = 4
 
-    dataset_pipeline = get_image_pipeline(batch_size, num_threads, 'cpu')
-    shapes = (
-        (batch_size, 3, 224, 224),
-        (batch_size, 1, 1),
-        (batch_size, 1))
-    dtypes = (
-        tf.float32,
-        tf.float32)
+    dataset_pipe, shapes, dtypes = get_image_pipeline(batch_size, num_threads, 'cpu')
+    dtypes = tuple(dtypes[0:2])
 
     with tf.device('/cpu:0'):
         dali_tf.DALIDataset(
-            pipeline=dataset_pipeline,
+            pipeline=dataset_pipe,
             batch_size=batch_size,
             output_shapes=shapes,
             output_dtypes=dtypes,
             num_threads=num_threads)
 
 
-@raises(RuntimeError)
+@raises(RuntimeError, "some operators*cannot be used with TensorFlow Dataset API and DALIIterator")
 def test_python_operator_not_allowed_in_tf_dataset_error():
-    pipeline = Pipeline(1, 1, 0, 0)
+    pipeline = Pipeline(1, 1, 0, exec_pipelined=False, exec_async=False)
     with pipeline:
         output = fn.python_function(function=lambda: np.zeros((3, 3, 3)))
         pipeline.set_outputs(output)
