@@ -85,10 +85,13 @@ TEST(MMDefaultResource, GetResource_Managed) {
   }
   ASSERT_NE(mem, nullptr);
   EXPECT_TRUE(mm::detail::is_aligned(mem, 32));
+  CUDA_CALL(cudaStreamAttachMemAsync(stream, mem, 0, cudaMemAttachHost));
   for (int i = 0; i < 1000; i++)
     mem[i] = i + 42;
   char back_copy[1000] = {};
+  CUDA_CALL(cudaStreamAttachMemAsync(stream, mem, 0, cudaMemAttachSingle));
   CUDA_CALL(cudaMemcpyAsync(back_copy, mem, 1000, cudaMemcpyDeviceToHost, stream));
+  CUDA_CALL(cudaStreamAttachMemAsync(stream, mem, 0, cudaMemAttachHost));
   rsrc->deallocate_async(mem, 1000, 32, stream_view(stream));
   CUDAEvent event = CUDAEvent::Create();
   CUDA_CALL(cudaEventRecord(event, stream));
