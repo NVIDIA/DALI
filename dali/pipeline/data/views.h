@@ -16,11 +16,12 @@
 #define  DALI_PIPELINE_DATA_VIEWS_H_
 
 #include <string>
+#include <utility>
 #include <vector>
-#include "dali/core/tensor_view.h"
 #include "dali/core/backend_tags.h"
-#include "dali/pipeline/data/tensor_list.h"
+#include "dali/core/tensor_view.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/tensor_vector.h"
 
 namespace dali {
