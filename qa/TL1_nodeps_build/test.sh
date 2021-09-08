@@ -49,7 +49,7 @@ test_body() {
     # pushd ${TMP_DIR4}
     # mkdir build
     # pushd build
-    # cmake -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc -DCMAKE_CXX_FLAGS=-isystem\ ${TMP_DIR3}/include\ -isystem\ ${DALI_DIR}/third_party/boost/preprocessor/include\ -L${TMP_DIR3}/lib ..
+    # cmake -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc -DCMAKE_CXX_FLAGS=-isystem\ ${TMP_DIR3}/include\ -L${TMP_DIR3}/lib ..
     # make -j
     # LD_LIBRARY_PATH=${TMP_DIR3}/lib ./nodeps_test
     # popd
