@@ -15,7 +15,8 @@
 from nvidia.dali._utils import external_source_impl
 from nvidia.dali import tensors, pipeline_def
 import nvidia.dali.fn as fn
-from nose.tools import assert_equals, raises
+from nose.tools import assert_equals
+from nose_utils import raises
 from nose.plugins.attrib import attr
 import numpy as np
 
@@ -23,13 +24,6 @@ import numpy as np
 def passes_assert(callback, sample):
     assert_equals(callback(sample), True)
 
-@raises(TypeError)
-def raises_type_error(callback, sample):
-    callback(sample)
-
-@raises(ValueError)
-def raises_value_error(callback, sample):
-    callback(sample)
 
 def converts(callback, sample, baseline):
     np.testing.assert_array_equal(callback(sample), baseline)
@@ -45,9 +39,11 @@ def run_checks(samples_allowed, batches_allowed, samples_disallowed, batches_dis
         yield passes_assert, external_source_impl.assert_cpu_batch_data_type, sample
         yield converts, external_source_impl.batch_to_numpy, sample, baseline
     for sample in samples_disallowed:
-        yield raises_type_error, external_source_impl.assert_cpu_sample_data_type, sample
+        yield raises(TypeError, "Unsupported callback return type.")(
+            external_source_impl.assert_cpu_sample_data_type), sample
     for sample in samples_disallowed + batches_disallowed:
-        yield raises_type_error, external_source_impl.assert_cpu_batch_data_type, sample
+        yield raises(TypeError, "Unsupported callback return type")(
+            external_source_impl.assert_cpu_batch_data_type), sample
 
 
 def non_uniform_tl():
@@ -83,7 +79,8 @@ def test_non_uniform_batch():
         non_uniform_tl()
     ]
     for b in batches_disallowed:
-        yield raises_value_error, external_source_impl.batch_to_numpy, b
+        yield raises(ValueError, "Uniform input is required (batch of tensors of equal shapes)")(
+            external_source_impl.batch_to_numpy), b
 
 
 @attr('pytorch')

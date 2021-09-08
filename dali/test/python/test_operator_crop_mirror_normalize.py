@@ -16,13 +16,11 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
-from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
 import os
 from functools import partial
-from nose.tools import assert_raises
-from test_utils import check_batch, compare_pipelines, dali_type_to_np
+from nose_utils import raises
+from test_utils import compare_pipelines, dali_type_to_np
 from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
 from test_operator_slice import check_slice_output, abs_slice_start_and_end
@@ -533,12 +531,11 @@ def check_cmn_with_out_of_bounds_error(device, batch_size, input_shape=(100, 200
                                  crop_pos_x = crop_x, crop_pos_y = crop_y,
                                  out_of_bounds_policy="error")
     pipe.build()
-    with assert_raises(RuntimeError):
-        outs = pipe.run()
+    pipe.run()
 
 def test_slice_with_out_of_bounds_error():
     in_shape = (40, 80, 3)
     for device in ['gpu', 'cpu']:
         for batch_size in [1, 3]:
-            yield check_cmn_with_out_of_bounds_error, \
-                device, batch_size, in_shape
+            yield raises(RuntimeError, "Slice can't be placed out of bounds with current policy.")(
+                check_cmn_with_out_of_bounds_error), device, batch_size, in_shape

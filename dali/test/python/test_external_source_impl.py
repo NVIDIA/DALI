@@ -15,14 +15,10 @@
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
-import nvidia.dali.types as types
-import nvidia.dali.backend as backend
 import numpy as np
-from nose.tools import assert_raises
+from nose_utils import assert_raises
 from test_utils import check_output
-import random
 import functools
-from collections import Iterable
 datapy = np
 
 make_array = np.array
@@ -458,7 +454,7 @@ def test_external_source_generator_cycle_error():
             yield [make_array([i + 1.5], dtype=datapy.float32)]
 
     fn.external_source(gen(), cycle = False)     # no cycle - OK
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="Cannot cycle through a generator * pass that function instead as `source`."):
         fn.external_source(gen(), cycle = True)  # cycle over generator - error expected
 
 def test_external_source():
@@ -537,7 +533,7 @@ def test_external_source_fail_missing_output():
     batch_size = 3
     pipe = ExternalSourcePipeline(batch_size, batch_size, 3, 0)
     pipe.build()
-    assert_raises(RuntimeError, pipe.run)
+    assert_raises(RuntimeError, pipe.run, regex="Cannot find [\w]+ tensor, it doesn't exists or was pruned as unused one")
 
 
 def external_data_veri(external_data, batch_size):
@@ -698,7 +694,12 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
     pipe.build()
 
     if (device == "cpu" and not cpu_input) or (device == "gpu" and cpu_input):
-        assert_raises(RuntimeError, pipe.run)
+        input_types = ["CPU", "GPU"]
+        if device == "cpu" and not cpu_input:
+            input_types.reverse()
+        assert_raises(RuntimeError, pipe.run,
+            glob="no_copy is supported only for the same data source device type as operator. "
+                 "Received: {} input for {} operator".format(*input_types))
     elif additional_num_keep_samples < 0 and not (device == "gpu" and not cpu_input and not as_tensor):
         # for the GPU2GPU non contiguous input DALI makes an internal copy on provided stream so no
         # data needs to be preserved by the user
