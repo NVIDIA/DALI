@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -420,8 +420,8 @@ class ReduceImplGPU {
 
     ctx.stream = kctx.gpu.stream;
     ctx.work_area.buffer_sizes = buffer_sizes_;
-    ctx.work_area.host_memory = kctx.scratchpad->Allocate<char>(AllocType::Host, host_mem_size, 64);
-    ctx.work_area.gpu_memory = kctx.scratchpad->Allocate<char>(AllocType::GPU, gpu_mem_size, 64);
+    ctx.work_area.host_memory = kctx.scratchpad->AllocateHost<char>(host_mem_size, 64);
+    ctx.work_area.gpu_memory = kctx.scratchpad->AllocateGPU<char>(gpu_mem_size, 64);
 
     ctx.input = reshape(in, in_shape_, true);
     ctx.output = reshape(out, out_shape_, true);
@@ -522,8 +522,9 @@ class ReduceImplGPU {
 
     // Now reserve the scratchpad - it's overaligned, because the buffer is opaque
     // and may contain any type - possibly with alignment requirements.
-    se.add<uint8_t>(AllocType::Host, buffer_sizes_.param_buffers, 64);
-    se.add<uint8_t>(AllocType::GPU, buffer_sizes_.param_buffers + buffer_sizes_.io_buffers, 64);
+    se.add<mm::memory_kind::host, uint8_t>(buffer_sizes_.param_buffers, 64);
+    se.add<mm::memory_kind::device, uint8_t>(
+      buffer_sizes_.param_buffers + buffer_sizes_.io_buffers, 64);
   }
 
   /**

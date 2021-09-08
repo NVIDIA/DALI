@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -110,7 +110,7 @@ ToContiguousHostMem(Scratchpad &scratchpad, const Collections &... c) {
   size_t alignment = detail::variadic_max(alignof(element_t<Collections>)...);
   size_t total_size = std::get<N>(offsets);
 
-  auto *tmp = reinterpret_cast<char*>(scratchpad.Alloc(AllocType::Host, total_size, alignment));
+  auto *tmp = scratchpad.AllocateHost<char>(total_size, alignment);
   detail::copy_to_buffer(tmp, &offsets[0], c...);
 
   return detail::GetCollectionPtrs(tmp, &offsets[0], c...);
@@ -144,7 +144,7 @@ ToContiguousGPUMem(Scratchpad &scratchpad, cudaStream_t stream, const Collection
   }
 
   detail::copy_to_buffer(tmp, &offsets[0], c...);
-  void *out_ptr = scratchpad.Alloc(AllocType::GPU, total_size, alignment);
+  void *out_ptr = scratchpad.Alloc<mm::memory_kind::device>(total_size, alignment);
 
   CUDA_CALL(cudaMemcpyAsync(out_ptr, tmp, total_size, cudaMemcpyHostToDevice, stream));
   return detail::GetCollectionPtrs(out_ptr, &offsets[0], c...);

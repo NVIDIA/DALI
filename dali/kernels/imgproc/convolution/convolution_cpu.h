@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -315,7 +315,7 @@ struct ConvolutionCpu {
     ScratchpadEstimator se;
     DALI_ENFORCE(window_size % 2 == 1,
                  make_string("Kernel window should have odd length, got: ", window_size, "."));
-    se.add<In>(AllocType::Host, GetInputWindowBufSize(in_shape, window_size));
+    se.add<mm::memory_kind::host, In>(GetInputWindowBufSize(in_shape, window_size));
     req.scratch_sizes = se.sizes;
     req.output_shapes.push_back(uniform_list_shape<ndim>(1, in_shape));
     return req;
@@ -326,8 +326,7 @@ struct ConvolutionCpu {
            const TensorView<StorageCPU, const W, 1>& window, float scale = 1) {
     auto diameter = window.num_elements();
     int input_window_buf_size = GetInputWindowBufSize(in.shape, diameter);
-    auto* input_window_buffer =
-        ctx.scratchpad->Allocate<In>(AllocType::Host, input_window_buf_size);
+    auto* input_window_buffer = ctx.scratchpad->AllocateHost<In>(input_window_buf_size);
     auto strides = GetStrides(in.shape);
 
     if (axis == ndim - has_channels - 1 &&

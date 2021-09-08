@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ TEST(Sampler2D_GPU, NN) {
   int h = (surf_cpu.size.y+2) / dy + 1;
   int c = surf_cpu.channels;
 
-  auto out_mem = memory::alloc_unique<uint8_t>(AllocType::GPU, w*h*c);
+  auto out_mem = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(w*h*c);
   Surface2D<uint8_t> out_surf = { out_mem.get(), { w, h }, c, { c, w*c }, 1 };
 
   std::vector<uint8_t> out_mem_cpu(w*h*c);
@@ -139,7 +139,7 @@ TEST(Sampler3D_GPU, NN) {
   int d = (surf_cpu.size.z+2) / dz + 1;
   int c = surf_cpu.channels;
 
-  auto out_mem = memory::alloc_unique<uint8_t>(AllocType::GPU, w*h*d*c);
+  auto out_mem = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(w*h*d*c);
   Surface3D<uint8_t> out_surf = { out_mem.get(), { w, h, d }, c, { c, w*c, h*w*c }, 1 };
 
   std::vector<uint8_t> out_mem_cpu(w*h*d*c);
@@ -202,7 +202,7 @@ TEST(Sampler2D_GPU, Linear) {
   int h = (surf_cpu.size.y+2) / dy + 1;
   int c = surf_cpu.channels;
 
-  auto out_mem = memory::alloc_unique<uint8_t>(AllocType::GPU, w*h*c);
+  auto out_mem = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(w*h*c);
   Surface2D<uint8_t> out_surf = { out_mem.get(), { w, h }, c, { c, w*c}, 1 };
 
   std::vector<uint8_t> out_mem_cpu(w*h*c);
@@ -260,7 +260,7 @@ TEST(Sampler3D_GPU, Linear) {
   int d = (surf_cpu.size.z+2) / dz + 1;
   int c = surf_cpu.channels;
 
-  auto out_mem = memory::alloc_unique<uint8_t>(AllocType::GPU, w*h*d*c);
+  auto out_mem = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(w*h*d*c);
   Surface3D<uint8_t> out_surf = { out_mem.get(), { w, h, d }, c, { c, w*c, h*w*c }, 1 };
 
   std::vector<uint8_t> out_mem_cpu(w*h*d*c);

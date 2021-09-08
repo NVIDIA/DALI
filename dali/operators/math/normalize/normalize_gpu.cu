@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ inline void MaxInPlace(ToUpdate &inout, const Other &other) {
   }
 }
 
-using scratch_sizes_t = std::array<size_t, static_cast<size_t>(AllocType::Count)>;
+using scratch_sizes_t = dali::kernels::scratch_sizes_t;
 
 class ScratchpadSnapshot {
  public:
@@ -131,7 +131,7 @@ Normalize<GPUBackend>::BroadcastMean(KernelContext &ctx, float value) const {
   mean_gpu.data.resize(param_shape_.num_samples());
   // allocate enough memory to hold the largest sample...
   int64_t max_sample_size = MaxSampleSize(param_shape_);
-  float *gpu_mean_data = ctx.scratchpad->Allocate<float>(AllocType::GPU, max_sample_size);
+  float *gpu_mean_data = ctx.scratchpad->AllocateGPU<float>(max_sample_size);
   int grid = div_ceil(max_sample_size, 1024);
   int block = std::min<int64_t>(max_sample_size, 1024);
   // ...fill it with given value...
@@ -157,18 +157,18 @@ void Normalize<GPUBackend>::SetupTyped(const DeviceWorkspace &ws) {
   // estimate memory requirements for intermediate buffers
 
   if (!has_scalar_mean_) {
-    se.add<float>(AllocType::GPU, param_volume);
+    se.add<mm::memory_kind::device, float>(param_volume);
   } else {
     if (ShouldCalcStdDev()) {
       // StdDev kernel requires the mean to have the same shape as the output.
       // We can save memory by broadcasting the mean only to the size of the largest sample
       // and repeat the pointer for all samples.
-      se.add<float>(AllocType::GPU, MaxSampleSize(param_shape_));
+      se.add<mm::memory_kind::device, float>(MaxSampleSize(param_shape_));
     }
   }
 
   if (!has_scalar_stddev_) {
-    se.add<float>(AllocType::GPU, param_volume);
+    se.add<mm::memory_kind::device, float>(param_volume);
   }
 
   // setup and get memory requirements from kernels
@@ -193,9 +193,14 @@ void Normalize<GPUBackend>::SetupTyped(const DeviceWorkspace &ws) {
     MaxInPlace(req.scratch_sizes, stddev_req.scratch_sizes);
   }
 
-  for (size_t i = 0; i < se.sizes.size(); i++) {
-    se.add<uint8_t>(static_cast<AllocType>(i), req.scratch_sizes[i], 64);
-  }
+  se.add<mm::memory_kind::host, char>(
+    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::host)], 64);
+  se.add<mm::memory_kind::pinned, char>(
+    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::pinned)], 64);
+  se.add<mm::memory_kind::device, char>(
+    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::device)], 64);
+  se.add<mm::memory_kind::managed, char>(
+    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::managed)], 64);
 
   alloc_.Reserve(se.sizes);
 }
@@ -225,13 +230,13 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   OutListGPU<float> mean_gpu, stddev_gpu;
 
   if (!has_scalar_mean_) {
-    mean_gpu = scratch.AllocTensorList<AllocType::GPU, float>(param_shape_);
+    mean_gpu = scratch.AllocTensorList<mm::memory_kind::device, float>(param_shape_);
   } else if (ShouldCalcStdDev()) {
     mean_gpu = BroadcastMean(ctx, scalar_mean);
   }
 
   if (!has_scalar_stddev_) {
-    stddev_gpu = scratch.AllocTensorList<AllocType::GPU, float>(param_shape_);
+    stddev_gpu = scratch.AllocTensorList<mm::memory_kind::device, float>(param_shape_);
   }
 
   if (ShouldCalcMean()) {

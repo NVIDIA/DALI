@@ -68,6 +68,40 @@ TEST(MMDefaultResource, GetResource_Pinned) {
     EXPECT_EQ(back_copy[i], static_cast<char>(i + 42));
 }
 
+
+TEST(MMDefaultResource, GetResource_Managed) {
+  auto *rsrc = GetDefaultResource<memory_kind::managed>();
+  ASSERT_NE(rsrc, nullptr);
+
+  CUDAStream stream = CUDAStream::Create(true);
+  char *mem = nullptr;
+  constexpr int size = 1000;
+  try {
+    mem = static_cast<char*>(rsrc->allocate(size, 32));
+  } catch (const CUDAError &e) {
+    if ((e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
+        (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported)) {
+      GTEST_SKIP() << "Unified memory not supported on this platform";
+    }
+  }
+  ASSERT_NE(mem, nullptr);
+  EXPECT_TRUE(mm::detail::is_aligned(mem, 32));
+  CUDA_CALL(cudaStreamAttachMemAsync(stream, mem, 0, cudaMemAttachHost));
+  for (int i = 0; i < size; i++)
+    mem[i] = i + 42;
+  char back_copy[size] = {};
+  CUDA_CALL(cudaStreamAttachMemAsync(stream, mem, 0, cudaMemAttachSingle));
+  CUDA_CALL(cudaMemcpyAsync(back_copy, mem, size, cudaMemcpyDeviceToHost, stream));
+  CUDA_CALL(cudaStreamAttachMemAsync(stream, mem, 0, cudaMemAttachHost));
+  rsrc->deallocate_async(mem, size, 32, stream_view(stream));
+  CUDAEvent event = CUDAEvent::Create();
+  CUDA_CALL(cudaEventRecord(event, stream));
+  stream = CUDAStream();  // destroy the stream, it should still complete just fine
+
+  for (int i = 0; i < 1000; i++)
+    EXPECT_EQ(back_copy[i], static_cast<char>(i + 42));
+}
+
 TEST(MMDefaultResource, GetResource_Device) {
   char *stage = nullptr;
   CUDA_CALL(cudaMallocHost(&stage, 2000));

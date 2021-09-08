@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -157,7 +157,7 @@ TYPED_TEST(MultiplyAddGpuTest, run_test) {
   kernel.Run(c, out, in, this->addends_, this->multipliers_);
   CUDA_CALL(cudaDeviceSynchronize());
 
-  auto res = copy<AllocType::Host>(out[0]);
+  auto res = copy<mm::memory_kind::host>(out[0]);
   ASSERT_EQ(static_cast<int>(this->ref_output_.size()), res.first.num_elements());
   for (size_t i = 0; i < this->ref_output_.size(); i++) {
     EXPECT_FLOAT_EQ(this->ref_output_[i], res.second.get()[i]) << "Failed for index " << i;

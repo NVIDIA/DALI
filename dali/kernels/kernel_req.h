@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,16 +16,18 @@
 #define  DALI_KERNELS_KERNEL_REQ_H_
 
 #include <array>
+#include <cassert>
 #include <vector>
 #include <algorithm>
 #include "dali/kernels/context.h"
 #include "dali/core/tuple_helpers.h"
 #include "dali/core/util.h"
+#include "dali/core/mm/memory_kind.h"
 
 namespace dali {
 namespace kernels {
 
-using scratch_sizes_t = std::array<size_t, static_cast<size_t>(AllocType::Count)>;
+using scratch_sizes_t = std::array<size_t, static_cast<size_t>(mm::memory_kind_id::count)>;
 
 inline scratch_sizes_t MaxScratchSize(const scratch_sizes_t &a, const scratch_sizes_t &b) {
   scratch_sizes_t result;
@@ -91,13 +93,15 @@ struct ScratchpadEstimator {
    * @return Total number of bytes required for given allocation method,
    *         including this allocation.
    */
-  template <typename T>
-  size_t add(AllocType alloc_type, size_t count, size_t alignment = alignof(T)) {
-    size_t offset = align_up(sizes[(size_t)alloc_type], alignment);
+  template <typename MemoryKind, typename T>
+  size_t add(size_t count, size_t alignment = alignof(T)) {
+    size_t idx = static_cast<size_t>(mm::kind2id_v<MemoryKind>);
+    assert(idx < sizes.size());
+    size_t offset = align_up(sizes[idx], alignment);
     if (count) {
-      sizes[(size_t)alloc_type] = offset + count * sizeof(T);
+      sizes[idx] = offset + count * sizeof(T);
     }
-    return sizes[(size_t)alloc_type];
+    return sizes[idx];
   }
 
   scratch_sizes_t sizes = {};

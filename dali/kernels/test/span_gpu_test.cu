@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 #include "dali/core/span.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/core/util.h"
 #include "dali/core/cuda_error.h"
 
@@ -59,7 +59,7 @@ TEST(TestGPUSpan, Test1) {
   dim3 grid = div_ceil(N, block.x);
   ASSERT_EQ(cudaGetLastError(), cudaSuccess);
 
-  auto gpumem = memory::alloc_unique<int>(AllocType::GPU, N);
+  auto gpumem = mm::alloc_raw_unique<int, mm::memory_kind::device>(N);
   CUDA_CALL(cudaMemcpy(gpumem.get(), array, sizeof(array), cudaMemcpyHostToDevice));
   span<int> dyn_span = { gpumem.get(), N };
   TestSpanKernel<<<grid, block>>>(dyn_span);

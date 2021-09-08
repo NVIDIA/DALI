@@ -7,5 +7,6 @@ add_subdirectory(dali)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dali/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dali/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dali/third_party/boost/preprocessor/include)
 add_executable(nodeps_test main.cc)
 target_link_libraries(nodeps_test dali_core dali_kernels)

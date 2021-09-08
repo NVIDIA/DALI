@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ auto KernelManager::ReserveScratchpad(
   for (size_t i = 0; i < sizes.size(); i++) {
     atomic_max(max_scratch_sizes[i], sizes[i]);
     if (sizes[i] > caps[i])
-      sa.Reserve(static_cast<AllocType>(i), max_scratch_sizes[i]);
+      sa.Reserve(static_cast<mm::memory_kind_id>(i), max_scratch_sizes[i]);
   }
   return sa.GetScratchpad();
 }

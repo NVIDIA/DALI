@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 #include <utility>
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 #include "dali/kernels/imgproc/resample/resampling_windows.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/core/span.h"
 
 namespace dali {
@@ -62,7 +62,8 @@ enum FilterIdx {
   Idx_Cubic
 };
 
-void InitFilters(ResamplingFilters &filters, AllocType alloc) {
+template <typename MemoryKind>
+void InitFilters(ResamplingFilters &filters) {
   const int lanczos_resolution = 32;
   const int lanczos_a = 3;
   const int triangular_size = 3;
@@ -71,8 +72,11 @@ void InitFilters(ResamplingFilters &filters, AllocType alloc) {
   const int lanczos_size = (2*lanczos_a*lanczos_resolution + 1);
   const int total_size = triangular_size + gaussian_size + cubic_size + lanczos_size;
 
-  filters.filter_data =
-      memory::alloc_unique<float>((alloc == AllocType::GPU) ? AllocType::Host : alloc, total_size);
+  constexpr bool need_staging =
+    !cuda::kind_has_property<MemoryKind, cuda::memory_access::host>::value;
+
+  using tmp_kind = std::conditional_t<need_staging, mm::memory_kind::host, MemoryKind>;
+  filters.filter_data = mm::alloc_raw_unique<float, tmp_kind>(total_size);
 
   auto add_filter = [&](int size) {
     float *base = filters.filters.empty()
@@ -99,8 +103,8 @@ void InitFilters(ResamplingFilters &filters, AllocType alloc) {
   filters[2].rescale(6);
   filters[3].rescale(4);
 
-  if (alloc == AllocType::GPU) {
-    auto filter_data_gpu = memory::alloc_unique<float>(AllocType::GPU, total_size);
+  if (need_staging) {
+    auto filter_data_gpu = mm::alloc_raw_unique<float, mm::memory_kind::device>(total_size);
     CUDA_CALL(cudaMemcpy(filter_data_gpu.get(), filters.filter_data.get(),
                          total_size * sizeof(float), cudaMemcpyHostToDevice));
     ptrdiff_t  diff = filter_data_gpu.get() - filters.filter_data.get();
@@ -133,11 +137,11 @@ ResamplingFilter ResamplingFilters::Triangular(float radius) const noexcept {
 }
 
 
-static std::vector<std::weak_ptr<ResamplingFilters>> filters;
-static std::shared_ptr<ResamplingFilters> cpu_filters;
-static std::mutex filter_mutex;
 
 std::shared_ptr<ResamplingFilters> GetResamplingFilters() {
+  (void)mm::GetDefaultDeviceResource();
+  static std::mutex filter_mutex;
+  static std::vector<std::weak_ptr<ResamplingFilters>> filters;
   std::lock_guard<std::mutex> lock(filter_mutex);
   int device = 0;
   if (cudaGetDevice(&device) != cudaSuccess)
@@ -152,7 +156,7 @@ std::shared_ptr<ResamplingFilters> GetResamplingFilters() {
   auto ptr = filters[device].lock();
   if (!ptr) {
     ptr = std::make_shared<ResamplingFilters>();
-    InitFilters(*ptr, AllocType::GPU);
+    InitFilters<mm::memory_kind::device>(*ptr);
     filters[device] = ptr;
   }
   return ptr;
@@ -161,9 +165,11 @@ std::shared_ptr<ResamplingFilters> GetResamplingFilters() {
 
 std::shared_ptr<ResamplingFilters> GetResamplingFiltersCPU() {
   static std::once_flag once;
+  static std::shared_ptr<ResamplingFilters> cpu_filters;
   std::call_once(once, []() {
+    (void)mm::GetDefaultResource<mm::memory_kind::host>();
     cpu_filters = std::make_shared<ResamplingFilters>();
-    InitFilters(*cpu_filters, AllocType::Host);
+    InitFilters<mm::memory_kind::host>(*cpu_filters);
   });
   return cpu_filters;
 }

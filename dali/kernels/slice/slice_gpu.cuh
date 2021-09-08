@@ -229,11 +229,11 @@ class SliceGPU {
       }
     }
 
-    se.add<OutputType>(AllocType::Host, num_samples * nfill_values_);
-    se.add<OutputType>(AllocType::GPU, num_samples * nfill_values_);
+    se.add<mm::memory_kind::host, OutputType>(num_samples * nfill_values_);
+    se.add<mm::memory_kind::device, OutputType>(num_samples * nfill_values_);
 
-    se.add<detail::SliceSampleDesc<Dims>>(AllocType::Host, num_samples);
-    se.add<detail::SliceSampleDesc<Dims>>(AllocType::GPU, num_samples);
+    se.add<mm::memory_kind::host, detail::SliceSampleDesc<Dims>>(num_samples);
+    se.add<mm::memory_kind::device, detail::SliceSampleDesc<Dims>>(num_samples);
 
     std::vector<int64_t> sample_sizes;
     sample_sizes.reserve(slice_args.size());
@@ -247,8 +247,8 @@ class SliceGPU {
         sample_size / static_cast<float>(kBlockSize));
     }
 
-    se.add<detail::SliceBlockDesc>(AllocType::Host, block_count_);
-    se.add<detail::SliceBlockDesc>(AllocType::GPU, block_count_);
+    se.add<mm::memory_kind::host, detail::SliceBlockDesc>(block_count_);
+    se.add<mm::memory_kind::device, detail::SliceBlockDesc>(block_count_);
     req.scratch_sizes = se.sizes;
 
     req.output_shapes = { GetOutputShapes<Dims>(in.shape, slice_args) };
@@ -264,7 +264,7 @@ class SliceGPU {
     }
     const auto num_samples = in.size();
     OutputType *fill_values_cpu =
-        context.scratchpad->Allocate<OutputType>(AllocType::Host, num_samples * nfill_values_);
+        context.scratchpad->AllocateHost<OutputType>(num_samples * nfill_values_);
     for (int i = 0; i < in.size(); i++) {
       if (default_fill_values_) {
         assert(nfill_values_ == 1);
@@ -281,9 +281,9 @@ class SliceGPU {
 
     // Host memory
     detail::SliceSampleDesc<Dims> *sample_descs_cpu =
-        context.scratchpad->Allocate<detail::SliceSampleDesc<Dims>>(AllocType::Host, num_samples);
+        context.scratchpad->AllocateHost<detail::SliceSampleDesc<Dims>>(num_samples);
     detail::SliceBlockDesc *block_descs_cpu =
-        context.scratchpad->Allocate<detail::SliceBlockDesc>(AllocType::Host, block_count_);
+        context.scratchpad->AllocateHost<detail::SliceBlockDesc>(block_count_);
 
     bool any_padded_sample = false;
     std::vector<int64_t> sample_sizes(in.size());

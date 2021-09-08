@@ -41,6 +41,11 @@ struct DefaultMemoryResourceType<memory_kind::pinned> {
   using type = pinned_async_resource;
 };
 
+template <>
+struct DefaultMemoryResourceType<memory_kind::managed> {
+  using type = managed_async_resource;
+};
+
 template <typename Kind>
 using default_memory_resource_t = typename DefaultMemoryResourceType<Kind>::type;
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -233,7 +233,7 @@ class RotateParamProvider
     assert(input_shape_.num_samples() == num_samples_);
     assert(static_cast<int>(out_sizes_.size()) == num_samples_);
 
-    auto *params = this->AllocParams(kernels::AllocType::Host);
+    auto *params = this->template AllocParams<mm::memory_kind::host>();
     for (int i = 0; i < num_samples_; i++) {
       ivec2 in_size = shape2vec(skip_dim<2>(input_shape_[i]));
       ivec2 out_size = shape2vec(out_sizes_[i]);
@@ -250,7 +250,7 @@ class RotateParamProvider
     assert(input_shape_.num_samples() == num_samples_);
     assert(static_cast<int>(out_sizes_.size()) == num_samples_);
 
-    auto *params = this->AllocParams(kernels::AllocType::Host);
+    auto *params = this->template AllocParams<mm::memory_kind::host>();
     for (int i = 0; i < num_samples_; i++) {
       ivec3 in_size = shape2vec(skip_dim<3>(input_shape_[i]));
       ivec3 out_size = shape2vec(out_sizes_[i]);

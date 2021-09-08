@@ -17,7 +17,7 @@
 #include <algorithm>
 
 #include "dali/core/cuda_error.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/kernels/common/scatter_gather.h"
 #include "dali/pipeline/util/thread_pool.h"
 
@@ -71,16 +71,18 @@ class ScatterGatherTest : public testing::Test {
     sg.Run(stream, reset, method);
   }
 
-  void Memcpy(void *dst, const void *src, size_t size, AllocType alloc, cudaMemcpyKind kind) {
-    if (alloc == AllocType::Host) {
+  template <typename MemoryKind>
+  void Memcpy(void *dst, const void *src, size_t size, cudaMemcpyKind kind) {
+    if (cuda::kind_has_property<MemoryKind, cuda::memory_access::host>::value) {
       memcpy(dst, src, size);
     } else {
       CUDA_CALL(cudaMemcpy(dst, src, size, kind));
     }
   }
 
-  void Memset(void *dst, int c, size_t size, AllocType alloc) {
-    if (alloc == AllocType::Host) {
+  template <typename MemoryKind>
+  void Memset(void *dst, int c, size_t size) {
+    if (cuda::kind_has_property<MemoryKind, cuda::memory_access::host>::value) {
       memset(dst, c, size);
     } else {
       CUDA_CALL(cudaMemset(dst, c, size));
@@ -96,11 +98,11 @@ TYPED_TEST_P(ScatterGatherTest, Copy) {
   std::vector<char> out(1<<20);
   unsigned seed = 42;
 
-  AllocType alloc =
-      std::is_same<TypeParam, ScatterGatherCPU>::value ? AllocType::Host : AllocType::GPU;
+  using kind = std::conditional_t<std::is_same<TypeParam, ScatterGatherCPU>::value,
+                                  mm::memory_kind::host, mm::memory_kind::device>;
 
-  auto in_ptr = kernels::memory::alloc_unique<char>(alloc, in.size());
-  auto out_ptr = kernels::memory::alloc_unique<char>(alloc, out.size());
+  auto in_ptr = mm::alloc_raw_unique<char, kind>(in.size());
+  auto out_ptr = mm::alloc_raw_unique<char, kind>(out.size());
 
   std::vector<detail::CopyRange> ranges;
   std::vector<detail::CopyRange> back_ranges;
@@ -137,8 +139,8 @@ TYPED_TEST_P(ScatterGatherTest, Copy) {
   std::random_shuffle(ranges.begin(), ranges.end());
   std::random_shuffle(back_ranges.begin(), back_ranges.end());
 
-  this->Memcpy(in_ptr.get(), in.data(), in.size(), alloc, cudaMemcpyHostToDevice);
-  this->Memset(out_ptr.get(), 0, out.size(), alloc);
+  this->template Memcpy<kind>(in_ptr.get(), in.data(), in.size(), cudaMemcpyHostToDevice);
+  this->template Memset<kind>(out_ptr.get(), 0, out.size());
 
   TypeParam sg(64);
   ThreadPool tp(4, 0, false);
@@ -148,12 +150,12 @@ TYPED_TEST_P(ScatterGatherTest, Copy) {
   this->Run(sg, 0, true, TypeParam::Method::Kernel, tp);
 
   // copy back
-  this->Memset(in_ptr.get(), 0, out.size(), alloc);
+  this->template Memset<kind>(in_ptr.get(), 0, out.size());
   for (auto &r : back_ranges)
     sg.AddCopy(r.dst, r.src, r.size);
   this->Run(sg, 0, true, TypeParam::Method::Memcpy, tp);
 
-  this->Memcpy(out.data(), in_ptr.get(), in.size(), alloc, cudaMemcpyDeviceToHost);
+  this->template Memcpy<kind>(out.data(), in_ptr.get(), in.size(), cudaMemcpyDeviceToHost);
 
   EXPECT_EQ(in, out);
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 #include <chrono>
 #include <memory>
 #include <string>
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/test/mat2tensor.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/test/test_data.h"
@@ -81,8 +81,8 @@ TEST(Resample, HorizontalGaussian) {
   int H = img.shape[0];
   int W = img.shape[1];
   int outW = W / 2;
-  auto gpu_mem_in = memory::alloc_unique<uint8_t>(AllocType::GPU, img.num_elements());
-  auto gpu_mem_out = memory::alloc_unique<uint8_t>(AllocType::GPU, H * outW * channels);
+  auto gpu_mem_in = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(img.num_elements());
+  auto gpu_mem_out = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(H * outW * channels);
 
   TensorView<StorageGPU, uint8_t, 3> img_in, img_out;
   img_in = { gpu_mem_in.get(), img.shape };
@@ -130,8 +130,8 @@ TEST(Resample, VerticalGaussian) {
   int H = img.shape[0];
   int W = img.shape[1];
   int outH = H / 2;
-  auto gpu_mem_in = memory::alloc_unique<uint8_t>(AllocType::GPU, img.num_elements());
-  auto gpu_mem_out = memory::alloc_unique<uint8_t>(AllocType::GPU, outH * W * channels);
+  auto gpu_mem_in = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(img.num_elements());
+  auto gpu_mem_out = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(outH * W * channels);
 
   TensorView<StorageGPU, uint8_t, 3> img_in, img_out;
   img_in = { gpu_mem_in.get(), img.shape };
@@ -307,9 +307,9 @@ class ResamplingTest : public ::testing::Test {
   void PrepareTensors(int W, int H, int outW, int outH, int channels) {
     int tmpW = vert_first_ ? W : outW;
     int tmpH = vert_first_ ? outH : H;
-    gpu_mem_in_ = memory::alloc_unique<uint8_t>(AllocType::GPU, W * H * channels);
-    gpu_mem_tmp_ = memory::alloc_unique<float>(AllocType::GPU, tmpW * tmpH * channels);
-    gpu_mem_out_ = memory::alloc_unique<uint8_t>(AllocType::GPU, outW * outH * channels);
+    gpu_mem_in_ = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(W * H * channels);
+    gpu_mem_tmp_ = mm::alloc_raw_unique<float, mm::memory_kind::device>(tmpW * tmpH * channels);
+    gpu_mem_out_ = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(outW * outH * channels);
 
     img_in_  = { gpu_mem_in_.get(),  { H,    W,    channels } };
     img_tmp_ = { gpu_mem_tmp_.get(), { tmpH, tmpW, channels } };

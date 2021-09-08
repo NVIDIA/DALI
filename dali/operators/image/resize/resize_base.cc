@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -121,8 +121,8 @@ void ResizeBase<GPUBackend>::InitializeGPU(int minibatch_size, size_t temp_buffe
     minibatch_size_ = minibatch_size;
   }
   kmgr_.Resize(1, 0);
-  kmgr_.SetMemoryHint(kernels::AllocType::GPU, temp_buffer_hint);
-  kmgr_.GetScratchpadAllocator(0).Reserve(kernels::AllocType::GPU, temp_buffer_hint);
+  kmgr_.SetMemoryHint<mm::memory_kind::device>(temp_buffer_hint);
+  kmgr_.GetScratchpadAllocator(0).Reserve<mm::memory_kind::device>(temp_buffer_hint);
 }
 
 template <typename Backend>

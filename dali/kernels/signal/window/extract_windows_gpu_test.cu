@@ -142,9 +142,9 @@ void TestBatchedExtract(
   ctx.scratchpad = &scratchpad;
 
   TestTensorList<float, 2> out;
-  memory::KernelUniquePtr<float> gpu_win;
+  mm::uptr<float> gpu_win;
   if (!window.empty()) {
-    gpu_win = memory::alloc_unique<float>(AllocType::GPU, window.size());
+    gpu_win = mm::alloc_raw_unique<float, mm::memory_kind::device>(window.size());
     CUDA_CALL(
       cudaMemcpy(gpu_win.get(), window.data(), sizeof(float)*window.size(),
                  cudaMemcpyHostToDevice));

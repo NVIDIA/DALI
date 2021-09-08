@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ TEST_P(ToDecibelsGpuTest, ToDecibelsGpuTest) {
   auto in_view_cpu = in_.cpu();
 
   std::vector<T> max_values(batch_size, 0.0);
-  memory::KernelUniquePtr<T> max_values_gpu;
+  mm::uptr<T> max_values_gpu;
   InListGPU<T, 0> max_values_arg;
   if (args.ref_max) {
     for (int b = 0; b < batch_size; ++b) {
@@ -102,7 +102,7 @@ TEST_P(ToDecibelsGpuTest, ToDecibelsGpuTest) {
         max_val = std::max(max_val, sample_data[idx]);
       }
     }
-    max_values_gpu = memory::alloc_unique<T>(AllocType::GPU, batch_size);
+    max_values_gpu = mm::alloc_raw_unique<T, mm::memory_kind::device>(batch_size);
     CUDA_CALL(cudaMemcpy(max_values_gpu.get(), max_values.data(), batch_size * sizeof(T),
                          cudaMemcpyHostToDevice));
     max_values_arg = {max_values_gpu.get(),
