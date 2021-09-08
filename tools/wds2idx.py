@@ -17,7 +17,6 @@
 # under the License.
 
 import os
-import sys
 import time
 import argparse
 import subprocess
@@ -113,7 +112,6 @@ class IndexCreator:
 
         # Aggregate extensions in samples
         data = []
-        last_skipped = 0
         last_basename = None
         for blocks_line, types_sizes_line in tar_data:
             if counter % report_step == 0:
