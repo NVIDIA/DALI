@@ -127,7 +127,6 @@ def test_wide_sample():
     equivalent_files = list(
         sorted(glob(extract_dir.name + "/*"))
     )
-    print(equivalent_files)
 
     num_components = 1000
     compare_pipelines(

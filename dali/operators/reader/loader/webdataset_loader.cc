@@ -100,7 +100,6 @@ inline std::vector<SampleConfig> ParseConfig(MissingExtBehavior missing_componen
         })) {
       switch (missing_component_behavior) {
         case MissingExtBehavior::Skip:
-          // std::cerr << "Discarding the sample number " << sample_index << std::endl;
           discard = true;
           break;
         case MissingExtBehavior::Raise:
@@ -274,12 +273,6 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
   auto& current_sample = wds_shards_metadata_[current_wds_shard_index_][current_sample_index_];
   current_wds_shard.SeekArchive(current_sample.start_offset);
 
-  // std::cerr << "Started reading sample with the following config: start_offset = "
-  //           << current_sample.start_offset << " end_offset = " << current_sample.end_offset
-  //           << " current_wds_shard position = " << current_wds_shard.TellArchive()
-  //           << " current_wds_shard EndOfArchive " << current_wds_shard.EndOfArchive() <<
-  //           std::endl;
-
   vector<char> sample_was_set(sample.size(), false);
   while (current_wds_shard.TellArchive() < current_sample.end_offset) {
     DALI_ENFORCE(!current_wds_shard.EndOfArchive(),
@@ -288,7 +281,6 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
                      std::to_string(current_wds_shard.TellArchive()) +
                      " and the sample is supposed to end at " +
                      std::to_string(current_sample.end_offset) + ")");
-    // std::cerr << "Reading a file with a name " << current_wds_shard.GetFileName() << std::endl;
     // Check in case of encountering a tar entry that is not a file
     if (current_wds_shard.GetFileType() != detail::TarArchive::ENTRY_FILE) {
       current_wds_shard.NextFile();
@@ -345,12 +337,6 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
     current_wds_shard_index_++;
     current_sample_index_ = 0;
   }
-
-  // std::cerr << "ReadSample Tensor types: ";
-  // for (auto& t : sample) {
-  //   std::cerr << t.type().id() << ' ';
-  // }
-  // std::cerr << std::endl;
 }
 
 Index WebdatasetLoader::SizeImpl() {
