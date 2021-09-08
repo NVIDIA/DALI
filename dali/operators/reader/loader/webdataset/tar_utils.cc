@@ -13,11 +13,10 @@
 // limitations under the License.
 
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
-#include <libtar.h>
-#include <cstring>
 #include <algorithm>
 #include <cstdarg>
 #include <cstdlib>
+#include <cstring>
 #include <list>
 #include <string>
 #include <tuple>
@@ -31,7 +30,6 @@ namespace detail {
 
 namespace {
 
-constexpr size_t kBlockSize = T_BLOCKSIZE;
 static_assert(is_pow2(kBlockSize),
               "The implementation assumes that the block size is a power of 2");
 
@@ -96,8 +94,7 @@ static tartype_t kTarArchiveType = {LibtarOpenTarArchive, [](int) -> int { retur
                                     [](int, const void*, size_t) -> ssize_t { return 0; }};
 
 TarArchive::TarArchive(std::unique_ptr<FileStream> stream)
-    : stream_(std::move(stream)),
-      instance_handle_(Register(this)) {
+    : stream_(std::move(stream)), instance_handle_(Register(this)) {
   tar_open(ToTarHandle(&handle_), "", &kTarArchiveType, 0, instance_handle_, TAR_GNU);
   stream_->Seek(0);
   eof_ = stream_->Size() == 0;

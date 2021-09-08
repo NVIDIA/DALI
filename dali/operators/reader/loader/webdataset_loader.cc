@@ -47,6 +47,10 @@ inline SampleConfig ParseSampleConfig(std::ifstream& config, const std::string& 
   DALI_ENFORCE(config >> out.start_offset,
                make_string("Malformed index file at ", config_path,
                            " - less components than stated at the beginning of the index file"));
+
+  DALI_ENFORCE(out.start_offset % detail::kBlockSize == 0,
+               make_string("Malformed index file at ", config_path, " - offset ", out.start_offset,
+                           " not divisible by ", detail::kBlockSize));
   out.end_offset = std::numeric_limits<decltype(out.end_offset)>::max();
 
   std::string component_metadata;
@@ -65,7 +69,7 @@ inline SampleConfig ParseSampleConfig(std::ifstream& config, const std::string& 
   }
   DALI_ENFORCE(out.config_metadata.size() > 0_uz,
                make_string("Malformed index file at ", config_path,
-                             " - no extensions provided for the sample"));
+                           " - no extensions provided for the sample"));
   return out;
 }
 
@@ -79,13 +83,23 @@ inline std::vector<SampleConfig> ParseConfig(MissingExtBehavior missing_componen
   DALI_ENFORCE(sample_config_num > 0_uz,
                "Empty index file at " + config_path);  // config validity check
 
+  DALI_ENFORCE(config_size % detail::kBlockSize == 0,
+               make_string("Malformed index file at ", config_path, " - offset ", config_size,
+                           " not divisible by ", detail::kBlockSize));
+
   std::vector<SampleConfig> out;
   out.reserve(sample_config_num);
 
   for (size_t sample_index = 0; sample_index < sample_config_num; sample_index++) {
     SampleConfig new_sample = ParseSampleConfig(config, config_path);
+    DALI_ENFORCE(new_sample.start_offset < config_size,
+                 make_string("Malformed index file at ", config_path,
+                             " - reported final offset earlier than a sample start offset"));
     if (!out.empty()) {
       out.back().end_offset = std::min(out.back().end_offset, new_sample.start_offset);
+      DALI_ENFORCE(
+          out.back().start_offset < out.back().end_offset,
+          make_string("Malformed index file at ", config_path, " - sample offsets not in order"));
     }
 
     // filtering out samples without the required extensions
@@ -115,7 +129,7 @@ inline std::vector<SampleConfig> ParseConfig(MissingExtBehavior missing_componen
     out.push_back(std::move(new_sample));
   }
   if (out.size()) {
-    out.back().end_offset = std::min(out.back().end_offset, config_size);
+    out.back().end_offset = config_size;
   }
   return out;
 }
@@ -276,11 +290,11 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
   vector<char> sample_was_set(sample.size(), false);
   while (current_wds_shard.TellArchive() < current_sample.end_offset) {
     DALI_ENFORCE(!current_wds_shard.EndOfArchive(),
-                 "Index file at " + configs_[current_wds_shard_index_] +
-                     " reporting a file longer than actual (archive reached an offset " +
-                     std::to_string(current_wds_shard.TellArchive()) +
-                     " and the sample is supposed to end at " +
-                     std::to_string(current_sample.end_offset) + ")");
+                 make_string("Index file at ", configs_[current_wds_shard_index_],
+                             " reporting a file longer than actual (archive reached an offset ",
+                             std::to_string(current_wds_shard.TellArchive()),
+                             " and the sample is supposed to end at ",
+                             std::to_string(current_sample.end_offset), ")"));
     // Check in case of encountering a tar entry that is not a file
     if (current_wds_shard.GetFileType() != detail::TarArchive::ENTRY_FILE) {
       current_wds_shard.NextFile();
@@ -323,12 +337,18 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
   }
 
   // setting empty components:
+  int not_set_count = 0;
   for (size_t component_index = 0; component_index < sample.size(); component_index++) {
     if (!sample_was_set[component_index]) {
+      not_set_count++;
       sample[component_index].Reset();
       sample[component_index].set_type(TypeTable::GetTypeInfo(dtypes_[component_index]));
       sample[component_index].Resize({0});
     }
+  }
+  if (not_set_count && missing_component_behavior_ != detail::wds::MissingExtBehavior::Empty) {
+    DALI_FAIL(make_string("Index file at ", configs_[current_wds_shard_index_],
+                          " reporting different extensions in a sample to the actual ones"));
   }
 
   current_sample_index_++;

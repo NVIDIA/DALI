@@ -21,7 +21,7 @@ def webdataset_raw_pipeline(
     uris,
     configs,
     ext,
-    missing_component_behavior="fillempty",
+    missing_component_behavior="empty",
     dtypes=None,
     dont_use_mmap=False,
     num_shards=1,

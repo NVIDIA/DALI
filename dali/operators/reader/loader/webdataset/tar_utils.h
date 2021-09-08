@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_READER_LOADER_WEBDATASET_TAR_UTILS_H_
 #define DALI_OPERATORS_READER_LOADER_WEBDATASET_TAR_UTILS_H_
 
+#include <libtar.h>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -24,6 +25,8 @@
 
 namespace dali {
 namespace detail {
+constexpr size_t kBlockSize = T_BLOCKSIZE;
+
 /**
  * @brief Used to access .tar archives through the given FileStream
  */
@@ -105,7 +108,7 @@ class DLL_PUBLIC TarArchive {
 
   /**
    * @brief Frees the filestream and prepeares the archive for later usage
-   * 
+   *
    */
   void Close();
 

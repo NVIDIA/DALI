@@ -146,7 +146,7 @@ def test_return_empty():
             tar_file_path,
             index_file.name,
             ["jpg", "txt"],
-            missing_component_behavior="fillempty",
+            missing_component_behavior="empty",
             batch_size=test_batch_size,
             device_id=0,
             num_threads=1,
