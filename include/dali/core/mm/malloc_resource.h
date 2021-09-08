@@ -101,7 +101,7 @@ class pinned_malloc_memory_resource : public pinned_async_resource {
   void *do_allocate(size_t bytes, size_t alignment) override {
     if (bytes == 0)
       return nullptr;
-    if (kGuaranteedAlignment < 256)
+    if (alignment <= kGuaranteedAlignment)
       alignment = 1;  // cudaMallocHost guarantees suffcient alignment - avoid overhead
 
     return detail::aligned_alloc([](size_t size) {
@@ -113,7 +113,7 @@ class pinned_malloc_memory_resource : public pinned_async_resource {
 
   void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
     if (ptr) {
-      if (kGuaranteedAlignment < 256)
+      if (alignment <= kGuaranteedAlignment)
         alignment = 1;  // cudaMallocHost guarantees suffcient alignment - avoid overhead
       detail::aligned_dealloc([](void *ptr, size_t) {
         CUDA_DTOR_CALL(cudaFreeHost(ptr));
@@ -149,7 +149,7 @@ class managed_malloc_memory_resource : public managed_async_resource {
   void *do_allocate(size_t bytes, size_t alignment) override {
     if (bytes == 0)
       return nullptr;
-    if (kGuaranteedAlignment < 256)
+    if (alignment <= kGuaranteedAlignment)
       alignment = 1;  // cudaMallocManaged guarantees suffcient alignment - avoid overhead
 
     return detail::aligned_alloc([](size_t size) {
@@ -161,7 +161,7 @@ class managed_malloc_memory_resource : public managed_async_resource {
 
   void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
     if (ptr) {
-      if (kGuaranteedAlignment < 256)
+      if (alignment <= kGuaranteedAlignment)
         alignment = 1;  // cudaMallocManaged guarantees suffcient alignment - avoid overhead
       detail::aligned_dealloc([](void *ptr, size_t) {
         CUDA_DTOR_CALL(cudaFree(ptr));
