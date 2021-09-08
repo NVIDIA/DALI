@@ -26,19 +26,16 @@ namespace dali {
 namespace detail {
 namespace wds {
 
-inline MissingExtBehavior Str2MissingExt(std::string missing_component_behavior) {
-  std::remove(missing_component_behavior.begin(), missing_component_behavior.end(), '_');
+inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_behavior) {
   std::transform(missing_component_behavior.begin(), missing_component_behavior.end(),
                  missing_component_behavior.begin(), static_cast<int (*)(int)>(std::tolower));
   if (missing_component_behavior == "") {
     return MissingExtBehavior::Empty;
   } else if (missing_component_behavior == "skip") {
     return MissingExtBehavior::Skip;
-  } else if (missing_component_behavior == "fillempty") {
+  } else if (missing_component_behavior == "empty") {
     return MissingExtBehavior::Empty;
-  } else if (missing_component_behavior == "raise") {
-    return MissingExtBehavior::Raise;
-  } else if (missing_component_behavior == "raiseerror") {
+  } else if (missing_component_behavior == "error") {
     return MissingExtBehavior::Raise;
   } else {
     return MissingExtBehavior::Invalid;
@@ -47,25 +44,28 @@ inline MissingExtBehavior Str2MissingExt(std::string missing_component_behavior)
 
 inline SampleConfig ParseSampleConfig(std::ifstream& config, const std::string& config_path) {
   SampleConfig out;
-  config >> out.start_offset;
+  DALI_ENFORCE(config >> out.start_offset,
+               make_string("Malformed index file at ", config_path,
+                           " - less components than stated at the beginning of the index file"));
   out.end_offset = std::numeric_limits<decltype(out.end_offset)>::max();
 
   std::string component_metadata;
   std::getline(config, component_metadata);
-  component_metadata += ' ';
 
   std::stringstream extensions_stream(component_metadata);
   std::string extension;
   int64_t size;
 
-  while (extensions_stream >> extension >> size) {
-    DALI_ENFORCE(size >= 0 && !extension.empty(),
-                 "Malformed index file at " + config_path);  // config validity check
+  while (extensions_stream >> extension) {
+    DALI_ENFORCE(extensions_stream >> size,
+                 make_string("Malformed index file at ", config_path,
+                             " - size corresponding to the extension '", extension, "' not found"));
     out.config_metadata.push_back(ComponentConfig(std::move(extension), size));
     size = 0;
   }
   DALI_ENFORCE(out.config_metadata.size() > 0_uz,
-               "Malformed index file at " + config_path);  // config validity check
+               make_string("Malformed index file at ", config_path,
+                             " - no extensions provided for the sample"));
   return out;
 }
 
@@ -138,7 +138,7 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     : Loader(spec),
       uris_(spec.GetRepeatedArgument<std::string>("uris")),
       configs_(spec.GetRepeatedArgument<std::string>("configs")),
-      missing_component_behavior_(detail::wds::Str2MissingExt(
+      missing_component_behavior_(detail::wds::ParseMissingExtBehavior(
           spec.GetArgument<std::string>("missing_component_behavior"))) {
   DALI_ENFORCE(uris_.size() == configs_.size(),
                "Number of uris does not match the number of config files");

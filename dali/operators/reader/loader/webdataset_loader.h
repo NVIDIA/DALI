@@ -41,7 +41,7 @@ enum class MissingExtBehavior {
   Raise,
   Invalid
 };
-MissingExtBehavior Str2MissingExt(std::string);
+MissingExtBehavior ParseMissingExtBehavior(std::string);
 
 struct ComponentConfig {
   std::string ext;
