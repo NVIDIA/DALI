@@ -54,7 +54,7 @@ def webdataset_raw_pipeline(
 def filter_ext(files, exts):
     if type(exts) == str:
         exts = {exts}
-    return list(filter(lambda s: any(map(lambda ext: s.endswith(ext), exts)), files))
+    return list(filter(lambda s: any(map(lambda ext: s.endswith("." + ext), exts)), files))
 
 
 @pipeline_def()
