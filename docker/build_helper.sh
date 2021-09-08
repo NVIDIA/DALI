@@ -95,37 +95,26 @@ if [ "${WERROR}" = "ON" ]; then
 fi
 make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
 
+
+bundle_wheel() {
+    INPUT=$1
+    STRIP=$2
+    OUT_WHL_NAME=$3
+    BUNDLE_PATH_PREFIX=$4
+    ../dali/python/bundle-wheel.sh ${INPUT} ${STRIP} ${OUT_WHL_NAME} "${BUNDLE_PATH_PREFIX}"
+}
+
+
 if [ "${BUILD_PYTHON}" = "ON" ]; then
     pip wheel -v dali/python \
         --build-option --python-tag=py3-none \
         --build-option --plat-name=${WHL_PLATFORM_NAME} \
         --build-option --build-number=${NVIDIA_BUILD_ID}
 
-    ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl "${BUNDLE_PATH_PREFIX}"
-
-    if [ "${TEST_BUNDLED_LIBS}" = "YES" ]; then
-        export UNZIP_PATH="$(mktemp -d)"
-        unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH
-        python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ')
-        rm -rf $UNZIP_PATH
-    fi
+    OUT_WHL_NAME=$(echo nvidia_dali[_-]*.whl)
+    OUT_DEBUG_WHL_NAME=${OUT_WHL_NAME%.*}_debug.whl
 
     if [ "${STRIP_BINARY}" = "ON" ]; then
-        # rename unstriped wheel to debug
-        WHEEL=$(ls /wheelhouse/nvidia_dali*.whl)
-        mv $WHEEL ${WHEEL%.*}_debug.whl
-
-        WHEEL=$(pwd)/$(ls nvidia_dali[_-]*.whl)
-        export UNZIP_PATH="$(mktemp -d)"
-        unzip $WHEEL -d $UNZIP_PATH
-        for f in $(find $UNZIP_PATH -iname *.so); do
-            strip --strip-debug $f
-        done
-        rm -f $WHEEL
-        pushd $UNZIP_PATH
-        zip -rq $WHEEL *
-        popd
-        rm -rf $UNZIP_PATH
         # rerun all things involving patchelf on striped binary
         # we cannot strip after patchelf as according to the documentation
         ###
@@ -134,7 +123,18 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
         ### `--set-interpreter' with a larger path than the original is used).
         ### This appears to be a bug in binutils
         ### (http://bugs.strategoxt.org/browse/NIXPKGS-85).
+        bundle_wheel nvidia_dali[_-]*.whl NO ${OUT_DEBUG_WHL_NAME} "${BUNDLE_PATH_PREFIX}" &
+        bundle_wheel nvidia_dali[_-]*.whl YES ${OUT_WHL_NAME} "${BUNDLE_PATH_PREFIX}" &
+        wait
+    else
+        bundle_wheel nvidia_dali[_-]*.whl NO ${OUT_WHL_NAME} "${BUNDLE_PATH_PREFIX}" &
+        wait
+    fi
 
-        ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl  ${BUNDLE_PATH_PREFIX}
+    if [ "${TEST_BUNDLED_LIBS}" = "YES" ]; then
+        export UNZIP_PATH="$(mktemp -d)"
+        unzip /wheelhouse/$(ls -I '*_debug.whl' /wheelhouse/) -d $UNZIP_PATH
+        python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ')
+        rm -rf $UNZIP_PATH
     fi
 fi

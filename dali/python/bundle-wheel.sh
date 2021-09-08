@@ -1,6 +1,6 @@
 #!/bin/bash -e
 #
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,10 +44,11 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 INWHL=$(readlink -e $1)
-DEPS_PATH=${2:-/usr/local}
+STRIP_DEBUG=${2:-NO}
+OUTWHLNAME=${3:-$(basename $INWHL)}
+DEPS_PATH=${4:-/usr/local}
 OUTDIR=/wheelhouse
 
-OUTWHLNAME=$(basename $INWHL)
 # For some reason the pip wheel builder inserts "-none-" into the tag even if you gave it an ABI name
 OUTWHLNAME=${OUTWHLNAME//-none-/-}
 
@@ -115,6 +116,19 @@ pushd $TMPDIR
 unzip -q $INWHL
 mkdir -p $PKGNAME_PATH/.libs
 popd
+
+stip_so () {
+    local filepath=$1
+    strip --strip-debug $filepath
+}
+
+if [[ "$STRIP_DEBUG" != "NO" ]]; then
+    echo "Striping .so files from debug info"
+    for f in $(find $TMPDIR -iname *.so); do
+        stip_so $f &
+    done
+    wait
+fi
 
 # copy over needed dependent .so files over and tag them with their hash
 original=()
