@@ -65,7 +65,7 @@ void FillTensorList(
                                                      opaque(ConvertSat<Dst>(src[0])));
   } else {
     SmallVector<Dst, 64> tmp;
-    assert(src.size() == sample_size);
+    assert(static_cast<int>(src.size()) == sample_size);
     tmp.resize(src.size());
     for (size_t i = 0; i < tmp.size(); i++)
       tmp[i] = ConvertSat<Dst>(src[i]);

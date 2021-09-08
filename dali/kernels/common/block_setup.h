@@ -111,6 +111,9 @@ class BlockSetup {
     for (int i = 0; i < ndim && i < 2; i++)
       block_size[i] = 256;
     SetDefaultBlockSize(block_size);
+    if (ndim == 1) {
+      block_dim_ = {256, 1, 1};
+    }
   }
 
   BlockSetup() : BlockSetup(4) {}
