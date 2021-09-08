@@ -44,12 +44,41 @@ struct kind2backend<mm::memory_kind::managed> {
 
 template <typename DstBackend, typename SrcBackend>
 inline void CopyToExternalImpl(void* dst,
-                               const Buffer<SrcBackend> &src,
+                               const Tensor<SrcBackend> &src,
                                cudaStream_t stream, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
   const auto &type_info = src.type();
   type_info.template Copy<DstBackend, SrcBackend>(dst, src.raw_data(), src.size(), stream,
                                                   use_copy_kernel);
+}
+
+template <typename DstBackend, typename SrcBackend>
+inline void CopyToExternalImpl(void* dst,
+                               const TensorList<SrcBackend> &src,
+                               cudaStream_t stream, bool use_copy_kernel) {
+  DeviceGuard d(src.device_id());
+  const auto &type_info = src.type();
+
+  auto src_shape = src.shape();
+
+  auto *dst_buf = static_cast<uint8_t *>(dst);
+
+  SmallVector<void *, 256> to;
+  SmallVector<const void *, 256> from;
+  SmallVector<int64_t, 256> sizes;
+  int nsamples = src_shape.size();
+  sizes.reserve(nsamples);
+  to.reserve(nsamples);
+  from.reserve(nsamples);
+  for (int i = 0; i < nsamples; i++) {
+    sizes.push_back(src_shape.tensor_size(i));
+    to.push_back(dst_buf);
+    dst_buf += sizes[i] * type_info.size();
+    from.push_back(src.raw_tensor(i));
+  }
+
+  type_info.template Copy<DstBackend, SrcBackend>(to.data(), from.data(), sizes.data(),
+                                                  nsamples, stream, use_copy_kernel);
 }
 
 template <typename DstBackend, typename SrcBackend>
@@ -71,28 +100,33 @@ inline void CopyToExternalImpl(void** dsts,
   }
   int samples_to_copy = sizes.size();
 
-  if (samples_to_copy < nsamples) {
-    SmallVector<const void *, 256> from;
-    from.reserve(samples_to_copy);
-    SmallVector<void *, 256> to;
-    to.reserve(samples_to_copy);
-    for (int i = 0; i < nsamples; i++) {
-      if (dsts[i] == nullptr)
-        continue;
-      from.push_back(src.raw_tensor(i));
-      to.push_back(dsts[i]);
-    }
-
-    type_info.template Copy<DstBackend, SrcBackend>(to.data(), from.data(), sizes.data(),
-                                                    samples_to_copy, stream, use_copy_kernel);
-  } else {
-    type_info.template Copy<DstBackend, SrcBackend>(dsts, src.raw_data(), sizes.data(), nsamples,
-                                                    stream, use_copy_kernel);
+  SmallVector<const void *, 256> from;
+  from.reserve(samples_to_copy);
+  SmallVector<void *, 256> to;
+  to.reserve(samples_to_copy);
+  for (int i = 0; i < nsamples; i++) {
+    if (dsts[i] == nullptr)
+      continue;
+    from.push_back(src.raw_tensor(i));
+    to.push_back(dsts[i]);
   }
+
+  type_info.template Copy<DstBackend, SrcBackend>(to.data(), from.data(), sizes.data(),
+                                                  samples_to_copy, stream, use_copy_kernel);
 }
 
 template <typename DstKind, typename SrcBackend>
-inline void CopyToExternal(void* dst, const Buffer<SrcBackend> &src,
+inline void CopyToExternal(void* dst, const Tensor<SrcBackend> &src,
+                           cudaStream_t stream, bool use_copy_kernel) {
+  bool src_device_access = (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
+  bool dst_device_access = cuda::kind_has_property<DstKind, cuda::memory_access::device>::value;
+  use_copy_kernel &= dst_device_access && src_device_access;
+  using DstBackend = typename detail::kind2backend<DstKind>::type;
+  CopyToExternalImpl<DstBackend, SrcBackend>(dst, src, stream, use_copy_kernel);
+}
+
+template <typename DstKind, typename SrcBackend>
+inline void CopyToExternal(void* dst, const TensorList<SrcBackend> &src,
                            cudaStream_t stream, bool use_copy_kernel) {
   bool src_device_access = (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
   bool dst_device_access = cuda::kind_has_property<DstKind, cuda::memory_access::device>::value;
@@ -105,7 +139,21 @@ inline void CopyToExternal(void* dst, const Buffer<SrcBackend> &src,
  * @brief Run-time dispatch - DO NOT USE unless really necessary
  */
 template <typename SrcBackend>
-inline void CopyToExternal(void* dst, mm::memory_kind_id kind_id, const Buffer<SrcBackend> &src,
+inline void CopyToExternal(void* dst, mm::memory_kind_id kind_id, const Tensor<SrcBackend> &src,
+                           cudaStream_t stream, bool use_copy_kernel) {
+  TYPE_SWITCH(kind_id, mm::kind2id, Kind, (mm::memory_kind::host,
+                                           mm::memory_kind::pinned,
+                                           mm::memory_kind::device,
+                                           mm::memory_kind::managed),
+    (CopyToExternal<Kind, SrcBackend>(dst, src, stream, use_copy_kernel)),
+    (throw std::logic_error("Unreachable code - invalid memory kind.")));
+}
+
+/**
+ * @brief Run-time dispatch - DO NOT USE unless really necessary
+ */
+template <typename SrcBackend>
+inline void CopyToExternal(void* dst, mm::memory_kind_id kind_id, const TensorList<SrcBackend> &src,
                            cudaStream_t stream, bool use_copy_kernel) {
   TYPE_SWITCH(kind_id, mm::kind2id, Kind, (mm::memory_kind::host,
                                            mm::memory_kind::pinned,
