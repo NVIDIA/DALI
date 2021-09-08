@@ -603,6 +603,32 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   std::list<Tensor<Backend> > tensor_views_;
 
   USE_BUFFER_MEMBERS();
+
+
+
+ private:
+  template <typename T>
+  // [[deprecated]]
+  inline T* mutable_data() {
+    return Buffer<Backend>::template mutable_data<T>();
+  }
+
+  template <typename T>
+  // [[deprecated]]
+  inline const T* data() const {
+    return Buffer<Backend>::template data<T>();
+  }
+
+  // [[deprecated]]
+  inline void* raw_mutable_data() {
+    return Buffer<Backend>::raw_mutable_data();
+  }
+
+  // [[deprecated]]
+  inline const void* raw_data() const {
+    return Buffer<Backend>::raw_data();
+  }
+
 };
 
 }  // namespace dali
