@@ -353,7 +353,7 @@ TYPED_TEST(TensorTest, TestShareData) {
   TensorList<TypeParam> tl;
   auto shape = this->GetRandShapeList();
   tl.Resize(shape);
-  tl.template mutable_data<float>();
+  tl.set_type(TypeInfo::Create<float>());
 
   // Create a tensor and wrap each tensor from the list
   Tensor<TypeParam> tensor;
@@ -399,7 +399,7 @@ TYPED_TEST(TensorTest, TestCopyEmptyToTensorList) {
   TensorVector<TypeParam> tensors(16);
   // Empty tensors
   TensorList<TypeParam> tl;
-  tl.template mutable_data<float>();
+  tl.set_type(TypeInfo::Create<float>());
   tl.Copy(tensors, 0);
 
   Tensor<TypeParam> tensor;

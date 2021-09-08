@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -195,7 +195,7 @@ class TensorVectorVariableBatchSizeTest : public ::testing::Test {
     test_tv_.Resize(shape_);
     test_tv_.set_type(TypeInfo::Create<float>());
     for (int i = 0; i < shape_.num_samples(); i++) {
-      UniformRandomFill(view_as_tensor<float>(test_tv_[i]), rng_, 0.f, 1.f);
+      UniformRandomFill(view<float>(test_tv_[i]), rng_, 0.f, 1.f);
     }
   }
 

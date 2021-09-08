@@ -561,8 +561,11 @@ void TestRunExternalSource(Pipeline &pipe, const std::string &name,
   TensorListShape<> input_shape =  uniform_list_shape(10, {42, 42, 3});
   TensorList<CPUBackend> input_cpu;
   input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
-  for (int64_t i = 0; i < input_shape.num_elements(); i++) {
-    input_cpu.mutable_data<uint8_t>()[i] = i % 255;
+  int64_t counter = 0;
+  for (int sample_idx = 0; sample_idx < input_shape.num_samples(); sample_idx++) {
+    for (int64_t i = 0; i < input_shape[sample_idx].num_elements(); i++, counter++) {
+      input_cpu.mutable_tensor<uint8_t>(sample_idx)[i] = counter % 255;
+    }
   }
   DeviceWorkspace ws;
   if (dev == "cpu") {
@@ -587,9 +590,11 @@ void TestRunExternalSource(Pipeline &pipe, const std::string &name,
   }
   ASSERT_EQ(input_cpu.shape(), output_cpu.shape());
   ASSERT_EQ(input_cpu.type(), output_cpu.type());
-  ASSERT_EQ(
-      memcmp(input_cpu.data<uint8_t>(), output_cpu.data<uint8_t>(), input_shape.num_elements()),
-      0);
+  for (int sample_idx = 0; sample_idx < input_shape.num_samples(); sample_idx++) {
+    ASSERT_EQ(memcmp(input_cpu.tensor<uint8_t>(sample_idx), output_cpu.tensor<uint8_t>(sample_idx),
+                     input_shape[sample_idx].num_elements()),
+              0);
+  }
 }
 
 
