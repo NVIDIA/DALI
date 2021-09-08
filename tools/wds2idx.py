@@ -82,6 +82,8 @@ class IndexCreator:
         report_step = 100000
 
         print(f"time: {time.time() - pre_time:.2f} count: {counter} stage: collect")
+
+        # Collects the data about the contents of the tar archive
         tar_blocks_proc = subprocess.Popen(
             ["tar", "--list", "--block-num", "--file", self.uri],
             stdout=subprocess.PIPE,
@@ -110,7 +112,7 @@ class IndexCreator:
         tar_data = zip(tar_blocks, tar_types_sizes)
         tar_data = filter(lambda line: not not line[0] and not not line[1], tar_data)
 
-        # Aggregate extensions in samples
+        # Aggregates extensions in samples
         data = []
         last_basename = None
         for blocks_line, types_sizes_line in tar_data:
@@ -142,7 +144,7 @@ class IndexCreator:
         if not data:
             raise ValueError("Webdataset Tar File empty")
 
-        # Then construct the index file out of it
+        # Constructs the index file out of the aggregated extensions
         self.fidx.write(f"{total_size} {len(data)}\n")
         for offset, extensions_sizes in data:
             if counter % report_step == 0:
@@ -162,7 +164,7 @@ class IndexCreator:
 def parse_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description="Create an index file from .tar file",
+        description="Creates a webdataset index file for the use with the fn.readers.webdataset from DALI.",
     )
     parser.add_argument("archive", help="path to .tar file.")
     parser.add_argument("index", help="path to index file.")
