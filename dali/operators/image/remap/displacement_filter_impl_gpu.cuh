@@ -65,7 +65,7 @@ struct PrepareParam {
 template <class Displacement>
 struct PrepareParam<Displacement, true> {
   __device__ __host__ inline void operator()(Displacement &displace, const void *raw_params) {
-    const auto *const params = reinterpret_cast<const typename Displacement::Param *>(raw_params);
+    const auto *const params = static_cast<const typename Displacement::Param *>(raw_params);
     displace.param = *params;
   }
 };
@@ -77,8 +77,8 @@ __global__ void DisplacementKernel(const DisplacementSampleDesc *samples,
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
 
-  auto *image_out = reinterpret_cast<T *>(sample.output);
-  const auto *image_in = reinterpret_cast<const T *>(sample.input);
+  auto *image_out = static_cast<T *>(sample.output);
+  const auto *image_in = static_cast<const T *>(sample.input);
 
   const int H = sample.shape[0];
   const int W = sample.shape[1];
@@ -92,6 +92,12 @@ __global__ void DisplacementKernel(const DisplacementSampleDesc *samples,
   auto end = block.end.x;
   for (int64_t out_idx = threadIdx.x + start; out_idx < end; out_idx += blockDim.x) {
     if (m) {
+      // int64_t idx = out_idx;
+      // const int c = idx % C;
+      // idx /= C;
+      // const int w = idx % W;
+      // idx /= W;
+      // const int h = idx;
       const int c = out_idx % C;
       const int w = (out_idx / C) % W;
       const int h = (out_idx / W / C);
@@ -222,7 +228,7 @@ class DisplacementFilter<GPUBackend, Displacement,
       interp_type_(spec.GetArgument<DALIInterpType>("interp_type")),
       flat_block_setup_(32),
       channel_block_setup_(32) {
-    channel_block_setup_.SetDefaultBlockSize({kAlignedBlockDim});
+    channel_block_setup_.SetBlockDim(ivec3{kAlignedBlockDim, 1, 1});
     has_mask_ = spec.HasTensorArgument("mask");
     DALI_ENFORCE(interp_type_ == DALI_INTERP_NN || interp_type_ == DALI_INTERP_LINEAR,
         "Unsupported interpolation type, only NN and LINEAR are supported for this operation");
@@ -317,7 +323,6 @@ class DisplacementFilter<GPUBackend, Displacement,
     auto stream = ws.stream();
 
     const auto num_samples = shape.num_samples();
-    // const int pitch = nDims + 1;  // shape and offset
     samples_.resize(num_samples);
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       auto &sample = samples_[sample_idx];
@@ -399,6 +404,9 @@ class DisplacementFilter<GPUBackend, Displacement,
         <<<grid_dim, block_dim, 0, stream>>>(samples_dev_.data(), blocks_dev_.data(), fill_value_,
                                              displace_);
   }
+  Displacement displace_;
+  DALIInterpType interp_type_;
+  float fill_value_;
 
   // In theory this should be a proper BlockSetup<2, 2> with 2 data dims and channels at the end,
   // but we are keeping the flat addressing for baseline and the flattened variant with channels for
@@ -414,10 +422,6 @@ class DisplacementFilter<GPUBackend, Displacement,
 
   DeviceBuffer<kernels::BlockDesc<1>> blocks_dev_;
   DeviceBuffer<DisplacementSampleDesc> samples_dev_;
-
-  Displacement displace_;
-  DALIInterpType interp_type_;
-  float fill_value_;
 
   Tensor<CPUBackend> meta_cpu_;
   Tensor<GPUBackend> meta_gpu_;
