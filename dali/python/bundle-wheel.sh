@@ -119,7 +119,7 @@ unzip -q $INWHL
 mkdir -p $PKGNAME_PATH/.libs
 popd
 
-stip_so () {
+strip_so () {
     local filepath=$1
     strip --strip-debug $filepath
 }
@@ -127,12 +127,12 @@ stip_so () {
 if [[ "$STRIP_DEBUG" != "NO" ]]; then
     echo "Striping .so files from debug info"
     for f in $(find $TMPDIR -iname *.so); do
-        stip_so $f &
+        strip_so $f &
     done
     wait
 fi
 
-# copy over needed dependent .so files over and tag them with their hash
+# copy needed dependent .so files and tag them with their hash
 original=()
 patched=()
 
