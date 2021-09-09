@@ -45,9 +45,11 @@
 
 INWHL=$(readlink -e $1)
 STRIP_DEBUG=${2:-NO}
-OUTWHLNAME=${3:-$(basename $INWHL)}
-DEPS_PATH=${4:-/usr/local}
+TEST_BUNDLED_LIBS=${3:-NO}
+OUTWHLNAME=${4:-$(basename $INWHL)}
+DEPS_PATH=${5:-/usr/local}
 OUTDIR=/wheelhouse
+SCRIPT_PATH=$(dirname $(readlink -f $0))
 
 # For some reason the pip wheel builder inserts "-none-" into the tag even if you gave it an ABI name
 OUTWHLNAME=${OUTWHLNAME//-none-/-}
@@ -254,10 +256,17 @@ wait
 echo "$RECORD_FILE,," >> $RECORD_FILE
 echo "Finished generating new record file $RECORD_FILE"
 
+if [[ "$TEST_BUNDLED_LIBS" != "NO" ]]; then
+    echo "Check bundled libs..."
+    python ${SCRIPT_PATH}/../../tools/test_bundled_libs.py $(find ./ -iname *.so* | tr '\n' ' ')
+fi
+
 # zip up the new wheel into the wheelhouse
+echo "Compressing wheel..."
 mkdir -p $OUTDIR
 rm -f $OUTDIR/$OUTWHLNAME
 zip -rq $OUTDIR/$OUTWHLNAME *
+echo "Finished compressing wheel"
 
 # clean up
 popd
