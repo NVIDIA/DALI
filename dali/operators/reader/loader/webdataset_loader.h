@@ -16,15 +16,16 @@
 #define DALI_OPERATORS_READER_LOADER_WEBDATASET_LOADER_H_
 
 #include <fstream>
+#include <memory>
 #include <set>
 #include <string>
 #include <unordered_map>
-#include <vector>
 #include <utility>
-#include <memory>
+#include <vector>
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/core/bitmask.h"
 
 namespace dali {
 namespace detail {
@@ -43,25 +44,17 @@ enum class MissingExtBehavior {
 };
 MissingExtBehavior ParseMissingExtBehavior(std::string);
 
-struct ComponentConfig {
+struct ComponentDesc {
   std::string ext;
-  int64_t size;
+  int64_t size = 0;
 
-  ComponentConfig(const std::string& new_ext, int64_t new_size) {
-    ext = new_ext;
-    size = new_size;
-  }
-
-  ComponentConfig(std::string&& new_ext, int64_t new_size) {
-    ext = std::move(new_ext);
-    size = new_size;
-  }
+  ComponentDesc(std::string new_ext, int64_t new_size) : ext(std::move(new_ext)), size(new_size) {}
 };
 
-struct SampleConfig {
+struct SampleDesc {
   int64_t start_offset;
   int64_t end_offset;
-  std::vector<ComponentConfig> config_metadata;
+  std::vector<ComponentDesc> index_file_metadata;
 };
 
 }  // namespace wds
@@ -81,7 +74,7 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   void Reset(bool wrap_to_shard) override;
 
   std::vector<std::string> uris_;
-  std::vector<std::string> configs_;
+  std::vector<std::string> index_paths_;
   std::vector<std::set<std::string>> ext_;
   std::unordered_map<std::string, std::vector<size_t>>
       ext_map_;  // maps an extension to sample indicies
@@ -89,20 +82,20 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   std::vector<DALIDataType> dtypes_;
 
  private:
-  void SetDataPointer(std::vector<Tensor<CPUBackend>>& sample, std::vector<char>& sample_was_set,
+  void SetDataPointer(std::vector<Tensor<CPUBackend>>& sample, bitmask& sample_was_set,
                       const std::string& extension, const std::string& source_info,
                       std::shared_ptr<void> data, int64_t size) const;
   uint8_t* ShareDataPointer(std::vector<Tensor<CPUBackend>>& sample,
-                            std::vector<char>& sample_was_set, const std::string& extension,
+                            bitmask& sample_was_set, const std::string& extension,
                             const std::string& source_info, int64_t size) const;
-  void MarkCached(std::vector<Tensor<CPUBackend>>& sample, std::vector<char>& sample_was_set,
+  void MarkCached(std::vector<Tensor<CPUBackend>>& sample, bitmask& sample_was_set,
                   const std::string& extension, const std::string& source_info) const;
 
-  std::vector<std::vector<detail::wds::SampleConfig>>
-      wds_shards_metadata_;  // data from the config files
+  std::vector<std::vector<detail::wds::SampleDesc>>
+      wds_shards_metadata_;  // data from the index files
 
 
-  size_t total_size_ = 0;                       // total size of all config files
+  size_t total_size_ = 0;                       // total size of all index files
   std::vector<detail::TarArchive> wds_shards_;  // archives for all wds shards
   std::vector<Index> wds_shards_prefixsums_;    // prefix sum of numbers of samples in wds shards
 

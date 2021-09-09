@@ -42,19 +42,20 @@ inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_
   }
 }
 
-inline SampleConfig ParseSampleConfig(std::ifstream& config, const std::string& config_path) {
-  SampleConfig out;
-  DALI_ENFORCE(config >> out.start_offset,
-               make_string("Malformed index file at ", config_path,
+inline SampleDesc ParseSampleDesc(std::ifstream& index_file, const std::string& index_path,
+                                  int64_t line) {
+  SampleDesc out;
+  DALI_ENFORCE(index_file >> out.start_offset,
+               make_string("Malformed index file at ", index_path, " line ", line,
                            " - less components than stated at the beginning of the index file"));
 
   DALI_ENFORCE(out.start_offset % detail::kBlockSize == 0,
-               make_string("Malformed index file at ", config_path, " - offset ", out.start_offset,
-                           " not divisible by ", detail::kBlockSize));
+               make_string("Malformed index file at ", index_path, " line ", line, " - offset ",
+                           out.start_offset, " not divisible by ", detail::kBlockSize));
   out.end_offset = std::numeric_limits<decltype(out.end_offset)>::max();
 
   std::string component_metadata;
-  std::getline(config, component_metadata);
+  std::getline(index_file, component_metadata);
 
   std::stringstream extensions_stream(component_metadata);
   std::string extension;
@@ -62,51 +63,50 @@ inline SampleConfig ParseSampleConfig(std::ifstream& config, const std::string& 
 
   while (extensions_stream >> extension) {
     DALI_ENFORCE(extensions_stream >> size,
-                 make_string("Malformed index file at ", config_path,
-                             " - size corresponding to the extension '", extension, "' not found"));
-    out.config_metadata.push_back(ComponentConfig(std::move(extension), size));
-    size = 0;
+                 make_string("Malformed index file at ", index_path, " line ", line,
+                             " - size corresponding to the extension not found"));
+    out.index_file_metadata.push_back(ComponentDesc(std::move(extension), size));
   }
-  DALI_ENFORCE(out.config_metadata.size() > 0_uz,
-               make_string("Malformed index file at ", config_path,
+  DALI_ENFORCE(out.index_file_metadata.size() > 0_uz,
+               make_string("Malformed index file at ", index_path, " line ", line,
                            " - no extensions provided for the sample"));
   return out;
 }
 
-inline std::vector<SampleConfig> ParseConfig(MissingExtBehavior missing_component_behavior,
-                                             const std::string& config_path,
-                                             std::vector<std::set<std::string>>& ext) {
-  std::ifstream config(config_path);
-  int64_t config_size;
-  size_t sample_config_num = 0;  // for config validity check
-  config >> config_size >> sample_config_num;
-  DALI_ENFORCE(sample_config_num > 0_uz,
-               "Empty index file at " + config_path);  // config validity check
+inline std::vector<SampleDesc> ParseIndexFile(MissingExtBehavior missing_component_behavior,
+                                              const std::string& index_path,
+                                              std::vector<std::set<std::string>>& ext) {
+  std::ifstream index_file(index_path);
+  int64_t index_size;
+  size_t sample_desc_num = 0;  // for index file validity check
+  index_file >> index_size >> sample_desc_num;
+  DALI_ENFORCE(sample_desc_num > 0_uz,
+               "Empty index file at " + index_path);  // index file validity check
 
-  DALI_ENFORCE(config_size % detail::kBlockSize == 0,
-               make_string("Malformed index file at ", config_path, " - offset ", config_size,
-                           " not divisible by ", detail::kBlockSize));
+  DALI_ENFORCE(index_size % detail::kBlockSize == 0,
+               make_string("Malformed index file at ", index_path, " line 0 - final offset ",
+                           index_size, " not divisible by ", detail::kBlockSize));
 
-  std::vector<SampleConfig> out;
-  out.reserve(sample_config_num);
+  std::vector<SampleDesc> out;
+  out.reserve(sample_desc_num);
 
-  for (size_t sample_index = 0; sample_index < sample_config_num; sample_index++) {
-    SampleConfig new_sample = ParseSampleConfig(config, config_path);
-    DALI_ENFORCE(new_sample.start_offset < config_size,
-                 make_string("Malformed index file at ", config_path,
-                             " - reported final offset earlier than a sample start offset"));
+  for (size_t sample_index = 0; sample_index < sample_desc_num; sample_index++) {
+    SampleDesc new_sample = ParseSampleDesc(index_file, index_path, sample_index + 1);
+    DALI_ENFORCE(new_sample.start_offset < index_size,
+                 make_string("Malformed index file at ", index_path, " line ", sample_index + 1,
+                             " - reported final offset smaller than a sample start offset"));
     if (!out.empty()) {
       out.back().end_offset = std::min(out.back().end_offset, new_sample.start_offset);
-      DALI_ENFORCE(
-          out.back().start_offset < out.back().end_offset,
-          make_string("Malformed index file at ", config_path, " - sample offsets not in order"));
+      DALI_ENFORCE(out.back().start_offset < out.back().end_offset,
+                   make_string("Malformed index file at ", index_path, " line ", sample_index + 1,
+                               " - sample offsets not in order"));
     }
 
     // filtering out samples without the required extensions
     bool discard = false;
     if (!std::all_of(ext.begin(), ext.end(), [&](std::set<std::string> extension_set) {
-          for (auto& component_config : new_sample.config_metadata) {
-            if (extension_set.count(component_config.ext)) {
+          for (auto& component_desc : new_sample.index_file_metadata) {
+            if (extension_set.count(component_desc.ext)) {
               return true;
             }
           }
@@ -117,7 +117,8 @@ inline std::vector<SampleConfig> ParseConfig(MissingExtBehavior missing_componen
           discard = true;
           break;
         case MissingExtBehavior::Raise:
-          DALI_FAIL("Underful sample detected in index file at " + config_path);
+          DALI_FAIL(make_string("Underful sample detected in index file at ", index_path, " line ",
+                                sample_index + 1));
         default:
           break;
       }
@@ -129,7 +130,7 @@ inline std::vector<SampleConfig> ParseConfig(MissingExtBehavior missing_componen
     out.push_back(std::move(new_sample));
   }
   if (out.size()) {
-    out.back().end_offset = config_size;
+    out.back().end_offset = index_size;
   }
   return out;
 }
@@ -151,19 +152,14 @@ inline std::string SupportedTypesListGen() {
 WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     : Loader(spec),
       uris_(spec.GetRepeatedArgument<std::string>("uris")),
-      configs_(spec.GetRepeatedArgument<std::string>("configs")),
+      index_paths_(spec.GetRepeatedArgument<std::string>("index_paths")),
       missing_component_behavior_(detail::wds::ParseMissingExtBehavior(
           spec.GetArgument<std::string>("missing_component_behavior"))) {
-  DALI_ENFORCE(uris_.size() == configs_.size(),
-               "Number of uris does not match the number of config files");
+  DALI_ENFORCE(uris_.size() == index_paths_.size(),
+               "Number of uris does not match the number of index files");
   DALI_ENFORCE(uris_.size() > 0, "No webdataset shards provided");
   DALI_ENFORCE(missing_component_behavior_ != detail::wds::MissingExtBehavior::Invalid,
                "Invalid value for missing_component_behavior");
-
-  for (auto& dtype : dtypes_) {
-    DALI_ENFORCE(detail::wds::kSupportedTypes.count(dtype),
-                 "Unsupported output dtype. Supported types include: " + SupportedTypesListGen());
-  }
 
   std::vector<std::string> samples_exts = spec.GetRepeatedArgument<std::string>("ext");
   ext_.reserve(samples_exts.size());
@@ -174,8 +170,8 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     std::string ext;
     ext_.emplace_back();
     while (std::getline(exts_stream, ext, detail::wds::kExtDelim)) {
-      ext_.back().insert(ext);
-      if (ext_map_[ext].empty() || ext_map_[ext].back() != exts_idx) {
+      if (!ext_.back().count(ext)) {
+        ext_.back().insert(ext);
         ext_map_[ext].push_back(exts_idx);
       }
     }
@@ -183,6 +179,10 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
 
   dtypes_ = spec.HasArgument("dtypes") ? spec.GetRepeatedArgument<DALIDataType>("dtypes") :
                                          std::vector<DALIDataType>(ext_.size(), DALI_UINT8);
+  for (auto& dtype : dtypes_) {
+    DALI_ENFORCE(detail::wds::kSupportedTypes.count(dtype),
+                 "Unsupported output dtype. Supported types include: " + SupportedTypesListGen());
+  }
   DALI_ENFORCE(ext_.size() == dtypes_.size(),
                "Number of extensions does not match the number of types");
 }
@@ -207,7 +207,7 @@ inline Index WebdatasetLoader::GetCurrentSampleIndex() const {
 }
 
 inline void WebdatasetLoader::SetDataPointer(std::vector<Tensor<CPUBackend>>& sample,
-                                             std::vector<char>& sample_was_set,
+                                             bitmask& component_was_set,
                                              const std::string& extension,
                                              const std::string& source_info,
                                              std::shared_ptr<void> data, int64_t size) const {
@@ -216,19 +216,22 @@ inline void WebdatasetLoader::SetDataPointer(std::vector<Tensor<CPUBackend>>& sa
   meta.SetSkipSample(false);
 
   for (size_t component_index : ext_map_.at(extension)) {
-    if (!sample_was_set[component_index]) {
+    if (!component_was_set[component_index]) {
       auto dtype_info = TypeTable::GetTypeInfo(dtypes_[component_index]);
       sample[component_index].SetMeta(meta);
+      DALI_ENFORCE(size % static_cast<int64_t>(dtype_info.size()) == 0,
+                   "Index file at " + index_paths_[current_wds_shard_index_] +
+                       " reporting component sizes different to actual");
       sample[component_index].ShareData(
           data, size, {size / static_cast<int64_t>(dtype_info.size())}, dtype_info);
-      sample_was_set[component_index] = true;
+      component_was_set[component_index] = true;
     }
   }
 }
 
 
 inline uint8_t* WebdatasetLoader::ShareDataPointer(std::vector<Tensor<CPUBackend>>& sample,
-                                                   std::vector<char>& sample_was_set,
+                                                   bitmask& component_was_set,
                                                    const std::string& extension,
                                                    const std::string& source_info,
                                                    int64_t size) const {
@@ -238,9 +241,12 @@ inline uint8_t* WebdatasetLoader::ShareDataPointer(std::vector<Tensor<CPUBackend
 
   uint8_t* shared_tensor_data = nullptr;
   for (size_t component_index : ext_map_.at(extension)) {
-    if (!sample_was_set[component_index]) {
+    if (!component_was_set[component_index]) {
       sample[component_index].SetMeta(meta);
       auto dtype_info = TypeTable::GetTypeInfo(dtypes_[component_index]);
+      DALI_ENFORCE(size % static_cast<int64_t>(dtype_info.size()) == 0,
+                   "Index file at " + index_paths_[current_wds_shard_index_] +
+                       " reporting component sizes different to actual");
       if (shared_tensor_data == nullptr) {
         if (sample[component_index].shares_data()) {
           sample[component_index].Reset();
@@ -250,20 +256,18 @@ inline uint8_t* WebdatasetLoader::ShareDataPointer(std::vector<Tensor<CPUBackend
                                        dtype_info);
         shared_tensor_data = reinterpret_cast<uint8_t*>(sample[component_index].raw_mutable_data());
       } else {
-        DALI_ENFORCE(size % static_cast<int64_t>(dtype_info.size()) == 0,
-                     "Index file at " + configs_[current_wds_shard_index_] +
-                         " reporting component sizes different to actual");
-        sample[component_index].ShareData(
-            shared_tensor_data, size, {size / static_cast<int64_t>(dtype_info.size())}, dtype_info);
+        sample[component_index].ShareData(shared_tensor_data, size,
+                                          {size / static_cast<int64_t>(dtype_info.size())},
+                                          dtype_info);
       }
-      sample_was_set[component_index] = true;
+      component_was_set[component_index] = true;
     }
   }
   return shared_tensor_data;
 }
 
 inline void WebdatasetLoader::MarkCached(std::vector<Tensor<CPUBackend>>& sample,
-                                         std::vector<char>& sample_was_set,
+                                         bitmask& component_was_set,
                                          const std::string& extension,
                                          const std::string& source_info) const {
   DALIMeta meta;
@@ -271,12 +275,12 @@ inline void WebdatasetLoader::MarkCached(std::vector<Tensor<CPUBackend>>& sample
   meta.SetSkipSample(true);
 
   for (size_t component_index : ext_map_.at(extension)) {
-    if (!sample_was_set[component_index]) {
+    if (!component_was_set[component_index]) {
       sample[component_index].Reset();
       sample[component_index].SetMeta(meta);
       sample[component_index].set_type(TypeTable::GetTypeInfo(dtypes_[component_index]));
       sample[component_index].Resize({0});
-      sample_was_set[component_index] = true;
+      component_was_set[component_index] = true;
     }
   }
 }
@@ -287,10 +291,11 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
   auto& current_sample = wds_shards_metadata_[current_wds_shard_index_][current_sample_index_];
   current_wds_shard.SeekArchive(current_sample.start_offset);
 
-  vector<char> sample_was_set(sample.size(), false);
+  bitmask component_was_set;
+  component_was_set.resize(sample.size(), false);
   while (current_wds_shard.TellArchive() < current_sample.end_offset) {
     DALI_ENFORCE(!current_wds_shard.EndOfArchive(),
-                 make_string("Index file at ", configs_[current_wds_shard_index_],
+                 make_string("Index file at ", index_paths_[current_wds_shard_index_],
                              " reporting a file longer than actual (archive reached an offset ",
                              std::to_string(current_wds_shard.TellArchive()),
                              " and the sample is supposed to end at ",
@@ -312,7 +317,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
     const std::string source_info = uris_[current_wds_shard_index_] + " at offset " +
                                     std::to_string(current_wds_shard.TellArchive());
     if (ShouldSkipImage(source_info)) {
-      MarkCached(sample, sample_was_set, extension, source_info);
+      MarkCached(sample, component_was_set, extension, source_info);
       continue;
     }
 
@@ -322,10 +327,10 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
     if (!copy_read_data_) {
       auto p = current_wds_shard.ReadFile();
       DALI_ENFORCE(p != nullptr, "Error reading from a file " + uris_[current_wds_shard_index_]);
-      SetDataPointer(sample, sample_was_set, extension, source_info, p, size);
+      SetDataPointer(sample, component_was_set, extension, source_info, p, size);
     } else {
       uint8_t* shared_tensor_data =
-          ShareDataPointer(sample, sample_was_set, extension, source_info, size);
+          ShareDataPointer(sample, component_was_set, extension, source_info, size);
       if (shared_tensor_data) {
         uint64_t n_read = current_wds_shard.Read(static_cast<uint8_t*>(shared_tensor_data), size);
         DALI_ENFORCE(static_cast<int64_t>(n_read) == size,
@@ -339,7 +344,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
   // setting empty components:
   int not_set_count = 0;
   for (size_t component_index = 0; component_index < sample.size(); component_index++) {
-    if (!sample_was_set[component_index]) {
+    if (!component_was_set[component_index]) {
       not_set_count++;
       sample[component_index].Reset();
       sample[component_index].set_type(TypeTable::GetTypeInfo(dtypes_[component_index]));
@@ -347,7 +352,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
     }
   }
   if (not_set_count && missing_component_behavior_ != detail::wds::MissingExtBehavior::Empty) {
-    DALI_FAIL(make_string("Index file at ", configs_[current_wds_shard_index_],
+    DALI_FAIL(make_string("Index file at ", index_paths_[current_wds_shard_index_],
                           " reporting different extensions in a sample to the actual ones"));
   }
 
@@ -370,34 +375,35 @@ void WebdatasetLoader::PrepareMetadataImpl() {
   copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
 
   // reserving the data in vector fields
-  wds_shards_metadata_.reserve(configs_.size());
+  wds_shards_metadata_.reserve(index_paths_.size());
   wds_shards_.reserve(uris_.size());
-  wds_shards_prefixsums_.reserve(configs_.size());
+  wds_shards_prefixsums_.reserve(index_paths_.size());
 
-  // collecting the config files
-  for (size_t config_index = 0; config_index < configs_.size(); config_index++) {
+  // collecting the index files
+  for (size_t index_file_index = 0; index_file_index < index_paths_.size(); index_file_index++) {
     wds_shards_metadata_.emplace_back(
-        ParseConfig(missing_component_behavior_, configs_[config_index], ext_));
+        ParseIndexFile(missing_component_behavior_, index_paths_[index_file_index], ext_));
     wds_shards_prefixsums_.push_back(total_size_);
     total_size_ += wds_shards_metadata_.back().size();
 
     // checking dtype compatibility
-    for (auto& sample_config : wds_shards_metadata_.back()) {
-      std::vector<char> was_sample_assigned(ext_.size(), 0);
-      for (auto& component_config : sample_config.config_metadata) {
-        if (!ext_map_.count(component_config.ext)) {
+    for (auto& sample_desc : wds_shards_metadata_.back()) {
+      bitmask was_component_assigned;
+      was_component_assigned.resize(ext_.size(), false);
+      for (auto& component_desc : sample_desc.index_file_metadata) {
+        if (!ext_map_.count(component_desc.ext)) {
           continue;
         }
-        for (auto& sample_index : ext_map_[component_config.ext]) {
-          if (!was_sample_assigned[sample_index]) {
+        for (auto& sample_index : ext_map_[component_desc.ext]) {
+          if (!was_component_assigned[sample_index]) {
             DALI_ENFORCE(
-                component_config.size % TypeTable::GetTypeInfo(dtypes_[sample_index]).size() == 0,
-                "Component of a tar file '" + uris_[config_index] + "' at offset " +
-                    std::to_string(sample_config.start_offset) +
+                component_desc.size % TypeTable::GetTypeInfo(dtypes_[sample_index]).size() == 0,
+                "Component of a tar file '" + uris_[index_file_index] + "' at offset " +
+                    std::to_string(sample_desc.start_offset) +
                     " has a size not divisible by the chosen dtype's size of " +
                     std::to_string(TypeTable::GetTypeInfo(dtypes_[sample_index]).size()) +
                     " bytes");
-            was_sample_assigned[sample_index] = true;
+            was_component_assigned[sample_index] = true;
           } else {
             DALI_WARN_ONCE(
                 "Several components corresponding to a single output detected. Only the first one "
@@ -408,6 +414,9 @@ void WebdatasetLoader::PrepareMetadataImpl() {
     }
   }
   wds_shards_prefixsums_.push_back(total_size_);  // for the last shard when reaches the end
+
+  DALI_ENFORCE(static_cast<int64_t>(total_size_) >= static_cast<int64_t>(num_shards_),
+               "Number of shards bigger than the total number of samples");
 
   // initializing all the readers
   for (auto& uri : uris_) {

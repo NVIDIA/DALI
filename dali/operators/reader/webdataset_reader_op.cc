@@ -58,9 +58,9 @@ The format of the index file is as follows:
       return spec.HasArgument("ext") ? spec.GetRepeatedArgument<std::string>("ext").size() : 0;
     })
     .AddArg("uris", R"code(The list of (one or more) paths to the webdataset archives.
-Has to be the same length as the ``configs`` argument.)code",
+Has to be the same length as the ``index_paths`` argument.)code",
             DALI_STRING_VEC)
-    .AddArg("configs",
+    .AddArg("index_paths",
             R"code(The list of the index files corresponding to the respective webdataset archives.
 Has to be the same length as the ``uris`` argument.)code",
             DALI_STRING_VEC)

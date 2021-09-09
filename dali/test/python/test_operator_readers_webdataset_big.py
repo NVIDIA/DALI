@@ -1,22 +1,32 @@
-from test_operator_readers_webdataset_base import *
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+from test_operator_readers_webdataset_base import *
 
 def cross_check(
     dont_use_mmap,
     batch_size,
     num_shards,
     shard_id,
-    prefetch_queue_depth,
     skip_cached_images,
     pad_last_batch,
-    lazy_init,
-    read_ahead,
     stick_to_shard,
 ):
-    num_multiplications = 5
-    num_samples = 100 * num_multiplications
+    num_multiplications = 4
+    num_samples = 20 * num_multiplications
     tar_file_paths = [
-        get_dali_extra_path() + "/db/webdataset/sample-tar/cross.tar"
+        os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/cross.tar")
     ] * num_multiplications
     index_files = [generate_temp_index_file(tar_file_path) for tar_file_path in tar_file_paths]
 
@@ -36,18 +46,16 @@ def cross_check(
         webdataset_raw_pipeline(
             tar_file_paths,
             [index_file.name for index_file in index_files],
-            ["a.a;a.b", "b.a;b.b"],
+            ["a.a;a.b;a.a;a.b", "b.a;b.b;b.a;b.b"],
             batch_size=batch_size,
             device_id=0,
             num_threads=10,
             dont_use_mmap=dont_use_mmap,
             num_shards=num_shards,
             shard_id=shard_id,
-            prefetch_queue_depth=prefetch_queue_depth,
+            prefetch_queue_depth=8,
             skip_cached_images=skip_cached_images,
             pad_last_batch=pad_last_batch,
-            lazy_init=lazy_init,
-            read_ahead=read_ahead,
             stick_to_shard=stick_to_shard,
         ),
         file_reader_pipeline(
@@ -59,11 +67,8 @@ def cross_check(
             dont_use_mmap=True,
             num_shards=num_shards,
             shard_id=shard_id,
-            prefetch_queue_depth=prefetch_queue_depth,
             skip_cached_images=skip_cached_images,
             pad_last_batch=pad_last_batch,
-            lazy_init=lazy_init,
-            read_ahead=read_ahead,
             stick_to_shard=stick_to_shard,
         ),
         batch_size,
@@ -78,23 +83,17 @@ def test_cross_check():
             batch_size,
             num_shards,
             shard_id,
-            prefetch_queue_depth,
             skip_cached_images,
             pad_last_batch,
-            lazy_init,
-            read_ahead,
             stick_to_shard,
         )
         for dont_use_mmap in (False, True)
         for stick_to_shard in (False, True)
-        for read_ahead in (False, True)
-        for lazy_init in (False, True)
         for pad_last_batch in (False, True)
         for skip_cached_images in (False, True)
-        for batch_size in (1, 8)
-        for num_shards in (1, 100)
+        for batch_size in (1, 8) if batch_size != 1 or not pad_last_batch
+        for num_shards in (1, 80)
         for shard_id in {0, num_shards - 1}
-        for prefetch_queue_depth in (1, 8)
     ]
 
     for args in scenarios:

@@ -1,9 +1,24 @@
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import nvidia.dali as dali
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.fn.readers as readers
 from test_utils import compare_pipelines, get_dali_extra_path
-from nose.tools import assert_raises, assert_equal
+from nose_utils import assert_raises
+from nose.tools import assert_equal
 import tempfile
 from subprocess import call
 import os
@@ -19,7 +34,7 @@ wds2idx_script = "../../../tools/wds2idx.py"
 @pipeline_def()
 def webdataset_raw_pipeline(
     uris,
-    configs,
+    index_paths,
     ext,
     missing_component_behavior="empty",
     dtypes=None,
@@ -34,7 +49,7 @@ def webdataset_raw_pipeline(
 ):
     out = readers.webdataset(
         uris=uris,
-        configs=configs,
+        index_paths=index_paths,
         ext=ext,
         missing_component_behavior=missing_component_behavior,
         dtypes=dtypes,
@@ -48,11 +63,11 @@ def webdataset_raw_pipeline(
         lazy_init=lazy_init,
         read_ahead=read_ahead,
     )
-    return out if type(out) != list else tuple(out)
+    return out if not isinstance(out, list) else tuple(out)
 
 
 def filter_ext(files, exts):
-    if type(exts) == str:
+    if isinstance(exts, str):
         exts = {exts}
     return list(filter(lambda s: any(map(lambda ext: s.endswith("." + ext), exts)), files))
 
@@ -70,7 +85,7 @@ def file_reader_pipeline(
     read_ahead=False,
     stick_to_shard=False,
 ):
-    if type(exts) != list:
+    if not isinstance(exts, list):
         exts = [exts]
 
     return tuple(

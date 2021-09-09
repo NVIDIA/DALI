@@ -1,25 +1,26 @@
 #!/usr/bin/python3
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import os
+import sys
 import time
 import argparse
 import subprocess
+from shutil import which
+import tarfile
+import math
 
 
 class IndexCreator:
@@ -41,6 +42,8 @@ class IndexCreator:
     idx_path : str
         Path to the index file, that will be created/overwritten.
     """
+
+    tar_block_size = 512
 
     def __init__(self, uri, idx_path):
         self.uri = uri
@@ -73,17 +76,7 @@ class IndexCreator:
             return filepath, ""
         return filepath[:dot_pos], filepath[dot_pos + 1 :]
 
-    def create_index(self):
-        """Creates the index file from open record file"""
-        self.reset()
-
-        pre_time = time.time()
-        counter = 0
-        report_step = 100000
-
-        print(f"time: {time.time() - pre_time:.2f} count: {counter} stage: collect")
-
-        # Collects the data about the contents of the tar archive
+    def _get_data_tar(self):
         tar_blocks_proc = subprocess.Popen(
             ["tar", "--list", "--block-num", "--file", self.uri],
             stdout=subprocess.PIPE,
@@ -95,9 +88,12 @@ class IndexCreator:
             stderr=subprocess.PIPE,
         )
 
-        tar_blocks = tar_blocks_proc.communicate()[0].split(b"\n")
-        tar_types_sizes = tar_types_sizes_proc.communicate()[0].split(b"\n")
+        tar_blocks = tar_blocks_proc.communicate()[0].split(b"\n")  # block <n>: <filepath>
+        tar_types_sizes = tar_types_sizes_proc.communicate()[0].split(
+            b"\n"
+        )  # <type>... <size> <date> <name>
 
+        # Extracting total size
         last_blocks_line = None
         for blocks_line in reversed(tar_blocks):
             if not not blocks_line:
@@ -106,47 +102,89 @@ class IndexCreator:
 
         total_size = (
             int(last_blocks_line[last_blocks_line.find(b"block") + 6 : last_blocks_line.find(b":")])
-            * 512
+            * IndexCreator.tar_block_size
         )
 
+        yield total_size
+
+        # Extracting
         tar_data = zip(tar_blocks, tar_types_sizes)
-        tar_data = filter(lambda line: not not line[0] and not not line[1], tar_data)
+        for blocks_line, types_sizes_line in zip(tar_blocks, tar_types_sizes):
+            if not blocks_line or not types_sizes_line:
+                continue
 
-        # Aggregates extensions in samples
-        data = []
-        last_basename = None
-        for blocks_line, types_sizes_line in tar_data:
-            if counter % report_step == 0:
-                cur_time = time.time()
-                print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: collect")
-            counter += 1
-
-            offset = int(blocks_line[blocks_line.find(b"block") + 6 : blocks_line.find(b":")]) * 512
             name = str(blocks_line[blocks_line.find(b":") + 2 :], "ascii")
             entry_type = types_sizes_line[0:1]
 
             if entry_type != b"-" or name.startswith("."):
                 continue
 
-            # Extracting size
+            offset = int(blocks_line[blocks_line.find(b"block") + 6 : blocks_line.find(b":")]) * 512
             size = types_sizes_line[: -len(name)]
             size = size[: size.rfind(b"-") - 8]  # "... <size> 20yy-mm-...."
             size = int(size[size.rfind(b" ") :])
 
+            yield offset, name, size
+
+    def _get_data_tarfile(self):
+        print("Warning: tar utility not found. Falling back to tarfile", file=sys.stderr)
+
+        members = []
+        total_size = 0
+        farchive = tarfile.open(self.uri)
+        for member in iter(farchive):
+            total_size = (
+                farchive.fileobj.tell()
+                + math.ceil(member.size / IndexCreator.tar_block_size)
+                * IndexCreator.tar_block_size
+            )
+
+        yield total_size
+
+        for member in iter(farchive):
+            if member.type != tarfile.REGTYPE:
+                continue
+            yield member.offset, member.name, member.size
+
+    def create_index(self):
+        """Creates the index file from open record file"""
+        self.reset()
+
+        pre_time = time.time()
+        counter = 0
+        report_step = 100000
+
+        print(f"time: {time.time() - pre_time:.2f} count: {counter} stage: collect")
+
+        # Aggregates extensions in samples
+        data_generator = (
+            self._get_data_tar() if which("tar") is not None else self._get_data_tarfile()
+        )
+        total_size = next(data_generator)
+
+        aggregated_data = []
+        last_basename = None
+
+        for offset, name, size in data_generator:
+            if counter % report_step == 0:
+                cur_time = time.time()
+                print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: collect")
+            counter += 1
+
             basename, extension = IndexCreator.split_name(name)
 
             if last_basename != basename:
-                data.append((offset, [(extension, size)]))
+                aggregated_data.append((offset, [(extension, size)]))
                 last_basename = basename
             else:
-                data[-1][1].append((extension, size))
+                aggregated_data[-1][1].append((extension, size))
 
-        if not data:
+        if not aggregated_data:
             raise ValueError("Webdataset Tar File empty")
 
         # Constructs the index file out of the aggregated extensions
-        self.fidx.write(f"{total_size} {len(data)}\n")
-        for offset, extensions_sizes in data:
+        self.fidx.write(f"{total_size} {len(aggregated_data)}\n")
+        for offset, extensions_sizes in aggregated_data:
             if counter % report_step == 0:
                 cur_time = time.time()
                 print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: index")
@@ -167,8 +205,14 @@ def parse_args():
         description="Creates a webdataset index file for the use with the fn.readers.webdataset from DALI.",
     )
     parser.add_argument("archive", help="path to .tar file.")
-    parser.add_argument("index", help="path to index file.")
+    parser.add_argument(
+        "index",
+        help="path to index file",
+        nargs="?",
+    )
     args = parser.parse_args()
+    if args.index is None:
+        args.index = args.archive[: args.archive.find(".", args.archive.rfind("/") + 2)] + ".idx"
     args.archive = os.path.abspath(args.archive)
     args.index = os.path.abspath(args.index)
     return args
