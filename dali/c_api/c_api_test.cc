@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "dali/c_api.h"
+#include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/pipeline.h"
@@ -135,7 +136,7 @@ std::unique_ptr<Pipeline> GetExternalSourcePipeline(bool no_copy, const std::str
 }
 
 
-// Takes Outptus from baseline and handle and compares them
+// Takes Outputs from baseline and handle and compares them
 // Allows only for uint8_t CPU/GPU output data to be compared
 template <typename Backend>
 void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline,
@@ -163,14 +164,19 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline,
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     pipeline_output_cpu.Copy(ws.Output<Backend>(0), cuda_stream);
 
-    TensorList<Backend> c_api_output;
-    c_api_output.Resize(pipeline_output_cpu.shape(), DALI_UINT8);
-    daliOutputCopy(&handle, c_api_output.raw_mutable_data(), 0,
+    auto num_elems = pipeline_output_cpu.shape().num_elements();
+    auto backend_buf = AllocBuffer<Backend>(num_elems * sizeof(uint8_t), false);
+    auto cpu_buf = AllocBuffer<CPUBackend>(num_elems * sizeof(uint8_t), false);
+    daliOutputCopy(&handle, backend_buf.get(), 0,
                    backend_to_device_type<Backend>::value, 0, copy_output_flags);
+
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-    c_api_output_cpu.Copy(c_api_output, cuda_stream);
+    auto type_info = TypeInfo::Create<uint8_t>();
+    type_info.Copy<CPUBackend, Backend>(cpu_buf.get(), backend_buf.get(), num_elems,
+                                        cuda_stream);
     CUDA_CALL(cudaDeviceSynchronize());
-    Check(view<uint8_t>(pipeline_output_cpu), view<uint8_t>(c_api_output_cpu));
+    Check(view<uint8_t>(pipeline_output_cpu),
+          TensorListView<StorageCPU, uint8_t>(cpu_buf.get(), pipeline_output_cpu.shape()));
   }
 }
 
