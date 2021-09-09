@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import glob
 import tempfile
 import time
 import cv2
-from nose.tools import raises
+from nose_utils import raises
 from test_utils import get_dali_extra_path
 
 test_data_root = get_dali_extra_path()
@@ -109,10 +109,10 @@ class FlippingPipeline(CommonPipeline):
 
 
 class TwoOutputsPythonOperatorPipeline(CommonPipeline):
-    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function, op=ops.PythonFunction):
         super(TwoOutputsPythonOperatorPipeline, self).__init__(batch_size, num_threads,
                                                                device_id, seed, image_dir)
-        self.python_function = ops.PythonFunction(function=function, num_outputs=2)
+        self.python_function = op(function=function, num_outputs=2)
 
     def define_graph(self):
         images, labels = self.load()
@@ -204,6 +204,12 @@ def flip(image):
     return numpy.fliplr(image)
 
 
+def dlflip(image):
+    image = ops._dlpack_to_array(image)
+    out = numpy.fliplr(image)
+    return ops._dlpack_from_array(out)
+
+
 def Rotate(image):
     return numpy.rot90(image)
 
@@ -289,7 +295,7 @@ def invalid_function(image):
     return img
 
 
-@raises(Exception)
+@raises(RuntimeError, regex="img.*not defined")
 def test_python_operator_invalid_function():
     invalid_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,
                                           invalid_function)
@@ -297,7 +303,7 @@ def test_python_operator_invalid_function():
     invalid_pipe.run()
 
 
-@raises(TypeError)
+@raises(TypeError, regex="do not support multiple input sets")
 def test_python_operator_invalid_pipeline():
     invalid_pipe = PythonOperatorInvalidPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
                                                  images_dir, Rotate)
@@ -411,13 +417,12 @@ def test_output_with_stride_mixed_types_batch():
     run_multi_input_multi_output(with_stride_mixed_types_batch, multi_batch_compare, batch=True)
 
 
-@raises(RuntimeError)
+@raises(Exception, regex="must be a tuple")
 def test_wrong_outputs_number():
     invalid_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
                                                     images_dir, flip)
     invalid_pipe.build()
     invalid_pipe.run()
-
 
 SINK_PATH = tempfile.mkdtemp()
 
@@ -485,7 +490,7 @@ class AsyncPipeline(Pipeline):
     def define_graph(self):
         return self.op()
 
-@raises(RuntimeError)
+@raises(RuntimeError, glob="*exec_async*exec_pipelined*False*")
 def test_wrong_pipeline():
     pipe = AsyncPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED)
     pipe.build()
@@ -517,7 +522,7 @@ def test_output_layout():
     assert(out5.layout() == 'IJK')
     assert(out6.layout() == '')
 
-@raises(RuntimeError)
+@raises(RuntimeError, "*length of*output_layouts*greater than*")
 def test_invalid_layouts_arg():
     pipe = Pipeline(1, 1, 0, 999, exec_async=False, exec_pipelined=False)
     with pipe:

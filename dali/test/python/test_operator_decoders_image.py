@@ -23,7 +23,7 @@ import numpy as np
 import glob
 
 from nose import SkipTest
-from nose.tools import assert_raises
+from nose_utils import assert_raises
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
@@ -339,13 +339,14 @@ def _testimpl_image_decoder_crop_error_oob(device):
     @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
     def pipe(device):
         encoded, _ = fn.readers.file(file_root=file_root)
-        decoded = fn.decoders.image_crop(encoded, device=device, crop_w=10000)
+        decoded = fn.decoders.image_crop(encoded, device=device, crop_w=10000, crop_h=100)
         return decoded
     p = pipe(device)
-    assert_raises(RuntimeError, p.run)
+    p.build()
+    assert_raises(RuntimeError, p.run, glob='*IsInRange*failed*')
 
 def test_image_decoder_crop_error_oob():
-    for device in ['cpu', 'gpu']:
+    for device in ['cpu', 'mixed']:
         yield _testimpl_image_decoder_crop_error_oob, device
 
 def _testimpl_image_decoder_slice_error_oob(device):
@@ -356,8 +357,9 @@ def _testimpl_image_decoder_slice_error_oob(device):
         decoded = fn.decoders.image_slice(encoded, device=device, end=[10000], axes=[1])
         return decoded
     p = pipe(device)
-    assert_raises(RuntimeError, p.run)
+    p.build()
+    assert_raises(RuntimeError, p.run, glob='*IsInRange*failed*')
 
 def test_image_decoder_slice_error_oob():
-    for device in ['cpu', 'gpu']:
+    for device in ['cpu', 'mixed']:
         yield _testimpl_image_decoder_slice_error_oob, device
