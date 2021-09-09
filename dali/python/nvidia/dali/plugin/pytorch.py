@@ -103,7 +103,8 @@ class DALIGenericIterator(_DaliBaseIterator):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    dynamic_shape : any, optional, used only for a backward compatibility purpose
+    dynamic_shape : any, optional,
+                Parameter used only for backward compatibility.
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
 
@@ -310,7 +311,8 @@ class DALIClassificationIterator(DALIGenericIterator):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    dynamic_shape : any, optional, used only for a backward compatibility purpose
+    dynamic_shape : any, optional,
+                Parameter used only for backward compatibility.
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
 

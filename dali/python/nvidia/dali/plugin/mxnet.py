@@ -175,7 +175,8 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                  Whether the iterator should squeeze the labels before
                  copying them to the ndarray.
                  This argument is deprecated and will be removed from future releases.
-    dynamic_shape : any, optional, used only for a backward compatibility purpose
+    dynamic_shape : any, optional,
+                Parameter used only for backward compatibility.
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
 
@@ -443,7 +444,8 @@ class DALIClassificationIterator(DALIGenericIterator):
                  Whether the iterator should squeeze the labels before
                  copying them to the ndarray.
                  This argument is deprecated and will be removed from future releases.
-    dynamic_shape : any, optional, used only for a backward compatibility purpose
+    dynamic_shape : any, optional,
+                Parameter used only for backward compatibility.
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
 
