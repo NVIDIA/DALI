@@ -167,13 +167,13 @@ pushd $TMPDIR
 
 patch_hashed_names() {
     local sofile=$1
-    print_output=$(patchelf --print-needed $sofile)
+    needed_so_files=$(patchelf --print-needed $sofile)
     for ((j=0;j<${#original[@]};++j)); do
         origname=${original[j]}
         patchedname=${patched[j]}
         if [[ "$origname" != "$patchedname" ]]; then
             set +e
-            echo $print_output | grep $origname 2>&1 >/dev/null
+            echo $needed_so_files | grep $origname 2>&1 >/dev/null
             ERRCODE=$?
             set -e
             if [ "$ERRCODE" -eq "0" ]; then
