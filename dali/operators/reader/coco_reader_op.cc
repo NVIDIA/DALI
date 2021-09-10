@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -132,6 +132,12 @@ instance of an object is lower than this value, the object will be ignored.)code
       false)
   .AddOptionalArg("image_ids",
       R"code(If set to True, the image IDs will be produced in an extra output.)code",
+      false)
+  .AddOptionalArg("avoid_class_remapping",
+      R"code(If set to False, classes' ID values are mapped to consecutive values in range 1-number of classes
+disregarding exact values from the json (0 is threaded as a background class and is reserved).
+
+Otherwise classes ID values are returned directly as they are defined in the configuration file.)code",
       false)
   .AddOptionalArg<vector<string>>("images", R"code(A list of image paths.
 
