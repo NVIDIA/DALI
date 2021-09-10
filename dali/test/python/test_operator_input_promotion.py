@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ def test_python_function():
     with pipe:
         def func(inp):
             ret = [x*x for x in inp]
-            return [ret]
+            return ret
         out_cpu = fn.python_function(np.array([[1,2],[3,4]]), function=func, batch_processing=True)
         pipe.set_outputs(out_cpu)
     pipe.build()
