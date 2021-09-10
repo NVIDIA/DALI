@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <utility>
 #include "dali/core/cuda_error.h"
 #include "dali/core/util.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 
@@ -152,17 +153,11 @@ struct DeviceBuffer {
     }
   }
 
-  static std::unique_ptr<T, std::function<void(T*)>> allocate(size_t count) {
-    T *ptr = nullptr;
-    CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&ptr), count * sizeof(T)));
-    if (!ptr) {
-      (void)cudaGetLastError();
-      throw dali::CUDABadAlloc(count * sizeof(T));
-    }
-    return { ptr, [](T* ptr) { cudaFree(ptr); } };
+  static mm::uptr<T> allocate(size_t count) {
+    return mm::alloc_raw_unique<T, mm::memory_kind::device>(count);
   }
 
-  std::unique_ptr<T, std::function<void(T*)>> data_;
+  mm::uptr<T> data_;
   size_t capacity_ = 0;
   size_t size_ = 0;
 };
