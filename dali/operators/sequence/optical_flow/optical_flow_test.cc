@@ -58,7 +58,9 @@ TEST(OpticalFlowUtilsTest, ImageToTensorListCpu) {
   cv::Mat img = cv::imread(kImage);
   auto tl = ToTensorList({img});
   auto img_ptr = img.data;
-  auto tl_ptr = tl->template data<uint8_t>();
+  // Just one sample
+  ASSERT_EQ(tl->ntensor(), 1u);
+  const auto *tl_ptr = tl->template tensor<uint8_t>(0);
   ASSERT_EQ(img.rows * img.cols * img.channels(), tl->size()) << "Sizes don't match";
   for (int i = 0; i < img.cols * img.rows * img.channels(); i++) {
     ASSERT_EQ(img_ptr[i], tl_ptr[i]) << "Test failed at i=" << i;

@@ -225,9 +225,13 @@ class BinaryArithmeticOpsTest
     pipe.RunGPU();
     DeviceWorkspace ws;
     pipe.Outputs(&ws);
-    auto *result = ws.OutputRef<Backend>(0).template data<T>();
     vector<T> result_cpu(shape.num_elements());
-    MemCopy(result_cpu.data(), result, shape.num_elements() * sizeof(T));
+    auto *target_ptr = result_cpu.data();
+    for (int i = 0; i < shape.num_samples(); i++) {
+      auto *result = ws.OutputRef<Backend>(0).template tensor<T>(i);
+      MemCopy(target_ptr, result, shape[i].num_elements() * sizeof(T));
+      target_ptr += shape[i].num_elements();
+    }
     CUDA_CALL(cudaStreamSynchronize(0));
 
     int64_t offset = 0;

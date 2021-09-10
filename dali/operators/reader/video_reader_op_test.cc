@@ -146,12 +146,12 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   labels_cpu.Copy(labels_output, 0);
   CUDA_CALL(cudaStreamSynchronize(0));
   labels_cpu.set_type(TypeInfo::Create<int>());
-  const int *labels = static_cast<const int *>(labels_cpu.raw_data());
 
   for (int i = 0; i < batch_size; ++i) {
+    const auto *labels = labels_cpu.tensor<int>(i);
     auto frames_shape = frames_output.tensor_shape(i);
 
-    switch (labels[i]) {
+    switch (labels[0]) {
       case 0:
         ASSERT_EQ(frames_shape[1], 2160);
         ASSERT_EQ(frames_shape[2], 3840);
@@ -442,9 +442,9 @@ TEST_F(VideoReaderTest, FrameLabels) {
     frame_num_cpu.Copy(frame_num_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
-    const int *label = static_cast<const int *>(labels_cpu.raw_data());
-    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
+    const auto *frames = frames_cpu.tensor<uint8_t>(0);
+    const auto *label = labels_cpu.tensor<int>(0);
+    const auto *frame_num = frame_num_cpu.tensor<int>(0);
 
     ASSERT_EQ(frames[0], frame_num[0]);
   }
@@ -489,9 +489,9 @@ TEST_F(VideoReaderTest, FrameLabelsFilenames) {
     frame_num_cpu.Copy(frame_num_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
-    const int *label = static_cast<const int *>(labels_cpu.raw_data());
-    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
+    const auto *frames = frames_cpu.tensor<uint8_t>(0);
+    const auto *label = labels_cpu.tensor<int>(0);
+    const auto *frame_num = frame_num_cpu.tensor<int>(0);
 
     ASSERT_EQ(frames[0], frame_num[0]);
     ASSERT_EQ(label[0], 0);
@@ -537,9 +537,9 @@ TEST_F(VideoReaderTest, LabelsFilenames) {
     frame_num_cpu.Copy(frame_num_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
-    const int *label = static_cast<const int *>(labels_cpu.raw_data());
-    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
+    const auto *frames = frames_cpu.tensor<uint8_t>(0);
+    const auto *label = labels_cpu.tensor<int>(0);
+    const auto *frame_num = frame_num_cpu.tensor<int>(0);
 
     ASSERT_EQ(frames[0], frame_num[0]);
     ASSERT_EQ(label[0], 99);
@@ -588,10 +588,10 @@ TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
     timestamps_cpu.Copy(timestamp_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
-    const int *label = static_cast<const int *>(labels_cpu.raw_data());
-    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
-    const double *timestamps = static_cast<const double *>(timestamps_cpu.raw_data());
+    const auto *frames = frames_cpu.tensor<uint8>(0);
+    const auto *label = labels_cpu.tensor<int>(0);
+    const auto *frame_num = frame_num_cpu.tensor<int>(0);
+    const auto *timestamps = timestamps_cpu.tensor<double>(0);
 
     ASSERT_DOUBLE_EQ(frame_num[0], timestamps[0] * 25);
     switch (label[0]) {
@@ -651,10 +651,10 @@ TEST_F(VideoReaderTest, TimestampLabels) {
     frame_num_cpu.Copy(frame_num_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
-    const int *label = static_cast<const int *>(labels_cpu.raw_data());
-    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
-    const double *timestamps = static_cast<const double *>(timestamps_cpu.raw_data());
+    const auto *frames = frames_cpu.tensor<uint8>(0);
+    const auto *label = labels_cpu.tensor<int>(0);
+    const auto *frame_num = frame_num_cpu.tensor<int>(0);
+    const auto *timestamps = timestamps_cpu.tensor<double>(0);
 
     ASSERT_DOUBLE_EQ(frame_num[0], timestamps[0] * 25);
   }
@@ -696,9 +696,9 @@ TEST_F(VideoReaderTest, StartEndLabels) {
     timestamps_cpu.Copy(frame_num_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
-    const int *label = static_cast<const int *>(labels_cpu.raw_data());
-    const double *timestamps = static_cast<const double *>(timestamps_cpu.raw_data());
+    const auto *frames = frames_cpu.tensor<uint8>(0);
+    const auto *label = labels_cpu.tensor<int>(0);
+    const auto *timestamps = timestamps_cpu.tensor<double>(0);
 
     ASSERT_EQ(*label, std::floor(timestamps[0] / 100));
   }
