@@ -1031,10 +1031,22 @@ class DLTensorPythonFunction(PythonFunctionBase):
     global _gpu_ops
     _gpu_ops = _gpu_ops.union({'DLTensorPythonFunction'})
 
+    @staticmethod
+    def _function_wrapper_dlpack(batch_processing, function, num_outputs, *dlpack_inputs):
+        if batch_processing:
+            return PythonFunction.function_wrapper_batch(function, num_outputs,
+                                                         lambda x: x, lambda x: x,
+                                                         *dlpack_inputs)
+        else:
+            return PythonFunction.function_wrapper_per_sample(function, num_outputs,
+                                                              lambda x: x, lambda x: x,
+                                                              *dlpack_inputs)
+
     def __init__(self, function, num_outputs=1, device='cpu', synchronize_stream=True,
                  batch_processing=True, **kwargs):
+        func = lambda *ts: DLTensorPythonFunction._function_wrapper_dlpack(batch_processing, function, num_outputs, *ts)
         super(DLTensorPythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
-                                                     function=function, num_outputs=num_outputs,
+                                                     function=func, num_outputs=num_outputs,
                                                      device=device,
                                                      synchronize_stream=synchronize_stream,
                                                      batch_processing=batch_processing,

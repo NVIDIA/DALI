@@ -343,7 +343,7 @@ def _testimpl_image_decoder_crop_error_oob(device):
         return decoded
     p = pipe(device)
     p.build()
-    assert_raises(RuntimeError, p.run, glob='*IsInRange*failed*')
+    assert_raises(RuntimeError, p.run, glob='cropping window*..*..*is not valid for image dimensions*[*x*]')
 
 def test_image_decoder_crop_error_oob():
     for device in ['cpu', 'mixed']:
@@ -358,7 +358,7 @@ def _testimpl_image_decoder_slice_error_oob(device):
         return decoded
     p = pipe(device)
     p.build()
-    assert_raises(RuntimeError, p.run, glob='*IsInRange*failed*')
+    assert_raises(RuntimeError, p.run, glob='cropping window*..*..*is not valid for image dimensions*[*x*]')
 
 def test_image_decoder_slice_error_oob():
     for device in ['cpu', 'mixed']:

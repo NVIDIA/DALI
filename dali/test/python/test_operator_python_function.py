@@ -203,11 +203,18 @@ def bias(image):
 def flip(image):
     return numpy.fliplr(image)
 
+def flip_batch(images):
+    return [flip(x) for x in images]
+
 
 def dlflip(image):
     image = ops._dlpack_to_array(image)
     out = numpy.fliplr(image)
-    return ops._dlpack_from_array(out)
+    out = ops._dlpack_from_array(out)
+    return out;
+
+def dlflip_batch(images):
+    return [dlflip(x) for x in images]
 
 
 def Rotate(image):
@@ -418,9 +425,34 @@ def test_output_with_stride_mixed_types_batch():
 
 
 @raises(Exception, regex="must be a tuple")
+def test_not_a_tuple():
+    invalid_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
+                                                    images_dir, flip_batch)
+    invalid_pipe.build()
+    invalid_pipe.run()
+
+
+@raises(Exception, regex="must be a tuple")
+def test_not_a_tuple_dl():
+    invalid_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
+                                                    images_dir, dlflip_batch, op=ops.DLTensorPythonFunction)
+    invalid_pipe.build()
+    invalid_pipe.run()
+
+def three_outputs(inp):
+    return inp, inp, inp
+
+@raises(Exception, glob="Unexpected number of outputs*got 3*expected 2")
 def test_wrong_outputs_number():
     invalid_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
-                                                    images_dir, flip)
+                                                    images_dir, three_outputs)
+    invalid_pipe.build()
+    invalid_pipe.run()
+
+@raises(Exception, glob="Unexpected number of outputs*got 3*expected 2")
+def test_wrong_outputs_number_dl():
+    invalid_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
+                                                    images_dir, three_outputs, op=ops.DLTensorPythonFunction)
     invalid_pipe.build()
     invalid_pipe.run()
 
@@ -490,7 +522,7 @@ class AsyncPipeline(Pipeline):
     def define_graph(self):
         return self.op()
 
-@raises(RuntimeError, glob="*exec_async*exec_pipelined*False*")
+@raises(RuntimeError, "exec_async*exec_pipelined*False")
 def test_wrong_pipeline():
     pipe = AsyncPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED)
     pipe.build()

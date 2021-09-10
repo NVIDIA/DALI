@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -85,14 +85,7 @@ class Image {
                                            const TensorLayout& shape_layout) {
       DALI_ENFORCE(shape_layout == "HW",
         make_string("Unexpected input shape layout: ", shape_layout, " vs HW"));
-      DALI_ENFORCE(crop_window.IsInRange(shape),
-        "crop_window["
-        + std::to_string(crop_window.anchor[1])
-        + ", " + std::to_string(crop_window.anchor[0])
-        + ", " + std::to_string(crop_window.shape[1])
-        + ", " + std::to_string(crop_window.shape[0]) + "]"
-        + " not valid from image dimensions [0, 0, "
-        + std::to_string(shape[1]) + ", " + std::to_string(shape[0]) + "]");
+      crop_window.EnforceInRange(shape);
       return crop_window;
     };
   }

@@ -115,7 +115,7 @@ def _test_invalid_args(device, args, message, run):
     pipe = Pipeline(2, 1, 0)
     src = fn.external_source(lambda: data, device=device)
     pipe.set_outputs(fn.tensor_subscript(src, **args))
-    with assert_raises(RuntimeError, glob="*" + message + "*"):
+    with assert_raises(RuntimeError, glob=message):
         pipe.build()
         if run:
             pipe.run()

@@ -1491,7 +1491,7 @@ def test_image_type_deprecation():
         assert issubclass(w[-1].category, DeprecationWarning)
         assert ("The argument ``image_type`` is no longer used and will be removed in a future release." == str(w[-1].message))
 
-@raises(TypeError, glob="*unexpected*output_dtype*dtype*")
+@raises(TypeError, glob="unexpected*output_dtype*dtype")
 def test_output_dtype_both_error():
     batch_size = 10
     shape = (120, 60, 3)
@@ -1581,7 +1581,7 @@ def test_pipeline_wrong_device_id():
     pipe = dali.Pipeline(batch_size=1, num_threads=1, device_id=-123)
     with pipe:
         pipe.set_outputs(np.int32([1,2,3]))
-    with assert_raises(RuntimeError, regex="device_id"):
+    with assert_raises(RuntimeError, regex="wrong device_id"):
         pipe.build()
         pipe.run()
 
