@@ -963,7 +963,7 @@ class PythonFunction(PythonFunctionBase):
         if arr_out is None:
             return
         PythonFunction.check_outputs(arr_out, num_outputs)
-        if isinstance(arr_out, tuple) or isinstance(arr_out, list):
+        if isinstance(arr_out, tuple):
             return tuple(map(lambda t: to_dlpack(t), arr_out))
         else:
             return to_dlpack(arr_out)
@@ -974,11 +974,16 @@ class PythonFunction(PythonFunctionBase):
         arr_outs = function(*arrays)
         if arr_outs is None:
             return
+        def convert_batch(batch):
+            if isinstance(batch, list):
+                return [to_dlpack(x) for x in batch]
+            else:
+                return to_dlpack(batch)
         PythonFunction.check_outputs(arr_outs, num_outputs)
-        if isinstance(arr_outs, tuple) or isinstance(arr_outs, list):
-            return tuple(map(lambda l: [to_dlpack(out) for out in l], arr_outs))
+        if isinstance(arr_outs, tuple):
+            return tuple(convert_batch(x) for x in arr_outs)
         else:
-            return [to_dlpack(out) for out in arr_outs]
+            return convert_batch(arr_outs)
 
     @staticmethod
     def _function_wrapper_cpu(batch_processing, function, num_outputs, *dlpack_inputs):
