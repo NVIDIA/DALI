@@ -315,6 +315,11 @@ class DALIGenericIterator(_DaliBaseIterator):
                                          category_pd_type[cat])
             data_batches[i] = pd_tensors
 
+            # due to https://github.com/PaddlePaddle/Paddle/issues/35555 the tensors are allocated
+            # first by setting shape and calling _mutable_data, then the device is synchronized
+            # and after that, another call to _mutable_data is made to obtain the pointer and
+            # copy data from the pipeline to the tensor
+            # when the issue is solved the copy can be moved to the preceding loop
             fluid.core._cuda_synchronize(pd_gpu_place)
             for cat, tensor in category_tensors.items():
                 ptr = pd_tensors[cat]._mutable_data(category_place[cat],
