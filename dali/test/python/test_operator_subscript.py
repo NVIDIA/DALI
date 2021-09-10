@@ -141,7 +141,7 @@ def _test_out_of_range(device, idx):
     src = fn.external_source(lambda: data, device=device)
     pipe = index_pipe(src, lambda x: x[idx])
     pipe.build()
-    with assert_raises(RuntimeError, regex="out of range"):
+    with assert_raises(RuntimeError, glob="out of range"):
         _ = pipe.run()
 
 def test_out_of_range():
@@ -156,25 +156,25 @@ def _test_too_many_indices(device):
     pipe = index_pipe(src, lambda x: x[1,:])
 
     # Verified by tensor_subscript
-    with assert_raises(RuntimeError, regex="Too many indices"):
+    with assert_raises(RuntimeError, glob="Too many indices"):
         pipe.build()
         _ = pipe.run()
 
     # Verified by subscript_dim_check
     pipe = index_pipe(src, lambda x: x[:,:])
-    with assert_raises(RuntimeError, regex="Too many indices"):
+    with assert_raises(RuntimeError, glob="Too many indices"):
         pipe.build()
         _ = pipe.run()
 
     # Verified by expand_dims
     pipe = index_pipe(src, lambda x: x[:,:,dali.newaxis])
-    with assert_raises(RuntimeError, regex="not enough dimensions"):
+    with assert_raises(RuntimeError, glob="not enough dimensions"):
         pipe.build()
         _ = pipe.run()
 
     # Verified by subscript_dim_check
     pipe = index_pipe(src, lambda x: x[dali.newaxis,:,dali.newaxis,:])
-    with assert_raises(RuntimeError, regex="Too many indices"):
+    with assert_raises(RuntimeError, glob="Too many indices"):
         pipe.build()
         _ = pipe.run()
 

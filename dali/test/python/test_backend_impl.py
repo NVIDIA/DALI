@@ -55,9 +55,9 @@ def test_tensorlist_getitem_cpu():
     assert(type(tensorlist[0]) == TensorCPU)
     assert(type(tensorlist[-3]) == TensorCPU)
     assert(len(list_of_tensors) == len(tensorlist))
-    with assert_raises(IndexError, regex="out of range"):
+    with assert_raises(IndexError, glob="out of range"):
         tensorlist[len(tensorlist)]
-    with assert_raises(IndexError, regex="out of range"):
+    with assert_raises(IndexError, glob="out of range"):
         tensorlist[-len(tensorlist) - 1]
 
 def test_data_ptr_tensor_cpu():

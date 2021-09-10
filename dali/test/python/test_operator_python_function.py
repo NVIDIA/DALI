@@ -302,7 +302,7 @@ def invalid_function(image):
     return img
 
 
-@raises(RuntimeError, regex="img.*not defined")
+@raises(RuntimeError, "img*not defined")
 def test_python_operator_invalid_function():
     invalid_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,
                                           invalid_function)
@@ -310,7 +310,7 @@ def test_python_operator_invalid_function():
     invalid_pipe.run()
 
 
-@raises(TypeError, regex="do not support multiple input sets")
+@raises(TypeError, "do not support multiple input sets")
 def test_python_operator_invalid_pipeline():
     invalid_pipe = PythonOperatorInvalidPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
                                                  images_dir, Rotate)
@@ -424,7 +424,7 @@ def test_output_with_stride_mixed_types_batch():
     run_multi_input_multi_output(with_stride_mixed_types_batch, multi_batch_compare, batch=True)
 
 
-@raises(Exception, regex="must be a tuple")
+@raises(Exception, "must be a tuple")
 def test_not_a_tuple():
     invalid_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
                                                     images_dir, flip_batch)
@@ -432,7 +432,7 @@ def test_not_a_tuple():
     invalid_pipe.run()
 
 
-@raises(Exception, regex="must be a tuple")
+@raises(Exception, "must be a tuple")
 def test_not_a_tuple_dl():
     invalid_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
                                                     images_dir, dlflip_batch, op=ops.DLTensorPythonFunction)
