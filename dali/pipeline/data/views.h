@@ -77,6 +77,31 @@ TensorShape<ndim> get_tensor_shape(const TensorList<Backend> &tl) {
 
 
 template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
+view(Tensor<Backend> &data) {
+  if (data.shape().empty())
+    return {};
+  using U = std::remove_const_t<T>;
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  return { data.template mutable_data<U>(),  convert_dim<ndim>(data.shape()) };
+}
+
+
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
+view(const Tensor<Backend> &data) {
+  static_assert(std::is_const<T>::value,
+                "Cannot create a non-const view of a `const Tensor<>`. "
+                "Missing `const` in T?");
+  if (data.shape().empty())
+    return {};
+  using U = std::remove_const_t<T>;
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  return { data.template data<U>(), convert_dim<ndim>(data.shape()) };
+}
+
+
+template <typename T, int ndim = DynamicDimensions, typename Backend>
 TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(TensorList<Backend> &data) {
   if (data.ntensor() == 0)
@@ -114,44 +139,19 @@ view(const TensorList<Backend> &data) {
 
 
 template <typename T, int ndim = DynamicDimensions, typename Backend>
-TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
-view(Tensor<Backend> &data) {
-  if (data.shape().empty())
-    return {};
-  using U = std::remove_const_t<T>;
-  detail::enforce_dim_in_view<ndim>(data.shape());
-  return { data.template mutable_data<U>(),  convert_dim<ndim>(data.shape()) };
-}
-
-
-template <typename T, int ndim = DynamicDimensions, typename Backend>
-TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
-view(const Tensor<Backend> &data) {
-  static_assert(std::is_const<T>::value,
-                "Cannot create a non-const view of a `const Tensor<>`. "
-                "Missing `const` in T?");
-  if (data.shape().empty())
-    return {};
-  using U = std::remove_const_t<T>;
-  detail::enforce_dim_in_view<ndim>(data.shape());
-  return { data.template data<U>(), convert_dim<ndim>(data.shape()) };
-}
-
-
-template <typename T, int ndim = DynamicDimensions, typename Backend>
 TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(TensorVector<Backend> &data) {
   if (data.size() == 0)
     return {};
   using U = std::remove_const_t<T>;
-  detail::enforce_dim_in_view<ndim>(data.shape());
-  TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;
-  ret.shape = convert_dim<ndim>(data.shape());
-  ret.data.resize(ret.shape.num_samples());
-  for (int i = 0; i < ret.shape.num_samples(); i++) {
-    ret.data[i] = data[i].template mutable_data<U>();
+  const auto &shape = data.shape();
+  detail::enforce_dim_in_view<ndim>(shape);
+
+  std::vector<T *> ptrs(shape.num_samples());
+  for (int i = 0; i < shape.num_samples(); i++) {
+    ptrs[i] = data[i].template mutable_data<U>();
   }
-  return ret;
+  return { std::move(ptrs), convert_dim<ndim>(shape) };
 }
 
 
@@ -164,14 +164,14 @@ view(const TensorVector<Backend> &data) {
   if (data.size() == 0)
     return {};
   using U = std::remove_const_t<T>;
-  detail::enforce_dim_in_view<ndim>(data.shape());
-  TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;
-  ret.shape = convert_dim<ndim>(data.shape());
-  ret.data.resize(ret.shape.num_samples());
-  for (int i = 0; i < ret.shape.num_samples(); i++) {
-    ret.data[i] = data[i].template data<U>();
+  const auto &shape = data.shape();
+  detail::enforce_dim_in_view<ndim>(shape);
+
+  std::vector<T *> ptrs(shape.num_samples());
+  for (int i = 0; i < shape.num_samples(); i++) {
+    ptrs[i] = data[i].template data<U>();
   }
-  return ret;
+  return { std::move(ptrs), convert_dim<ndim>(shape) };
 }
 
 
