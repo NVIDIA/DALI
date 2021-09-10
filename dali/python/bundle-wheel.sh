@@ -1,6 +1,6 @@
 #!/bin/bash -e
 #
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,10 +44,13 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 INWHL=$(readlink -e $1)
-DEPS_PATH=${2:-/usr/local}
+STRIP_DEBUG=${2:-NO}
+TEST_BUNDLED_LIBS=${3:-NO}
+OUTWHLNAME=${4:-$(basename $INWHL)}
+DEPS_PATH=${5:-/usr/local}
 OUTDIR=/wheelhouse
+SCRIPT_PATH=$(dirname $(readlink -f $0))
 
-OUTWHLNAME=$(basename $INWHL)
 # For some reason the pip wheel builder inserts "-none-" into the tag even if you gave it an ABI name
 OUTWHLNAME=${OUTWHLNAME//-none-/-}
 
@@ -116,7 +119,20 @@ unzip -q $INWHL
 mkdir -p $PKGNAME_PATH/.libs
 popd
 
-# copy over needed dependent .so files over and tag them with their hash
+strip_so () {
+    local filepath=$1
+    strip --strip-debug $filepath
+}
+
+if [[ "$STRIP_DEBUG" != "NO" ]]; then
+    echo "Striping .so files from debug info"
+    for f in $(find $TMPDIR -iname *.so); do
+        strip_so $f &
+    done
+    wait
+fi
+
+# copy needed dependent .so files and tag them with their hash
 original=()
 patched=()
 
@@ -151,12 +167,13 @@ pushd $TMPDIR
 
 patch_hashed_names() {
     local sofile=$1
-    for ((i=0;i<${#original[@]};++i)); do
-        origname=${original[i]}
-        patchedname=${patched[i]}
+    needed_so_files=$(patchelf --print-needed $sofile)
+    for ((j=0;j<${#original[@]};++j)); do
+        origname=${original[j]}
+        patchedname=${patched[j]}
         if [[ "$origname" != "$patchedname" ]]; then
             set +e
-            patchelf --print-needed $sofile | grep $origname 2>&1 >/dev/null
+            echo $needed_so_files | grep $origname 2>&1 >/dev/null
             ERRCODE=$?
             set -e
             if [ "$ERRCODE" -eq "0" ]; then
@@ -240,10 +257,17 @@ wait
 echo "$RECORD_FILE,," >> $RECORD_FILE
 echo "Finished generating new record file $RECORD_FILE"
 
+if [[ "$TEST_BUNDLED_LIBS" != "NO" ]]; then
+    echo "Check bundled libs..."
+    python ${SCRIPT_PATH}/../../tools/test_bundled_libs.py $(find ./ -iname *.so* | tr '\n' ' ')
+fi
+
 # zip up the new wheel into the wheelhouse
+echo "Compressing wheel..."
 mkdir -p $OUTDIR
 rm -f $OUTDIR/$OUTWHLNAME
 zip -rq $OUTDIR/$OUTWHLNAME *
+echo "Finished compressing wheel"
 
 # clean up
 popd
