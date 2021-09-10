@@ -78,9 +78,9 @@ inline std::ostream &operator<<(std::ostream &os, const CropWindow &wnd) {
   assert(wnd.shape.size() == ndim);
   os << "[";
   for (int i = 0; i < ndim; i++) {
-    os << wnd.anchor[i] << ".." << wnd.anchor[i] + wnd.shape[i];
     if (i)
       os << ", ";
+    os << wnd.anchor[i] << ".." << wnd.anchor[i] + wnd.shape[i];
   }
   os << "]";
   return os;
