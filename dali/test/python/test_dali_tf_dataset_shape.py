@@ -302,10 +302,12 @@ def test_deprecated():
 
 def test_deprecated_double_def():
     error_msg = "Usage of `{}` is deprecated in favor of `output_{}`*only `output_{}` should be provided."
-    yield raises(ValueError, error_msg.format(*(("shapes",) * 3)))(dali_pipe_deprecated), \
+    shapes_error_msg = error_msg.format(*(("shapes",) * 3))
+    yield raises(ValueError, shapes_error_msg)(dali_pipe_deprecated), \
         { "shapes": 2, "output_shapes": 2, "dtypes": tf.uint8 }, 2, tf.uint8, dali_types.UINT8, 1, 2
-    yield raises(ValueError, error_msg.format(*(("dtypes",) * 3)))(dali_pipe_deprecated), \
-            { "shapes": 2, "dtypes": tf.uint8, "output_dtypes": tf.uint8 }, 2, tf.uint8, dali_types.UINT8, 1, 2
+    dtypes_error_msg = error_msg.format(*(("dtypes",) * 3))
+    yield raises(ValueError, dtypes_error_msg)(dali_pipe_deprecated), \
+        { "shapes": 2, "dtypes": tf.uint8, "output_dtypes": tf.uint8 }, 2, tf.uint8, dali_types.UINT8, 1, 2
 
 def test_no_output_dtypes():
     yield raises(TypeError,

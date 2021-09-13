@@ -60,11 +60,11 @@ def check_source_build(source):
 
 def test_wrong_source():
     common_msg = "External Source in parallel mode (when `parallel=True`) accepts as `source` only *. Got {} instead"
-    expected_error_msgs = (
+    expected_error_msgs = [
         common_msg.format("a callable that does not accept arguments"),
         "External source callback must be a callable with 0 or 1 argument",
         common_msg.format("an iterable"),
-        common_msg.format("a generator function"))
+        common_msg.format("a generator function")]
     assert len(disallowed_sources) == len(expected_error_msgs)
     for source, error_msg in zip(disallowed_sources, expected_error_msgs):
         yield raises(TypeError, error_msg)(check_source_build), source

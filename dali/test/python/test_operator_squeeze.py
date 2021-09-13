@@ -72,14 +72,14 @@ def test_squeeze_throw_error():
         ([2, 1], None, "XYZ", [(100, 0, 0)]),
         ([1, 1], None, "XYZ", [(300, 1, 200), (10, 1, 10)]),
     ]
-    expected_errors = (
+    expected_errors = [
         "Requested a shape with 100 elements but the original shape has 1000 elements.",
         "Axis 'C' is not present in the input layout",
         "Requested a shape with 1 elements but the original shape has 10 elements.",
         "Provided both ``axes`` and ``axis_names`` arguments",
         "Requested a shape with 100 elements but the original shape has 0 elements.",
         "Specified at least twice same dimension to remove."
-    )
+    ]
     assert len(expected_errors) == len(args_list)
     for args, error_msg in zip(args_list, expected_errors):
         yield raises(RuntimeError, error_msg)(_test_squeeze_throw_error), *args
