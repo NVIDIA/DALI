@@ -100,8 +100,8 @@ const TestSample &FindSample(const TestSample (&dataset)[N], const Roi &roi) {
 template<size_t Idx, typename Backend, size_t N>
 std::unique_ptr<TensorList<Backend>> ToTensorList(const TestSample (&sample)[N]) {
   std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
-  for (size_t n = 0; n < N; n++) {
   tl->Resize(uniform_list_shape(N, {kBbStructSize}));
+  for (size_t n = 0; n < N; n++) {
     auto *ptr = tl->template mutable_tensor<float>(n);
     for (size_t i = 0; i < kBbStructSize; i++) {
       *ptr++ = sample[n][Idx][i];
