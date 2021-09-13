@@ -20,6 +20,8 @@
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/dali_test_config.h"
 
+#include "dali/test/cv_mat_utils.h"
+
 
 namespace dali {
 
@@ -83,6 +85,15 @@ void comapre_frames(const uint8_t *frame, const uint8_t *gt, size_t size) {
     }});
 }
 
+void save_frame(uint8_t *frame, int frame_id, int sample_id, int batch_id, std::string subfolder) {
+
+    TensorView<StorageCPU, uint8_t> tv(frame, TensorShape<3>{720, 1280, 3});
+    char str[32];
+    snprintf(str, 32, "/batch_%03d_sample_%03d_frame_%03d", batch_id, sample_id, frame_id);
+    string path = "/home/awolant/Downloads/frames/" + subfolder + string(str) + ".png";
+    testing::SaveImage(path.c_str(), tv);
+}
+
 } // namespace detail
 
 class VideoReaderCpuTest : public ::testing::Test {
@@ -118,9 +129,9 @@ class VideoReaderCpuTest : public ::testing::Test {
 
 
 TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
-  const int batch_size = 2;
+  const int batch_size = 4;
   const int sequence_length = 6;
-  const int stride = 1;
+  const int stride = 3;
   
   Pipeline pipe(batch_size, 4, 0);
 
@@ -138,6 +149,7 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
 
   int num_sequences = 20;
   int sequence_id = 0;
+  int batch_id = 0;
   int gt_frame_id = 0;
 
   while (sequence_id < num_sequences) {
@@ -149,11 +161,13 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
     auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-      auto sample = frame_video_output.tensor<uint8_t>(sample_id);
+      auto sample = frame_video_output.mutable_tensor<uint8_t>(sample_id);
 
       for (int i = 0; i < sequence_length; ++i) {
         detail::comapre_frames(
-          sample + i * this->FrameSize(), this->gt_frames_[gt_frame_id % this->NumFrames()].data, this->FrameSize());
+          sample + i * this->FrameSize(), this->gt_frames_[gt_frame_id].data, this->FrameSize());
+        // detail::save_frame(sample + i * this->FrameSize(), i, sample_id, batch_id, "reader");
+        // detail::save_frame(this->gt_frames_[gt_frame_id].data, i, sample_id, batch_id, "gt");
         gt_frame_id += stride;
       }
 
@@ -163,6 +177,7 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
         gt_frame_id = 0;
       }
     }
+    ++batch_id;
   }
 }
 }  // namespace dali

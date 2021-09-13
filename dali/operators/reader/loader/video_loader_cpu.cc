@@ -187,9 +187,9 @@ void VideoLoaderCPU::ReadSample(Tensor<CPUBackend> &sample) {
     TensorShape<4>{sequence_len_, video_file.Width(), video_file.Height(), video_file.channels_});
 
   auto data = sample.mutable_data<uint8_t>();
-  video_file.SeekFrame(sample_span.start_);
 
   for (int i = 0; i < sequence_len_; ++i) {
+    video_file.SeekFrame(sample_span.start_ + i * sample_span.stride_);     //This seek can be optimized - for consecutive frames not needed etc.
     video_file.ReadNextFrame(data + i * video_file.FrameSize());
   }
 }
@@ -203,8 +203,8 @@ void VideoLoaderCPU::PrepareMetadataImpl() {
     video_files_.push_back(VideoFileCPU(filename));
   }
 
-  for (int start = 0; start + sequence_len_ <= video_files_[0].NumFrames(); start += sequence_len_) {
-    sample_spans_.push_back(VideoSampleSpan(start, start + sequence_len_));
+  for (int start = 0; start + stride_ * sequence_len_ <= video_files_[0].NumFrames(); start += stride_ * sequence_len_) {
+    sample_spans_.push_back(VideoSampleSpan(start, start + stride_ * sequence_len_, stride_));
   }
 }
 

@@ -90,11 +90,12 @@ class VideoFileCPU {
 
 class VideoSampleSpan {
  public:
-  explicit VideoSampleSpan(int start, int end) : 
-    start_(start), end_(end) {}
+  explicit VideoSampleSpan(int start, int end, int stride) : 
+    start_(start), end_(end), stride_(stride) {}
 
   int start_ = -1;
   int end_ = -1;
+  int stride_ = -1;
 };
 
 
@@ -103,7 +104,8 @@ class VideoLoaderCPU : public Loader<CPUBackend, Tensor<CPUBackend>> {
   explicit inline VideoLoaderCPU(const OpSpec &spec) : 
     Loader<CPUBackend, Tensor<CPUBackend>>(spec),
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
-    sequence_len_(spec.GetArgument<int>("sequence_length")) {
+    sequence_len_(spec.GetArgument<int>("sequence_length")),
+    stride_(spec.GetArgument<int>("stride")) {
   }
 
   void ReadSample(Tensor<CPUBackend> &sample) override;
@@ -123,6 +125,7 @@ private:
   Index current_index_ = 0;
 
   int sequence_len_;
+  int stride_;
 };
 
 }  // namespace dali
