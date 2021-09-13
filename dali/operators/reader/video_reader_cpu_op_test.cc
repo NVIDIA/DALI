@@ -118,12 +118,16 @@ class VideoReaderCpuTest : public ::testing::Test {
 
 
 TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
-  Pipeline pipe(1, 4, 0);
+  const int batch_size = 2;
   const int sequence_length = 6;
+  const int stride = 1;
+  
+  Pipeline pipe(batch_size, 4, 0);
 
   pipe.AddOperator(OpSpec("readers__Video")
     .AddArg("device", "cpu")
     .AddArg("sequence_length", sequence_length)
+    .AddArg("stride", stride)
     .AddArg(
       "filenames",
       std::vector<std::string>{
@@ -132,45 +136,32 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
 
   pipe.Build({{"frames", "cpu"}});
 
-  for (int frame_id = 0; frame_id + sequence_length < this->NumFrames(); frame_id += sequence_length) {
+  int num_sequences = 20;
+  int sequence_id = 0;
+  int gt_frame_id = 0;
+
+  while (sequence_id < num_sequences) {
     DeviceWorkspace ws;
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
-    const auto &frame_video_output = ws.Output<dali::CPUBackend>(0);
+    auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
 
-    for (int i = 0; i < sequence_length; ++i) {
-      detail::comapre_frames(
-        frame_video_output.data<uint8_t>() + i * this->FrameSize(), this->gt_frames_[(frame_id + i) % this->NumFrames()].data, this->FrameSize());
-    }
-  }
+    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+      auto sample = frame_video_output.tensor<uint8_t>(sample_id);
 
-  for (int frame_id = 0; frame_id + sequence_length < this->NumFrames(); frame_id += sequence_length) {
-    DeviceWorkspace ws;
-    pipe.RunCPU();
-    pipe.RunGPU();
-    pipe.Outputs(&ws);
+      for (int i = 0; i < sequence_length; ++i) {
+        detail::comapre_frames(
+          sample + i * this->FrameSize(), this->gt_frames_[gt_frame_id % this->NumFrames()].data, this->FrameSize());
+        gt_frame_id += stride;
+      }
 
-    const auto &frame_video_output = ws.Output<dali::CPUBackend>(0);
+      ++sequence_id;
 
-    for (int i = 0; i < sequence_length; ++i) {
-      detail::comapre_frames(
-        frame_video_output.data<uint8_t>() + i * this->FrameSize(), this->gt_frames_[(frame_id + i) % this->NumFrames()].data, this->FrameSize());
-    }
-  }
-
-    for (int frame_id = 0; frame_id + sequence_length < 5; frame_id += sequence_length) {
-    DeviceWorkspace ws;
-    pipe.RunCPU();
-    pipe.RunGPU();
-    pipe.Outputs(&ws);
-
-    const auto &frame_video_output = ws.Output<dali::CPUBackend>(0);
-
-    for (int i = 0; i < sequence_length; ++i) {
-      detail::comapre_frames(
-        frame_video_output.data<uint8_t>() + i * this->FrameSize(), this->gt_frames_[(frame_id + i) % this->NumFrames()].data, this->FrameSize());
+      if (gt_frame_id + stride * sequence_length >= this->NumFrames()) {
+        gt_frame_id = 0;
+      }
     }
   }
 }
