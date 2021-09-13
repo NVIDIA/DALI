@@ -135,7 +135,7 @@ instance of an object is lower than this value, the object will be ignored.)code
       false)
   .AddOptionalArg("avoid_class_remapping",
       R"code(If set to False, classes' ID values are mapped to consecutive values in range 1-number of classes
-disregarding exact values from the json (0 is threaded as a background class and is reserved).
+disregarding exact values from the manifest (0 is reserved for a special background class).
 
 Otherwise classes ID values are returned directly as they are defined in the configuration file.)code",
       false)
