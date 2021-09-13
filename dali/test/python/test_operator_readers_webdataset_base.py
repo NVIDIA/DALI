@@ -14,7 +14,6 @@
 
 import nvidia.dali as dali
 from nvidia.dali import pipeline_def
-import nvidia.dali.fn as fn
 import nvidia.dali.fn.readers as readers
 from test_utils import compare_pipelines, get_dali_extra_path
 from nose_utils import assert_raises
@@ -24,7 +23,6 @@ from subprocess import call
 import os
 from glob import glob
 import tarfile
-import numpy as np
 import math
 
 test_batch_size = 4

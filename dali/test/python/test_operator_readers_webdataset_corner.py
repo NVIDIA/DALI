@@ -15,7 +15,7 @@
 from test_operator_readers_webdataset_base import *
 
 
-def corner_case(
+def general_corner_case(
     test_batch_size=test_batch_size, dtypes=None, missing_component_behavior="", **kwargs
 ):
     num_samples = 1000
@@ -51,15 +51,20 @@ def corner_case(
         math.ceil(num_samples / test_batch_size),
     )
 
+def test_mmap_dtype_incompatibility():
+    assert_raises(
+        RuntimeError,
+        general_corner_case,
+        dtypes=[dali.types.INT8, dali.types.FLOAT64],
+        glob="component size and dtype incompatible",
+    )
 
-def test_batch_size_1():
-    corner_case(test_batch_size=1)
+def test_lazy_init():
+    general_corner_case(lazy_init=True)
 
 
-def test_last_shard():
-    num_shards = 100
-    corner_case(num_shards=num_shards, shard_id=num_shards - 1)
-
+def test_read_ahead():
+    general_corner_case(read_ahead=True)
 
 def test_single_sample():
     test_batch_size = 1
@@ -175,33 +180,6 @@ def test_wide_sample():
     assert_equal(list(wds_pipeline.epoch_size().values())[0], num_samples)
 
 
-def test_mmap_dtype_incompatibility():
-    assert_raises(
-        RuntimeError,
-        corner_case,
-        dtypes=[dali.types.INT8, dali.types.FLOAT64],
-        glob="component size and dtype incompatible",
-    )
-
-
-def test_dont_use_mmap():
-    corner_case(dont_use_mmap=True)
-
-
-def test_skip_cached_images():
-    corner_case(skip_cached_images=True)
-
-
-def test_pad_last_batch():
-    corner_case(pad_last_batch=True)
-
-
-def test_lazy_init():
-    corner_case(lazy_init=True)
-
-
-def test_read_ahead():
-    corner_case(read_ahead=True)
 
 
 def test_argument_errors():
@@ -223,28 +201,28 @@ def test_argument_errors():
     assert_raises(
         RuntimeError,
         uris_index_paths_error,
-        glob="Number of uris does not match the number of index files",
+        glob="Number of webdataset archives does not match the number of index files",
     )
 
     assert_raises(
         RuntimeError,
-        corner_case,
+        general_corner_case,
         missing_component_behavior="SomethingInvalid",
         glob="Invalid value for missing_component_behavior",
     )
-    corner_case(missing_component_behavior="Skip")
+    general_corner_case(missing_component_behavior="Skip")
 
     assert_raises(
         RuntimeError,
-        corner_case,
+        general_corner_case,
         dtypes=[dali.types.STRING, dali.types.STRING],
-        glob="Unsupported output dtype *. Supported types include",
+        glob="Unsupported output dtype *. Supported types are",
     )
     assert_raises(
         RuntimeError,
-        corner_case,
+        general_corner_case,
         dtypes=dali.types.INT8,
-        glob="Number of extensions does not match the number of types",
+        glob="Number of extensions does not match the number of provided types",
     )
 
 

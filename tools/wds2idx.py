@@ -95,7 +95,6 @@ class IndexCreator:
         )  # <type>... <size> <date> <name>
 
         # Extracting
-        tar_data = zip(tar_blocks, tar_types_sizes)
         for blocks_line, types_sizes_line in zip(tar_blocks, tar_types_sizes):
             if not blocks_line or not types_sizes_line:
                 continue
@@ -118,7 +117,11 @@ class IndexCreator:
         using the tarfile module, while also filtering out non-file entries
         Intended as a fallback for the gnu tar version (since it is much slower)"""
 
-        print("Warning: tar utility not found. Falling back to tarfile", file=sys.stderr)
+        print(
+            "Warning: tar utility not found. Falling back to tarfile."
+            + " Processing will most likely take around 100 times longer",
+            file=sys.stderr,
+        )
         farchive = iter(tarfile.open(self.uri))
         farchive = filter(lambda member: member.type == tarfile.REGTYPE, farchive)
         farchive = map(lambda member: (member.offset, member.name, member.size), farchive)

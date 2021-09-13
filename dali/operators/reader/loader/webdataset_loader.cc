@@ -89,8 +89,11 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
   std::ifstream index_file(index_path);
 
   // Index Checking
+  std::string global_meta;
+  getline(index_file, global_meta);
+  std::stringstream global_meta_stream(global_meta);
   std::string index_version;
-  DALI_ENFORCE(index_file >> index_version,
+  DALI_ENFORCE(global_meta_stream >> index_version,
                IndexFileErrMsg(index_path, 0, "no version signature found"));
   DALI_ENFORCE(kCurrentIndexVersion == index_version,
                IndexFileErrMsg(
@@ -100,11 +103,10 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
 
   // Getting the number of samples in the index file
   int64_t sample_desc_num_signed;
-  DALI_ENFORCE(index_file >> sample_desc_num_signed,
+  DALI_ENFORCE(global_meta_stream >> sample_desc_num_signed,
                IndexFileErrMsg(index_path, 0, "no sample count found"));
   DALI_ENFORCE(sample_desc_num_signed > 0,
                IndexFileErrMsg(index_path, 0, "sample count must be positive"));
-  index_file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
   const size_t sample_desc_num = sample_desc_num_signed;
   samples_container.reserve(samples_container.size() + sample_desc_num);
@@ -120,10 +122,10 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
 inline std::string SupportedTypesListGen() {
   std::stringstream out;
   for (auto& dtype : detail::wds::kSupportedTypes) {
-    out << dtype << ',';
+    out << dtype << ", ";
   }
   std::string out_str = out.str();
-  return out_str.substr(0, out_str.size() - (detail::wds::kSupportedTypes.size() > 0));
+  return out_str.substr(0, out_str.size() - 2 * (detail::wds::kSupportedTypes.size() > 0));
 }
 
 WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
@@ -133,10 +135,12 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
       missing_component_behavior_(detail::wds::ParseMissingExtBehavior(
           spec.GetArgument<std::string>("missing_component_behavior"))) {
   DALI_ENFORCE(uris_.size() == index_paths_.size(),
-               "Number of uris does not match the number of index files");
-  DALI_ENFORCE(uris_.size() > 0, "No webdataset shards provided");
+               "Number of webdataset archives does not match the number of index files");
+  DALI_ENFORCE(uris_.size() > 0, "No webdataset archives provided");
   DALI_ENFORCE(missing_component_behavior_ != detail::wds::MissingExtBehavior::Invalid,
-               "Invalid value for missing_component_behavior");
+               make_string("Invalid value for missing_component_behavior '",
+                           spec.GetArgument<std::string>("missing_component_behavior"),
+                           "' possible values are: skip, error, empty"));
 
   std::vector<std::string> samples_exts = spec.GetRepeatedArgument<std::string>("ext");
   ext_.reserve(samples_exts.size());
@@ -162,10 +166,10 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
   for (auto& dtype : dtypes_) {
     DALI_ENFORCE(detail::wds::kSupportedTypes.count(dtype.id()),
                  make_string("Unsupported output dtype ", dtype.name(),
-                             ". Supported types include: ", SupportedTypesListGen()));
+                             ". Supported types are: ", SupportedTypesListGen()));
   }
   DALI_ENFORCE(ext_.size() == dtypes_.size(),
-               "Number of extensions does not match the number of types");
+               "Number of extensions does not match the number of provided types");
 }
 
 WebdatasetLoader::~WebdatasetLoader() {}
@@ -219,7 +223,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
       for (auto& output : component.outputs) {
         sample[output].Reset();
         sample[output].SetMeta(meta);
-        sample[output].Resize({0});
+        sample[output].Resize({0}, dtypes_[output]);
       }
       continue;
     }
@@ -233,7 +237,8 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
             sample[output].Reset();
           }
           sample[output].Resize(
-              {static_cast<int64_t>(component.size / sample[output].type().size())});
+              {static_cast<int64_t>(component.size / sample[output].type().size())},
+              dtypes_[output]);
           shared_tensor_data = reinterpret_cast<uint8_t*>(sample[output].raw_mutable_data());
         } else {
           sample[output].ShareData(
@@ -259,8 +264,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
   // Setting non-filled outputs
   for (auto& empty_output : current_sample.empty_outputs) {
     sample[empty_output].Reset();
-    sample[empty_output].Resize({0});
-    sample[empty_output].set_type(dtypes_[empty_output]);
+    sample[empty_output].Resize({0}, dtypes_[empty_output]);
   }
   sample_index_++;
 }

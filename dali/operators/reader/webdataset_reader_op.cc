@@ -58,6 +58,7 @@ The format of the index file is as follows:
       return spec.HasArgument("ext") ? spec.GetRepeatedArgument<std::string>("ext").size() : 0;
     })
     .AddArg("uris", R"code(The list of (one or more) paths to the webdataset archives.
+
 Has to be the same length as the ``index_paths`` argument.)code",
             DALI_STRING_VEC)
     .AddArg("index_paths",
@@ -65,6 +66,7 @@ Has to be the same length as the ``index_paths`` argument.)code",
 Has to be the same length as the ``uris`` argument.)code",
             DALI_STRING_VEC)
     .AddArg("ext", R"code(The extension sets for each of the outputs produced.
+
 The number of extension sets determines the number of outputs of the reader.
 The extensions of the components are counted as the text after the first dot in the name of the file 
 (excluding the samples starting with a dot). The different extension options should be separated

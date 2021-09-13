@@ -54,8 +54,8 @@ class VectorRange {
   size_t start = 0;
   size_t num = 0;
   VectorRange() = default;
-  explicit inline VectorRange(std::vector<T>& data, size_t start_val = 0, size_t num_val = 0)
-      : data_(&data), start(start_val), num(num_val) {}
+  explicit inline VectorRange(std::vector<T>& data, size_t start_idx = 0, size_t count = 0)
+      : data_(&data), start(start_idx), num(count) {}
 
   inline T* begin() {
     return data_->data() + start;
@@ -73,7 +73,7 @@ struct ComponentDesc {
   VectorRange<size_t> outputs;
 
   ComponentDesc() = default;
-  ComponentDesc(std::string new_ext, int64_t new_size, int64_t new_offset)
+  ComponentDesc(std::string new_ext, size_t new_size, int64_t new_offset)
       : ext(std::move(new_ext)), size(new_size), offset(new_offset) {}
 };
 
@@ -108,10 +108,10 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
 
  private:
   std::vector<detail::wds::SampleDesc> samples_;        // data from the index files
-  std::vector<detail::wds::ComponentDesc> components_;  // data about the components optimized held
+  std::vector<detail::wds::ComponentDesc> components_;  // data about the components held
                                                         // together for space optimization
-  std::vector<size_t> empty_outputs_;  // indicies of empty outputs to fill in for space optimizatio
-  std::vector<size_t> output_indicies_;  // indicies of outputs that a component corresponds to
+  std::vector<size_t> empty_outputs_;  // indices of empty outputs to fill in for space optimization
+  std::vector<size_t> output_indicies_;  // indices of outputs that a component corresponds to
 
   std::vector<detail::TarArchive> wds_shards_;
   size_t sample_index_ = 0;

@@ -14,104 +14,37 @@
 
 from test_operator_readers_webdataset_base import *
 
-
-def requirements_general(
-    num_samples,
-    tar_file_path,
-    extensions,
-    batch_size=test_batch_size,
-    sort_by_index=False,
-    file_extensions=None,
-    missing_component_behavior="",
-    **kwargs
-):
-    if file_extensions is None:
-        file_extensions = extensions
+def test_return_empty():
+    global test_batch_size
+    num_samples = 1000
+    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/missing.tar")
     index_file = generate_temp_index_file(tar_file_path)
 
     extract_dir = generate_temp_extract(tar_file_path)
     equivalent_files = glob(extract_dir.name + "/*")
     equivalent_files = sorted(
-        equivalent_files,
-        **({"key": (lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]))} if sort_by_index else {})
+        equivalent_files, key=(lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]))
     )
 
     compare_pipelines(
         webdataset_raw_pipeline(
             tar_file_path,
             index_file.name,
-            extensions,
-            batch_size=batch_size,
+            ["jpg", "txt"],
+            batch_size=test_batch_size,
             device_id=0,
             num_threads=1,
-            missing_component_behavior=missing_component_behavior,
-            **kwargs
+            missing_component_behavior="empty",
         ),
         file_reader_pipeline(
             equivalent_files,
-            file_extensions,
-            batch_size=batch_size,
+            ["jpg", []],
+            batch_size=test_batch_size,
             device_id=0,
-            num_threads=1,
-            **kwargs
+            num_threads=1
         ),
-        batch_size,
-        math.ceil(num_samples / batch_size),
-    )
-
-    wds_pipeline = webdataset_raw_pipeline(
-        tar_file_path,
-        index_file.name,
-        extensions,
-        batch_size=batch_size,
-        device_id=0,
-        num_threads=1,
-    )
-    wds_pipeline.build()
-    assert_equal(list(wds_pipeline.epoch_size().values())[0], num_samples)
-
-
-def test_single_ext_from_many():
-    requirements_general(
-        1000,
-        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
-        "jpg",
-        sort_by_index=True,
-    )
-
-
-def test_all_ext_from_many():
-    requirements_general(
-        1000,
-        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
-        ["jpg", "cls"],
-        sort_by_index=True,
-    )
-
-
-def test_hidden():
-    requirements_general(
-        1,
-        os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/hidden.tar"),
-        "txt",
-        batch_size=1,
-    )
-
-
-def test_non_files():
-    requirements_general(
-        8, os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/types_contents.tar"), "txt"
-    )
-
-
-def test_return_empty():
-    requirements_general(
-        1000,
-        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/missing.tar"),
-        ["jpg", "txt"],
-        sort_by_index=True,
-        missing_component_behavior="empty",
-        file_extensions=["jpg", []],
+        test_batch_size,
+        math.ceil(num_samples / test_batch_size),
     )
 
 
@@ -184,13 +117,35 @@ def test_raise_error_on_missing():
 
 
 def test_different_components():
-    requirements_general(
-        1000,
-        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/scrambled.tar"),
-        ["jpg", "txt;cls"],
-        missing_component_behavior="empty",
-        sort_by_index=True,
-        file_extensions=["jpg", {"txt", "cls"}],
+    global test_batch_size
+    num_samples = 1000
+    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/scrambled.tar")
+    index_file = generate_temp_index_file(tar_file_path)
+
+    extract_dir = generate_temp_extract(tar_file_path)
+    equivalent_files = glob(extract_dir.name + "/*")
+    equivalent_files = sorted(
+        equivalent_files, key=(lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]))
+    )
+
+    compare_pipelines(
+        webdataset_raw_pipeline(
+            tar_file_path,
+            index_file.name,
+            ["jpg", "txt;cls"],
+            batch_size=test_batch_size,
+            device_id=0,
+            num_threads=1,
+        ),
+        file_reader_pipeline(
+            equivalent_files,
+            ["jpg", {"txt", "cls"}],
+            batch_size=test_batch_size,
+            device_id=0,
+            num_threads=1
+        ),
+        test_batch_size,
+        math.ceil(num_samples / test_batch_size),
     )
 
 
@@ -257,25 +212,6 @@ def test_wds_sharding():
         ),
         test_batch_size,
         math.ceil(num_samples / test_batch_size),
-    )
-
-
-def test_ambiguous_components():
-    requirements_general(
-        1000,
-        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
-        "jpg;cls",
-        sort_by_index=True,
-        file_extensions="cls",
-    )
-
-
-def test_common_files():
-    requirements_general(
-        1000,
-        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
-        ["jpg", "cls"] * 10,
-        sort_by_index=True
     )
 
 

@@ -107,7 +107,7 @@ class DLL_PUBLIC TarArchive {
   bool EndOfFile() const;
 
   /**
-   * @brief Frees the filestream and prepeares the archive for later usage
+   * @brief Frees the underlying file stream
    *
    */
   void Close();
