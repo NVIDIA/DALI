@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from nvidia.dali import Pipeline, pipeline_def
-from nose.tools import nottest, raises
+from nose.tools import nottest
+from nose_utils import raises
 import nvidia.dali.fn as fn
 from test_utils import get_dali_extra_path, compare_pipelines
 import os
@@ -111,6 +112,6 @@ def pipeline_kwargs(arg1, arg2, *args, **kwargs):
     pass
 
 
-@raises(TypeError)
+@raises(TypeError, regex="\*\*kwargs.*not allowed")
 def test_kwargs_exception():
     pipeline_kwargs(arg1=1, arg2=2, arg3=3)

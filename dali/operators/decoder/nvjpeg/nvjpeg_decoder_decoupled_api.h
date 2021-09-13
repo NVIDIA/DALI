@@ -591,9 +591,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
 
         if (crop_generator) {
-          TensorShape<> dims{data.shape[0], data.shape[1]};
-          data.roi = crop_generator(dims, "HW");
-          DALI_ENFORCE(data.roi.IsInRange(dims));
+          TensorShape<> shape{data.shape[0], data.shape[1]};
+          data.roi = crop_generator(shape, "HW");
+          data.roi.EnforceInRange(shape);
           output_shape_.set_tensor_shape(
             i, {data.roi.shape[0], data.roi.shape[1], data.req_nchannels});
           NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, data.roi.anchor[1], data.roi.anchor[0],

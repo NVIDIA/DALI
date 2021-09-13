@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,8 +64,8 @@ GenericImage::DecodeImpl(DALIImageType image_type,
       const int x = crop.anchor[1];
       const int newH = crop.shape[0];
       const int newW = crop.shape[1];
-      DALI_ENFORCE(newW > 0 && newW <= W);
-      DALI_ENFORCE(newH > 0 && newH <= H);
+      TensorShape<> input_shape = {H, W};
+      crop.EnforceInRange(input_shape);
       cv::Rect roi(x, y, newW, newH);
       decoded_image(roi).copyTo(decoded_image_roi);
       decoded_image = decoded_image_roi;

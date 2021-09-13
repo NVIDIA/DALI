@@ -18,7 +18,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import numpy as np
 from nvidia.dali.pipeline import Pipeline
-from nose.tools import assert_raises
+from nose_utils import assert_raises
 
 @dali.pipeline_def(batch_size=2, num_threads=3, device_id=0)
 def index_pipe(data_source, indexing_func):
@@ -115,12 +115,10 @@ def _test_invalid_args(device, args, message, run):
     pipe = Pipeline(2, 1, 0)
     src = fn.external_source(lambda: data, device=device)
     pipe.set_outputs(fn.tensor_subscript(src, **args))
-    with assert_raises(RuntimeError) as err:
+    with assert_raises(RuntimeError, glob=message):
         pipe.build()
         if run:
             pipe.run()
-    if message is not None:
-        assert message in str(err.exception)
 
 def test_inconsistent_args():
     for device in ["cpu", "gpu"]:
@@ -143,9 +141,8 @@ def _test_out_of_range(device, idx):
     src = fn.external_source(lambda: data, device=device)
     pipe = index_pipe(src, lambda x: x[idx])
     pipe.build()
-    with assert_raises(RuntimeError) as err:
+    with assert_raises(RuntimeError, glob="out of range"):
         _ = pipe.run()
-    assert "out of range" in str(err.exception)
 
 def test_out_of_range():
     for device in ["cpu", "gpu"]:
@@ -159,31 +156,27 @@ def _test_too_many_indices(device):
     pipe = index_pipe(src, lambda x: x[1,:])
 
     # Verified by tensor_subscript
-    with assert_raises(RuntimeError) as err:
+    with assert_raises(RuntimeError, glob="Too many indices"):
         pipe.build()
         _ = pipe.run()
-    assert "Too many indices" in str(err.exception)
 
     # Verified by subscript_dim_check
     pipe = index_pipe(src, lambda x: x[:,:])
-    with assert_raises(RuntimeError) as err:
+    with assert_raises(RuntimeError, glob="Too many indices"):
         pipe.build()
         _ = pipe.run()
-    assert "Too many indices" in str(err.exception)
 
     # Verified by expand_dims
     pipe = index_pipe(src, lambda x: x[:,:,dali.newaxis])
-    with assert_raises(RuntimeError) as err:
+    with assert_raises(RuntimeError, glob="not enough dimensions"):
         pipe.build()
         _ = pipe.run()
-    assert "not enough dimensions" in str(err.exception)
 
     # Verified by subscript_dim_check
     pipe = index_pipe(src, lambda x: x[dali.newaxis,:,dali.newaxis,:])
-    with assert_raises(RuntimeError) as err:
+    with assert_raises(RuntimeError, glob="Too many indices"):
         pipe.build()
         _ = pipe.run()
-    assert "Too many indices" in str(err.exception)
 
 
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -135,11 +135,12 @@ def custom_mean(batch_norm, axes):
     if batch_norm:
         def whole_batch_mean(batch):
             out = batch_mean(batch, axes) + bias
-            return [[out.astype(np.float32) for _ in range(len(batch))]]
+            return [out.astype(np.float32) for _ in range(len(batch))]
         return whole_batch_mean
     else:
         def per_sample_mean(batch):
-            return [[x.mean(axis = axes, keepdims = True, dtype=np.float32) + bias for x in batch]]
+            ret = [x.mean(axis = axes, keepdims = True, dtype=np.float32) + bias for x in batch]
+            return ret
         return per_sample_mean
 
 def custom_stddev(batch_norm, axes):
@@ -151,16 +152,16 @@ def custom_stddev(batch_norm, axes):
         def whole_batch_stddev(batch):
             mean = mean_func(batch)[0][0]
             out = bias * batch_stddev(batch, axes, mean)
-            return [[out for _ in range(len(batch))]]
+            return [out for _ in range(len(batch))]
         return whole_batch_stddev
     else:
         def per_sample_stddev(batch):
-            mean = mean_func(batch)[0]
+            mean = mean_func(batch)
             out = []
             for i in range(len(batch)):
                 stddev = bias * np.sqrt(((batch[i] - mean[i])**2).mean(axis = axes, keepdims = True))
                 out.append(stddev)
-            return [out]
+            return out
         return per_sample_stddev
 
 def normalize_list(whole_batch, data_batch, axes = None, mean = None, stddev = None, ddof = 0, eps = 0):
@@ -296,8 +297,8 @@ class NormalizePipeline(Pipeline):
         shift_scale(ref, shift, scale)
         shift_scale(ref_scalar_mean, shift, scale)
         shift_scale(ref_scalar_stddev, shift, scale)
-        mean, = mean_func(data)
-        stddev, = stddev_func(data)
+        mean = mean_func(data)
+        stddev = stddev_func(data)
 
         check(normalized, ref)
         check(scalar_mean, ref_scalar_mean)

@@ -30,13 +30,13 @@ from PIL import Image
 from math import floor, ceil
 import sys
 import warnings
-from nose.tools import raises
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import RandomDataIterator
-from nose.tools import assert_raises
+from nose_utils import raises
+from nose_utils import assert_raises
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -1491,7 +1491,7 @@ def test_image_type_deprecation():
         assert issubclass(w[-1].category, DeprecationWarning)
         assert ("The argument ``image_type`` is no longer used and will be removed in a future release." == str(w[-1].message))
 
-@raises(TypeError)
+@raises(TypeError, glob="unexpected*output_dtype*dtype")
 def test_output_dtype_both_error():
     batch_size = 10
     shape = (120, 60, 3)
@@ -1581,10 +1581,9 @@ def test_pipeline_wrong_device_id():
     pipe = dali.Pipeline(batch_size=1, num_threads=1, device_id=-123)
     with pipe:
         pipe.set_outputs(np.int32([1,2,3]))
-    with assert_raises(RuntimeError) as x:
+    with assert_raises(RuntimeError, glob="wrong device_id"):
         pipe.build()
         pipe.run()
-    assert "device_id" in str(x.exception).lower()
 
 def test_properties():
     @dali.pipeline_def(batch_size=11, prefetch_queue_depth={"cpu_size":3, "gpu_size":2})
@@ -1631,11 +1630,11 @@ def _identity_pipe():
     return x
 
 
-@raises(TypeError)
+@raises(TypeError, "*define_graph*callable*")
 def test_invoke_serialize_error_handling_string():
     _identity_pipe().serialize("any_string")
 
 
-@raises(TypeError)
+@raises(TypeError, "*define_graph*callable*")
 def test_invoke_serialize_error_handling_not_string():
     _identity_pipe().serialize(42)

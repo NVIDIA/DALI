@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,10 @@
 #ifndef DALI_UTIL_CROP_WINDOW_H_
 #define DALI_UTIL_CROP_WINDOW_H_
 
+#include <cassert>
 #include <functional>
+#include <iostream>
+#include <sstream>
 #include <utility>
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_shape_print.h"
@@ -59,6 +62,8 @@ struct CropWindow {
     return true;
   }
 
+  inline void EnforceInRange(const TensorShape<>& input_shape) const;
+
   void SetAnchor(TensorShape<> new_anchor) {
     anchor = std::move(new_anchor);
   }
@@ -67,6 +72,26 @@ struct CropWindow {
     shape = std::move(new_shape);
   }
 };
+
+inline std::ostream &operator<<(std::ostream &os, const CropWindow &wnd) {
+  int ndim = wnd.anchor.size();
+  assert(wnd.shape.size() == ndim);
+  os << "[";
+  for (int i = 0; i < ndim; i++) {
+    if (i)
+      os << ", ";
+    os << wnd.anchor[i] << ".." << wnd.anchor[i] + wnd.shape[i];
+  }
+  os << "]";
+  return os;
+}
+
+inline void CropWindow::EnforceInRange(const TensorShape<>& input_shape) const {
+  if (!IsInRange(input_shape)) {
+    DALI_FAIL(make_string(
+      "The cropping window ", *this, " is not valid for image dimensions [", input_shape, "]"));
+  }
+}
 
 using CropWindowGenerator = std::function<CropWindow(const TensorShape<>& shape,
                                                      const TensorLayout& shape_layout)>;
