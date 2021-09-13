@@ -20,7 +20,6 @@ import argparse
 import subprocess
 from shutil import which
 import tarfile
-import math
 
 
 class IndexCreator:

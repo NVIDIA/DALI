@@ -98,12 +98,6 @@ def test_raise_error_on_missing():
     num_samples = 1000
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/missing.tar")
     index_file = generate_temp_index_file(tar_file_path)
-
-    extract_dir = generate_temp_extract(tar_file_path)
-    equivalent_files = sorted(
-        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
-    )[:num_samples]
-
     wds_pipeline = webdataset_raw_pipeline(
         tar_file_path,
         index_file.name,

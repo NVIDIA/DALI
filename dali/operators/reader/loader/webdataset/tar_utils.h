@@ -108,7 +108,6 @@ class DLL_PUBLIC TarArchive {
 
   /**
    * @brief Frees the underlying file stream
-   *
    */
   void Close();
 
