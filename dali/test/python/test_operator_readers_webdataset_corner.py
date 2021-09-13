@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from test_operator_readers_webdataset_base import *
+from webdataset_base import *
 
 
 def general_corner_case(

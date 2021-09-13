@@ -26,7 +26,8 @@ void WebdatasetReader::RunImpl(HostWorkspace& ws) {
   for (int data_idx = 0; data_idx < num_samples; data_idx++) {
     auto& sample = GetSample(data_idx);
     for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
-      ws.OutputRef<CPUBackend>(output_idx)[data_idx].Resize(sample[output_idx].shape(), sample[output_idx].type());
+      ws.OutputRef<CPUBackend>(output_idx)[data_idx].Resize(sample[output_idx].shape(),
+                                                            sample[output_idx].type());
       ws.OutputRef<CPUBackend>(output_idx)[data_idx].SetMeta(sample[output_idx].GetMeta());
       std::memcpy(ws.OutputRef<CPUBackend>(output_idx)[data_idx].raw_mutable_data(),
                   sample[output_idx].raw_data(), sample[output_idx].nbytes());
@@ -35,23 +36,37 @@ void WebdatasetReader::RunImpl(HostWorkspace& ws) {
 }
 
 DALI_SCHEMA(readers__Webdataset)
-    .DocStr(
-        R"code(A reader for the webdataset format.
+    .DocStr((std::string) R"code(A reader for the webdataset format.
 
-The webdataset format is a dataset meant to improve caching of the data between the samples read.
-The data itself is contained within one or several tar archives, each of which is further split into
-samples, each of which contains one or several components that correspond to the actual file
-contained within the archive. The components that correspond to specific sample are aggregated by
-the part of the filepath that does not correspond to the extension (for the specifics about the
-extensions please read the description of the ``ext`` parameter below). Note that samples with
-their filename starting with a dot will not be loaded, as well as entries that are not a file.
+The webdataset format is a way of providing efficient access to datasets stored in tar archives.
+
+Storing data in POSIX tar archives greatly speeds up I/O operations on mechanical storage devices 
+and on network file systems because it allows the operating system to reduce the number of I/O 
+operations and to read the data ahead.
+
+WebDataset fulfils a similar function to Tensorflow's TFRecord/tf.Example classes, but is much 
+easier to adopt because it does not actually require any data conversion. The data is stored in 
+exactly the same format inside tar files as it is on disk, and all preprocessing and data 
+augmentation code remains unchanged.
+
+The dataset consists of one or more tar archives, each of which is further split into samples. 
+A sample contains one or more components that correspond to the actual files contained within 
+the archive. The components that belong to a specific sample are aggregated by filename without 
+extension (for the specifics about the extensions please read the description of the ``ext`` parameter
+below). Note that samples with their filename starting with a dot will not be loaded, as well as 
+entries that are not regular files.
 
 In addition to the tar archive with data, each archive should come with a corresponding index file.
+The index file can be generated using a dedicated script as follows:
+<path_to_dali>/tools/wds2idx.py <path_to_archive> <path_to_index_file>
+
 The format of the index file is as follows:
-<offset behind the contents of the last archive entry> <number_of_samples>
-<sample1_start_offset> <component1_ext> <component1_size> <component2_ext> <component2_size> ...
-<sample2_start_offset> <component1_ext> <component1_size> <component2_ext> <component2_size> ...
-...)code")
+)code" + detail::wds::kCurrentIndexVersion + R"code( <num_samples>
+<component1_ext> <component1_offset> <component1_size> <component2_ext> <component2_offset> <component2_size> ...
+...
+
+
+Based on https://github.com/webdataset/webdataset)code")
     .NumInput(0)
     .OutputFn([](const OpSpec& spec) {
       return spec.HasArgument("ext") ? spec.GetRepeatedArgument<std::string>("ext").size() : 0;
@@ -76,15 +91,16 @@ Example: "left.png;right.jpg")code",
             DALI_STRING_VEC)
     .AddOptionalArg(
         "missing_component_behavior",
-        R"code(Specifies what to do in case there is not any file corresponding to a certain output.
-Three behaviors are possible (case-insensitive):
+        R"code(Specifies what to do in case there is not any file in a sample corresponding to a certain output.
+
+Possible behaviors:
   - "empty" (default) - in that case the output that was not set will just contain an empty tensor
   - "skip" - in that case the entire sample will just be skipped (no penalty to performance except
              for reduced caching of the archive)
-  - "error" - in that case an exception will be raised)code",
+  - "error" - in that case an exception will be raised and te execution stops)code",
         "")
     .AddOptionalArg("dtypes", R"code(Data types of the respective outputs.
-The default output data types are INT8. However, if set, each output data type should be specified.
+The default output data types are UINT8. However, if set, each output data type should be specified.
 Moreover, the tar file should be constructed so that it will only output a sample with its byte size
 divisible by the size of the data type. )code",
                     DALI_DATA_TYPE_VEC,

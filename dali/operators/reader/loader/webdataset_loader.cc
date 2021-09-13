@@ -197,9 +197,9 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
 
     // Checking if the component data from the index file agrees with reality
     const auto& index_path = index_paths_[current_sample.wds_shard_index];
-    DALI_ENFORCE(
-        !current_wds_shard.EndOfArchive(),
-        IndexFileErrMsg(index_path, current_sample.line_number, "archive shorter than reported"));
+    DALI_ENFORCE(!current_wds_shard.EndOfArchive(),
+                 IndexFileErrMsg(index_path, current_sample.line_number,
+                                 "offset is outside of the archive file"));
     DALI_ENFORCE(
         current_wds_shard.GetFileType() == detail::TarArchive::ENTRY_FILE,
         IndexFileErrMsg(index_path, current_sample.line_number, "component of a non-file type"));
@@ -362,7 +362,6 @@ void WebdatasetLoader::PrepareMetadataImpl() {
     }
   }
   sample_index_ = start_index(shard_id_, num_shards_, samples_.size());
-
 }
 
 void WebdatasetLoader::Reset(bool wrap_to_shard) {
