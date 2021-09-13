@@ -134,10 +134,10 @@ instance of an object is lower than this value, the object will be ignored.)code
       R"code(If set to True, the image IDs will be produced in an extra output.)code",
       false)
   .AddOptionalArg("avoid_class_remapping",
-      R"code(If set to False, classes' ID values are mapped to consecutive values in range 1-number of classes
-disregarding exact values from the manifest (0 is reserved for a special background class).
+      R"code(If set to True, lasses ID values are returned directly as they are defined in the manifest file.
 
-Otherwise classes ID values are returned directly as they are defined in the configuration file.)code",
+Otherwise, classes' ID values are mapped to consecutive values in range 1-number of classes
+disregarding exact values from the manifest (0 is reserved for a special background class.)code",
       false)
   .AddOptionalArg<vector<string>>("images", R"code(A list of image paths.
 
