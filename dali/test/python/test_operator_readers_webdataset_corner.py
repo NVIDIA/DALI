@@ -183,7 +183,7 @@ def test_wide_sample():
 
 
 def test_argument_errors():
-    def uris_index_paths_error():
+    def paths_index_paths_error():
         webdataset_pipeline = webdataset_raw_pipeline(
             [
                 os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
@@ -200,7 +200,7 @@ def test_argument_errors():
 
     assert_raises(
         RuntimeError,
-        uris_index_paths_error,
+        paths_index_paths_error,
         glob="Number of webdataset archives does not match the number of index files",
     )
 
@@ -277,7 +277,7 @@ def test_index_errors():
         general_index_error,
         b"v1.0 1\njpg 1024 1",
         "db/webdataset/sample-tar/empty.tar",
-        glob="archive shorter than reported"
+        glob="offset is outside of the archive file"
     )
     assert_raises(
         RuntimeError,

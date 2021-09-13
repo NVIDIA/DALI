@@ -118,7 +118,7 @@ class IndexCreator:
 
         print(
             "Warning: tar utility not found. Falling back to tarfile."
-            + " Processing will most likely take around 100 times longer",
+            + " Processing will most likely take much longer",
             file=sys.stderr,
         )
         farchive = iter(tarfile.open(self.uri))

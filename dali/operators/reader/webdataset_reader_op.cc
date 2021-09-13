@@ -57,11 +57,11 @@ below). Note that samples with their filename starting with a dot will not be lo
 entries that are not regular files.
 
 In addition to the tar archive with data, each archive should come with a corresponding index file.
-The index file can be generated using a dedicated script as follows::
+The index file can be generated using a dedicated script::
 
     ``<path_to_dali>/tools/wds2idx.py <path_to_archive> <path_to_index_file>``
 
-The format of the index file is as follows:
+The format of the index file is:
 )code" + detail::wds::kCurrentIndexVersion + R"code( <num_samples>
 <component1_ext> <component1_offset> <component1_size> <component2_ext> <component2_offset> <component2_size> ...
 ...
@@ -72,14 +72,14 @@ Based on https://github.com/webdataset/webdataset)code")
     .OutputFn([](const OpSpec& spec) {
       return spec.HasArgument("ext") ? spec.GetRepeatedArgument<std::string>("ext").size() : 0;
     })
-    .AddArg("uris", R"code(The list of (one or more) paths to the webdataset archives.
+    .AddArg("paths", R"code(The list of (one or more) paths to the webdataset archives.
 
 Has to be the same length as the ``index_paths`` argument.)code",
             DALI_STRING_VEC)
     .AddArg("index_paths",
             R"code(The list of the index files corresponding to the respective webdataset archives.
             
-Has to be the same length as the ``uris`` argument.)code",
+Has to be the same length as the ``paths`` argument.)code",
             DALI_STRING_VEC)
     .AddArg("ext", R"code(The extension sets for each of the outputs produced.
 

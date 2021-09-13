@@ -100,7 +100,7 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   void PrepareMetadataImpl() override;
   void Reset(bool wrap_to_shard) override;
 
-  std::vector<std::string> uris_;
+  std::vector<std::string> paths_;
   std::vector<std::string> index_paths_;
   std::vector<std::set<std::string>> ext_;
   std::vector<TypeInfo> dtypes_;

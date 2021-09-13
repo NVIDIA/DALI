@@ -130,13 +130,13 @@ inline std::string SupportedTypesListGen() {
 
 WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     : Loader(spec),
-      uris_(spec.GetRepeatedArgument<std::string>("uris")),
+      paths_(spec.GetRepeatedArgument<std::string>("paths")),
       index_paths_(spec.GetRepeatedArgument<std::string>("index_paths")),
       missing_component_behavior_(detail::wds::ParseMissingExtBehavior(
           spec.GetArgument<std::string>("missing_component_behavior"))) {
-  DALI_ENFORCE(uris_.size() == index_paths_.size(),
+  DALI_ENFORCE(paths_.size() == index_paths_.size(),
                "Number of webdataset archives does not match the number of index files");
-  DALI_ENFORCE(uris_.size() > 0, "No webdataset archives provided");
+  DALI_ENFORCE(paths_.size() > 0, "No webdataset archives provided");
   DALI_ENFORCE(missing_component_behavior_ != detail::wds::MissingExtBehavior::Invalid,
                make_string("Invalid value for missing_component_behavior '",
                            spec.GetArgument<std::string>("missing_component_behavior"),
@@ -213,7 +213,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
 
     // Skipping cached samples
     const std::string source_info =
-        make_string("archive ", uris_[current_sample.wds_shard_index], "index file ",
+        make_string("archive ", paths_[current_sample.wds_shard_index], "index file ",
                     index_paths_[current_sample.wds_shard_index], "line ",
                     current_sample.line_number, "component offset ", component.offset);
     DALIMeta meta;
@@ -248,7 +248,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
         }
       }
       DALI_ENFORCE(current_wds_shard.Read(shared_tensor_data, component.size) == component.size,
-                   "Error reading from a file " + uris_[current_sample.wds_shard_index]);
+                   "Error reading from a file " + paths_[current_sample.wds_shard_index]);
     } else {
       auto data = current_wds_shard.ReadFile();
       for (auto& output : component.outputs) {
@@ -275,13 +275,13 @@ Index WebdatasetLoader::SizeImpl() {
 
 void WebdatasetLoader::PrepareMetadataImpl() {
   if (!dont_use_mmap_) {
-    mmap_reserver_ = FileStream::MappingReserver(static_cast<unsigned int>(uris_.size()));
+    mmap_reserver_ = FileStream::MappingReserver(static_cast<unsigned int>(paths_.size()));
   }
   copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
 
   // initializing all the readers
-  wds_shards_.reserve(uris_.size());
-  for (auto& uri : uris_) {
+  wds_shards_.reserve(paths_.size());
+  for (auto& uri : paths_) {
     wds_shards_.emplace_back(FileStream::Open(uri, read_ahead_, !dont_use_mmap_));
   }
 

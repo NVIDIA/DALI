@@ -31,7 +31,7 @@ wds2idx_script = "../../../tools/wds2idx.py"
 
 @pipeline_def()
 def webdataset_raw_pipeline(
-    uris,
+    paths,
     index_paths,
     ext,
     missing_component_behavior="empty",
@@ -46,7 +46,7 @@ def webdataset_raw_pipeline(
     stick_to_shard=False,
 ):
     out = readers.webdataset(
-        uris=uris,
+        paths=paths,
         index_paths=index_paths,
         ext=ext,
         missing_component_behavior=missing_component_behavior,
