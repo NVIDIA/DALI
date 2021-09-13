@@ -156,6 +156,9 @@ bool TarArchive::EndOfArchive() const {
 }
 
 void TarArchive::SeekArchive(int64_t offset) {
+  if (offset == current_header_) {
+    return;
+  }
   assert(offset % T_BLOCKSIZE == 0);
   eof_ = false;
   readoffset_ = 0;

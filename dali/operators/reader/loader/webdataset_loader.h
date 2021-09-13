@@ -22,15 +22,16 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "dali/core/bitmask.h"
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include "dali/pipeline/data/tensor.h"
-#include "dali/core/bitmask.h"
 
 namespace dali {
 namespace detail {
 namespace wds {
 
+constexpr char kCurrentIndexVersion[] = "v1.0";
 constexpr char kExtDelim = ';';
 const std::set<DALIDataType> kSupportedTypes = {DALI_UINT8,   DALI_UINT16, DALI_UINT32, DALI_UINT64,
                                                 DALI_INT8,    DALI_INT16,  DALI_INT32,  DALI_INT64,
@@ -44,17 +45,43 @@ enum class MissingExtBehavior {
 };
 MissingExtBehavior ParseMissingExtBehavior(std::string);
 
+template <typename T>
+class VectorRange {
+ private:
+  std::vector<T>* data_ = nullptr;
+
+ public:
+  size_t start = 0;
+  size_t num = 0;
+  VectorRange() = default;
+  explicit inline VectorRange(std::vector<T>& data, size_t start_val = 0, size_t num_val = 0)
+      : data_(&data), start(start_val), num(num_val) {}
+
+  inline T* begin() {
+    return data_->data() + start;
+  }
+
+  inline T* end() {
+    return begin() + num;
+  }
+};
+
 struct ComponentDesc {
   std::string ext;
-  int64_t size = 0;
+  size_t size = 0;
+  int64_t offset = 0;
+  VectorRange<size_t> outputs;
 
-  ComponentDesc(std::string new_ext, int64_t new_size) : ext(std::move(new_ext)), size(new_size) {}
+  ComponentDesc() = default;
+  ComponentDesc(std::string new_ext, int64_t new_size, int64_t new_offset)
+      : ext(std::move(new_ext)), size(new_size), offset(new_offset) {}
 };
 
 struct SampleDesc {
-  int64_t start_offset;
-  int64_t end_offset;
-  std::vector<ComponentDesc> index_file_metadata;
+  VectorRange<ComponentDesc> components;
+  VectorRange<size_t> empty_outputs;
+  size_t wds_shard_index;
+  int64_t line_number;
 };
 
 }  // namespace wds
@@ -76,35 +103,18 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   std::vector<std::string> uris_;
   std::vector<std::string> index_paths_;
   std::vector<std::set<std::string>> ext_;
-  std::unordered_map<std::string, std::vector<size_t>>
-      ext_map_;  // maps an extension to sample indicies
+  std::vector<TypeInfo> dtypes_;
   detail::wds::MissingExtBehavior missing_component_behavior_;
-  std::vector<DALIDataType> dtypes_;
 
  private:
-  void SetDataPointer(std::vector<Tensor<CPUBackend>>& sample, bitmask& sample_was_set,
-                      const std::string& extension, const std::string& source_info,
-                      std::shared_ptr<void> data, int64_t size) const;
-  uint8_t* ShareDataPointer(std::vector<Tensor<CPUBackend>>& sample,
-                            bitmask& sample_was_set, const std::string& extension,
-                            const std::string& source_info, int64_t size) const;
-  void MarkCached(std::vector<Tensor<CPUBackend>>& sample, bitmask& sample_was_set,
-                  const std::string& extension, const std::string& source_info) const;
+  std::vector<detail::wds::SampleDesc> samples_;        // data from the index files
+  std::vector<detail::wds::ComponentDesc> components_;  // data about the components optimized held
+                                                        // together for space optimization
+  std::vector<size_t> empty_outputs_;  // indicies of empty outputs to fill in for space optimizatio
+  std::vector<size_t> output_indicies_;  // indicies of outputs that a component corresponds to
 
-  std::vector<std::vector<detail::wds::SampleDesc>>
-      wds_shards_metadata_;  // data from the index files
-
-
-  size_t total_size_ = 0;                       // total size of all index files
-  std::vector<detail::TarArchive> wds_shards_;  // archives for all wds shards
-  std::vector<Index> wds_shards_prefixsums_;    // prefix sum of numbers of samples in wds shards
-
-  size_t first_wds_shard_index_ = 0;    // the index of the first wds shard to use
-  size_t current_wds_shard_index_ = 0;  // current archive that is being read
-  size_t first_sample_index_ = 0;       // index of the first sample in the first wds shard to use
-  size_t current_sample_index_ = 0;  // index of the current sample read from the current wds shard
-  Index GetCurrentSampleIndex() const;
-
+  std::vector<detail::TarArchive> wds_shards_;
+  size_t sample_index_ = 0;
   FileStream::MappingReserver mmap_reserver_;
 };
 

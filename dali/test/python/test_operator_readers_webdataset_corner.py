@@ -180,7 +180,7 @@ def test_mmap_dtype_incompatibility():
         RuntimeError,
         corner_case,
         dtypes=[dali.types.INT8, dali.types.FLOAT64],
-        glob="has a size not divisible by the chosen dtype's size of",
+        glob="component size and dtype incompatible",
     )
 
 
@@ -238,7 +238,7 @@ def test_argument_errors():
         RuntimeError,
         corner_case,
         dtypes=[dali.types.STRING, dali.types.STRING],
-        glob="Unsupported output dtype. Supported types include",
+        glob="Unsupported output dtype *. Supported types include",
     )
     assert_raises(
         RuntimeError,
@@ -248,185 +248,76 @@ def test_argument_errors():
     )
 
 
+def general_index_error(
+    index_file_contents, tar_file_path="db/webdataset/MNIST/devel-0.tar", ext="jpg"
+):
+    index_file = tempfile.NamedTemporaryFile()
+    index_file.write(index_file_contents)
+    index_file.flush()
+    webdataset_pipeline = webdataset_raw_pipeline(
+        os.path.join(get_dali_extra_path(), tar_file_path),
+        index_file.name,
+        ext,
+        batch_size=1,
+        device_id=0,
+        num_threads=1,
+    )
+    webdataset_pipeline.build()
+    webdataset_pipeline.run()
+    webdataset_pipeline.run()
+
+
 def test_index_errors():
-    def less_components_error():
-        index_file = tempfile.NamedTemporaryFile()
-        index_file.write(b"512 100\n")
-        index_file.flush()
-        webdataset_pipeline = webdataset_raw_pipeline(
-            os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
-            index_file.name,
-            ["jpg", "cls"],
-            batch_size=1,
-            device_id=0,
-            num_threads=1,
-        )
-        webdataset_pipeline.build()
-
+    assert_raises(RuntimeError, general_index_error, b"", glob="no version signature found")
     assert_raises(
         RuntimeError,
-        less_components_error,
-        glob="less components than stated at the beginning of the index file",
+        general_index_error,
+        b"v0.1",
+        glob="the version of the index file does not match the expected version (expected: ",
     )
-
-    def no_extensions_error():
-        index_file = tempfile.NamedTemporaryFile()
-        index_file.write(b"512 1\n0\n")
-        index_file.flush()
-        webdataset_pipeline = webdataset_raw_pipeline(
-            os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
-            index_file.name,
-            ["jpg", "cls"],
-            batch_size=1,
-            device_id=0,
-            num_threads=1,
-        )
-        webdataset_pipeline.build()
-
-    assert_raises(RuntimeError, no_extensions_error, glob="no extensions provided for the sample")
-
-    def corresponding_component_size_error():
-        index_file = tempfile.NamedTemporaryFile()
-        index_file.write(b"512 1\n0 jpg\n")
-        index_file.flush()
-        webdataset_pipeline = webdataset_raw_pipeline(
-            os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
-            index_file.name,
-            ["jpg", "cls"],
-            batch_size=1,
-            device_id=0,
-            num_threads=1,
-        )
-        webdataset_pipeline.build()
-
+    assert_raises(RuntimeError, general_index_error, b"v1.0", glob="no sample count found")
+    assert_raises(
+        RuntimeError, general_index_error, b"v1.0 -1", glob="sample count must be positive"
+    )
+    assert_raises(
+        RuntimeError, general_index_error, b"v1.0 1\n", glob="no extensions provided for the sample"
+    )
     assert_raises(
         RuntimeError,
-        corresponding_component_size_error,
-        glob="size corresponding to the extension not found",
+        general_index_error,
+        b"v1.0 1\njpg",
+        glob="size or offset corresponding to the extension not found",
     )
-
-    def smaller_final_offset_error():
-        index_file = tempfile.NamedTemporaryFile()
-        index_file.write(b"512 2\n0 jpg 0\n1024 png 512")
-        index_file.flush()
-        webdataset_pipeline = webdataset_raw_pipeline(
-            os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
-            index_file.name,
-            ["jpg", "cls"],
-            batch_size=1,
-            device_id=0,
-            num_threads=1,
-        )
-        webdataset_pipeline.build()
-
     assert_raises(
         RuntimeError,
-        smaller_final_offset_error,
-        glob="reported final offset smaller than a sample start offset",
+        general_index_error,
+        b"v1.0 1\njpg 1 0",
+        glob="tar offset is not a multiple of tar block size",
     )
-
-    def offset_not_divisible_error():
-        index_file = tempfile.NamedTemporaryFile()
-        index_file.write(b"3072 2\n0 jpg 0\n1030 png 512")
-        index_file.flush()
-        webdataset_pipeline = webdataset_raw_pipeline(
-            os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/types_contents.tar"),
-            index_file.name,
-            "float16",
-            batch_size=1,
-            device_id=0,
-            num_threads=1,
-        )
-        webdataset_pipeline.build()
-
-    assert_raises(RuntimeError, offset_not_divisible_error, glob="- offset * not divisible by")
-
-    def final_offset_not_divisible_error():
-        index_file = tempfile.NamedTemporaryFile()
-        index_file.write(b"3100 2\n0 jpg 0\n1024 png 512")
-        index_file.flush()
-        webdataset_pipeline = webdataset_raw_pipeline(
-            os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/types_contents.tar"),
-            index_file.name,
-            "float16",
-            batch_size=1,
-            device_id=0,
-            num_threads=1,
-        )
-        webdataset_pipeline.build()
-
     assert_raises(
-        RuntimeError, final_offset_not_divisible_error, glob="- final offset * not divisible by"
+        RuntimeError,
+        general_index_error,
+        b"v1.0 1\njpg 1024 1",
+        "db/webdataset/sample-tar/empty.tar",
+        glob="archive shorter than reported"
     )
-
-    def offset_order_error():
-        index_file = tempfile.NamedTemporaryFile()
-        index_file.write(b"3072 2\n1024 png 0\n0 jpg 512")
-        index_file.flush()
-        webdataset_pipeline = webdataset_raw_pipeline(
-            os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/types_contents.tar"),
-            index_file.name,
-            "float16",
-            batch_size=1,
-            device_id=0,
-            num_threads=1,
-        )
-        webdataset_pipeline.build()
-
-    assert_raises(RuntimeError, offset_order_error, glob="sample offsets not in order")
-
-    def reported_component_sizes_error():
-        index_file = tempfile.NamedTemporaryFile()
-        index_file.write(b"3072 1\n0 int32 40 float64 80 float16 40")
-        index_file.flush()
-        webdataset_pipeline = webdataset_raw_pipeline(
-            os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/dtypes.tar"),
-            index_file.name,
-            "float16",
-            dtypes=dali.types.FLOAT64,
-            batch_size=1,
-            device_id=0,
-            num_threads=1,
-        )
-        webdataset_pipeline.build()
-        webdataset_pipeline.run()
-        webdataset_pipeline.run()
-
-    assert_raises(RuntimeError, reported_component_sizes_error, glob="reporting component sizes different to actual")
-
-    def reported_extensions_error():
-        index_file = tempfile.NamedTemporaryFile()
-        index_file.write(b"3072 1\n0 jpg 40 float64 80 float16 20")
-        index_file.flush()
-        webdataset_pipeline = webdataset_raw_pipeline(
-            os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/dtypes.tar"),
-            index_file.name,
-            "jpg",
-            missing_component_behavior="skip",
-            batch_size=1,
-            device_id=0,
-            num_threads=1,
-        )
-        webdataset_pipeline.build()
-        webdataset_pipeline.run()
-        webdataset_pipeline.run()
-
-    assert_raises(RuntimeError, reported_extensions_error, glob="reporting different extensions in a sample to the actual ones")
-
-    def archive_too_short_error():
-        index_file = tempfile.NamedTemporaryFile()
-        index_file.write(b"3072 1\n0 int32 40 float64 80 float16 20")
-        index_file.flush()
-        webdataset_pipeline = webdataset_raw_pipeline(
-            os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/empty.tar"),
-            index_file.name,
-            "jpg",
-            batch_size=1,
-            device_id=0,
-            num_threads=1,
-        )
-        webdataset_pipeline.build()
-        webdataset_pipeline.run()
-        webdataset_pipeline.run()
-
-    assert_raises(RuntimeError, archive_too_short_error, glob="reporting a file longer than actual")
+    assert_raises(
+        RuntimeError,
+        general_index_error,
+        b"v1.0 1\njpg 0 1",
+        "db/webdataset/sample-tar/types_contents.tar",
+        glob="component of a non-file type"
+    )
+    assert_raises(
+        RuntimeError,
+        general_index_error,
+        b"v1.0 1\njpg 0 1",
+        glob="component extension does not match the archive entry extension"
+    )
+    assert_raises(
+        RuntimeError,
+        general_index_error,
+        b"v1.0 1\ncls 0 1000",
+        ext="cls",
+        glob="component size does not match the archive entry size"
+    )

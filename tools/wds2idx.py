@@ -44,6 +44,7 @@ class IndexCreator:
     """
 
     tar_block_size = 512
+    index_file_version = "v1.0"
 
     def __init__(self, uri, idx_path):
         self.uri = uri
@@ -68,15 +69,15 @@ class IndexCreator:
         self.open()
 
     @staticmethod
-    def split_name(filepath):  # translated from the matching function in c++
+    def split_name(filepath):
         """Splits the webdataset into the basename and the extension"""
-        base_name_pos = filepath.rfind("\\") + 1
-        dot_pos = filepath.find(".", base_name_pos + 1)
-        if dot_pos == -1:
-            return filepath, ""
+        dot_pos = filepath.find(".", filepath.rfind("/") + 1)
         return filepath[:dot_pos], filepath[dot_pos + 1 :]
 
     def _get_data_tar(self):
+        """Retreives the data about the offset, name and size of each component
+        using the gnu tar utility, while also filtering out non-file entries"""
+
         tar_blocks_proc = subprocess.Popen(
             ["tar", "--list", "--block-num", "--file", self.uri],
             stdout=subprocess.PIPE,
@@ -93,20 +94,6 @@ class IndexCreator:
             b"\n"
         )  # <type>... <size> <date> <name>
 
-        # Extracting total size
-        last_blocks_line = None
-        for blocks_line in reversed(tar_blocks):
-            if not not blocks_line:
-                last_blocks_line = blocks_line
-                break
-
-        total_size = (
-            int(last_blocks_line[last_blocks_line.find(b"block") + 6 : last_blocks_line.find(b":")])
-            * IndexCreator.tar_block_size
-        )
-
-        yield total_size
-
         # Extracting
         tar_data = zip(tar_blocks, tar_types_sizes)
         for blocks_line, types_sizes_line in zip(tar_blocks, tar_types_sizes):
@@ -116,7 +103,7 @@ class IndexCreator:
             name = str(blocks_line[blocks_line.find(b":") + 2 :], "ascii")
             entry_type = types_sizes_line[0:1]
 
-            if entry_type != b"-" or name.startswith("."):
+            if entry_type != b"-":
                 continue
 
             offset = int(blocks_line[blocks_line.find(b"block") + 6 : blocks_line.find(b":")]) * 512
@@ -127,27 +114,18 @@ class IndexCreator:
             yield offset, name, size
 
     def _get_data_tarfile(self):
+        """Retreives the data about the offset, name and size of each component
+        using the tarfile module, while also filtering out non-file entries
+        Intended as a fallback for the gnu tar version (since it is much slower)"""
+
         print("Warning: tar utility not found. Falling back to tarfile", file=sys.stderr)
-
-        members = []
-        total_size = 0
-        farchive = tarfile.open(self.uri)
-        for member in iter(farchive):
-            total_size = (
-                farchive.fileobj.tell()
-                + math.ceil(member.size / IndexCreator.tar_block_size)
-                * IndexCreator.tar_block_size
-            )
-
-        yield total_size
-
-        for member in iter(farchive):
-            if member.type != tarfile.REGTYPE:
-                continue
-            yield member.offset, member.name, member.size
+        farchive = iter(tarfile.open(self.uri))
+        farchive = filter(lambda member: member.type == tarfile.REGTYPE, farchive)
+        farchive = map(lambda member: (member.offset, member.name, member.size), farchive)
+        return farchive
 
     def create_index(self):
-        """Creates the index file from open record file"""
+        """Creates the index file from a tar archive"""
         self.reset()
 
         pre_time = time.time()
@@ -157,15 +135,12 @@ class IndexCreator:
         print(f"time: {time.time() - pre_time:.2f} count: {counter} stage: collect")
 
         # Aggregates extensions in samples
-        data_generator = (
-            self._get_data_tar() if which("tar") is not None else self._get_data_tarfile()
-        )
-        total_size = next(data_generator)
-
         aggregated_data = []
         last_basename = None
 
-        for offset, name, size in data_generator:
+        for offset, name, size in (
+            self._get_data_tar() if which("tar") is not None else self._get_data_tarfile()
+        ):
             if counter % report_step == 0:
                 cur_time = time.time()
                 print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: collect")
@@ -173,26 +148,27 @@ class IndexCreator:
 
             basename, extension = IndexCreator.split_name(name)
 
+            # check for the files starting with a dot (hidden files)
+            if not basename or basename.endswith("/"):
+                continue
+
             if last_basename != basename:
-                aggregated_data.append((offset, [(extension, size)]))
+                aggregated_data.append([(extension, offset, size)])
                 last_basename = basename
             else:
-                aggregated_data[-1][1].append((extension, size))
+                aggregated_data[-1].append((extension, offset, size))
 
         if not aggregated_data:
             raise ValueError("Webdataset Tar File empty")
 
         # Constructs the index file out of the aggregated extensions
-        self.fidx.write(f"{total_size} {len(aggregated_data)}\n")
-        for offset, extensions_sizes in aggregated_data:
+        self.fidx.write(f"{IndexCreator.index_file_version} {len(aggregated_data)}\n")
+        for bundle in aggregated_data:
             if counter % report_step == 0:
                 cur_time = time.time()
                 print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: index")
-            self.fidx.write(
-                f"""{offset} {' '.join(
-                map(lambda ext_size: str(ext_size[0]) + ' ' + str(ext_size[1]), extensions_sizes)
-            )}\n"""
-            )
+            self.fidx.write(" ".join(map(lambda component: " ".join(map(str, component)), bundle)))
+            self.fidx.write("\n")
             counter += 1
 
         cur_time = time.time()
