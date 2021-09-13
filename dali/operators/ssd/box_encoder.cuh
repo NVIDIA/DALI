@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,10 +18,21 @@
 #include <utility>
 #include <vector>
 
+#include "dali/core/dev_buffer.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/operators/ssd/box_encoder.h"
 
 namespace dali {
+
+
+struct BoxEncoderSampleDesc {
+  float4 *boxes_out;
+  int *labels_out;
+  const float4 *boxes_in;
+  const int *labels_in;
+  int in_boxes_count;
+};
+
 template <>
 class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
  public:
@@ -66,7 +77,6 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
     curr_batch_size_ = ws.GetInputBatchSize(0);
-    boxes_offsets_.Resize({curr_batch_size_ + 1});
 
     best_box_idx_.Resize({curr_batch_size_ * anchors_count_});
     best_box_iou_.Resize({curr_batch_size_ * anchors_count_});
@@ -83,9 +93,11 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   int64_t anchors_count_;
   Tensor<GPUBackend> anchors_;
   Tensor<GPUBackend> anchors_as_center_wh_;
-  Tensor<GPUBackend> boxes_offsets_;
   Tensor<GPUBackend> best_box_idx_;
   Tensor<GPUBackend> best_box_iou_;
+
+  std::vector<BoxEncoderSampleDesc> samples;
+  DeviceBuffer<BoxEncoderSampleDesc> samples_dev;
 
   bool offset_;
   Tensor<GPUBackend> means_;
@@ -96,17 +108,14 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
 
   void PrepareAnchors(const vector<float> &anchors);
 
-  void WriteAnchorsToOutput(
-    float4 *out_boxes, int *out_labels, const cudaStream_t &stream);
+  void ClearLabels(TensorList<GPUBackend> &labels_out, const cudaStream_t &stream);
 
-  void ClearOutput(
-    float4 *out_boxes, int *out_labels, const cudaStream_t &stream);
+  void WriteAnchorsToOutput(TensorList<GPUBackend> &boxes_out, const cudaStream_t &stream);
+
+  void ClearOutput(TensorList<GPUBackend> &boxes_out, const cudaStream_t &stream);
 
   std::pair<TensorListShape<>, TensorListShape<>> CalculateDims(
     const TensorList<GPUBackend> &boxes_input);
-
-  int *CalculateBoxesOffsets(
-    const TensorList<GPUBackend> &boxes_input, const cudaStream_t &stream);
 
   static const int kBoxesInId = 0;
   static const int kLabelsInId = 1;

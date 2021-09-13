@@ -226,7 +226,7 @@ class DLL_PUBLIC Buffer {
    * @brief Return true if there was data allocation
    */
   inline bool has_data_allocation() {
-    return data_;
+    return !!data_;
   }
 
   /**
