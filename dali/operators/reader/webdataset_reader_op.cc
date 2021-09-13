@@ -57,8 +57,9 @@ below). Note that samples with their filename starting with a dot will not be lo
 entries that are not regular files.
 
 In addition to the tar archive with data, each archive should come with a corresponding index file.
-The index file can be generated using a dedicated script as follows:
-<path_to_dali>/tools/wds2idx.py <path_to_archive> <path_to_index_file>
+The index file can be generated using a dedicated script as follows::
+
+    ``<path_to_dali>/tools/wds2idx.py <path_to_archive> <path_to_index_file>``
 
 The format of the index file is as follows:
 )code" + detail::wds::kCurrentIndexVersion + R"code( <num_samples>
@@ -100,9 +101,10 @@ Possible behaviors:
   - "error" - in that case an exception will be raised and te execution stops)code",
         "")
     .AddOptionalArg("dtypes", R"code(Data types of the respective outputs.
+
 The default output data types are UINT8. However, if set, each output data type should be specified.
 Moreover, the tar file should be constructed so that it will only output a sample with its byte size
-divisible by the size of the data type. )code",
+divisible by the size of the data type.)code",
                     DALI_DATA_TYPE_VEC,
                     nullptr)  // default is a vector of uint8
     .AddParent("LoaderBase");

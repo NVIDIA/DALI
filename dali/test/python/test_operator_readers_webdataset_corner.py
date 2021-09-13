@@ -283,7 +283,7 @@ def test_index_errors():
         RuntimeError,
         general_index_error,
         b"v1.0 1\njpg 0 1",
-        "db/webdataset/sample-tar/types_contents.tar",
+        "db/webdataset/sample-tar/types.tar",
         glob="component of a non-file type"
     )
     assert_raises(
