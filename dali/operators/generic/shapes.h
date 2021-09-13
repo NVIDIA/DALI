@@ -93,7 +93,8 @@ class Shapes : public Operator<Backend> {
   }
 
   void RunBackend(DeviceWorkspace &ws) {
-    if (!tmp_.raw_data()) {
+    if (!tmp_.has_data_allocation()) {
+      auto &type = TypeTable::GetTypeInfo(output_type_);
       tmp_.set_type(output_type_);
       tmp_.set_pinned(true);
     }
