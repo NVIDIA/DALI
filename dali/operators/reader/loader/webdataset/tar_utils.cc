@@ -140,7 +140,6 @@ bool TarArchive::NextFile() {
 
   const int64_t offset = stream_->Tell() + RoundToBlockSize(filesize_) - readoffset_;
   current_header_ = offset;
-  assert(offset >= 0);
   stream_->Seek(offset);
   ParseHeader();
   return !eof_;
@@ -158,7 +157,7 @@ void TarArchive::SeekArchive(int64_t offset) {
   eof_ = false;
   readoffset_ = 0;
   stream_->Seek(offset);
-  current_header_ = stream_->Tell();
+  current_header_ = offset;
   ParseHeader();
 }
 

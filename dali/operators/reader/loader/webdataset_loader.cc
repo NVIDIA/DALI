@@ -361,11 +361,8 @@ void WebdatasetLoader::PrepareMetadataImpl() {
       was_output_set.fill(false);
     }
   }
-
-  DALI_ENFORCE(static_cast<int64_t>(samples_.size()) >= static_cast<int64_t>(num_shards_),
-               "Number of shards bigger than the total number of samples");
-
   sample_index_ = start_index(shard_id_, num_shards_, samples_.size());
+
 }
 
 void WebdatasetLoader::Reset(bool wrap_to_shard) {

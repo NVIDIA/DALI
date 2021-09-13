@@ -26,8 +26,7 @@ void WebdatasetReader::RunImpl(HostWorkspace& ws) {
   for (int data_idx = 0; data_idx < num_samples; data_idx++) {
     auto& sample = GetSample(data_idx);
     for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
-      ws.OutputRef<CPUBackend>(output_idx)[data_idx].Resize(sample[output_idx].shape());
-      ws.OutputRef<CPUBackend>(output_idx)[data_idx].set_type(sample[output_idx].type());
+      ws.OutputRef<CPUBackend>(output_idx)[data_idx].Resize(sample[output_idx].shape(), sample[output_idx].type());
       ws.OutputRef<CPUBackend>(output_idx)[data_idx].SetMeta(sample[output_idx].GetMeta());
       std::memcpy(ws.OutputRef<CPUBackend>(output_idx)[data_idx].raw_mutable_data(),
                   sample[output_idx].raw_data(), sample[output_idx].nbytes());
@@ -63,6 +62,7 @@ Has to be the same length as the ``index_paths`` argument.)code",
             DALI_STRING_VEC)
     .AddArg("index_paths",
             R"code(The list of the index files corresponding to the respective webdataset archives.
+            
 Has to be the same length as the ``uris`` argument.)code",
             DALI_STRING_VEC)
     .AddArg("ext", R"code(The extension sets for each of the outputs produced.

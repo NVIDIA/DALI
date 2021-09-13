@@ -30,6 +30,7 @@ from PIL import Image
 from math import floor, ceil
 import sys
 import warnings
+from test_operator_readers_webdataset_base import generate_temp_index_file as generate_temp_wds_index
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
@@ -49,6 +50,7 @@ jpeg_folder = os.path.join(test_data_root, 'db', 'single', 'jpeg')
 coco_image_folder = os.path.join(test_data_root, 'db', 'coco', 'images')
 coco_annotation_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
 test_data_video = os.path.join(test_data_root, 'db', 'optical_flow', 'sintel_trailer')
+webdataset_db_folder = os.path.join(test_data_root, 'db', 'webdataset', 'MNIST')
 
 def test_tensor_multiple_uses():
     batch_size = 128
@@ -874,6 +876,17 @@ class CachedPipeline(Pipeline):
                                               skip_cached_images = skip_cached_images,
                                               features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
                                                           "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
+        elif reader_type == "readers.Webdataset":
+            wds = [os.path.join(webdataset_db_folder, archive) 
+                   for archive in ['devel-1.tar', 'devel-2.tar', 'devel-0.tar']]
+            self.wds_index_files = [generate_temp_wds_index(archive) for archive in wds]
+            self.input = ops.readers.Webdataset(uris = wds, 
+                                                index_paths = [idx.name for idx in self.wds_index_files], 
+                                                ext = ["jpg", "cls"],
+                                                shard_id = 0,
+                                                num_shards=num_shards,
+                                                stick_to_shard=True,
+                                                skip_cached_images=skip_cached_images)
 
         if is_cached:
             self.decode = ops.decoders.Image(device = "mixed", output_type = types.RGB,
@@ -899,21 +912,21 @@ class CachedPipeline(Pipeline):
 
 def test_nvjpeg_cached_batch_copy_pipelines():
     batch_size = 26
-    for reader_type in {"readers.MXNet", "readers.Caffe", "readers.Caffe2", "readers.File", "readers.TFRecord"}:
+    for reader_type in {"readers.MXNet", "readers.Caffe", "readers.Caffe2", "readers.File", "readers.TFRecord", "readers.Webdataset"}:
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=True),
                           CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=False),
                           batch_size=batch_size, N_iterations=20)
 
 def test_nvjpeg_cached_pipelines():
     batch_size = 26
-    for reader_type in {"readers.MXNet", "readers.Caffe", "readers.Caffe2", "readers.File", "readers.TFRecord"}:
+    for reader_type in {"readers.MXNet", "readers.Caffe", "readers.Caffe2", "readers.File", "readers.TFRecord", "readers.Webdataset"}:
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False),
                           CachedPipeline(reader_type, batch_size, is_cached=True),
                           batch_size=batch_size, N_iterations=20)
 
 def test_skip_cached_images():
     batch_size = 1
-    for reader_type in {"readers.MXNet", "readers.Caffe", "readers.Caffe2", "readers.File"}:
+    for reader_type in {"readers.MXNet", "readers.Caffe", "readers.Caffe2", "readers.File", "readers.Webdataset"}:
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False),
                           CachedPipeline(reader_type, batch_size, is_cached=True, skip_cached_images=True),
                           batch_size=batch_size, N_iterations=100)
