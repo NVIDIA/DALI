@@ -64,7 +64,6 @@ typedef enum {            // Checking:
   t_checkElements   = 2,  //    images separately
   t_checkAll        = 4,  //    everything (no assertion after first fail)
   t_checkNoAssert   = 8,  //    no assertion even when test failed
-  t_checkBestMatch  = 16  //    best match of two images with possible left/right & up/down shifts
 } t_checkType;
 
 typedef enum {
@@ -478,6 +477,53 @@ class DALISingleOpTest : public DALITest {
     return output;
   }
 
+  /**
+   * @brief Less obfuscated version that calculates mean between all tensors in the tensor lists.
+   */
+  template <typename T>
+  int CheckTotalMean(const TensorList<CPUBackend> &tl1, const TensorList<CPUBackend> &tl2,
+                     double &mean) const {
+    // use a Get mean, std-dev of difference separately for each color component
+    const int Channels = TestCheckType(t_checkColorComp) ? c_ : 1;
+    double worst_mean = -1.0, std = 0.0;
+    int result = -1;
+
+    const auto &shape1 = tl1.shape();
+    const auto &shape2 = tl2.shape();
+    ASSERT_EQ(shape1, shape2), result;
+
+    int64_t total_len = shape1.num_elements();
+    int64_t color_len = total_len / Channels;
+
+    for (int channel = 0; channel < Channels; ++channel) {  // loop over the colors
+      int64_t counter = 0;
+      double diff_sum = 0.0;
+      for (int sample_idx = 0; sample_idx < shape1.num_samples(); sample_idx++) {
+        auto *data1 = tl1.tensor<T>(sample_idx);
+        auto *data2 = tl2.tensor<T>(sample_idx);
+        for (int64_t i = channel; i < shape1[sample_idx].num_elements(); i += Channels) {
+          diff_sum += std::abs(static_cast<double>(data1[i]) - static_cast<double>(data2[i]));
+        }
+      }
+      // Normalized as in MeanStdDevColorNorm
+      double curr_mean = diff_sum / color_len / (255. / 100.);
+
+      if (worst_mean < curr_mean) {
+        worst_mean = curr_mean;  // More strong violation of the boundary found
+        result = channel;        // Change the color index as a return value
+      }
+    }
+
+    mean = worst_mean;
+
+    if (mean <= eps_)
+      return -1;
+
+    ASSERT_LE(mean, eps_), result;
+
+    return result;
+  }
+
   template <typename T>
   int CheckBuffers(int lenRaster, const T *img1, const T *img2, bool checkAll,
                    double *pMean = nullptr, const TensorShape<> &shape = {}) const {
@@ -527,147 +573,78 @@ class DALISingleOpTest : public DALITest {
 
     const int length = lenRaster / jMax;
 
-    const bool checkBest = TestCheckType(t_checkBestMatch);
-
-    int shiftHorFrom, shiftHorTo, shiftVertFrom, shiftVertTo;
-    shiftHorFrom = shiftVertFrom = -checkBest;
-    shiftHorTo = shiftVertTo = checkBest;
-
-    const auto H = checkBest ? shape[0] : 0;
-    const auto W = checkBest ? shape[1] : 0;
     int retValBest = -1;
     double bestMean = 100.;
 
-    for (int shiftVert = shiftVertFrom; shiftVert <= shiftVertTo; ++shiftVert) {
-      for (int shiftHor = shiftHorFrom; shiftHor <= shiftHorTo; ++shiftHor) {
-        // Calculate the length of the vector to store the delta of images
-        int len = length;
-        const T *a = img1;
-        const T *b = img2;
-        auto hMax = H;
-        auto wMax = W;
-        int N = lenRaster;
-        if (shiftVert) {
-          const auto lengthReduction = W * c_;
-          len -= lengthReduction / jMax;
-          N -= lengthReduction;
-          if (shiftVert > 0)
-            a += lengthReduction;
-          else
-            b += lengthReduction;
+    // Calculate the length of the vector to store the delta of images
+    int len = length;
+    const T *a = img1;
+    const T *b = img2;
+    int N = lenRaster;
 
-          hMax--;
-        }
-
-        if (shiftHor) {
-          len -= (H - (shiftVert? 1 : 0)) * c_ / jMax;
-          if (shiftHor > 0)
-            a++;
-          else
-            b++;
-
-          wMax--;
-        }
-
-        vector<double> diff(len);
-        double mean = 0, std = 0;
-        int retVal = -1;
-        double worstMean = -1.;
+    vector<double> diff(len);
+    double mean = 0, std = 0;
+    int retVal = -1;
+    double worstMean = -1.;
 #ifndef PIXEL_STAT_FILE
-        for (int j = 0; j < jMax; ++j) {    // loop over the colors
-          if (shiftHor == 0) {
-            for (int i = j; i < N; i += jMax)
-              diff[i / jMax] = std::abs(static_cast<double>(a[i]) - static_cast<double>(b[i]));
+    for (int j = 0; j < jMax; ++j) {    // loop over the colors
+      for (int i = j; i < N; i += jMax)
+        diff[i / jMax] = std::abs(static_cast<double>(a[i]) - static_cast<double>(b[i]));
 
-            ASSERT_EQ(N/jMax, len), -1;
-          } else {
-            int i = 0;
-            for (int y = 0; y < hMax; ++y) {
-              for (int x = 0; x < wMax; ++x) {
-                const int idx = (W * y + x) * c_;
-                diff[i++] = std::abs(static_cast<double>(a[idx]) - static_cast<double>(b[idx]));
-              }
-            }
+      ASSERT_EQ(N/jMax, len), -1;
 
-            a++;    // to next color component
-            b++;
-            ASSERT_EQ(i, len), -1;
-          }
+      MeanStdDevColorNorm<double>(diff, &mean, &std);
+      if (mean <= eps_)
+        continue;
 
-          MeanStdDevColorNorm<double>(diff, &mean, &std);
-          if (mean <= eps_)
-            continue;
-
-          if (checkAll) {
-            if (worstMean < mean) {
-              worstMean = mean;  // More strong violation of the boundary found
-              retVal = j;        // Change the color index as a return value
-            }
-            continue;
-          }
-
-          if (!checkBest) {
-            ASSERT_LE(mean, eps_), -1;
-          }
+      if (checkAll) {
+        if (worstMean < mean) {
+          worstMean = mean;  // More strong violation of the boundary found
+          retVal = j;        // Change the color index as a return value
         }
+        continue;
+      }
+
+      ASSERT_LE(mean, eps_), -1;
+    }
 #else
 
-        for (int j = 0; j < jMax; ++j) {
-          int pos = 0, neg = 0;
-          if (shiftHor == 0) {
-            for (int i = j; i < N; i += jMax) {
-              diff[i / jMax] = abs(static_cast<double>(a[i]) - static_cast<double>(b[i]));
-              if (a[i] > b[i])
-                pos++;
-              else if (a[i] < b[i])
-                neg++;
-            }
-            ASSERT_EQ(N/jMax, len), -1;
-          } else {
-            int i = 0;
-            for (int y = 0; y < hMax; ++y) {
-              for (int x = 0; x < wMax; ++x) {
-                const int idx = (W * y + x) * c_;
-                diff[i++] = abs(static_cast<double>(a[idx]) - static_cast<double>(b[idx]));
-                if (a[i] > b[i])
-                  pos++;
-                else if (a[i] < b[i])
-                  neg++;
-              }
-            }
+    for (int j = 0; j < jMax; ++j) {
+      int pos = 0, neg = 0;
+      for (int i = j; i < N; i += jMax) {
+        diff[i / jMax] = abs(static_cast<double>(a[i]) - static_cast<double>(b[i]));
+        if (a[i] > b[i])
+          pos++;
+        else if (a[i] < b[i])
+          neg++;
+      }
+      ASSERT_EQ(N/jMax, len), -1;
 
-            a++;    // to next color component
-            b++;
-            ASSERT_EQ(i, len), -1;
-          }
+      MeanStdDevColorNorm<double>(diff, &mean, &std);
+      snprintf(buffer, sizeof(buffer),
+                "%s     %1d    %8.2f     %8.2f       %7d      %7d      %7d\n",
+                firstLine? "" : "    ", j, mean, std, len - pos - neg, pos, neg);
 
-          MeanStdDevColorNorm<double>(diff, &mean, &std);
-          snprintf(buffer, sizeof(buffer),
-                   "%s     %1d    %8.2f     %8.2f       %7d      %7d      %7d\n",
-                   firstLine? "" : "    ", j, mean, std, len - pos - neg, pos, neg);
+      firstLine = false;
+      if (file)
+        fprintf(file, "%s", buffer);
+      else
+        cout << buffer;
 
-          firstLine = false;
-          if (file)
-            fprintf(file, "%s", buffer);
-          else
-            cout << buffer;
+      if (mean <= eps_)
+        continue;
 
-          if (mean <= eps_)
-            continue;
-
-          if (worstMean < mean) {
-            worstMean = mean;  // More strong violation of the boundary found
-            retVal = j;        // Change the color index as a return value
-          }
-        }
+      if (worstMean < mean) {
+        worstMean = mean;  // More strong violation of the boundary found
+        retVal = j;        // Change the color index as a return value
+      }
+    }
 
 
 #endif
-        if (bestMean > worstMean) {
-          bestMean = worstMean;
-          retValBest = retVal;
-        }
-      }
+    if (bestMean > worstMean) {
+      bestMean = worstMean;
+      retValBest = retVal;
     }
 
 #ifdef PIXEL_STAT_FILE
@@ -763,16 +740,14 @@ class DALISingleOpTest : public DALITest {
       }
     } else {
       if (floatType) {
-        colorIdx = CheckBuffers<float>(t1->size(),
-                          t1->data<float>(),
-                          t2->data<float>(), checkAll, &mean);
+        colorIdx = CheckTotalMean<float>(*t1, *t2, mean);
       } else {
-        colorIdx = CheckBuffers<unsigned char>(t1->size(),
-                          t1->data<unsigned char>(),
-                          t2->data<unsigned char>(), checkAll, &mean);
+        colorIdx = CheckTotalMean<uint8_t>(*t1, *t2, mean);
       }
-      if (colorIdx >= 0)
+      if (colorIdx >= 0) {
+        // Test failed for colorIdx
         ReportTestFailure(mean, colorIdx);
+      }
     }
 
     if (!TestCheckType(t_checkNoAssert)) {
