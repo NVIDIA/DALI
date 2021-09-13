@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 from test_utils import compare_pipelines, get_dali_extra_path
 import os
-from nose.tools import raises
+from nose_utils import raises
 import tempfile
 import numpy as np
 
@@ -142,7 +142,9 @@ def test_operator_coco_reader_same_images():
             np.testing.assert_array_equal(boxes1.at(0), boxes2.at(0))
             np.testing.assert_array_equal(boxes1.at(0), boxes3.at(0))
 
-@raises(RuntimeError)
+@raises(
+    RuntimeError,
+    glob="Assert on \"HasArgument(name)\" failed: Argument \"preprocessed_annotations_dir\" is not supported by operator \"readers__COCO\".")
 def test_invalid_args():
     pipeline = Pipeline(batch_size=2, num_threads=4, device_id=0)
     with pipeline:
@@ -170,4 +172,4 @@ def test_coco_reader_alias():
     for polygon_masks, pixelwise_masks in [(None, None), (True, None), (None, True)]:
         new_pipe = coco_pipe(fn.readers.coco, file_root, train_annotations, polygon_masks, pixelwise_masks)
         legacy_pipe = coco_pipe(fn.coco_reader, file_root, train_annotations, polygon_masks, pixelwise_masks)
-        compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
+        compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 5)
