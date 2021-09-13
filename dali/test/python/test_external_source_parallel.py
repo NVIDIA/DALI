@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import numpy as np
-from nose.tools import raises, with_setup
+from nose.tools import with_setup
+from nose_utils import raises
 
 from test_pool_utils import *
 from test_utils import compare_pipelines
@@ -52,15 +53,21 @@ disallowed_sources = [
 ]
 
 
-@raises(TypeError)
 def check_source_build(source):
     pipe = create_pipe(source, 'cpu', 10, py_num_workers=4, py_start_method='spawn', parallel=True)
     pipe.build()
 
 
 def test_wrong_source():
-    for source in disallowed_sources:
-        yield check_source_build, source
+    common_msg = "External Source in parallel mode (when `parallel=True`) accepts as `source` only *. Got {} instead"
+    expected_error_msgs = [
+        common_msg.format("a callable that does not accept arguments"),
+        "External source callback must be a callable with 0 or 1 argument",
+        common_msg.format("an iterable"),
+        common_msg.format("a generator function")]
+    assert len(disallowed_sources) == len(expected_error_msgs)
+    for source, error_msg in zip(disallowed_sources, expected_error_msgs):
+        yield raises(TypeError, error_msg)(check_source_build), source
 
 
 # Test that we can launch several CPU-only pipelines by fork as we don't touch CUDA context.
@@ -115,7 +122,8 @@ def test_parallel_fork():
     # test that another pipline with forking initialization fails as there is CUDA contexts already initialized
     parallel_pipe = create_pipe(callback, 'cpu', 16, py_num_workers=4,
                                 py_start_method='fork', parallel=True)
-    yield raises(RuntimeError)(build_and_run_pipeline), parallel_pipe, 1
+    yield raises(RuntimeError, "Cannot fork a process when there is a CUDA context already bound to the process.")(
+        build_and_run_pipeline), parallel_pipe, 1
 
 @with_setup(setup_function, teardown_function)
 def test_dtypes():
