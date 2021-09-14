@@ -93,8 +93,8 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   void RunWarp(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input, int thread_idx) {
     auto &displace = displace_[thread_idx];
     In fill[1024];
-    auto in = view_as_tensor<const Out, 3>(input);
-    auto out = view_as_tensor<In, 3>(output);
+    auto in = view<const Out, 3>(input);
+    auto out = view<In, 3>(output);
 
     for (int i = 0; i < in.shape[2]; i++) {
       fill[i] = fill_value_;
