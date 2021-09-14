@@ -313,6 +313,9 @@ class DLL_PUBLIC TypeInfo {
     SetType<NoType>();
   }
 
+  // Workaround for a clang bug, showing up in clang-only builds
+  DLL_PUBLIC inline ~TypeInfo() {}
+
   template <typename T>
   DLL_PUBLIC static inline TypeInfo Create() {
     TypeInfo type;
