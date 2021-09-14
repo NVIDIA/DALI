@@ -19,6 +19,26 @@
 
 namespace dali {
 
+bool WebdatasetReader::SetupImpl(std::vector<OutputDesc>& output_desc, const HostWorkspace& ws) {
+  DataReader<CPUBackend, std::vector<Tensor<CPUBackend>>>::SetupImpl(output_desc, ws);
+  int num_outputs = ws.NumOutput();
+  int num_samples = GetCurrBatchSize();
+
+  output_desc.resize(num_outputs);
+  for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
+    output_desc[output_idx].shape = TensorListShape<>(num_samples, 1);
+  }
+
+  for (int data_idx = 0; data_idx < num_samples; data_idx++) {
+    auto& sample = GetSample(data_idx);
+    for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
+      output_desc[output_idx].shape.set_tensor_shape(data_idx, sample[output_idx].shape());
+      output_desc[output_idx].type = sample[output_idx].type();
+    }
+  }
+  return true;
+}
+
 void WebdatasetReader::RunImpl(HostWorkspace& ws) {
   int num_outputs = ws.NumOutput();
   int num_samples = GetCurrBatchSize();
@@ -26,8 +46,6 @@ void WebdatasetReader::RunImpl(HostWorkspace& ws) {
   for (int data_idx = 0; data_idx < num_samples; data_idx++) {
     auto& sample = GetSample(data_idx);
     for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
-      ws.OutputRef<CPUBackend>(output_idx)[data_idx].Resize(sample[output_idx].shape(),
-                                                            sample[output_idx].type());
       ws.OutputRef<CPUBackend>(output_idx)[data_idx].SetMeta(sample[output_idx].GetMeta());
       std::memcpy(ws.OutputRef<CPUBackend>(output_idx)[data_idx].raw_mutable_data(),
                   sample[output_idx].raw_data(), sample[output_idx].nbytes());
@@ -62,7 +80,8 @@ The index file can be generated using a dedicated script::
     ``<path_to_dali>/tools/wds2idx.py <path_to_archive> <path_to_index_file>``
 
 The format of the index file is:
-)code" + detail::wds::kCurrentIndexVersion + R"code( <num_samples>
+)code" + detail::wds::kCurrentIndexVersion +
+            R"code( <num_samples>
 <component1_ext> <component1_offset> <component1_size> <component2_ext> <component2_offset> <component2_size> ...
 ...
 

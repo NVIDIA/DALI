@@ -22,14 +22,18 @@
 
 namespace dali {
 
-class WebdatasetReader : public DataReader<CPUBackend, vector<Tensor<CPUBackend>>> {
+class DLL_PUBLIC WebdatasetReader : public DataReader<CPUBackend, vector<Tensor<CPUBackend>>> {
  public:
   explicit WebdatasetReader(const OpSpec& spec)
       : DataReader<CPUBackend, vector<Tensor<CPUBackend>>>(spec) {
     loader_ = InitLoader<WebdatasetLoader>(spec);
   }
 
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const HostWorkspace&) override;
   void RunImpl(HostWorkspace& ws) override;
+  bool CanInferOutputs() const override {
+    return true;
+  }
 
  protected:
   USE_READER_OPERATOR_MEMBERS(CPUBackend, vector<Tensor<CPUBackend>>);

@@ -30,7 +30,7 @@ from PIL import Image
 from math import floor, ceil
 import sys
 import warnings
-from test_operator_readers_webdataset_base import generate_temp_index_file as generate_temp_wds_index
+from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
