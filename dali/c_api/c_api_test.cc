@@ -178,6 +178,9 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline,
     Check(view<uint8_t>(pipeline_output_cpu),
           TensorListView<StorageCPU, uint8_t>(cpu_buf.get(), pipeline_output_cpu.shape()));
   }
+  baseline.ReleaseOutputs();
+  daliOutputRelease(&handle);
+
   CUDA_CALL(cudaDeviceSynchronize());
 }
 
@@ -688,8 +691,6 @@ TYPED_TEST(CApiTest, ForceNoCopyFail) {
   auto pipe_ptr = GetExternalSourcePipeline(false, other_device_str);
   auto serialized = pipe_ptr->SerializeToProtobuf();
 
-  pipe_ptr->Build();
-
   daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
@@ -774,6 +775,7 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test) {
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
   }
+  daliDeletePipeline(&handle);
 }
 
 
@@ -807,7 +809,6 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
 
   daliPipelineHandle handle;
   daliDeserializeDefault(&handle, serialized.c_str(), serialized.size());
-  daliPrefetchUniform(&handle, prefetch_queue_depth);
 
   daliRun(&handle);
   daliOutput(&handle);
@@ -910,6 +911,8 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
       Check(view<uint8_t>(output1_cpu), view<uint8_t>(output2_cpu));
     }
   }
+  daliOutputRelease(&handle);
+  daliDeletePipeline(&handle);
 }
 
 TYPED_TEST(CApiTest, CpuOnlyTest) {
