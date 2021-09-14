@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -144,9 +144,9 @@ struct SeparableResampleCPU  {
 
     ScratchpadEstimator se;
     if (out_shape.num_elements() > 0) {
-      se.add<float>(AllocType::Host, setup.memory.tmp_size);
-      se.add<float>(AllocType::Host, setup.memory.coeffs_size);
-      se.add<int32_t>(AllocType::Host, setup.memory.indices_size);
+      se.add<mm::memory_kind::host, float>(setup.memory.tmp_size);
+      se.add<mm::memory_kind::host, float>(setup.memory.coeffs_size);
+      se.add<mm::memory_kind::host, int32_t>(setup.memory.indices_size);
     }
 
     TensorListShape<> out_tls({ out_shape });
@@ -185,8 +185,8 @@ struct SeparableResampleCPU  {
         tmp_shapes[i] = shape_cat(vec2shape(desc.tmp_shape(i)), desc.channels);
       }
 
-      float *tmp_buf = context.scratchpad->Allocate<float>(AllocType::Host, setup.memory.tmp_size);
-      void *filter_mem = context.scratchpad->Allocate<int32_t>(AllocType::Host,
+      float *tmp_buf = context.scratchpad->AllocateHost<float>(setup.memory.tmp_size);
+      void *filter_mem = context.scratchpad->AllocateHost<int32_t>(
           setup.memory.coeffs_size + setup.memory.indices_size);
 
       Surface<spatial_ndim, float> tmp_surf = {}, tmp_prev = {};

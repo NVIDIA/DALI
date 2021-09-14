@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "dali/kernels/kernel_manager.h"
+#include "dali/kernels/common/scatter_gather.h"
 #include "dali/kernels/transpose/transpose_gpu.h"
 #include "dali/operators/reader/loader/numpy_loader_gpu.h"
 #include "dali/operators/reader/numpy_reader_op.h"
@@ -29,21 +30,7 @@ namespace dali {
 
 class NumpyReaderGPU : public NumpyReader<GPUBackend, NumpyFileWrapperGPU> {
  public:
-  explicit NumpyReaderGPU(const OpSpec& spec)
-      : NumpyReader<GPUBackend, NumpyFileWrapperGPU>(spec),
-        thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false),
-        sg_(1 << 18, spec.GetArgument<int>("max_batch_size")) {
-    prefetched_batch_tensors_.resize(prefetch_queue_depth_);
-
-    // set a device guard
-    DeviceGuard g(device_id_);
-
-    // init loader
-    bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-    loader_ = InitLoader<NumpyLoaderGPU>(spec, std::vector<string>(), shuffle_after_epoch);
-
-    kmgr_transpose_.Resize<TransposeKernel>(1, 1);
-  }
+  explicit NumpyReaderGPU(const OpSpec& spec);
 
   ~NumpyReaderGPU() override {
     /*

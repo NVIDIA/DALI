@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -161,9 +161,9 @@ class TransposeGPU::Impl {
     req.output_shapes = { out_shape_ };
     ScratchpadEstimator se;
 
-    se.add<TiledTransposeDesc<T>>(AllocType::GPU, tiled_descs_.size());
-    se.add<DeinterleaveDesc<T>>(AllocType::GPU, deinterleave_descs_.size());
-    se.add<GenericTransposeDesc<T>>(AllocType::GPU, generic_descs_.size());
+    se.add<mm::memory_kind::device, TiledTransposeDesc<T>>(tiled_descs_.size());
+    se.add<mm::memory_kind::device, DeinterleaveDesc<T>>(deinterleave_descs_.size());
+    se.add<mm::memory_kind::device, GenericTransposeDesc<T>>(generic_descs_.size());
 
     req.scratch_sizes = se.sizes;
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,18 +45,8 @@ dimension than the input, that is for ``FHWC`` inputs, the outputs will be ``HWC
 
 
 template <>
-void ElementExtract<CPUBackend>::AddCopy(HostWorkspace &ws, void *dst, const void *src,
-                                         size_t volume, const TypeInfo &type) {
-  auto &tp = ws.GetThreadPool();
-  tp.AddWork([=](int thread_id) { type.Copy<CPUBackend, CPUBackend>(dst, src, volume, 0); },
-             volume);
-}
-
-
-template <>
 void ElementExtract<CPUBackend>::RunCopies(HostWorkspace &ws) {
-  auto &tp = ws.GetThreadPool();
-  tp.RunAll();
+  scatter_gather_.Run(ws.GetThreadPool(), true);
 }
 
 DALI_REGISTER_OPERATOR(ElementExtract, ElementExtract<CPUBackend>, CPU);

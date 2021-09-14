@@ -87,23 +87,32 @@ constexpr pool_options default_device_pool_opts() noexcept {
   return { (1_uz << 32), (1 << 20), 2.0f, true, true };
 }
 
-template <memory_kind kind>
+template <typename Kind>
 constexpr sync_scope default_sync_scope() {
-  return kind == memory_kind::device ? sync_scope::device
-                                     : kind == memory_kind::host ? sync_scope::none
-                                                                 : sync_scope::system;
+  return sync_scope::system;  // pinned, managed
 }
 
-template <memory_kind kind>
+template <>
+constexpr sync_scope default_sync_scope<memory_kind::host>() {
+  return sync_scope::none;
+}
+
+template <>
+constexpr sync_scope default_sync_scope<memory_kind::device>() {
+  return sync_scope::device;
+}
+
+template <typename Kind>
 constexpr pool_options default_pool_opts() noexcept {
-  if (kind == memory_kind::host) {
-    return default_host_pool_opts();
-  } else {
-    auto opt = default_device_pool_opts();
-    opt.sync = default_sync_scope<kind>();
-    opt.enable_deferred_deallocation = true;
-    return opt;
-  }
+  auto opt = default_device_pool_opts();
+  opt.sync = default_sync_scope<Kind>();
+  opt.enable_deferred_deallocation = true;
+  return opt;
+}
+
+template <>
+constexpr pool_options default_pool_opts<memory_kind::host>() noexcept {
+  return default_host_pool_opts();
 }
 
 namespace detail {
@@ -113,8 +122,17 @@ inline void synchronize_all_devices() {
   CUDA_CALL(cudaGetDeviceCount(&ndev));
   DeviceGuard dg;
   for (int i = 0; i < ndev; i++) {
-    CUDA_CALL(cudaSetDevice(i));
-    CUDA_CALL(cudaDeviceSynchronize());
+    CUdevice device;
+    CUDA_CALL(cuDeviceGet(&device, i));
+    unsigned flags = 0;
+    int active = 0;
+    // Check if there's an active primary context for the device - if there is, we shoud
+    // synchronize with that device; otherwise we can skip it.
+    CUDA_CALL(cuDevicePrimaryCtxGetState(device, &flags, &active));
+    if (active) {
+      CUDA_CALL(cudaSetDevice(i));
+      CUDA_CALL(cudaDeviceSynchronize());
+    }
   }
 }
 
@@ -128,11 +146,11 @@ inline void synchronize(sync_scope scope) {
 
 }  // namespace detail
 
-template <memory_kind kind, typename Context, class FreeList, class LockType>
-class pool_resource_base : public memory_resource<kind, Context> {
+template <typename Kind, typename Context, class FreeList, class LockType>
+class pool_resource_base : public memory_resource<Kind, Context> {
  public:
-  explicit pool_resource_base(memory_resource<kind, Context> *upstream = nullptr,
-                              const pool_options &opt = default_pool_opts<kind>())
+  explicit pool_resource_base(memory_resource<Kind, Context> *upstream = nullptr,
+                              const pool_options &opt = default_pool_opts<Kind>())
   : upstream_(upstream), options_(opt) {
      next_block_size_ = opt.min_block_size;
   }
@@ -208,6 +226,10 @@ class pool_resource_base : public memory_resource<kind, Context> {
    */
   virtual void flush_deferred() {}  /* no-op */
 
+  int device_ordinal() const noexcept {
+    return device_ordinal_;
+  }
+
   bool deferred_dealloc_enabled() const noexcept {
     return options_.enable_deferred_deallocation;
   }
@@ -257,13 +279,15 @@ class pool_resource_base : public memory_resource<kind, Context> {
 
     if (void *ptr = try_allocate_from_free(bytes, alignment))
       return ptr;
-    alignment = std::max(alignment, options_.upstream_alignment);
-    size_t blk_size = bytes;
 
     upstream_lock_guard uguard(upstream_lock_);
     // try again to avoid upstream allocation stampede
     if (void *ptr = try_allocate_from_free(bytes, alignment))
       return ptr;
+
+    alignment = std::max(alignment, options_.upstream_alignment);
+    size_t blk_size = bytes;
+
     void *new_block = get_upstream_block(blk_size, bytes, alignment);
     assert(new_block);
     if (blk_size == bytes) {
@@ -282,6 +306,12 @@ class pool_resource_base : public memory_resource<kind, Context> {
     (void)alignment;
     synchronize();
     deallocate_no_sync(ptr, bytes, alignment);
+  }
+
+  void set_default_device() {
+    if (options_.sync == sync_scope::device && device_ordinal_ < 0) {
+      CUDA_CALL(cudaGetDevice(&device_ordinal_));
+    }
   }
 
   void *get_upstream_block(size_t &blk_size, size_t min_bytes, size_t alignment) {
@@ -350,7 +380,7 @@ class pool_resource_base : public memory_resource<kind, Context> {
     return new_block;
   }
 
-  virtual Context do_get_context() const noexcept {
+  Context do_get_context() const noexcept override {
     return upstream_->get_context();
   }
 
@@ -372,7 +402,7 @@ class pool_resource_base : public memory_resource<kind, Context> {
     return actual_block_size;
   }
 
-  memory_resource<kind, Context> *upstream_;
+  memory_resource<Kind, Context> *upstream_;
   FreeList free_list_;
 
   // locking order: upstream_lock_, lock_
@@ -380,6 +410,7 @@ class pool_resource_base : public memory_resource<kind, Context> {
   LockType lock_;
   pool_options options_;
   size_t next_block_size_ = 0;
+  int device_ordinal_ = -1;
 
   struct UpstreamBlock {
     void *ptr;
@@ -392,21 +423,21 @@ class pool_resource_base : public memory_resource<kind, Context> {
   using upstream_lock_guard = std::lock_guard<std::mutex>;
 };
 
-template <memory_kind kind, typename Context, class FreeList, class LockType>
+template <typename Kind, typename Context, class FreeList, class LockType>
 class deferred_dealloc_pool
-: public deferred_dealloc_resource<pool_resource_base<kind, Context, FreeList, LockType>> {
+: public deferred_dealloc_resource<pool_resource_base<Kind, Context, FreeList, LockType>> {
  public:
-  using base = deferred_dealloc_resource<pool_resource_base<kind, Context, FreeList, LockType>>;
+  using base = deferred_dealloc_resource<pool_resource_base<Kind, Context, FreeList, LockType>>;
   using base::base;
 };
 
 namespace detail {
 
-template <memory_kind kind, typename Context, class FreeList, class LockType>
-struct can_merge<pool_resource_base<kind, Context, FreeList, LockType>> : can_merge<FreeList> {};
+template <typename Kind, typename Context, class FreeList, class LockType>
+struct can_merge<pool_resource_base<Kind, Context, FreeList, LockType>> : can_merge<FreeList> {};
 
-template <memory_kind kind, typename Context, class FreeList, class LockType>
-struct can_merge<deferred_dealloc_pool<kind, Context, FreeList, LockType>> : can_merge<FreeList> {};
+template <typename Kind, typename Context, class FreeList, class LockType>
+struct can_merge<deferred_dealloc_pool<Kind, Context, FreeList, LockType>> : can_merge<FreeList> {};
 
 }  // namespace detail
 

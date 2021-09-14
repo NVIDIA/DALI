@@ -29,7 +29,7 @@ constexpr uintptr_t ptr2u(void *p) noexcept {
   return static_cast<char*>(p) - static_cast<char*>(nullptr);
 }
 
-template <typename T>
+template <typename T = void>
 DALI_HOST_DEV
 constexpr T *u2ptr(uintptr_t i) noexcept {
   // reinterpret_cast is not a constant expression - use a series of static casts instead
@@ -56,6 +56,7 @@ constexpr bool is_aligned(void *ptr, size_t alignment) noexcept {
   return (ptr2u(ptr) & (alignment-1)) == 0;
 }
 
+DALI_NO_EXEC_CHECK
 template <typename OffsetType, typename AllocFn>
 DALI_HOST_DEV
 void *aligned_alloc_impl(AllocFn base_alloc, size_t size, size_t alignment) {
@@ -67,6 +68,7 @@ void *aligned_alloc_impl(AllocFn base_alloc, size_t size, size_t alignment) {
   return aligned;
 }
 
+DALI_NO_EXEC_CHECK
 template <typename OffsetType, typename DeallocFn>
 DALI_HOST_DEV
 void aligned_dealloc_impl(DeallocFn base_dealloc, void *mem, size_t size, size_t alignment) {
@@ -77,6 +79,7 @@ void aligned_dealloc_impl(DeallocFn base_dealloc, void *mem, size_t size, size_t
   base_dealloc(static_cast<char*>(mem) - offset, size + alignment + sizeof(OffsetType) - 1);
 }
 
+DALI_NO_EXEC_CHECK
 template <typename AllocFn>
 DALI_HOST_DEV
 inline void *aligned_alloc(AllocFn base_alloc, size_t size, size_t alignment) {
@@ -89,6 +92,7 @@ inline void *aligned_alloc(AllocFn base_alloc, size_t size, size_t alignment) {
     return aligned_alloc_impl<uint8_t>(std::forward<AllocFn>(base_alloc), size, alignment);
 }
 
+DALI_NO_EXEC_CHECK
 template <typename DeallocFn>
 DALI_HOST_DEV
 inline void aligned_dealloc(DeallocFn base_dealloc, void *mem, size_t size, size_t alignment) {

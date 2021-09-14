@@ -24,7 +24,7 @@ from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import RandomDataIterator
 from math import floor
-from nose.tools import assert_raises
+from nose_utils import assert_raises
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -555,7 +555,7 @@ def check_slice_with_out_of_bounds_error(device, batch_size, input_shape=(100, 2
                                   out_of_bounds_policy="error")
 
     pipe.build()
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob="Slice can't be placed out of bounds with current policy. Got:"):
         outs = pipe.run()
 
 def test_slice_with_out_of_bounds_error():
@@ -667,7 +667,7 @@ def check_slice_named_args_errors(device, batch_size):
             fn.slice(data, start, shape, start=start, end=start+shape, shape=shape, axes = (0, 1)),
         ]
         pipe.set_outputs(*outs)
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob="\"end\", \"rel_end\", \"shape\", and \"rel_shape\" arguments are mutually exclusive"):
         pipe.build()
         for _ in range(1):
             outs = pipe.run()

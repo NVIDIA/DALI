@@ -135,19 +135,12 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   const int initial_fill = 10;
 #if defined(__powerpc64__) || defined(__x86_64__)
   float driverVersion = 0;
-  char version[NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE];
 
 #if NVML_ENABLED
-  if (nvmlInitChecked() != NVML_SUCCESS) {
-    FAIL() << "nvmlInitChecked() failed";
-  }
-
-  if (nvmlSystemGetDriverVersion(version, sizeof version) != NVML_SUCCESS) {
-    FAIL() << "nvmlSystemGetDriverVersion failed!";
-  }
+  nvml::Init();
+  driverVersion = nvml::GetDriverVersion();
 #endif
 
-  driverVersion = std::stof(version);
 
 #if defined(__powerpc64__)
   std::cerr << "Test case running on powerpc64, driver version " << driverVersion << '\n';
@@ -188,12 +181,12 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   labels_cpu.Copy(labels_output, 0);
   CUDA_CALL(cudaStreamSynchronize(0));
   labels_cpu.set_type(TypeInfo::Create<int>());
-  const int *labels = static_cast<const int *>(labels_cpu.raw_data());
 
   for (int i = 0; i < batch_size; ++i) {
+    const auto *labels = labels_cpu.tensor<int>(i);
     auto frames_shape = frames_output.tensor_shape(i);
 
-    switch (labels[i]) {
+    switch (labels[0]) {
       case 0:
         ASSERT_EQ(frames_shape[1], 2160);
         ASSERT_EQ(frames_shape[2], 3840);
@@ -210,6 +203,10 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
         FAIL() << "Unexpected label";
     }
   }
+
+#if NVML_ENABLED
+  nvml::Shutdown();
+#endif
 }
 
 TEST_F(VideoReaderTest, PackedBFrames) {
@@ -403,6 +400,47 @@ TEST_F(VideoReaderTest, MJpeg) {
   ASSERT_EQ(frames_shape[0][0], sequence_length);
 }
 
+TEST_F(VideoReaderTest, HEVC) {
+  Pipeline pipe(16, 1, 0);
+  const int sequence_length = 3;
+  const string unsupported_exception_msg =
+      "Decoder hardware does not support this video codec"
+      " and/or chroma format";
+
+  // richer FFmpeg configuration leads to different behaviour of VFR heuristics so dissable it for
+  // this video
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("skip_vfr_check", true)
+                       .AddArg("filenames", std::vector<std::string>
+                             {testing::dali_extra_path() +"/db/video/hevc/sintel_trailer-720p.mp4"})
+                       .AddOutput("frames", "gpu"));
+
+  DeviceWorkspace ws;
+  constexpr int iterations = 10;
+  try {
+    pipe.Build(this->Outputs());
+    for (int i = 0; i < iterations; ++i) {
+      pipe.RunCPU();
+      pipe.RunGPU();
+      pipe.Outputs(&ws);
+    }
+  } catch (const std::exception &e) {
+    if (IsUnsupportedCodec(e.what())) {
+      GTEST_SKIP() << "Skipped because of unsupported codec. Original error:\n" << e.what();
+    } else {
+      throw;
+    }
+  }
+
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
+  const auto &frames_shape = frames_output.shape();
+
+  ASSERT_EQ(frames_shape.size(), 16);
+  ASSERT_EQ(frames_shape[0][0], sequence_length);
+}
+
 TEST_F(VideoReaderTest, FrameLabels) {
   const int sequence_length = 1;
   const int iterations = 256;
@@ -439,9 +477,9 @@ TEST_F(VideoReaderTest, FrameLabels) {
     frame_num_cpu.Copy(frame_num_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
-    const int *label = static_cast<const int *>(labels_cpu.raw_data());
-    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
+    const auto *frames = frames_cpu.tensor<uint8_t>(0);
+    const auto *label = labels_cpu.tensor<int>(0);
+    const auto *frame_num = frame_num_cpu.tensor<int>(0);
 
     ASSERT_EQ(frames[0], frame_num[0]);
   }
@@ -486,9 +524,9 @@ TEST_F(VideoReaderTest, FrameLabelsFilenames) {
     frame_num_cpu.Copy(frame_num_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
-    const int *label = static_cast<const int *>(labels_cpu.raw_data());
-    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
+    const auto *frames = frames_cpu.tensor<uint8_t>(0);
+    const auto *label = labels_cpu.tensor<int>(0);
+    const auto *frame_num = frame_num_cpu.tensor<int>(0);
 
     ASSERT_EQ(frames[0], frame_num[0]);
     ASSERT_EQ(label[0], 0);
@@ -534,9 +572,9 @@ TEST_F(VideoReaderTest, LabelsFilenames) {
     frame_num_cpu.Copy(frame_num_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
-    const int *label = static_cast<const int *>(labels_cpu.raw_data());
-    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
+    const auto *frames = frames_cpu.tensor<uint8_t>(0);
+    const auto *label = labels_cpu.tensor<int>(0);
+    const auto *frame_num = frame_num_cpu.tensor<int>(0);
 
     ASSERT_EQ(frames[0], frame_num[0]);
     ASSERT_EQ(label[0], 99);
@@ -585,10 +623,10 @@ TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
     timestamps_cpu.Copy(timestamp_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
-    const int *label = static_cast<const int *>(labels_cpu.raw_data());
-    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
-    const double *timestamps = static_cast<const double *>(timestamps_cpu.raw_data());
+    const auto *frames = frames_cpu.tensor<uint8>(0);
+    const auto *label = labels_cpu.tensor<int>(0);
+    const auto *frame_num = frame_num_cpu.tensor<int>(0);
+    const auto *timestamps = timestamps_cpu.tensor<double>(0);
 
     ASSERT_DOUBLE_EQ(frame_num[0], timestamps[0] * 25);
     switch (label[0]) {
@@ -648,10 +686,10 @@ TEST_F(VideoReaderTest, TimestampLabels) {
     frame_num_cpu.Copy(frame_num_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
-    const int *label = static_cast<const int *>(labels_cpu.raw_data());
-    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
-    const double *timestamps = static_cast<const double *>(timestamps_cpu.raw_data());
+    const auto *frames = frames_cpu.tensor<uint8>(0);
+    const auto *label = labels_cpu.tensor<int>(0);
+    const auto *frame_num = frame_num_cpu.tensor<int>(0);
+    const auto *timestamps = timestamps_cpu.tensor<double>(0);
 
     ASSERT_DOUBLE_EQ(frame_num[0], timestamps[0] * 25);
   }
@@ -693,9 +731,9 @@ TEST_F(VideoReaderTest, StartEndLabels) {
     timestamps_cpu.Copy(frame_num_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
-    const int *label = static_cast<const int *>(labels_cpu.raw_data());
-    const double *timestamps = static_cast<const double *>(timestamps_cpu.raw_data());
+    const auto *frames = frames_cpu.tensor<uint8>(0);
+    const auto *label = labels_cpu.tensor<int>(0);
+    const auto *timestamps = timestamps_cpu.tensor<double>(0);
 
     ASSERT_EQ(*label, std::floor(timestamps[0] / 100));
   }

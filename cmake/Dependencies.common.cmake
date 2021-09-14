@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -216,17 +216,6 @@ list(APPEND DALI_LIBS cocoapi)
 list(APPEND DALI_EXCLUDES libcocoapi.a)
 
 ##################################################################
-# RAPIDS Memory Manager
+# libcu++
 ##################################################################
-include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/rmm/include)
-
-##################################################################
-# spdlog and fmt
-##################################################################
-include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/spdlog/include)
-include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/fmt/include)
-
-##################################################################
-# thrust
-##################################################################
-include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/thrust/)
+include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/libcudacxx/include)

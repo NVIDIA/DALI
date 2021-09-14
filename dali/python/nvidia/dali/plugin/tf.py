@@ -173,7 +173,7 @@ def serialize_pipeline(pipeline):
     except RuntimeError as e:
         raise RuntimeError("Error during pipeline initialization. Note that some operators "
                            "(e.g. Python Operators) cannot be used with "
-                           "tensorflow data set API and DALIIterator.") from e
+                           "TensorFlow Dataset API and DALIIterator.") from e
 
 
 def DALIIteratorWrapper(pipeline=None,

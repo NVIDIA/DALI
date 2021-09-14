@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 namespace dali {
 namespace mm {
 
-template <memory_kind kind>
+template <typename Kind>
 struct DefaultMemoryResourceType;
 
 template <>
@@ -41,21 +41,26 @@ struct DefaultMemoryResourceType<memory_kind::pinned> {
   using type = pinned_async_resource;
 };
 
-template <memory_kind kind>
-using default_memory_resource_t = typename DefaultMemoryResourceType<kind>::type;
+template <>
+struct DefaultMemoryResourceType<memory_kind::managed> {
+  using type = managed_async_resource;
+};
+
+template <typename Kind>
+using default_memory_resource_t = typename DefaultMemoryResourceType<Kind>::type;
 
 
 /**
  * @brief Gets a shared pointer to the current memory resource for allocating memory of given kind.
  */
-template <memory_kind kind>
-DLL_PUBLIC std::shared_ptr<default_memory_resource_t<kind>> ShareDefaultResource();
+template <typename Kind>
+DLL_PUBLIC std::shared_ptr<default_memory_resource_t<Kind>> ShareDefaultResource();
 
 /**
  * @brief Gets a pointer to the current memory resource for allocating memory of given kind.
  */
-template <memory_kind kind>
-DLL_PUBLIC default_memory_resource_t<kind> *GetDefaultResource();
+template <typename Kind>
+DLL_PUBLIC default_memory_resource_t<Kind> *GetDefaultResource();
 
 /**
  * @brief Sets current memory resource for allocating memory of given kind,
@@ -65,14 +70,14 @@ DLL_PUBLIC default_memory_resource_t<kind> *GetDefaultResource();
  * The ownership is assumed as soon as the function is called - if an exception happens inside,
  * the resource will be deleted.
  */
-template <memory_kind kind>
-DLL_PUBLIC void SetDefaultResource(default_memory_resource_t<kind> *resource, bool own = false);
+template <typename Kind>
+DLL_PUBLIC void SetDefaultResource(default_memory_resource_t<Kind> *resource, bool own = false);
 
 /**
  * @brief Sets current memory resource for allocating memory of given kind.
  */
-template <memory_kind kind>
-DLL_PUBLIC void SetDefaultResource(std::shared_ptr<default_memory_resource_t<kind>> resource);
+template <typename Kind>
+DLL_PUBLIC void SetDefaultResource(std::shared_ptr<default_memory_resource_t<Kind>> resource);
 
 /**
  * @brief Gets a shared pointer to a memory resource.

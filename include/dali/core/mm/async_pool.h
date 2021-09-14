@@ -34,11 +34,11 @@
 namespace dali {
 namespace mm {
 
-template <memory_kind kind,
-    typename GlobalPool = deferred_dealloc_pool<kind, any_context, coalescing_free_tree, spinlock>,
+template <typename Kind,
+    typename GlobalPool = deferred_dealloc_pool<Kind, any_context, coalescing_free_tree, spinlock>,
     typename LockType = std::mutex,
-    typename Upstream = memory_resource<kind>>
-class async_pool_resource : public async_memory_resource<kind> {
+    typename Upstream = memory_resource<Kind>>
+class async_pool_resource : public async_memory_resource<Kind> {
  public:
   /**
    * @param upstream       Upstream resource, used by the global pool
@@ -103,7 +103,7 @@ class async_pool_resource : public async_memory_resource<kind> {
   }
 
   void *do_allocate(size_t bytes, size_t alignment) override {
-    adjust_size_and_alignment(bytes, alignment);
+    adjust_size_and_alignment(bytes, alignment, true);
     std::lock_guard<LockType> guard(lock_);
     return allocate_from_global_pool(bytes, alignment);
   }
@@ -111,12 +111,12 @@ class async_pool_resource : public async_memory_resource<kind> {
   void do_deallocate(void *mem, size_t bytes, size_t alignment) override {
     if (!mem || !bytes)
       return;
-    adjust_size_and_alignment(bytes, alignment);
+    adjust_size_and_alignment(bytes, alignment, false);
     bool deferred = global_pool_.deferred_dealloc_enabled();
     // If not deferred, we need to synchronize here (outside of the lock, to avoid blocking
     // concurrent allocations).
     if (!deferred) {
-      sync_scope sync = default_sync_scope<kind>();
+      sync_scope sync = default_sync_scope<Kind>();
       mm::detail::synchronize(sync);
     }
     std::lock_guard<LockType> guard(lock_);
@@ -142,9 +142,9 @@ class async_pool_resource : public async_memory_resource<kind> {
   void *do_allocate_async(size_t bytes, size_t alignment, stream_view stream) override {
     if (!bytes)
       return nullptr;
-    adjust_size_and_alignment(bytes, alignment);
+    adjust_size_and_alignment(bytes, alignment, true);
     std::lock_guard<LockType> guard(lock_);
-    auto it = stream_free_.find(stream.value());
+    auto it = stream_free_.find(stream.get());
     void *ptr;
     if (it != stream_free_.end()) {
       ptr = try_allocate(it->second, bytes, alignment);
@@ -190,11 +190,11 @@ class async_pool_resource : public async_memory_resource<kind> {
   void do_deallocate_async(void *mem, size_t bytes, size_t alignment, stream_view stream) override {
     if (!mem || !bytes)
       return;
-    adjust_size_and_alignment(bytes, alignment);
+    adjust_size_and_alignment(bytes, alignment, false);
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char*>(mem);
     pop_block_padding(ptr, bytes, alignment);
-    deallocate_async_impl(stream_free_[stream.value()], ptr, bytes, alignment, stream.value());
+    deallocate_async_impl(stream_free_[stream.get()], ptr, bytes, alignment, stream.get());
   }
 
   /**
@@ -206,7 +206,7 @@ class async_pool_resource : public async_memory_resource<kind> {
    * to a next multiple of the (new) alignment, reducing the need for block splitting in case
    * of multiple allocations of similarly-sized blocks.
    */
-  static void adjust_size_and_alignment(size_t &size, size_t &alignment) {
+  static void adjust_size_and_alignment(size_t &size, size_t &alignment, bool check) {
     if (size == 0)
       return;
     int log2size = ilog2(size);
@@ -215,7 +215,10 @@ class async_pool_resource : public async_memory_resource<kind> {
       min_align = 256;
     if (min_align > alignment)
       alignment = min_align;
-    size = align_up(size, alignment);
+    size_t aligned = align_up(size, alignment);
+    if (check && aligned < size)
+      throw std::bad_alloc();
+    size = aligned;
   }
 
   /// @brief Information about a pending `free` operation
@@ -558,7 +561,7 @@ class async_pool_resource : public async_memory_resource<kind> {
   static constexpr bool supports_splitting = detail::can_merge<GlobalPool>::value;
 
   static constexpr pool_options global_pool_options() {
-    return default_pool_opts<kind>();
+    return default_pool_opts<Kind>();
   }
 
   GlobalPool global_pool_;

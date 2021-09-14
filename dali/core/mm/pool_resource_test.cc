@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,11 +14,14 @@
 
 #include <gtest/gtest.h>
 #include <algorithm>
+#include <mutex>
 #include <random>
+#include <thread>
 #include <vector>
 #include <chrono>
 #include "dali/core/mm/mm_test_utils.h"
 #include "dali/core/mm/pool_resource.h"
+#include "dali/core/spinlock.h"
 
 namespace dali {
 namespace mm {
@@ -142,16 +145,16 @@ TEST(MMPoolResource, TestBulkDeallocate) {
 
 namespace {
 
-template <memory_kind kind, typename Context = any_context>
+template <typename Kind, typename Context = any_context>
 class test_defer_dealloc
-    : public deferred_dealloc_pool<kind, Context, coalescing_free_tree, spinlock> {
+    : public deferred_dealloc_pool<Kind, Context, coalescing_free_tree, spinlock> {
  public:
-  using pool = deferred_dealloc_pool<kind, Context, coalescing_free_tree, spinlock>;
+  using pool = deferred_dealloc_pool<Kind, Context, coalescing_free_tree, spinlock>;
   bool ready() const noexcept {
     return this->no_pending_deallocs();
   }
 
-  explicit test_defer_dealloc(memory_resource<kind, Context> *upstream) : pool(upstream) {}
+  explicit test_defer_dealloc(memory_resource<Kind, Context> *upstream) : pool(upstream) {}
 
   void check() {
     // wait up to 1 second for the deferred deallocations to drain
@@ -200,6 +203,107 @@ TEST(MMPoolResource, DeferredCheckAsync) {
     EXPECT_TRUE(success) << "All deallocations finished immediately in "
                          << max_attempts << " attemtps.";
   }
+}
+
+namespace {
+
+struct block {
+  void *ptr;
+  size_t size;
+  uint8_t fill;
+};
+
+template <typename Pool, typename Mutex>
+void PoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, int max_iters = 20000) {
+  std::mt19937_64 rng(12345);
+  std::poisson_distribution<> size_dist(1<<20);
+  const int max_size = 1 << 26;
+  std::bernoulli_distribution action_dist;
+  std::bernoulli_distribution flush_dist(0.01);
+  std::uniform_int_distribution<> fill_dist(1, 255);
+  for (int i = 0; i < max_iters; i++) {
+    if (flush_dist(rng))
+      pool.flush_deferred();
+    if (action_dist(rng) || blocks.empty()) {
+      size_t size;
+      do {
+        size = size_dist(rng);
+      } while (size > max_size);
+      uint8_t fill = fill_dist(rng);
+      void *ptr = pool.allocate(size);
+      ASSERT_NE(ptr, nullptr);
+      if (size <= 2048) {  // small block - fill it entirely in one go
+        memset(ptr, fill, size);
+      } else {
+        // large block - only fill the beginning and the end in order to save time - this test
+        // must be fast or it will fail to detect race conditions.
+        memset(ptr, fill, 1024);
+        memset(static_cast<char*>(ptr) + size - 1024, fill, 1024);
+      }
+      {
+        std::lock_guard<Mutex> guard(mtx);
+        blocks.push_back({ ptr, size, fill });
+      }
+    } else {
+      block blk;
+      {
+        std::lock_guard<Mutex> guard(mtx);
+        if (blocks.empty())
+          continue;
+        int i = std::uniform_int_distribution<>(0, blocks.size()-1)(rng);
+        std::swap(blocks[i], blocks.back());
+        blk = blocks.back();
+        blocks.pop_back();
+      }
+
+      // For small blocks (up to 2 KiB), check the whole block - for larger blocks,
+      // just check the first and last 1 KiB.
+      size_t part1 = blk.size <= 2048 ? blk.size : 1024;
+      size_t part2 = blk.size <= 2048 ? 0 : 1024;
+
+      for (size_t i = 0; i < part1; i++) {
+        ASSERT_EQ(static_cast<uint8_t*>(blk.ptr)[i], blk.fill)
+          << "Corruption in block " << blk.ptr
+          << " at offset " << i;
+      }
+      for (size_t i = blk.size - part2; i < blk.size; i++) {
+        ASSERT_EQ(static_cast<uint8_t*>(blk.ptr)[i], blk.fill)
+          << "Corruption in block " << blk.ptr
+          << " at offset " << i;
+      }
+
+      pool.deallocate(blk.ptr, blk.size);
+    }
+  }
+}
+
+}  // namespace
+
+TEST(MMPoolResource, ParallelDeferred) {
+  test_pinned_resource upstream;
+  CUDA_CALL(cudaFree(nullptr));  // initialize device context
+  {
+    using pool_t = deferred_dealloc_pool<memory_kind::pinned, any_context,
+                                        coalescing_free_tree, spinlock>;
+    pool_t pool(&upstream);
+    std::vector<std::thread> threads;
+
+    std::vector<block> blocks;
+    spinlock mtx;
+
+    for (int i = 0; i < 4; i++) {
+      threads.emplace_back([&]() {
+        PoolTest(pool, blocks, mtx, 50000);
+      });
+    }
+
+    for (auto &t : threads)
+      t.join();
+
+    for (auto &blk : blocks)
+      pool.deallocate(blk.ptr, blk.size);
+  }
+  upstream.check_leaks();
 }
 
 }  // namespace test

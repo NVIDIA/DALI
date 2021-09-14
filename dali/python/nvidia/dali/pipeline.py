@@ -18,6 +18,7 @@ from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
 from nvidia.dali._multiproc.pool import WorkerPool
+from nvidia.dali import pickling as dali_pickle
 from nvidia.dali.backend import CheckDLPackCapsule
 from threading import local as tls
 from . import data_node as _data_node
@@ -135,13 +136,40 @@ Parameters
     you will need to call :meth:`start_py_workers` before calling :meth:`build` of any
     of the pipelines. You can find more details and caveats of both methods in Python's
     ``multiprocessing`` module documentation.
+`py_callback_pickler` : module or tuple, default = None
+    If `py_start_method` is set to *spawn*, callback passed to parallel ExternalSource must be picklable.
+    If run in Python3.8 or newer with `py_callback_pickler` set to None, DALI uses customized pickle
+    when serializing callbacks to support serialization of local functions and lambdas.
+
+    However, if you need to serialize more complex objects like local classes or you are running
+    older version of Python you can provide external serialization package such as dill or cloudpickle
+    that implements two methods: `dumps` and `loads` to make DALI use them to serialize
+    external source callbacks. You can pass a module directly as ``py_callback_pickler``::
+        
+        import dill
+        @pipeline_def(py_callback_pickler=dill, ...)
+        def create_pipeline():
+            src = fn.external_source(lambda sample_info: np.int32([42]), batch=False, parallel=True)
+            ...
+
+    A valid value for `py_callback_pickler` is either a module/object implementing
+    ``dumps`` and ``loads`` methods or a tuple where the first item is the module/object and the next
+    two optional parameters are extra kwargs to be passed when calling dumps and loads respectively.
+    The provided methods and kwargs must be picklable with standard `pickle.dumps`.
+
+    If you run Python3.8 or newer with the default DALI pickler (`py_callback_pickler` = None),
+    you can hint DALI to serialize global functions by value rather than by reference
+    by decorating them with `@dali.pickling.pickle_by_value`. It may be especially useful when
+    working with Jupyter notebook to work around the issue of worker process being unable to import
+    the callback defined as a global function inside the notebook.
 """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
                  exec_async=True, bytes_per_sample=0,
                  set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
                  *,
-                 enable_memory_stats=False, py_num_workers=1, py_start_method="fork"):
+                 enable_memory_stats=False, py_num_workers=1, py_start_method="fork",
+                 py_callback_pickler=None):
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads
@@ -172,6 +200,11 @@ Parameters
         self._default_cuda_stream_priority = default_cuda_stream_priority
         self._py_num_workers = py_num_workers
         self._py_start_method = py_start_method
+        if py_callback_pickler is not None and py_start_method == "fork":
+            raise ValueError("``py_callback_pickler`` should not be set when 'fork' start method is used.")
+        if py_callback_pickler is None and py_start_method == "spawn":
+           py_callback_pickler = dali_pickle._DaliPickle
+        self._py_callback_pickler = py_callback_pickler
         self._api_type = None
         self._skip_api_check = False
         self._graph_out = None
@@ -562,7 +595,8 @@ Parameters
         if not self._parallel_input_callbacks:
             return
         self._py_pool = WorkerPool.from_groups(
-            self._parallel_input_callbacks, self._prefetch_queue_depth, self._py_start_method, self._py_num_workers)
+            self._parallel_input_callbacks, self._prefetch_queue_depth, self._py_start_method,
+            self._py_num_workers, py_callback_pickler=self._py_callback_pickler)
         # ensure processes started by the pool are termineted when pipeline is no longer used
         weakref.finalize(self, lambda pool : pool.close(), self._py_pool)
         self._py_pool_started = True

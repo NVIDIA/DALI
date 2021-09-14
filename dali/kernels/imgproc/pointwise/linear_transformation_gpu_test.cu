@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -166,7 +166,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test) {
   kernel.Run(c, out, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
   CUDA_CALL(cudaDeviceSynchronize());
 
-  auto res = copy<AllocType::Host>(out[0]);
+  auto res = copy<mm::memory_kind::host>(out[0]);
   auto ref_tv = TensorView<StorageCPU, typename TypeParam::Out>(this->ref_output_.data(),
                                                                 this->out_shapes_[0]);
   Check(res.first, ref_tv, EqualUlp());
@@ -193,7 +193,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test_with_roi) {
   kernel.Run(c, out, in, make_cspan(this->vmat_), make_cspan(this->vvec_), make_cspan(this->rois_));
   CUDA_CALL(cudaDeviceSynchronize());
 
-  auto res = copy<AllocType::Host>(out[0]);
+  auto res = copy<mm::memory_kind::host>(out[0]);
   auto mat = testing::copy_to_mat<kNChannelsOut>(
       this->rois_[0],
       this->ref_output_.data(),

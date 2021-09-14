@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
 #include "dali/test/dali_test_config.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/test/mat2tensor.h"
 #include "dali/util/image.h"
 
@@ -58,7 +58,7 @@ namespace {
 
 void CopyAsTensorGpuTest(const cv::Mat &mat) {
   try {
-    auto tvpair = kernels::copy_as_tensor<kernels::AllocType::Unified>(mat);
+    auto tvpair = kernels::copy_as_tensor<mm::memory_kind::managed>(mat);
     CUDA_CALL(cudaDeviceSynchronize());
     auto imgptr = mat.data;
     auto tvptr = tvpair.first.data;

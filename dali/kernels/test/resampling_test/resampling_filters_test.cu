@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <vector>
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 #include "dali/kernels/imgproc/resample/resampling_windows.h"
 
@@ -55,7 +55,7 @@ TEST(ResamplingFilters, TestTriangular) {
   int radius = 64;
   auto f = filters->Triangular(radius);
   int size = f.support();
-  auto mem = memory::alloc_unique<float>(AllocType::GPU, size);
+  auto mem = mm::alloc_raw_unique<float, mm::memory_kind::device>(size);
   GetFilterValues<<<1, size>>>(mem.get(), f, size, -f.anchor, 1.0f);
   std::vector<float> host(size);
   CUDA_CALL(cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost));
@@ -78,7 +78,7 @@ TEST(ResamplingFilters, Gaussian) {
   ASSERT_EQ(flt.scale, flt_host.scale);
   ASSERT_EQ(flt.num_coeffs, flt_host.num_coeffs);
   int size = flt.support();
-  auto mem = memory::alloc_unique<float>(AllocType::GPU, size);
+  auto mem = mm::alloc_raw_unique<float, mm::memory_kind::device>(size);
   GetFilterValues<<<1, size>>>(mem.get(), flt, size, -radius, 1);
   std::vector<float> host(size);
   CUDA_CALL(cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost));
@@ -102,7 +102,7 @@ TEST(ResamplingFilters, Lanczos3) {
   ASSERT_EQ(flt.scale, flt_host.scale);
   ASSERT_EQ(flt.num_coeffs, flt_host.num_coeffs);
   int size = 2*radius+1;
-  auto mem = memory::alloc_unique<float>(AllocType::GPU, size);
+  auto mem = mm::alloc_raw_unique<float, mm::memory_kind::device>(size);
   GetFilterValues<<<1, size>>>(mem.get(), flt, size, -3.0f, 3.0f / radius);
   std::vector<float> host(size);
   CUDA_CALL(cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost));
@@ -126,7 +126,7 @@ TEST(ResamplingFilters, Cubic) {
   ASSERT_EQ(flt.scale, flt_host.scale);
   ASSERT_EQ(flt.num_coeffs, flt_host.num_coeffs);
   int size = 2*radius+1;
-  auto mem = memory::alloc_unique<float>(AllocType::GPU, size);
+  auto mem = mm::alloc_raw_unique<float, mm::memory_kind::device>(size);
   GetFilterValues<<<1, size>>>(mem.get(), flt, size, -2.0f, 2.0f / radius);
   std::vector<float> host(size);
   CUDA_CALL(cudaMemcpy(host.data(), mem.get(), size*sizeof(float), cudaMemcpyDeviceToHost));

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,8 +32,8 @@ namespace mm {
  * Monotonic buffer resources don't require manual deallocation of the returned pointers.
  * The memory is freed in bulk when the underlying buffer is freed.
  */
-template <memory_kind kind, typename Context = any_context>
-class monotonic_buffer_resource : public memory_resource<kind, Context> {
+template <typename Kind, typename Context = any_context>
+class monotonic_buffer_resource : public memory_resource<Kind, Context> {
  public:
   monotonic_buffer_resource() = default;
   monotonic_buffer_resource(void *memory, size_t bytes)
@@ -75,8 +75,8 @@ class monotonic_buffer_resource : public memory_resource<kind, Context> {
   char *curr_ = nullptr, *limit_ = nullptr;
 };
 
-template <memory_kind kind, typename Context = any_context,
-          bool host_impl = detail::is_host_memory(kind)>
+template <typename Kind, typename Context = any_context,
+          bool host_impl = detail::is_host_accessible<Kind>>
 class monotonic_memory_resource;
 
 /**
@@ -87,10 +87,10 @@ class monotonic_memory_resource;
  * The lifetime of a monotonic resource is limited and all memory will be deallocated in bulk
  * when the resource is destroyed.
  */
-template <memory_kind kind, typename Context>
-class monotonic_memory_resource<kind, Context, true> : public memory_resource<kind, Context> {
+template <typename Kind, typename Context>
+class monotonic_memory_resource<Kind, Context, true> : public memory_resource<Kind, Context> {
  public:
-  explicit monotonic_memory_resource(memory_resource<kind, Context> *upstream,
+  explicit monotonic_memory_resource(memory_resource<Kind, Context> *upstream,
                                      size_t next_block_size = 1024)
   : upstream_(upstream), next_block_size_(next_block_size) {}
 
@@ -163,7 +163,7 @@ class monotonic_memory_resource<kind, Context, true> : public memory_resource<ki
   void do_deallocate(void *data, size_t bytes, size_t alignment) override {
   }
 
-  virtual Context do_get_context() const noexcept {
+  Context do_get_context() const noexcept override {
     return upstream_->get_context();
   }
 
@@ -171,7 +171,7 @@ class monotonic_memory_resource<kind, Context, true> : public memory_resource<ki
 
   char *curr_ = nullptr, *limit_ = nullptr;
 
-  memory_resource<kind, Context> *upstream_;
+  memory_resource<Kind, Context> *upstream_;
   size_t next_block_size_;
   struct block_info {
     size_t sentinel;
@@ -192,10 +192,10 @@ class monotonic_memory_resource<kind, Context, true> : public memory_resource<ki
  * The lifetime of a monotonic resource is limited and all memory will be deallocated in bulk
  * when the resource is destroyed.
  */
-template <memory_kind kind, typename Context>
-class monotonic_memory_resource<kind, Context, false> : public memory_resource<kind, Context> {
+template <typename Kind, typename Context>
+class monotonic_memory_resource<Kind, Context, false> : public memory_resource<Kind, Context> {
  public:
-  explicit monotonic_memory_resource(memory_resource<kind, Context> *upstream,
+  explicit monotonic_memory_resource(memory_resource<Kind, Context> *upstream,
                                      size_t next_block_size = 1024)
   : upstream_(upstream), next_block_size_(next_block_size) {}
 
@@ -258,13 +258,13 @@ class monotonic_memory_resource<kind, Context, false> : public memory_resource<k
   void do_deallocate(void *data, size_t bytes, size_t alignment) override {
   }
 
-  virtual Context do_get_context() const noexcept {
+  Context do_get_context() const noexcept override {
     return upstream_->get_context();
   }
 
   char *curr_ = nullptr, *limit_ = nullptr;
 
-  memory_resource<kind, Context> *upstream_;
+  memory_resource<Kind, Context> *upstream_;
   size_t next_block_size_;
   struct upstream_block {
     void *base;

@@ -17,6 +17,7 @@
 #include <thread>
 #include "dali/core/mm/default_resources.h"
 #include "dali/core/mm/detail/align.h"
+#include "dali/core/mm/malloc_resource.h"
 #include "dali/core/cuda_stream.h"
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_error.h"
@@ -67,6 +68,40 @@ TEST(MMDefaultResource, GetResource_Pinned) {
     EXPECT_EQ(back_copy[i], static_cast<char>(i + 42));
 }
 
+
+TEST(MMDefaultResource, GetResource_Managed) {
+  auto *rsrc = GetDefaultResource<memory_kind::managed>();
+  ASSERT_NE(rsrc, nullptr);
+
+  CUDAStream stream = CUDAStream::Create(true);
+  char *mem = nullptr;
+  constexpr int size = 1000;
+  try {
+    mem = static_cast<char*>(rsrc->allocate(size, 32));
+  } catch (const CUDAError &e) {
+    if ((e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
+        (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported)) {
+      GTEST_SKIP() << "Unified memory not supported on this platform";
+    }
+  }
+  ASSERT_NE(mem, nullptr);
+  EXPECT_TRUE(mm::detail::is_aligned(mem, 32));
+  CUDA_CALL(cudaStreamAttachMemAsync(stream, mem, 0, cudaMemAttachHost));
+  for (int i = 0; i < size; i++)
+    mem[i] = i + 42;
+  char back_copy[size] = {};
+  CUDA_CALL(cudaStreamAttachMemAsync(stream, mem, 0, cudaMemAttachSingle));
+  CUDA_CALL(cudaMemcpyAsync(back_copy, mem, size, cudaMemcpyDeviceToHost, stream));
+  CUDA_CALL(cudaStreamAttachMemAsync(stream, mem, 0, cudaMemAttachHost));
+  rsrc->deallocate_async(mem, size, 32, stream_view(stream));
+  CUDAEvent event = CUDAEvent::Create();
+  CUDA_CALL(cudaEventRecord(event, stream));
+  stream = CUDAStream();  // destroy the stream, it should still complete just fine
+
+  for (int i = 0; i < 1000; i++)
+    EXPECT_EQ(back_copy[i], static_cast<char>(i + 42));
+}
+
 TEST(MMDefaultResource, GetResource_Device) {
   char *stage = nullptr;
   CUDA_CALL(cudaMallocHost(&stage, 2000));
@@ -112,8 +147,12 @@ TEST(MMDefaultResource, GetResource_MultiDevice) {
     vector<async_memory_resource<memory_kind::device>*> resources(ndev, nullptr);
     for (int i = 0; i < ndev; i++) {
       resources[i] = GetDefaultDeviceResource(i);
-      for (int j = 0; j < i; j++) {
-        EXPECT_NE(resources[i], resources[j]) << "Got the same resource for different devices";
+      EXPECT_NE(resources[i], nullptr);
+      // If we're using plain cudaMalloc, the resource will be the same for all devices
+      if (!dynamic_cast<mm::cuda_malloc_memory_resource*>(resources[i])) {
+        for (int j = 0; j < i; j++) {
+          EXPECT_NE(resources[i], resources[j]) << "Got the same resource for different devices";
+        }
       }
     }
 
@@ -126,8 +165,8 @@ TEST(MMDefaultResource, GetResource_MultiDevice) {
   }
 }
 
-template <memory_kind kind, bool async = (kind != memory_kind::host)>
-class DummyResource : public memory_resource<kind> {
+template <typename Kind, bool async = !std::is_same<Kind, memory_kind::host>::value>
+class DummyResource : public memory_resource<Kind> {
   void *do_allocate(size_t, size_t) override {
     return nullptr;
   }
@@ -136,8 +175,8 @@ class DummyResource : public memory_resource<kind> {
   }
 };
 
-template <memory_kind kind>
-class DummyResource<kind, true> : public async_memory_resource<kind> {
+template <typename Kind>
+class DummyResource<Kind, true> : public async_memory_resource<Kind> {
   void *do_allocate(size_t, size_t) override {
     return nullptr;
   }
@@ -151,12 +190,12 @@ class DummyResource<kind, true> : public async_memory_resource<kind> {
   }
 };
 
-template <memory_kind kind>
+template <typename Kind>
 void TestSetDefaultResource() {
-  DummyResource<kind> dummy;
-  SetDefaultResource<kind>(&dummy);
-  EXPECT_EQ(GetDefaultResource<kind>(), &dummy);
-  SetDefaultResource<kind>(nullptr);
+  DummyResource<Kind> dummy;
+  SetDefaultResource<Kind>(&dummy);
+  EXPECT_EQ(GetDefaultResource<Kind>(), &dummy);
+  SetDefaultResource<Kind>(nullptr);
 }
 
 // TODO(michalz): When memory_kind is a tag type, switch to TYPED_TEST

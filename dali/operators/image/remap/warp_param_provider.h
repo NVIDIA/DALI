@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_view.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/kernels/imgproc/sampler.h"
@@ -174,7 +174,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
    */
   TensorView<StorageGPU, const MappingParams, 1> ParamsGPU() {
     if (!params_gpu_.data && params_cpu_.data) {
-      auto *p = AllocParams(kernels::AllocType::GPU, params_cpu_.num_elements());
+      auto *p = AllocParams<mm::memory_kind::device>(params_cpu_.num_elements());
       auto tmp = make_tensor_gpu(p, params_cpu_.shape);
       kernels::copy(tmp, params_cpu_, GetStream());
     }
@@ -189,7 +189,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
    */
   TensorView<StorageCPU, const MappingParams, 1> ParamsCPU() {
     if (!params_cpu_.data && params_gpu_.data) {
-      auto *p = AllocParams(kernels::AllocType::Host, params_gpu_.num_elements());
+      auto *p = AllocParams<mm::memory_kind::host>(params_gpu_.num_elements());
       auto tmp = make_tensor_cpu(p, params_cpu_.shape);
       cudaStream_t stream = GetStream();
       kernels::copy(tmp, params_gpu_, stream);
@@ -307,30 +307,32 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   }
 
   /** @brief Allocates num_samples_ MappingParams objects in memory specified by alloc  */
-  MappingParams *AllocParams(kernels::AllocType alloc) {
-    return AllocParams(alloc, num_samples_);
+  template <typename MemoryKind>
+  MappingParams *AllocParams() {
+    return AllocParams<MemoryKind>(num_samples_);
+  }
+
+  template <typename MemoryKind>
+  auto &SelectParamView() {
+    return SelectParamView(static_cast<MemoryKind*>(nullptr));
+  }
+
+  inline auto &SelectParamView(mm::memory_kind::device *) {
+    return params_gpu_;
+  }
+
+  inline auto &SelectParamView(...) {
+    return params_cpu_;
   }
 
   /** @brief Allocates count MappingParams objects in memory specified by alloc  */
-  MappingParams *AllocParams(kernels::AllocType alloc, int count) {
-    param_mem_.Reserve(alloc, count * sizeof(MappingParams));
+  template <typename MemoryKind>
+  MappingParams *AllocParams(int count) {
+    param_mem_.Reserve<MemoryKind>(count * sizeof(MappingParams));
     auto scratch = param_mem_.GetScratchpad();
-    if (alloc == kernels::AllocType::GPU) {
-      auto tmp = scratch.template AllocTensor<kernels::AllocType::GPU, MappingParams, 1>(count);
-      params_gpu_ = tmp;
-      return tmp.data;
-    } else if (alloc == kernels::AllocType::Host) {
-      auto tmp = scratch.template AllocTensor<kernels::AllocType::Host, MappingParams, 1>(count);
-      params_cpu_ = tmp;
-      return tmp.data;
-    } else if (alloc == kernels::AllocType::Pinned) {
-      auto tmp = scratch.template AllocTensor<kernels::AllocType::Pinned, MappingParams, 1>(count);
-      params_cpu_ = tmp;
-      return tmp.data;
-    } else {
-      assert(!"Unsupported allocation type requested");
-      return nullptr;
-    }
+    auto tmp = scratch.template AllocTensor<MemoryKind, MappingParams, 1>(count);
+    SelectParamView<MemoryKind>() = tmp;
+    return tmp.data;
   }
 
   // can be overwritten by a derived class

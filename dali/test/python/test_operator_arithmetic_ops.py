@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,11 +18,12 @@ import nvidia.dali.types as types
 import nvidia.dali.math as math
 from nvidia.dali.tensors import TensorListGPU
 import numpy as np
-from nose.tools import assert_equals, raises
+from nose.tools import assert_equals
 from nose.plugins.attrib import attr
 import itertools
 
 from test_utils import check_batch, np_type_to_dali
+from nose_utils import raises, assert_raises
 
 def list_product(*args):
     return list(itertools.product(*args))
@@ -648,13 +649,14 @@ def check_raises(kinds, types, op, shape):
     pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2,
                           device_id=0)
     pipe.build()
-    pipe_out = pipe.run()
+    pipe.run()
 
-@raises(RuntimeError)
-def check_raises_re(kinds, types, op, shape, _):
-    check_raises(kinds, types, op, shape)
+def check_raises_re(kinds, types, op, shape, _, msg):
+    with assert_raises(RuntimeError, regex=msg):
+        check_raises(kinds, types, op, shape)
 
-@raises(TypeError)
+@raises(TypeError, glob="\"DataNode\" is a symbolic representation of TensorList used for defining graph of operations for DALI Pipeline. It should not be used " + \
+                        "for truth evaluation in regular Python context.")
 def check_raises_te(kinds, types, op, shape, _):
     check_raises(kinds, types, op, shape)
 
@@ -665,28 +667,31 @@ bool_disallowed = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x ** y), "**")]
 
 def test_bool_disallowed():
+    error_msg = "Input[s]? to arithmetic operator `[\S]*` cannot be [a]?[ ]?boolean[s]?. Consider using bitwise operator[s]?"
     for kinds in unary_input_kinds:
-        for (op, np_op, op_desc, _, _) in math_function_operations:
-            yield check_raises_re, kinds, np.bool_, op, shape_small, op_desc
+        for (op, _, op_desc, _, _) in math_function_operations:
+            yield check_raises_re, kinds, np.bool_, op, shape_small, op_desc, error_msg
     for kinds in bin_input_kinds:
         for (op, op_desc) in bool_disallowed:
-            yield check_raises_re, kinds, (np.bool_, np.bool_), op, shape_small, op_desc
+            yield check_raises_re, kinds, (np.bool_, np.bool_), op, shape_small, op_desc, error_msg
     for kinds in selected_ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
-            yield check_raises_re, kinds, (np.bool_, np.bool_, np.bool_), op, shape_small, op_desc
+            yield check_raises_re, kinds, (np.bool_, np.bool_, np.bool_), op, shape_small, op_desc, error_msg
 
 def test_bitwise_disallowed():
+    error_msg = "Inputs to bitwise operator `[\S]*` must be of integral type."
     for kinds in bin_input_kinds:
         for (op, op_desc) in bitwise_operations:
             for types_in in itertools.product(selected_input_types, selected_input_types):
                 if types_in[0] in float_types or types_in[1] in float_types:
-                    yield check_raises_re, kinds, types_in, op, shape_small, op_desc
+                    yield check_raises_re, kinds, types_in, op, shape_small, op_desc, error_msg
 
 def test_prohibit_min_max():
     for kinds in bin_input_kinds:
         for op, op_desc in [(min, "min"), (max, "max")]:
                     yield check_raises_te, kinds,  (np.int32, np.int32), op, shape_small, op_desc
 
-@raises(TypeError)
+@raises(TypeError, glob="\"DataNode\" is a symbolic representation of TensorList used for defining graph of operations for DALI Pipeline. It should not be used " + \
+                        "for truth evaluation in regular Python context.")
 def test_bool_raises():
     bool(DataNode("dummy"))

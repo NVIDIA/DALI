@@ -18,6 +18,7 @@
 #include <cassert>
 #include "dali/kernels/kernel_req.h"
 #include "dali/kernels/scratch.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 namespace kernels {
@@ -36,13 +37,14 @@ static_assert(align_up(7, 8) == 8, "7 aligned up to 8 is 8");
 static_assert(align_up(8, 8) == 8, "8 aligned up to 8 is 8");
 static_assert(align_up(9, 8) == 16, "9 aligned up to 8 is 16");
 
-template <typename T>
-void test_add(ScratchpadEstimator &E, AllocType type, size_t count, size_t align = alignof(T)) {
-  size_t prev = E.sizes[static_cast<int>(type)];
-  EXPECT_EQ(align&(align-1), 0) << "Alignment must be a power of 2";
+template <typename MemoryKind, typename T>
+void test_add(ScratchpadEstimator &E, size_t count, size_t align = alignof(T)) {
+  int kind_idx = static_cast<int>(mm::kind2id_v<MemoryKind>);
+  size_t prev = E.sizes[kind_idx];
+  ASSERT_EQ(align&(align-1), 0) << "Alignment must be a power of 2";
   size_t base = align_up(prev, align);
-  E.add<T>(type, count, align);
-  EXPECT_EQ(E.sizes[static_cast<int>(type)], base + count*sizeof(T));
+  E.add<MemoryKind, T>(count, align);
+  EXPECT_EQ(E.sizes[kind_idx], base + count*sizeof(T));
 }
 
 TEST(Scratch, Estimator_Init) {
@@ -65,17 +67,17 @@ TEST(Scratch, Req_Init) {
 
 TEST(Scratch, Estimator) {
   ScratchpadEstimator E;
-  test_add<float>(E, AllocType::Host, 9);
-  test_add<char>(E, AllocType::Host, 1);
-  test_add<char>(E, AllocType::Host, 1);
-  test_add<double>(E, AllocType::Host, 2);
+  test_add<mm::memory_kind::host, float>(E, 9);
+  test_add<mm::memory_kind::host, char>(E, 1);
+  test_add<mm::memory_kind::host, char>(E, 1);
+  test_add<mm::memory_kind::host, double>(E, 2);
 
-  test_add<char>(E, AllocType::GPU, 1);
-  test_add<float>(E, AllocType::GPU, 9);
-  test_add<char>(E, AllocType::GPU, 1);
-  test_add<double>(E, AllocType::GPU, 2);
-  EXPECT_EQ(E.sizes[static_cast<int>(AllocType::Host)], 56);
-  EXPECT_EQ(E.sizes[static_cast<int>(AllocType::GPU)], 64);
+  test_add<mm::memory_kind::device, char>(E, 1);
+  test_add<mm::memory_kind::device, float>(E, 9);
+  test_add<mm::memory_kind::device, char>(E, 1);
+  test_add<mm::memory_kind::device, double>(E, 2);
+  EXPECT_EQ(E.sizes[static_cast<int>(mm::memory_kind_id::host)], 56);
+  EXPECT_EQ(E.sizes[static_cast<int>(mm::memory_kind_id::device)], 64);
 }
 
 TEST(Scratch, BumpAllocator) {
@@ -116,7 +118,7 @@ TEST(Scratch, PreallocatedScratchpad) {
   PreallocatedScratchpad pad;
 
   const size_t size = 256;
-  const size_t num_allocs = (size_t)AllocType::Count;
+  const size_t num_allocs = (size_t)mm::memory_kind_id::count;
   ASSERT_EQ(pad.allocs.size(), num_allocs);
 
   const size_t alignment = 64;
@@ -125,43 +127,46 @@ TEST(Scratch, PreallocatedScratchpad) {
     pad.allocs[i] = BumpAllocator(storage[i], sizeof(storage[i]));
 
   for (size_t i = 0; i < num_allocs; i++) {
-    AllocType type = AllocType(i);
-    ASSERT_TRUE(is_aligned(pad.allocs[i].next(), alignment))
-      << "Misaligned storage #" << i << "\n";
+    auto kind_id = static_cast<mm::memory_kind_id>(i);
+    TYPE_SWITCH(kind_id, mm::kind2id, Kind, (mm::memory_kind::host, mm::memory_kind::device,
+                                             mm::memory_kind::pinned, mm::memory_kind::managed), (
+      ASSERT_TRUE(is_aligned(pad.allocs[i].next(), alignment))
+        << "Misaligned storage #" << i << "\n";
 
-    int *p0 = pad.Allocate<int>(type, 2);
-    EXPECT_EQ(p0, reinterpret_cast<int*>(&storage[i]))
-     << "First item should be allocated at the beginning of the storage area";
-    EXPECT_TRUE(is_aligned(p0));
-    EXPECT_EQ(pad.Allocate<char>(type, 1), reinterpret_cast<char*>(p0) + 2*sizeof(*p0));
+      int *p0 = pad.Allocate<Kind, int>(2);
+      EXPECT_EQ(p0, reinterpret_cast<int*>(&storage[i]))
+      << "First item should be allocated at the beginning of the storage area";
+      EXPECT_TRUE(is_aligned(p0));
+      EXPECT_EQ((pad.Allocate<Kind, char>(1)), reinterpret_cast<char*>(p0) + 2*sizeof(*p0));
 
-    int *p1 = pad.Allocate<int>(type, 3);
-    EXPECT_TRUE(is_aligned(p1));
-    EXPECT_EQ(pad.Allocate<char>(type, 1), reinterpret_cast<char*>(p1) + 3*sizeof(*p1));
+      int *p1 = pad.Allocate<Kind, int>(3);
+      EXPECT_TRUE(is_aligned(p1));
+      EXPECT_EQ((pad.Allocate<Kind, char>(1)), reinterpret_cast<char*>(p1) + 3*sizeof(*p1));
 
-    double *p2 = pad.Allocate<double>(type, 4);
-    EXPECT_TRUE(is_aligned(p2));
-    EXPECT_EQ(pad.Allocate<char>(type, 1), reinterpret_cast<char*>(p2) + 4*sizeof(*p2));
+      double *p2 = pad.Allocate<Kind, double>(4);
+      EXPECT_TRUE(is_aligned(p2));
+      EXPECT_EQ((pad.Allocate<Kind, char>(1)), reinterpret_cast<char*>(p2) + 4*sizeof(*p2));
 
-    double *p3 = pad.Allocate<double>(type, 1);
-    EXPECT_TRUE(is_aligned(p2));
-    EXPECT_EQ(pad.Allocate<char>(type, 1), reinterpret_cast<char*>(p3) + 1*sizeof(*p3));
+      double *p3 = pad.Allocate<Kind, double>(1);
+      EXPECT_TRUE(is_aligned(p2));
+      EXPECT_EQ((pad.Allocate<Kind, char>(1)), reinterpret_cast<char*>(p3) + 1*sizeof(*p3));
+    ), (assert(!"Unreachable code");));  // NOLINT
   }
 }
 
 TEST(Scratch, ScratchpadAllocator) {
   ScratchpadAllocator sa;
-  const size_t N = ScratchpadAllocator::NumAllocTypes;
+  const size_t N = ScratchpadAllocator::NumMemKinds;
   int sizes[N];
   try {
     for (size_t i = 0; i < N; i++) {
-      AllocType type = AllocType(i);
+      mm::memory_kind_id kind_id = mm::memory_kind_id(i);
       sizes[i] = 1024 + 256 * i;
-      sa.Reserve(type, sizes[i]);
+      sa.Reserve(kind_id, sizes[i]);
     }
     auto s = sa.GetScratchpad();
     for (size_t i = 0; i < N; i++) {
-      float margin = sa.Policy(static_cast<AllocType>(i)).Margin;
+      float margin = sa.Policy(static_cast<mm::memory_kind_id>(i)).Margin;
       EXPECT_GE(s.allocs[i].total(), sizes[i]) << "Memory block smaller than requested";
       EXPECT_LE(s.allocs[i].total(), sizes[i] * (1 + margin) + 64) << "Too much padding";
       EXPECT_EQ(s.allocs[i].used(), 0) << "New scratchpad should be unused";

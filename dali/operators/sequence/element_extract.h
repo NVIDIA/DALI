@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ namespace detail {
     }
 
     DALI_ENFORCE(input_shape.sample_dim() > 1,
-                 "Input must have at least two dimenstions - outermost for sequence and at least "
+                 "Input must have at least two dimensions - outermost for sequence and at least "
                  "one for data elements.");
 
     for (int i = 0; i < input_shape.num_samples(); ++i) {
@@ -109,17 +109,15 @@ class ElementExtract : public Operator<Backend> {
         auto tensor_shape = input.tensor_shape(i);
         auto element_size = volume(tensor_shape.begin() + 1, tensor_shape.end());
         auto input_offset_bytes = element * element_size * data_type.size();
-        AddCopy(ws, output.raw_mutable_tensor(i),
-                static_cast<const uint8_t *>(input.raw_tensor(i)) + input_offset_bytes,
-                element_size, data_type);
+        scatter_gather_.AddCopy(
+            output.raw_mutable_tensor(i),
+            static_cast<const uint8_t *>(input.raw_tensor(i)) + input_offset_bytes,
+            element_size * data_type.size());
       }
       output.SetLayout(element_layout);
     }
     RunCopies(ws);
   }
-
-  void AddCopy(workspace_t<Backend> &ws, void *dst, const void *src, size_t volume,
-               const TypeInfo &type);
 
   void RunCopies(workspace_t<Backend> &ws);
 
@@ -129,16 +127,13 @@ class ElementExtract : public Operator<Backend> {
  private:
   std::vector<int> element_map_;
 
-  struct NoOpPlaceholder {
-    explicit NoOpPlaceholder(size_t) {}
-  };
-
-  // Do not use ScatterGather as a member for CPU implementation
   std::conditional_t<
-      std::is_same<Backend, GPUBackend>::value,
-      kernels::ScatterGatherGPU,
-      NoOpPlaceholder> scatter_gather_;
-  static constexpr size_t kMaxSizePerBlock = 1 << 18;  // 256 kB per block
+      std::is_same<Backend, CPUBackend>::value,
+      kernels::ScatterGatherCPU,
+      kernels::ScatterGatherGPU> scatter_gather_;
+  // 256 kB per block for GPU
+  static constexpr size_t kMaxSizePerBlock =
+      std::is_same<Backend, CPUBackend>::value ? kernels::ScatterGatherCPU::kAnyBlockSize : 1 << 18;
 };
 
 }  // namespace dali

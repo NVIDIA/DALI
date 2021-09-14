@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,8 @@
 # so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
 
 import torch
-from nose.tools import raises, with_setup
+from nose_utils import raises
+from nose.tools import with_setup
 
 from test_pool_utils import *
 from test_external_source_parallel_utils import *
@@ -29,7 +30,9 @@ class ExtCallbackTorch(ExtCallback):
         return torch.tensor(super().__call__(sample_info))
 
 
-@raises(RuntimeError)
+@raises(RuntimeError, "Error*starting Python worker threads for*parallel External Source*"
+                      "Cannot fork*CUDA context already bound*"
+                      "*start_py_workers*fork*spawn*")
 @with_setup(setup_function, teardown_function)
 def test_pytorch_cuda_context():
     # Create a dummy torch CUDA tensor so we acquire CUDA context
@@ -52,7 +55,9 @@ class ExtCallbackTorchCuda(ExtCallback):
         return torch.tensor(super().__call__(sample_info), device=torch.device('cuda:0'))
 
 
-@raises(Exception)
+@raises(Exception, "Exception traceback received from worker thread*"
+                   "TypeError: Unsupported callback return type. GPU tensors*not supported*"
+                   "Got*PyTorch GPU tensor")
 @with_setup(setup_function, teardown_function)
 def test_pytorch_cuda():
     callback = ExtCallbackTorchCuda((4, 5), 10, np.int32)

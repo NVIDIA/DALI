@@ -443,7 +443,7 @@ class NormalizeImplGPU {
                 const OutListGPU<Out> &out, const InListGPU<In> &in,
                 const BaseParam &base, const ScaleParam &scale,
                 float global_scale, float shift) {
-    Desc *cpu_descs = ctx.scratchpad->Allocate<Desc>(AllocType::Host, num_samples_);
+    Desc *cpu_descs = ctx.scratchpad->AllocateHost<Desc>(num_samples_);
     FillDescs(cpu_descs, out, in, base, scale);
     Desc *gpu_descs = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(cpu_descs, num_samples_));
     dim3 grid, block;
@@ -457,7 +457,7 @@ class NormalizeImplGPU {
                     const OutListGPU<Out> &out, const InListGPU<In> &in,
                     const BaseParam &base, const ScaleParam &scale,
                     float epsilon, float global_scale, float shift) {
-    Desc *cpu_descs = ctx.scratchpad->Allocate<Desc>(AllocType::Host, num_samples_);
+    Desc *cpu_descs = ctx.scratchpad->AllocateHost<Desc>(num_samples_);
     FillDescs(cpu_descs, out, in, base, scale);
     Desc *gpu_descs = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(cpu_descs, num_samples_));
     dim3 grid, block;
@@ -484,8 +484,8 @@ class NormalizeImplGPU {
 
   template <typename Desc>
   void SetupImpl(ScratchpadEstimator &se) {
-    se.add<Desc>(AllocType::Host, num_samples_);
-    se.add<Desc>(AllocType::GPU, num_samples_);
+    se.add<mm::memory_kind::host, Desc>(num_samples_);
+    se.add<mm::memory_kind::device, Desc>(num_samples_);
   }
 
   template <typename Desc>

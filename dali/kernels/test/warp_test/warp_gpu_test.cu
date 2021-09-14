@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 #include "dali/test/mat2tensor.h"
 #include "dali/test/test_tensors.h"
 #include "dali/kernels/scratch.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/core/geom/transform.h"
 
@@ -54,7 +54,7 @@ void WarpGPU_Affine_Transpose(bool force_variable) {
 
   cv::Mat cv_img = cv::imread(testing::dali_extra_path() + "/db/imgproc/alley.png");
   auto cpu_img = view_as_tensor<uint8_t>(cv_img);
-  auto gpu_img = copy<AllocType::GPU>(cpu_img);
+  auto gpu_img = copy<mm::memory_kind::device>(cpu_img);
   auto img_tensor = gpu_img.first;
 
   TensorListView<StorageGPU, uint8_t, 3> in_list;
@@ -66,7 +66,7 @@ void WarpGPU_Affine_Transpose(bool force_variable) {
 
   ScratchpadAllocator scratch_alloc;
 
-  auto mapping_gpu = memory::alloc_unique<AffineMapping2D>(AllocType::GPU, 1);
+  auto mapping_gpu = mm::alloc_raw_unique<AffineMapping2D, mm::memory_kind::device>(1);
   TensorShape<2> out_shape = { img_tensor.shape[1], img_tensor.shape[0] };
   KernelContext ctx = {};
   auto out_shapes_hw = make_span<1>(&out_shape);
@@ -81,7 +81,8 @@ void WarpGPU_Affine_Transpose(bool force_variable) {
     setup.SetBlockDim(dim3(32, 8, 1));
     auto out_shapes = setup.GetOutputShape(in_list.shape, out_shapes_hw);
     req = setup.Setup(out_shapes, true);
-    req.scratch_sizes[static_cast<int>(AllocType::GPU)] += sizeof(warp::SampleDesc<2, int, int>);
+    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::device)] +=
+        sizeof(warp::SampleDesc<2, int, int>);
   } else {
     req = warp.Setup(ctx, in_list, mappings, out_shapes_hw, {&interp, 1});
   }
@@ -146,7 +147,7 @@ inline cv::Matx<float, 2, 3> AffineToCV(const AffineMapping2D &mapping) {
 TEST(WarpGPU, Affine_RotateScale_Single) {
   cv::Mat cv_img = cv::imread(testing::dali_extra_path() + "/db/imgproc/dots.png");
   auto cpu_img = view_as_tensor<uint8_t>(cv_img);
-  auto gpu_img = copy<AllocType::GPU>(cpu_img);
+  auto gpu_img = copy<mm::memory_kind::device>(cpu_img);
   auto img_tensor = gpu_img.first;
 
   vec2 center(cv_img.cols * 0.5f, cv_img.rows * 0.5f);
@@ -165,7 +166,7 @@ TEST(WarpGPU, Affine_RotateScale_Single) {
 
   ScratchpadAllocator scratch_alloc;
 
-  auto mapping_gpu = memory::alloc_unique<AffineMapping2D>(AllocType::GPU, 1);
+  auto mapping_gpu = mm::alloc_raw_unique<AffineMapping2D, mm::memory_kind::device>(1);
   TensorShape<2> out_shape = { img_tensor.shape[0] * scale, img_tensor.shape[1] * scale };
   KernelContext ctx = {};
   auto out_shapes_hw = make_span<1>(&out_shape);
@@ -209,7 +210,7 @@ TEST(WarpGPU, Affine_RotateScale_Single) {
 TEST(WarpGPU, Affine_RotateScale_Uniform) {
   cv::Mat cv_img = cv::imread(testing::dali_extra_path() + "/db/imgproc/dots.png");
   auto cpu_img = view_as_tensor<uint8_t>(cv_img);
-  auto gpu_img = copy<AllocType::GPU>(cpu_img);
+  auto gpu_img = copy<mm::memory_kind::device>(cpu_img);
   auto img_tensor = gpu_img.first;
 
   vec2 center(cv_img.cols * 0.5f, cv_img.rows * 0.5f);
@@ -233,7 +234,7 @@ TEST(WarpGPU, Affine_RotateScale_Uniform) {
 
   ScratchpadAllocator scratch_alloc;
 
-  auto mapping_gpu = memory::alloc_unique<AffineMapping2D>(AllocType::GPU, samples);
+  auto mapping_gpu = mm::alloc_raw_unique<AffineMapping2D, mm::memory_kind::device>(samples);
   TensorShape<2> out_shape = { img_tensor.shape[0] * scale, img_tensor.shape[1] * scale };
   KernelContext ctx = {};
   std::vector<TensorShape<2>> out_shapes_hw(samples);

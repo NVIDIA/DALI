@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,8 +54,8 @@ struct IsAlive {
 };
 
 
-template <memory_kind kind>
-struct DummyResource : public async_memory_resource<kind> {
+template <typename Kind>
+struct DummyResource : public async_memory_resource<Kind> {
   int allocate_seq = -1;
   int deallocate_seq = -1;
   int allocate_async_seq = -1;
@@ -93,7 +93,7 @@ struct DummyResource : public async_memory_resource<kind> {
     deallocate_async_seq = ++seq;
   }
 
-  bool do_is_equal(const memory_resource<kind> &other) const noexcept override {
+  bool do_is_equal(const memory_resource<Kind> &other) const noexcept override {
     is_equal_seq = ++seq;
     return this == &other;
   }

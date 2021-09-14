@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -183,7 +183,7 @@ class CallbackContext:
             chunk.close()
 
 
-def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task_pipe, res_pipe, sock):
+def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task_pipe, res_pipe, sock, callback_pickler):
     """Entry point of worker process.
 
     Computes the data in the main thread, in separate threads:
@@ -206,6 +206,8 @@ def worker(worker_id, callbacks, prefetch_queue_depths, initial_chunk_size, task
     `sock` : socket
         Python wrapper around Unix socket used to pass file descriptors identifying shared memory chunk to parent process.
     """
+    if callback_pickler is not None:
+        callbacks = callback_pickler.loads(callbacks)
     contexts = None
     batch_dispatcher = SharedBatchesDispatcher(worker_id, sock, res_pipe)
     task_receiver = TaskReceiver(task_pipe)

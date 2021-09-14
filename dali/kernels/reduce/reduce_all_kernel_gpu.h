@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,12 +54,12 @@ class DLL_PUBLIC ReduceAllGPU {
       blocks_per_sample_ = static_cast<int>(std::sqrt(max_sample_size));
     }
 
-    se.add<const In*>(AllocType::Host, num_samples);
-    se.add<int64_t>(AllocType::Host, num_samples);
-    se.add<const In*>(AllocType::GPU, num_samples);
-    se.add<int64_t>(AllocType::GPU, num_samples);
+    se.add<mm::memory_kind::host, const In*>(num_samples);
+    se.add<mm::memory_kind::host, int64_t>(num_samples);
+    se.add<mm::memory_kind::device, const In*>(num_samples);
+    se.add<mm::memory_kind::device, int64_t>(num_samples);
     tmp_buffer_size_ = num_samples * blocks_per_sample_;
-    se.add<Out>(AllocType::GPU, tmp_buffer_size_);
+    se.add<mm::memory_kind::device, Out>(tmp_buffer_size_);
 
     KernelRequirements req;
     req.scratch_sizes = se.sizes;
@@ -74,22 +74,22 @@ class DLL_PUBLIC ReduceAllGPU {
     auto* out_start = out[0].data;
 
     auto num_samples = in.size();
-    auto* sample_data = context.scratchpad->Allocate<const In*>(AllocType::Host, num_samples);
-    auto* sample_size = context.scratchpad->Allocate<int64_t>(AllocType::Host, num_samples);
+    auto* sample_data = context.scratchpad->AllocateHost<const In*>(num_samples);
+    auto* sample_size = context.scratchpad->AllocateHost<int64_t>(num_samples);
     for (int i = 0; i < num_samples; i++) {
       sample_data[i] = in.tensor_data(i);
       sample_size[i] = volume(in.tensor_shape(i));
     }
 
-    auto* sample_data_gpu = context.scratchpad->Allocate<const In*>(AllocType::GPU, num_samples);
-    auto* sample_size_gpu = context.scratchpad->Allocate<int64_t>(AllocType::GPU, num_samples);
+    auto* sample_data_gpu = context.scratchpad->AllocateGPU<const In*>(num_samples);
+    auto* sample_size_gpu = context.scratchpad->AllocateGPU<int64_t>(num_samples);
     // Single memcpy, since the data in the scratchpad is contiguous
     CUDA_CALL(
       cudaMemcpyAsync(sample_data_gpu, sample_data,
                       num_samples * sizeof(const In*) + num_samples * sizeof(int64_t),
                       cudaMemcpyHostToDevice, context.gpu.stream));
 
-    auto* buffer_gpu = context.scratchpad->Allocate<Out>(AllocType::GPU, tmp_buffer_size_);
+    auto* buffer_gpu = context.scratchpad->AllocateGPU<Out>(tmp_buffer_size_);
 
     // The reduction is divided into two stages. To minimize the precision error due to
     // accumulating numbers sequentially, we use `blocks_per_sample_ = sqrt(max_sample_size)`

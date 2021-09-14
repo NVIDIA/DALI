@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend import TensorGPU, TensorListGPU
+from nvidia.dali.backend import TensorGPU, TensorListGPU, TensorListCPU
 from nvidia.dali import types
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
@@ -52,6 +52,15 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
                     In most cases, using the default internal user stream or stream 0
                     is expected.
     """
+    if isinstance(dali_tensor, (TensorListCPU, TensorListGPU)):
+        dali_type = dali_tensor[0].dtype()
+    else:
+        dali_type = dali_tensor.dtype()
+    dali_type = np.dtype(dali_type)
+
+    assert dali_type == arr.dtype, ("The element type of DALI Tensor/TensorList"
+	        " doesn't match the element type of the target MXNet NDArray: {} vs {}".format(dali_type, np.dtype(arr.dtype)))
+
     # Wait until arr is no longer used by the engine
     _wait_to_write(arr)
     assert dali_tensor.shape() == list(arr.shape), \
@@ -132,10 +141,6 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
     outputs from the DALI pipeline in the form of MXNet's DataBatch
     of NDArrays.
 
-    Please keep in mind that NDArrays returned by the iterator are
-    still owned by DALI. They are valid till the next iterator call.
-    If the content needs to be preserved please copy it to another NDArray.
-
     Parameters
     ----------
     pipelines : list of nvidia.dali.Pipeline
@@ -170,11 +175,8 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                  Whether the iterator should squeeze the labels before
                  copying them to the ndarray.
                  This argument is deprecated and will be removed from future releases.
-    dynamic_shape: bool, optional, default = False
-                 Whether the shape of the output of the DALI pipeline can
-                 change during execution. If True, the mxnet.ndarray will be resized accordingly
-                 if the shape of DALI returned tensors changes during execution.
-                 If False, the iterator will fail in case of change.
+    dynamic_shape : any, optional,
+                Parameter used only for backward compatibility.
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
 
@@ -251,10 +253,6 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                          last_batch_policy,
                          prepare_first_batch=prepare_first_batch)
         self._squeeze_labels = squeeze_labels
-        self._dynamic_shape = dynamic_shape
-        # Use double-buffering of data batches
-        self._data_batches = [[None] for i in range(self._num_gpus)]
-        self._current_data_batch = 0
 
         self._first_batch = None
         self._descriptors_populated = False
@@ -308,6 +306,8 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
         # Gather outputs
         outputs = self._get_outputs()
 
+        data_batches = [None for i in range(self._num_gpus)]
+
         for i in range(self._num_gpus):
             # MXNet wants batches with clear distinction between
             # data and label entries, so segregate outputs into
@@ -332,37 +332,26 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             category_info[DALIGenericIterator.LABEL_TAG] = \
                 [(x.shape(), np.dtype(x.dtype())) for x in category_tensors[DALIGenericIterator.LABEL_TAG]]
 
-            # If we did not yet allocate memory for that batch, do it now
-            if self._data_batches[i][self._current_data_batch] is None:
-                mx_gpu_device = mx.gpu(self._pipes[i].device_id)
-                mx_cpu_device = mx.cpu(0)
-                category_device = {key : [] for key in self._output_categories}
-                for category in self._output_categories:
-                    for t in category_tensors[category]:
-                        if type(t) is TensorGPU:
-                            category_device[category].append(mx_gpu_device)
-                        else:
-                            category_device[category].append(mx_cpu_device)
-                d = []
-                l = []
-                for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.DATA_TAG]):
-                    d.append(get_mx_array(shape, category_device[DALIGenericIterator.DATA_TAG][j], dtype = dtype))
-                for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.LABEL_TAG]):
-                    l.append(get_mx_array(shape, category_device[DALIGenericIterator.LABEL_TAG][j], dtype = dtype))
+            mx_gpu_device = mx.gpu(self._pipes[i].device_id)
+            mx_cpu_device = mx.cpu(0)
+            category_device = {key : [] for key in self._output_categories}
+            for category in self._output_categories:
+                for t in category_tensors[category]:
+                    if type(t) is TensorGPU:
+                        category_device[category].append(mx_gpu_device)
+                    else:
+                        category_device[category].append(mx_cpu_device)
+            d = []
+            l = []
+            for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.DATA_TAG]):
+                d.append(get_mx_array(shape, category_device[DALIGenericIterator.DATA_TAG][j], dtype = dtype))
+            for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.LABEL_TAG]):
+                l.append(get_mx_array(shape, category_device[DALIGenericIterator.LABEL_TAG][j], dtype = dtype))
 
-                self._data_batches[i][self._current_data_batch] = mx.io.DataBatch(data=d, label=l)
+            data_batches[i] = mx.io.DataBatch(data=d, label=l)
 
-            d = self._data_batches[i][self._current_data_batch].data
-            l = self._data_batches[i][self._current_data_batch].label
-            # Copy data from DALI Tensors to MXNet NDArrays
-            if self._dynamic_shape:
-                for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.DATA_TAG]):
-                    if list(d[j].shape) != shape:
-                        d[j] = get_mx_array(shape, d[j].context, dtype = dtype)
-                for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.LABEL_TAG]):
-                    if list(l[j].shape) != shape:
-                        l[j] = get_mx_array(shape, l[j].context, dtype = dtype)
-
+            d = data_batches[i].data
+            l = data_batches[i].label
             for j, d_arr in enumerate(d):
                 feed_ndarray(category_tensors[DALIGenericIterator.DATA_TAG][j], d_arr)
             for j, l_arr in enumerate(l):
@@ -372,16 +361,15 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
 
         self._advance_and_check_drop_last()
 
-        copy_db_index = self._current_data_batch
         if self._reader_name:
             if_drop, left = self._remove_padded()
             if np.any(if_drop):
                 left = [self.batch_size - l for l in left]
                 for i, to_pad in zip(range(self._num_gpus), left):
-                    self._data_batches[i][copy_db_index].pad = to_pad
+                    data_batches[i].pad = to_pad
             else:
-                for batch in self._data_batches:
-                    batch[copy_db_index].pad = 0
+                for batch in data_batches:
+                    batch.pad = 0
 
         else:
             # padding the last batch
@@ -392,16 +380,15 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 difference = self._num_gpus - (overflow % self._num_gpus)
                 for i in range(self._num_gpus):
                     if i < difference:
-                        self._data_batches[i][copy_db_index].pad = overflow_per_device
+                        data_batches[i].pad = overflow_per_device
                     else:
-                        self._data_batches[i][copy_db_index].pad = overflow_per_device + 1
+                        data_batches[i].pad = overflow_per_device + 1
             else:
-                for db in self._data_batches:
-                    db[copy_db_index].pad = 0
+                for db in data_batches:
+                    db.pad = 0
 
-        batches = [db[copy_db_index] for db in self._data_batches]
-        self._populate_descriptors(batches)
-        return batches
+        self._populate_descriptors(data_batches)
+        return data_batches
 
     DATA_TAG = "data"
     LABEL_TAG = "label"
@@ -426,10 +413,6 @@ class DALIClassificationIterator(DALIGenericIterator):
                             (label_name, DALIClassificationIterator.LABEL_TAG)],
                            reader_name,
                            data_layout)
-
-    Please keep in mind that NDArrays returned by the iterator are
-    still owned by DALI. They are valid till the next iterator call.
-    If the content needs to be preserved please copy it to another NDArray.
 
     Parameters
     ----------
@@ -461,11 +444,8 @@ class DALIClassificationIterator(DALIGenericIterator):
                  Whether the iterator should squeeze the labels before
                  copying them to the ndarray.
                  This argument is deprecated and will be removed from future releases.
-    dynamic_shape: bool, optional, default = False
-                 Whether the shape of the output of the DALI pipeline can
-                 change during execution. If True, the mxnet.ndarray will be resized accordingly
-                 if the shape of DALI returned tensors changes during execution.
-                 If False, the iterator will fail in case of change.
+    dynamic_shape : any, optional,
+                Parameter used only for backward compatibility.
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
 
@@ -545,28 +525,6 @@ class DALIClassificationIterator(DALIGenericIterator):
 ###############################################
 
 
-class SmartArray(object):
-    def __init__(self, array):
-        self._data = array.reshape(-1)
-        self._view = array
-
-    def resize(self, shape):
-        new_size = np.prod(shape)
-
-        if new_size > self._data.size:
-            self._data = get_mx_array(new_size, self._data.context, dtype=self._data.dtype)
-            self._view = self._data
-        elif new_size < self._data.size:
-            self._view = self._data[:new_size]
-        else:
-            self._view = self._data
-        self._view = self._view.reshape(shape)
-        return self._view
-
-    @property
-    def view(self):
-        return self._view
-
 
 class DALIGluonIterator(_DALIMXNetIteratorBase):
     """
@@ -574,10 +532,6 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
     outputs from the DALI pipeline in the form of per GPU tuples. These tuples consisting of
     NDArrays (for outputs marked as DALIGluonIterator.DENSE_TAG) and list of NDArrays (for
     output marked as DALIGluonIterator.SPARSE_TAG).
-
-    Please keep in mind that NDArrays returned by the iterator are
-    still owned by DALI. They are valid till the next iterator call.
-    If the content needs to be preserved please copy it to another NDArray.
 
     Parameters
     ----------
@@ -678,8 +632,6 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
             last_batch_policy,
             prepare_first_batch = prepare_first_batch)
 
-        self._data_batches = [None for i in range(self._num_gpus)]
-
         self._first_batch = None
         if self._prepare_first_batch:
             try:
@@ -696,6 +648,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
         # Gather outputs
         dali_outputs = self._get_outputs()
 
+        data_batches = [None for i in range(self._num_gpus)]
         for i in range(self._num_gpus):
             output_elements = []
             shapes = []
@@ -708,23 +661,20 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                     s = [t.shape() for t in output_elements[-1]]
                     shapes.append(s)
 
-            if self._data_batches[i] is None:
-                self._data_batches[i] = self._create_data_batch(output_elements, shapes, self._pipes[i].device_id)
+            data_batches[i] = self._create_data_batch(output_elements, shapes, self._pipes[i].device_id)
 
-            batch = self._data_batches[i]
+            batch = data_batches[i]
             # Copy data from DALI Tensors to MXNet NDArrays
             for j, output_el in enumerate(output_elements):
                 if self._outputs_types is None or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG:
-                    ndarray = batch[j].resize(shapes[j])
-                    feed_ndarray(output_el, ndarray)
+                    feed_ndarray(output_el, batch[j])
                 else:
                     for sample_idx in range(self.batch_size):
-                        ndarray = batch[j][sample_idx].resize(shapes[j][sample_idx])
-                        feed_ndarray(output_el[sample_idx], ndarray)
+                        feed_ndarray(output_el[sample_idx], batch[j][sample_idx])
 
-        batches = [[([sample.view for sample in output_el] if isinstance(output_el,list) else output_el.view)
+        batches = [[([sample for sample in output_el] if isinstance(output_el,list) else output_el)
                     for output_el in batch]
-                   for batch in self._data_batches]
+                   for batch in data_batches]
 
         self._schedule_runs()
 
@@ -773,11 +723,11 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
             dtype = np.dtype(first_t.dtype())
             device = mx_gpu_device if type(first_t) is TensorGPU else mx_cpu_device
             if self._outputs_types is None or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG:
-                new_batch.append(SmartArray(get_mx_array(shapes[j], device, dtype=dtype)))
+                new_batch.append(get_mx_array(shapes[j], device, dtype=dtype))
             else:
                 l = []
                 for sample_idx in range(self.batch_size):
-                    l.append(SmartArray(get_mx_array(shapes[j][sample_idx], device, dtype=dtype)))
+                    l.append(get_mx_array(shapes[j][sample_idx], device, dtype=dtype))
                 new_batch.append(l)
         return new_batch
 

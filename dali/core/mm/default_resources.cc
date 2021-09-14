@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,9 +21,7 @@
 #include "dali/core/device_guard.h"
 #include "dali/core/mm/async_pool.h"
 #include "dali/core/mm/composite_resource.h"
-#include "rmm/mr/device/owning_wrapper.hpp"
-#include "rmm/mr/device/cuda_memory_resource.hpp"
-#include "rmm/mr/device/pool_memory_resource.hpp"
+#include "dali/core/mm/cuda_vm_resource.h"
 
 namespace dali {
 namespace mm {
@@ -42,6 +40,7 @@ struct DefaultResources {
   ~DefaultResources() {
     ReleasePinned();
     ReleaseDevice();
+    ReleaseManaged();
     ReleaseHost();
   }
 
@@ -52,11 +51,16 @@ struct DefaultResources {
 
   std::shared_ptr<host_memory_resource> host;
   std::shared_ptr<pinned_async_resource> pinned_async;
+  std::shared_ptr<managed_async_resource> managed;
   std::vector<std::shared_ptr<device_async_resource>> device;
   std::mutex mtx;
 
   void ReleasePinned() {
     Release(pinned_async);
+  }
+
+  void ReleaseManaged() {
+    Release(managed);
   }
 
   void ReleaseDevice() {
@@ -101,7 +105,8 @@ struct DefaultResources {
 #define g_resources (DefaultResources::instance())
 
 inline std::shared_ptr<host_memory_resource> CreateDefaultHostResource() {
-  return std::make_shared<malloc_memory_resource>();
+  static auto rsrc = std::make_shared<malloc_memory_resource>();
+  return rsrc;
 }
 
 struct CUDARTLoader {
@@ -127,33 +132,106 @@ CallAtExit<Callable> AtExit(Callable &&c) {
   return CallAtExit<Callable>(std::forward<Callable>(c));
 }
 
+bool UseDeviceMemoryPool() {
+  static bool value = []() {
+    const char *env = std::getenv("DALI_USE_DEVICE_MEM_POOL");
+    return !env || atoi(env);
+  }();
+  return value;
+}
+
+bool UsePinnedMemoryPool() {
+  static bool value = []() {
+    const char *env = std::getenv("DALI_USE_PINNED_MEM_POOL");
+    return !env || atoi(env);
+  }();
+  return value;
+}
+
+bool UseVMM() {
+  static bool value = []() {
+    const char *env = std::getenv("DALI_USE_VMM");
+    return !env || atoi(env);
+  }();
+  return value;
+}
+
+bool UseDeferredDealloc() {
+  static bool value = []() {
+    const char *env = std::getenv("DALI_USE_DEFERRED_DEALLOC");
+    return !env || atoi(env);
+  }();
+  return value;
+}
+
 inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   static CUDARTLoader CUDAInit;
-#ifdef DALI_USE_RMM_DEVICE_RESOURCE
-  auto upstream = std::make_shared<rmm::mr::cuda_memory_resource>();
-  return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(std::move(upstream));
-#else
-  using resource_type = mm::async_pool_resource<mm::memory_kind::device>;
-  static auto upstream = std::make_shared<mm::cuda_malloc_memory_resource>();
-  auto rsrc = std::make_shared<resource_type>(upstream.get());
-  return make_shared_composite_resource(std::move(rsrc), upstream);
-#endif
+  if (!UseDeviceMemoryPool()) {
+    static auto rsrc = std::make_shared<mm::cuda_malloc_memory_resource>();
+    return rsrc;
+  }
+  #if DALI_USE_CUDA_VM_MAP
+  if (cuvm::IsSupported() && UseVMM()) {
+    if (UseDeferredDealloc()) {
+      using resource_type = mm::async_pool_resource<mm::memory_kind::device, cuda_vm_resource,
+                                                    std::mutex, void>;
+      return std::make_shared<resource_type>();
+    } else {
+      using resource_type = mm::async_pool_resource<mm::memory_kind::device, cuda_vm_resource_base,
+                                                    std::mutex, void>;
+      return std::make_shared<resource_type>();
+    }
+  }
+  #endif  // DALI_USE_CUDA_VM_MAP
+  {
+    static auto upstream = std::make_shared<mm::cuda_malloc_memory_resource>();
+    if (UseDeferredDealloc()) {
+      using resource_type = mm::async_pool_resource<mm::memory_kind::device>;
+      auto rsrc = std::make_shared<resource_type>(upstream.get());
+      return make_shared_composite_resource(std::move(rsrc), upstream);
+    } else {
+      using resource_type = mm::async_pool_resource<mm::memory_kind::device,
+              pool_resource_base<memory_kind::device, any_context, coalescing_free_tree, spinlock>>;
+      auto rsrc = std::make_shared<resource_type>(upstream.get());
+      return make_shared_composite_resource(std::move(rsrc), upstream);
+    }
+  }
 }
 
 inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
-  using resource_type = mm::async_pool_resource<mm::memory_kind::pinned>;
-  static auto upstream = std::make_shared<rmm::mr::pinned_memory_resource>();
-  auto rsrc = std::make_shared<resource_type>(upstream.get());
-  return make_shared_composite_resource(std::move(rsrc), upstream);
+  if (!UsePinnedMemoryPool()) {
+    static auto upstream = std::make_shared<mm::pinned_malloc_memory_resource>();
+    return upstream;
+  }
+  static auto upstream = std::make_shared<pinned_malloc_memory_resource>();
+  if (UseDeferredDealloc()) {
+    using resource_type = mm::async_pool_resource<mm::memory_kind::pinned>;
+    auto rsrc = std::make_shared<resource_type>(upstream.get());
+    return make_shared_composite_resource(std::move(rsrc), upstream);
+  } else {
+    using resource_type = mm::async_pool_resource<mm::memory_kind::pinned,
+        pool_resource_base<memory_kind::pinned, any_context, coalescing_free_tree, spinlock>>;
+    auto rsrc = std::make_shared<resource_type>(upstream.get());
+    return make_shared_composite_resource(std::move(rsrc), upstream);
+  }
 }
 
-template <memory_kind kind>
-const std::shared_ptr<default_memory_resource_t<kind>> &ShareDefaultResourceImpl();
+inline std::shared_ptr<managed_async_resource> CreateDefaultManagedResource() {
+  static auto rsrc = std::make_shared<mm::managed_malloc_memory_resource>();
+  return rsrc;
+}
+
+
+template <typename Kind>
+const std::shared_ptr<default_memory_resource_t<Kind>> &ShareDefaultResourceImpl();
 
 template <>
 const std::shared_ptr<host_memory_resource> &ShareDefaultResourceImpl<memory_kind::host>() {
-  if (!g_resources.host)
-    g_resources.host = CreateDefaultHostResource();
+  if (!g_resources.host) {
+    std::lock_guard<std::mutex> lock(g_resources.mtx);
+    if (!g_resources.host)
+      g_resources.host = CreateDefaultHostResource();
+  }
   return g_resources.host;
 }
 
@@ -170,6 +248,21 @@ const std::shared_ptr<pinned_async_resource> &ShareDefaultResourceImpl<memory_ki
     }
   }
   return g_resources.pinned_async;
+}
+
+template <>
+const std::shared_ptr<managed_async_resource> &ShareDefaultResourceImpl<memory_kind::managed>() {
+  if (!g_resources.managed) {
+    std::lock_guard<std::mutex> lock(g_resources.mtx);
+    if (!g_resources.managed) {
+      static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
+      static auto cleanup = AtExit([] {
+        g_resources.ReleaseManaged();
+      });
+      g_resources.managed = CreateDefaultManagedResource();
+    }
+  }
+  return g_resources.managed;
 }
 
 const std::shared_ptr<device_async_resource> &ShareDefaultDeviceResourceImpl(int device_id) {
@@ -274,23 +367,24 @@ void SetDefaultResource<memory_kind::device>(device_async_resource *resource, bo
   SetDefaultResource<memory_kind::device>(wrap(resource, own));
 }
 
-template <memory_kind kind> DLL_PUBLIC
-std::shared_ptr<default_memory_resource_t<kind>> ShareDefaultResource() {
-  return ShareDefaultResourceImpl<kind>();
+template <typename Kind> DLL_PUBLIC
+std::shared_ptr<default_memory_resource_t<Kind>> ShareDefaultResource() {
+  return ShareDefaultResourceImpl<Kind>();
 }
 
-template <memory_kind kind> DLL_PUBLIC
-default_memory_resource_t<kind> *GetDefaultResource() {
-  return ShareDefaultResourceImpl<kind>().get();
+template <typename Kind> DLL_PUBLIC
+default_memory_resource_t<Kind> *GetDefaultResource() {
+  return ShareDefaultResourceImpl<Kind>().get();
 }
 
-#define INSTANTIATE_DEFAULT_RESOURCE_GETTERS(kind) \
-template DLL_PUBLIC std::shared_ptr<default_memory_resource_t<kind>> ShareDefaultResource<kind>(); \
-template DLL_PUBLIC default_memory_resource_t<kind> *GetDefaultResource<kind>();
+#define INSTANTIATE_DEFAULT_RESOURCE_GETTERS(Kind) \
+template DLL_PUBLIC std::shared_ptr<default_memory_resource_t<Kind>> ShareDefaultResource<Kind>(); \
+template DLL_PUBLIC default_memory_resource_t<Kind> *GetDefaultResource<Kind>();
 
 INSTANTIATE_DEFAULT_RESOURCE_GETTERS(memory_kind::host);
 INSTANTIATE_DEFAULT_RESOURCE_GETTERS(memory_kind::pinned);
 INSTANTIATE_DEFAULT_RESOURCE_GETTERS(memory_kind::device);
+INSTANTIATE_DEFAULT_RESOURCE_GETTERS(memory_kind::managed);
 
 DLL_PUBLIC
 std::shared_ptr<device_async_resource> ShareDefaultDeviceResource(int device_id) {

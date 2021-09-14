@@ -28,7 +28,7 @@
 #include "dali/operators/decoder/nvjpeg/nvjpeg_memory.h"
 #include "dali/operators/decoder/nvjpeg/nvjpeg2k_helper.h"
 #include "dali/operators/decoder/cache/cached_decoder_impl.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/util/npp.h"
@@ -101,12 +101,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     // disable HW decoder for drivers < 455.x as the memory pool for it is not available
     // and multi GPU performance is far from perfect due to frequent memory allocations
 #if NVML_ENABLED
-      char version[NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE];
-      CUDA_CALL(nvmlInitChecked());
-      CUDA_CALL(nvmlSystemGetDriverVersion(version, sizeof version));
-
-      float driverVersion = 0;
-      driverVersion = std::stof(version);
+      nvml::Init();
+      float driverVersion = nvml::GetDriverVersion();
       if (driverVersion < 455) {
         try_init_hw_decoder = false,
         hw_decoder_load_ = 0;
@@ -182,11 +178,11 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     for (auto thread_id : thread_pool_.GetThreadIds()) {
       if (device_memory_padding > 0) {
-        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::GPU, device_memory_padding);
+        nvjpeg_memory::AddBuffer<mm::memory_kind::device>(thread_id, device_memory_padding);
       }
       if (host_memory_padding > 0) {
-        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::Pinned, host_memory_padding);
-        nvjpeg_memory::AddBuffer(thread_id, kernels::AllocType::Pinned, host_memory_padding);
+        nvjpeg_memory::AddBuffer<mm::memory_kind::pinned>(thread_id, host_memory_padding);
+        nvjpeg_memory::AddBuffer<mm::memory_kind::pinned>(thread_id, host_memory_padding);
       }
     }
 
@@ -234,17 +230,17 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       if (device_memory_padding_jpeg2k > 0) {
         // Adding smaller buffers that are allocated by nvjpeg2k on startup.
         // The sizes were obtained empirically.
-        nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 1024);
-        nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 4 * 1024);
-        nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU, 16 * 1024);
+        nvjpeg_memory::AddBuffer<mm::memory_kind::device>(nvjpeg2k_thread_id, 1024);
+        nvjpeg_memory::AddBuffer<mm::memory_kind::device>(nvjpeg2k_thread_id, 4 * 1024);
+        nvjpeg_memory::AddBuffer<mm::memory_kind::device>(nvjpeg2k_thread_id, 16 * 1024);
         nvjpeg2k_intermediate_buffer_.resize(device_memory_padding_jpeg2k / 8);
-        nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU,
+        nvjpeg_memory::AddBuffer<mm::memory_kind::device>(nvjpeg2k_thread_id,
                                  device_memory_padding_jpeg2k);
-        nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::GPU,
+        nvjpeg_memory::AddBuffer<mm::memory_kind::device>(nvjpeg2k_thread_id,
                                  device_memory_padding_jpeg2k);
       }
       if (host_memory_padding_jpeg2k > 0) {
-        nvjpeg_memory::AddBuffer(nvjpeg2k_thread_id, kernels::AllocType::Pinned,
+        nvjpeg_memory::AddBuffer<mm::memory_kind::pinned>(nvjpeg2k_thread_id,
                                  host_memory_padding_jpeg2k);
       }
       nvjpeg2k_decoder_ = NvJPEG2KDecodeState(nvjpeg2k_handle_);
@@ -269,6 +265,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   ~nvJPEGDecoder() override {
     try {
       DeviceGuard g(device_id_);
+
+#if NVML_ENABLED
+      nvml::Shutdown();
+#endif
 
       sample_data_.clear();
 
@@ -591,9 +591,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);
 
         if (crop_generator) {
-          TensorShape<> dims{data.shape[0], data.shape[1]};
-          data.roi = crop_generator(dims, "HW");
-          DALI_ENFORCE(data.roi.IsInRange(dims));
+          TensorShape<> shape{data.shape[0], data.shape[1]};
+          data.roi = crop_generator(shape, "HW");
+          data.roi.EnforceInRange(shape);
           output_shape_.set_tensor_shape(
             i, {data.roi.shape[0], data.roi.shape[1], data.req_nchannels});
           NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, data.roi.anchor[1], data.roi.anchor[0],

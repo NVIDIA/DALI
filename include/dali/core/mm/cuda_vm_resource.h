@@ -18,17 +18,19 @@
 #include <algorithm>
 #include <mutex>
 #include <condition_variable>
+#include <string>
 #include <utility>
 #include <vector>
 #include "dali/core/mm/cu_vm.h"
 
 #if DALI_USE_CUDA_VM_MAP
+#include "dali/core/bitmask.h"
+#include "dali/core/device_guard.h"
+#include "dali/core/format.h"
+#include "dali/core/spinlock.h"
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
-#include "dali/core/bitmask.h"
-#include "dali/core/spinlock.h"
-#include "dali/core/device_guard.h"
 #include "dali/core/mm/detail/deferred_dealloc.h"
 
 namespace dali {
@@ -42,7 +44,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
  public:
   explicit cuda_vm_resource_base(int device_ordinal = -1,
                                  size_t block_size = 0,
-                                 size_t initial_va_size = size_t(4) << 30) {
+                                 size_t initial_va_size = 0) {
     device_ordinal_ = device_ordinal;
     if (block_size != 0 && !is_pow2(block_size))
       throw std::invalid_argument("block_size must be a power of 2");
@@ -60,7 +62,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
   void *try_allocate_from_free(size_t size, size_t alignment) {
     if (size == 0)
       return nullptr;
-    adjust_params(size, alignment);
+    adjust_params(size, alignment, true);
     lock_guard pool_guard(pool_lock_);
     // try to get a free region that's already mapped
     void *ptr = try_get_mapped(size, alignment);
@@ -131,7 +133,46 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     stat_ = {};
   }
 
-  constexpr bool deferred_dealloc_enabled() const noexcept { return defer_dealloc_; }
+  void dump_stats(std::ostream &os) {
+    print(os, "cuda_vm_resource stat dump:",
+      "\ntotal VM size:         ", stat_.allocated_va,
+      "\ncurrently allocated:   ", stat_.curr_allocated,
+      "\npeak allocated:        ", stat_.peak_allocated,
+      "\nallocated_blocks:      ", stat_.allocated_blocks,
+      "\nblock size:            ", block_size_,
+      "\nnon-freed allocations: ", stat_.curr_allocations,
+      "\ntotal allocations:     ", stat_.total_allocations,
+      "\ntotal deallocations:   ", stat_.total_deallocations,
+      "\ntotal unmapping:       ", stat_.total_unmaps,
+      "\nfree pool size:        ", stat_.curr_free);
+  }
+
+  void dbg_dump(std::ostream &os) {
+    dump_stats(os);
+    dump_regions(os);
+  }
+
+  void dump_regions(std::ostream &os) {
+    print(os, "Pool map:\n");
+    auto hex = [](auto x)->string {
+      char buf[32];
+      snprintf(buf, 32, "%016llX", (unsigned long long)x);  // NOLINT
+      return buf;
+    };
+    for (auto &region : va_regions_) {
+      print(os, "================================\nVA region ",
+        hex(region.address_range.ptr()), " : ", hex(region.address_range.end()), "\n");
+      for (int i = 0; i < region.num_blocks(); i++) {
+        print(os, hex(region.block_dptr(i)), "  ",
+          region.available[i] || !region.mapped[i] ? "       " : "In use ",
+          region.mapped[i]                         ? "Mapped " : "       ",
+          hex(region.mapping[i]),
+          "\n");
+      }
+    }
+  }
+
+  bool deferred_dealloc_enabled() const noexcept { return defer_dealloc_; }
   static constexpr int deferred_dealloc_max_outstanding() { return 16; }
   virtual void flush_deferred() {}
 
@@ -145,7 +186,9 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
   void *do_allocate(size_t size, size_t alignment) override {
     if (size == 0)
       return nullptr;
-    adjust_params(size, alignment);
+    if (size > total_mem_)
+      throw CUDABadAlloc(size);  // this can't succeed - no need to even try
+    adjust_params(size, alignment, true);
     std::unique_lock<pool_lock_t> pool_guard(pool_lock_);
     // try to get a free region that's already mapped
     void *ptr = try_get_mapped(size, alignment);
@@ -166,7 +209,14 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     DeviceGuard dg(device_ordinal_);
     mem_lock_guard mem_guard(mem_lock_);
     void *va = get_va(size, alignment);
-    map_storage(va, size);
+    try {
+      map_storage(va, size);
+    } catch (std::bad_alloc &) {
+      print(std::cerr, "Could not allocate physical storage of size ", size, " on device ",
+        device_ordinal_);
+      dbg_dump(std::cerr);
+      throw;
+    }
     ptr = free_mapped_.get_specific_block(va, size);
     assert(ptr == va);
     stat_take_free(size);
@@ -188,14 +238,19 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     if (device_ordinal_ < 0) {
       CUDA_CALL(cudaGetDevice(&device_ordinal_));
     }
-    if (block_size_ == 0) {
+    DeviceGuard dg(device_ordinal_);
+    if (total_mem_ == 0) {
       CUdevice device;
       CUDA_CALL(cuDeviceGet(&device, device_ordinal_));
       CUDA_CALL(cuDeviceTotalMem(&total_mem_, device));
+    }
+    if (block_size_ == 0) {
       size_t grain = cuvm::GetAddressGranularity();
       block_size_ = std::max(grain,  // at least grain, for correctness
                              std::min<size_t>(next_pow2(total_mem_ >> 8),  // capacity-dependent...
                                               64 << 20));  // ...but capped at 64 MiB
+      if (initial_va_size_ == 0)
+        initial_va_size_ = align_up(2 * total_mem_, block_size_);  // get 2x physical size of VA
     }
   }
 
@@ -320,7 +375,10 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
       for (int b = available.find(!availability, start_blk); b < end_blk; ) {
         int first_flipped = std::min<int>(available.find(availability, b+1), end_blk);
         flipped += first_flipped - b;
-        b = first_flipped + 1;
+        if (first_flipped < end_blk)
+          b = std::min<int>(available.find(!availability, first_flipped+1), end_blk);
+        else
+          break;
       }
       if (availability)
         available_blocks += flipped;
@@ -344,10 +402,13 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
   size_t total_mem_ = 0;
   int device_ordinal_ = -1;
 
-  void adjust_params(size_t &size, size_t &alignment) {
+  void adjust_params(size_t &size, size_t &alignment, bool check) {
     alignment = std::max(alignment, next_pow2(size >> 11));
     alignment = std::min(alignment, block_size_);
-    size = align_up(size, alignment);
+    size_t aligned = align_up(size, alignment);
+    if (check && aligned < size)
+      throw std::bad_alloc();
+    size = aligned;
   }
 
   void *try_get_mapped(size_t size, size_t alignment) {
@@ -368,7 +429,14 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     void *ptr = free_va_.get(size, alignment);
     if (ptr)
       return ptr;
-    va_allocate(size);
+    try {
+      va_allocate(size);
+    } catch (std::bad_alloc &) {
+      print(std::cerr, "Could not allocate virtual address space of size ", size, " on device ",
+        device_ordinal_);
+      dbg_dump(std::cerr);
+      throw;
+    }
     ptr = free_va_.get(size, alignment);
     assert(ptr);
     return ptr;
@@ -410,8 +478,8 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
       assert(!va_ranges_.empty());
       va_size = std::max(va_size, 2 * va_ranges_.back().size());
       hints = {
-        { last_va.address_range.end(), 0_zu },
-        { first_va.address_range.ptr() - va_size, 0_zu }
+        { last_va.address_range.end(), block_size_ },
+        { first_va.address_range.ptr() - va_size, block_size_ }
       };
     }
 
@@ -423,8 +491,12 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
       } catch (const CUDAError &) {
       } catch (const std::bad_alloc &) {}
     }
-    if (!va)  // ...hint failed - allocate anywhere
-      va = cuvm::CUMemAddressRange::Reserve(va_size, 0, 0);
+    if (!va)  // ...hint failed - allocate anywhere, just align to block_size_
+      va = cuvm::CUMemAddressRange::Reserve(va_size, block_size_, 0);
+
+    if (!mm::detail::is_aligned(detail::u2ptr(va.ptr()), block_size_))
+      throw std::logic_error("The VA region is not aligned to block size!\n"
+        "This should never happen.");
 
     va_ranges_.push_back(std::move(va));
     va_add_region(va_ranges_.back());
@@ -473,7 +545,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
   void deallocate_impl(void *ptr, size_t size, size_t alignment, bool sync, bool lock) {
     if (size == 0)
       return;
-    adjust_params(size, alignment);
+    adjust_params(size, alignment, false);
     if (sync) {
       DeviceGuard dg(device_ordinal_);
       CUDA_CALL(cudaDeviceSynchronize());

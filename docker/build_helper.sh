@@ -95,37 +95,34 @@ if [ "${WERROR}" = "ON" ]; then
 fi
 make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
 
+
+bundle_wheel() {
+    INPUT=$1
+    STRIP=$2
+    TEST_BUNDLED_LIBS=$3
+    OUT_WHL_NAME=$4
+    BUNDLE_PATH_PREFIX=$5
+    ../dali/python/bundle-wheel.sh ${INPUT} ${STRIP} ${TEST_BUNDLED_LIBS} ${OUT_WHL_NAME} "${BUNDLE_PATH_PREFIX}"
+}
+
+
 if [ "${BUILD_PYTHON}" = "ON" ]; then
-    pip wheel -v dali/python \
-        --build-option --python-tag=py3-none \
-        --build-option --plat-name=${WHL_PLATFORM_NAME} \
-        --build-option --build-number=${NVIDIA_BUILD_ID}
+    # use stored as a compression method to make it faster as bundle-wheel.sh need to repack anyway
+    # call setup.py to avoid slow copy to tmp dir
+    pushd dali/python
+    python setup.py bdist_wheel \
+        --verbose \
+        --compression=stored \
+        --python-tag=py3-none \
+        --plat-name=${WHL_PLATFORM_NAME} \
+        --build-number=${NVIDIA_BUILD_ID}
+    popd
+    mv dali/python/dist/*.whl ./
 
-    ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl "${BUNDLE_PATH_PREFIX}"
-
-    if [ "${TEST_BUNDLED_LIBS}" = "YES" ]; then
-        export UNZIP_PATH="$(mktemp -d)"
-        unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH
-        python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ')
-        rm -rf $UNZIP_PATH
-    fi
+    OUT_WHL_NAME=$(echo nvidia_dali[_-]*.whl)
+    OUT_DEBUG_WHL_NAME=${OUT_WHL_NAME%.*}_debug.whl
 
     if [ "${STRIP_BINARY}" = "ON" ]; then
-        # rename unstriped wheel to debug
-        WHEEL=$(ls /wheelhouse/nvidia_dali*.whl)
-        mv $WHEEL ${WHEEL%.*}_debug.whl
-
-        WHEEL=$(pwd)/$(ls nvidia_dali[_-]*.whl)
-        export UNZIP_PATH="$(mktemp -d)"
-        unzip $WHEEL -d $UNZIP_PATH
-        for f in $(find $UNZIP_PATH -iname *.so); do
-            strip --strip-debug $f
-        done
-        rm -f $WHEEL
-        pushd $UNZIP_PATH
-        zip -rq $WHEEL *
-        popd
-        rm -rf $UNZIP_PATH
         # rerun all things involving patchelf on striped binary
         # we cannot strip after patchelf as according to the documentation
         ###
@@ -134,7 +131,10 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
         ### `--set-interpreter' with a larger path than the original is used).
         ### This appears to be a bug in binutils
         ### (http://bugs.strategoxt.org/browse/NIXPKGS-85).
-
-        ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl  ${BUNDLE_PATH_PREFIX}
+        bundle_wheel nvidia_dali[_-]*.whl NO NO ${OUT_DEBUG_WHL_NAME} "${BUNDLE_PATH_PREFIX}" &
+        bundle_wheel nvidia_dali[_-]*.whl YES ${TEST_BUNDLED_LIBS} ${OUT_WHL_NAME} "${BUNDLE_PATH_PREFIX}" &
+        wait
+    else
+        bundle_wheel nvidia_dali[_-]*.whl NO ${TEST_BUNDLED_LIBS} ${OUT_WHL_NAME} "${BUNDLE_PATH_PREFIX}"
     fi
 fi

@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
-from nose.tools import assert_raises
+from nose_utils import assert_raises
 from test_utils import py_buffer_from_address
 
 
@@ -55,9 +55,9 @@ def test_tensorlist_getitem_cpu():
     assert(type(tensorlist[0]) == TensorCPU)
     assert(type(tensorlist[-3]) == TensorCPU)
     assert(len(list_of_tensors) == len(tensorlist))
-    with assert_raises(IndexError):
+    with assert_raises(IndexError, glob="out of range"):
         tensorlist[len(tensorlist)]
-    with assert_raises(IndexError):
+    with assert_raises(IndexError, glob="out of range"):
         tensorlist[-len(tensorlist) - 1]
 
 def test_data_ptr_tensor_cpu():

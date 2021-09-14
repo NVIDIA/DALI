@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -146,8 +146,8 @@ void RandomObjectBBox::AcquireArgs(const HostWorkspace &ws, int N, int ndim) {
   if (weights_.IsDefined() && classes_.IsDefined()) {
     DALI_ENFORCE(weights_.get().shape == classes_.get().shape, make_string(
       "If both ``classes`` and ``class_weights`` are provided, their shapes must match. Got:"
-      "\n  classes.shape  = ", classes_.get().shape,
-      "\n  weights.shape  = ", weights_.get().shape));
+      "\n  classes.shape = ", classes_.get().shape,
+      "\n  weights.shape = ", weights_.get().shape));
   }
 }
 
@@ -300,7 +300,7 @@ void RandomObjectBBox::ClassInfo::Init(const int *bg_ptr,
         if (bg_ptr) {
           // Background was explicitly specified this way - that's an error
           DALI_FAIL(make_string("Class label ", classes[i],
-            " coincides with background label - please specify a different background label or "
+            " coincides with background label - please specify a different background label or"
             " remove it from your list of foreground classes."));
         } else {
           // Not specified? Pick a different one.

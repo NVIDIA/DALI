@@ -16,7 +16,8 @@ import tensorflow
 from test_utils_tensorflow import *
 from test_dali_tf_dataset_pipelines import *
 from test_dali_tf_es_pipelines import *
-from nose.tools import raises, with_setup
+from nose.tools import with_setup
+from nose_utils import raises
 import random as random
 import itertools
 
@@ -180,7 +181,7 @@ def test_tf_with_dali_external_source():
     yield from gen_tf_with_dali_external_source(run_tf_with_dali_external_source)
 
 
-@raises(Exception)
+@raises(Exception, regex="TF device and DALI device mismatch. TF device: [\w]*, DALI device: [\w]* for output")
 def test_tf_dataset_wrong_placement_cpu():
     batch_size = 12
     num_threads = 4
@@ -190,12 +191,12 @@ def test_tf_dataset_wrong_placement_cpu():
 
     with tf.device('/gpu:0'):
         dataset = get_dali_dataset_from_pipeline(
-            pipeline, batch_size, num_threads, 'gpu', 0)
+            pipeline, 'gpu', 0)
 
     run_dataset_in_graph(dataset, iterations)
 
 
-@raises(Exception)
+@raises(Exception, regex="TF device and DALI device mismatch. TF device: [\w]*, DALI device: [\w]* for output")
 def test_tf_dataset_wrong_placement_gpu():
     batch_size = 12
     num_threads = 4
@@ -205,7 +206,7 @@ def test_tf_dataset_wrong_placement_gpu():
 
     with tf.device('/cpu:0'):
         dataset = get_dali_dataset_from_pipeline(
-            pipeline, batch_size, num_threads, 'cpu', 0)
+            pipeline, 'cpu', 0)
 
     run_dataset_in_graph(dataset, iterations)
 

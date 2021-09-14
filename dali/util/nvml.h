@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -251,6 +251,20 @@ inline bool HasCuda11NvmlFunctions() {
   }
   return nvmlHasCuda11NvmlFunctions();
 }
+
+
+namespace impl {
+
+float GetDriverVersion();
+
+}  // namespace impl
+
+
+inline float GetDriverVersion() {
+  static float version = impl::GetDriverVersion();
+  return version;
+}
+
 
 #if (CUDART_VERSION >= 11000)
 

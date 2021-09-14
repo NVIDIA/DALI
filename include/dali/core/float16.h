@@ -15,6 +15,7 @@
 #ifndef DALI_CORE_FLOAT16_H_
 #define DALI_CORE_FLOAT16_H_
 
+#include <cuda_runtime.h>
 #include <cuda_fp16.h>  // for __half & related methods
 #include <cassert>
 #include <type_traits>

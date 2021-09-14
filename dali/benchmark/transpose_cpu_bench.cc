@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,9 +14,8 @@
 
 #include <benchmark/benchmark.h>
 #include <numeric>
-
-#include "dali/kernels/alloc_type.h"
 #include "dali/kernels/transpose/transpose.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 

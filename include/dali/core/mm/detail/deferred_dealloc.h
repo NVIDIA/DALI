@@ -16,9 +16,10 @@
 #ifndef DALI_CORE_MM_DETAIL_DEFERRED_DEALLOC_H_
 #define DALI_CORE_MM_DETAIL_DEFERRED_DEALLOC_H_
 
+#include <condition_variable>
 #include <cstddef>
-#include <thread>
 #include <mutex>
+#include <thread>
 #include "dali/core/mm/detail/util.h"
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/small_vector.h"
@@ -59,6 +60,7 @@ class deferred_dealloc_resource : public BaseResource {
     if (worker_.joinable()) {
       stop();
       worker_.join();
+      ready_.notify_all();
     }
     this->bulk_deallocate(make_span(deallocs_[0]));
     this->bulk_deallocate(make_span(deallocs_[1]));
@@ -104,7 +106,7 @@ class deferred_dealloc_resource : public BaseResource {
   void flush_deferred() override {
     if (!no_pending_deallocs()) {
       std::unique_lock<std::mutex> ulock(mtx_);
-      if (!no_pending_deallocs())
+      if (!no_pending_deallocs() && !stopped_)
         ready_.wait(ulock);
     }
   }
@@ -128,7 +130,7 @@ class deferred_dealloc_resource : public BaseResource {
 
   void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
     if (this->deferred_dealloc_enabled())
-      this->deferred_deallocate(ptr, bytes, alignment);
+      this->deferred_deallocate(ptr, bytes, alignment, this->device_ordinal());
     else
       base::do_deallocate(ptr, bytes, alignment);
   }
@@ -142,6 +144,9 @@ class deferred_dealloc_resource : public BaseResource {
   }
 
   void run() {
+    int default_device = this->device_ordinal();
+    if (default_device >= 0)
+      CUDA_CALL(cudaSetDevice(default_device));
     std::unique_lock<std::mutex> ulock(mtx_);
     while (!is_stopped()) {
       cv_.wait(ulock, [&](){ return stopped_ || !deallocs_[queue_idx_].empty(); });
@@ -151,9 +156,9 @@ class deferred_dealloc_resource : public BaseResource {
       queue_idx_ = 1 - queue_idx_;
       ulock.unlock();
       this->bulk_deallocate(make_span(to_free));
-      to_free.clear();
-      ready_.notify_one();
       ulock.lock();
+      to_free.clear();
+      ready_.notify_all();
     }
   }
 

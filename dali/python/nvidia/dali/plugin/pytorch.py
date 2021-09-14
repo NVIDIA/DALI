@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend import TensorGPU, TensorListGPU
+from nvidia.dali.backend import TensorGPU, TensorListGPU, TensorListCPU
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 from nvidia.dali import types
@@ -51,6 +51,14 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
                     In most cases, using pytorch's current stream is expected (for example,
                     if we are copying to a tensor allocated with torch.zeros(...))
     """
+    if isinstance(dali_tensor, (TensorListCPU, TensorListGPU)):
+        dali_type = dali_tensor[0].dtype()
+    else:
+        dali_type = dali_tensor.dtype()
+    dali_type = np.dtype(dali_type)
+
+    assert to_torch_type[dali_type] == arr.dtype, ("The element type of DALI Tensor/TensorList"
+            " doesn't match the element type of the target PyTorch Tensor: {} vs {}".format(to_torch_type[dali_type], arr.dtype))
     assert dali_tensor.shape() == list(arr.size()), \
             ("Shapes do not match: DALI tensor has size {0}"
             ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
@@ -68,10 +76,6 @@ class DALIGenericIterator(_DaliBaseIterator):
     """
     General DALI iterator for PyTorch. It can return any number of
     outputs from the DALI pipeline in the form of PyTorch's Tensors.
-
-    Please keep in mind that Tensors returned by the iterator are
-    still owned by DALI. They are valid till the next iterator call.
-    If the content needs to be preserved please copy it to another tensor.
 
     Parameters
     ----------
@@ -99,11 +103,8 @@ class DALIGenericIterator(_DaliBaseIterator):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    dynamic_shape: bool, optional, default = False
-                 Whether the shape of the output of the DALI pipeline can
-                 change during execution. If True, the pytorch tensor will be resized accordingly
-                 if the shape of DALI returned tensors changes during execution.
-                 If False, the iterator will fail in case of change.
+    dynamic_shape : any, optional,
+                Parameter used only for backward compatibility.
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
 
@@ -171,10 +172,6 @@ class DALIGenericIterator(_DaliBaseIterator):
                                    last_batch_padded,
                                    last_batch_policy,
                                    prepare_first_batch=prepare_first_batch)
-        self._dynamic_shape = dynamic_shape
-
-        # Use double-buffering of data batches
-        self._data_batches = [None for i in range(self._num_gpus)]
 
         self._first_batch = None
         if self._prepare_first_batch:
@@ -192,6 +189,7 @@ class DALIGenericIterator(_DaliBaseIterator):
         # Gather outputs
         outputs = self._get_outputs()
 
+        data_batches = [None for i in range(self._num_gpus)]
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
             # initialize dict for all output categories
@@ -207,38 +205,30 @@ class DALIGenericIterator(_DaliBaseIterator):
                 category_tensors[category] = out.as_tensor()
                 category_shapes[category] = category_tensors[category].shape()
 
-            # If we did not yet allocate memory for that batch, do it now
-            if self._data_batches[i] is None:
-                category_torch_type = dict()
-                category_device = dict()
-                torch_gpu_device = None
-                torch_cpu_device = torch.device('cpu')
-                # check category and device
-                for category in self._output_categories:
-                    category_torch_type[category] = to_torch_type[np.dtype(category_tensors[category].dtype())]
-                    if type(category_tensors[category]) is TensorGPU:
-                        if not torch_gpu_device:
-                            torch_gpu_device = torch.device('cuda', dev_id)
-                        category_device[category] = torch_gpu_device
-                    else:
-                        category_device[category] = torch_cpu_device
+            category_torch_type = dict()
+            category_device = dict()
+            torch_gpu_device = None
+            torch_cpu_device = torch.device('cpu')
+            # check category and device
+            for category in self._output_categories:
+                category_torch_type[category] = to_torch_type[np.dtype(category_tensors[category].dtype())]
+                if type(category_tensors[category]) is TensorGPU:
+                    if not torch_gpu_device:
+                        torch_gpu_device = torch.device('cuda', dev_id)
+                    category_device[category] = torch_gpu_device
+                else:
+                    category_device[category] = torch_cpu_device
 
-                pyt_tensors = dict()
-                for category in self._output_categories:
-                    pyt_tensors[category] = torch.empty(category_shapes[category],
-                                                        dtype=category_torch_type[category],
-                                                        device=category_device[category])
+            pyt_tensors = dict()
+            for category in self._output_categories:
+                pyt_tensors[category] = torch.empty(category_shapes[category],
+                                                    dtype=category_torch_type[category],
+                                                    device=category_device[category])
 
-                self._data_batches[i] = pyt_tensors
-            else:
-                pyt_tensors = self._data_batches[i]
+            data_batches[i] = pyt_tensors
 
             # Copy data from DALI Tensors to torch tensors
             for category, tensor in category_tensors.items():
-                if self._dynamic_shape and tensor.shape() != list(pyt_tensors[category].size()):
-                    pyt_tensors[category] = torch.empty(category_shapes[category],
-                                                        dtype=pyt_tensors[category].dtype,
-                                                        device=pyt_tensors[category].device)
                 if isinstance(tensor, (TensorGPU, TensorListGPU)):
                     # Using same cuda_stream used by torch.zeros to set the memory
                     stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
@@ -254,7 +244,7 @@ class DALIGenericIterator(_DaliBaseIterator):
             if_drop, left = self._remove_padded()
             if np.any(if_drop):
                 output = []
-                for batch, to_copy in zip(self._data_batches, left):
+                for batch, to_copy in zip(data_batches, left):
                     batch = batch.copy()
                     for category in self._output_categories:
                         batch[category] = batch[category][0:to_copy]
@@ -276,13 +266,13 @@ class DALIGenericIterator(_DaliBaseIterator):
                 # 1) Grab everything from the relevant GPUs.
                 # 2) Grab the right data from the last GPU.
                 # 3) Append data together correctly and return.
-                output = self._data_batches[0:numGPUs_tograb]
+                output = data_batches[0:numGPUs_tograb]
                 output[-1] = output[-1].copy()
                 for category in self._output_categories:
                     output[-1][category] = output[-1][category][0:data_fromlastGPU]
                 return output
 
-        return self._data_batches
+        return data_batches
 
 class DALIClassificationIterator(DALIGenericIterator):
     """
@@ -300,10 +290,6 @@ class DALIClassificationIterator(DALIGenericIterator):
     .. code-block:: python
 
        DALIGenericIterator(pipelines, ["data", "label"], reader_name)
-
-    Please keep in mind that Tensors returned by the iterator are
-    still owned by DALI. They are valid till the next iterator call.
-    If the content needs to be preserved please copy it to another tensor.
 
     Parameters
     ----------
@@ -325,11 +311,8 @@ class DALIClassificationIterator(DALIGenericIterator):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    dynamic_shape: bool, optional, default = False
-                 Whether the shape of the output of the DALI pipeline can
-                 change during execution. If True, the pytorch tensor will be resized accordingly
-                 if the shape of DALI returned tensors changes during execution.
-                 If False, the iterator will fail in case of change.
+    dynamic_shape : any, optional,
+                Parameter used only for backward compatibility.
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
 
@@ -407,11 +390,13 @@ class TorchPythonFunction(ops.PythonFunctionBase):
                lambda *ins: self._torch_stream_wrapper(function, *ins)
         if batch_processing:
             return ops.PythonFunction.function_wrapper_batch(func,
+                                                             self.num_outputs,
                                                              torch.utils.dlpack.from_dlpack,
                                                              torch.utils.dlpack.to_dlpack,
                                                              *args)
         else:
             return ops.PythonFunction.function_wrapper_per_sample(func,
+                                                                  self.num_outputs,
                                                                   torch_dlpack.from_dlpack,
                                                                   torch_dlpack.to_dlpack,
                                                                   *args)

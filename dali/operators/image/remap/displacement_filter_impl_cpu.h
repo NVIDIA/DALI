@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -90,14 +90,11 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   }
 
   template <typename Out, typename In, DALIInterpType interp>
-  void RunWarp(SampleWorkspace &ws, int idx) {
-    auto &input = ws.Input<CPUBackend>(idx);
-    auto &output = ws.Output<CPUBackend>(idx);
-
-    auto &displace = displace_[ws.thread_idx()];
+  void RunWarp(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input, int thread_idx) {
+    auto &displace = displace_[thread_idx];
     In fill[1024];
-    auto in = view_as_tensor<const Out, 3>(input);
-    auto out = view_as_tensor<In, 3>(output);
+    auto in = view<const Out, 3>(input);
+    auto out = view<In, 3>(output);
 
     for (int i = 0; i < in.shape[2]; i++) {
       fill[i] = fill_value_;
@@ -106,31 +103,31 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     Warp<interp, per_channel_transform>(out, in, displace, fill);
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
-    return false;
-  }
+  void RunSample(HostWorkspace &ws, int sample_idx, int thread_idx) {
+    const auto &input = ws.InputRef<CPUBackend>(0);
+    auto &output = ws.OutputRef<CPUBackend>(0);
 
-  void RunImpl(SampleWorkspace &ws) override {
-    DataDependentSetup(ws);
+    PrepareDisplacement(ws, sample_idx, thread_idx);
 
-    auto &input = ws.Input<CPUBackend>(0);
+    if (!has_mask_ || (*mask_)[sample_idx].data<int>()[0]) {
+      const auto &in_tensor = input[sample_idx];
+      auto &out_tensor = output[sample_idx];
 
-    if (!has_mask_ || (*mask_)[ws.data_idx()].data<bool>()[0]) {
       switch (interp_type_) {
         case DALI_INTERP_NN:
           if (IsType<float>(input.type())) {
-            RunWarp<float, float, DALI_INTERP_NN>(ws, 0);
+            RunWarp<float, float, DALI_INTERP_NN>(out_tensor, in_tensor, thread_idx);
           } else if (IsType<uint8_t>(input.type())) {
-            RunWarp<uint8_t, uint8_t, DALI_INTERP_NN>(ws, 0);
+            RunWarp<uint8_t, uint8_t, DALI_INTERP_NN>(out_tensor, in_tensor, thread_idx);
           } else {
             DALI_FAIL("Unexpected input type " + input.type().name());
           }
           break;
         case DALI_INTERP_LINEAR:
           if (IsType<float>(input.type())) {
-            RunWarp<float, float, DALI_INTERP_LINEAR>(ws, 0);
+            RunWarp<float, float, DALI_INTERP_LINEAR>(out_tensor, in_tensor, thread_idx);
           } else if (IsType<uint8_t>(input.type())) {
-            RunWarp<uint8_t, uint8_t, DALI_INTERP_LINEAR>(ws, 0);
+            RunWarp<uint8_t, uint8_t, DALI_INTERP_LINEAR>(out_tensor, in_tensor, thread_idx);
           } else {
             DALI_FAIL("Unexpected input type " + input.type().name());
           }
@@ -141,39 +138,53 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
               " only NN and LINEAR are supported for this operation");
       }
     } else {
-      auto &output = ws.Output<CPUBackend>(0);
-      output.Copy(input, ws.stream());
+      const auto &in_tensor = input[sample_idx];
+      auto &out_tensor = output[sample_idx];
+      out_tensor.Copy(in_tensor, 0);
     }
   }
 
-  template <typename U = Displacement>
-  std::enable_if_t<HasParam<U>::value> PrepareDisplacement(
-      SampleWorkspace *ws) {
-    auto *p = &displace_[ws->thread_idx()].param;
-    displace_[ws->thread_idx()].Prepare(p, spec_, ws, ws->data_idx());
+  bool CanInferOutputs() const override {
+    return true;
   }
 
-  template <typename U = Displacement>
-  std::enable_if_t<!HasParam<U>::value> PrepareDisplacement(
-      SampleWorkspace *) {}
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    const auto &input = ws.InputRef<CPUBackend>(0);
+    output_desc.resize(1);
+    output_desc[0].shape = input.shape();
+    output_desc[0].type = input.type();
+    return true;
+  }
 
-  /**
-   * @brief Do basic input checking and output setup
-   * assuming output_shape = input_shape
-   */
-  virtual void DataDependentSetup(SampleWorkspace &ws) {
-    auto &input = ws.Input<CPUBackend>(0);
-    auto &output = ws.Output<CPUBackend>(0);
-    output.ResizeLike(input);
+  void RunImpl(HostWorkspace &ws) override {
+    const auto &input = ws.InputRef<CPUBackend>(0);
+    const auto &shape = input.shape();
+    auto &output = ws.OutputRef<CPUBackend>(0);
     output.SetLayout(input.GetLayout());
-  }
 
-  void SetupSharedSampleParams(SampleWorkspace &ws) override {
     if (has_mask_) {
       mask_ = &(ws.ArgumentInput("mask"));
     }
-    PrepareDisplacement(&ws);
+
+    auto &tp = ws.GetThreadPool();
+
+    for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
+      tp.AddWork([&, sample_idx](int thread_idx) { RunSample(ws, sample_idx, thread_idx); },
+                 shape.tensor_size(sample_idx));
+    }
+
+    tp.RunAll();
   }
+
+  template <typename U = Displacement>
+  std::enable_if_t<HasParam<U>::value> PrepareDisplacement(HostWorkspace &ws, int sample_idx,
+                                                           int thread_idx) {
+    auto *p = &displace_[thread_idx].param;
+    displace_[thread_idx].Prepare(p, spec_, ws, sample_idx);
+  }
+
+  template <typename U = Displacement>
+  std::enable_if_t<!HasParam<U>::value> PrepareDisplacement(HostWorkspace &, int, int) {}
 
   USE_OPERATOR_MEMBERS();
   using Operator<CPUBackend>::RunImpl;

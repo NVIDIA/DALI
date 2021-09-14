@@ -4,20 +4,20 @@ FROM ${TOOLKIT_BASE_IMAGE} as cuda
 RUN apt update && apt install -y libxml2 curl perl gcc && \
     rm -rf /var/lib/apt/lists/*
 
-RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.4.1/local_installers/cuda_11.4.1_470.57.02_linux.run && \
+RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run && \
     chmod +x cuda_*.run && \
     ./cuda_*.run --silent --no-opengl-libs --toolkit && \
     rm -f cuda_*.run;
 
-RUN NVJPEG2K_VERSION=0.2.0 && \
-    CUFILE_VERSION=1.0.0 && \
+RUN NVJPEG2K_VERSION=0.3.0.23-1 && \
+    CUFILE_VERSION=1.0.2.10-1 && \
     apt-get update && \
     apt-get install wget software-properties-common -y && \
     wget -qO - https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub | apt-key add - && \
     add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/ /" && \
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub && \
     apt-get update && \
-    apt-get install libnvjpeg2k0 libnvjpeg2k-dev libcufile-dev-11-4 -y && \
+    apt-get install libnvjpeg2k0=${NVJPEG2K_VERSION} libnvjpeg2k-dev=${NVJPEG2K_VERSION} libcufile-dev-11-4=${CUFILE_VERSION} -y && \
     cp /usr/include/nvjpeg2k* /usr/local/cuda/include/ && \
     cp /usr/lib/x86_64-linux-gnu/libnvjpeg2k* /usr/local/cuda/lib64/ && \
     rm -rf /var/lib/apt/lists/*

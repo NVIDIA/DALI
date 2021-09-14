@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -76,41 +76,6 @@ cv::Mat_<cv::Vec<T, nchannels>> copy_to_mat(Box<2, int> roi, T *base, int rows, 
   mat(rect).copyTo(out_copy);
   assert(out_copy.isContinuous());
   return out_copy;
-}
-
-
-/**
- * @brief Creates a copy of cv::Mat, accessible as TensorView. Main reason to use this function,
- *        is when you want to transfer cv::Mat to the GPU.
- *
- * Outputs a pair, which has ownership of the data underneath. The first element of the pair
- * shall be used to access the data. The second is just an ownership entity, should be kept
- * in scope as long as the first is used.
- *
- * In most of the cases you won't need to overload default template arguments.
- * Be mindful, that it was created for 1- or 3- channel images,
- * so the `ndims` values are restricted to those.
- *
- * @tparam DstAlloc Type of allocation. Default value guarantees access from both CPU and GPU
- * @tparam T Data type of the image.
- * @tparam ndims Number of channels in the image. Typically 3 or 1
- * @param mat
- * @return A tuple, which has ownership of the data underneath
- */
-template<kernels::AllocType DstAlloc = kernels::AllocType::Unified,
-        typename T = uint8_t, int ndims = 3>
-// I <3 function declarations in C++
-std::tuple<
-        TensorView<kernels::AllocBackend<DstAlloc>, T, ndims>,
-        kernels::memory::KernelUniquePtr<T>
-          >
-mat_to_tensor(const cv::Mat &mat) {
-  static_assert(ndims == 1 || ndims == 3, "`ndims` is restricted to 1 or 3");
-  auto tvcpu = kernels::view_as_tensor<T, ndims>(mat);
-  auto mem = kernels::memory::alloc_unique<T>(DstAlloc, mat.cols * mat.rows * mat.channels());
-  auto tvgpu = make_tensor_gpu<ndims>(mem.get(), {mat.rows, mat.cols, mat.channels()});
-  kernels::copy(tvgpu, tvcpu);
-  return std::forward_as_tuple(tvgpu, std::move(mem));
 }
 
 }  // namespace testing

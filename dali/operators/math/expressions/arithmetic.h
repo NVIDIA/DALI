@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -256,13 +256,13 @@ inline void CheckArithmeticOnBooleans(ExprFunc &func) {
       DALI_ENFORCE(
           !inputs_are_bool,
           make_string(
-              "Input to unary arithmetic operator `", to_string(op),
+              "Input to arithmetic operator `", to_string(op),
               "` cannot be a boolean. Consider using bitwise operator `~` or an numeric type."));
     } else {
       DALI_ENFORCE(
           !inputs_are_bool,
-          make_string("All inputs to arithmetic operator `", to_string(op),
-                      "` cannot be booleans. Consider using bitwise operators `|`, `&`, `^` or use "
+          make_string("Inputs to arithmetic operator `", to_string(op),
+                      "` cannot be booleans. Consider using bitwise operators `|`, `&`, `^` or a"
                       "numeric type as one of the inputs to force type promotions of the booleans. "
                       "Note: using `*` (multiplication) is still allowed for boolean inputs."));
     }

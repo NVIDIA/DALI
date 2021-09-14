@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,17 +19,17 @@ namespace other_ns {
 
 template<>
 void Dummy<::dali::GPUBackend>::RunImpl(::dali::DeviceWorkspace &ws) {
-  auto &input = ws.Input<::dali::GPUBackend>(0);
+  const auto &input = ws.Input<::dali::GPUBackend>(0);
+  const auto &shape = input.shape();
   auto &output = ws.Output<::dali::GPUBackend>(0);
-  output.set_type(input.type());
-  output.ResizeLike(input);
-  output.SetLayout(input.GetLayout());
-  CUDA_CALL(cudaMemcpyAsync(
-          output.raw_mutable_data(),
-          input.raw_data(),
-          input.nbytes(),
-          cudaMemcpyDeviceToDevice,
-          ws.stream()));
+  for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
+    CUDA_CALL(cudaMemcpyAsync(
+            output.raw_mutable_tensor(sample_idx),
+            input.raw_tensor(sample_idx),
+            shape[sample_idx].num_elements() * input.type().size(),
+            cudaMemcpyDeviceToDevice,
+            ws.stream()));
+  }
 }
 
 }  // namespace other_ns

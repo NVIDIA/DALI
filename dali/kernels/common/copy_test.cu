@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 #include "dali/kernels/common/copy.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/test/tensor_test_utils.h"
 
 namespace dali {
@@ -30,7 +30,7 @@ const TensorShape<4> CopyTest::shape = { 3, 5, 7, 9 };
 TEST_F(CopyTest, HostDevHost) {
   float data_src[kSize];
   float data_dst[kSize] = { 0 };
-  auto data_gpu = memory::alloc_unique<float>(AllocType::GPU, kSize);
+  auto data_gpu = mm::alloc_raw_unique<float, mm::memory_kind::device>(kSize);
   auto src = make_tensor_cpu(data_src, shape);
   auto gpu = make_tensor_gpu(data_gpu.get(), shape);
   auto host = make_tensor_cpu(data_dst, shape);
@@ -54,8 +54,8 @@ TEST_F(CopyTest, HostHost) {
 TEST_F(CopyTest, HostDevDevHost) {
   float data_src[kSize];
   float data_dst[kSize] = { 0 };
-  auto data_gpu1 = memory::alloc_unique<float>(AllocType::GPU, kSize);
-  auto data_gpu2 = memory::alloc_unique<float>(AllocType::GPU, kSize);
+  auto data_gpu1 = mm::alloc_raw_unique<float, mm::memory_kind::device>(kSize);
+  auto data_gpu2 = mm::alloc_raw_unique<float, mm::memory_kind::device>(kSize);
   auto src = make_tensor_cpu(data_src, shape);
   auto gpu1 = make_tensor_gpu(data_gpu1.get(), shape);
   auto gpu2 = make_tensor_gpu(data_gpu2.get(), shape);
@@ -104,7 +104,7 @@ TEST_F(CopyTest, ListNonContiguous) {
   for (int i = part1; i < N; i++)
     ref_data[i] = i + 1 - part1;
 
-  auto gpu_data = memory::alloc_unique<int>(AllocType::GPU, kSize);
+  auto gpu_data = mm::alloc_raw_unique<int, mm::memory_kind::device>(kSize);
   TensorListView<StorageCPU, int, 2> in;
   TensorListView<StorageGPU, int, 2> gpu;
   TensorListView<StorageCPU, int, 1> out, ref;
@@ -132,10 +132,10 @@ TEST_F(CopyTest, ListNonContiguous) {
 TEST_F(CopyTest, HostDevUnifiedHost) {
   float data_src[kSize];
   float data_dst[kSize] = { 0 };
-  kernels::memory::KernelUniquePtr<float> data_gpu, data_unified;
+  mm::uptr<float> data_gpu, data_unified;
   try {
-    data_gpu = memory::alloc_unique<float>(AllocType::GPU, kSize);
-    data_unified = memory::alloc_unique<float>(AllocType::Unified, kSize);
+    data_gpu = mm::alloc_raw_unique<float, mm::memory_kind::device>(kSize);
+    data_unified = mm::alloc_raw_unique<float, mm::memory_kind::managed>(kSize);
   } catch (const CUDAError &e) {
     if ((e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
         (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported)) {
@@ -156,10 +156,10 @@ TEST_F(CopyTest, HostDevUnifiedHost) {
 TEST_F(CopyTest, HostUnifiedDevHost) {
   float data_src[kSize];
   float data_dst[kSize] = { 0 };
-  kernels::memory::KernelUniquePtr<float> data_gpu, data_unified;
+  mm::uptr<float> data_gpu, data_unified;
   try {
-    data_gpu = memory::alloc_unique<float>(AllocType::GPU, kSize);
-    data_unified = memory::alloc_unique<float>(AllocType::Unified, kSize);
+    data_gpu = mm::alloc_raw_unique<float, mm::memory_kind::device>(kSize);
+    data_unified = mm::alloc_raw_unique<float, mm::memory_kind::managed>(kSize);
   } catch (const CUDAError &e) {
     if ((e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
         (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported)) {
@@ -183,7 +183,7 @@ TEST_F(CopyTest, CopyReturnTensorViewTestUnified) {
   auto tv = make_tensor_cpu(data_src, shape);
   UniformRandomFill(tv, rng, -1, 1);
   try {
-    auto tvcpy = copy<AllocType::Unified>(tv);
+    auto tvcpy = copy<mm::memory_kind::managed>(tv);
     CUDA_CALL(cudaDeviceSynchronize());
     Check(tv, tvcpy.first);
   } catch (const CUDAError &e) {
@@ -199,7 +199,7 @@ TEST_F(CopyTest, CopyReturnTensorViewTestHost) {
   float data_src[kSize];
   auto tv = make_tensor_cpu(data_src, shape);
   UniformRandomFill(tv, rng, -1, 1);
-  auto tvcpy = copy<AllocType::Host>(tv);
+  auto tvcpy = copy<mm::memory_kind::host>(tv);
   CUDA_CALL(cudaDeviceSynchronize());
   Check(tv, tvcpy.first);
 }

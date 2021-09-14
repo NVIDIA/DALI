@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -137,15 +137,16 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
   const TensorListShape<> shape_ch_ = {{29, 145, 128, 3}, {64, 64, 64, 3},  {164, 164, 164, 3},
                                        {12, 12, 12, 3},   {4, 200, 180, 3}, {200, 4, 180, 3},
                                        {75, 75, 75, 5}, {16, 512, 512, 1}, {16, 512, 512, 1},
-                                       {16, 512, 512, 1}};
+                                       {16, 512, 512, 1}, {8, 1, 32, 3}, {8, 32, 1, 3},
+                                       {1, 8, 32, 3}};
   const TensorListShape<> shape_noch_ = {{29, 145, 128}, {64, 64, 64},  {164, 164, 164},
                                          {12, 12, 12},   {4, 200, 180}, {200, 4, 180},
                                          {75, 75, 75}, {16, 512, 512}, {16, 512, 512},
-                                         {16, 512, 512}};
+                                         {16, 512, 512}, {8, 1, 32}, {8, 32, 1}, {1, 8, 32}};
   // Three last window sizes are used to verify against off-by-one error when calculating
   // where the nonzero region ends in the kernel::Conv, as the ThreadblockShape::kK == 8.
   const TensorListShape<1> shape_window = {
-      {1, 3, 5, 15, 25, 51, 101, 2 * 7 + 1, 2 * 8 + 1, 2 * 9 + 1}};
+      {1, 3, 5, 15, 25, 51, 101, 2 * 7 + 1, 2 * 8 + 1, 2 * 9 + 1, 7, 1, 11}};
 };
 
 TYPED_TEST_SUITE_P(ConvolutionGpuKernelTest);

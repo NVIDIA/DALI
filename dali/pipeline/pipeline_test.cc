@@ -306,15 +306,18 @@ class DummyPresizeOpCPU : public Operator<CPUBackend> {
     return false;
   }
 
-  void RunImpl(Workspace<CPUBackend> &ws) override {
-    auto &input = ws.Input<CPUBackend>(0);
-    auto &output = ws.Output<CPUBackend>(0);
+  void RunImpl(HostWorkspace &ws) override {
+    const auto &input = ws.InputRef<CPUBackend>(0);
+    int num_samples = input.shape().num_samples();
+    auto &output = ws.OutputRef<CPUBackend>(0);
     auto tmp_size = output.capacity();
-    output.mutable_data<size_t>();
-    output.Resize({2});
-    auto out = output.mutable_data<size_t>();
-    out[0] = tmp_size;
-    out[1] = input.capacity();
+    output.set_type(TypeTable::GetTypeInfoFromStatic<size_t>());
+    output.Resize(uniform_list_shape(num_samples, std::vector<int64_t>{2}));
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      auto *out = output[sample_idx].mutable_data<size_t>();
+      out[0] = tmp_size;
+      out[1] = input.capacity();
+    }
   }
 };
 
@@ -328,16 +331,18 @@ class DummyPresizeOpGPU : public Operator<GPUBackend> {
     return false;
   }
 
-  void RunImpl(Workspace<GPUBackend> &ws) override {
-    auto &input = ws.Input<GPUBackend>(0);
-    auto &output = ws.Output<GPUBackend>(0);
-    output.mutable_data<size_t>();
+  void RunImpl(DeviceWorkspace &ws) override {
+    const auto &input = ws.InputRef<GPUBackend>(0);
+    int num_samples = input.shape().num_samples();
+    auto &output = ws.OutputRef<GPUBackend>(0);
+    output.set_type(TypeTable::GetTypeInfoFromStatic<size_t>());
     size_t tmp_size[2] = {output.capacity(), input.capacity()};
-    std::vector< std::vector<Index> > shape {{1}};
-    output.Resize(shape);
-    auto out = output.mutable_data<size_t>();
-    CUDA_CALL(cudaStreamSynchronize(ws.stream()));
-    CUDA_CALL(cudaMemcpy(out, &tmp_size, sizeof(size_t) * 2, cudaMemcpyDefault));
+    output.Resize(uniform_list_shape(num_samples, std::vector<int64_t>{2}));
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      auto *out = output.mutable_tensor<size_t>(sample_idx);
+      CUDA_CALL(cudaStreamSynchronize(ws.stream()));
+      CUDA_CALL(cudaMemcpy(out, &tmp_size, sizeof(size_t) * 2, cudaMemcpyDefault));
+    }
   }
 };
 
@@ -353,15 +358,17 @@ class DummyPresizeOpMixed : public Operator<MixedBackend> {
 
   using Operator<MixedBackend>::Run;
   void Run(MixedWorkspace &ws) override {
-    auto &input = ws.Input<CPUBackend>(0, 0);
-    auto &output = ws.Output<GPUBackend>(0);
-    output.mutable_data<size_t>();
+    auto &input = ws.InputRef<CPUBackend>(0);
+    int num_samples = input.shape().num_samples();
+    auto &output = ws.OutputRef<GPUBackend>(0);
+    output.set_type(TypeTable::GetTypeInfoFromStatic<size_t>());
     size_t tmp_size[2] = {output.capacity(), input.capacity()};
-    std::vector< std::vector<Index> > shape {{1}};
-    output.Resize(shape);
-    auto out = output.mutable_data<size_t>();
-    CUDA_CALL(cudaStreamSynchronize(ws.stream()));
-    CUDA_CALL(cudaMemcpy(out, &tmp_size, sizeof(size_t) * 2, cudaMemcpyDefault));
+    output.Resize(uniform_list_shape(num_samples, std::vector<int64_t>{2}));
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      auto *out = output.mutable_tensor<size_t>(sample_idx);
+      CUDA_CALL(cudaStreamSynchronize(ws.stream()));
+      CUDA_CALL(cudaMemcpy(out, &tmp_size, sizeof(size_t) * 2, cudaMemcpyDefault));
+    }
   }
 };
 
@@ -458,28 +465,28 @@ TEST_F(PipelineTestOnce, TestPresize) {
   pipe.Outputs(&ws);
 
   // we should not presize CPU buffers if they are not pined
-  ASSERT_EQ(*(ws.Output<CPUBackend>(0).data<size_t>()), 0);
+  ASSERT_EQ(*(ws.Output<CPUBackend>(0).tensor<size_t>(0)), 0);
 
-  ASSERT_EQ(*(ws.Output<CPUBackend>(1).data<size_t>()), presize_val_CPU);
+  ASSERT_EQ(*(ws.Output<CPUBackend>(1).tensor<size_t>(0)), presize_val_CPU);
 
   size_t tmp[2];
   CUDA_CALL(cudaDeviceSynchronize());
-  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(2).mutable_data<size_t>(),
+  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(2).tensor<size_t>(0),
             sizeof(size_t) * 2, cudaMemcpyDefault));
   ASSERT_EQ(tmp[0], presize_val_Mixed);
   ASSERT_EQ(tmp[1], std::max(Buffer<CPUBackend>::padding(), 2 * sizeof(size_t)));
 
-  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(3).mutable_data<size_t>(),
+  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(3).tensor<size_t>(0),
             sizeof(size_t) * 2, cudaMemcpyDefault));
   ASSERT_EQ(tmp[0], presize_val_GPU);
   ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
 
-  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(4).mutable_data<size_t>(),
+  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(4).tensor<size_t>(0),
             sizeof(size_t) * 2, cudaMemcpyDefault));
   ASSERT_EQ(tmp[0], presize_val_GPU);
   ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
 
-  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(5).mutable_data<size_t>(),
+  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(5).tensor<size_t>(0),
             sizeof(size_t) * 2, cudaMemcpyDefault));
   ASSERT_EQ(tmp[0], presize_val_default);
   ASSERT_EQ(tmp[1], 2 * sizeof(size_t));

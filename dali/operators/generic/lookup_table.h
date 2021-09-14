@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,15 +20,19 @@
   (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, \
   float16, float, double, bool)
 
-#include <limits>
-#include <memory>
 #include <algorithm>
 #include <functional>
+#include <limits>
+#include <memory>
 #include <vector>
-#include "dali/pipeline/operator/operator.h"
-#include "dali/core/static_switch.h"
 #include "dali/core/convert.h"
+#include "dali/core/dev_buffer.h"
+#include "dali/core/host_dev.h"
+#include "dali/core/static_switch.h"
+#include "dali/core/tensor_shape.h"
+#include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/type_tag.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
@@ -41,6 +45,11 @@ void value_mem_deleter(void *ptr) {
 
 }  // namespace detail
 
+struct LutSampleDesc {
+  void *output;
+  const void *input;
+};
+
 template <typename Backend>
 class LookupTable : public Operator<Backend> {
  public:
@@ -48,13 +57,15 @@ class LookupTable : public Operator<Backend> {
   static constexpr size_t kMaxKey = kLookupTableSize - 1;
 
   explicit inline LookupTable(const OpSpec &spec)
-    : Operator<Backend>(spec)
-    , input_type_(DALI_NO_TYPE)
-    , output_type_(spec.GetArgument<DALIDataType>("dtype"))
-    , default_value_f_(spec.GetArgument<float>("default_value")) {
+      : Operator<Backend>(spec),
+        input_type_(DALI_NO_TYPE),
+        output_type_(spec.GetArgument<DALIDataType>("dtype")),
+        default_value_f_(spec.GetArgument<float>("default_value")) {
+    lut_.Reset();
     std::vector<int> keys;
     int min_key = -1, max_key = -1;
     std::vector<float> values_f;
+
     if (spec.HasArgument("keys")) {
       keys = spec.GetRepeatedArgument<int>("keys");
       min_key = *std::min_element(keys.begin(), keys.end());
@@ -86,23 +97,59 @@ class LookupTable : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(LookupTable);
 
  protected:
-  bool CanInferOutputs() const override { return true; }
-  bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<Backend> &ws) override {
+  bool CanInferOutputs() const override {
+    return true;
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    if (std::is_same<Backend, GPUBackend>::value && !lut_.shape().num_elements()) {
+      TYPE_SWITCH(output_type_, dali::type2id, OutputType, LUT_OUT_TYPES, (
+          auto data = span<OutputType>(static_cast<OutputType *>(value_mem_.get()),
+                                       kLookupTableSize);
+          lut_.Copy(data, ws.stream());
+        ), DALI_FAIL(make_string("Unsupported output type: ", output_type_));  // NOLINT
+      );  // NOLINT
+    }
     output_desc.resize(1);
     output_desc[0].type = TypeTable::GetTypeInfo(output_type_);
     const auto &input = ws.template InputRef<Backend>(0);
     output_desc[0].shape = input.shape();
     return true;
   }
-  void RunImpl(Workspace<Backend> &ws) override;
+
+  void RunImpl(workspace_t<Backend> &ws) override;
 
  private:
   DALIDataType input_type_, output_type_;
   float default_value_f_ = 0.0f;
   std::unique_ptr<void, void(*)(void*)> value_mem_ = {nullptr, free};
+  Tensor<GPUBackend> lut_;
+
+  using GpuBlockSetup = kernels::BlockSetup<1, -1>;
+
+  GpuBlockSetup block_setup_;
+  std::vector<LutSampleDesc> samples_;
+  DeviceBuffer<GpuBlockSetup::BlockDesc> blocks_dev_;
+  DeviceBuffer<LutSampleDesc> samples_dev_;
+
   USE_OPERATOR_MEMBERS();
 };
+
+template <typename Backend, typename Output, typename Input>
+DALI_HOST_DEV
+void DoLookup(Output &output, Input key, const Output *lookup_table, Output default_value) {
+  // We do not check the key range when the type range is smaller than the supported range
+  constexpr bool check_range =
+      !std::is_same<Input, uint8_t>::value && !std::is_same<Input, uint16_t>::value;
+  constexpr auto max_key = ConvertSat<Input>(LookupTable<Backend>::kMaxKey);
+
+  if (check_range) {
+    output = (std::is_unsigned<Input>::value || key >= 0) && key <= max_key ? lookup_table[key] :
+                                                                              default_value;
+  } else {
+    output = lookup_table[key];
+  }
+}
 
 }  // namespace dali
 

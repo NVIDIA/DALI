@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include "dali/kernels/common/block_setup.h"
 #include "dali/core/tensor_shape_print.h"
+#include "dali/core/int_literals.h"
 
 namespace dali {
 namespace kernels {
@@ -119,13 +120,13 @@ namespace {
 
 template <int dim>
 struct BlockMap {
-  unsigned end;
-  std::map<unsigned, BlockMap<dim-1>> inner;
+  int64_t end;
+  std::map<int64_t, BlockMap<dim-1>> inner;
 };
 
 template <>
 struct BlockMap<0> {
-  unsigned end;
+  int64_t end;
   // dummy - to avoid specialization
   const bool inner = false;
 };
@@ -146,7 +147,7 @@ inline void ValidateBlockMap(const BlockMap<0> &map, const TensorShape<0> &shape
 template <int dim>
 void ValidateBlockMap(const BlockMap<dim> &map, const TensorShape<dim> &shape) {
   ASSERT_FALSE(map.inner.empty());
-  unsigned i = 0;
+  int64_t i = 0;
   for (auto &p : map.inner) {
     ASSERT_EQ(p.first, i) << "Blocks don't cover the image";
     ASSERT_GT(p.second.end, i) << "Block end coordinate must be greater than start";
@@ -161,7 +162,7 @@ void ValidateBlockMap(const BlockMap<dim> &map, const TensorShape<dim> &shape) {
       EXPECT_EQ(p.second.inner, first_slice->inner) << "Inner block layout must be uniform";
     } else {
       first_slice = &p.second;
-      // Validate the first slice recurisvely - the remaining slices should be equal and
+      // Validate the first slice recursively - the remaining slices should be equal and
       // therefore don't require validation.
       ValidateBlockMap(p.second, shape.template last<dim-1>());
     }
@@ -169,6 +170,71 @@ void ValidateBlockMap(const BlockMap<dim> &map, const TensorShape<dim> &shape) {
 }
 
 }  // namespace
+
+TEST(BlockSetup, SetupBlocks_Variable_1D) {
+  TensorListShape<1> TLS({
+    { 1_i64 << 32 },
+    { (1_i64 << 32) + 1023 },
+    { 1024 },
+    { 512 },
+    { 733 },
+  });
+
+  BlockSetup<1, -1> setup(1 << 16);
+  setup.SetDefaultBlockSize({1024});
+  static_assert(setup.tensor_ndim == 1, "Incorrectly inferred tensor_ndim");
+  setup.SetupBlocks(TLS);
+  ASSERT_FALSE(setup.IsUniformSize());
+  int prev = -1;
+  BlockMap<1> map;
+  for (auto &blk : setup.Blocks()) {
+    if (blk.sample_idx != prev) {
+      if (prev != -1) {
+        ValidateBlockMap(map, TLS[prev]);
+      }
+      prev = blk.sample_idx;
+      map = {};
+    }
+    map.inner[blk.start.x].end = blk.end.x;
+  }
+  if (prev != -1)
+    ValidateBlockMap(map, TLS[prev]);
+
+  EXPECT_EQ(setup.GridDimVec(), ivec3(setup.Blocks().size(), 1, 1));
+}
+
+TEST(BlockSetup, SetupBlocks_Variable_1D_Ch) {
+  TensorListShape<2> TLS({
+    { 1_i64 << 32, 3 },
+    { (1_i64 << 32) + 1023, 5 },
+    { 1024, 3 },
+    { 512, 3 },
+    { 733, 3 },
+  });
+
+  BlockSetup<1, 1> setup(1 << 16);
+  setup.SetDefaultBlockSize({1024});
+  static_assert(setup.tensor_ndim == 2, "Incorrectly inferred tensor_ndim");
+  setup.SetupBlocks(TLS);
+  ASSERT_FALSE(setup.IsUniformSize());
+  int prev = -1;
+  BlockMap<1> map;
+  for (auto &blk : setup.Blocks()) {
+    if (blk.sample_idx != prev) {
+      if (prev != -1) {
+        ValidateBlockMap(map, TLS[prev].first<1>());
+      }
+      prev = blk.sample_idx;
+      map = {};
+    }
+    map.inner[blk.start.x].end = blk.end.x;
+  }
+  if (prev != -1)
+    ValidateBlockMap(map, TLS[prev].first<1>());
+
+  EXPECT_EQ(setup.GridDimVec(), ivec3(setup.Blocks().size(), 1, 1));
+}
+
 
 
 TEST(BlockSetup, SetupBlocks_Variable) {

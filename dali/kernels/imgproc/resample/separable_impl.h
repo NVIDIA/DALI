@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -99,7 +99,7 @@ struct SeparableResamplingGPUImpl : Interface {
     ScratchpadEstimator se;
 
     // Sample descriptions need to be delivered to the GPU - hence, the storage
-    se.add<SampleDesc>(AllocType::GPU, setup.sample_descs.size());
+    se.add<mm::memory_kind::device, SampleDesc>(setup.sample_descs.size());
 
     // CPU block2sample lookup may change in size and is large enough
     // to mandate declaring it as a requirement for external allocator.
@@ -107,11 +107,11 @@ struct SeparableResamplingGPUImpl : Interface {
     for (auto x : setup.total_blocks)
       num_blocks += x;
 
-    se.add<BlockDesc>(AllocType::GPU, num_blocks);
-    se.add<BlockDesc>(AllocType::Host, num_blocks);
+    se.add<mm::memory_kind::device, BlockDesc>(num_blocks);
+    se.add<mm::memory_kind::host, BlockDesc>(num_blocks);
 
     // Request memory for intermediate storage.
-    se.add<IntermediateElement>(AllocType::GPU, GetTmpMemSize());
+    se.add<mm::memory_kind::device, IntermediateElement>(GetTmpMemSize());
 
     req.scratch_sizes = se.sizes;
     req.output_shapes = { setup.output_shape };
@@ -139,19 +139,18 @@ struct SeparableResamplingGPUImpl : Interface {
   Run(KernelContext &context, const Output &out, const Input &in, const Params &params) {
     cudaStream_t stream = context.gpu.stream;
 
-    SampleDesc *descs_gpu = context.scratchpad->Allocate<SampleDesc>(
-        AllocType::GPU, setup.sample_descs.size());
+    SampleDesc *descs_gpu = context.scratchpad->AllocateGPU<SampleDesc>(setup.sample_descs.size());
 
     int blocks_in_all_passes = 0;
     for (auto x : setup.total_blocks)
       blocks_in_all_passes += x;
 
     OutTensorCPU<BlockDesc, 1> sample_lookup_cpu = {
-      context.scratchpad->Allocate<BlockDesc>(AllocType::Host, blocks_in_all_passes),
+      context.scratchpad->AllocateHost<BlockDesc>(blocks_in_all_passes),
       { blocks_in_all_passes }
     };
     OutTensorGPU<BlockDesc, 1> sample_lookup_gpu = {
-      context.scratchpad->Allocate<BlockDesc>(AllocType::GPU, blocks_in_all_passes),
+      context.scratchpad->AllocateGPU<BlockDesc>(blocks_in_all_passes),
       { blocks_in_all_passes }
     };
     setup.InitializeSampleLookup(sample_lookup_cpu);
@@ -167,8 +166,7 @@ struct SeparableResamplingGPUImpl : Interface {
       pass_lookup_offset += setup.total_blocks[pass];
     }
 
-    auto *tmp_mem = context.scratchpad->Allocate<IntermediateElement>(
-          AllocType::GPU, GetTmpMemSize());
+    auto *tmp_mem = context.scratchpad->AllocateGPU<IntermediateElement>(GetTmpMemSize());
 
     size_t odd_offset = GetOddTmpOffset();
     for (int t = 0; t < setup.num_tmp_buffers; t++) {

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,11 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <algorithm>
-#include "dali/kernels/common/scatter_gather.h"
+
 #include "dali/core/cuda_error.h"
+#include "dali/core/mm/memory.h"
+#include "dali/kernels/common/scatter_gather.h"
+#include "dali/pipeline/util/thread_pool.h"
 
 namespace dali {
 namespace kernels {
@@ -55,14 +58,51 @@ TEST(ScatterGather, Coalesce) {
   EXPECT_EQ(in, ref);
 }
 
-TEST(ScatterGather, Copy) {
+template <typename T>
+class ScatterGatherTest : public testing::Test {
+ public:
+  void Run(ScatterGatherCPU &sg, cudaStream_t, bool reset, ScatterGatherBase::Method,
+           ThreadPool &tp) {
+    sg.Run(tp, reset);
+  }
+
+  void Run(ScatterGatherGPU &sg, cudaStream_t stream, bool reset, ScatterGatherBase::Method method,
+           ThreadPool &) {
+    sg.Run(stream, reset, method);
+  }
+
+  template <typename MemoryKind>
+  void Memcpy(void *dst, const void *src, size_t size, cudaMemcpyKind kind) {
+    if (cuda::kind_has_property<MemoryKind, cuda::memory_access::host>::value) {
+      memcpy(dst, src, size);
+    } else {
+      CUDA_CALL(cudaMemcpy(dst, src, size, kind));
+    }
+  }
+
+  template <typename MemoryKind>
+  void Memset(void *dst, int c, size_t size) {
+    if (cuda::kind_has_property<MemoryKind, cuda::memory_access::host>::value) {
+      memset(dst, c, size);
+    } else {
+      CUDA_CALL(cudaMemset(dst, c, size));
+    }
+  }
+};
+
+TYPED_TEST_SUITE_P(ScatterGatherTest);
+
+TYPED_TEST_P(ScatterGatherTest, Copy) {
   const size_t max_l = 1024;
   std::vector<char> in(1<<20);
   std::vector<char> out(1<<20);
   unsigned seed = 42;
 
-  auto in_ptr = kernels::memory::alloc_unique<char>(AllocType::GPU, in.size());
-  auto out_ptr = kernels::memory::alloc_unique<char>(AllocType::GPU, out.size());
+  using kind = std::conditional_t<std::is_same<TypeParam, ScatterGatherCPU>::value,
+                                  mm::memory_kind::host, mm::memory_kind::device>;
+
+  auto in_ptr = mm::alloc_raw_unique<char, kind>(in.size());
+  auto out_ptr = mm::alloc_raw_unique<char, kind>(out.size());
 
   std::vector<detail::CopyRange> ranges;
   std::vector<detail::CopyRange> back_ranges;
@@ -99,24 +139,31 @@ TEST(ScatterGather, Copy) {
   std::random_shuffle(ranges.begin(), ranges.end());
   std::random_shuffle(back_ranges.begin(), back_ranges.end());
 
-  CUDA_CALL(cudaMemcpy(in_ptr.get(), in.data(), in.size(), cudaMemcpyHostToDevice));
-  CUDA_CALL(cudaMemset(out_ptr.get(), 0, out.size()));
+  this->template Memcpy<kind>(in_ptr.get(), in.data(), in.size(), cudaMemcpyHostToDevice);
+  this->template Memset<kind>(out_ptr.get(), 0, out.size());
 
-  ScatterGatherGPU sg(64);
+  TypeParam sg(64);
+  ThreadPool tp(4, 0, false);
   // copy
   for (auto &r : ranges)
     sg.AddCopy(r.dst, r.src, r.size);
-  sg.Run(0, true, ScatterGatherGPU::Method::Kernel);
+  this->Run(sg, 0, true, TypeParam::Method::Kernel, tp);
 
   // copy back
-  CUDA_CALL(cudaMemset(in_ptr.get(), 0, in.size()));
+  this->template Memset<kind>(in_ptr.get(), 0, out.size());
   for (auto &r : back_ranges)
     sg.AddCopy(r.dst, r.src, r.size);
-  sg.Run(0, true, ScatterGatherGPU::Method::Memcpy);
-  CUDA_CALL(cudaMemcpy(out.data(), in_ptr.get(), in.size(), cudaMemcpyDeviceToHost));
+  this->Run(sg, 0, true, TypeParam::Method::Memcpy, tp);
+
+  this->template Memcpy<kind>(out.data(), in_ptr.get(), in.size(), cudaMemcpyDeviceToHost);
 
   EXPECT_EQ(in, out);
 }
+
+REGISTER_TYPED_TEST_SUITE_P(ScatterGatherTest, Copy);
+
+using ScatterGatherTypes = ::testing::Types<ScatterGatherCPU, ScatterGatherGPU>;
+INSTANTIATE_TYPED_TEST_SUITE_P(ScatterGatherSuite, ScatterGatherTest, ScatterGatherTypes);
 
 }  // namespace kernels
 }  // namespace dali

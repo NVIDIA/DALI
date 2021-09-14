@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <vector>
 
 #include "dali/core/cuda_error.h"
 #include "dali/kernels/common/scatter_gather.h"
@@ -62,38 +63,70 @@ size_t Coalesce(span<CopyRange> ranges) {
 
 }  // namespace detail
 
-void ScatterGatherGPU::MakeBlocks() {
+size_t ScatterGatherBase::MakeBlocks(std::vector<CopyRange> &blocks,
+                                     const std::vector<CopyRange> &ranges) {
   size_t max_size = 0;
 
-  for (auto &r : ranges_) {
+  for (auto &r : ranges) {
     if (r.size > max_size)
       max_size = r.size;
   }
 
-  size_per_block_ = std::min(max_size, max_size_per_block_);
+  size_t size_per_block = std::min(max_size, max_size_per_block_);
 
   size_t num_blocks = 0;
-  for (auto &r : ranges_)
-    num_blocks += (r.size + size_per_block_ - 1) / size_per_block_;
+  for (auto &r : ranges)
+    num_blocks += (r.size + size_per_block - 1) / size_per_block;
 
-  blocks_.clear();
-  blocks_.reserve(num_blocks);
-  for (auto &r : ranges_) {
-    for (size_t ofs = 0; ofs < r.size; ofs += size_per_block_) {
-      blocks_.push_back({ r.src + ofs, r.dst + ofs, std::min(r.size - ofs, size_per_block_) });
+  blocks.clear();
+  blocks.reserve(num_blocks);
+  for (auto &r : ranges) {
+    for (size_t ofs = 0; ofs < r.size; ofs += size_per_block) {
+      blocks.push_back({ r.src + ofs, r.dst + ofs, std::min(r.size - ofs, size_per_block) });
     }
   }
-  assert(blocks_.size() == num_blocks);
+  assert(blocks.size() == num_blocks);
+  return size_per_block;
 }
 
-void ScatterGatherGPU::ReserveGPUBlocks() {
-  if (block_capacity_ < blocks_.capacity()) {
-    block_capacity_ = blocks_.capacity();
-    blocks_dev_ = memory::alloc_unique<CopyRange>(AllocType::GPU, block_capacity_);
+void ScatterGatherGPU::MakeBlocks() {
+  size_per_block_ = ScatterGatherBase::MakeBlocks(blocks_, ranges_);
+}
+
+void ScatterGatherCPU::MakeBlocks(size_t blocks_lower_limit) {
+  size_t heap_size = std::max(blocks_lower_limit, ranges_.size());
+
+  heap_.clear();
+  heap_.reserve(heap_size);
+  heap_ = ranges_;
+
+  auto cmp = [](CopyRange &left, CopyRange &right) { return left.size < right.size; };
+
+  std::make_heap(heap_.begin(), heap_.end(), cmp);
+
+  while (heap_.size() < blocks_lower_limit) {
+    // Take out the larges
+    std::pop_heap(heap_.begin(), heap_.end(), cmp);
+    CopyRange largest = heap_.back();
+    heap_.pop_back();
+
+    // Split the range into halfs
+    CopyRange first_half = {largest.src, largest.dst, largest.size / 2};
+    CopyRange second_half = {largest.src + first_half.size, largest.dst + first_half.size,
+                             largest.size - first_half.size};
+
+    // Add back to the heap
+    heap_.push_back(first_half);
+    std::push_heap(heap_.begin(), heap_.end(), cmp);
+    heap_.push_back(second_half);
+    std::push_heap(heap_.begin(), heap_.end(), cmp);
   }
+
+  ScatterGatherBase::MakeBlocks(blocks_, heap_);
 }
 
-__global__ void BatchCopy(const ScatterGatherGPU::CopyRange *ranges) {
+
+__global__ void BatchCopy(const ScatterGatherBase::CopyRange *ranges) {
   auto range = ranges[blockIdx.x];
 
   for (size_t i = threadIdx.x; i < range.size; i += blockDim.x) {
@@ -116,14 +149,11 @@ void ScatterGatherGPU::Run(cudaStream_t stream, bool reset, ScatterGatherGPU::Me
     }
   } else {
     MakeBlocks();
-    ReserveGPUBlocks();
-    CUDA_CALL(
-      cudaMemcpyAsync(blocks_dev_.get(), blocks_.data(), blocks_.size() * sizeof(blocks_[0]),
-                      cudaMemcpyHostToDevice, stream));
+    blocks_dev_.from_host(blocks_, stream);
 
     dim3 grid(blocks_.size());
     dim3 block(std::min<size_t>(size_per_block_, 1024));
-    BatchCopy<<<grid, block, 0, stream>>>(blocks_dev_.get());
+    BatchCopy<<<grid, block, 0, stream>>>(blocks_dev_.data());
     CUDA_CALL(cudaGetLastError());
   }
 

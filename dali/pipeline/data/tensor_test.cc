@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/test/dali_test.h"
+#include "dali/core/mm/malloc_resource.h"
 
 namespace dali {
 
@@ -161,7 +162,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_TRUE(IsType<int16>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.set_type(TypeInfo::Create<float>());
+  t.set_type(TypeTable::GetTypeInfoFromStatic<float>());
   t.Resize(shape);
 
   ASSERT_EQ(t.raw_data(), source_data.data());
@@ -218,7 +219,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   ASSERT_TRUE(IsType<double>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.set_type(TypeInfo::Create<float>());
+  t.set_type(TypeTable::GetTypeInfoFromStatic<float>());
   t.Resize(shape);
 
   ASSERT_EQ(t.raw_data(), source_data.data());
@@ -264,7 +265,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
   ASSERT_TRUE(t.shares_data());
 
   // Give the Tensor a type
-  ASSERT_THROW(t.set_type(TypeInfo::Create<int16>()), std::runtime_error);
+  ASSERT_THROW(t.set_type(TypeTable::GetTypeInfoFromStatic<int16>()), std::runtime_error);
 
   ASSERT_EQ(t.size(), size);
   ASSERT_EQ(t.nbytes(), 0);
@@ -272,7 +273,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.set_type(TypeInfo::Create<float>());
+  t.set_type(TypeTable::GetTypeInfoFromStatic<float>());
 
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), size);
@@ -317,7 +318,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
   ASSERT_TRUE(t.shares_data());
 
   // Give the Tensor a type
-  ASSERT_THROW(t.set_type(TypeInfo::Create<double>()), std::runtime_error);
+  ASSERT_THROW(t.set_type(TypeTable::GetTypeInfoFromStatic<double>()), std::runtime_error);
 
   ASSERT_EQ(t.size(), size);
   ASSERT_EQ(t.nbytes(), 0);
@@ -326,7 +327,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
   ASSERT_TRUE(t.shares_data());
 
 
-  t.set_type(TypeInfo::Create<float>());
+  t.set_type(TypeTable::GetTypeInfoFromStatic<float>());
 
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), size);
@@ -352,7 +353,7 @@ TYPED_TEST(TensorTest, TestShareData) {
   TensorList<TypeParam> tl;
   auto shape = this->GetRandShapeList();
   tl.Resize(shape);
-  tl.template mutable_data<float>();
+  tl.set_type(TypeTable::GetTypeInfoFromStatic<float>());
 
   // Create a tensor and wrap each tensor from the list
   Tensor<TypeParam> tensor;
@@ -398,7 +399,7 @@ TYPED_TEST(TensorTest, TestCopyEmptyToTensorList) {
   TensorVector<TypeParam> tensors(16);
   // Empty tensors
   TensorList<TypeParam> tl;
-  tl.template mutable_data<float>();
+  tl.set_type(TypeTable::GetTypeInfoFromStatic<float>());
   tl.Copy(tensors, 0);
 
   Tensor<TypeParam> tensor;
@@ -425,16 +426,63 @@ TYPED_TEST(TensorTest, TestResize) {
   }
 }
 
+TYPED_TEST(TensorTest, TestCustomAlloc) {
+  Tensor<TypeParam> tensor;
+
+  // Get shape
+  auto shape = this->GetRandShape();
+  int allocations = 0;
+  std::function<void*(size_t)> alloc_func;
+  std::function<void(void *)> deleter;
+  if (std::is_same<TypeParam, CPUBackend>::value) {
+    alloc_func = [&](size_t bytes) {
+      return new uint8_t[bytes];
+    };
+    deleter = [&](void *ptr) {
+      free(ptr);
+      allocations--;
+    };
+  } else {
+    alloc_func = [](size_t bytes) {
+      void *ptr;
+      CUDA_CALL(cudaMalloc(&ptr, bytes));
+      return ptr;
+    };
+    deleter = [&](void *ptr) {
+      CUDA_DTOR_CALL(cudaFree(ptr));
+      allocations--;
+    };
+  }
+
+  tensor.set_alloc_func([&](size_t bytes) {
+    allocations++;
+    return std::shared_ptr<uint8_t>(static_cast<uint8_t*>(alloc_func(bytes)), deleter);
+  });
+
+  tensor.Resize(shape);
+
+  // Verify the settings
+  ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
+  ASSERT_EQ(tensor.size(), volume(shape));
+  ASSERT_EQ(tensor.ndim(), shape.size());
+  ASSERT_EQ(allocations, 1);
+  for (int i = 0; i < shape.size(); ++i) {
+    ASSERT_EQ(tensor.dim(i), shape[i]);
+  }
+  tensor.Reset();
+  ASSERT_EQ(allocations, 0);
+}
+
 template <typename Backend, typename T = float>
 std::vector<T> to_vec(Tensor<Backend> &tensor) {
   std::vector<T> tmp(tensor.size());
   if (std::is_same<Backend, GPUBackend>::value) {
     CUDA_CALL(
       cudaMemcpyAsync(tmp.data(), tensor.template data<T>(),
-                      tensor.size(), cudaMemcpyDeviceToHost, 0));
+                      tensor.nbytes(), cudaMemcpyDeviceToHost, 0));
     CUDA_CALL(cudaStreamSynchronize(0));
   } else if (std::is_same<Backend, CPUBackend>::value) {
-    memcpy(tmp.data(), tensor.template data<float>(), tensor.size());
+    memcpy(tmp.data(), tensor.template data<float>(), tensor.nbytes());
   }
   return tmp;
 }
@@ -451,10 +499,11 @@ TYPED_TEST(TensorTest, TestCopyFromBuf) {
   tensor1.Copy(vec, 0);
   ASSERT_NE(tensor1.template mutable_data<float>(), nullptr);
   ASSERT_EQ(vec.size(), tensor1.size());
+  ASSERT_EQ(vec.size() * sizeof(float), tensor1.nbytes());
   ASSERT_EQ(1, tensor1.ndim());
 
   auto tensor1_data = to_vec(tensor1);
-  EXPECT_EQ(0, std::memcmp(vec.data(), tensor1_data.data(), vec.size()));
+  EXPECT_EQ(0, std::memcmp(vec.data(), tensor1_data.data(), vec.size() * sizeof(float)));
 
   Tensor<TypeParam> tensor2;
   tensor2.Copy(make_span(vec), 0);
@@ -463,7 +512,7 @@ TYPED_TEST(TensorTest, TestCopyFromBuf) {
   ASSERT_EQ(1, tensor2.ndim());
 
   auto tensor2_data = to_vec(tensor2);
-  EXPECT_EQ(0, std::memcmp(vec.data(), tensor2_data.data(), vec.size()));
+  EXPECT_EQ(0, std::memcmp(vec.data(), tensor2_data.data(), vec.size() * sizeof(float)));
 }
 
 TYPED_TEST(TensorTest, TestMultipleResize) {
@@ -591,14 +640,14 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
     Tensor<TypeParam> empty_tensor;
     TensorShape<> empty_shape = {};
     empty_tensor.Resize(empty_shape);
-    empty_tensor.set_type(TypeInfo::Create<uint8_t>());
+    empty_tensor.set_type(TypeTable::GetTypeInfoFromStatic<uint8_t>());
     ASSERT_ANY_THROW(empty_tensor.SubspaceTensor(0));
   }
   {
     Tensor<TypeParam> one_dim_tensor;
     TensorShape<> one_dim_shape = {42};
     one_dim_tensor.Resize(one_dim_shape);
-    one_dim_tensor.set_type(TypeInfo::Create<uint8_t>());
+    one_dim_tensor.set_type(TypeTable::GetTypeInfoFromStatic<uint8_t>());
     ASSERT_ANY_THROW(one_dim_tensor.SubspaceTensor(0));
   }
 
@@ -607,7 +656,7 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
     Tensor<TypeParam> tensor;
     auto shape = this->GetRandShape(2, 6);
     tensor.Resize(shape);
-    tensor.set_type(TypeInfo::Create<uint8_t>());
+    tensor.set_type(TypeTable::GetTypeInfoFromStatic<uint8_t>());
     ASSERT_ANY_THROW(tensor.SubspaceTensor(-1));
     ASSERT_ANY_THROW(tensor.SubspaceTensor(shape[0]));
     ASSERT_ANY_THROW(tensor.SubspaceTensor(shape[0] + 1));
@@ -618,7 +667,7 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
     Tensor<TypeParam> tensor;
     auto shape = this->GetRandShape(2, 6);
     tensor.Resize(shape);
-    tensor.set_type(TypeInfo::Create<uint8_t>());
+    tensor.set_type(TypeTable::GetTypeInfoFromStatic<uint8_t>());
     int plane_size = 1;
     for (int i = 1; i < shape.size(); i++) {
       plane_size *= shape[i];

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,6 +66,12 @@ bool MFCC<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   GetArguments(ws);
   ctx_.gpu.stream = ws.stream();
   auto &input = ws.InputRef<GPUBackend>(0);
+
+  auto in_shape = input.shape();
+  int ndim = in_shape.sample_dim();
+  DALI_ENFORCE(axis_ >= 0 && axis_ < ndim,
+               make_string("Axis ", axis_, " is out of bounds [0,", ndim, ")"));
+
   TYPE_SWITCH(input.type().id(), type2id, T, MFCC_SUPPORTED_TYPES, (
     output_desc = detail::SetupKernel<T>(kmgr_, ctx_, input, make_cspan(args_), axis_);
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT

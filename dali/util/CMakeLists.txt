@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -70,9 +70,9 @@ if(BUILD_NVML)
         VERBATIM)
 
     set_source_files_properties(${NVML_GENERATED_STUB} PROPERTIES GENERATED TRUE)
-    add_library(dynlink_nvml OBJECT nvml_wrap.cc ${NVML_GENERATED_STUB})
+    add_library(dynlink_nvml OBJECT nvml_wrap.cc nvml.cc ${NVML_GENERATED_STUB})
   else()
-    add_library(dynlink_nvml OBJECT nvml_wrap.cc)
+    add_library(dynlink_nvml OBJECT nvml_wrap.cc nvml.cc)
   endif()
 endif()
 
@@ -80,4 +80,4 @@ set(DALI_INST_HDRS ${DALI_INST_HDRS} PARENT_SCOPE)
 set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 set(DALI_TEST_SRCS ${DALI_TEST_SRCS} PARENT_SCOPE)
 
-list(FILTER DALI_SRCS EXCLUDE REGEX ".*nvml_wrap.cc")
+list(FILTER DALI_SRCS EXCLUDE REGEX ".*nvml.*\.cc")

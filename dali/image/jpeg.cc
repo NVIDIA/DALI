@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -92,7 +92,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
     flags.crop = true;
     TensorShape<> shape{static_cast<int>(h), static_cast<int>(w)};
     auto crop = crop_window_generator(shape, "HW");
-    DALI_ENFORCE(crop.IsInRange(shape));
+    crop.EnforceInRange(shape);
     flags.crop_y = crop.anchor[0];
     flags.crop_x = crop.anchor[1];
     flags.crop_height = crop.shape[0];

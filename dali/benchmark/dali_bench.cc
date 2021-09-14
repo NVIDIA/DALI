@@ -18,7 +18,6 @@
 #include <benchmark/benchmark.h>
 
 #include "dali/core/common.h"
-#include "dali/pipeline/data/allocator.h"
 #include "dali/pipeline/init.h"
 #include "dali/operators.h"
 #include "dali/pipeline/operator/op_spec.h"

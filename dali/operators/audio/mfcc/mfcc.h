@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -101,7 +101,7 @@ class MFCC : public Operator<Backend> {
     }
 
     axis_ = spec_.template GetArgument<int>("axis");
-    DALI_ENFORCE(axis_ >= 0);
+    DALI_ENFORCE(axis_ >= 0, "Provided axis cannot be negative.");
 
     lifter_ = spec_.template GetArgument<float>("lifter");
     args_.clear();

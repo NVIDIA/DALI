@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ class Constant : public Operator<Backend> {
     layout_ = spec.GetArgument<TensorLayout>("layout");
     if (!layout_.empty()) {
       DALI_ENFORCE(layout_.size() == static_cast<int>(shape_arg_.size()), make_string(
-        "Constant node: The requested layout \"", layout_, "\" has dimensionalilty which is "
+        "Constant node: The requested layout \"", layout_, "\" has dimensionality which is "
         "incompatible with the requested output shape."));
     }
   }
@@ -103,7 +103,6 @@ class Constant : public Operator<Backend> {
   DALIDataType output_type_;
   using storage_t = std::conditional_t<std::is_same<Backend, CPUBackend>::value,
     TensorVector<CPUBackend>, TensorList<GPUBackend>>;
-
   storage_t output_;
 };
 

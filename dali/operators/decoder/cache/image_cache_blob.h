@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 #include <unordered_map>
 #include "dali/core/error_handling.h"
 #include "dali/core/span.h"
-#include "dali/kernels/alloc.h"
+#include "dali/core/mm/memory.h"
 #include "dali/operators/decoder/cache/image_cache.h"
 
 namespace dali {
@@ -70,7 +70,7 @@ class DLL_PUBLIC ImageCacheBlob : public ImageCache {
     std::size_t cache_size_ = 0;
     std::size_t image_size_threshold_ = 0;
     bool stats_enabled_ = false;
-    kernels::memory::KernelUniquePtr<uint8_t> buffer_;
+    mm::uptr<uint8_t> buffer_;
     uint8_t* buffer_end_ = nullptr;
     uint8_t* tail_ = nullptr;
 

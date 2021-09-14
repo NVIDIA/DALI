@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -520,6 +520,7 @@ void CocoLoader::ParseJsonAnnotations() {
 
   bool skip_empty = spec_.GetArgument<bool>("skip_empty");
   bool ratio = spec_.GetArgument<bool>("ratio");
+  bool remap_classes = !spec_.GetArgument<bool>("avoid_class_remapping");
 
   int new_image_id = 0;
   int annotation_id = 0;
@@ -540,7 +541,11 @@ void CocoLoader::ParseJsonAnnotations() {
     int64_t mask_count = 0;
     for (const auto* annotation_ptr : img_annotations_map[image_id]) {
       const auto &annotation = *annotation_ptr;
-      labels_.push_back(category_ids[annotation.category_id_]);
+      if (remap_classes) {
+        labels_.push_back(category_ids[annotation.category_id_]);
+      } else {
+        labels_.push_back(annotation.category_id_);
+      }
       if (ratio) {
         boxes_.push_back(annotation.box_[0] / image_info.width_);
         boxes_.push_back(annotation.box_[1] / image_info.height_);

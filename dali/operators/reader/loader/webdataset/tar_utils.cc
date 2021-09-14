@@ -14,6 +14,7 @@
 
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include <libtar.h>
+#include <cstring>
 #include <algorithm>
 #include <cstdarg>
 #include <cstdlib>
@@ -79,7 +80,6 @@ inline TAR** ToTarHandle(void** handle) {
 ssize_t LibtarReadTarArchive(int instance_handle_, void* buf, size_t count) {
   const auto current_archive = instances[instance_handle_];
   const ssize_t num_read = current_archive->stream_->Read(reinterpret_cast<uint8_t*>(buf), count);
-  current_archive->archiveoffset_ += num_read;
   return num_read;
 }
 
@@ -95,13 +95,12 @@ static tartype_t kTarArchiveType = {LibtarOpenTarArchive, [](int) -> int { retur
                                     LibtarReadTarArchive,
                                     [](int, const void*, size_t) -> ssize_t { return 0; }};
 
-TarArchive::TarArchive(std::unique_ptr<FileStream> stream_)
-    : stream_(std::move(stream_)),
-      archiveoffset_(0),
-      instance_handle_(Register(this)),
-      eof_(false) {
+TarArchive::TarArchive(std::unique_ptr<FileStream> stream)
+    : stream_(std::move(stream)),
+      instance_handle_(Register(this)) {
   tar_open(ToTarHandle(&handle_), "", &kTarArchiveType, 0, instance_handle_, TAR_GNU);
-  this->stream_->Seek(0);
+  stream_->Seek(0);
+  eof_ = stream_->Size() == 0;
   ParseHeader();
 }
 
@@ -110,7 +109,7 @@ TarArchive::TarArchive(TarArchive&& other) {
 }
 
 TarArchive::~TarArchive() {
-  Invalidate();
+  Close();
 }
 
 TarArchive& TarArchive::operator=(TarArchive&& other) {
@@ -119,15 +118,16 @@ TarArchive& TarArchive::operator=(TarArchive&& other) {
     std::swap(handle_, other.handle_);
     std::swap(filename_, other.filename_);
     std::swap(filesize_, other.filesize_);
+    std::swap(filetype_, other.filetype_);
     std::swap(readoffset_, other.readoffset_);
-    std::swap(archiveoffset_, other.archiveoffset_);
+    std::swap(current_header_, other.current_header_);
     std::swap(eof_, other.eof_);
     std::swap(instance_handle_, other.instance_handle_);
     if (instance_handle_ >= 0) {
       std::lock_guard<std::mutex> instances_lock(instances_mutex);
       instances[instance_handle_] = this;
     }
-    other.Invalidate();
+    other.Close();
   }
   return *this;
 }
@@ -140,13 +140,38 @@ bool TarArchive::NextFile() {
   if (eof_) {
     return false;
   }
-  Skip(RoundToBlockSize(filesize_) - readoffset_);
-  eof_ = ParseHeader();
+
+  const int64_t offset = stream_->Tell() + RoundToBlockSize(filesize_) - readoffset_;
+  assert(offset >= 0);
+  if (static_cast<size_t>(offset) >= stream_->Size()) {
+    SetEof();
+    return false;
+  }
+
+  stream_->Seek(stream_->Tell() + RoundToBlockSize(filesize_) - readoffset_);
+  current_header_ = stream_->Tell();
+  ParseHeader();
   return !eof_;
 }
 
 bool TarArchive::EndOfArchive() const {
   return eof_;
+}
+
+void TarArchive::SeekArchive(int64_t offset) {
+  assert(offset % T_BLOCKSIZE == 0);
+  readoffset_ = 0;
+  if (static_cast<size_t>(offset) >= stream_->Size()) {
+    SetEof();
+    return;
+  }
+  stream_->Seek(offset);
+  current_header_ = stream_->Tell();
+  ParseHeader();
+}
+
+int64_t TarArchive::TellArchive() const {
+  return current_header_;
 }
 
 const std::string& TarArchive::GetFileName() const {
@@ -157,18 +182,16 @@ size_t TarArchive::GetFileSize() const {
   return filesize_;
 }
 
+TarArchive::EntryType TarArchive::GetFileType() const {
+  return filetype_;
+}
+
 std::shared_ptr<void> TarArchive::ReadFile() {
-  archiveoffset_ -= readoffset_;
-  size_t old_readoffset = readoffset_;
-  readoffset_ = 0;
-  stream_->Seek(archiveoffset_);
+  stream_->Seek(stream_->Tell() - readoffset_);
+
   auto out = stream_->Get(filesize_);
   if (out != nullptr) {
-    archiveoffset_ += filesize_;
     readoffset_ = filesize_;
-  } else {
-    archiveoffset_ += old_readoffset;
-    readoffset_ = old_readoffset;
   }
   return out;
 }
@@ -180,7 +203,6 @@ size_t TarArchive::Read(uint8_t* buffer, size_t count) {
   count = clamp(filesize_ - readoffset_, 0_u64, count);
   size_t num_read_bytes = stream_->Read(buffer, count);
   readoffset_ += num_read_bytes;
-  archiveoffset_ += num_read_bytes;
   return num_read_bytes;
 }
 
@@ -188,36 +210,56 @@ bool TarArchive::EndOfFile() const {
   return readoffset_ >= filesize_;
 }
 
-inline void TarArchive::Skip(size_t count) {
-  stream_->Seek(archiveoffset_ += count);
-  readoffset_ += count;
+inline void TarArchive::SetEof() {
+  eof_ = true;
+  filename_ = "";
+  filesize_ = 0;
+  filetype_ = ENTRY_NONE;
+  current_header_ = stream_ ? stream_->Size() : 0;
 }
 
-inline bool TarArchive::ParseHeader() {
+inline void TarArchive::ParseHeader() {
+  if (eof_) {
+    return;
+  }
   int errorcode = th_read(ToTarHandle(handle_));
   if (errorcode) {
     DALI_ENFORCE(errorcode != -1,
                  (std::string) "Corrupted tar file at " + ToTarHandle(handle_)->pathname);
-    Invalidate();
+    SetEof();
   } else {
     filename_ = th_get_pathname(ToTarHandle(handle_));
     filesize_ = th_get_size(ToTarHandle(handle_));
+
+    if (TH_ISREG(ToTarHandle(handle_))) {
+      filetype_ = ENTRY_FILE;
+    } else if (TH_ISDIR(ToTarHandle(handle_))) {
+      filetype_ = ENTRY_DIR;
+    } else if (TH_ISLNK(ToTarHandle(handle_))) {
+      filetype_ = ENTRY_HARDLINK;
+    } else if (TH_ISSYM(ToTarHandle(handle_))) {
+      filetype_ = ENTRY_SYMLINK;
+    } else if (TH_ISCHR(ToTarHandle(handle_))) {
+      filetype_ = ENTRY_CHARDEV;
+    } else if (TH_ISBLK(ToTarHandle(handle_))) {
+      filetype_ = ENTRY_BLOCKDEV;
+    } else if (TH_ISFIFO(ToTarHandle(handle_))) {
+      filetype_ = ENTRY_FIFO;
+    } else {
+      DALI_FAIL("Entry type in a tar archive not recognized");
+    }
   }
   readoffset_ = 0;
-  return errorcode;
 }
 
-void TarArchive::Invalidate() {
-  stream_.reset();
+void TarArchive::Close() {
   if (handle_ != nullptr) {
     tar_close(ToTarHandle(handle_));
     handle_ = nullptr;
   }
-  filename_ = "";
-  filesize_ = 0;
   readoffset_ = 0;
-  archiveoffset_ = 0;
-  eof_ = true;
+  SetEof();
+  stream_.reset();
   if (instance_handle_ >= 0) {
     Unregister(instance_handle_);
   }

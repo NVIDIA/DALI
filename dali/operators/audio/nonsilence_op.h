@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -108,7 +108,7 @@ void RunKernel(TensorView<StorageCPU, const InputType, 1> in, Tensor<CPUBackend>
   kernels::signal::MovingMeanSquareCpu<InputType> mms;
   auto reqs = mms.Setup(kctx, in, mms_args);
   out.Resize(reqs.output_shapes[0][0]);
-  auto tv = view_as_tensor<float>(out);
+  auto tv = view<float>(out);
   mms.Run(kctx, tv.template to_static<1>(), in, mms_args);
 }
 
@@ -121,7 +121,7 @@ template<typename InputType>
 std::pair<int, int>
 DetectNonsilenceRegion(Tensor<CPUBackend> &intermediate_buffer, const Args<InputType> &args) {
   RunKernel(args.input, intermediate_buffer, {args.window_length, args.reset_interval});
-  auto signal_mms = view_as_tensor<const float>(intermediate_buffer);
+  auto signal_mms = view<const float>(intermediate_buffer);
   kernels::signal::DecibelToMagnitude<float> db2mag(
       10.f, args.reference_max ? max_element(signal_mms) : args.reference_power);
   auto ret = LeadTrailThresh(make_cspan(signal_mms.data, signal_mms.num_elements()),

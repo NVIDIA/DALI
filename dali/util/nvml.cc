@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,17 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/data/allocator.h"
+#include "dali/util/nvml.h"
+
 
 namespace dali {
+namespace nvml {
+namespace impl {
 
-// Define the CPU & GPU allocator registries
-DALI_DEFINE_OPTYPE_REGISTRY(GPUAllocator, GPUAllocator);
-DALI_DEFINE_OPTYPE_REGISTRY(CPUAllocator, CPUAllocator);
 
-// Register GPU, CPU, and PinnedCPU allocators
-DALI_REGISTER_GPU_ALLOCATOR(GPUAllocator, GPUAllocator);
-DALI_REGISTER_CPU_ALLOCATOR(CPUAllocator, CPUAllocator);
-DALI_REGISTER_CPU_ALLOCATOR(PinnedCPUAllocator, PinnedCPUAllocator);
+float GetDriverVersion() {
+  if (!nvmlIsInitialized()) {
+    return 0;
+  }
 
+  float driver_version = 0;
+  char version[NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE];
+
+  CUDA_CALL(nvmlSystemGetDriverVersion(version, sizeof version));
+  driver_version = std::stof(version);
+  return driver_version;
+}
+
+
+}  // namespace impl
+}  // namespace nvml
 }  // namespace dali

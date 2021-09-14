@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,52 +47,6 @@ TEST(TensorList, View_StaticDim) {
   }
 
   EXPECT_ENFORCE_FAIL((view<float, 2>(tl)));
-}
-
-TEST(TensorList, ViewAsTensor_Fail_NonUniform) {
-  TensorList<CPUBackend> tl;
-  TensorListShape<> shapes = { { {640, 480, 3}, {640, 360, 3} } };
-  tl.Resize(shapes);
-  EXPECT_ENFORCE_FAIL((view_as_tensor<float>(tl)))
-    << "Non-uniform tensor list cannot be viewed as a tensor and view_as_tensor should throw";
-}
-
-TEST(TensorList, ViewAsTensor_StaticDim) {
-  TensorList<CPUBackend> tl;
-  TensorListShape<> shapes = { { {640, 480, 3}, {640, 480, 3} } };
-  tl.Resize(shapes);
-  EXPECT_ENFORCE_FAIL((view_as_tensor<float, 3>(tl)))
-    << "List of 3D tensor should yield a 4D flattened tensor";
-  TensorView<StorageCPU, float, 4> tv;
-  EXPECT_NO_THROW((tv = view_as_tensor<float, 4>(tl)))
-    << "List of 3D tensor should yield a 4D flattened tensor";
-
-  ASSERT_EQ(tv.dim(), static_cast<int>(shapes[0].size()) + 1)
-    << "Resulting tensor must be " << shapes[0].size()+1 << "D";
-
-  EXPECT_EQ(tv.shape[0], shapes.size())
-    << "Outermost size must be equal to the number of samples in the input";
-
-  for (int i = 0; i < static_cast<int>(shapes[0].size()); i++) {
-    EXPECT_EQ(tv.shape[i + 1], shapes[0][i]) << "Wrong size along dimension " << i+1;
-  }
-}
-
-TEST(TensorList, ViewAsTensor) {
-  TensorList<CPUBackend> tl;
-  TensorListShape<> shapes = { { {640, 480, 3}, {640, 480, 3} } };
-  tl.Resize(shapes);
-  auto tv = view_as_tensor<float>(tl);
-
-  ASSERT_EQ(tv.dim(), static_cast<int>(shapes[0].size()) + 1)
-    << "Resulting tensor must be " << shapes[0].size()+1 << "D";
-
-  EXPECT_EQ(tv.shape[0], shapes.size())
-    << "Outermost size must be equal to the number of samples in the input";
-
-  for (int i = 0; i < static_cast<int>(shapes[0].size()); i++) {
-    EXPECT_EQ(tv.shape[i + 1], shapes[0][i]) << "Wrong size along dimension " << i+1;
-  }
 }
 
 TEST(Tensor, ViewAsTensor) {

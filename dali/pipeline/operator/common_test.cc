@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -77,9 +77,12 @@ TEST(PipelineCommon, GetShapeLikeArgumentInput) {
 
   // specify the shape as a list of 1D tensors
   input->Resize(uniform_list_shape<1>(N, {D}));
-  float *shape_data = input->mutable_data<float>();
-  for (int i = 0; i < D*N; i++)
-    shape_data[i] = i * 1.1f;
+  for (int sample_idx = 0; sample_idx < N; sample_idx++) {
+    float *shape_data = input->mutable_tensor<float>(sample_idx);
+    for (int i = 0; i < D; i++) {
+      shape_data[i] = (sample_idx * D + i) * 1.1f;
+    }
+  }
 
   spec.SetArg("max_batch_size", N);
   spec.AddArgumentInput("size", "size");
@@ -101,9 +104,10 @@ TEST(PipelineCommon, GetShapeLikeArgumentInput) {
   ws.Clear();
 
   input->Resize(TensorListShape<0>(N));
-  shape_data = input->mutable_data<float>();
-  for (int i = 0; i < N; i++)
-    shape_data[i] = i * 1.1f;
+  for (int sample_idx = 0; sample_idx < N; sample_idx++) {
+    float *shape_data = input->mutable_tensor<float>(sample_idx);
+    shape_data[0] = sample_idx * 1.1f;
+  }
 
   ws.AddArgumentInput("size", input);
 

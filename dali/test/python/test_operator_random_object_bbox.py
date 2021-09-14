@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,8 @@ import scipy.ndimage.measurements
 import random
 from test_utils import check_batch
 from test_utils import np_type_to_dali
-from nose.tools import raises, assert_raises, nottest
+from nose.tools import nottest
+from nose_utils import assert_raises
 
 np.random.seed(1234)
 random.seed(1234)
@@ -430,7 +431,7 @@ def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
     """
     pipe = dali.Pipeline(batch_size=1, num_threads=1, device_id=0, seed=1234)
     data = np.uint32([0,1,2,3])
-    box, label = fn.segmentation.random_object_bbox(data, foreground_prob=1e-9, format="box", output_class=1, classes=fg_labels);
+    box, label = fn.segmentation.random_object_bbox(data, foreground_prob=1e-9, format="box", output_class=1, classes=fg_labels)
     pipe.set_outputs(box, label)
     pipe.build()
     _, labels = pipe.run()
@@ -457,27 +458,28 @@ def _test_err_args(**kwargs):
     pipe.run()
 
 def test_err_classes_bg():
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob="Class label 0 coincides with background label"):
         _test_err_args(classes=[0,1,2,3], background=0)
 
 def test_err_classes_weights_length_clash():
-    with assert_raises(RuntimeError):
-        _test_err_args(classes=[0,1,2,3], weights=np.float32([1,2,3]))
-    with assert_raises(RuntimeError):
-        _test_err_args(classes=np.int32([0,1,2,3]), weights=[3,2,1])
+    error_msg = r"If both ``classes`` and ``class_weights`` are provided, their shapes must match. Got:\s+classes.shape = \{4\}\s+weights.shape = \{3\}"
+    with assert_raises(RuntimeError, regex=error_msg):
+        _test_err_args(classes=[0,1,2,3], class_weights=np.float32([1,2,3]))
+    with assert_raises(RuntimeError, regex=error_msg):
+        _test_err_args(classes=np.int32([0,1,2,3]), class_weights=[3,2,1])
 
 def test_err_classes_ignored():
-    with assert_raises(RuntimeError):
-        _test_err_args(classes=[0,1,2,3], ignore_classes=True)
+    with assert_raises(RuntimeError, glob="Class-related arguments * cannot be used when ``ignore_class`` is True"):
+        _test_err_args(classes=[0,1,2,3], ignore_class=True)
 
 def test_err_k_largest_nonpositive():
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob="``k_largest`` must be at least 1; got -1"):
         _test_err_args(k_largest=-1)
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob="``k_largest`` must be at least 1; got 0"):
         _test_err_args(k_largest=0)
 
 def test_err_threshold_dim_clash():
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob="Argument \"threshold\" expected shape 2 but got 5 values, which can't be interpreted as the expected shape."):
         _test_err_args(threshold=[1,2,3,4,5])
 
 def test_large_data():
