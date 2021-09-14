@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ class BatchPermutation : public Operator<CPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
     output_desc[0].shape = TensorListShape<0>(ws.GetRequestedBatchSize(0));
-    output_desc[0].type = TypeTable::GetTypeInfo(DALI_INT32);
+    output_desc[0].type = DALI_INT32;
     return true;
   }
   void RunImpl(HostWorkspace &ws) override;

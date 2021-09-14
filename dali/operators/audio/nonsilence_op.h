@@ -161,7 +161,7 @@ class NonsilenceOperator : public Operator<Backend> {
       reference_max_ = true;
     }
     window_length_ = spec.GetArgument<int>("window_length", &ws);
-    auto input_type = ws.template InputRef<Backend>(0).type().id();
+    auto input_type = ws.template InputRef<Backend>(0).type();
     // If input type is not floating point, there's no need for reset interval
     reset_interval_ = IsFloatingPoint(input_type) ? spec.GetArgument<int>("reset_interval", &ws)
                                                   : -1;

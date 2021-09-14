@@ -110,7 +110,7 @@ DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const workspace_t<Backend
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
     auto &e = dynamic_cast<ExprTensor &>(expr);
-    expr.SetTypeId(ws.template InputRef<Backend>(e.GetInputIndex()).type().id());
+    expr.SetTypeId(ws.template InputRef<Backend>(e.GetInputIndex()).type());
     return expr.GetTypeId();
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);
@@ -334,7 +334,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
     AllocateIntermediateNodes();
     exec_order_ = CreateExecutionTasks<Backend>(*expr_, cache_, ws.has_stream() ? ws.stream() : 0);
 
-    output_desc[0] = {result_shape_, TypeTable::GetTypeInfo(result_type_id_)};
+    output_desc[0] = {result_shape_, result_type_id_};
     std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kTileSize, kTaskSize);
     return true;
   }

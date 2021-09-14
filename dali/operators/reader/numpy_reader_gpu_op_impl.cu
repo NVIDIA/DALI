@@ -33,7 +33,7 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
   bool need_slice = !rois_.empty();
   auto out_view = view<T>(output);
   auto curr_batch = GetCurrBatchView<T, Dims>();
-  auto dtype = TypeTable::GetTypeInfoFromStatic<T>();
+  auto dtype = TypeTable::GetTypeID<T>();
 
   // Permuted dims, to use for the transposition
   std::array<int, Dims> perm;
@@ -154,7 +154,7 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
 void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
   auto &output = ws.OutputRef<GPUBackend>(0);
   int ndim = output.shape().sample_dim();
-  auto dtype = output.type().id();
+  auto dtype = output.type();
   VALUE_SWITCH(ndim, Dims, NUMPY_ALLOWED_DIMS, (
     TYPE_SWITCH(dtype, type2id, T, NUMPY_ALLOWED_TYPES, (
       RunImplTyped<T, Dims>(ws);

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ class PreemphasisFilter : public Operator<Backend> {
     output_desc.resize(detail::kNumOutputs);
     auto shape = input.shape();
     output_desc[0].shape = shape;
-    output_desc[0].type = TypeTable::GetTypeInfo(output_type_);
+    output_desc[0].type = output_type_;
     return true;
   }
 

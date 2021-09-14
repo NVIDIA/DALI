@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
       regions_shape.set_tensor_shape(i, {n_regions});
     }
     TensorList<CPUBackend> regions_cpu;
-    regions_cpu.set_type(TypeInfo::Create<kernels::ibox<Dims>>());
+    regions_cpu.set_type<kernels::ibox<Dims>>();
     regions_cpu.Resize(regions_shape);
     auto regions_tlv = view<kernels::ibox<Dims>, 1>(regions_cpu);
     for (int i = 0; i < curr_batch_size; ++i) {
@@ -114,7 +114,7 @@ bool Erase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto in_shape = input.shape();
   auto channel_dim = input.GetLayout().find('C');
-  TYPE_SWITCH(input.type().id(), type2id, T, ERASE_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, ERASE_SUPPORTED_TYPES, (
     VALUE_SWITCH(in_shape.sample_dim(), Dims, ERASE_SUPPORTED_NDIMS, (
       if (channel_dim == -1)
         impl_ = std::make_unique<EraseImplGpu<T, Dims, -1>>(spec_);
@@ -126,7 +126,7 @@ bool Erase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
         DALI_FAIL("Unsupported layout. Only 'no channel', "
                   "'channel first' and 'channel last' layouts are supported.");
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
 
   assert(impl_ != nullptr);
   return impl_->SetupImpl(output_desc, ws);

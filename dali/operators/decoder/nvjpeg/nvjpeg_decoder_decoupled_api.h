@@ -120,7 +120,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         // assume close the worst case size 300kb per image
         auto shapes = uniform_list_shape(CalcHwDecoderBatchSize(hw_decoder_load_, max_batch_size_),
                                         TensorShape<1>{300*1024});
-        hw_decoder_images_staging_.Resize(shapes, TypeInfo::Create<uint8_t>());
+        hw_decoder_images_staging_.Resize(shapes, DALI_UINT8);
 #if defined(NVJPEG_PREALLOCATE_API)
         // call nvjpegDecodeBatchedPreAllocate to use memory pool for HW decoder even if hint is 0
         // due to considerable performance benefit - >20% for 8GPU training
@@ -881,8 +881,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   void ProcessImages(MixedWorkspace &ws) {
     auto &output = ws.Output<GPUBackend>(0);
-    TypeInfo type = TypeTable::GetTypeInfoFromStatic<uint8_t>();
-    output.set_type(type);
+    output.set_type<uint8_t>();
     assert(output_shape_.num_samples() ==
            ws.GetInputBatchSize(0));  // If fails: Incorrect number of samples in shape
     output.Resize(output_shape_);

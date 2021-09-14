@@ -48,7 +48,7 @@ void LookupTable<CPUBackend>::RunImpl(HostWorkspace &ws) {
 
   auto &tp = ws.GetThreadPool();
 
-  TYPE_SWITCH(input.type().id(), dali::type2id, Input, LUT_IN_TYPES, (
+  TYPE_SWITCH(input.type(), dali::type2id, Input, LUT_IN_TYPES, (
     TYPE_SWITCH(output_type_, dali::type2id, Output, LUT_OUT_TYPES, (
 
       auto default_value = ConvertSat<Output>(default_value_f_);
@@ -57,7 +57,7 @@ void LookupTable<CPUBackend>::RunImpl(HostWorkspace &ws) {
       LookupValuesImpl<Output, Input>(tp, output, input, shape, lookup_table, default_value);
 
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)); );       // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())); );     // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())); );     // NOLINT
 
   tp.RunAll();
 }

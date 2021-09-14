@@ -38,9 +38,9 @@ TEST(ArithmeticOpsTest, TreePropagation) {
     ptr = std::make_shared<TensorVector<CPUBackend>>();
     ptr->Resize({{1}, {2}});
   }
-  in[0]->set_type(TypeInfo::Create<uint8_t>());
-  in[1]->set_type(TypeInfo::Create<int16_t>());
-  in[2]->set_type(TypeInfo::Create<int32_t>());
+  in[0]->set_type<uint8_t>();
+  in[1]->set_type<int16_t>();
+  in[2]->set_type<int32_t>();
   in[0]->SetLayout(TensorLayout());
   in[1]->SetLayout(TensorLayout("HW"));
   ws.AddInput(in[0]);
@@ -167,7 +167,7 @@ T GenerateData(int sample, int element) {
 template <typename T>
 void FillBatch(TensorList<CPUBackend> &batch, const TensorListShape<> shape) {
   batch.Resize(shape);
-  batch.set_type(TypeInfo::Create<T>());
+  batch.set_type<T>();
   for (int i = 0; i < shape.num_samples(); i++) {
     auto *t = batch.template mutable_tensor<T>(i);
     for (int j = 0; j < shape[i].num_elements(); j++) {
@@ -398,8 +398,8 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
   pipe.RunGPU();
   DeviceWorkspace ws;
   pipe.Outputs(&ws);
-  ASSERT_EQ(ws.OutputRef<CPUBackend>(0).type(), TypeInfo::Create<float>());
-  ASSERT_EQ(ws.OutputRef<GPUBackend>(1).type(), TypeInfo::Create<float>());
+  ASSERT_EQ(ws.OutputRef<CPUBackend>(0).type(), DALI_FLOAT);
+  ASSERT_EQ(ws.OutputRef<GPUBackend>(1).type(), FALI_FLOAT);
 
   vector<float> result1_cpu(tensor_elements);
 
@@ -653,7 +653,7 @@ TEST(ArithmeticOpsTest, UnaryPipeline) {
 
   TensorList<CPUBackend> batch;
   batch.Resize(uniform_list_shape(batch_size, {tensor_elements}));
-  batch.set_type(TypeInfo::Create<int32_t>());
+  batch.set_type<int32_t>();
   for (int i = 0; i < batch_size; i++) {
     auto *t = batch.mutable_tensor<int32_t>(i);
     for (int j = 0; j < tensor_elements; j++) {

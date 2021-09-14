@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,17 +58,17 @@ bool ToDecibels<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   int nsamples = input.size();
   auto nthreads = ws.GetThreadPool().NumThreads();
 
-  TYPE_SWITCH(input.type().id(), type2id, T, (float), (
+  TYPE_SWITCH(input.type(), type2id, T, (float), (
     using ToDbKernel = kernels::signal::ToDecibelsCpu<T>;
     kmgr_.Initialize<ToDbKernel>();
     kmgr_.Resize<ToDbKernel>(nthreads, nsamples);
     output_desc[0].shape = in_shape;
-    output_desc[0].type = TypeInfo::Create<T>();
+    output_desc[0].type = type2id<T>::value;
     for (int i = 0; i < nsamples; i++) {
       const auto in_view = view<const T>(input[i]);
       auto &req = kmgr_.Setup<ToDbKernel>(i, ctx, in_view, args_);
     }
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
   return true;
 }
 
@@ -80,7 +80,7 @@ void ToDecibels<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
 
-  TYPE_SWITCH(input.type().id(), type2id, T, (float), (
+  TYPE_SWITCH(input.type(), type2id, T, (float), (
     using ToDbKernel = kernels::signal::ToDecibelsCpu<T>;
     for (int i = 0; i < input.shape().num_samples(); i++) {
       thread_pool.AddWork(
@@ -91,7 +91,7 @@ void ToDecibels<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
           kmgr_.Run<ToDbKernel>(thread_id, i, ctx, out_view, in_view, args_);
         }, in_shape.tensor_size(i));
     }
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
 
   thread_pool.RunAll();
 }

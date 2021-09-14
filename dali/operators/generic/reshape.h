@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,9 +51,9 @@ class Reshape : public Operator<Backend> {
   void CheckSrcDims(const Workspace &ws);
 
   inline void SetOutputType(const Workspace &ws) {
-    output_type_ = output_type_id_ != DALI_NO_TYPE
-      ? &TypeTable::GetTypeInfo(output_type_id_)
-      : &ws.template InputRef<Backend>(0).type();
+    output_type_ = output_type_arg_ != DALI_NO_TYPE
+      ? &TypeTable::GetTypeInfo(output_type_arg_)
+      : &ws.template InputRef<Backend>(0).type_info();
   }
 
   std::vector<int> src_dims_;
@@ -73,7 +73,7 @@ class Reshape : public Operator<Backend> {
   bool use_layout_ = false;
   bool use_rel_shape_ = false;
   int wildcard_dim_ = -1;
-  DALIDataType output_type_id_ = DALI_NO_TYPE;
+  DALIDataType output_type_arg_ = DALI_NO_TYPE;
 
   enum class ShapeSource {
     None,

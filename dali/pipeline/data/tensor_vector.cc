@@ -35,7 +35,7 @@ TensorVector<Backend>::TensorVector(std::shared_ptr<TensorList<Backend>> tl)
     : views_count_(0), curr_tensors_size_(0), tl_(std::move(tl)) {
   assert(tl_ && "Construction with null TensorList is illegal");
   pinned_ = tl_->is_pinned();
-  type_ = tl_->type();
+  type_ = tl_->type_info();
   state_ = State::contiguous;
   resize_tensors(tl_->ntensor());
   UpdateViews();
@@ -48,7 +48,7 @@ TensorVector<Backend>::TensorVector(TensorVector<Backend> &&other) noexcept {
   pinned_ = other.pinned_;
   curr_tensors_size_ = other.curr_tensors_size_;
   tl_ = std::move(other.tl_);
-  type_ = other.type_;
+  type_ = std::move(other.type_);
   views_count_ = other.views_count_.load();
   tensors_ = std::move(other.tensors_);
   for (auto &t : tensors_) {
@@ -108,7 +108,7 @@ TensorListShape<> TensorVector<Backend>::shape() const {
 
 
 template <typename Backend>
-void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, const TypeInfo &new_type) {
+void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataType new_type) {
   resize_tensors(new_shape.num_samples());
   if (state_ == State::contiguous) {
     tl_->Resize(new_shape, new_type);
@@ -149,8 +149,10 @@ void TensorVector<Backend>::SetSize(int new_size) {
 
 
 template <typename Backend>
-void TensorVector<Backend>::set_type(const TypeInfo &new_type) {
-  type_ = new_type;
+void TensorVector<Backend>::set_type(DALIDataType new_type) {
+  if (type_.id() == new_type)
+    return;
+  type_ = TypeTable::GetTypeInfo(new_type);
   tl_->set_type(new_type);
   for (auto t : tensors_) {
     t->set_type(new_type);
@@ -162,9 +164,23 @@ void TensorVector<Backend>::set_type(const TypeInfo &new_type) {
 
 
 template <typename Backend>
-const TypeInfo &TensorVector<Backend>::type() const {
+DALIDataType TensorVector<Backend>::type() const {
   if (state_ == State::contiguous) {
     return tl_->type();
+  }
+  if (curr_tensors_size_ == 0) {
+    return type_.id();
+  }
+  for (size_t i = 1; i < curr_tensors_size_; i++) {
+    assert(tensors_[0]->type() == tensors_[i]->type());
+  }
+  return tensors_[0]->type();
+}
+
+template <typename Backend>
+const TypeInfo &TensorVector<Backend>::type_info() const {
+  if (state_ == State::contiguous) {
+    return tl_->type_info();
   }
   if (curr_tensors_size_ == 0) {
     return type_;
@@ -172,7 +188,7 @@ const TypeInfo &TensorVector<Backend>::type() const {
   for (size_t i = 1; i < curr_tensors_size_; i++) {
     assert(tensors_[0]->type() == tensors_[i]->type());
   }
-  return tensors_[0]->type();
+  return tensors_[0]->type_info();
 }
 
 
@@ -298,7 +314,7 @@ template <typename Backend>
 template <typename SrcBackend>
 void TensorVector<Backend>::Copy(const TensorList<SrcBackend> &in_tl, cudaStream_t stream) {
   SetContiguous(true);
-  type_ = in_tl.type();
+  type_ = in_tl.type_info();
   tl_->Copy(in_tl, stream);
 
   resize_tensors(tl_->ntensor());
@@ -322,7 +338,7 @@ template <typename Backend>
 void TensorVector<Backend>::ShareData(TensorList<Backend> *in_tl) {
   DALI_ENFORCE(in_tl != nullptr, "Input TensorList is nullptr");
   SetContiguous(true);
-  type_ = in_tl->type();
+  type_ = in_tl->type_info();
   pinned_ = in_tl->is_pinned();
   tl_->ShareData(in_tl);
 
@@ -404,7 +420,7 @@ void TensorVector<Backend>::UpdateViews() {
   // Return if we do not have a valid allocation
   if (!IsValidType(tl_->type())) return;
   // we need to be able to share empty view as well so don't check if tl_ has any data
-  type_ = tl_->type();
+  type_ = tl_->type_info();
 
   assert(curr_tensors_size_ == tl_->ntensor());
 
@@ -459,7 +475,7 @@ void TensorVector<Backend>::update_view(int idx) {
   // tensors_[i]->ShareData(tl_.get(), static_cast<int>(idx));
   if (tensors_[idx]->raw_data() != ptr || tensors_[idx]->shape() != shape) {
     tensors_[idx]->ShareData(std::shared_ptr<void>(ptr, ViewRefDeleter{&views_count_}),
-                             volume(tl_->tensor_shape(idx)) * tl_->type().size(), shape,
+                             volume(tl_->tensor_shape(idx)) * tl_->type_info().size(), shape,
                              tl_->type());
   } else if (IsValidType(tl_->type())) {
     tensors_[idx]->set_type(tl_->type());

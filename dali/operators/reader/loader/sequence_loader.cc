@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -128,7 +128,7 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
     meta.SetSkipSample(true);
     target->Reset();
     target->SetMeta(meta);
-    target->set_type(TypeInfo::Create<uint8_t>());
+    target->set_type<uint8_t>();
     target->Resize({0});
     return;
   }
@@ -148,7 +148,7 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
     DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", frame_filename));
     // Wrap the raw data in the Tensor object.
     target->ShareData(p, frame_size, {frame_size});
-    target->set_type(TypeInfo::Create<uint8_t>());
+    target->set_type<uint8_t>();
   }
   target->SetMeta(meta);
   frame->Close();

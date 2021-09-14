@@ -310,7 +310,7 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
 
     auto shape = uniform_list_shape(batch_size_, {2});
     TensorList<CPUBackend> begin_data;
-    begin_data.set_type(TypeInfo::Create<float>());
+    begin_data.set_type<float>();
     begin_data.Resize(shape);
     float crop_x = 0.25f, crop_y = 0.124f;
     for (int k = 0; k < batch_size_; k++) {
@@ -320,7 +320,7 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
 
     TensorList<CPUBackend> crop_data;
     float crop_w = 0.5f, crop_h = 0.25f;
-    crop_data.set_type(TypeInfo::Create<float>());
+    crop_data.set_type<float>();
     crop_data.Resize(shape);
     for (int k = 0; k < batch_size_; k++) {
       crop_data.mutable_tensor<float>(k)[0] = crop_w;

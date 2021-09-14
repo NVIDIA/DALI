@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ bool ToDecibelsImpl<T>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto in_view = view<const T>(input);
   auto nsamples = input.size();
 
-  auto type = TypeInfo::Create<T>();
+  auto type = id2type<T>::value;
 
   kernels::KernelContext ctx;
   if (args_.ref_max) {
@@ -107,7 +107,7 @@ bool ToDecibels<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                        const workspace_t<GPUBackend> &ws) {
   output_desc.resize(kNumOutputs);
   const auto &input = ws.Input<GPUBackend>(0);
-  auto type = input.type().id();
+  auto type = input.type();
   TYPE_SWITCH(type, type2id, T, (float), (
       using Impl = ToDecibelsImpl<T>;
       if (!impl_ || type != type_) {

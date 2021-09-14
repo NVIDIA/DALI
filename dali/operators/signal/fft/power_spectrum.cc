@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, Dims>;
     kmgr_.Initialize<FftKernel>();
     kmgr_.Resize<FftKernel>(nthreads, nsamples);
-    output_desc[0].type = TypeInfo::Create<OutputType>();
+    output_desc[0].type = type2id<OutputType>::value;
     output_desc[0].shape.resize(nsamples, Dims);
     for (int i = 0; i < nsamples; i++) {
       const auto in_view = view<const InputType, Dims>(input[i]);

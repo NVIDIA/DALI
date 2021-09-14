@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
     meta.SetSkipSample(true);
     image_label.image.Reset();
     image_label.image.SetMeta(meta);
-    image_label.image.set_type(TypeInfo::Create<uint8_t>());
+    image_label.image.set_type<uint8_t>();
     image_label.image.Resize({0});
     return;
   }
@@ -66,7 +66,7 @@ void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
     DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", image_pair.first));
     // Wrap the raw data in the Tensor object.
     image_label.image.ShareData(p, image_size, {image_size});
-    image_label.image.set_type(TypeInfo::Create<uint8_t>());
+    image_label.image.set_type<uint8_t>();
   }
 
   // close the file handle

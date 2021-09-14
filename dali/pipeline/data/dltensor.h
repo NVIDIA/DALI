@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ DLL_PUBLIC void DLMTensorPtrDeleter(DLManagedTensor *ptr);
 
 using DLMTensorPtr = std::unique_ptr<DLManagedTensor, void(*)(DLManagedTensor*)>;
 
-DLL_PUBLIC DLDataType GetDLType(const TypeInfo &type);
+DLL_PUBLIC DLDataType GetDLType(DALIDataType type);
 
 struct DLTensorResource {
   explicit DLTensorResource(TensorShape<> shape)
@@ -43,7 +43,7 @@ struct DLTensorResource {
   virtual ~DLTensorResource() = default;
 };
 
-DLL_PUBLIC DLMTensorPtr MakeDLTensor(void *data, const TypeInfo &type,
+DLL_PUBLIC DLMTensorPtr MakeDLTensor(void *data, DALIDataType type,
                                      bool device, int device_id,
                                      std::unique_ptr<DLTensorResource> resource);
 

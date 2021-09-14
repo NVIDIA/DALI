@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -73,13 +73,13 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
         // set type
         switch (f.GetType()) {
           case FeatureType::int64:
-             output.Resize({0}, TypeTable::GetTypeInfo(DALI_INT64));
+             output.Resize({0}, DALI_INT64);
             break;
           case FeatureType::string:
-             output.Resize({0}, TypeTable::GetTypeInfo(DALI_UINT8));
+             output.Resize({0}, DALI_UINT8);
             break;
           case FeatureType::float32:
-             output.Resize({0}, TypeTable::GetTypeInfo(DALI_FLOAT));
+             output.Resize({0}, DALI_FLOAT);
             break;
         }
         output.SetSourceInfo(data.GetSourceInfo());

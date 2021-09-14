@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,14 +27,14 @@ class ImageDecoderSliceTest_CPU : public DecodeTestBase<ImgType> {
     vector<std::pair<string, TensorList<CPUBackend>*>>& inputs) override {
       auto shape = uniform_list_shape(this->batch_size_, {2});
 
-      begin_data.set_type(TypeInfo::Create<float>());
+      begin_data.set_type<float>();
       begin_data.Resize(shape);
       for (int k = 0; k < this->batch_size_; k++) {
         begin_data.mutable_tensor<float>(k)[0] = crop_x;
         begin_data.mutable_tensor<float>(k)[1] = crop_y;
       }
 
-      crop_data.set_type(TypeInfo::Create<float>());
+      crop_data.set_type<float>();
       crop_data.Resize(shape);
       for (int k = 0; k < this->batch_size_; k++) {
         crop_data.mutable_tensor<float>(k)[0] = crop_w;

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -93,11 +93,11 @@ void PreemphasisFilterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
 
 void PreemphasisFilterCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
-  TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, InputType, PREEMPH_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
       RunImplTyped<OutputType, InputType>(ws);
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)));  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())));  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(PreemphasisFilter, PreemphasisFilterCPU, CPU);

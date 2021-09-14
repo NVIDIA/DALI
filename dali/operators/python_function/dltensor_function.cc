@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -214,7 +214,7 @@ PYBIND11_MODULE(python_function_plugin, m) {
   m.def("DLTensorToArray", [](py::capsule dl_capsule) {
     auto dlm_tensor_ptr = DLMTensorPtrFromCapsule(dl_capsule);
     const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
-    auto dali_type = TypeTable::GetTypeInfo(DLToDALIType(dl_tensor.dtype));
+    auto dali_type = DLToDALIType(dl_tensor.dtype);
     py::dtype dtype(FormatStrFromType(dali_type));
     auto shape = make_span(dl_tensor.shape, dl_tensor.ndim);
     py::array array;
@@ -233,7 +233,7 @@ PYBIND11_MODULE(python_function_plugin, m) {
 
   m.def("ArrayToDLTensor", [](py::array array) {
     auto buffer = array.request();
-    auto dlm_tensor_ptr = MakeDLTensor(buffer.ptr, TypeFromFormatStr(buffer.format),
+    auto dlm_tensor_ptr = MakeDLTensor(buffer.ptr, TypeFromFormatStr(buffer.format).id(),
                                        false, 0, std::make_unique<DLTensorNumpyResource>(array));
     return DLTensorToCapsule(std::move(dlm_tensor_ptr));
   });

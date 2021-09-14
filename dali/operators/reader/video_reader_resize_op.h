@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -70,13 +70,13 @@ class VideoReaderResize : public VideoReader,
       TensorList<GPUBackend> input;
       input_shape.set_tensor_shape(0, video_batch.tensor_shape(data_idx));
       input.ShareData(video_batch.raw_mutable_tensor(data_idx),
-                      volume(video_batch.tensor_shape(data_idx)) * video_batch.type().size(),
+                      volume(video_batch.tensor_shape(data_idx)) * video_batch.type_info().size(),
                       input_shape, video_batch.type());
 
       TensorList<GPUBackend> output;
       ShareSingleOutputAsTensorList(data_idx, video_output, output);
       TensorListShape<> output_shape;
-      SetupResize(output_shape, output.type().id(), input.shape(), input.type().id(),
+      SetupResize(output_shape, output.type(), input.shape(), input.type(),
                   make_cspan(&resample_params_[data_idx], 1), resize_attr_.first_spatial_dim_);
       assert(output_shape == output.shape());
       RunResize(ws, output, input);

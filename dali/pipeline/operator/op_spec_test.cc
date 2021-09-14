@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ TEST(OpSpecTest, GetArgumentTensorSet) {
     ArgumentWorkspace ws0;
     auto tv = std::make_shared<TensorVector<CPUBackend>>(2);
     tv->Resize(TensorListShape<0>(2));
-    tv->set_type(TypeInfo::Create<int32_t>());
+    tv->set_type<int32_t>();
     for (int i = 0; i < 2; i++) {
       tv->tensor_handle(i)->mutable_data<int32_t>()[0] = 42 + i;
     }
@@ -315,13 +315,10 @@ class TestArgumentInput_Producer : public Operator<CPUBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(3);
-    output_desc[0] = {TensorListShape<0>(ws.GetRequestedBatchSize(0)),
-                      TypeTable::GetTypeInfo(DALI_INT32)};
+    output_desc[0] = {TensorListShape<0>(ws.GetRequestedBatchSize(0)),         DALI_INT32};
     // Non-matching shapes
-    output_desc[1] = {uniform_list_shape(ws.GetRequestedBatchSize(1), {1}),
-                      TypeTable::GetTypeInfo(DALI_FLOAT)};
-    output_desc[2] = {uniform_list_shape(ws.GetRequestedBatchSize(2), {1, 2}),
-                      TypeTable::GetTypeInfo(DALI_INT32)};
+    output_desc[1] = {uniform_list_shape(ws.GetRequestedBatchSize(1), {1}),    DALI_FLOAT};
+    output_desc[2] = {uniform_list_shape(ws.GetRequestedBatchSize(2), {1, 2}), DALI_INT32};
     return true;
   }
 
@@ -363,8 +360,7 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
-    output_desc[0] = {uniform_list_shape(ws.GetRequestedBatchSize(0), {1}),
-                      TypeInfo::Create<int>()};
+    output_desc[0] = {uniform_list_shape(ws.GetRequestedBatchSize(0), {1}), DALI_INT32};
     return true;
   }
 

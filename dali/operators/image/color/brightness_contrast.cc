@@ -99,18 +99,16 @@ bool BrightnessContrastCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   const auto &output = ws.template OutputRef<CPUBackend>(0);
   output_desc.resize(1);
   AcquireArguments(ws);
-  TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
+  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
           {
               using Kernel = TheKernel<OutputType, InputType>;
               kernel_manager_.Initialize<Kernel>();
               auto shapes = CallSetup<Kernel, InputType>(input);
-              TypeInfo type;
-              type.SetType<OutputType>(output_type_);
-              output_desc[0] = {shapes, type};
+              output_desc[0] = {shapes, output_type_};
           }
       ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
   return true;
 }
 
@@ -121,7 +119,7 @@ void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   output.SetLayout(input.GetLayout());
   auto out_shape = output.shape();
   auto& tp = ws.GetThreadPool();
-  TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
+  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
           {
               using Kernel = TheKernel<OutputType, InputType>;
@@ -139,7 +137,7 @@ void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
               }
           }
       ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
   tp.RunAll();
 }
 

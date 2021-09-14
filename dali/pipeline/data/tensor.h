@@ -151,7 +151,7 @@ class Tensor : public Buffer<Backend> {
    * the current buffer is not large enough for the requested
    * number of elements.
    */
-  inline void Resize(const TensorShape<> &shape, const TypeInfo &new_type) {
+  inline void Resize(const TensorShape<> &shape, DALIDataType new_type) {
     Index new_size = volume(shape);
     ResizeHelper(new_size, new_type);
     shape_ = shape;
@@ -275,13 +275,13 @@ class Tensor : public Buffer<Backend> {
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes,
                         const TensorShape<> &shape,
-                        const TypeInfo &type = {}) {
+                        DALIDataType type = DALI_NO_TYPE) {
     // don't check ptr as we want to share empty data as well
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_ = ptr;
     num_bytes_ = bytes;
-    type_ = type;
+    type_ = TypeTable::GetTypeInfo(type);
     Index new_size = volume(shape);
     shape_ = shape;
     size_ = new_size;
@@ -309,7 +309,7 @@ class Tensor : public Buffer<Backend> {
    * in use by the Tensor.
    */
   inline void ShareData(void *ptr, size_t bytes, const TensorShape<> &shape,
-                        const TypeInfo &type = TypeInfo::Create<NoType>()) {
+                        DALIDataType type = DALI_NO_TYPE) {
     ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape, type);
   }
 
@@ -331,7 +331,7 @@ class Tensor : public Buffer<Backend> {
    * in use by the Tensor.
    */
   inline void ShareData(void *ptr, size_t bytes,
-                        const TypeInfo &type = TypeInfo::Create<NoType>()) {
+                        DALIDataType type = DALI_NO_TYPE) {
     ShareData(ptr, bytes, { 0 }, type);
   }
 

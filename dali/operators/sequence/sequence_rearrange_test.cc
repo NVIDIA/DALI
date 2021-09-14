@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ class SequenceRearrangeBaseTest : public testing::DaliOperatorTest {
 
     std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
     tl->Resize(batch_shape);
-    tl->set_type(TypeInfo::Create<int>());
+    tl->set_type<int>();
 
     // Fill frames with consecutive numbers
     for (int i = 0; i < batch_size; i++) {
@@ -71,7 +71,7 @@ struct SequenceRearrangeInvalidTest : public SequenceRearrangeBaseTest {
 
     std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
     tl->Resize(batch_shape);
-    tl->set_type(TypeInfo::Create<int>());
+    tl->set_type<int>();
     return tl;
   }
 };

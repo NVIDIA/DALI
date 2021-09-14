@@ -63,7 +63,7 @@ void Cast<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   }
   samples_dev_.from_host(samples_, ws.stream());
 
-  DALIDataType itype = input.type().id();
+  DALIDataType itype = input.type();
   dim3 grid_dim = block_setup_.GridDim();
   dim3 block_dim = block_setup_.BlockDim();
   TYPE_SWITCH(output_type_, type2id, OType, CAST_ALLOWED_TYPES, (

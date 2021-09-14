@@ -1,4 +1,4 @@
-// Copyright (c) 2020 NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,10 +39,10 @@ class PeekImageShape : public Operator<CPUBackend> {
       break;
     default:
       {
-        auto &name = TypeTable::GetTypeInfo(output_type_).name();
-        DALI_FAIL("Operator PeekImageShape can return the output as one of the following:\n"
+        DALI_FAIL(make_string(
+          "Operator PeekImageShape can return the output as one of the following:\n"
           "int32, uint32, int64, uint64, float or double;\n"
-          "requested: " + name);
+          "requested: ", output_type_));
         break;
       }
     }
@@ -57,7 +57,7 @@ class PeekImageShape : public Operator<CPUBackend> {
     size_t batch_size = input.ntensor();
     output_desc.resize(1);
     output_desc[0].shape = uniform_list_shape<1>(batch_size, { 3 });
-    output_desc[0].type = TypeTable::GetTypeInfo(output_type_);
+    output_desc[0].type = output_type_;
     return true;
   }
 

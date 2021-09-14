@@ -52,9 +52,9 @@ static void TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend>
   perm.resize(n_dims);
   for (int i = 0; i < n_dims; ++i)
     perm[i] = n_dims - i - 1;
-  TYPE_SWITCH(input.type().id(), type2id, T, NUMPY_ALLOWED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, NUMPY_ALLOWED_TYPES, (
     kernels::TransposeGrouped(view<T>(output), view<const T>(input), make_cspan(perm));
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())));  // NOLINT
 }
 
 static void SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
@@ -62,7 +62,7 @@ static void SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &in
                         int min_blk_sz, int req_nblocks) {
   int ndim = input.shape().sample_dim();
   VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
-    TYPE_SWITCH(input.type().id(), type2id, T, NUMPY_ALLOWED_TYPES, (
+    TYPE_SWITCH(input.type(), type2id, T, NUMPY_ALLOWED_TYPES, (
       kernels::SliceCPU<T, T, Dims> kernel;
       kernels::SliceArgs<T, Dims> args;
       args.anchor = roi.anchor;
@@ -74,7 +74,7 @@ static void SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &in
       auto in_view = view<const T, Dims>(input);
       // no need to run Setup (we already know the output shape)
       kernel.Schedule(ctx, out_view, in_view, args, thread_pool, min_blk_sz, req_nblocks);
-    ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported input type: ", input.type())));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
 }
 
@@ -84,7 +84,7 @@ static void SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor<CPUBacke
   const auto &in_shape = input.shape();
   int ndim = in_shape.sample_dim();
   VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
-    TYPE_SWITCH(input.type().id(), type2id, T, NUMPY_ALLOWED_TYPES, (
+    TYPE_SWITCH(input.type(), type2id, T, NUMPY_ALLOWED_TYPES, (
       kernels::SliceFlipNormalizePermutePadCpu<T, T, Dims> kernel;
       kernels::SliceFlipNormalizePermutePadArgs<Dims> args(roi.shape, in_shape);
       args.anchor = roi.anchor;
@@ -97,7 +97,7 @@ static void SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor<CPUBacke
       auto in_view = view<const T, Dims>(input);
       // no need to run Setup (we already know the output shape)
       kernel.Schedule(ctx, out_view, in_view, args, thread_pool, min_blk_sz, req_nblocks);
-    ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported input type: ", input.type())));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
 }
 

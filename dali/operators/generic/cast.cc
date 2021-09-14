@@ -36,7 +36,7 @@ void Cast<CPUBackend>::RunImpl(HostWorkspace &ws) {
   output.SetLayout(input.GetLayout());
 
   auto num_samples = input_shape.num_samples();
-  DALIDataType itype = input.type().id();
+  DALIDataType itype = input.type();
 
   auto &tp = ws.GetThreadPool();
   TYPE_SWITCH(output_type_, type2id, OType, CAST_ALLOWED_TYPES, (

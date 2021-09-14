@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
     constexpr int nthreads = 1;
 
     output_desc.resize(1);
-    output_desc[0].type = TypeInfo::Create<Out>();
+    output_desc[0].type = type2id<Out>::value;
     // The shape of data stays untouched
     output_desc[0].shape = input.shape();
 

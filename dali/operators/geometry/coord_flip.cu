@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -105,7 +105,7 @@ void CoordFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
     sample_descs_.emplace_back(std::move(sample_desc));
   }
 
-  scratchpad_.set_type(TypeInfo::Create<uint8_t>());
+  scratchpad_.set_type<uint8_t>();
   int64_t sz = curr_batch_size * sizeof(SampleDesc<float>);
   scratchpad_.Resize({sz});
   auto sample_descs_gpu_ = reinterpret_cast<SampleDesc<float>*>(

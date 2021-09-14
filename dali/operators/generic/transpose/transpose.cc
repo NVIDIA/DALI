@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ class TransposeCPU : public Transpose<CPUBackend> {
     auto& output = ws.OutputRef<CPUBackend>(0);
     output.SetLayout(output_layout_);
     auto& thread_pool = ws.GetThreadPool();
-    auto input_type = input.type().id();
+    auto input_type = input.type();
 
     auto out_shape = output.shape();
     int nsamples = out_shape.num_samples();

@@ -49,7 +49,7 @@ class Copy : public Operator<Backend> {
 
   void RunImpl(workspace_t<Backend> &ws) override {
     auto &input = ws.template InputRef<Backend>(0);
-    auto data_type_size = input.type().size();
+    auto data_type_size = input.type_info().size();
     auto &output = ws.template OutputRef<Backend>(0);
     output.SetLayout(input.GetLayout());
     for (unsigned int i = 0; i < input.ntensor(); i++) {

@@ -162,7 +162,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_TRUE(IsType<int16>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.set_type(TypeTable::GetTypeInfoFromStatic<float>());
+  t.set_type<float>();
   t.Resize(shape);
 
   ASSERT_EQ(t.raw_data(), source_data.data());

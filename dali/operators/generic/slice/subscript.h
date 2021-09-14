@@ -77,7 +77,7 @@ struct SubscriptArg {
         make_string("Array indices must be scalar (0D). Got ", shape.sample_dim(), "D tensor."));
 
       values.resize(n);
-      DALIDataType type_id = inp.type().id();
+      DALIDataType type_id = inp.type();
       TYPE_SWITCH(type_id, type2id, T, (INTEGER_TYPES), (
         for (int i = 0; i < n; i++) {
           // TODO(michalz): Add tensor<T> and mutable_tensor<T> to TensorVector?
@@ -318,9 +318,9 @@ class TensorSubscript : public Operator<Backend> {
     output.SetLayout(GetOutputLayout(input.GetLayout()));
     VALUE_SWITCH(simplified_in_shape_.sample_dim(), ndim,
       (1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),
-      (VALUE_SWITCH(input.type().size(), element_size, (1, 2, 4, 8),
+      (VALUE_SWITCH(input.type_info().size(), element_size, (1, 2, 4, 8),
         (RunTyped<ndim, element_size>(ws);),
-        (DALI_FAIL(make_string("Unsupported input type: ", input.type().id()));))),
+        (DALI_FAIL(make_string("Unsupported input type: ", input.type()));))),
       (DALI_FAIL("Subscript too complex.\n"
         "The subscript operator supports up to 32 total and up to 16 non-collapsible dimensions.\n"
         "Adjacent dimensions from which no index or slice is taken can be collapsed.");)

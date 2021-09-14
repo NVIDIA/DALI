@@ -89,14 +89,14 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
     layout = dali::TensorLayout(layout_str);
   }
   dali::TensorList<Backend> data;
-  const auto &type_info = dali::TypeTable::GetTypeInfo(static_cast<dali::DALIDataType>(data_type));
-  auto elem_sizeof = type_info.size();
+  auto type_id = static_cast<dali::DALIDataType>(data_type);
+  auto elem_sizeof = dali::TypeTable::GetTypeInfo(type_id).size();
   // We cast away the const from data_ptr, as there is no other way of passing it to the
   // TensorList, as we must also set the shape and type metadata.
   // It is passed further as const TensorList, so it's data cannot be modified.
   data.set_pinned(flags & DALI_ext_pinned);
   data.ShareData(const_cast<void *>(data_ptr), tl_shape.num_elements() * elem_sizeof);
-  data.Resize(tl_shape, type_info);
+  data.Resize(tl_shape, type_id);
   data.SetLayout(layout);
   pipeline->SetExternalInput(name, data, stream,
                              flags & DALI_ext_force_sync,
@@ -120,15 +120,15 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     layout = dali::TensorLayout(layout_str);
   }
   dali::TensorVector<Backend> data(curr_batch_size);
-  const auto &type_info = dali::TypeTable::GetTypeInfo(static_cast<dali::DALIDataType>(data_type));
-  auto elem_sizeof = type_info.size();
+  auto type_id = static_cast<dali::DALIDataType>(data_type);
+  auto elem_sizeof = dali::TypeTable::GetTypeInfo(type_id).size();
   for (int i = 0; i < curr_batch_size; i++) {
     // We cast away the const from data_ptr, as there is no other way of passing it to the
     // Tensor as we must also set the shape and type metadata.
     // The vector that we pass to pipeline is const.
     data[i].set_pinned(flags & DALI_ext_pinned);
     data[i].ShareData(const_cast<void *>(data_ptr[i]), tl_shape[i].num_elements() * elem_sizeof);
-    data[i].Resize(tl_shape[i], type_info);
+    data[i].Resize(tl_shape[i], type_id);
     data[i].SetLayout(layout);
   }
   pipeline->SetExternalInput(name, data, stream,
@@ -365,7 +365,7 @@ int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n) {
 template <typename T>
 static dali_data_type_t daliTypeAtHelper(dali::DeviceWorkspace* ws, int n) {
   const auto &out_tensor_list = ws->Output<T>(n);
-  auto type_id = out_tensor_list.type().id();
+  auto type_id = out_tensor_list.type();
   return static_cast<dali_data_type_t>(static_cast<int>(type_id));
 }
 

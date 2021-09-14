@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ void OneHotCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   int output_sample_dim = output.shape().sample_dim();
   int placement_axis = get_placement_axis(output_sample_dim);
   output.SetLayout(GetOutputLayout(ws, placement_axis, output_sample_dim));
-  TYPE_SWITCH(input.type().id(), type2id, InputType, ONE_HOT_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, InputType, ONE_HOT_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, ONE_HOT_TYPES, (
 
     auto in_tensor = view<const InputType, DynamicDimensions>(input);
@@ -97,7 +97,7 @@ void OneHotCPU::RunImpl(workspace_t<CPUBackend> &ws) {
     }
     tp.RunAll();
   ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(OneHot, OneHotCPU, CPU);

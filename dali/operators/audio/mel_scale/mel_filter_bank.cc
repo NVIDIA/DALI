@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -78,18 +78,18 @@ bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   args_.axis = layout.empty() ? std::max(0, ndim - 2) : layout.find('f');
   DALI_ENFORCE(args_.axis >= 0 && args_.axis < ndim,
     make_string("'f' axis not present in the layout. Got: `", layout, "`"));
-  TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
     using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T>;
     kmgr_.Initialize<MelFilterBankKernel>();
     kmgr_.Resize<MelFilterBankKernel>(nthreads, nsamples);
-    output_desc[0].type = TypeTable::GetTypeInfo(TypeTable::GetTypeID<T>());
+    output_desc[0].type = input.type();
     const auto in_view = view<const T>(input);
     output_desc[0].shape.resize(nsamples, in_view.sample_dim());
     for (int i = 0; i < nsamples; i++) {
       auto &req = kmgr_.Setup<MelFilterBankKernel>(i, ctx_, in_view[i], args_);
       output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
     }
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
   return true;
 }
 
@@ -100,7 +100,7 @@ void MelFilterBank<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   auto in_shape = input.shape();
   auto& thread_pool = ws.GetThreadPool();
 
-  TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
     using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T>;
     for (int i = 0; i < input.shape().num_samples(); i++) {
       thread_pool.AddWork(
@@ -110,7 +110,7 @@ void MelFilterBank<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
           kmgr_.Run<MelFilterBankKernel>(thread_id, i, ctx_, out_view, in_view);
         }, in_shape.tensor_size(i));
     }
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
 
   thread_pool.RunAll();
 }

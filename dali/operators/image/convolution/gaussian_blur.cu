@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -76,18 +76,18 @@ bool GaussianBlur<GPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
   const auto& input = ws.template InputRef<GPUBackend>(0);
   auto layout = input.GetLayout();
   auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
-  dtype_ = dtype_ != DALI_NO_TYPE ? dtype_ : input.type().id();
-  DALI_ENFORCE(dtype_ == input.type().id() || dtype_ == DALI_FLOAT,
+  dtype_ = dtype_ != DALI_NO_TYPE ? dtype_ : input.type();
+  DALI_ENFORCE(dtype_ == input.type() || dtype_ == DALI_FLOAT,
                "Output data type must be same as input, FLOAT or skipped (defaults to input type)");
 
   // clang-format off
-  TYPE_SWITCH(input.type().id(), type2id, In, GAUSSIAN_BLUR_GPU_SUPPORTED_TYPES, (
-      if (dtype_ == input.type().id()) {
+  TYPE_SWITCH(input.type(), type2id, In, GAUSSIAN_BLUR_GPU_SUPPORTED_TYPES, (
+      if (dtype_ == input.type()) {
         impl_ = GetGaussianBlurGpuImpl<In, In>(spec_, dim_desc);
       } else {
         impl_ = GetGaussianBlurGpuImpl<float, In>(spec_, dim_desc);
       }
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
   // clang-format on
 
   return impl_->SetupImpl(output_desc, ws);

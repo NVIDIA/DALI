@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -254,7 +254,7 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_CPU)(benchmark::State& st) {
 
   auto shape = uniform_list_shape(batch_size, {2});
   TensorList<CPUBackend> begin_data;
-  begin_data.set_type(TypeInfo::Create<float>());
+  begin_data.set_type<float>();
   begin_data.Resize(shape);
   float crop_x = 0.25f, crop_y = 0.124f;
   for (int k = 0; k < batch_size; k++) {
@@ -264,7 +264,7 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_CPU)(benchmark::State& st) {
 
   TensorList<CPUBackend> crop_data;
   float crop_w = 0.5f, crop_h = 0.25f;
-  crop_data.set_type(TypeInfo::Create<float>());
+  crop_data.set_type<float>();
   crop_data.Resize(shape);
   for (int k = 0; k < batch_size; k++) {
     crop_data.mutable_tensor<float>(k)[0] = crop_w;
@@ -339,7 +339,7 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_GPU)(benchmark::State& st) {
 
   auto shape = uniform_list_shape(batch_size, {2});
   TensorList<CPUBackend> begin_data;
-  begin_data.set_type(TypeInfo::Create<float>());
+  begin_data.set_type<float>();
   begin_data.Resize(shape);
   float crop_x = 0.25f, crop_y = 0.124f;
   for (int k = 0; k < batch_size; k++) {
@@ -349,7 +349,7 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_GPU)(benchmark::State& st) {
 
   TensorList<CPUBackend> crop_data;
   float crop_w = 0.5f, crop_h = 0.25f;
-  crop_data.set_type(TypeInfo::Create<float>());
+  crop_data.set_type<float>();
   crop_data.Resize(shape);
   for (int k = 0; k < batch_size; k++) {
     crop_data.mutable_tensor<float>(k)[0] = crop_w;

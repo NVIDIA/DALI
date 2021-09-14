@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,15 +31,15 @@ bool MelFilterBank<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   DALI_ENFORCE(args_.axis >= 0 && args_.axis < ndim,
     make_string("'f' axis not present in the layout. Got: `", layout, "`"));
   ctx_.gpu.stream = ws.stream();
-  TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
     using MelFilterBankKernel = kernels::audio::MelFilterBankGpu<T>;
     kmgr_.Initialize<MelFilterBankKernel>();
     kmgr_.Resize<MelFilterBankKernel>(1, 1);
-    output_desc[0].type = TypeTable::GetTypeInfo(TypeTable::GetTypeID<T>());
+    output_desc[0].type = type2id<T>::value;
     auto in_view = view<const T>(input);
     auto &req = kmgr_.Setup<MelFilterBankKernel>(0, ctx_, in_view, args_);
     output_desc[0].shape = req.output_shapes[0];
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
   return true;
 }
 
@@ -49,12 +49,12 @@ void MelFilterBank<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   auto &output = ws.OutputRef<GPUBackend>(0);
   const auto &in_shape = input.shape();
   ctx_.gpu.stream = ws.stream();
-  TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
     using MelFilterBankKernel = kernels::audio::MelFilterBankGpu<T>;
     auto in_view = view<const T>(input);
     auto out_view = view<T>(output);
     kmgr_.Run<MelFilterBankKernel>(0, 0, ctx_, out_view, in_view);
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(MelFilterBank, MelFilterBank<GPUBackend>, GPU);

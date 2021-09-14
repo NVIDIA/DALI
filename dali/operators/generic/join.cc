@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -68,9 +68,9 @@ bool TensorJoin<Backend, new_axis>::SetupImpl(
   auto &output_shape = outputs[0].shape;
 
   // Check that all inputs have the same type
-  DALIDataType out_type = outputs[0].type.id();
+  DALIDataType out_type = outputs[0].type;
   for (int i = 1; i < njoin; i++) {
-    DALIDataType type_id = ws.template InputRef<Backend>(i).type().id();
+    DALIDataType type_id = ws.template InputRef<Backend>(i).type();
     DALI_ENFORCE(type_id == out_type, make_string(
         "All inputs must have the same type.\nType of input #0: ", out_type,
         "\nType of input #", i, ": ", type_id));
@@ -186,7 +186,7 @@ void TensorJoin<Backend, new_axis>::RunImpl(workspace_t<Backend> &ws) {
   }
 
   out.SetLayout(output_layout_);
-  TYPE_SWITCH(auto type_id = out.type().id(), type2id, T, TENSOR_JOIN_TYPES, (
+  TYPE_SWITCH(auto type_id = out.type(), type2id, T, TENSOR_JOIN_TYPES, (
     RunTyped(view<T>(out), ws);
   ), (throw std::logic_error(make_string("Internal error: RunImpl encountered a type that "  // NOLINT
     "should have been rejected by Setup. Was Setup called?\nOffending type: ", type_id))

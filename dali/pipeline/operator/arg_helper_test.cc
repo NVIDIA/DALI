@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ template <int ndim>
 void SetupData(TensorVector<CPUBackend> &tv,
                TensorListShape<ndim> sh) {
   tv.set_pinned(false);
-  tv.Resize(sh, TypeTable::GetTypeInfo(DALI_FLOAT));
+  tv.Resize(sh, DALI_FLOAT);
   for (size_t i = 0; i < tv.size(); i++) {
     float *data = tv[i].mutable_data<float>();
     for (int j = 0; j < volume(sh[i]); j++) {

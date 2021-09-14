@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -222,11 +222,11 @@ bool Erase<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                   const workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto in_shape = input.shape();
-  TYPE_SWITCH(input.type().id(), type2id, T, ERASE_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, ERASE_SUPPORTED_TYPES, (
     VALUE_SWITCH(in_shape.sample_dim(), Dims, ERASE_SUPPORTED_NDIMS, (
       impl_ = std::make_unique<EraseImplCpu<T, Dims>>(spec_);
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
 
   assert(impl_ != nullptr);
   return impl_->SetupImpl(output_desc, ws);

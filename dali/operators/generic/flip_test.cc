@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ void FlipVerify(TensorListWrapper input, TensorListWrapper output, Arguments arg
   int _horizontal = args["horizontal"].GetValue<int>();
   int _vertical = args["vertical"].GetValue<int>();
   auto output_d = output.CopyTo<CPUBackend>();
-  auto item_size = output_d->type().size();
+  auto item_size = output_d->type_info().size();
   for (size_t i = 0; i < output_d->ntensor(); ++i) {
     auto size =
         output_d->tensor_shape(i)[0] * output_d->tensor_shape(i)[1] * output_d->tensor_shape(i)[2];
@@ -101,7 +101,7 @@ TEST_P(FlipTest, BasicTest) {
   TensorList<CPUBackend> tl;
   if (hwc) {
     tl.ShareData(nhwc_tensor_list_data.ptr(), 2 * data_size);
-    tl.set_type(TypeInfo::Create<float>());
+    tl.set_type<float>();
     tl.SetLayout("HWC");
     auto shape = TensorListShape<>{{
         {kDataHeight, kDataWidth, kDataChannels},
@@ -109,7 +109,7 @@ TEST_P(FlipTest, BasicTest) {
     tl.Resize(shape);
   } else {
     tl.ShareData(nchw_tensor_list_data.ptr(), 2 * data_size);
-    tl.set_type(TypeInfo::Create<float>());
+    tl.set_type<float>();
     tl.SetLayout("CHW");
     tl.Resize({{{kDataChannels, kDataHeight, kDataWidth},
               {kDataChannels, kDataHeight, kDataWidth}}});

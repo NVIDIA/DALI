@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -220,11 +220,11 @@ bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc
   FillFftArgs(fft_args_, power_, window_length_, nfft_, transform_dim);
 
   window_out_desc_.resize(1);
-  window_out_desc_[0].type = TypeInfo::Create<InputType>();
+  window_out_desc_[0].type = type2id<InputType>::value;
   window_out_desc_[0].shape.resize(nsamples, WindowsDims);
 
   out_desc.resize(1);
-  out_desc[0].type = TypeInfo::Create<OutputType>();
+  out_desc[0].type = type2id<OutputType>::value;
   out_desc[0].shape.resize(nsamples, WindowsDims);
 
   auto view_window_fn = make_tensor_cpu<1>(window_fn_.data(), window_length_);
@@ -268,7 +268,7 @@ void SpectrogramImplCpu<time_major>::RunImpl(workspace_t<CPUBackend> &ws) {
         kernels::KernelContext ctx;
 
         auto &win_out = window_out_[thread_id];
-        win_out.set_type(TypeInfo::Create<InputType>());
+        win_out.set_type<InputType>();
         win_out.Resize(window_out_desc_[0].shape.tensor_shape(i));
 
         auto view_signal_1d =

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,9 +43,9 @@ class CoordTransform : public Operator<Backend>, private MTTransformAttr {
     auto &input = ws.template InputRef<Backend>(0);  // get a reference to the input tensor list
     const auto &input_shape = input.shape();         // get a shape - use const-ref to avoid copying
     output_descs.resize(1);                          // only one output
-    output_descs[0].type = TypeTable::GetTypeInfo(dtype_);
+    output_descs[0].type = dtype_;
 
-    CheckType(input.type().id());
+    CheckType(input.type());
 
     PrepareTransformArguments(ws, input_shape);      // this is where the magic happens
     // Now we know the matrix size and therefore number of output vector components.
@@ -74,7 +74,7 @@ class CoordTransform : public Operator<Backend>, private MTTransformAttr {
     if (out.shape().num_elements() == 0)
       return;
 
-    DALIDataType in_type = in.type().id();
+    DALIDataType in_type = in.type();
     VALUE_SWITCH(output_pt_dim_, static_out_dim, COORD_TRANSFORM_DIMS, (
         VALUE_SWITCH(input_pt_dim_, static_in_dim, COORD_TRANSFORM_DIMS, (
             TYPE_SWITCH(in_type, type2id, InputType, COORD_TRANSFORM_INPUT_TYPES, (

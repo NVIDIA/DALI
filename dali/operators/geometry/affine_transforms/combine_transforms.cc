@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ DALI_SCHEMA(transforms__Combine)
 By default, the transforms are combined such that applying the resulting transform to a point is equivalent to
  applying the input transforms in the order as listed.
 
-Example: combining [T1, T2, T3] is equivalent to T3(T2(T1(...))) for default order and equivalent to T1(T2(T3(...))) 
+Example: combining [T1, T2, T3] is equivalent to T3(T2(T1(...))) for default order and equivalent to T1(T2(T3(...)))
  for reversed order.
 )code")
   .NumInput(2, 99)
@@ -79,7 +79,7 @@ class CombineTransformsCPU : public Operator<CPUBackend> {
     }
 
     output_descs.resize(1);  // only one output
-    output_descs[0].type = TypeTable::GetTypeInfo(dtype_);
+    output_descs[0].type = dtype_;
     output_descs[0].shape = uniform_list_shape(nsamples_, {ndim_, ndim_+1});
     return true;
   }

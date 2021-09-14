@@ -83,7 +83,7 @@ class WarpAffineParamProvider
 
   template <typename InputType>
   void CheckParamInput(const InputType &input) {
-    DALI_ENFORCE(input.type().id() == DALI_FLOAT);
+    DALI_ENFORCE(input.type() == DALI_FLOAT);
 
     decltype(auto) shape = input.shape();
 

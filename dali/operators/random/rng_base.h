@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ class RNGBase : public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const workspace_t<Backend> &ws) override {
     if (IsNoiseGen)
-      dtype_ = ws.template InputRef<Backend>(0).type().id();
+      dtype_ = ws.template InputRef<Backend>(0).type();
     else if (!spec_.TryGetArgument(dtype_, "dtype"))
       dtype_ = This().DefaultDataType();
 
@@ -85,7 +85,7 @@ class RNGBase : public Operator<Backend> {
 
     output_desc.resize(1);
     output_desc[0].shape = shape_;
-    output_desc[0].type = TypeTable::GetTypeInfo(dtype_);
+    output_desc[0].type = dtype_;
     return true;
   }
 

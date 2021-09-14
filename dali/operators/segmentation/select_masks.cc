@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,16 +23,16 @@ namespace dali {
 DALI_SCHEMA(segmentation__SelectMasks)
     .DocStr(R"(Selects a subset of polygons by their mask ids.
 
-The operator expects three inputs describing multiple segmentation mask polygons belonging to different mask ids and 
+The operator expects three inputs describing multiple segmentation mask polygons belonging to different mask ids and
 a list of selected mask ids.
 
-Each sample can contain several polygons belonging to different masks, and each polygon can be composed by an arbitrary 
-number of vertices (at least 3). The masks polygons are described  by the inputs ``polygons`` and ``vertices`` and 
-the operator produces output ``polygons`` and ``vertices`` where only the polygons associated with the selected 
+Each sample can contain several polygons belonging to different masks, and each polygon can be composed by an arbitrary
+number of vertices (at least 3). The masks polygons are described  by the inputs ``polygons`` and ``vertices`` and
+the operator produces output ``polygons`` and ``vertices`` where only the polygons associated with the selected
 masks are present.
 
 .. note::
-  
+
   The format of ``polygons`` and ``vertices`` is the same as produced by COCOReader.
 
 **Examples:**
@@ -89,12 +89,12 @@ bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
                               const workspace_t<CPUBackend> &ws) {
   const auto &in_mask_ids = ws.template InputRef<CPUBackend>(0);
   auto in_mask_ids_shape = in_mask_ids.shape();
-  DALI_ENFORCE(in_mask_ids.type().id() == DALI_INT32, "``mask_ids`` input is expected to be int32");
+  DALI_ENFORCE(in_mask_ids.type() == DALI_INT32, "``mask_ids`` input is expected to be int32");
   DALI_ENFORCE(in_mask_ids_shape.sample_dim() == 1, "``mask_ids`` input is expected to be 1D");
 
   const auto &in_polygons = ws.template InputRef<CPUBackend>(1);
   auto in_polygons_shape = in_polygons.shape();
-  DALI_ENFORCE(in_polygons.type().id() == DALI_INT32,
+  DALI_ENFORCE(in_polygons.type() == DALI_INT32,
                "``polygons`` input is expected to be int32");
   DALI_ENFORCE(in_polygons_shape.sample_dim() == 2,
                make_string("``polygons`` input is expected to be 2D. Got ",
@@ -232,12 +232,12 @@ void SelectMasksCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
 
 void SelectMasksCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &in_vertices = ws.template InputRef<CPUBackend>(2);
-  VALUE_SWITCH(in_vertices.type().size(), dtype_sz, (1, 2, 4, 8, 16), (
+  VALUE_SWITCH(in_vertices.type_info().size(), dtype_sz, (1, 2, 4, 8, 16), (
     using T = kernels::type_of_size<dtype_sz>;
     RunImplTyped<T>(ws);
   ), (  // NOLINT
-    DALI_FAIL(make_string("Unexpected vertex data type: ", in_vertices.type().id()));
-  ));  // NOLINT 
+    DALI_FAIL(make_string("Unexpected vertex data type: ", in_vertices.type()));
+  ));  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(segmentation__SelectMasks, SelectMasksCPU, CPU);

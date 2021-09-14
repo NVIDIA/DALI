@@ -87,7 +87,7 @@ bool ExpandDims<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const 
   GenerateSrcDims(ws);
   this->CalculateOutputShape(ws);
 
-  output_desc[0].type = *(this->output_type_);
+  output_desc[0].type = this->output_type_->id();
   output_desc[0].shape = this->output_shape_;
   // return false, because we don't want the executor to allocate anything
   // - this operator returns pointer to input memory
