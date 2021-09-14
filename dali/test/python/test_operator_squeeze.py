@@ -81,5 +81,5 @@ def test_squeeze_throw_error():
         "Specified at least twice same dimension to remove."
     ]
     assert len(expected_errors) == len(args_list)
-    for args, error_msg in zip(args_list, expected_errors):
-        yield raises(RuntimeError, error_msg)(_test_squeeze_throw_error), *args
+    for (axes, axis_names, layout, shapes), error_msg in zip(args_list, expected_errors):
+        yield raises(RuntimeError, error_msg)(_test_squeeze_throw_error), axes, axis_names, layout, shapes
