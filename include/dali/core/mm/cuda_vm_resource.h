@@ -62,7 +62,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
   void *try_allocate_from_free(size_t size, size_t alignment) {
     if (size == 0)
       return nullptr;
-    adjust_params(size, alignment);
+    adjust_params(size, alignment, true);
     lock_guard pool_guard(pool_lock_);
     // try to get a free region that's already mapped
     void *ptr = try_get_mapped(size, alignment);
@@ -188,7 +188,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
       return nullptr;
     if (size > total_mem_)
       throw CUDABadAlloc(size);  // this can't succeed - no need to even try
-    adjust_params(size, alignment);
+    adjust_params(size, alignment, true);
     std::unique_lock<pool_lock_t> pool_guard(pool_lock_);
     // try to get a free region that's already mapped
     void *ptr = try_get_mapped(size, alignment);
@@ -402,10 +402,13 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
   size_t total_mem_ = 0;
   int device_ordinal_ = -1;
 
-  void adjust_params(size_t &size, size_t &alignment) {
+  void adjust_params(size_t &size, size_t &alignment, bool check) {
     alignment = std::max(alignment, next_pow2(size >> 11));
     alignment = std::min(alignment, block_size_);
-    size = align_up(size, alignment);
+    size_t aligned = align_up(size, alignment);
+    if (check && aligned < size)
+      throw std::bad_alloc();
+    size = aligned;
   }
 
   void *try_get_mapped(size_t size, size_t alignment) {
@@ -542,7 +545,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
   void deallocate_impl(void *ptr, size_t size, size_t alignment, bool sync, bool lock) {
     if (size == 0)
       return;
-    adjust_params(size, alignment);
+    adjust_params(size, alignment, false);
     if (sync) {
       DeviceGuard dg(device_ordinal_);
       CUDA_CALL(cudaDeviceSynchronize());

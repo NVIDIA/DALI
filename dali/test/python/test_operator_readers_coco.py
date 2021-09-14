@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from time import clock_settime
 from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 from test_utils import compare_pipelines, get_dali_extra_path
@@ -24,19 +25,25 @@ test_data_root = get_dali_extra_path()
 file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
 train_annotations = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
 
+class sample_desc():
+    def __init__(self, id, cls, mapped_cls):
+        self.id = id
+        self.cls = cls
+        self.mapped_cls = mapped_cls
+
 test_data = {
-    'car-race-438467_1280.jpg' : 17,
-    'clock-1274699_1280.jpg' : 6,
-    'kite-1159538_1280.jpg' : 21,
-    'cow-234835_1280.jpg' : 59,
-    'home-office-336378_1280.jpg' : 39,
-    'suit-2619784_1280.jpg' : 0,
-    'business-suit-690048_1280.jpg' : 5,
-    'car-604019_1280.jpg' : 41
+    'car-race-438467_1280.jpg' : sample_desc(17, 5, 6),
+    'clock-1274699_1280.jpg' : sample_desc(6, 7, 8),
+    'kite-1159538_1280.jpg' : sample_desc(21, 12, 13),
+    'cow-234835_1280.jpg' : sample_desc(59, 8, 9),
+    'home-office-336378_1280.jpg' : sample_desc(39, 13, 14),
+    'suit-2619784_1280.jpg' : sample_desc(0, 16, 17),
+    'business-suit-690048_1280.jpg' : sample_desc(5, 16, 17),
+    'car-604019_1280.jpg' : sample_desc(41, 5, 6)
 }
 
 images = list(test_data.keys())
-expected_ids = list(test_data.values())
+expected_ids = list(s.id for s  in test_data.values())
 
 
 def check_operator_coco_reader_custom_order(order=None, add_invalid_paths=False):
@@ -44,7 +51,7 @@ def check_operator_coco_reader_custom_order(order=None, add_invalid_paths=False)
     if not order:
         order = range(len(test_data))
     keys = list(test_data.keys())
-    values = list(test_data.values())
+    values = list(s.id for s  in test_data.values())
     images = [keys[i] for i in order]
     images_arg = images.copy()
     if add_invalid_paths:
@@ -53,7 +60,7 @@ def check_operator_coco_reader_custom_order(order=None, add_invalid_paths=False)
     with tempfile.TemporaryDirectory() as annotations_dir:
         pipeline = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
         with pipeline:
-            inputs, _, _, ids = fn.readers.coco(
+            _, _, _, ids = fn.readers.coco(
                 file_root=file_root,
                 annotations_file=train_annotations,
                 image_ids=True,
@@ -87,6 +94,34 @@ def test_operator_coco_reader_custom_order():
         yield check_operator_coco_reader_custom_order, order, False
     yield check_operator_coco_reader_custom_order, None, True  # Natural order plus an invalid path
 
+def check_operator_coco_reader_label_remap(avoid_remap):
+    batch_size = 2
+    images = list(test_data.keys())
+    ids_map = {s.id: s.cls if avoid_remap else s.mapped_cls for s in test_data.values()}
+
+    pipeline = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    with pipeline:
+        _, _, labels, ids = fn.readers.coco(
+            file_root=file_root,
+            annotations_file=train_annotations,
+            image_ids=True,
+            images=images,
+            avoid_class_remapping=avoid_remap)
+        pipeline.set_outputs(ids, labels)
+    pipeline.build()
+
+    i = 0
+    assert len(images) % batch_size == 0
+    while i < len(images):
+        out = pipeline.run()
+        for s in range(batch_size):
+            print(out[0].at(s), out[1].at(s))
+            assert ids_map[int(out[0].at(s))] == int(out[1].at(s)), f"{i}, {ids_map[int(out[0].at(s))]} vs {out[1].at(s)}"
+            i = i + 1
+
+def test_operator_coco_reader_label_remap():
+    for avoid_remap in [True, False]:
+        yield check_operator_coco_reader_label_remap, avoid_remap
 
 def test_operator_coco_reader_same_images():
     file_root = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'images')
@@ -97,25 +132,25 @@ def test_operator_coco_reader_same_images():
     coco_pixelwise_dir = os.path.join(test_data_root, 'db', 'coco_pixelwise')
     coco_pixelwise_dir_imgs = os.path.join(coco_pixelwise_dir, 'images')
 
-    for file_root, annotations_file in [ \
+    for file_root, _ in [ \
         (coco_dir_imgs, os.path.join(coco_dir, 'instances.json')),
         (coco_pixelwise_dir_imgs, os.path.join(coco_pixelwise_dir, 'instances.json')),
         (coco_pixelwise_dir_imgs, os.path.join(coco_pixelwise_dir, 'instances_rle_counts.json'))]:
         pipe = Pipeline(batch_size=1, num_threads=4, device_id=0)
         with pipe:
-            inputs1, boxes1, labels1, *other = fn.readers.coco(
+            inputs1, boxes1, labels1, *_ = fn.readers.coco(
                 file_root=file_root,
                 annotations_file=train_annotations,
                 name="reader1",
                 seed=1234
             )
-            inputs2, boxes2, labels2, *other = fn.readers.coco(
+            inputs2, boxes2, labels2, *_ = fn.readers.coco(
                 file_root=file_root,
                 annotations_file=train_annotations,
                 polygon_masks=True,
                 name="reader2"
             )
-            inputs3, boxes3, labels3, *other = fn.readers.coco(
+            inputs3, boxes3, labels3, *_ = fn.readers.coco(
                 file_root=file_root,
                 annotations_file=train_annotations,
                 pixelwise_masks=True,
@@ -132,7 +167,7 @@ def test_operator_coco_reader_same_images():
         assert epoch_sz == pipe.epoch_size("reader2")
         assert epoch_sz == pipe.epoch_size("reader3")
 
-        for i in range(epoch_sz):
+        for _ in range(epoch_sz):
             inputs1, boxes1, labels1, inputs2, boxes2, labels2, inputs3, boxes3, labels3 = \
                 pipe.run()
             np.testing.assert_array_equal(inputs1.at(0), inputs2.at(0))
@@ -148,7 +183,7 @@ def test_operator_coco_reader_same_images():
 def test_invalid_args():
     pipeline = Pipeline(batch_size=2, num_threads=4, device_id=0)
     with pipeline:
-        inputs, _, _, ids = fn.readers.coco(
+        _, _, _, ids = fn.readers.coco(
             file_root=file_root,
             annotations_file=train_annotations,
             image_ids=True,
@@ -162,14 +197,18 @@ batch_size_alias_test=64
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def coco_pipe(coco_op, file_root, annotations_file, polygon_masks, pixelwise_masks):
-    inputs, boxes, labels, *other = coco_op(file_root=file_root, annotations_file=annotations_file,
+    inputs, boxes, labels, *_ = coco_op(file_root=file_root, annotations_file=annotations_file,
             polygon_masks=polygon_masks, pixelwise_masks=pixelwise_masks)
     return inputs, boxes, labels
 
 def test_coco_reader_alias():
-    file_root = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'images')
-    train_annotations = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'instances.json')
-    for polygon_masks, pixelwise_masks in [(None, None), (True, None), (None, True)]:
+    def check_coco_reader_alias(polygon_masks, pixelwise_masks):
         new_pipe = coco_pipe(fn.readers.coco, file_root, train_annotations, polygon_masks, pixelwise_masks)
         legacy_pipe = coco_pipe(fn.coco_reader, file_root, train_annotations, polygon_masks, pixelwise_masks)
         compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 5)
+
+    file_root = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'images')
+    train_annotations = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'instances.json')
+
+    for polygon_masks, pixelwise_masks in [(None, None), (True, None), (None, True)]:
+        yield check_coco_reader_alias, polygon_masks, pixelwise_masks

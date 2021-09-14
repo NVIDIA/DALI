@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <utility>
 #include "dali/core/tensor_view.h"
 #include "dali/core/backend_tags.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 namespace kernels {
@@ -51,10 +52,10 @@ class TestTensorList {
     TensorListView<StorageCPU, T, out_dim> ret;
     if (!cpumem_) {
       auto size = shape_.num_elements() * sizeof(T);
-      char *ptr = new char[size];
-      cpumem_ = { ptr, CPUDeleter };
+      cpumem_ = mm::alloc_raw_unique<char, mm::memory_kind::host>(size, 256);
       if (gpumem_)
-        CUDA_CALL(cudaMemcpyAsync(ptr, gpumem_.get(), size, cudaMemcpyDeviceToHost, stream));
+        CUDA_CALL(cudaMemcpyAsync(cpumem_.get(), gpumem_.get(), size,
+                                  cudaMemcpyDeviceToHost, stream));
     }
     auto out_shape = convert_dim<out_dim>(shape_);
     return { reinterpret_cast<T*>(cpumem_.get()), std::move(out_shape) };
@@ -65,11 +66,10 @@ class TestTensorList {
     TensorListView<StorageGPU, T, out_dim> ret;
     if (!gpumem_) {
       auto size = shape_.num_elements() * sizeof(T);
-      char *ptr = nullptr;
-      CUDA_CALL(cudaMalloc(reinterpret_cast<void**>(&ptr), size));
-      gpumem_ = { ptr, GPUDeleter };
+      gpumem_ = mm::alloc_raw_unique<char, mm::memory_kind::device>(size, 256);
       if (cpumem_)
-        CUDA_CALL(cudaMemcpyAsync(ptr, cpumem_.get(), size, cudaMemcpyHostToDevice, stream));
+        CUDA_CALL(cudaMemcpyAsync(gpumem_.get(), cpumem_.get(), size,
+                                  cudaMemcpyHostToDevice, stream));
     }
     auto out_shape = convert_dim<out_dim>(shape_);
     return { reinterpret_cast<T*>(gpumem_.get()), std::move(out_shape) };
@@ -93,18 +93,7 @@ class TestTensorList {
   }
 
  private:
-  using Deleter = void(*)(char *);
-  static void CPUDeleter(char *mem) {
-    delete [] mem;
-  }
-  static void PinnedDeleter(char *mem) {
-    CUDA_CALL(cudaFreeHost(mem));
-  }
-  static void GPUDeleter(char *mem) {
-    CUDA_CALL(cudaFree(mem));
-  }
-
-  std::unique_ptr<char, Deleter> cpumem_{nullptr, CPUDeleter}, gpumem_{nullptr, GPUDeleter};
+  mm::uptr<char> cpumem_, gpumem_;
   TensorListShape<dim> shape_;
 };
 

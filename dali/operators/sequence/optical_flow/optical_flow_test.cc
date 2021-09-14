@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,9 +31,11 @@ std::unique_ptr<TensorList<CPUBackend>> ToTensorList(const std::vector<cv::Mat> 
   std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
   auto img = images[0];
   tl->Resize(uniform_list_shape(images.size(), {img.rows, img.cols, img.channels()}));
-  auto tl_ptr = tl->template mutable_data<std::remove_pointer<decltype(img.data)>::type>();
-  for (const auto &image : images) {
-    auto img_ptr = image.data;
+  for (size_t sample_idx = 0; sample_idx < images.size(); sample_idx++) {
+    auto *tl_ptr =
+        tl->template mutable_tensor<std::remove_pointer_t<decltype(img.data)>>(sample_idx);
+    auto &image = images[sample_idx];
+    auto *img_ptr = image.data;
     for (decltype(image.rows) i = 0; i < image.rows * image.cols * image.channels(); i++) {
       *tl_ptr++ = img_ptr[i];
     }
@@ -56,7 +58,9 @@ TEST(OpticalFlowUtilsTest, ImageToTensorListCpu) {
   cv::Mat img = cv::imread(kImage);
   auto tl = ToTensorList({img});
   auto img_ptr = img.data;
-  auto tl_ptr = tl->template data<uint8_t>();
+  // Just one sample
+  ASSERT_EQ(tl->ntensor(), 1u);
+  const auto *tl_ptr = tl->template tensor<uint8_t>(0);
   ASSERT_EQ(img.rows * img.cols * img.channels(), tl->size()) << "Sizes don't match";
   for (int i = 0; i < img.cols * img.rows * img.channels(); i++) {
     ASSERT_EQ(img_ptr[i], tl_ptr[i]) << "Test failed at i=" << i;
@@ -70,20 +74,6 @@ class OpticalFlowTest : public DaliOperatorTest {
     return graph;
   }
 };
-
-
-void verify(const TensorListWrapper &input,
-            const TensorListWrapper &output,
-            const Arguments &args) {
-  auto input_tl = input.CopyTo<CPUBackend>();
-  auto output_tl = output.CopyTo<CPUBackend>();
-  const uint8_t *input_data;
-  const float *output_data;
-  utils::pointer_to_data(*input_tl, input_data);
-  utils::pointer_to_data(*output_tl, output_data);
-  EXPECT_FLOAT_EQ(666.f, output_data[0]);
-  EXPECT_FLOAT_EQ(333.f, output_data[1]);
-}
 
 // XXX: There's no way right now to test the OpticalFlow operator,
 //      since there's no support for external input for GPU.

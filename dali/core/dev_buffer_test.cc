@@ -104,8 +104,10 @@ TEST(DeviceBuffer, FromDevice) {
 
 TEST(DeviceBufferFail, Resize) {
   DeviceBuffer<int> db;
-  size_t size = -1_uz;
-  EXPECT_THROW(db.resize(size), CUDABadAlloc);
+  size_t size = -1_uz;  // this should overflow when aligning
+  EXPECT_THROW(db.resize(size), std::bad_alloc);
+  size >>= 1;  // this should just be OOM
+  EXPECT_THROW(db.resize(size), std::bad_alloc);
 }
 
 }  // namespace dali

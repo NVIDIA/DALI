@@ -6,13 +6,16 @@ namespace other_ns {
 template<>
 void Dummy<::dali::GPUBackend>::RunImpl(::dali::DeviceWorkspace &ws) {
   const auto &input = ws.Input<::dali::GPUBackend>(0);
+  const auto &shape = input.shape();
   auto &output = ws.Output<::dali::GPUBackend>(0);
-  CUDA_CALL(cudaMemcpyAsync(
-          output.raw_mutable_data(),
-          input.raw_data(),
-          input.nbytes(),
-          cudaMemcpyDeviceToDevice,
-          ws.stream()));
+  for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
+    CUDA_CALL(cudaMemcpyAsync(
+            output.raw_mutable_tensor(sample_idx),
+            input.raw_tensor(sample_idx),
+            shape[sample_idx].num_elements() * input.type().size(),
+            cudaMemcpyDeviceToDevice,
+            ws.stream()));
+  }
 }
 
 }  // namespace other_ns
