@@ -119,14 +119,21 @@ class WarpAffineParamProvider
   void UseInputAsParams(const TensorList<CPUBackend> &input, bool invert) {
     CheckParamInput(input);
 
-    if (invert) {
-      auto *params = this->template AllocParams<mm::memory_kind::host>();
-      for (int i = 0; i < num_samples_; i++) {
-        params[i] = static_cast<const MappingParams *>(input.raw_tensor(i))->inv();
-      }
-    } else {
+    if (input.IsContiguous() && !invert) {
+      // TODO(klecki): tag access to contiguous data
       params_cpu_.data = static_cast<const MappingParams *>(input.raw_data());
       params_cpu_.shape = { num_samples_ };
+      return;
+    }
+
+
+    auto *params = this->template AllocParams<mm::memory_kind::host>();
+    for (int i = 0; i < num_samples_; i++) {
+      if (invert) {
+      params[i] = static_cast<const MappingParams *>(input.raw_tensor(i))->inv();
+      } else {
+        params[i] = *static_cast<const MappingParams *>(input.raw_tensor(i));
+      }
     }
   }
 
@@ -146,6 +153,7 @@ class WarpAffineParamProvider
           params[i] = *static_cast<const MappingParams *>(input[i].raw_data());
       }
     } else {
+      // TODO(klecki): tag access to contiguous data
       params_cpu_.data = static_cast<const MappingParams *>(input[0].raw_data());
       params_cpu_.shape = { num_samples_ };
     }
@@ -154,19 +162,31 @@ class WarpAffineParamProvider
   void UseInputAsParams(const TensorList<GPUBackend> &input, bool invert) {
     CheckParamInput(input);
 
-    auto *input_mappings = static_cast<const MappingParams *>(input.raw_data());
+    if (input.IsContiguous() && !invert) {
+      // TODO(klecki): tag access to contiguous data
+      params_gpu_.data = static_cast<const MappingParams *>(input.raw_data());
+      params_gpu_.shape = { num_samples_ };
+      return;
+    }
+
+    std::vector<const MappingParams *> input_mappings;
+    input_mappings.resize(num_samples_);
+    for (int i = 0; i < num_samples_; i++) {
+      input_mappings[i] = static_cast<const MappingParams *>(input.raw_tensor(i));
+    }
+    input_mappings_dev_.from_host(input_mappings, this->GetStream());
     auto *output = this->template AllocParams<mm::memory_kind::device>();
     if (invert) {
-      CopyTransformsGPU<spatial_ndim, true>(output, input_mappings, num_samples_, this->GetStream());
+      CopyTransformsGPU<spatial_ndim, true>(output, input_mappings_dev_.data(), num_samples_,
+                                            this->GetStream());
     } else {
-      CopyTransformsGPU<spatial_ndim, true>(output, input_mappings, num_samples_, this->GetStream());
-
+      CopyTransformsGPU<spatial_ndim, false>(output, input_mappings_dev_.data(), num_samples_,
+                                             this->GetStream());
     }
-    // {
-    //   params_gpu_.data = input_mappings;
-    //   params_gpu_.shape = { num_samples_ };
-    // }
   }
+
+ private:
+  DeviceBuffer<const MappingParams *> input_mappings_dev_;
 };
 
 }  // namespace dali

@@ -340,7 +340,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   /**
    * @brief TensorList is always backed by contiguous buffer
    */
-  bool IsContiguous() {
+  bool IsContiguous() const {
     return true;
   }
 
