@@ -103,7 +103,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
   }
 
   void *do_allocate(size_t bytes, size_t alignment) override {
-    adjust_size_and_alignment(bytes, alignment);
+    adjust_size_and_alignment(bytes, alignment, true);
     std::lock_guard<LockType> guard(lock_);
     return allocate_from_global_pool(bytes, alignment);
   }
@@ -111,7 +111,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
   void do_deallocate(void *mem, size_t bytes, size_t alignment) override {
     if (!mem || !bytes)
       return;
-    adjust_size_and_alignment(bytes, alignment);
+    adjust_size_and_alignment(bytes, alignment, false);
     bool deferred = global_pool_.deferred_dealloc_enabled();
     // If not deferred, we need to synchronize here (outside of the lock, to avoid blocking
     // concurrent allocations).
@@ -142,7 +142,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
   void *do_allocate_async(size_t bytes, size_t alignment, stream_view stream) override {
     if (!bytes)
       return nullptr;
-    adjust_size_and_alignment(bytes, alignment);
+    adjust_size_and_alignment(bytes, alignment, true);
     std::lock_guard<LockType> guard(lock_);
     auto it = stream_free_.find(stream.get());
     void *ptr;
@@ -190,7 +190,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
   void do_deallocate_async(void *mem, size_t bytes, size_t alignment, stream_view stream) override {
     if (!mem || !bytes)
       return;
-    adjust_size_and_alignment(bytes, alignment);
+    adjust_size_and_alignment(bytes, alignment, false);
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char*>(mem);
     pop_block_padding(ptr, bytes, alignment);
@@ -206,7 +206,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
    * to a next multiple of the (new) alignment, reducing the need for block splitting in case
    * of multiple allocations of similarly-sized blocks.
    */
-  static void adjust_size_and_alignment(size_t &size, size_t &alignment) {
+  static void adjust_size_and_alignment(size_t &size, size_t &alignment, bool check) {
     if (size == 0)
       return;
     int log2size = ilog2(size);
@@ -215,7 +215,10 @@ class async_pool_resource : public async_memory_resource<Kind> {
       min_align = 256;
     if (min_align > alignment)
       alignment = min_align;
-    size = align_up(size, alignment);
+    size_t aligned = align_up(size, alignment);
+    if (check && aligned < size)
+      throw std::bad_alloc();
+    size = aligned;
   }
 
   /// @brief Information about a pending `free` operation
