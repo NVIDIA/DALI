@@ -181,7 +181,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     return params_gpu_;
   }
 
-  /** @brief Gets the mapping parameters in GPU memory
+  /** @brief Gets the mapping parameters in CPU memory
    *
    *  If CPU tensor is empty, but GPU is not, a copy is scheduled
    *  on the stream associated with current workspace and the calling thread

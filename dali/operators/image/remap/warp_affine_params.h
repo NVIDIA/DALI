@@ -28,9 +28,9 @@ namespace dali {
 template <int spatial_ndim>
 using WarpAffineParams = kernels::warp::mapping_params_t<kernels::AffineMapping<spatial_ndim>>;
 
-template <int ndims>
-void InvertTransformsGPU(WarpAffineParams<ndims> *output, const WarpAffineParams<ndims> *input,
-                         int count, cudaStream_t stream);
+template <int ndims, bool invert>
+void CopyTransformsGPU(WarpAffineParams<ndims> *output, const WarpAffineParams<ndims> **input,
+                       int count, cudaStream_t stream);
 
 
 template <typename Backend,
@@ -154,14 +154,18 @@ class WarpAffineParamProvider
   void UseInputAsParams(const TensorList<GPUBackend> &input, bool invert) {
     CheckParamInput(input);
 
-    auto input_mappings = static_cast<const MappingParams *>(input.raw_data());
+    auto *input_mappings = static_cast<const MappingParams *>(input.raw_data());
+    auto *output = this->template AllocParams<mm::memory_kind::device>();
     if (invert) {
-      auto output = this->template AllocParams<mm::memory_kind::device>();
-      InvertTransformsGPU<spatial_ndim>(output, input_mappings, num_samples_, this->GetStream());
+      CopyTransformsGPU<spatial_ndim, true>(output, input_mappings, num_samples_, this->GetStream());
     } else {
-      params_gpu_.data = input_mappings;
-      params_gpu_.shape = { num_samples_ };
+      CopyTransformsGPU<spatial_ndim, true>(output, input_mappings, num_samples_, this->GetStream());
+
     }
+    // {
+    //   params_gpu_.data = input_mappings;
+    //   params_gpu_.shape = { num_samples_ };
+    // }
   }
 };
 
