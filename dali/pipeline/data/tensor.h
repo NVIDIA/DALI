@@ -215,7 +215,7 @@ class Tensor : public Buffer<Backend> {
     // Get the meta-data for the target tensor
     shape_ = tl->tensor_shape(idx);
     size_ = volume(shape_);
-    type_ = tl->type();
+    type_ = tl->type_info();
     num_bytes_ = type_.size() * size_;
     shares_data_ = true;
     device_ = tl->device_id();
@@ -358,7 +358,7 @@ class Tensor : public Buffer<Backend> {
     // Get the meta-data for the target tensor
     shape_ = new_shape;
     size_ = volume(shape_);
-    type_ = tl->type();
+    type_ = tl->type_info();
     num_bytes_ = type_.size() * size_;
     device_ = tl->device_id();
     shares_data_ = true;
@@ -385,7 +385,7 @@ class Tensor : public Buffer<Backend> {
     // Get the meta-data for the target tensor
     shape_ = shape_cat(tl->ntensor(), tl->tensor_shape(0));
     size_ = volume(shape_);
-    type_ = tl->type();
+    type_ = tl->type_info();
     num_bytes_ = type_.size() * size_;
     device_ = tl->device_id();
     shares_data_ = true;

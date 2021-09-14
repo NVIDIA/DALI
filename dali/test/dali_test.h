@@ -182,7 +182,7 @@ class DALITest : public ::testing::Test {
       shape.set_tensor_shape(i, {data_sizes[i % nImgs]});
     }
 
-    tl->set_type(TypeTable::GetTypeInfoFromStatic<uint8_t>());
+    tl->set_type<uint8_t>();
     tl->Resize(shape);
 
     for (int i = 0; i < n; ++i) {

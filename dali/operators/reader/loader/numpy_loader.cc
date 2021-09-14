@@ -259,7 +259,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     if (target.data.shares_data()) {
       target.data.Reset();
     }
-    target.data.Resize(parse_target.shape, parse_target.type_info);
+    target.data.Resize(parse_target.shape, parse_target.type());
     // copy the image
     Index ret = current_file->Read(static_cast<uint8_t*>(target.data.raw_mutable_data()),
                                     nbytes);
@@ -269,7 +269,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", filename));
     // Wrap the raw data in the Tensor object.
     target.data.ShareData(p, nbytes, {nbytes});
-    target.data.Resize(parse_target.shape, parse_target.type_info);
+    target.data.Resize(parse_target.shape, parse_target.type());
   }
 
   // close the file handle

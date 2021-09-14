@@ -67,7 +67,7 @@ TYPED_TEST(TensorVectorSuite, PinnedAfterResizeThrows) {
   TensorVector<TypeParam> tv;
   tv.reserve(100);
   tv.Resize({{2, 4}, {4, 2}});
-  tv.set_type<int32_t>();
+  tv.template set_type<int32_t>();
   ASSERT_EQ(tv.size(), 2);
   EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
@@ -84,7 +84,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeContiguous) {
   tv.set_pinned(false);
   tv.reserve(100);
   tv.Resize({{2, 4}, {4, 2}});
-  tv.set_type<int32_t>();
+  tv.template set_type<int32_t>();
   ASSERT_EQ(tv.size(), 2);
   EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
@@ -101,7 +101,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeNoncontiguous) {
   tv.set_pinned(false);
   tv.reserve(50, 2);
   tv.Resize({{2, 4}, {4, 2}});
-  tv.set_type<int32_t>();
+  tv.template set_type<int32_t>();
   ASSERT_EQ(tv.size(), 2);
   EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
@@ -119,7 +119,7 @@ TYPED_TEST(TensorVectorSuite, BatchResize) {
   tv.reserve(100);
   tv.reserve(200);
   tv.Resize(uniform_list_shape(5, {10, 20}));
-  tv.set_type<int32_t>();
+  tv.template set_type<int32_t>();
   for (auto &t : tv) {
     EXPECT_TRUE(t->shares_data());
   }

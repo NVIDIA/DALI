@@ -794,7 +794,7 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
     auto type_info = dali::TypeTable::GetTypeInfo(type);
     int64_t out_size = daliNumElements(&handle, out_idx);
     Tensor<TypeParam> output1;
-    output1.Resize({out_size}, type_info);
+    output1.Resize({out_size}, type_info.id());
     daliOutputCopy(&handle, output1.raw_mutable_data(), out_idx,
                    backend_to_device_type<TypeParam>::value, 0, DALI_ext_default);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
@@ -805,7 +805,7 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
       Tensor<TypeParam> output2;
       Tensor<CPUBackend> output2_cpu;
       output2.set_pinned(std::is_same<TypeParam, CPUBackend>::value);
-      output2.Resize({out_size}, type_info);
+      output2.Resize({out_size}, type_info.id());
       // Making sure data is cleared
       // Somehow in debug mode it can get the same raw pointer which happen to have
       // the right data in the second iteration
@@ -837,7 +837,7 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
       Tensor<TypeParam> output2;
       Tensor<CPUBackend> output2_cpu;
       output2.set_pinned(std::is_same<TypeParam, CPUBackend>::value);
-      output2.Resize({out_size}, type_info);
+      output2.Resize({out_size}, type_info.id());
       // Making sure data is cleared
       // Somehow in debug mode it can get the same raw pointer which happen to have
       // the right data in the second iteration

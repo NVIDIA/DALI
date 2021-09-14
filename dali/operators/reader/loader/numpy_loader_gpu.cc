@@ -99,7 +99,7 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
       header_cache_.UpdateCache(filename, parse_target);
     }
 
-    target.type = parse_target.type_info;
+    target.type = parse_target.type();
     target.shape = parse_target.shape;
     target.fortran_order = parse_target.fortran_order;
   };

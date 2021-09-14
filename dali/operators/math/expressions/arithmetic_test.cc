@@ -399,7 +399,7 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
   DeviceWorkspace ws;
   pipe.Outputs(&ws);
   ASSERT_EQ(ws.OutputRef<CPUBackend>(0).type(), DALI_FLOAT);
-  ASSERT_EQ(ws.OutputRef<GPUBackend>(1).type(), FALI_FLOAT);
+  ASSERT_EQ(ws.OutputRef<GPUBackend>(1).type(), DALI_FLOAT);
 
   vector<float> result1_cpu(tensor_elements);
 

@@ -57,8 +57,8 @@ class VideoReaderResize : public VideoReader,
     auto *raw_output = batch_output.raw_mutable_tensor(data_idx);
     TensorShape<> seq_shape = batch_output.shape()[data_idx];
     TensorListShape<> shape = uniform_list_shape(1, seq_shape);
-    const auto &type = batch_output.type();
-    single_output.ShareData(raw_output, shape.num_elements() * type.size(), shape, type);
+    const auto &type = batch_output.type_info();
+    single_output.ShareData(raw_output, shape.num_elements() * type.size(), shape, type.id());
   }
 
   void ProcessVideo(

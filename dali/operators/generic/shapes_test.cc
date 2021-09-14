@@ -35,7 +35,7 @@ void GenerateShapeTestInputs(TensorList<Backend> &out, RNG &rng, int num_samples
   }
   out.Reset();
   out.Resize(shape);
-  out.set_type<uint8_t>();
+  out.template set_type<uint8_t>();
 }
 
 template <typename OutputBackend, typename InputBackend, typename OutputType>

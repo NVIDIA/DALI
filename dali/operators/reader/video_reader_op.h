@@ -175,7 +175,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
             std::fill(prefetched_video.timestamps.begin() + old_size,
                       prefetched_video.timestamps.end(), -1);
           }
-          timestamp_output_->type().Copy<GPUBackend, CPUBackend>(
+          timestamp_output_->type_info().Copy<GPUBackend, CPUBackend>(
               timestamp, prefetched_video.timestamps.data(), prefetched_video.timestamps.size(),
               stream);
         }

@@ -162,7 +162,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_TRUE(IsType<int16>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.set_type<float>();
+  t.template set_type<float>();
   t.Resize(shape);
 
   ASSERT_EQ(t.raw_data(), source_data.data());
@@ -219,7 +219,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   ASSERT_TRUE(IsType<double>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.set_type(TypeTable::GetTypeInfoFromStatic<float>());
+  t.template set_type<float>();
   t.Resize(shape);
 
   ASSERT_EQ(t.raw_data(), source_data.data());
@@ -265,7 +265,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
   ASSERT_TRUE(t.shares_data());
 
   // Give the Tensor a type
-  ASSERT_THROW(t.set_type(TypeTable::GetTypeInfoFromStatic<int16>()), std::runtime_error);
+  ASSERT_THROW((t.template set_type<int16_t>()), std::runtime_error);
 
   ASSERT_EQ(t.size(), size);
   ASSERT_EQ(t.nbytes(), 0);
@@ -273,7 +273,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.set_type(TypeTable::GetTypeInfoFromStatic<float>());
+  t.template set_type<float>();
 
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), size);
@@ -318,7 +318,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
   ASSERT_TRUE(t.shares_data());
 
   // Give the Tensor a type
-  ASSERT_THROW(t.set_type(TypeTable::GetTypeInfoFromStatic<double>()), std::runtime_error);
+  ASSERT_THROW((t.template set_type<double>()), std::runtime_error);
 
   ASSERT_EQ(t.size(), size);
   ASSERT_EQ(t.nbytes(), 0);
@@ -327,7 +327,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
   ASSERT_TRUE(t.shares_data());
 
 
-  t.set_type(TypeTable::GetTypeInfoFromStatic<float>());
+  t.template set_type<float>();
 
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), size);
@@ -353,7 +353,7 @@ TYPED_TEST(TensorTest, TestShareData) {
   TensorList<TypeParam> tl;
   auto shape = this->GetRandShapeList();
   tl.Resize(shape);
-  tl.set_type(TypeTable::GetTypeInfoFromStatic<float>());
+  tl.template set_type<float>();
 
   // Create a tensor and wrap each tensor from the list
   Tensor<TypeParam> tensor;
@@ -399,7 +399,7 @@ TYPED_TEST(TensorTest, TestCopyEmptyToTensorList) {
   TensorVector<TypeParam> tensors(16);
   // Empty tensors
   TensorList<TypeParam> tl;
-  tl.set_type(TypeTable::GetTypeInfoFromStatic<float>());
+  tl.template set_type<float>();
   tl.Copy(tensors, 0);
 
   Tensor<TypeParam> tensor;
@@ -640,14 +640,14 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
     Tensor<TypeParam> empty_tensor;
     TensorShape<> empty_shape = {};
     empty_tensor.Resize(empty_shape);
-    empty_tensor.set_type(TypeTable::GetTypeInfoFromStatic<uint8_t>());
+    empty_tensor.template set_type<uint8_t>();
     ASSERT_ANY_THROW(empty_tensor.SubspaceTensor(0));
   }
   {
     Tensor<TypeParam> one_dim_tensor;
     TensorShape<> one_dim_shape = {42};
     one_dim_tensor.Resize(one_dim_shape);
-    one_dim_tensor.set_type(TypeTable::GetTypeInfoFromStatic<uint8_t>());
+    one_dim_tensor.template set_type<uint8_t>();
     ASSERT_ANY_THROW(one_dim_tensor.SubspaceTensor(0));
   }
 
@@ -656,7 +656,7 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
     Tensor<TypeParam> tensor;
     auto shape = this->GetRandShape(2, 6);
     tensor.Resize(shape);
-    tensor.set_type(TypeTable::GetTypeInfoFromStatic<uint8_t>());
+    tensor.template set_type<uint8_t>();
     ASSERT_ANY_THROW(tensor.SubspaceTensor(-1));
     ASSERT_ANY_THROW(tensor.SubspaceTensor(shape[0]));
     ASSERT_ANY_THROW(tensor.SubspaceTensor(shape[0] + 1));
@@ -667,7 +667,7 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
     Tensor<TypeParam> tensor;
     auto shape = this->GetRandShape(2, 6);
     tensor.Resize(shape);
-    tensor.set_type(TypeTable::GetTypeInfoFromStatic<uint8_t>());
+    tensor.template set_type<uint8_t>();
     int plane_size = 1;
     for (int i = 1; i < shape.size(); i++) {
       plane_size *= shape[i];

@@ -36,7 +36,7 @@
 
 namespace dali {
 
-TypeInfo TypeFromNumpyStr(const std::string &format);
+const TypeInfo &TypeFromNumpyStr(const std::string &format);
 
 class NumpyParseTarget{
  public:
@@ -45,12 +45,16 @@ class NumpyParseTarget{
   bool fortran_order;
   int64_t data_offset;
 
+  DALIDataType type() const {
+    return type_info ? type_info->id() : DALI_NO_TYPE;
+  }
+
   size_t size() const {
     return volume(shape);
   }
 
   size_t nbytes() const {
-    return type_info->size() * size();
+    return type_info ? type_info->size() * size() : 0_uz;
   }
 };
 
@@ -59,7 +63,7 @@ struct NumpyFileWrapper {
   std::string filename;
   bool fortran_order;
 
-  const TypeInfo& get_type() const {
+  DALIDataType get_type() const {
     return data.type();
   }
 

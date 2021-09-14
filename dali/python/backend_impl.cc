@@ -233,7 +233,8 @@ void FillTensorFromCudaArray(const py::object object, TensorType *batch, int dev
   // Keep a copy of the input object ref in the deleter, so its refcount is increased
   // while this shared_ptr is alive (and the data should be kept alive)
   // We set the type and shape even before the set_device_id as we only wrap the allocation
-  batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) {}), bytes, typed_shape, type);
+  batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) {}),
+                   bytes, typed_shape, type.id());
   batch->SetLayout(layout);
   // it is for __cuda_array_interface__ so device_id < 0 is not a valid value
   if (device_id < 0) {
@@ -347,6 +348,7 @@ void ExposeTensor(py::module &m) {
           // Create the Tensor and wrap the data
           auto t = std::make_unique<Tensor<CPUBackend>>();
           t->set_pinned(is_pinned);
+          const TypeInfo &type = TypeFromFormatStr(info.format);
           // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
           // while this shared_ptr is alive (and the data should be kept alive)
           t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *) {}),

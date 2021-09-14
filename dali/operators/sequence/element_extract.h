@@ -101,7 +101,7 @@ class ElementExtract : public Operator<Backend> {
     auto &input = ws.template InputRef<Backend>(0);
     auto element_layout = VideoLayoutInfo::GetFrameLayout(input.GetLayout());
     int elements_per_sample = element_map_.size();
-    auto data_type = input.type();
+    auto data_type = input.type_info();
     for (int k = 0; k < elements_per_sample; k++) {
       int element = element_map_[k];
       auto &output = ws.template OutputRef<Backend>(k);

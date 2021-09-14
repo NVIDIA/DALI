@@ -61,7 +61,7 @@ bool ToDecibelsImpl<T>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto in_view = view<const T>(input);
   auto nsamples = input.size();
 
-  auto type = id2type<T>::value;
+  auto type = type2id<T>::value;
 
   kernels::KernelContext ctx;
   if (args_.ref_max) {

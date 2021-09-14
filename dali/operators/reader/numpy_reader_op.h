@@ -61,7 +61,7 @@ class NumpyReader : public DataReader<Backend, Target> {
 
     int batch_size = GetCurrBatchSize();
     const auto& file_0 = GetSample(0);
-    const TypeInfo &output_type = file_0.get_type();
+    DALIDataType output_type = file_0.get_type();
     int ndim = file_0.get_shape().sample_dim();
     TensorListShape<> sh(batch_size, ndim);
 
