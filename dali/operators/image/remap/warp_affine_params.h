@@ -119,14 +119,6 @@ class WarpAffineParamProvider
   void UseInputAsParams(const TensorList<CPUBackend> &input, bool invert) {
     CheckParamInput(input);
 
-    if (input.IsContiguous() && !invert) {
-      // TODO(klecki): tag access to contiguous data
-      params_cpu_.data = static_cast<const MappingParams *>(input.raw_data());
-      params_cpu_.shape = { num_samples_ };
-      return;
-    }
-
-
     auto *params = this->template AllocParams<mm::memory_kind::host>();
     for (int i = 0; i < num_samples_; i++) {
       if (invert) {
@@ -144,30 +136,18 @@ class WarpAffineParamProvider
   void UseInputAsParams(const TensorVector<CPUBackend> &input, bool invert) {
     CheckParamInput(input);
 
-    if (!input.IsContiguous() || invert) {
-      auto *params = this->template AllocParams<mm::memory_kind::host>();
-      for (int i = 0; i < num_samples_; i++) {
-        if (invert)
-          params[i] = static_cast<const MappingParams *>(input[i].raw_data())->inv();
-        else
-          params[i] = *static_cast<const MappingParams *>(input[i].raw_data());
+    auto *params = this->template AllocParams<mm::memory_kind::host>();
+    for (int i = 0; i < num_samples_; i++) {
+      if (invert) {
+        params[i] = static_cast<const MappingParams *>(input[i].raw_data())->inv();
+      } else {
+        params[i] = *static_cast<const MappingParams *>(input[i].raw_data());
       }
-    } else {
-      // TODO(klecki): tag access to contiguous data
-      params_cpu_.data = static_cast<const MappingParams *>(input[0].raw_data());
-      params_cpu_.shape = { num_samples_ };
     }
-  }
+}
 
   void UseInputAsParams(const TensorList<GPUBackend> &input, bool invert) {
     CheckParamInput(input);
-
-    if (input.IsContiguous() && !invert) {
-      // TODO(klecki): tag access to contiguous data
-      params_gpu_.data = static_cast<const MappingParams *>(input.raw_data());
-      params_gpu_.shape = { num_samples_ };
-      return;
-    }
 
     std::vector<const MappingParams *> input_mappings;
     input_mappings.resize(num_samples_);
