@@ -78,10 +78,10 @@ static void parallel_for(unsigned nb_elements,
         std::for_each(my_threads.begin(), my_threads.end(), std::mem_fn(&std::thread::join));
 }
 
-void comapre_frames(const uint8_t *frame, const uint8_t *gt, size_t size) {
+void comapre_frames(const uint8_t *frame, const uint8_t *gt, size_t size, int eps = 0) {
   detail::parallel_for(size, [&](int start, int end){ 
     for (int j = start; j < end; ++j) {
-      ASSERT_EQ(frame[j], gt[j]);
+      ASSERT_NEAR(frame[j], gt[j], eps);
     }});
 }
 
@@ -180,4 +180,98 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
     ++batch_id;
   }
 }
+
+TEST_F(VideoReaderCpuTest, BenchamrkIndex) {
+  const int batch_size = 4;
+  const int sequence_length = 6;
+  const int stride = 3;
+  
+  Pipeline pipe(batch_size, 4, 0);
+
+  pipe.AddOperator(OpSpec("readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", sequence_length)
+    .AddArg("stride", stride)
+    .AddArg(
+      "filenames",
+      std::vector<std::string>{
+        testing::dali_extra_path() + "/db/video/cfr/test.mp4"})
+    .AddOutput("frames", "cpu"));
+
+  pipe.Build({{"frames", "cpu"}});
+}
+
+TEST_F(VideoReaderCpuTest, CompareReaders) {
+  const int batch_size = 4;
+  const int sequence_length = 6;
+  const int stride = 3;
+  
+  Pipeline pipe(batch_size, 4, 0);
+
+  pipe.AddOperator(OpSpec("readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", sequence_length)
+    .AddArg("stride", stride)
+    .AddArg(
+      "filenames",
+      std::vector<std::string>{
+        testing::dali_extra_path() + "/db/video/cfr/test.mp4"})
+    .AddOutput("frames", "cpu"));
+  pipe.AddOperator(OpSpec("readers__Video")
+    .AddArg("device", "gpu")
+    .AddArg("sequence_length", sequence_length)
+    .AddArg("stride", stride)
+    .AddArg(
+      "filenames",
+      std::vector<std::string>{
+        testing::dali_extra_path() + "/db/video/cfr/test.mp4"})
+    .AddOutput("frames_gpu", "gpu"));
+
+  pipe.Build({{"frames", "cpu"}, {"frames_gpu", "gpu"}});
+
+  int num_sequences = 20;
+  int sequence_id = 0;
+  int batch_id = 0;
+  int gt_frame_id = 0;
+
+  while (sequence_id < num_sequences) {
+    DeviceWorkspace ws;
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+
+    auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
+    auto &frame_gpu_video_output = ws.template OutputRef<dali::GPUBackend>(1);
+
+    vector<uint8_t> frame_gpu(720*1280*3);
+
+    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+      auto sample = frame_video_output.mutable_tensor<uint8_t>(sample_id);
+      auto sample_gpu = frame_gpu_video_output.mutable_tensor<uint8_t>(sample_id);
+
+      for (int i = 0; i < sequence_length; ++i) {
+        MemCopy(
+          frame_gpu.data(),
+          sample_gpu + i * this->FrameSize(),
+          FrameSize() * sizeof(uint8_t));
+
+        detail::comapre_frames(
+          sample + i * this->FrameSize(), frame_gpu.data(), this->FrameSize(), 100);
+
+        detail::save_frame(sample + i * this->FrameSize(), i, sample_id, batch_id, "reader");
+        detail::save_frame(frame_gpu.data(), i, sample_id, batch_id, "gt");
+        gt_frame_id += stride;
+      }
+
+      ++sequence_id;
+
+      if (gt_frame_id + stride * sequence_length >= this->NumFrames()) {
+        gt_frame_id = 0;
+      }
+    }
+    ++batch_id;
+  }
+
+}
+
 }  // namespace dali
