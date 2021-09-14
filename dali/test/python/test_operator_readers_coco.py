@@ -144,7 +144,7 @@ def test_operator_coco_reader_same_images():
 
 @raises(
     RuntimeError,
-    glob="Assert on \"HasArgument(name)\" failed: Argument \"preprocessed_annotations_dir\" is not supported by operator \"readers__COCO\".")
+    glob='Argument "preprocessed_annotations_dir" is not supported by operator *readers*COCO')
 def test_invalid_args():
     pipeline = Pipeline(batch_size=2, num_threads=4, device_id=0)
     with pipeline:

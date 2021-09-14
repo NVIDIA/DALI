@@ -18,12 +18,12 @@ import nvidia.dali.types as types
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
+from numpy.testing import assert_array_equal
 import os
 import platform
 import random
 import tempfile
-import nose.tools
+from nose_utils import assert_raises
 from test_utils import compare_pipelines, to_array
 
 gds_data_root = '/scratch/'
@@ -174,7 +174,8 @@ def test_unsupported_types():
     batch_size = 3
     for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
         for type in unsupported_numpy_types:
-            nose.tools.assert_raises(RuntimeError, _testimpl_types_and_shapes, device, shapes, type, batch_size, num_threads, fortran_order, file_arg_type, cache_header_information)
+            with assert_raises(RuntimeError, glob="Unknown Numpy type string"):
+                _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fortran_order, file_arg_type, cache_header_information)
 
 def test_cache_headers():
     type = np.float32
