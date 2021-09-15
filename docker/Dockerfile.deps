@@ -23,9 +23,12 @@ RUN yum remove -y devtoolset* && \
 RUN rm -f /opt/python/cp27-cp27m
 
 # Clang, build it before deps as deps changes more frequently
-RUN CLANG_VERSION=11.1.0                                                                           && \
+RUN --mount=type=secret,id=GITHUB_READ_TOKEN \
+    /bin/bash -c 'GITHUB_READ_TOKEN=$(cat /run/secrets/GITHUB_READ_TOKEN) || true                  && \
+    CLANG_VERSION=11.1.0                                                                           && \
     cd tmp                                                                                         && \
-    wget https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-${CLANG_VERSION}.tar.gz    && \
+    # empty token works as well in case of GitHub
+    wget https://${GITHUB_READ_TOKEN}@github.com/llvm/llvm-project/archive/refs/tags/llvmorg-${CLANG_VERSION}.tar.gz    && \
     tar -xf llvmorg-*.tar.gz                                                                       && \
     rm -rf llvmorg-*.tar.gz                                                                        && \
     cd llvm-*                                                                                      && \
@@ -34,7 +37,7 @@ RUN CLANG_VERSION=11.1.0                                                        
     cmake -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles" ../llvm && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install                                      && \
     cd /tmp                                                                                        && \
-    rm -rf llvm-*
+    rm -rf llvm-*'
 
 COPY DALI_DEPS_VERSION /tmp
 
@@ -45,12 +48,18 @@ ARG DALI_DEPS_VERSION_SHA
 ENV DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA}
 
 # run in /bin/bash to have more advanced features supported like list
-RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI_DEPS_VERSION)}    && \
+RUN --mount=type=secret,id=GITHUB_READ_TOKEN \
+    /bin/bash -c 'GITHUB_READ_TOKEN=$(cat /run/secrets/GITHUB_READ_TOKEN) || true                  && \
+    DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI_DEPS_VERSION)}                  && \
+    # empty token works as well in case of GitHub
+    git config --global url."https://${GITHUB_READ_TOKEN}@github.com".insteadOf "https://github.com" && \
     git clone ${DALI_DEPS_REPO} /tmp/dali_deps                                                     && \
     cd /tmp/dali_deps                                                                              && \
     git checkout ${DALI_DEPS_VERSION_SHA}                                                          && \
     git submodule init                                                                             && \
     git submodule update --depth 1 --recursive                                                     && \
+    # remove user:key from the global gitconfig
+    git config --global --remove-section url."https://${GITHUB_READ_TOKEN}@github.com" && \
     export CC_COMP=${CC}                                                                           && \
     export CXX_COMP=${CXX}                                                                         && \
     /tmp/dali_deps/build_scripts/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/DALI_DEPS_VERSION'

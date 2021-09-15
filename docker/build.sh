@@ -84,6 +84,7 @@ export GIT_SHA=$(git rev-parse HEAD)
 export DALI_TIMESTAMP=$(date +%Y%m%d)
 export DALI_DEPS_REPO=${DALI_DEPS_REPO}
 export DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA}
+export GITHUB_READ_TOKEN=${GITHUB_READ_TOKEN:-empty}
 
 # Find out which CLI options to use for NVIDIA Container Toolkit needed for TF PLUGIN build
 if [[ "$BUILD_TF_PLUGIN" = "YES" ]]; then
@@ -110,8 +111,9 @@ pushd ../
 # build deps image if needed
 if [[ "$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${DEPS_IMAGE} 2> /dev/null)" == "" ]]; then
     echo "Build deps: " ${DEPS_IMAGE}
-    docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=${BASE_NAME}  --build-arg "BUILDER_EXTRA_DEPS=${BUILDER_EXTRA_DEPS}" \
-                 --build-arg "DALI_DEPS_REPO=${DALI_DEPS_REPO}" --build-arg "DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA}" -f docker/Dockerfile.deps .
+    DOCKER_BUILDKIT=1 docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=${BASE_NAME}  --build-arg "BUILDER_EXTRA_DEPS=${BUILDER_EXTRA_DEPS}" \
+                      --progress=plain --secret id=GITHUB_READ_TOKEN \
+                      --build-arg "DALI_DEPS_REPO=${DALI_DEPS_REPO}" --build-arg "DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA}" -f docker/Dockerfile.deps .
 fi
 
 # add cuda to deps if needed
