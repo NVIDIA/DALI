@@ -226,6 +226,8 @@ TYPED_TEST(CApiTest, GetOutputNameTest) {
   ASSERT_EQ(daliGetNumOutput(&handle), 2);
   EXPECT_STREQ(daliGetOutputName(&handle, 0), output0_name.c_str());
   EXPECT_STREQ(daliGetOutputName(&handle, 1), output1_name.c_str());
+
+  daliDeletePipeline(&handle);
 }
 
 
@@ -255,6 +257,7 @@ TYPED_TEST(CApiTest, FileReaderPipe) {
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
+  daliDeletePipeline(&handle);
 }
 
 TYPED_TEST(CApiTest, FileReaderDefaultPipe) {
@@ -281,6 +284,7 @@ TYPED_TEST(CApiTest, FileReaderDefaultPipe) {
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -342,6 +346,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -400,6 +405,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
                                          input_shape.num_samples());
     }
   }
+  daliDeletePipeline(&handle);
 }
 
 
@@ -460,6 +466,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -527,6 +534,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -593,6 +601,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
+  daliDeletePipeline(&handle);
 }
 
 TYPED_TEST(CApiTest, TestExecutorMeta) {
@@ -620,6 +629,7 @@ TYPED_TEST(CApiTest, TestExecutorMeta) {
     }
   }
   daliFreeExecutorMetadata(meta, N);
+  daliDeletePipeline(&handle);
 }
 
 TYPED_TEST(CApiTest, UseCopyKernel) {
@@ -669,6 +679,7 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr, flags);
   }
+  daliDeletePipeline(&handle);
 }
 
 
@@ -708,6 +719,7 @@ TYPED_TEST(CApiTest, ForceNoCopyFail) {
                     input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
                     input_shape.sample_dim(), nullptr, cuda_stream, DALI_ext_force_no_copy),
                 std::runtime_error);
+  daliDeletePipeline(&handle);
 }
 
 
