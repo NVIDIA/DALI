@@ -500,18 +500,14 @@ def test_tfrecord_reader_cpu():
         pipe.run()
 
 def test_webdataset_reader_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     webdataset = os.path.join(webdataset_dir, 'MNIST', 'devel-0.tar')
     webdataset_idx = generate_temp_wds_index(webdataset)
-    out, _ = fn.readers.webdataset(paths=webdataset, 
-                                  index_paths=webdataset_idx.name, 
-                                  ext=["jpg", "cls"],
-                                  shard_id=0,
-                                  num_shards=1)
-    pipe.set_outputs(out)
-    pipe.build()
-    for _ in range(1000//batch_size):
-        pipe.run()
+    check_no_input(fn.readers.webdataset,
+                   paths=webdataset, 
+                   index_paths=webdataset_idx.name, 
+                   ext=["jpg", "cls"],
+                   shard_id=0,
+                   num_shards=1)
 
 
 def test_coco_reader_cpu():

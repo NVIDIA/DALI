@@ -177,6 +177,7 @@ WebdatasetLoader::~WebdatasetLoader() {}
 void WebdatasetLoader::PrepareEmpty(vector<Tensor<CPUBackend>>& empty) {
   empty = std::vector<Tensor<CPUBackend>>(ext_.size());
   for (size_t output_index = 0; output_index < ext_.size(); output_index++) {
+    empty[output_index].set_pinned(false);
     empty[output_index].reserve(tensor_init_bytes_);
     empty[output_index].set_type(dtypes_[output_index]);
   }
@@ -298,6 +299,7 @@ void WebdatasetLoader::PrepareMetadataImpl() {
   std::vector<detail::wds::ComponentDesc> unfiltered_components;
   bitmask was_output_set;
   was_output_set.resize(ext_.size(), false);
+  output_indicies_.reserve(ext_.size());
   for (size_t wds_shard_index = 0; wds_shard_index < index_paths_.size(); wds_shard_index++) {
     unfiltered_samples.resize(0);
     unfiltered_components.resize(0);
@@ -311,7 +313,6 @@ void WebdatasetLoader::PrepareMetadataImpl() {
           sample.line_number};
 
       size_t start_outputs_index = output_indicies_.size();
-      output_indicies_.reserve(start_outputs_index + ext_.size());
 
       for (auto& component : sample.components) {
         component.outputs =
