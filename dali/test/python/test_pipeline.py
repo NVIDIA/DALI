@@ -880,7 +880,7 @@ class CachedPipeline(Pipeline):
             wds = [os.path.join(webdataset_db_folder, archive) 
                    for archive in ['devel-1.tar', 'devel-2.tar', 'devel-0.tar']]
             self.wds_index_files = [generate_temp_wds_index(archive) for archive in wds]
-            self.input = ops.readers.Webdataset(uris = wds, 
+            self.input = ops.readers.Webdataset(paths = wds, 
                                                 index_paths = [idx.name for idx in self.wds_index_files], 
                                                 ext = ["jpg", "cls"],
                                                 shard_id = 0,
