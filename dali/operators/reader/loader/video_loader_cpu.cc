@@ -203,7 +203,7 @@ void VideoLoaderCPU::PrepareMetadataImpl() {
     video_files_.push_back(VideoFileCPU(filename));
   }
 
-  for (int start = 0; start + stride_ * sequence_len_ <= video_files_[0].NumFrames(); start += stride_ * sequence_len_) {
+  for (int start = 0; start + stride_ * sequence_len_ <= video_files_[0].NumFrames(); start += step_) {
     sample_spans_.push_back(VideoSampleSpan(start, start + stride_ * sequence_len_, stride_));
   }
 }

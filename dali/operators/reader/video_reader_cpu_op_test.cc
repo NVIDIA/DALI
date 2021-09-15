@@ -132,6 +132,7 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
+  const int step = 10;
   
   Pipeline pipe(batch_size, 4, 0);
 
@@ -139,6 +140,7 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
     .AddArg("device", "cpu")
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
+    .AddArg("step", step)
     .AddArg(
       "filenames",
       std::vector<std::string>{
@@ -165,12 +167,13 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
 
       for (int i = 0; i < sequence_length; ++i) {
         detail::comapre_frames(
-          sample + i * this->FrameSize(), this->gt_frames_[gt_frame_id].data, this->FrameSize());
+          sample + i * this->FrameSize(), this->gt_frames_[gt_frame_id + i * stride].data, this->FrameSize());
+
         // detail::save_frame(sample + i * this->FrameSize(), i, sample_id, batch_id, "reader");
-        // detail::save_frame(this->gt_frames_[gt_frame_id].data, i, sample_id, batch_id, "gt");
-        gt_frame_id += stride;
+        // detail::save_frame(this->gt_frames_[gt_frame_id + i * stride].data, i, sample_id, batch_id, "gt");
       }
 
+      gt_frame_id += step;
       ++sequence_id;
 
       if (gt_frame_id + stride * sequence_length >= this->NumFrames()) {
@@ -185,6 +188,7 @@ TEST_F(VideoReaderCpuTest, BenchamrkIndex) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
+  
   
   Pipeline pipe(batch_size, 4, 0);
 
@@ -205,6 +209,7 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
+  const int step = 10;
   
   Pipeline pipe(batch_size, 4, 0);
 
@@ -212,6 +217,7 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
     .AddArg("device", "cpu")
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
+    .AddArg("step", step)
     .AddArg(
       "filenames",
       std::vector<std::string>{
@@ -221,6 +227,7 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
     .AddArg("device", "gpu")
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
+    .AddArg("step", step)
     .AddArg(
       "filenames",
       std::vector<std::string>{
@@ -258,8 +265,9 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
         detail::comapre_frames(
           sample + i * this->FrameSize(), frame_gpu.data(), this->FrameSize(), 100);
 
-        detail::save_frame(sample + i * this->FrameSize(), i, sample_id, batch_id, "reader");
-        detail::save_frame(frame_gpu.data(), i, sample_id, batch_id, "gt");
+        // detail::save_frame(sample + i * this->FrameSize(), i, sample_id, batch_id, "reader");
+        // detail::save_frame(frame_gpu.data(), i, sample_id, batch_id, "gt");
+        
         gt_frame_id += stride;
       }
 

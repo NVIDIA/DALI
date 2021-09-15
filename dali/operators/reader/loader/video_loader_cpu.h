@@ -105,7 +105,11 @@ class VideoLoaderCPU : public Loader<CPUBackend, Tensor<CPUBackend>> {
     Loader<CPUBackend, Tensor<CPUBackend>>(spec),
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
     sequence_len_(spec.GetArgument<int>("sequence_length")),
-    stride_(spec.GetArgument<int>("stride")) {
+    stride_(spec.GetArgument<int>("stride")),
+    step_(spec.GetArgument<int>("step")) {
+    if (step_ <= 0) {
+      step_ = stride_ * sequence_len_;
+    }
   }
 
   void ReadSample(Tensor<CPUBackend> &sample) override;
@@ -126,6 +130,7 @@ private:
 
   int sequence_len_;
   int stride_;
+  int step_;
 };
 
 }  // namespace dali
