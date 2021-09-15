@@ -177,11 +177,11 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_
   if (pipeline->device_id() >= 0) {
     stream = dali::CUDAStream::Create(true);
   }
+  auto bs_map = std::make_unique<batch_size_map_t>();
+
   pipe_handle->ws = ws.release();
   pipe_handle->copy_stream = stream.release();
   pipe_handle->pipe = pipeline.release();
-
-  auto bs_map = std::make_unique<batch_size_map_t>();
   pipe_handle->batch_sizes_map = bs_map.release();
 }
 
@@ -195,9 +195,11 @@ void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *seriali
     stream = dali::CUDAStream::Create(true);
   }
   auto ws = std::make_unique<dali::DeviceWorkspace>();
+  auto bs_map = std::make_unique<batch_size_map_t>();
   pipe_handle->ws = ws.release();
   pipe_handle->copy_stream = stream.release();
   pipe_handle->pipe = pipeline.release();
+  pipe_handle->batch_sizes_map = bs_map.release();
 }
 
 

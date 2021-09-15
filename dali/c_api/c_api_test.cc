@@ -935,6 +935,7 @@ TYPED_TEST(CApiTest, CpuOnlyTest) {
   std::string ser = pipe.SerializeToProtobuf();
   daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
+  daliDeletePipeline(&handle);
 }
 
 TEST(CApiTest, GetBackendTest) {
@@ -958,6 +959,7 @@ TEST(CApiTest, GetBackendTest) {
   EXPECT_EQ(daliGetOperatorBackend(&handle, es_cpu_name.c_str()), DALI_BACKEND_CPU);
   EXPECT_EQ(daliGetOperatorBackend(&handle, es_gpu_name.c_str()), DALI_BACKEND_GPU);
   EXPECT_EQ(daliGetOperatorBackend(&handle, cont_name.c_str()), DALI_BACKEND_MIXED);
+  daliDeletePipeline(&handle);
 }
 
 }  // namespace dali
