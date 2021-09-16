@@ -115,7 +115,7 @@ struct DeviceBuffer {
   void copy(const DeviceBuffer &src, cudaStream_t stream = 0) {
     clear();
     resize(src.size());
-    copyH2D(data_.get(), src.data(), size(), stream);
+    copyD2D(data_.get(), src.data(), size(), stream);
   }
 
   void reserve(size_t new_cap, cudaStream_t stream = 0) {

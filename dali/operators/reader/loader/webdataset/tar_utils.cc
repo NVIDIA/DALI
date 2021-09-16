@@ -13,11 +13,10 @@
 // limitations under the License.
 
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
-#include <libtar.h>
-#include <cstring>
 #include <algorithm>
 #include <cstdarg>
 #include <cstdlib>
+#include <cstring>
 #include <list>
 #include <string>
 #include <tuple>
@@ -31,7 +30,6 @@ namespace detail {
 
 namespace {
 
-constexpr size_t kBlockSize = T_BLOCKSIZE;
 static_assert(is_pow2(kBlockSize),
               "The implementation assumes that the block size is a power of 2");
 
@@ -96,8 +94,7 @@ static tartype_t kTarArchiveType = {LibtarOpenTarArchive, [](int) -> int { retur
                                     [](int, const void*, size_t) -> ssize_t { return 0; }};
 
 TarArchive::TarArchive(std::unique_ptr<FileStream> stream)
-    : stream_(std::move(stream)),
-      instance_handle_(Register(this)) {
+    : stream_(std::move(stream)), instance_handle_(Register(this)) {
   tar_open(ToTarHandle(&handle_), "", &kTarArchiveType, 0, instance_handle_, TAR_GNU);
   stream_->Seek(0);
   eof_ = stream_->Size() == 0;
@@ -142,14 +139,8 @@ bool TarArchive::NextFile() {
   }
 
   const int64_t offset = stream_->Tell() + RoundToBlockSize(filesize_) - readoffset_;
-  assert(offset >= 0);
-  if (static_cast<size_t>(offset) >= stream_->Size()) {
-    SetEof();
-    return false;
-  }
-
-  stream_->Seek(stream_->Tell() + RoundToBlockSize(filesize_) - readoffset_);
-  current_header_ = stream_->Tell();
+  current_header_ = offset;
+  stream_->Seek(offset);
   ParseHeader();
   return !eof_;
 }
@@ -159,14 +150,14 @@ bool TarArchive::EndOfArchive() const {
 }
 
 void TarArchive::SeekArchive(int64_t offset) {
-  assert(offset % T_BLOCKSIZE == 0);
-  readoffset_ = 0;
-  if (static_cast<size_t>(offset) >= stream_->Size()) {
-    SetEof();
+  if (offset == current_header_) {
     return;
   }
+  assert(offset % T_BLOCKSIZE == 0);
+  eof_ = false;
+  readoffset_ = 0;
   stream_->Seek(offset);
-  current_header_ = stream_->Tell();
+  current_header_ = offset;
   ParseHeader();
 }
 
@@ -215,7 +206,6 @@ inline void TarArchive::SetEof() {
   filename_ = "";
   filesize_ = 0;
   filetype_ = ENTRY_NONE;
-  current_header_ = stream_ ? stream_->Size() : 0;
 }
 
 inline void TarArchive::ParseHeader() {
@@ -258,6 +248,7 @@ void TarArchive::Close() {
     handle_ = nullptr;
   }
   readoffset_ = 0;
+  current_header_ = 0;
   SetEof();
   stream_.reset();
   if (instance_handle_ >= 0) {

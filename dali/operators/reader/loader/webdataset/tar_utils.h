@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_READER_LOADER_WEBDATASET_TAR_UTILS_H_
 #define DALI_OPERATORS_READER_LOADER_WEBDATASET_TAR_UTILS_H_
 
+#include <libtar.h>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -24,6 +25,8 @@
 
 namespace dali {
 namespace detail {
+constexpr size_t kBlockSize = T_BLOCKSIZE;
+
 /**
  * @brief Used to access .tar archives through the given FileStream
  */
@@ -103,6 +106,11 @@ class DLL_PUBLIC TarArchive {
    */
   bool EndOfFile() const;
 
+  /**
+   * @brief Frees the underlying file stream
+   */
+  void Close();
+
  private:
   std::unique_ptr<FileStream> stream_;
   int instance_handle_ = -1;
@@ -120,7 +128,6 @@ class DLL_PUBLIC TarArchive {
   void SetEof();
 
   void ParseHeader();
-  void Close();  // resets objects to default values
 };
 
 }  // namespace detail

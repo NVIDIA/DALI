@@ -26,10 +26,11 @@ from test_audio_decoder_utils import generate_waveforms
 import scipy.io.wavfile
 from PIL import Image, ImageEnhance
 from test_detection_pipeline import coco_anchors
+from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 import re
 
 import numpy as np
-from nose.tools import assert_raises
+from nose_utils import assert_raises
 import os
 import glob
 from math import ceil, sqrt
@@ -45,6 +46,7 @@ caffe_dir = os.path.join(data_root, 'db', 'lmdb')
 caffe2_dir = os.path.join(data_root, 'db', 'c2lmdb')
 recordio_dir = os.path.join(data_root, 'db', 'recordio')
 tfrecord_dir = os.path.join(data_root, 'db', 'tfrecord')
+webdataset_dir = os.path.join(data_root, 'db', 'webdataset')
 coco_dir = os.path.join(data_root, 'db', 'coco', 'images')
 coco_annotation = os.path.join(data_root, 'db', 'coco', 'instances.json')
 sequence_dir = os.path.join(data_root, 'db', 'sequence', 'frames')
@@ -64,7 +66,12 @@ def test_move_to_device_end():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
     outs = fn.external_source(source=get_data)
     pipe.set_outputs(outs.gpu())
-    assert_raises(RuntimeError, pipe.build)
+    assert_raises(
+        RuntimeError,
+        pipe.build,
+        glob='Cannot move the data node __ExternalSource_0 to the GPU in a CPU-only pipeline. '
+            'The `device_id` parameter is set to `CPU_ONLY_DEVICE_ID`. '
+            'Set `device_id` to a valid GPU identifier to enable GPU features in the pipeline.')
 
 def test_move_to_device_middle():
     test_data_shape = [1, 3, 0, 4]
@@ -76,9 +83,12 @@ def test_move_to_device_middle():
     data = fn.external_source(source=get_data)
     outs = fn.rotate(data.gpu(), angle=25)
     pipe.set_outputs(outs)
-    assert_raises(RuntimeError, pipe.build)
+    assert_raises(
+        RuntimeError,
+        pipe.build,
+        glob="Cannot add a GPU operator Rotate, device_id should not be equal CPU_ONLY_DEVICE_ID.")
 
-def check_bad_device(device_id):
+def check_bad_device(device_id, error_msg):
     test_data_shape = [1, 3, 0, 4]
     def get_data():
         out = [np.empty(test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
@@ -87,22 +97,40 @@ def check_bad_device(device_id):
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=device_id)
     outs = fn.external_source(source=get_data, device="gpu")
     pipe.set_outputs(outs)
-    assert_raises(RuntimeError, pipe.build)
+    assert_raises(
+        RuntimeError,
+        pipe.build,
+        glob=error_msg)
 
 def test_gpu_op_bad_device():
-    for device_id in [None, 0]:
-        yield check_bad_device, device_id
+    device_ids = [None, 0]
+    error_msgs = [
+        "Cannot add a GPU operator ExternalSource, device_id should not be equal CPU_ONLY_DEVICE_ID.",
+        "Failed to load libcuda.so. Check your library paths and if the driver is installed correctly."
+    ]
 
-def check_mixed_op_bad_device(device_id):
+    for args in zip(device_ids, error_msgs):
+        yield check_bad_device, *args
+
+def check_mixed_op_bad_device(device_id, error_msg):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=device_id)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
     decoded = fn.decoders.image(input, device="mixed", output_type=types.RGB)
     pipe.set_outputs(decoded)
-    assert_raises(RuntimeError, pipe.build)
+    assert_raises(
+        RuntimeError,
+        pipe.build,
+        glob=error_msg)
 
 def test_mixed_op_bad_device():
-    for device_id in [None, 0]:
-        yield check_bad_device, device_id
+    device_ids = [None, 0]
+    error_msgs = [
+        "Cannot add a mixed operator decoders__Image with a GPU output, device_id should not be CPU_ONLY_DEVICE_ID.",
+        "Failed to load libcuda.so. Check your library paths and if the driver is installed correctly."
+    ]
+
+    for args in zip(device_ids, error_msgs):
+        yield check_mixed_op_bad_device, *args
 
 def test_image_decoder_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
@@ -497,6 +525,17 @@ def test_tfrecord_reader_cpu():
     for _ in range(3):
         pipe.run()
 
+def test_webdataset_reader_cpu():
+    webdataset = os.path.join(webdataset_dir, 'MNIST', 'devel-0.tar')
+    webdataset_idx = generate_temp_wds_index(webdataset)
+    check_no_input(fn.readers.webdataset,
+                   paths=webdataset, 
+                   index_paths=webdataset_idx.name, 
+                   ext=["jpg", "cls"],
+                   shard_id=0,
+                   num_shards=1)
+
+
 def test_coco_reader_cpu():
     check_no_input(fn.readers.coco, file_root=coco_dir, annotations_file=coco_annotation, shard_id=0, num_shards=1)
 
@@ -842,7 +881,10 @@ def test_arithm_ops_cpu_gpu():
                  data | data.gpu(),
                  data ^ data.gpu()]
     pipe.set_outputs(*processed)
-    assert_raises(RuntimeError, pipe.build)
+    assert_raises(
+        RuntimeError,
+        pipe.build,
+        glob="Cannot add a GPU operator ArithmeticGenericOp, device_id should not be equal CPU_ONLY_DEVICE_ID.")
 
 def test_pytorch_plugin_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
@@ -982,6 +1024,7 @@ tested_methods = [
     "readers.caffe2",
     "readers.coco",
     "readers.numpy",
+    "readers.webdataset",
     "coin_flip",
     "uniform",
     "random.uniform",
