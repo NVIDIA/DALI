@@ -14,16 +14,11 @@
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
-import nvidia.dali.types as types
-import nvidia.dali as dali
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
 from functools import partial
-from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
-import math
-from nose.tools import *
+from nose_utils import raises
 
 class ToDecibelsPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, multiplier, reference, cutoff_db,
@@ -155,6 +150,6 @@ def test_operator_natural_logarithm():
         for sh in shapes:
             yield check_natural_logarithm, device, batch_size, sh
 
-@raises(RuntimeError)
+@raises(RuntimeError, glob="`reference` argument can't be zero")
 def test_invalid_reference():
-    NLDaliPipeline(None, 1, 0.0).build()
+    NLDaliPipeline('cpu', None, 1, reference=0.0).build()

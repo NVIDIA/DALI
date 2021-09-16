@@ -20,7 +20,7 @@ from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import os
-from nose.tools import assert_raises
+from nose_utils import assert_raises
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
@@ -497,7 +497,7 @@ def check_crop_with_out_of_bounds_error(device, batch_size, input_shape=(100, 20
                          out_of_bounds_policy="error")
 
     pipe.build()
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob="Slice can't be placed out of bounds with current policy."):
         outs = pipe.run()
 
 def test_slice_with_out_of_bounds_error():

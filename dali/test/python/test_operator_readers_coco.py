@@ -17,7 +17,7 @@ from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 from test_utils import compare_pipelines, get_dali_extra_path
 import os
-from nose.tools import raises
+from nose_utils import raises
 import tempfile
 import numpy as np
 
@@ -177,7 +177,9 @@ def test_operator_coco_reader_same_images():
             np.testing.assert_array_equal(boxes1.at(0), boxes2.at(0))
             np.testing.assert_array_equal(boxes1.at(0), boxes3.at(0))
 
-@raises(RuntimeError)
+@raises(
+    RuntimeError,
+    glob='Argument "preprocessed_annotations_dir" is not supported by operator *readers*COCO')
 def test_invalid_args():
     pipeline = Pipeline(batch_size=2, num_threads=4, device_id=0)
     with pipeline:
