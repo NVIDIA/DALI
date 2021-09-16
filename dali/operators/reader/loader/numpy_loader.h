@@ -41,9 +41,9 @@ const TypeInfo &TypeFromNumpyStr(const std::string &format);
 class NumpyParseTarget{
  public:
   std::vector<int64_t> shape;
-  const TypeInfo *type_info;
-  bool fortran_order;
-  int64_t data_offset;
+  const TypeInfo *type_info = nullptr;
+  bool fortran_order        = false;
+  int64_t data_offset       = 0;
 
   DALIDataType type() const {
     return type_info ? type_info->id() : DALI_NO_TYPE;

@@ -82,7 +82,7 @@ bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T>;
     kmgr_.Initialize<MelFilterBankKernel>();
     kmgr_.Resize<MelFilterBankKernel>(nthreads, nsamples);
-    output_desc[0].type = input.type();
+    output_desc[0].type = type2id<T>::value;
     const auto in_view = view<const T>(input);
     output_desc[0].shape.resize(nsamples, in_view.sample_dim());
     for (int i = 0; i < nsamples; i++) {
