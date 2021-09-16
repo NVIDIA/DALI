@@ -85,9 +85,9 @@ void comapre_frames(const uint8_t *frame, const uint8_t *gt, size_t size, int ep
     }});
 }
 
-void save_frame(uint8_t *frame, int frame_id, int sample_id, int batch_id, std::string subfolder) {
+void save_frame(uint8_t *frame, int frame_id, int sample_id, int batch_id, std::string subfolder, int width, int height, int channels) {
 
-    TensorView<StorageCPU, uint8_t> tv(frame, TensorShape<3>{720, 1280, 3});
+    TensorView<StorageCPU, uint8_t> tv(frame, TensorShape<3>{height, width, channels});
     char str[32];
     snprintf(str, 32, "/batch_%03d_sample_%03d_frame_%03d", batch_id, sample_id, frame_id);
     string path = "/home/awolant/Downloads/frames/" + subfolder + string(str) + ".png";
@@ -99,32 +99,50 @@ void save_frame(uint8_t *frame, int frame_id, int sample_id, int batch_id, std::
 class VideoReaderCpuTest : public ::testing::Test {
  public:
   VideoReaderCpuTest() {
-    std::string frames_path = testing::dali_extra_path() + "/db/video/cfr/frames/";
-    char id_str[4];
-  
-    for (int i = 0; i < NumFrames(); ++i) {
-      snprintf(id_str, 4, "%03d", i + 1);
-      cv::Mat frame;
-      cv::cvtColor(
-        cv::imread(frames_path + string(id_str) + ".png"),
-        frame,
-        cv::COLOR_BGR2RGB);
-      gt_frames_.push_back(frame);
+    std::vector<std::string> frames_paths {
+      testing::dali_extra_path() + "/db/video/cfr/frames_1/",
+      testing::dali_extra_path() + "/db/video/cfr/frames_2/"};
+    
+    for (auto &frames_path : frames_paths) {
+      char id_str[4];
+      std::vector<cv::Mat> frames;
+    
+      int frame_id = 0;
+      while (true) {
+        snprintf(id_str, 4, "%03d", frame_id + 1);
+        cv::Mat frame;
+        
+        try {
+          cv::cvtColor(
+            cv::imread(frames_path + string(id_str) + ".png"),
+            frame,
+            cv::COLOR_BGR2RGB);
+        } catch (...) {
+          break;
+        }
+
+        ++frame_id;
+        frames.push_back(frame);
+      }
+
+      gt_frames_.push_back(frames);
     }
   }
 
-  const int NumFrames() const { return 50; }
+  const int NumVideos() const { return gt_frames_.size(); }
+
+  const int NumFrames(int i) const { return gt_frames_[i].size(); }
 
   const int Channels() const { return 3; }
 
-  const int Width() const { return gt_frames_[0].cols; }
+  const int Width(int i) const { return gt_frames_[i][0].cols; }
 
-  const int Height() const { return gt_frames_[0].rows; }
+  const int Height(int i) const { return gt_frames_[i][0].rows; }
 
-  const int FrameSize() const { return Height() * Width() * Channels(); }
+  const int FrameSize(int i) const { return Height(i) * Width(i) * Channels(); }
 
  protected:
-  std::vector<cv::Mat> gt_frames_;
+  std::vector<std::vector<cv::Mat>> gt_frames_;
 };
 
 
@@ -144,7 +162,8 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
     .AddArg(
       "filenames",
       std::vector<std::string>{
-        testing::dali_extra_path() + "/db/video/cfr/test.mp4"})
+        testing::dali_extra_path() + "/db/video/cfr/test_1.mp4",
+        testing::dali_extra_path() + "/db/video/cfr/test_2.mp4"})
     .AddOutput("frames", "cpu"));
 
   pipe.Build({{"frames", "cpu"}});
@@ -153,6 +172,8 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
   int sequence_id = 0;
   int batch_id = 0;
   int gt_frame_id = 0;
+
+  int video_idx = 0;
 
   while (sequence_id < num_sequences) {
     DeviceWorkspace ws;
@@ -167,17 +188,21 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
 
       for (int i = 0; i < sequence_length; ++i) {
         detail::comapre_frames(
-          sample + i * this->FrameSize(), this->gt_frames_[gt_frame_id + i * stride].data, this->FrameSize());
+          sample + i * this->FrameSize(video_idx), this->gt_frames_[video_idx][gt_frame_id + i * stride].data, this->FrameSize(video_idx));
 
-        // detail::save_frame(sample + i * this->FrameSize(), i, sample_id, batch_id, "reader");
-        // detail::save_frame(this->gt_frames_[gt_frame_id + i * stride].data, i, sample_id, batch_id, "gt");
+        // detail::save_frame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
+        // detail::save_frame(this->gt_frames_[video_idx][gt_frame_id + i * stride].data, i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
       }
 
       gt_frame_id += step;
       ++sequence_id;
 
-      if (gt_frame_id + stride * sequence_length >= this->NumFrames()) {
+      if (gt_frame_id + stride * sequence_length >= this->NumFrames(video_idx)) {
         gt_frame_id = 0;
+        ++video_idx;
+        if (video_idx == this->NumVideos()) {
+          video_idx = 0;
+        }
       }
     }
     ++batch_id;
@@ -199,7 +224,7 @@ TEST_F(VideoReaderCpuTest, BenchamrkIndex) {
     .AddArg(
       "filenames",
       std::vector<std::string>{
-        testing::dali_extra_path() + "/db/video/cfr/test.mp4"})
+        testing::dali_extra_path() + "/db/video/cfr/test_2.mp4"})
     .AddOutput("frames", "cpu"));
 
   pipe.Build({{"frames", "cpu"}});
@@ -221,7 +246,8 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
     .AddArg(
       "filenames",
       std::vector<std::string>{
-        testing::dali_extra_path() + "/db/video/cfr/test.mp4"})
+        testing::dali_extra_path() + "/db/video/cfr/test_1.mp4",
+        testing::dali_extra_path() + "/db/video/cfr/test_2.mp4"})
     .AddOutput("frames", "cpu"));
   pipe.AddOperator(OpSpec("readers__Video")
     .AddArg("device", "gpu")
@@ -231,7 +257,8 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
     .AddArg(
       "filenames",
       std::vector<std::string>{
-        testing::dali_extra_path() + "/db/video/cfr/test.mp4"})
+        testing::dali_extra_path() + "/db/video/cfr/test_1.mp4",
+        testing::dali_extra_path() + "/db/video/cfr/test_2.mp4"})
     .AddOutput("frames_gpu", "gpu"));
 
   pipe.Build({{"frames", "cpu"}, {"frames_gpu", "gpu"}});
@@ -240,6 +267,8 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
   int sequence_id = 0;
   int batch_id = 0;
   int gt_frame_id = 0;
+
+  int video_idx = 0;
 
   while (sequence_id < num_sequences) {
     DeviceWorkspace ws;
@@ -250,31 +279,35 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
     auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
     auto &frame_gpu_video_output = ws.template OutputRef<dali::GPUBackend>(1);
 
-    vector<uint8_t> frame_gpu(720*1280*3);
-
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       auto sample = frame_video_output.mutable_tensor<uint8_t>(sample_id);
       auto sample_gpu = frame_gpu_video_output.mutable_tensor<uint8_t>(sample_id);
 
+      vector<uint8_t> frame_gpu(this->FrameSize(video_idx));
+      
       for (int i = 0; i < sequence_length; ++i) {
         MemCopy(
           frame_gpu.data(),
-          sample_gpu + i * this->FrameSize(),
-          FrameSize() * sizeof(uint8_t));
+          sample_gpu + i * this->FrameSize(video_idx),
+          FrameSize(video_idx) * sizeof(uint8_t));
 
-        detail::comapre_frames(
-          sample + i * this->FrameSize(), frame_gpu.data(), this->FrameSize(), 100);
+        // detail::comapre_frames(
+        //   sample + i * this->FrameSize(video_idx), frame_gpu.data(), this->FrameSize(video_idx), 100);
 
-        // detail::save_frame(sample + i * this->FrameSize(), i, sample_id, batch_id, "reader");
-        // detail::save_frame(frame_gpu.data(), i, sample_id, batch_id, "gt");
+        detail::save_frame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
+        detail::save_frame(frame_gpu.data(), i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
         
         gt_frame_id += stride;
       }
 
       ++sequence_id;
 
-      if (gt_frame_id + stride * sequence_length >= this->NumFrames()) {
+      if (gt_frame_id + stride * sequence_length >= this->NumFrames(video_idx)) {
         gt_frame_id = 0;
+        ++video_idx;
+        if (video_idx == this->NumVideos()) {
+          video_idx = 0;
+        }
       }
     }
     ++batch_id;

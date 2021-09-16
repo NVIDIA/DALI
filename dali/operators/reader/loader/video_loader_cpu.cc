@@ -177,7 +177,7 @@ void VideoFileCPU::ReadNextFrame(uint8_t *data, bool copy_to_output) {
 
 void VideoLoaderCPU::ReadSample(Tensor<CPUBackend> &sample) {
   auto &sample_span = sample_spans_[current_index_];
-  auto &video_file = video_files_[0];
+  auto &video_file = video_files_[sample_span.video_idx_];
 
   ++current_index_;
   MoveToNextShard(current_index_);
@@ -203,8 +203,10 @@ void VideoLoaderCPU::PrepareMetadataImpl() {
     video_files_.push_back(VideoFileCPU(filename));
   }
 
-  for (int start = 0; start + stride_ * sequence_len_ <= video_files_[0].NumFrames(); start += step_) {
-    sample_spans_.push_back(VideoSampleSpan(start, start + stride_ * sequence_len_, stride_));
+  for (int video_idx = 0; video_idx < video_files_.size(); ++video_idx) {
+    for (int start = 0; start + stride_ * sequence_len_ <= video_files_[video_idx].NumFrames(); start += step_) {
+      sample_spans_.push_back(VideoSampleSpan(start, start + stride_ * sequence_len_, stride_, video_idx));
+    }
   }
 }
 

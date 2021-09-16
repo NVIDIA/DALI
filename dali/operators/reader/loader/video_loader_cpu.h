@@ -90,12 +90,13 @@ class VideoFileCPU {
 
 class VideoSampleSpan {
  public:
-  explicit VideoSampleSpan(int start, int end, int stride) : 
-    start_(start), end_(end), stride_(stride) {}
+  explicit VideoSampleSpan(int start, int end, int stride, int video_idx) : 
+    start_(start), end_(end), stride_(stride), video_idx_(video_idx) {}
 
   int start_ = -1;
   int end_ = -1;
   int stride_ = -1;
+  int video_idx_ = -1;
 };
 
 
