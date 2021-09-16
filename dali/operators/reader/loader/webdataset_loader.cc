@@ -35,7 +35,7 @@ namespace wds {
 
 inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_behavior) {
   for (auto &c : missing_component_behavior)
-      c = std::tolower(static_cast<unsigned char >(ctr));
+      c = std::tolower(static_cast<unsigned char >(c));
   if (missing_component_behavior == "") {
     return MissingExtBehavior::Empty;
   } else if (missing_component_behavior == "skip") {
