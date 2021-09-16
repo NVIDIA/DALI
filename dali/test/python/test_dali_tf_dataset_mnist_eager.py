@@ -28,7 +28,7 @@ def test_keras_single_other_gpu():
 def test_keras_single_cpu():
     run_keras_single_device('cpu', 0)
 
-
+@with_setup(skip_for_incompatible_tf)
 @raises(Exception, "TF device and DALI device mismatch")
 def test_keras_wrong_placement_gpu():
     with tf.device('cpu:0'):
@@ -41,6 +41,7 @@ def test_keras_wrong_placement_gpu():
         steps_per_epoch=ITERATIONS)
 
 
+@with_setup(skip_for_incompatible_tf)
 @raises(Exception, "TF device and DALI device mismatch")
 def test_keras_wrong_placement_cpu():
     with tf.device('gpu:0'):
