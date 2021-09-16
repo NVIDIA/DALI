@@ -291,15 +291,14 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
           sample_gpu + i * this->FrameSize(video_idx),
           FrameSize(video_idx) * sizeof(uint8_t));
 
-        // detail::comapre_frames(
-        //   sample + i * this->FrameSize(video_idx), frame_gpu.data(), this->FrameSize(video_idx), 100);
+        detail::comapre_frames(
+          sample + i * this->FrameSize(video_idx), frame_gpu.data(), this->FrameSize(video_idx), 100);
 
-        detail::save_frame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
-        detail::save_frame(frame_gpu.data(), i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
-        
-        gt_frame_id += stride;
+        // detail::save_frame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
+        // detail::save_frame(frame_gpu.data(), i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
       }
 
+      gt_frame_id += step;
       ++sequence_id;
 
       if (gt_frame_id + stride * sequence_length >= this->NumFrames(video_idx)) {
@@ -312,7 +311,6 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
     }
     ++batch_id;
   }
-
 }
 
 }  // namespace dali
