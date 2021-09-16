@@ -106,6 +106,8 @@ def test_fail_sequence_rearrange():
         'Input with dimension * cannot be converted to dimension *'
     ]
 
+    assert len(orders) == len(error_msgs)
+
     for dev in ["cpu", "gpu"]:
         for args, error_msg in zip(orders, error_msgs):
             yield raises(RuntimeError, glob=error_msg)(check_fail_sequence_rearrange), 2, shape, *args, dev
@@ -116,4 +118,7 @@ def test_wrong_layouts_sequence_rearrange():
     per_sample = False
     for dev in ["cpu", "gpu"]:
         for layout in ["HF", "HW"]:
-            yield raises(RuntimeError, glob="Expected sequence as the input, where outermost dimension represents frames dimension `F`")(check_fail_sequence_rearrange), 5, shape, new_order, per_sample, dev, layout
+            yield raises(
+                RuntimeError,
+                glob='Expected sequence as the input, where outermost dimension represents frames dimension `F`, ''got data with layout = "H[WF]"')(
+                    check_fail_sequence_rearrange), 5, shape, new_order, per_sample, dev, layout

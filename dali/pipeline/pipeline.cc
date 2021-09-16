@@ -474,8 +474,12 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
       outputs.push_back("contiguous_" + name + "_" + device);
     } else if (device == "gpu") {
       DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID,
-                   make_string("Cannot make a gpu output for ", name, " operator,"
-                   " device_id should not be equal CPU_ONLY_DEVICE_ID."));
+                   make_string(
+                     "Cannot move the data node ", name, " to the GPU "
+                     "in a CPU-only pipeline. The `device_id` parameter "
+                     "is set to `CPU_ONLY_DEVICE_ID`. Set `device_id` "
+                     "to a valid GPU identifier to enable GPU features "
+                     "in the pipeline."));
       if (!it->second.has_gpu) {
         DALI_ENFORCE(it->second.has_cpu, "Output '" + name +
             "' exists on neither cpu or gpu, internal error");
