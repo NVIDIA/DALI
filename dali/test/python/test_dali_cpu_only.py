@@ -26,6 +26,7 @@ from test_audio_decoder_utils import generate_waveforms
 import scipy.io.wavfile
 from PIL import Image, ImageEnhance
 from test_detection_pipeline import coco_anchors
+from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 import re
 
 import numpy as np
@@ -45,6 +46,7 @@ caffe_dir = os.path.join(data_root, 'db', 'lmdb')
 caffe2_dir = os.path.join(data_root, 'db', 'c2lmdb')
 recordio_dir = os.path.join(data_root, 'db', 'recordio')
 tfrecord_dir = os.path.join(data_root, 'db', 'tfrecord')
+webdataset_dir = os.path.join(data_root, 'db', 'webdataset')
 coco_dir = os.path.join(data_root, 'db', 'coco', 'images')
 coco_annotation = os.path.join(data_root, 'db', 'coco', 'instances.json')
 sequence_dir = os.path.join(data_root, 'db', 'sequence', 'frames')
@@ -496,6 +498,17 @@ def test_tfrecord_reader_cpu():
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+def test_webdataset_reader_cpu():
+    webdataset = os.path.join(webdataset_dir, 'MNIST', 'devel-0.tar')
+    webdataset_idx = generate_temp_wds_index(webdataset)
+    check_no_input(fn.readers.webdataset,
+                   paths=webdataset, 
+                   index_paths=webdataset_idx.name, 
+                   ext=["jpg", "cls"],
+                   shard_id=0,
+                   num_shards=1)
+
 
 def test_coco_reader_cpu():
     check_no_input(fn.readers.coco, file_root=coco_dir, annotations_file=coco_annotation, shard_id=0, num_shards=1)
@@ -982,6 +995,7 @@ tested_methods = [
     "readers.caffe2",
     "readers.coco",
     "readers.numpy",
+    "readers.webdataset",
     "coin_flip",
     "uniform",
     "random.uniform",

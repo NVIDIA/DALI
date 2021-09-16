@@ -25,14 +25,15 @@
 #include "dali/operators/reader/loader/filesystem.h"
 #include "dali/util/file.h"
 #include "dali/core/util.h"
+#include "dali/test/dali_test_config.h"
 
 namespace dali {
 namespace detail {
 
 TEST(LibTarUtilsTestSimple, Interface) {
-  std::string filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+  std::string filepath(dali::filesystem::join_path(testing::dali_extra_path(),
                                                    "db/webdataset/MNIST/devel-2.tar"));
-  std::string dummy_filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+  std::string dummy_filepath(dali::filesystem::join_path(testing::dali_extra_path(),
                                                          "db/webdataset/MNIST/devel-1.tar"));
 
   TarArchive dummy_archive(FileStream::Open(dummy_filepath, false, false));
@@ -66,7 +67,7 @@ TEST(LibTarUtilsTestSimple, Interface) {
 }
 
 TEST(LibTarUtilsTestSimple, LongNameIndexing) {
-  std::string filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+  std::string filepath(dali::filesystem::join_path(testing::dali_extra_path(),
                                                    "db/webdataset/sample-tar/gnu.tar"));
   TarArchive archive(FileStream::Open(filepath, false, false));
   std::string name_prefix(128, '#');
@@ -78,7 +79,7 @@ TEST(LibTarUtilsTestSimple, LongNameIndexing) {
 }
 
 TEST(LibTarUtilsTestSimple, Types) {
-  std::string filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+  std::string filepath(dali::filesystem::join_path(testing::dali_extra_path(),
                                                    "db/webdataset/sample-tar/types.tar"));
   std::vector<TarArchive::EntryType> types = {
       TarArchive::ENTRY_BLOCKDEV, TarArchive::ENTRY_CHARDEV,  TarArchive::ENTRY_DIR,
@@ -99,7 +100,7 @@ TEST(LibTarUtilsTestSimple, Types) {
 }
 
 TEST(LibTarUtilsTestSimple, Offset) {
-  std::string filepath(dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+  std::string filepath(dali::filesystem::join_path(testing::dali_extra_path(),
                                                    "db/webdataset/sample-tar/types.tar"));
 
   TarArchive archive(FileStream::Open(filepath, false, true));
@@ -195,28 +196,28 @@ auto SimpleTarTestsValues() {
   vector<SimpleTarTestsData> values;
 
   SimpleTarTestsData filepaths[] = {
-      { dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+      { dali::filesystem::join_path(testing::dali_extra_path(),
                                     "db/webdataset/MNIST/devel-0.tar"),
         false,
         false,
         2000,
         3000,
         {".cls", ".jpg"} },
-      { dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+      { dali::filesystem::join_path(testing::dali_extra_path(),
                                     "db/webdataset/sample-tar/empty.tar"),
         false,
         false,
         0,
         0,
         {} },
-      { dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+      { dali::filesystem::join_path(testing::dali_extra_path(),
                                     "db/webdataset/sample-tar/v7.tar"),
         false,
         false,
         0,
         1000,
         {""} },
-      { dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"),
+      { dali::filesystem::join_path(testing::dali_extra_path(),
                                     "db/webdataset/sample-tar/oldgnu.tar"),
         false,
         false,
@@ -233,7 +234,7 @@ auto SimpleTarTestsValues() {
       }
     }
   }
-  return testing::ValuesIn(values.begin(), values.end());
+  return ::testing::ValuesIn(values.begin(), values.end());
 }
 
 INSTANTIATE_TEST_SUITE_P(LibTarUtilsTestParametrized, SimpleTarTests, SimpleTarTestsValues());
@@ -246,7 +247,7 @@ class MultiTarTests : public ::testing::TestWithParam<bool> {
   const std::pair<int, int> ranges[kMultithreadedSamples] = {{2000, 3000}, {0, 1000}, {1000, 2000}};
   void SetUp() final {
     std::string filepath_prefix(
-        dali::filesystem::join_path(std::getenv("DALI_EXTRA_PATH"), "db/webdataset/MNIST/devel-"));
+        dali::filesystem::join_path(testing::dali_extra_path(), "db/webdataset/MNIST/devel-"));
 
     std::string filepaths[kMultithreadedSamples] = {
         filepath_prefix + "0.tar", filepath_prefix + "1.tar", filepath_prefix + "2.tar"};

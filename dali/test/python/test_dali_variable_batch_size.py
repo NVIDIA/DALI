@@ -1210,6 +1210,7 @@ excluded_methods = [
     "readers.nemo_asr",         # readers do do not support variable batch size yet
     "readers.video",            # readers do do not support variable batch size yet
     "readers.video_resize",     # readers do do not support variable batch size yet
+    "readers.webdataset",       # readers do do not support variable batch size yet
 ]
 
 def test_coverage():
