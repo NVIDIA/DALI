@@ -149,13 +149,14 @@ void TensorVector<Backend>::SetSize(int new_size) {
 
 
 template <typename Backend>
-void TensorVector<Backend>::set_type(DALIDataType new_type) {
-  if (type_.id() == new_type)
+void TensorVector<Backend>::set_type(DALIDataType new_type_id) {
+  DALI_ENFORCE(new_type_id != DALI_NO_TYPE, "new_type must be valid type.");
+  if (type_.id() == new_type_id)
     return;
-  type_ = TypeTable::GetTypeInfo(new_type);
-  tl_->set_type(new_type);
+  type_ = TypeTable::GetTypeInfo(new_type_id);
+  tl_->set_type(new_type_id);
   for (auto t : tensors_) {
-    t->set_type(new_type);
+    t->set_type(new_type_id);
   }
   if (state_ == State::contiguous) {
     UpdateViews();
