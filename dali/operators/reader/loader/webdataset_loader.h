@@ -103,7 +103,7 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   std::vector<std::string> paths_;
   std::vector<std::string> index_paths_;
   std::vector<std::set<std::string>> ext_;
-  std::vector<TypeInfo> dtypes_;
+  std::vector<DALIDataType> dtypes_;
   detail::wds::MissingExtBehavior missing_component_behavior_;
 
  private:

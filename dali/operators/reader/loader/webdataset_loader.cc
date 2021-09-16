@@ -34,8 +34,8 @@ namespace detail {
 namespace wds {
 
 inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_behavior) {
-  std::transform(missing_component_behavior.begin(), missing_component_behavior.end(),
-                 missing_component_behavior.begin(), static_cast<int (*)(int)>(std::tolower));
+  for (auto &c : missing_component_behavior)
+      c = std::tolower(static_cast<unsigned char >(ctr));
   if (missing_component_behavior == "") {
     return MissingExtBehavior::Empty;
   } else if (missing_component_behavior == "skip") {
@@ -157,15 +157,12 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     }
   }
 
-  auto dtypes_ids = spec.HasArgument("dtypes") ? spec.GetRepeatedArgument<DALIDataType>("dtypes") :
-                                                 std::vector<DALIDataType>(ext_.size(), DALI_UINT8);
-  dtypes_.reserve(dtypes_ids.size());
-  std::transform(dtypes_ids.begin(), dtypes_ids.end(), std::back_inserter(dtypes_),
-                 TypeTable::GetTypeInfo);
+  dtypes_ = spec.HasArgument("dtypes") ? spec.GetRepeatedArgument<DALIDataType>("dtypes")
+                                       : std::vector<DALIDataType>(ext_.size(), DALI_UINT8);
 
-  for (auto& dtype : dtypes_) {
-    DALI_ENFORCE(detail::wds::kSupportedTypes.count(dtype.id()),
-                 make_string("Unsupported output dtype ", dtype.name(),
+  for (DALIDataType dtype : dtypes_) {
+    DALI_ENFORCE(detail::wds::kSupportedTypes.count(dtype),
+                 make_string("Unsupported output dtype ", dtype,
                              ". Supported types are: ", SupportedTypesListGen()));
   }
   DALI_ENFORCE(ext_.size() == dtypes_.size(),
@@ -238,13 +235,13 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
             sample[output].Reset();
           }
           sample[output].Resize(
-              {static_cast<int64_t>(component.size / sample[output].type().size())},
+              {static_cast<int64_t>(component.size / sample[output].type_info().size())},
               dtypes_[output]);
           shared_tensor_data = reinterpret_cast<uint8_t*>(sample[output].raw_mutable_data());
         } else {
           sample[output].ShareData(
               shared_tensor_data, component.size,
-              {static_cast<int64_t>(component.size / sample[output].type().size())},
+              {static_cast<int64_t>(component.size / sample[output].type_info().size())},
               sample[output].type());
         }
       }
@@ -256,7 +253,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
         sample[output].SetMeta(meta);
         sample[output].ShareData(
             data, component.size,
-            {static_cast<int64_t>(component.size / sample[output].type().size())},
+            {static_cast<int64_t>(component.size / sample[output].type_info().size())},
             sample[output].type());
       }
     }
@@ -300,6 +297,11 @@ void WebdatasetLoader::PrepareMetadataImpl() {
   bitmask was_output_set;
   was_output_set.resize(ext_.size(), false);
   output_indicies_.reserve(ext_.size());
+
+  std::vector<size_t> dtype_sizes_(dtypes_.size());
+  for (size_t i = 0; i < dtypes_.size(); i++)
+    dtype_sizes_[i] = TypeTable::GetTypeInfo(dtypes_[i]).size();
+
   for (size_t wds_shard_index = 0; wds_shard_index < index_paths_.size(); wds_shard_index++) {
     unfiltered_samples.resize(0);
     unfiltered_components.resize(0);
@@ -320,7 +322,7 @@ void WebdatasetLoader::PrepareMetadataImpl() {
         for (auto& output : ext_map[component.ext]) {
           if (!was_output_set[output]) {
             DALI_ENFORCE(
-                component.size % dtypes_[output].size() == 0,
+                component.size % dtype_sizes_[output] == 0,
                 make_string("Error in index file at ", index_paths_[wds_shard_index], " line ",
                             sample.line_number, " - component size and dtype incompatible"));
             output_indicies_.push_back(output);
