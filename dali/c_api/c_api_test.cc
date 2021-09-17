@@ -171,9 +171,7 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline,
                    backend_to_device_type<Backend>::value, 0, copy_output_flags);
 
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-    auto type_info = TypeTable::GetTypeInfoFromStatic<uint8_t>();
-    type_info.Copy<CPUBackend, Backend>(cpu_buf.get(), backend_buf.get(), num_elems,
-                                        cuda_stream);
+    MemCopy(cpu_buf.get(), backend_buf.get(), num_elems * sizeof(uint8_t), cuda_stream);
     CUDA_CALL(cudaDeviceSynchronize());
     Check(view<uint8_t>(pipeline_output_cpu),
           TensorListView<StorageCPU, uint8_t>(cpu_buf.get(), pipeline_output_cpu.shape()));
@@ -292,11 +290,10 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3},
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
-  auto type_info = TypeTable::GetTypeInfoFromStatic<uint8_t>();
   auto num_elems = input_shape.num_elements();
 
-  auto input_cpu = AllocBuffer<CPUBackend>(num_elems * type_info.size(), false);
-  auto input = AllocBuffer<TypeParam>(num_elems * type_info.size(), false);
+  auto input_cpu = AllocBuffer<CPUBackend>(num_elems * sizeof(uint8_t), false);
+  auto input = AllocBuffer<TypeParam>(num_elems * sizeof(uint8_t), false);
   TensorList<TypeParam> input_wrapper;
 
   auto pipe_ptr = GetTestPipeline<TypeParam>(false, this->output_device_);
@@ -312,8 +309,9 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape), 42 * i);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-    type_info.Copy<TypeParam, CPUBackend>(input.get(), input_cpu.get(), num_elems, cuda_stream);
-    input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * type_info.size(), input_shape, type_info);
+    MemCopy(input.get(), input_cpu.get(), num_elems * sizeof(uint8_t), cuda_stream);
+    input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * sizeof(uint8_t),
+                            input_shape, DALI_UINT8);
     pipe_ptr->SetExternalInput(input_name, input_wrapper);
     daliSetExternalInputBatchSize(&handle, input_name.c_str(), input_shape.num_samples());
     daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
@@ -335,8 +333,9 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape),
                  42 * prefetch_queue_depth);
   // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-  type_info.Copy<TypeParam, CPUBackend>(input.get(), input_cpu.get(), num_elems, cuda_stream);
-  input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * type_info.size(), input_shape, type_info);
+  MemCopy(input.get(), input_cpu.get(), num_elems * sizeof(uint8_t), cuda_stream);
+  input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * sizeof(uint8_t),
+                          input_shape, DALI_UINT8);
   pipe_ptr->SetExternalInput(input_name, input_wrapper);
   daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
                             input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
@@ -373,18 +372,18 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
     pipe_ptr = GetTestPipeline<TypeParam>(false, this->output_device_);
     pipe_ptr->Build();
 
-    auto type_info = TypeTable::GetTypeInfoFromStatic<uint8_t>();
     auto num_elems = input_shape.num_elements();
 
-    auto input_cpu = AllocBuffer<CPUBackend>(num_elems * type_info.size(), false);
-    auto input = AllocBuffer<TypeParam>(num_elems * type_info.size(), false);
+    auto input_cpu = AllocBuffer<CPUBackend>(num_elems * sizeof(uint8_t), false);
+    auto input = AllocBuffer<TypeParam>(num_elems * sizeof(uint8_t), false);
     TensorList<TypeParam> input_wrapper;
 
     for (int i = 0; i < prefetch_queue_depth; i++) {
       SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape), 42 * i);
       // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-      type_info.Copy<TypeParam, CPUBackend>(input.get(), input_cpu.get(), num_elems, cuda_stream);
-      input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * type_info.size(), input_shape, type_info);
+      MemCopy(input.get(), input_cpu.get(), num_elems, cuda_stream);
+      input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * sizeof(uint8_t),
+                              input_shape, DALI_UINT8);
       pipe_ptr->SetExternalInput(input_name, input_wrapper);
       daliSetExternalInputBatchSize(&handle, input_name.c_str(), input_shape.num_samples());
       daliSetExternalInputAsync(&handle, input_name.c_str(),
@@ -479,11 +478,10 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8,  8,  3},
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
-  auto type_info = TypeTable::GetTypeInfoFromStatic<uint8_t>();
   auto num_elems = input_shape.num_elements();
 
-  auto input_cpu = AllocBuffer<CPUBackend>(num_elems * type_info.size(), false);
-  auto input = AllocBuffer<DataBackend>(num_elems * type_info.size(), false);
+  auto input_cpu = AllocBuffer<CPUBackend>(num_elems * sizeof(uint8_t), false);
+  auto input = AllocBuffer<DataBackend>(num_elems * sizeof(uint8_t), false);
   TensorList<DataBackend> input_wrapper;
 
   auto pipe_ptr = GetTestPipeline<OpBackend>(false, this->output_device_);
@@ -499,9 +497,10 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape), 42 * i);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-    type_info.Copy<DataBackend, CPUBackend>(input.get(), input_cpu.get(), num_elems, cuda_stream);
+    MemCopy(input.get(), input_cpu.get(), num_elems, cuda_stream);
     CUDA_CALL(cudaStreamSynchronize(cuda_stream));
-    input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * type_info.size(), input_shape, type_info);
+    input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * sizeof(uint8_t),
+                            input_shape, DALI_UINT8);
     pipe_ptr->SetExternalInput(input_name, input_wrapper);
     daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
                          input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
@@ -522,9 +521,10 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape),
                   42 * prefetch_queue_depth);
   // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-  type_info.Copy<DataBackend, CPUBackend>(input.get(), input_cpu.get(), num_elems, cuda_stream);
+  MemCopy(input.get(), input_cpu.get(), num_elems, cuda_stream);
   CUDA_CALL(cudaStreamSynchronize(cuda_stream));
-  input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * type_info.size(), input_shape, type_info);
+  input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * sizeof(uint8_t),
+                          input_shape, DALI_UINT8);
   pipe_ptr->SetExternalInput(input_name, input_wrapper);
   daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
                         input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
@@ -636,10 +636,9 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
   TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3},
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
-  TensorList<CPUBackend> input_cpu;
-  input_cpu.Resize(input_shape, DALI_UINT8);
-
-  auto input = AllocBuffer<TypeParam>(num_elems * type_info.size(),
+  auto num_elems = input_shape.num_elements();
+  auto input_cpu = AllocBuffer<CPUBackend>(num_elems * sizeof(uint8_t), false);
+  auto input = AllocBuffer<TypeParam>(num_elems * sizeof(uint8_t),
                                       std::is_same<TypeParam, CPUBackend>::value);
   TensorList<TypeParam> input_wrapper;
   if (std::is_same<TypeParam, CPUBackend>::value) {
@@ -661,8 +660,9 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape), 42 * i);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-    type_info.Copy<TypeParam, CPUBackend>(input.get(), input_cpu.get(), num_elems, cuda_stream);
-    input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * type_info.size(), input_shape, type_info);
+    MemCopy(input.get(), input_cpu.get(), num_elems, cuda_stream);
+    input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * sizeof(uint8_t),
+                            input_shape, DALI_UINT8);
     pipe_ptr->SetExternalInput(input_name, input_wrapper);
     daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
                               input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
@@ -687,11 +687,10 @@ TYPED_TEST(CApiTest, ForceNoCopyFail) {
   TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3},
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
-  auto type_info = TypeTable::GetTypeInfoFromStatic<uint8_t>();
   auto num_elems = input_shape.num_elements();
 
-  auto input_cpu = AllocBuffer<CPUBackend>(num_elems * type_info.size(), false);
-  auto input = AllocBuffer<TypeParam>(num_elems * type_info.size(), false);
+  auto input_cpu = AllocBuffer<CPUBackend>(num_elems * sizeof(uint8_t), false);
+  auto input = AllocBuffer<TypeParam>(num_elems * sizeof(uint8_t), false);
 
   auto device = backend_to_device_type<TypeParam>::value;
   std::string device_str = GetDeviceStr(device);
@@ -709,7 +708,7 @@ TYPED_TEST(CApiTest, ForceNoCopyFail) {
 
     SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape), 42);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-    type_info.Copy<TypeParam, CPUBackend>(input.get(), input_cpu.get(), num_elems, cuda_stream);
+    MemCopy(input.get(), input_cpu.get(), num_elems, cuda_stream);
 
   // Try to fill the pipeline placed on "other_device" with data placed on the current "device"
   // while forcing NO COPY. It's not allowed to do a no copy across backends and it should error
@@ -728,10 +727,9 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test) {
   TensorListShape<> input_shape = {{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3},
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
-  auto type_info = TypeTable::GetTypeInfoFromStatic<uint8_t>();
   auto num_elems = input_shape.num_elements();
 
-  auto input_cpu = AllocBuffer<CPUBackend>(num_elems * type_info.size(), false);
+  auto input_cpu = AllocBuffer<CPUBackend>(num_elems * sizeof(uint8_t), false);
 
   auto device = backend_to_device_type<TypeParam>::value;
   std::string device_str = GetDeviceStr(device);
@@ -749,16 +747,16 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test) {
   std::vector<std::shared_ptr<uint8_t>> data;
   data.reserve(prefetch_queue_depth);
   for (int i = 0; i < prefetch_queue_depth; i++) {
-    data.push_back(AllocBuffer<TypeParam>(num_elems * type_info.size(), false));
+    data.push_back(AllocBuffer<TypeParam>(num_elems * sizeof(uint8_t), false));
   }
   std::vector<TensorList<TypeParam>> input_wrapper(3);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape), 42 * i);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-    type_info.Copy<TypeParam, CPUBackend>(data[i].get(), input_cpu.get(), num_elems, cuda_stream);
+    MemCopy(data[i].get(), input_cpu.get(), num_elems, cuda_stream);
     input_wrapper[i].ShareData(std::static_pointer_cast<void>(data[i]),
-                               num_elems * type_info.size(), input_shape, type_info);
+                               num_elems * sizeof(uint8_t), input_shape, DALI_UINT8);
     pipe_ptr->SetExternalInput(input_name, input_wrapper[i]);
     if (flag_to_test == DALI_ext_force_no_copy) {
       // for no copy, we just pass the view to data
@@ -767,8 +765,8 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test) {
                                 dali_data_type_t::DALI_UINT8, input_shape.data(),
                                 input_shape.sample_dim(), nullptr, cuda_stream, flag_to_test);
     } else {
-      auto tmp_data = AllocBuffer<TypeParam>(num_elems * type_info.size(), false);
-      type_info.Copy<TypeParam, CPUBackend>(tmp_data.get(), data[i].get(), num_elems, cuda_stream);
+      auto tmp_data = AllocBuffer<TypeParam>(num_elems * sizeof(uint8_t), false);
+      MemCopy(tmp_data.get(), data[i].get(), num_elems, cuda_stream);
       // We pass a temporary TensorList as input and force the copy
       daliSetExternalInputAsync(&handle, input_name.c_str(),
                                 backend_to_device_type<TypeParam>::value, tmp_data.get(),
