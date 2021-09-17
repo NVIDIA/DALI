@@ -25,7 +25,7 @@ void VideoLoaderCPU::ReadSample(Tensor<CPUBackend> &sample) {
 
   sample.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
   sample.Resize(
-    TensorShape<4>{sequence_len_, video_file.Width(), video_file.Height(), video_file.channels_});
+    TensorShape<4>{sequence_len_, video_file.Width(), video_file.Height(), video_file.Channels()});
 
   auto data = sample.mutable_data<uint8_t>();
 
@@ -46,7 +46,7 @@ void VideoLoaderCPU::PrepareMetadataImpl() {
 
   for (int video_idx = 0; video_idx < video_files_.size(); ++video_idx) {
     for (int start = 0; start + stride_ * sequence_len_ <= video_files_[video_idx].NumFrames(); start += step_) {
-      sample_spans_.push_back(VideoSampleSpan(start, start + stride_ * sequence_len_, stride_, video_idx));
+      sample_spans_.push_back(VideoSampleDesc(start, start + stride_ * sequence_len_, stride_, video_idx));
     }
   }
 }

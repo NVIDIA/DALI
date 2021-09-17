@@ -50,6 +50,10 @@ class VideoFileCPU {
     return codec_params_->height;
   }
 
+  int Channels() const {
+      return channels_;
+  }
+
   int FrameSize() const {
     return channels_ * Width() * Height();
   }
@@ -59,6 +63,18 @@ class VideoFileCPU {
 
   void SeekFrame(int frame_id);
 
+ private:
+  bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true);
+
+  bool ReadFlushFrame(uint8_t *data, bool copy_to_output = true);
+
+  void CopyToOutput(uint8_t *data);
+
+  void BuildIndex();
+
+  void Reset();
+
+  bool flush_state_ = false;
   AVFormatContext *ctx_ = nullptr;
   AVCodec *codec_ = nullptr;
   AVCodecParameters *codec_params_ = nullptr;
@@ -75,32 +91,7 @@ class VideoFileCPU {
 
   uint8_t *dest_[4] = {nullptr, nullptr, nullptr, nullptr};
   int dest_linesize_[4] = {0, 0, 0, 0};
-
- private:
-  bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true);
-
-  bool ReadFlushFrame(uint8_t *data, bool copy_to_output = true);
-
-  void CopyToOutput(uint8_t *data);
-
-  void BuildIndex();
-
-  void Reset();
-
-  bool flush_state_ = false;
 };
-
-class VideoSampleSpan {
- public:
-  explicit VideoSampleSpan(int start, int end, int stride, int video_idx) : 
-    start_(start), end_(end), stride_(stride), video_idx_(video_idx) {}
-
-  int start_ = -1;
-  int end_ = -1;
-  int stride_ = -1;
-  int video_idx_ = -1;
-};
-
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_FILE_H_

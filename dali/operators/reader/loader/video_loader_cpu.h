@@ -20,6 +20,16 @@
 #include "dali/operators/reader/loader/video/video_file.h"
 
 namespace dali {
+class VideoSampleDesc {
+ public:
+  explicit VideoSampleDesc(int start, int end, int stride, int video_idx) : 
+    start_(start), end_(end), stride_(stride), video_idx_(video_idx) {}
+
+  int start_ = -1;
+  int end_ = -1;
+  int stride_ = -1;
+  int video_idx_ = -1;
+};
 
 class VideoLoaderCPU : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
@@ -46,7 +56,7 @@ private:
 
   std::vector<std::string> filenames_;
   std::vector<VideoFileCPU> video_files_;
-  std::vector<VideoSampleSpan> sample_spans_;
+  std::vector<VideoSampleDesc> sample_spans_;
 
   Index current_index_ = 0;
 
