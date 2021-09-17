@@ -223,11 +223,17 @@ class DLL_PUBLIC Buffer {
   }
 
   /**
-   * @brief Sets the type of allocation (pinned/non-pinned) for
-   * CPU buffers
+   * @brief Return true if there was data allocation
+   */
+  inline bool has_data() const noexcept {
+    return !!data_;
+  }
+
+  /**
+   * @brief Sets the type of allocation (pinned/non-pinned) for CPU buffers
    */
   inline void set_pinned(bool pinned) {
-    DALI_ENFORCE(!data_, "Can only set allocation mode before first allocation");
+    DALI_ENFORCE(!has_data(), "Can only set allocation mode before first allocation");
     DALI_ENFORCE(!allocate_, "Cannot set allocation mode when a custom allocator is used.");
     pinned_ = pinned;
   }

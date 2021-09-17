@@ -160,7 +160,7 @@ class Tensor : public Buffer<Backend> {
   /**
    * @brief Tensor is always backed by contiguous buffer
    */
-  bool IsContiguous() {
+  bool IsContiguous() const {
     return true;
   }
 

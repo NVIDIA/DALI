@@ -19,14 +19,15 @@
 #include <vector>
 #include <string>
 
+#include "dali/core/dev_buffer.h"
+#include "dali/core/mm/memory.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_view.h"
-#include "dali/core/mm/memory.h"
-#include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/data/views.h"
+#include "dali/kernels/common/copy.h"
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/scratch.h"
-#include "dali/kernels/common/copy.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
@@ -181,7 +182,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     return params_gpu_;
   }
 
-  /** @brief Gets the mapping parameters in GPU memory
+  /** @brief Gets the mapping parameters in CPU memory
    *
    *  If CPU tensor is empty, but GPU is not, a copy is scheduled
    *  on the stream associated with current workspace and the calling thread

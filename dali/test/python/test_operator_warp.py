@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ class WarpPipeline(Pipeline):
         static_size = None if self.use_dynamic_size else (240,320)
 
         if use_input:
-          self.transform_source = ops.ExternalSource(lambda: gen_transforms(self.batch_size, 10))
+          self.transform_source = ops.ExternalSource(lambda: gen_transforms(self.max_batch_size, 10))
           self.warp = ops.WarpAffine(device = device, size=static_size, fill_value = 42, dtype = output_type, inverse_map=inv_map)
         else:
           warp_matrix = (0.1, 0.9, 10, 0.8, -0.2, -20)
@@ -129,7 +129,7 @@ class CVPipeline(Pipeline):
         self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
         if self.use_input:
-          self.transform_source = ops.ExternalSource(lambda: gen_transforms(self.batch_size, 10))
+          self.transform_source = ops.ExternalSource(lambda: gen_transforms(self.max_batch_size, 10))
           self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type, inv_map=inv_map),
                                          output_layouts="HWC")
         else:
@@ -149,7 +149,7 @@ class CVPipeline(Pipeline):
 
 def compare(pipe1, pipe2, eps):
   epoch_size = pipe1.epoch_size("Reader")
-  batch_size = pipe1.batch_size
+  batch_size = pipe1.max_batch_size
   niter = (epoch_size + batch_size - 1) // batch_size
   compare_pipelines(pipe1, pipe2, batch_size, niter, eps);
 
