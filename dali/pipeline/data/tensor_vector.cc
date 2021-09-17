@@ -285,7 +285,7 @@ void TensorVector<Backend>::reserve(size_t bytes_per_sample, int batch_size) {
 
 template <typename Backend>
 bool TensorVector<Backend>::IsContiguous() const noexcept {
-  return state_ == State::contiguous && static_cast<size_t>(views_count_) == size();
+  return state_ == State::contiguous && static_cast<size_t>(views_count_) <= size();
 }
 
 
@@ -378,17 +378,18 @@ void TensorVector<Backend>::ShareData(TensorVector<Backend> *tv) {
   }
   int batch_size = tv->ntensor();
   resize_tensors(batch_size);
-  views_count_ = 0;
+  int new_views_count = 0;
 
   for (int i = 0; i < batch_size; i++) {
     if (static_cast<int>(tv->tl_->ntensor()) > i &&
         tv->tensors_[i]->raw_data() == tv->tl_->raw_tensor(i)) {
       update_view(i);
-      ++views_count_;
+      ++new_views_count;
     } else {
       tensors_[i]->ShareData(tv->tensors_[i].get());
     }
   }
+  views_count_ = new_views_count;
 }
 
 

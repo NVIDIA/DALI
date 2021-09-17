@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,11 @@ void MakeContiguousCPU::RunImpl(HostWorkspace &ws) {
   auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
   int batch_size = input.ntensor();
+  // shortcut
+  if (input.IsContiguous()) {
+    output.ShareData(&input);
+    return;
+  }
   output.SetLayout(input.GetLayout());
   auto shapes = input.shape();
 
@@ -40,6 +45,7 @@ DALI_SCHEMA(MakeContiguous)
   .DocStr(R"code(Move input batch to a contiguous representation, more suitable for execution on the GPU)code")
   .NumInput(1)
   .NumOutput(1)
+  .PassThrough({{0, 0}})
   .MakeInternal();
 
 }  // namespace dali

@@ -492,6 +492,49 @@ TEST_F(PipelineTestOnce, TestPresize) {
   ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
 }
 
+TEST_F(PipelineTestOnce, TestMakeContiguous) {
+  const int batch_size = 1;
+  const int num_thread = 1;
+  const bool pipelined = true;
+  const bool async =  true;
+  DALIImageType img_type = DALI_RGB;
+
+  const int presize_val_CPU = 11;
+  const int presize_val_Mixed = 157;
+  const int presize_val_GPU = 971;
+  const int presize_val_default = 55;
+
+  // Create the pipeline
+  Pipeline pipe(
+      batch_size,
+      num_thread,
+      0, -1, pipelined, 3,
+      async,
+      presize_val_default);
+
+  TensorList<CPUBackend> data;
+  this->MakeJPEGBatch(&data, batch_size);
+  pipe.AddExternalInput("raw_jpegs");
+
+  pipe.AddOperator(
+      OpSpec("MakeContiguous")
+      .AddArg("device", "cpu")
+      .AddInput("raw_jpegs", "cpu")
+      .AddOutput("out_1", "cpu"));
+
+  // Build and run the pipeline
+  vector<std::pair<string, string>> outputs = {{"out_1", "cpu"}, {"raw_jpegs", "cpu"}};
+
+  pipe.Build(outputs);
+  pipe.SetExternalInput("raw_jpegs", data);
+  DeviceWorkspace ws;
+  pipe.RunCPU();
+  pipe.RunGPU();
+  pipe.Outputs(&ws);
+
+  ASSERT_EQ(ws.Output<CPUBackend>(0).raw_data(), ws.Output<CPUBackend>(1).raw_data());
+}
+
 TYPED_TEST(PipelineTest, TestSeedSet) {
   int num_thread = TypeParam::nt;
   int batch_size = this->jpegs_.nImages();
