@@ -31,23 +31,23 @@ void BoxEncoder<GPUBackend>::PrepareAnchors(const vector<float> &anchors) {
     (anchors.size() % BoundingBox::size) == 0,
     "Anchors size must be divisible by 4, actual value = " + std::to_string(anchors.size()));
 
-  anchors_count_ = anchors.size() / BoundingBox::size;
-  anchors_.Resize({anchors_count_, static_cast<int64_t>(BoundingBox::size)});
-  anchors_as_center_wh_.Resize({anchors_count_, static_cast<int64_t>(BoundingBox::size)});
+  anchor_count_ = anchors.size() / BoundingBox::size;
+  anchors_.Resize({anchor_count_, static_cast<int64_t>(BoundingBox::size)});
+  anchors_as_center_wh_.Resize({anchor_count_, static_cast<int64_t>(BoundingBox::size)});
 
   auto anchors_data_cpu = reinterpret_cast<const float4 *>(anchors.data());
 
-  vector<float4> anchors_as_center_wh(anchors_count_);
-  for (unsigned int anchor = 0; anchor < anchors_count_; ++anchor)
+  vector<float4> anchors_as_center_wh(anchor_count_);
+  for (unsigned int anchor = 0; anchor < anchor_count_; ++anchor)
     anchors_as_center_wh[anchor] = ToCenterWidthHeight(anchors_data_cpu[anchor]);
 
   auto anchors_data = anchors_.mutable_data<float>();
   auto anchors_as_center_wh_data = anchors_as_center_wh_.mutable_data<float>();
-  MemCopy(anchors_data, anchors.data(), anchors_count_ * BoundingBox::size * sizeof(float));
+  MemCopy(anchors_data, anchors.data(), anchor_count_ * BoundingBox::size * sizeof(float));
   MemCopy(
     anchors_as_center_wh_data,
     anchors_as_center_wh.data(),
-    anchors_count_ * BoundingBox::size * sizeof(float));
+    anchor_count_ * BoundingBox::size * sizeof(float));
 }
 
 __device__ __forceinline__ float CalculateIou(const float4 &b1, const float4 &b2) {
@@ -94,11 +94,11 @@ __device__ float4 MatchOffsets(
 }
 
 __device__ void WriteMatchesToOutput(
-  unsigned int anchors_count, float criteria, int *labels_out, const int *labels_in,
+  unsigned int anchor_count, float criteria, int *labels_out, const int *labels_in,
   float4 *boxes_out, const float4 *boxes_in,
   volatile int *best_box_idx, volatile float *best_box_iou, bool offset,
   const float* means, const float* stds, float scale, const float4 *anchors_as_cwh) {
-  for (unsigned int anchor = threadIdx.x; anchor < anchors_count; anchor += blockDim.x) {
+  for (unsigned int anchor = threadIdx.x; anchor < anchor_count; anchor += blockDim.x) {
     if (best_box_iou[anchor] > criteria) {
       int box_idx = best_box_idx[anchor];
       labels_out[anchor] = labels_in[box_idx];
@@ -114,13 +114,13 @@ __device__ void WriteMatchesToOutput(
 }
 
 __device__ void MatchBoxWithAnchors(
-  const float4 &box, const int box_idx, unsigned int anchors_count, const float4 *anchors,
+  const float4 &box, const int box_idx, unsigned int anchor_count, const float4 *anchors,
   volatile int *best_anchor_idx_tmp, volatile float *best_anchor_iou_tmp,
   volatile int *best_box_idx, volatile float *best_box_iou) {
   float best_anchor_iou = -1.0f;
   int best_anchor_idx = -1;
 
-  for (unsigned int anchor = threadIdx.x; anchor < anchors_count; anchor += blockDim.x) {
+  for (unsigned int anchor = threadIdx.x; anchor < anchor_count; anchor += blockDim.x) {
     float new_val = CalculateIou(box, anchors[anchor]);
 
     if (new_val >= best_anchor_iou) {
@@ -139,7 +139,7 @@ __device__ void MatchBoxWithAnchors(
 }
 
 template <int BLOCK_SIZE>
-__global__ void Encode(const BoxEncoderSampleDesc *samples, const int anchors_count,
+__global__ void Encode(const BoxEncoderSampleDesc *samples, const int anchor_count,
                        const float4 *anchors, const float criteria, int *box_idx_buffer,
                        float *box_iou_buffer, bool offset, const float *means, const float *stds,
                        float scale, const float4 *anchors_as_cwh) {
@@ -153,14 +153,14 @@ __global__ void Encode(const BoxEncoderSampleDesc *samples, const int anchors_co
   __shared__ volatile int best_anchor_idx_tmp[BLOCK_SIZE];
   __shared__ volatile float best_anchor_iou_tmp[BLOCK_SIZE];
 
-  volatile int *best_box_idx = box_idx_buffer + sample_idx * anchors_count;
-  volatile float *best_box_iou = box_iou_buffer + sample_idx * anchors_count;
+  volatile int *best_box_idx = box_idx_buffer + sample_idx * anchor_count;
+  volatile float *best_box_iou = box_iou_buffer + sample_idx * anchor_count;
 
-  for (int box_idx = 0; box_idx < sample.in_boxes_count; ++box_idx) {
+  for (int box_idx = 0; box_idx < sample.in_box_count; ++box_idx) {
     MatchBoxWithAnchors(
       sample.boxes_in[box_idx],
       box_idx,
-      anchors_count,
+      anchor_count,
       anchors,
       best_anchor_idx_tmp,
       best_anchor_iou_tmp,
@@ -182,7 +182,7 @@ __global__ void Encode(const BoxEncoderSampleDesc *samples, const int anchors_co
   __syncthreads();
 
   WriteMatchesToOutput(
-    anchors_count,
+    anchor_count,
     criteria,
     sample.labels_out,
     sample.labels_in,
@@ -202,9 +202,9 @@ std::pair<int *, float *> BoxEncoder<GPUBackend>::ClearBuffers(const cudaStream_
   auto best_box_iou_data = best_box_iou_.mutable_data<float>();
 
   CUDA_CALL(cudaMemsetAsync(
-    best_box_idx_data, 0, curr_batch_size_ * anchors_count_ * sizeof(int), stream));
+    best_box_idx_data, 0, curr_batch_size_ * anchor_count_ * sizeof(int), stream));
   CUDA_CALL(cudaMemsetAsync(
-    best_box_iou_data, 0, curr_batch_size_ * anchors_count_ * sizeof(float), stream));
+    best_box_iou_data, 0, curr_batch_size_ * anchor_count_ * sizeof(float), stream));
 
   return {best_box_idx_data, best_box_iou_data};
 }
@@ -213,7 +213,7 @@ void BoxEncoder<GPUBackend>::ClearLabels(TensorList<GPUBackend> &labels_out,
                                          const cudaStream_t &stream) {
   for (int sample = 0; sample < curr_batch_size_; ++sample) {
     CUDA_CALL(cudaMemsetAsync(labels_out.mutable_tensor<int>(sample), 0,
-                              anchors_count_ * sizeof(int), stream));
+                              anchor_count_ * sizeof(int), stream));
   }
 }
 
@@ -225,12 +225,12 @@ void BoxEncoder<GPUBackend>::WriteAnchorsToOutput(TensorList<GPUBackend> &boxes_
   auto *first_sample_boxes_out = boxes_out.mutable_tensor<float>(0);
   // Host -> device copy of anchors for first sample
   MemCopy(first_sample_boxes_out, anchors_to_copy,
-          anchors_count_ * BoundingBox::size * sizeof(float), stream);
+          anchor_count_ * BoundingBox::size * sizeof(float), stream);
   // Device -> device copy for the rest
   for (int sample = 1; sample < curr_batch_size_; ++sample) {
     auto *boxes_out_data = boxes_out.mutable_tensor<float>(sample);
     MemCopy(boxes_out_data, first_sample_boxes_out,
-            anchors_count_ * BoundingBox::size * sizeof(float), stream);
+            anchor_count_ * BoundingBox::size * sizeof(float), stream);
   }
 }
 
@@ -238,7 +238,7 @@ void BoxEncoder<GPUBackend>::ClearOutput(TensorList<GPUBackend> &boxes_out,
                                          const cudaStream_t &stream) {
   for (int sample = 0; sample < curr_batch_size_; ++sample) {
     auto *boxes_out_data = boxes_out.mutable_tensor<float>(sample);
-    CUDA_CALL(cudaMemsetAsync(boxes_out_data, 0, anchors_count_ * BoundingBox::size * sizeof(float),
+    CUDA_CALL(cudaMemsetAsync(boxes_out_data, 0, anchor_count_ * BoundingBox::size * sizeof(float),
                               stream));
   }
 }
@@ -251,8 +251,8 @@ BoxEncoder<GPUBackend>::CalculateDims(
 
   for (size_t i = 0; i < boxes_input.ntensor(); i++) {
     boxes_output_shape.set_tensor_shape(i,
-        {anchors_count_, static_cast<int64_t>(BoundingBox::size)});
-    labels_output_shape.set_tensor_shape(i, {anchors_count_});
+        {anchor_count_, static_cast<int64_t>(BoundingBox::size)});
+    labels_output_shape.set_tensor_shape(i, {anchor_count_});
   }
 
   return {boxes_output_shape, labels_output_shape};
@@ -287,7 +287,7 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     sample.labels_out = labels_output.mutable_tensor<int>(sample_idx);
     sample.boxes_in = reinterpret_cast<const float4 *>(boxes_input.tensor<float>(sample_idx));
     sample.labels_in = labels_input.tensor<int>(sample_idx);
-    sample.in_boxes_count = boxes_input.shape().tensor_shape_span(sample_idx)[0];
+    sample.in_box_count = boxes_input.shape().tensor_shape_span(sample_idx)[0];
   }
 
   const auto means_data = means_.data<float>();
@@ -304,7 +304,7 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
 
   Encode<BlockSize><<<curr_batch_size, BlockSize, 0, ws.stream()>>>(
     samples_dev.data(),
-    anchors_count_,
+    anchor_count_,
     anchors_data,
     criteria_,
     buffers.first,

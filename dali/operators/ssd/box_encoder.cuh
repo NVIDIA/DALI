@@ -30,7 +30,7 @@ struct BoxEncoderSampleDesc {
   int *labels_out;
   const float4 *boxes_in;
   const int *labels_in;
-  int in_boxes_count;
+  int in_box_count;
 };
 
 template <>
@@ -78,8 +78,8 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
     curr_batch_size_ = ws.GetInputBatchSize(0);
 
-    best_box_idx_.Resize({curr_batch_size_ * anchors_count_});
-    best_box_iou_.Resize({curr_batch_size_ * anchors_count_});
+    best_box_idx_.Resize({curr_batch_size_ * anchor_count_});
+    best_box_iou_.Resize({curr_batch_size_ * anchor_count_});
     return false;
   }
 
@@ -90,7 +90,7 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   static constexpr int kLabelsOutputDim = 1;
   int curr_batch_size_;
   const float criteria_;
-  int64_t anchors_count_;
+  int64_t anchor_count_;
   Tensor<GPUBackend> anchors_;
   Tensor<GPUBackend> anchors_as_center_wh_;
   Tensor<GPUBackend> best_box_idx_;
