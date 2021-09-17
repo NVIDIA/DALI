@@ -176,10 +176,6 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline,
     Check(view<uint8_t>(pipeline_output_cpu),
           TensorListView<StorageCPU, uint8_t>(cpu_buf.get(), pipeline_output_cpu.shape()));
   }
-  baseline.ReleaseOutputs();
-  daliOutputRelease(&handle);
-
-  CUDA_CALL(cudaDeviceSynchronize());
 }
 
 }  // namespace
@@ -921,7 +917,6 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
       Check(view<uint8_t>(output1_cpu), view<uint8_t>(output2_cpu));
     }
   }
-  daliOutputRelease(&handle);
   daliDeletePipeline(&handle);
 }
 
