@@ -20,6 +20,7 @@ from distutils.version import StrictVersion
 from pathlib import Path
 import tempfile
 from stubgen import stubgen
+from multiprocessing import Process
 
 class InstallerHelper:
     def __init__(self, plugin_dest_dir = None):
@@ -122,8 +123,15 @@ class InstallerHelper:
 
             try:
                 print("Loading DALI TF library: ", lib_path_tmpdir)
-                tf.load_op_library(lib_path_tmpdir)
-                return True
+                # try in a separate process just in case it recives SIGV
+                p = Process(target=tf.load_op_library, args=(lib_path_tmpdir, ))
+                p.start()
+                p.join(5)
+                ret = p.exitcode
+                if ret is None:
+                    p.terminate()
+                    p.join()
+                return ret == 0
             except Exception as e:
                 print("Failed to import TF library: ", str(e))
                 return False
