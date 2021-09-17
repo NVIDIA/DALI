@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ bool GridMaskGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   GetArguments(ws);
   output_desc[0] = {input.shape(), input.type()};
   kernel_manager_.Resize(1, 1);
-  TYPE_SWITCH(input.type().id(), type2id, Type, GRID_MASK_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, Type, GRID_MASK_TYPES, (
       {
           using Kernel = kernels::GridMaskGpu<Type>;
           kernels::KernelContext ctx;
@@ -37,7 +37,7 @@ bool GridMaskGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
           kernel_manager_.Initialize<Kernel>();
           kernel_manager_.Setup<Kernel>(0, ctx, view<const Type, 3>(input));
       }
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id()))) // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type()))) // NOLINT
   return true;
 }
 
@@ -45,7 +45,7 @@ void GridMaskGpu::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.template InputRef<GPUBackend>(0);
   auto &output = ws.template OutputRef<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
-  TYPE_SWITCH(input.type().id(), type2id, Type, GRID_MASK_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, Type, GRID_MASK_TYPES, (
       {
           using Kernel = kernels::GridMaskGpu<Type>;
           kernels::KernelContext ctx;
@@ -56,7 +56,7 @@ void GridMaskGpu::RunImpl(workspace_t<GPUBackend> &ws) {
           kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, out_view, in_view,
                 tile_, ratio_, angle_, shift_x_, shift_y_);
       }
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id()))) // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type()))) // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(GridMask, GridMaskGpu, GPU);

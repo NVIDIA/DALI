@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,10 +39,9 @@ class Shapes : public Operator<Backend> {
       break;
     default:
       {
-        auto &name = TypeTable::GetTypeInfo(output_type_).name();
-        DALI_FAIL("Operator Shapes can return the output as one of the following:\n"
+        DALI_FAIL(make_string("Operator Shapes can return the output as one of the following:\n"
           "int32, uint32, int64, uint64, float or double;\n"
-          "requested: " + name);
+          "requested: ", output_type_));
         break;
       }
     }
@@ -51,7 +50,7 @@ class Shapes : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     output_desc.resize(1);
-    output_desc[0].type = TypeTable::GetTypeInfo(output_type_);
+    output_desc[0].type = output_type_;
     decltype(auto) shape = GetInputShape(ws);
     output_desc[0].shape = ShapeShape(shape);
     return true;
@@ -95,8 +94,7 @@ class Shapes : public Operator<Backend> {
 
   void RunBackend(DeviceWorkspace &ws) {
     if (!tmp_.raw_data()) {
-      auto &type = TypeTable::GetTypeInfo(output_type_);
-      tmp_.set_type(type);
+      tmp_.set_type(output_type_);
       tmp_.set_pinned(true);
     }
 

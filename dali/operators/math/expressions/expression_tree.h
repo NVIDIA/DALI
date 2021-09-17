@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ class ExprNode {
   }
 
   virtual std::string GetOutputDesc() const {
-    auto op_type = TypeTable::GetTypeInfo(GetTypeId()).name();
+    const auto &op_type = TypeTable::GetTypeInfo(GetTypeId()).name();
     std::string result = GetAbbreviation(GetNodeType());
     result += IsScalarLike(GetShape()) ? "C:" : "T:";
     return result + op_type;
@@ -135,7 +135,7 @@ class ExprFunc : public ExprNode {
   }
 
   std::string GetNodeDesc() const override {
-    auto op_type = TypeTable::GetTypeInfo(GetTypeId()).name();
+    const auto &op_type = TypeTable::GetTypeInfo(GetTypeId()).name();
     std::string result = func_name_ + (IsScalarLike(GetShape()) ? ":C:" : ":T:") + op_type + "(";
     for (int i = 0; i < GetSubexpressionCount(); i++) {
       result += (*this)[i].GetOutputDesc();

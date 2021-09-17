@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -161,7 +161,6 @@ void Normalize<CPUBackend>::SetupTyped(const HostWorkspace &ws) {
 }
 
 void Normalize<CPUBackend>::AllocTempStorage() {
-  const TypeInfo &float_type = TypeTable::GetTypeInfo(DALI_FLOAT);
   int n = data_shape_.num_samples();
   const TensorListShape<> &tmp_shape = batch_norm_
     ? uniform_list_shape(n, param_shape_[0])  // extend to all samples, to enable parallelism
@@ -200,8 +199,8 @@ void Normalize<CPUBackend>::AllocTempStorage() {
       }
     }
   }
-  mean_.set_type(float_type);
-  inv_stddev_.set_type(float_type);
+  mean_.set_type<float>();
+  inv_stddev_.set_type<float>();
 }
 
 

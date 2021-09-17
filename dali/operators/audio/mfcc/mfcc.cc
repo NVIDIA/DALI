@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -128,12 +128,12 @@ bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   DALI_ENFORCE(axis_ >= 0 && axis_ < ndim,
                make_string("Axis ", axis_, " is out of bounds [0,", ndim, ")"));
 
-  TYPE_SWITCH(input.type().id(), type2id, T, MFCC_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, MFCC_SUPPORTED_TYPES, (
     VALUE_SWITCH(in_shape.sample_dim(), Dims, MFCC_SUPPORTED_NDIMS, (
       using DctKernel = kernels::signal::dct::Dct1DCpu<T, T, Dims>;
       kmgr_.Initialize<DctKernel>();
       kmgr_.Resize<DctKernel>(nthreads, nsamples);
-      output_desc[0].type = TypeInfo::Create<T>();
+      output_desc[0].type = type2id<T>::value;
       output_desc[0].shape.resize(nsamples, Dims);
       for (int i = 0; i < nsamples; i++) {
         const auto in_view = view<const T, Dims>(input[i]);
@@ -145,7 +145,7 @@ bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
         }
       }
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
 
   lifter_coeffs_.Calculate(max_length, lifter_);
   return true;
@@ -159,7 +159,7 @@ void MFCC<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
 
-  TYPE_SWITCH(input.type().id(), type2id, T, MFCC_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, MFCC_SUPPORTED_TYPES, (
     VALUE_SWITCH(in_shape.sample_dim(), Dims, MFCC_SUPPORTED_NDIMS, (
       using DctKernel = kernels::signal::dct::Dct1DCpu<T, T, Dims>;
       for (int i = 0; i < input.shape().num_samples(); i++) {
@@ -176,7 +176,7 @@ void MFCC<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
           }, in_shape.tensor_size(i));
       }
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
 
   thread_pool.RunAll();
 }

@@ -53,7 +53,7 @@ class Cast : public Operator<Backend> {
     output_desc.resize(1);
     const auto &input = ws.template InputRef<Backend>(0);
     output_desc[0].shape = input.shape();
-    output_desc[0].type = TypeTable::GetTypeInfo(output_type_);
+    output_desc[0].type = output_type_;
     PrepareBlocks(ws);
     return true;
   }

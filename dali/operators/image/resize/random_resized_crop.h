@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ class RandomResizedCrop : public Operator<Backend>
     InitParams(curr_batch_size);
     auto &input = ws.template InputRef<Backend>(0);
     const auto &in_shape = input.shape();
-    DALIDataType in_type = input.type().id();
+    DALIDataType in_type = input.type();
 
     auto layout = input.GetLayout();
 
@@ -84,7 +84,7 @@ class RandomResizedCrop : public Operator<Backend>
     output_desc.resize(1);
     this->SetupResize(output_desc[0].shape, out_type, in_shape, in_type,
                       make_cspan(resample_params_), height_idx);
-    output_desc[0].type = TypeTable::GetTypeInfo(out_type);
+    output_desc[0].type = out_type;
     return true;
   }
 

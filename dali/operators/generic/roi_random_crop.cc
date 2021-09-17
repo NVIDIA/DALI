@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ bounds of that input shape. Alternatively, the input data subject to cropping ca
 in the operator. When providing an input shape, the region of interest should be within the bounds of the
 input and the cropping window shape should not be larger than the input shape.
 
-If no input shape is provided, the resulting cropping window is unbounded, potentially resulting in out 
+If no input shape is provided, the resulting cropping window is unbounded, potentially resulting in out
 of bounds cropping.
 
 The cropping window dimensions should be explicitly provided (``crop_shape``), and the ROI should be
@@ -170,7 +170,7 @@ bool ROIRandomCropCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   output_desc.resize(1);
   output_desc[0].shape = uniform_list_shape(nsamples, sh);
-  output_desc[0].type = TypeTable::GetTypeInfo(DALI_INT64);
+  output_desc[0].type = DALI_INT64;
   return true;
 }
 

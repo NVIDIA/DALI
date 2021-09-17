@@ -83,8 +83,8 @@ void NumpyReaderGPU::Prefetch() {
     auto &sample = curr_batch[data_idx];
     DALI_ENFORCE(ref_type == sample->get_type(), make_string("Inconsistent data! "
                  "The data produced by the reader has inconsistent type:\n"
-                 "type of [", data_idx, "] is ", sample->get_type().id(), " whereas\n"
-                 "type of [0] is ", ref_type.id()));
+                 "type of [", data_idx, "] is ", sample->get_type(), " whereas\n"
+                 "type of [0] is ", ref_type));
 
     DALI_ENFORCE(
         ref_shape.sample_dim() == sample->get_shape().sample_dim(),
@@ -121,7 +121,7 @@ void NumpyReaderGPU::Prefetch() {
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
     curr_tensor_list.SetMeta(data_idx, curr_batch[data_idx]->get_meta());
     size_t image_bytes = static_cast<size_t>(volume(curr_tensor_list.tensor_shape(data_idx))
-                                             * curr_tensor_list.type().size());
+                                             * curr_tensor_list.type_info().size());
     uint8_t* dst_ptr = static_cast<uint8_t*>(curr_tensor_list.raw_mutable_tensor(data_idx));
     size_t file_offset = 0;
     while (image_bytes > 0) {

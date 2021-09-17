@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ class ElementExtractTest : public DaliOperatorTest {
         std::unique_ptr<TensorList<CPUBackend>> data(
             new TensorList<CPUBackend>);
         auto shape = uniform_list_shape(ntensors_, {F_, H_, W_, C_});
-        data->set_type(TypeInfo::Create<T>());
+        data->set_type<T>();
         data->SetLayout("FHWC");
         data->Resize(shape);
 

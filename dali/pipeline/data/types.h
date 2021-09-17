@@ -313,6 +313,9 @@ class DLL_PUBLIC TypeInfo {
     SetType<NoType>();
   }
 
+  // Workaround for a clang bug, showing up in clang-only builds
+  DLL_PUBLIC inline ~TypeInfo() {}
+
   template <typename T>
   DLL_PUBLIC static inline TypeInfo Create() {
     TypeInfo type;
@@ -436,8 +439,9 @@ class DLL_PUBLIC TypeTable {
   }
 
   template <typename T>
-  DLL_PUBLIC static const TypeInfo& GetTypeInfoFromStatic() {
-    return GetTypeInfo(GetTypeID<T>());
+  DLL_PUBLIC static const TypeInfo& GetTypeInfo() {
+    static const TypeInfo &type_info = GetTypeInfo(GetTypeID<T>());
+    return type_info;
   }
 
  private:
@@ -512,6 +516,21 @@ void TypeInfo::SetType(DALIDataType dtype) {
 template <typename T>
 DLL_PUBLIC inline bool IsType(const TypeInfo &type) {
   return type.id() == TypeTable::GetTypeID<T>();
+}
+
+/**
+ * @brief Utility to check types
+ */
+template <typename T>
+DLL_PUBLIC inline bool IsType(DALIDataType id) {
+  return id == TypeTable::GetTypeID<T>();
+}
+
+/**
+ * @brief Utility to check for valid type
+ */
+DLL_PUBLIC inline bool IsValidType(DALIDataType type) {
+  return type != DALI_NO_TYPE;
 }
 
 /**

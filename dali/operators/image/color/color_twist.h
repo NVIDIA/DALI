@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -137,7 +137,7 @@ class ColorTwistBase : public Operator<Backend> {
       contrast_ = std::vector<float>(curr_batch_size, 1);
     }
 
-    auto in_type = ws.template InputRef<Backend>(0).type().id();
+    auto in_type = ws.template InputRef<Backend>(0).type();
     output_type_ = output_type_arg_ != DALI_NO_TYPE ? output_type_arg_ : in_type;
 
     if (in_type == DALI_FLOAT16 || in_type == DALI_FLOAT || in_type == DALI_FLOAT64) {

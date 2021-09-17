@@ -158,7 +158,7 @@ void NemoAsrReader::Prefetch() {
   for (int i = 0; i < nsamples; i++) {
     shape.set_tensor_shape(i, curr_batch[i]->shape());
   }
-  audio_batch.Resize(shape, TypeTable::GetTypeInfo(dtype_));
+  audio_batch.Resize(shape, dtype_);
 
   // Waiting until all the audio samples are ready to be consumed
   decoded_map_.clear();
@@ -205,14 +205,14 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
   if (read_sr_) {
     auto &sample_rate = ws.Output<CPUBackend>(next_out_idx++);
     sample_rate.Resize({});
-    sample_rate.set_type(TypeTable::GetTypeInfo(DALI_FLOAT));
+    sample_rate.set_type<float>();
     sample_rate.mutable_data<float>()[0] = sample.audio_meta().sample_rate;
     sample_rate.SetMeta(meta);
   }
 
   if (read_text_) {
     auto &text_out = ws.Output<CPUBackend>(next_out_idx++);
-    text_out.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
+    text_out.set_type<uint8_t>();
     const auto &text = sample.text();
     int64_t text_sz = text.length();
     text_out.Resize({text_sz});
@@ -222,7 +222,7 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
 
   if (read_idxs_) {
     auto &idxs_out = ws.Output<CPUBackend>(next_out_idx++);
-    idxs_out.set_type(TypeTable::GetTypeInfo(DALI_INT64));
+    idxs_out.set_type<int64_t>();
     idxs_out.Resize({1});
     *idxs_out.mutable_data<int64_t>() = sample.index();
     idxs_out.SetMeta(meta);

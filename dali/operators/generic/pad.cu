@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   this->ReadArguments(spec_, ws);
 
-  TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
       using Kernel = kernels::SliceGPU<T, T, Dims>;
       using Args = kernels::SliceArgs<T, Dims>;
@@ -47,11 +47,11 @@ bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       kmgr_.Resize<Kernel>(1, 1);
       auto req = kmgr_.Setup<Kernel>(0, ctx, in_view, kernel_sample_args);
 
-      output_desc[0].type = TypeInfo::Create<T>();
+      output_desc[0].type = type2id<T>::value;
       output_desc[0].shape.resize(nsamples, Dims);
       output_desc[0].shape = req.output_shapes[0];
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", ndim)));  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
   return true;
 }
 
@@ -61,7 +61,7 @@ void Pad<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
   int ndim = input.shape().sample_dim();
-  TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
       using Kernel = kernels::SliceGPU<T, T, Dims>;
       using Args = kernels::SliceArgs<T, Dims>;
@@ -73,7 +73,7 @@ void Pad<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
       auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
       kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, kernel_sample_args);
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", ndim)));  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(Pad, Pad<GPUBackend>, GPU);

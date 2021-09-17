@@ -225,9 +225,8 @@ class Warp : public Operator<Backend> {
 
   template <typename F>
   void ToStaticTypeEx(std::tuple<> &&, F &&functor) {
-    auto &in_name = TypeTable::GetTypeInfo(input_type_).name();
-    auto &out_name = TypeTable::GetTypeInfo(output_type_).name();
-    DALI_FAIL("Unsupported input/output types for the operator: " + in_name + " -> " + out_name);
+    DALI_FAIL(make_string("Unsupported input/output types for the operator: ",
+                          input_type_, " -> ", output_type_, "."));
   }
 
   template <typename F, typename FirstTypePair, typename... TypePairs>
@@ -269,7 +268,7 @@ class Warp : public Operator<Backend> {
 
     DALIDataType out_type;
     SetupWarp(outputs[0].shape, out_type, ws);
-    outputs[0].type = TypeTable::GetTypeInfo(out_type);
+    outputs[0].type = out_type;
     return true;
   }
 
@@ -297,7 +296,7 @@ class Warp : public Operator<Backend> {
                  const Workspace &ws) {
     auto &input = ws.template InputRef<Backend>(0);
     input_shape_ = input.shape();
-    input_type_ = input.type().id();
+    input_type_ = input.type();
     output_type_ = output_type_arg_ == DALI_NO_TYPE ? input_type_ : output_type_arg_;
 
     VALUE_SWITCH(This().SpatialDim(), spatial_ndim, (2, 3), (

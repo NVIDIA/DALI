@@ -40,7 +40,7 @@ void VideoReader::Prefetch() {
     tmp_shapes.set_tensor_shape(data_idx, sample->shape());
   }
 
-  curr_tensor_list.Resize(tmp_shapes, TypeTable::GetTypeInfo(ref_type));
+  curr_tensor_list.Resize(tmp_shapes, ref_type);
 
   // ask for frames
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {

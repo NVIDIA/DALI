@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
   const auto& input = ws.template InputRef<CPUBackend>(0);
   int sample_dim = input[0].shape().sample_dim();
   size_t batch_size = input.ntensor();
-  TypeInfo type = input.type();
+  DALIDataType type = input.type();
 
   for (size_t i = 0; i < input.ntensor(); ++i) {
     auto &sample = ws.Input<CPUBackend>(0, i);

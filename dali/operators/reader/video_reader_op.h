@@ -130,18 +130,18 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     int output_index = 1;
     if (output_labels_) {
       label_output_ = &ws.Output<GPUBackend>(output_index++);
-      label_output_->set_type(TypeTable::GetTypeInfoFromStatic<int>());
+      label_output_->set_type<int>();
       label_output_->Resize(label_shape_);
       if (can_use_frames_timestamps_) {
         if (enable_frame_num_) {
           frame_num_output_ = &ws.Output<GPUBackend>(output_index++);
-          frame_num_output_->set_type(TypeTable::GetTypeInfoFromStatic<int>());
+          frame_num_output_->set_type<int>();
           frame_num_output_->Resize(frame_num_shape_);
         }
 
         if (enable_timestamps_) {
           timestamp_output_ = &ws.Output<GPUBackend>(output_index++);
-          timestamp_output_->set_type(TypeTable::GetTypeInfoFromStatic<double>());
+          timestamp_output_->set_type<double>();
           timestamp_output_->Resize(timestamp_shape_);
         }
       }
@@ -175,7 +175,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
             std::fill(prefetched_video.timestamps.begin() + old_size,
                       prefetched_video.timestamps.end(), -1);
           }
-          timestamp_output_->type().Copy<GPUBackend, CPUBackend>(
+          timestamp_output_->type_info().Copy<GPUBackend, CPUBackend>(
               timestamp, prefetched_video.timestamps.data(), prefetched_video.timestamps.size(),
               stream);
         }

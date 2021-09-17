@@ -117,7 +117,7 @@ class MultiPasteOp : public Operator<Backend> {
     if (shapes_.IsDefined()) {
       shapes_.Acquire(spec, ws, curr_batch_size, false);
     }
-    input_type_ = ws.template InputRef<Backend>(0).type().id();
+    input_type_ = ws.template InputRef<Backend>(0).type();
     output_type_ =
         output_type_arg_ != DALI_NO_TYPE
         ? output_type_arg_
@@ -198,7 +198,7 @@ class MultiPasteOp : public Operator<Backend> {
   using Operator<Backend>::RunImpl;
 
   void RunImpl(workspace_t<Backend> &ws) override {
-    const auto input_type_id = ws.template InputRef<Backend>(0).type().id();
+    const auto input_type_id = ws.template InputRef<Backend>(0).type();
     TYPE_SWITCH(input_type_id, type2id, InputType, (MULTIPASTE_INPUT_TYPES), (
         TYPE_SWITCH(output_type_, type2id, OutputType, (MULTIPASTE_OUTPUT_TYPES), (
                 This().template RunTyped<OutputType, InputType>(ws);
@@ -221,7 +221,7 @@ class MultiPasteOp : public Operator<Backend> {
     AcquireArguments(spec_, ws);
 
     output_desc.resize(1);
-    output_desc[0].type = TypeTable::GetTypeInfo(output_type_);
+    output_desc[0].type = output_type_;
 
     const auto &in_shape = images.shape();
     auto &out_shape = output_desc[0].shape;
@@ -233,11 +233,11 @@ class MultiPasteOp : public Operator<Backend> {
       out_shape.set_tensor_shape(i, out_sh);
     }
 
-    TYPE_SWITCH(images.type().id(), type2id, InputType, (MULTIPASTE_INPUT_TYPES), (
+    TYPE_SWITCH(images.type(), type2id, InputType, (MULTIPASTE_INPUT_TYPES), (
         TYPE_SWITCH(output_type_, type2id, OutputType, (MULTIPASTE_OUTPUT_TYPES), (
             This().template SetupTyped<OutputType, InputType>(ws, out_shape);
         ), UnsupportedOutpuType(output_type_))  // NOLINT
-    ), UnsupportedInputType(images.type().id()))  // NOLINT
+    ), UnsupportedInputType(images.type()))  // NOLINT
     return true;
   }
 

@@ -47,7 +47,7 @@ inline void CopyToExternalImpl(void* dst,
                                const Buffer<SrcBackend> &src,
                                cudaStream_t stream, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
-  const auto &type_info = src.type();
+  const auto &type_info = src.type_info();
   type_info.template Copy<DstBackend, SrcBackend>(dst, src.raw_data(), src.size(), stream,
                                                   use_copy_kernel);
 }
@@ -58,7 +58,7 @@ inline void CopyToExternalImpl(void** dsts,
                                cudaStream_t stream, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
 
-  const auto &type_info = src.type();
+  const auto &type_info = src.type_info();
   auto src_shape = src.shape();
 
   SmallVector<int64_t, 256> sizes;

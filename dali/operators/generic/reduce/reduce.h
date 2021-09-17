@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ class Reduce : public Operator<Backend>, detail::AxesHelper {
     output_desc.resize(1);
     auto &input = ws.template InputRef<Backend>(0);
 
-    output_desc[0].type = dali::TypeTable::GetTypeInfo(OutputType(input.type().id()));
+    output_desc[0].type = OutputType(input.type());
     output_desc[0].shape = input.shape();
 
     PrepareAxes(input.GetLayout(), input.shape().sample_dim());
@@ -185,7 +185,7 @@ class ReduceOp : public Reduce<ReductionType, Backend, ReduceOp> {
 
   void RunImplImpl(workspace_t<Backend> &ws) {
     auto& in = ws.template InputRef<Backend>(0);
-    DALIDataType input_type = in.type().id();
+    DALIDataType input_type = in.type();
 
     TYPE_SWITCH(input_type, type2id, DataType, REDUCE_TYPES, (
       auto& base = static_cast<Reduce<ReductionType, Backend, ReduceOp>&>(*this);

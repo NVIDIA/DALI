@@ -490,9 +490,9 @@ inline T OpSpec::GetArgumentImpl(
     DALI_ENFORCE(ws != nullptr, "Tensor value is unexpected for argument \"" + name + "\".");
     const auto &value = ws->ArgumentInput(name);
     CheckScalarArgumentShape(value.shape(), GetArgument<int>("max_batch_size"), name, true);
-    DALI_ENFORCE(IsType<T>(value.type()),
-        "Unexpected type of argument \"" + name + "\". Expected " +
-        TypeTable::GetTypeName<T>() + " and got " + value.type().name());
+    DALI_ENFORCE(IsType<T>(value.type()), make_string(
+        "Unexpected type of argument \"", name, "\". Expected ",
+        TypeTable::GetTypeName<T>(), " and got ", value.type()));
     return static_cast<T>(value[idx].data<T>()[0]);
   }
   // Search for the argument locally

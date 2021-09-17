@@ -120,13 +120,13 @@ bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const HostWorksp
   DALI_ENFORCE(N == 0 || (ndim >= 1 && ndim <= 6),
       make_string("Unsuported number of dimensions ", ndim, "; must be 1..6"));
   AcquireArgs(ws, N, ndim);
-  out_descs[0].type = TypeTable::GetTypeInfo(DALI_INT32);
+  out_descs[0].type = DALI_INT32;
   out_descs[0].shape = uniform_list_shape<DynamicDimensions>(
       N, TensorShape<1>{ format_ == Out_Box ? 2*ndim : ndim });
   if (format_ != Out_Box)
     out_descs[1] = out_descs[0];
   if (HasClassLabelOutput()) {
-    out_descs[class_output_idx_].type = TypeTable::GetTypeInfo(DALI_INT32);
+    out_descs[class_output_idx_].type = DALI_INT32;
     out_descs[class_output_idx_].shape.resize(N, 0);
   }
 
@@ -521,9 +521,9 @@ bool RandomObjectBBox::PickForegroundBox(
 template <typename BlobLabel>
 bool RandomObjectBBox::PickForegroundBox(SampleContext<BlobLabel> &context) {
   bool ret = false;
-  TYPE_SWITCH(context.input->type().id(), type2id, T, INPUT_TYPES,
+  TYPE_SWITCH(context.input->type(), type2id, T, INPUT_TYPES,
     (ret = PickForegroundBox(context, view<const T>(*context.input));),
-    (DALI_FAIL(make_string("Unsupported input type: ", context.input->type().id())))
+    (DALI_FAIL(make_string("Unsupported input type: ", context.input->type())))
   );  // NOLINT
   return ret;
 }

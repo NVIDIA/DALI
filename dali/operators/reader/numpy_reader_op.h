@@ -61,7 +61,7 @@ class NumpyReader : public DataReader<Backend, Target> {
 
     int batch_size = GetCurrBatchSize();
     const auto& file_0 = GetSample(0);
-    TypeInfo output_type = file_0.get_type();
+    DALIDataType output_type = file_0.get_type();
     int ndim = file_0.get_shape().sample_dim();
     TensorListShape<> sh(batch_size, ndim);
 
@@ -87,11 +87,11 @@ class NumpyReader : public DataReader<Backend, Target> {
                       file_0.filename, "\" with ", ndim, " dimensions and \"", file_i.filename,
                       "\" with ", file_i.get_shape().sample_dim(), " dimensions"));
       DALI_ENFORCE(
-          file_i.get_type().id() == output_type.id(),
+          file_i.get_type() == output_type,
           make_string("Inconsistent data: All samples in the batch must have the same data type. "
                       "Got \"",
-                      file_0.filename, "\" with data type ", output_type.id(), " and \"",
-                      file_i.filename, "\" with data type ", file_i.get_type().id()));
+                      file_0.filename, "\" with data type ", output_type, " and \"",
+                      file_i.filename, "\" with data type ", file_i.get_type()));
 
       bool is_transposed = file_i.fortran_order;
       // Calculate the full transposed shape first

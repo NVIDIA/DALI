@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ namespace dali {
 
 TEST(DLMTensorPtr, CPU) {
   Tensor<CPUBackend> tensor;
-  tensor.set_type(TypeInfo::Create<float>());
+  tensor.set_type<float>();
   tensor.Resize({100, 50, 3});
   DLMTensorPtr dlm_tensor = GetDLTensorView(tensor);
   ASSERT_EQ(dlm_tensor->dl_tensor.ndim, 3);
@@ -36,7 +36,7 @@ TEST(DLMTensorPtr, CPU) {
 
 TEST(DLMTensorPtr, GPU) {
   Tensor<GPUBackend> tensor;
-  tensor.set_type(TypeInfo::Create<int>());
+  tensor.set_type<int>();
   tensor.Resize({100, 50, 1});
   DLMTensorPtr dlm_tensor = GetDLTensorView(tensor);
   ASSERT_EQ(dlm_tensor->dl_tensor.ndim, 3);
@@ -53,7 +53,7 @@ TEST(DLMTensorPtr, GPU) {
 
 TEST(DLMTensorPtr, CPUList) {
   TensorList<CPUBackend> tlist;
-  tlist.set_type(TypeInfo::Create<double>());
+  tlist.set_type<double>();
   tlist.Resize({{100, 50, 1}, {50, 30, 3}});
   std::vector<DLMTensorPtr> dlm_tensors = GetDLTensorListView(tlist);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.ndim, 3);
@@ -80,7 +80,7 @@ TEST(DLMTensorPtr, CPUList) {
 
 TEST(DLMTensorPtr, GPUList) {
   TensorList<GPUBackend> tlist;
-  tlist.set_type(TypeInfo::Create<uint8>());
+  tlist.set_type<uint8>();
   tlist.Resize({{100, 50, 1}, {50, 30, 3}});
   std::vector<DLMTensorPtr> dlm_tensors = GetDLTensorListView(tlist);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.ndim, 3);
@@ -122,7 +122,7 @@ struct TestDLTensorResource: public DLTensorResource {
 
 TEST(DLMTensorPtr, Cleanup) {
   Tensor<CPUBackend> tensor;
-  tensor.set_type(TypeInfo::Create<float>());
+  tensor.set_type<float>();
   tensor.Resize({100, 50, 3});
   bool deleter_called = false;
   {

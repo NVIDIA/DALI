@@ -42,7 +42,7 @@ struct NumpyFileWrapperGPU {
   std::string filename;
   bool fortran_order;
   TensorShape<> shape;
-  TypeInfo type;
+  DALIDataType type;
   DALIMeta meta;
 
   std::function<void(void)> read_meta_f;
@@ -53,7 +53,7 @@ struct NumpyFileWrapperGPU {
     return shape;
   }
 
-  const TypeInfo& get_type() const {
+  DALIDataType get_type() const {
     return type;
   }
 

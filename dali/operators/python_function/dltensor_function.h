@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -109,7 +109,7 @@ void PrepareOutputs(workspace_t<Backend> &ws, const py::object &output_o, int ba
     auto dl_tensors = CastToDLTensorList<Backend>(dl_list, batch_size, idx);
     if (dl_tensors.empty()) continue;
     auto &tlist = ws.template OutputRef<Backend>(idx);
-    tlist.set_type(TypeTable::GetTypeInfo(DLToDALIType(dl_tensors[0]->dl_tensor.dtype)));
+    tlist.set_type(DLToDALIType(dl_tensors[0]->dl_tensor.dtype));
     tlist.Resize(GetDLTensorListShape(dl_tensors));
     CopyOutputData(tlist, dl_tensors, batch_size, ws);
   }

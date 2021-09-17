@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ namespace dali {
 void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
   auto& sequence = ws->Output<CPUBackend>(0);
   sequence.SetLayout("FHWC");
-  sequence.set_type(TypeInfo::Create<uint8_t>());
+  sequence.set_type<uint8_t>();
   Index seq_length = data.tensors.size();
 
   // Decode first frame, obtain it's size and allocate output

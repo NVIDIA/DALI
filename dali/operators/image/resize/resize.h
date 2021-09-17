@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto &input = ws.template InputRef<Backend>(0);
 
   const auto &in_shape = input.shape();
-  auto in_type = input.type().id();
+  auto in_type = input.type();
   auto in_layout = input.GetLayout();
   int N = in_shape.num_samples();
 
@@ -106,13 +106,13 @@ bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   auto out_type = resampling_attr_.GetOutputType(in_type);
 
-  output_desc[0].type = TypeTable::GetTypeInfo(out_type);
+  output_desc[0].type = out_type;
   this->SetupResize(output_desc[0].shape, out_type, in_shape, in_type,
                     make_cspan(this->resample_params_), NumSpatialDims(), FirstSpatialDim());
 
   if (save_attrs_) {
     output_desc[1].shape = uniform_list_shape(N, TensorShape<1>({ NumSpatialDims() }));
-    output_desc[1].type = TypeTable::GetTypeInfo(DALI_INT32);
+    output_desc[1].type = DALI_INT32;
   }
   return true;
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ class OperatorBench : public DALIBenchmark {
     auto data_in = std::make_shared<TensorVector<CPUBackend>>(batch_size);
     for (auto &in_ptr : *data_in) {
       in_ptr = std::make_shared<Tensor<CPUBackend>>();
-      in_ptr->set_type(TypeInfo::Create<T>());
+      in_ptr->set_type<T>();
       in_ptr->Resize({H, W, C});
       in_ptr->SetLayout("HWC");
     }
@@ -95,7 +95,7 @@ class OperatorBench : public DALIBenchmark {
     auto op_ptr = InstantiateOperator(op_spec);
 
     auto data_in_cpu = std::make_shared<TensorList<CPUBackend>>();
-    data_in_cpu->set_type(TypeInfo::Create<T>());
+    data_in_cpu->set_type<T>();
     data_in_cpu->Resize(shape);
     data_in_cpu->SetLayout(layout);
     if (fill_in_data) {

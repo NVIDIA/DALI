@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -99,7 +99,7 @@ class RecordIOLoader : public IndexedFileLoader {
       should_seek_ = true;
       tensor.Reset();
       tensor.SetMeta(meta);
-      tensor.set_type(TypeInfo::Create<uint8_t>());
+      tensor.set_type<uint8_t>();
       tensor.Resize({0});
       return;
     }
@@ -124,13 +124,13 @@ class RecordIOLoader : public IndexedFileLoader {
             tensor.Reset();
           }
           tensor.Resize({size});
-          tensor.set_type(TypeInfo::Create<uint8_t>());
+          tensor.set_type<uint8_t>();
           use_read = true;
         } else {
           n_read = size;
           // Wrap the raw data in the Tensor object.
           tensor.ShareData(p, size, {size});
-          tensor.set_type(TypeInfo::Create<uint8_t>());
+          tensor.set_type<uint8_t>();
           next_seek_pos_ = seek_pos + size;
         }
       }

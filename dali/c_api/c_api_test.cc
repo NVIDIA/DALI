@@ -164,7 +164,7 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline,
     pipeline_output_cpu.Copy(ws.Output<Backend>(0), cuda_stream);
 
     TensorList<Backend> c_api_output;
-    c_api_output.Resize(pipeline_output_cpu.shape(), TypeInfo::Create<uint8_t>());
+    c_api_output.Resize(pipeline_output_cpu.shape(), DALI_UINT8);
     daliOutputCopy(&handle, c_api_output.raw_mutable_data(), 0,
                    backend_to_device_type<Backend>::value, 0, copy_output_flags);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
@@ -280,7 +280,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
   TensorList<CPUBackend> input_cpu;
   TensorList<TypeParam> input;
-  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+  input_cpu.Resize(input_shape, DALI_UINT8);
   auto pipe_ptr = GetTestPipeline<TypeParam>(false, this->output_device_);
   auto serialized = pipe_ptr->SerializeToProtobuf();
 
@@ -353,7 +353,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
 
     TensorList<CPUBackend> input_cpu;
     TensorList<TypeParam> input;
-    input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+    input_cpu.Resize(input_shape, DALI_UINT8);
 
     for (int i = 0; i < prefetch_queue_depth; i++) {
       SequentialFill(view<uint8_t>(input_cpu), 42 * i);
@@ -388,7 +388,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
   TensorList<CPUBackend> input_cpu;
   TensorList<TypeParam> input;
-  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+  input_cpu.Resize(input_shape, DALI_UINT8);
   std::vector<const void *> data_ptrs(batch_size);
   for (int i = 0; i < batch_size; i++) {
     data_ptrs[i] = input_cpu.raw_tensor(i);
@@ -453,7 +453,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
   TensorList<CPUBackend> input_cpu;
   TensorList<DataBackend> input;
-  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+  input_cpu.Resize(input_shape, DALI_UINT8);
   auto pipe_ptr = GetTestPipeline<OpBackend>(false, this->output_device_);
   auto serialized = pipe_ptr->SerializeToProtobuf();
 
@@ -513,7 +513,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
   TensorList<CPUBackend> input_cpu;
   TensorList<DataBackend> input;
-  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+  input_cpu.Resize(input_shape, DALI_UINT8);
   std::vector<const void *> data_ptrs(batch_size);
   for (int i = 0; i < batch_size; i++) {
     data_ptrs[i] = input_cpu.raw_tensor(i);
@@ -599,7 +599,7 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
   TensorList<CPUBackend> input_cpu;
-  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+  input_cpu.Resize(input_shape, DALI_UINT8);
 
   TensorList<TypeParam> input;
   if (std::is_same<TypeParam, CPUBackend>::value)
@@ -646,7 +646,7 @@ TYPED_TEST(CApiTest, ForceNoCopyFail) {
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
   TensorList<CPUBackend> input_cpu;
-  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+  input_cpu.Resize(input_shape, DALI_UINT8);
 
   TensorList<TypeParam> input;
 
@@ -687,7 +687,7 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test) {
                                    {64, 32, 3}, {32, 64, 3}, {20, 20, 3}, {64, 64, 3},
                                    {10, 10, 3}, {60, 50, 3}, {10, 15, 3}, {48, 48, 3}};
   TensorList<CPUBackend> input_cpu;
-  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+  input_cpu.Resize(input_shape, DALI_UINT8);
 
   TensorList<TypeParam> input;
 
@@ -794,7 +794,7 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
     auto type_info = dali::TypeTable::GetTypeInfo(type);
     int64_t out_size = daliNumElements(&handle, out_idx);
     Tensor<TypeParam> output1;
-    output1.Resize({out_size}, type_info);
+    output1.Resize({out_size}, type_info.id());
     daliOutputCopy(&handle, output1.raw_mutable_data(), out_idx,
                    backend_to_device_type<TypeParam>::value, 0, DALI_ext_default);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
@@ -805,7 +805,7 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
       Tensor<TypeParam> output2;
       Tensor<CPUBackend> output2_cpu;
       output2.set_pinned(std::is_same<TypeParam, CPUBackend>::value);
-      output2.Resize({out_size}, type_info);
+      output2.Resize({out_size}, type_info.id());
       // Making sure data is cleared
       // Somehow in debug mode it can get the same raw pointer which happen to have
       // the right data in the second iteration
@@ -837,7 +837,7 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
       Tensor<TypeParam> output2;
       Tensor<CPUBackend> output2_cpu;
       output2.set_pinned(std::is_same<TypeParam, CPUBackend>::value);
-      output2.Resize({out_size}, type_info);
+      output2.Resize({out_size}, type_info.id());
       // Making sure data is cleared
       // Somehow in debug mode it can get the same raw pointer which happen to have
       // the right data in the second iteration

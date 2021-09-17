@@ -263,7 +263,7 @@ class DisplacementFilter<GPUBackend, Displacement,
     } else if (IsType<uint8_t>(input.type())) {
       BatchedGPUKernel<uint8_t>(ws);
     } else {
-      DALI_FAIL("Unexpected input type " + input.type().name());
+      DALI_FAIL(make_string("Unexpected input type ", input.type()));
     }
   }
 

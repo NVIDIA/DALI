@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -114,9 +114,9 @@ This function is invoked once per batch. Also this function must work in Numba `
   .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked once per batch or
 separately for each sample in the batch.
 
-When ``batch_processing`` is set to ``True``, the function processes the whole batch. It is necessary if the 
-function has to perform cross-sample operations and may be beneficial if significant part of the work can 
-be reused. For other use cases, specifying False and using per-sample processing function allows the operator 
+When ``batch_processing`` is set to ``True``, the function processes the whole batch. It is necessary if the
+function has to perform cross-sample operations and may be beneficial if significant part of the work can
+be reused. For other use cases, specifying False and using per-sample processing function allows the operator
 to process samples in parallel.)code", false);
 
 DALI_SCHEMA(NumbaFuncImpl)
@@ -195,9 +195,9 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       "Number of dimensions passed in `ins_ndim` at index ", in_id,
       " doesn't match the number of dimensions of the input data: ",
       in_shapes_[in_id].sample_dim(), " != ", ins_ndim_[in_id]));
-    DALI_ENFORCE(in.type().id() == in_types_[in_id], make_string(
+    DALI_ENFORCE(in.type() == in_types_[in_id], make_string(
       "Data type passed in `in_types` at index ", in_id, " doesn't match type of the input data: ",
-      in.type().id(), " != ", in_types_[in_id]));
+      in.type(), " != ", in_types_[in_id]));
   }
   auto N = in_shapes_[0].num_samples();
   input_shape_ptrs_.resize(N * ninputs);
@@ -219,7 +219,7 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   out_shapes_.resize(noutputs);
   for (int i = 0; i < noutputs; i++) {
     out_shapes_[i].resize(N, outs_ndim_[i]);
-    output_desc[i].type = dali::TypeTable::GetTypeInfo(static_cast<DALIDataType>(out_types_[i]));
+    output_desc[i].type = static_cast<DALIDataType>(out_types_[i]);
   }
 
   output_shape_ptrs_.resize(N * noutputs);

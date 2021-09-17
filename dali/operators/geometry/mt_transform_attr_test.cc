@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -152,8 +152,8 @@ TEST(MTTransformAttr, MInputTInput) {
   TensorListShape<2> Mtls = {{{ 2, 3 }, { 2, 3 }}};
   TensorListShape<1> Ttls = {{{ 2 }, { 2 }}};
   int N = Mtls.num_samples();;
-  Minp->Resize(Mtls, TypeTable::GetTypeInfo(DALI_FLOAT));
-  Tinp->Resize(Ttls, TypeTable::GetTypeInfo(DALI_FLOAT));
+  Minp->Resize(Mtls, DALI_FLOAT);
+  Tinp->Resize(Ttls, DALI_FLOAT);
   for (int i = 0; i < N; i++) {
     float *data = (*Minp)[i].mutable_data<float>();
     for (int j = 0; j < volume(Mtls[i]); j++)
@@ -195,8 +195,8 @@ TEST(MTTransformAttr, MScalarInputTScalarInput) {
   TensorListShape<0> tls;
   tls.resize(3);
   int N = tls.num_samples();;
-  Minp->Resize(tls, TypeTable::GetTypeInfo(DALI_FLOAT));
-  Tinp->Resize(tls, TypeTable::GetTypeInfo(DALI_FLOAT));
+  Minp->Resize(tls, DALI_FLOAT);
+  Tinp->Resize(tls, DALI_FLOAT);
   for (int i = 0; i < N; i++) {
     float *data = (*Minp)[i].mutable_data<float>();
     data[0] = i + 10;
@@ -231,7 +231,7 @@ TEST(MTTransformAttr, MTInput) {
   MTinp->set_pinned(false);
   TensorListShape<> tls = {{{ 2, 3 }, { 2, 3 }}};
   int N = tls.num_samples();;
-  MTinp->Resize(tls, TypeTable::GetTypeInfo(DALI_FLOAT));
+  MTinp->Resize(tls, DALI_FLOAT);
   for (int i = 0; i < N; i++) {
     auto *data = (*MTinp)[i].mutable_data<float>();
     for (int j = 0; j < volume(tls[i]); j++)
@@ -309,8 +309,8 @@ TEST(MTTransformAttr, MInputTInput_Error) {
   TensorListShape<2> Mtls = {{{ 2, 3 }, { 2, 3 }}};
   TensorListShape<1> Ttls = {{{ 1 }, { 1 }}};
   int N = Mtls.num_samples();;
-  Minp->Resize(Mtls, TypeTable::GetTypeInfo(DALI_FLOAT));
-  Tinp->Resize(Ttls, TypeTable::GetTypeInfo(DALI_FLOAT));
+  Minp->Resize(Mtls, DALI_FLOAT);
+  Tinp->Resize(Ttls, DALI_FLOAT);
 
   {
     ws.AddArgumentInput("M", Minp);
@@ -340,7 +340,7 @@ TEST(MTTransformAttr, MTInput_ErrorSize) {
   MTinp->set_pinned(false);
   TensorListShape<> tls = {{{ 2, 3 }, { 2, 3 }}};
   int N = tls.num_samples();;
-  MTinp->Resize(tls, TypeTable::GetTypeInfo(DALI_FLOAT));
+  MTinp->Resize(tls, DALI_FLOAT);
   for (int i = 0; i < N; i++) {
     auto *data = (*MTinp)[i].mutable_data<float>();
     for (int j = 0; j < volume(tls[i]); j++)
@@ -361,7 +361,7 @@ TEST(MTTransformAttr, MInput_ZeroRows) {
   MTinp->set_pinned(false);
   TensorListShape<> tls = {{{ 0, 3 }, { 0, 3 }}};
   int N = tls.num_samples();;
-  MTinp->Resize(tls, TypeTable::GetTypeInfo(DALI_FLOAT));
+  MTinp->Resize(tls, DALI_FLOAT);
 
 
   ws.AddArgumentInput("MT", MTinp);

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@
 
 namespace dali {
 
-DLDataType GetDLType(const TypeInfo &type) {
+DLDataType GetDLType(DALIDataType type) {
   DLDataType dl_type{};
-  DALI_TYPE_SWITCH_WITH_FP16(type.id(), T,
+  DALI_TYPE_SWITCH_WITH_FP16(type, T,
       dl_type.bits = sizeof(T) * 8;
       dl_type.lanes = 1;
       if (dali::is_fp_or_half<T>::value) {
@@ -29,7 +29,7 @@ DLDataType GetDLType(const TypeInfo &type) {
       } else if (std::is_integral<T>::value) {
         dl_type.code = kDLInt;
       } else {
-        DALI_FAIL("This data type (" + type.name() + ") cannot be handled by DLTensor.");
+        DALI_FAIL(make_string("This data type (", type, ") cannot be handled by DLTensor."));
       })
   return dl_type;
 }
@@ -44,7 +44,7 @@ void DLMTensorPtrDeleter(DLManagedTensor* dlm_tensor_ptr) {
   }
 }
 
-DLMTensorPtr MakeDLTensor(void* data, const TypeInfo& type,
+DLMTensorPtr MakeDLTensor(void* data, DALIDataType type,
                           bool device, int device_id,
                           std::unique_ptr<DLTensorResource> resource) {
   DLManagedTensor *dlm_tensor_ptr = &resource->dlm_tensor;

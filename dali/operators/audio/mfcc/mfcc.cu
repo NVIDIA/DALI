@@ -72,9 +72,9 @@ bool MFCC<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   DALI_ENFORCE(axis_ >= 0 && axis_ < ndim,
                make_string("Axis ", axis_, " is out of bounds [0,", ndim, ")"));
 
-  TYPE_SWITCH(input.type().id(), type2id, T, MFCC_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, MFCC_SUPPORTED_TYPES, (
     output_desc = detail::SetupKernel<T>(kmgr_, ctx_, input, make_cspan(args_), axis_);
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
   int64_t max_ndct = 0;
   for (int i = 0; i < output_desc[0].shape.num_samples(); ++i) {
     int64_t ndct = output_desc[0].shape[i][axis_];
@@ -88,14 +88,14 @@ bool MFCC<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 template<>
 void MFCC<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   auto &input = ws.InputRef<GPUBackend>(0);
-  TYPE_SWITCH(input.type().id(), type2id, T, MFCC_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, MFCC_SUPPORTED_TYPES, (
     using Kernel = kernels::signal::dct::Dct1DGpu<T>;
     auto in_view = view<const T>(input);
     auto out_view = view<T>(ws.OutputRef<GPUBackend>(0));
     auto lifter_view = make_tensor_gpu<1>(lifter_coeffs_.data(),
                                           {static_cast<int64_t>(lifter_coeffs_.size())});
     kmgr_.Run<Kernel>(0, 0, ctx_, out_view, in_view, lifter_view);
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(MFCC, MFCC<GPUBackend>, GPU);

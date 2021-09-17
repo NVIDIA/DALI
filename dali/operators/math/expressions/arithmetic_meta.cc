@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ DALIDataType BinaryTypePromotion(DALIDataType left, DALIDataType right) {
   TYPE_SWITCH(left, type2id, Left_t, ARITHMETIC_ALLOWED_TYPES, (
     TYPE_SWITCH(right, type2id, Right_t, ARITHMETIC_ALLOWED_TYPES, (
         using Result_t = binary_result_t<Left_t, Right_t>;
-        result = TypeInfo::Create<Result_t>().id();
+        result = type2id<Result_t>::value;
     ), (DALI_FAIL(make_string("Right operand data type not supported, DALIDataType: ", right));))  // NOLINT
   ), (DALI_FAIL(make_string("Left operand data type not supported, DALIDataType: ", left));));  // NOLINT
   return result;

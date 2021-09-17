@@ -121,7 +121,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     int dims = this->RandInt(1, 4);
     for (int j = 0; j < this->batch_size_; ++j) {
       auto &tensor = vt_cpu_[j];
-      tensor.set_type(TypeInfo::Create<int>());
+      tensor.set_type<int>();
       auto shape = GetRandShape(dims);
       tensor.Resize(shape);
       auto data = tensor.template mutable_data<int>();
@@ -138,7 +138,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     int dims = this->RandInt(1, 4);
     for (int j = 0; j < this->batch_size_; ++j) {
       Tensor<CPUBackend> tensor;
-      tensor.set_type(TypeInfo::Create<int>());
+      tensor.set_type<int>();
       auto shape = GetRandShape(dims);
       tensor.Resize(shape);
       auto data = tensor.template mutable_data<int>();
@@ -154,7 +154,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
 
   template<typename Backend>
   void FeedWithCpuList(ExternalSource<Backend> *src_op) {
-    tl_cpu_.set_type(TypeInfo::Create<int>());
+    tl_cpu_.set_type<int>();
     auto rand_shape = GetRandShape(this->RandInt(1, 4));
     TensorListShape<> shape = uniform_list_shape(this->batch_size_, rand_shape);
     tl_cpu_.Resize(shape);
@@ -171,7 +171,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   template<typename Backend>
   void FeedWithGpuList(ExternalSource<Backend> *src_op) {
     TensorList<CPUBackend> tensor_list;
-    tensor_list.set_type(TypeInfo::Create<int>());
+    tensor_list.set_type<int>();
     auto rand_shape = GetRandShape(this->RandInt(1, 4));
     TensorListShape<> shape = uniform_list_shape(this->batch_size_, rand_shape);
     tensor_list.Resize(shape);
@@ -560,7 +560,7 @@ void TestRunExternalSource(Pipeline &pipe, const std::string &name,
                                     const std::string &dev) {
   TensorListShape<> input_shape =  uniform_list_shape(10, {42, 42, 3});
   TensorList<CPUBackend> input_cpu;
-  input_cpu.Resize(input_shape, TypeInfo::Create<uint8_t>());
+  input_cpu.Resize(input_shape, DALI_UINT8);
   int64_t counter = 0;
   for (int sample_idx = 0; sample_idx < input_shape.num_samples(); sample_idx++) {
     for (int64_t i = 0; i < input_shape[sample_idx].num_elements(); i++, counter++) {

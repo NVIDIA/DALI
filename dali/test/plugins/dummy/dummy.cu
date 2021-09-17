@@ -26,7 +26,7 @@ void Dummy<::dali::GPUBackend>::RunImpl(::dali::DeviceWorkspace &ws) {
     CUDA_CALL(cudaMemcpyAsync(
             output.raw_mutable_tensor(sample_idx),
             input.raw_tensor(sample_idx),
-            shape[sample_idx].num_elements() * input.type().size(),
+            shape[sample_idx].num_elements() * input.type_info().size(),
             cudaMemcpyDeviceToDevice,
             ws.stream()));
   }

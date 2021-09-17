@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ It's an error to remove a dimension that would cause the total volume to change.
 All squeezed dimensions should have size 1, unless the total volume of the tensor is 0 before and after squeeze.
 All indices must be in the range of valid dimensions of the input)code", std::vector<int>(), true)
   .AddOptionalArg("axis_names", R"code(Layout columns which should be removed.
-  
+
 All squeezed dimensions should have size 1, unless the total volume of the tensor is 0 before and after squeeze.
 All layout names should be present in data layout.)code", TensorLayout(""));
 
@@ -64,7 +64,7 @@ bool Squeeze<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Wor
   GenerateSrcDims(ws);
   this->CalculateOutputShape(ws);
 
-  output_desc[0].type = *(this->output_type_);
+  output_desc[0].type = this->output_type_->id();
   output_desc[0].shape = this->output_shape_;
   // return false, because we don't want the executor to allocate anything
   // - this operator returns pointer to input memory

@@ -184,14 +184,14 @@ reinterpret_view(TensorVector<Backend> &data) {
   TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;
   ret.shape = convert_dim<ndim>(data.shape());
   ret.data.resize(ret.shape.num_samples());
-  assert(data.type().size() >= sizeof(T));
-  assert(data.type().size() % sizeof(T) == 0);
+  assert(data.type_info().size() >= sizeof(T));
+  assert(data.type_info().size() % sizeof(T) == 0);
   for (int i = 0; i < ret.shape.num_samples(); i++) {
     ret.data[i] = static_cast<T*>(data[i].raw_mutable_data());
   }
   // If reinterpreting to a smaller type, adjust the inner extent
-  if (data.type().size() > sizeof(T)) {
-    int k = data.type().size() / sizeof(T);
+  if (data.type_info().size() > sizeof(T)) {
+    int k = data.type_info().size() / sizeof(T);
     for (int i = 0; i < ret.shape.num_samples(); i++) {
       auto sh = ret.shape.tensor_shape_span(i);
       sh[sh.size() - 1] *= k;
@@ -213,14 +213,14 @@ reinterpret_view(const TensorVector<Backend> &data) {
   TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;
   ret.shape = convert_dim<ndim>(data.shape());
   ret.data.resize(ret.shape.num_samples());
-  assert(data.type().size() >= sizeof(T));
-  assert(data.type().size() % sizeof(T) == 0);
+  assert(data.type_info().size() >= sizeof(T));
+  assert(data.type_info().size() % sizeof(T) == 0);
   for (int i = 0; i < ret.shape.num_samples(); i++) {
     ret.data[i] = static_cast<T*>(data[i].raw_data());
   }
   // If reinterpreting to a smaller type, adjust the inner extent
-  if (data.type().size() > sizeof(T)) {
-    int k = data.type().size() / sizeof(T);
+  if (data.type_info().size() > sizeof(T)) {
+    int k = data.type_info().size() / sizeof(T);
     for (int i = 0; i < ret.shape.num_samples(); i++) {
       auto sh = ret.shape.tensor_shape_span(i);
       sh[sh.size() - 1] *= k;

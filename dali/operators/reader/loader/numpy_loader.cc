@@ -23,18 +23,18 @@
 #include "dali/operators/reader/loader/utils.h"
 
 namespace dali {
-TypeInfo TypeFromNumpyStr(const std::string &format) {
-  if (format == "u1") return TypeInfo::Create<uint8_t>();
-  if (format == "u2") return TypeInfo::Create<uint16_t>();
-  if (format == "u4") return TypeInfo::Create<uint32_t>();
-  if (format == "u8") return TypeInfo::Create<uint64_t>();
-  if (format == "i1") return TypeInfo::Create<int8_t>();
-  if (format == "i2") return TypeInfo::Create<int16_t>();
-  if (format == "i4") return TypeInfo::Create<int32_t>();
-  if (format == "i8") return TypeInfo::Create<int64_t>();
-  if (format == "f2") return TypeInfo::Create<float16>();
-  if (format == "f4") return TypeInfo::Create<float>();
-  if (format == "f8") return TypeInfo::Create<double>();
+const TypeInfo &TypeFromNumpyStr(const std::string &format) {
+  if (format == "u1") return TypeTable::GetTypeInfo<uint8_t>();
+  if (format == "u2") return TypeTable::GetTypeInfo<uint16_t>();
+  if (format == "u4") return TypeTable::GetTypeInfo<uint32_t>();
+  if (format == "u8") return TypeTable::GetTypeInfo<uint64_t>();
+  if (format == "i1") return TypeTable::GetTypeInfo<int8_t>();
+  if (format == "i2") return TypeTable::GetTypeInfo<int16_t>();
+  if (format == "i4") return TypeTable::GetTypeInfo<int32_t>();
+  if (format == "i8") return TypeTable::GetTypeInfo<int64_t>();
+  if (format == "f2") return TypeTable::GetTypeInfo<float16>();
+  if (format == "f4") return TypeTable::GetTypeInfo<float>();
+  if (format == "f8") return TypeTable::GetTypeInfo<double>();
   DALI_FAIL("Unknown Numpy type string");
 }
 
@@ -129,7 +129,7 @@ void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header) {
     // < means LE, | means N/A, = means native. In all those cases, we can read
   bool little_endian = (typestr[0] == '<' || typestr[0] == '|' || typestr[0] == '=');
   DALI_ENFORCE(little_endian, "Big Endian files are not supported.");
-  target.type_info = TypeFromNumpyStr(typestr.substr(1));
+  target.type_info = &TypeFromNumpyStr(typestr.substr(1));
 
   SkipSpaces(hdr);
   Skip(hdr, ",");
@@ -235,7 +235,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     meta.SetSkipSample(true);
     target.data.Reset();
     target.data.SetMeta(meta);
-    target.data.set_type(TypeInfo::Create<uint8_t>());
+    target.data.set_type<uint8_t>();
     target.data.Resize({0});
     target.filename.clear();
     return;
@@ -259,7 +259,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     if (target.data.shares_data()) {
       target.data.Reset();
     }
-    target.data.Resize(parse_target.shape, parse_target.type_info);
+    target.data.Resize(parse_target.shape, parse_target.type());
     // copy the image
     Index ret = current_file->Read(static_cast<uint8_t*>(target.data.raw_mutable_data()),
                                     nbytes);
@@ -269,7 +269,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", filename));
     // Wrap the raw data in the Tensor object.
     target.data.ShareData(p, nbytes, {nbytes});
-    target.data.Resize(parse_target.shape, parse_target.type_info);
+    target.data.Resize(parse_target.shape, parse_target.type());
   }
 
   // close the file handle

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,9 +27,9 @@ namespace dali {
 
 namespace py = pybind11;
 
-static std::string FormatStrFromType(const TypeInfo &type) {
+static std::string FormatStrFromType(DALIDataType type) {
   // handle common types in a switch
-  switch (type.id()) {
+  switch (type) {
     case DALI_INT8:
       return "=b";
     case DALI_UINT8:
@@ -95,12 +95,11 @@ static std::string FormatStrFromType(const TypeInfo &type) {
   } else if (IsType<size_t>(type)) {
     return "=N";
   } else {
-    DALI_FAIL("Cannot convert type " + type.name() +
-        " to format descriptor string");
+    DALI_FAIL(make_string("Cannot convert type ", type, " to a format descriptor string"));
   }
 }
 
-static TypeInfo TypeFromFormatStr(const std::string &format) {
+static const TypeInfo &TypeFromFormatStr(const std::string &format) {
   char format_letter;
   int format_number = -1;
   if (format.size() == 1) {
@@ -121,64 +120,64 @@ static TypeInfo TypeFromFormatStr(const std::string &format) {
 
   switch (format_letter) {
     case 'c':
-      return TypeInfo::Create<char>();
+      return TypeTable::GetTypeInfo<char>();
     // type supported by cupy
     case 'u':
       if (format_number == -1 || format_number == sizeof(uint8_t)) {
-        return TypeInfo::Create<uint8_t>();
+        return TypeTable::GetTypeInfo<uint8_t>();
       } else if (format_number == sizeof(uint16_t)) {
-        return TypeInfo::Create<uint16_t>();
+        return TypeTable::GetTypeInfo<uint16_t>();
       } else if (format_number == sizeof(uint32_t)) {
-        return TypeInfo::Create<uint32_t>();
+        return TypeTable::GetTypeInfo<uint32_t>();
       } else if (format_number == sizeof(uint64_t)) {
-        return TypeInfo::Create<uint64_t>();
+        return TypeTable::GetTypeInfo<uint64_t>();
       }
     case 'b':
-      return TypeInfo::Create<int8_t>();
+      return TypeTable::GetTypeInfo<int8_t>();
     case 'B':
-      return TypeInfo::Create<uint8_t>();
+      return TypeTable::GetTypeInfo<uint8_t>();
     case 'h':
-      return TypeInfo::Create<int16_t>();
+      return TypeTable::GetTypeInfo<int16_t>();
     case 'H':
-      return TypeInfo::Create<uint16_t>();
+      return TypeTable::GetTypeInfo<uint16_t>();
     case 'i':
       if (format_number == -1 || format_number == sizeof(int32_t)) {
-        return TypeInfo::Create<int32_t>();
+        return TypeTable::GetTypeInfo<int32_t>();
       } else if (format_number == sizeof(int64_t)) {
-        return TypeInfo::Create<int64_t>();
+        return TypeTable::GetTypeInfo<int64_t>();
       } else if (format_number == sizeof(int16_t)) {
-        return TypeInfo::Create<int16_t>();
+        return TypeTable::GetTypeInfo<int16_t>();
       } else if (format_number == sizeof(int8_t)) {
-        return TypeInfo::Create<int8_t>();
+        return TypeTable::GetTypeInfo<int8_t>();
       }
     case 'I':
-      return TypeInfo::Create<uint32_t>();
+      return TypeTable::GetTypeInfo<uint32_t>();
     case 'l':
-      return TypeInfo::Create<sized_long>();
+      return TypeTable::GetTypeInfo<sized_long>();
     case 'L':
-      return TypeInfo::Create<sized_ulong>();
+      return TypeTable::GetTypeInfo<sized_ulong>();
     case 'q':
-      return TypeInfo::Create<int64_t>();
+      return TypeTable::GetTypeInfo<int64_t>();
     case 'Q':
-      return TypeInfo::Create<uint64_t>();
+      return TypeTable::GetTypeInfo<uint64_t>();
     case 'f':
       if (format_number == -1 || format_number == sizeof(float)) {
-        return TypeInfo::Create<float>();
+        return TypeTable::GetTypeInfo<float>();
       } else if (format_number == sizeof(double)) {
-        return TypeInfo::Create<double>();
+        return TypeTable::GetTypeInfo<double>();
       } else if (format_number == sizeof(float16)) {
-        return TypeInfo::Create<float16>();
+        return TypeTable::GetTypeInfo<float16>();
       }
     case 'd':
-      return TypeInfo::Create<double>();
+      return TypeTable::GetTypeInfo<double>();
     case '?':
-      return TypeInfo::Create<bool>();
+      return TypeTable::GetTypeInfo<bool>();
     case 'e':
-      return TypeInfo::Create<float16>();
+      return TypeTable::GetTypeInfo<float16>();
     case 'n':
-      return TypeInfo::Create<ssize_t>();
+      return TypeTable::GetTypeInfo<ssize_t>();
     case 'N':
-      return TypeInfo::Create<size_t>();
+      return TypeTable::GetTypeInfo<size_t>();
     default:
       DALI_FAIL("Cannot create type for unknown format string: " + format);
   }

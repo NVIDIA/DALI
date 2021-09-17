@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,12 +53,12 @@ bool GridMaskCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   GetArguments(ws);
   output_desc[0] = {input.shape(), input.type()};
   kernel_manager_.Resize(num_threads_, max_batch_size_);
-  TYPE_SWITCH(input.type().id(), type2id, Type, TYPES, (
+  TYPE_SWITCH(input.type(), type2id, Type, TYPES, (
       {
           using Kernel = kernels::GridMaskCpu<Type>;
           kernel_manager_.Initialize<Kernel>();
       }
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id()))) // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type()))) // NOLINT
   return true;
 }
 
@@ -69,7 +69,7 @@ void GridMaskCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   output.SetLayout(input.GetLayout());
   auto out_shape = output.shape();
   auto& tp = ws.GetThreadPool();
-  TYPE_SWITCH(input.type().id(), type2id, Type, TYPES, (
+  TYPE_SWITCH(input.type(), type2id, Type, TYPES, (
       {
           using Kernel = kernels::GridMaskCpu<Type>;
           auto in_view = view<const Type>(input);
@@ -83,7 +83,7 @@ void GridMaskCpu::RunImpl(workspace_t<CPUBackend> &ws) {
           }
           tp.RunAll();
       }
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id()))) // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type()))) // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(GridMask, GridMaskCpu, CPU);

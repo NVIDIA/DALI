@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ Flip<CPUBackend>::Flip(const OpSpec &spec)
 void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
              const TensorLayout &layout,
              bool horizontal, bool vertical, bool depthwise) {
-  DALI_TYPE_SWITCH(input.type().id(), DType,
+  DALI_TYPE_SWITCH(input.type(), DType,
       auto output_ptr = output.mutable_data<DType>();
       auto input_ptr = input.data<DType>();
       auto kernel = kernels::FlipCPU<DType>();

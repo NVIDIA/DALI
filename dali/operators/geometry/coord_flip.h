@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ class CoordFlip : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     const auto &input = ws.template InputRef<Backend>(0);
-    DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Input is expected to be float");
+    DALI_ENFORCE(input.type() == DALI_FLOAT, "Input is expected to be float");
 
     output_desc.resize(1);
     auto in_shape = input.shape();
