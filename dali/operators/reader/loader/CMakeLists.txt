@@ -16,6 +16,8 @@ if (BUILD_LIBTAR)
   add_subdirectory(webdataset)
 endif()
 
+add_subdirectory(video)
+
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 
