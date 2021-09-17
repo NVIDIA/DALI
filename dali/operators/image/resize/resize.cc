@@ -96,7 +96,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
            is_uniform(attr_shape) &&
            attr_shape[0][0] == NumSpatialDims());
 
-    if (!attr_staging_.has_data_allocation())
+    if (!attr_staging_.has_data())
       attr_staging_.set_pinned(true);
     attr_staging_.ResizeLike(attr_out);
     auto attr_view = view<int, 1>(attr_staging_);
