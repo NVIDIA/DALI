@@ -109,8 +109,8 @@ def test_fail_sequence_rearrange():
     assert len(orders) == len(error_msgs)
 
     for dev in ["cpu", "gpu"]:
-        for args, error_msg in zip(orders, error_msgs):
-            yield raises(RuntimeError, glob=error_msg)(check_fail_sequence_rearrange), 2, shape, *args, dev
+        for [new_order, per_sample], error_msg in zip(orders, error_msgs):
+            yield raises(RuntimeError, glob=error_msg)(check_fail_sequence_rearrange), 2, shape, new_order, per_sample, dev
 
 def test_wrong_layouts_sequence_rearrange():
     shape = [5, 1]
