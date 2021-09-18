@@ -600,7 +600,7 @@ inline std::ostream &operator<<(std::ostream &os, DALIDataType dtype) {
   auto *info = TypeTable::TryGetTypeInfo(dtype);
   if (info)
     return os << info->name();
-  // Use string concatenation so that the result is the same aas in to_string, unaffected by
+  // Use string concatenation so that the result is the same as in to_string, unaffected by
   // formatting & other settings in `os`.
   return os << ("unknown type: " + std::to_string(static_cast<int>(dtype)));
 }
