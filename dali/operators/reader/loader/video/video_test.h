@@ -24,15 +24,15 @@ class VideoTest : public ::testing::Test {
  public:
   VideoTest();
 
-  const int NumVideos() const { return gt_frames_.size(); }
+  const int NumVideos() const { return cfr_frames_.size(); }
 
-  const int NumFrames(int i) const { return gt_frames_[i].size(); }
+  const int NumFrames(int i) const { return cfr_frames_[i].size(); }
 
   const int Channels() const { return 3; }
 
-  const int Width(int i) const { return gt_frames_[i][0].cols; }
+  const int Width(int i) const { return cfr_frames_[i][0].cols; }
 
-  const int Height(int i) const { return gt_frames_[i][0].rows; }
+  const int Height(int i) const { return cfr_frames_[i][0].rows; }
 
   const int FrameSize(int i) const { return Height(i) * Width(i) * Channels(); }
 
@@ -41,7 +41,7 @@ class VideoTest : public ::testing::Test {
   void SaveFrame(uint8_t *frame, int frame_id, int sample_id, int batch_id, std::string subfolder, int width, int height, int channels);
 
  protected:
-  std::vector<std::vector<cv::Mat>> gt_frames_;
+  std::vector<std::vector<cv::Mat>> cfr_frames_;
 };
 
 

@@ -66,7 +66,7 @@ VideoTest::VideoTest() {
       frames.push_back(frame);
     }
 
-    gt_frames_.push_back(frames);
+    cfr_frames_.push_back(frames);
   }
 }
 

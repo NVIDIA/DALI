@@ -70,10 +70,73 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
 
       for (int i = 0; i < sequence_length; ++i) {
         this->ComapreFrames(
-          sample + i * this->FrameSize(video_idx), this->gt_frames_[video_idx][gt_frame_id + i * stride].data, this->FrameSize(video_idx));
+          sample + i * this->FrameSize(video_idx), this->cfr_frames_[video_idx][gt_frame_id + i * stride].data, this->FrameSize(video_idx));
 
-        this->SaveFrame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
-        this->SaveFrame(this->gt_frames_[video_idx][gt_frame_id + i * stride].data, i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
+        // this->SaveFrame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
+        // this->SaveFrame(this->cfr_frames_[video_idx][gt_frame_id + i * stride].data, i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
+      }
+
+      gt_frame_id += step;
+      ++sequence_id;
+
+      if (gt_frame_id + stride * sequence_length >= this->NumFrames(video_idx)) {
+        gt_frame_id = 0;
+        ++video_idx;
+        if (video_idx == this->NumVideos()) {
+          video_idx = 0;
+        }
+      }
+    }
+    ++batch_id;
+  }
+}
+
+TEST_F(VideoReaderCpuTest, CpuVariableFrameRate) {
+  const int batch_size = 4;
+  const int sequence_length = 6;
+  const int stride = 3;
+  const int step = 10;
+  
+  Pipeline pipe(batch_size, 4, 0);
+
+  pipe.AddOperator(OpSpec("readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", sequence_length)
+    .AddArg("stride", stride)
+    .AddArg("step", step)
+    .AddArg(
+      "filenames",
+      std::vector<std::string>{
+        testing::dali_extra_path() + "/db/video/vfr/test_1.mp4",
+        testing::dali_extra_path() + "/db/video/vfr/test_2.mp4"})
+    .AddOutput("frames", "cpu"));
+
+  pipe.Build({{"frames", "cpu"}});
+
+  int num_sequences = 20;
+  int sequence_id = 0;
+  int batch_id = 0;
+  int gt_frame_id = 0;
+
+  int video_idx = 0;
+
+  while (sequence_id < num_sequences) {
+    DeviceWorkspace ws;
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+
+    auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
+
+    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+      auto sample = frame_video_output.mutable_tensor<uint8_t>(sample_id);
+
+      for (int i = 0; i < sequence_length; ++i) {
+        this->ComapreFrames(
+          sample + i * this->FrameSize(video_idx), this->cfr_frames_[video_idx][gt_frame_id + i * stride].data, this->FrameSize(video_idx));
+
+        // this->SaveFrame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
+        // this->SaveFrame(this->gt_frames_[video_idx][gt_frame_id + i * stride].data, i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
       }
 
       gt_frame_id += step;
@@ -176,8 +239,8 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
         this->ComapreFrames(
           sample + i * this->FrameSize(video_idx), frame_gpu.data(), this->FrameSize(video_idx), 100);
 
-        this->SaveFrame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
-        this->SaveFrame(frame_gpu.data(), i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
+        // this->SaveFrame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
+        // this->SaveFrame(frame_gpu.data(), i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
       }
 
       gt_frame_id += step;
