@@ -745,7 +745,7 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test) {
   for (int i = 0; i < prefetch_queue_depth; i++) {
     data.push_back(AllocBuffer<TypeParam>(num_elems * sizeof(uint8_t), false));
   }
-  std::vector<TensorList<TypeParam>> input_wrapper(3);
+  std::vector<TensorList<TypeParam>> input_wrapper(prefetch_queue_depth);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape), 42 * i);
