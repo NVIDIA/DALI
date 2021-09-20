@@ -133,7 +133,7 @@ TEST_F(VideoReaderCpuTest, CpuVariableFrameRate) {
 
       for (int i = 0; i < sequence_length; ++i) {
         this->ComapreFrames(
-          sample + i * this->FrameSize(video_idx), this->cfr_frames_[video_idx][gt_frame_id + i * stride].data, this->FrameSize(video_idx));
+          sample + i * this->FrameSize(video_idx), this->vfr_frames_[video_idx][gt_frame_id + i * stride].data, this->FrameSize(video_idx));
 
         // this->SaveFrame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
         // this->SaveFrame(this->gt_frames_[video_idx][gt_frame_id + i * stride].data, i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
@@ -154,26 +154,6 @@ TEST_F(VideoReaderCpuTest, CpuVariableFrameRate) {
   }
 }
 
-TEST_F(VideoReaderCpuTest, BenchamrkIndex) {
-  const int batch_size = 4;
-  const int sequence_length = 6;
-  const int stride = 3;
-  
-  
-  Pipeline pipe(batch_size, 4, 0);
-
-  pipe.AddOperator(OpSpec("readers__Video")
-    .AddArg("device", "cpu")
-    .AddArg("sequence_length", sequence_length)
-    .AddArg("stride", stride)
-    .AddArg(
-      "filenames",
-      std::vector<std::string>{
-        testing::dali_extra_path() + "/db/video/cfr/test_2.mp4"})
-    .AddOutput("frames", "cpu"));
-
-  pipe.Build({{"frames", "cpu"}});
-}
 
 TEST_F(VideoReaderCpuTest, CompareReaders) {
   const int batch_size = 4;

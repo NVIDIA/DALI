@@ -45,11 +45,21 @@ static void parallel_for(
 }
 
 VideoTest::VideoTest() {
-  std::vector<std::string> frames_paths{
+  std::vector<std::string> cfr_frames_paths{
       testing::dali_extra_path() + "/db/video/cfr/frames_1/",
       testing::dali_extra_path() + "/db/video/cfr/frames_2/"};
 
-  for (auto &frames_path : frames_paths) {
+  std::vector<std::string> vfr_frames_paths{
+      testing::dali_extra_path() + "/db/video/vfr/frames_1/",
+      testing::dali_extra_path() + "/db/video/vfr/frames_2/"};
+
+  
+  LoadFrames(cfr_frames_paths, cfr_frames_);
+  LoadFrames(vfr_frames_paths, vfr_frames_);
+}
+
+void VideoTest::LoadFrames(std::vector<std::string> &paths, std::vector<std::vector<cv::Mat>> &out_frames) {
+  for (auto &frames_path : paths) {
     char id_str[4];
     std::vector<cv::Mat> frames;
 
@@ -66,7 +76,7 @@ VideoTest::VideoTest() {
       frames.push_back(frame);
     }
 
-    cfr_frames_.push_back(frames);
+    out_frames.push_back(frames);
   }
 }
 

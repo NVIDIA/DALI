@@ -23,7 +23,7 @@ void VideoLoaderCPU::ReadSample(Tensor<CPUBackend> &sample) {
   ++current_index_;
   MoveToNextShard(current_index_);
 
-  sample.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
+  sample.set_type(DALI_UINT8);
   sample.Resize(
     TensorShape<4>{sequence_len_, video_file.Width(), video_file.Height(), video_file.Channels()});
 

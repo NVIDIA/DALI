@@ -42,6 +42,9 @@ class VideoTest : public ::testing::Test {
 
  protected:
   std::vector<std::vector<cv::Mat>> cfr_frames_;
+  std::vector<std::vector<cv::Mat>> vfr_frames_;
+
+  void LoadFrames(std::vector<std::string> &paths, std::vector<std::vector<cv::Mat>> &frames);
 };
 
 
