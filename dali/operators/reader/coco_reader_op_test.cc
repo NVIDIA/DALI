@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -112,10 +112,15 @@ class CocoReaderTest : public ::testing::Test {
 
     vector<int> ids(shape.size());
 
-    MemCopy(
-      ids.data(),
-      output.data<int>(),
-      shape.size() * sizeof(int));
+    auto *out_ptr = ids.data();
+    for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
+      MemCopy(
+        out_ptr,
+        output.tensor<int>(sample_idx),
+        shape[sample_idx].num_elements() * sizeof(int));
+      out_ptr += shape[sample_idx].num_elements();
+    }
+    cudaStreamSynchronize(0);
     return ids;
   }
 
@@ -197,10 +202,15 @@ class CocoReaderTest : public ::testing::Test {
     vector<float> boxes(obj_count * bbox_size_);
     vector<int> labels(obj_count);
 
-    MemCopy(
-      boxes.data(),
-      boxes_output.data<float>(),
-      obj_count * bbox_size_ * sizeof(float));
+    auto *boxes_ptr = boxes.data();
+    for (int sample_idx = 0; sample_idx < boxes_shape.num_samples(); sample_idx++) {
+      MemCopy(
+        boxes_ptr,
+        boxes_output.tensor<float>(sample_idx),
+        boxes_shape[sample_idx].num_elements() * sizeof(float));
+      boxes_ptr += boxes_shape[sample_idx].num_elements();
+    }
+    cudaStreamSynchronize(0);
 
     for (int box_coord = 0, idx = 0;
          box_coord < obj_count * bbox_size_;
@@ -229,10 +239,15 @@ class CocoReaderTest : public ::testing::Test {
       }
     }
 
-    MemCopy(
-      labels.data(),
-      labels_output.data<int>(),
-      obj_count * sizeof(int));
+    auto *labels_ptr = labels.data();
+    for (int sample_idx = 0; sample_idx < labels_shape.num_samples(); sample_idx++) {
+      MemCopy(
+        labels_ptr,
+        labels_output.tensor<int>(sample_idx),
+        labels_shape[sample_idx].num_elements() * sizeof(int));
+      labels_ptr += labels_shape[sample_idx].num_elements();
+    }
+    cudaStreamSynchronize(0);
 
     for (int obj = 0; obj < obj_count; ++obj) {
       ASSERT_EQ(labels[obj], categories_[obj]);
@@ -257,15 +272,24 @@ class CocoReaderTest : public ::testing::Test {
       vector<int> polygons(polygons_gt_.size());
       vector<float> vertices(vertices_gt_.size());
 
-      MemCopy(
-        polygons.data(),
-        polygons_output.data<int>(),
-        polygons_gt_.size() * sizeof(int));
+      auto *polygons_ptr = polygons.data();
+      for (int sample_idx = 0; sample_idx < polygons_shape.num_samples(); sample_idx++) {
+        MemCopy(
+          polygons_ptr,
+          polygons_output.tensor<int>(sample_idx),
+          polygons_shape[sample_idx].num_elements() * sizeof(int));
+        polygons_ptr += polygons_shape[sample_idx].num_elements();
+      }
 
-      MemCopy(
-        vertices.data(),
-        vertices_output.data<float>(),
-        vertices_gt_.size() * sizeof(float));
+      auto *vertices_ptr = vertices.data();
+      for (int sample_idx = 0; sample_idx < vertices_shape.num_samples(); sample_idx++) {
+        MemCopy(
+          vertices_ptr,
+          vertices_output.tensor<float>(sample_idx),
+          vertices_shape[sample_idx].num_elements() * sizeof(float));
+        vertices_ptr += vertices_shape[sample_idx].num_elements();
+      }
+      cudaStreamSynchronize(0);
 
       if (polygon_masks_legacy) {
         for (size_t i = 0; i < polygons.size(); i+=3) {
