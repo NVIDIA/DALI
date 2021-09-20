@@ -156,10 +156,10 @@ class DataReader : public Operator<Backend> {
       int n = out.ntensor();
       if (n < 2)
         continue;
-      auto type0 = out[0].type().id();
+      auto type0 = out[0].type();
       int ndim0 = out[0].shape().size();
       for (int i = 1; i < n; i++) {
-        auto type = out[i].type().id();
+        auto type = out[i].type();
         DALI_ENFORCE(type == type0, make_string("Inconsistent data! "
         "The data produced by the reader has inconsistent type:\n"
         "type of outputs[", out_idx, "][", i, "] is ", type, " whereas\n"
@@ -263,7 +263,7 @@ class DataReader : public Operator<Backend> {
       first_output.set_pinned(false);
       first_output.SetSourceInfo(source_info);
       first_output.SetSkipSample(should_skip_sample);
-      first_output.set_type(TypeInfo::Create<uint8_t>());
+      first_output.set_type<uint8_t>();
       first_output.Resize({1});
 
       for (std::size_t i = 1; i < cached_outputs.size(); i++) {

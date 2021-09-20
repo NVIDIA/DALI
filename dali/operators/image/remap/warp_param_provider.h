@@ -19,14 +19,15 @@
 #include <vector>
 #include <string>
 
+#include "dali/core/dev_buffer.h"
+#include "dali/core/mm/memory.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_view.h"
-#include "dali/core/mm/memory.h"
-#include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/data/views.h"
+#include "dali/kernels/common/copy.h"
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/scratch.h"
-#include "dali/kernels/common/copy.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
@@ -181,7 +182,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     return params_gpu_;
   }
 
-  /** @brief Gets the mapping parameters in GPU memory
+  /** @brief Gets the mapping parameters in CPU memory
    *
    *  If CPU tensor is empty, but GPU is not, a copy is scheduled
    *  on the stream associated with current workspace and the calling thread
@@ -261,11 +262,11 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   virtual void GetExplicitPerSampleSize(std::vector<SpatialShape> &out_sizes) const {
     assert(HasExplicitPerSampleSize());
     const auto &tensor_vector = ws_->ArgumentInput(size_arg_name_);
-    TYPE_SWITCH(tensor_vector.type().id(), type2id, shape_t,
+    TYPE_SWITCH(tensor_vector.type(), type2id, shape_t,
       (int16_t, int32_t, int64_t, uint16_t, uint32_t, uint64_t, float),
       (GetTypedPerSampleSize(out_sizes, view<const shape_t>(tensor_vector))),
       (DALI_FAIL(make_string("Warp: Unsupported argument type for \"", size_arg_name_, "\": ",
-        tensor_vector.type().id())))
+        tensor_vector.type())))
     );  // NOLINT
   }
 

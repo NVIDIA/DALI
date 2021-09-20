@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -183,14 +183,14 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     meta.SetSourceInfo(image_key);
     meta.SetSkipSample(false);
 
-    tensor.set_type(TypeInfo::Create<uint8_t>());
+    tensor.set_type<uint8_t>();
 
     // if image is cached, skip loading
     if (ShouldSkipImage(image_key)) {
       meta.SetSkipSample(true);
       tensor.Reset();
       tensor.SetMeta(meta);
-      tensor.set_type(TypeInfo::Create<uint8_t>());
+      tensor.set_type<uint8_t>();
       tensor.Resize({0});
       return;
     }

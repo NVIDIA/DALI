@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -162,7 +162,7 @@ class CropMirrorNormalize : public Operator<Backend> {
 
   void SetupCommonImpl(const workspace_t<Backend> &ws) {
     const auto &input = ws.template InputRef<Backend>(0);
-    input_type_ = input.type().id();
+    input_type_ = input.type();
     if (output_type_ == DALI_NO_TYPE)
       output_type_ = input_type_;
 

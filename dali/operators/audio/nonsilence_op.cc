@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,15 +64,13 @@ DALI_REGISTER_OPERATOR(NonsilentRegion, NonsilenceOperatorCpu, CPU);
 bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
   AcquireArgs(spec_, ws);
-  TypeInfo output_type;
-  output_type.SetType<int>(TypeTable::GetTypeID<int>());
   TensorShape<> scalar_shape = {};
   auto curr_batch_size = ws.GetInputBatchSize(0);
 
   output_desc.resize(detail::kNumOutputs);
   for (int i = 0; i < detail::kNumOutputs; i++) {
     output_desc[i].shape = uniform_list_shape(curr_batch_size, scalar_shape);
-    output_desc[i].type = output_type;
+    output_desc[i].type = DALI_INT32;
   }
   return true;
 }
@@ -83,9 +81,9 @@ bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
-  TYPE_SWITCH(input.type().id(), type2id, InputType, NONSILENCE_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, InputType, NONSILENCE_TYPES, (
           RunImplTyped<InputType>(ws);
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
 }
 
 

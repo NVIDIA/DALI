@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include "dali/pipeline/data/types.h"
 #include <gtest/gtest.h>
 #include <string>
+#include <typeinfo>
 #include <utility>
 #include "dali/test/dali_test.h"
 
@@ -102,13 +103,35 @@ TYPED_TEST(TypesTest, TestRegisteredType) {
   TypeInfo type;
 
   // Verify we start with no type
-  ASSERT_EQ(type.name(), "no_type");
+  ASSERT_EQ(type.name(), "<no_type>");
   ASSERT_EQ(type.size(), 0);
 
   type.SetType<T>();
 
   ASSERT_EQ(type.size(), sizeof(T));
   ASSERT_EQ(type.name(), this->TypeName());
+}
+
+struct CustomTestType {};
+
+TEST(TypesTest, CustomType) {
+  auto id = TypeTable::GetTypeID<CustomTestType>();
+  ASSERT_NE(id, DALI_NO_TYPE) << "Could not register a custom type.";
+
+  auto &info_by_type = TypeTable::GetTypeInfo<CustomTestType>();
+  auto &info_by_id = TypeTable::GetTypeInfo(id);
+  ASSERT_EQ(info_by_id.id(), id);
+
+  EXPECT_EQ(&info_by_id, &info_by_type)
+    << "Type info obtained by type and by id should be the same object.";
+
+  EXPECT_EQ(info_by_type.name(), typeid(CustomTestType).name());
+  EXPECT_EQ(info_by_id.name(), typeid(CustomTestType).name());
+  std::stringstream ss;
+  std::string str = to_string(id);
+  ss << id;
+  EXPECT_EQ(str, typeid(CustomTestType).name());
+  EXPECT_EQ(ss.str(), str);
 }
 
 TEST(ListTypeNames, ListTypeNames) {

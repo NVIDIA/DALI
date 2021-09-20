@@ -111,7 +111,7 @@ class LookupTable : public Operator<Backend> {
       );  // NOLINT
     }
     output_desc.resize(1);
-    output_desc[0].type = TypeTable::GetTypeInfo(output_type_);
+    output_desc[0].type = output_type_;
     const auto &input = ws.template InputRef<Backend>(0);
     output_desc[0].shape = input.shape();
     return true;

@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ class DummyLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
   void ReadSample(Tensor<CPUBackend> &t) override {
     t.Resize({1});
-    t.set_type(TypeInfo::Create<uint8_t>());
+    t.set_type<uint8_t>();
   }
 
   void PrepareMetadataImpl() override {

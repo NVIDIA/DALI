@@ -311,7 +311,7 @@ class DummyPresizeOpCPU : public Operator<CPUBackend> {
     int num_samples = input.shape().num_samples();
     auto &output = ws.OutputRef<CPUBackend>(0);
     auto tmp_size = output.capacity();
-    output.set_type(TypeTable::GetTypeInfoFromStatic<size_t>());
+    output.set_type<size_t>();
     output.Resize(uniform_list_shape(num_samples, std::vector<int64_t>{2}));
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       auto *out = output[sample_idx].mutable_data<size_t>();
@@ -335,7 +335,7 @@ class DummyPresizeOpGPU : public Operator<GPUBackend> {
     const auto &input = ws.InputRef<GPUBackend>(0);
     int num_samples = input.shape().num_samples();
     auto &output = ws.OutputRef<GPUBackend>(0);
-    output.set_type(TypeTable::GetTypeInfoFromStatic<size_t>());
+    output.set_type<size_t>();
     size_t tmp_size[2] = {output.capacity(), input.capacity()};
     output.Resize(uniform_list_shape(num_samples, std::vector<int64_t>{2}));
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
@@ -361,7 +361,7 @@ class DummyPresizeOpMixed : public Operator<MixedBackend> {
     auto &input = ws.InputRef<CPUBackend>(0);
     int num_samples = input.shape().num_samples();
     auto &output = ws.OutputRef<GPUBackend>(0);
-    output.set_type(TypeTable::GetTypeInfoFromStatic<size_t>());
+    output.set_type<size_t>();
     size_t tmp_size[2] = {output.capacity(), input.capacity()};
     output.Resize(uniform_list_shape(num_samples, std::vector<int64_t>{2}));
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {

@@ -160,7 +160,7 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
                   dl_tensor.device.device_type == kDLCPU),
                "DLPack device type doesn't match Tensor type");
 
-  auto dali_type = TypeTable::GetTypeInfo(DLToDALIType(dl_tensor.dtype));
+  const TypeInfo &dali_type = TypeTable::GetTypeInfo(DLToDALIType(dl_tensor.dtype));
   TensorShape<> shape;
   shape.resize(dl_tensor.ndim);
   for (ssize_t i = 0; i < dl_tensor.ndim; ++i) {
@@ -175,7 +175,7 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
   auto typed_shape = ConvertShape(shape, batch);
   batch->ShareData(shared_ptr<void>(dl_tensor.data,
                                     [dlm_tensor_ptr = move(dlm_tensor_ptr)](void*) {}),
-                                    bytes, typed_shape, dali_type);
+                                    bytes, typed_shape, dali_type.id());
 
   // according to the docs kDLCUDAHost = kDLCPU | kDLCUDA so test it as a the first option
   if (dl_tensor.device.device_type == kDLCUDAHost) {
@@ -219,7 +219,7 @@ void FillTensorFromCudaArray(const py::object object, TensorType *batch, int dev
   // Create the Tensor and wrap the data
   TensorShape<> shape = shape_from_py(cu_a_interface["shape"].cast<py::tuple>());
 
-  TypeInfo type = TypeFromFormatStr(cu_a_interface["typestr"].cast<py::str>());
+  const TypeInfo &type = TypeFromFormatStr(cu_a_interface["typestr"].cast<py::str>());
   size_t bytes = volume(shape) * type.size();
 
   if (cu_a_interface.contains("strides") && !cu_a_interface["strides"].is_none()) {
@@ -233,7 +233,8 @@ void FillTensorFromCudaArray(const py::object object, TensorType *batch, int dev
   // Keep a copy of the input object ref in the deleter, so its refcount is increased
   // while this shared_ptr is alive (and the data should be kept alive)
   // We set the type and shape even before the set_device_id as we only wrap the allocation
-  batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) {}), bytes, typed_shape, type);
+  batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) {}),
+                   bytes, typed_shape, type.id());
   batch->SetLayout(layout);
   // it is for __cuda_array_interface__ so device_id < 0 is not a valid value
   if (device_id < 0) {
@@ -319,13 +320,13 @@ void ExposeTensor(py::module &m) {
             shape[i] = t.shape()[i];
 
             // We iterate over stride backwards
-            stride[(t.ndim()-1) - i] = t.type().size()*dim_prod;
+            stride[(t.ndim()-1) - i] = t.type_info().size()*dim_prod;
             dim_prod *= t.shape()[(t.ndim()-1) - i];
           }
 
           return py::buffer_info(
               t.raw_mutable_data(),
-              t.type().size(),
+              t.type_info().size(),
               FormatStrFromType(t.type()),
               t.ndim(), shape, stride);
         })
@@ -347,10 +348,11 @@ void ExposeTensor(py::module &m) {
           // Create the Tensor and wrap the data
           auto t = std::make_unique<Tensor<CPUBackend>>();
           t->set_pinned(is_pinned);
-          TypeInfo type = TypeFromFormatStr(info.format);
+          const TypeInfo &type = TypeFromFormatStr(info.format);
           // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
           // while this shared_ptr is alive (and the data should be kept alive)
-          t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *) {}), bytes, i_shape, type);
+          t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *) {}),
+                       bytes, i_shape, type.id());
           t->SetLayout(layout);
           return t.release();
         }),
@@ -632,10 +634,11 @@ void ExposeTensorList(py::module &m) {
         // Create the Tensor and wrap the data
         auto t = std::make_shared<TensorList<CPUBackend>>();
         t->set_pinned(false);
-        TypeInfo type = TypeFromFormatStr(info.format);
+        const TypeInfo &type = TypeFromFormatStr(info.format);
         // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
         // while this shared_ptr is alive (and the data should be kept alive)
-        t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *){}), bytes, i_shape, type);
+        t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *){}),
+                     bytes, i_shape, type.id());
         t->SetLayout(layout);
         return t;
       }),
@@ -668,13 +671,13 @@ void ExposeTensorList(py::module &m) {
             shape[i] = tl.tensor_shape(id)[i];
 
             // We iterate over stride backwards
-            stride[(stride.size()-1) - i] = tl.type().size()*dim_prod;
+            stride[(stride.size()-1) - i] = tl.type_info().size()*dim_prod;
             dim_prod *= tl.tensor_shape(id)[(shape.size()-1) - i];
           }
 
           return py::array(py::buffer_info(
               tl.raw_mutable_tensor(id),
-              tl.type().size(),
+              tl.type_info().size(),
               FormatStrFromType(tl.type()),
               shape.size(), shape, stride));
         },
@@ -717,7 +720,7 @@ void ExposeTensorList(py::module &m) {
 
           if (IsValidType(tl.type())) {
             format = FormatStrFromType(tl.type());
-            type_size = tl.type().size();
+            type_size = tl.type_info().size();
           } else {
             // Default is float
             format = py::format_descriptor<float>::format();

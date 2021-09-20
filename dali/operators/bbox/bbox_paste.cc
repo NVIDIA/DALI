@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -59,12 +59,12 @@ void BBoxPaste<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   const auto input_data = input.data<float>();
 
-  DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
+  DALI_ENFORCE(input.type() == DALI_FLOAT, "Bounding box in wrong format");
   DALI_ENFORCE(input.size() % 4 == 0, "Bounding box tensor size must be a multiple of 4."
                                       "Got: " + std::to_string(input.size()));
 
   auto &output = ws.Output<CPUBackend>(0);
-  output.set_type(TypeInfo::Create<float>());
+  output.set_type<float>();
   output.ResizeLike(input);
   auto *output_data = output.mutable_data<float>();
 

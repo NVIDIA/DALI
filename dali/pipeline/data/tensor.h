@@ -151,7 +151,7 @@ class Tensor : public Buffer<Backend> {
    * the current buffer is not large enough for the requested
    * number of elements.
    */
-  inline void Resize(const TensorShape<> &shape, const TypeInfo &new_type) {
+  inline void Resize(const TensorShape<> &shape, DALIDataType new_type) {
     Index new_size = volume(shape);
     ResizeHelper(new_size, new_type);
     shape_ = shape;
@@ -160,7 +160,7 @@ class Tensor : public Buffer<Backend> {
   /**
    * @brief Tensor is always backed by contiguous buffer
    */
-  bool IsContiguous() {
+  bool IsContiguous() const {
     return true;
   }
 
@@ -215,7 +215,7 @@ class Tensor : public Buffer<Backend> {
     // Get the meta-data for the target tensor
     shape_ = tl->tensor_shape(idx);
     size_ = volume(shape_);
-    type_ = tl->type();
+    type_ = tl->type_info();
     num_bytes_ = type_.size() * size_;
     shares_data_ = true;
     device_ = tl->device_id();
@@ -275,13 +275,13 @@ class Tensor : public Buffer<Backend> {
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes,
                         const TensorShape<> &shape,
-                        const TypeInfo &type = {}) {
+                        DALIDataType type = DALI_NO_TYPE) {
     // don't check ptr as we want to share empty data as well
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_ = ptr;
     num_bytes_ = bytes;
-    type_ = type;
+    type_ = TypeTable::GetTypeInfo(type);
     Index new_size = volume(shape);
     shape_ = shape;
     size_ = new_size;
@@ -309,7 +309,7 @@ class Tensor : public Buffer<Backend> {
    * in use by the Tensor.
    */
   inline void ShareData(void *ptr, size_t bytes, const TensorShape<> &shape,
-                        const TypeInfo &type = TypeInfo::Create<NoType>()) {
+                        DALIDataType type = DALI_NO_TYPE) {
     ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape, type);
   }
 
@@ -331,7 +331,7 @@ class Tensor : public Buffer<Backend> {
    * in use by the Tensor.
    */
   inline void ShareData(void *ptr, size_t bytes,
-                        const TypeInfo &type = TypeInfo::Create<NoType>()) {
+                        DALIDataType type = DALI_NO_TYPE) {
     ShareData(ptr, bytes, { 0 }, type);
   }
 
@@ -358,7 +358,7 @@ class Tensor : public Buffer<Backend> {
     // Get the meta-data for the target tensor
     shape_ = new_shape;
     size_ = volume(shape_);
-    type_ = tl->type();
+    type_ = tl->type_info();
     num_bytes_ = type_.size() * size_;
     device_ = tl->device_id();
     shares_data_ = true;
@@ -385,7 +385,7 @@ class Tensor : public Buffer<Backend> {
     // Get the meta-data for the target tensor
     shape_ = shape_cat(tl->ntensor(), tl->tensor_shape(0));
     size_ = volume(shape_);
-    type_ = tl->type();
+    type_ = tl->type_info();
     num_bytes_ = type_.size() * size_;
     device_ = tl->device_id();
     shares_data_ = true;

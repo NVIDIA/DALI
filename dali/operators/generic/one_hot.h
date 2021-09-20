@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -102,12 +102,10 @@ class OneHot : public Operator<Backend> {
     for (int i = 0; i < num_samples; i++) {
       output_desc[0].shape.set_tensor_shape(i, determine_shape(shape[i], output_sample_dim));
     }
-    TYPE_SWITCH(output_type_, type2id, DType, ONE_HOT_TYPES, ({
-                  TypeInfo type;
-                  type.SetType<DType>(output_type_);
-                  output_desc[0].type = type;
-                }),
+    TYPE_SWITCH(output_type_, type2id, DType, ONE_HOT_TYPES, (
+                (void)DType(); /* silence warnings */),
                 DALI_FAIL(make_string("Unsupported output type: ", output_type_))) // NOLINT
+    output_desc[0].type = output_type_;
     return true;
   };
 

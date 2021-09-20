@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -94,7 +94,7 @@ bool RandomMaskPixelCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
   int ndim = in_masks_shape.sample_dim();
   output_desc.resize(1);
   output_desc[0].shape = uniform_list_shape(nsamples, {ndim});
-  output_desc[0].type = TypeTable::GetTypeInfo(DALI_INT64);
+  output_desc[0].type = DALI_INT64;
 
   foreground_.resize(nsamples);
   value_.clear();
@@ -172,10 +172,10 @@ void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
 
 void RandomMaskPixelCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &in_masks = ws.template InputRef<CPUBackend>(0);
-  TYPE_SWITCH(in_masks.type().id(), type2id, T, MASK_SUPPORTED_TYPES, (
+  TYPE_SWITCH(in_masks.type(), type2id, T, MASK_SUPPORTED_TYPES, (
     RunImplTyped<T>(ws);
   ), (  // NOLINT
-    DALI_FAIL(make_string("Unexpected data type: ", in_masks.type().id()));
+    DALI_FAIL(make_string("Unexpected data type: ", in_masks.type()));
   ));  // NOLINT
 }
 

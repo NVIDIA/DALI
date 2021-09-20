@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -117,7 +117,7 @@ class PadTest : public testing::DaliOperatorTest {
     testing::TensorListWrapper tl_out;
     TensorList<CPUBackend> tl_in;
     tl_in.Resize(tl_shape);
-    tl_in.set_type(TypeInfo::Create<T>());
+    tl_in.set_type<T>();
     for (size_t i = 0; i < tl_in.ntensor(); ++i) {
       auto t = tl_in.mutable_tensor<T>(i);
       std::copy(batch[i].begin(), batch[i].end(), t);

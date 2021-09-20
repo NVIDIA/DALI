@@ -143,18 +143,16 @@ bool ColorTwistCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWo
   const auto &input = ws.template InputRef<CPUBackend>(0);
   output_desc.resize(1);
   DetermineTransformation(ws);
-  TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
+  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
           {
               using Kernel = TheKernel<OutputType, InputType>;
               kernel_manager_.Initialize<Kernel>();
               auto shapes = CallSetup<Kernel, InputType>(input);
-              TypeInfo type;
-              type.SetType<OutputType>(output_type_);
-              output_desc[0] = {shapes, type};
+              output_desc[0] = {shapes, output_type_};
           }
       ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
   return true;
 }
 
@@ -165,7 +163,7 @@ void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   auto out_shape = output.shape();
   output.SetLayout(input.GetLayout());
   auto &tp = ws.GetThreadPool();
-  TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
+  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
           {
               using Kernel = TheKernel<OutputType, InputType>;
@@ -180,7 +178,7 @@ void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
               }
           }
       ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
   tp.RunAll();
 }
 

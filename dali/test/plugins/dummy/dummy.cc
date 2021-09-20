@@ -21,7 +21,7 @@ void Dummy<::dali::CPUBackend>::RunImpl(::dali::HostWorkspace &ws) {
   const auto &input = ws.InputRef<::dali::CPUBackend>(0);
   auto &output = ws.OutputRef<::dali::CPUBackend>(0);
 
-  ::dali::TypeInfo type = input.type();
+  ::dali::TypeInfo type = input.type_info();
   auto &tp = ws.GetThreadPool();
   const auto &in_shape = input.shape();
   for (int sample_id = 0; sample_id < in_shape.num_samples(); sample_id++) {

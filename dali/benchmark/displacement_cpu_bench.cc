@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ void DisplacementBench(benchmark::State& st) {//NOLINT
   // If we want to specify input, we can share data
   // tensor_in->ShareData(img, N * sizeof(T));
   // Here we let underlying buffer allocate it by itself. We have to specify size and type
-  tensor_in->set_type(TypeInfo::Create<T>());
+  tensor_in->set_type<T>();
   tensor_in->Resize({{W, H, C}});
   // tensor out is resized by operator itself in DisplacementFilter::DataDependentSetup()
 

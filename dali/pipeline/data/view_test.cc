@@ -64,12 +64,11 @@ TEST(Tensor, ViewAsTensor) {
 
 TEST(TensorVector, View) {
   TensorVector<CPUBackend> tvec(10);
-  TypeInfo type = TypeInfo::Create<int>();
-  tvec.set_type(type);
+  tvec.set_type<int>();
   std::mt19937_64 rng;
   for (int i = 0; i < 10; i++) {
     tvec[i].Resize(TensorShape<3>(100+i, 40+i, 3+i));
-    tvec[i].set_type(type);
+    tvec[i].set_type<int>();
     UniformRandomFill(view<int>(tvec[i]), rng, 0, 10000);
   }
 
@@ -89,12 +88,11 @@ TEST(TensorVector, View) {
 
 TEST(TensorVector, ReinterpretView) {
   TensorVector<CPUBackend> tvec(10);
-  TypeInfo type = TypeInfo::Create<int>();
-  tvec.set_type(type);
+  tvec.set_type<int>();
   std::mt19937_64 rng;
   for (int i = 0; i < 10; i++) {
     tvec[i].Resize(TensorShape<3>(100+i, 40+i, 3+i));
-    tvec[i].set_type(type);
+    tvec[i].set_type<int>();
     UniformRandomFill(view<int>(tvec[i]), rng, 0, 10000);
   }
 

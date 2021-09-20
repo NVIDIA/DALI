@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ bool CropMirrorNormalize<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
         using Kernel = kernels::SliceFlipNormalizePermutePadGpu<OutputType, InputType, Dims>;
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
-        output_desc[0].type = TypeInfo::Create<OutputType>();
+        output_desc[0].type = output_type_;
         output_desc[0].shape.resize(curr_batch_size, Dims);
         kmgr_.Resize<Kernel>(1, 1);
 

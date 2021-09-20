@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -112,7 +112,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
     src_dims_ = spec.GetRepeatedArgument<int>("src_dims");
   }
   if (spec.HasArgument("dtype"))
-    output_type_id_ = spec.GetArgument<DALIDataType>("dtype");
+    output_type_arg_ = spec.GetArgument<DALIDataType>("dtype");
   DALI_ENFORCE(has_shape_input + has_shape_arg + has_rel_shape_arg <= 1, make_string(OpName(),
     ": shape input, `shape` argument and `rel_shape` argument are mutually exclusive"));
 
@@ -120,7 +120,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
       && !has_src_dims_arg) {
     bool can_have_dtype = spec.GetSchema().HasArgument("dtype");
     if (can_have_dtype) {
-      DALI_ENFORCE(output_type_id_ != DALI_NO_TYPE, make_string(OpName(),
+      DALI_ENFORCE(output_type_arg_ != DALI_NO_TYPE, make_string(OpName(),
                    " is no-op: arguments specify neither new shape, layout nor type."));
     } else {
       DALI_FAIL(make_string(OpName(),
@@ -190,7 +190,7 @@ bool Reshape<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Wor
 
   CheckSrcDims(ws);
   CalculateOutputShape(ws);
-  output_desc[0].type = *output_type_;
+  output_desc[0].type = output_type_->id();
   output_desc[0].shape = output_shape_;
   // return false, because we don't want the executor to allocate anything
   // - this operator returns pointer to input memory
@@ -250,11 +250,11 @@ void Reshape<Backend>::ShapeFromInput(const TensorListLike &tl, bool relative) {
   if (relative) {
     this->ShapeFromInput(view<const float>(tl));
   } else {
-    TYPE_SWITCH(tl.type().id(), type2id, type,
+    TYPE_SWITCH(tl.type(), type2id, type,
       (int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t),
       (this->ShapeFromInput(view<const type>(tl));),
       (DALI_FAIL(make_string(OpName(), ": shape input must have integral type; got: ",
-                 tl.type().id()));)
+                 tl.type()));)
     );  // NOLINT
   }
 }
@@ -318,7 +318,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
       break;
   }
 
-  int64_t input_element_size = in.type().size();
+  int64_t input_element_size = in.type_info().size();
   int64_t output_element_size = output_type_->size();
 
   if (shape_source_ != ShapeSource::None) {
@@ -390,7 +390,7 @@ void Reshape<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &in = ws.InputRef<CPUBackend>(0);
   TensorLayout layout = GetOutputLayout(ws);
   out.ShareData(&in);
-  out.Resize(output_shape_, *output_type_);
+  out.Resize(output_shape_, output_type_->id());
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {
     assert(out[i].raw_data() == in[i].raw_data());
@@ -406,7 +406,7 @@ void Reshape<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   TensorLayout layout = GetOutputLayout(ws);
   out.Reset();
   out.ShareData(&in);
-  out.Resize(output_shape_, *output_type_);
+  out.Resize(output_shape_, output_type_->id());
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {
     assert(out.raw_tensor(i) == in.raw_tensor(i));

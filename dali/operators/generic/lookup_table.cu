@@ -59,7 +59,7 @@ void LookupTable<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   block_setup_.SetupBlocks(collapsed_shape, true);
   blocks_dev_.from_host(block_setup_.Blocks(), stream);
 
-  TYPE_SWITCH(input.type().id(), dali::type2id, InputType, LUT_IN_TYPES, (
+  TYPE_SWITCH(input.type(), dali::type2id, InputType, LUT_IN_TYPES, (
     TYPE_SWITCH(output_type_, dali::type2id, OutputType, LUT_OUT_TYPES, (
 
       const OutputType *lookup_table = lut_.data<OutputType>();
@@ -72,7 +72,7 @@ void LookupTable<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
           samples_dev_.data(), blocks_dev_.data(), lookup_table, default_value);
 
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)); );       // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())); );     // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())); );     // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(LookupTable, LookupTable<GPUBackend>, GPU);

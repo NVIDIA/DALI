@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -125,7 +125,7 @@ class DLL_PUBLIC TensorVector {
     return Resize(new_shape, type());
   }
 
-  DLL_PUBLIC void Resize(const TensorListShape<> &new_shape, const TypeInfo &new_type);
+  DLL_PUBLIC void Resize(const TensorListShape<> &new_shape, DALIDataType new_type);
 
   /**
    * Change the number of tensors in the TensorVector, without the need of
@@ -136,9 +136,16 @@ class DLL_PUBLIC TensorVector {
    */
   void SetSize(int new_size);
 
-  void set_type(const TypeInfo &new_type);
+  void set_type(DALIDataType new_type);
 
-  const TypeInfo &type() const;
+  template <typename T>
+  void set_type() {
+    set_type(TypeTable::GetTypeID<T>());
+  }
+
+  DALIDataType type() const;
+
+  const TypeInfo &type_info() const;
 
   /** @brief Set uniform layout for all samples in the list */
   void SetLayout(const TensorLayout &layout);
@@ -213,7 +220,7 @@ class DLL_PUBLIC TensorVector {
   State state_ = State::noncontiguous;
   // pinned status and type info should be uniform
   bool pinned_ = true;
-  TypeInfo type_ = TypeInfo();
+  TypeInfo type_{};
 
   // So we can access the members of other TensorVectors
   // with different template types

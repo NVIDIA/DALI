@@ -127,7 +127,7 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
 
     auto req = kmgr.Setup<SpectrogramGPU>(0, ctx, in_shape_1D, args);
     output_desc.resize(1);
-    output_desc[0] = { req.output_shapes[0], TypeTable::GetTypeInfo(DALI_FLOAT) };
+    output_desc[0] = { req.output_shapes[0], DALI_FLOAT };
 
     CopyWindowToDevice(ctx.gpu.stream);
     return true;

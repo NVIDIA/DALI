@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -97,8 +97,8 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
     files_names_[i] = input[i].GetSourceInfo();
   }
 
-  output_desc[0] = { shape_data, TypeTable::GetTypeInfo(output_type_) };
-  output_desc[1] = { shape_rate, TypeTable::GetTypeInfo(DALI_FLOAT) };
+  output_desc[0] = { shape_data, output_type_ };
+  output_desc[1] = { shape_rate, DALI_FLOAT };
   return true;
 }
 

@@ -86,7 +86,7 @@ class Constant : public Operator<Backend> {
     }
     output_shape_ = max_output_shape_;
     output_shape_.resize(ws.GetRequestedBatchSize(0));
-    output_desc[0] = {output_shape_, TypeTable::GetTypeInfo(output_type_)};
+    output_desc[0] = {output_shape_, output_type_};
     return false;
   }
 

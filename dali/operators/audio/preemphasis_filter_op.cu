@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ class PreemphasisFilterGPU : public PreemphasisFilter<GPUBackend> {
   explicit PreemphasisFilterGPU(const OpSpec &spec) : PreemphasisFilter<GPUBackend>(spec) {
     // void is OK here, pointer sizes are the same size
     int64_t sz = max_batch_size_ * sizeof(detail::SampleDescriptor<void, void>);
-    scratch_mem_.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
+    scratch_mem_.set_type<uint8_t>();
     scratch_mem_.Resize({sz});
   }
   void RunImpl(workspace_t<GPUBackend> &ws) override;
@@ -92,7 +92,7 @@ void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
   }
 
   int64_t sz = curr_batch_size * sizeof(SampleDesc);
-  scratch_mem_.set_type(TypeTable::GetTypeInfo(DALI_UINT8));
+  scratch_mem_.set_type<uint8_t>();
   scratch_mem_.Resize({sz});
   auto sample_descs_gpu = reinterpret_cast<SampleDesc*>(scratch_mem_.mutable_data<uint8_t>());
   auto stream = ws.stream();
@@ -107,11 +107,11 @@ void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
 
 void PreemphasisFilterGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.template InputRef<GPUBackend>(0);
-  TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, InputType, PREEMPH_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
       RunImplTyped<OutputType, InputType>(ws);
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)));  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())));  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(PreemphasisFilter, PreemphasisFilterGPU, GPU);

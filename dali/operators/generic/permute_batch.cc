@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ void PermuteBatch<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     output.SetMeta(i, input.GetMeta(indices_[i]));
 
   const auto &out_shape = output.shape();
-  int element_size = output.type().size();
+  int element_size = output.type_info().size();
 
   for (int i = 0; i < N; i++) {
     auto size = out_shape.tensor_size(i) * element_size;

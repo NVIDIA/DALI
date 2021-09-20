@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ class TransformBaseOp : public Operator<Backend> {
       Operator<Backend>(spec),
       reverse_order_(spec.GetArgument<bool>("reverse_order")) {
     matrix_data_.set_pinned(false);
-    matrix_data_.set_type(TypeTable::GetTypeInfo(dtype_));
+    matrix_data_.set_type(dtype_);
   }
 
   bool CanInferOutputs() const override { return true; }
@@ -76,8 +76,8 @@ class TransformBaseOp : public Operator<Backend> {
       auto &input = ws.template InputRef<Backend>(0);
       const auto &shape = input.shape();
       DALI_ENFORCE(is_uniform(shape), "All matrices must have the same shape.");
-      DALI_ENFORCE(input.type().id() == dtype_,
-        make_string("Unexpected input data type. Expected ", dtype_, ", got: ", input.type().id()));
+      DALI_ENFORCE(input.type() == dtype_,
+        make_string("Unexpected input data type. Expected ", dtype_, ", got: ", input.type()));
 
       DALI_ENFORCE(shape.sample_dim() == 2 &&
                    shape.size() > 0 &&
@@ -94,7 +94,7 @@ class TransformBaseOp : public Operator<Backend> {
     CheckInputShape(ws);
 
     output_descs.resize(1);  // only one output
-    output_descs[0].type = TypeTable::GetTypeInfo(dtype_);
+    output_descs[0].type = dtype_;
     output_descs[0].shape = uniform_list_shape(nsamples_, {ndim_, ndim_+1});
     return true;
   }

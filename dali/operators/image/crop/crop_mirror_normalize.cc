@@ -86,7 +86,7 @@ bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
       VALUE_SWITCH(ndim, Dims, CMN_NDIMS, (
         using Kernel = kernels::SliceFlipNormalizePermutePadCpu<OutputType, InputType, Dims>;
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
-        output_desc[0].type = TypeInfo::Create<OutputType>();
+        output_desc[0].type = output_type_;
         output_desc[0].shape.resize(nsamples, Dims);
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
         for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {

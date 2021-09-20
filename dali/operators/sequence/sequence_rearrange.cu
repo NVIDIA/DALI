@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ void SequenceRearrange<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   scatter_gather_.Reset();
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto &output = ws.OutputRef<GPUBackend>(0);
-  TypeInfo type = input.type();
+  const TypeInfo &type = input.type_info();
   auto curr_batch_size = ws.GetInputBatchSize(0);
 
   for (int sample_idx = 0; sample_idx < curr_batch_size; ++sample_idx) {

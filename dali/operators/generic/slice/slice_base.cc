@@ -54,7 +54,7 @@ bool SliceBaseCpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc
   auto nthreads = ws.GetThreadPool().NumThreads();
   assert(nsamples == static_cast<int>(args_.size()));
   output_desc.resize(1);
-  output_desc[0].type = TypeInfo::Create<OutputType>();
+  output_desc[0].type = type2id<OutputType>::value;
   output_desc[0].shape.resize(nsamples, Dims);
 
   kernels::KernelContext ctx;
@@ -95,7 +95,7 @@ template <>
 bool SliceBase<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
-  auto input_type = input.type().id();
+  auto input_type = input.type();
   auto ndim = input.shape().sample_dim();
 
   if (!impl_ || input_type_ != input_type || ndim != ndim_) {

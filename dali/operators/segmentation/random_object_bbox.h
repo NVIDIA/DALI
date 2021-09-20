@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -179,8 +179,8 @@ class RandomObjectBBox : public Operator<CPUBackend> {
       thread_pool = tp;
       input = in;
       auto &shape = input->shape();
-      tmp_filtered.Resize(shape, TypeTable::GetTypeInfo(DALI_UINT8));
-      tmp_blob.Resize(shape, TypeTable::GetTypeInfo(type2id<BlobLabel>::value));
+      tmp_filtered.Resize(shape, DALI_UINT8);
+      tmp_blob.Resize(shape, TypeTable::GetTypeID<BlobLabel>());
       filtered = view<uint8_t>(tmp_filtered);
       blobs = view<BlobLabel>(tmp_blob);
       labels.clear();

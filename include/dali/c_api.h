@@ -33,7 +33,7 @@ extern "C" {
 typedef struct {
   void *pipe;
   void *ws;
-  void *batch_sizes_map;     /// @see batch_size_map_t
+  void *batch_size_map;     /// @see batch_size_map_t
   cudaStream_t copy_stream;  /// Stream to perform copy operations on
 } daliPipelineHandle;
 

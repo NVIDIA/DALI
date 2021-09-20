@@ -35,8 +35,8 @@ class BbFlipGPU : public BbFlip<GPUBackend> {
  public:
   explicit BbFlipGPU(const OpSpec &spec)
     : BbFlip<GPUBackend>(spec) {
-    vert_gpu_.set_type(TypeTable::GetTypeInfo(DALI_INT32));
-    horz_gpu_.set_type(TypeTable::GetTypeInfo(DALI_INT32));
+    vert_gpu_.set_type<int32_t>();
+    horz_gpu_.set_type<int32_t>();
   }
 
  protected:

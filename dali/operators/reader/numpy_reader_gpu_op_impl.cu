@@ -33,7 +33,7 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
   bool need_slice = !rois_.empty();
   auto out_view = view<T>(output);
   auto curr_batch = GetCurrBatchView<T, Dims>();
-  auto dtype = TypeTable::GetTypeInfoFromStatic<T>();
+  const auto &dtype = TypeTable::GetTypeInfo<T>();
 
   // Permuted dims, to use for the transposition
   std::array<int, Dims> perm;
@@ -60,7 +60,7 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
     for (int i = 0; i < nsamples; i++) {
       if (need_slice_[i] || need_transpose_[i])
         continue;
-      auto sz = out_sh.tensor_size(i) * dtype.size();
+      auto sz = out_sh.tensor_size(i) * sizeof(T);
       sg_.AddCopy(out_view.data[i], curr_batch.data[i], sz);
     }
     sg_.Run(ws.stream());
@@ -75,7 +75,7 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
         j++;
       }
     }
-    tmp_buf_.Resize(tmp_buf_sh_, dtype);
+    tmp_buf_.Resize(tmp_buf_sh_, dtype.id());
     tmp_view = view<T, Dims>(tmp_buf_);
   }
 
@@ -154,7 +154,7 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
 void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
   auto &output = ws.OutputRef<GPUBackend>(0);
   int ndim = output.shape().sample_dim();
-  auto dtype = output.type().id();
+  auto dtype = output.type();
   VALUE_SWITCH(ndim, Dims, NUMPY_ALLOWED_DIMS, (
     TYPE_SWITCH(dtype, type2id, T, NUMPY_ALLOWED_TYPES, (
       RunImplTyped<T, Dims>(ws);

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
            is_uniform(attr_shape) &&
            attr_shape[0][0] == NumSpatialDims());
 
-    if (!attr_staging_.raw_data())
+    if (!attr_staging_.has_data())
       attr_staging_.set_pinned(true);
     attr_staging_.ResizeLike(attr_out);
     auto attr_view = view<int, 1>(attr_staging_);

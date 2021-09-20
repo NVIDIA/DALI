@@ -217,7 +217,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     loader.PrepareMetadata();
     AsrSample sample;
     Tensor<CPUBackend> sample_audio;
-    sample_audio.set_type(TypeTable::GetTypeInfo(DALI_INT16));
+    sample_audio.set_type<int16_t>();
     loader.ReadSample(sample);
     sample_audio.Resize(sample.shape());
     sample.decode_audio(sample_audio, 0);
@@ -245,7 +245,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     loader.PrepareMetadata();
     AsrSample sample;
     Tensor<CPUBackend> sample_audio;
-    sample_audio.set_type(TypeTable::GetTypeInfo(DALI_FLOAT));
+    sample_audio.set_type<float>();
     loader.ReadSample(sample);
     sample_audio.Resize(sample.shape());
     sample.decode_audio(sample_audio, 0);
@@ -260,7 +260,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
 
     AsrSample sample;
     Tensor<CPUBackend> sample_audio;
-    sample_audio.set_type(TypeTable::GetTypeInfo(DALI_FLOAT));
+    sample_audio.set_type<float>();
     {
       auto spec = OpSpec("NemoAsrReader")
                       .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
@@ -292,7 +292,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
 
     AsrSample sample_int16;
     Tensor<CPUBackend> sample_int16_audio;
-    sample_int16_audio.set_type(TypeTable::GetTypeInfo(DALI_INT16));
+    sample_int16_audio.set_type<int16_t>();
     {
       auto spec = OpSpec("NemoAsrReader")
                     .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
@@ -379,7 +379,7 @@ TEST(NemoAsrLoaderTest, ReadSample_OffsetAndDuration) {
 
     AsrSample sample;
     Tensor<CPUBackend> sample_audio;
-    sample_audio.set_type(TypeTable::GetTypeInfo(DALI_INT16));
+    sample_audio.set_type<int16_t>();
 
     loader.ReadSample(sample);
 

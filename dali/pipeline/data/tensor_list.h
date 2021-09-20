@@ -132,8 +132,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
                        (std::is_same<Backend, GPUBackend>::value || pinned_);
-    type.template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(),
-                                            nsamples, stream, use_copy_kernel);
+    type_.template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(),
+                                             nsamples, stream, use_copy_kernel);
   }
 
   using Buffer<Backend>::reserve;
@@ -151,7 +151,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * list.
    */
   DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape) {
-    Resize(new_shape, type_);
+    Resize(new_shape, type_.id());
   }
 
   /**
@@ -159,7 +159,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * contains a set of dimensions for each tensor to be allocated in the
    * list.
    */
-  DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape, const TypeInfo &new_type) {
+  DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape, DALIDataType new_type) {
     // Calculate the new size
     Index num_tensor = new_shape.size(), new_size = 0;
     offsets_.resize(num_tensor);
@@ -242,13 +242,13 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * persist while it is in use by the Tensor.
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, const TensorListShape<> &shape,
-                        const TypeInfo &type = {}) {
+                        DALIDataType type = DALI_NO_TYPE) {
     // don't check ptr as we want to share empty data as well
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_ = ptr;
     num_bytes_ = bytes;
-    type_ = type;
+    type_ = TypeTable::GetTypeInfo(type);
     shape_ = {};
     offsets_.clear();
     size_ = 0;
@@ -261,7 +261,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     // that we are sharing our underlying data
     shares_data_ = num_bytes_ > 0 ? true : false;
     // Set the proper shape and type in one step. No-op for empty values.
-    if (!shape.empty() && type.id() != DALIDataType::DALI_NO_TYPE) {
+    if (!shape.empty() && type != DALIDataType::DALI_NO_TYPE) {
       Resize(shape, type);
     }
   }
@@ -284,7 +284,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * persist while it is in use by the Tensor.
    */
   DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, const TensorListShape<> &shape,
-                                   const TypeInfo &type = {}) {
+                                   DALIDataType type = DALI_NO_TYPE) {
     ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape, type);
   }
 
@@ -306,7 +306,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * persist while it is in use by the Tensor.
    */
   DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes,
-                                   const TypeInfo &type = TypeInfo::Create<NoType>()) {
+                                   const DALIDataType type = DALI_NO_TYPE) {
     ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, TensorListShape<>{}, type);
   }
 
@@ -340,7 +340,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   /**
    * @brief TensorList is always backed by contiguous buffer
    */
-  bool IsContiguous() {
+  bool IsContiguous() const {
     return true;
   }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -130,7 +130,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     auto nthreads = ws.GetThreadPool().NumThreads();
 
     output_desc.resize(1);
-    output_desc[0].type = TypeInfo::Create<Out>();
+    output_desc[0].type = type2id<Out>::value;
     output_desc[0].shape.resize(nsamples, input.shape().sample_dim());
 
     params_.resize(nsamples);
@@ -207,23 +207,23 @@ bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
   const auto& input = ws.template InputRef<CPUBackend>(0);
   auto layout = input.GetLayout();
   auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
-  dtype_ = dtype_ != DALI_NO_TYPE ? dtype_ : input.type().id();
-  DALI_ENFORCE(dtype_ == input.type().id() || dtype_ == DALI_FLOAT,
+  dtype_ = dtype_ != DALI_NO_TYPE ? dtype_ : input.type();
+  DALI_ENFORCE(dtype_ == input.type() || dtype_ == DALI_FLOAT,
                "Output data type must be same as input, FLOAT or skipped (defaults to input type)");
 
   // clang-format off
-  TYPE_SWITCH(input.type().id(), type2id, In, GAUSSIAN_BLUR_CPU_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, In, GAUSSIAN_BLUR_CPU_SUPPORTED_TYPES, (
     VALUE_SWITCH(dim_desc.usable_axes_count, AXES, GAUSSIAN_BLUR_SUPPORTED_AXES, (
       VALUE_SWITCH(static_cast<int>(dim_desc.has_channels), HAS_CHANNELS, (0, 1), (
         constexpr bool has_ch = HAS_CHANNELS;
-        if (dtype_ == input.type().id()) {
+        if (dtype_ == input.type()) {
           impl_ = std::make_unique<GaussianBlurOpCpu<In, In, AXES, has_ch>>(spec_, dim_desc);
         } else {
           impl_ = std::make_unique<GaussianBlurOpCpu<float, In, AXES, has_ch>>(spec_, dim_desc);
         }
       ), ()); // NOLINT, no other possible conversion
     ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
   // clang-format on
 
   return impl_->SetupImpl(output_desc, ws);

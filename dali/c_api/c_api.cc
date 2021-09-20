@@ -41,7 +41,7 @@ bool dali_initialized = false;
  * Typically, this operator will be BatchSizeProvider.
  * Negative values denote max batch size (default state).
  * Typical usage:
- * auto batch_sizes_map = reinterpret_cast<batch_size_map_t*>(handle->batch_sizes_map);
+ * auto *batch_size_map = reinterpret_cast<batch_size_map_t *>(handle->batch_size_map);
  */
 using batch_size_map_t = std::unordered_map<std::string /* op_name */, int /* batch_size */>;
 
@@ -80,7 +80,7 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
                       dali_data_type_t data_type, const int64_t *shapes, int sample_dim,
                       const char *layout_str, cudaStream_t stream = 0, unsigned int flags = 0) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  auto bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_sizes_map);
+  auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
   auto curr_batch_size = PopCurrBatchSize(bs_map, pipeline->max_batch_size(), name);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * curr_batch_size);
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), curr_batch_size, sample_dim);
@@ -89,14 +89,14 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
     layout = dali::TensorLayout(layout_str);
   }
   dali::TensorList<Backend> data;
-  const auto &type_info = dali::TypeTable::GetTypeInfo(static_cast<dali::DALIDataType>(data_type));
-  auto elem_sizeof = type_info.size();
+  auto type_id = static_cast<dali::DALIDataType>(data_type);
+  auto elem_sizeof = dali::TypeTable::GetTypeInfo(type_id).size();
   // We cast away the const from data_ptr, as there is no other way of passing it to the
   // TensorList, as we must also set the shape and type metadata.
   // It is passed further as const TensorList, so it's data cannot be modified.
   data.set_pinned(flags & DALI_ext_pinned);
   data.ShareData(const_cast<void *>(data_ptr), tl_shape.num_elements() * elem_sizeof);
-  data.Resize(tl_shape, type_info);
+  data.Resize(tl_shape, type_id);
   data.SetLayout(layout);
   pipeline->SetExternalInput(name, data, stream,
                              flags & DALI_ext_force_sync,
@@ -111,7 +111,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                              const int64_t *shapes, int64_t sample_dim, const char *layout_str,
                              cudaStream_t stream = 0, unsigned int flags = 0) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  auto bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_sizes_map);
+  auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
   auto curr_batch_size = PopCurrBatchSize(bs_map, pipeline->max_batch_size(), name);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * curr_batch_size);
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), curr_batch_size, sample_dim);
@@ -120,15 +120,15 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     layout = dali::TensorLayout(layout_str);
   }
   dali::TensorVector<Backend> data(curr_batch_size);
-  const auto &type_info = dali::TypeTable::GetTypeInfo(static_cast<dali::DALIDataType>(data_type));
-  auto elem_sizeof = type_info.size();
+  auto type_id = static_cast<dali::DALIDataType>(data_type);
+  auto elem_sizeof = dali::TypeTable::GetTypeInfo(type_id).size();
   for (int i = 0; i < curr_batch_size; i++) {
     // We cast away the const from data_ptr, as there is no other way of passing it to the
     // Tensor as we must also set the shape and type metadata.
     // The vector that we pass to pipeline is const.
     data[i].set_pinned(flags & DALI_ext_pinned);
     data[i].ShareData(const_cast<void *>(data_ptr[i]), tl_shape[i].num_elements() * elem_sizeof);
-    data[i].Resize(tl_shape[i], type_info);
+    data[i].Resize(tl_shape[i], type_id);
     data[i].SetLayout(layout);
   }
   pipeline->SetExternalInput(name, data, stream,
@@ -177,12 +177,12 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_
   if (pipeline->device_id() >= 0) {
     stream = dali::CUDAStream::Create(true);
   }
+  auto bs_map = std::make_unique<batch_size_map_t>();
+
   pipe_handle->ws = ws.release();
   pipe_handle->copy_stream = stream.release();
   pipe_handle->pipe = pipeline.release();
-
-  auto bs_map = std::make_unique<batch_size_map_t>();
-  pipe_handle->batch_sizes_map = bs_map.release();
+  pipe_handle->batch_size_map = bs_map.release();
 }
 
 
@@ -195,9 +195,11 @@ void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *seriali
     stream = dali::CUDAStream::Create(true);
   }
   auto ws = std::make_unique<dali::DeviceWorkspace>();
+  auto bs_map = std::make_unique<batch_size_map_t>();
   pipe_handle->ws = ws.release();
   pipe_handle->copy_stream = stream.release();
   pipe_handle->pipe = pipeline.release();
+  pipe_handle->batch_size_map = bs_map.release();
 }
 
 
@@ -225,7 +227,7 @@ void daliPrefetchSeparate(daliPipelineHandle *pipe_handle,
 
 void daliSetExternalInputBatchSize(daliPipelineHandle *pipe_handle, const char *name,
                                    int batch_size) {
-  auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_sizes_map);
+  auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
   (*bs_map)[name] = batch_size;
 }
 
@@ -365,7 +367,7 @@ int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n) {
 template <typename T>
 static dali_data_type_t daliTypeAtHelper(dali::DeviceWorkspace* ws, int n) {
   const auto &out_tensor_list = ws->Output<T>(n);
-  auto type_id = out_tensor_list.type().id();
+  auto type_id = out_tensor_list.type();
   return static_cast<dali_data_type_t>(static_cast<int>(type_id));
 }
 
@@ -541,7 +543,7 @@ void daliCopyTensorListNTo(daliPipelineHandle *pipe_handle, void *dst, int outpu
 void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
-  auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_sizes_map);
+  auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
   DALI_ENFORCE(pipeline != nullptr && ws != nullptr, "Pipeline already deleted");
   if (pipe_handle->copy_stream) {
     CUDA_CALL(cudaStreamDestroy(pipe_handle->copy_stream));
@@ -552,7 +554,7 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
   delete bs_map;
   pipe_handle->ws = nullptr;
   pipe_handle->pipe = nullptr;
-  pipe_handle->batch_sizes_map = nullptr;
+  pipe_handle->batch_size_map = nullptr;
 }
 
 void daliLoadLibrary(const char* lib_path) {

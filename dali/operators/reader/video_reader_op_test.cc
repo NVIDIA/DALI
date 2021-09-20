@@ -180,7 +180,7 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   TensorList<CPUBackend> labels_cpu;
   labels_cpu.Copy(labels_output, 0);
   CUDA_CALL(cudaStreamSynchronize(0));
-  labels_cpu.set_type(TypeInfo::Create<int>());
+  labels_cpu.set_type<int>();
 
   for (int i = 0; i < batch_size; ++i) {
     const auto *labels = labels_cpu.tensor<int>(i);

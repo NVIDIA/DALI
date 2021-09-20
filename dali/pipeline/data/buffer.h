@@ -102,9 +102,7 @@ class DLL_PUBLIC Buffer {
   inline T* mutable_data() {
     // Note: Call to 'set_type' will immediately return if the calling
     // type matches the current type of the buffer.
-    TypeInfo calling_type;
-    calling_type.SetType<T>();
-    set_type(calling_type);
+    set_type<T>();
     return static_cast<T*>(data_.get());
   }
 
@@ -185,10 +183,17 @@ class DLL_PUBLIC Buffer {
   }
 
   /**
+   * @brief Returns the id of the datatype of the underlying storage.
+   */
+  inline DALIDataType type() const {
+    return type_.id();
+  }
+
+  /**
    * @brief Returns the TypeInfo object that keeps track of the
    * datatype of the underlying storage.
    */
-  inline const TypeInfo &type() const {
+  inline const TypeInfo &type_info() const {
     return type_;
   }
 
@@ -218,11 +223,17 @@ class DLL_PUBLIC Buffer {
   }
 
   /**
-   * @brief Sets the type of allocation (pinned/non-pinned) for
-   * CPU buffers
+   * @brief Return true if there was data allocation
+   */
+  inline bool has_data() const noexcept {
+    return !!data_;
+  }
+
+  /**
+   * @brief Sets the type of allocation (pinned/non-pinned) for CPU buffers
    */
   inline void set_pinned(bool pinned) {
-    DALI_ENFORCE(!data_, "Can only set allocation mode before first allocation");
+    DALI_ENFORCE(!has_data(), "Can only set allocation mode before first allocation");
     DALI_ENFORCE(!allocate_, "Cannot set allocation mode when a custom allocator is used.");
     pinned_ = pinned;
   }
@@ -258,9 +269,10 @@ class DLL_PUBLIC Buffer {
    * enough memory to store the current number of elements with the
    * new data type.
    */
-  inline void set_type(const TypeInfo& new_type) {
-    DALI_ENFORCE(IsValidType(new_type), "new_type must be valid type.");
-    if (new_type == type_) return;
+  inline void set_type(const DALIDataType new_type_id) {
+    DALI_ENFORCE(new_type_id != DALI_NO_TYPE, "new_type must be valid type.");
+    if (new_type_id == type_.id()) return;
+    const TypeInfo &new_type = TypeTable::GetTypeInfo(new_type_id);
 
     size_t new_num_bytes = size_ * new_type.size();
     if (shares_data_) {
@@ -273,6 +285,11 @@ class DLL_PUBLIC Buffer {
     if (new_num_bytes > num_bytes_) {
       reserve(new_num_bytes);
     }
+  }
+
+  template <typename T>
+  inline void set_type() {
+    set_type(TypeTable::GetTypeID<T>());
   }
 
   inline void reserve(size_t new_num_bytes) {
@@ -296,7 +313,7 @@ class DLL_PUBLIC Buffer {
   }
 
   void reset() {
-    type_ = TypeInfo::Create<NoType>();
+    type_ = {};
     data_.reset();
     allocate_ = {};
     size_ = 0;
@@ -335,6 +352,14 @@ class DLL_PUBLIC Buffer {
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
     ResizeHelper(new_size, type_);
+  }
+
+
+  // Helper to resize the underlying allocation
+  inline void ResizeHelper(Index new_size, DALIDataType new_type_id) {
+    // don't look up the type unless it's different than current one
+    const auto &new_type = new_type_id == type_.id() ? type_ : TypeTable::GetTypeInfo(new_type_id);
+    ResizeHelper(new_size, new_type);
   }
 
   // Helper to resize the underlying allocation

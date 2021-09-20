@@ -120,7 +120,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
           } else if (IsType<uint8_t>(input.type())) {
             RunWarp<uint8_t, uint8_t, DALI_INTERP_NN>(out_tensor, in_tensor, thread_idx);
           } else {
-            DALI_FAIL("Unexpected input type " + input.type().name());
+            DALI_FAIL(make_string("Unexpected input type ", input.type()));
           }
           break;
         case DALI_INTERP_LINEAR:
@@ -129,7 +129,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
           } else if (IsType<uint8_t>(input.type())) {
             RunWarp<uint8_t, uint8_t, DALI_INTERP_LINEAR>(out_tensor, in_tensor, thread_idx);
           } else {
-            DALI_FAIL("Unexpected input type " + input.type().name());
+            DALI_FAIL(make_string("Unexpected input type ", input.type()));
           }
           break;
         default:

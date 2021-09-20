@@ -236,10 +236,10 @@ class PositionalSliceAttr {
 
     const auto &crop_anchor = ws.template InputRef<CPUBackend>(1);
     const auto &crop_shape = ws.template InputRef<CPUBackend>(2);
-    DALI_ENFORCE(crop_anchor.type().id() == crop_shape.type().id(),
+    DALI_ENFORCE(crop_anchor.type() == crop_shape.type(),
                 make_string("Anchor and shape should have the same type. Got: ",
-                            crop_anchor.type().id(), " and ", crop_shape.type().id()));
-    auto args_dtype = crop_anchor.type().id();
+                            crop_anchor.type(), " and ", crop_shape.type()));
+    auto args_dtype = crop_anchor.type();
     TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
       auto anchor_view = view<const ArgsType>(crop_anchor);
       auto shape_view = view<const ArgsType>(crop_shape);

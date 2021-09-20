@@ -81,8 +81,8 @@ class NormalizeBase : public Operator<Backend> {
     const auto &input = ws.template InputRef<Backend>(0);
     data_shape_ = input.shape();
     output_descs.resize(1);
-    output_descs[0] = { data_shape_, TypeTable::GetTypeInfo(output_type_) };
-    input_type_ = input.type().id();
+    output_descs[0] = { data_shape_, output_type_ };
+    input_type_ = input.type();
 
     SetupAxes(ws);
     TYPE_SWITCH(input_type_, type2id, InputType, DALI_NORMALIZE_INPUT_TYPES, (

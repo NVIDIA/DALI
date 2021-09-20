@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -195,13 +195,13 @@ bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   ReadArguments(spec_, ws);
 
-  TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
       using Kernel = kernels::SliceCPU<T, T, Dims>;
       using Args = kernels::SliceArgs<T, Dims>;
 
       kmgr_.Resize<Kernel>(nthreads, nsamples);
-      output_desc[0].type = TypeInfo::Create<T>();
+      output_desc[0].type = type2id<T>::value;
       output_desc[0].shape.resize(nsamples, Dims);
 
       auto in_view = view<const T, Dims>(input);
@@ -213,7 +213,7 @@ bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
         output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
       }
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", ndim)));  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
   return true;
 }
 
@@ -226,7 +226,7 @@ void Pad<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   int ndim = input.shape().sample_dim();
   auto& thread_pool = ws.GetThreadPool();
   auto out_shape = output.shape();
-  TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
       using Kernel = kernels::SliceCPU<T, T, Dims>;
       using Args = kernels::SliceArgs<T, Dims>;
@@ -243,7 +243,7 @@ void Pad<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
       }
       thread_pool.RunAll();
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", ndim)));  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(Pad, Pad<CPUBackend>, CPU);

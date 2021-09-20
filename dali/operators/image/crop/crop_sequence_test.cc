@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ class CropSequenceTest : public DaliOperatorTest {
         auto data = std::make_unique<TensorList<CPUBackend>>();
         auto shape = uniform_list_shape(TestArgs::N,
             TensorShape<>{TestArgs::F, TestArgs::W, TestArgs::H, TestArgs::C});
-        data->set_type(TypeInfo::Create<typename TestArgs::T>());
+        data->set_type<typename TestArgs::T>();
         data->SetLayout("FHWC");
         data->Resize(shape);
 

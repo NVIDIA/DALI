@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ bool SliceBaseGpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc
   int nsamples = in_shape.num_samples();
 
   output_desc.resize(1);
-  output_desc[0].type = TypeInfo::Create<OutputType>();
+  output_desc[0].type = type2id<OutputType>::value;
   output_desc[0].shape.resize(nsamples, Dims);
 
   kmgr_.Resize<Kernel>(1, 1);
@@ -71,7 +71,7 @@ template <>
 bool SliceBase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<GPUBackend> &ws) {
   const auto &input = ws.template InputRef<GPUBackend>(0);
-  auto input_type = input.type().id();
+  auto input_type = input.type();
   auto ndim = input.shape().sample_dim();
 
   if (!impl_ || input_type_ != input_type || ndim != ndim_) {

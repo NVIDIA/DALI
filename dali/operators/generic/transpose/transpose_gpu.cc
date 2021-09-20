@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ class TransposeGPU : public Transpose<GPUBackend> {
 
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
-    kmgr_.Setup<Kernel>(0, ctx, input.shape(), make_span(perm_), input.type().size());
+    kmgr_.Setup<Kernel>(0, ctx, input.shape(), make_span(perm_), input.type_info().size());
 
     return true;
   }
