@@ -122,106 +122,100 @@ enum DALIDataType : int {
   DALI_DATATYPE_END      = 1000
 };
 
-inline std::ostream &operator<<(std::ostream &os, DALIDataType t) {
+inline const char *GetBuiltinTypeName(DALIDataType t) {
   switch (t) {
     case DALI_NO_TYPE:
-      os << "no_type";
+      return "<no_type>";
       break;
     case DALI_UINT8:
-      os << "uint8";
+      return "uint8";
       break;
     case DALI_UINT16:
-      os << "uint16";
+      return "uint16";
       break;
     case DALI_UINT32:
-      os << "uint32";
+      return "uint32";
       break;
     case DALI_UINT64:
-      os << "uint64";
+      return "uint64";
       break;
     case DALI_INT8:
-      os << "int8";
+      return "int8";
       break;
     case DALI_INT16:
-      os << "int16";
+      return "int16";
       break;
     case DALI_INT32:
-      os << "int32";
+      return "int32";
       break;
     case DALI_INT64:
-      os << "int64";
+      return "int64";
       break;
     case DALI_FLOAT16:
-      os << "float16";
+      return "float16";
       break;
     case DALI_FLOAT:
-      os << "float";
+      return "float";
       break;
     case DALI_FLOAT64:
-      os << "double";
+      return "double";
       break;
     case DALI_BOOL:
-      os << "bool";
+      return "bool";
       break;
     case DALI_STRING:
-      os << "string";
+      return "string";
       break;
     case DALI_BOOL_VEC:
-      os << "list of bool";
+      return "list of bool";
       break;
     case DALI_INT_VEC:
-      os << "list of int";
+      return "list of int";
       break;
     case DALI_STRING_VEC:
-      os << "list of string";
+      return "list of string";
       break;
     case DALI_FLOAT_VEC:
-      os << "list of float";
+      return "list of float";
       break;
 #ifdef DALI_BUILD_PROTO3
     case DALI_TF_FEATURE:
-      os << "TFUtil::Feature";
+      return "TFUtil::Feature";
       break;
     case DALI_TF_FEATURE_VEC:
-      os << "list of TFUtil::Feature";
+      return "list of TFUtil::Feature";
       break;
     case DALI_TF_FEATURE_DICT:
-      os << "dictionary of TFUtil::Feature";
+      return "dictionary of TFUtil::Feature";
       break;
 #endif  // DALI_BUILD_PROTO3
     case DALI_IMAGE_TYPE:
-      os << "DALIImageType";
+      return "DALIImageType";
       break;
     case DALI_DATA_TYPE:
-      os << "DALIDataType";
+      return "DALIDataType";
       break;
     case DALI_INTERP_TYPE:
-      os << "DALIInterpType";
+      return "DALIInterpType";
       break;
     case DALI_TENSOR_LAYOUT:
-      os << "TensorLayout";
+      return "TensorLayout";
       break;
     case DALI_PYTHON_OBJECT:
-      os << "Python object";
+      return "Python object";
       break;
     case DALI_TENSOR_LAYOUT_VEC:
-      os << "list of TensorLayout";
+      return "list of TensorLayout";
       break;
     case DALI_DATA_TYPE_VEC:
-      os << "list of DALIDataType";
-    case DALI_DATATYPE_END:  // fall through
+      return "list of DALIDataType";
     default:
-      os << "Unknown type (type id " << static_cast<int>(t) << ")";
-      break;
+      return nullptr;
   }
-  return os;
 }
 
-inline std::string to_string(DALIDataType dtype) {
-  std::stringstream ss;
-  ss << dtype;
-  return ss.str();
-}
+inline std::string to_string(DALIDataType dtype);
+inline std::ostream &operator<<(std::ostream &, DALIDataType dtype);
 
 constexpr bool IsFloatingPoint(DALIDataType type) {
   switch (type) {
@@ -309,9 +303,7 @@ struct NoType {};
 // Stores the unqiue ID for a type and its size in bytes
 class DLL_PUBLIC TypeInfo {
  public:
-  DLL_PUBLIC inline TypeInfo() {
-    SetType<NoType>();
-  }
+  DLL_PUBLIC inline TypeInfo() = default;
 
   // Workaround for a clang bug, showing up in clang-only builds
   DLL_PUBLIC inline ~TypeInfo() {}
@@ -402,7 +394,7 @@ class DLL_PUBLIC TypeInfo {
 
   DALIDataType id_ = DALI_NO_TYPE;
   size_t type_size_ = 0;
-  string name_ = to_string(DALI_NO_TYPE);
+  string name_{to_string(DALI_NO_TYPE)};
 };
 
 template <typename T>
@@ -429,17 +421,24 @@ class DLL_PUBLIC TypeTable {
     return TypeNameHelper<T>::GetTypeName();
   }
 
-  DLL_PUBLIC static const TypeInfo& GetTypeInfo(DALIDataType dtype) {
+  DLL_PUBLIC static const TypeInfo *TryGetTypeInfo(DALIDataType dtype) {
     auto &inst = instance();
     std::lock_guard<spinlock> guard(inst.lock_);
     auto id_it = inst.type_info_map_.find(dtype);
-    DALI_ENFORCE(id_it != inst.type_info_map_.end(),
+    if (id_it == inst.type_info_map_.end())
+      return nullptr;
+    return &id_it->second;
+  }
+
+  DLL_PUBLIC static const TypeInfo &GetTypeInfo(DALIDataType dtype) {
+    auto *info = TryGetTypeInfo(dtype);
+    DALI_ENFORCE(info != nullptr,
         make_string("Type with id ", static_cast<int>(dtype), " was not registered."));
-    return id_it->second;
+    return *info;
   }
 
   template <typename T>
-  DLL_PUBLIC static const TypeInfo& GetTypeInfo() {
+  DLL_PUBLIC static const TypeInfo &GetTypeInfo() {
     static const TypeInfo &type_info = GetTypeInfo(GetTypeID<T>());
     return type_info;
   }
@@ -584,6 +583,27 @@ DALI_REGISTER_TYPE(std::vector<std::string>, DALI_STRING_VEC);
 DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
 DALI_REGISTER_TYPE(std::vector<TensorLayout>, DALI_TENSOR_LAYOUT_VEC);
 DALI_REGISTER_TYPE(std::vector<DALIDataType>, DALI_DATA_TYPE_VEC);
+
+
+inline std::string to_string(DALIDataType dtype) {
+  if (const char *builtin = GetBuiltinTypeName(dtype))
+    return builtin;
+  auto *info = TypeTable::TryGetTypeInfo(dtype);
+  if (info)
+    return info->name();
+  return "unknown type: " + std::to_string(static_cast<int>(dtype));
+}
+
+inline std::ostream &operator<<(std::ostream &os, DALIDataType dtype) {
+  if (const char *builtin = GetBuiltinTypeName(dtype))
+    return os << builtin;
+  auto *info = TypeTable::TryGetTypeInfo(dtype);
+  if (info)
+    return os << info->name();
+  // Use string concatenation so that the result is the same as in to_string, unaffected by
+  // formatting & other settings in `os`.
+  return os << ("unknown type: " + std::to_string(static_cast<int>(dtype)));
+}
 
 /**
  * @brief Easily instantiate templates for all types
