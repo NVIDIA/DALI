@@ -22,6 +22,8 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
+#include "dali/core/common.h"
+
 #include <vector>
 #include <string>
 
@@ -34,7 +36,7 @@ struct IndexEntry {
   bool is_flush_frame;
 };
 
-class VideoFileCPU {
+class DLL_PUBLIC VideoFileCPU {
  public:
   VideoFileCPU(std::string &filename);
 
