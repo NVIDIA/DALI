@@ -19,8 +19,9 @@
 #include <memory>
 #include <utility>
 #include "dali/core/error_handling.h"
+#include "dali/core/nvtx.h"
+#include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/util/file.h"
 
 namespace dali {
 
@@ -34,8 +35,8 @@ namespace detail {
 namespace wds {
 
 inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_behavior) {
-  for (auto &c : missing_component_behavior)
-      c = std::tolower(static_cast<unsigned char >(c));
+  for (auto& c : missing_component_behavior)
+    c = std::tolower(static_cast<unsigned char>(c));
   if (missing_component_behavior == "") {
     return MissingExtBehavior::Empty;
   } else if (missing_component_behavior == "skip") {
@@ -157,8 +158,8 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     }
   }
 
-  dtypes_ = spec.HasArgument("dtypes") ? spec.GetRepeatedArgument<DALIDataType>("dtypes")
-                                       : std::vector<DALIDataType>(ext_.size(), DALI_UINT8);
+  dtypes_ = spec.HasArgument("dtypes") ? spec.GetRepeatedArgument<DALIDataType>("dtypes") :
+                                         std::vector<DALIDataType>(ext_.size(), DALI_UINT8);
 
   for (DALIDataType dtype : dtypes_) {
     DALI_ENFORCE(detail::wds::kSupportedTypes.count(dtype),
@@ -191,23 +192,13 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
   auto& current_wds_shard = wds_shards_[current_sample.wds_shard_index];
 
   for (auto& component : current_sample.components) {
-    current_wds_shard.SeekArchive(component.offset);
-
     // Checking if the component data from the index file agrees with reality
     const auto& index_path = index_paths_[current_sample.wds_shard_index];
-    DALI_ENFORCE(!current_wds_shard.EndOfArchive(),
+    DALI_ENFORCE(component.offset < static_cast<int64_t>(current_wds_shard->Size()),
                  IndexFileErrMsg(index_path, current_sample.line_number,
                                  "offset is outside of the archive file"));
-    DALI_ENFORCE(
-        current_wds_shard.GetFileType() == detail::TarArchive::ENTRY_FILE,
-        IndexFileErrMsg(index_path, current_sample.line_number, "component of a non-file type"));
-    DALI_ENFORCE(GetExtension(current_wds_shard.GetFileName()) == component.ext,
-                 IndexFileErrMsg(index_path, current_sample.line_number,
-                                 "component extension does not match the archive entry extension"));
-    DALI_ENFORCE(current_wds_shard.GetFileSize() == component.size,
-                 IndexFileErrMsg(index_path, current_sample.line_number,
-                                 "component size does not match the archive entry size"));
 
+    current_wds_shard->Seek(component.offset);
 
     // Skipping cached samples
     const std::string source_info =
@@ -226,35 +217,38 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
       continue;
     }
 
-    // Reading Data
-    if (copy_read_data_) {
-      uint8_t* shared_tensor_data = nullptr;
-      for (auto& output : component.outputs) {
-        if (!shared_tensor_data) {
-          if (sample[output].shares_data()) {
-            sample[output].Reset();
+    {
+      DomainTimeRange timerange("ReadSample : Component", RangeBase::kOrange);
+      // Reading Data
+      if (copy_read_data_) {
+        uint8_t* shared_tensor_data = nullptr;
+        for (auto& output : component.outputs) {
+          if (!shared_tensor_data) {
+            if (sample[output].shares_data()) {
+              sample[output].Reset();
+            }
+            sample[output].Resize(
+                {static_cast<int64_t>(component.size / sample[output].type_info().size())},
+                dtypes_[output]);
+            shared_tensor_data = reinterpret_cast<uint8_t*>(sample[output].raw_mutable_data());
+          } else {
+            sample[output].ShareData(
+                shared_tensor_data, component.size,
+                {static_cast<int64_t>(component.size / sample[output].type_info().size())},
+                sample[output].type());
           }
-          sample[output].Resize(
-              {static_cast<int64_t>(component.size / sample[output].type_info().size())},
-              dtypes_[output]);
-          shared_tensor_data = reinterpret_cast<uint8_t*>(sample[output].raw_mutable_data());
-        } else {
+        }
+        DALI_ENFORCE(current_wds_shard->Read(shared_tensor_data, component.size) == component.size,
+                     "Error reading from a file " + paths_[current_sample.wds_shard_index]);
+      } else {
+        auto data = current_wds_shard->Get(component.size);
+        for (auto& output : component.outputs) {
+          sample[output].SetMeta(meta);
           sample[output].ShareData(
-              shared_tensor_data, component.size,
+              data, component.size,
               {static_cast<int64_t>(component.size / sample[output].type_info().size())},
               sample[output].type());
         }
-      }
-      DALI_ENFORCE(current_wds_shard.Read(shared_tensor_data, component.size) == component.size,
-                   "Error reading from a file " + paths_[current_sample.wds_shard_index]);
-    } else {
-      auto data = current_wds_shard.ReadFile();
-      for (auto& output : component.outputs) {
-        sample[output].SetMeta(meta);
-        sample[output].ShareData(
-            data, component.size,
-            {static_cast<int64_t>(component.size / sample[output].type_info().size())},
-            sample[output].type());
       }
     }
   }
@@ -280,7 +274,7 @@ void WebdatasetLoader::PrepareMetadataImpl() {
   // initializing all the readers
   wds_shards_.reserve(paths_.size());
   for (auto& uri : paths_) {
-    wds_shards_.emplace_back(FileStream::Open(uri, read_ahead_, !dont_use_mmap_));
+    wds_shards_.emplace_back(FileStream::Open(uri, read_ahead_, !copy_read_data_));
   }
 
   // preparing the map from extensions to outputs

@@ -24,6 +24,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/math_util.h"
 #include "dali/core/util.h"
+#include "dali/core/nvtx.h"
 
 namespace dali {
 namespace detail {
@@ -209,6 +210,7 @@ inline void TarArchive::SetEof() {
 }
 
 inline void TarArchive::ParseHeader() {
+  DomainTimeRange timerange("TarArchive::ParseHeader", RangeBase::kMagenta);
   if (eof_) {
     return;
   }

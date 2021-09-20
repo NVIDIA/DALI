@@ -43,7 +43,7 @@ class IndexCreator:
     """
 
     tar_block_size = 512
-    index_file_version = "v1.0"
+    index_file_version = "v1.1"
 
     def __init__(self, uri, idx_path):
         self.uri = uri
@@ -94,7 +94,7 @@ class IndexCreator:
         )  # <type>... <size> <date> <name>
 
         # Extracting
-        for blocks_line, types_sizes_line in zip(tar_blocks, tar_types_sizes):
+        for blocks_line, next_blocks_line, types_sizes_line in zip(tar_blocks, tar_blocks[1:], tar_types_sizes):
             if not blocks_line or not types_sizes_line:
                 continue
 
@@ -104,10 +104,12 @@ class IndexCreator:
             if entry_type != b"-":
                 continue
 
-            offset = int(blocks_line[blocks_line.find(b"block") + 6 : blocks_line.find(b":")]) * 512
+            offset = int(next_blocks_line[next_blocks_line.find(b"block") + 6 : next_blocks_line.find(b":")]) * 512
             size = types_sizes_line[: -len(name)]
             size = size[: size.rfind(b"-") - 8]  # "... <size> 20yy-mm-...."
             size = int(size[size.rfind(b" ") :])
+            offset -= size
+            offset -= offset % 512
 
             yield offset, name, size
 
@@ -121,10 +123,12 @@ class IndexCreator:
             + " Processing will most likely take much longer",
             file=sys.stderr,
         )
-        farchive = iter(tarfile.open(self.uri))
-        farchive = filter(lambda member: member.type == tarfile.REGTYPE, farchive)
-        farchive = map(lambda member: (member.offset, member.name, member.size), farchive)
-        return farchive
+        farchive = tarfile.open(self.uri)
+        for member in iter(farchive):
+            if member.type != tarfile.REGTYPE:
+                continue
+            offset = farchive.fileobj.tell()
+            yield offset, member.name, member.size
 
     def create_index(self):
         """Creates the index file from a tar archive"""
