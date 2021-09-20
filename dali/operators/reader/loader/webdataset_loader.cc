@@ -322,6 +322,12 @@ void WebdatasetLoader::PrepareMetadataImpl() {
             output_indicies_.push_back(output);
             component.outputs.num++;
             was_output_set[output] = true;
+          } else {
+            std::call_once(multiple_files_single_component, [&]() {
+              DALI_WARN(make_string("Multiple components matching the same output for output nr ",
+                                    output, " at line ", sample.line_number, " file ",
+                                    index_paths_[wds_shard_index]));
+            });
           }
         }
         if (component.outputs.num) {

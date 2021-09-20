@@ -116,6 +116,7 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   std::vector<std::unique_ptr<FileStream>> wds_shards_;
   size_t sample_index_ = 0;
   FileStream::MappingReserver mmap_reserver_;
+  std::once_flag multiple_files_single_component;
 };
 
 }  // namespace dali
