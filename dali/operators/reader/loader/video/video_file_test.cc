@@ -60,40 +60,40 @@ TEST_F(VideoFileTest, ConstantFrameRate) {
 }
 
 TEST_F(VideoFileTest, VariableFrameRate) {
-    std::string path = testing::dali_extra_path() + "/db/video/vfr/test_1.mp4"; 
+    std::string path = testing::dali_extra_path() + "/db/video/vfr/test_2.mp4"; 
     
     // Create file, build index
     VideoFileCPU file(path);
 
-    ASSERT_EQ(file.Height(), 720);
-    ASSERT_EQ(file.Width(), 1280);
+    ASSERT_EQ(file.Height(), 600);
+    ASSERT_EQ(file.Width(), 800);
     ASSERT_EQ(file.Channels(), 3);
-    ASSERT_EQ(file.NumFrames(), 50);
+    ASSERT_EQ(file.NumFrames(), 60);
 
     std::vector<uint8_t> frame(file.FrameSize());
 
     // Read first frame
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->vfr_frames_[0][0].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->vfr_frames_[1][0].data, file.FrameSize());
 
     // Seek to frame
     file.SeekFrame(25);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->vfr_frames_[0][25].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->vfr_frames_[1][25].data, file.FrameSize());
 
     // Seek back to frame
     file.SeekFrame(12);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->vfr_frames_[0][12].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->vfr_frames_[1][12].data, file.FrameSize());
 
     // Seek to last frame (flush frame)
-    file.SeekFrame(49);
+    file.SeekFrame(59);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->vfr_frames_[0][49].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->vfr_frames_[1][59].data, file.FrameSize());
 
     // Wrap around to first frame
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->vfr_frames_[0][0].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->vfr_frames_[1][0].data, file.FrameSize());
 }
 
 
