@@ -179,9 +179,8 @@ class DataReader : public Operator<Backend> {
     // Consume batch
     Operator<Backend>::Run(ws);
     CUDA_CALL(cudaStreamSynchronize(ws.stream()));
-    for (int sample_idx = 0; sample_idx < max_batch_size_; sample_idx++) {
-      auto sample = MoveSample(sample_idx);
-    }
+    // clear samples from the current batch so they can be recycled
+    ClearCurentBatch();
 
     // Notify we have consumed a batch
     ConsumerAdvanceQueue();
@@ -214,11 +213,8 @@ class DataReader : public Operator<Backend> {
     return *GetCurrBatch()[sample_idx];
   }
 
-  LoadTargetPtr MoveSample(int sample_idx) {
-    auto &sample = prefetched_batch_queue_[curr_batch_consumer_][sample_idx];
-    auto sample_ptr = std::move(sample);
-    sample = {};
-    return sample_ptr;
+  void ClearCurentBatch() {
+    prefetched_batch_queue_[curr_batch_consumer_].clear();
   }
 
  protected:
