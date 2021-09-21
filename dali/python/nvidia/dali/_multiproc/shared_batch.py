@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali._multiproc import shared_mem
+from nvidia.dali._multiproc.messages import ShmMessage
 from nvidia.dali._utils.external_source_impl import \
         assert_cpu_sample_data_type as _assert_cpu_sample_data_type, \
         sample_to_numpy as _sample_to_numpy
@@ -68,14 +69,13 @@ class SharedBatchMeta:
     meta data passed through shared memory (SampleMeta).
     """
 
-    def __init__(self, capacity, meta_offset, meta_size):
-        self.capacity = capacity
+    def __init__(self, meta_offset, meta_size):
         self.meta_offset = meta_offset
         self.meta_size = meta_size
 
     @classmethod
     def from_writer(cls, writer):
-        return cls(writer.shm_chunk.capacity, writer.data_size, writer.meta_data_size)
+        return cls(writer.data_size, writer.meta_data_size)
 
 
 def deserialize_sample(buffer: shared_mem.SharedMem, sample):
@@ -157,11 +157,15 @@ class SharedBatchWriter:
     SAMPLE_ALIGNMENT = 128
     BUFFER_ALIGNMENT = 4096
 
-    def __init__(self, shm_chunk: shared_mem.SharedMem, batch):
+    def __init__(self, shm_chunk: shared_mem.SharedMem, batch, min_trailing_offset=1024*1024):
         import_numpy()
         self.shm_chunk = shm_chunk
         self.data_size = 0
         self.meta_data_size = 0
+        self.total_size = 0
+        # hint how much space should be left in case of the resize at the end of the shm chunk
+        # after batch data to accommodate meta data of the task
+        self.min_trailing_offset = min_trailing_offset
         self._write_batch(batch)
 
     def _prepare_samples_meta(self, samples):
@@ -194,11 +198,9 @@ class SharedBatchWriter:
         serialized_meta = pickle.dumps(meta)
         self.meta_data_size = len(serialized_meta)
         self.data_size = _align_up(data_size, self.SAMPLE_ALIGNMENT)
-        needed_capacity = self.data_size + self.meta_data_size
-        if self.shm_chunk.capacity < needed_capacity:
-            new_capacity = max(needed_capacity, 2 * self.shm_chunk.capacity)
-            new_capacity = _align_up(new_capacity, self.BUFFER_ALIGNMENT)
-            self.shm_chunk.resize(new_capacity, trunc=True)
+        self.total_size = _align_up(self.data_size + self.meta_data_size, self.SAMPLE_ALIGNMENT)
+        if self.shm_chunk.capacity < self.total_size:
+            self.resize_shm_chunk(self.shm_chunk, self.total_size + self.min_trailing_offset)
         memview = self.shm_chunk.buf
         for sample, sample_meta in zip(batch, meta):
             _apply_to_sample(self._add_array_to_batch, sample, sample_meta, memview, nest_with_sample=1)
@@ -206,23 +208,31 @@ class SharedBatchWriter:
         buffer = memview[self.data_size:(self.data_size + self.meta_data_size)]
         buffer[:] = serialized_meta
 
+    @staticmethod
+    def resize_shm_chunk(shm_chunk, needed_capacity):
+        new_capacity = max(needed_capacity, 2 * shm_chunk.capacity)
+        new_capacity = _align_up(new_capacity, SharedBatchWriter.BUFFER_ALIGNMENT)
+        shm_chunk.resize(new_capacity, trunc=True)
 
 
-def write_batch(shm_chunk: shared_mem.SharedMem, batch):
-    """Serialize and write the indexed data batch `batch` into the shared memory `shm_chunk`.
+def read_shm_message(shm_chunk, shm_message):
+    if shm_message.shm_capacity != shm_chunk.capacity:
+        shm_chunk.resize(shm_message.shm_capacity, trunc=False)
+    buffer = shm_chunk.buf[shm_message.offset:shm_message.offset+shm_message.num_bytes]
+    return pickle.loads(buffer)
 
-    Returns description of serialized memory.
 
-    Parameters
-    ----------
-    shm_chunk : shared_mem.SharedMem
-        Target memory to write to.
-    batch : List of (idx, Sample)
-        Batch of data to be serialized
-
-    Returns
-    -------
-        SharedBatchMeta
-    """
-    sbw = SharedBatchWriter(shm_chunk, batch)
-    return SharedBatchMeta.from_writer(sbw)
+def write_shm_message(worker_id, shm_chunk, shm_chunk_id, message, offset, resize=True):
+    serialized_message = pickle.dumps(message)
+    num_bytes = len(serialized_message)
+    if num_bytes > shm_chunk.capacity - offset:
+        if resize:
+            SharedBatchWriter.resize_shm_chunk(shm_chunk, offset + num_bytes)
+        else:
+            raise RuntimeError(
+                "Could not put message into shared memory region, not enough space in the buffer. "
+                "Consider specifying `bytes_per_minibatch_hint` of parallel external source to at "
+                "least {}".format(offset + num_bytes))
+    buffer = shm_chunk.buf[offset:offset+num_bytes]
+    buffer[:] = serialized_message
+    return ShmMessage(worker_id, shm_chunk_id, shm_chunk.capacity, offset, num_bytes)
