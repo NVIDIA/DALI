@@ -30,8 +30,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |benchmark| replace:: Google Benchmark
 .. _benchmark: https://github.com/google/benchmark
-.. |benchmarkver| replace:: 1.5.6
-.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.5.6
+.. |benchmarkver| replace:: 1.6.0
+.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.6.0
 .. |benchmarklic| replace:: Apache License 2.0
 .. _benchmarklic: https://github.com/google/benchmark/blob/master/LICENSE
 
@@ -51,8 +51,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |cutlass| replace:: CUTLASS
 .. _cutlass: https://github.com/NVIDIA/cutlass
-.. |cutlassver| replace:: 2.5.0
-.. _cutlassver: https://github.com/NVIDIA/cutlass/releases/tag/v2.5.0
+.. |cutlassver| replace:: 2.7.0
+.. _cutlassver: https://github.com/NVIDIA/cutlass/releases/tag/v2.7.0
 .. |cutlasslic| replace:: BSD 3-Clause License
 .. _cutlasslic: https://github.com/NVIDIA/cutlass/blob/master/LICENSE.txt
 
