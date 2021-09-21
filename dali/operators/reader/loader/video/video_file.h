@@ -40,6 +40,8 @@ class DLL_PUBLIC VideoFileCPU {
  public:
   VideoFileCPU(std::string &filename);
 
+  ~VideoFileCPU();
+
   int64_t NumFrames() const {
     return num_frames_;
   }

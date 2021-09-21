@@ -40,8 +40,9 @@ Index VideoLoaderCPU::SizeImpl() {
 }
 
 void VideoLoaderCPU::PrepareMetadataImpl() {
+  video_files_.reserve(filenames_.size());
   for (auto &filename : filenames_) {
-    video_files_.push_back(VideoFileCPU(filename));
+    video_files_.emplace_back(filename);
   }
 
   for (int video_idx = 0; video_idx < video_files_.size(); ++video_idx) {

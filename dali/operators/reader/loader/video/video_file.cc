@@ -175,4 +175,13 @@ void VideoFileCPU::ReadNextFrame(uint8_t *data, bool copy_to_output) {
   }
 }
 
+VideoFileCPU::~VideoFileCPU() {
+  sws_freeContext(sws_ctx_);
+  avformat_close_input(&ctx_);
+  avformat_free_context(ctx_);
+  av_frame_free(&frame_);
+  av_packet_free(&packet_);
+  avcodec_free_context(&codec_ctx_);
+}
+
 }  // namespace dali
