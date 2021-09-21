@@ -84,8 +84,8 @@ class DataReader : public Operator<Backend> {
     DomainTimeRange tr("[DALI][DataReader] Prefetch #" + to_string(curr_batch_producer_),
                        DomainTimeRange::kRed);
     auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
-    curr_batch.reserve(max_batch_size_);
     curr_batch.clear();
+    curr_batch.reserve(max_batch_size_);
     for (int i = 0; i < max_batch_size_; ++i) {
       curr_batch.push_back(loader_->ReadOne(i == 0));
     }
