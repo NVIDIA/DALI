@@ -36,9 +36,7 @@ class VideoTest : public ::testing::Test {
 
   const int FrameSize(int i) const { return Height(i) * Width(i) * Channels(); }
 
-  void ComapreFrames(const uint8_t *frame, const uint8_t *gt, size_t size, int eps = 0);
-
-  void SaveFrame(uint8_t *frame, int frame_id, int sample_id, int batch_id, std::string subfolder, int width, int height, int channels);
+  void ComapreFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps = 0);
 
  protected:
   std::vector<std::vector<cv::Mat>> cfr_frames_;
