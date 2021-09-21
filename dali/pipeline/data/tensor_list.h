@@ -450,6 +450,9 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     if (ntensor() == 0 || size_ == 0) {
       return true;
     }
+    if (!IsContiguous()) {
+      return false;
+    }
     Index offset = 0;
 
     for (int i = 0; i < shape_.size(); ++i) {
@@ -470,6 +473,9 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   inline bool IsDenseTensor() const {
     if (ntensor() == 0 || size_ == 0) {
       return true;
+    }
+    if (!IsContiguous()) {
+      return false;
     }
     if (!is_uniform(shape_)) {
       return false;
@@ -603,6 +609,63 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   std::list<Tensor<Backend> > tensor_views_;
 
   USE_BUFFER_MEMBERS();
+
+ private:
+
+  /** @defgroup ContiguousAccessorMembers Contiguous accessor member functions
+   * The Buffer-like access to TensorList is now removed, and sample-by-sample approach
+   * should be used. We hide those functions as private, but leave it for the TensorList
+   * implementation to use.
+   * @{
+   */
+
+  template <typename T>
+  inline T* mutable_data() {
+    return Buffer<Backend>::template mutable_data<T>();
+  }
+
+  template <typename T>
+  inline const T* data() const {
+    return Buffer<Backend>::template data<T>();
+  }
+
+  inline void* raw_mutable_data() {
+    return Buffer<Backend>::raw_mutable_data();
+  }
+
+  inline const void* raw_data() const {
+    return Buffer<Backend>::raw_data();
+  }
+
+  /** @} */ // end of ContiguousAccessorMembers
+
+
+  /** @defgroup ContiguousAccessorFunctions Fallback contiguous accessors
+   * Fallback access to contiguous data to TensorList. It should not be used for processing,
+   * and can be used only for outputs of the pipeline that were made sure to be contiguous.
+   * Currently TensorList is contiguous by design, but it is up to change.
+   * @{
+   */
+
+  /**
+   * @brief Return an un-typed pointer to the underlying storage.
+   * Buffer must be either empty or have a valid type and be contiguous.
+   */
+  friend void *unsafe_raw_mutable_data(TensorList<Backend> &tl) {
+    DALI_ENFORCE(tl.IsContiguous(), "Data pointer can be obtain only for contiguous TensorList.");
+    return tl.raw_mutable_data();
+  }
+
+  /**
+   * @brief Return an un-typed const pointer to the underlying storage.
+   * Buffer must be either empty or have a valid type and be contiguous.
+   */
+  friend const void *unsafe_raw_data(const TensorList<Backend> &tl) {
+    DALI_ENFORCE(tl.IsContiguous(), "Data pointer can be obtain only for contiguous TensorList.");
+    return tl.raw_data();
+  }
+
+  /** @} */ // end of ContiguousAccessorFunctions
 };
 
 }  // namespace dali
