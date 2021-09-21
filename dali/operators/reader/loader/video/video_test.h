@@ -48,4 +48,4 @@ class VideoTest : public ::testing::Test {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_LOADER_CPU_H_
+#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_TEST_H_
