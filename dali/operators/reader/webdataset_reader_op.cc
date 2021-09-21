@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cstring>
 #include <string>
+#include <utility>
 #include "dali/core/nvtx.h"
 
 namespace dali {
