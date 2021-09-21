@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <exception>
+
 #include "dali/test/dali_test_config.h"
+#include "dali/core/error_handling.h"
 #include "dali/operators/reader/loader/video/video_test.h"
 #include "dali/operators/reader/loader/video/video_file.h"
 
@@ -96,5 +99,41 @@ TEST_F(VideoFileTest, VariableFrameRate) {
     this->ComapreFrames(frame.data(), this->vfr_frames_[1][0].data, file.FrameSize());
 }
 
+TEST_F(VideoFileTest, InvalidPath) {
+    std::string path = "invalid_path.mp4"; 
+    
+    try {
+        VideoFileCPU file(path);
+    } catch (const DALIException &e) {
+        EXPECT_TRUE(strstr(
+            e.what(),
+            make_string("Failed to open video file at path ", path).c_str()));
+    }
+}
+
+TEST_F(VideoFileTest, NoVideoStream) {
+    std::string path = testing::dali_extra_path() + "/db/audio/wav/dziendobry.wav"; 
+    
+    try {
+        VideoFileCPU file(path);
+    } catch (const DALIException &e) {
+        EXPECT_TRUE(strstr(
+            e.what(),
+            make_string("Could not find a valid video stream in file ", path).c_str()));
+    }
+}
+
+TEST_F(VideoFileTest, InvalidSeek) {
+    std::string path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";
+    VideoFileCPU file(path);
+
+    try {
+        file.SeekFrame(60);
+    } catch (const DALIException &e) {
+        EXPECT_TRUE(strstr(
+            e.what(),
+            "Invalid seek frame id. frame_id = 60, num_frames = 50"));
+    }
+}
 
 }  // namespace dali

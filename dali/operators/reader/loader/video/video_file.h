@@ -30,9 +30,9 @@ extern "C" {
 
 namespace dali {
 struct IndexEntry {
-  bool is_keyframe;
   int last_keyframe_id;
   int pts;
+  bool is_keyframe;
   bool is_flush_frame;
 };
 
@@ -43,7 +43,7 @@ class DLL_PUBLIC VideoFileCPU {
   ~VideoFileCPU();
 
   int64_t NumFrames() const {
-    return num_frames_;
+    return index_.size();
   }
 
   int Width() const {
@@ -59,10 +59,9 @@ class DLL_PUBLIC VideoFileCPU {
   }
 
   int FrameSize() const {
-    return channels_ * Width() * Height();
+    return Channels() * Width() * Height();
   }
 
-  // Reads next frame of the video and wraps at the end
   void ReadNextFrame(uint8_t *data, bool copy_to_output = true);
 
   void SeekFrame(int frame_id);
@@ -78,7 +77,11 @@ class DLL_PUBLIC VideoFileCPU {
 
   void Reset();
 
-  bool flush_state_ = false;
+  void InitAvState();
+
+  void FindVideoStream();
+
+  // AV state
   AVFormatContext *ctx_ = nullptr;
   AVCodec *codec_ = nullptr;
   AVCodecParameters *codec_params_ = nullptr;
@@ -88,13 +91,15 @@ class DLL_PUBLIC VideoFileCPU {
   SwsContext  *sws_ctx_ = nullptr;
   int stream_id_ = -1;
 
-  int channels_ = 3;
-  int num_frames_ = 0;
-
-  std::vector<IndexEntry> index_;
-
+  // SW parameters
   uint8_t *dest_[4] = {nullptr, nullptr, nullptr, nullptr};
   int dest_linesize_[4] = {0, 0, 0, 0};
+
+
+  int channels_ = 3;
+  bool flush_state_ = false;
+  std::string filename_;
+  std::vector<IndexEntry> index_;
 };
 }  // namespace dali
 
