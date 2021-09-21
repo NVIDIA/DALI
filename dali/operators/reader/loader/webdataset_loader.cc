@@ -19,7 +19,6 @@
 #include <memory>
 #include <utility>
 #include "dali/core/error_handling.h"
-#include "dali/core/nvtx.h"
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include "dali/pipeline/data/types.h"
 
@@ -216,39 +215,35 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
       }
       continue;
     }
-
-    {
-      DomainTimeRange timerange("ReadSample : Component", RangeBase::kOrange);
-      // Reading Data
-      if (copy_read_data_) {
-        uint8_t* shared_tensor_data = nullptr;
-        for (auto& output : component.outputs) {
-          if (!shared_tensor_data) {
-            if (sample[output].shares_data()) {
-              sample[output].Reset();
-            }
-            sample[output].Resize(
-                {static_cast<int64_t>(component.size / sample[output].type_info().size())},
-                dtypes_[output]);
-            shared_tensor_data = reinterpret_cast<uint8_t*>(sample[output].raw_mutable_data());
-          } else {
-            sample[output].ShareData(
-                shared_tensor_data, component.size,
-                {static_cast<int64_t>(component.size / sample[output].type_info().size())},
-                sample[output].type());
+    // Reading Data
+    if (copy_read_data_) {
+      uint8_t* shared_tensor_data = nullptr;
+      for (auto& output : component.outputs) {
+        if (!shared_tensor_data) {
+          if (sample[output].shares_data()) {
+            sample[output].Reset();
           }
-        }
-        DALI_ENFORCE(current_wds_shard->Read(shared_tensor_data, component.size) == component.size,
-                     "Error reading from a file " + paths_[current_sample.wds_shard_index]);
-      } else {
-        auto data = current_wds_shard->Get(component.size);
-        for (auto& output : component.outputs) {
-          sample[output].SetMeta(meta);
+          sample[output].Resize(
+              {static_cast<int64_t>(component.size / sample[output].type_info().size())},
+              dtypes_[output]);
+          shared_tensor_data = reinterpret_cast<uint8_t*>(sample[output].raw_mutable_data());
+        } else {
           sample[output].ShareData(
-              data, component.size,
+              shared_tensor_data, component.size,
               {static_cast<int64_t>(component.size / sample[output].type_info().size())},
               sample[output].type());
         }
+      }
+      DALI_ENFORCE(current_wds_shard->Read(shared_tensor_data, component.size) == component.size,
+                   "Error reading from a file " + paths_[current_sample.wds_shard_index]);
+    } else {
+      auto data = current_wds_shard->Get(component.size);
+      for (auto& output : component.outputs) {
+        sample[output].SetMeta(meta);
+        sample[output].ShareData(
+            data, component.size,
+            {static_cast<int64_t>(component.size / sample[output].type_info().size())},
+            sample[output].type());
       }
     }
   }
