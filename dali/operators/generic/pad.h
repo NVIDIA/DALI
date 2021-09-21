@@ -67,6 +67,7 @@ class Pad : public Operator<Backend> {
     auto in_layout = input.GetLayout();
     int ndim = in_shape.sample_dim();
     int nsamples = in_shape.num_samples();
+    bool shape_arg_provided = false;
 
     if (!axis_names_.empty()) {
       axes_ = GetDimIndices(in_layout, axis_names_).to_vector();
@@ -85,12 +86,13 @@ class Pad : public Operator<Backend> {
 
     if (spec.ArgumentDefined("shape")) {
       GetShapeArgument(shape_, spec, "shape", ws, curr_batch_size);
+      shape_arg_provided = true;
     }
     if (spec.ArgumentDefined("align")) {
       GetShapeArgument(align_, spec, "align", ws, curr_batch_size);
     }
 
-    if (shape_.empty())
+    if (!shape_arg_provided)
       shape_ = uniform_list_shape(nsamples, TensorShape<>(std::vector<int64_t>(axes_.size(), -1)));
     // If a single *align* value is provided, use this value for all the axes
     for (int i = 0; i < nsamples; i++) {
