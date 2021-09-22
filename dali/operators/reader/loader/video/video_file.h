@@ -36,22 +36,40 @@ struct IndexEntry {
   bool is_flush_frame;
 };
 
+struct AvState {
+  AVFormatContext *ctx_ = nullptr;
+  AVCodec *codec_ = nullptr;
+  AVCodecParameters *codec_params_ = nullptr;
+  AVCodecContext *codec_ctx_ = nullptr;
+  AVFrame *frame_ = nullptr;
+  AVPacket *packet_ = nullptr;
+  SwsContext  *sws_ctx_ = nullptr;
+  int stream_id_ = -1;
+
+  ~AvState() {
+    sws_freeContext(sws_ctx_);
+    avformat_close_input(&ctx_);
+    avformat_free_context(ctx_);
+    av_frame_free(&frame_);
+    av_packet_free(&packet_);
+    avcodec_free_context(&codec_ctx_);
+  }
+};
+
 class DLL_PUBLIC VideoFileCPU {
  public:
   VideoFileCPU(std::string &filename);
-
-  ~VideoFileCPU();
 
   int64_t NumFrames() const {
     return index_.size();
   }
 
   int Width() const {
-    return codec_params_->width;
+    return av_state_->codec_params_->width;
   }
 
   int Height() const {
-    return codec_params_->height;
+    return av_state_->codec_params_->height;
   }
 
   int Channels() const {
@@ -81,15 +99,7 @@ class DLL_PUBLIC VideoFileCPU {
 
   void FindVideoStream();
 
-  // AV state
-  AVFormatContext *ctx_ = nullptr;
-  AVCodec *codec_ = nullptr;
-  AVCodecParameters *codec_params_ = nullptr;
-  AVCodecContext *codec_ctx_ = nullptr;
-  AVFrame *frame_ = nullptr;
-  AVPacket *packet_ = nullptr;
-  SwsContext  *sws_ctx_ = nullptr;
-  int stream_id_ = -1;
+  std::unique_ptr<AvState> av_state_;
 
   // SW parameters
   uint8_t *dest_[4] = {nullptr, nullptr, nullptr, nullptr};
