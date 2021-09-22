@@ -16,12 +16,12 @@
 
 #include "dali/test/dali_test_config.h"
 #include "dali/core/error_handling.h"
-#include "dali/operators/reader/loader/video/video_test.h"
+#include "dali/operators/reader/loader/video/video_test_base.h"
 #include "dali/operators/reader/loader/video/video_file.h"
 
 
 namespace dali {
-class VideoFileTest : public VideoTest {
+class VideoFileTest : public VideoTestBase {
 };
 
 

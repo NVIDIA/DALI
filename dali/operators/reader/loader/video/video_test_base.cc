@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/reader/loader/video/video_test.h"
+#include "dali/operators/reader/loader/video/video_test_base.h"
 
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -24,10 +24,10 @@
 namespace dali {
 
 // Define static tests members - needed to hold resources between tests
-std::vector<std::vector<cv::Mat>> VideoTest::cfr_frames_;
-std::vector<std::vector<cv::Mat>> VideoTest::vfr_frames_;
+std::vector<std::vector<cv::Mat>> VideoTestBase::cfr_frames_;
+std::vector<std::vector<cv::Mat>> VideoTestBase::vfr_frames_;
 
-void VideoTest::SetUpTestSuite() {
+void VideoTestBase::SetUpTestSuite() {
   std::vector<std::string> cfr_frames_paths{
       testing::dali_extra_path() + "/db/video/cfr/frames_1/",
       testing::dali_extra_path() + "/db/video/cfr/frames_2/"};
@@ -41,7 +41,7 @@ void VideoTest::SetUpTestSuite() {
   LoadFrames(vfr_frames_paths, vfr_frames_);
 }
 
-void VideoTest::LoadFrames(std::vector<std::string> &paths, std::vector<std::vector<cv::Mat>> &out_frames) {
+void VideoTestBase::LoadFrames(std::vector<std::string> &paths, std::vector<std::vector<cv::Mat>> &out_frames) {
   for (auto &frames_path : paths) {
     std::vector<cv::Mat> frames;
     std::ifstream frames_list(frames_path + "frames_list.txt");
@@ -57,7 +57,7 @@ void VideoTest::LoadFrames(std::vector<std::string> &paths, std::vector<std::vec
   }
 }
 
-void VideoTest::ComapreFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps) {
+void VideoTestBase::ComapreFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps) {
     for (int j = 0; j < size; ++j) {
       ASSERT_NEAR(frame[j], gt[j], eps);
     }

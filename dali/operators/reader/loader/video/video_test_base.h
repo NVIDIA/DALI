@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_TEST_H_
-#define DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_TEST_H_
+#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_TEST_BASE_H_
+#define DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_TEST_BASE_H_
 
 #include <gtest/gtest.h>
 #include <opencv2/core.hpp>
 
 
 namespace dali {
-class VideoTest : public ::testing::Test {
+class VideoTestBase : public ::testing::Test {
  public:
   const int NumVideos() const { return cfr_frames_.size(); }
 
@@ -47,4 +47,4 @@ class VideoTest : public ::testing::Test {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_TEST_H_
+#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_TEST_BASE_H_
