@@ -134,7 +134,7 @@ class DLL_PUBLIC OpSpec {
   /**
    * @brief Add an instantiated argument with given name
    */
-  DLL_PUBLIC inline OpSpec& AddInitializedArg(const string& name, Argument* arg) {
+  DLL_PUBLIC inline OpSpec& AddInitializedArg(const string& name, std::shared_ptr<Argument> arg) {
     EnforceNoAliasWithDeprecated(name);
     DALI_ENFORCE(arguments_.find(name) == arguments_.end(),
         "AddArg failed. Argument with name \"" + name +
@@ -147,7 +147,8 @@ class DLL_PUBLIC OpSpec {
    *
    * @remarks Deprecated arguments are renamed (or dropped, if no longer used).
    */
-  DLL_PUBLIC inline OpSpec& SetInitializedArg(const string& arg_name, Argument* arg) {
+  DLL_PUBLIC inline OpSpec& SetInitializedArg(const string& arg_name,
+                                              std::shared_ptr<Argument> arg) {
     if (schema_ && schema_->IsDeprecatedArg(arg_name)) {
       const auto& deprecation_meta = schema_->DeprecatedArgMeta(arg_name);
       // Argument was removed, and we can discard it
@@ -166,12 +167,12 @@ class DLL_PUBLIC OpSpec {
         if (arg->has_name()) {
           arg->set_name(new_arg_name);
         }
-        arguments_[new_arg_name].reset(arg);
+        arguments_[new_arg_name] = std::move(arg);
         return *this;
       }
     }
     EnforceNoAliasWithDeprecated(arg_name);
-    arguments_[arg_name].reset(arg);
+    arguments_[arg_name] = std::move(arg);
     return *this;
   }
 

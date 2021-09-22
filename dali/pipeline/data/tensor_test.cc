@@ -439,7 +439,7 @@ TYPED_TEST(TensorTest, TestCustomAlloc) {
       return new uint8_t[bytes];
     };
     deleter = [&](void *ptr) {
-      free(ptr);
+      delete[] ptr;
       allocations--;
     };
   } else {
