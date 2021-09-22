@@ -27,7 +27,7 @@ namespace dali {
 template <typename... Args>
 inline std::string IndexFileErrMsg(const std::string& index_path, int64_t line,
                                    const Args&... details) {
-  return make_string("Malformed index file at ", index_path, " line ", line, " - ", details...);
+  return make_string("Malformed index file at \"", index_path, "\" line ", line, " - ", details...);
 }
 
 namespace detail {
@@ -157,8 +157,8 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     }
   }
 
-  dtypes_ = spec.HasArgument("dtypes") ? spec.GetRepeatedArgument<DALIDataType>("dtypes") :
-                                         std::vector<DALIDataType>(ext_.size(), DALI_UINT8);
+  dtypes_ = spec.HasArgument("dtypes") ? spec.GetRepeatedArgument<DALIDataType>("dtypes")
+                                       : std::vector<DALIDataType>(ext_.size(), DALI_UINT8);
 
   for (DALIDataType dtype : dtypes_) {
     DALI_ENFORCE(detail::wds::kSupportedTypes.count(dtype),
@@ -201,8 +201,8 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
 
     // Skipping cached samples
     const std::string source_info =
-        make_string("archive ", paths_[current_sample.wds_shard_index], "index file ",
-                    index_paths_[current_sample.wds_shard_index], "line ",
+        make_string("archive ", paths_[current_sample.wds_shard_index], "index file \"",
+                    index_paths_[current_sample.wds_shard_index], "\" line ",
                     current_sample.line_number, "component offset ", component.offset);
     DALIMeta meta;
     meta.SetSourceInfo(source_info);
@@ -312,16 +312,16 @@ void WebdatasetLoader::PrepareMetadataImpl() {
           if (!was_output_set[output]) {
             DALI_ENFORCE(
                 component.size % dtype_sizes_[output] == 0,
-                make_string("Error in index file at ", index_paths_[wds_shard_index], " line ",
+                make_string("Error in index file at \"", index_paths_[wds_shard_index], "\" line ",
                             sample.line_number, " - component size and dtype incompatible"));
             output_indicies_.push_back(output);
             component.outputs.num++;
             was_output_set[output] = true;
           } else {
             std::call_once(multiple_files_single_component, [&]() {
-              DALI_WARN(make_string("Multiple components matching the same output for output nr ",
-                                    output, " at line ", sample.line_number, " file ",
-                                    index_paths_[wds_shard_index]));
+              DALI_WARN(make_string("Multiple components matching output ",
+                                    output, " at line ", sample.line_number, " file \"",
+                                    index_paths_[wds_shard_index], "\"."));
             });
           }
         }
@@ -347,8 +347,8 @@ void WebdatasetLoader::PrepareMetadataImpl() {
             output_indicies_.resize(start_outputs_index);
             break;
           case detail::wds::MissingExtBehavior::Raise:
-            DALI_FAIL(make_string("Underful sample detected at ", index_paths_[wds_shard_index],
-                                  " line ", sample.line_number));
+            DALI_FAIL(make_string("Underful sample detected at \"", index_paths_[wds_shard_index],
+                                  "\" line ", sample.line_number));
             break;
           default:
             break;
