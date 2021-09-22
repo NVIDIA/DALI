@@ -22,8 +22,6 @@
 namespace dali {
 class VideoTest : public ::testing::Test {
  public:
-  VideoTest();
-
   const int NumVideos() const { return cfr_frames_.size(); }
 
   const int NumFrames(int i) const { return cfr_frames_[i].size(); }
@@ -39,10 +37,11 @@ class VideoTest : public ::testing::Test {
   void ComapreFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps = 0);
 
  protected:
-  std::vector<std::vector<cv::Mat>> cfr_frames_;
-  std::vector<std::vector<cv::Mat>> vfr_frames_;
+  static std::vector<std::vector<cv::Mat>> cfr_frames_;
+  static std::vector<std::vector<cv::Mat>> vfr_frames_;
 
-  void LoadFrames(std::vector<std::string> &paths, std::vector<std::vector<cv::Mat>> &frames);
+  static void SetUpTestSuite();
+  static void LoadFrames(std::vector<std::string> &paths, std::vector<std::vector<cv::Mat>> &frames);
 };
 
 

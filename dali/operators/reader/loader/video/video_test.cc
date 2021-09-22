@@ -21,7 +21,12 @@
 #include "dali/test/cv_mat_utils.h"
 
 namespace dali {
-VideoTest::VideoTest() {
+  
+// Define static tests members - needed to hold resources between tests
+std::vector<std::vector<cv::Mat>> VideoTest::cfr_frames_;
+std::vector<std::vector<cv::Mat>> VideoTest::vfr_frames_;
+
+void VideoTest::SetUpTestSuite() {
   std::vector<std::string> cfr_frames_paths{
       testing::dali_extra_path() + "/db/video/cfr/frames_1/",
       testing::dali_extra_path() + "/db/video/cfr/frames_2/"};
