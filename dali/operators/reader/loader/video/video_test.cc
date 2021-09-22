@@ -16,12 +16,13 @@
 
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <fstream>
 
 #include "dali/test/dali_test_config.h"
 #include "dali/test/cv_mat_utils.h"
 
 namespace dali {
-  
+
 // Define static tests members - needed to hold resources between tests
 std::vector<std::vector<cv::Mat>> VideoTest::cfr_frames_;
 std::vector<std::vector<cv::Mat>> VideoTest::vfr_frames_;
@@ -42,19 +43,13 @@ void VideoTest::SetUpTestSuite() {
 
 void VideoTest::LoadFrames(std::vector<std::string> &paths, std::vector<std::vector<cv::Mat>> &out_frames) {
   for (auto &frames_path : paths) {
-    char id_str[4];
     std::vector<cv::Mat> frames;
+    std::ifstream frames_list(frames_path + "frames_list.txt");
+    std::string frame_filename;
 
-    int frame_id = 0;
-    while (true) {
-      snprintf(id_str, 4, "%03d", frame_id + 1);
+    while (std::getline(frames_list, frame_filename)) {
       cv::Mat frame;
-
-      try {
-        cv::cvtColor(cv::imread(frames_path + std::string(id_str) + ".png"), frame, cv::COLOR_BGR2RGB);
-      } catch (...) { break; }
-
-      ++frame_id;
+      cv::cvtColor(cv::imread(frames_path + frame_filename), frame, cv::COLOR_BGR2RGB);
       frames.push_back(frame);
     }
 
