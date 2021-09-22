@@ -92,6 +92,8 @@ class DLL_PUBLIC VideoFileCPU {
 
   void SeekFrame(int frame_id);
 
+  DISABLE_COPY_MOVE_ASSIGN(VideoFileCPU);
+
  private:
   bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true);
 
