@@ -17,17 +17,27 @@
 
 namespace dali {
 
+namespace detail {
+std::string av_error_string(int ret) {
+    static char msg[AV_ERROR_MAX_STRING_SIZE];
+    memset(msg, 0, sizeof(msg));
+    return std::string(av_make_error_string(msg, AV_ERROR_MAX_STRING_SIZE, ret));
+}
+}
+
 void VideoFileCPU::InitAvState() {
   av_state_->codec_ctx_ = avcodec_alloc_context3(av_state_->codec_);
-  DALI_ENFORCE(av_state_->codec_ctx_, "Could not create av codec context");
+  DALI_ENFORCE(av_state_->codec_ctx_, "Could not alloc av codec context");
 
+  int ret = avcodec_parameters_to_context(av_state_->codec_ctx_, av_state_->codec_params_);
   DALI_ENFORCE(
-    avcodec_parameters_to_context(av_state_->codec_ctx_, av_state_->codec_params_) >= 0,
-    "Could not fill the codec based on parameters");
+    ret >= 0,
+    make_string("Could not fill the codec based on parameters: ", detail::av_error_string(ret)));
 
+  ret = avcodec_open2(av_state_->codec_ctx_, av_state_->codec_, nullptr);
   DALI_ENFORCE(
-    avcodec_open2(av_state_->codec_ctx_, av_state_->codec_, nullptr) == 0,
-    "Could not initialize codec context");
+    ret == 0,
+    make_string("Could not initialize codec context: ", detail::av_error_string(ret)));
 
   av_state_->frame_ = av_frame_alloc();
   DALI_ENFORCE(av_state_->frame_, "Could not allocate the av frame");
@@ -52,18 +62,19 @@ void VideoFileCPU::FindVideoStream() {
     }
   }
 
-  DALI_FAIL(make_string("Could not find a valid video stream in file ", filename_));
+  DALI_FAIL(make_string("Could not find a valid video stream in a file ", filename_));
 }
 
 VideoFileCPU::VideoFileCPU(const std::string &filename) : 
   av_state_(std::make_unique<AvState>()),
   filename_(filename) {
   av_state_->ctx_ = avformat_alloc_context();
-  DALI_ENFORCE(av_state_->ctx_, "Could not create avformat context");
+  DALI_ENFORCE(av_state_->ctx_, "Could not alloc avformat context");
 
+  int ret = avformat_open_input(&av_state_->ctx_, filename.c_str(), nullptr, nullptr);
   DALI_ENFORCE(
-    avformat_open_input(&av_state_->ctx_, filename.c_str(), nullptr, nullptr) == 0,
-    make_string("Failed to open video file at path ", filename));
+    ret == 0,
+    make_string("Failed to open video file at path ", filename, "due to ", detail::av_error_string(ret)));
 
   FindVideoStream();
   InitAvState();
@@ -102,22 +113,34 @@ void VideoFileCPU::BuildIndex() {
 void VideoFileCPU::CopyToOutput(uint8_t *data) {
   dest_[0] = data;
   dest_linesize_[0] = av_state_->frame_->width * Channels();
-  if (sws_scale(av_state_->sws_ctx_, av_state_->frame_->data, av_state_->frame_->linesize, 0, av_state_->frame_->height, dest_, dest_linesize_) < 0) {
-    DALI_FAIL("Could not convert frame data to RGB");
-  }
+
+  int ret = sws_scale(
+    av_state_->sws_ctx_,
+    av_state_->frame_->data,
+    av_state_->frame_->linesize,
+    0,
+    av_state_->frame_->height,
+    dest_,
+    dest_linesize_);
+
+  DALI_ENFORCE(
+    ret >= 0,
+    make_string("Could not convert frame data to RGB: ", detail::av_error_string(ret)));
 }
 
 bool VideoFileCPU::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
+  int ret = -1;
   while(av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
     if (av_state_->packet_->stream_index != av_state_->stream_id_) {
       continue;
     }
 
-    if (avcodec_send_packet(av_state_->codec_ctx_, av_state_->packet_) < 0) {
-      DALI_FAIL("Failed to send packet to decoder");
-    }
+    ret = avcodec_send_packet(av_state_->codec_ctx_, av_state_->packet_);
+    DALI_ENFORCE(
+      ret >= 0,
+      make_string("Failed to send packet to decoder: ", detail::av_error_string(ret)));
 
-    int ret = avcodec_receive_frame(av_state_->codec_ctx_, av_state_->frame_);
+    ret = avcodec_receive_frame(av_state_->codec_ctx_, av_state_->frame_);
 
     if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
       continue;
@@ -146,16 +169,24 @@ bool VideoFileCPU::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
     return true;
   }
 
-  avcodec_send_packet(av_state_->codec_ctx_, nullptr);
+  ret = avcodec_send_packet(av_state_->codec_ctx_, nullptr);
+  DALI_ENFORCE(
+    ret >= 0,
+    make_string("Failed to send packet to decoder: ", detail::av_error_string(ret)));
   flush_state_ = true;
 
   return false;
 }
 
 void VideoFileCPU::Reset() {
+  int ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME);
   DALI_ENFORCE(
-    av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME) >= 0,
-    make_string("Could not seek to the first frame of video ", filename_));
+    ret >= 0,
+    make_string(
+      "Could not seek to the first frame of video ",
+      filename_,
+      "due to",
+      detail::av_error_string(ret)));
   avcodec_flush_buffers(av_state_->codec_ctx_);
 }
 
@@ -178,9 +209,18 @@ void VideoFileCPU::SeekFrame(int frame_id) {
     flush_state_ = false;
   }
  
+  int ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, keyframe_entry.pts, AVSEEK_FLAG_FRAME);
   DALI_ENFORCE(
-    av_seek_frame(av_state_->ctx_, av_state_->stream_id_, keyframe_entry.pts, AVSEEK_FLAG_FRAME) >= 0,
-    make_string("Failed to seek to frame ", frame_id, "with keyframe", keyframe_id, "in video ", filename_));
+    ret >= 0,
+    make_string(
+      "Failed to seek to frame ",
+      frame_id,
+      "with keyframe",
+      keyframe_id,
+      "in video ",
+      filename_,
+      "due to ",
+      detail::av_error_string(ret)));
 
   avcodec_flush_buffers(av_state_->codec_ctx_);
 

@@ -119,7 +119,7 @@ TEST_F(VideoFileTest, NoVideoStream) {
     } catch (const DALIException &e) {
         EXPECT_TRUE(strstr(
             e.what(),
-            make_string("Could not find a valid video stream in file ", path).c_str()));
+            make_string("Could not find a valid video stream in a file ", path).c_str()));
     }
 }
 
