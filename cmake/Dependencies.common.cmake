@@ -205,6 +205,7 @@ endif()
 # CUTLASS
 ##################################################################
 include_directories(SYSTEM third_party/cutlass/include)
+include_directories(SYSTEM third_party/cutlass/tools/util/include)
 
 ##################################################################
 # CocoAPI
