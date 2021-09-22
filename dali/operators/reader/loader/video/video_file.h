@@ -64,32 +64,78 @@ struct AvState {
   }
 };
 
+/**
+ * @brief Object representing a video file. Allows access to frames and seeking.
+ * 
+ */
 class DLL_PUBLIC VideoFileCPU {
  public:
+
+  /**
+   * @brief Construct a new VideoFileCPU object.
+   * 
+   * @param filename Path to a video file.
+   */
   VideoFileCPU(const std::string &filename);
 
+  /**
+   * @brief Number of frames in the video
+   * 
+   * @return int64_t 
+   */
   int64_t NumFrames() const {
     return index_.size();
   }
 
+  /**
+   * @brief Width of a video frame in pixels
+   * 
+   * @return int 
+   */
   int Width() const {
     return av_state_->codec_params_->width;
   }
 
+  /**
+   * @brief Height of a video frame in pixels
+   * 
+   * @return int 
+   */
   int Height() const {
     return av_state_->codec_params_->height;
   }
 
+  /**
+   * @brief Number of channels in a video
+   * 
+   * @return int 
+   */
   int Channels() const {
       return channels_;
   }
 
+  /**
+   * @brief Total number of values in a frame (width * height * channels)
+   * 
+   * @return int 
+   */
   int FrameSize() const {
     return Channels() * Width() * Height();
   }
 
+  /**
+   * @brief Reads next frame of the video and copies it to the provided buffer, if copy_to_output is True.
+   * 
+   * @param data Output buffer to copy data to.
+   * @param copy_to_output Whether copy data to output. 
+   */
   void ReadNextFrame(uint8_t *data, bool copy_to_output = true);
 
+  /**
+   * @brief Seeks to the frame given by id. Next call to ReadNextFrame will return this frame
+   * 
+   * @param frame_id Id of the frame to seek to
+   */
   void SeekFrame(int frame_id);
 
   DISABLE_COPY_MOVE_ASSIGN(VideoFileCPU);
