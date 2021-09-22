@@ -12,6 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-collect_headers(DALI_INST_HDRS PARENT_SCOPE)
-collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)
-collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
+list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/video_file.h")
+set(DALI_INST_HDRS ${DALI_INST_HDRS} PARENT_SCOPE)
+
+list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_file.cc")
+set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)
+
+if (BUILD_TEST)
+  list(APPEND DALI_OPERATOR_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_test_base.cc")
+  list(APPEND DALI_OPERATOR_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_file_test.cc")
+  set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS} PARENT_SCOPE)
+endif()

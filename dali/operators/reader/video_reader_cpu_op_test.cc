@@ -17,14 +17,14 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 
-#include "dali/operators/reader/loader/video/video_test.h"
+#include "dali/operators/reader/loader/video/video_test_base.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/cv_mat_utils.h"
 
 
 namespace dali {
-class VideoReaderCpuTest : public VideoTest {
+class VideoReaderCpuTest : public VideoTestBase {
 };
 
 
