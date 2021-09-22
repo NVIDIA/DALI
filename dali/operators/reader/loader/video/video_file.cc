@@ -173,7 +173,7 @@ void VideoFileCPU::SeekFrame(int frame_id) {
   int keyframe_id = frame_entry.last_keyframe_id;
   auto &keyframe_entry = index_[keyframe_id];
 
-  // Seeking while on flush frame. Need to reset flush state
+  // Seeking clears av buffers, so reset flush state info
   if (flush_state_) {
     flush_state_ = false;
   }
