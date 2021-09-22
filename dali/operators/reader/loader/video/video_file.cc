@@ -55,7 +55,7 @@ void VideoFileCPU::FindVideoStream() {
   DALI_FAIL(make_string("Could not find a valid video stream in file ", filename_));
 }
 
-VideoFileCPU::VideoFileCPU(std::string &filename) : 
+VideoFileCPU::VideoFileCPU(const std::string &filename) : 
   av_state_(std::make_unique<AvState>()),
   filename_(filename) {
   av_state_->ctx_ = avformat_alloc_context();

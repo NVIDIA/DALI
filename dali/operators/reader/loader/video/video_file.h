@@ -53,12 +53,20 @@ struct AvState {
     av_frame_free(&frame_);
     av_packet_free(&packet_);
     avcodec_free_context(&codec_ctx_);
+
+    ctx_ = nullptr;
+    codec_ = nullptr;
+    codec_params_ = nullptr;
+    codec_ctx_ = nullptr;
+    frame_ = nullptr;
+    packet_ = nullptr;
+    sws_ctx_ = nullptr;
   }
 };
 
 class DLL_PUBLIC VideoFileCPU {
  public:
-  VideoFileCPU(std::string &filename);
+  VideoFileCPU(const std::string &filename);
 
   int64_t NumFrames() const {
     return index_.size();
