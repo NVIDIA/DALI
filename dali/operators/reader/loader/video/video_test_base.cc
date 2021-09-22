@@ -50,6 +50,8 @@ void VideoTestBase::LoadFrames(std::vector<std::string> &paths, std::vector<std:
     while (std::getline(frames_list, frame_filename)) {
       cv::Mat frame;
       cv::cvtColor(cv::imread(frames_path + frame_filename), frame, cv::COLOR_BGR2RGB);
+      DALI_ENFORCE(frame.isContinuous(), "Loaded frame is not continues in memory");
+
       frames.push_back(frame);
     }
 
