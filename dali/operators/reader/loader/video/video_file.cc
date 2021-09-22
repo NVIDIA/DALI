@@ -145,6 +145,9 @@ bool VideoFileCPU::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
     return true;
   }
 
+  avcodec_send_packet(codec_ctx_, nullptr);
+  flush_state_ = true;
+
   return false;
 }
 
@@ -186,11 +189,6 @@ void VideoFileCPU::SeekFrame(int frame_id) {
 }
 
 bool VideoFileCPU::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
-  if (!flush_state_) {
-    avcodec_send_packet(codec_ctx_, nullptr);
-    flush_state_ = true;
-  }
-
   if (avcodec_receive_frame(codec_ctx_, frame_) < 0) {
     flush_state_ = false;
     return false;

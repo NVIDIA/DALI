@@ -36,6 +36,10 @@ class VideoTestBase : public ::testing::Test {
 
   void ComapreFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps = 0);
 
+  uint8_t *GetCfrFrame(int video_id, int frame_id) { return cfr_frames_[video_id][frame_id].data; }
+
+  uint8_t *GetVfrFrame(int video_id, int frame_id) { return vfr_frames_[video_id][frame_id].data; }
+
  protected:
   static std::vector<std::vector<cv::Mat>> cfr_frames_;
   static std::vector<std::vector<cv::Mat>> vfr_frames_;

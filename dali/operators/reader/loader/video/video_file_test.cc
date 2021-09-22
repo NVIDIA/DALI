@@ -40,26 +40,26 @@ TEST_F(VideoFileTest, ConstantFrameRate) {
 
     // Read first frame
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->cfr_frames_[0][0].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->GetCfrFrame(0, 0), file.FrameSize());
 
     // Seek to frame
     file.SeekFrame(25);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->cfr_frames_[0][25].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->GetCfrFrame(0, 25), file.FrameSize());
 
     // Seek back to frame
     file.SeekFrame(12);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->cfr_frames_[0][12].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->GetCfrFrame(0, 12), file.FrameSize());
 
     // Seek to last frame (flush frame)
     file.SeekFrame(49);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->cfr_frames_[0][49].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->GetCfrFrame(0, 49), file.FrameSize());
 
     // Wrap around to first frame
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->cfr_frames_[0][0].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->GetCfrFrame(0, 0), file.FrameSize());
 }
 
 TEST_F(VideoFileTest, VariableFrameRate) {
@@ -77,26 +77,26 @@ TEST_F(VideoFileTest, VariableFrameRate) {
 
     // Read first frame
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->vfr_frames_[1][0].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->GetVfrFrame(1,0), file.FrameSize());
 
     // Seek to frame
     file.SeekFrame(25);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->vfr_frames_[1][25].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->GetVfrFrame(1, 25), file.FrameSize());
 
     // Seek back to frame
     file.SeekFrame(12);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->vfr_frames_[1][12].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->GetVfrFrame(1, 12), file.FrameSize());
 
     // Seek to last frame (flush frame)
     file.SeekFrame(59);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->vfr_frames_[1][59].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->GetVfrFrame(1, 59), file.FrameSize());
 
     // Wrap around to first frame
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->vfr_frames_[1][0].data, file.FrameSize());
+    this->ComapreFrames(frame.data(), this->GetVfrFrame(1, 0), file.FrameSize());
 }
 
 TEST_F(VideoFileTest, InvalidPath) {
