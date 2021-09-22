@@ -433,11 +433,11 @@ class DLL_PUBLIC Buffer {
 };
 
 template <typename Backend>
-DLL_PUBLIC double Buffer<Backend>::growth_factor_ = 1.0;
+DLL_PUBLIC double Buffer<Backend>::growth_factor_ = 1.1;
 
 template <typename Backend>
 DLL_PUBLIC double Buffer<Backend>::shrink_threshold_ =
-  std::is_same<Backend, CPUBackend>::value ? 0.9 : 0;
+  std::is_same<Backend, CPUBackend>::value ? 0.5 : 0;
 
 template <typename Backend>
 DLL_PUBLIC constexpr double Buffer<Backend>::kMaxGrowthFactor;
