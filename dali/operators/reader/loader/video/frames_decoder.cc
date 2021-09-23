@@ -97,7 +97,7 @@ void FramesDecoder::BuildIndex() {
     entry.last_keyframe_id = last_keyframe;
     index_.push_back(entry);
   }
-  while(ReadFlushFrame(nullptr, false)) {
+  while (ReadFlushFrame(nullptr, false)) {
     IndexEntry entry;
     entry.is_keyframe = false;
     entry.pts = av_state_->frame_->pts;
@@ -145,7 +145,7 @@ void FramesDecoder::LazyInitSwContext() {
 
 bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
   int ret = -1;
-  while(av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
+  while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
     if (av_state_->packet_->stream_index != av_state_->stream_id_) {
       continue;
     }
