@@ -32,6 +32,7 @@ setup(name='nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
           ],
       py_modules = [
           'rec2idx',
+          'wds2idx'
           ],
       scripts = [
           'tfrecord2idx',
@@ -39,6 +40,7 @@ setup(name='nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
       entry_points = {
           'console_scripts': [
               'rec2idx = rec2idx:main',
+              'wds2idx = wds2idx:main'
               ],
           },
      )
