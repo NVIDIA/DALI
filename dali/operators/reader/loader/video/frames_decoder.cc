@@ -65,16 +65,14 @@ void FramesDecoder::FindVideoStream() {
   DALI_FAIL(make_string("Could not find a valid video stream in a file ", filename_));
 }
 
-FramesDecoder::FramesDecoder(const std::string &filename) : 
-  av_state_(std::make_unique<AvState>()),
-  filename_(filename) {
+FramesDecoder::FramesDecoder(const std::string &filename)
+    : av_state_(std::make_unique<AvState>()), filename_(filename) {
   av_state_->ctx_ = avformat_alloc_context();
   DALI_ENFORCE(av_state_->ctx_, "Could not alloc avformat context");
 
   int ret = avformat_open_input(&av_state_->ctx_, filename.c_str(), nullptr, nullptr);
-  DALI_ENFORCE(
-    ret == 0,
-    make_string("Failed to open video file at path ", filename, "due to ", detail::av_error_string(ret)));
+  DALI_ENFORCE(ret == 0, make_string("Failed to open video file at path ", filename, "due to ",
+                                     detail::av_error_string(ret)));
 
   FindVideoStream();
   InitAvState();
