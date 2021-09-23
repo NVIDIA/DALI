@@ -30,8 +30,8 @@ extern "C" {
 
 namespace dali {
 struct IndexEntry {
+  int64_t pts;
   int last_keyframe_id;
-  int pts;
   bool is_keyframe;
   bool is_flush_frame;
 };
