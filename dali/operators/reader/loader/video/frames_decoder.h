@@ -122,7 +122,7 @@ class DLL_PUBLIC FramesDecoder {
    * @brief Reads next frame of the video and copies it to the provided buffer, if copy_to_output is True.
    * 
    * @param data Output buffer to copy data to.
-   * @param copy_to_output Whether copy data to output. 
+   * @param copy_to_output Whether copy the data to the output. 
    * @return Boolean indicating whether the frame was read or not. False means no more frames in the decoder.
    */
   bool ReadNextFrame(uint8_t *data, bool copy_to_output = true);
@@ -143,8 +143,29 @@ class DLL_PUBLIC FramesDecoder {
   DISABLE_COPY_MOVE_ASSIGN(FramesDecoder);
 
  private:
+   /**
+   * @brief Gets the packet from the decoder and reads a frame from it to provided buffer. Returns 
+   * boolean indicating, if the frame was succesfully read.
+   * After this method returns false, there might be more frames to read. Call `ReadFlushFrame` until
+   * it returns false, to get all of the frames from the video file.
+   * 
+   * @param data Output buffer to copy data to. If `copy_to_output` is false, this value is ignored.
+   * @param copy_to_output Whether copy the frame to provided output.
+   * 
+   * @returns True, if the read was succesful, or false, when all regular farmes were consumed.
+   * 
+   */
   bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true);
 
+  /**
+   * @brief Reads frames from the last packet. This packet can hold
+   * multiple frames. This method will read all of them one by one.
+   * 
+   * @param data Output buffer to copy data to. If `copy_to_output` is false, this value is ignored.
+   * @param copy_to_output Whether copy the frame to provided output.
+   * 
+   * @returns True, if the read was succesful, or false, when ther are no more frames in last the packet.
+   */
   bool ReadFlushFrame(uint8_t *data, bool copy_to_output = true);
 
   void CopyToOutput(uint8_t *data);
