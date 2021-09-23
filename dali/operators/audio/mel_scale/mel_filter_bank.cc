@@ -24,7 +24,7 @@ DALI_SCHEMA(MelFilterBank)
 triangular filters.
 
 The frequency ('f') dimension is selected from the input layout.
-In case of no layout, "f", "ft", or "*ft" is assumed, depending on the number of dimensions.
+In case of no layout, "f", "ft", or "\*ft" is assumed, depending on the number of dimensions.
 )code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
