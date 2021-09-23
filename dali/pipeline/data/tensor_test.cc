@@ -432,13 +432,13 @@ TYPED_TEST(TensorTest, TestCustomAlloc) {
   // Get shape
   auto shape = this->GetRandShape();
   int allocations = 0;
-  std::function<void*(size_t)> alloc_func;
-  std::function<void(void *)> deleter;
+  std::function<uint8_t*(size_t)> alloc_func;
+  std::function<void(uint8_t *)> deleter;
   if (std::is_same<TypeParam, CPUBackend>::value) {
     alloc_func = [&](size_t bytes) {
       return new uint8_t[bytes];
     };
-    deleter = [&](void *ptr) {
+    deleter = [&](uint8_t *ptr) {
       delete[] ptr;
       allocations--;
     };
@@ -446,9 +446,9 @@ TYPED_TEST(TensorTest, TestCustomAlloc) {
     alloc_func = [](size_t bytes) {
       void *ptr;
       CUDA_CALL(cudaMalloc(&ptr, bytes));
-      return ptr;
+      return static_cast<uint8_t*>(ptr);
     };
-    deleter = [&](void *ptr) {
+    deleter = [&](uint8_t *ptr) {
       CUDA_DTOR_CALL(cudaFree(ptr));
       allocations--;
     };
@@ -456,7 +456,7 @@ TYPED_TEST(TensorTest, TestCustomAlloc) {
 
   tensor.set_alloc_func([&](size_t bytes) {
     allocations++;
-    return std::shared_ptr<uint8_t>(static_cast<uint8_t*>(alloc_func(bytes)), deleter);
+    return std::shared_ptr<uint8_t>(alloc_func(bytes), deleter);
   });
 
   tensor.Resize(shape);
