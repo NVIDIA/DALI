@@ -126,6 +126,23 @@ void FramesDecoder::CopyToOutput(uint8_t *data) {
     make_string("Could not convert frame data to RGB: ", detail::av_error_string(ret)));
 }
 
+void FramesDecoder::LazyInitSwContext() {
+  if (av_state_->sws_ctx_ == nullptr) {
+    av_state_->sws_ctx_ = sws_getContext(
+      Width(), 
+      Height(), 
+      av_state_->codec_ctx_->pix_fmt, 
+      Width(), 
+      Height(), 
+      AV_PIX_FMT_RGB24, 
+      SWS_BILINEAR, 
+      nullptr, 
+      nullptr, 
+      nullptr);
+    DALI_ENFORCE(av_state_->sws_ctx_, "Could not create sw context");
+  }
+}
+
 bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
   int ret = -1;
   while(av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
@@ -152,20 +169,7 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
       return true;
     }
 
-    if (av_state_->sws_ctx_ == nullptr) {
-      av_state_->sws_ctx_ = sws_getContext(
-        Width(), 
-        Height(), 
-        av_state_->codec_ctx_->pix_fmt, 
-        Width(), 
-        Height(), 
-        AV_PIX_FMT_RGB24, 
-        SWS_BILINEAR, 
-        nullptr, 
-        nullptr, 
-        nullptr);
-      DALI_ENFORCE(av_state_->sws_ctx_, "Could not create sw context");
-    }
+    LazyInitSwContext();
 
     CopyToOutput(data);
     return true;

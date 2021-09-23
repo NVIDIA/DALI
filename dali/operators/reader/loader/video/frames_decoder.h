@@ -155,6 +155,8 @@ class DLL_PUBLIC FramesDecoder {
 
   void FindVideoStream();
 
+  void LazyInitSwContext();
+
   std::unique_ptr<AvState> av_state_;
 
   int channels_ = 3;
