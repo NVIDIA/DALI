@@ -390,7 +390,7 @@ class DLL_PUBLIC TypeInfo {
   }
 
  private:
-  detail::Copier copier_;
+  detail::Copier copier_ = nullptr;
 
   DALIDataType id_ = DALI_NO_TYPE;
   size_t type_size_ = 0;
