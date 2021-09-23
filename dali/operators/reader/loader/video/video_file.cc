@@ -242,20 +242,12 @@ bool VideoFileCPU::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
   return true;
 }
 
-void VideoFileCPU::ReadNextFrame(uint8_t *data, bool copy_to_output) {
+bool VideoFileCPU::ReadNextFrame(uint8_t *data, bool copy_to_output) {
   if (!flush_state_) {
       if (ReadRegularFrame(data, copy_to_output)) {
-        return;
+        return true;
       }
   }
-  if (ReadFlushFrame(data, copy_to_output)) {
-    return;
-  }
-
-  Reset();
-
-  if (!ReadRegularFrame(data, copy_to_output)) {
-    DALI_FAIL("Error while reading frame");
-  }
+  return ReadFlushFrame(data, copy_to_output);
 }
 }  // namespace dali

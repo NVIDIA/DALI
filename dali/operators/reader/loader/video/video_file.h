@@ -81,7 +81,6 @@ class DLL_PUBLIC VideoFileCPU {
   /**
    * @brief Number of frames in the video
    * 
-   * @return int64_t 
    */
   int64_t NumFrames() const {
     return index_.size();
@@ -90,7 +89,6 @@ class DLL_PUBLIC VideoFileCPU {
   /**
    * @brief Width of a video frame in pixels
    * 
-   * @return int 
    */
   int Width() const {
     return av_state_->codec_params_->width;
@@ -99,7 +97,6 @@ class DLL_PUBLIC VideoFileCPU {
   /**
    * @brief Height of a video frame in pixels
    * 
-   * @return int 
    */
   int Height() const {
     return av_state_->codec_params_->height;
@@ -108,7 +105,6 @@ class DLL_PUBLIC VideoFileCPU {
   /**
    * @brief Number of channels in a video
    * 
-   * @return int 
    */
   int Channels() const {
       return channels_;
@@ -117,7 +113,6 @@ class DLL_PUBLIC VideoFileCPU {
   /**
    * @brief Total number of values in a frame (width * height * channels)
    * 
-   * @return int 
    */
   int FrameSize() const {
     return Channels() * Width() * Height();
@@ -128,8 +123,9 @@ class DLL_PUBLIC VideoFileCPU {
    * 
    * @param data Output buffer to copy data to.
    * @param copy_to_output Whether copy data to output. 
+   * @return Boolean indicating whether the frame was read or not. False means no more frames in the decoder.
    */
-  void ReadNextFrame(uint8_t *data, bool copy_to_output = true);
+  bool ReadNextFrame(uint8_t *data, bool copy_to_output = true);
 
   /**
    * @brief Seeks to the frame given by id. Next call to ReadNextFrame will return this frame
@@ -137,6 +133,12 @@ class DLL_PUBLIC VideoFileCPU {
    * @param frame_id Id of the frame to seek to
    */
   void SeekFrame(int frame_id);
+
+  /**
+   * @brief Seeks to the first frame
+   * 
+   */
+  void Reset();
 
   DISABLE_COPY_MOVE_ASSIGN(VideoFileCPU);
 
@@ -148,8 +150,6 @@ class DLL_PUBLIC VideoFileCPU {
   void CopyToOutput(uint8_t *data);
 
   void BuildIndex();
-
-  void Reset();
 
   void InitAvState();
 

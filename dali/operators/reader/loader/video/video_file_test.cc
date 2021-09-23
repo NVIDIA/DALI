@@ -58,6 +58,8 @@ TEST_F(VideoFileTest, ConstantFrameRate) {
     this->ComapreFrames(frame.data(), this->GetCfrFrame(0, 49), file.FrameSize());
 
     // Wrap around to first frame
+    ASSERT_FALSE(file.ReadNextFrame(frame.data()));
+    file.Reset();
     file.ReadNextFrame(frame.data());
     this->ComapreFrames(frame.data(), this->GetCfrFrame(0, 0), file.FrameSize());
 }
@@ -95,6 +97,8 @@ TEST_F(VideoFileTest, VariableFrameRate) {
     this->ComapreFrames(frame.data(), this->GetVfrFrame(1, 59), file.FrameSize());
 
     // Wrap around to first frame
+    ASSERT_FALSE(file.ReadNextFrame(frame.data()));
+    file.Reset();
     file.ReadNextFrame(frame.data());
     this->ComapreFrames(frame.data(), this->GetVfrFrame(1, 0), file.FrameSize());
 }
