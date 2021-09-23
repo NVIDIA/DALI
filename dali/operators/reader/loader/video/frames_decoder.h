@@ -157,11 +157,6 @@ class DLL_PUBLIC FramesDecoder {
 
   std::unique_ptr<AvState> av_state_;
 
-  // SW parameters
-  uint8_t *dest_[4] = {nullptr, nullptr, nullptr, nullptr};
-  int dest_linesize_[4] = {0, 0, 0, 0};
-
-
   int channels_ = 3;
   bool flush_state_ = false;
   std::string filename_;

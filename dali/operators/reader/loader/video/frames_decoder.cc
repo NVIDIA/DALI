@@ -109,8 +109,8 @@ void FramesDecoder::BuildIndex() {
 }
 
 void FramesDecoder::CopyToOutput(uint8_t *data) {
-  dest_[0] = data;
-  dest_linesize_[0] = av_state_->frame_->width * Channels();
+  uint8_t *dest_[4] = {data, nullptr, nullptr, nullptr};
+  int dest_linesize_[4] = {av_state_->frame_->width * Channels(), 0, 0, 0};
 
   int ret = sws_scale(
     av_state_->sws_ctx_,
@@ -140,8 +140,12 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
 
     ret = avcodec_receive_frame(av_state_->codec_ctx_, av_state_->frame_);
 
-    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+    if (ret == AVERROR(EAGAIN)) {
       continue;
+    }
+
+    if (ret == AVERROR_EOF) {
+      break;
     }
 
     if (!copy_to_output) {
