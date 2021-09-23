@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/reader/loader/video/video_file.h"
+#include "dali/operators/reader/loader/video/frames_decoder.h"
 #include "dali/core/error_handling.h"
 
 namespace dali {
@@ -25,7 +25,7 @@ std::string av_error_string(int ret) {
 }
 }
 
-void VideoFileCPU::InitAvState() {
+void FramesDecoder::InitAvState() {
   av_state_->codec_ctx_ = avcodec_alloc_context3(av_state_->codec_);
   DALI_ENFORCE(av_state_->codec_ctx_, "Could not alloc av codec context");
 
@@ -46,7 +46,7 @@ void VideoFileCPU::InitAvState() {
   DALI_ENFORCE(av_state_->packet_, "Could not allocate av packet");
 }
 
-void VideoFileCPU::FindVideoStream() {
+void FramesDecoder::FindVideoStream() {
   for (size_t i = 0; i < av_state_->ctx_->nb_streams; ++i) {
     auto stream = av_state_->ctx_->streams[i];
     av_state_->codec_params_ = av_state_->ctx_->streams[i]->codecpar;
@@ -65,7 +65,7 @@ void VideoFileCPU::FindVideoStream() {
   DALI_FAIL(make_string("Could not find a valid video stream in a file ", filename_));
 }
 
-VideoFileCPU::VideoFileCPU(const std::string &filename) : 
+FramesDecoder::FramesDecoder(const std::string &filename) : 
   av_state_(std::make_unique<AvState>()),
   filename_(filename) {
   av_state_->ctx_ = avformat_alloc_context();
@@ -81,7 +81,7 @@ VideoFileCPU::VideoFileCPU(const std::string &filename) :
   BuildIndex();
 }
 
-void VideoFileCPU::BuildIndex() {
+void FramesDecoder::BuildIndex() {
   // TODO(awolant): Optimize this function for: 
   //  - CFR
   //  - index present in the header
@@ -110,7 +110,7 @@ void VideoFileCPU::BuildIndex() {
   Reset();
 }
 
-void VideoFileCPU::CopyToOutput(uint8_t *data) {
+void FramesDecoder::CopyToOutput(uint8_t *data) {
   dest_[0] = data;
   dest_linesize_[0] = av_state_->frame_->width * Channels();
 
@@ -128,7 +128,7 @@ void VideoFileCPU::CopyToOutput(uint8_t *data) {
     make_string("Could not convert frame data to RGB: ", detail::av_error_string(ret)));
 }
 
-bool VideoFileCPU::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
+bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
   int ret = -1;
   while(av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
     if (av_state_->packet_->stream_index != av_state_->stream_id_) {
@@ -178,7 +178,7 @@ bool VideoFileCPU::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
   return false;
 }
 
-void VideoFileCPU::Reset() {
+void FramesDecoder::Reset() {
   int ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME);
   DALI_ENFORCE(
     ret >= 0,
@@ -190,7 +190,7 @@ void VideoFileCPU::Reset() {
   avcodec_flush_buffers(av_state_->codec_ctx_);
 }
 
-void VideoFileCPU::SeekFrame(int frame_id) {
+void FramesDecoder::SeekFrame(int frame_id) {
   // TODO(awolant): Optimize seeking: 
   //  - when we seek next frame,
   //  - when we seek frame with the same keyframe as the current frame
@@ -229,7 +229,7 @@ void VideoFileCPU::SeekFrame(int frame_id) {
   }
 }
 
-bool VideoFileCPU::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
+bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
   if (avcodec_receive_frame(av_state_->codec_ctx_, av_state_->frame_) < 0) {
     flush_state_ = false;
     return false;
@@ -242,7 +242,7 @@ bool VideoFileCPU::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
   return true;
 }
 
-bool VideoFileCPU::ReadNextFrame(uint8_t *data, bool copy_to_output) {
+bool FramesDecoder::ReadNextFrame(uint8_t *data, bool copy_to_output) {
   if (!flush_state_) {
       if (ReadRegularFrame(data, copy_to_output)) {
         return true;

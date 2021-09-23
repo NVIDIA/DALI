@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_FILE_H_
-#define DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_FILE_H_
+#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_H_
+#define DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_H_
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -68,15 +68,15 @@ struct AvState {
  * @brief Object representing a video file. Allows access to frames and seeking.
  * 
  */
-class DLL_PUBLIC VideoFileCPU {
+class DLL_PUBLIC FramesDecoder {
  public:
 
   /**
-   * @brief Construct a new VideoFileCPU object.
+   * @brief Construct a new FramesDecoder object.
    * 
    * @param filename Path to a video file.
    */
-  VideoFileCPU(const std::string &filename);
+  FramesDecoder(const std::string &filename);
 
   /**
    * @brief Number of frames in the video
@@ -140,7 +140,7 @@ class DLL_PUBLIC VideoFileCPU {
    */
   void Reset();
 
-  DISABLE_COPY_MOVE_ASSIGN(VideoFileCPU);
+  DISABLE_COPY_MOVE_ASSIGN(FramesDecoder);
 
  private:
   bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true);
@@ -169,4 +169,4 @@ class DLL_PUBLIC VideoFileCPU {
 };
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_FILE_H_
+#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_H_

@@ -17,19 +17,19 @@
 #include "dali/test/dali_test_config.h"
 #include "dali/core/error_handling.h"
 #include "dali/operators/reader/loader/video/video_test_base.h"
-#include "dali/operators/reader/loader/video/video_file.h"
+#include "dali/operators/reader/loader/video/frames_decoder.h"
 
 
 namespace dali {
-class VideoFileTest : public VideoTestBase {
+class FramesDecoderTest : public VideoTestBase {
 };
 
 
-TEST_F(VideoFileTest, ConstantFrameRate) {
+TEST_F(FramesDecoderTest, ConstantFrameRate) {
     std::string path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4"; 
     
     // Create file, build index
-    VideoFileCPU file(path);
+    FramesDecoder file(path);
 
     ASSERT_EQ(file.Height(), 720);
     ASSERT_EQ(file.Width(), 1280);
@@ -64,11 +64,11 @@ TEST_F(VideoFileTest, ConstantFrameRate) {
     this->ComapreFrames(frame.data(), this->GetCfrFrame(0, 0), file.FrameSize());
 }
 
-TEST_F(VideoFileTest, VariableFrameRate) {
+TEST_F(FramesDecoderTest, VariableFrameRate) {
     std::string path = testing::dali_extra_path() + "/db/video/vfr/test_2.mp4"; 
     
     // Create file, build index
-    VideoFileCPU file(path);
+    FramesDecoder file(path);
 
     ASSERT_EQ(file.Height(), 600);
     ASSERT_EQ(file.Width(), 800);
@@ -103,11 +103,11 @@ TEST_F(VideoFileTest, VariableFrameRate) {
     this->ComapreFrames(frame.data(), this->GetVfrFrame(1, 0), file.FrameSize());
 }
 
-TEST_F(VideoFileTest, InvalidPath) {
+TEST_F(FramesDecoderTest, InvalidPath) {
     std::string path = "invalid_path.mp4"; 
     
     try {
-        VideoFileCPU file(path);
+        FramesDecoder file(path);
     } catch (const DALIException &e) {
         EXPECT_TRUE(strstr(
             e.what(),
@@ -115,11 +115,11 @@ TEST_F(VideoFileTest, InvalidPath) {
     }
 }
 
-TEST_F(VideoFileTest, NoVideoStream) {
+TEST_F(FramesDecoderTest, NoVideoStream) {
     std::string path = testing::dali_extra_path() + "/db/audio/wav/dziendobry.wav"; 
     
     try {
-        VideoFileCPU file(path);
+        FramesDecoder file(path);
     } catch (const DALIException &e) {
         EXPECT_TRUE(strstr(
             e.what(),
@@ -127,9 +127,9 @@ TEST_F(VideoFileTest, NoVideoStream) {
     }
 }
 
-TEST_F(VideoFileTest, InvalidSeek) {
+TEST_F(FramesDecoderTest, InvalidSeek) {
     std::string path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";
-    VideoFileCPU file(path);
+    FramesDecoder file(path);
 
     try {
         file.SeekFrame(60);
