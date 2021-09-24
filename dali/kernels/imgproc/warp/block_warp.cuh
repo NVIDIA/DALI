@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,28 +20,31 @@
 #include "dali/kernels/imgproc/warp/warp_setup.cuh"
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
 #include "dali/kernels/imgproc/warp/map_coords.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 namespace kernels {
 namespace warp {
 
 
-template <DALIInterpType interp_type, typename Mapping,
+template <int static_channels,
+          DALIInterpType interp_type, typename Mapping,
           typename OutputType, typename InputType,
           typename BorderType>
-__device__ void BlockWarp(
+__device__ void BlockWarpChannels(
     SampleDesc<2, OutputType, InputType> sample, BlockDesc<2> block,
     Mapping mapping, BorderType border) {
+  const int channels = static_channels < 0 ? sample.channels : static_channels;
   // Get the data pointers - un-erase type
   OutputType *__restrict__ output_data = sample.output;
   const InputType *__restrict__ input_data = sample.input;
   // Create input and output surfaces
   const Surface2D<OutputType> out = {
-      output_data, sample.out_size, sample.channels,
+      output_data, sample.out_size, channels,
       sample.out_strides, 1
   };
   const Surface2D<const InputType> in = {
-      input_data, sample.in_size, sample.channels,
+      input_data, sample.in_size, channels,
       sample.in_strides, 1
   };
   // ...and a sampler
@@ -56,23 +59,24 @@ __device__ void BlockWarp(
   }
 }
 
-
-template <DALIInterpType interp_type, typename Mapping,
+template <int static_channels,
+          DALIInterpType interp_type, typename Mapping,
           typename OutputType, typename InputType,
           typename BorderType>
-__device__ void BlockWarp(
+__device__ void BlockWarpChannels(
     SampleDesc<3, OutputType, InputType> sample, BlockDesc<3> block,
     Mapping mapping, BorderType border) {
+  const int channels = static_channels < 0 ? sample.channels : static_channels;
   // Get the data pointers - un-erase type
   OutputType *__restrict__ output_data = sample.output;
   const InputType *__restrict__ input_data = sample.input;
   // Create input and output surfaces
   const Surface3D<OutputType> out = {
-      output_data, sample.out_size, sample.channels,
+      output_data, sample.out_size, channels,
       sample.out_strides, 1
   };
   const Surface3D<const InputType> in = {
-      input_data, sample.in_size, sample.channels,
+      input_data, sample.in_size, channels,
       sample.in_strides, 1
   };
   // ...and a sampler
@@ -89,6 +93,16 @@ __device__ void BlockWarp(
   }
 }
 
+template <DALIInterpType interp_type, typename Mapping,
+          typename OutputType, typename InputType,
+          typename BorderType, int spatial_ndim>
+__device__ void BlockWarp(
+    SampleDesc<spatial_ndim, OutputType, InputType> sample, BlockDesc<spatial_ndim> block,
+    Mapping mapping, BorderType border) {
+  VALUE_SWITCH(sample.channels, static_channels, (1, 2, 3, 4),
+    (BlockWarpChannels<static_channels, interp_type>(sample, block, mapping, border)),
+    (BlockWarpChannels<-1, interp_type>(sample, block, mapping, border)));
+}
 
 }  // namespace warp
 }  // namespace kernels
