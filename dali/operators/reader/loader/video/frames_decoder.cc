@@ -122,8 +122,8 @@ void FramesDecoder::CopyToOutput(uint8_t *data) {
     av_state_->frame_->linesize,
     0,
     av_state_->frame_->height,
-    dest_,
-    dest_linesize_);
+    dest,
+    dest_linesize);
 
   DALI_ENFORCE(
     ret >= 0,
