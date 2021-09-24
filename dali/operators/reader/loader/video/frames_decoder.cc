@@ -109,6 +109,8 @@ void FramesDecoder::BuildIndex() {
 }
 
 void FramesDecoder::CopyToOutput(uint8_t *data) {
+  LazyInitSwContext();
+  
   uint8_t *dest_[4] = {data, nullptr, nullptr, nullptr};
   int dest_linesize_[4] = {av_state_->frame_->width * Channels(), 0, 0, 0};
 
@@ -168,8 +170,6 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
     if (!copy_to_output) {
       return true;
     }
-
-    LazyInitSwContext();
 
     CopyToOutput(data);
     return true;
