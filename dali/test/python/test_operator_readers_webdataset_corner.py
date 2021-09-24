@@ -253,49 +253,29 @@ def test_index_errors():
         b"v0.1",
         glob="the version of the index file does not match the expected version (expected: ",
     )
-    assert_raises(RuntimeError, general_index_error, b"v1.0", glob="no sample count found")
+    assert_raises(RuntimeError, general_index_error, b"v1.1", glob="no sample count found")
     assert_raises(
-        RuntimeError, general_index_error, b"v1.0 -1", glob="sample count must be positive"
+        RuntimeError, general_index_error, b"v1.1 -1", glob="sample count must be positive"
     )
     assert_raises(
-        RuntimeError, general_index_error, b"v1.0 1\n", glob="no extensions provided for the sample"
+        RuntimeError, general_index_error, b"v1.1 1\n", glob="no extensions provided for the sample"
     )
     assert_raises(
         RuntimeError,
         general_index_error,
-        b"v1.0 1\njpg",
+        b"v1.1 1\njpg",
         glob="size or offset corresponding to the extension not found",
     )
     assert_raises(
         RuntimeError,
         general_index_error,
-        b"v1.0 1\njpg 1 0",
+        b"v1.1 1\njpg 1 0",
         glob="tar offset is not a multiple of tar block size",
     )
     assert_raises(
         RuntimeError,
         general_index_error,
-        b"v1.0 1\njpg 1024 1",
+        b"v1.1 1\njpg 51200 1",
         "db/webdataset/sample-tar/empty.tar",
         glob="offset is outside of the archive file"
-    )
-    assert_raises(
-        RuntimeError,
-        general_index_error,
-        b"v1.0 1\njpg 0 1",
-        "db/webdataset/sample-tar/types.tar",
-        glob="component of a non-file type"
-    )
-    assert_raises(
-        RuntimeError,
-        general_index_error,
-        b"v1.0 1\njpg 0 1",
-        glob="component extension does not match the archive entry extension"
-    )
-    assert_raises(
-        RuntimeError,
-        general_index_error,
-        b"v1.0 1\ncls 0 1000",
-        ext="cls",
-        glob="component size does not match the archive entry size"
     )

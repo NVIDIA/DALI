@@ -24,14 +24,14 @@
 #include <vector>
 #include "dali/core/bitmask.h"
 #include "dali/operators/reader/loader/loader.h"
-#include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/util/file.h"
 
 namespace dali {
 namespace detail {
 namespace wds {
 
-constexpr char kCurrentIndexVersion[] = "v1.0";
+constexpr char kCurrentIndexVersion[] = "v1.1";
 constexpr char kExtDelim = ';';
 const std::set<DALIDataType> kSupportedTypes = {DALI_UINT8,   DALI_UINT16, DALI_UINT32, DALI_UINT64,
                                                 DALI_INT8,    DALI_INT16,  DALI_INT32,  DALI_INT64,
@@ -113,9 +113,10 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   std::vector<size_t> empty_outputs_;  // indices of empty outputs to fill in for space optimization
   std::vector<size_t> output_indicies_;  // indices of outputs that a component corresponds to
 
-  std::vector<detail::TarArchive> wds_shards_;
+  std::vector<std::unique_ptr<FileStream>> wds_shards_;
   size_t sample_index_ = 0;
   FileStream::MappingReserver mmap_reserver_;
+  std::once_flag multiple_files_single_component;
 };
 
 }  // namespace dali
