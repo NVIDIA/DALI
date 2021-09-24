@@ -98,7 +98,7 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib64/libjpeg.so.62"
     "${DEPS_PATH}/lib/libjpeg.so.62"
     "${DEPS_PATH}/lib/libavformat.so.58"
-    "${DEPS_PATH}/lib/libavcodec.so.58"
+    "${DEPS_PATH}/lib/libavcodec.so.5"
     "${DEPS_PATH}/lib/libavfilter.so.7"
     "${DEPS_PATH}/lib/libavutil.so.56"
     "${DEPS_PATH}/lib/libswscale.so.58"
