@@ -113,8 +113,8 @@ void FramesDecoder::BuildIndex() {
 void FramesDecoder::CopyToOutput(uint8_t *data) {
   LazyInitSwContext();
 
-  uint8_t *dest_[4] = {data, nullptr, nullptr, nullptr};
-  int dest_linesize_[4] = {av_state_->frame_->width * Channels(), 0, 0, 0};
+  uint8_t *dest[4] = {data, nullptr, nullptr, nullptr};
+  int dest_linesize[4] = {av_state_->frame_->width * Channels(), 0, 0, 0};
 
   int ret = sws_scale(
     av_state_->sws_ctx_,
