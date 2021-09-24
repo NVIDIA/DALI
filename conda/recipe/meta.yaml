@@ -65,15 +65,15 @@ requirements:
   host:
     - python
     - future >=0.17.1
-    - protobuf >=3.17.2
-    - libprotobuf-static >=3.17.2
+    - protobuf >=3.18.0
+    - libprotobuf-static >=3.18.0
     - libjpeg-turbo >=2.1.0
     - tensorflow-gpu =2.2.0
     - tensorflow-estimator =2.2.0
     - tensorboard =2.2.2
     - dali-opencv
     - dali-ffmpeg
-    - boost >=1.67
+    - boost >=1.76
     - lmdb >=0.9.29
     - libtiff >=4.3.0
     - libsndfile >=1.0.31

@@ -9,6 +9,7 @@ Use Cases
    pytorch/single_stage_detector/pytorch_ssd.rst
    tensorflow/resnet-n/README
    tensorflow/yolov4/readme.rst
+   tensorflow/efficientdet/README.rst
    paddle/index
    mxnet/mxnet-resnet50.ipynb
    detection_pipeline.ipynb
