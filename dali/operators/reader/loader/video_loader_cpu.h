@@ -17,7 +17,7 @@
 
 
 #include "dali/operators/reader/loader/loader.h"
-#include "dali/operators/reader/loader/video/video_file.h"
+#include "dali/operators/reader/loader/video/frames_decoder.h"
 
 namespace dali {
 class VideoSampleDesc {
@@ -55,7 +55,7 @@ private:
   void Reset(bool wrap_to_shard) override;
 
   std::vector<std::string> filenames_;
-  std::vector<VideoFileCPU> video_files_;
+  std::vector<FramesDecoder> video_files_;
   std::vector<VideoSampleDesc> sample_spans_;
 
   Index current_index_ = 0;

@@ -45,7 +45,7 @@ void VideoLoaderCPU::PrepareMetadataImpl() {
     video_files_.emplace_back(filename);
   }
 
-  for (int video_idx = 0; video_idx < video_files_.size(); ++video_idx) {
+  for (size_t video_idx = 0; video_idx < video_files_.size(); ++video_idx) {
     for (int start = 0; start + stride_ * sequence_len_ <= video_files_[video_idx].NumFrames(); start += step_) {
       sample_spans_.push_back(VideoSampleDesc(start, start + stride_ * sequence_len_, stride_, video_idx));
     }

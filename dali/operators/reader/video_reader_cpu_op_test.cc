@@ -70,7 +70,9 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
 
       for (int i = 0; i < sequence_length; ++i) {
         this->ComapreFrames(
-          sample + i * this->FrameSize(video_idx), this->cfr_frames_[video_idx][gt_frame_id + i * stride].data, this->FrameSize(video_idx));
+          sample + i * this->FrameSize(video_idx),
+          this->GetCfrFrame(video_idx, gt_frame_id + i * stride),
+          this->FrameSize(video_idx));
 
         // this->SaveFrame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
         // this->SaveFrame(this->cfr_frames_[video_idx][gt_frame_id + i * stride].data, i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
@@ -133,7 +135,9 @@ TEST_F(VideoReaderCpuTest, CpuVariableFrameRate) {
 
       for (int i = 0; i < sequence_length; ++i) {
         this->ComapreFrames(
-          sample + i * this->FrameSize(video_idx), this->vfr_frames_[video_idx][gt_frame_id + i * stride].data, this->FrameSize(video_idx));
+          sample + i * this->FrameSize(video_idx),
+          this->GetVfrFrame(video_idx, gt_frame_id + i * stride),
+          this->FrameSize(video_idx));
 
         // this->SaveFrame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
         // this->SaveFrame(this->gt_frames_[video_idx][gt_frame_id + i * stride].data, i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
