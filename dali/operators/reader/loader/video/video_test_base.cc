@@ -17,6 +17,8 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <fstream>
+#include <vector>
+#include <string>
 
 #include "dali/test/dali_test_config.h"
 #include "dali/test/cv_mat_utils.h"
@@ -36,12 +38,12 @@ void VideoTestBase::SetUpTestSuite() {
       testing::dali_extra_path() + "/db/video/vfr/frames_1/",
       testing::dali_extra_path() + "/db/video/vfr/frames_2/"};
 
-  
   LoadFrames(cfr_frames_paths, cfr_frames_);
   LoadFrames(vfr_frames_paths, vfr_frames_);
 }
 
-void VideoTestBase::LoadFrames(std::vector<std::string> &paths, std::vector<std::vector<cv::Mat>> &out_frames) {
+void VideoTestBase::LoadFrames(
+  std::vector<std::string> &paths, std::vector<std::vector<cv::Mat>> &out_frames) {
   for (auto &frames_path : paths) {
     std::vector<cv::Mat> frames;
     std::ifstream frames_list(frames_path + "frames_list.txt");

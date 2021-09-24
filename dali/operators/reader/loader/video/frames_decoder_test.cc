@@ -26,8 +26,8 @@ class FramesDecoderTest : public VideoTestBase {
 
 
 TEST_F(FramesDecoderTest, ConstantFrameRate) {
-    std::string path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4"; 
-    
+    std::string path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";
+
     // Create file, build index
     FramesDecoder file(path);
 
@@ -65,8 +65,8 @@ TEST_F(FramesDecoderTest, ConstantFrameRate) {
 }
 
 TEST_F(FramesDecoderTest, VariableFrameRate) {
-    std::string path = testing::dali_extra_path() + "/db/video/vfr/test_2.mp4"; 
-    
+    std::string path = testing::dali_extra_path() + "/db/video/vfr/test_2.mp4";
+
     // Create file, build index
     FramesDecoder file(path);
 
@@ -79,7 +79,7 @@ TEST_F(FramesDecoderTest, VariableFrameRate) {
 
     // Read first frame
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->GetVfrFrame(1,0), file.FrameSize());
+    this->ComapreFrames(frame.data(), this->GetVfrFrame(1, 0), file.FrameSize());
 
     // Seek to frame
     file.SeekFrame(25);
@@ -104,8 +104,8 @@ TEST_F(FramesDecoderTest, VariableFrameRate) {
 }
 
 TEST_F(FramesDecoderTest, InvalidPath) {
-    std::string path = "invalid_path.mp4"; 
-    
+    std::string path = "invalid_path.mp4";
+
     try {
         FramesDecoder file(path);
     } catch (const DALIException &e) {
@@ -116,8 +116,8 @@ TEST_F(FramesDecoderTest, InvalidPath) {
 }
 
 TEST_F(FramesDecoderTest, NoVideoStream) {
-    std::string path = testing::dali_extra_path() + "/db/audio/wav/dziendobry.wav"; 
-    
+    std::string path = testing::dali_extra_path() + "/db/audio/wav/dziendobry.wav";
+
     try {
         FramesDecoder file(path);
     } catch (const DALIException &e) {

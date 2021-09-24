@@ -13,7 +13,9 @@
 // limitations under the License.
 
 #include "dali/operators/reader/loader/video/frames_decoder.h"
+#include <memory>
 #include "dali/core/error_handling.h"
+
 
 namespace dali {
 
@@ -80,7 +82,7 @@ FramesDecoder::FramesDecoder(const std::string &filename)
 }
 
 void FramesDecoder::BuildIndex() {
-  // TODO(awolant): Optimize this function for: 
+  // TODO(awolant): Optimize this function for:
   //  - CFR
   //  - index present in the header
 
@@ -90,7 +92,7 @@ void FramesDecoder::BuildIndex() {
     entry.is_keyframe = av_state_->frame_->key_frame;
     entry.pts = av_state_->frame_->pts;
     entry.is_flush_frame = false;
-    
+
     if (entry.is_keyframe) {
       last_keyframe = index_.size();
     }
@@ -110,7 +112,7 @@ void FramesDecoder::BuildIndex() {
 
 void FramesDecoder::CopyToOutput(uint8_t *data) {
   LazyInitSwContext();
-  
+
   uint8_t *dest_[4] = {data, nullptr, nullptr, nullptr};
   int dest_linesize_[4] = {av_state_->frame_->width * Channels(), 0, 0, 0};
 
@@ -131,15 +133,15 @@ void FramesDecoder::CopyToOutput(uint8_t *data) {
 void FramesDecoder::LazyInitSwContext() {
   if (av_state_->sws_ctx_ == nullptr) {
     av_state_->sws_ctx_ = sws_getContext(
-      Width(), 
-      Height(), 
-      av_state_->codec_ctx_->pix_fmt, 
-      Width(), 
-      Height(), 
-      AV_PIX_FMT_RGB24, 
-      SWS_BILINEAR, 
-      nullptr, 
-      nullptr, 
+      Width(),
+      Height(),
+      av_state_->codec_ctx_->pix_fmt,
+      Width(),
+      Height(),
+      AV_PIX_FMT_RGB24,
+      SWS_BILINEAR,
+      nullptr,
+      nullptr,
       nullptr);
     DALI_ENFORCE(av_state_->sws_ctx_, "Could not create sw context");
   }
@@ -197,10 +199,10 @@ void FramesDecoder::Reset() {
 }
 
 void FramesDecoder::SeekFrame(int frame_id) {
-  // TODO(awolant): Optimize seeking: 
+  // TODO(awolant): Optimize seeking:
   //  - when we seek next frame,
   //  - when we seek frame with the same keyframe as the current frame
-  //  - for CFR, when we know pts, but don't know keyframes 
+  //  - for CFR, when we know pts, but don't know keyframes
 
   DALI_ENFORCE(
     frame_id >= 0 && frame_id < NumFrames(),
@@ -214,8 +216,9 @@ void FramesDecoder::SeekFrame(int frame_id) {
   if (flush_state_) {
     flush_state_ = false;
   }
- 
-  int ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, keyframe_entry.pts, AVSEEK_FLAG_FRAME);
+
+  int ret = av_seek_frame(
+    av_state_->ctx_, av_state_->stream_id_, keyframe_entry.pts, AVSEEK_FLAG_FRAME);
   DALI_ENFORCE(
     ret >= 0,
     make_string(

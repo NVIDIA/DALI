@@ -17,6 +17,8 @@
 
 #include <gtest/gtest.h>
 #include <opencv2/core.hpp>
+#include <vector>
+#include <string>
 
 
 namespace dali {
@@ -45,10 +47,9 @@ class VideoTestBase : public ::testing::Test {
   static std::vector<std::vector<cv::Mat>> vfr_frames_;
 
   static void SetUpTestSuite();
-  static void LoadFrames(std::vector<std::string> &paths, std::vector<std::vector<cv::Mat>> &frames);
+  static void LoadFrames(
+    std::vector<std::string> &paths, std::vector<std::vector<cv::Mat>> &frames);
 };
-
-
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_TEST_BASE_H_

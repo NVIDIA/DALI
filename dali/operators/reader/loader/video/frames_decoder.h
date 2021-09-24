@@ -22,11 +22,11 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-#include "dali/core/common.h"
-
 #include <vector>
 #include <string>
+#include <memory>
 
+#include "dali/core/common.h"
 
 namespace dali {
 struct IndexEntry {
@@ -70,13 +70,12 @@ struct AvState {
  */
 class DLL_PUBLIC FramesDecoder {
  public:
-
   /**
    * @brief Construct a new FramesDecoder object.
    * 
    * @param filename Path to a video file.
    */
-  FramesDecoder(const std::string &filename);
+  explicit FramesDecoder(const std::string &filename);
 
   /**
    * @brief Number of frames in the video
