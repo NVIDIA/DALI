@@ -24,7 +24,7 @@ DALI_SCHEMA(MelFilterBank)
 triangular filters.
 
 The frequency ('f') dimension is selected from the input layout.
-In case of no layout, "f", "ft", or "*ft" is assumed, depending on the number of dimensions.
+In case of no layout, "f", "ft", or "\*ft" is assumed, depending on the number of dimensions.
 )code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
@@ -40,7 +40,7 @@ In case of no layout, "f", "ft", or "*ft" is assumed, depending on the number of
     .AddOptionalArg("freq_high",
       R"code(The maximum frequency.
 
-If this value is not provided, ``sample_rate /2`` is used.
+If this value is not provided, ``sample_rate/2`` is used.
 )code",
       0.0f)
     .AddOptionalArg("normalize",
