@@ -24,7 +24,7 @@ import numpy as np
 import tempfile
 import math
 
-from nose.tools import assert_raises, raises
+from nose_utils import assert_raises, raises
 
 VIDEO_DIRECTORY = "/tmp/video_files"
 PLENTY_VIDEO_DIRECTORY = "/tmp/many_video_files"
@@ -90,9 +90,11 @@ def test_simple_videopipeline():
         assert(out[0].layout() == "FHWC")
     del pipe
 
+@raises(RuntimeError, glob='*There are no valid sequences in the provided dataset, '
+                           'check the length of the available videos and the requested sequence length')
 def test_wrong_length_sequence_videopipeline():
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, sequence_length=100000)
-    assert_raises(RuntimeError, pipe.build)
+    pipe.build()
 
 def check_videopipeline_supported_type(dtype):
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
@@ -101,6 +103,11 @@ def check_videopipeline_supported_type(dtype):
         print("Iter " + str(i))
         _ = pipe.run()
     del pipe
+
+@raises(RuntimeError, glob='*Data type must be FLOAT or UINT8')
+def check_videopipeline_unsupported_type(dtype):
+    pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
+    pipe.build()
 
 SUPPORTED_TYPES = [types.DALIDataType.FLOAT, types.DALIDataType.UINT8]
 ALL_TYPES = list(types.DALIDataType.__members__.values())
@@ -111,7 +118,7 @@ def test_simple_videopipeline_supported_types():
 
 def test_simple_videopipeline_not_supported_types():
     for type in set(ALL_TYPES) - set(SUPPORTED_TYPES):
-        yield assert_raises, RuntimeError, check_videopipeline_supported_type, type
+        yield check_videopipeline_unsupported_type, type
 
 def test_file_list_videopipeline():
     pipe = VideoPipeList(batch_size=BATCH_SIZE, data=FILE_LIST)
@@ -201,12 +208,12 @@ def test_file_list_include_preceding_frame_fail():
     pipe, list_file_name = _create_file_list_include_preceding_frame_pipe(False)
 
     # there should be no valid sequences
-    assert_raises(RuntimeError, pipe.build)
-
+    with assert_raises(RuntimeError, glob='*Start time number should be lesser or equal to end time for a file*'):
+        pipe.build()
     os.remove(list_file_name)
 
 
-def _test_file_list_empty_videopipeline(start, end):
+def _test_file_list_invalid_range(start, end):
     files = sorted(os.listdir(VIDEO_DIRECTORY))
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
     if end is None:
@@ -216,19 +223,32 @@ def _test_file_list_empty_videopipeline(start, end):
     list_file.close()
 
     pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name)
-    assert_raises(RuntimeError, pipe.build)
+    with assert_raises(RuntimeError, glob='*Start frame number should be lesser or equal to end frame number for a file*'):
+        pipe.build()
     os.remove(list_file.name)
 
-def test_file_list_empty_videopipeline():
+
+def test_file_list_invalid_range():
     invalid_ranges = [
-        [0, 0],
-        [10, 10],
         [-1, 1],
         [1000000, None],
         [0, -1000]
     ]
     for r in invalid_ranges:
-        yield _test_file_list_empty_videopipeline, r[0], r[1]
+        yield _test_file_list_invalid_range, r[0], r[1]
+
+
+def test_file_list_empty():
+    files = sorted(os.listdir(VIDEO_DIRECTORY))
+    list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+    list_file.write("{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, 10, 10))
+    list_file.close()
+
+    pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name)
+    with assert_raises(RuntimeError, glob='*No files were read'):
+        pipe.build()
+    os.remove(list_file.name)
+
 
 def test_step_video_pipeline():
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, step=1)
@@ -277,7 +297,7 @@ def test_plenty_of_video_files():
         print("Iter " + str(i))
         pipe.run()
 
-@raises(RuntimeError)
+@raises(RuntimeError, glob='*Could not open file * because of Invalid data found when processing input')
 def check_corrupted_videos():
     corrupted_videos = [corrupted_video_data_root + '/' + f for f in os.listdir(corrupted_video_data_root)]
     for corrupted in corrupted_videos:

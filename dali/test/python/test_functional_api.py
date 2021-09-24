@@ -16,9 +16,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import numpy as np
-from test_utils import compare_pipelines
-from test_utils import check_output_pattern
-from nose.tools import assert_raises
+from nose_utils import raises
 
 def _test_fn_rotate(device):
     pipe = Pipeline(batch_size = 1, num_threads = 1, device_id = 0)
@@ -45,11 +43,13 @@ def _test_fn_rotate(device):
         [1, 5, 9]])[:,:,np.newaxis]
     assert(np.array_equal(arr, ref))
 
+@raises(TypeError, glob='Illegal pipeline output type. The output * contains a nested'
+                        ' `DataNode`. Missing list/tuple expansion (*) is the likely cause.')
 def test_set_outputs():
     data = [[[np.random.rand(1, 3, 2)], [np.random.rand(1, 4, 5)]]]
     pipe = Pipeline(batch_size = 1, num_threads = 1, device_id = None)
     pipe.set_outputs(fn.external_source(data, num_outputs = 2, cycle = 'quiet'))
-    assert_raises(TypeError, pipe.build)
+    pipe.build()
 
 def test_set_outputs_err_msg_unpack():
     data = [[[np.random.rand(1, 3, 2)], [np.random.rand(1, 4, 5)]]]

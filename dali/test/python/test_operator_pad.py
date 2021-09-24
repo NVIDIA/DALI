@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nose.tools.nontrivial import raises
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
@@ -20,8 +21,7 @@ import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
-import os
-from nose.tools import assert_raises
+from nose_utils import raises
 
 from test_utils import RandomlyShapedDataIterator
 
@@ -135,6 +135,7 @@ def test_pad():
                  ((200, 400, 3), (0, 1), None, (4, 16), (1, 200))]:
                 yield check_pad, device, batch_size, input_max_shape, axes, axis_names, align, shape_arg
 
+@raises(RuntimeError, glob='*Values of `align` argument must be positive.')
 def test_pad_error():
     batch_size = 2
     input_max_shape = (5, 5, 3)
@@ -150,7 +151,7 @@ def test_pad_error():
                                 align=align, shape_arg=shape_arg, layout=layout)
 
     pipe.build()
-    assert_raises(RuntimeError, pipe.run)
+    pipe.run()
 
 def is_aligned(sh, align, axes):
     assert len(sh) == len(align)
