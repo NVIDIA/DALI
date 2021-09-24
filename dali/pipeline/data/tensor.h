@@ -95,7 +95,7 @@ class Tensor : public Buffer<Backend> {
     return Buffer<Backend>::raw_data();
   }
 
-  /** @} */ // end of ContiguousAccessorMembers
+  /** @} */  // end of ContiguousAccessorMembers
 
   /**
    *

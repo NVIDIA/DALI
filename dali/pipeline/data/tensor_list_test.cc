@@ -73,7 +73,7 @@ class TensorListTest : public DALITest {
     }
 
     // Resize the buffer
-    tensor_list->Resize(shape);
+    tensor_list->Resize(shape, DALI_FLOAT);
 
     // Check the internals
     ASSERT_TRUE(tensor_list->has_data());
@@ -294,7 +294,7 @@ TYPED_TEST(TensorListTest, TestMultipleZeroSizeResize) {
 
   ASSERT_EQ(tensor_list.ntensor(), num_tensor);
   for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_NE(tensor_list.template tensor<float>(i), nullptr);
+    ASSERT_EQ(tensor_list.template tensor<float>(i), nullptr);
     ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{ 0 });
     ASSERT_EQ(tensor_list.tensor_offset(i), 0);
   }

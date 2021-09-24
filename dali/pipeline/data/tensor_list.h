@@ -611,7 +611,6 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   USE_BUFFER_MEMBERS();
 
  private:
-
   /** @defgroup ContiguousAccessorMembers Contiguous accessor member functions
    * The Buffer-like access to TensorList is now removed, and sample-by-sample approach
    * should be used. We hide those functions as private, but leave it for the TensorList
@@ -637,7 +636,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     return Buffer<Backend>::raw_data();
   }
 
-  /** @} */ // end of ContiguousAccessorMembers
+  /** @} */  // end of ContiguousAccessorMembers
 
 
   /** @defgroup ContiguousAccessorFunctions Fallback contiguous accessors
@@ -665,7 +664,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     return tl.raw_data();
   }
 
-  /** @} */ // end of ContiguousAccessorFunctions
+  /** @} */  // end of ContiguousAccessorFunctions
 };
 
 }  // namespace dali

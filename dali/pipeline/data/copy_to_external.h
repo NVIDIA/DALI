@@ -83,7 +83,6 @@ inline void CopyToExternalImpl(void* dst,
     type_info.template Copy<DstBackend, SrcBackend>(to.data(), from.data(), sizes.data(),
                                                     num_samples, stream, use_copy_kernel);
   }
-
 }
 
 template <typename DstBackend, typename SrcBackend>
