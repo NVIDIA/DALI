@@ -40,7 +40,7 @@ In case of no layout, "f", "ft", or "\*ft" is assumed, depending on the number o
     .AddOptionalArg("freq_high",
       R"code(The maximum frequency.
 
-If this value is not provided, ``sample_rate /2`` is used.
+If this value is not provided, ``sample_rate/2`` is used.
 )code",
       0.0f)
     .AddOptionalArg("normalize",
