@@ -8,7 +8,7 @@ FROM ${BUILDER_EXTRA_DEPS} as extra_deps
 FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
-RUN yum install -y wget nasm doxygen graphviz gettext xz openssl autogen
+RUN yum install -y wget nasm doxygen graphviz gettext xz openssl autogen libasan4
 ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
 
 # add devtoolset-7 to paths

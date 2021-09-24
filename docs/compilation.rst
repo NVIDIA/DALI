@@ -369,23 +369,30 @@ Optional CMake Build Parameters
 -  ``BUILD_CUFILE`` - build with ``GPU Direct Storage support`` support (default: ON)
 -  ``VERBOSE_LOGS`` - enables verbose loging in DALI. (default: OFF)
 -  ``WERROR`` - treat all build warnings as errors (default: OFF)
--  ``BUILD_WITH_ASAN`` - build with ASAN support (default: OFF). To run issue:
 -  ``BUILD_DALI_NODEPS`` - disables support for third party libraries that are normally expected to be available in the system
--  ``LINK_DRIVER`` - enables direct linking with driver libraries or an appropriate stub instead of dlopen
-   it in the runtime (removes the requirement to have clang-python bindings available to generate the stubs)
 
 .. warning::
 
   Enabling this option effectively results in only the most basic parts of DALI to compile (C++ core and kernels libraries).
   It is useful when wanting to use DALI processing primitives (kernels) directly without the need to use DALI's executor infrastructure.
 
+-  ``LINK_DRIVER`` - enables direct linking with driver libraries or an appropriate stub instead of dlopen
+   it in the runtime (removes the requirement to have clang-python bindings available to generate the stubs)
+-  ``BUILD_WITH_ASAN`` - build with ASAN support (default: OFF).
+-  ``BUILD_WITH_LSAN`` - build with LSAN support (default: OFF).
+-  ``BUILD_WITH_UBSAN`` - build with UBSAN support (default: OFF).
+
+To run with sanitizers enabled issue:
+
 .. code-block:: bash
 
   LD_LIBRARY_PATH=. ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0 ASAN_SYMBOLIZER_PATH=$(shell which llvm-symbolizer)
-  LD_PRELOAD= *PATH_TO_LIB_ASAN* /libasan.so. *X* *PATH_TO_BINARY*
+  LD_PRELOAD=PATH_TO_LIB_ASAN/libasan.so.X PATH_TO_LIB_STDC/libstdc++.so.STDC_VERSION*PATH_TO_BINARY*
 
-  Where *X* depends on used compiler version, for example GCC 7.x uses 4. Tested with GCC 7.4, CUDA 10.0
+  Where X depends on used compiler version, for example GCC 7.x uses 4. Tested with GCC 7.4, CUDA 10.0
   and libasan.4. Any earlier version may not work.
+
+  STDC_VERSION used by the system. Usually 6.
 
 -  ``DALI_BUILD_FLAVOR`` - Allow to specify custom name sufix (i.e. 'nightly') for nvidia-dali whl package
 -  *(Unofficial)* ``BUILD_JPEG_TURBO`` - build with ``libjpeg-turbo`` (default: ON)
