@@ -66,21 +66,17 @@ inline void CopyToExternalImpl(void* dst,
                                                     use_copy_kernel);
   } else {
     const auto &src_shape = src.shape();
-    auto *dst_buf = static_cast<uint8_t *>(dst); SmallVector<void *, 256> to;
     SmallVector<const void *, 256> from;
     SmallVector<int64_t, 256> sizes;
     int num_samples = src_shape.num_samples();
-    sizes.reserve(num_samples);
-    to.reserve(num_samples);
     from.reserve(num_samples);
+    sizes.reserve(num_samples);
     for (int i = 0; i < num_samples; i++) {
-      sizes.push_back(src_shape.tensor_size(i));
-      to.push_back(dst_buf);
-      dst_buf += sizes[i] * type_info.size();
       from.push_back(src.raw_tensor(i));
+      sizes.push_back(src_shape.tensor_size(i));
     }
 
-    type_info.template Copy<DstBackend, SrcBackend>(to.data(), from.data(), sizes.data(),
+    type_info.template Copy<DstBackend, SrcBackend>(dst, from.data(), sizes.data(),
                                                     num_samples, stream, use_copy_kernel);
   }
 }

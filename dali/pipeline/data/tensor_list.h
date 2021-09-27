@@ -644,7 +644,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
 
   /**
    * @brief Return an un-typed pointer to the underlying storage.
-   * Buffer must be either empty or have a valid type and be contiguous.
+   * The TensorList must be either empty or have a valid type and be contiguous.
    */
   friend void *unsafe_raw_mutable_data(TensorList<Backend> &tl) {
     DALI_ENFORCE(tl.IsContiguous(), "Data pointer can be obtain only for contiguous TensorList.");
@@ -653,7 +653,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
 
   /**
    * @brief Return an un-typed const pointer to the underlying storage.
-   * Buffer must be either empty or have a valid type and be contiguous.
+   * The TensorList must be either empty or have a valid type and be contiguous.
    */
   friend const void *unsafe_raw_data(const TensorList<Backend> &tl) {
     DALI_ENFORCE(tl.IsContiguous(), "Data pointer can be obtain only for contiguous TensorList.");

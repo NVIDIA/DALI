@@ -458,6 +458,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeSmaller) {
   this->SetupTensorList(&tensor_list, shape, &offsets);
 
   size_t nbytes = tensor_list.nbytes();
+  const auto *base_ptr = unsafe_raw_data(tensor_list);
 
   // Change the data type to something smaller
   tensor_list.template set_type<uint8>();
@@ -465,7 +466,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeSmaller) {
   // Check the internals
   ASSERT_EQ(tensor_list.ntensor(), shape.size());
   for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
-    // ASSERT_EQ(ptrs[i], tensor_list.raw_tensor(i));
+    ASSERT_EQ(unsafe_raw_data(tensor_list), base_ptr);
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }

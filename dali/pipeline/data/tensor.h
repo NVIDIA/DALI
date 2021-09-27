@@ -45,6 +45,7 @@ class Tensor : public Buffer<Backend> {
   inline Tensor() {}
   inline ~Tensor() override = default;
 
+
   /**
    *
    * @brief For tensor T of shape (s_0, s_1, ..., s_{n-1}) returns a n-1 dimensional tensor T'
