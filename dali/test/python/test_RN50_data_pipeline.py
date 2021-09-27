@@ -21,7 +21,6 @@ import glob
 import argparse
 import time
 from test_utils import get_dali_extra_path, AverageMeter
-from webdataset_base import generate_temp_index_file as generate_wds_temp_index_file
 
 class CommonPipeline(Pipeline):
     def __init__(self, data_paths, num_shards, batch_size, num_threads, device_id, prefetch, fp16, random_shuffle, nhwc,
@@ -165,12 +164,11 @@ class WebdatasetPipeline(CommonPipeline):
                                                  random_shuffle=random_shuffle,
                                                  dont_use_mmap=dont_use_mmap,
                                                  **kwargs)
-        wds = data_paths[0]
-        self.wds_idx = generate_wds_temp_index_file(wds)
+        wds, wds_idx = data_paths[:2]
 
         cache_enabled = decoder_cache_params['cache_enabled']
         self.input = ops.readers.Webdataset(paths = wds,
-                                            index_paths = self.wds_idx.name,
+                                            index_paths = wds_idx,
                                             ext = ["jpg", "cls"],
                                             shard_id = shard_id,
                                             num_shards = num_shards,
