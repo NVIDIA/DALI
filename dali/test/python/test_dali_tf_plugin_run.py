@@ -22,7 +22,7 @@ import nvidia.dali.tfrecord as tfrec
 import tensorflow as tf
 import nvidia.dali.plugin.tf as dali_tf
 from test_utils import get_dali_extra_path
-from nose.tools import raises
+from nose_utils import raises
 
 try:
     tf.compat.v1.disable_eager_execution()
@@ -118,7 +118,7 @@ class PythonOperatorPipeline(Pipeline):
         return self.python_op()
 
 
-@raises(RuntimeError)
+@raises(RuntimeError, glob='Note that some operators * cannot be used with TensorFlow Dataset API and DALIIterator')
 def test_python_operator_error():
     daliop = dali_tf.DALIIterator()
     pipe = PythonOperatorPipeline()
