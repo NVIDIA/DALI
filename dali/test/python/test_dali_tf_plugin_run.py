@@ -118,8 +118,7 @@ class PythonOperatorPipeline(Pipeline):
         return self.python_op()
 
 
-@raises(RuntimeError, glob='*Note that some operators (e.g. Python Operators) cannot '
-                           'be used with TensorFlow Dataset API and DALIIterator')
+@raises(RuntimeError, glob='Note that some operators * cannot be used with TensorFlow Dataset API and DALIIterator')
 def test_python_operator_error():
     daliop = dali_tf.DALIIterator()
     pipe = PythonOperatorPipeline()

@@ -90,11 +90,10 @@ def test_simple_videopipeline():
         assert(out[0].layout() == "FHWC")
     del pipe
 
-@raises(RuntimeError, glob='*There are no valid sequences in the provided dataset, '
-                           'check the length of the available videos and the requested sequence length')
 def test_wrong_length_sequence_videopipeline():
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, sequence_length=100000)
-    pipe.build()
+    with assert_raises(RuntimeError, glob='There are no valid sequences in the provided dataset'):
+        pipe.build()
 
 def check_videopipeline_supported_type(dtype):
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
@@ -104,7 +103,7 @@ def check_videopipeline_supported_type(dtype):
         _ = pipe.run()
     del pipe
 
-@raises(RuntimeError, glob='*Data type must be FLOAT or UINT8')
+@raises(RuntimeError, glob='Data type must be FLOAT or UINT8')
 def check_videopipeline_unsupported_type(dtype):
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
     pipe.build()
@@ -208,7 +207,7 @@ def test_file_list_include_preceding_frame_fail():
     pipe, list_file_name = _create_file_list_include_preceding_frame_pipe(False)
 
     # there should be no valid sequences
-    with assert_raises(RuntimeError, glob='*Start time number should be lesser or equal to end time for a file*'):
+    with assert_raises(RuntimeError, glob='Start time number should be lesser or equal to end time for a file'):
         pipe.build()
     os.remove(list_file_name)
 
@@ -223,7 +222,7 @@ def _test_file_list_invalid_range(start, end):
     list_file.close()
 
     pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name)
-    with assert_raises(RuntimeError, glob='*Start frame number should be lesser or equal to end frame number for a file*'):
+    with assert_raises(RuntimeError, glob='Start frame number should be lesser or equal to end frame number for a file'):
         pipe.build()
     os.remove(list_file.name)
 
@@ -238,14 +237,14 @@ def test_file_list_invalid_range():
         yield _test_file_list_invalid_range, r[0], r[1]
 
 
-def test_file_list_empty():
+def test_file_list_empty_range():
     files = sorted(os.listdir(VIDEO_DIRECTORY))
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
     list_file.write("{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, 10, 10))
     list_file.close()
 
     pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name)
-    with assert_raises(RuntimeError, glob='*No files were read'):
+    with assert_raises(RuntimeError, glob='No files were read'):
         pipe.build()
     os.remove(list_file.name)
 
@@ -297,7 +296,7 @@ def test_plenty_of_video_files():
         print("Iter " + str(i))
         pipe.run()
 
-@raises(RuntimeError, glob='*Could not open file * because of Invalid data found when processing input')
+@raises(RuntimeError, glob='Could not open file * because of Invalid data found when processing input')
 def check_corrupted_videos():
     corrupted_videos = [corrupted_video_data_root + '/' + f for f in os.listdir(corrupted_video_data_root)]
     for corrupted in corrupted_videos:

@@ -37,10 +37,7 @@ def test_tf_dataset_cpu():
     run_tf_dataset_eager_mode('cpu')
 
 # Return differently sized images to check if DALIDataset can handle this case gracefully
-@raises(tf.errors.FailedPreconditionError, glob='*Batch output at index * from DALI pipeline is not uniform - individual '
-                                                'samples have different dimensions. This output cannot be represented as single, '
-                                                'dense Tensor, which is required by TensorFlow. Ensure that all the samples that you '
-                                                'produce in given batch have equal shape.*')
+@raises(tf.errors.FailedPreconditionError, glob='Batch output at index * from DALI pipeline is not uniform')
 def test_mixed_size_pipeline():
     run_tf_dataset_eager_mode('gpu', get_pipeline_desc=get_mix_size_image_pipeline)
 
@@ -183,8 +180,7 @@ def test_tf_dataset_multi_input():
                 yield run_tf_dataset_multi_input, dev, starts, names, batches
 
 
-@raises(tf.errors.InternalError,
-        glob='TF device and DALI device mismatch. TF device: GPU, DALI device: CPU for output *')
+@raises(tf.errors.InternalError, glob='TF device and DALI device mismatch')
 def test_tf_dataset_wrong_placement_cpu():
     batch_size = 12
     num_threads = 4
@@ -198,8 +194,7 @@ def test_tf_dataset_wrong_placement_cpu():
         pass
 
 
-@raises(tf.errors.InternalError,
-        glob='TF device and DALI device mismatch. TF device: CPU, DALI device: GPU for output *')
+@raises(tf.errors.InternalError, glob='TF device and DALI device mismatch')
 def test_tf_dataset_wrong_placement_gpu():
     batch_size = 12
     num_threads = 4
@@ -230,9 +225,7 @@ def check_basic_dataset_build(input_datasets):
         return dali_dataset
 
 
-@raises(TypeError, glob='*`input_datasets` must be a dictionary that maps input names (the `name` specified for External '
-                        'Source node in DALI pipeline) to input datasets objects (`tf.data.Dataset`) or '
-                        '`nvidia.dali.plugin.tf.experimental.Input` wrapper objects*')
+@raises(TypeError, glob='`input_datasets` must be a dictionary that maps input names * to input datasets')
 def check_tf_dataset_wrong_input_type(wrong_input_datasets):
     check_basic_dataset_build(wrong_input_datasets)
 
@@ -250,14 +243,14 @@ def test_tf_dataset_wrong_input_type():
         yield check_tf_dataset_wrong_input_type, {wrong_input_name : input_dataset}
 
 
-@raises(ValueError, glob='*Found External Source nodes in the Pipeline, that were not assigned any inputs.*')
+@raises(ValueError, glob='Found External Source nodes in the Pipeline, that were not assigned any inputs.')
 @with_setup(skip_for_incompatible_tf)
 def test_input_not_provided():
     input_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
     check_basic_dataset_build({"a" : input_dataset})
 
 
-@raises(ValueError, glob='*Did not find an External Source placeholder node with name=* in the provided pipeline*')
+@raises(ValueError, glob='Did not find an External Source placeholder node * in the provided pipeline')
 @with_setup(skip_for_incompatible_tf)
 def test_missing_es_node():
     input_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
@@ -273,7 +266,6 @@ def es_pipe(kwargs):
     return fn.external_source(**kwargs)
 
 
-# @raises(Exception)
 def check_single_es_pipeline(kwargs, input_datasets):
     pipe = es_pipe(kwargs)
 
@@ -289,23 +281,21 @@ def check_single_es_pipeline(kwargs, input_datasets):
         return dali_dataset
 
 
-@raises(ValueError, glob='*Did not find an External Source placeholder node with name=* in the provided '
-                         'pipeline - required by the name specified in the `input_datasets`.*')
+@raises(ValueError, glob='Did not find an External Source placeholder node * in the provided pipeline')
 @with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_es_with_source():
     in_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
     check_single_es_pipeline({'name': 'a', 'source': []}, {'a': in_dataset})
 
 
-@raises(ValueError, glob='*The parameter ``num_outputs`` is only valid when using ``source`` to provide data.*')
+@raises(ValueError, glob='The parameter ``num_outputs`` is only valid when using ``source`` to provide data.')
 @with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_es_num_outputs_provided():
     in_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
     check_single_es_pipeline({'name': 'a', 'num_outputs': 1}, {'a': in_dataset})
 
 
-@raises(ValueError, glob='*Found placeholder External Source node (without `source` argument) '
-                         'in the Pipeline that was not named (no `name` argument set).*')
+@raises(ValueError, glob='Found placeholder External Source node * in the Pipeline that was not named')
 @with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_disallowed_es():
     check_single_es_pipeline({}, {})
@@ -357,7 +347,7 @@ def test_tf_dataset_layouts():
 
 
 # Test if the TypeError is raised for unsupported arguments for regular DALIDataset
-@raises(TypeError, glob='*Dataset inputs are allowed only in \'experimental.DALIDatasetWithInputs\'.*')
+@raises(TypeError, glob='Dataset inputs are allowed only in *DALIDatasetWithInputs')
 def test_tf_experimental_inputs_disabled():
     pipeline = get_image_pipeline(4, 4, 'cpu', 0)
     dali_tf.DALIDataset(pipeline,
@@ -365,7 +355,7 @@ def test_tf_experimental_inputs_disabled():
 
 
 # Test if the ValueError is raised for external source with `source`.
-@raises(ValueError, glob='*DALIDataset got a DALI pipeline containing External Source operator nodes.*')
+@raises(ValueError, glob='DALIDataset got a DALI pipeline containing External Source operator nodes')
 def test_tf_experimental_source_disabled():
     pipe = Pipeline(10, 4, 0)
     with pipe:
