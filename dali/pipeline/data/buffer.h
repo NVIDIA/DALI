@@ -176,13 +176,6 @@ class DLL_PUBLIC Buffer {
   }
 
   /**
-   * @brief Returns the padding value of allocations caused by Resize() call
-   */
-  static inline size_t padding() {
-    return kPadding;
-  }
-
-  /**
    * @brief Returns the id of the datatype of the underlying storage.
    */
   inline DALIDataType type() const {
@@ -394,13 +387,12 @@ class DLL_PUBLIC Buffer {
 
     if (new_num_bytes > num_bytes_) {
       size_t grow = num_bytes_ * growth_factor_;
-      grow = (grow + kPadding) & ~(kPadding - 1);
       if (grow > new_num_bytes) new_num_bytes = grow;
       reserve(new_num_bytes);
-    } else if (!is_pinned() && align_up(new_num_bytes, kPadding) < num_bytes_ * shrink_threshold_) {
+    } else if (!is_pinned() && new_num_bytes < num_bytes_ * shrink_threshold_) {
       data_.reset();
       num_bytes_ = 0;
-      reserve(align_up(new_num_bytes, kPadding));
+      reserve(new_num_bytes);
     }
   }
 
@@ -419,8 +411,6 @@ class DLL_PUBLIC Buffer {
 
   static double growth_factor_;
   static double shrink_threshold_;
-  // round to 1kB
-  static constexpr size_t kPadding = 1024;
 
   TypeInfo type_ = {};               // Data type of underlying storage
   shared_ptr<void> data_ = nullptr;  // Pointer to underlying storage

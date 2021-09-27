@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,16 +18,15 @@
 namespace dali {
 
 template<typename T>
-inline Argument * DeserializeProtobufImpl(const DaliProtoPriv& arg) {
+inline std::shared_ptr<Argument> DeserializeProtobufImpl(const DaliProtoPriv& arg) {
   const T& t = T::DeserializeFromProtobuf(arg);
   return Argument::Store(arg.name(), t);
 }
 
 #define DESERIALIZE_PROTOBUF(type, field)                                         \
 template <>                                                                       \
-inline Argument *DeserializeProtobufImpl<type>(const DaliProtoPriv& arg) { \
-  Argument* new_arg = Argument::Store(arg.name(), arg.field(0));                   \
-  return new_arg;                                                                 \
+inline std::shared_ptr<Argument> DeserializeProtobufImpl<type>(const DaliProtoPriv& arg) { \
+  return Argument::Store(arg.name(), arg.field(0));                               \
 }
 
 DESERIALIZE_PROTOBUF(int64_t, ints);
@@ -38,7 +37,7 @@ DESERIALIZE_PROTOBUF(string, strings);
 #undef DESERIALIZE_PROTOBUF
 
 template<typename T>
-inline Argument *DeserializeProtobufVectorImpl(const DaliProtoPriv& arg) {
+inline std::shared_ptr<Argument> DeserializeProtobufVectorImpl(const DaliProtoPriv& arg) {
   auto args = arg.extra_args();
   std::vector<T> ret_val;
   for (auto& a : args) {
@@ -52,9 +51,10 @@ inline Argument *DeserializeProtobufVectorImpl(const DaliProtoPriv& arg) {
   {{serialize_type(T()), false}, DeserializeProtobufImpl<T>},       \
   {{serialize_type(T()), true},  DeserializeProtobufVectorImpl<T>},
 
-Argument *DeserializeProtobuf(const DaliProtoPriv &arg) {
+std::shared_ptr<Argument> DeserializeProtobuf(const DaliProtoPriv &arg) {
   // map
-  std::map<std::pair<string, bool>, std::function<Argument*(const DaliProtoPriv&)>> fn_map{
+  std::map<std::pair<string, bool>, std::function<std::shared_ptr<Argument>(const DaliProtoPriv&)>>
+       fn_map{
     ADD_SERIALIZABLE_ARG(int64)
     ADD_SERIALIZABLE_ARG(float)
     ADD_SERIALIZABLE_ARG(string)

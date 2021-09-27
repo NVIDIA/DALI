@@ -38,6 +38,7 @@ copy_post_build(dali_python "${PROJECT_BINARY_DIR}/stage/setup.py" "${PROJECT_BI
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/dali/python/MANIFEST.in" "${PROJECT_BINARY_DIR}/dali/python")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/tools/rec2idx.py" "${PROJECT_BINARY_DIR}/dali/python")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/tools/tfrecord2idx" "${PROJECT_BINARY_DIR}/dali/python")
+copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/tools/wds2idx.py" "${PROJECT_BINARY_DIR}/dali/python")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/Acknowledgements.txt" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/COPYRIGHT" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")

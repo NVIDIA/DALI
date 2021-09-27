@@ -19,23 +19,23 @@
 #include <memory>
 #include <utility>
 #include "dali/core/error_handling.h"
+#include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/util/file.h"
 
 namespace dali {
 
 template <typename... Args>
 inline std::string IndexFileErrMsg(const std::string& index_path, int64_t line,
                                    const Args&... details) {
-  return make_string("Malformed index file at ", index_path, " line ", line, " - ", details...);
+  return make_string("Malformed index file at \"", index_path, "\" line ", line, " - ", details...);
 }
 
 namespace detail {
 namespace wds {
 
 inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_behavior) {
-  for (auto &c : missing_component_behavior)
-      c = std::tolower(static_cast<unsigned char >(c));
+  for (auto& c : missing_component_behavior)
+    c = std::tolower(static_cast<unsigned char>(c));
   if (missing_component_behavior == "") {
     return MissingExtBehavior::Empty;
   } else if (missing_component_behavior == "skip") {
@@ -191,28 +191,18 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
   auto& current_wds_shard = wds_shards_[current_sample.wds_shard_index];
 
   for (auto& component : current_sample.components) {
-    current_wds_shard.SeekArchive(component.offset);
-
     // Checking if the component data from the index file agrees with reality
     const auto& index_path = index_paths_[current_sample.wds_shard_index];
-    DALI_ENFORCE(!current_wds_shard.EndOfArchive(),
+    DALI_ENFORCE(component.offset < static_cast<int64_t>(current_wds_shard->Size()),
                  IndexFileErrMsg(index_path, current_sample.line_number,
                                  "offset is outside of the archive file"));
-    DALI_ENFORCE(
-        current_wds_shard.GetFileType() == detail::TarArchive::ENTRY_FILE,
-        IndexFileErrMsg(index_path, current_sample.line_number, "component of a non-file type"));
-    DALI_ENFORCE(GetExtension(current_wds_shard.GetFileName()) == component.ext,
-                 IndexFileErrMsg(index_path, current_sample.line_number,
-                                 "component extension does not match the archive entry extension"));
-    DALI_ENFORCE(current_wds_shard.GetFileSize() == component.size,
-                 IndexFileErrMsg(index_path, current_sample.line_number,
-                                 "component size does not match the archive entry size"));
 
+    current_wds_shard->Seek(component.offset);
 
     // Skipping cached samples
     const std::string source_info =
-        make_string("archive ", paths_[current_sample.wds_shard_index], "index file ",
-                    index_paths_[current_sample.wds_shard_index], "line ",
+        make_string("archive ", paths_[current_sample.wds_shard_index], "index file \"",
+                    index_paths_[current_sample.wds_shard_index], "\" line ",
                     current_sample.line_number, "component offset ", component.offset);
     DALIMeta meta;
     meta.SetSourceInfo(source_info);
@@ -225,7 +215,6 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
       }
       continue;
     }
-
     // Reading Data
     if (copy_read_data_) {
       uint8_t* shared_tensor_data = nullptr;
@@ -245,10 +234,10 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
               sample[output].type());
         }
       }
-      DALI_ENFORCE(current_wds_shard.Read(shared_tensor_data, component.size) == component.size,
+      DALI_ENFORCE(current_wds_shard->Read(shared_tensor_data, component.size) == component.size,
                    "Error reading from a file " + paths_[current_sample.wds_shard_index]);
     } else {
-      auto data = current_wds_shard.ReadFile();
+      auto data = current_wds_shard->Get(component.size);
       for (auto& output : component.outputs) {
         sample[output].SetMeta(meta);
         sample[output].ShareData(
@@ -280,7 +269,7 @@ void WebdatasetLoader::PrepareMetadataImpl() {
   // initializing all the readers
   wds_shards_.reserve(paths_.size());
   for (auto& uri : paths_) {
-    wds_shards_.emplace_back(FileStream::Open(uri, read_ahead_, !dont_use_mmap_));
+    wds_shards_.emplace_back(FileStream::Open(uri, read_ahead_, !copy_read_data_));
   }
 
   // preparing the map from extensions to outputs
@@ -323,11 +312,17 @@ void WebdatasetLoader::PrepareMetadataImpl() {
           if (!was_output_set[output]) {
             DALI_ENFORCE(
                 component.size % dtype_sizes_[output] == 0,
-                make_string("Error in index file at ", index_paths_[wds_shard_index], " line ",
+                make_string("Error in index file at \"", index_paths_[wds_shard_index], "\" line ",
                             sample.line_number, " - component size and dtype incompatible"));
             output_indicies_.push_back(output);
             component.outputs.num++;
             was_output_set[output] = true;
+          } else {
+            std::call_once(multiple_files_single_component, [&]() {
+              DALI_WARN(make_string("Multiple components matching output ",
+                                    output, " at line ", sample.line_number, " file \"",
+                                    index_paths_[wds_shard_index], "\"."));
+            });
           }
         }
         if (component.outputs.num) {
@@ -352,8 +347,8 @@ void WebdatasetLoader::PrepareMetadataImpl() {
             output_indicies_.resize(start_outputs_index);
             break;
           case detail::wds::MissingExtBehavior::Raise:
-            DALI_FAIL(make_string("Underful sample detected at ", index_paths_[wds_shard_index],
-                                  " line ", sample.line_number));
+            DALI_FAIL(make_string("Underful sample detected at \"", index_paths_[wds_shard_index],
+                                  "\" line ", sample.line_number));
             break;
           default:
             break;

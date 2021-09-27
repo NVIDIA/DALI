@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cstring>
 #include <string>
+#include <utility>
 
 namespace dali {
 
@@ -43,13 +44,27 @@ void WebdatasetReader::RunImpl(HostWorkspace& ws) {
   int num_outputs = ws.NumOutput();
   int num_samples = GetCurrBatchSize();
 
-  for (int data_idx = 0; data_idx < num_samples; data_idx++) {
-    auto& sample = GetSample(data_idx);
-    for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
-      ws.OutputRef<CPUBackend>(output_idx)[data_idx].SetMeta(sample[output_idx].GetMeta());
-      std::memcpy(ws.OutputRef<CPUBackend>(output_idx)[data_idx].raw_mutable_data(),
-                  sample[output_idx].raw_data(), sample[output_idx].nbytes());
+  bool threaded = ws.GetThreadPool().NumThreads() > 1;
+
+  for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
+    auto& output = ws.OutputRef<CPUBackend>(output_idx);
+    for (int data_idx = 0; data_idx < num_samples; data_idx++) {
+      auto& sample = GetSample(data_idx);
+      ThreadPool::Work copy_task = [output_idx = output_idx, data_idx = data_idx, &output,
+                                    &sample](int) {
+        output[data_idx].SetMeta(sample[output_idx].GetMeta());
+        std::memcpy(output[data_idx].raw_mutable_data(), sample[output_idx].raw_data(),
+                    sample[output_idx].nbytes());
+      };
+      if (threaded) {
+        ws.GetThreadPool().AddWork(std::move(copy_task), -data_idx);
+      } else {
+        copy_task(0);
+      }
     }
+  }
+  if (threaded) {
+    ws.GetThreadPool().RunAll();
   }
 }
 
@@ -82,7 +97,7 @@ The index file can be generated using a dedicated script::
 The format of the index file is:
 )code" + detail::wds::kCurrentIndexVersion +
             R"code( <num_samples>
-<component1_ext> <component1_offset> <component1_size> <component2_ext> <component2_offset> <component2_size> ...
+<component1_ext> <component1_data_offset> <component1_size> <component2_ext> <component2_data_offset> <component2_size> ...
 ...
 
 
