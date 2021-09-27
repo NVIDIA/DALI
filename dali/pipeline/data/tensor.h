@@ -45,58 +45,6 @@ class Tensor : public Buffer<Backend> {
   inline Tensor() {}
   inline ~Tensor() override = default;
 
-
-  /** @defgroup ContiguousAccessorMembers Contiguous accessor member functions
-   * Public buffer access to Tensor underlying memory - Tensors are always contiguous.
-   * @{
-   */
-
-  /**
-   * @brief Returns a typed pointer to the underlying storage. If the
-   * buffer has not been allocated because it does not yet have a type,
-   * the calling type is taken to be the type of the data and the memory
-   * is allocated.
-   *
-   * If the buffer already has a valid type, and the calling type does
-   * not match, the type of the buffer is reset and the underlying
-   * storage is re-allocated if the buffer does not currently own
-   * enough memory to store the current number of elements with the
-   * new data type.
-   */
-  template <typename T>
-  inline T* mutable_data() {
-    return Buffer<Backend>::template mutable_data<T>();
-  }
-
-  /**
-   * @brief Returns a const, typed pointer to the underlying storage.
-   * The calling type must match the underlying type of the buffer.
-   */
-  template <typename T>
-  inline const T* data() const {
-    return Buffer<Backend>::template data<T>();
-  }
-
-  /**
-   * @brief Return an un-typed pointer to the underlying storage.
-   * A valid type must be set prior to calling this method by calling
-   * the non-const version of the method, or calling 'set_type'.
-   */
-  inline void* raw_mutable_data() {
-    return Buffer<Backend>::raw_mutable_data();
-  }
-
-  /**
-   * @brief Return an const, un-typed pointer to the underlying storage.
-   * A valid type must be set prior to calling this method by calling
-   * the non-const version of the method, or calling 'set_type'.
-   */
-  inline const void* raw_data() const {
-    return Buffer<Backend>::raw_data();
-  }
-
-  /** @} */  // end of ContiguousAccessorMembers
-
   /**
    *
    * @brief For tensor T of shape (s_0, s_1, ..., s_{n-1}) returns a n-1 dimensional tensor T'
