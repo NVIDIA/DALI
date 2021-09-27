@@ -70,7 +70,6 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   using Buffer<Backend>::size;
   using Buffer<Backend>::nbytes;
   using Buffer<Backend>::capacity;
-  using Buffer<Backend>::padding;
   using Buffer<Backend>::type;
   using Buffer<Backend>::type_info;
   using Buffer<Backend>::set_alloc_func;
