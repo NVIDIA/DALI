@@ -45,12 +45,55 @@ epilog=${epilog-:}
 # get the number of elements in `prolog` array
 numer_of_prolog_elms=${#prolog[@]}
 
+# turn on sanitizers
+enable_sanitizer() {
+    if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
+        # supress leaks we that are false positive or not related to DALI
+        export LSAN_OPTIONS=suppressions=$topdir/qa/leak.sup
+        export ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0:log_path=sanitizer.log:start_deactivated=true:allocator_may_return_null=1::detect_leaks=1
+        export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
+        # avoid python false positives
+        export PYTHONMALLOC=malloc
+    fi
+}
+
+# turn off sanitizer to avoid breaking any non-related system build-ins
+disable_sanitizer() {
+    if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
+        export ASAN_OPTIONS=start_deactivated=true:detect_leaks=0
+        unset ASAN_SYMBOLIZER_PATH
+        unset PYTHONMALLOC
+    fi
+}
+
 # Wrap the test_body in a subshell, where we can safely execute it with `set -e`
 # and turn it off in current shell to intercept the error code
+# when sanitizers are on, do set +e to run all the test no matter what the result is
+# and collect as much of sanitizers output as possible
 test_body_wrapper() {(
-    set -e
+    if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
+        set +e
+    else
+        set -e
+    fi
+    enable_sanitizer
     test_body
+    disable_sanitizer
 )}
+
+process_sanitizers_logs() {
+    if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
+        find $topdir -iname "sanitizer.log.*" -print0 | xargs -0 -I file cat file > $topdir/sanitizer.log
+        if [ -e $topdir/sanitizer.log ]; then
+            cat $topdir/sanitizer.log
+            grep -q ERROR $topdir/sanitizer.log || true
+            # ToDo - enable when we suppression file is completed
+            # grep -q ERROR $topdir/sanitizer.log && exit 1 || true
+        fi
+        # rm so the consequitive test won't reread the same logs over and over
+        find $topdir -iname "sanitizer.log.*" -delete
+    fi
+}
 
 # get extra index url for given packages
 extra_indices=$($topdir/qa/setup_packages.py -u $pip_packages --cuda ${CUDA_VERSION} -e)
@@ -93,7 +136,8 @@ do
         test_body_wrapper
         RV=$?
         set -e
-        if [ $RV -gt 0 ] ; then
+        # if sanitizers are enabled run test until the end so we have as much data as possible
+        if [ $RV -gt 0 ] && [ -z "$DALI_ENABLE_SANITIZERS" ]; then
             mkdir -p $topdir/core_artifacts
             cp core* $topdir/core_artifacts || true
             exit ${RV}
@@ -106,3 +150,5 @@ do
         ${epilog[variant]}
     done
 done
+
+process_sanitizers_logs

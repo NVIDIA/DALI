@@ -1,0 +1,10 @@
+# TODO when all test passes in CI we can set suppress false-positives
+leak:paddle
+leak:llvm
+#leak:PyCode_NewWithPosOnlyArgs
+#leak:PyLong_FromLong
+#leak:_PyLong_New
+#leak:PyBytes_FromString
+#leak:PyCapsule_New
+#leak:av_realloc_f
+#leak:memalign

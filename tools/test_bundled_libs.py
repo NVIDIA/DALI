@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,8 +43,10 @@ def main():
                         "librt.so.1",
                         "libstdc++.so.6",
                         "libgcc_s.so.1",
-                        "libz.so.1",
-                        "liblzma.so.5"
+                        "libasan.so",
+                        "liblsan.so",
+                        "libubsan.so",
+                        "libtsan.so"
                     ]}
 
     bundled_libs = argv[1:]
