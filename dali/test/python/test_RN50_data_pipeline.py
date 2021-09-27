@@ -201,7 +201,7 @@ small_test_data = {
             CaffeReadPipeline: [[os.path.join(data_root, "db/lmdb")]],
             Caffe2ReadPipeline: [[os.path.join(data_root, "db/c2lmdb")]],
             TFRecordPipeline: [[os.path.join(data_root, "db/tfrecord/train"), os.path.join(data_root, "db/tfrecord/train.idx")]],
-            WebdatasetPipeline: [[os.path.join(data_root, "db/webdataset/train.tar")]]
+            WebdatasetPipeline: [[os.path.join(data_root, "db/webdataset/train.tar"), os.path.join(data_root, "db/webdataset/train.idx")]]
             }
 
 parser = argparse.ArgumentParser(description='Test nvJPEG based RN50 augmentation pipeline with different datasets')
@@ -267,7 +267,7 @@ parser.add_argument('--caffe2_read_pipeline_paths', default=None, type=str, meta
 parser.add_argument('--tfrecord_pipeline_paths', default=None, type=str, metavar='N',
                     help='Add custom TFRecordPipeline paths. For a given path, a second path with an .idx extension will be added for the required idx file(s). Separate multiple paths by commas')
 parser.add_argument('--webdataset_pipeline_paths', default=None, type=str, metavar='N', 
-                    help='Add custom WebdatasetPipeline paths. Separate multiple paths by commas')
+                    help='Add custom WebdatasetPipeline paths. For a given path, a second path with an .idx extension will be added for the required idx file(s). Separate multiple paths by commas')
 parser.add_argument('--system_id', default="localhost", type=str, metavar='N',
                     help='Add a system id to denote a unique identifier for the performance output. Defaults to localhost')
 args = parser.parse_args()
@@ -321,7 +321,11 @@ if args.tfrecord_pipeline_paths:
 if args.webdataset_pipeline_paths:
     paths = args.webdataset_pipeline_paths.split(',')
     for path in paths:
-        test_data[WebdatasetPipeline].append([path])
+        idx_split_path, idx_split_file = os.path.split(path)
+        idx_split_path = idx_split_path + '.idx'
+        idx_path = os.path.join(idx_split_path, idx_split_file)
+        path_expanded = [path, idx_path]
+        test_data[WebdatasetPipeline].append(path_expanded)
 
 
 DECODER_TYPE = args.decoder_type
