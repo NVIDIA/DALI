@@ -147,7 +147,7 @@ class IndexCreator:
         for offset, name, size in (
             self._get_data_tar() if which("tar") is not None else self._get_data_tarfile()
         ):
-            if counter % report_step == 0:
+            if counter % report_step == 0 and counter > 0:
                 cur_time = time.time()
                 print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: collect")
             counter += 1
