@@ -60,18 +60,18 @@ class ShmMessage(Structure):
     _fields = ("worker_id", "i"), ("shm_chunk_id", "i"), ("shm_capacity", "i"), ("offset", "i"), ("num_bytes", "i")
 
 
-class ShmMeta:
+class BufShmChunkMeta:
 
     def __init__(self, shm_chunk_id, capacity):
         self.shm_chunk_id = shm_chunk_id
         self.capacity = capacity
 
     @classmethod
-    def from_shm_buffer(cls, shm_buffer):
-        return [cls(shm_chunk_id, shm_buffer.initial_chunk_size) for shm_chunk_id in shm_buffer.chunks_ids]
+    def from_chunk(cls, buf_shm_chunk):
+        return cls(buf_shm_chunk.shm_chunk_id, buf_shm_chunk.shm_chunk.capacity)
 
 
-class ProcessContext:
+class WorkerArgs:
     """
     Parameters[TODO]
     ----------
@@ -89,24 +89,14 @@ class ProcessContext:
     `sock` : socket
         Python wrapper around Unix socket used to pass file descriptors identifying shared memory chunk to parent process.[TODO]"""
 
-    def __init__(self, worker_id, start_method, sources_desc, contexts, general_task_queue,
-                 exclusive_task_queue, result_queue, sock_reader, callback_pickler):
-        if start_method != "fork":
-            contexts_shm = {
-                context_i : ShmMeta.from_shm_buffer(contexts[context_i].shm_buffer)
-                for context_i in sources_desc}
-        else:
-            shm_buffers = [contexts[context_i].shm_buffer for context_i in sources_desc]
-            contexts_shm = {
-                shm_id : shm_buffer.get_chunk_by_id(shm_id)
-                for shm_buffer in shm_buffers
-                for shm_id in shm_buffer.chunks_ids}
+    def __init__(self, worker_id, start_method, sources_desc, shm_chunks, general_task_queue,
+                 dedicated_task_queue, result_queue, sock_reader, callback_pickler):
         self.worker_id = worker_id
         self.start_method = start_method
         self.sources_desc = sources_desc
-        self.contexts_shm = contexts_shm
+        self.shm_chunks = shm_chunks
         self.general_task_queue = general_task_queue
-        self.exclusive_task_queue = exclusive_task_queue
+        self.dedicated_task_queue = dedicated_task_queue
         self.result_queue = result_queue
         self.sock_reader = sock_reader
         self.callback_pickler = callback_pickler

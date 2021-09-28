@@ -76,7 +76,7 @@ def training_test(args):
             reader_queue_depth=args.reader_queue_depth,
             py_start_method=args.worker_init,
             py_num_workers=args.py_workers,
-            batch_mode=args.batch_mode,
+            source_mode=args.source_mode,
             mixed_decode=args.mixed_decode,)
 
         # Start the pipeline workers first, before any CUDA call. The first pipeline factory

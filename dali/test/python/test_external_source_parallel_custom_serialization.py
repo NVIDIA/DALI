@@ -76,10 +76,10 @@ def dumps(obj, **kwargs):
 
 
 def loads(data, **kwargs):
-    callbacks = dali_pickle._DaliPickle.loads(data)
+    obj = dali_pickle._DaliPickle.loads(data)
     if kwargs.get('special_loads_param') == 84:
-        return [cb if cb.__name__ != 'callback_const_84' else callback_const_42 for cb in callbacks]
-    return callbacks
+        return obj if obj.__name__ != 'callback_const_84' else callback_const_42
+    return obj
 
 
 # Register dummy reducer for custom type to check if DALI pickler did not interfere with

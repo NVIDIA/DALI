@@ -20,35 +20,34 @@ import socket
 from collections import deque
 from multiprocessing import reduction
 from nvidia.dali._utils.external_source_impl import SourceKind, _is_generator_function
-from nvidia.dali._multiproc.shared_batch import SharedBatchWriter, SharedBatchMeta, assert_valid_data_type, \
-    read_shm_message, write_shm_message
-from nvidia.dali._multiproc.messages import CompletedTask, ProcessContext, ShmMessage
+from nvidia.dali._multiproc.shared_batch import SharedBatchWriter, SharedBatchMeta, BufShmChunk, \
+    assert_valid_data_type, read_shm_message, write_shm_message
+from nvidia.dali._multiproc.messages import CompletedTask, WorkerArgs, ShmMessage, ScheduledTask
 from nvidia.dali._multiproc import shared_mem
-from nvidia.dali._multiproc.shared_queue import Dispatcher, DispatcherWorker
+from nvidia.dali._multiproc.shared_queue import Dispatcher, DispatcherWorker, ShmQueue
 
 
 class _ProcessedTask:
     """Internal worker message send to disptacher with completed tasks where it is
     serialized and dispatched to the pool"""
 
-    def __init__(self, scheduled, shm_chunk, shm_chunk_id, data_batch=None, exception=None,
+    def __init__(self, scheduled, shm_chunk, data_batch=None, exception=None,
                  traceback_str=None):
         self.context_i = scheduled.context_i
         self.scheduled_i = scheduled.scheduled_i
         self.minibatch_i = scheduled.task.minibatch_i
-        self.shm_chunk_id = shm_chunk_id
         self.shm_chunk = shm_chunk
         self.data_batch = data_batch
         self.exception = exception
         self.traceback_str = traceback_str
 
     @classmethod
-    def done(cls, scheduled, shm_chunk, shm_chunk_id, data_batch):
-        return cls(scheduled, shm_chunk, shm_chunk_id, data_batch)
+    def done(cls, scheduled, shm_chunk, data_batch):
+        return cls(scheduled, shm_chunk, data_batch)
 
     @classmethod
-    def failed(cls, scheduled, shm_chunk, shm_chunk_id, exception, traceback_str=None):
-        return cls(scheduled, shm_chunk, shm_chunk_id, exception=exception, traceback_str=traceback_str)
+    def failed(cls, scheduled, shm_chunk, exception, traceback_str=None):
+        return cls(scheduled, shm_chunk, exception=exception, traceback_str=traceback_str)
 
     def is_failed(self):
         return self.exception is not None
@@ -59,26 +58,24 @@ class SharedBatchDispatcherWorker(DispatcherWorker):
     shared memory chunks along with completed task description and puts information
     about ready chunks into the `queue`"""
 
-    def __init__(self, pending_cv, pending, queue, worker_id, recv_queues):
+    def __init__(self, worker_id, recv_queues, pending_cv, pending, queue):
         super().__init__(pending_cv, pending, queue)
         self.worker_id = worker_id
         self.recv_queues = recv_queues
 
-    def serialize_failed_task(self, processed_task):
+    def serialize_failed_task(self, processed_task : _ProcessedTask):
         shm_chunk = processed_task.shm_chunk
-        shm_chunk_id = processed_task.shm_chunk_id
         completed_task = CompletedTask.failed(self.worker_id, processed_task)
         return write_shm_message(
-            self.worker_id, shm_chunk, shm_chunk_id, completed_task, 0, resize=True)
+            self.worker_id, shm_chunk, completed_task, 0, resize=True)
 
-    def serialize_done_task(self, processed_task):
+    def serialize_done_task(self, processed_task : _ProcessedTask):
         shm_chunk = processed_task.shm_chunk
-        shm_chunk_id = processed_task.shm_chunk_id
-        sbw = SharedBatchWriter(shm_chunk, processed_task.data_batch)
+        sbw = SharedBatchWriter(shm_chunk.shm_chunk, processed_task.data_batch)
         batch_meta = SharedBatchMeta.from_writer(sbw)
         completed_task = CompletedTask.done(self.worker_id, processed_task, batch_meta)
         return write_shm_message(
-            self.worker_id, shm_chunk, shm_chunk_id, completed_task, sbw.total_size, resize=True)
+            self.worker_id, shm_chunk, completed_task, sbw.total_size, resize=True)
 
     def serialize_msgs(self, processed_tasks: List[_ProcessedTask]):
         shm_msgs = []
@@ -150,8 +147,8 @@ class MixedTaskReceiver:
         self.state = self.MixedReceiverState()
         self.threads = []
 
-    def start_thread(self, excl_worker, general_worker):
-        for worker in (excl_worker, general_worker):
+    def start_threads(self, workers):
+        for worker in workers:
             thread = threading.Thread(target=worker.receiver_loop, daemon=True)
             thread.start()
             self.threads.append(thread)
@@ -215,14 +212,17 @@ class IdleReceiverWorker:
         with self.receiver_state.idle_cv:
             return not self.receiver_state.is_interrupted and self._is_idle_state()
 
+    def wait(self):
+        with self.receiver_state.idle_cv:
+            while not self.receiver_state.is_interrupted and not self._is_idle_state():
+                self.receiver_state.idle_cv.wait()
+            return self.receiver_state.is_interrupted
+
     def receiver_loop(self):
         try:
             while True:
-                with self.receiver_state.idle_cv:
-                    while not self.receiver_state.is_interrupted and not self._is_idle_state():
-                        self.receiver_state.idle_cv.wait()
-                    if self.receiver_state.is_interrupted:
-                        break
+                if self.wait():
+                    break
                 # Worker has no dedicated work to do (is idle), so take one task from general queue.
                 # If general queue is empty, the call will block and then recheck the condition
                 recv = self.recv_queue.get(get_if_waited=self._recheck_should_take)
@@ -235,31 +235,43 @@ class IdleReceiverWorker:
 
 
 class IterableSource:
+    """Wraps iterator/generator passed to External Source to enforce ES `cycle` policy specified by the user.
+    It is a counterpart of _CycleIter/_CycleGenIter wrappers from non parallel mode.
+    However due to prefetching in parallel mode `cycle`=raise will raise StopIteration in consecutive calls
+    until the new epoch starts (i.e. which happens with pipline.reset call)"""
 
     def __init__(self, source_desc):
         self.source_desc = source_desc
-        self.epoch_start = 0
-        self.raised_stop_iter = False
-        self.iter = IterableSource.get_iter(source_desc)
+        self.reset(epoch_start=0)
 
-    def __call__(self, scheduled):
+    def __call__(self, scheduled : ScheduledTask):
         epoch_start = scheduled.epoch_start
         if self.raised_stop_iter:
             # if iterator is not resetable after failure or epoch was not restarted
             if epoch_start <= self.epoch_start or self.source_desc.cycle != "raise":
                 raise StopIteration
             else:
-                self.iter = IterableSource.get_iter(self.source_desc)
-                self.raised_stop_iter = False
-                self.epoch_start = epoch_start
+                self.reset(epoch_start)
+        try:
+            return self.get_next()
+        except StopIteration:
+            if self.source_desc.cycle != "quiet":
+                raise
+            # in quiet mode immediately reset the source and return first iteration
+            self.reset(epoch_start)
+            return self.get_next()
+
+    def reset(self, epoch_start):
+        self.iter = IterableSource.get_iter(self.source_desc)
+        self.raised_stop_iter = False
+        self.epoch_start = epoch_start
+
+    def get_next(self):
         try:
             return next(self.iter)
         except StopIteration:
-            if self.source_desc.cycle != "quiet":
-                self.raised_stop_iter = True
-                raise
-            self.iter = IterableSource.get_iter(self.source_desc)
-            return next(self.iter)
+            self.raised_stop_iter = True
+            raise
 
     @staticmethod
     def get_iter(source_desc):
@@ -274,7 +286,7 @@ class CallableSource:
     def __init__(self, source_desc):
         self.callback = source_desc.source
 
-    def __call__(self, scheduled):
+    def __call__(self, scheduled : ScheduledTask):
         task = scheduled.task
         if task.is_sample_mode():
             data_batch = [self.callback(*task_args) for task_args in task.samples_args]
@@ -302,10 +314,10 @@ def init_callbacks(sources_desc, callback_pickler):
     return callbacks
 
 
-def recv_shm(socket, capacity):
+def recv_shm(sock_reader, capacity):
     handle, shm_chunk = -1, None
     try:
-        handle = reduction.recv_handle(socket)
+        handle = reduction.recv_handle(sock_reader)
         assert os.fstat(handle).st_size >= capacity
         return shared_mem.SharedMem.open(handle, capacity)
     except:
@@ -318,37 +330,37 @@ def recv_shm(socket, capacity):
         raise
 
 
-def init_queue(sock_reader, queue):
-    shm = recv_shm(sock_reader, queue.shm_min_capacity)
+def init_queue(sock_reader, queue : ShmQueue):
+    shm = recv_shm(sock_reader, queue.shm_capacity)
     queue.set_shm(shm)
+    shm.seal()
     return queue
 
 
-def init_task_receiver(general_task_queue, exclusive_task_queue, sock_reader):
-    assert general_task_queue is not None or exclusive_task_queue is not None
-    if exclusive_task_queue is None or general_task_queue is None:
-        return SimpleQueueTaskReceiver(general_task_queue or exclusive_task_queue)
-    receiver = MixedTaskReceiver([general_task_queue, exclusive_task_queue])
-    excl_worker = EagerReceiverWorker(exclusive_task_queue, receiver.state)
+def init_task_receiver(general_task_queue, dedicated_task_queue):
+    assert general_task_queue is not None or dedicated_task_queue is not None
+    if dedicated_task_queue is None or general_task_queue is None:
+        return SimpleQueueTaskReceiver(general_task_queue or dedicated_task_queue)
+    receiver = MixedTaskReceiver([general_task_queue, dedicated_task_queue])
+    excl_worker = EagerReceiverWorker(dedicated_task_queue, receiver.state)
     general_worker = IdleReceiverWorker(general_task_queue, receiver.state)
-    receiver.start_thread(excl_worker, general_worker)
+    receiver.start_threads([excl_worker, general_worker])
     return receiver
 
 
-def init_shm(contexts_shm, sock_reader):
+def init_shm(shm_chunks_meta, sock_reader):
     shm_chunks = {}
-    contexts_range = max(contexts_shm.keys()) + 1
-    for context_i in range(contexts_range):
-        if context_i not in contexts_shm:
-            continue
-        for shm_meta in contexts_shm[context_i]:
-            shm_chunks[shm_meta.shm_chunk_id] = recv_shm(sock_reader, shm_meta.capacity)
+    for shm_chunk_meta in shm_chunks_meta:
+        shm_chunk_id = shm_chunk_meta.shm_chunk_id
+        shm = recv_shm(sock_reader, shm_chunk_meta.capacity)
+        shm_chunks[shm_chunk_id] = BufShmChunk(shm_chunk_id, shm)
     return shm_chunks
 
 
 def init_dispatcher(worker_id, results_queue, recv_queues):
     dispatcher = Dispatcher(results_queue)
-    worker = SharedBatchDispatcherWorker(dispatcher.pending_cv, dispatcher.pending, results_queue, worker_id, recv_queues)
+    worker = SharedBatchDispatcherWorker(
+        worker_id, recv_queues, dispatcher.pending_cv, dispatcher.pending, results_queue)
     dispatcher.start_thread(worker)
     return dispatcher
 
@@ -360,7 +372,7 @@ def sync_init(worker_id, result_queue, sock_reader):
     sock_reader.close()
 
 
-def worker(process_context : ProcessContext):
+def worker(worker_args : WorkerArgs):
     """Entry point of worker process.
 
     Computes the data in the main thread, in separate threads:
@@ -369,30 +381,29 @@ def worker(process_context : ProcessContext):
 
     [TODO]
     """
-    callbacks = init_callbacks(process_context.sources_desc, process_context.callback_pickler)
-    if process_context.start_method == "fork":
-        shm_chunks = process_context.contexts_shm
+    callbacks = init_callbacks(worker_args.sources_desc, worker_args.callback_pickler)
+    if worker_args.start_method == "fork":
+        shm_chunks = {shm.shm_chunk_id : shm for shm in worker_args.shm_chunks}
     else:
-        init_queue(process_context.sock_reader, process_context.result_queue)
-        if process_context.general_task_queue is not None:
-            init_queue(process_context.sock_reader, process_context.general_task_queue)
-        if process_context.exclusive_task_queue is not None:
-            init_queue(process_context.sock_reader, process_context.exclusive_task_queue)
-        shm_chunks = init_shm(process_context.contexts_shm, process_context.sock_reader)
-        sync_init(process_context.worker_id, process_context.result_queue, process_context.sock_reader)
+        init_queue(worker_args.sock_reader, worker_args.result_queue)
+        if worker_args.general_task_queue is not None:
+            init_queue(worker_args.sock_reader, worker_args.general_task_queue)
+        if worker_args.dedicated_task_queue is not None:
+            init_queue(worker_args.sock_reader, worker_args.dedicated_task_queue)
+        shm_chunks = init_shm(worker_args.shm_chunks, worker_args.sock_reader)
+        sync_init(worker_args.worker_id, worker_args.result_queue, worker_args.sock_reader)
     task_receiver, batch_dispatcher = None, None
     try:
         task_receiver = init_task_receiver(
-            process_context.general_task_queue, process_context.exclusive_task_queue,
-            process_context.sock_reader)
-        batch_dispatcher = init_dispatcher(process_context.worker_id, process_context.result_queue, task_receiver.get_recv_queues())
+            worker_args.general_task_queue, worker_args.dedicated_task_queue)
+        batch_dispatcher = init_dispatcher(
+            worker_args.worker_id, worker_args.result_queue, task_receiver.get_recv_queues())
         while True:
             scheduled_meta = task_receiver.get_task()
             if scheduled_meta is None:
                 break
-            shm_chunk_id = scheduled_meta.shm_chunk_id
-            shm_chunk = shm_chunks[shm_chunk_id]
-            scheduled = read_shm_message(shm_chunk, scheduled_meta)
+            shm_chunk = shm_chunks[scheduled_meta.shm_chunk_id]
+            scheduled = read_shm_message(shm_chunk.shm_chunk, scheduled_meta)
             try:
                 callback = callbacks[scheduled.context_i]
                 data_batch = callback(scheduled)
@@ -400,15 +411,12 @@ def worker(process_context : ProcessContext):
                     assert_valid_data_type(sample)
             except Exception as exception:
                 tb_str = traceback.format_exc()
-                processed = _ProcessedTask.failed(scheduled, shm_chunk, shm_chunk_id, exception, tb_str)
+                processed = _ProcessedTask.failed(scheduled, shm_chunk, exception, tb_str)
             else:
-                processed = _ProcessedTask.done(scheduled, shm_chunk, shm_chunk_id, data_batch)
+                processed = _ProcessedTask.done(scheduled, shm_chunk, data_batch)
             batch_dispatcher.append(processed)
     finally:
         if batch_dispatcher is not None:
             batch_dispatcher.close()
         if task_receiver is not None:
             task_receiver.close()
-        if shm_chunks is not None:
-            for shm_chunk in shm_chunks.values():
-                shm_chunk.close()

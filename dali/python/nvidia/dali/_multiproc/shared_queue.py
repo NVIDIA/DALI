@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List, Optional
 import threading
 from nvidia.dali._multiproc import shared_mem
 from nvidia.dali._multiproc.messages import Structure, ShmMessage
@@ -36,8 +37,8 @@ class ShmQueue:
         self.meta_capacity = align_up(self.meta.get_size(), self.ALIGN_UP_MSG)
         dummy_msg = self.MSG_CLASS()
         self.msg_capacity = align_up(dummy_msg.get_size(), self.ALIGN_UP_MSG)
-        self.shm_min_capacity = align_up(self.meta_capacity + capacity * self.msg_capacity, self.ALIGN_UP_BUFFER)
-        self.shm = shared_mem.SharedMem.allocate(self.shm_min_capacity)
+        self.shm_capacity = align_up(self.meta_capacity + capacity * self.msg_capacity, self.ALIGN_UP_BUFFER)
+        self.shm = shared_mem.SharedMem.allocate(self.shm_capacity)
         self.is_closed = False
         self.init_offsets()
         self.write_meta()
@@ -56,7 +57,7 @@ class ShmQueue:
         self.msgs_offsets = [i * self.msg_capacity + self.meta_capacity for i in range(self.capacity)]
 
     def set_shm(self, shm):
-        assert self.shm is None and shm.capacity >= self.shm_min_capacity
+        assert self.shm is None and shm.capacity >= self.shm_capacity
         self.shm = shm
 
     def read_meta(self):
@@ -93,7 +94,7 @@ class ShmQueue:
                 # of the underlying semaphore.
                 self.cv_empty.notify()
 
-    def put(self, msgs):
+    def put(self, msgs : List[MSG_CLASS]) -> Optional[int]:
         if self.is_closed or not msgs:
             return
         with self.lock:
@@ -131,7 +132,7 @@ class ShmQueue:
             self.read_meta()
         return waited
 
-    def get(self, num_samples=1, get_if_waited=None):
+    def get(self, num_samples=1, get_if_waited=None) -> Optional[List[MSG_CLASS]]:
         if self.is_closed:
             return
         with self.cv_empty:
@@ -161,6 +162,9 @@ class Dispatcher:
         if self.queue is not None:
             self.queue.close()
             self.queue = None
+        self.stop_thread()
+
+    def stop_thread(self):
         if self.thread is not None:
             self.append(None)
             self.thread.join()

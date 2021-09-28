@@ -215,24 +215,34 @@ class SharedBatchWriter:
         shm_chunk.resize(new_capacity, trunc=True)
 
 
-def read_shm_message(shm_chunk, shm_message):
+class BufShmChunk:
+    def __init__(self, shm_chunk_id, shm_chunk : shared_mem.SharedMem):
+        self.shm_chunk_id = shm_chunk_id
+        self.shm_chunk = shm_chunk
+
+    @classmethod
+    def allocate(cls, shm_chunk_id, initial_chunk_size):
+        return cls(shm_chunk_id, shared_mem.SharedMem.allocate(initial_chunk_size))
+
+
+def read_shm_message(shm_chunk : shared_mem.SharedMem, shm_message):
     if shm_message.shm_capacity != shm_chunk.capacity:
         shm_chunk.resize(shm_message.shm_capacity, trunc=False)
     buffer = shm_chunk.buf[shm_message.offset:shm_message.offset+shm_message.num_bytes]
     return pickle.loads(buffer)
 
 
-def write_shm_message(worker_id, shm_chunk, shm_chunk_id, message, offset, resize=True):
+def write_shm_message(worker_id, shm : BufShmChunk, message, offset, resize=True):
     serialized_message = pickle.dumps(message)
     num_bytes = len(serialized_message)
-    if num_bytes > shm_chunk.capacity - offset:
+    if num_bytes > shm.shm_chunk.capacity - offset:
         if resize:
-            SharedBatchWriter.resize_shm_chunk(shm_chunk, offset + num_bytes)
+            SharedBatchWriter.resize_shm_chunk(shm.shm_chunk, offset + num_bytes)
         else:
             raise RuntimeError(
                 "Could not put message into shared memory region, not enough space in the buffer. "
                 "Consider specifying `bytes_per_minibatch_hint` of parallel external source to at "
                 "least {}".format(offset + num_bytes))
-    buffer = shm_chunk.buf[offset:offset+num_bytes]
+    buffer = shm.shm_chunk.buf[offset:offset+num_bytes]
     buffer[:] = serialized_message
-    return ShmMessage(worker_id, shm_chunk_id, shm_chunk.capacity, offset, num_bytes)
+    return ShmMessage(worker_id, shm.shm_chunk_id, shm.shm_chunk.capacity, offset, num_bytes)

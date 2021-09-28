@@ -140,8 +140,8 @@ class _ExternalSourceGroup(object):
             pool.schedule_batch(context_i, dst_chunk_i, WorkBatch.batch_mode(
                 self.callback_args(None, epoch_idx, lead=lead)))
         else:
-            pool.schedule_batch(context_i, dst_chunk_i, WorkBatch.sample_mode(
-                self.callback_args(i, epoch_idx, batch_size, lead) for i in range(batch_size)))
+            pool.schedule_batch(context_i, dst_chunk_i, WorkBatch.sample_mode([
+                self.callback_args(i, epoch_idx, batch_size, lead) for i in range(batch_size)]))
 
     def schedule_and_receive(self, pipeline, pool, context_i, batch_size, epoch_idx):
         """Obtain the computed results of calling source callback in parallel pool and feed
