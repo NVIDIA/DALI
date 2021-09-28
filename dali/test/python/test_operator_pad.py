@@ -20,8 +20,7 @@ import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
-import os
-from nose.tools import assert_raises
+from nose_utils import assert_raises
 
 from test_utils import RandomlyShapedDataIterator
 
@@ -150,7 +149,8 @@ def test_pad_error():
                                 align=align, shape_arg=shape_arg, layout=layout)
 
     pipe.build()
-    assert_raises(RuntimeError, pipe.run)
+    with assert_raises(RuntimeError, glob='Values of `align` argument must be positive.'):
+        pipe.run()
 
 def is_aligned(sh, align, axes):
     assert len(sh) == len(align)

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -140,7 +140,7 @@ class Argument {
   bool IsType();
 
   template <typename T>
-  static Argument* Store(const std::string& s, const T& val);
+  static std::shared_ptr<Argument> Store(const std::string& s, const T& val);
 
   virtual ~Argument() = default;
 
@@ -219,7 +219,7 @@ class ArgumentInst<std::vector<T>> : public Argument {
   ValueInst<std::vector<T>> val;
 };
 
-DLL_PUBLIC Argument* DeserializeProtobuf(const DaliProtoPriv &arg);
+DLL_PUBLIC std::shared_ptr<Argument> DeserializeProtobuf(const DaliProtoPriv &arg);
 
 template <typename T>
 bool Argument::IsType() {
@@ -237,8 +237,8 @@ T Argument::Get() {
 }
 
 template <typename T>
-Argument* Argument::Store(const std::string& s, const T& val) {
-  return new ArgumentInst<T>(s, val);
+std::shared_ptr<Argument> Argument::Store(const std::string& s, const T& val) {
+  return std::shared_ptr<Argument>(new ArgumentInst<T>(s, val));
 }
 
 }  // namespace dali

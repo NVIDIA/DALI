@@ -318,11 +318,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     for (int i = 0; i < ws.NumOutput(); i++) {
       auto &desc = output_desc[i];
       if (ws.template OutputIsType<CPUBackend>(i)) {
-        ws.template OutputRef<CPUBackend>(i).Resize(desc.shape);
-        ws.template OutputRef<CPUBackend>(i).set_type(desc.type);
+        ws.template OutputRef<CPUBackend>(i).Resize(desc.shape, desc.type);
       } else {
-        ws.template OutputRef<GPUBackend>(i).Resize(desc.shape);
-        ws.template OutputRef<GPUBackend>(i).set_type(desc.type);
+        ws.template OutputRef<GPUBackend>(i).Resize(desc.shape, desc.type);
       }
     }
   } else {

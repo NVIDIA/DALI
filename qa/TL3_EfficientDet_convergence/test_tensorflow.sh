@@ -26,8 +26,8 @@ python train.py                                                                 
     --eval_after_training                                                                           \
     --log_dir .                                                                                     \
     --ckpt_dir .                                                                                    \
-    --output_filename out_weights_1.h5  2>&1 | tee $LOG  
+    --output_filename out_weights_1.h5  2>&1 | tee $LOG
 
 popd
 
-CLEAN_AND_EXIT 0
+CLEAN_AND_EXIT ${PIPESTATUS[0]}

@@ -80,6 +80,8 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DVERBOSE_LOGS=${VERBOSE_LOGS:-OFF}                 \
       -DWERROR=${WERROR:-ON}                              \
       -DBUILD_WITH_ASAN=${BUILD_WITH_ASAN:-OFF}           \
+      -DBUILD_WITH_LSAN=${BUILD_WITH_LSAN:-OFF}           \
+      -DBUILD_WITH_UBSAN=${BUILD_WITH_UBSAN:-OFF}         \
       -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}     \
       -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA-${GIT_FULL_HASH}} \
       ..
@@ -99,7 +101,7 @@ DEPS_LIST=(
     "$PREFIX/lib/libavcodec.so.58"
     "$PREFIX/lib/libavfilter.so.7"
     "$PREFIX/lib/libavutil.so.56"
-    "$PREFIX/lib/libswscale.so.58"
+    "$PREFIX/lib/libswscale.so.5"
 )
 
 DEPS_SONAME=(
@@ -107,7 +109,7 @@ DEPS_SONAME=(
     "libavcodec.so.58"
     "libavfilter.so.7"
     "libavutil.so.56"
-    "libswscale.so.58"
+    "libswscale.so.5"
 )
 
 PKGNAME_PATH=dali/python/nvidia/dali/
