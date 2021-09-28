@@ -101,6 +101,7 @@ DEPS_LIST=(
     "$PREFIX/lib/libavcodec.so.58"
     "$PREFIX/lib/libavfilter.so.7"
     "$PREFIX/lib/libavutil.so.56"
+    "$PREFIX/lib/libswscale.so.5"
 )
 
 DEPS_SONAME=(
@@ -108,6 +109,7 @@ DEPS_SONAME=(
     "libavcodec.so.58"
     "libavfilter.so.7"
     "libavutil.so.56"
+    "libswscale.so.5"
 )
 
 PKGNAME_PATH=dali/python/nvidia/dali/

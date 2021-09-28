@@ -139,7 +139,7 @@ if(BUILD_FFMPEG)
   set(PKG_CONFIG_USE_CMAKE_PREFIX_PATH YES)
 
   find_package(PkgConfig REQUIRED)
-  foreach(m avformat avcodec avfilter avutil)
+  foreach(m avformat avcodec avfilter avutil swscale)
       # We do a find_library only if FFMPEG_ROOT_DIR is provided
       if(NOT FFMPEG_ROOT_DIR)
         string(TOUPPER ${m} M)
