@@ -21,4 +21,4 @@ python src/main.py train \
     --eval_annotations /data/coco/coco-2017/coco2017/annotations/instances_val2017.json 2>&1 | tee $LOG
 
 
-CLEAN_AND_EXIT 0
+CLEAN_AND_EXIT ${PIPESTATUS[0]}
