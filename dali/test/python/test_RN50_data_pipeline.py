@@ -155,6 +155,30 @@ class TFRecordPipeline(CommonPipeline):
         labels = inputs["image/class/label"]
         return self.base_define_graph(images, labels)
 
+class WebdatasetPipeline(CommonPipeline):
+    def __init__(self, data_paths, decoder_cache_params, shard_id, num_shards, random_shuffle, dont_use_mmap, **kwargs):
+        super(WebdatasetPipeline, self).__init__(data_paths=data_paths,
+                                                 decoder_cache_params=decoder_cache_params,
+                                                 shard_id=shard_id,
+                                                 num_shards=num_shards,
+                                                 random_shuffle=random_shuffle,
+                                                 dont_use_mmap=dont_use_mmap,
+                                                 **kwargs)
+        wds, wds_idx = data_paths[:2]
+
+        cache_enabled = decoder_cache_params['cache_enabled']
+        self.input = ops.readers.Webdataset(paths = wds,
+                                            index_paths = wds_idx,
+                                            ext = ["jpg", "cls"],
+                                            shard_id = shard_id,
+                                            num_shards = num_shards,
+                                            random_shuffle = random_shuffle,
+                                            dont_use_mmap = dont_use_mmap,
+                                            stick_to_shard=cache_enabled)
+
+    def define_graph(self):
+        return self.base_define_graph(*self.input(name="Reader"))
+
 test_data = {
             FileReadPipeline: [["/data/imagenet/train-jpeg"],
                                ["/data/imagenet/val-jpeg"]],
@@ -174,7 +198,8 @@ small_test_data = {
             MXNetReaderPipeline: [[os.path.join(data_root, "db/recordio/train.rec"), os.path.join(data_root, "db/recordio/train.idx")]],
             CaffeReadPipeline: [[os.path.join(data_root, "db/lmdb")]],
             Caffe2ReadPipeline: [[os.path.join(data_root, "db/c2lmdb")]],
-            TFRecordPipeline: [[os.path.join(data_root, "db/tfrecord/train"), os.path.join(data_root, "db/tfrecord/train.idx")]]
+            TFRecordPipeline: [[os.path.join(data_root, "db/tfrecord/train"), os.path.join(data_root, "db/tfrecord/train.idx")]],
+            WebdatasetPipeline: [[os.path.join(data_root, "db/webdataset/train.tar"), os.path.join(data_root, "db/webdataset/train.idx")]]
             }
 
 parser = argparse.ArgumentParser(description='Test nvJPEG based RN50 augmentation pipeline with different datasets')
@@ -239,6 +264,8 @@ parser.add_argument('--caffe2_read_pipeline_paths', default=None, type=str, meta
                     help='Add custom Caffe2ReadPipeline paths. Separate multiple paths by commas')
 parser.add_argument('--tfrecord_pipeline_paths', default=None, type=str, metavar='N',
                     help='Add custom TFRecordPipeline paths. For a given path, a second path with an .idx extension will be added for the required idx file(s). Separate multiple paths by commas')
+parser.add_argument('--webdataset_pipeline_paths', default=None, type=str, metavar='N', 
+                    help='Add custom WebdatasetPipeline paths. For a given path, a second path with an .idx extension will be added for the required idx file(s). Separate multiple paths by commas')
 parser.add_argument('--system_id', default="localhost", type=str, metavar='N',
                     help='Add a system id to denote a unique identifier for the performance output. Defaults to localhost')
 args = parser.parse_args()
@@ -289,6 +316,15 @@ if args.tfrecord_pipeline_paths:
         idx_path = os.path.join(idx_split_path, idx_split_file)
         path_expanded = [path, idx_path]
         test_data[TFRecordPipeline].append(path_expanded)
+if args.webdataset_pipeline_paths:
+    paths = args.webdataset_pipeline_paths.split(',')
+    for path in paths:
+        idx_split_path, idx_split_file = os.path.split(path)
+        idx_split_path = idx_split_path + '.idx'
+        idx_path = os.path.join(idx_split_path, idx_split_file)
+        path_expanded = [path, idx_path]
+        test_data[WebdatasetPipeline].append(path_expanded)
+
 
 DECODER_TYPE = args.decoder_type
 CACHED_DECODING = DECODER_TYPE == 'cached'

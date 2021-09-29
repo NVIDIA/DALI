@@ -10,5 +10,6 @@ Data Loading
    dataloading_lmdb.ipynb
    dataloading_recordio.ipynb
    dataloading_tfrecord.ipynb
+   dataloading_webdataset.ipynb
    coco_reader.ipynb
    numpy_reader.ipynb
