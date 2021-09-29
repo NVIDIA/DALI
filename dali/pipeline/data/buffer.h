@@ -37,6 +37,7 @@ class CPUBackend;
 
 DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, GPUBackend *);
 DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, CPUBackend *);
+DLL_PUBLIC bool RestrictPinnedMemUsage();
 
 template <typename Backend>
 inline shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned) {
@@ -412,6 +413,8 @@ class DLL_PUBLIC Buffer {
   static double growth_factor_;
   static double shrink_threshold_;
 
+  static bool default_pinned();
+
   TypeInfo type_ = {};               // Data type of underlying storage
   shared_ptr<void> data_ = nullptr;  // Pointer to underlying storage
   AllocFunc allocate_;               // Custom allocation function
@@ -419,7 +422,7 @@ class DLL_PUBLIC Buffer {
   size_t num_bytes_ = 0;             // To keep track of the true size of the underlying allocation
   int device_ = CPU_ONLY_DEVICE_ID;  // device the buffer was allocated on
   bool shares_data_ = false;         // Whether we aren't using our own allocation
-  bool pinned_ = true;               // Whether the allocation uses pinned memory
+  bool pinned_ = !RestrictPinnedMemUsage();  // Whether the allocation uses pinned memory
 };
 
 template <typename Backend>

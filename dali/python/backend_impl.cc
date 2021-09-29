@@ -183,6 +183,8 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
     batch->set_pinned(true);
   } else if (dl_tensor.device.device_type == kDLCPU) {
     batch->set_device_id(-1);
+    if (RestrictPinnedMemUsage())
+      batch->set_pinned(false);
   } else if (dl_tensor.device.device_type == kDLCUDA) {
     batch->set_device_id(dl_tensor.device.device_id);
   } else {
