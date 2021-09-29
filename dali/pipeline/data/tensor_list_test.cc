@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/data/tensor_list.h"
-
 #include <gtest/gtest.h>
+#include <utility>
 
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
+#include "dali/pipeline/data/tensor_list.h"
 #include "dali/test/dali_test.h"
 
 namespace dali {
@@ -516,7 +516,8 @@ TYPED_TEST(TensorListTest, TestShareData) {
   tensor_list2.ShareData(&tensor_list);
   // We need to use the same size as the underlying buffer
   // N.B. using other type is UB in most cases
-  tensor_list2.Resize({{{tensor_list.size()}}});
+  auto flattened_shape = collapse_dims(shape, {std::make_pair(0, shape.sample_dim())});
+  tensor_list2.Resize(flattened_shape);
   tensor_list2.template set_type<float>();
 
   // Make sure the pointers match
