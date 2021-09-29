@@ -51,6 +51,7 @@ def general_corner_case(
         math.ceil(num_samples / test_batch_size),
     )
 
+
 def test_mmap_dtype_incompatibility():
     assert_raises(
         RuntimeError,
@@ -59,12 +60,14 @@ def test_mmap_dtype_incompatibility():
         glob="component size and dtype incompatible",
     )
 
+
 def test_lazy_init():
     general_corner_case(lazy_init=True)
 
 
 def test_read_ahead():
     general_corner_case(read_ahead=True)
+
 
 def test_single_sample():
     test_batch_size = 1
@@ -180,8 +183,6 @@ def test_wide_sample():
     assert_equal(list(wds_pipeline.epoch_size().values())[0], num_samples)
 
 
-
-
 def test_argument_errors():
     def paths_index_paths_error():
         webdataset_pipeline = webdataset_raw_pipeline(
@@ -190,7 +191,7 @@ def test_argument_errors():
                 os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-1.tar"),
                 os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-2.tar"),
             ],
-            [],
+            ["test.idx"],
             ["jpg", "cls"],
             batch_size=1,
             device_id=0,
@@ -277,5 +278,5 @@ def test_index_errors():
         general_index_error,
         b"v1.1 1\njpg 51200 1",
         "db/webdataset/sample-tar/empty.tar",
-        glob="offset is outside of the archive file"
+        glob="offset is outside of the archive file",
     )

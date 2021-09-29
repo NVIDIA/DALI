@@ -128,10 +128,9 @@ inline void ParseTarFile(std::vector<SampleDesc>& samples_container,
   int64_t initial_file_pos = tar_file->Tell();
   TarArchive tar_archive(std::move(tar_file));
 
-  std::string last_filename;
-  SampleDesc new_sample;
-  new_sample.components =
-      VectorRange<ComponentDesc>(components_container, components_container.size());
+  std::string last_filename; 
+  std::tie(last_filename, std::ignore) = split_name(tar_archive.GetFileName());
+  size_t last_components_size = components_container.size();
   for (; !tar_archive.EndOfArchive(); tar_archive.NextFile()) {
     if (tar_archive.GetFileType() != TarArchive::ENTRY_FILE) {
       continue;
@@ -145,18 +144,23 @@ inline void ParseTarFile(std::vector<SampleDesc>& samples_container,
     }
 
     if (filename != last_filename) {
-      samples_container.emplace_back(std::move(new_sample));
-      new_sample.components =
-          VectorRange<ComponentDesc>(components_container, components_container.size());
+      samples_container.emplace_back();
+      samples_container.back().components =
+          VectorRange<ComponentDesc>(components_container, last_components_size,
+                                     components_container.size() - last_components_size);
+      last_filename = filename;
+      last_components_size = components_container.size();
     }
 
     components_container.emplace_back();
-    new_sample.components.num++;
     components_container.back().size = tar_archive.GetFileSize();
     components_container.back().offset = tar_archive.TellArchive() + tar_archive.HeaderSize();
     components_container.back().ext = std::move(ext);
   }
-  samples_container.emplace_back(std::move(new_sample));
+  samples_container.emplace_back();
+  samples_container.back().components =
+      VectorRange<ComponentDesc>(components_container, last_components_size,
+                                 components_container.size() - last_components_size);
 
   tar_file = tar_archive.Close();
 }
@@ -346,11 +350,11 @@ void WebdatasetLoader::PrepareMetadataImpl() {
     unfiltered_samples.resize(0);
     unfiltered_components.resize(0);
     if (is_index_generated_) {
-      detail::wds::ParseIndexFile(unfiltered_samples, unfiltered_components,
-                                  index_paths_[wds_shard_index]);
-    } else {
       detail::wds::ParseTarFile(unfiltered_samples, unfiltered_components,
                                 wds_shards_[wds_shard_index]);
+    } else {
+      detail::wds::ParseIndexFile(unfiltered_samples, unfiltered_components,
+                                  index_paths_[wds_shard_index]);
     }
 
     for (auto& sample : unfiltered_samples) {
@@ -367,7 +371,7 @@ void WebdatasetLoader::PrepareMetadataImpl() {
         for (auto& output : ext_map[component.ext]) {
           if (!was_output_set[output]) {
             DALI_ENFORCE(component.size % dtype_sizes_[output] == 0,
-                         make_string("Error in index file at " GetSampleSource(new_sample),
+                         make_string("Error in index file at ", GetSampleSource(new_sample),
                                      " - component size and dtype incompatible"));
             output_indicies_.push_back(output);
             component.outputs.num++;

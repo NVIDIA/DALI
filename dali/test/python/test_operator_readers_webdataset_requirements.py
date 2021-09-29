@@ -245,3 +245,50 @@ def test_sharding():
             test_batch_size,
             math.ceil(num_samples / num_shards / test_batch_size) * 2,
         )
+
+def test_index_generation():
+    global test_batch_size
+    num_samples = 3000
+    tar_file_paths = [
+        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
+        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-1.tar"),
+        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-2.tar"),
+    ]
+
+    extract_dirs = [generate_temp_extract(tar_file_path) for tar_file_path in tar_file_paths]
+    equivalent_files = sum(
+        list(
+            sorted(
+                glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+            )
+            for extract_dir in extract_dirs
+        ),
+        [],
+    )
+
+    num_shards = 100
+    for shard_id in range(num_shards):
+        compare_pipelines(
+            webdataset_raw_pipeline(
+                tar_file_paths,
+                [],
+                ["jpg", "cls"],
+                missing_component_behavior="error",
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            file_reader_pipeline(
+                equivalent_files,
+                ["jpg", "cls"],
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            test_batch_size,
+            math.ceil(num_samples / num_shards / test_batch_size) * 2,
+        )
