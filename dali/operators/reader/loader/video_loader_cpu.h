@@ -31,10 +31,16 @@ class VideoSampleDesc {
   int video_idx_ = -1;
 };
 
-class VideoLoaderCPU : public Loader<CPUBackend, Tensor<CPUBackend>> {
+class VideoSample {
+ public:
+  Tensor<CPUBackend> data_;
+  int label_;
+};
+
+class VideoLoaderCPU : public Loader<CPUBackend, VideoSample> {
  public:
   explicit inline VideoLoaderCPU(const OpSpec &spec) : 
-    Loader<CPUBackend, Tensor<CPUBackend>>(spec),
+    Loader<CPUBackend, VideoSample>(spec),
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
     sequence_len_(spec.GetArgument<int>("sequence_length")),
     stride_(spec.GetArgument<int>("stride")),
@@ -42,9 +48,12 @@ class VideoLoaderCPU : public Loader<CPUBackend, Tensor<CPUBackend>> {
     if (step_ <= 0) {
       step_ = stride_ * sequence_len_;
     }
+    has_labels_ = spec.TryGetRepeatedArgument(labels_, "labels");
   }
 
-  void ReadSample(Tensor<CPUBackend> &sample) override;
+  void ReadSample(VideoSample &sample) override;
+
+  void PrepareEmpty(VideoSample &sample) override;
 
 protected:
   Index SizeImpl() override;
@@ -55,6 +64,8 @@ private:
   void Reset(bool wrap_to_shard) override;
 
   std::vector<std::string> filenames_;
+  std::vector<int> labels_;
+  bool has_labels_ = false;
   std::vector<FramesDecoder> video_files_;
   std::vector<VideoSampleDesc> sample_spans_;
 

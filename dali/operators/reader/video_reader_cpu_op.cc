@@ -12,20 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "dali/operators/reader/video_reader_cpu_op.h"
-#include "dali/operators/reader/loader/video_loader_cpu.h"
 
 namespace dali {
 
 VideoReaderCPU::VideoReaderCPU(const OpSpec &spec)
-    : DataReader<CPUBackend, Tensor<CPUBackend>>(spec) {
+    : DataReader<CPUBackend, VideoSample>(spec),
+      has_labels_(spec.HasArgument("labels")) {
       loader_ = InitLoader<VideoLoaderCPU>(spec);
 }
 
 void VideoReaderCPU::RunImpl(SampleWorkspace &ws) {
-  const auto &video_sample = GetSample(ws.data_idx());
+  const auto &sample = GetSample(ws.data_idx());
   auto &video_output = ws.Output<CPUBackend>(0);
 
-  video_output.Copy(video_sample, 0);
+  video_output.Copy(sample.data_, 0);
+
+  if (has_labels_) {
+    auto &label_output = ws.Output<CPUBackend>(1);
+    label_output.Resize({});
+    label_output.set_type<float>();
+    label_output.mutable_data<int>()[0] = sample.label_;
+  }
 }
 
 }  // namespace dali

@@ -16,14 +16,18 @@
 #define DALI_OPERATORS_READER_VIDEO_READER_CPU_OP_H_
 
 #include "dali/operators/reader/reader_op.h"
+#include "dali/operators/reader/loader/video_loader_cpu.h"
 
 namespace dali {
-class VideoReaderCPU : public DataReader<CPUBackend, Tensor<CPUBackend>> {
+class VideoReaderCPU : public DataReader<CPUBackend, VideoSample> {
  public:
   explicit VideoReaderCPU(const OpSpec &spec);
 
  protected:
   void RunImpl(SampleWorkspace &ws) override;
+
+ private:
+  bool has_labels_ = false;
 };
 
 }  // namespace dali

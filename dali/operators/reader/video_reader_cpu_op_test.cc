@@ -46,9 +46,11 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
       std::vector<std::string>{
         testing::dali_extra_path() + "/db/video/cfr/test_1.mp4",
         testing::dali_extra_path() + "/db/video/cfr/test_2.mp4"})
-    .AddOutput("frames", "cpu"));
+    .AddArg("labels", std::vector<int>{0, 1})
+    .AddOutput("frames", "cpu")
+    .AddOutput("labels", "cpu"));
 
-  pipe.Build({{"frames", "cpu"}});
+  pipe.Build({{"frames", "cpu"}, {"labels", "cpu"}});
 
   int num_sequences = 20;
   int sequence_id = 0;
@@ -64,9 +66,13 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
     pipe.Outputs(&ws);
 
     auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
+    auto &frame_label_output = ws.template OutputRef<dali::CPUBackend>(1);
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
+      const auto label = frame_label_output.tensor<int>(sample_id);
+
+      ASSERT_EQ(label[0], video_idx);
 
       for (int i = 0; i < sequence_length; ++i) {
         this->ComapreFrames(
@@ -111,9 +117,11 @@ TEST_F(VideoReaderCpuTest, CpuVariableFrameRate) {
       std::vector<std::string>{
         testing::dali_extra_path() + "/db/video/vfr/test_1.mp4",
         testing::dali_extra_path() + "/db/video/vfr/test_2.mp4"})
-    .AddOutput("frames", "cpu"));
+    .AddArg("labels", std::vector<int>{0, 1})
+    .AddOutput("frames", "cpu")
+    .AddOutput("labels", "cpu"));
 
-  pipe.Build({{"frames", "cpu"}});
+  pipe.Build({{"frames", "cpu"}, {"labels", "cpu"}});
 
   int num_sequences = 20;
   int sequence_id = 0;
@@ -129,9 +137,13 @@ TEST_F(VideoReaderCpuTest, CpuVariableFrameRate) {
     pipe.Outputs(&ws);
 
     auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
+    auto &frame_label_output = ws.template OutputRef<dali::CPUBackend>(1);
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-      auto sample = frame_video_output.mutable_tensor<uint8_t>(sample_id);
+      const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
+      const auto label = frame_label_output.tensor<int>(sample_id);
+
+      ASSERT_EQ(label[0], video_idx);
 
       for (int i = 0; i < sequence_length; ++i) {
         this->ComapreFrames(
@@ -177,7 +189,9 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
       std::vector<std::string>{
         testing::dali_extra_path() + "/db/video/cfr/test_1.mp4",
         testing::dali_extra_path() + "/db/video/cfr/test_2.mp4"})
-    .AddOutput("frames", "cpu"));
+    .AddArg("labels", std::vector<int>{0, 1})
+    .AddOutput("frames", "cpu")
+    .AddOutput("labels", "cpu"));
   pipe.AddOperator(OpSpec("readers__Video")
     .AddArg("device", "gpu")
     .AddArg("sequence_length", sequence_length)
@@ -188,9 +202,11 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
       std::vector<std::string>{
         testing::dali_extra_path() + "/db/video/cfr/test_1.mp4",
         testing::dali_extra_path() + "/db/video/cfr/test_2.mp4"})
-    .AddOutput("frames_gpu", "gpu"));
+    .AddArg("labels", std::vector<int>{0, 1})
+    .AddOutput("frames_gpu", "gpu")
+    .AddOutput("labels_gpu", "gpu"));
 
-  pipe.Build({{"frames", "cpu"}, {"frames_gpu", "gpu"}});
+  pipe.Build({{"frames", "cpu"}, {"frames_gpu", "gpu"}, {"labels", "cpu"}, {"labels_gpu", "gpu"}});
 
   int num_sequences = 20;
   int sequence_id = 0;
@@ -208,11 +224,21 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
     auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
     auto &frame_gpu_video_output = ws.template OutputRef<dali::GPUBackend>(1);
 
+    auto &frame_label_output = ws.template OutputRef<dali::CPUBackend>(2);
+    auto &frame_gpu_label_output = ws.template OutputRef<dali::GPUBackend>(3);
+
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-      auto sample = frame_video_output.mutable_tensor<uint8_t>(sample_id);
-      auto sample_gpu = frame_gpu_video_output.mutable_tensor<uint8_t>(sample_id);
+      const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
+      const auto sample_gpu = frame_gpu_video_output.tensor<uint8_t>(sample_id);
+
+      const auto label = frame_label_output.tensor<int>(sample_id);
+      const auto label_gpu = frame_label_output.tensor<int>(sample_id);
 
       vector<uint8_t> frame_gpu(this->FrameSize(video_idx));
+
+      int label_gpu_out = -1;
+      MemCopy(&label_gpu_out, label_gpu, sizeof(int));
+      ASSERT_EQ(label[0], label_gpu_out);
       
       for (int i = 0; i < sequence_length; ++i) {
         MemCopy(

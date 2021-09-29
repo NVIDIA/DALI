@@ -15,23 +15,30 @@
 #include "dali/operators/reader/loader/video_loader_cpu.h"
 
 namespace dali {
+void VideoLoaderCPU::PrepareEmpty(VideoSample &sample) {
+  sample = {};
+}
 
-void VideoLoaderCPU::ReadSample(Tensor<CPUBackend> &sample) {
+void VideoLoaderCPU::ReadSample(VideoSample &sample) {
   auto &sample_span = sample_spans_[current_index_];
   auto &video_file = video_files_[sample_span.video_idx_];
 
   ++current_index_;
   MoveToNextShard(current_index_);
 
-  sample.set_type(DALI_UINT8);
-  sample.Resize(
+  sample.data_.set_type(DALI_UINT8);
+  sample.data_.Resize(
     TensorShape<4>{sequence_len_, video_file.Width(), video_file.Height(), video_file.Channels()});
 
-  auto data = sample.mutable_data<uint8_t>();
+  auto data = sample.data_.mutable_data<uint8_t>();
 
   for (int i = 0; i < sequence_len_; ++i) {
     video_file.SeekFrame(sample_span.start_ + i * sample_span.stride_);     //This seek can be optimized - for consecutive frames not needed etc.
     video_file.ReadNextFrame(data + i * video_file.FrameSize());
+  }
+
+  if (has_labels_) {
+    sample.label_ = labels_[sample_span.video_idx_];
   }
 }
 
