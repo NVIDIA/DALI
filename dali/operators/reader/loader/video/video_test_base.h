@@ -36,8 +36,8 @@ class VideoTestBase : public ::testing::Test {
 
   const int FrameSize(int i) const { return Height(i) * Width(i) * Channels(); }
 
-  void ComapreFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps = 1);
-  
+  void ComapreFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps = 10);
+
   uint8_t *GetCfrFrame(int video_id, int frame_id) { return cfr_frames_[video_id][frame_id].data; }
 
   uint8_t *GetVfrFrame(int video_id, int frame_id) { return vfr_frames_[video_id][frame_id].data; }
