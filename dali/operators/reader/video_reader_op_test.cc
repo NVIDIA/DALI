@@ -15,13 +15,10 @@
 #include <gtest/gtest.h>
 #include <cmath>
 #include <cstring>
-#include <iomanip>
 
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/dali_test_config.h"
-#include "dali/test/cv_mat_utils.h"
 #include "dali/util/nvml_wrap.h"
-
 
 namespace dali {
 
@@ -74,59 +71,27 @@ TEST_F(VideoReaderTest, FractionalConstantFrameRate) {
 
 TEST_F(VideoReaderTest, ConstantFrameRate) {
   Pipeline pipe(1, 1, 0);
-  const int sequence_length = 1;
+  const int sequence_length = 60;
 
   pipe.AddOperator(OpSpec("VideoReader")
-    .AddArg("device", "gpu")
-    .AddArg("sequence_length", sequence_length)
-    .AddArg(
-      "filenames",
-      std::vector<std::string>{
-        testing::dali_extra_path() + "/db/video/cfr_test.mp4"})
-    .AddOutput("frames", "gpu"));
-  pipe.AddOperator(OpSpec("FileReader")
-    .AddArg("device", "cpu")
-    .AddArg(
-      "file_root",
-      std::string{testing::dali_extra_path() + "/db/video/cfr_frames"})
-    .AddArg(
-      "file_list",
-      std::string{testing::dali_extra_path() + "/db/video/cfr_frames/file_list.txt"})
-    .AddOutput("encoded", "cpu")
-    .AddOutput("labels", "cpu"));
-  pipe.AddOperator(OpSpec("ImageDecoder")
-    .AddArg("device", "cpu")
-    .AddInput("encoded", "cpu")
-    .AddOutput("decoded", "cpu"));
+                       .AddArg("device", "gpu")
+                       .AddArg("sequence_length", sequence_length)
+                       .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                                     "/db/video/cfr_test.mp4"})
+                       .AddOutput("frames", "gpu"));
 
-  pipe.Build({{"frames", "gpu"}, {"decoded", "cpu"}});
+  pipe.Build(this->Outputs());
 
-  for (int i = 0; i < 180; ++i) {
-    DeviceWorkspace ws;
-    pipe.RunCPU();
-    pipe.RunGPU();
-    pipe.Outputs(&ws);
+  DeviceWorkspace ws;
+  pipe.RunCPU();
+  pipe.RunGPU();
+  pipe.Outputs(&ws);
 
-    const auto &frame_video_output = ws.Output<dali::GPUBackend>(0);
-    const auto &frame_image_output = ws.Output<dali::CPUBackend>(1);
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
+  const auto &frames_shape = frames_output.shape();
 
-    vector<uint8_t> frame_video(720 * 1280 * 3);
-    vector<uint8_t> frame_image(720 * 1280 * 3);
-
-    MemCopy(
-      frame_video.data(),
-      frame_video_output.tensor<uint8_t>(0),
-      720 * 1280 * 3 * sizeof(uint8_t));
-
-    MemCopy(
-      frame_image.data(),
-      frame_image_output.tensor<uint8_t>(0),
-      720 * 1280 * 3 * sizeof(uint8_t));
-
-    for (int j = 0; j < 720 * 1280 * 3; ++j) {
-      ASSERT_EQ(frame_video[j], frame_image[j]);
-    }
-  }
+  ASSERT_EQ(frames_shape.size(), 1);
+  ASSERT_EQ(frames_shape[0][0], sequence_length);
 }
 
 TEST_F(VideoReaderTest, MultipleVideoResolution) {
