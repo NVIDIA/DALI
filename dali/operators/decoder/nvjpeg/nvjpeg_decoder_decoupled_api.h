@@ -832,8 +832,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       nvjpeg_params_.resize(samples_hw_batched_.size());
 
       int j = 0;
-      TensorVector<CPUBackend> tv;
-      if ((samples_hw_batched_.size());
+      TensorVector<CPUBackend> tv(samples_hw_batched_.size());
 
       for (auto *sample : samples_hw_batched_) {
         int i = sample->sample_idx;
