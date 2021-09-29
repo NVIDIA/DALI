@@ -319,6 +319,27 @@ static int PinnedNew(void **ptr, size_t size, unsigned int flags) {
   }
   // this function should not throw, but return a proper result
   try {
+    *ptr = GetBuffer<mm::memory_kind::pinned>(std::this_thread::get_id(), size);
+    return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
+  } catch (const std::bad_alloc &) {
+    *ptr = nullptr;
+    return cudaErrorMemoryAllocation;
+  } catch (const CUDAError &e) {
+    return e.is_rt_api() ? e.rt_error() : cudaErrorUnknown;
+  } catch (...) {
+    *ptr = nullptr;
+    return cudaErrorUnknown;
+  }
+}
+
+
+static int HostNew(void **ptr, size_t size, unsigned int flags) {
+  if (size == 0) {
+    *ptr = nullptr;
+    return cudaSuccess;
+  }
+  // this function should not throw, but return a proper result
+  try {
     if (RestrictPinnedMemUsage()) {
       *ptr = GetBuffer<mm::memory_kind::host>(std::this_thread::get_id(), size);
       return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
@@ -346,7 +367,7 @@ nvjpegDevAllocator_t GetDeviceAllocator() {
 
 nvjpegPinnedAllocator_t GetPinnedAllocator() {
   nvjpegPinnedAllocator_t allocator;
-  allocator.pinned_malloc = &PinnedNew;
+  allocator.pinned_malloc = &HostNew;
   allocator.pinned_free = &ReturnBufferToPool;
   return allocator;
 }
