@@ -17,10 +17,8 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.tensors as tensors
 import numpy as np
-from nose.tools import assert_raises, raises
 import torch
 from torch.utils.dlpack import to_dlpack
-from test_utils import py_buffer_from_address
 import ctypes
 from nvidia.dali.backend import CheckDLPackCapsule
 

@@ -45,7 +45,7 @@ class TensorVector;
  * in the list.
  */
 template <typename Backend>
-class DLL_PUBLIC TensorList : public Buffer<Backend> {
+class DLL_PUBLIC TensorList : private Buffer<Backend> {
  public:
   DLL_PUBLIC TensorList() {}
 
@@ -62,6 +62,31 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   }
 
   DLL_PUBLIC ~TensorList() = default;
+
+  // Reexpose all public Buffer functions apart from contiguous buffer accessors.
+  // TensorList is being reworked to sample-only access and this is intermediate step
+  // that prevents reintroducing that access in any of DALI operators
+
+  using Buffer<Backend>::size;
+  using Buffer<Backend>::nbytes;
+  using Buffer<Backend>::capacity;
+  using Buffer<Backend>::type;
+  using Buffer<Backend>::type_info;
+  using Buffer<Backend>::set_alloc_func;
+  using Buffer<Backend>::alloc_func;
+  using Buffer<Backend>::has_data;
+  using Buffer<Backend>::set_pinned;
+  using Buffer<Backend>::is_pinned;
+  using Buffer<Backend>::device_id;
+  using Buffer<Backend>::set_device_id;
+  using Buffer<Backend>::set_type;
+  using Buffer<Backend>::reserve;
+  // using Buffer<Backend>::reset;  // Available via USE_BUFFER_MEMBERS
+  using Buffer<Backend>::shares_data;
+  using Buffer<Backend>::SetGrowthFactor;
+  using Buffer<Backend>::SetShrinkThreshold;
+  using Buffer<Backend>::GetGrowthFactor;
+  using Buffer<Backend>::GetShrinkThreshold;
 
   /**
    * @brief Resizes this TensorList to match the shape of the input.
@@ -135,8 +160,6 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     type_.template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(),
                                              nsamples, stream, use_copy_kernel);
   }
-
-  using Buffer<Backend>::reserve;
 
   inline void reserve(size_t bytes_per_tensor, int batch_size) {
     if (shape_.empty()) {
@@ -450,6 +473,9 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     if (ntensor() == 0 || size_ == 0) {
       return true;
     }
+    if (!IsContiguous()) {
+      return false;
+    }
     Index offset = 0;
 
     for (int i = 0; i < shape_.size(); ++i) {
@@ -470,6 +496,9 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   inline bool IsDenseTensor() const {
     if (ntensor() == 0 || size_ == 0) {
       return true;
+    }
+    if (!IsContiguous()) {
+      return false;
     }
     if (!is_uniform(shape_)) {
       return false;
@@ -603,6 +632,34 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   std::list<Tensor<Backend> > tensor_views_;
 
   USE_BUFFER_MEMBERS();
+
+ private:
+  /** @defgroup ContiguousAccessorFunctions Fallback contiguous accessors
+   * Fallback access to contiguous data to TensorList. It should not be used for processing,
+   * and can be used only for outputs of the pipeline that were made sure to be contiguous.
+   * Currently TensorList is contiguous by design, but it is up to change.
+   * @{
+   */
+
+  /**
+   * @brief Return an un-typed pointer to the underlying storage.
+   * The TensorList must be either empty or have a valid type and be contiguous.
+   */
+  friend void *unsafe_raw_mutable_data(TensorList<Backend> &tl) {
+    DALI_ENFORCE(tl.IsContiguous(), "Data pointer can be obtain only for contiguous TensorList.");
+    return tl.raw_mutable_data();
+  }
+
+  /**
+   * @brief Return an un-typed const pointer to the underlying storage.
+   * The TensorList must be either empty or have a valid type and be contiguous.
+   */
+  friend const void *unsafe_raw_data(const TensorList<Backend> &tl) {
+    DALI_ENFORCE(tl.IsContiguous(), "Data pointer can be obtain only for contiguous TensorList.");
+    return tl.raw_data();
+  }
+
+  /** @} */  // end of ContiguousAccessorFunctions
 };
 
 }  // namespace dali
