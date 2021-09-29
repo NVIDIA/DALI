@@ -165,6 +165,10 @@ int64_t TarArchive::TellArchive() const {
   return current_header_;
 }
 
+int64_t TarArchive::HeaderSize() const {
+  return stream_->Tell() - readoffset_ - current_header_;
+}
+
 const std::string& TarArchive::GetFileName() const {
   return filename_;
 }
@@ -242,7 +246,8 @@ inline void TarArchive::ParseHeader() {
   readoffset_ = 0;
 }
 
-void TarArchive::Close() {
+std::unique_ptr<FileStream> TarArchive::Close() {
+  auto out = std::move(stream_);
   if (handle_ != nullptr) {
     tar_close(ToTarHandle(handle_));
     handle_ = nullptr;
@@ -250,11 +255,11 @@ void TarArchive::Close() {
   readoffset_ = 0;
   current_header_ = 0;
   SetEof();
-  stream_.reset();
   if (instance_handle_ >= 0) {
     Unregister(instance_handle_);
   }
   instance_handle_ = -1;
+  return out;
 }
 
 

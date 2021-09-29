@@ -94,6 +94,9 @@ The index file can be generated using a dedicated script::
 
     ``<path_to_dali>/tools/wds2idx.py <path_to_archive> <path_to_index_file>``
 
+Should the index file be not provided, it will be automatically inferred from the tar file.
+Keep in mind tough that it is going to take considerable time for big datasets.
+
 The format of the index file is:
 )code" + detail::wds::kCurrentIndexVersion +
             R"code( <num_samples>
@@ -110,11 +113,6 @@ Based on https://github.com/webdataset/webdataset)code")
 
 Has to be the same length as the ``index_paths`` argument.)code",
             DALI_STRING_VEC)
-    .AddArg("index_paths",
-            R"code(The list of the index files corresponding to the respective webdataset archives.
-            
-Has to be the same length as the ``paths`` argument.)code",
-            DALI_STRING_VEC)
     .AddArg("ext", R"code(The extension sets for each of the outputs produced.
 
 The number of extension sets determines the number of outputs of the reader.
@@ -124,6 +122,12 @@ with a semicolon (';') and may contain dots.
 
 Example: "left.png;right.jpg")code",
             DALI_STRING_VEC)
+    .AddOptionalArg("index_paths", // to be changed
+            R"code(The list of the index files corresponding to the respective webdataset archives.
+            
+Has to be the same length as the ``paths`` argument. In case it is not provided,
+it will be inferred automatically from the webdataset archive.)code",
+            std::vector<std::string>())
     .AddOptionalArg(
         "missing_component_behavior",
         R"code(Specifies what to do in case there is not any file in a sample corresponding to a certain output.
