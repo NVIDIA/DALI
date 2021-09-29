@@ -181,8 +181,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         nvjpeg_memory::AddBuffer<mm::memory_kind::device>(thread_id, device_memory_padding);
       }
       if (host_memory_padding > 0) {
-        nvjpeg_memory::AddBuffer<mm::memory_kind::pinned>(thread_id, host_memory_padding);
-        nvjpeg_memory::AddBuffer<mm::memory_kind::pinned>(thread_id, host_memory_padding);
+        nvjpeg_memory::AddHostBuffer(thread_id, host_memory_padding);
+        nvjpeg_memory::AddHostBuffer(thread_id, host_memory_padding);
       }
     }
 
@@ -240,7 +240,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                  device_memory_padding_jpeg2k);
       }
       if (host_memory_padding_jpeg2k > 0) {
-        nvjpeg_memory::AddBuffer<mm::memory_kind::pinned>(nvjpeg2k_thread_id,
+        nvjpeg_memory::AddHostBuffer(nvjpeg2k_thread_id,
                                  host_memory_padding_jpeg2k);
       }
       nvjpeg2k_decoder_ = NvJPEG2KDecodeState(nvjpeg2k_handle_);

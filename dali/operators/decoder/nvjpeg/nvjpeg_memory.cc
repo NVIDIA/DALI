@@ -29,6 +29,7 @@
 #include "dali/core/mm/memory.h"
 #include "dali/core/mm/memory_kind.h"
 #include "dali/core/mm/malloc_resource.h"
+#include "dali/pipeline/data/buffer.h"
 
 namespace dali {
 
@@ -87,6 +88,7 @@ struct NVJpegMem {
 
   static NVJpegMem &instance() {
     // ensure proper destruction order
+    (void)mm::GetDefaultResource<mm::memory_kind::host>();
     (void)mm::GetDefaultResource<mm::memory_kind::pinned>();
     (void)mm::cuda_malloc_memory_resource::instance();
     static NVJpegMem mem;
@@ -124,6 +126,9 @@ struct NVJpegMem {
       auto &pinned_mem_stats = mem_stats_[static_cast<size_t>(mm::memory_kind_id::pinned)];
       out << "Host (pinned) memory: " << pinned_mem_stats.nallocs
           << " allocations, largest = " << pinned_mem_stats.biggest_alloc << " bytes\n";
+      auto &host_mem_stats = mem_stats_[static_cast<size_t>(mm::memory_kind_id::host)];
+      out << "Host (regular) memory: " << host_mem_stats.nallocs
+          << " allocations, largest = " << host_mem_stats.biggest_alloc << " bytes\n";
       out << "################## END NVJPEG STATS ##################" << std::endl;
     }
   }
@@ -242,9 +247,25 @@ void AddBuffer(std::thread::id thread_id, size_t size) {
   NVJpegMem::instance().AddBuffer<MemoryKind>(thread_id, size);
 }
 
+
+void AddHostBuffer(std::thread::id thread_id, size_t size) {
+  if (RestrictPinnedMemUsage())
+    NVJpegMem::instance().AddBuffer<mm::memory_kind::host>(thread_id, size);
+  else
+    NVJpegMem::instance().AddBuffer<mm::memory_kind::pinned>(thread_id, size);
+}
+
+
 template <typename MemoryKind>
 void *GetBuffer(std::thread::id thread_id, size_t size) {
   return NVJpegMem::instance().GetBuffer<MemoryKind>(thread_id, size);
+}
+
+void *GetHostBuffer(std::thread::id thread_id, size_t size) {
+  if (RestrictPinnedMemUsage())
+    return NVJpegMem::instance().GetBuffer<mm::memory_kind::host>(thread_id, size);
+  else
+    return NVJpegMem::instance().GetBuffer<mm::memory_kind::pinned>(thread_id, size);
 }
 
 void DeleteAllBuffers(std::thread::id thread_id) {
@@ -298,8 +319,13 @@ static int PinnedNew(void **ptr, size_t size, unsigned int flags) {
   }
   // this function should not throw, but return a proper result
   try {
-    *ptr = GetBuffer<mm::memory_kind::pinned>(std::this_thread::get_id(), size);
-    return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
+    if (RestrictPinnedMemUsage()) {
+      *ptr = GetBuffer<mm::memory_kind::host>(std::this_thread::get_id(), size);
+      return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
+    } else {
+      *ptr = GetBuffer<mm::memory_kind::pinned>(std::this_thread::get_id(), size);
+      return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
+    }
   } catch (const std::bad_alloc &) {
     *ptr = nullptr;
     return cudaErrorMemoryAllocation;
