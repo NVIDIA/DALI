@@ -129,7 +129,7 @@ def train(file_root, annotations, batch_size, epochs, steps_per_epoch, **kwargs)
 
     input_options = tf.distribute.InputOptions(
         experimental_place_dataset_on_device = True,
-        experimental_prefetch_to_device = False,
+        experimental_fetch_to_device = False,
         experimental_replication_mode = tf.distribute.InputReplicationMode.PER_REPLICA)
 
     dataset = strategy.distribute_datasets_from_function(

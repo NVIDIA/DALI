@@ -58,6 +58,7 @@ inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
   samples_container.emplace_back();
   samples_container.back().components =
       VectorRange<ComponentDesc>(components_container, components_container.size());
+  samples_container.back().line_number = line;
 
   // Getting the components data
   std::string components_metadata;
