@@ -66,7 +66,7 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
     auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-      auto sample = frame_video_output.mutable_tensor<uint8_t>(sample_id);
+      const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
 
       for (int i = 0; i < sequence_length; ++i) {
         this->ComapreFrames(

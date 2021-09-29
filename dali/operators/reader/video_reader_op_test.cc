@@ -115,12 +115,12 @@ TEST_F(VideoReaderTest, ConstantFrameRate) {
 
     MemCopy(
       frame_video.data(),
-      frame_video_output.data<uint8_t>(),
+      frame_video_output.tensor<uint8_t>(0),
       720 * 1280 * 3 * sizeof(uint8_t));
 
     MemCopy(
       frame_image.data(),
-      frame_image_output.data<uint8_t>(),
+      frame_image_output.tensor<uint8_t>(0),
       720 * 1280 * 3 * sizeof(uint8_t));
 
     for (int j = 0; j < 720 * 1280 * 3; ++j) {
