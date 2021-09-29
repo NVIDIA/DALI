@@ -115,12 +115,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
         LOG_LINE << "Using NVJPEG_BACKEND_HARDWARE" << std::endl;
         NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
-        hw_decoder_images_staging_.set_pinned(true);
-        hw_decoder_images_staging_.SetGrowthFactor(2);
-        // assume close the worst case size 300kb per image
-        auto shapes = uniform_list_shape(CalcHwDecoderBatchSize(hw_decoder_load_, max_batch_size_),
-                                        TensorShape<1>{300*1024});
-        hw_decoder_images_staging_.Resize(shapes, DALI_UINT8);
+        if (!RestrictPinnedMemUsage()) {
+          hw_decoder_images_staging_.set_pinned(true);
+          hw_decoder_images_staging_.SetGrowthFactor(2);
+          // assume close the worst case size 300kb per image
+          auto shapes = uniform_list_shape(CalcHwDecoderBatchSize(hw_decoder_load_,
+                                           max_batch_size_), TensorShape<1>{300*1024});
+          hw_decoder_images_staging_.Resize(shapes, DALI_UINT8);
+        }
 #if defined(NVJPEG_PREALLOCATE_API)
         // call nvjpegDecodeBatchedPreAllocate to use memory pool for HW decoder even if hint is 0
         // due to considerable performance benefit - >20% for 8GPU training
@@ -830,7 +832,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       nvjpeg_params_.resize(samples_hw_batched_.size());
 
       int j = 0;
-      TensorVector<CPUBackend> tv(samples_hw_batched_.size());
+      TensorVector<CPUBackend> tv;
+      if ((samples_hw_batched_.size());
 
       for (auto *sample : samples_hw_batched_) {
         int i = sample->sample_idx;
@@ -846,11 +849,17 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
 
       CUDA_CALL(cudaEventSynchronize(hw_decode_event_));
-      // it is H2H copy so the stream doesn't matter much as we don't use cudaMemcpy but
-      // maybe someday...
-      hw_decoder_images_staging_.Copy(tv, hw_decode_stream_);
-      for (size_t k = 0; k < samples_hw_batched_.size(); ++k) {
-        in_data_[k] = hw_decoder_images_staging_.mutable_tensor<uint8_t>(k);
+      if (RestrictPinnedMemUsage()) {
+        for (size_t k = 0; k < samples_hw_batched_.size(); ++k) {
+          in_data_[k] = tv.mutable_tensor<uint8_t>(k);
+        }
+      } else {
+        // it is H2H copy so the stream doesn't matter much as we don't use cudaMemcpy but
+        // maybe someday...
+        hw_decoder_images_staging_.Copy(tv, hw_decode_stream_);
+        for (size_t k = 0; k < samples_hw_batched_.size(); ++k) {
+          in_data_[k] = hw_decoder_images_staging_.mutable_tensor<uint8_t>(k);
+        }
       }
       NVJPEG_CALL(nvjpegDecodeBatchedEx(handle_, state, in_data_.data(), in_lengths_.data(),
                                         nvjpeg_destinations_.data(), nvjpeg_params_.data(),
