@@ -94,7 +94,7 @@ The index file can be generated using a dedicated script::
 
     ``<path_to_dali>/tools/wds2idx.py <path_to_archive> <path_to_index_file>``
 
-Should the index file be not provided, it will be automatically inferred from the tar file.
+If the index file is not provided, it will be automatically inferred from the tar file.
 Keep in mind tough that it is going to take considerable time for big datasets.
 
 The format of the index file is:

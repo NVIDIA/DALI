@@ -111,7 +111,7 @@ class DLL_PUBLIC TarArchive {
   bool EndOfFile() const;
 
   /**
-   * @brief Frees the underlying file stream
+   * @brief Returns the underlying file stream
    */
   std::unique_ptr<FileStream> Close();
 

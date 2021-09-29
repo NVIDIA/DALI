@@ -184,7 +184,7 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
       missing_component_behavior_(detail::wds::ParseMissingExtBehavior(
           spec.GetArgument<std::string>("missing_component_behavior"))) {
   DALI_ENFORCE(paths_.size() == index_paths_.size() || index_paths_.size() == 0,
-               "Number of webdataset archives does not match the number of index files");
+               "Number of webdataset archives does not match the number of index files or be not provided at all");
   DALI_ENFORCE(paths_.size() > 0, "No webdataset archives provided");
   DALI_ENFORCE(missing_component_behavior_ != detail::wds::MissingExtBehavior::Invalid,
                make_string("Invalid value for missing_component_behavior '",
@@ -206,8 +206,8 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     }
   }
 
-  dtypes_ = spec.HasArgument("dtypes") ? spec.GetRepeatedArgument<DALIDataType>("dtypes") :
-                                         std::vector<DALIDataType>(ext_.size(), DALI_UINT8);
+  dtypes_ = spec.HasArgument("dtypes") ? spec.GetRepeatedArgument<DALIDataType>("dtypes")
+                                       : std::vector<DALIDataType>(ext_.size(), DALI_UINT8);
 
   for (DALIDataType dtype : dtypes_) {
     DALI_ENFORCE(detail::wds::kSupportedTypes.count(dtype),
@@ -350,6 +350,9 @@ void WebdatasetLoader::PrepareMetadataImpl() {
     unfiltered_samples.resize(0);
     unfiltered_components.resize(0);
     if (is_index_generated_) {
+      std::call_once(index_not_provided, [](){
+        DALI_WARN("Index file not provided, it may take some time to infer it from the tar file");
+      });
       detail::wds::ParseTarFile(unfiltered_samples, unfiltered_components,
                                 wds_shards_[wds_shard_index]);
     } else {

@@ -119,6 +119,7 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   std::once_flag multiple_files_single_component;
 
   bool is_index_generated_ = true;
+  std::once_flag index_not_provided;
   std::string GetSampleSource(const detail::wds::SampleDesc& sample);
 };
 
