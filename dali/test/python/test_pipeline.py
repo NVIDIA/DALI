@@ -38,6 +38,7 @@ from test_utils import get_dali_extra_path
 from test_utils import RandomDataIterator
 from nose_utils import raises
 from nose_utils import assert_raises
+from nose.plugins.skip import SkipTest
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -877,11 +878,11 @@ class CachedPipeline(Pipeline):
                                               features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
                                                           "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
         elif reader_type == "readers.Webdataset":
-            wds = [os.path.join(webdataset_db_folder, archive) 
+            wds = [os.path.join(webdataset_db_folder, archive)
                    for archive in ['devel-1.tar', 'devel-2.tar', 'devel-0.tar']]
             self.wds_index_files = [generate_temp_wds_index(archive) for archive in wds]
-            self.input = ops.readers.Webdataset(paths = wds, 
-                                                index_paths = [idx.name for idx in self.wds_index_files], 
+            self.input = ops.readers.Webdataset(paths = wds,
+                                                index_paths = [idx.name for idx in self.wds_index_files],
                                                 ext = ["jpg", "cls"],
                                                 shard_id = 0,
                                                 num_shards=num_shards,
@@ -1420,6 +1421,8 @@ def test_executor_meta():
 
 def test_bytes_per_sample_hint():
     import nvidia.dali.backend
+    if nvidia.dali.backend.RestrictPinnedMemUsage():
+        raise SkipTest
     nvidia.dali.backend.SetHostBufferShrinkThreshold(0)
     def obtain_reader_meta(iters = 3, **kvargs):
         batch_size = 10
@@ -1430,7 +1433,7 @@ def test_bytes_per_sample_hint():
             pipe.set_outputs(*out)
         pipe.build()
         for _ in range(iters):
-            pipe.run()
+            outs = pipe.run()
         meta = pipe.executor_statistics()
         reader_meta = None
         for k in meta.keys():
