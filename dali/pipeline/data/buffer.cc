@@ -36,4 +36,12 @@ DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, CPUBackend
     return mm::alloc_raw_shared<uint8_t, mm::memory_kind::host>(bytes, kHostAlignment);
 }
 
+DLL_PUBLIC bool RestrictPinnedMemUsage() {
+  static bool val = []() {
+    const char *env = getenv("DALI_RESTRICT_PINNED_MEM");
+    return env && atoi(env);
+  }();
+  return val;
+}
+
 }  // namespace dali

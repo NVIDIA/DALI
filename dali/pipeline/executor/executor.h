@@ -643,7 +643,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
         auto &parent_tensor_queue =
             get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
         for (auto &tensor : parent_tensor_queue) {
-          tensor->set_pinned(node.spec.OutputDevice(0) == "gpu");
+          tensor->set_pinned(node.spec.OutputDevice(0) == "gpu" && !RestrictPinnedMemUsage());
         }
       }
     }

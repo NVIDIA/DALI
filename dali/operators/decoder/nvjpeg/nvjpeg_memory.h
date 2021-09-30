@@ -34,10 +34,20 @@ template <typename MemoryKind>
 void* GetBuffer(std::thread::id thread_id, size_t size);
 
 /**
+ * @brief Returns a host or pinned buffer, depending on the value returned by RestrictPinnedMemUsage
+ */
+void* GetHostBuffer(std::thread::id thread_id, size_t size);
+
+/**
  * @brief Adds a new buffer to the pool for a given thread id, to be consumed later by ``GetBuffer``
  */
 template <typename MemoryKind>
 void AddBuffer(std::thread::id thread_id, size_t size);
+
+/**
+ * @brief Adds a host or pinned buffer, depending on the value returned by RestrictPinnedMemUsage
+ */
+void AddHostBuffer(std::thread::id thread_id, size_t size);
 
 /**
  * @brief Deletes all the buffers associated with a given thread id
