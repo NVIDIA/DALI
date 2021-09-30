@@ -464,10 +464,11 @@ TEST_F(PipelineTestOnce, TestPresize) {
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
-  // we should not presize CPU buffers if they are not pined
+  // we should not presize CPU buffers if they are not pinned
   ASSERT_EQ(*(ws.Output<CPUBackend>(0).tensor<size_t>(0)), 0);
 
-  ASSERT_EQ(*(ws.Output<CPUBackend>(1).tensor<size_t>(0)), presize_val_CPU);
+  int ref_presize = RestrictPinnedMemUsage() ? 0 : presize_val_CPU;
+  ASSERT_EQ(*(ws.Output<CPUBackend>(1).tensor<size_t>(0)), ref_presize);
 
   size_t tmp[2];
   CUDA_CALL(cudaDeviceSynchronize());

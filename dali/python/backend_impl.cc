@@ -1074,6 +1074,7 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("GetHostBufferShrinkThreshold", Buffer<CPUBackend>::GetShrinkThreshold);
   m.def("GetHostBufferGrowthFactor", Buffer<CPUBackend>::GetGrowthFactor);
   m.def("GetDeviceBufferGrowthFactor", Buffer<GPUBackend>::GetGrowthFactor);
+  m.def("RestrictPinnedMemUsage", RestrictPinnedMemUsage);
 }
 
 py::dict DeprecatedArgMetaToDict(const DeprecatedArgDef & meta) {
