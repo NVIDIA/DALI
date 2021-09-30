@@ -61,7 +61,7 @@ void VideoTestBase::LoadFrames(
   }
 }
 
-void VideoTestBase::CompareFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps) {
+void VideoTestBase::CompareFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps = 10) {
     for (int j = 0; j < size; ++j) {
       ASSERT_NEAR(frame[j], gt[j], eps);
     }
