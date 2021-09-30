@@ -17,6 +17,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <tuple>
 #include <utility>
 #include "dali/core/error_handling.h"
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
@@ -128,7 +129,7 @@ inline void ParseTarFile(std::vector<SampleDesc>& samples_container,
   int64_t initial_file_pos = tar_file->Tell();
   TarArchive tar_archive(std::move(tar_file));
 
-  std::string last_filename; 
+  std::string last_filename;
   std::tie(last_filename, std::ignore) = split_name(tar_archive.GetFileName());
   size_t last_components_size = components_container.size();
   for (; !tar_archive.EndOfArchive(); tar_archive.NextFile()) {
@@ -162,7 +163,7 @@ inline void ParseTarFile(std::vector<SampleDesc>& samples_container,
       VectorRange<ComponentDesc>(components_container, last_components_size,
                                  components_container.size() - last_components_size);
 
-  tar_file = tar_archive.Close();
+  tar_file = tar_archive.Release();
 }
 
 }  // namespace wds
@@ -184,7 +185,8 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
       missing_component_behavior_(detail::wds::ParseMissingExtBehavior(
           spec.GetArgument<std::string>("missing_component_behavior"))) {
   DALI_ENFORCE(paths_.size() == index_paths_.size() || index_paths_.size() == 0,
-               "Number of webdataset archives does not match the number of index files or be not provided at all");
+               "The number of index files, if any, must match the number of archives"
+               + "in the dataset.");
   DALI_ENFORCE(paths_.size() > 0, "No webdataset archives provided");
   DALI_ENFORCE(missing_component_behavior_ != detail::wds::MissingExtBehavior::Invalid,
                make_string("Invalid value for missing_component_behavior '",
@@ -230,7 +232,7 @@ void WebdatasetLoader::PrepareEmpty(vector<Tensor<CPUBackend>>& empty) {
 }
 
 std::string WebdatasetLoader::GetSampleSource(const detail::wds::SampleDesc& sample) {
-  if (is_index_generated_) {
+  if (generate_index_) {
     return make_string("tar file at \"", paths_[sample.wds_shard_index], '"');
   } else {
     return make_string("index file at \"", index_paths_[sample.wds_shard_index], "\" line ",
@@ -318,7 +320,10 @@ void WebdatasetLoader::PrepareMetadataImpl() {
   }
   copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
 
-  is_index_generated_ = index_paths_.size() == 0;
+  generate_index_ = index_paths_.size() == 0;
+  if (generate_index_) {
+    DALI_WARN("Index file not provided, it may take some time to infer it from the tar file");
+  }
 
   // initializing all the readers
   wds_shards_.reserve(paths_.size());
@@ -349,10 +354,7 @@ void WebdatasetLoader::PrepareMetadataImpl() {
   for (size_t wds_shard_index = 0; wds_shard_index < paths_.size(); wds_shard_index++) {
     unfiltered_samples.resize(0);
     unfiltered_components.resize(0);
-    if (is_index_generated_) {
-      std::call_once(index_not_provided, [](){
-        DALI_WARN("Index file not provided, it may take some time to infer it from the tar file");
-      });
+    if (generate_index_) {
       detail::wds::ParseTarFile(unfiltered_samples, unfiltered_components,
                                 wds_shards_[wds_shard_index]);
     } else {

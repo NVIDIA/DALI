@@ -95,7 +95,7 @@ The index file can be generated using a dedicated script::
     ``<path_to_dali>/tools/wds2idx.py <path_to_archive> <path_to_index_file>``
 
 If the index file is not provided, it will be automatically inferred from the tar file.
-Keep in mind tough that it is going to take considerable time for big datasets.
+Keep in mind though that it will add considerable startup time for big datasets.
 
 The format of the index file is:
 )code" + detail::wds::kCurrentIndexVersion +
@@ -122,7 +122,7 @@ with a semicolon (';') and may contain dots.
 
 Example: "left.png;right.jpg")code",
             DALI_STRING_VEC)
-    .AddOptionalArg("index_paths", // to be changed
+    .AddOptionalArg("index_paths",
             R"code(The list of the index files corresponding to the respective webdataset archives.
             
 Has to be the same length as the ``paths`` argument. In case it is not provided,
