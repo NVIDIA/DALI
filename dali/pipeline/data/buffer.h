@@ -37,6 +37,10 @@ class CPUBackend;
 
 DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, GPUBackend *);
 DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, CPUBackend *);
+
+/**
+ * @brief Indicates, based on environment cues, whether pinned memory allocations should be avoided.
+ */
 DLL_PUBLIC bool RestrictPinnedMemUsage();
 
 template <typename Backend>

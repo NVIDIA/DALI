@@ -340,13 +340,10 @@ static int HostNew(void **ptr, size_t size, unsigned int flags) {
   }
   // this function should not throw, but return a proper result
   try {
-    if (RestrictPinnedMemUsage()) {
-      *ptr = GetBuffer<mm::memory_kind::host>(std::this_thread::get_id(), size);
-      return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
-    } else {
-      *ptr = GetBuffer<mm::memory_kind::pinned>(std::this_thread::get_id(), size);
-      return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
-    }
+    *ptr = RestrictPinnedMemUsage()
+        ? GetBuffer<mm::memory_kind::host>(std::this_thread::get_id(), size)
+        : GetBuffer<mm::memory_kind::pinned>(std::this_thread::get_id(), size);
+    return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
   } catch (const std::bad_alloc &) {
     *ptr = nullptr;
     return cudaErrorMemoryAllocation;
