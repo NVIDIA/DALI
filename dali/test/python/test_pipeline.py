@@ -1433,7 +1433,7 @@ def test_bytes_per_sample_hint():
             pipe.set_outputs(*out)
         pipe.build()
         for _ in range(iters):
-            outs = pipe.run()
+            pipe.run()
         meta = pipe.executor_statistics()
         reader_meta = None
         for k in meta.keys():
