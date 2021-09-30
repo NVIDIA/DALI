@@ -202,7 +202,7 @@ def test_argument_errors():
     assert_raises(
         RuntimeError,
         paths_index_paths_error,
-        glob="Number of webdataset archives does not match the number of index files",
+        glob="The number of index files, if any, must match the number of archives in the dataset",
     )
 
     assert_raises(
