@@ -117,6 +117,9 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   size_t sample_index_ = 0;
   FileStream::MappingReserver mmap_reserver_;
   std::once_flag multiple_files_single_component;
+
+  bool generate_index_ = true;
+  std::string GetSampleSource(const detail::wds::SampleDesc& sample);
 };
 
 }  // namespace dali

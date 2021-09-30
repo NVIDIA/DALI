@@ -106,7 +106,7 @@ TarArchive::TarArchive(TarArchive&& other) {
 }
 
 TarArchive::~TarArchive() {
-  Close();
+  Release();
 }
 
 TarArchive& TarArchive::operator=(TarArchive&& other) {
@@ -124,7 +124,7 @@ TarArchive& TarArchive::operator=(TarArchive&& other) {
       std::lock_guard<std::mutex> instances_lock(instances_mutex);
       instances[instance_handle_] = this;
     }
-    other.Close();
+    other.Release();
   }
   return *this;
 }
@@ -163,6 +163,10 @@ void TarArchive::SeekArchive(int64_t offset) {
 
 int64_t TarArchive::TellArchive() const {
   return current_header_;
+}
+
+int64_t TarArchive::HeaderSize() const {
+  return stream_->Tell() - readoffset_ - current_header_;
 }
 
 const std::string& TarArchive::GetFileName() const {
@@ -242,7 +246,8 @@ inline void TarArchive::ParseHeader() {
   readoffset_ = 0;
 }
 
-void TarArchive::Close() {
+std::unique_ptr<FileStream> TarArchive::Release() {
+  auto out = std::move(stream_);
   if (handle_ != nullptr) {
     tar_close(ToTarHandle(handle_));
     handle_ = nullptr;
@@ -250,11 +255,11 @@ void TarArchive::Close() {
   readoffset_ = 0;
   current_header_ = 0;
   SetEof();
-  stream_.reset();
   if (instance_handle_ >= 0) {
     Unregister(instance_handle_);
   }
   instance_handle_ = -1;
+  return out;
 }
 
 

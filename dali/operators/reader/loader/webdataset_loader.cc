@@ -17,6 +17,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <tuple>
 #include <utility>
 #include "dali/core/error_handling.h"
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
@@ -117,6 +118,54 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
   }
 }
 
+std::tuple<std::string, std::string> split_name(const std::string& filepath) {
+  size_t dot_pos = filepath.find('.', filepath.rfind('/') + 1);
+  return {filepath.substr(0, dot_pos), filepath.substr(dot_pos + 1)};
+}
+
+inline void ParseTarFile(std::vector<SampleDesc>& samples_container,
+                         std::vector<ComponentDesc>& components_container,
+                         std::unique_ptr<FileStream>& tar_file) {
+  int64_t initial_file_pos = tar_file->Tell();
+  TarArchive tar_archive(std::move(tar_file));
+
+  std::string last_filename;
+  std::tie(last_filename, std::ignore) = split_name(tar_archive.GetFileName());
+  size_t last_components_size = components_container.size();
+  for (; !tar_archive.EndOfArchive(); tar_archive.NextFile()) {
+    if (tar_archive.GetFileType() != TarArchive::ENTRY_FILE) {
+      continue;
+    }
+
+    std::string filename, ext;
+    std::tie(filename, ext) = split_name(tar_archive.GetFileName());
+
+    if (filename.empty()) {
+      continue;
+    }
+
+    if (filename != last_filename) {
+      samples_container.emplace_back();
+      samples_container.back().components =
+          VectorRange<ComponentDesc>(components_container, last_components_size,
+                                     components_container.size() - last_components_size);
+      last_filename = filename;
+      last_components_size = components_container.size();
+    }
+
+    components_container.emplace_back();
+    components_container.back().size = tar_archive.GetFileSize();
+    components_container.back().offset = tar_archive.TellArchive() + tar_archive.HeaderSize();
+    components_container.back().ext = std::move(ext);
+  }
+  samples_container.emplace_back();
+  samples_container.back().components =
+      VectorRange<ComponentDesc>(components_container, last_components_size,
+                                 components_container.size() - last_components_size);
+
+  tar_file = tar_archive.Release();
+}
+
 }  // namespace wds
 }  // namespace detail
 
@@ -135,8 +184,9 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
       index_paths_(spec.GetRepeatedArgument<std::string>("index_paths")),
       missing_component_behavior_(detail::wds::ParseMissingExtBehavior(
           spec.GetArgument<std::string>("missing_component_behavior"))) {
-  DALI_ENFORCE(paths_.size() == index_paths_.size(),
-               "Number of webdataset archives does not match the number of index files");
+  DALI_ENFORCE(paths_.size() == index_paths_.size() || index_paths_.size() == 0,
+               make_string("The number of index files, if any, must match the number of archives ",
+               "in the dataset"));
   DALI_ENFORCE(paths_.size() > 0, "No webdataset archives provided");
   DALI_ENFORCE(missing_component_behavior_ != detail::wds::MissingExtBehavior::Invalid,
                make_string("Invalid value for missing_component_behavior '",
@@ -181,9 +231,13 @@ void WebdatasetLoader::PrepareEmpty(vector<Tensor<CPUBackend>>& empty) {
   }
 }
 
-inline std::string GetExtension(const std::string& filepath) {
-  const size_t dot_pos = filepath.find_first_of('.', filepath.find_last_of('/') + 1);
-  return filepath.substr(dot_pos + 1);
+std::string WebdatasetLoader::GetSampleSource(const detail::wds::SampleDesc& sample) {
+  if (generate_index_) {
+    return make_string("tar file at \"", paths_[sample.wds_shard_index], '"');
+  } else {
+    return make_string("index file at \"", index_paths_[sample.wds_shard_index], "\" line ",
+                       sample.line_number);
+  }
 }
 
 void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
@@ -193,18 +247,17 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
 
   for (auto& component : current_sample.components) {
     // Checking if the component data from the index file agrees with reality
-    const auto& index_path = index_paths_[current_sample.wds_shard_index];
-    DALI_ENFORCE(component.offset < static_cast<int64_t>(current_wds_shard->Size()),
-                 IndexFileErrMsg(index_path, current_sample.line_number,
-                                 "offset is outside of the archive file"));
+    DALI_ENFORCE(
+        component.offset < static_cast<int64_t>(current_wds_shard->Size()),
+        IndexFileErrMsg(index_paths_[current_sample.wds_shard_index], current_sample.line_number,
+                        "offset is outside of the archive file"));
 
     current_wds_shard->Seek(component.offset);
 
     // Skipping cached samples
     const std::string source_info =
-        make_string("archive ", paths_[current_sample.wds_shard_index], "index file \"",
-                    index_paths_[current_sample.wds_shard_index], "\" line ",
-                    current_sample.line_number, "component offset ", component.offset);
+        make_string("archive ", paths_[current_sample.wds_shard_index],
+                    GetSampleSource(current_sample), "component offset ", component.offset);
     DALIMeta meta;
     meta.SetSourceInfo(source_info);
     if (ShouldSkipImage(source_info)) {
@@ -267,6 +320,11 @@ void WebdatasetLoader::PrepareMetadataImpl() {
   }
   copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
 
+  generate_index_ = index_paths_.size() == 0;
+  if (generate_index_) {
+    DALI_WARN("Index file not provided, it may take some time to infer it from the tar file");
+  }
+
   // initializing all the readers
   wds_shards_.reserve(paths_.size());
   for (auto& uri : paths_) {
@@ -289,14 +347,20 @@ void WebdatasetLoader::PrepareMetadataImpl() {
   output_indicies_.reserve(ext_.size());
 
   std::vector<size_t> dtype_sizes_(dtypes_.size());
-  for (size_t i = 0; i < dtypes_.size(); i++)
+  for (size_t i = 0; i < dtypes_.size(); i++) {
     dtype_sizes_[i] = TypeTable::GetTypeInfo(dtypes_[i]).size();
+  }
 
-  for (size_t wds_shard_index = 0; wds_shard_index < index_paths_.size(); wds_shard_index++) {
+  for (size_t wds_shard_index = 0; wds_shard_index < paths_.size(); wds_shard_index++) {
     unfiltered_samples.resize(0);
     unfiltered_components.resize(0);
-    detail::wds::ParseIndexFile(unfiltered_samples, unfiltered_components,
-                                index_paths_[wds_shard_index]);
+    if (generate_index_) {
+      detail::wds::ParseTarFile(unfiltered_samples, unfiltered_components,
+                                wds_shards_[wds_shard_index]);
+    } else {
+      detail::wds::ParseIndexFile(unfiltered_samples, unfiltered_components,
+                                  index_paths_[wds_shard_index]);
+    }
 
     for (auto& sample : unfiltered_samples) {
       detail::wds::SampleDesc new_sample{
@@ -311,18 +375,16 @@ void WebdatasetLoader::PrepareMetadataImpl() {
             detail::wds::VectorRange<size_t>(output_indicies_, output_indicies_.size());
         for (auto& output : ext_map[component.ext]) {
           if (!was_output_set[output]) {
-            DALI_ENFORCE(
-                component.size % dtype_sizes_[output] == 0,
-                make_string("Error in index file at \"", index_paths_[wds_shard_index], "\" line ",
-                            sample.line_number, " - component size and dtype incompatible"));
+            DALI_ENFORCE(component.size % dtype_sizes_[output] == 0,
+                         make_string("Error in index file at ", GetSampleSource(new_sample),
+                                     " - component size and dtype incompatible"));
             output_indicies_.push_back(output);
             component.outputs.num++;
             was_output_set[output] = true;
           } else {
             std::call_once(multiple_files_single_component, [&]() {
-              DALI_WARN(make_string("Multiple components matching output ",
-                                    output, " at line ", sample.line_number, " file \"",
-                                    index_paths_[wds_shard_index], "\"."));
+              DALI_WARN(make_string("Multiple components matching output ", output, " at ",
+                                    GetSampleSource(new_sample), "."));
             });
           }
         }
@@ -348,8 +410,7 @@ void WebdatasetLoader::PrepareMetadataImpl() {
             output_indicies_.resize(start_outputs_index);
             break;
           case detail::wds::MissingExtBehavior::Raise:
-            DALI_FAIL(make_string("Underful sample detected at \"", index_paths_[wds_shard_index],
-                                  "\" line ", sample.line_number));
+            DALI_FAIL(make_string("Underful sample detected at ", GetSampleSource(new_sample)));
             break;
           default:
             break;

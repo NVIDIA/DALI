@@ -57,6 +57,10 @@ class DLL_PUBLIC TarArchive {
    * @brief Tells the offset of the beginning of the header of the current entry
    */
   int64_t TellArchive() const;
+  /**
+   * @brief Returns the length of the header for the current tar entry
+   */
+  int64_t HeaderSize() const;
 
   enum EntryType {
     ENTRY_NONE = 0,
@@ -107,9 +111,9 @@ class DLL_PUBLIC TarArchive {
   bool EndOfFile() const;
 
   /**
-   * @brief Frees the underlying file stream
+   * @brief Releases the ownership of the underlying file stream and returns it.
    */
-  void Close();
+  std::unique_ptr<FileStream> Release();
 
  private:
   std::unique_ptr<FileStream> stream_;
