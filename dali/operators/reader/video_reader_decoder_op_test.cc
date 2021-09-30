@@ -273,7 +273,7 @@ TEST_F(VideoReaderDecoderTest, CompareReaders) {
       frame_gpu.resize(this->FrameSize(video_idx));
 
       for (int i = 0; i < sequence_length; ++i) {
-        frame_gpu.clear();        
+        frame_gpu.clear();
         MemCopy(
           frame_gpu.data(),
           sample_gpu + i * this->FrameSize(video_idx),
