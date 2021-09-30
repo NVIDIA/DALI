@@ -19,12 +19,12 @@
 #include <fstream>
 #include <vector>
 #include <string>
-#include <thread>
 
 #include "dali/test/dali_test_config.h"
 #include "dali/test/cv_mat_utils.h"
 
 namespace dali {
+
 // Define static tests members - needed to hold resources between tests
 std::vector<std::vector<cv::Mat>> VideoTestBase::cfr_frames_;
 std::vector<std::vector<cv::Mat>> VideoTestBase::vfr_frames_;
