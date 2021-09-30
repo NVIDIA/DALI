@@ -54,11 +54,13 @@ containers and returns a batch of sequences of ``sequence_length`` frames with s
 ``(N, F, H, W, C)``, where ``N`` is the batch size, and ``F`` is the number of frames).
 
 .. note::
-  Containers which doesn't support indexing, like mpeg, requires DALI to build the index.)code")
+  Containers which do not support indexing, like MPEG, require DALI to build the index.
+DALI will go through the video and mark keyframes to be able to seek effectively,
+even in the variable frame rate scenario.)code")
   .NumInput(0)
   .OutputFn(detail::VideoReaderDecoderOutputFn)
   .AddOptionalArg("filenames",
-      R"code(File names of the video files to load.)code",
+      R"code(Absolute paths to the video files to load.)code",
       std::vector<std::string>{})
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
 ``filenames`` argument. If not provided, no labels will be yielded.)", nullptr)

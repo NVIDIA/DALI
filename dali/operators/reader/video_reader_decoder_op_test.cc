@@ -75,7 +75,7 @@ TEST_F(VideoReaderDecoderTest, CpuConstantFrameRate) {
       ASSERT_EQ(label[0], video_idx);
 
       for (int i = 0; i < sequence_length; ++i) {
-        this->ComapreFrames(
+        this->CompareFrames(
           sample + i * this->FrameSize(video_idx),
           this->GetCfrFrame(video_idx, gt_frame_id + i * stride),
           this->FrameSize(video_idx));
@@ -143,7 +143,7 @@ TEST_F(VideoReaderDecoderTest, CpuVariableFrameRate) {
       ASSERT_EQ(label[0], video_idx);
 
       for (int i = 0; i < sequence_length; ++i) {
-        this->ComapreFrames(
+        this->CompareFrames(
           sample + i * this->FrameSize(video_idx),
           this->GetVfrFrame(video_idx, gt_frame_id + i * stride),
           this->FrameSize(video_idx));
@@ -195,7 +195,7 @@ TEST_F(VideoReaderDecoderTest, RandomShuffle) {
 
     auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
     const auto sample = frame_video_output.tensor<uint8_t>(0);
-    ComapreFrames(sample, this->GetCfrFrame(0, expected_order[sequence_id]), this->FrameSize(0));
+    CompareFrames(sample, this->GetCfrFrame(0, expected_order[sequence_id]), this->FrameSize(0));
   }
 }
 
@@ -244,6 +244,9 @@ TEST_F(VideoReaderDecoderTest, CompareReaders) {
 
   int video_idx = 0;
 
+  vector<uint8_t> frame_gpu;
+  frame_gpu.reserve(std::max(this->FrameSize(0), this->FrameSize(1)));
+
   while (sequence_id < num_sequences) {
     DeviceWorkspace ws;
     pipe.RunCPU();
@@ -261,21 +264,22 @@ TEST_F(VideoReaderDecoderTest, CompareReaders) {
       const auto sample_gpu = frame_gpu_video_output.tensor<uint8_t>(sample_id);
 
       const auto label = frame_label_output.tensor<int>(sample_id);
-      const auto label_gpu = frame_label_output.tensor<int>(sample_id);
-
-      vector<uint8_t> frame_gpu(this->FrameSize(video_idx));
+      const auto label_gpu = frame_gpu_label_output.tensor<int>(sample_id);
 
       int label_gpu_out = -1;
       MemCopy(&label_gpu_out, label_gpu, sizeof(int));
       ASSERT_EQ(label[0], label_gpu_out);
 
+      frame_gpu.resize(this->FrameSize(video_idx));
+
       for (int i = 0; i < sequence_length; ++i) {
+        frame_gpu.clear();        
         MemCopy(
           frame_gpu.data(),
           sample_gpu + i * this->FrameSize(video_idx),
           FrameSize(video_idx) * sizeof(uint8_t));
 
-        this->ComapreFrames(
+        this->CompareFrames(
           sample + i * this->FrameSize(video_idx),
           frame_gpu.data(),
           this->FrameSize(video_idx), 100);
