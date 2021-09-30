@@ -32,8 +32,7 @@ void VideoReaderDecoder::RunImpl(SampleWorkspace &ws) {
 
   if (has_labels_) {
     auto &label_output = ws.Output<CPUBackend>(1);
-    label_output.Resize({});
-    label_output.set_type<float>();
+    label_output.Resize({}, DALIDataType::DALI_INT32);
     label_output.mutable_data<int>()[0] = sample.label_;
   }
 }
