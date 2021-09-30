@@ -1188,30 +1188,31 @@ tested_methods = [
 
 excluded_methods = [
     "hidden.*",
-    "multi_paste",              # ToDo - crashes
-    "coco_reader",              # readers do do not support variable batch size yet
-    "sequence_reader",          # readers do do not support variable batch size yet
-    "numpy_reader",             # readers do do not support variable batch size yet
-    "file_reader",              # readers do do not support variable batch size yet
-    "caffe_reader",             # readers do do not support variable batch size yet
-    "caffe2_reader",            # readers do do not support variable batch size yet
-    "mxnet_reader",             # readers do do not support variable batch size yet
-    "tfrecord_reader",          # readers do do not support variable batch size yet
-    "nemo_asr_reader",          # readers do do not support variable batch size yet
-    "video_reader",             # readers do do not support variable batch size yet
-    "video_reader_resize",      # readers do do not support variable batch size yet
-    "readers.coco",             # readers do do not support variable batch size yet
-    "readers.sequence",         # readers do do not support variable batch size yet
-    "readers.numpy",            # readers do do not support variable batch size yet
-    "readers.file",             # readers do do not support variable batch size yet
-    "readers.caffe",            # readers do do not support variable batch size yet
-    "readers.caffe2",           # readers do do not support variable batch size yet
-    "readers.mxnet",            # readers do do not support variable batch size yet
-    "readers.tfrecord",         # readers do do not support variable batch size yet
-    "readers.nemo_asr",         # readers do do not support variable batch size yet
-    "readers.video",            # readers do do not support variable batch size yet
-    "readers.video_resize",     # readers do do not support variable batch size yet
-    "readers.webdataset",       # readers do do not support variable batch size yet
+    "multi_paste",                   # ToDo - crashes
+    "coco_reader",                   # readers do do not support variable batch size yet
+    "sequence_reader",               # readers do do not support variable batch size yet
+    "numpy_reader",                  # readers do do not support variable batch size yet
+    "file_reader",                   # readers do do not support variable batch size yet
+    "caffe_reader",                  # readers do do not support variable batch size yet
+    "caffe2_reader",                 # readers do do not support variable batch size yet
+    "mxnet_reader",                  # readers do do not support variable batch size yet
+    "tfrecord_reader",               # readers do do not support variable batch size yet
+    "nemo_asr_reader",               # readers do do not support variable batch size yet
+    "video_reader",                  # readers do do not support variable batch size yet
+    "video_reader_resize",           # readers do do not support variable batch size yet
+    "readers.coco",                  # readers do do not support variable batch size yet
+    "readers.sequence",              # readers do do not support variable batch size yet
+    "readers.numpy",                 # readers do do not support variable batch size yet
+    "readers.file",                  # readers do do not support variable batch size yet
+    "readers.caffe",                 # readers do do not support variable batch size yet
+    "readers.caffe2",                # readers do do not support variable batch size yet
+    "readers.mxnet",                 # readers do do not support variable batch size yet
+    "readers.tfrecord",              # readers do do not support variable batch size yet
+    "readers.nemo_asr",              # readers do do not support variable batch size yet
+    "readers.video",                 # readers do do not support variable batch size yet
+    "readers.video_resize",          # readers do do not support variable batch size yet
+    "readers.webdataset",            # readers do do not support variable batch size yet
+    "experimental.readers.video",    # readers do do not support variable batch size yet
 ]
 
 def test_coverage():
