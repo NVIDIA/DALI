@@ -170,6 +170,41 @@ TEST_F(VideoReaderCpuTest, CpuVariableFrameRate) {
   }
 }
 
+TEST_F(VideoReaderCpuTest, RandomShuffle) {
+  const int batch_size = 1;
+  const int sequence_length = 1;
+  
+  Pipeline pipe(batch_size, 1, 0, 1);
+
+  pipe.AddOperator(OpSpec("readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", sequence_length)
+    .AddArg("random_shuffle", true)
+    .AddArg("initial_fill", this->NumFrames(0))
+    .AddArg(
+      "filenames",
+      std::vector<std::string>{
+        testing::dali_extra_path() + "/db/video/cfr/test_1.mp4"})
+    .AddOutput("frames", "cpu"));
+
+  pipe.Build({{"frames", "cpu"}});
+
+  std::vector<int> expected_order = {44, 12, 49, 38, 8};
+
+  int num_sequences = 5;
+
+  for (int sequence_id = 0; sequence_id < num_sequences; ++sequence_id) {
+    DeviceWorkspace ws;
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+
+    auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
+    const auto sample = frame_video_output.tensor<uint8_t>(0);
+    ComapreFrames(sample, this->GetCfrFrame(0, expected_order[sequence_id]), this->FrameSize(0));
+  }
+}
+
 
 TEST_F(VideoReaderCpuTest, CompareReaders) {
   const int batch_size = 4;
