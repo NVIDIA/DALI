@@ -185,8 +185,8 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
       missing_component_behavior_(detail::wds::ParseMissingExtBehavior(
           spec.GetArgument<std::string>("missing_component_behavior"))) {
   DALI_ENFORCE(paths_.size() == index_paths_.size() || index_paths_.size() == 0,
-               "The number of index files, if any, must match the number of archives"
-               + "in the dataset.");
+               make_string("The number of index files, if any, must match the number of archives",
+               "in the dataset."));
   DALI_ENFORCE(paths_.size() > 0, "No webdataset archives provided");
   DALI_ENFORCE(missing_component_behavior_ != detail::wds::MissingExtBehavior::Invalid,
                make_string("Invalid value for missing_component_behavior '",
