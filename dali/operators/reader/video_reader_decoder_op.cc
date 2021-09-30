@@ -13,6 +13,9 @@
 // limitations under the License.
 #include "dali/operators/reader/video_reader_decoder_op.h"
 
+#include <string>
+#include <vector>
+
 namespace dali {
 
 VideoReaderDecoder::VideoReaderDecoder(const OpSpec &spec)

@@ -33,7 +33,7 @@ TEST_F(VideoReaderDecoderTest, CpuConstantFrameRate) {
   const int sequence_length = 6;
   const int stride = 3;
   const int step = 10;
-  
+
   Pipeline pipe(batch_size, 4, 0);
 
   pipe.AddOperator(OpSpec("experimental__readers__Video")
@@ -101,7 +101,7 @@ TEST_F(VideoReaderDecoderTest, CpuVariableFrameRate) {
   const int sequence_length = 6;
   const int stride = 3;
   const int step = 10;
-  
+
   Pipeline pipe(batch_size, 4, 0);
 
   pipe.AddOperator(OpSpec("experimental__readers__Video")
@@ -167,7 +167,7 @@ TEST_F(VideoReaderDecoderTest, CpuVariableFrameRate) {
 TEST_F(VideoReaderDecoderTest, RandomShuffle) {
   const int batch_size = 1;
   const int sequence_length = 1;
-  
+
   Pipeline pipe(batch_size, 1, 0, 1);
 
   pipe.AddOperator(OpSpec("experimental__readers__Video")
@@ -205,7 +205,7 @@ TEST_F(VideoReaderDecoderTest, CompareReaders) {
   const int sequence_length = 6;
   const int stride = 3;
   const int step = 10;
-  
+
   Pipeline pipe(batch_size, 4, 0);
 
   pipe.AddOperator(OpSpec("experimental__readers__Video")
@@ -268,7 +268,7 @@ TEST_F(VideoReaderDecoderTest, CompareReaders) {
       int label_gpu_out = -1;
       MemCopy(&label_gpu_out, label_gpu, sizeof(int));
       ASSERT_EQ(label[0], label_gpu_out);
-      
+
       for (int i = 0; i < sequence_length; ++i) {
         MemCopy(
           frame_gpu.data(),
@@ -276,7 +276,9 @@ TEST_F(VideoReaderDecoderTest, CompareReaders) {
           FrameSize(video_idx) * sizeof(uint8_t));
 
         this->ComapreFrames(
-          sample + i * this->FrameSize(video_idx), frame_gpu.data(), this->FrameSize(video_idx), 100);
+          sample + i * this->FrameSize(video_idx),
+          frame_gpu.data(),
+          this->FrameSize(video_idx), 100);
       }
 
       gt_frame_id += step;

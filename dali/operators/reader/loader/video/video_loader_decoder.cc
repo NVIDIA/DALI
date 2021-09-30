@@ -34,7 +34,8 @@ void VideoLoaderDecoder::ReadSample(VideoSample &sample) {
 
   // TODO(awolant): Extract decoding outside of ReadSample (ReaderDecoder abstraction)
   for (int i = 0; i < sequence_len_; ++i) {
-    video_file.SeekFrame(sample_span.start_ + i * sample_span.stride_);     //TODO(awolant): This seek can be optimized - for consecutive frames not needed etc.
+    // TODO(awolant): This seek can be optimized - for consecutive frames not needed etc.
+    video_file.SeekFrame(sample_span.start_ + i * sample_span.stride_);
     video_file.ReadNextFrame(data + i * video_file.FrameSize());
   }
 
@@ -54,8 +55,11 @@ void VideoLoaderDecoder::PrepareMetadataImpl() {
   }
 
   for (size_t video_idx = 0; video_idx < video_files_.size(); ++video_idx) {
-    for (int start = 0; start + stride_ * sequence_len_ <= video_files_[video_idx].NumFrames(); start += step_) {
-      sample_spans_.push_back(VideoSampleDesc(start, start + stride_ * sequence_len_, stride_, video_idx));
+    for (int start = 0;
+         start + stride_ * sequence_len_ <= video_files_[video_idx].NumFrames();
+         start += step_) {
+      sample_spans_.push_back(
+        VideoSampleDesc(start, start + stride_ * sequence_len_, stride_, video_idx));
     }
   }
 }

@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_LOADER_DECODER_CPU_H_
-#define DALI_OPERATORS_READER_LOADER_VIDEO_LOADER_DECODER_CPU_H_
+#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_H_
+#define DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_H_
 
+#include <string>
+#include <vector>
 
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/loader/video/frames_decoder.h"
@@ -22,7 +24,7 @@
 namespace dali {
 class VideoSampleDesc {
  public:
-  explicit VideoSampleDesc(int start, int end, int stride, int video_idx) : 
+  explicit VideoSampleDesc(int start, int end, int stride, int video_idx) :
     start_(start), end_(end), stride_(stride), video_idx_(video_idx) {}
 
   int start_ = -1;
@@ -39,7 +41,7 @@ class VideoSample {
 
 class VideoLoaderDecoder : public Loader<CPUBackend, VideoSample> {
  public:
-  explicit inline VideoLoaderDecoder(const OpSpec &spec) : 
+  explicit inline VideoLoaderDecoder(const OpSpec &spec) :
     Loader<CPUBackend, VideoSample>(spec),
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
     sequence_len_(spec.GetArgument<int>("sequence_length")),
@@ -55,12 +57,12 @@ class VideoLoaderDecoder : public Loader<CPUBackend, VideoSample> {
 
   void PrepareEmpty(VideoSample &sample) override;
 
-protected:
+ protected:
   Index SizeImpl() override;
 
   void PrepareMetadataImpl() override;
 
-private:
+ private:
   void Reset(bool wrap_to_shard) override;
 
   std::vector<std::string> filenames_;
@@ -78,4 +80,4 @@ private:
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_LOADER_DECODER_CPU_H_
+#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_H_
