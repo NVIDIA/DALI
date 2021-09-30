@@ -11,28 +11,25 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "dali/operators/reader/video_reader_cpu_op.h"
+
+#ifndef DALI_OPERATORS_READER_VIDEO_READER_DECODER_OP_H_
+#define DALI_OPERATORS_READER_VIDEO_READER_DECODER_OP_H_
+
+#include "dali/operators/reader/reader_op.h"
+#include "dali/operators/reader/loader/video/video_loader_decoder.h"
 
 namespace dali {
+class VideoReaderDecoder : public DataReader<CPUBackend, VideoSample> {
+ public:
+  explicit VideoReaderDecoder(const OpSpec &spec);
 
-VideoReaderCPU::VideoReaderCPU(const OpSpec &spec)
-    : DataReader<CPUBackend, VideoSample>(spec),
-      has_labels_(spec.HasArgument("labels")) {
-      loader_ = InitLoader<VideoLoaderCPU>(spec);
-}
+ protected:
+  void RunImpl(SampleWorkspace &ws) override;
 
-void VideoReaderCPU::RunImpl(SampleWorkspace &ws) {
-  const auto &sample = GetSample(ws.data_idx());
-  auto &video_output = ws.Output<CPUBackend>(0);
-
-  video_output.Copy(sample.data_, 0);
-
-  if (has_labels_) {
-    auto &label_output = ws.Output<CPUBackend>(1);
-    label_output.Resize({});
-    label_output.set_type<float>();
-    label_output.mutable_data<int>()[0] = sample.label_;
-  }
-}
+ private:
+  bool has_labels_ = false;
+};
 
 }  // namespace dali
+
+#endif  // DALI_OPERATORS_READER_VIDEO_READER_DECODER_OP_H_

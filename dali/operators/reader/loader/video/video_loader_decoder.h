@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_LOADER_CPU_H_
-#define DALI_OPERATORS_READER_LOADER_VIDEO_LOADER_CPU_H_
+#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_LOADER_DECODER_CPU_H_
+#define DALI_OPERATORS_READER_LOADER_VIDEO_LOADER_DECODER_CPU_H_
 
 
 #include "dali/operators/reader/loader/loader.h"
@@ -37,9 +37,9 @@ class VideoSample {
   int label_;
 };
 
-class VideoLoaderCPU : public Loader<CPUBackend, VideoSample> {
+class VideoLoaderDecoder : public Loader<CPUBackend, VideoSample> {
  public:
-  explicit inline VideoLoaderCPU(const OpSpec &spec) : 
+  explicit inline VideoLoaderDecoder(const OpSpec &spec) : 
     Loader<CPUBackend, VideoSample>(spec),
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
     sequence_len_(spec.GetArgument<int>("sequence_length")),
@@ -78,4 +78,4 @@ private:
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_LOADER_CPU_H_
+#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_LOADER_DECODER_CPU_H_

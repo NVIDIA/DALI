@@ -20,7 +20,6 @@
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/reader/video_reader_op.h"
-#include "dali/operators/reader/video_reader_cpu_op.h"
 
 namespace dali {
 
@@ -63,7 +62,6 @@ void VideoReader::Prefetch() {
 
 
 DALI_REGISTER_OPERATOR(readers__Video, VideoReader, GPU);
-DALI_REGISTER_OPERATOR(readers__Video, VideoReaderCPU, CPU);
 
 DALI_SCHEMA(readers__Video)
   .DocStr(R"code(Loads and decodes video files using FFmpeg and NVDECODE, which is

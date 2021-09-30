@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/reader/loader/video_loader_cpu.h"
+#include "dali/operators/reader/loader/video/video_loader_decoder.h"
 
 namespace dali {
-void VideoLoaderCPU::PrepareEmpty(VideoSample &sample) {
+void VideoLoaderDecoder::PrepareEmpty(VideoSample &sample) {
   sample = {};
 }
 
-void VideoLoaderCPU::ReadSample(VideoSample &sample) {
+void VideoLoaderDecoder::ReadSample(VideoSample &sample) {
   auto &sample_span = sample_spans_[current_index_];
   auto &video_file = video_files_[sample_span.video_idx_];
 
@@ -32,8 +32,9 @@ void VideoLoaderCPU::ReadSample(VideoSample &sample) {
 
   auto data = sample.data_.mutable_data<uint8_t>();
 
+  // TODO(awolant): Extract decoding outside of ReadSample (ReaderDecoder abstraction)
   for (int i = 0; i < sequence_len_; ++i) {
-    video_file.SeekFrame(sample_span.start_ + i * sample_span.stride_);     //This seek can be optimized - for consecutive frames not needed etc.
+    video_file.SeekFrame(sample_span.start_ + i * sample_span.stride_);     //TODO(awolant): This seek can be optimized - for consecutive frames not needed etc.
     video_file.ReadNextFrame(data + i * video_file.FrameSize());
   }
 
@@ -42,11 +43,11 @@ void VideoLoaderCPU::ReadSample(VideoSample &sample) {
   }
 }
 
-Index VideoLoaderCPU::SizeImpl() {
+Index VideoLoaderDecoder::SizeImpl() {
   return sample_spans_.size();
 }
 
-void VideoLoaderCPU::PrepareMetadataImpl() {
+void VideoLoaderDecoder::PrepareMetadataImpl() {
   video_files_.reserve(filenames_.size());
   for (auto &filename : filenames_) {
     video_files_.emplace_back(filename);
@@ -59,7 +60,7 @@ void VideoLoaderCPU::PrepareMetadataImpl() {
   }
 }
 
-void VideoLoaderCPU::Reset(bool wrap_to_shard) {
+void VideoLoaderDecoder::Reset(bool wrap_to_shard) {
   current_index_ = wrap_to_shard ? start_index(shard_id_, num_shards_, SizeImpl()) : 0;
 }
 

@@ -24,11 +24,11 @@
 
 
 namespace dali {
-class VideoReaderCpuTest : public VideoTestBase {
+class VideoReaderDecoderTest : public VideoTestBase {
 };
 
 
-TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
+TEST_F(VideoReaderDecoderTest, CpuConstantFrameRate) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
@@ -36,7 +36,7 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
   
   Pipeline pipe(batch_size, 4, 0);
 
-  pipe.AddOperator(OpSpec("readers__Video")
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
     .AddArg("device", "cpu")
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
@@ -96,7 +96,7 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
   }
 }
 
-TEST_F(VideoReaderCpuTest, CpuVariableFrameRate) {
+TEST_F(VideoReaderDecoderTest, CpuVariableFrameRate) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
@@ -104,7 +104,7 @@ TEST_F(VideoReaderCpuTest, CpuVariableFrameRate) {
   
   Pipeline pipe(batch_size, 4, 0);
 
-  pipe.AddOperator(OpSpec("readers__Video")
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
     .AddArg("device", "cpu")
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
@@ -164,13 +164,13 @@ TEST_F(VideoReaderCpuTest, CpuVariableFrameRate) {
   }
 }
 
-TEST_F(VideoReaderCpuTest, RandomShuffle) {
+TEST_F(VideoReaderDecoderTest, RandomShuffle) {
   const int batch_size = 1;
   const int sequence_length = 1;
   
   Pipeline pipe(batch_size, 1, 0, 1);
 
-  pipe.AddOperator(OpSpec("readers__Video")
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
     .AddArg("device", "cpu")
     .AddArg("sequence_length", sequence_length)
     .AddArg("random_shuffle", true)
@@ -200,7 +200,7 @@ TEST_F(VideoReaderCpuTest, RandomShuffle) {
 }
 
 
-TEST_F(VideoReaderCpuTest, CompareReaders) {
+TEST_F(VideoReaderDecoderTest, CompareReaders) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
@@ -208,7 +208,7 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
   
   Pipeline pipe(batch_size, 4, 0);
 
-  pipe.AddOperator(OpSpec("readers__Video")
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
     .AddArg("device", "cpu")
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
