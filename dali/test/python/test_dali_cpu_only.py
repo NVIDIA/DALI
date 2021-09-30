@@ -1025,6 +1025,7 @@ tested_methods = [
     "readers.coco",
     "readers.numpy",
     "readers.webdataset",
+    "experimental.readers.video",
     "coin_flip",
     "uniform",
     "random.uniform",

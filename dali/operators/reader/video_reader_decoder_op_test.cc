@@ -167,8 +167,9 @@ TEST_F(VideoReaderDecoderTest, CpuVariableFrameRate) {
 TEST_F(VideoReaderDecoderTest, RandomShuffle) {
   const int batch_size = 1;
   const int sequence_length = 1;
+  const int seed = 1;
 
-  Pipeline pipe(batch_size, 1, 0, 1);
+  Pipeline pipe(batch_size, 1, 0, seed);
 
   pipe.AddOperator(OpSpec("experimental__readers__Video")
     .AddArg("device", "cpu")
