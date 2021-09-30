@@ -850,7 +850,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       CUDA_CALL(cudaEventSynchronize(hw_decode_event_));
       if (RestrictPinnedMemUsage()) {
         for (size_t k = 0; k < samples_hw_batched_.size(); ++k) {
-          in_data_[k] = tv.mutable_tensor<uint8_t>(k);
+          in_data_[k] = static_cast<unsigned char*>(tv.raw_mutable_tensor(k));
         }
       } else {
         // it is H2H copy so the stream doesn't matter much as we don't use cudaMemcpy but
