@@ -79,9 +79,6 @@ TEST_F(VideoReaderCpuTest, CpuConstantFrameRate) {
           sample + i * this->FrameSize(video_idx),
           this->GetCfrFrame(video_idx, gt_frame_id + i * stride),
           this->FrameSize(video_idx));
-
-        // this->SaveFrame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
-        // this->SaveFrame(this->cfr_frames_[video_idx][gt_frame_id + i * stride].data, i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
       }
 
       gt_frame_id += step;
@@ -150,9 +147,6 @@ TEST_F(VideoReaderCpuTest, CpuVariableFrameRate) {
           sample + i * this->FrameSize(video_idx),
           this->GetVfrFrame(video_idx, gt_frame_id + i * stride),
           this->FrameSize(video_idx));
-
-        // this->SaveFrame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
-        // this->SaveFrame(this->gt_frames_[video_idx][gt_frame_id + i * stride].data, i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
       }
 
       gt_frame_id += step;
@@ -283,9 +277,6 @@ TEST_F(VideoReaderCpuTest, CompareReaders) {
 
         this->ComapreFrames(
           sample + i * this->FrameSize(video_idx), frame_gpu.data(), this->FrameSize(video_idx), 100);
-
-        // this->SaveFrame(sample + i * this->FrameSize(video_idx), i, sample_id, batch_id, "reader", this->Width(video_idx), this->Height(video_idx), this->Channels());
-        // this->SaveFrame(frame_gpu.data(), i, sample_id, batch_id, "gt", this->Width(video_idx), this->Height(video_idx), this->Channels());
       }
 
       gt_frame_id += step;
