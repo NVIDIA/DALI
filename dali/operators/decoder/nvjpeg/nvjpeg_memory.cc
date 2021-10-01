@@ -139,7 +139,8 @@ struct NVJpegMem {
     auto ptr = mm::alloc_raw_unique<char>(mr, size);
     std::unique_lock<std::shared_timed_mutex> lock(alloc_info_mutex_);
     AllocInfo &ai = alloc_info_[ptr.get()];  // create entry first (before moving out the deleter)
-    ai = { mm::memory_kind_id::device, std::move(ptr.get_deleter()), size, thread_id};
+    mm::memory_kind_id kind = mm::kind2id_v<MemoryKind>;
+    ai = { kind, std::move(ptr.get_deleter()), size, thread_id};
     return {ptr.release(), {}};
   }
 
@@ -379,7 +380,7 @@ nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k() {
 
 nvjpeg2kPinnedAllocator_t GetPinnedAllocatorNvJpeg2k() {
   nvjpeg2kPinnedAllocator_t allocator;
-  allocator.pinned_malloc = &PinnedNew;
+  allocator.pinned_malloc = &HostNew;
   allocator.pinned_free = &ReturnBufferToPool;
   return allocator;
 }
