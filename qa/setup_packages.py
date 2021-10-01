@@ -414,7 +414,7 @@ all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
                               PckgVer("1.15.5",  python_max_ver="3.7"),
                               "2.5.1",
                               "2.6.0",
-                              PckgVer("1.15.5+nv21.08", python_min_ver="3.8", python_max_ver="3.8", alias="nvidia-tensorflow")]
+                              PckgVer("1.15.5+nv21.09", python_min_ver="3.8", python_max_ver="3.8", alias="nvidia-tensorflow")]
                         }),
                 CudaPackageExtraIndex("torch",
                         { "101" : ["1.8.0"],
