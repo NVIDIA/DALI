@@ -30,6 +30,10 @@ std::vector<std::vector<cv::Mat>> VideoTestBase::cfr_frames_;
 std::vector<std::vector<cv::Mat>> VideoTestBase::vfr_frames_;
 
 void VideoTestBase::SetUpTestSuite() {
+  if (cfr_frames_.size() > 0) {
+    // This setup is called for each test fixture, but we need it only once
+    return;
+  }
   std::vector<std::string> cfr_frames_paths{
       testing::dali_extra_path() + "/db/video/cfr/frames_1/",
       testing::dali_extra_path() + "/db/video/cfr/frames_2/"};
@@ -61,7 +65,7 @@ void VideoTestBase::LoadFrames(
   }
 }
 
-void VideoTestBase::ComapreFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps) {
+void VideoTestBase::CompareFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps) {
     for (int j = 0; j < size; ++j) {
       ASSERT_NEAR(frame[j], gt[j], eps);
     }

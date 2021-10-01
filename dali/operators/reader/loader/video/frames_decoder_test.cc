@@ -40,28 +40,28 @@ TEST_F(FramesDecoderTest, ConstantFrameRate) {
 
     // Read first frame
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->GetCfrFrame(0, 0), file.FrameSize());
+    this->CompareFrames(frame.data(), this->GetCfrFrame(0, 0), file.FrameSize());
 
     // Seek to frame
     file.SeekFrame(25);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->GetCfrFrame(0, 25), file.FrameSize());
+    this->CompareFrames(frame.data(), this->GetCfrFrame(0, 25), file.FrameSize());
 
     // Seek back to frame
     file.SeekFrame(12);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->GetCfrFrame(0, 12), file.FrameSize());
+    this->CompareFrames(frame.data(), this->GetCfrFrame(0, 12), file.FrameSize());
 
     // Seek to last frame (flush frame)
     file.SeekFrame(49);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->GetCfrFrame(0, 49), file.FrameSize());
+    this->CompareFrames(frame.data(), this->GetCfrFrame(0, 49), file.FrameSize());
 
     // Wrap around to first frame
     ASSERT_FALSE(file.ReadNextFrame(frame.data()));
     file.Reset();
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->GetCfrFrame(0, 0), file.FrameSize());
+    this->CompareFrames(frame.data(), this->GetCfrFrame(0, 0), file.FrameSize());
 }
 
 TEST_F(FramesDecoderTest, VariableFrameRate) {
@@ -79,28 +79,28 @@ TEST_F(FramesDecoderTest, VariableFrameRate) {
 
     // Read first frame
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->GetVfrFrame(1, 0), file.FrameSize());
+    this->CompareFrames(frame.data(), this->GetVfrFrame(1, 0), file.FrameSize());
 
     // Seek to frame
     file.SeekFrame(25);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->GetVfrFrame(1, 25), file.FrameSize());
+    this->CompareFrames(frame.data(), this->GetVfrFrame(1, 25), file.FrameSize());
 
     // Seek back to frame
     file.SeekFrame(12);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->GetVfrFrame(1, 12), file.FrameSize());
+    this->CompareFrames(frame.data(), this->GetVfrFrame(1, 12), file.FrameSize());
 
     // Seek to last frame (flush frame)
     file.SeekFrame(59);
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->GetVfrFrame(1, 59), file.FrameSize());
+    this->CompareFrames(frame.data(), this->GetVfrFrame(1, 59), file.FrameSize());
 
     // Wrap around to first frame
     ASSERT_FALSE(file.ReadNextFrame(frame.data()));
     file.Reset();
     file.ReadNextFrame(frame.data());
-    this->ComapreFrames(frame.data(), this->GetVfrFrame(1, 0), file.FrameSize());
+    this->CompareFrames(frame.data(), this->GetVfrFrame(1, 0), file.FrameSize());
 }
 
 TEST_F(FramesDecoderTest, InvalidPath) {

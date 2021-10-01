@@ -139,8 +139,6 @@ class DLL_PUBLIC FramesDecoder {
    */
   void Reset();
 
-  DISABLE_COPY_MOVE_ASSIGN(FramesDecoder);
-
  private:
    /**
    * @brief Gets the packet from the decoder and reads a frame from it to provided buffer. Returns 
