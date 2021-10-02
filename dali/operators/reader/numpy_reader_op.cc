@@ -34,7 +34,6 @@ static void CopyHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &inp
     }, nelements);
   } else {
     int64_t prev_b_start = 0;
-    auto task_sz = nelements / req_nblocks;
     for (int b = 0; b < req_nblocks; b++) {
       int64_t b_start = prev_b_start;
       int64_t b_end = prev_b_start = nbytes * (b + 1) / req_nblocks;
@@ -233,7 +232,6 @@ functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
 void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   const auto &out_sh = output.shape();
-  int ndim = out_sh.sample_dim();
   int nsamples = out_sh.num_samples();
   auto &thread_pool = ws.GetThreadPool();
   int nthreads = thread_pool.NumThreads();
