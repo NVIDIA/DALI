@@ -216,6 +216,9 @@ class SharedBatchWriter:
 
 
 class BufShmChunk:
+    """Simple wrapper around shared memory chunks. Adds mem_chunk_id used
+    to identify chunks in the communication between parent and worker process.
+    """
     def __init__(self, shm_chunk_id, shm_chunk : shared_mem.SharedMem):
         self.shm_chunk_id = shm_chunk_id
         self.shm_chunk = shm_chunk

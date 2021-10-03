@@ -18,6 +18,11 @@ import struct
 
 class Structure:
 
+    """
+    Utility around Python `struct` module that allows to access and modify `_fields` like an ordinary object attributes,
+    but also read and write their values from/into the buffer in C struct like format.
+    """
+
     _fields = tuple()
 
     def __init__(self, *values):
@@ -73,21 +78,26 @@ class BufShmChunkMeta:
 
 class WorkerArgs:
     """
-    Parameters[TODO]
+    Pack of parameters passed to the worker process on initialization.
     ----------
-    `callbacks` : callable list
-        List of callables that worker can call to perform a (part of parallelized) task.
-    `prefetch_queue_depths` : list of int
-        Number of shared memory chunks that should be allocated per callaback, used in cycle buffer manner
-        to pass callback results to parent process.
-    `initial_chunk_size` : int
-        Initial size of shared memory chunk.
-    `task_pipe`: Pipe
-        Pipe used to read list of tasks that given callback should be run on to produce (part of a) result batch.
-    `res_pipe`: Pipe
-        Pipe used to notify the parent process about another batch ready to read in the given memory chunk.
-    `sock` : socket
-        Python wrapper around Unix socket used to pass file descriptors identifying shared memory chunk to parent process.[TODO]"""
+    `worker_id` : Ordinal of the worker in the workers pool
+    `start_method` : Python's multiprocessing start method - `spawn` or `fork`
+    `sources_desc` : Dictionary with External Source's SourceDescription instances as values. Keys are ordinals corresponding to
+        the order in which callbacks were passed to the pool.
+        If `callback_pickler` is not None, actual callback in SourceDescription is replaced with result of its serialization.
+    `shm_chunks` : list of either BufShmChunkMeta or BufShmChunk instances (depending on the start method) that
+        describes all the shared memory chunks available to the worker (they are identified by ids unique inside the pool).
+    `general_task_queue` : Optional[ShmQueue]
+        Queue with tasks for sources without dedicated worker, None if all sources have dedicated worker
+    `dedicated_task_queue`: Optional[ShmQueue]
+        Queue with tasks for sources that are run solely in the given worker.
+    `result_queue`: ShmQueue
+        Queue to report any task done, no matter if dedicated or general.
+    `sock_reader` : Optional[socket]
+        Python wrapper around Unix socket used to pass file descriptors identifying shared memory chunk to parent process.
+        None if `start_method='fork'`
+    `callback_pickler`
+        Optional custom pickler that was applied to serialize callbacks in `sources_desc`"""
 
     def __init__(self, worker_id, start_method, sources_desc, shm_chunks, general_task_queue,
                  dedicated_task_queue, result_queue, sock_reader, callback_pickler):
@@ -130,10 +140,15 @@ class ScheduledTask:
         Index identifying the callback in the order of parallel callbacks passed to pool.
     `scheduled_i` : int
         Ordinal of the batch that tasks list corresponds to.
-    `dst_chunk_i` : int
-        Index of the memory chunk in the circular buffer to store the output in
-    `task` : nvidia.dali.types.SampleInfo list [TODO]
-        List of task ordered to be computed.
+    `epoch_start` : int
+        The value is increased every time the corresponding context is resetted,
+        this way worker can know if the new epoch started, and if it can restart
+        iterator that raised StopIteration but is set to cycle=raise.
+    `task` : BatchArgs
+        Describes the minibatch that should be computed by the worker. If the given source
+        is run in batch mode this simply wraps parameters that external source would pass to the
+        source in non-parallel mode. In sample mode, it is (part of) the list of nvidia.dali.types.SampleInfo
+        produced by the external source.
     """
 
     def __init__(self, context_i, scheduled_i, epoch_start, task : BatchArgs):
@@ -155,10 +170,13 @@ class CompletedTask:
         Index identifying the callback in the order of parallel callbacks passed to pool.
     `scheduled_i` : int
         Ordinal of the batch that tasks corresponds to.
+    `minibatch_i` : int
+        Computation of batch might be split into number of minibatches, this is the number
+        that identifies which consecutive part of the batch it is.
     `batch_meta` :  nvidia.dali._multiproc.shared_batch.SharedBatchMeta
         Serialized result of the task.
     `exception`
-        Exception if the task failed. [TODO]
+        Exception if the task failed.
     """
 
     def __init__(

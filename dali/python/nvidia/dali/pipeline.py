@@ -645,6 +645,8 @@ Parameters
             parallel = [group for group in groups if group.parallel]
             dedicated_worker_cbs = [group for group in parallel if WorkerPool.needs_dedicated_worker(group)]
             general_cbs = [group for group in parallel if not WorkerPool.needs_dedicated_worker(group)]
+            # make the callbacks that need dedicated worker first in line for prefetching, so that
+            # the worker doesn't get busy with other tasks when dedicated tasks arrive
             self._parallel_input_callbacks = dedicated_worker_cbs + general_cbs
             self._seq_input_callbacks = [group for group in groups if not group.parallel]
 

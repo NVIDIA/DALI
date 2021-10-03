@@ -304,7 +304,6 @@ def get_source_from_desc(sources_desc):
 
 
 def init_callbacks(sources_desc, callback_pickler):
-    sources_desc = sources_desc
     if callback_pickler is not None:
         for source_desc in sources_desc.values():
             source_desc.source = callback_pickler.loads(source_desc.source)
@@ -368,8 +367,9 @@ def init_dispatcher(worker_id, results_queue, recv_queues):
 def sync_init(worker_id, result_queue, sock_reader):
     # let main process know shared resources setup is done
     result_queue.put([ShmMessage(worker_id, 0, 0, 0, 0)])
-    sock_reader.shutdown(socket.SHUT_RDWR)
-    sock_reader.close()
+    if sock_reader is not None:
+        sock_reader.shutdown(socket.SHUT_RDWR)
+        sock_reader.close()
 
 
 def worker(worker_args : WorkerArgs):
@@ -378,8 +378,6 @@ def worker(worker_args : WorkerArgs):
     Computes the data in the main thread, in separate threads:
     * waits for incoming tasks,
     * serializes results and passes them to the main process.
-
-    [TODO]
     """
     callbacks = init_callbacks(worker_args.sources_desc, worker_args.callback_pickler)
     if worker_args.start_method == "fork":
@@ -391,7 +389,7 @@ def worker(worker_args : WorkerArgs):
         if worker_args.dedicated_task_queue is not None:
             init_queue(worker_args.sock_reader, worker_args.dedicated_task_queue)
         shm_chunks = init_shm(worker_args.shm_chunks, worker_args.sock_reader)
-        sync_init(worker_args.worker_id, worker_args.result_queue, worker_args.sock_reader)
+    sync_init(worker_args.worker_id, worker_args.result_queue, worker_args.sock_reader)
     task_receiver, batch_dispatcher = None, None
     try:
         task_receiver = init_task_receiver(

@@ -25,6 +25,12 @@ class QueueMeta(Structure):
 
 class ShmQueue:
 
+    """
+    Simple fixed capacity shared memory queue of fixed size messages. The queue fails with assertion error
+    if written to when full, attempt to get from empty queue blocks until data is available or queue was
+    closed.
+    """
+
     MSG_CLASS = ShmMessage
     ALIGN_UP_MSG = 4
     ALIGN_UP_BUFFER = 4096
@@ -90,7 +96,7 @@ class ShmQueue:
                 self.write_meta()
                 # Notify only one waiting worker about closing of the queue, the woken up worker
                 # will notify the next one. Avoid notify_all at this point, due to possible deadlock if
-                # one of the notified workers exited abraptly when waiting on cv_empty without proper releasing
+                # one of the notified workers exited abruptly when waiting on cv_empty without proper releasing
                 # of the underlying semaphore.
                 self.cv_empty.notify()
 
@@ -99,7 +105,7 @@ class ShmQueue:
             return
         with self.lock:
             self.read_meta()
-            assert self.meta.size + len(msgs) <= self.meta.capacity
+            assert self.meta.size + len(msgs) <= self.meta.capacity, "The queue is full"
             if self.meta.is_closed:
                 self.is_closed = True
                 return
@@ -151,6 +157,10 @@ class ShmQueue:
 
 
 class Dispatcher:
+
+    """Wrapper around the queue that enables writing to the queue in a separate thread, just in case
+       a writing process would have to wait too long for a lock on the queue when multiple readers pop
+       items one by one."""
 
     def __init__(self, queue):
         self.pending_cv = threading.Condition()

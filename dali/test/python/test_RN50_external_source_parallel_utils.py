@@ -115,19 +115,16 @@ class BatchLoader(SampleLoader):
         return [self.read_file(file_path) for file_path in files_paths], np.array(labels)
 
 
-class CV2MixIn:
-
+class CV2SampleLoader(SampleLoader):
     def read_file(self, file_path):
         img = cv2.imread(file_path)
         return img
 
 
-class CV2SampleLoader(CV2MixIn, SampleLoader):
-    pass
-
-
-class CV2BatchLoader(CV2MixIn, BatchLoader):
-    pass
+class CV2BatchLoader(BatchLoader):
+    def read_file(self, file_path):
+        img = cv2.imread(file_path)
+        return img
 
 
 def create_dataset_generator(data_path, batch_size, mixed_decode):

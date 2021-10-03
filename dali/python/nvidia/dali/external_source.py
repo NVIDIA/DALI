@@ -318,7 +318,7 @@ Keyword Args
     .. note::
         This is applicable only when copying data to and from GPU memory.
 
-`blocking` : bool, optional  [TODO] does it do anything?
+`blocking` : bool, optional
     Determines whether the external source should wait until data is available or just fail
     when the data is not available.
 
@@ -359,28 +359,34 @@ Keyword Args
     callback in parallel. You can specify the number of workers by passing ``py_num_workers``
     into pipeline's constructor.
 
-    When ``parallel`` is set to True, ``source`` must return NumPy/MXNet/PyTorch CPU array,
-    TensorCPU, or tuple/list of these types with length matching num_outputs.
+    When ``parallel`` is set to True, samples returned by ``source`` must be
+    NumPy/MXNet/PyTorch CPU arrays or TensorCPU instances.
 
-    Only callables that accept one argument (:meth:`~nvidia.dali.types.SampleInfo` objects that
-    represent the index of the requested sample) can be used as ``source`` when ``parallel`` is
-    set to True. It can be a function or an object implementing ``__call__`` operator, which
-    allows to add an initial state to the object instance.
+    Acceptable sources depend on the value specified for ``batch`` parameter.
 
-    Keep in mind, that **copies** of the ``source`` will be distributed between Python workers,
-    and no global state can be shared between them.
+    If batch is set to True, source must be a callable (a function or an object with __call__ method)
+    that accepts exactly one argument (:meth:`~nvidia.dali.types.SampleInfo` objects that
+    represent the index of the requested sample).
+    If ``batch=True``, then ``source`` can be either a callable, an iterable or a generator function.
+    Callable in batch mode must accept exactly one argument - an integer that represents the index of the
+    batch within the epoch that the callable should return.
+
+    Irrespective of ``batch`` value, callables should be statless and be able to produce
+    requested sample or batch solely based on the SampleInfo instance or index in batch, so that they can
+    be run in parallel in a number of workers. When batch is set to True, callables performance might
+    especially benefit from increasing ``prefetch_queue_depth`` so that a few next batches can be
+    computed in parallel.
+
+    Iterator or generator will get assigned a single worker that will iterate over it.
 
     The ``source`` callback must raise StopIteration when the end of data is reached.
-
-    Setting ``parallel`` to True makes the external source work in per-sample mode.
-    If ``batch`` was not set it is set to False.
 
 `prefetch_queue_depth` : int, option, default = 1
     When run in ``parallel=True`` mode, specifies the number of batches to be computed in advance and stored
     in the internal buffer, otherwise parameter is ignored.
 
 `bytes_per_minibatch_hint` : int, default = None
-    Initial size of each buffer accommodating (mini)batches returned by external source from worker
+    Hint for the initial size of each buffer accommodating (part of) the batch returned from worker
     in parallel mode. You may want to specify custom value to lower the number of resizes necessary when
     data produced by the external source don't fit into the buffer.
 """
@@ -513,6 +519,17 @@ Keyword Args
                 raise ValueError(
                     "``prefetch_queue_depth`` must be a positive integer, got {}.".format(
                         prefetch_queue_depth))
+            if source_desc.kind == _SourceKind.CALLABLE:
+                if not source_desc.has_inputs:
+                    raise TypeError(("Callable passed to External Source in parallel mode (when `parallel=True`) "
+                            "must accept exactly one argument: either `nvidia.dali.types.SampleInfo` "
+                            "if run with `batch=False` or an integer that represents the index of the "
+                            "batch within the epoch if `batch=True`. "
+                            "Got a callable that does not accept arguments instead."))
+            elif not batch:
+                what = "an iterable" if source_desc.kind == _SourceKind.ITERABLE else "a generator function"
+                raise TypeError("Parallel external source with {} must be run in a batch mode "
+                        "(specify `batch=True` in the external source definition)".format(what))
         else:
             if prefetch_queue_depth is not None:
                 raise ValueError("The argument `prefetch_queue_depth` is valid only for " +
