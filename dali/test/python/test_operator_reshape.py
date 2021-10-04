@@ -28,7 +28,7 @@ import cv2
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
-from nose.tools import assert_raises
+from nose_utils import assert_raises
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
