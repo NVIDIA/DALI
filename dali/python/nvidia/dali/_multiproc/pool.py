@@ -126,8 +126,7 @@ received so far.
         """Check if given batch notified error and raise it"""
         if batch_i in self.iter_failed:
             exception, traceback_str = self.iter_failed[batch_i]
-            del self.iter_failed[batch_i]
-            del self.partially_received[batch_i]
+            self.clear_scheduled(batch_i)
             if isinstance(exception, StopIteration):
                 raise exception
             else:
@@ -149,11 +148,16 @@ received so far.
         """Check if we didn't receive all results for given tasks and batch_i"""
         return len(self.partially_received[batch_i]) < len(tasks)
 
+    def clear_scheduled(self, batch_i):
+        del self.partially_received[batch_i]
+        if batch_i in self.iter_failed:
+            del self.iter_failed[batch_i]
+
     def get_batch(self, batch_i, tasks):
         """Return the full batch, mark it as cleared and consumed"""
         full_batch = self.partially_received[batch_i]
         res = [full_batch[i] for i, _ in tasks]
-        del full_batch
+        self.clear_scheduled(batch_i)
         return res
 
     def receive_chunk(self, batch_i, sock, serialized_batch):

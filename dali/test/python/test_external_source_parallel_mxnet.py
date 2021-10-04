@@ -19,7 +19,6 @@
 
 import mxnet as mx
 from nose_utils import raises
-from nose.tools import with_setup
 
 from test_pool_utils import *
 from test_external_source_parallel_utils import *
@@ -30,7 +29,6 @@ class ExtCallbackMX(ExtCallback):
         return mx.nd.array(a, dtype=a.dtype)
 
 
-@with_setup(setup_function, teardown_function)
 def test_mxnet():
     yield from check_spawn_with_callback(ExtCallbackMX)
 
@@ -44,7 +42,6 @@ class ExtCallbackMXCuda(ExtCallback):
 @raises(Exception, "Exception traceback received from worker thread*"
                    "TypeError: Unsupported callback return type. GPU tensors*not supported*"
                    "Got*MXNet GPU tensor.")
-@with_setup(setup_function, teardown_function)
 def test_mxnet_cuda():
     callback = ExtCallbackMXCuda((4, 5), 10, np.int32)
     pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
