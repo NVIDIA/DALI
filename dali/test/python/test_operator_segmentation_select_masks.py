@@ -18,7 +18,7 @@ import nvidia.dali.fn as fn
 from test_utils import check_batch, dali_type
 import random
 from segmentation_test_utils import make_batch_select_masks
-from nose.tools import assert_raises
+from nose_utils import assert_raises
 
 random.seed(1234)
 np.random.seed(4321)
@@ -87,14 +87,17 @@ def check_select_masks_wrong_input(data_source_fn, batch_size=1, reindex_masks=F
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
         polygons, vertices, mask_ids = fn.external_source(
-            source = data_source_fn, num_outputs = 3, device='cpu'
+            source=data_source_fn, num_outputs=3, device='cpu'
         )
         out_polygons, out_vertices = fn.segmentation.select_masks(
             mask_ids, polygons, vertices, reindex_masks=reindex_masks
         )
     pipe.set_outputs(polygons, vertices, mask_ids, out_polygons, out_vertices)
     pipe.build()
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError,
+                       regex="Selected mask_id .* is not present in the input\.|"
+                             "``polygons`` is expected to contain 2D tensors with 3 columns: ``mask_id, start_idx, end_idx``\. Got \d* columns\.|"
+                             "Vertex index range for mask id .* is out of bounds\. Expected to be within the range of available vertices .*\."):
         outputs = pipe.run()
 
 def test_select_masks_wrong_mask_ids():

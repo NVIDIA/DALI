@@ -333,7 +333,13 @@ def test_reshape_src_dims_throw_error():
         ([0, 1, 3], None, [1, 2, 3]),
     ]
     for src_dims, rel_shape, shapes in args:
-        pipe = reshape_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, src_dims=src_dims, rel_shape=rel_shape)
+        pipe = reshape_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes,
+                            src_dims=src_dims, rel_shape=rel_shape)
         pipe.build()
-        with assert_raises(RuntimeError):
-          pipe.run()
+        with assert_raises(
+                RuntimeError,
+                regex="Reshape: The volume of the new shape should match the one of the original shape\. Requested a shape with \d* elements but the original shape has \d* elements\.|"
+                      "Reshape: ``src_dims`` and ``rel_shape`` have different lengths: \d* vs \d*|"
+                      "Reshape:.*is out of bounds.*|"
+                      "Reshape: ``src_dims.*is out of bounds\.\nThe indices in ``src_dims`` should be either valid dimension indices in range.*to insert a new dimension\."):
+            pipe.run()
