@@ -117,7 +117,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
         if (!RestrictPinnedMemUsage()) {
           hw_decoder_images_staging_.set_pinned(true);
-          hw_decoder_images_staging_.SetGrowthFactor(2);
           // assume close the worst case size 300kb per image
           auto shapes = uniform_list_shape(CalcHwDecoderBatchSize(hw_decoder_load_,
                                            max_batch_size_), TensorShape<1>{300*1024});
