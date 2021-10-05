@@ -511,14 +511,6 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   }
 
   /**
-   * @brief Returns the number of elements
-   *  in the TensorList
-   */
-  inline size_t GetElementsNumber() const {
-    return shape_.num_elements();
-  }
-
-  /**
    * @brief Returns a Tensor view with given shape or nullptr if no
    * such exists
    */

@@ -397,7 +397,7 @@ size_t daliNumTensors(daliPipelineHandle* pipe_handle, int n) {
 
 template <typename T>
 static size_t daliNumElementsHelper(dali::DeviceWorkspace* ws, int n) {
-  return ws->Output<T>(n).GetElementsNumber();
+  return ws->Output<T>(n).tl_elements();
 }
 
 size_t daliNumElements(daliPipelineHandle* pipe_handle, int n) {
