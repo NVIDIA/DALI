@@ -71,6 +71,19 @@ class async_pool_resource : public async_memory_resource<Kind> {
           (e.is_drv_api() && e.drv_error() != CUDA_ERROR_DEINITIALIZED))
         std::terminate();
     }
+    for (auto &kv : stream_free_) {
+      PerStreamFreeBlocks &free_blocks = kv.second;
+
+      // find_first_ready doesn't throw on shutdown - and we want to terminate on other errors
+      auto *first_free = find_first_ready(free_blocks);
+      assert(first_free == free_blocks.free_list.head);
+
+      for (auto *item = free_blocks.free_list.head; item; )
+        item = remove_pending_free(free_blocks, item, false);
+      assert(free_blocks.free_list.head == nullptr);
+      assert(free_blocks.free_list.tail == nullptr);
+      free_blocks.by_size.clear();
+    }
   }
 
   /**
