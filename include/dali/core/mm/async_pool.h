@@ -78,8 +78,16 @@ class async_pool_resource : public async_memory_resource<Kind> {
       auto *first_free = find_first_ready(free_blocks);
       assert(first_free == free_blocks.free_list.head);
 
-      for (auto *item = free_blocks.free_list.head; item; )
-        item = remove_pending_free(free_blocks, item, false);
+      for (auto *f = free_blocks.free_list.head; f; ) {
+        try {
+          global_pool_.deallocate_no_sync(f->addr, f->bytes, f->alignment);
+        } catch (const CUDAError &e) {
+          if ((e.is_rt_api() && e.rt_error() != cudaErrorCudartUnloading) ||
+              (e.is_drv_api() && e.drv_error() != CUDA_ERROR_DEINITIALIZED))
+            std::terminate();
+        }
+        f = remove_pending_free(free_blocks, f, false);
+      }
       assert(free_blocks.free_list.head == nullptr);
       assert(free_blocks.free_list.tail == nullptr);
       free_blocks.by_size.clear();
