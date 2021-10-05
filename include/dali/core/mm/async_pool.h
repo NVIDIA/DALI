@@ -75,8 +75,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
       PerStreamFreeBlocks &free_blocks = kv.second;
 
       // find_first_ready doesn't throw on shutdown - and we want to terminate on other errors
-      auto *first_free = find_first_ready(free_blocks);
-      assert(first_free == free_blocks.free_list.head);
+      assert(find_first_ready(free_blocks) == free_blocks.free_list.head);
 
       for (auto *f = free_blocks.free_list.head; f; ) {
         try {
