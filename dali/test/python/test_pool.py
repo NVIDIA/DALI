@@ -101,25 +101,23 @@ def test_pool_multi_task(start_method):
             np.testing.assert_array_equal(answer(pid, *task), sample)
 
 
-# Test that with bigger queue depth we will still overwrite the memory used as the results
 @check_pool
-def test_pool_overwrite_multiple_batch(start_method):
+def test_pool_scheduled_tasks_cleanup(start_method):
     callbacks = [simple_callback]
     with create_pool(callbacks, queue_depth=3, num_workers=1, start_method=start_method) as pool:
         pids = get_pids(pool)
         pid = pids[0]
-        tasks_list = [(i, [(SampleInfo(i, 0, i),)]) for i in range(4)]
+        tasks_list = [(i, [(SampleInfo(i, 0, i),)]) for i in range(3)]
         for i, tasks in tasks_list:
-            pool.schedule_batch(context_i=0, batch_i=i, dst_chunk_i=i%3, tasks=tasks)
-        batches = [pool.receive_batch(context_i=0) for i in range(4)]
+            pool.schedule_batch(context_i=0, batch_i=i, dst_chunk_i=i, tasks=tasks)
+        assert len(pool.contexts[0].partially_received) == 3
+        batches = []
+        for i in range(3):
+            batches.append(pool.receive_batch(context_i=0))
+            assert len(pool.contexts[0].partially_received) == 2 - i
         tasks_batches = zip(tasks_list, batches)
-        _, tasks_3 = tasks_list[3]
         for (i, tasks), batch in tasks_batches:
-            if i == 0:
-                tasks_to_compare = tasks_3
-            else:
-                tasks_to_compare = tasks
-            for task, sample in zip(tasks_to_compare, batch):
+            for task, sample in zip(tasks, batch):
                 np.testing.assert_array_equal(answer(pid, *task), sample)
 
 

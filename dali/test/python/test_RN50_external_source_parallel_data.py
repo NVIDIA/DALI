@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,8 @@
 # limitations under the License.
 
 from test_utils import AverageMeter
-import os
-import argparse
 import time
-import cv2
-import numpy as np
-
-from nvidia.dali.plugin.base_iterator import LastBatchPolicy
+import gc
 
 from test_RN50_external_source_parallel_utils import (
     parse_test_arguments, external_source_parallel_pipeline, external_source_pipeline,
@@ -95,6 +90,9 @@ def iteration_test(args):
                 pipe.reset()
 
         print("OK {}".format(pipe_factory.__name__))
+        # pipline is not immediately released because traceback of last exception kept by
+        # python (i.e. StopIteration) stores reference to the pipeline
+        gc.collect()
 
 
 if __name__ == "__main__":
