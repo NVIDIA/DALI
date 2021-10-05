@@ -19,7 +19,7 @@ namespace dali {
 void MakeContiguousCPU::RunImpl(HostWorkspace &ws) {
   auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
-  int batch_size = input.ntensor();
+  int batch_size = input.num_samples();
   output.SetLayout(input.GetLayout());
   auto shapes = input.shape();
 

@@ -74,7 +74,7 @@ void SliceBaseCpu<OutputType, InputType, Dims>::RunImpl(workspace_t<CPUBackend> 
   auto &output = ws.template OutputRef<CPUBackend>(0);
   output.SetLayout(input.GetLayout());
 
-  int nsamples = input.ntensor();
+  int nsamples = input.num_samples();
   auto& thread_pool = ws.GetThreadPool();
   auto out_shape = output.shape();
 

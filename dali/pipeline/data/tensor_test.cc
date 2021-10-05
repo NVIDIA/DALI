@@ -357,7 +357,7 @@ TYPED_TEST(TensorTest, TestShareData) {
 
   // Create a tensor and wrap each tensor from the list
   Tensor<TypeParam> tensor;
-  int num_tensor = tl.ntensor();
+  int num_tensor = tl.num_samples();
   for (int i = 0; i < num_tensor; ++i) {
     // TODO(klecki): Rework this with proper sample-based tensor batch data structure
     auto sample_shared_ptr = unsafe_sample_owner(tl, i);
@@ -388,8 +388,8 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
   TensorList<TypeParam> tl;
   tl.Copy(tensors, 0);
 
-  int num_tensor = tl.ntensor();
-  ASSERT_EQ(num_tensor, tensors.ntensor());
+  int num_tensor = tl.num_samples();
+  ASSERT_EQ(num_tensor, tensors.num_samples());
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_EQ(tensors[i].type(), tl.type());
     ASSERT_EQ(tensors[i].shape(), tl.tensor_shape(i));
@@ -407,8 +407,8 @@ TYPED_TEST(TensorTest, TestCopyEmptyToTensorList) {
   tl.Copy(tensors, 0);
 
   Tensor<TypeParam> tensor;
-  int num_tensor = tl.ntensor();
-  ASSERT_EQ(num_tensor, tensors.ntensor());
+  int num_tensor = tl.num_samples();
+  ASSERT_EQ(num_tensor, tensors.num_samples());
   const auto &shape = tl.shape();
   Index total_volume = shape.num_elements();
   ASSERT_EQ(total_volume, 0);

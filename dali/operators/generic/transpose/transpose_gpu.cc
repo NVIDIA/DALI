@@ -63,7 +63,7 @@ class TransposeGPU : public Transpose<GPUBackend> {
 
  private:
   void GetData(vector<void *> &data, TensorList<GPUBackend> &tl) {
-    int N = tl.ntensor();
+    int N = tl.num_samples();
     data.resize(N);
     for (int i = 0; i < N; i++) {
       data[i] = tl.raw_mutable_tensor(i);
@@ -71,7 +71,7 @@ class TransposeGPU : public Transpose<GPUBackend> {
   }
 
   void GetData(vector<const void *> &data, const TensorList<GPUBackend> &tl) {
-    int N = tl.ntensor();
+    int N = tl.num_samples();
     data.resize(N);
     for (int i = 0; i < N; i++) {
       data[i] = tl.raw_tensor(i);

@@ -119,7 +119,7 @@ bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto &output = ws.OutputRef<CPUBackend>(0);
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
-  int nsamples = input.ntensor();
+  int nsamples = input.num_samples();
   auto nthreads = ws.GetThreadPool().NumThreads();
 
   int64_t max_length = -1;

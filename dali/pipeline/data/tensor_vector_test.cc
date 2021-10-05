@@ -68,7 +68,7 @@ TYPED_TEST(TensorVectorSuite, PinnedAfterResizeThrows) {
   tv.reserve(100);
   tv.Resize({{2, 4}, {4, 2}});
   tv.template set_type<int32_t>();
-  ASSERT_EQ(tv.ntensor(), 2);
+  ASSERT_EQ(tv.num_samples(), 2);
   EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
   EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
@@ -85,7 +85,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeContiguous) {
   tv.reserve(100);
   tv.Resize({{2, 4}, {4, 2}});
   tv.template set_type<int32_t>();
-  ASSERT_EQ(tv.ntensor(), 2);
+  ASSERT_EQ(tv.num_samples(), 2);
   EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
   EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
@@ -102,7 +102,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeNoncontiguous) {
   tv.reserve(50, 2);
   tv.Resize({{2, 4}, {4, 2}});
   tv.template set_type<int32_t>();
-  ASSERT_EQ(tv.ntensor(), 2);
+  ASSERT_EQ(tv.num_samples(), 2);
   EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
   EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
@@ -115,7 +115,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeNoncontiguous) {
 
 TYPED_TEST(TensorVectorSuite, BatchResize) {
   TensorVector<TypeParam> tv(5);
-  ASSERT_EQ(tv.ntensor(), 5);
+  ASSERT_EQ(tv.num_samples(), 5);
   tv.reserve(100);
   tv.reserve(200);
   tv.Resize(uniform_list_shape(5, {10, 20}));
@@ -127,18 +127,18 @@ TYPED_TEST(TensorVectorSuite, BatchResize) {
 
 TYPED_TEST(TensorVectorSuite, VariableBatchResizeDown) {
   TensorVector<TypeParam> tv(32);
-  ASSERT_EQ(tv.ntensor(), 32);
+  ASSERT_EQ(tv.num_samples(), 32);
   TensorListShape<> new_size = {{42}, {42}, {42}, {42}, {42}};
   tv.Resize(new_size);
-  ASSERT_EQ(tv.ntensor(), new_size.num_samples());
+  ASSERT_EQ(tv.num_samples(), new_size.num_samples());
 }
 
 TYPED_TEST(TensorVectorSuite, VariableBatchResizeUp) {
   TensorVector<TypeParam> tv(2);
-  ASSERT_EQ(tv.ntensor(), 2);
+  ASSERT_EQ(tv.num_samples(), 2);
   TensorListShape<> new_size = {{42}, {42}, {42}, {42}, {42}};
   tv.Resize(new_size);
-  ASSERT_EQ(tv.ntensor(), new_size.num_samples());
+  ASSERT_EQ(tv.num_samples(), new_size.num_samples());
 }
 
 namespace {
@@ -158,11 +158,11 @@ template <typename T, typename U>
                     std::is_same<U, TensorVector<CPUBackend>>::value,
                 "U must be either TensorList<CPUBackend> or TensorVector<CPUBackend>");
   std::string testing_values = make_string(rhs_expr, ", ", lhs_expr);
-  if (rhs.ntensor() != lhs.ntensor()) {
+  if (rhs.num_samples() != lhs.num_samples()) {
     ::testing::AssertionFailure() << make_string("[Testing: ", testing_values,
                                                  "] Inconsistent number of tensors");
   }
-  for (size_t tensor_idx = 0; tensor_idx < rhs.ntensor(); tensor_idx++) {
+  for (size_t tensor_idx = 0; tensor_idx < rhs.num_samples(); tensor_idx++) {
     if (rhs.tensor_shape(tensor_idx) != lhs.tensor_shape(tensor_idx)) {
       ::testing::AssertionFailure()
           << make_string("[Testing: ", testing_values, "] Inconsistent shapes");

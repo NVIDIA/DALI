@@ -71,7 +71,7 @@ bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_desc.resize(kNumOutputs);
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto in_shape = input.shape();
-  int nsamples = input.ntensor();
+  int nsamples = input.num_samples();
   auto nthreads = ws.GetThreadPool().NumThreads();
   auto layout = input.GetLayout();
   auto ndim = in_shape.sample_dim();

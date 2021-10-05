@@ -82,7 +82,7 @@ void FlipVerify(TensorListWrapper input, TensorListWrapper output, Arguments arg
   int _vertical = args["vertical"].GetValue<int>();
   auto output_d = output.CopyTo<CPUBackend>();
   auto item_size = output_d->type_info().size();
-  for (size_t i = 0; i < output_d->ntensor(); ++i) {
+  for (size_t i = 0; i < output_d->num_samples(); ++i) {
     auto size =
         output_d->tensor_shape(i)[0] * output_d->tensor_shape(i)[1] * output_d->tensor_shape(i)[2];
     auto out_tensor = output_d->raw_tensor(i);

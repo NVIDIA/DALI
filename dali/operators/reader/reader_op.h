@@ -153,7 +153,7 @@ class DataReader : public Operator<Backend> {
   void EnforceUniformOutput(const HostWorkspace &ws) const {
     for (int out_idx = 0; out_idx < ws.NumOutput(); out_idx++) {
       auto &out = ws.OutputRef<CPUBackend>(out_idx);
-      int n = out.ntensor();
+      int n = out.num_samples();
       if (n < 2)
         continue;
       auto type0 = out[0].type();

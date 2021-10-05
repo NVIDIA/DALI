@@ -106,7 +106,7 @@ bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
                make_string("``vertices`` input is expected to be 2D. Got ",
                            in_vertices_shape.sample_dim(), "D"));
 
-  int nsamples = in_polygons.ntensor();
+  int nsamples = in_polygons.num_samples();
   DALI_ENFORCE(nsamples == in_polygons_shape.size() && nsamples == in_vertices_shape.size(),
                make_string("All the inputs should have the same number of samples. Got: ", nsamples,
                            ", ", in_polygons_shape.size(), ", ", in_vertices_shape.size()));

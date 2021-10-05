@@ -32,12 +32,12 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     // single input - encoded images
     // single output - decoded images
 
-     TensorVector<CPUBackend> out(inputs[0]->ntensor());
+     TensorVector<CPUBackend> out(inputs[0]->num_samples());
 
     const TensorList<CPUBackend> &encoded_data = *inputs[0];
 
     const int c = this->GetNumColorComp();
-    for (size_t i = 0; i < encoded_data.ntensor(); ++i) {
+    for (size_t i = 0; i < encoded_data.num_samples(); ++i) {
       auto *data = encoded_data.tensor<unsigned char>(i);
       auto data_size = volume(encoded_data.tensor_shape(i));
 

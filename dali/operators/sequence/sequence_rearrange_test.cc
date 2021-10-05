@@ -121,7 +121,7 @@ void SeqRearrangeVerify(const testing::TensorListWrapper& input,
   auto in = input.CopyTo<CPUBackend>();
   auto out = output.CopyTo<CPUBackend>();
   auto order = args.at(testing::ArgumentKey("new_order")).GetValue<std::vector<int>>();
-  for (size_t i = 0; i < out->ntensor(); i++) {
+  for (size_t i = 0; i < out->num_samples(); i++) {
     CheckRearrange(out->tensor<int>(i), in->tensor_shape(i), out->tensor_shape(i), order);
   }
 }

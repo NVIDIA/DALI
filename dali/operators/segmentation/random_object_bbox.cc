@@ -115,7 +115,7 @@ bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const HostWorksp
   out_descs.resize(spec_.NumOutput());
   auto &input = ws.InputRef<CPUBackend>(0);
   int ndim = input.sample_dim();
-  int N = input.ntensor();
+  int N = input.num_samples();
 
   DALI_ENFORCE(N == 0 || (ndim >= 1 && ndim <= 6),
       make_string("Unsuported number of dimensions ", ndim, "; must be 1..6"));
@@ -531,7 +531,7 @@ bool RandomObjectBBox::PickForegroundBox(SampleContext<BlobLabel> &context) {
 void RandomObjectBBox::AllocateTempStorage(const TensorVector<CPUBackend> &input) {
   int64_t max_blob_bytes = 0;
   int64_t max_filtered_bytes = 0;
-  int N = input.ntensor();
+  int N = input.num_samples();
   for (int i = 0; i < N; i++) {
     int64_t vol = input[i].size();
     int label_size = vol > 0x80000000 ? 8 : 4;
@@ -554,7 +554,7 @@ void RandomObjectBBox::AllocateTempStorage(const TensorVector<CPUBackend> &input
 
 void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
   auto &input = ws.InputRef<CPUBackend>(0);
-  int N = input.ntensor();
+  int N = input.num_samples();
   if (N == 0)
     return;
 

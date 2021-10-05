@@ -213,7 +213,7 @@ class MultiPasteOp : public Operator<Backend> {
     DALI_ENFORCE(ndim == 3, "MultiPaste supports only 2D data with channels (HWC)");
 
     int channel_dim = ndim - 1;
-    int nsamples = images.ntensor();
+    int nsamples = images.num_samples();
 
     zeros_.resize(spatial_ndim_);
     zero_anchors_ = make_tensor_cpu<1>(zeros_.data(), { spatial_ndim_ });

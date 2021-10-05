@@ -37,7 +37,7 @@ TensorVector<Backend>::TensorVector(std::shared_ptr<TensorList<Backend>> tl)
   pinned_ = tl_->is_pinned();
   type_ = tl_->type_info();
   state_ = State::contiguous;
-  resize_tensors(tl_->ntensor());
+  resize_tensors(tl_->num_samples());
   UpdateViews();
 }
 
@@ -285,7 +285,7 @@ void TensorVector<Backend>::reserve(size_t bytes_per_sample, int batch_size) {
 
 template <typename Backend>
 bool TensorVector<Backend>::IsContiguous() const noexcept {
-  return state_ == State::contiguous && static_cast<size_t>(views_count_) == ntensor();
+  return state_ == State::contiguous && static_cast<size_t>(views_count_) == num_samples();
 }
 
 
@@ -318,7 +318,7 @@ void TensorVector<Backend>::Copy(const TensorList<SrcBackend> &in_tl, cudaStream
   type_ = in_tl.type_info();
   tl_->Copy(in_tl, stream);
 
-  resize_tensors(tl_->ntensor());
+  resize_tensors(tl_->num_samples());
   UpdateViews();
 }
 
@@ -330,7 +330,7 @@ void TensorVector<Backend>::Copy(const TensorVector<SrcBackend> &in_tv, cudaStre
   type_ = in_tv.type_;
   tl_->Copy(in_tv, stream);
 
-  resize_tensors(tl_->ntensor());
+  resize_tensors(tl_->num_samples());
   UpdateViews();
 }
 
@@ -343,7 +343,7 @@ void TensorVector<Backend>::ShareData(TensorList<Backend> *in_tl) {
   pinned_ = in_tl->is_pinned();
   tl_->ShareData(in_tl);
 
-  resize_tensors(in_tl->ntensor());
+  resize_tensors(in_tl->num_samples());
   UpdateViews();
 }
 
@@ -360,12 +360,12 @@ void TensorVector<Backend>::ShareData(TensorVector<Backend> *tv) {
     tl_->Reset();
     tl_->ResizeLike(*tv->tl_);
   }
-  int batch_size = tv->ntensor();
+  int batch_size = tv->num_samples();
   resize_tensors(batch_size);
   views_count_ = 0;
 
   for (int i = 0; i < batch_size; i++) {
-    if (static_cast<int>(tv->tl_->ntensor()) > i &&
+    if (static_cast<int>(tv->tl_->num_samples()) > i &&
         tv->tensors_[i]->raw_data() == tv->tl_->raw_tensor(i)) {
       update_view(i);
       ++views_count_;
@@ -407,7 +407,7 @@ void TensorVector<Backend>::UpdateViews() {
   // we need to be able to share empty view as well so don't check if tl_ has any data
   type_ = tl_->type_info();
 
-  assert(curr_tensors_size_ == tl_->ntensor());
+  assert(curr_tensors_size_ == tl_->num_samples());
 
   views_count_ = curr_tensors_size_;
   for (size_t i = 0; i < curr_tensors_size_; i++) {
@@ -454,7 +454,7 @@ void TensorVector<Backend>::resize_tensors(int new_size) {
 template <typename Backend>
 void TensorVector<Backend>::update_view(int idx) {
   assert(static_cast<size_t>(idx) < curr_tensors_size_);
-  assert(static_cast<size_t>(idx) < tl_->ntensor());
+  assert(static_cast<size_t>(idx) < tl_->num_samples());
 
   auto *ptr = tl_->raw_mutable_tensor(idx);
 

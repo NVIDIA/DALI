@@ -195,9 +195,9 @@ class WorkspaceBase : public ArgumentWorkspace {
     DALI_ENFORCE(input_idx >= 0 && input_idx < NumInput(),
                  make_string("Invalid input index: ", input_idx, "; while NumInput: ", NumInput()));
     if (InputIsType<GPUBackend>(input_idx)) {
-      return InputRef<GPUBackend>(input_idx).ntensor();
+      return InputRef<GPUBackend>(input_idx).num_samples();
     } else {
-      return InputRef<CPUBackend>(input_idx).ntensor();
+      return InputRef<CPUBackend>(input_idx).num_samples();
     }
   }
 

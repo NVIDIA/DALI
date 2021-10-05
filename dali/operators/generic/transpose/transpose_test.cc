@@ -226,7 +226,7 @@ void TransposeVerify(const testing::TensorListWrapper& input,
   auto in = input.CopyTo<CPUBackend>();
   auto out = output.CopyTo<CPUBackend>();
   auto perm = args.at(testing::ArgumentKey("perm")).GetValue<std::vector<int>>();
-  for (decltype(out->ntensor()) i = 0; i < out->ntensor(); i++) {
+  for (decltype(out->num_samples()) i = 0; i < out->num_samples(); i++) {
     CheckTransposition(in->tensor<int>(i),
                        out->tensor<int>(i),
                        in->tensor_shape(i),

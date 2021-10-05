@@ -59,8 +59,8 @@ DLMTensorPtr GetDLTensorView(Tensor<Backend> &tensor) {
 template <typename Backend>
 std::vector<DLMTensorPtr> GetDLTensorListView(TensorList<Backend> &tensor_list) {
   std::vector<DLMTensorPtr> dl_tensors{};
-  dl_tensors.reserve(tensor_list.ntensor());
-  for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
+  dl_tensors.reserve(tensor_list.num_samples());
+  for (size_t i = 0; i < tensor_list.num_samples(); ++i) {
     const auto &shape = tensor_list.tensor_shape(i);
     dl_tensors.push_back(MakeDLTensor(tensor_list.raw_mutable_tensor(i),
                                       tensor_list.type(),

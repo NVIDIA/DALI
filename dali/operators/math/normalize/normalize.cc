@@ -147,7 +147,7 @@ using namespace normalize;  // NOLINT
 template <typename OutputType, typename InputType>
 void Normalize<CPUBackend>::SetupTyped(const HostWorkspace &ws) {
   auto &input = ws.InputRef<CPUBackend>(0);
-  int nsamples = input.ntensor();
+  int nsamples = input.num_samples();
   int nthreads = ws.GetThreadPool().NumThreads();
 
   using Kernel = kernels::NormalizeCPU<OutputType, InputType, float>;
@@ -205,7 +205,7 @@ void Normalize<CPUBackend>::AllocTempStorage() {
 
 
 void Normalize<CPUBackend>::FoldMeans() {
-  assert(mean_.ntensor() > 0);
+  assert(mean_.num_samples() > 0);
   SumSamples(view<float>(mean_));
   // calculate the normalization factor in double, then cast to float
   auto v = ReducedVolume(data_shape_, make_span(axes_));
@@ -221,7 +221,7 @@ void Normalize<CPUBackend>::FoldMeans() {
 }
 
 void Normalize<CPUBackend>::FoldStdDev() {
-  assert(inv_stddev_.ntensor() > 0);
+  assert(inv_stddev_.num_samples() > 0);
   SumSamples(view<float>(inv_stddev_));
   // calculate the normalization factor in double, then cast to float
   auto v = ReducedVolume(data_shape_, make_span(axes_));
@@ -255,7 +255,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
   TensorListView<StorageCPU, OutputType> out_view = view<OutputType>(output);
   output.SetLayout(input.GetLayout());
 
-  int nsamples = input.ntensor();
+  int nsamples = input.num_samples();
   int nthreads = ws.GetThreadPool().NumThreads();
 
   float scalar_mean = 0;

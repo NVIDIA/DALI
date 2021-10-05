@@ -105,7 +105,7 @@ class ElementExtract : public Operator<Backend> {
     for (int k = 0; k < elements_per_sample; k++) {
       int element = element_map_[k];
       auto &output = ws.template OutputRef<Backend>(k);
-      for (unsigned int i = 0; i < input.ntensor(); i++) {
+      for (unsigned int i = 0; i < input.num_samples(); i++) {
         auto tensor_shape = input.tensor_shape(i);
         auto element_size = volume(tensor_shape.begin() + 1, tensor_shape.end());
         auto input_offset_bytes = element * element_size * data_type.size();

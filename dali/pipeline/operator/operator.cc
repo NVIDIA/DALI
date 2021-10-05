@@ -26,7 +26,7 @@ void OperatorBase::EnforceUniformInputBatchSize(const workspace_t<Backend> &ws) 
   const ArgumentWorkspace &argument_ws = ws;
   for (const auto &arg : argument_ws) {
     DALI_ENFORCE(
-        curr_batch_size == static_cast<decltype(curr_batch_size)>(arg.second.tvec->ntensor()),
+        curr_batch_size == static_cast<decltype(curr_batch_size)>(arg.second.tvec->num_samples()),
         "ArgumentInput has to have the same batch size as an input.");
   }
 }

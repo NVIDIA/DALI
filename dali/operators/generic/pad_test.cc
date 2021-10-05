@@ -95,7 +95,7 @@ void PadVerify(TensorListWrapper input, TensorListWrapper output, Arguments args
 
   auto padded_batch = GetPaddedBatchForaxes<T>(axes);
 
-  for (size_t i = 0; i < output_d->ntensor(); ++i) {
+  for (size_t i = 0; i < output_d->num_samples(); ++i) {
     auto out_tensor = output_d->tensor<T>(i);
     for (size_t j = 0; j < padded_batch[i].size(); ++j) {
       ASSERT_EQ(out_tensor[j], padded_batch[i][j]);
@@ -118,7 +118,7 @@ class PadTest : public testing::DaliOperatorTest {
     TensorList<CPUBackend> tl_in;
     tl_in.Resize(tl_shape);
     tl_in.set_type<T>();
-    for (size_t i = 0; i < tl_in.ntensor(); ++i) {
+    for (size_t i = 0; i < tl_in.num_samples(); ++i) {
       auto t = tl_in.mutable_tensor<T>(i);
       std::copy(batch[i].begin(), batch[i].end(), t);
     }

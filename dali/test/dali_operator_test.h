@@ -244,7 +244,8 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
   void RunTest(const TensorListWrapper &input, TensorListWrapper &output,
                const Arguments &operator_arguments, const VerifySingleIo &verify) {
     std::string op_backend = detail::GetOpDevice(operator_arguments);
-    const size_t batch_size = input.has_cpu() ? input.cpu().ntensor() : input.gpu().ntensor();
+    const size_t batch_size =
+        input.has_cpu() ? input.cpu().num_samples() : input.gpu().num_samples();
     ASSERT_GT(batch_size, 0_uz) << "Looks like there are no tensors in the input";
     auto pipeline = CreatePipeline(batch_size, num_threads_);
     if (input) {

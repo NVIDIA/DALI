@@ -55,7 +55,7 @@ bool ToDecibels<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto &output = ws.OutputRef<CPUBackend>(0);
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
-  int nsamples = input.ntensor();
+  int nsamples = input.num_samples();
   auto nthreads = ws.GetThreadPool().NumThreads();
 
   TYPE_SWITCH(input.type(), type2id, T, (float), (
@@ -77,7 +77,7 @@ void ToDecibels<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto in_shape = input.shape();
-  int nsamples = input.ntensor();
+  int nsamples = input.num_samples();
   auto& thread_pool = ws.GetThreadPool();
 
   TYPE_SWITCH(input.type(), type2id, T, (float), (

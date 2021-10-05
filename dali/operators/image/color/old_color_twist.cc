@@ -222,7 +222,7 @@ void OldColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   cudaStream_t old_stream = nppGetStream();
   nppSetStream(ws.stream());
 
-  for (size_t i = 0; i < input.ntensor(); ++i) {
+  for (size_t i = 0; i < input.num_samples(); ++i) {
     if (!augments_.empty()) {
       float matrix[nDim][nDim];
       float *m = reinterpret_cast<float *>(matrix);

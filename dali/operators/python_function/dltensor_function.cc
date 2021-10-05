@@ -119,7 +119,7 @@ template <>
 py::list PrepareDLTensorInputsPerSample<GPUBackend>(DeviceWorkspace &ws) {
   std::vector<py::list> input_tuples;
   if (ws.NumInput() == 0) return py::cast(input_tuples);
-  Index batch_size = ws.InputRef<GPUBackend>(0).ntensor();
+  Index batch_size = ws.InputRef<GPUBackend>(0).num_samples();
   input_tuples.resize(batch_size);
   for (Index idx = 0; idx < ws.NumInput(); ++idx) {
     py::list dl_tensor_list = TensorListToDLPackView(ws.InputRef<GPUBackend>(idx));
