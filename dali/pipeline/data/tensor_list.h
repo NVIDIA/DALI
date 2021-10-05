@@ -63,11 +63,17 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
 
   DLL_PUBLIC ~TensorList() = default;
 
+  /**
+   * @brief Number of elements in Tensor List.
+   */
+  int64_t tl_elements() const {
+    return Buffer<Backend>::size();
+  }
+
   // Reexpose all public Buffer functions apart from contiguous buffer accessors.
   // TensorList is being reworked to sample-only access and this is intermediate step
   // that prevents reintroducing that access in any of DALI operators
 
-  using Buffer<Backend>::size;
   using Buffer<Backend>::nbytes;
   using Buffer<Backend>::capacity;
   using Buffer<Backend>::type;

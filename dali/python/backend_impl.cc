@@ -714,7 +714,7 @@ void ExposeTensorList(py::module &m) {
           std::string format;
           size_t type_size;
 
-          if (tl.size() > 0) {
+          if (tl.tl_elements() > 0) {
             DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
                 "buffer info for tensor w/ invalid type.");
             DALI_ENFORCE(tl.IsDenseTensor(),

@@ -59,7 +59,6 @@ bool ToDecibelsImpl<T>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                   const workspace_t<GPUBackend> &ws) {
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto in_view = view<const T>(input);
-  auto nsamples = input.size();
 
   auto type = type2id<T>::value;
 
@@ -83,7 +82,6 @@ template <typename T>
 void ToDecibelsImpl<T>::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.InputRef<GPUBackend>(0);
   auto &output = ws.OutputRef<GPUBackend>(0);
-  int nsamples = input.size();
 
   auto in_view = view<const T>(input);
   auto out_view = view<T>(output);

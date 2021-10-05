@@ -61,7 +61,7 @@ TEST(OpticalFlowUtilsTest, ImageToTensorListCpu) {
   // Just one sample
   ASSERT_EQ(tl->ntensor(), 1u);
   const auto *tl_ptr = tl->template tensor<uint8_t>(0);
-  ASSERT_EQ(img.rows * img.cols * img.channels(), tl->size()) << "Sizes don't match";
+  ASSERT_EQ(img.rows * img.cols * img.channels(), tl->tl_elements()) << "Sizes don't match";
   for (int i = 0; i < img.cols * img.rows * img.channels(); i++) {
     ASSERT_EQ(img_ptr[i], tl_ptr[i]) << "Test failed at i=" << i;
   }
