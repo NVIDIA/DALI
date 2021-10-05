@@ -191,8 +191,6 @@ class DLL_PUBLIC TensorVector {
 
   void ShareData(TensorList<Backend> *in_tl);
 
-  void ShareWith(TensorList<Backend> *in_tl) const;
-
   void ShareData(TensorVector<Backend> *tv);
 
   TensorVector<Backend> &operator=(TensorVector<Backend> &&other) noexcept;

@@ -180,49 +180,6 @@ class Tensor : public Buffer<Backend> {
   }
 
   /**
-   * @brief Wraps the data owned by the tensor at the given index
-   * in the input tensor list. The input tensor list must have
-   * a valid type, and the given index must be in the valid range
-   * [0, tl.ntensor()).
-   *
-   * If sucessful, the tensor object will wrap the target data and
-   * assume the datatype of the data stored in the TensorList.
-   *
-   * Because we are storing the pointer of the TensorList at an
-   * offset, we do not guarantee that this allocation will persist
-   * until both the owner and the sharer are finished with it. Thus,
-   * it is up to the user to manage the scope of the sharing objects
-   * to ensure correctness.
-   *
-   * After calling this function any following call to `set_type` and `Resize`
-   * must match the total size of underlying allocation (`num_bytes_`) of
-   * shared data or the call will fail.
-   * Size can be set to 0 and type to NoType as intermediate step.
-   */
-  inline void ShareData(TensorList<Backend> *tl, int idx) {
-    DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
-    DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
-        "the input TensorList must have a valid data type.");
-    DALI_ENFORCE(idx >= 0, "Negative tensor index not supported.");
-    DALI_ENFORCE(static_cast<size_t>(idx) < tl->ntensor(), "Index of " + std::to_string(idx) +
-        " out of range for TensorList of size " + std::to_string(tl->ntensor()));
-
-    // Reset our pointer to the correct offset inside the tensor list.
-    // This is not the beginning of the allocation, so we pass a noop
-    // deleter to the shared_ptr
-    data_.reset(tl->raw_mutable_tensor(idx), [](void *) {});
-
-    // Get the meta-data for the target tensor
-    shape_ = tl->tensor_shape(idx);
-    size_ = volume(shape_);
-    type_ = tl->type_info();
-    num_bytes_ = type_.size() * size_;
-    shares_data_ = true;
-    device_ = tl->device_id();
-    meta_ = tl->GetMeta(idx);
-  }
-
-  /**
    * @brief Wraps the data owned by the input tensor. The input
    * tensor must have a valid type. If sucessful, the tensor
    * object will wrap the target data and assume the datatype

@@ -347,22 +347,6 @@ void TensorVector<Backend>::ShareData(TensorList<Backend> *in_tl) {
   UpdateViews();
 }
 
-
-template <typename Backend>
-void TensorVector<Backend>::ShareWith(TensorList<Backend> *in_tl) const {
-  DALI_ENFORCE(in_tl != nullptr, "Input TensorList is nullptr");
-  if (IsContiguous()) {
-    in_tl->ShareData(tl_.get());
-    for (size_t i = 0; i < size(); ++i) {
-      in_tl->SetMeta(i, this->GetMeta(i));
-    }
-    in_tl->SetLayout(this->GetLayout());
-  } else {
-    DALI_FAIL("Cannot share non contiguous TensorVector with TensorList");
-  }
-}
-
-
 template <typename Backend>
 void TensorVector<Backend>::ShareData(TensorVector<Backend> *tv) {
   DALI_ENFORCE(tv != nullptr, "Input TensorVector is nullptr");
