@@ -358,7 +358,7 @@ void TensorVector<Backend>::ShareData(TensorVector<Backend> *tv) {
     tl_->ShareData(tv->tl_.get());
   } else {
     tl_->Reset();
-    tl_->ResizeLike(*tv->tl_);
+    tl_->Resize(tv->tl_->shape());
   }
   int batch_size = tv->num_samples();
   resize_tensors(batch_size);

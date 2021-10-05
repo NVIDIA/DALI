@@ -89,18 +89,6 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   using Buffer<Backend>::reserve;
   // using Buffer<Backend>::reset;  // Available via USE_BUFFER_MEMBERS
   using Buffer<Backend>::shares_data;
-  using Buffer<Backend>::SetGrowthFactor;
-  using Buffer<Backend>::SetShrinkThreshold;
-  using Buffer<Backend>::GetGrowthFactor;
-  using Buffer<Backend>::GetShrinkThreshold;
-
-  /**
-   * @brief Resizes this TensorList to match the shape of the input.
-   */
-  template <typename InBackend>
-  inline void ResizeLike(const TensorList<InBackend> &other) {
-    Resize(other.shape_);
-  }
 
   /**
    * @brief Copies the input TensorList, resizing this TensorList and
@@ -114,7 +102,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     }
     this->meta_ = other.meta_;
     this->SetLayout(other.GetLayout());
-    ResizeLike(other);
+    Resize(other.shape());
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
                        (std::is_same<Backend, GPUBackend>::value || pinned_);

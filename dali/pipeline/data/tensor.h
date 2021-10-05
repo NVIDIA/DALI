@@ -107,7 +107,7 @@ class Tensor : public Buffer<Backend> {
     this->SetLayout(other.GetLayout());
     this->SetSourceInfo(other.GetSourceInfo());
     this->SetSkipSample(other.ShouldSkipSample());
-    this->ResizeLike(other);
+    this->Resize(other.shape());
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), stream);
   }
@@ -126,11 +126,6 @@ class Tensor : public Buffer<Backend> {
     this->Resize(shape_);
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_tensor(idx), this->size(), stream);
-  }
-
-  template <typename InBackend>
-  inline void ResizeLike(const Tensor<InBackend> &other) {
-    Resize(other.shape());
   }
 
   /**

@@ -64,7 +64,7 @@ void Flip<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
   auto layout = input.GetLayout();
   output.SetLayout(layout);
   output.set_type(input.type());
-  output.ResizeLike(input);
+  output.Resize(input.shape());
   auto _horizontal = GetHorizontal(ws, ws.data_idx());
   auto _vertical = GetVertical(ws, ws.data_idx());
   auto _depthwise = GetDepthwise(ws, ws.data_idx());

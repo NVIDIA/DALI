@@ -65,7 +65,7 @@ void BBoxPaste<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
 
   auto &output = ws.Output<CPUBackend>(0);
   output.set_type<float>();
-  output.ResizeLike(input);
+  output.Resize(input.shape());
   auto *output_data = output.mutable_data<float>();
 
   const auto data_idx = ws.data_idx();
