@@ -222,7 +222,7 @@ void Pad<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   output.SetLayout(input.GetLayout());
-  int nsamples = input.size();
+  int nsamples = input.ntensor();
   int ndim = input.shape().sample_dim();
   auto& thread_pool = ws.GetThreadPool();
   auto out_shape = output.shape();

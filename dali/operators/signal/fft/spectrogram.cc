@@ -183,7 +183,7 @@ bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc
   auto &output = ws.OutputRef<CPUBackend>(0);
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
-  int nsamples = input.size();
+  int nsamples = input.ntensor();
   auto nthreads = ws.GetThreadPool().NumThreads();
 
   // Check that input is 1-D (allowing having extra dims with extent 1)
@@ -257,7 +257,7 @@ void SpectrogramImplCpu<time_major>::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto out_shape = output.shape();
-  int nsamples = input.size();
+  int nsamples = input.ntensor();
   auto& thread_pool = ws.GetThreadPool();
   auto view_window_fn = make_tensor_cpu<1>(window_fn_.data(), window_length_);
   output.SetLayout(layout_);

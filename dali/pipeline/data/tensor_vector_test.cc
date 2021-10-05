@@ -68,7 +68,7 @@ TYPED_TEST(TensorVectorSuite, PinnedAfterResizeThrows) {
   tv.reserve(100);
   tv.Resize({{2, 4}, {4, 2}});
   tv.template set_type<int32_t>();
-  ASSERT_EQ(tv.size(), 2);
+  ASSERT_EQ(tv.ntensor(), 2);
   EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
   EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
@@ -85,7 +85,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeContiguous) {
   tv.reserve(100);
   tv.Resize({{2, 4}, {4, 2}});
   tv.template set_type<int32_t>();
-  ASSERT_EQ(tv.size(), 2);
+  ASSERT_EQ(tv.ntensor(), 2);
   EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
   EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
@@ -102,7 +102,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeNoncontiguous) {
   tv.reserve(50, 2);
   tv.Resize({{2, 4}, {4, 2}});
   tv.template set_type<int32_t>();
-  ASSERT_EQ(tv.size(), 2);
+  ASSERT_EQ(tv.ntensor(), 2);
   EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
   EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
@@ -115,7 +115,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeNoncontiguous) {
 
 TYPED_TEST(TensorVectorSuite, BatchResize) {
   TensorVector<TypeParam> tv(5);
-  ASSERT_EQ(tv.size(), 5);
+  ASSERT_EQ(tv.ntensor(), 5);
   tv.reserve(100);
   tv.reserve(200);
   tv.Resize(uniform_list_shape(5, {10, 20}));
@@ -127,18 +127,18 @@ TYPED_TEST(TensorVectorSuite, BatchResize) {
 
 TYPED_TEST(TensorVectorSuite, VariableBatchResizeDown) {
   TensorVector<TypeParam> tv(32);
-  ASSERT_EQ(tv.size(), 32);
+  ASSERT_EQ(tv.ntensor(), 32);
   TensorListShape<> new_size = {{42}, {42}, {42}, {42}, {42}};
   tv.Resize(new_size);
-  ASSERT_EQ(tv.size(), new_size.num_samples());
+  ASSERT_EQ(tv.ntensor(), new_size.num_samples());
 }
 
 TYPED_TEST(TensorVectorSuite, VariableBatchResizeUp) {
   TensorVector<TypeParam> tv(2);
-  ASSERT_EQ(tv.size(), 2);
+  ASSERT_EQ(tv.ntensor(), 2);
   TensorListShape<> new_size = {{42}, {42}, {42}, {42}, {42}};
   tv.Resize(new_size);
-  ASSERT_EQ(tv.size(), new_size.num_samples());
+  ASSERT_EQ(tv.ntensor(), new_size.num_samples());
 }
 
 namespace {

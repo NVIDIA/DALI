@@ -389,7 +389,7 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
   tl.Copy(tensors, 0);
 
   int num_tensor = tl.ntensor();
-  ASSERT_EQ(num_tensor, tensors.size());
+  ASSERT_EQ(num_tensor, tensors.ntensor());
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_EQ(tensors[i].type(), tl.type());
     ASSERT_EQ(tensors[i].shape(), tl.tensor_shape(i));
@@ -408,7 +408,7 @@ TYPED_TEST(TensorTest, TestCopyEmptyToTensorList) {
 
   Tensor<TypeParam> tensor;
   int num_tensor = tl.ntensor();
-  ASSERT_EQ(num_tensor, tensors.size());
+  ASSERT_EQ(num_tensor, tensors.ntensor());
   const auto &shape = tl.shape();
   Index total_volume = shape.num_elements();
   ASSERT_EQ(total_volume, 0);

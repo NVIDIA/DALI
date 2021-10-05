@@ -252,7 +252,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
-    for (size_t i = 0; i < tv.size(); ++i) {
+    for (size_t i = 0; i < tv.ntensor(); ++i) {
       tv[i].ShareData(const_cast<Tensor<SrcBackend>*>(&vect_of_tensors[i]));
     }
     SetDataSourceHelper(tv, stream, ext_src_setting_mode);

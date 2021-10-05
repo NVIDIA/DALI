@@ -91,10 +91,6 @@ class DLL_PUBLIC TensorVector {
     return tensors_.cend();
   }
 
-  auto size() const noexcept {
-    return curr_tensors_size_;
-  }
-
   size_t ntensor() const noexcept {
     return curr_tensors_size_;
   }

@@ -60,7 +60,7 @@ void JpegCompressionDistortionCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto in_shape = input.shape();
-  int nsamples = input.size();
+  int nsamples = input.ntensor();
   auto& thread_pool = ws.GetThreadPool();
   auto in_view = view<const uint8_t>(input);
   auto out_view = view<uint8_t>(output);
