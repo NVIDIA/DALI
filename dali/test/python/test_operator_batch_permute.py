@@ -17,7 +17,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import Pipeline
 import numpy as np
 from test_utils import check_batch
-from nose.tools import raises
+from nose_utils import raises
 
 def _test_permutation_generator(allow_repetitions, no_fixed):
     batch_size = 10
@@ -93,7 +93,7 @@ def test_permute_batch_fixed():
         yield _test_permute_batch_fixed, device
 
 
-@raises(RuntimeError)
+@raises(RuntimeError, glob="Sample index out of range. * is not a valid index for an input batch of * tensors.")
 def _test_permute_batch_out_of_range(device):
     batch_size = 10
     pipe = Pipeline(batch_size, 4, 0)

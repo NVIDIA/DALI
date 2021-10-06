@@ -17,7 +17,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.tensors as tensors
 import numpy as np
-from nose.tools import assert_raises, raises
+from nose_utils import assert_raises, raises
 import cupy as cp
 from test_utils import py_buffer_from_address
 
@@ -46,9 +46,9 @@ def test_tensorlist_getitem_gpu():
     assert(type(tensorlist[0]) == TensorGPU)
     assert(type(tensorlist[-3]) == TensorGPU)
     assert(len(list_of_tensors) == len(tensorlist))
-    with assert_raises(IndexError):
+    with assert_raises(IndexError, glob="TensorListCPU index out of range"):
         tensorlist[len(tensorlist)]
-    with assert_raises(IndexError):
+    with assert_raises(IndexError, glob="TensorListCPU index out of range"):
         tensorlist[-len(tensorlist) - 1]
 
 def test_data_ptr_tensor_gpu():
@@ -180,12 +180,12 @@ def test_dlpack_interface_types():
               cp.uint16, cp.uint32, cp.uint64, cp.float64, cp.float32, cp.float16]:
         yield check_dlpack_types, t
 
-@raises(RuntimeError)
+@raises(RuntimeError, glob="Provided object doesn't support cuda array interface protocol.")
 def test_cuda_array_interface_tensor_gpu_create_from_numpy():
     arr = np.random.rand(3, 5, 6)
     tensor = TensorGPU(arr, "NHWC")
 
-@raises(RuntimeError)
+@raises(RuntimeError, glob="Provided object doesn't support cuda array interface protocol.")
 def test_cuda_array_interface_tensor_list_gpu_create_from_numpy():
     arr = np.random.rand(3, 5, 6)
     tensor = TensorGPU(arr, "NHWC")

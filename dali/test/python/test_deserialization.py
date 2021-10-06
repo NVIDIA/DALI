@@ -16,7 +16,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import test_utils
-from nose.tools import *
+from nose_utils import raises
 
 
 class TestPipeline(Pipeline):
@@ -103,7 +103,7 @@ def test_deserialization_from_file_with_params():
                 yield check_deserialization_with_params, bs, nt, sh
 
 
-@raises(ValueError)
+@raises(ValueError, "serialized_pipeline and filename arguments are mutually exclusive. Precisely one of them should be defined.")
 def test_incorrect_invocation_mutually_exclusive_params():
     filename = "/tmp/dali.serialize.pipeline.test"
     pipe = TestPipeline(batch_size=3, num_threads=1, shape=[666])
@@ -111,6 +111,6 @@ def test_incorrect_invocation_mutually_exclusive_params():
     Pipeline.deserialize(serialized_pipeline=serialized, filename=filename)
 
 
-@raises(ValueError)
+@raises(ValueError, "serialized_pipeline and filename arguments are mutually exclusive. Precisely one of them should be defined.")
 def test_incorrect_invocation_no_params():
     Pipeline.deserialize()
