@@ -48,7 +48,7 @@ numer_of_prolog_elms=${#prolog[@]}
 # turn on sanitizers
 enable_sanitizer() {
     if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
-        # supress leaks we that are false positive or not related to DALI
+        # supress leaks that are false positive or not related to DALI
         export LSAN_OPTIONS=suppressions=$topdir/qa/leak.sup
         export ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0:log_path=sanitizer.log:start_deactivated=true:allocator_may_return_null=1::detect_leaks=1
         export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
@@ -87,7 +87,7 @@ process_sanitizers_logs() {
         if [ -e $topdir/sanitizer.log ]; then
             cat $topdir/sanitizer.log
             grep -q ERROR $topdir/sanitizer.log || true
-            # ToDo - enable when we suppression file is completed
+            # ToDo - enable when the suppression file is completed
             # grep -q ERROR $topdir/sanitizer.log && exit 1 || true
         fi
         # rm so the consequitive test won't reread the same logs over and over
