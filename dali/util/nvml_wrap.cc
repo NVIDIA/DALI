@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,6 +55,15 @@ void *NvmlLoadSymbol(const char *name) {
 }
 
 nvmlReturn_t nvmlInitChecked() {
+  static bool nvml_disabled = []() {
+    const char *env = getenv("DALI_DISABLE_NVML");
+    return env && atoi(env);
+  }();
+
+  if (nvml_disabled) {
+    return NVML_SUCCESS;  // not an error. NVML is disabled by the user
+  }
+
   nvmlReturn_t ret = nvmlInit();
   if (ret != NVML_SUCCESS) {
     DALI_WARN("nvmlInitChecked failed: ", nvmlErrorString(ret));
