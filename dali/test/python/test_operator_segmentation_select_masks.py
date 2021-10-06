@@ -81,32 +81,34 @@ def test_select_masks():
             for vertex_dtype in [np.float, random.choice([np.int8, np.int16, np.int32, np.int64])]:
                 reindex_masks = random.choice([False, True])
                 yield check_select_masks, batch_size, npolygons_range, nvertices_range, \
-                    vertex_ndim, vertex_dtype, reindex_masks
+                      vertex_ndim, vertex_dtype, reindex_masks
 
-def check_select_masks_wrong_input(data_source_fn, batch_size=1, reindex_masks=False):
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
-    with pipe:
-        polygons, vertices, mask_ids = fn.external_source(
-            source=data_source_fn, num_outputs=3, device='cpu'
-        )
-        out_polygons, out_vertices = fn.segmentation.select_masks(
-            mask_ids, polygons, vertices, reindex_masks=reindex_masks
-        )
-    pipe.set_outputs(polygons, vertices, mask_ids, out_polygons, out_vertices)
-    pipe.build()
-    with assert_raises(RuntimeError,
-                       regex="Selected mask_id .* is not present in the input\.|"
-                             "``polygons`` is expected to contain 2D tensors with 3 columns: ``mask_id, start_idx, end_idx``\. Got \d* columns\.|"
-                             "Vertex index range for mask id .* is out of bounds\. Expected to be within the range of available vertices .*\."):
-        outputs = pipe.run()
+
+@dali.pipeline_def(batch_size=1, num_threads=4, device_id=0, seed=1234)
+def wrong_input_pipe(data_source_fn, reindex_masks=False):
+    polygons, vertices, mask_ids = fn.external_source(source=data_source_fn, num_outputs=3,
+                                                      device='cpu')
+    out_polygons, out_vertices = fn.segmentation.select_masks(mask_ids, polygons, vertices,
+                                                              reindex_masks=reindex_masks)
+    return polygons, vertices, mask_ids, out_polygons, out_vertices
+
+
+def _test_select_masks_wrong_input(data_source_fn, err_regex):
+    p = wrong_input_pipe(data_source_fn=data_source_fn)
+    p.build()
+    with assert_raises(RuntimeError, regex=err_regex):
+        o = p.run()
+
 
 def test_select_masks_wrong_mask_ids():
     def test_data():
         polygons = [np.array([[0, 0, 2], [1, 3, 5], [2, 6, 8]], dtype=np.int32)]
         vertices = [np.array(np.random.rand(9, 2), dtype=np.float32)]
-        mask_ids = [np.array([10, 11], dtype = np.int32)]  # out of bounds ids
+        mask_ids = [np.array([10, 11], dtype=np.int32)]  # out of bounds ids
         return polygons, vertices, mask_ids
-    check_select_masks_wrong_input(lambda: test_data())
+
+    _test_select_masks_wrong_input(lambda: test_data(),
+                                   err_regex="Selected mask_id .* is not present in the input\.")
 
 def test_select_masks_wrong_mask_meta_dim():
     def test_data():
@@ -115,7 +117,9 @@ def test_select_masks_wrong_mask_meta_dim():
         vertices = [np.array(np.random.rand(9, 2), dtype=np.float32)]
         mask_ids = [np.array([0], dtype=np.int32)]
         return polygons, vertices, mask_ids
-    check_select_masks_wrong_input(lambda: test_data())
+
+    _test_select_masks_wrong_input(lambda: test_data(),
+                                   err_regex="``polygons`` is expected to contain 2D tensors with 3 columns: ``mask_id, start_idx, end_idx``\. Got \d* columns\.")
 
 def test_select_masks_wrong_vertex_ids():
     def test_data():
@@ -123,4 +127,6 @@ def test_select_masks_wrong_vertex_ids():
         vertices = [np.array(np.random.rand(3, 2), dtype=np.float32)]  # Only 3 vertices
         mask_ids = [np.array([0], dtype=np.int32)]
         return polygons, vertices, mask_ids
-    check_select_masks_wrong_input(lambda: test_data())
+
+    _test_select_masks_wrong_input(lambda: test_data(),
+                                   err_regex="Vertex index range for mask id .* is out of bounds\. Expected to be within the range of available vertices .*\.")

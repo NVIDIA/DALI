@@ -20,7 +20,7 @@ import numpy as np
 import cv2
 from scipy.ndimage import convolve1d
 import os
-from nose_utils import raises
+from nose_utils import assert_raises
 from nose.plugins.attrib import attr
 
 from test_utils import get_dali_extra_path, check_batch, compare_pipelines, RandomlyShapedDataIterator, dali_type
@@ -300,30 +300,39 @@ def test_per_sample_gaussian_blur():
                     yield check_per_sample_gaussian_blur, 10, sigma_dim, window_size_dim, shape, layout, axes, dev
 
 
-@raises(RuntimeError,
-        regex="Only channel-first or channel-last layouts are supported, got: .*\.|"
-              "For sequences, layout should begin with 'F' or 'CF', got: .*\.|"
-              "Too many dimensions, found: \d+ data axes, maximum supported is: 3\.|"
-              "Found more the one occurrence of 'F' or 'C' axes in layout: .*\.|"
-              "`sigma` and `window_size` shouldn't be 0 at the same time for sample: \d+, axis: \d+\.|"
-              "`sigma` must have non-negative values, got .\d* for sample: \d*, axis: \d*\.|"
-              "`window_size` must have non-negative values, got .\d* for sample: \d*, axis : \d*\.|"
-              "Even or non-centered windows are not supported yet, got window with even length: [\s\S]* for sample \d*\.|"
-              "Kernel window should have odd length, got: \d*\.")
-def check_fail_gaussian_blur(batch_size, sigma, window_size, shape, layout, axes, op_type, in_dtype=np.uint8, out_dtype=types.NO_TYPE):
-    check_generic_gaussian_blur(batch_size, sigma, window_size, shape, layout, axes, op_type, in_dtype, out_dtype)
+def check_fail_gaussian_blur(batch_size, sigma, window_size, shape, layout, axes, op_type,
+                             err_regex, in_dtype=np.uint8, out_dtype=types.NO_TYPE):
+    with assert_raises(RuntimeError, regex=err_regex):
+        check_generic_gaussian_blur(batch_size, sigma, window_size, shape, layout, axes, op_type,
+                                    in_dtype, out_dtype)
 
 
 def test_fail_gaussian_blur():
     for dev in ["cpu", "gpu"]:
         # Check layout and channel placement errors
-        for shape, layout, axes in [((20, 20, 30, 3), "DHCW", 3), ((5, 20, 30, 3), "HFWC", 2),
-                                    ((5, 10, 10, 10, 7, 3), "FWXYZC", 4),
-                                    ((5, 3, 20, 3, 30), "FCHCW", 2),
-                                    ((5, 3, 20, 3, 30), "FCCHW", 2)]:
-            yield check_fail_gaussian_blur, 10, 1.0, 11, shape, layout, axes, dev
+        args = [
+            ((20, 20, 30, 3), "DHCW", 3,
+             "Only channel-first or channel-last layouts are supported, got: .*\."),
+            ((5, 20, 30, 3), "HFWC", 2,
+             "For sequences, layout should begin with 'F' or 'CF', got: .*\."),
+            ((5, 10, 10, 10, 7, 3), "FWXYZC", 4,
+             "Too many dimensions, found: \d+ data axes, maximum supported is: 3\."),
+            ((5, 3, 20, 3, 30), "FCHCW", 2,
+             "Only channel-first or channel-last layouts are supported, got: .*\."),
+            ((5, 3, 20, 3, 30), "FCCHW", 2,
+             "Found more the one occurrence of 'F' or 'C' axes in layout: .*\.")
+        ]
+        for shape, layout, axes, err_regex in args:
+            yield check_fail_gaussian_blur, 10, 1.0, 11, shape, layout, axes, dev, err_regex
         # Negative, disallowed or both unspecified values of sigma and window size
-        yield check_fail_gaussian_blur, 10, 0.0, 0, (100, 20, 3), "HWC", 3, dev
-        yield check_fail_gaussian_blur, 10, -1.0, 0, (100, 20, 3), "HWC", 3, dev
-        yield check_fail_gaussian_blur, 10, 0.0, -11, (100, 20, 3), "HWC", 3, dev
-        yield check_fail_gaussian_blur, 10, 0.0, 2, (100, 20, 3), "HWC", 3, dev
+        yield check_fail_gaussian_blur, 10, 0.0, 0, (100, 20, 3), "HWC", 3, dev, \
+              "`sigma` and `window_size` shouldn't be 0 at the same time for sample: \d+, axis: \d+\."
+        yield check_fail_gaussian_blur, 10, -1.0, 0, (100, 20, 3), "HWC", 3, dev, \
+              "`sigma` must have non-negative values, got .\d* for sample: \d*, axis: \d*\."
+        yield check_fail_gaussian_blur, 10, 0.0, -11, (100, 20, 3), "HWC", 3, dev, \
+              "`window_size` must have non-negative values, got .\d* for sample: \d*, axis : \d*\."
+
+    yield check_fail_gaussian_blur, 10, 0.0, 2, (100, 20, 3), "HWC", 3, "cpu", \
+          "Kernel window should have odd length, got: \d*\."
+    yield check_fail_gaussian_blur, 10, 0.0, 2, (100, 20, 3), "HWC", 3, "gpu", \
+          "Even or non-centered windows are not supported yet, got window with even length: [\s\S]* for sample \d*\."

@@ -328,18 +328,15 @@ def test_reshape_src_dims_arg():
 
 def test_reshape_src_dims_throw_error():
     args = [
-        ([2, 0], None, [[20, 10, 20]]),
-        ([2, 0, 1], [1, -1], [[1, 2, 3]]),
-        ([0, 1, 3], None, [1, 2, 3]),
+        ([2, 0], None, [[20, 10, 20]],
+         "Reshape: The volume of the new shape should match the one of the original shape\. Requested a shape with \d* elements but the original shape has \d* elements\."),
+        ([2, 0, 1], [1, -1], [[1, 2, 3]],
+         "Reshape: ``src_dims`` and ``rel_shape`` have different lengths: \d* vs \d*"),
+        ([0, 1, 3], None, [1, 2, 3], "Reshape:.*is out of bounds.*"),
     ]
-    for src_dims, rel_shape, shapes in args:
+    for src_dims, rel_shape, shapes, err_regex in args:
         pipe = reshape_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes,
                             src_dims=src_dims, rel_shape=rel_shape)
         pipe.build()
-        with assert_raises(
-                RuntimeError,
-                regex="Reshape: The volume of the new shape should match the one of the original shape\. Requested a shape with \d* elements but the original shape has \d* elements\.|"
-                      "Reshape: ``src_dims`` and ``rel_shape`` have different lengths: \d* vs \d*|"
-                      "Reshape:.*is out of bounds.*|"
-                      "Reshape: ``src_dims.*is out of bounds\.\nThe indices in ``src_dims`` should be either valid dimension indices in range.*to insert a new dimension\."):
+        with assert_raises(RuntimeError, regex=err_regex):
             pipe.run()
