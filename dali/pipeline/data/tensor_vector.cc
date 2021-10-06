@@ -420,6 +420,11 @@ template <typename Backend>
 std::shared_ptr<TensorList<Backend>> TensorVector<Backend>::AsTensorList(bool check_contiguity) {
   DALI_ENFORCE(IsContiguous() || !check_contiguity,
                "Cannot cast non continuous TensorVector to TensorList.");
+  // Update the metadata when we are exposing the TensorList to the outside, as it might have been
+  // kept in the individual tensors
+  for (size_t idx = 0; idx < curr_tensors_size_; idx++) {
+    tl_->SetMeta(idx, tensors_[idx]->GetMeta());
+  }
   return tl_;
 }
 
