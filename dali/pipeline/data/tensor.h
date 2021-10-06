@@ -67,9 +67,9 @@ class Tensor : public Buffer<Backend> {
     view.type_ = type_;
     view.size_ = size_ / shape_[0];
     view.num_bytes_ = view.type_.size() * view.size_;
-    // Point to data, as we are sharing use no-op deleter
-    view.data_.reset(static_cast<uint8_t *>(this->raw_mutable_data()) + x * view.num_bytes_,
-                     [](void *) {});
+    // Point to the data using proper aliasing shared_ptr
+    auto *data_ptr = static_cast<uint8_t *>(this->raw_mutable_data()) + x * view.num_bytes_;
+    view.data_= std::shared_ptr<void>(data_, data_ptr);
     view.shares_data_ = true;
     view.device_ = device_;
     return view;
