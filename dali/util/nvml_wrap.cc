@@ -59,7 +59,7 @@ nvmlReturn_t nvmlInitChecked() {
     const char *env = getenv("DALI_DISABLE_NVML");
     return env && atoi(env);
   }();
-
+  nvml_disabled = true;  // for test purposes
   if (nvml_disabled) {
     return NVML_SUCCESS;  // not an error. NVML is disabled by the user
   }
