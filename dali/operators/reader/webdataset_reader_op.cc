@@ -92,16 +92,17 @@ entries that are not regular files.
 In addition to the tar archive with data, each archive should come with a corresponding index file.
 The index file can be generated using a dedicated script::
 
-    ``<path_to_dali>/tools/wds2idx.py <path_to_archive> <path_to_index_file>``
+    <path_to_dali>/tools/wds2idx.py <path_to_archive> <path_to_index_file>
 
 If the index file is not provided, it will be automatically inferred from the tar file.
 Keep in mind though that it will add considerable startup time for big datasets.
 
-The format of the index file is:
-)code" + detail::wds::kCurrentIndexVersion +
+The format of the index file is::
+
+    )code" + detail::wds::kCurrentIndexVersion +
             R"code( <num_samples>
-<component1_ext> <component1_data_offset> <component1_size> <component2_ext> <component2_data_offset> <component2_size> ...
-...
+    <component1_ext> <component1_data_offset> <component1_size> <component2_ext> <component2_data_offset> <component2_size> ...
+    ...
 
 
 Based on https://github.com/webdataset/webdataset)code")
@@ -134,8 +135,7 @@ it will be inferred automatically from the webdataset archive.)code",
 
 Possible behaviors:
   - "empty" (default) - in that case the output that was not set will just contain an empty tensor
-  - "skip" - in that case the entire sample will just be skipped (no penalty to performance except
-             for reduced caching of the archive)
+  - "skip" - in that case the entire sample will just be skipped (no penalty to performance except for reduced caching of the archive)
   - "error" - in that case an exception will be raised and te execution stops)code",
         "")
     .AddOptionalArg("dtypes", R"code(Data types of the respective outputs.
