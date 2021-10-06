@@ -101,24 +101,27 @@ def test_pool_multi_task(start_method):
             np.testing.assert_array_equal(answer(pid, *task), sample)
 
 
+# Test that we can hold as many results as the queue depth and assert collected batches
+# are propely collected
 @check_pool
 def test_pool_scheduled_tasks_cleanup(start_method):
     callbacks = [simple_callback]
-    with create_pool(callbacks, queue_depth=3, num_workers=1, start_method=start_method) as pool:
-        pids = get_pids(pool)
-        pid = pids[0]
-        tasks_list = [(i, [(SampleInfo(i, 0, i),)]) for i in range(3)]
-        for i, tasks in tasks_list:
-            pool.schedule_batch(context_i=0, batch_i=i, dst_chunk_i=i, tasks=tasks)
-        assert len(pool.contexts[0].partially_received) == 3
-        batches = []
-        for i in range(3):
-            batches.append(pool.receive_batch(context_i=0))
-            assert len(pool.contexts[0].partially_received) == 2 - i
-        tasks_batches = zip(tasks_list, batches)
-        for (i, tasks), batch in tasks_batches:
-            for task, sample in zip(tasks, batch):
-                np.testing.assert_array_equal(answer(pid, *task), sample)
+    for depth in [1, 2, 4, 8]:
+        with create_pool(callbacks, queue_depth=depth, num_workers=1, start_method=start_method) as pool:
+            pids = get_pids(pool)
+            pid = pids[0]
+            tasks_list = [(i, [(SampleInfo(i, 0, i),)]) for i in range(depth)]
+            for i, tasks in tasks_list:
+                pool.schedule_batch(context_i=0, batch_i=i, dst_chunk_i=i, tasks=tasks)
+            assert len(pool.contexts[0].partially_received) == depth
+            batches = []
+            for i in range(depth):
+                batches.append(pool.receive_batch(context_i=0))
+                assert len(pool.contexts[0].partially_received) == depth - 1 - i
+            tasks_batches = zip(tasks_list, batches)
+            for (i, tasks), batch in tasks_batches:
+                for task, sample in zip(tasks, batch):
+                    np.testing.assert_array_equal(answer(pid, *task), sample)
 
 
 # ################################################################################################ #
