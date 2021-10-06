@@ -15,7 +15,6 @@
 
 from test_utils import AverageMeter
 import time
-import gc
 
 from test_RN50_external_source_parallel_utils import (
     parse_test_arguments, external_source_parallel_pipeline, external_source_pipeline,
@@ -90,9 +89,6 @@ def iteration_test(args):
                 pipe.reset()
 
         print("OK {}".format(pipe_factory.__name__))
-        # pipline is not immediately released because traceback of last exception kept by
-        # python (i.e. StopIteration) stores reference to the pipeline
-        gc.collect()
 
 
 if __name__ == "__main__":

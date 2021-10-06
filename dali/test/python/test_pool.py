@@ -37,6 +37,7 @@ def create_pool(callbacks, queue_depth=1, num_workers=1, start_method="fork"):
         proc_pool = ProcPool(callbacks, queue_depths, num_workers=num_workers,
                             start_method=start_method, initial_chunk_size=1024 * 1024)
         worker_pool = WorkerPool(len(callbacks), queue_depths, proc_pool)
+        capture_processes(proc_pool)
         return closing(worker_pool)
     except:
         proc_pool.close()
@@ -45,7 +46,6 @@ def create_pool(callbacks, queue_depth=1, num_workers=1, start_method="fork"):
 def get_pids(worker_pool):
     # Note that we also capture the pids so the setup_function and teardown_function can
     # verify its correctness.
-    capture_processes(worker_pool)
     return worker_pool.pids()
 
 start_methods=["fork", "spawn"]
@@ -119,24 +119,6 @@ def test_pool_scheduled_tasks_cleanup(start_method):
         for (i, tasks), batch in tasks_batches:
             for task, sample in zip(tasks, batch):
                 np.testing.assert_array_equal(answer(pid, *task), sample)
-
-
-# Test that we can hold as many results as the queue depth
-@check_pool
-def test_pool_no_overwrite_batch(start_method):
-    callbacks = [simple_callback]
-    for depth in [1, 2, 4, 8]:
-        with create_pool(callbacks, queue_depth=depth, num_workers=1, start_method=start_method) as pool:
-            pids = get_pids(pool)
-            pid = pids[0]
-            tasks_list = [(i, [(SampleInfo(i, 0, i),)]) for i in range(depth)]
-            for i, tasks in tasks_list:
-                pool.schedule_batch(context_i=0, batch_i=i, dst_chunk_i=i%depth, tasks=tasks)
-            batches = [pool.receive_batch(context_i=0) for i in range(depth)]
-            tasks_batches = zip(tasks_list, batches)
-            for (i, tasks), batch in tasks_batches:
-                for task, sample in zip(tasks, batch):
-                    np.testing.assert_array_equal(answer(pid, *task), sample)
 
 
 # ################################################################################################ #
@@ -229,7 +211,6 @@ def invalid_callback():
 def test_pool_invalid_return():
     callbacks = [invalid_callback]
     with create_pool(callbacks, queue_depth=1, num_workers=1, start_method="spawn") as pool:
-        _ = get_pids(pool)
         tasks = [()]
         pool.schedule_batch(context_i=0, batch_i=0, dst_chunk_i=0, tasks=tasks)
         pool.receive_batch(context_i=0)
