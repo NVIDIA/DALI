@@ -391,6 +391,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     auto tl_elm = tl_data_.GetEmpty();
     bool copied_shared_data = false;
     if (batch.IsContiguous()) {
+      // TODO: metadata
       tl_elm.front()->ShareData(const_cast<TensorVector<Backend> &>(batch).AsTensorList().get());
       zero_copy_noncontiguous_gpu_input_ = true;
     } else {

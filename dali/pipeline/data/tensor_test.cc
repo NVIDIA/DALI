@@ -359,7 +359,11 @@ TYPED_TEST(TensorTest, TestShareData) {
   Tensor<TypeParam> tensor;
   int num_tensor = tl.ntensor();
   for (int i = 0; i < num_tensor; ++i) {
-    tensor.ShareData(&tl, i);
+    // TODO(klecki): Rework this with proper sample-based tensor batch data structure
+    auto sample_shared_ptr = unsafe_sample_owner(tl, i);
+    tensor.ShareData(sample_shared_ptr, tl.capacity(), tl.shape()[i], tl.type());
+    tensor.set_device_id(tl.device_id());
+    tensor.SetMeta(tl.GetMeta(i));
 
     // Verify the internals
     ASSERT_TRUE(tensor.shares_data());

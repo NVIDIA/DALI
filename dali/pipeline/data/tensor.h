@@ -292,66 +292,6 @@ class Tensor : public Buffer<Backend> {
     ShareData(ptr, bytes, { 0 }, type);
   }
 
-  /**
-   * @brief Wraps a TensorList and gives it a new shape
-   * TensorList has to be a valid tensor
-   * (there must be at least 1 tensor stored in the TensorList,
-   * volumes of the new and old shape need to match and
-   * all tensors need to be stored without
-   * any padding between them)
-   */
-  inline void ShareDataReshape(TensorList<Backend> *tl, const TensorShape<> &new_shape) {
-    DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
-    DALI_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
-    DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
-        "the input TensorList must have a valid data type.");
-    DALI_ENFORCE(tl->IsContiguousTensor(),
-      "All tensors in the input TensorList must be contiguous in memory.");
-    Index product = tl->shape().num_elements();
-    DALI_ENFORCE(product == volume(new_shape),
-      "Requested shape need to have the same volume as the tensor list.");
-    data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
-
-    // Get the meta-data for the target tensor
-    shape_ = new_shape;
-    size_ = volume(shape_);
-    type_ = tl->type_info();
-    num_bytes_ = type_.size() * size_;
-    device_ = tl->device_id();
-    shares_data_ = true;
-    meta_ = {};
-  }
-
-  /**
-   * @brief Wraps a TensorList
-   * TensorList has to be a valid tensor
-   * (there must be at least 1 tensor stored in TensorList,
-   * all shapes should be identical,
-   * all tensors need to be stored without
-   * any offset between them)
-   */
-  inline void ShareData(TensorList<Backend> *tl) {
-    DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
-    DALI_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
-    DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
-        "the input TensorList must have a valid data type.");
-    DALI_ENFORCE(tl->IsDenseTensor(),
-      "All tensors in the input TensorList must have the same shape and be densely packed.");
-    data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
-
-    // Get the meta-data for the target tensor
-    shape_ = shape_cat(tl->ntensor(), tl->tensor_shape(0));
-    size_ = volume(shape_);
-    type_ = tl->type_info();
-    num_bytes_ = type_.size() * size_;
-    device_ = tl->device_id();
-    shares_data_ = true;
-    if (!tl->GetLayout().empty())
-      SetLayout("N" + tl->GetLayout());
-    else
-      SetLayout({});
-  }
-
   inline void Reset() {
     reset();  // free the underlying buffer
     shape_ = { 0 };

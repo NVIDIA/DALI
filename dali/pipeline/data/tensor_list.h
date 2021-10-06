@@ -550,10 +550,24 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     }
 
     // need to create a new view
-    tensor_views_.emplace_back();
-    tensor_views_.back().ShareDataReshape(this, new_shape);
+    DALI_ENFORCE(ntensor() > 0,
+                 "To create a view Tensor, the Tensor List must have at least 1 element.");
+    DALI_ENFORCE(IsValidType(type()),
+                 "To create a view Tensor, the Tensor List must have a valid data type.");
+    DALI_ENFORCE(IsContiguousTensor(),
+                 "To create a view Tensor, all tensors in the input TensorList must be contiguous "
+                 "in memory.");
+    Index product = shape().num_elements();
+    DALI_ENFORCE(product == volume(new_shape),
+                 "To create a view Tensor, Requested shape need to have the same volume as the "
+                 "tensor list.");
 
-    return &tensor_views_.back();
+    tensor_views_.emplace_back();
+    auto &tensor = tensor_views_.back();
+    tensor.ShareData(data_, num_bytes_, new_shape, type_.id());
+    tensor.set_device_id(device_);
+
+    return &tensor;
   }
 
   /**
@@ -657,6 +671,16 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   friend const void *unsafe_raw_data(const TensorList<Backend> &tl) {
     DALI_ENFORCE(tl.IsContiguous(), "Data pointer can be obtain only for contiguous TensorList.");
     return tl.raw_data();
+  }
+
+  /**
+   * @brief Return the shared pointer, that we can use to correctly share the ownership of sample
+   * with.
+   */
+  friend shared_ptr<void> unsafe_sample_owner(TensorList<Backend> &tl, int sample_idx) {
+    // create new aliasing pointer to current data allocation, so we share the use count
+    // and the deleter correctly.
+    return {tl.data_, tl.raw_mutable_tensor(sample_idx)};
   }
 
   /** @} */  // end of ContiguousAccessorFunctions
