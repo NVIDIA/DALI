@@ -62,7 +62,7 @@ inline void CopyToExternalImpl(void* dst,
   // TODO(klecki): Add a proper test for non-contiguous access when we can have non-contiguous
   // data here.
   if (src.IsContiguous()) {
-    type_info.template Copy<DstBackend, SrcBackend>(dst, unsafe_raw_data(src), src.tl_elements(),
+    type_info.template Copy<DstBackend, SrcBackend>(dst, unsafe_raw_data(src), src._num_elements(),
                                                     stream, use_copy_kernel);
   } else {
     const auto &src_shape = src.shape();

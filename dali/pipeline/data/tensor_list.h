@@ -65,8 +65,11 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
 
   /**
    * @brief Number of elements in Tensor List.
+   *
+   * Note: The usage of this member function is intended to be reworked in following updates.
+   * For this purpose the name is distinct so we can easily search and replace.
    */
-  int64_t tl_elements() const {
+  int64_t _num_elements() const {
     return Buffer<Backend>::size();
   }
 
