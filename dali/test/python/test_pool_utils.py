@@ -37,7 +37,7 @@ def setup_function():
     pools = []
 
 def teardown_function():
-    """Check if there are no children processes started by tests after it has ended.
+    """Check if there are no children processes started by the test after it ended.
 
     Be sure to call `capture_processes` in the test.
     """

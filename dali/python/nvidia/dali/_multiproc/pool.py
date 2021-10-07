@@ -123,7 +123,7 @@ received so far.
         return self.scheduled.popitem(last=False)
 
     def handle_error(self, batch_i):
-        """Check if given batch reported error and raise it"""
+        """Check if given batch reported an error and raise it"""
         exception = None
         try:
             if batch_i in self.iter_failed:
@@ -138,11 +138,11 @@ received so far.
                         "\n\nException traceback received from worker thread:\n\n" + traceback_str) from exception
         finally:
             # Fix circular reference problem on StopIteration - the exception contains reference to the
-            # traceback that referrs a frame that contains local variables and among them the exception.
+            # traceback that refers a frame that contains local variables and among them the exception.
             # This traceback is then chained into excpetions reraised along the way
             # (eventually at the pipeline level) which in effect introduces a reference to the pipline
             # that would be only removed after garbage collection round, delaying finalization of the pool
-            exception = None
+            del exception
 
     def is_error(self, batch_i):
         return batch_i in self.iter_failed
