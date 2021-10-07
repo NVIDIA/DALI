@@ -122,7 +122,7 @@ struct SubscriptDimCheck : public Operator<Backend> {
     DALI_ENFORCE(num_subscripts_ <= in.sample_dim(), make_string("Too many indices (",
       num_subscripts_, ") for a ", in.sample_dim(), "-D tensor."));
     auto &out = ws.template OutputRef<Backend>(0);
-    out.ShareData(&in);
+    out.ShareData(in);
   }
 
   int num_subscripts_ = 0;

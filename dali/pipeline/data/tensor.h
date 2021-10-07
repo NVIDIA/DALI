@@ -176,7 +176,7 @@ class Tensor : public Buffer<Backend> {
 
   /**
    * @brief Wraps the data owned by the input tensor. The input
-   * tensor must have a valid type. If sucessful, the tensor
+   * tensor must have a valid type. If successful, the tensor
    * object will wrap the target data and assume the datatype
    * and shape of the data stored in the Tensor.
    *
@@ -188,24 +188,23 @@ class Tensor : public Buffer<Backend> {
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
    */
-  inline void ShareData(Tensor<Backend> *t) {
-    DALI_ENFORCE(t != nullptr, "Input Tensor is nullptr");
-    DALI_ENFORCE(IsValidType(t->type()), "To share data, "
+  inline void ShareData(Tensor<Backend> &t) {
+    DALI_ENFORCE(IsValidType(t.type()), "To share data, "
         "the input Tensor must have a valid data type.");
 
     // Save a copy of our new data pointer. We create a copy of the
     // shared_ptr to ensure the data persists while we are still
     // using it.
-    data_ = t->data_;
+    data_ = t.data_;
 
     // Save the tensor meta-data
-    shape_ = t->shape_;
-    size_ = t->size_;
-    type_ = t->type_;
-    num_bytes_ = t->num_bytes_;
+    shape_ = t.shape_;
+    size_ = t.size_;
+    type_ = t.type_;
+    num_bytes_ = t.num_bytes_;
     shares_data_ = num_bytes_ > 0 ? true : false;
-    device_ = t->device_id();
-    meta_ = t->meta_;
+    device_ = t.device_id();
+    meta_ = t.meta_;
   }
 
   /**

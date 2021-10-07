@@ -101,7 +101,7 @@ void Constant<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &out = ws.OutputRef<GPUBackend>(0);
 
   out.Reset();
-  out.ShareData(&output_);
+  out.ShareData(output_);
   out.Resize(output_shape_);
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {

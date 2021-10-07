@@ -838,7 +838,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         const auto &in = ws.Input<CPUBackend>(0, i);
         const auto &out_shape = output_shape_.tensor_shape(i);
 
-        tv[j].ShareData(const_cast<Tensor<CPUBackend>*>(&in));
+        tv[j].ShareData(const_cast<Tensor<CPUBackend> &>(in));
         in_lengths_[j] = in.size();
         nvjpeg_destinations_[j].channel[0] = output.mutable_tensor<uint8_t>(i);
         nvjpeg_destinations_[j].pitch[0] = out_shape[1] * out_shape[2];

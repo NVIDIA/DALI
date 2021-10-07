@@ -185,9 +185,9 @@ class DLL_PUBLIC TensorVector {
   template <typename SrcBackend>
   void Copy(const TensorVector<SrcBackend> &in_tv, cudaStream_t stream);
 
-  void ShareData(TensorList<Backend> *in_tl);
+  void ShareData(TensorList<Backend> &in_tl);
 
-  void ShareData(TensorVector<Backend> *tv);
+  void ShareData(TensorVector<Backend> &tv);
 
   TensorVector<Backend> &operator=(TensorVector<Backend> &&other) noexcept;
 

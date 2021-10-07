@@ -218,19 +218,18 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
    */
-  DLL_PUBLIC inline void ShareData(TensorList<Backend> *other) {
-    DALI_ENFORCE(other != nullptr, "Input TensorList is nullptr");
-    DALI_ENFORCE(IsValidType(other->type_), "To share data, "
+  DLL_PUBLIC inline void ShareData(TensorList<Backend> &other) {
+    DALI_ENFORCE(IsValidType(other.type_), "To share data, "
         "the input TensorList must have a valid data type");
 
     // Save the calling TensorLists meta-data
-    data_ = other->data_;
-    shape_ = other->shape_;
-    size_ = other->size_;
-    offsets_ = other->offsets_;
-    type_ = other->type_;
-    num_bytes_ = other->num_bytes_;
-    device_ = other->device_;
+    data_ = other.data_;
+    shape_ = other.shape_;
+    size_ = other.size_;
+    offsets_ = other.offsets_;
+    type_ = other.type_;
+    num_bytes_ = other.num_bytes_;
+    device_ = other.device_;
 
     // Tensor views of this TensorList is no longer valid
     tensor_views_.clear();
@@ -240,8 +239,8 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     shares_data_ = num_bytes_ > 0 ? true : false;
 
     // copy metadata
-    meta_ = other->meta_;
-    layout_ = other->layout_;
+    meta_ = other.meta_;
+    layout_ = other.layout_;
   }
 
   /**

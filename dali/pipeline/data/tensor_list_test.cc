@@ -204,7 +204,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenNoAlloc) {
   sharer.Resize(shape);
 
   // Share the data to give the tl bytes
-  tl.ShareData(&sharer);
+  tl.ShareData(sharer);
 
   int num_tensor = shape.size();
   vector<Index> offsets;
@@ -239,7 +239,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
   sharer.Resize(shape);
 
   // Share the data to give the tl bytes
-  tl.ShareData(&sharer);
+  tl.ShareData(sharer);
 
   int num_tensor = shape.size();
   vector<Index> offsets;
@@ -513,7 +513,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
   TensorList<TypeParam> tensor_list2;
 
   // Share the data
-  tensor_list2.ShareData(&tensor_list);
+  tensor_list2.ShareData(tensor_list);
   // We need to use the same size as the underlying buffer
   // N.B. using other type is UB in most cases
   auto flattened_shape = collapse_dims(shape, {std::make_pair(0, shape.sample_dim())});

@@ -336,41 +336,39 @@ void TensorVector<Backend>::Copy(const TensorVector<SrcBackend> &in_tv, cudaStre
 
 
 template <typename Backend>
-void TensorVector<Backend>::ShareData(TensorList<Backend> *in_tl) {
-  DALI_ENFORCE(in_tl != nullptr, "Input TensorList is nullptr");
+void TensorVector<Backend>::ShareData(TensorList<Backend> &in_tl) {
   SetContiguous(true);
-  type_ = in_tl->type_info();
-  pinned_ = in_tl->is_pinned();
+  type_ = in_tl.type_info();
+  pinned_ = in_tl.is_pinned();
   tl_->ShareData(in_tl);
 
-  resize_tensors(in_tl->num_samples());
+  resize_tensors(in_tl.num_samples());
   UpdateViews();
 }
 
 template <typename Backend>
-void TensorVector<Backend>::ShareData(TensorVector<Backend> *tv) {
-  DALI_ENFORCE(tv != nullptr, "Input TensorVector is nullptr");
-  type_ = tv->type_;
-  state_ = tv->state_;
-  pinned_ = tv->is_pinned();
+void TensorVector<Backend>::ShareData(TensorVector<Backend> &tv) {
+  type_ = tv.type_;
+  state_ = tv.state_;
+  pinned_ = tv.is_pinned();
 
-  if (IsValidType(tv->tl_->type())) {
-    tl_->ShareData(tv->tl_.get());
+  if (IsValidType(tv.tl_->type())) {
+    tl_->ShareData(*tv.tl_);
   } else {
     tl_->Reset();
-    tl_->Resize(tv->tl_->shape());
+    tl_->Resize(tv.tl_->shape());
   }
-  int batch_size = tv->num_samples();
+  int batch_size = tv.num_samples();
   resize_tensors(batch_size);
   views_count_ = 0;
 
   for (int i = 0; i < batch_size; i++) {
-    if (static_cast<int>(tv->tl_->num_samples()) > i &&
-        tv->tensors_[i]->raw_data() == tv->tl_->raw_tensor(i)) {
+    if (static_cast<int>(tv.tl_->num_samples()) > i &&
+        tv.tensors_[i]->raw_data() == tv.tl_->raw_tensor(i)) {
       update_view(i);
       ++views_count_;
     } else {
-      tensors_[i]->ShareData(tv->tensors_[i].get());
+      tensors_[i]->ShareData(*(tv.tensors_[i]));
     }
   }
 }
