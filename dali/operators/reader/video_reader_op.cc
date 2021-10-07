@@ -45,7 +45,12 @@ void VideoReader::Prefetch() {
   // ask for frames
   for (size_t data_idx = 0; data_idx < curr_tensor_list.ntensor(); ++data_idx) {
     auto &sample = curr_batch[data_idx];
-    sample->sequence.ShareData(&curr_tensor_list, static_cast<int>(data_idx));
+    // TODO(klecki): Rework this with proper sample-based tensor batch data structure
+    auto sample_shared_ptr = unsafe_sample_owner(curr_tensor_list, data_idx);
+    sample->sequence.ShareData(sample_shared_ptr, curr_tensor_list.capacity(),
+                     curr_tensor_list.shape()[data_idx], curr_tensor_list.type());
+    sample->sequence.set_device_id(curr_tensor_list.device_id());
+    sample->sequence.SetMeta(curr_tensor_list.GetMeta(data_idx));
     sample->read_sample_f();
     // data has been read, decouple sequence from the wrapped memory
     sample->sequence.Reset();

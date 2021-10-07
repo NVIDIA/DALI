@@ -561,7 +561,11 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
       throw py::index_error("TensorListCPU index out of range");
   }
   auto ptr = std::make_unique<Tensor<Backend>>();
-  ptr->ShareData(&t, id);
+  // TODO(klecki): Rework this with proper sample-based tensor batch data structure
+  auto sample_shared_ptr = unsafe_sample_owner(t, id);
+  ptr->ShareData(sample_shared_ptr, t.capacity(), t.shape()[id], t.type());
+  ptr->set_device_id(t.device_id());
+  ptr->SetMeta(t.GetMeta(id));
   return ptr;
 }
 

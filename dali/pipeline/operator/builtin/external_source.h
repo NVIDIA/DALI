@@ -372,7 +372,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
 
   /**
    * @brief Attempts to share data from tensor vector to tensor list without
-   *        an additional copy if the batch is contiguoys.
+   *        an additional copy if the batch is contiguous.
    *        In case of scattered samples, the data is copied to a contiguous
    *        buffer.
    * @remarks Mixing contiguous and non-contiguous inputs in subsequents calls
@@ -391,7 +391,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     auto tl_elm = tl_data_.GetEmpty();
     bool copied_shared_data = false;
     if (batch.IsContiguous()) {
-      batch.ShareWith(const_cast<TensorList<Backend> *>(tl_elm.front().get()));
+      auto *in_tl = const_cast<TensorVector<Backend> &>(batch).AsTensorList().get();
+      tl_elm.front()->ShareData(in_tl);
       zero_copy_noncontiguous_gpu_input_ = true;
     } else {
       // it is not contiguous so we need to copy

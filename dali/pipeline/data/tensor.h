@@ -67,9 +67,9 @@ class Tensor : public Buffer<Backend> {
     view.type_ = type_;
     view.size_ = size_ / shape_[0];
     view.num_bytes_ = view.type_.size() * view.size_;
-    // Point to data, as we are sharing use no-op deleter
-    view.data_.reset(static_cast<uint8_t *>(this->raw_mutable_data()) + x * view.num_bytes_,
-                     [](void *) {});
+    // Point to the data using proper aliasing shared_ptr
+    auto *data_ptr = static_cast<uint8_t *>(this->raw_mutable_data()) + x * view.num_bytes_;
+    view.data_ = std::shared_ptr<void>(data_, data_ptr);
     view.shares_data_ = true;
     view.device_ = device_;
     return view;
@@ -177,49 +177,6 @@ class Tensor : public Buffer<Backend> {
   // For having complete API, Tensor is not a batch
   void reserve(size_t bytes_per_tensor, int) {
     reserve(bytes_per_tensor);
-  }
-
-  /**
-   * @brief Wraps the data owned by the tensor at the given index
-   * in the input tensor list. The input tensor list must have
-   * a valid type, and the given index must be in the valid range
-   * [0, tl.ntensor()).
-   *
-   * If sucessful, the tensor object will wrap the target data and
-   * assume the datatype of the data stored in the TensorList.
-   *
-   * Because we are storing the pointer of the TensorList at an
-   * offset, we do not guarantee that this allocation will persist
-   * until both the owner and the sharer are finished with it. Thus,
-   * it is up to the user to manage the scope of the sharing objects
-   * to ensure correctness.
-   *
-   * After calling this function any following call to `set_type` and `Resize`
-   * must match the total size of underlying allocation (`num_bytes_`) of
-   * shared data or the call will fail.
-   * Size can be set to 0 and type to NoType as intermediate step.
-   */
-  inline void ShareData(TensorList<Backend> *tl, int idx) {
-    DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
-    DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
-        "the input TensorList must have a valid data type.");
-    DALI_ENFORCE(idx >= 0, "Negative tensor index not supported.");
-    DALI_ENFORCE(static_cast<size_t>(idx) < tl->ntensor(), "Index of " + std::to_string(idx) +
-        " out of range for TensorList of size " + std::to_string(tl->ntensor()));
-
-    // Reset our pointer to the correct offset inside the tensor list.
-    // This is not the beginning of the allocation, so we pass a noop
-    // deleter to the shared_ptr
-    data_.reset(tl->raw_mutable_tensor(idx), [](void *) {});
-
-    // Get the meta-data for the target tensor
-    shape_ = tl->tensor_shape(idx);
-    size_ = volume(shape_);
-    type_ = tl->type_info();
-    num_bytes_ = type_.size() * size_;
-    shares_data_ = true;
-    device_ = tl->device_id();
-    meta_ = tl->GetMeta(idx);
   }
 
   /**
@@ -333,66 +290,6 @@ class Tensor : public Buffer<Backend> {
   inline void ShareData(void *ptr, size_t bytes,
                         DALIDataType type = DALI_NO_TYPE) {
     ShareData(ptr, bytes, { 0 }, type);
-  }
-
-  /**
-   * @brief Wraps a TensorList and gives it a new shape
-   * TensorList has to be a valid tensor
-   * (there must be at least 1 tensor stored in the TensorList,
-   * volumes of the new and old shape need to match and
-   * all tensors need to be stored without
-   * any padding between them)
-   */
-  inline void ShareDataReshape(TensorList<Backend> *tl, const TensorShape<> &new_shape) {
-    DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
-    DALI_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
-    DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
-        "the input TensorList must have a valid data type.");
-    DALI_ENFORCE(tl->IsContiguousTensor(),
-      "All tensors in the input TensorList must be contiguous in memory.");
-    Index product = tl->shape().num_elements();
-    DALI_ENFORCE(product == volume(new_shape),
-      "Requested shape need to have the same volume as the tensor list.");
-    data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
-
-    // Get the meta-data for the target tensor
-    shape_ = new_shape;
-    size_ = volume(shape_);
-    type_ = tl->type_info();
-    num_bytes_ = type_.size() * size_;
-    device_ = tl->device_id();
-    shares_data_ = true;
-    meta_ = {};
-  }
-
-  /**
-   * @brief Wraps a TensorList
-   * TensorList has to be a valid tensor
-   * (there must be at least 1 tensor stored in TensorList,
-   * all shapes should be identical,
-   * all tensors need to be stored without
-   * any offset between them)
-   */
-  inline void ShareData(TensorList<Backend> *tl) {
-    DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
-    DALI_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
-    DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
-        "the input TensorList must have a valid data type.");
-    DALI_ENFORCE(tl->IsDenseTensor(),
-      "All tensors in the input TensorList must have the same shape and be densely packed.");
-    data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
-
-    // Get the meta-data for the target tensor
-    shape_ = shape_cat(tl->ntensor(), tl->tensor_shape(0));
-    size_ = volume(shape_);
-    type_ = tl->type_info();
-    num_bytes_ = type_.size() * size_;
-    device_ = tl->device_id();
-    shares_data_ = true;
-    if (!tl->GetLayout().empty())
-      SetLayout("N" + tl->GetLayout());
-    else
-      SetLayout({});
   }
 
   inline void Reset() {
