@@ -62,6 +62,15 @@ void VideoLoaderDecoder::PrepareMetadataImpl() {
         VideoSampleDesc(start, start + stride_ * sequence_len_, stride_, video_idx));
     }
   }
+  if (shuffle_) {
+      // seeded with hardcoded value to get
+      // the same sequence on every shard
+      std::mt19937 g(kDaliDataloaderSeed);
+      std::shuffle(std::begin(sample_spans_), std::end(sample_spans_), g);
+    }
+
+    // set the initial index for each shard
+    Reset(true);
 }
 
 void VideoLoaderDecoder::Reset(bool wrap_to_shard) {
