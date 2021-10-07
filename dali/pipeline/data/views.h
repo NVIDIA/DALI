@@ -71,7 +71,7 @@ TensorShape<ndim> get_tensor_shape(const TensorList<Backend> &tl) {
     "Hint: Converting tensor list to a tensor adds extra dimension");
   }
   int dim = (ndim != DynamicDimensions) ? ndim : tl.shape().sample_dim() + 1;
-  auto out = shape_cat(tl.ntensor(), tl.tensor_shape(0));
+  auto out = shape_cat(tl.num_samples(), tl.tensor_shape(0));
   return convert_dim<ndim>(out);
 }
 
@@ -104,7 +104,7 @@ view(const Tensor<Backend> &data) {
 template <typename T, int ndim = DynamicDimensions, typename Backend>
 TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(TensorList<Backend> &data) {
-  if (data.ntensor() == 0)
+  if (data.num_samples() == 0)
     return {};
   using U = std::remove_const_t<T>;
   const auto &shape = data.shape();
@@ -124,7 +124,7 @@ view(const TensorList<Backend> &data) {
   static_assert(std::is_const<T>::value,
                 "Cannot create a non-const view of a `const TensorList<>`. "
                 "Missing `const` in T?");
-  if (data.ntensor() == 0)
+  if (data.num_samples() == 0)
     return {};
   using U = std::remove_const_t<T>;
   const auto &shape = data.shape();
@@ -141,7 +141,7 @@ view(const TensorList<Backend> &data) {
 template <typename T, int ndim = DynamicDimensions, typename Backend>
 TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(TensorVector<Backend> &data) {
-  if (data.size() == 0)
+  if (data.num_samples() == 0)
     return {};
   using U = std::remove_const_t<T>;
   const auto &shape = data.shape();
@@ -161,7 +161,7 @@ view(const TensorVector<Backend> &data) {
   static_assert(std::is_const<T>::value,
                 "Cannot create a non-const view of a `const TensorVector<>`. "
                 "Missing `const` in T?");
-  if (data.size() == 0)
+  if (data.num_samples() == 0)
     return {};
   using U = std::remove_const_t<T>;
   const auto &shape = data.shape();
@@ -178,7 +178,7 @@ view(const TensorVector<Backend> &data) {
 template <typename T, int ndim = DynamicDimensions, typename Backend>
 TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 reinterpret_view(TensorVector<Backend> &data) {
-  if (data.size() == 0)
+  if (data.num_samples() == 0)
     return {};
   detail::enforce_dim_in_view<ndim>(data.shape());
   TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;
@@ -207,7 +207,7 @@ reinterpret_view(const TensorVector<Backend> &data) {
   static_assert(std::is_const<T>::value,
                 "Cannot create a non-const view of a `const TensorVector<>`. "
                 "Missing `const` in T?");
-  if (data.size() == 0)
+  if (data.num_samples() == 0)
     return {};
   detail::enforce_dim_in_view<ndim>(data.shape());
   TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;

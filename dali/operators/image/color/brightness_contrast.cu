@@ -36,7 +36,7 @@ bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   const auto &output = ws.template OutputRef<GPUBackend>(0);
   output_desc.resize(1);
   AcquireArguments(ws);
-  int N = input.ntensor();
+  int N = input.num_samples();
   addends_.resize(N);
   multipliers_.resize(N);
   TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (

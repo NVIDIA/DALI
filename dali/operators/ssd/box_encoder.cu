@@ -246,10 +246,10 @@ void BoxEncoder<GPUBackend>::ClearOutput(TensorList<GPUBackend> &boxes_out,
 std::pair<TensorListShape<>, TensorListShape<>>
 BoxEncoder<GPUBackend>::CalculateDims(
   const TensorList<GPUBackend> &boxes_input) {
-  TensorListShape<> boxes_output_shape(boxes_input.ntensor(), kBoxesOutputDim);
-  TensorListShape<> labels_output_shape(boxes_input.ntensor(), kLabelsOutputDim);
+  TensorListShape<> boxes_output_shape(boxes_input.num_samples(), kBoxesOutputDim);
+  TensorListShape<> labels_output_shape(boxes_input.num_samples(), kLabelsOutputDim);
 
-  for (size_t i = 0; i < boxes_input.ntensor(); i++) {
+  for (size_t i = 0; i < boxes_input.num_samples(); i++) {
     boxes_output_shape.set_tensor_shape(i,
         {anchor_count_, static_cast<int64_t>(BoundingBox::size)});
     labels_output_shape.set_tensor_shape(i, {anchor_count_});

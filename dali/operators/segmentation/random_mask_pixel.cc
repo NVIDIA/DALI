@@ -89,7 +89,7 @@ RandomMaskPixelCPU::RandomMaskPixelCPU(const OpSpec &spec)
 bool RandomMaskPixelCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
                                     const workspace_t<CPUBackend> &ws) {
   const auto &in_masks = ws.template InputRef<CPUBackend>(0);
-  int nsamples = in_masks.size();
+  int nsamples = in_masks.num_samples();
   auto in_masks_shape = in_masks.shape();
   int ndim = in_masks_shape.sample_dim();
   output_desc.resize(1);
@@ -113,7 +113,7 @@ template <typename T>
 void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   const auto &in_masks = ws.template InputRef<CPUBackend>(0);
   auto &out_pixel_pos = ws.template OutputRef<CPUBackend>(0);
-  int nsamples = in_masks.size();
+  int nsamples = in_masks.num_samples();
   auto in_masks_shape = in_masks.shape();
   int ndim = in_masks_shape.sample_dim();
   auto masks_view = view<const T>(in_masks);

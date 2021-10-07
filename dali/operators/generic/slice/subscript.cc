@@ -70,7 +70,7 @@ template <int ndim, int element_size>
 void TensorSubscript<CPUBackend>::RunTyped(HostWorkspace &ws) {
   auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
-  int N = input.ntensor();
+  int N = input.num_samples();
   using T = kernels::type_of_size<element_size>;
   ThreadPool &tp = ws.GetThreadPool();
 

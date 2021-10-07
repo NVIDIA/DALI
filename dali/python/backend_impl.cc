@@ -553,7 +553,7 @@ void ExposeTensor(py::module &m) {
 
 template <typename Backend>
 std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, Index id) {
-  int num_tensors = static_cast<int>(t.ntensor());
+  int num_tensors = static_cast<int>(t.num_samples());
   if (id < 0) {
     id = num_tensors + id;
   }
@@ -573,7 +573,7 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
 template <typename Backend>
 py::tuple TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
   size_t start, stop, step, slicelength;
-  if (!slice.compute(t.ntensor(), &start, &stop, &step, &slicelength))
+  if (!slice.compute(t.num_samples(), &start, &stop, &step, &slicelength))
       throw py::error_already_set();
   py::list list;
   for (; start < stop; start += step) {
@@ -665,7 +665,7 @@ void ExposeTensorList(py::module &m) {
     .def("at", [](TensorList<CPUBackend> &tl, Index id) -> py::array {
           DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
               "buffer info for tensor w/ invalid type.");
-          DALI_ENFORCE(static_cast<size_t>(id) < tl.ntensor(), "Index is out-of-range.");
+          DALI_ENFORCE(static_cast<size_t>(id) < tl.num_samples(), "Index is out-of-range.");
           DALI_ENFORCE(id >= 0, "Index is out-of-range.");
 
           std::vector<ssize_t> shape(tl.tensor_shape(id).size()),
@@ -714,7 +714,7 @@ void ExposeTensorList(py::module &m) {
           std::string format;
           size_t type_size;
 
-          if (tl.size() > 0) {
+          if (tl._num_elements() > 0) {
             DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
                 "buffer info for tensor w/ invalid type.");
             DALI_ENFORCE(tl.IsDenseTensor(),
@@ -758,7 +758,7 @@ void ExposeTensorList(py::module &m) {
 
       )code")
     .def("__len__", [](TensorList<CPUBackend> &tl) {
-          return tl.ntensor();
+          return tl.num_samples();
         })
     .def("is_dense_tensor", &TensorList<CPUBackend>::IsDenseTensor,
       R"code(
@@ -879,7 +879,7 @@ void ExposeTensorList(py::module &m) {
       )code",
       py::return_value_policy::take_ownership)
     .def("__len__", [](TensorList<GPUBackend> &t) {
-          return t.ntensor();
+          return t.num_samples();
         })
     .def("is_dense_tensor", &TensorList<GPUBackend>::IsDenseTensor,
       R"code(

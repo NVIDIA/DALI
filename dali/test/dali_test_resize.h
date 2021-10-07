@@ -27,7 +27,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
     // single input - encoded images
     // single output - decoded images
-    TensorVector<CPUBackend> out(inputs[0]->ntensor());
+    TensorVector<CPUBackend> out(inputs[0]->num_samples());
     const TensorList<CPUBackend>& image_data = *inputs[0];
 
     const uint32_t resizeOptions = getResizeOptions();
@@ -69,7 +69,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
     }
 
     int rsz_h, rsz_w;
-    for (size_t i = 0; i < image_data.ntensor(); ++i) {
+    for (size_t i = 0; i < image_data.num_samples(); ++i) {
       auto *data = image_data.tensor<unsigned char>(i);
       auto shape = image_data.tensor_shape(i);
       const int H = shape[0], W = shape[1];

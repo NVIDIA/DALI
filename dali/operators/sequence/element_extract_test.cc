@@ -70,7 +70,7 @@ class ElementExtractTest : public DaliOperatorTest {
                 const Arguments& args) {
         auto output_tl = output.CopyTo<CPUBackend>();
         ASSERT_NE(nullptr, output_tl);
-        auto nouttensors = output_tl->ntensor();
+        auto nouttensors = output_tl->num_samples();
         int element_map_size = element_map_.size();
         EXPECT_EQ(ntensors_ * element_map_size, nouttensors);
         for (int in_idx = 0; in_idx < ntensors_; in_idx++) {

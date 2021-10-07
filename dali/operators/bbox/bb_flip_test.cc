@@ -113,7 +113,7 @@ std::unique_ptr<TensorList<Backend>> ToTensorList(const TestSample (&sample)[N])
 template <typename Backend>
 std::vector<Roi> FromTensorListPtr(const TensorList<Backend> *tl) {
   std::vector<Roi> ret;
-  for (size_t i = 0; i < tl->ntensor(); i++) {
+  for (size_t i = 0; i < tl->num_samples(); i++) {
     auto *ptr = tl->template tensor<float>(i);
     Roi roi;
     for (float &val : roi) {
@@ -129,7 +129,7 @@ std::vector<Roi> FromTensorWrapper(TensorListWrapper tw) {
   if (tw.has<Backend>()) {
     auto *tl =  tw.get<Backend>();
     ASSERT_NE(nullptr, tl), std::vector<Roi>();
-    ASSERT_LE(kBbStructSize, tl->size()), std::vector<Roi>();
+    ASSERT_LE(kBbStructSize, tl->_num_elements()), std::vector<Roi>();
     return FromTensorListPtr(tl);
   } else {
     return FromTensorListPtr(tw.CopyTo<Backend>().get());

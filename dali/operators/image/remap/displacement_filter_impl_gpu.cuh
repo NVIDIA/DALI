@@ -277,7 +277,7 @@ class DisplacementFilter<GPUBackend, Displacement,
       auto &p = params_.mutable_data<typename U::Param>()[i];
       displace_.Prepare(&p, spec_, ws, i);
     }
-    params_gpu_.ResizeLike(params_);
+    params_gpu_.Resize(params_.shape());
     params_gpu_.Copy(params_, ws.stream());
   }
 

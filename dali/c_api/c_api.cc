@@ -335,7 +335,7 @@ static int64_t *daliShapeAtHelper(dali::DeviceWorkspace *ws, int n, int k) {
   } else {
     auto shape_span = out_tensor_list.tensor_shape_span(0);
     shape = std::vector<dali::Index>(shape_span.begin(), shape_span.end());
-    shape.insert(shape.begin(), out_tensor_list.ntensor());
+    shape.insert(shape.begin(), out_tensor_list.num_samples());
   }
 
   c_shape = static_cast<int64_t*>(malloc(sizeof(int64_t) * (shape.size() + 1)));
@@ -383,7 +383,7 @@ dali_data_type_t daliTypeAt(daliPipelineHandle* pipe_handle, int n) {
 
 template <typename T>
 static size_t daliNumTensorsHelper(dali::DeviceWorkspace* ws, int n) {
-  return ws->Output<T>(n).ntensor();
+  return ws->Output<T>(n).num_samples();
 }
 
 size_t daliNumTensors(daliPipelineHandle* pipe_handle, int n) {
@@ -397,7 +397,7 @@ size_t daliNumTensors(daliPipelineHandle* pipe_handle, int n) {
 
 template <typename T>
 static size_t daliNumElementsHelper(dali::DeviceWorkspace* ws, int n) {
-  return ws->Output<T>(n).GetElementsNumber();
+  return ws->Output<T>(n)._num_elements();
 }
 
 size_t daliNumElements(daliPipelineHandle* pipe_handle, int n) {
@@ -426,7 +426,7 @@ size_t daliTensorSize(daliPipelineHandle* pipe_handle, int n) {
 template <typename T>
 static size_t daliMaxDimTensorsHelper(dali::DeviceWorkspace* ws, int n) {
   const auto &out_tensor_list = ws->Output<T>(n);
-  size_t tensors_num = out_tensor_list.ntensor();
+  size_t tensors_num = out_tensor_list.num_samples();
   int max_num_dim = 0;
   for (size_t i = 0; i < tensors_num; ++i) {
     auto shape = out_tensor_list.tensor_shape(i);

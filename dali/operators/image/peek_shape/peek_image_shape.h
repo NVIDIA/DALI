@@ -54,7 +54,7 @@ class PeekImageShape : public Operator<CPUBackend> {
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     const auto &input = ws.template InputRef<CPUBackend>(0);
-    size_t batch_size = input.ntensor();
+    size_t batch_size = input.num_samples();
     output_desc.resize(1);
     output_desc[0].shape = uniform_list_shape<1>(batch_size, { 3 });
     output_desc[0].type = output_type_;
@@ -73,7 +73,7 @@ class PeekImageShape : public Operator<CPUBackend> {
     auto &thread_pool = ws.GetThreadPool();
     const auto &input = ws.template InputRef<CPUBackend>(0);
     auto &output = ws.template OutputRef<CPUBackend>(0);
-    size_t batch_size = input.ntensor();
+    size_t batch_size = input.num_samples();
 
     for (size_t sample_id = 0; sample_id < batch_size; ++sample_id) {
       thread_pool.AddWork([sample_id, &input, &output, this] (int tid) {

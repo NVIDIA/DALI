@@ -99,7 +99,7 @@ void FillTensorVector(
 template <>
 void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &out = ws.OutputRef<CPUBackend>(0);
-  if (output_.ntensor() == 0) {
+  if (output_.num_samples() == 0) {
     output_.set_pinned(out.is_pinned());
     TYPE_SWITCH(output_type_, type2id, type, CONSTANT_OP_SUPPORTED_TYPES,
       (

@@ -145,7 +145,7 @@ Normalize<GPUBackend>::BroadcastMean(KernelContext &ctx, float value) const {
 template <typename OutputType, typename InputType>
 void Normalize<GPUBackend>::SetupTyped(const DeviceWorkspace &ws) {
   auto &input = ws.InputRef<GPUBackend>(0);
-  int nsamples = input.ntensor();
+  int nsamples = input.num_samples();
 
   KernelContext ctx;
   ctx.gpu.stream = ws.stream();
@@ -214,7 +214,7 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   TensorListView<StorageGPU, OutputType> out_view = view<OutputType>(output);
   output.SetLayout(input.GetLayout());
 
-  int nsamples = input.ntensor();
+  int nsamples = input.num_samples();
 
   cudaStream_t stream = ws.stream();
   PreallocatedScratchpad scratch = alloc_.GetScratchpad();

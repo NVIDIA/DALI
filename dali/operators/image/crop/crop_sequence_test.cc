@@ -75,8 +75,8 @@ class CropSequenceTest : public DaliOperatorTest {
         ASSERT_NE(nullptr, input_tl);
         auto output_tl = output.CopyTo<CPUBackend>();
         ASSERT_NE(nullptr, output_tl);
-        int nintensors = input_tl->ntensor();
-        int nouttensors = output_tl->ntensor();
+        int nintensors = input_tl->num_samples();
+        int nouttensors = output_tl->num_samples();
         ASSERT_EQ(nintensors, nouttensors);
         for (int idx = 0; idx < nouttensors; idx++) {
             auto out_shape = output_tl->tensor_shape(idx);

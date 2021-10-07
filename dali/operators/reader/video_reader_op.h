@@ -192,7 +192,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
     ProcessVideo(video_output, curent_batch, ws);
 
-    for (size_t data_idx = 0; data_idx < curent_batch.ntensor(); ++data_idx) {
+    for (size_t data_idx = 0; data_idx < curent_batch.num_samples(); ++data_idx) {
       auto &prefetched_video = GetSample(data_idx);
       ProcessAdditionalOutputs(data_idx, prefetched_video, ws.stream());
     }

@@ -157,7 +157,7 @@ template<typename Backend, template<typename>class BatchContainer>
 auto get_batch_size(const BatchContainer<Backend>& container) {
   static_assert(is_batch_container<BatchContainer, Backend>::value,
       "Invalid container. Use TensorVector/TensorList and CPUBackend/GPUBackend/MixedBackend.");
-  return container.ntensor();
+  return container.num_samples();
 }
 
 }  // namespace detail
@@ -252,7 +252,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
-    for (size_t i = 0; i < tv.size(); ++i) {
+    for (size_t i = 0; i < tv.num_samples(); ++i) {
       tv[i].ShareData(const_cast<Tensor<SrcBackend>*>(&vect_of_tensors[i]));
     }
     SetDataSourceHelper(tv, stream, ext_src_setting_mode);
@@ -271,7 +271,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
 
   int NextBatchSize() override {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    return GetStorage().PeekProphet()->ntensor();
+    return GetStorage().PeekProphet()->num_samples();
   }
 
   void Advance() override {
@@ -499,9 +499,9 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
           "and might be inefficient.");
     }
     DALI_ENFORCE(
-        OperatorBase::max_batch_size_ >= static_cast<int>(batch.ntensor()),
+        OperatorBase::max_batch_size_ >= static_cast<int>(batch.num_samples()),
         make_string("Data list provided to ExternalSource needs to have batch_size <= ",
-                    OperatorBase::max_batch_size_, ", found ", batch.ntensor(), " samples."));
+                    OperatorBase::max_batch_size_, ", found ", batch.num_samples(), " samples."));
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.

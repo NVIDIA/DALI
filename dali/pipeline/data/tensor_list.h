@@ -63,11 +63,20 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
 
   DLL_PUBLIC ~TensorList() = default;
 
+  /**
+   * @brief Number of elements in Tensor List.
+   *
+   * Note: The usage of this member function is intended to be reworked in following updates.
+   * For this purpose the name is distinct so we can easily search and replace.
+   */
+  int64_t _num_elements() const {
+    return Buffer<Backend>::size();
+  }
+
   // Reexpose all public Buffer functions apart from contiguous buffer accessors.
   // TensorList is being reworked to sample-only access and this is intermediate step
   // that prevents reintroducing that access in any of DALI operators
 
-  using Buffer<Backend>::size;
   using Buffer<Backend>::nbytes;
   using Buffer<Backend>::capacity;
   using Buffer<Backend>::type;
@@ -83,18 +92,6 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   using Buffer<Backend>::reserve;
   // using Buffer<Backend>::reset;  // Available via USE_BUFFER_MEMBERS
   using Buffer<Backend>::shares_data;
-  using Buffer<Backend>::SetGrowthFactor;
-  using Buffer<Backend>::SetShrinkThreshold;
-  using Buffer<Backend>::GetGrowthFactor;
-  using Buffer<Backend>::GetShrinkThreshold;
-
-  /**
-   * @brief Resizes this TensorList to match the shape of the input.
-   */
-  template <typename InBackend>
-  inline void ResizeLike(const TensorList<InBackend> &other) {
-    Resize(other.shape_);
-  }
 
   /**
    * @brief Copies the input TensorList, resizing this TensorList and
@@ -108,7 +105,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     }
     this->meta_ = other.meta_;
     this->SetLayout(other.GetLayout());
-    ResizeLike(other);
+    Resize(other.shape());
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
                        (std::is_same<Backend, GPUBackend>::value || pinned_);
@@ -123,8 +120,8 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     auto layout = other[0].GetLayout();
 
     int dim = other[0].shape().sample_dim();
-    TensorListShape<> new_shape(other.size(), dim);
-    for (size_t i = 0; i < other.size(); ++i) {
+    TensorListShape<> new_shape(other.num_samples(), dim);
+    for (size_t i = 0; i < other.num_samples(); ++i) {
       DALI_ENFORCE(other[i].shape().sample_dim() == dim,
          "TensorList can only have uniform dimensions across all samples, mismatch at index "
          + std::to_string(i) + " expected Tensor with dim = " + to_string(dim)
@@ -140,7 +137,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     }
     this->SetLayout(layout);
 
-    auto nsamples = other.size();
+    auto nsamples = other.num_samples();
     SmallVector<const void*, 256> srcs;
     srcs.reserve(nsamples);
     SmallVector<void*, 256> dsts;
@@ -412,7 +409,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   /**
    * @brief Returns the number of tensors in the list.
    */
-  DLL_PUBLIC inline size_t ntensor() const {
+  DLL_PUBLIC inline size_t num_samples() const {
     return shape_.size();
   }
 
@@ -470,7 +467,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    * all of the stored Tensors are densely packed in memory.
    */
   inline bool IsContiguousTensor() const {
-    if (ntensor() == 0 || size_ == 0) {
+    if (num_samples() == 0 || size_ == 0) {
       return true;
     }
     if (!IsContiguous()) {
@@ -494,7 +491,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    * and they are densely packed in memory.
    */
   inline bool IsDenseTensor() const {
-    if (ntensor() == 0 || size_ == 0) {
+    if (num_samples() == 0 || size_ == 0) {
       return true;
     }
     if (!IsContiguous()) {
@@ -514,14 +511,6 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
       offset += tensor_volume;
     }
     return true;
-  }
-
-  /**
-   * @brief Returns the number of elements
-   *  in the TensorList
-   */
-  inline size_t GetElementsNumber() const {
-    return shape_.num_elements();
   }
 
   /**
@@ -550,7 +539,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     }
 
     // need to create a new view
-    DALI_ENFORCE(ntensor() > 0,
+    DALI_ENFORCE(num_samples() > 0,
                  "To create a view Tensor, the Tensor List must have at least 1 element.");
     DALI_ENFORCE(IsValidType(type()),
                  "To create a view Tensor, the Tensor List must have a valid data type.");
@@ -583,7 +572,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     // while AsTensor should not return for that case
     DALI_ENFORCE(this->IsDenseTensor(),
       "All tensors in the input TensorList must have the same shape and be densely packed.");
-    auto requested_shape = shape_cat(static_cast<int64_t>(this->ntensor()), shape_[0]);
+    auto requested_shape = shape_cat(static_cast<int64_t>(this->num_samples()), shape_[0]);
 
     return this->AsReshapedTensor(requested_shape);
   }

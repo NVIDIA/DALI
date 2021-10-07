@@ -91,16 +91,12 @@ class DLL_PUBLIC TensorVector {
     return tensors_.cend();
   }
 
-  auto size() const noexcept {
-    return curr_tensors_size_;
-  }
-
-  size_t ntensor() const noexcept {
+  size_t num_samples() const noexcept {
     return curr_tensors_size_;
   }
 
   int sample_dim() const {
-    return IsContiguous() ? tl_->sample_dim() : ntensor() ? tensors_[0]->shape().size() : 0;
+    return IsContiguous() ? tl_->sample_dim() : num_samples() ? tensors_[0]->shape().size() : 0;
   }
 
   size_t nbytes() const noexcept;

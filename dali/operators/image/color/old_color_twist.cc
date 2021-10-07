@@ -216,13 +216,13 @@ void OldColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   DALI_ENFORCE(IsType<uint8_t>(input.type()), "Color augmentations accept only uint8 tensors");
   auto &output = ws.Output<GPUBackend>(0);
-  output.ResizeLike(input);
+  output.Resize(input.shape());
   output.SetLayout(input.GetLayout());
 
   cudaStream_t old_stream = nppGetStream();
   nppSetStream(ws.stream());
 
-  for (size_t i = 0; i < input.ntensor(); ++i) {
+  for (size_t i = 0; i < input.num_samples(); ++i) {
     if (!augments_.empty()) {
       float matrix[nDim][nDim];
       float *m = reinterpret_cast<float *>(matrix);
@@ -258,7 +258,7 @@ void OldColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   const auto W = input_shape[1];
   const auto C = input_shape[2];
 
-  output.ResizeLike(input);
+  output.Resize(input.shape());
   output.SetLayout(input.GetLayout());
 
   auto pImgInp = input.template data<uint8>();

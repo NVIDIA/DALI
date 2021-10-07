@@ -694,11 +694,11 @@ class DALISingleOpTest : public DALITest {
 
     ASSERT_TRUE(t1);
     ASSERT_TRUE(t2);
-    ASSERT_EQ(t1->ntensor(), t2->ntensor());
-    for (size_t i = 0; i < t1->ntensor(); i++) {
+    ASSERT_EQ(t1->num_samples(), t2->num_samples());
+    for (size_t i = 0; i < t1->num_samples(); i++) {
       ASSERT_EQ(t1->tensor_shape(i), t2->tensor_shape(i));
     }
-    ASSERT_EQ(t1->size(), t2->size());
+    ASSERT_EQ(t1->_num_elements(), t2->_num_elements());
 
     const bool floatType = IsType<float>(t1->type());
     if (!floatType && !IsType<unsigned char>(t1->type()))
@@ -710,7 +710,7 @@ class DALISingleOpTest : public DALITest {
     double mean;
     if (checkElements) {
       // The the results are checked for each element separately
-      for (size_t i = 0; i < t1->ntensor(); ++i) {
+      for (size_t i = 0; i < t1->num_samples(); ++i) {
         const auto shape1 = t1->tensor_shape(i);
         const auto shape2 = t2->tensor_shape(i);
         ASSERT_EQ(shape1.size(), 3);
