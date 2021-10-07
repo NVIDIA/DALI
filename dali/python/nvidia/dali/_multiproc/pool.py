@@ -139,7 +139,7 @@ received so far.
         finally:
             # Fix circular reference problem on StopIteration - the exception contains reference to the
             # traceback that refers a frame that contains local variables and among them the exception.
-            # This traceback is then chained into excpetions reraised along the way
+            # This traceback is then chained into exceptions reraised along the way
             # (eventually at the pipeline level) which in effect introduces a reference to the pipline
             # that would be only removed after garbage collection round, delaying finalization of the pool
             del exception
@@ -147,8 +147,8 @@ received so far.
     def is_error(self, batch_i):
         return batch_i in self.iter_failed
 
-    def set_error(self, batch_i, excpetion, traceback_str):
-        self.iter_failed[batch_i] = (excpetion, traceback_str)
+    def set_error(self, batch_i, exception, traceback_str):
+        self.iter_failed[batch_i] = (exception, traceback_str)
 
     def is_cleared(self, batch_i):
         return batch_i not in self.partially_received

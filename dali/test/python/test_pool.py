@@ -102,7 +102,7 @@ def test_pool_multi_task(start_method):
 
 
 # Test that we can hold as many results as the queue depth and assert collected batches
-# are propely collected
+# are propely cleaned up from the context
 @check_pool
 def test_pool_scheduled_tasks_cleanup(start_method):
     callbacks = [simple_callback]
