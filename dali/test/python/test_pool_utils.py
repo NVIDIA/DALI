@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import gc
 import os
 import psutil
 import weakref
@@ -54,11 +53,7 @@ def teardown_function():
     global pool_threads
     global pools
     assert len(pool_processes), "No processes where tracked - did the test call capture_processes?"
-    # Pipeline's pool is closed after pipeline is garbage collected - it might not have happend immediately
-    # if, for instance, an exception was thrown whose stacktrace references the pipeline.
-    # Note, this is cpython dependent as in general invoking the finalizing callbacks might be deferred further
-    if any(pool_ref() is not None for pool_ref in pools):
-        gc.collect()
+    pools_not_collected = [pool_ref() is not None for pool_ref in pools]
     current_process = psutil.Process()
     children_pids = [process.pid for process in current_process.children()]
     left = set(pool_processes).intersection(children_pids)

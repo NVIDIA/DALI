@@ -66,6 +66,7 @@ def create_pool(groups, keep_alive_queue_size=1, num_workers=1, start_method="fo
     pool = WorkerPool.from_groups(
         groups, keep_alive_queue_size, start_method=start_method, num_workers=num_workers)
     try:
+        capture_processes(pool)
         return closing(pool)
     except:
         pool.close()
