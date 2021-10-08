@@ -83,7 +83,7 @@ TYPED_TEST(TensorTest, TestGetTypeSizeBytes) {
   Tensor<TypeParam> t;
 
   // Give the tensor a type
-  t.template mutable_data<float>();
+  t.template set_type<float>();
 
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
@@ -117,7 +117,7 @@ TYPED_TEST(TensorTest, TestGetSizeTypeBytes) {
 
   // Give the tensor a type. This should
   // trigger an allocation
-  t.template mutable_data<float>();
+  t.template set_type<float>();
 
   // Validate the internals
   ASSERT_NE(t.raw_data(), nullptr);
@@ -145,7 +145,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.template mutable_data<int16>();
+  t.template set_type<int16>();
 
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), 0);
@@ -200,7 +200,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   ASSERT_TRUE(t.shares_data());
 
   // Give the Tensor a type
-  t.template mutable_data<double>();
+  t.template set_type<double>();
 
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), 0);
@@ -382,7 +382,7 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
   for (auto& t : tensors) {
     auto shape = this->GetRandShape(4, 4);
     t->Resize(shape);
-    t->template mutable_data<float>();
+    t->template set_type<float>();
   }
 
   TensorList<TypeParam> tl;
@@ -419,7 +419,7 @@ TYPED_TEST(TensorTest, TestResize) {
 
   // Get shape
   auto shape = this->GetRandShape();
-  tensor.Resize(shape);
+  tensor.Resize(shape, DALI_FLOAT);
 
   // Verify the settings
   ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
@@ -463,7 +463,7 @@ TYPED_TEST(TensorTest, TestCustomAlloc) {
     return std::shared_ptr<uint8_t>(alloc_func(bytes), deleter);
   });
 
-  tensor.Resize(shape);
+  tensor.Resize(shape, DALI_FLOAT);
 
   // Verify the settings
   ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
@@ -526,7 +526,7 @@ TYPED_TEST(TensorTest, TestMultipleResize) {
   for (int i = 0; i < num; ++i) {
     // Get shape
     auto shape = this->GetRandShape();
-    tensor.Resize(shape);
+    tensor.Resize(shape, DALI_FLOAT);
 
     // Verify the settings
     ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
@@ -543,7 +543,7 @@ TYPED_TEST(TensorTest, TestResizeTrueScalar) {
 
   // Get shape
   TensorShape<> shape = {};
-  tensor.Resize(shape);
+  tensor.Resize(shape, DALI_FLOAT);
 
   // Verify the settings
   ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
@@ -556,7 +556,7 @@ TYPED_TEST(TensorTest, TestResizeScalar) {
 
   // Get shape
   TensorShape<> shape = { 1 };
-  tensor.Resize(shape);
+  tensor.Resize(shape, DALI_FLOAT);
 
   // Verify the settings
   ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
@@ -569,7 +569,7 @@ TYPED_TEST(TensorTest, TestResizeZeroSize) {
 
   // Get shape
   TensorShape<> shape = { 0 };
-  tensor.Resize(shape);
+  tensor.Resize(shape, DALI_FLOAT);
 
   // Verify the settings
   ASSERT_EQ(tensor.template mutable_data<float>(), nullptr);
@@ -582,7 +582,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
 
   // Get shape
   TensorShape<> shape = { 4, 480, 640, 3 };
-  tensor.Resize(shape);
+  tensor.Resize(shape, DALI_FLOAT);
 
   // Verify the settings
   ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
@@ -598,7 +598,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   const void *source_data = tensor.raw_data();
 
   // Change the type of the buffer
-  tensor.template mutable_data<int>();
+  tensor.template set_type<int>();
 
   // Verify the settings
   ASSERT_EQ(tensor.size(), volume(shape));
@@ -612,7 +612,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   ASSERT_EQ(num_elements * sizeof(int), tensor.nbytes());
 
   // Change the type to a smaller type
-  tensor.template mutable_data<uint8>();
+  tensor.template set_type<uint8>();
 
   // Verify the settings
   ASSERT_EQ(tensor.size(), volume(shape));
@@ -626,7 +626,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   ASSERT_EQ(num_elements * sizeof(uint8), tensor.nbytes());
 
   // Change the type to a larger type
-  tensor.template mutable_data<double>();
+  tensor.template set_type<double>();
 
   // Verify the settings
   ASSERT_EQ(tensor.size(), volume(shape));

@@ -661,7 +661,7 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
     for (int j = 0; j < batch_size; j++) {
       shapes[i][j] = tl.tensor_shape(i * batch_size + j);
     }
-    splited_tl[i].Resize({shapes[i]});
+    splited_tl[i].Resize({shapes[i]}, DALI_UINT8);
   }
 
   for (int i = 0; i < N; i++) {

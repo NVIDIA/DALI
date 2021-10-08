@@ -25,6 +25,8 @@ TEST(TensorList, View) {
   TensorList<CPUBackend> tl;
   TensorListShape<> shapes = { { {640, 480, 3}, {320, 240, 1} } };
   tl.Resize(shapes);
+  ASSERT_THROW(view<float>(tl), std::runtime_error);
+  tl.set_type<float>();
   auto tlv = view<float>(tl);
 
   ASSERT_EQ(static_cast<int>(tlv.num_samples()), static_cast<int>(shapes.size()));
@@ -37,7 +39,7 @@ TEST(TensorList, View) {
 TEST(TensorList, View_StaticDim) {
   TensorList<CPUBackend> tl;
   TensorListShape<>  shapes = { { {640, 480, 3}, {320, 240, 1} } };
-  tl.Resize(shapes);
+  tl.Resize(shapes, DALI_FLOAT);
   auto tlv = view<float, 3>(tl);
 
   ASSERT_EQ(static_cast<int>(tlv.num_samples()), static_cast<int>(shapes.size()));
@@ -52,7 +54,7 @@ TEST(TensorList, View_StaticDim) {
 TEST(Tensor, ViewAsTensor) {
   Tensor<CPUBackend> t;
   TensorShape<> shape = { 320, 240, 3};
-  t.Resize(shape);
+  t.Resize(shape, DALI_FLOAT);
   auto tv = view<float>(t);
   ASSERT_EQ(tv.dim(), 3) << "Expected a 3D tensor as a result";
   TensorView<StorageCPU, float, 3> tv3;

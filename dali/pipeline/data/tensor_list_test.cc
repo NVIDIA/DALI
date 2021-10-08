@@ -373,10 +373,12 @@ TYPED_TEST(TensorListTest, TestMultipleResize) {
   // Resize the buffer
   tensor_list.Resize(shape);
 
-  // The only thing that should matter is the resize
-  // after the call to 'mutable_data<T>()'
+  // Neither of the accessors can cause the allocation
+  ASSERT_THROW(tensor_list.template mutable_tensor<float>(0), std::runtime_error);
+  ASSERT_FALSE(tensor_list.has_data());
+  tensor_list.template set_type<float>();
   ASSERT_NE(tensor_list.template mutable_tensor<float>(0), nullptr);
-  ASSERT_TRUE(tensor_list.has_data());
+
   ASSERT_EQ(tensor_list.num_samples(), num_tensor);
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_NE(tensor_list.raw_tensor(i), nullptr);

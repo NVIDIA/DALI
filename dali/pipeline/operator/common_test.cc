@@ -76,7 +76,7 @@ TEST(PipelineCommon, GetShapeLikeArgumentInput) {
   input->set_pinned(false);
 
   // specify the shape as a list of 1D tensors
-  input->Resize(uniform_list_shape<1>(N, {D}));
+  input->Resize(uniform_list_shape<1>(N, {D}), DALI_FLOAT);
   for (int sample_idx = 0; sample_idx < N; sample_idx++) {
     float *shape_data = input->mutable_tensor<float>(sample_idx);
     for (int i = 0; i < D; i++) {
