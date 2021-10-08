@@ -73,7 +73,6 @@ def test_wrong_source():
 # Test that we can launch several CPU-only pipelines by fork as we don't touch CUDA context.
 @with_setup(setup_function, teardown_function)
 def test_parallel_fork_cpu_only():
-    global pipe_processes
     pipeline_pairs = 4
     batch_size = 10
     iters = 40
@@ -90,7 +89,6 @@ def test_parallel_fork_cpu_only():
         capture_processes(pipe1._py_pool)
         compare_pipelines(pipe0, pipe1, batch_size, iters)
 
-@with_setup(setup_function, teardown_function)
 def test_parallel_no_workers():
     batch_size = 10
     iters = 4
@@ -98,7 +96,6 @@ def test_parallel_no_workers():
     parallel_pipe = create_pipe(callback, 'cpu', batch_size, py_num_workers=0,
                                 py_start_method='spawn', parallel=True, device_id=None)
     parallel_pipe.build()
-    capture_processes(parallel_pipe._py_pool)
     assert parallel_pipe._py_pool is None
     assert parallel_pipe._py_pool_started == False
 
@@ -119,31 +116,35 @@ def test_parallel_fork():
         parallel_pipe.start_py_workers()
     for parallel_pipe, pipe, dtype, batch_size in pipes:
         yield check_callback, parallel_pipe, pipe, epoch_size, batch_size, dtype
+        # explicitely call py_pool close as nose might still reference parallel_pipe from the yield above
+        parallel_pipe._py_pool.close()
     # test that another pipline with forking initialization fails as there is CUDA contexts already initialized
     parallel_pipe = create_pipe(callback, 'cpu', 16, py_num_workers=4,
                                 py_start_method='fork', parallel=True)
     yield raises(RuntimeError, "Cannot fork a process when there is a CUDA context already bound to the process.")(
         build_and_run_pipeline), parallel_pipe, 1
 
-@with_setup(setup_function, teardown_function)
 def test_dtypes():
     yield from check_spawn_with_callback(ExtCallback)
 
-@with_setup(setup_function, teardown_function)
 def test_random_data():
     yield from check_spawn_with_callback(ExtCallback, shapes=[(100, 40, 3), (8, 64, 64, 3)], random_data=True)
 
-@with_setup(setup_function, teardown_function)
 def test_randomly_shaped_data():
     yield from check_spawn_with_callback(ExtCallback, shapes=[(100, 40, 3), (8, 64, 64, 3)], random_data=True, random_shape=True)
 
-@with_setup(setup_function, teardown_function)
 def test_num_outputs():
     yield from check_spawn_with_callback(ExtCallbackMultipleOutputs, ExtCallbackMultipleOutputs, num_outputs=2, dtypes=[np.uint8, np.float])
 
-@with_setup(setup_function, teardown_function)
 def test_tensor_cpu():
     yield from check_spawn_with_callback(ExtCallbackTensorCPU)
+
+@with_setup(setup_function, teardown_function)
+def _test_exception_propagation(callback, batch_size, num_workers, expected):
+    pipe = create_pipe(
+        callback, 'cpu', batch_size, py_num_workers=num_workers,
+        py_start_method='spawn', parallel=True)
+    raises(expected)(build_and_run_pipeline)(pipe, None)
 
 @with_setup(setup_function, teardown_function)
 def test_exception_propagation():
@@ -151,10 +152,14 @@ def test_exception_propagation():
         callback = ExtCallback((4, 4), 250, np.int32, exception_class=raised)
         for num_workers in [1, 4]:
             for batch_size in [1, 15, 150]:
-                pipe = create_pipe(
-                    callback, 'cpu', batch_size, py_num_workers=num_workers,
-                    py_start_method='spawn', parallel=True)
-                yield raises(expected)(build_and_run_pipeline), pipe, None, raised, expected
+                yield _test_exception_propagation, callback, batch_size, num_workers, expected
+
+@with_setup(setup_function, teardown_function)
+def _test_stop_iteration_resume(callback, batch_size, layout, num_workers):
+    pipe = create_pipe(
+        callback, 'cpu', batch_size, layout=layout,
+        py_num_workers=num_workers, py_start_method='spawn', parallel=True)
+    check_stop_iteration_resume(pipe, batch_size, layout)
 
 @with_setup(setup_function, teardown_function)
 def test_stop_iteration_resume():
@@ -162,9 +167,14 @@ def test_stop_iteration_resume():
     layout = "XY"
     for num_workers in [1, 4]:
         for batch_size in [1, 15, 150]:
-            pipe = create_pipe(callback, 'cpu', batch_size, layout=layout,
-                               py_num_workers=num_workers, py_start_method='spawn', parallel=True)
-            yield check_stop_iteration_resume, pipe, batch_size, layout
+            yield _test_stop_iteration_resume, callback, batch_size, layout, num_workers
+
+@with_setup(setup_function, teardown_function)
+def _test_layout(callback, batch_size, layout, num_workers):
+    pipe = create_pipe(
+        callback, 'cpu', batch_size, layout=layout, py_num_workers=num_workers,
+        py_start_method='spawn', parallel=True)
+    check_layout(pipe, layout)
 
 @with_setup(setup_function, teardown_function)
 def test_layout():
@@ -172,10 +182,7 @@ def test_layout():
         callback = ExtCallback(dims, 1024, 'int32')
         for num_workers in [1, 4]:
             for batch_size in [1, 256, 600]:
-                pipe = create_pipe(
-                    callback, 'cpu', batch_size, layout=layout, py_num_workers=num_workers,
-                    py_start_method='spawn', parallel=True)
-                yield check_layout, pipe, layout
+                yield _test_layout, callback, batch_size, layout, num_workers
 
 class ext_cb():
     def __init__(self, name, shape):
@@ -184,6 +191,7 @@ class ext_cb():
     def __call__(self, sinfo):
         return np.full(self.shape, sinfo.idx_in_epoch, dtype=np.int32)
 
+@with_setup(setup_function, teardown_function)
 def _test_vs_non_parallel(shape):
     bs = 50
     pipe = dali.Pipeline(batch_size=bs, device_id=None, num_threads=5, py_num_workers=14, py_start_method='spawn')
@@ -192,6 +200,7 @@ def _test_vs_non_parallel(shape):
         ext_par = dali.fn.external_source(ext_cb("cb 2", shape), batch=False, parallel=True)
         pipe.set_outputs(ext_seq, ext_par)
     pipe.build()
+    capture_processes(pipe._py_pool)
     for i in range(10):
         seq, par = pipe.run()
         for j in range(bs):
@@ -207,16 +216,17 @@ def test_vs_non_parallel():
 def ext_cb2(sinfo):
     return np.array([sinfo.idx_in_epoch, sinfo.idx_in_batch, sinfo.iteration], dtype=np.int32)
 
+@with_setup(setup_function, teardown_function)
 def test_discard():
     bs = 5
     pipe = dali.Pipeline(batch_size=bs, device_id=None, num_threads=5, py_num_workers=4, py_start_method='spawn')
     with pipe:
-        sh = []
         ext1 = dali.fn.external_source([[np.float32(i) for i in range(bs)]]*3, cycle='raise')
         ext2 = dali.fn.external_source(ext_cb2, batch=False, parallel=True)
         ext3 = dali.fn.external_source(ext_cb2, batch=False, parallel=False)
         pipe.set_outputs(ext1, ext2, ext3)
     pipe.build()
+    capture_processes(pipe._py_pool)
     sample_in_epoch = 0
     iteration = 0
     for i in range(10):

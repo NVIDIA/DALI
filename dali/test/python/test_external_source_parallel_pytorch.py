@@ -19,7 +19,6 @@
 
 import torch
 from nose_utils import raises
-from nose.tools import with_setup
 
 from test_pool_utils import *
 from test_external_source_parallel_utils import *
@@ -33,7 +32,6 @@ class ExtCallbackTorch(ExtCallback):
 @raises(RuntimeError, "Error*starting Python worker threads for*parallel External Source*"
                       "Cannot fork*CUDA context already bound*"
                       "*start_py_workers*fork*spawn*")
-@with_setup(setup_function, teardown_function)
 def test_pytorch_cuda_context():
     # Create a dummy torch CUDA tensor so we acquire CUDA context
     cuda0 = torch.device('cuda:0')
@@ -42,10 +40,8 @@ def test_pytorch_cuda_context():
     pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
                        py_start_method='fork', parallel=True)
     pipe.start_py_workers()
-    capture_processes(pipe._py_pool)
 
 
-@with_setup(setup_function, teardown_function)
 def test_pytorch():
     yield from check_spawn_with_callback(ExtCallbackTorch)
 

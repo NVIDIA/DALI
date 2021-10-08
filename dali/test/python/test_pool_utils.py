@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,34 +14,43 @@
 
 import os
 import psutil
+import weakref
 
 
 def capture_processes(pool):
     """Need to be called to register the processes created by the pool. It is later used
     by the teardown_function to check if no process stayed alive after the test finished.
     """
-    global pipe_processes
+    global pool_processes
+    global pools
     if pool is not None:
-        pipe_processes.update(pool.pids())
+        pools.append(weakref.ref(pool))
+        pool_processes.extend(pool.pids())
 
 
 def setup_function():
     """Prepare for the check if all started processes are no longer children of current process
     """
-    global pipe_processes
-    pipe_processes = set()
+    global pool_processes
+    global pools
+    pool_processes = []
+    pools = []
 
 def teardown_function():
-    """Check if there are no children processes started by tests after it has ended.
+    """Check if there are no children processes started by the test after it ended.
 
     Be sure to call `capture_processes` in the test.
     """
-    global pipe_processes
+    global pool_processes
+    global pools
+    assert len(pool_processes), "No processes where tracked - did the test call capture_processes?"
+    pools_not_collected = [pool_ref() is not None for pool_ref in pools]
     current_process = psutil.Process()
-    children = set(current_process.children())
-    left = pipe_processes.intersection(children)
+    children_pids = [process.pid for process in current_process.children()]
+    left = set(pool_processes).intersection(children_pids)
     assert len(left) == 0, ("Pipeline-started processes left after " +
-          "test is finished, pids alive:\n{},\npids started during tests:\n{}").format(left, pipe_processes)
+          "test is finished, pids alive:\n{},\npids started during tests:\n{}."
+          "Pools not collected: {}").format(left, pool_processes, sum(pools_not_collected))
 
 def check_shm_for_dali(msg):
     shm_paths = ["/dev/shm/", "/run/shm/"]

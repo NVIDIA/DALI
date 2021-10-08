@@ -123,24 +123,32 @@ received so far.
         return self.scheduled.popitem(last=False)
 
     def handle_error(self, batch_i):
-        """Check if given batch notified error and raise it"""
-        if batch_i in self.iter_failed:
-            exception, traceback_str = self.iter_failed[batch_i]
-            del self.iter_failed[batch_i]
-            del self.partially_received[batch_i]
-            if isinstance(exception, StopIteration):
-                raise exception
-            else:
-                # Raise new exception propagating the traceback from worker thread as error
-                # message, originating from original exception
-                raise Exception(
-                    "\n\nException traceback received from worker thread:\n\n" + traceback_str) from exception
+        """Check if given batch reported an error and raise it"""
+        exception = None
+        try:
+            if batch_i in self.iter_failed:
+                exception, traceback_str = self.iter_failed[batch_i]
+                self.clear_scheduled(batch_i)
+                if isinstance(exception, StopIteration):
+                    raise exception
+                else:
+                    # Raise new exception propagating the traceback from worker thread as error
+                    # message, originating from original exception
+                    raise Exception(
+                        "\n\nException traceback received from worker thread:\n\n" + traceback_str) from exception
+        finally:
+            # Fix circular reference problem on StopIteration - the exception contains reference to the
+            # traceback that refers a frame that contains local variables and among them the exception.
+            # This traceback is then chained into exceptions reraised along the way
+            # (eventually at the pipeline level) which in effect introduces a reference to the pipline
+            # that would be only removed after garbage collection round, delaying finalization of the pool
+            del exception
 
     def is_error(self, batch_i):
         return batch_i in self.iter_failed
 
-    def set_error(self, batch_i, excpetion, traceback_str):
-        self.iter_failed[batch_i] = (excpetion, traceback_str)
+    def set_error(self, batch_i, exception, traceback_str):
+        self.iter_failed[batch_i] = (exception, traceback_str)
 
     def is_cleared(self, batch_i):
         return batch_i not in self.partially_received
@@ -149,11 +157,16 @@ received so far.
         """Check if we didn't receive all results for given tasks and batch_i"""
         return len(self.partially_received[batch_i]) < len(tasks)
 
+    def clear_scheduled(self, batch_i):
+        del self.partially_received[batch_i]
+        if batch_i in self.iter_failed:
+            del self.iter_failed[batch_i]
+
     def get_batch(self, batch_i, tasks):
         """Return the full batch, mark it as cleared and consumed"""
         full_batch = self.partially_received[batch_i]
         res = [full_batch[i] for i, _ in tasks]
-        del full_batch
+        self.clear_scheduled(batch_i)
         return res
 
     def receive_chunk(self, batch_i, sock, serialized_batch):
