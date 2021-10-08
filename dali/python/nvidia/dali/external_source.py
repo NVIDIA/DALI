@@ -121,10 +121,10 @@ class _ExternalSourceGroup(object):
     def reset_indices(self):
         self.current_iter = 0
         self.current_sample = 0
-        self.cancel_prefetch()
 
-    def cancel_prefetch(self):
+    def cancel_prefetch(self, pool, context_i):
         self.scheduled_ahead = 0
+        pool.reset_context(context_i)
 
     def prefetch(self, pool, context_i, batch_size, epoch_idx):
         # NOTE We can't schedule more than what's on top of pipeline's prefetch queue, as the
@@ -161,7 +161,7 @@ class _ExternalSourceGroup(object):
             return _ExternalDataBatch(self, pipeline, callback_out, batch_size)
         except StopIteration:
             self.reset_indices()
-            pool.reset_context(context_i)
+            self.cancel_prefetch(pool, context_i)
             raise
 
     def get_batch(self, pipeline, batch_size, epoch_idx):

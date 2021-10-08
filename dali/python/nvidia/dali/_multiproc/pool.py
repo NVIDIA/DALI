@@ -619,7 +619,7 @@ class WorkerPool:
         if any(group.source_desc.kind != SourceKind.CALLABLE and not group.batch for group in groups):
             raise RuntimeError("Parallel external source with iterator or generator must run in batch mode")
         # iterators and generators are stateful and run always in the same dedicated worker
-        num_cbs_dedicated = sum(cls.needs_dedicated_worker(group) for group in groups)
+        num_cbs_dedicated = sum(cls.is_iterable_group(group) for group in groups)
         num_cbs_general = len(groups) - num_cbs_dedicated
         if num_cbs_general == 0:
             if num_workers > num_cbs_dedicated:
@@ -661,10 +661,10 @@ class WorkerPool:
                 next_excl_worker = (next_excl_worker + 1) % num_workers
                 yield next_excl_worker
         next_excl_worker = get_next_excl_worker()
-        return [next(next_excl_worker) if cls.needs_dedicated_worker(group) else None for group in groups]
+        return [next(next_excl_worker) if cls.is_iterable_group(group) else None for group in groups]
 
     @classmethod
-    def needs_dedicated_worker(cls, group):
+    def is_iterable_group(cls, group):
         return group.source_desc.kind != SourceKind.CALLABLE
 
     @classmethod

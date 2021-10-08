@@ -279,26 +279,9 @@ def generator_shape_100x3():
     while True:
         yield [np.full([10, 10, 10], count + i) for i in range(50)]
 
-@with_setup(setup_function, teardown_function)
-def _test_generator_vs_non_parallel(cb):
-    batch_size = 50
-    pipe = dali.Pipeline(batch_size=batch_size, device_id=None, num_threads=5, py_num_workers=1, py_start_method='spawn')
-    with pipe:
-        ext_seq = dali.fn.external_source(cb, batch=batch_size, parallel=False)
-        ext_par = dali.fn.external_source(cb, batch=batch_size, parallel=True)
-        pipe.set_outputs(ext_seq, ext_par)
-    pipe.build()
-    capture_processes(pipe._py_pool)
-    for i in range(10):
-        seq, par = pipe.run()
-        for j in range(batch_size):
-            s = seq.at(j)
-            p = par.at(j)
-            assert np.array_equal(s, p)
-
 def test_generator_vs_non_parallel():
     for cb in [generator_shape_emp, generator_shape_10, generator_shape_100x3]:
-        yield _test_generator_vs_non_parallel, cb
+        yield _test_vs_non_parallel, 50, cb, cb, True, 1
 
 
 @with_setup(setup_function, teardown_function)
@@ -437,7 +420,7 @@ def test_cycle_no_resetting():
             yield raises(StopIteration)(_test_cycle_no_resetting), cb, batch_size, epoch_size, reader_queue_size
 
 @with_setup(setup_function, teardown_function)
-def _test_stateless_batch_mode(sample_cb, batch_cb, iter_cb, batch_size, py_num_workers, reader_queue_sizes, num_iters):
+def _test_all_kinds_parallel(sample_cb, batch_cb, iter_cb, batch_size, py_num_workers, reader_queue_sizes, num_iters):
     @dali.pipeline_def(batch_size=batch_size, num_threads=4, device_id=None, py_num_workers=py_num_workers, py_start_method='spawn')
     def pipeline():
         queue_size_1, queue_size_2, queue_size_3 = reader_queue_sizes
@@ -464,7 +447,7 @@ def _test_stateless_batch_mode(sample_cb, batch_cb, iter_cb, batch_size, py_num_
                 assert i == num_iters, "Number of iterations mismatch: expected {}, got {}".format(num_iters, i)
                 break
 
-def test_stateless_batch_mode():
+def test_all_kinds_parallel():
     for batch_size in (1, 17):
         for num_iters in (1, 3, 31):
             for trailing in (0, 30):
@@ -476,8 +459,67 @@ def test_stateless_batch_mode():
                 iterator_cb = SampleCallbackIterator(sample_cb, batch_size)
                 for reader_queue_sizes in ((1, 1, 1), (2, 2, 2), (5, 5, 5), (3, 1, 1), (1, 3, 1), (1, 1, 3)):
                     for num_workers in (1, 7):
-                        yield _test_stateless_batch_mode, sample_cb, batch_cb, iterator_cb, batch_size, num_workers, \
+                        yield _test_all_kinds_parallel, sample_cb, batch_cb, iterator_cb, batch_size, num_workers, \
                                 reader_queue_sizes, num_iters
+
+def collect_iterations(pipe, num_iters):
+    outs = []
+    for _ in range(num_iters):
+        try:
+            out = pipe.run()
+            outs.append([[np.copy(sample) for sample in batch] for batch in out])
+        except StopIteration:
+            outs.append(StopIteration)
+            pipe.reset()
+    return outs
+
+@with_setup(setup_function, teardown_function)
+def _test_cycle_multiple_iterators(batch_size, iters_num, py_num_workers, reader_queue_sizes, cycle_policies, epoch_sizes):
+    @dali.pipeline_def(batch_size=batch_size, num_threads=4, device_id=None, py_num_workers=py_num_workers, py_start_method='spawn')
+    def pipeline(sample_cb, iter_1, iter_2, parallel):
+        if parallel:
+            queue_size_0, queue_size_1, queue_size_2 = reader_queue_sizes
+        else:
+            queue_size_0, queue_size_1, queue_size_2 = None, None, None
+        cycle_1, cycle_2 = cycle_policies
+        sample_out = dali.fn.external_source(source=sample_cb, parallel=parallel, batch=False, prefetch_queue_depth=queue_size_0)
+        iter1_out = dali.fn.external_source(source=iter_1, parallel=parallel, batch=True, prefetch_queue_depth=queue_size_1, cycle=cycle_1)
+        iter2_out = dali.fn.external_source(source=iter_2, parallel=parallel, batch=True, prefetch_queue_depth=queue_size_2, cycle=cycle_2)
+        return (sample_out, iter1_out, iter2_out)
+    shape = (2, 3)
+    sample_epoch_size, iter_1_epoch_size, iter_2_epoch_size = epoch_sizes
+    sample_cb = ExtCallback((4, 5), sample_epoch_size * batch_size, np.int32)
+    iter_1 = Iterable(batch_size, shape, epoch_size=iter_1_epoch_size, dtype=np.int32)
+    iter_2 = Iterable(batch_size, shape, epoch_size=iter_2_epoch_size, dtype=np.int32)
+    pipe_parallel = pipeline(sample_cb, iter_1, iter_2, parallel=True)
+    pipe_seq = pipeline(sample_cb, iter_1, iter_2, parallel=False)
+    pipe_parallel.build()
+    capture_processes(pipe_parallel._py_pool)
+    pipe_seq.build()
+    parallel_outs = collect_iterations(pipe_parallel, iters_num)
+    seq_outs = collect_iterations(pipe_seq, iters_num)
+    assert len(parallel_outs) == len(seq_outs)
+    for parallel_out, seq_out in zip(parallel_outs, seq_outs):
+        if parallel_out == StopIteration or seq_out == StopIteration:
+            assert parallel_out == StopIteration and seq_out == StopIteration
+            continue
+        assert len(parallel_out) == len(seq_out) == 3
+        for batch_parallel, batch_seq in zip(parallel_out, seq_out):
+            assert len(batch_parallel) == len(batch_seq) == batch_size
+            for sample_parallel, sample_seq in zip(batch_parallel, batch_seq):
+                    np.testing.assert_equal(np.array(sample_parallel), np.array(sample_seq))
+
+
+def test_cycle_multiple_iterators():
+    batch_size = 50
+    iters_num = 17
+    num_workers = 4
+    for prefetch_queue_depths in ((3, 1, 1), (1, 3, 1), (1, 1, 3), (1, 1, 1), (3, 3, 3)):
+        for cycle_policies in (("raise", "raise"), ("quiet", "raise"), ("raise", "quiet"), ("quiet", "quiet")):
+            for epoch_sizes in ((8, 4, 6), (8, 6, 4), (4, 6, 8), (1, 1, 1)):
+                yield _test_cycle_multiple_iterators, batch_size, iters_num, num_workers, \
+                    prefetch_queue_depths, cycle_policies, epoch_sizes
+
 
 def ext_cb2(sinfo):
     return np.array([sinfo.idx_in_epoch, sinfo.idx_in_batch, sinfo.iteration], dtype=np.int32)
