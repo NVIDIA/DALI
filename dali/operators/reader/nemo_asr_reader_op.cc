@@ -204,8 +204,7 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
   int next_out_idx = 1;
   if (read_sr_) {
     auto &sample_rate = ws.Output<CPUBackend>(next_out_idx++);
-    sample_rate.Resize({});
-    sample_rate.set_type<float>();
+    sample_rate.Resize({}, DALI_FLOAT);
     sample_rate.mutable_data<float>()[0] = sample.audio_meta().sample_rate;
     sample_rate.SetMeta(meta);
   }
@@ -215,15 +214,14 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
     text_out.set_type<uint8_t>();
     const auto &text = sample.text();
     int64_t text_sz = text.length();
-    text_out.Resize({text_sz});
+    text_out.Resize({text_sz}, DALI_UINT8);
     std::memcpy(text_out.mutable_data<uint8_t>(), text.c_str(), text_sz);
     text_out.SetMeta(meta);
   }
 
   if (read_idxs_) {
     auto &idxs_out = ws.Output<CPUBackend>(next_out_idx++);
-    idxs_out.set_type<int64_t>();
-    idxs_out.Resize({1});
+    idxs_out.Resize({1}, DALI_INT64);
     *idxs_out.mutable_data<int64_t>() = sample.index();
     idxs_out.SetMeta(meta);
   }

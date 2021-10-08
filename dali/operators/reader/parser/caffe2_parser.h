@@ -81,7 +81,7 @@ void extract_data<int>(const caffe2::TensorProto& proto,
                        Tensor<CPUBackend>& t) {
   auto size = proto.int32_data_size();
 
-  t.Resize({size});
+  t.Resize({size}, DALI_INT32);
 
   int* t_data = t.mutable_data<int>();
   for (auto i = 0; i < size; ++i) {
@@ -94,7 +94,7 @@ void extract_data<float>(const caffe2::TensorProto& proto,
                          Tensor<CPUBackend>& t) {
   auto size = proto.float_data_size();
 
-  t.Resize({size});
+  t.Resize({size}, DALI_FLOAT);
 
   float* t_data = t.mutable_data<float>();
   for (int i = 0; i < size; ++i) {
@@ -107,7 +107,7 @@ void extract_data<int64_t>(const caffe2::TensorProto& proto,
                            Tensor<CPUBackend>& t) {
   auto size = proto.int64_data_size();
 
-  t.Resize({size});
+  t.Resize({size}, DALI_INT64);
 
   int64_t* t_data = t.mutable_data<int64_t>();
   for (auto i = 0; i < size; ++i) {
@@ -135,6 +135,7 @@ void ParseLabels(const caffe2::TensorProtos& protos,
       // multiple labels, all 1. in elements defined in protos(consumed_inputs)
       auto& label_tensor = ws->Output<CPUBackend>(consumed_inputs);
       label_tensor.Resize({num_labels});
+      label_tensor.set_type<T>();
 
       auto& label_indices = protos.protos(consumed_inputs);
       const int label_data_size = proto_data_size<T>(label_indices);
@@ -156,7 +157,7 @@ void ParseLabels(const caffe2::TensorProtos& protos,
       // multiple elements with distinct weights
       // indices [int/float] in protos(consumed_inputs),
       // weights [float] in protos(consumed_inputs + 1)
-      label_tensor.Resize({num_labels});
+      label_tensor.Resize({num_labels}, DALI_FLOAT);
 
       auto& label_indices = protos.protos(consumed_inputs);
       auto& label_weights = protos.protos(consumed_inputs + 1);
@@ -203,14 +204,14 @@ class Caffe2Parser : public Parser<Tensor<CPUBackend>> {
         const string& image_data = image_proto.string_data(0);
         const size_t image_bytes = image_data.size();
 
-        image.Resize({(Index)image_bytes});
+        image.Resize({(Index)image_bytes}, DALI_UINT8);
         std::memcpy(image.mutable_data<uint8_t>(), image_data.data(), image_bytes);
       } else if (image_proto.data_type() == caffe2::TensorProto::BYTE) {
         const int C = (image_proto.dims_size() == 3) ? image_proto.dims(2) : 1;
         const int H = image_proto.dims(0);
         const int W = image_proto.dims(1);
 
-        image.Resize({H, W, C});
+        image.Resize({H, W, C}, DALI_UINT8);
         std::memcpy(image.mutable_data<uint8_t>(),
                     image_proto.byte_data().data(),
                     image_proto.byte_data().size());

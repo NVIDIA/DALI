@@ -92,22 +92,17 @@ class DLL_PUBLIC Buffer {
   virtual ~Buffer() = default;
 
   /**
-   * @brief Returns a typed pointer to the underlying storage. If the
-   * buffer has not been allocated because it does not yet have a type,
-   * the calling type is taken to be the type of the data and the memory
-   * is allocated.
-   *
-   * If the buffer already has a valid type, and the calling type does
-   * not match, the type of the buffer is reset and the underlying
-   * storage is re-allocated if the buffer does not currently own
-   * enough memory to store the current number of elements with the
-   * new data type.
+   * @brief Returns a typed pointer to the underlying storage.
+   * The calling type must match the underlying type of the buffer.
    */
   template <typename T>
   inline T* mutable_data() {
-    // Note: Call to 'set_type' will immediately return if the calling
-    // type matches the current type of the buffer.
-    set_type<T>();
+    DALI_ENFORCE(IsValidType(type_),
+                 "Buffer has no type, 'set_type<T>()' or Resize(shape, type) must be called "
+                 "on the buffer to set valid type for " + type_.name());
+    DALI_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
+                 "Calling type does not match buffer data type: " +
+                 TypeTable::GetTypeName<T>() + " vs " + type_.name());
     return static_cast<T*>(data_.get());
   }
 
@@ -119,8 +114,8 @@ class DLL_PUBLIC Buffer {
   inline const T* data() const {
     // clang-format off
     DALI_ENFORCE(IsValidType(type_),
-                 "Buffer has no type, 'mutable_data<T>()' must be called "
-                 "on non-const buffer to set valid type for " + type_.name());
+                 "Buffer has no type, 'set_type<T>()' or Resize(shape, type) must be called "
+                 "on the buffer to set valid type for " + type_.name());
     DALI_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
                  "Calling type does not match buffer data type: " +
                  TypeTable::GetTypeName<T>() + " vs " + type_.name());
@@ -137,7 +132,7 @@ class DLL_PUBLIC Buffer {
     // Empty tensor
     if (data_ == nullptr) return nullptr;
     DALI_ENFORCE(IsValidType(type_),
-                 "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
+                 "Buffer has no type, 'set_type<T>()' or Resize(shape, type) must "
                  "be called on non-const buffer to set valid type");
     return static_cast<void*>(data_.get());
   }
@@ -151,7 +146,7 @@ class DLL_PUBLIC Buffer {
     // Empty tensor
     if (data_ == nullptr) return nullptr;
     DALI_ENFORCE(IsValidType(type_),
-                 "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
+                 "Buffer has no type, 'set_type<T>()' or Resize(shape, type) must "
                  "be called on non-const buffer to set valid type");
     return static_cast<void*>(data_.get());
   }

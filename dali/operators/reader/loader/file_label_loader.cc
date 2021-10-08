@@ -57,7 +57,7 @@ void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
     if (image_label.image.shares_data()) {
       image_label.image.Reset();
     }
-    image_label.image.Resize({image_size});
+    image_label.image.Resize({image_size}, DALI_UINT8);
     // copy the image
     Index ret = current_image->Read(image_label.image.mutable_data<uint8_t>(), image_size);
     DALI_ENFORCE(ret == image_size, make_string("Failed to read file: ", image_pair.first));

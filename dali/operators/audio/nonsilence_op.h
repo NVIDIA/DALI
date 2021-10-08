@@ -107,7 +107,7 @@ void RunKernel(TensorView<StorageCPU, const InputType, 1> in, Tensor<CPUBackend>
   kernels::KernelContext kctx;
   kernels::signal::MovingMeanSquareCpu<InputType> mms;
   auto reqs = mms.Setup(kctx, in, mms_args);
-  out.Resize(reqs.output_shapes[0][0]);
+  out.Resize(reqs.output_shapes[0][0], DALI_FLOAT);
   auto tv = view<float>(out);
   mms.Run(kctx, tv.template to_static<1>(), in, mms_args);
 }

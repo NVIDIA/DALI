@@ -175,7 +175,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
         finalImg = &mirror_img;
       }
 
-      out[i].Resize({finalImg->rows, finalImg->cols, c});
+      out[i].Resize({finalImg->rows, finalImg->cols, c}, DALI_UINT8);
       auto *out_data = out[i].mutable_data<unsigned char>();
 
       std::memcpy(out_data, finalImg->ptr(), finalImg->rows * finalImg->cols * c);

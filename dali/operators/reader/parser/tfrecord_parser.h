@@ -103,6 +103,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
           DALI_ENFORCE(number_of_elms <= output.size(), make_string("Output tensor shape is too "
                        "small: [", output.shape(), "]. Expected at least ", number_of_elms,
                        " elements."));
+          output.set_type<int64_t>();
           std::memcpy(output.mutable_data<int64_t>(),
               encoded_feature.int64_list().value().data(),
               encoded_feature.int64_list().value().size()*sizeof(int64_t));
@@ -112,6 +113,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
             DALI_FAIL("Tensors of strings are not supported.");
           }
           output.Resize({static_cast<Index>(encoded_feature.bytes_list().value(0).size())});
+          output.set_type<uint8_t>();
           std::memcpy(output.mutable_data<uint8_t>(),
               encoded_feature.bytes_list().value(0).c_str(),
               encoded_feature.bytes_list().value(0).size()*sizeof(uint8_t));
@@ -124,6 +126,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
           DALI_ENFORCE(number_of_elms <= output.size(), make_string("Output tensor shape is too "
                        "small: [", output.shape(), "]. Expected at least ", number_of_elms,
                        " elements."));
+          output.set_type<float>();
           std::memcpy(output.mutable_data<float>(),
               encoded_feature.float_list().value().data(),
               number_of_elms * sizeof(float));

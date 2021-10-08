@@ -140,7 +140,7 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
     if (target->shares_data()) {
       target->Reset();
     }
-    target->Resize({frame_size});
+    target->Resize({frame_size}, DALI_UINT8);
     Index ret = frame->Read(target->mutable_data<uint8_t>(), frame_size);
     DALI_ENFORCE(ret == frame_size, make_string("Failed to read file: ", frame_filename));
   } else {

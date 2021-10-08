@@ -98,7 +98,7 @@ class DALITest : public ::testing::Test {
     }
 
     if (out) {
-      out->Resize({tmp.rows, tmp.cols, c});
+      out->Resize({tmp.rows, tmp.cols, c}, DALI_UINT8);
     }
 
     DALI_ENFORCE(out, "There's no output Tensor to write into");
@@ -204,8 +204,7 @@ class DALITest : public ::testing::Test {
     for (int i = 0; i < n; ++i) {
       auto &ti = t->at(i);
       ti = Tensor<CPUBackend>{};
-      ti.Resize({data_sizes[i % nImgs]});
-      ti.template mutable_data<uint8>();
+      ti.Resize({data_sizes[i % nImgs]}, DALI_UINT8);
       ti.SetSourceInfo(imgs.filenames_[i % nImgs]);
 
       std::memcpy(ti.raw_mutable_data(), data[i % nImgs],
@@ -275,8 +274,8 @@ class DALITest : public ::testing::Test {
       labels_shape.set_tensor_shape(i, {box_count});
     }
 
-    boxes->Resize(boxes_shape);
-    labels->Resize(labels_shape);
+    boxes->Resize(boxes_shape, DALI_FLOAT);
+    labels->Resize(labels_shape, DALI_INT32);
 
     for (size_t i = 0; i < n; ++i) {
       MakeRandomBoxes(boxes->template mutable_tensor<float>(i),

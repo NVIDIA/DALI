@@ -42,9 +42,8 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
 
     Index image_size = image_label.image.size();
 
-    image_output.Resize({image_size});
-    image_output.mutable_data<uint8_t>();
-    label_output.Resize({1});
+    image_output.Resize({image_size}, DALI_UINT8);
+    label_output.Resize({1}, DALI_INT32);
 
     std::memcpy(image_output.raw_mutable_data(),
                 image_label.image.raw_data(),
