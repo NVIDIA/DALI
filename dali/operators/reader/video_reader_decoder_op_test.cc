@@ -184,7 +184,7 @@ TEST_F(VideoReaderDecoderTest, RandomShuffle) {
 
   pipe.Build({{"frames", "cpu"}});
 
-  std::vector<int> expected_order = {44, 12, 49, 38, 8};
+  std::vector<int> expected_order = {29, 46, 33, 6, 37};
 
   int num_sequences = 5;
 
@@ -206,6 +206,10 @@ TEST_F(VideoReaderDecoderTest, CompareReaders) {
   const int sequence_length = 6;
   const int stride = 3;
   const int step = 10;
+  const int shard_id = 3;
+  const int num_shards = 10;
+  const int seed = 1234;
+  const int initial_fill = 50;
 
   Pipeline pipe(batch_size, 4, 0);
 
@@ -214,6 +218,11 @@ TEST_F(VideoReaderDecoderTest, CompareReaders) {
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
     .AddArg("step", step)
+    .AddArg("shard_id ", shard_id)
+    .AddArg("num_shards ", num_shards)
+    .AddArg("seed", seed)
+    .AddArg("initial_fill", initial_fill)
+    .AddArg("random_shuffle", true)
     .AddArg(
       "filenames",
       std::vector<std::string>{
@@ -227,6 +236,11 @@ TEST_F(VideoReaderDecoderTest, CompareReaders) {
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
     .AddArg("step", step)
+    .AddArg("shard_id ", shard_id)
+    .AddArg("num_shards ", num_shards)
+    .AddArg("seed", seed)
+    .AddArg("initial_fill", initial_fill)
+    .AddArg("random_shuffle", true)
     .AddArg(
       "filenames",
       std::vector<std::string>{
