@@ -174,6 +174,7 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
     }
 
     CopyToOutput(data);
+    LOG_LINE << "Read frame (ReadRegularFrame), timestamp " << av_state_->frame_->pts << std::endl;
     return true;
   }
 
@@ -212,6 +213,8 @@ void FramesDecoder::SeekFrame(int frame_id) {
   int keyframe_id = frame_entry.last_keyframe_id;
   auto &keyframe_entry = index_[keyframe_id];
 
+  LOG_LINE << "Seeking to frame " << frame_id << " timestamp " << frame_entry.pts << std::endl;
+
   // Seeking clears av buffers, so reset flush state info
   if (flush_state_) {
     flush_state_ = false;
@@ -246,6 +249,7 @@ bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
 
   if (copy_to_output) {
     CopyToOutput(data);
+    LOG_LINE << "Read frame (ReadFlushFrame), timestamp " << av_state_->frame_->pts << std::endl;
   }
 
   return true;
