@@ -31,6 +31,7 @@ std::unique_ptr<TensorList<CPUBackend>> ToTensorList(const std::vector<cv::Mat> 
   std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
   auto img = images[0];
   tl->Resize(uniform_list_shape(images.size(), {img.rows, img.cols, img.channels()}));
+  tl->set_type<std::remove_pointer_t<decltype(img.data)>>();
   for (size_t sample_idx = 0; sample_idx < images.size(); sample_idx++) {
     auto *tl_ptr =
         tl->template mutable_tensor<std::remove_pointer_t<decltype(img.data)>>(sample_idx);

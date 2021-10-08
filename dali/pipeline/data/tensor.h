@@ -80,7 +80,7 @@ class Tensor : public Buffer<Backend> {
    */
   template <typename T>
   inline void Copy(const vector<T> &data, cudaStream_t stream) {
-    this->template mutable_data<T>();
+    this->template set_type<T>();
     this->Resize({(Index)data.size()});
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
         data.data(), this->size(), stream);
@@ -92,7 +92,7 @@ class Tensor : public Buffer<Backend> {
   template <typename T>
   inline void Copy(span<T> data, cudaStream_t stream) {
     using U = remove_const_t<T>;
-    this->template mutable_data<U>();
+    this->template set_type<U>();
     this->Resize({(Index)data.size()});
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
         data.data(), this->size(), stream);

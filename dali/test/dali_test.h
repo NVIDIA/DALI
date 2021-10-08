@@ -255,7 +255,7 @@ class DALITest : public ::testing::Test {
       shape.set_tensor_shape(i, {rint(rd_), 4});
     }
 
-    tl->Resize(shape);
+    tl->Resize(shape, DALI_FLOAT);
 
     for (int i = 0; i < n; ++i) {
       MakeRandomBoxes(tl->template mutable_tensor<float>(i), shape[i][0], ltrb);

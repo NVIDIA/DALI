@@ -32,8 +32,9 @@ void BoxEncoder<GPUBackend>::PrepareAnchors(const vector<float> &anchors) {
     "Anchors size must be divisible by 4, actual value = " + std::to_string(anchors.size()));
 
   anchor_count_ = anchors.size() / BoundingBox::size;
-  anchors_.Resize({anchor_count_, static_cast<int64_t>(BoundingBox::size)});
-  anchors_as_center_wh_.Resize({anchor_count_, static_cast<int64_t>(BoundingBox::size)});
+  anchors_.Resize({anchor_count_, static_cast<int64_t>(BoundingBox::size)}, DALI_FLOAT);
+  anchors_as_center_wh_.Resize({anchor_count_, static_cast<int64_t>(BoundingBox::size)},
+                               DALI_FLOAT);
 
   auto anchors_data_cpu = reinterpret_cast<const float4 *>(anchors.data());
 
