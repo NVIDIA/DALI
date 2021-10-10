@@ -43,7 +43,7 @@ def iteration_test(args):
             py_start_method=args.worker_init,
             py_num_workers=args.py_workers,
             source_mode=args.source_mode,
-            mixed_decode=args.mixed_decode,
+            read_encoded=args.dali_decode,
         ) for gpu in range(args.gpus)]
         # First start the Python workers, so we fork without CUDA context.
         for pipe in pipes:

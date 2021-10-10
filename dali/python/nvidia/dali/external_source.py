@@ -355,7 +355,7 @@ Keyword Args
     accept arguments or ``batch`` is set to False, setting this flag has no effect.
 
 `parallel` : bool, optional, default = False
-    If set to True, the corresponding pipeline will run pool of Python workers to run the
+    If set to True, the corresponding pipeline will start a pool of Python workers to run the
     callback in parallel. You can specify the number of workers by passing ``py_num_workers``
     into pipeline's constructor.
 
@@ -364,20 +364,19 @@ Keyword Args
 
     Acceptable sources depend on the value specified for ``batch`` parameter.
 
-    If batch is set to True, source must be a callable (a function or an object with __call__ method)
+    If batch is set to False, source must be a callable (a function or an object with __call__ method)
     that accepts exactly one argument (:meth:`~nvidia.dali.types.SampleInfo` objects that
     represent the index of the requested sample).
-    If ``batch=True``, then ``source`` can be either a callable, an iterable or a generator function.
+    If batch is set to True, the ``source`` can be either a callable, an iterable or a generator function.
     Callable in batch mode must accept exactly one argument - an integer that represents the index of the
     batch within the epoch that the callable should return.
 
-    Irrespective of ``batch`` value, callables should be statless and be able to produce
-    requested sample or batch solely based on the SampleInfo instance or index in batch, so that they can
-    be run in parallel in a number of workers. When batch is set to True, callables performance might
-    especially benefit from increasing ``prefetch_queue_depth`` so that a few next batches can be
-    computed in parallel.
+    Irrespective of ``batch`` value, callables should produce requested sample or batch solely based on
+    the SampleInfo instance or index in batch, so that they can be run in parallel in a number of workers.
+    When batch is set to True, callables performance might especially benefit from increasing
+    ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
 
-    Iterator or generator will get assigned a single worker that will iterate over it.
+    Iterator or generator will be assigned to a single worker that will iterate over it.
 
     The ``source`` callback must raise StopIteration when the end of data is reached.
 

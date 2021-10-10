@@ -101,7 +101,8 @@ class ShmQueue:
                 self.cv_empty.notify()
 
     def put(self, msgs : List[MSG_CLASS]) -> Optional[int]:
-        if self.is_closed or not msgs:
+        assert len(msgs), "Cannot write an empty list of messages"
+        if self.is_closed:
             return
         with self.lock:
             self.read_meta()
@@ -141,7 +142,7 @@ class ShmQueue:
     def get(self, num_samples=1, get_if_waited=None) -> Optional[List[MSG_CLASS]]:
         if self.is_closed:
             return
-        with self.cv_empty:
+        with self.cv_empty:  # equivalent to `with self.lock`
             waited = self._wait_for_samples()
             if self.meta.is_closed:
                 self.is_closed = True
@@ -197,6 +198,10 @@ class Dispatcher:
 
 
 class DispatcherWorker:
+    """
+    Base class for workers putting items into a message queue in a separate thread
+    Used to avoid writing process waiting for the queue lock when readers take data from the queue
+    """
 
     def __init__(self, pending_cv, pending, queue):
         self.pending_cv = pending_cv

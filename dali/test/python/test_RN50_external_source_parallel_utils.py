@@ -111,7 +111,7 @@ class BatchLoader(SampleLoader):
         self.batch_size = batch_size
 
     def __call__(self, batch_i):
-        files_paths, labels = tuple(zip(*[self.data_set.get_sample(self.batch_size * batch_i + i, batch_i) for i in range(self.batch_size)]))
+        files_paths, labels = tuple(zip(*[self.data_set.get_sample(self.batch_size * batch_i + i, 0) for i in range(self.batch_size)]))
         return [self.read_file(file_path) for file_path in files_paths], np.array(labels)
 
 
@@ -127,7 +127,7 @@ class CV2BatchLoader(BatchLoader):
         return img
 
 
-def create_dataset_generator(data_path, batch_size, mixed_decode):
+def create_dataset_generator(data_path, batch_size, read_encoded):
     ds = ShuffledFilesDataSet(data_path)
     epoch_i = -1
 
@@ -140,7 +140,7 @@ def create_dataset_generator(data_path, batch_size, mixed_decode):
                 batch_imgs, batch_labels = [], []
                 for _ in range(batch_size):
                     jpeg_filename, label = ds.get_sample(i, epoch_i)
-                    if mixed_decode:
+                    if read_encoded:
                         jpeg = np.fromfile(jpeg_filename, dtype=np.uint8)
                     else:
                         jpeg = cv2.imread(jpeg_filename)
@@ -168,7 +168,7 @@ def common_pipeline(images):
 
 
 def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch_queue_depth,
-                         reader_queue_depth, mixed_decode, **kwargs,):
+                         reader_queue_depth, read_encoded, **kwargs,):
     pipe = dali.pipeline.Pipeline(
         batch_size=batch_size, num_threads=num_threads, device_id=device_id,
         prefetch_queue_depth=prefetch_queue_depth)
@@ -178,10 +178,10 @@ def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch
             file_root=data_path,
             prefetch_queue_depth=reader_queue_depth,
             random_shuffle=True,)
-        if mixed_decode:
+        if read_encoded:
             images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
             images = common_pipeline(images)
-        else:
+        else:  # match external source pipline behavior that decodes images on cpu and moves them with .gpu call
             images = dali.fn.decoders.image(images, device="cpu", output_type=types.RGB)
             images = common_pipeline(images.gpu())
         pipe.set_outputs(images, labels)
@@ -190,14 +190,14 @@ def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch
 
 class ExternalSourcePipeline(dali.pipeline.Pipeline):
 
-    def __init__(self, data_path, mixed_decode, source_mode, **kwargs):
+    def __init__(self, data_path, read_encoded, source_mode, **kwargs):
         super().__init__(**kwargs)
         if source_mode == "generator":
             self.loader, self.data_set_len = create_dataset_generator(
-                data_path, batch_size=kwargs['batch_size'], mixed_decode=mixed_decode)
+                data_path, batch_size=kwargs['batch_size'], read_encoded=read_encoded)
         else:
             self.data_set_len = None
-            if mixed_decode:
+            if read_encoded:
                 loader_sample, loader_batch = SampleLoader, BatchLoader
             else:
                 loader_sample, loader_batch = CV2SampleLoader, CV2BatchLoader
@@ -211,15 +211,15 @@ class ExternalSourcePipeline(dali.pipeline.Pipeline):
 
 
 def external_source_pipeline(
-        data_path, batch_size, num_threads, device_id, prefetch_queue_depth, reader_queue_depth, mixed_decode,
+        data_path, batch_size, num_threads, device_id, prefetch_queue_depth, reader_queue_depth, read_encoded,
         source_mode, **kwargs):
     pipe = ExternalSourcePipeline(
         batch_size=batch_size, num_threads=num_threads, device_id=device_id, data_path=data_path,
-        source_mode=source_mode, prefetch_queue_depth=prefetch_queue_depth, mixed_decode=mixed_decode)
+        source_mode=source_mode, prefetch_queue_depth=prefetch_queue_depth, read_encoded=read_encoded)
     with pipe:
         images, labels = dali.fn.external_source(
             pipe.loader, num_outputs=2, batch=source_mode != "sample", cycle="raise" if source_mode == "generator" else None)
-        if mixed_decode:
+        if read_encoded:
             images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
         else:
             images = images.gpu()
@@ -229,18 +229,18 @@ def external_source_pipeline(
 
 
 def external_source_parallel_pipeline(
-        data_path, batch_size, num_threads, device_id, prefetch_queue_depth, reader_queue_depth, mixed_decode, source_mode,
+        data_path, batch_size, num_threads, device_id, prefetch_queue_depth, reader_queue_depth, read_encoded, source_mode,
         py_num_workers=None, py_start_method="fork"):
     pipe = ExternalSourcePipeline(
         batch_size=batch_size, num_threads=num_threads, device_id=device_id,
         prefetch_queue_depth=prefetch_queue_depth, py_start_method=py_start_method,
         py_num_workers=py_num_workers, data_path=data_path, source_mode=source_mode,
-        mixed_decode=mixed_decode)
+        read_encoded=read_encoded)
     with pipe:
         images, labels = dali.fn.external_source(
             pipe.loader, num_outputs=2, parallel=True, prefetch_queue_depth=reader_queue_depth,
             batch=source_mode != "sample", cycle="raise" if source_mode == "generator" else None)
-        if mixed_decode:
+        if read_encoded:
             images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
         else:
             images = images.gpu()
@@ -289,8 +289,9 @@ def parse_test_arguments(supports_distributed):
                         'callbacks that return sample or batch given the index, the '
                         'generator mode iterates over a generator. '
                         'Parameter value has no effect on file reader pipeline.')
-    parser.add_argument('--mixed_decode', default=False, type=bool,
-                        help='If True decodes with mixed decoder, otherwise decodes on cpu and moves with tensor.gpu()')
+    parser.add_argument('--dali_decode', default=False, type=bool,
+                        help='If True decodes with a mixed decoder, otherwise decodes on cpu '
+                        '(in external source callback if applicable) and moves with tensor.gpu()')
 
     if supports_distributed:
         parser.add_argument('--local_rank', default=0, type=int,

@@ -57,17 +57,17 @@ def test_serialize_deserialize_random():
                 yield check_serialize_deserialize, batch
 
 
-def worker(start_method, sock, task_queue, res_queue, worker_cb):
+def worker(start_method, sock, task_queue, res_queue, worker_cb, worker_params):
     if start_method == "spawn":
         init_queue(sock, task_queue)
         init_queue(sock, res_queue)
         sock.close()
     while True:
-        if worker_cb(task_queue, res_queue) is None:
+        if worker_cb(task_queue, res_queue, **worker_params) is None:
             break
 
 
-def setup_queue_and_worker(start_method, capacity, worker_cb):
+def setup_queue_and_worker(start_method, capacity, worker_cb, worker_params):
     mp = multiprocessing.get_context(start_method)
     task_queue = ShmQueue(mp, capacity)
     res_queue = ShmQueue(mp, capacity)
@@ -75,7 +75,7 @@ def setup_queue_and_worker(start_method, capacity, worker_cb):
         socket_r, socket_w = socket.socketpair()
     else:
         socket_r = None
-    proc = mp.Process(target=worker, args=(start_method, socket_r, task_queue, res_queue, worker_cb))
+    proc = mp.Process(target=worker, args=(start_method, socket_r, task_queue, res_queue, worker_cb, worker_params))
     proc.start()
     if start_method == "spawn":
         pid = os.getppid()
@@ -101,8 +101,8 @@ def test_queue_full_assertion():
                 yield raises(AssertionError, "The queue is full")(_put_msgs), queue, msgs, one_by_one
 
 
-def copy_callback(task_queue, res_queue):
-    msgs = task_queue.get()
+def copy_callback(task_queue, res_queue, num_samples):
+    msgs = task_queue.get(num_samples=num_samples)
     if msgs is None:
         return
     assert len(msgs) > 0
@@ -110,22 +110,13 @@ def copy_callback(task_queue, res_queue):
     return msgs
 
 
-def copy_callback_recv_all(task_queue, res_queue):
-    msgs = task_queue.get(num_samples=None)
-    if msgs is None:
-        return
-    assert len(msgs) > 0
-    res_queue.put(msgs)
-    return msgs
-
-
-def _test_queue_recv(start_method, cb, capacity, send_msgs, recv_msgs, send_one_by_one):
+def _test_queue_recv(start_method, worker_params, capacity, send_msgs, recv_msgs, send_one_by_one):
     count = 0
     def next_i():
         nonlocal count
         count += 1
         return count
-    proc, task_queue, res_queue = setup_queue_and_worker(start_method, capacity, cb)
+    proc, task_queue, res_queue = setup_queue_and_worker(start_method, capacity, copy_callback, worker_params)
     all_msgs = []
     received = 0
     for send_msg, recv_msg in zip(send_msgs, recv_msgs):
@@ -152,5 +143,5 @@ def test_queue_recv():
     for start_method in ("spawn", "fork"):
         for capacity, send_msg, recv_msg in zip(capacities, send_msgs, recv_msgs):
             for send_one_by_one in (True, False):
-                for cb in (copy_callback, copy_callback_recv_all):
-                    yield _test_queue_recv, start_method, cb, capacity, send_msg, recv_msg, send_one_by_one
+                for worker_params in ({'num_samples': 1}, {'num_samples': None}):
+                    yield _test_queue_recv, start_method, worker_params, capacity, send_msg, recv_msg, send_one_by_one

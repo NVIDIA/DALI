@@ -31,48 +31,79 @@ from nvidia.dali._multiproc.shared_batch import deserialize_batch, import_numpy,
 from nvidia.dali._multiproc.shared_queue import ShmQueue, Dispatcher, DispatcherWorker
 
 
-class SharedMemBuffer:
+"""
+A pipline with parallel external sources creates `WorkerPool` to parallelize sources computation.
+Each external source in the pipline has its own `ShmBuffer` with shm chunks dedicated for data
+computed by the given source, and all the chunks for all the external sources are created and
+stored in the ShmPool (to assert unique ids for chunks that are used to identify chunk
+in communication between workers and the pool).
+`ShmBuffer` is also used to pass minibatch (task) description to the workers.
+`CallbackSetup` combines the source (callback, iterator or generator function) with ShmBuffer,
+it also describes if the source can be computed by any worker from the pool based on the indices
+passed to the source or should be handled always by a dedicated worker because it relays on internal state
+to produce next batch (as is the case for iterators and generators).
+`CallbackContext` combines `CallbackSetup` with information about currently
+scheduled tasks and partial results received from the workers for the given source.
+`Pool` manages actual worker processes and communication between them and the main process,
+it is responsible for starting the workers and additional setup steps (such as passing shm chunks
+through sockets if `spawn` start method is used).
+`Pool` instance uses `ShmQueue` to communicate and synchronize with workers: actual tasks and data are
+serialized and put in shm chunks from ShmBuffers, whereas messages in ShmQueue contain only
+simple fixed-size meta data such as the id of shm chunk from the buffer to be read, current capacity of
+the shm chunk (which may increase if worker couldn't fit the data) and offset of the data.
+"""
 
-    """Two dimensional buffer of shared memory chunks, chunks can be accessed either by providing two
-       coordinates or via unique id. Each ExternalSource callback gets its own buffer, first dimension is cycled
+
+class ShmPool:
+
+    """Pool of all shared memory chunks used to send minibaches from workers to the main process
+    (and tasks descriptions from the main process to workers) for all external sources handled
+    by a single WorkerPool instance"""
+
+    def __init__(self):
+        self.chunks = []
+
+    def allocate(self, capacity):
+        chunk_id = len(self.chunks)
+        chunk = BufShmChunk.allocate(chunk_id, capacity)
+        self.chunks.append(chunk)
+        return chunk_id
+
+
+class ShmBuffer:
+
+    """Two dimensional buffer of shared memory chunks (queue_depth X num_minibatches),
+       chunks can be accessed either by providing two coordinates or via shm chunk's unique id.
+       Each ExternalSource callback gets its own buffer, first dimension is cycled
        over when scheduling and receiving consecutive batches, second dimension is used to separate minibatches."""
 
-    def __init__(self, get_next_shm_id, queue_depth, initial_chunk_size, num_minibatches):
+    def __init__(self, shm_pool : ShmPool, queue_depth, initial_chunk_capacity, num_minibatches):
         if queue_depth < 1:
             raise RuntimeError("Prefetch queue must have at least one element")
-        if initial_chunk_size <= 0:
+        if initial_chunk_capacity <= 0:
             raise RuntimeError("Buffer chunk capacity must be a positive integer")
+        self.shm_pool = shm_pool
         self.queue_depth = queue_depth
-        self.initial_chunk_size = align_up(initial_chunk_size, SharedBatchWriter.BUFFER_ALIGNMENT)
+        self.initial_chunk_capacity = align_up(initial_chunk_capacity, SharedBatchWriter.BUFFER_ALIGNMENT)
         self.num_minibatches = num_minibatches
         self.chunks_ids_by_pos = [
-            [next(get_next_shm_id) for _ in range(self.num_minibatches)]
+            [self.shm_pool.allocate(self.initial_chunk_capacity) for _ in range(self.num_minibatches)]
             for _ in range(self.queue_depth)]
         self.chunks_ids = [chunk_id for dest_buf in self.chunks_ids_by_pos for chunk_id in dest_buf]
-        self._chunks_by_id = {
-            chunk_id: BufShmChunk.allocate(chunk_id, self.initial_chunk_size)
-            for chunk_id in self.chunks_ids}
-
-    @staticmethod
-    def next_shm_id_helper():
-        i = 0
-        while True:
-            i += 1
-            yield i
 
     def seal(self):
-        for chunk in self._chunks_by_id.values():
-            chunk.shm_chunk.seal()
+        for shm_chunk_id in self.chunks_ids:
+            self.shm_pool.chunks[shm_chunk_id].shm_chunk.seal()
 
     def get_chunk_by_id(self, shm_chunk_id):
-        return self._chunks_by_id[shm_chunk_id]
+        return self.shm_pool.chunks[shm_chunk_id]
 
     def get_chunk_by_dest(self, dest_i, minibatch_i):
         chunk_id = self.chunks_ids_by_pos[dest_i][minibatch_i]
-        return self._chunks_by_id[chunk_id]
+        return self.get_chunk_by_id(chunk_id)
 
     def get_chunks(self):
-        return [self._chunks_by_id[chunk_id] for chunk_id in self.chunks_ids]
+        return [self.get_chunk_by_id(chunk_id) for chunk_id in self.chunks_ids]
 
     @property
     def num_chunks(self):
@@ -81,7 +112,7 @@ class SharedMemBuffer:
 
 class CallbackSetup:
 
-    def __init__(self, source_desc : SourceDescription, shm_buffer : SharedMemBuffer, dedicated_worker : Optional[int]):
+    def __init__(self, source_desc : SourceDescription, shm_buffer : ShmBuffer, dedicated_worker : Optional[int]):
         self.source_desc = source_desc
         self.shm_buffer = shm_buffer
         self.dedicated_worker = dedicated_worker
@@ -92,7 +123,9 @@ class CallbackContext:
 
     def __init__(self, setup : CallbackSetup):
         self.setup = setup
-        self.scheduled_i = 0  # internal source of scheduled ids for tasks
+        # counts all the batches ever scheduled for the given source, serves as
+        # id for the next scheduled tasks
+        self.scheduled_i = 0
         self.epoch_start = self.scheduled_i
         self.partially_received = {}
         self.scheduled = {}
@@ -102,17 +135,18 @@ class CallbackContext:
 
     def reset(self):
         """Invalidates all batches pending in `tasks_queue`, marks the need to sync the epoch
-        before chunks occupied by `tasks_queue` batches can be be reused for prefetching in the next epoch"""
-        self.scheduled_i += 1
+        before `ShmBuffer` chunks occupied by `tasks_queue` batches can be be reused for
+        prefetching in the next epoch"""
         self.epoch_start = self.scheduled_i
         self.epoch_synced = False
 
     def push_scheduled(self, num_minibatches):
+        scheduled_i = self.scheduled_i
         self.scheduled_i += 1
-        self.partially_received[self.scheduled_i] = {}
-        self.scheduled[self.scheduled_i] = num_minibatches
-        self.tasks_queue.append(self.scheduled_i)
-        return self.scheduled_i
+        self.partially_received[scheduled_i] = {}
+        self.scheduled[scheduled_i] = num_minibatches
+        self.tasks_queue.append(scheduled_i)
+        return scheduled_i
 
     def clear_scheduled(self, scheduled_i):
         del self.partially_received[scheduled_i]
@@ -201,6 +235,10 @@ class CallbackContext:
 
 
 class WorkBatch:
+    """
+    Contains description of the batch to be computed, it is created by a given external source
+    and then processed by a WorkerPool instance.
+    """
 
     @classmethod
     def sample_mode(cls, samples_args):
@@ -277,7 +315,6 @@ starts thread keeping track of running processes and initializes communication.
         self._general_task_dispatcher = None
         self._tracker = None
         self._processes = []
-        self._is_closed = False
         write_socks = []
         try:
             for worker_i, worker_context in enumerate(workers_contexts):
@@ -374,15 +411,15 @@ starts thread keeping track of running processes and initializes communication.
         if self._tracker is None:
             return
         self._tracker.close()
-        self._is_closed = True
+        self._tracker = None
 
     def wait_for_res(self):
-        if self._is_closed:
+        if self._tracker is None:
             raise RuntimeError("Cannot receive data from the pool that has been closed")
         return self._res_queue.get(None)
 
     def send(self, tasks : List[Tuple[BufShmChunk, Any]], dedicated_worker):
-        if self._is_closed:
+        if self._tracker is None:
             raise RuntimeError("Cannot send tasks to the pool that has been closed")
         if dedicated_worker is None:
             return self._general_task_dispatcher.extend(tasks)
@@ -443,6 +480,7 @@ starts thread keeping track of running processes and initializes communication.
             self._sync_initialized_workers()
         except:
             if self._tracker is None or not self._tracker.close():
+                self._tracker = None
                 if self._general_task_dispatcher is not None:
                     # dispatcher starts separate thread so it needs to be closed
                     # res_queue and dedicated queues can be simply garbage collected
@@ -523,7 +561,7 @@ class Tracker:
         self.thread = None
 
     def interrupt(self):
-        # Can be called from dispatcher workers or main thread
+        # Can be called from the dispatcher worker or the main thread
         with self.lock:
             if self.is_interrupted:
                 return
@@ -631,10 +669,10 @@ class WorkerPool:
                 num_workers = num_cbs_dedicated
         sources_desc = [group.source_desc for group in groups]
         dedicated_workers = cls.assign_excl_workers(groups, num_workers)
-        get_next_shm_id = SharedMemBuffer.next_shm_id_helper()
+        shm_pool = ShmPool()
         shm_buffers = [
-            SharedMemBuffer(
-                get_next_shm_id,
+            ShmBuffer(
+                shm_pool,
                 keep_alive_queue_size + group.prefetch_queue_depth,
                 cls.get_initial_shm_chunk(group.bytes_per_minibatch_hint, min_shm_chunk_size),
                 1 if group.batch else num_workers

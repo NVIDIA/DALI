@@ -77,7 +77,7 @@ def training_test(args):
             py_start_method=args.worker_init,
             py_num_workers=args.py_workers,
             source_mode=args.source_mode,
-            mixed_decode=args.mixed_decode,)
+            read_encoded=args.dali_decode,)
 
         # Start the pipeline workers first, before any CUDA call. The first pipeline factory
         # is the one with Parallel External Source that needs that.

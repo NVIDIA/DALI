@@ -50,6 +50,7 @@ class Iterable:
         self.count += 1
         return batch
 
+
 class FaultyResetIterable(Iterable):
     def __iter__(self):
         return self
@@ -87,15 +88,6 @@ def generator_fun():
         yield [np.full((2, 2), 42)]
 
 
-disallowed_sources = [
-    no_arg_fun,
-    multi_arg_fun,
-    Iterable(),
-    generator_fun,
-    generator_fun()
-]
-
-
 def check_source_build(source):
     pipe = create_pipe(source, 'cpu', 10, py_num_workers=4, py_start_method='spawn', parallel=True)
     pipe.build()
@@ -105,14 +97,14 @@ def test_wrong_source():
     callable_msg = ("Callable passed to External Source in parallel mode (when `parallel=True`) "
         "must accept exactly one argument*. Got {} instead.")
     batch_required_msg = "Parallel external source with {} must be run in a batch mode"
-    expected_error_msgs = [
-        (TypeError, callable_msg.format("a callable that does not accept arguments")),
-        (TypeError, "External source callback must be a callable with 0 or 1 argument"),
-        (TypeError, batch_required_msg.format("an iterable")),
-        (TypeError, batch_required_msg.format("a generator function")),
-        (TypeError, batch_required_msg.format("an iterable"))]
-    assert len(disallowed_sources) == len(expected_error_msgs)
-    for source, (error_type, error_msg) in zip(disallowed_sources, expected_error_msgs):
+    disallowed_sources = [
+        (no_arg_fun, (TypeError, callable_msg.format("a callable that does not accept arguments"))),
+        (multi_arg_fun, (TypeError, "External source callback must be a callable with 0 or 1 argument")),
+        (Iterable(), (TypeError, batch_required_msg.format("an iterable"))),
+        (generator_fun, (TypeError, batch_required_msg.format("a generator function"))),
+        (generator_fun(), (TypeError, batch_required_msg.format("an iterable"))),
+    ]
+    for source, (error_type, error_msg) in disallowed_sources:
         yield raises(error_type, error_msg)(check_source_build), source
 
 

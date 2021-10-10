@@ -142,10 +142,12 @@ def test_pool_no_overwrite_batch(start_method):
             for i, tasks in task_list:
                 pool.schedule_batch(context_i=0, dst_chunk_i=i, work_batch=WorkBatch.sample_mode(tasks))
             assert len(pool.contexts[0].partially_received) == depth
+            assert len(pool.contexts[0].scheduled) == depth
             batches = []
             for i in range(depth):
                 batches.append(pool.receive_batch(context_i=0))
                 assert len(pool.contexts[0].partially_received) == depth - 1 - i
+                assert len(pool.contexts[0].scheduled) == depth - 1 - i
             tasks_batches = zip(task_list, batches)
             for (i, tasks), batch in tasks_batches:
                 for task, sample in zip(tasks, batch):
