@@ -66,6 +66,13 @@ class ShmMessage(Structure):
 
 
 class BufShmChunkMeta:
+    """
+    Describes shm chunk passed from the main process to a worker process. Used if `spawn` start method is selected
+    and shm chunk handle is passed through a socket to a worker process.
+    ----------
+    `shm_chunk_id` : Integer identifying shm chunk in communication between the main process and workers.
+    `capacity` : Size of the underlying shared memory region.
+    """
 
     def __init__(self, shm_chunk_id, capacity):
         self.shm_chunk_id = shm_chunk_id
