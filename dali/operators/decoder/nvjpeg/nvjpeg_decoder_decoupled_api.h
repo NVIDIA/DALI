@@ -300,6 +300,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
       CUDA_CALL(cudaStreamDestroy(hw_decode_stream_));
 
+      if (state_hw_batched_) {
+        NVJPEG_CALL(nvjpegJpegStateDestroy(state_hw_batched_));
+      }
+
       NVJPEG_CALL(nvjpegDestroy(handle_));
 
       // Free any remaining buffers and remove the thread entry from the global map
