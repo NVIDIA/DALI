@@ -147,15 +147,16 @@ TYPED_TEST(TensorListTest, TestReserveResize) {
 
   ASSERT_TRUE(tl.has_data());
   ASSERT_EQ(tl.capacity(), shape.num_elements() * sizeof(float));
-  ASSERT_EQ(tl.num_bytes(), 0);
+  ASSERT_EQ(tl.nbytes(), 0);
   ASSERT_EQ(tl._num_elements(), 0);
+  ASSERT_NE(unsafe_raw_data(tl), nullptr);
 
   // Give the tensor a type
   tl.template set_type<float>();
 
   ASSERT_EQ(tl._num_elements(), 0);
   ASSERT_EQ(tl.nbytes(), 0);
-  ASSERT_FALSE(tl.has_data());
+  ASSERT_TRUE(tl.has_data());
 
   // We already had the allocation, just give it a shape and a type
   tl.Resize(shape, DALI_FLOAT);
@@ -196,6 +197,7 @@ TYPED_TEST(TensorListTest, TestSetNoType) {
   tl.set_type(DALI_FLOAT);
   ASSERT_THROW(tl.set_type(DALI_NO_TYPE), std::runtime_error);
 
+  auto shape = this->GetRandShape();
   ASSERT_THROW(tl.Resize(shape, DALI_NO_TYPE), std::runtime_error);
 }
 
@@ -397,7 +399,7 @@ TYPED_TEST(TensorListTest, TestMultipleResize) {
 
   // Neither of the accessors can cause the allocation
   ASSERT_THROW(tensor_list.template mutable_tensor<double>(0), std::runtime_error);
-  ASSERT_FALSE(tensor_list.has_data());
+  ASSERT_TRUE(tensor_list.has_data());
   ASSERT_NE(tensor_list.template mutable_tensor<float>(0), nullptr);
 
   ASSERT_EQ(tensor_list.num_samples(), num_tensor);

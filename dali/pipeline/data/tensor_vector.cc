@@ -125,26 +125,7 @@ void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataT
 template <typename Backend>
 void TensorVector<Backend>::SetSize(int new_size) {
   DALI_ENFORCE(new_size >= 0, make_string("Incorrect size: ", new_size));
-  if (new_size == 0) {
-    Reset();
-    return;
-  }
-  auto sh = shape();
-  TensorListShape<> new_sh(new_size, sh.sample_dim());
-  TensorShape<> zero_sh(sh[sh.num_samples() - 1]);  // 0-volume shape with given dimensionality
-  for (int i = 0; i < zero_sh.size(); i++) {
-    zero_sh[i] = 0;
-  }
-
-  int i = 0;
-  for (; i < std::min(sh.num_samples(), new_size); i++) {
-    new_sh.set_tensor_shape(i, sh[i]);
-  }
-  for (; i < new_size; i++) {
-    new_sh.set_tensor_shape(i, zero_sh);
-  }
-  assert(!new_sh.empty());
-  Resize(new_sh);
+  resize_tensors(new_size);
 }
 
 

@@ -101,7 +101,7 @@ TYPED_TEST(TensorTest, TestGetTypeSizeBytes) {
   ASSERT_EQ(t.nbytes(), size*sizeof(float));
   ASSERT_TRUE(IsType<float>(t.type()));
 
-  tl.reserve(shape.num_elements() * sizeof(float));
+  t.reserve(shape.num_elements() * sizeof(float));
 
   ASSERT_NE(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), size);
@@ -117,22 +117,21 @@ TYPED_TEST(TensorTest, TestReserveResize) {
   auto shape = this->GetRandShape();
   auto size = volume(shape);
   t.reserve(size * sizeof(float));
-  ASSERT_THROW(tl.set_pinned(true), std::runtime_error);
+  ASSERT_THROW(t.set_pinned(true), std::runtime_error);
 
   ASSERT_TRUE(t.has_data());
   ASSERT_EQ(t.capacity(), size * sizeof(float));
-  ASSERT_EQ(tl.num_bytes(), 0);
-  ASSERT_EQ(tl._num_elements(), 0);
-  ASSERT_EQ(t.raw_data(), nullptr);
+  ASSERT_EQ(t.size(), 0);
+  ASSERT_EQ(t.nbytes(), 0);
+  ASSERT_NE(t.raw_data(), nullptr);
 
   // Give the tensor a type
   t.template set_type<float>();
 
+  ASSERT_TRUE(t.has_data());
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(tl._num_elements(), 0);
-  ASSERT_EQ(t.raw_data(), nullptr);
-  ASSERT_EQ(t.raw_data(), nullptr);
+  ASSERT_NE(t.raw_data(), nullptr);
 
   t.Resize(shape);
 
@@ -140,7 +139,7 @@ TYPED_TEST(TensorTest, TestReserveResize) {
   ASSERT_NE(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), size);
   ASSERT_EQ(t.shape(), shape);
-  ASSERT_EQ(t.nbytes(), size*sizeof(float));
+  ASSERT_EQ(t.nbytes(), size * sizeof(float));
   ASSERT_TRUE(IsType<float>(t.type()));
 
 }
@@ -669,8 +668,8 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
   {
     Tensor<TypeParam> empty_tensor;
     TensorShape<> empty_shape = {};
-    empty_tensor.Resize(empty_shape);
-    ASSERT_ANY_THROW(empty_tensor.SubspaceTensor(0), DALI_UINT8);
+    empty_tensor.Resize(empty_shape, DALI_UINT8);
+    ASSERT_ANY_THROW(empty_tensor.SubspaceTensor(0));
   }
   {
     Tensor<TypeParam> one_dim_tensor;

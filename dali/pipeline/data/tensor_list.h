@@ -49,9 +49,16 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
  public:
   DLL_PUBLIC TensorList() {}
 
-  DLL_PUBLIC TensorList(int batch_size) {
-    Resize(TensorListShape<>(batch_size));
-  }
+  /**
+   * @brief This constructor mostly serves as a placeholder, it should allow to get batch_size
+   * nullptrs as `raw_tensor(idx)` for newly created TensorList until first proper Reshape.
+   *
+   * It is needed as a counterpart of TensorVector(batch_size).
+   *
+   * TODO(klecki): The API for empty tensor batch container of given number of samples
+   * will be adjusted in next releases.
+   */
+  DLL_PUBLIC TensorList(int batch_size) : offsets_(batch_size, 0), meta_(batch_size) {}
 
   DLL_PUBLIC TensorList<Backend>(const TensorList<Backend>&) = delete;
   DLL_PUBLIC TensorList<Backend>& operator=(const TensorList<Backend>&) = delete;

@@ -124,21 +124,15 @@ class DLL_PUBLIC Buffer {
    * the non-const version of the method, or calling 'set_type'.
    */
   inline void* raw_mutable_data() {
-    // Empty tensor in case of earlier reserve
-    if (IsValidType(type_))
-      return nullptr;
     return static_cast<void*>(data_.get());
   }
 
   /**
-   * @brief Return an const, un-typed pointer to the underlying storage.
+   * @brief Return a const, un-typed pointer to the underlying storage.
    * A valid type must be set prior to calling this method by calling
    * the non-const version of the method, or calling 'set_type'.
    */
   inline const void* raw_data() const {
-    // Empty tensor in case of earlier reserve
-    if (IsValidType(type_))
-      return nullptr;
     return static_cast<void*>(data_.get());
   }
 

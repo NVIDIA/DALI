@@ -68,7 +68,7 @@ TYPED_TEST(TensorVectorSuite, PinnedAfterReserveThrows) {
 TYPED_TEST(TensorVectorSuite, PinnedAfterResizeThrows) {
   TensorVector<TypeParam> tv;
   tv.reserve(100);
-  EXPECT_THROW(tv.Resize({{2, 4}, {4, 2}}, std::runtime_error);
+  EXPECT_THROW(tv.Resize({{2, 4}, {4, 2}}), std::runtime_error);
   tv.Resize({{2, 4}, {4, 2}}, DALI_INT32);
   ASSERT_EQ(tv.num_samples(), 2);
   EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
@@ -85,7 +85,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeContiguous) {
   TensorVector<TypeParam> tv;
   tv.set_pinned(false);
   tv.reserve(100);
-  EXPECT_THROW(tv.Resize({{2, 4}, {4, 2}}, std::runtime_error);
+  EXPECT_THROW(tv.Resize({{2, 4}, {4, 2}}), std::runtime_error);
   tv.template set_type<int32_t>();
   tv.Resize({{2, 4}, {4, 2}});
   ASSERT_EQ(tv.num_samples(), 2);
