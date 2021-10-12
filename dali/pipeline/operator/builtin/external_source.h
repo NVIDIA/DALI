@@ -253,7 +253,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
     for (size_t i = 0; i < tv.num_samples(); ++i) {
-      tv[i].ShareData(const_cast<Tensor<SrcBackend>*>(&vect_of_tensors[i]));
+      tv[i].ShareData(const_cast<Tensor<SrcBackend> &>(vect_of_tensors[i]));
     }
     SetDataSourceHelper(tv, stream, ext_src_setting_mode);
   }
@@ -366,7 +366,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
       tv_elm.front()->Reset();
       tv_elm.front()->set_pinned(batch.is_pinned());
     }
-    tv_elm.front()->ShareData(const_cast<SourceDataType<CPUBackend> *>(&batch));
+    tv_elm.front()->ShareData(const_cast<SourceDataType<CPUBackend> &>(batch));
     tv_data_.PushBack(tv_elm);
   }
 
@@ -391,7 +391,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     auto tl_elm = tl_data_.GetEmpty();
     bool copied_shared_data = false;
     if (batch.IsContiguous()) {
-      auto *in_tl = const_cast<TensorVector<Backend> &>(batch).AsTensorList().get();
+      auto &in_tl = *const_cast<TensorVector<Backend> &>(batch).AsTensorList();
       tl_elm.front()->ShareData(in_tl);
       zero_copy_noncontiguous_gpu_input_ = true;
     } else {
@@ -422,7 +422,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({false, true});
     auto tl_elm = tl_data_.GetEmpty();
-    tl_elm.front()->ShareData(const_cast<TensorList<Backend>*>(&batch));
+    tl_elm.front()->ShareData(const_cast<TensorList<Backend> &>(batch));
     tl_data_.PushBack(tl_elm);
     zero_copy_noncontiguous_gpu_input_ = true;
   }

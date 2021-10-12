@@ -389,7 +389,7 @@ void Reshape<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &out = ws.OutputRef<CPUBackend>(0);
   auto &in = ws.InputRef<CPUBackend>(0);
   TensorLayout layout = GetOutputLayout(ws);
-  out.ShareData(&in);
+  out.ShareData(in);
   out.Resize(output_shape_, output_type_->id());
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {
@@ -405,7 +405,7 @@ void Reshape<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &in = ws.InputRef<GPUBackend>(0);
   TensorLayout layout = GetOutputLayout(ws);
   out.Reset();
-  out.ShareData(&in);
+  out.ShareData(in);
   out.Resize(output_shape_, output_type_->id());
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {

@@ -91,7 +91,7 @@ void FillTensorVector(
     }
   }
   for (int i = 1; i < shape.num_samples(); i++) {
-    dst[i].ShareData(&dst[0]);
+    dst[i].ShareData(dst[0]);
   }
 }
 }  // namespace
@@ -111,7 +111,7 @@ void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
       ), (DALI_FAIL(make_string("Unsupported type: ", output_type_))));  // NOLINT
   }
 
-  out.ShareData(&output_);
+  out.ShareData(output_);
   out.Resize(output_shape_);
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {

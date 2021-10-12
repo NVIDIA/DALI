@@ -607,7 +607,7 @@ void ExposeTensorList(py::module &m) {
           if (!tl)
             throw py::value_error("The source object must not be null");
           auto t = std::make_shared<TensorList<CPUBackend>>();
-          t->ShareData(tl);
+          t->ShareData(*tl);
           if (!layout.is_none()) {
             if (!py::isinstance<py::str>(layout))
               throw py::type_error("`layout` must be a string or None");
@@ -829,7 +829,7 @@ void ExposeTensorList(py::module &m) {
           if (!tl)
             throw py::value_error("The source object must not be null");
           auto t = std::make_shared<TensorList<GPUBackend>>();
-          t->ShareData(tl);
+          t->ShareData(*tl);
           if (!layout.is_none()) {
             if (!py::isinstance<py::str>(layout))
               throw py::type_error("`layout` must be a string or None");
