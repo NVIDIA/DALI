@@ -443,7 +443,6 @@ TEST_F(VideoReaderTest, FrameLabels) {
     CUDA_CALL(cudaStreamSynchronize(0));
 
     const auto *frames = frames_cpu.tensor<uint8_t>(0);
-    const auto *label = labels_cpu.tensor<int>(0);
     const auto *frame_num = frame_num_cpu.tensor<int>(0);
 
     ASSERT_EQ(frames[0], frame_num[0]);
@@ -588,7 +587,6 @@ TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
     timestamps_cpu.Copy(timestamp_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const auto *frames = frames_cpu.tensor<uint8>(0);
     const auto *label = labels_cpu.tensor<int>(0);
     const auto *frame_num = frame_num_cpu.tensor<int>(0);
     const auto *timestamps = timestamps_cpu.tensor<double>(0);
@@ -651,8 +649,6 @@ TEST_F(VideoReaderTest, TimestampLabels) {
     frame_num_cpu.Copy(frame_num_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const auto *frames = frames_cpu.tensor<uint8>(0);
-    const auto *label = labels_cpu.tensor<int>(0);
     const auto *frame_num = frame_num_cpu.tensor<int>(0);
     const auto *timestamps = timestamps_cpu.tensor<double>(0);
 
@@ -696,7 +692,6 @@ TEST_F(VideoReaderTest, StartEndLabels) {
     timestamps_cpu.Copy(frame_num_gpu, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    const auto *frames = frames_cpu.tensor<uint8>(0);
     const auto *label = labels_cpu.tensor<int>(0);
     const auto *timestamps = timestamps_cpu.tensor<double>(0);
 

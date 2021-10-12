@@ -42,7 +42,7 @@ class TensorLayout {
   DALI_HOST_DEV
   constexpr TensorLayout(const char *str) {  // NOLINT
     int n = 0;
-    for (; str[n] && n < max_ndim; n++)
+    for (; n < max_ndim && str[n]; n++)
       data_[n] = str[n];
     assert(!str[n] && "Input string too long!");
     set_size(n);
@@ -587,7 +587,7 @@ inline std::array<int, Dims> GetLayoutMapping(const TensorLayout &in_layout,
   int min_j = 0;
   for (int i = 0; i < Dims; i++) {
     char c = a[i];
-    while (b[min_j] == 0 && min_j < Dims)
+    while (min_j < Dims && b[min_j] == 0)
       min_j++;
     int j;
     for (j = min_j; j < Dims; j++) {

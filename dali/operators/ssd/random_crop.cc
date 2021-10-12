@@ -160,7 +160,6 @@ void crop(const Tensor<CPUBackend>& img, vector<int> bounds, Tensor<CPUBackend>&
   const int width = bounds[2] - bounds[0];
   const int height = bounds[3] - bounds[1];
   // input dimensions
-  const int H = img.dim(0);
   const int W = img.dim(1);
   const int C = img.dim(2);
 

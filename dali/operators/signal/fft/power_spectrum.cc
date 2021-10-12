@@ -89,7 +89,6 @@ void PowerSpectrum<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto in_shape = input.shape();
-  int nsamples = input.num_samples();
   auto& thread_pool = ws.GetThreadPool();
   // Other types not supported for now
   using InputType = float;

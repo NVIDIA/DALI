@@ -50,7 +50,6 @@ void FramesDecoder::InitAvState() {
 
 void FramesDecoder::FindVideoStream() {
   for (size_t i = 0; i < av_state_->ctx_->nb_streams; ++i) {
-    auto stream = av_state_->ctx_->streams[i];
     av_state_->codec_params_ = av_state_->ctx_->streams[i]->codecpar;
     av_state_->codec_ = avcodec_find_decoder(av_state_->codec_params_->codec_id);
 

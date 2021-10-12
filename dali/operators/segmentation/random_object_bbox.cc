@@ -536,7 +536,6 @@ void RandomObjectBBox::AllocateTempStorage(const TensorVector<CPUBackend> &input
     int64_t vol = input[i].size();
     int label_size = vol > 0x80000000 ? 8 : 4;
     int64_t blob_bytes = vol * label_size;
-    int64_t filtered_bytes = vol;  // * sizeof(uint8_t)
     if (blob_bytes > max_blob_bytes)
       max_blob_bytes = blob_bytes;
     if (vol > max_filtered_bytes)
