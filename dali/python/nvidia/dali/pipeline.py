@@ -145,7 +145,7 @@ Parameters
     older version of Python you can provide external serialization package such as dill or cloudpickle
     that implements two methods: `dumps` and `loads` to make DALI use them to serialize
     external source callbacks. You can pass a module directly as ``py_callback_pickler``::
-        
+
         import dill
         @pipeline_def(py_callback_pickler=dill, ...)
         def create_pipeline():
@@ -189,6 +189,7 @@ Parameters
         self._first_iter = True
         self._last_iter = False
         self._iter = 0
+        self._epoch_idx = 0
         self._batches_to_consume = 0
         self._cpu_batches_to_consume = 0
         self._gpu_batches_to_consume = 0
@@ -1008,7 +1009,7 @@ Parameters
         if self._py_pool is None:
             return
         for i, group in enumerate(self._parallel_input_callbacks):
-            group.prefetch(self._py_pool, i, self._max_batch_size)
+            group.prefetch(self._py_pool, i, self._max_batch_size, self._epoch_idx)
 
     def _fill_separated_queues(self):
         """When using separated execution fill each of the prefetch queues
@@ -1033,6 +1034,7 @@ Parameters
             self._first_iter = True
             self._last_iter = False
             self._iter = 0
+            self._epoch_idx += 1
             if self._input_callbacks:
                 for group in self._input_callbacks:
                     group.reset_indices()
@@ -1207,12 +1209,12 @@ Parameters
         stop_iter = False
         for i, group in enumerate(self._parallel_input_callbacks):
             try:
-                batches.append(group.schedule_and_receive(self, self._py_pool, i, self._max_batch_size))
+                batches.append(group.schedule_and_receive(self, self._py_pool, i, self._max_batch_size, self._epoch_idx))
             except StopIteration:
                 stop_iter = True
         for group in self._seq_input_callbacks:
             try:
-                batches.append(group.get_batch(self, self._max_batch_size))
+                batches.append(group.get_batch(self, self._max_batch_size, self._epoch_idx))
             except StopIteration:
                 stop_iter = True
         if stop_iter:

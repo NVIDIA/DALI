@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import nvidia.dali.types as types
 import numpy as np
 from nvidia.dali.pipeline import Pipeline
 from test_utils import check_batch
+from nose_utils import raises
 
 def build_src_pipe(device, layout = None):
     if layout is None:
@@ -76,6 +77,7 @@ def test_callback():
             for change_layout in [None, "AB"]:
                 yield _test_callback, device, as_tensors, change_layout
 
+
 def _test_scalar(device, as_tensors):
     """Test propagation of scalars from external source"""
     batch_size = 4
@@ -101,3 +103,89 @@ def test_scalar():
     for device in ["cpu", "gpu"]:
         for as_tensors in [False, True]:
             yield _test_scalar, device, as_tensors
+
+
+class BatchCb:
+
+    def __init__(self, batch_info, batch_size, epoch_size):
+        self.batch_info = batch_info
+        self.batch_size = batch_size
+        self.epoch_size = epoch_size
+
+    def __call__(self, arg):
+        if self.batch_info:
+            assert isinstance(arg, types.BatchInfo), "Expected BatchInfo instance as cb argument, got {}".format(arg)
+            iteration = arg.iteration
+            epoch_idx = arg.epoch_idx
+        else:
+            assert isinstance(arg, int), "Expected integer as cb argument, got {}".format(arg)
+            iteration = arg
+            epoch_idx = -1
+        if iteration >= self.epoch_size:
+            raise StopIteration
+        return [np.array([iteration, epoch_idx], dtype=np.int32) for _ in range(self.batch_size)]
+
+
+class SampleCb:
+
+    def __init__(self, batch_size, epoch_size):
+        self.batch_size = batch_size
+        self.epoch_size = epoch_size
+
+    def __call__(self, sample_info):
+        if sample_info.iteration >= self.epoch_size:
+            raise StopIteration
+        return np.array([
+            sample_info.idx_in_epoch, sample_info.idx_in_batch,
+            sample_info.iteration, sample_info.epoch_idx], dtype=np.int32)
+
+
+def _test_batch_info_flag_default(cb, batch_size):
+    pipe = Pipeline(batch_size, 1, 0)
+    with pipe:
+        ext = fn.external_source(source=cb)
+        pipe.set_outputs(ext)
+    pipe.build()
+    pipe.run()
+
+def test_batch_info_flag_default():
+    batch_size = 5
+    cb_int = BatchCb(False, batch_size, 1)
+    yield _test_batch_info_flag_default, cb_int, batch_size
+    cb_batch_info = BatchCb(True, batch_size, 1)
+    yield raises(AssertionError, "Expected BatchInfo instance as cb argument")(_test_batch_info_flag_default), cb_batch_info, batch_size
+
+def _test_epoch_idx(batch_size, epoch_size, cb, batch_info, batch_mode):
+    num_epochs = 3
+    pipe = Pipeline(batch_size, 1, 0)
+    with pipe:
+        ext = fn.external_source(source=cb, batch_info=batch_info, batch=batch_mode)
+        pipe.set_outputs(ext)
+    pipe.build()
+    for epoch_idx in range(num_epochs):
+        for iteration in range(epoch_size):
+            (batch,) = pipe.run()
+            assert len(batch) == batch_size
+            for sample_i, sample in enumerate(batch):
+                if batch_mode:
+                    expected = np.array([iteration, epoch_idx if batch_info else -1])
+                else:
+                    expected = np.array([
+                        iteration * batch_size + sample_i,
+                        sample_i, iteration, epoch_idx])
+                np.testing.assert_array_equal(sample, expected)
+        try:
+            pipe.run()
+        except:
+            pipe.reset()
+        else:
+            assert False, "expected StopIteration"
+
+def test_epoch_idx():
+    batch_size = 3
+    epoch_size = 4
+    for batch_info in (True, False):
+        batch_cb = BatchCb(batch_info, batch_size, epoch_size)
+        yield _test_epoch_idx, batch_size, epoch_size, batch_cb, batch_info, True
+    sample_cb = SampleCb(batch_size, epoch_size)
+    yield _test_epoch_idx, batch_size, epoch_size, sample_cb, None, False

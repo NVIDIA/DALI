@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -497,11 +497,24 @@ class SampleInfo:
     """
     Describes the indices of a sample requested from :meth:`nvidia.dali.fn.external_source`
 
-    :ivar idx_in_epoch: 0-based index of the sample witin epoch
+    :ivar idx_in_epoch: 0-based index of the sample within epoch
     :ivar idx_in_batch: 0-based index of the sample within batch
     :ivar iteration:    number of current batch within epoch
+    :ivar epoch_idx:    number of current epoch
     """
-    def __init__(self, idx_in_epoch, idx_in_batch, iteration):
+    def __init__(self, idx_in_epoch, idx_in_batch, iteration, epoch_idx):
         self.idx_in_epoch = idx_in_epoch
         self.idx_in_batch = idx_in_batch
         self.iteration = iteration
+        self.epoch_idx = epoch_idx
+
+class BatchInfo:
+    """
+    Describes the batch requested from :meth:`nvidia.dali.fn.external_source`
+
+    :ivar iteration:    number of current batch within epoch
+    :ivar epoch_idx:    number of current epoch
+    """
+    def __init__(self, iteration, epoch_idx):
+        self.iteration = iteration
+        self.epoch_idx = epoch_idx

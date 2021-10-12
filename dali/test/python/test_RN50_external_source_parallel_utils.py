@@ -106,7 +106,7 @@ class SampleLoader(object):
             return f.read()
 
     def __call__(self, sample_info):
-        file_path, class_no = self.data_set.get_sample(sample_info.idx_in_epoch, sample_info.iteration)
+        file_path, class_no = self.data_set.get_sample(sample_info.idx_in_epoch, sample_info.epoch_idx)
         return self.read_file(file_path), np.array([class_no])
 
 

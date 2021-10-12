@@ -242,3 +242,110 @@ def test_discard():
             sample_in_epoch = 0
             iteration = 0
             pipe.reset()
+
+
+class SampleCb:
+
+    def __init__(self, batch_size, epoch_size):
+        self.batch_size = batch_size
+        self.epoch_size = epoch_size
+
+    def __call__(self, sample_info):
+        if sample_info.iteration >= self.epoch_size:
+            raise StopIteration
+        return np.array([
+            sample_info.idx_in_epoch, sample_info.idx_in_batch,
+            sample_info.iteration, sample_info.epoch_idx], dtype=np.int32)
+
+
+@with_setup(setup_function, teardown_function)
+def _test_epoch_idx(batch_size, epoch_size, cb, py_num_workers, prefetch_queue_depth, reader_queue_depth):
+    num_epochs = 3
+    pipe = dali.Pipeline(
+        batch_size, 1, 0, py_num_workers=py_num_workers, prefetch_queue_depth=prefetch_queue_depth,
+        py_start_method="spawn")
+    with pipe:
+        ext = dali.fn.external_source(source=cb, parallel=True, batch=False, prefetch_queue_depth=reader_queue_depth)
+        pipe.set_outputs(ext)
+    pipe.build()
+    capture_processes(pipe._py_pool)
+    for epoch_idx in range(num_epochs):
+        for iteration in range(epoch_size):
+            (batch,) = pipe.run()
+            assert len(batch) == batch_size
+            for sample_i, sample in enumerate(batch):
+                expected = np.array([
+                    iteration * batch_size + sample_i,
+                    sample_i, iteration, epoch_idx])
+                np.testing.assert_array_equal(sample, expected)
+        try:
+            pipe.run()
+        except:
+            pipe.reset()
+        else:
+            assert False, "expected StopIteration"
+
+
+def test_epoch_idx():
+    workers_num = 4
+    prefetch_queue_depth = 2
+    for batch_size in (1, 50):
+        for epoch_size in (1, 3, 7):
+            for reader_queue_depth in (1, 5):
+                sample_cb = SampleCb(batch_size, epoch_size)
+                yield _test_epoch_idx, batch_size, epoch_size, sample_cb, workers_num, prefetch_queue_depth, reader_queue_depth
+
+
+class PermutableSampleCb:
+
+    def __init__(self, batch_size, epoch_size, trailing_samples):
+        self.batch_size = batch_size
+        self.epoch_size = epoch_size
+        self.trailing_samples = trailing_samples
+        self.last_seen_epoch = None
+        self.perm = None
+
+    def __call__(self, sample_info):
+        if sample_info.iteration >= self.epoch_size and sample_info.idx_in_batch >= self.trailing_samples:
+            raise StopIteration
+        if self.last_seen_epoch != sample_info.epoch_idx:
+            self.last_seen_epoch = sample_info.epoch_idx
+            rng = np.random.default_rng(seed=42 + self.last_seen_epoch)
+            self.perm = rng.permutation(self.batch_size * self.epoch_size + self.trailing_samples)
+        return np.array([self.perm[sample_info.idx_in_epoch]], dtype=np.int32)
+
+
+@with_setup(setup_function, teardown_function)
+def _test_permute_dataset(batch_size, epoch_size, trailing_samples, cb, py_num_workers, prefetch_queue_depth, reader_queue_depth):
+    num_epochs = 3
+    pipe = dali.Pipeline(
+        batch_size, 1, 0, py_num_workers=py_num_workers, prefetch_queue_depth=prefetch_queue_depth,
+        py_start_method="spawn")
+    with pipe:
+        ext = dali.fn.external_source(source=cb, parallel=True, batch=False, prefetch_queue_depth=reader_queue_depth)
+        pipe.set_outputs(ext)
+    pipe.build()
+    capture_processes(pipe._py_pool)
+    for epoch_idx in range(num_epochs):
+        epoch_data = [False for _ in range(epoch_size * batch_size + trailing_samples)]
+        for _ in range(epoch_size):
+            (batch,) = pipe.run()
+            assert len(batch) == batch_size
+            for sample in batch:
+                epoch_data[np.array(sample)[0]] = True
+        assert sum(epoch_data) == epoch_size * batch_size, \
+            "Epoch number {} did not contian some samples from data set".format(epoch_idx)
+        try:
+            pipe.run()
+        except:
+            pipe.reset()
+        else:
+            assert False, "expected StopIteration"
+
+
+def test_permute_dataset():
+    for batch_size, trailing_samples in ((4, 0), (100, 0), (100, 99)):
+        for epoch_size in (3, 7):
+            cb = PermutableSampleCb(batch_size, epoch_size, trailing_samples=trailing_samples)
+            for reader_queue_depth in (1, 5):
+                yield _test_permute_dataset, batch_size, epoch_size, trailing_samples, cb, 4, 1, reader_queue_depth
