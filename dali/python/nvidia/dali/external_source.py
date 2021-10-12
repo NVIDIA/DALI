@@ -342,9 +342,10 @@ Keyword Args
     Setting ``parallel`` to True automatically sets ``batch`` to False if it was not provided.
 
 `batch_info` : bool, optional, default = False
-    If set to True when run in ``batch=True`` mode with a callback that accepts an argument, the argument will
-    be of type (:meth:`~nvidia.dali.types.BatchInfo`) that contains the iteration number (index of batch
-    within the epoch) and the epoch number instead of just an integer representing the iteration number.
+    Controls if a callable ``source`` that accepts an argument and returns batches should receive
+    (:meth:`~nvidia.dali.types.BatchInfo`) instance or just an integer representing the iteration number.
+    If set to False (the default), only the integer is passed. If ``source`` is not a callable accepting an
+    argument or ``batch`` is set to False, setting this flag has no effect.
 
 `parallel` : bool, optional, default = False
     If set to True, the corresponding pipeline will run pool of Python workers to run the
