@@ -61,8 +61,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       should_seek_ = true;
       tensor.Reset();
       tensor.SetMeta(meta);
-      tensor.set_type<uint8_t>();
-      tensor.Resize({0});
+      tensor.Resize({0}, DALI_UINT8);
       return;
     }
 
@@ -76,14 +75,12 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       auto p = current_file_->Get(size);
       DALI_ENFORCE(p != nullptr, "Error reading from a file " + uris_[current_file_index_]);
       // Wrap the raw data in the Tensor object.
-      tensor.ShareData(p, size, {size});
-      tensor.set_type<uint8_t>();
+      tensor.ShareData(p, size, {size}, DALI_UINT8);
     } else {
       if (tensor.shares_data()) {
         tensor.Reset();
       }
-      tensor.set_type<uint8_t>();
-      tensor.Resize({size});
+      tensor.Resize({size}, DALI_UINT8);
 
       int64 n_read = current_file_->Read(reinterpret_cast<uint8_t*>(tensor.raw_mutable_data()),
                           size);

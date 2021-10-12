@@ -75,8 +75,8 @@ template <typename Dst, typename Src>
 void FillTensorVector(
   TensorVector<CPUBackend> &dst, const TensorListShape<> &shape, const std::vector<Src> &src) {
   dst.SetContiguous(false);
-  dst.Resize(shape);
   dst.set_type<Dst>();
+  dst.Resize(shape);
   assert(is_uniform(shape));
   int64_t n = shape[0].num_elements();
   assert(src.size() == static_cast<size_t>(n) || src.size() == 1);

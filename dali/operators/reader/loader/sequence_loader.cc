@@ -128,8 +128,7 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
     meta.SetSkipSample(true);
     target->Reset();
     target->SetMeta(meta);
-    target->set_type<uint8_t>();
-    target->Resize({0});
+    target->Resize({0}, DALI_UINT8);
     return;
   }
 
@@ -147,8 +146,7 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
     auto p = frame->Get(frame_size);
     DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", frame_filename));
     // Wrap the raw data in the Tensor object.
-    target->ShareData(p, frame_size, {frame_size});
-    target->set_type<uint8_t>();
+    target->ShareData(p, frame_size, {frame_size}, DALI_UINT8);
   }
   target->SetMeta(meta);
   frame->Close();

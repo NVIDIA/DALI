@@ -410,7 +410,7 @@ struct TypeNameHelper {
 class DLL_PUBLIC TypeTable {
  public:
   template <typename T>
-  DLL_PUBLIC static DALIDataType GetTypeID() {
+  DLL_PUBLIC static DALIDataType GetTypeId() {
     auto &inst = instance();
     static DALIDataType type_id = inst.RegisterType<T>(static_cast<DALIDataType>(++inst.index_));
     return type_id;
@@ -439,7 +439,7 @@ class DLL_PUBLIC TypeTable {
 
   template <typename T>
   DLL_PUBLIC static const TypeInfo &GetTypeInfo() {
-    static const TypeInfo &type_info = GetTypeInfo(GetTypeID<T>());
+    static const TypeInfo &type_info = GetTypeInfo(GetTypeId<T>());
     return type_info;
   }
 
@@ -490,7 +490,7 @@ struct TypeNameHelper<std::array<T, N> > {
 
 template <typename... Types>
 auto ListTypeNames() {
-  return make_string_delim(", ", TypeTable::GetTypeID<Types>()...);
+  return make_string_delim(", ", TypeTable::GetTypeId<Types>()...);
 }
 
 template <typename T>
@@ -499,7 +499,7 @@ void TypeInfo::SetType(DALIDataType dtype) {
   // explicitly setting its type size as 0
   type_size_ = std::is_same<T, NoType>::value ? 0 : sizeof(T);
   if (!std::is_same<T, NoType>::value) {
-    id_ = dtype != DALI_NO_TYPE ? dtype : TypeTable::GetTypeID<T>();
+    id_ = dtype != DALI_NO_TYPE ? dtype : TypeTable::GetTypeId<T>();
   } else {
     id_ = DALI_NO_TYPE;
   }
@@ -514,7 +514,7 @@ void TypeInfo::SetType(DALIDataType dtype) {
  */
 template <typename T>
 DLL_PUBLIC inline bool IsType(const TypeInfo &type) {
-  return type.id() == TypeTable::GetTypeID<T>();
+  return type.id() == TypeTable::GetTypeId<T>();
 }
 
 /**
@@ -522,7 +522,7 @@ DLL_PUBLIC inline bool IsType(const TypeInfo &type) {
  */
 template <typename T>
 DLL_PUBLIC inline bool IsType(DALIDataType id) {
-  return id == TypeTable::GetTypeID<T>();
+  return id == TypeTable::GetTypeId<T>();
 }
 
 /**
@@ -547,7 +547,7 @@ DLL_PUBLIC inline bool IsValidType(const TypeInfo &type) {
 #define DALI_REGISTER_TYPE(Type, dtype)                             \
   template <> DLL_PUBLIC string TypeTable::GetTypeName<Type>()      \
     DALI_TYPENAME_REGISTERER(Type, dtype);                          \
-  template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeID<Type>()  \
+  template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeId<Type>()  \
     DALI_TYPEID_REGISTERER(Type, dtype);                            \
   DALI_STATIC_TYPE_MAPPING(Type, dtype);                            \
   DALI_REGISTER_TYPE_IMPL(Type, dtype);

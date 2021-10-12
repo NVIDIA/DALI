@@ -130,19 +130,16 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     int output_index = 1;
     if (output_labels_) {
       label_output_ = &ws.Output<GPUBackend>(output_index++);
-      label_output_->set_type<int>();
-      label_output_->Resize(label_shape_);
+      label_output_->Resize(label_shape_, DALI_INT32);
       if (can_use_frames_timestamps_) {
         if (enable_frame_num_) {
           frame_num_output_ = &ws.Output<GPUBackend>(output_index++);
-          frame_num_output_->set_type<int>();
-          frame_num_output_->Resize(frame_num_shape_);
+          frame_num_output_->Resize(frame_num_shape_, DALI_INT32);
         }
 
         if (enable_timestamps_) {
           timestamp_output_ = &ws.Output<GPUBackend>(output_index++);
-          timestamp_output_->set_type<double>();
-          timestamp_output_->Resize(timestamp_shape_);
+          timestamp_output_->Resize(timestamp_shape_, DALI_FLOAT64);
         }
       }
     }

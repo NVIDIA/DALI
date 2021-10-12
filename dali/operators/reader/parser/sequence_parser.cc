@@ -23,7 +23,6 @@ namespace dali {
 void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
   auto& sequence = ws->Output<CPUBackend>(0);
   sequence.SetLayout("FHWC");
-  sequence.set_type<uint8_t>();
   Index seq_length = data.tensors.size();
 
   // Decode first frame, obtain it's size and allocate output
@@ -48,7 +47,7 @@ void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
 
     // Calculate shape of sequence tensor, that is Frames x (Frame Shape)
     auto seq_shape = std::vector<Index>{seq_length, h, w, c};
-    sequence.Resize(seq_shape);
+    sequence.Resize(seq_shape, DALI_UINT8);
     // Take a view tensor for first frame and copy it to target sequence
     auto view_0 = sequence.SubspaceTensor(0);
     std::memcpy(view_0.raw_mutable_data(), decoded.get(), frame_size);

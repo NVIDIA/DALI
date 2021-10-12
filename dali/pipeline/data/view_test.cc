@@ -24,9 +24,7 @@ namespace dali {
 TEST(TensorList, View) {
   TensorList<CPUBackend> tl;
   TensorListShape<> shapes = { { {640, 480, 3}, {320, 240, 1} } };
-  tl.Resize(shapes);
-  ASSERT_THROW(view<float>(tl), std::runtime_error);
-  tl.set_type<float>();
+  tl.Resize(shapes, DALI_FLOAT);
   auto tlv = view<float>(tl);
 
   ASSERT_EQ(static_cast<int>(tlv.num_samples()), static_cast<int>(shapes.size()));
@@ -70,7 +68,6 @@ TEST(TensorVector, View) {
   std::mt19937_64 rng;
   for (int i = 0; i < 10; i++) {
     tvec[i].Resize(TensorShape<3>(100+i, 40+i, 3+i));
-    tvec[i].set_type<int>();
     UniformRandomFill(view<int>(tvec[i]), rng, 0, 10000);
   }
 
@@ -94,7 +91,6 @@ TEST(TensorVector, ReinterpretView) {
   std::mt19937_64 rng;
   for (int i = 0; i < 10; i++) {
     tvec[i].Resize(TensorShape<3>(100+i, 40+i, 3+i));
-    tvec[i].set_type<int>();
     UniformRandomFill(view<int>(tvec[i]), rng, 0, 10000);
   }
 

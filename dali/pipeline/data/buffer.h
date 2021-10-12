@@ -29,6 +29,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/util.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/core/format.h"
 
 namespace dali {
 
@@ -97,12 +98,10 @@ class DLL_PUBLIC Buffer {
    */
   template <typename T>
   inline T* mutable_data() {
-    DALI_ENFORCE(IsValidType(type_),
-                 "Buffer has no type, 'set_type<T>()' or Resize(shape, type) must be called "
-                 "on the buffer to set valid type for " + type_.name());
-    DALI_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
-                 "Calling type does not match buffer data type: " +
-                 TypeTable::GetTypeName<T>() + " vs " + type_.name());
+    DALI_ENFORCE(type_.id() == TypeTable::GetTypeId<T>(),
+                 make_string("Calling type does not match buffer data type, requested type: ",
+                 TypeTable::GetTypeName<T>(), " current buffer type: ", type_.name(),
+                 ". To set type for the Buffer use 'set_type<T>()' or Resize(shape, type) first."));
     return static_cast<T*>(data_.get());
   }
 
@@ -112,14 +111,10 @@ class DLL_PUBLIC Buffer {
    */
   template <typename T>
   inline const T* data() const {
-    // clang-format off
-    DALI_ENFORCE(IsValidType(type_),
-                 "Buffer has no type, 'set_type<T>()' or Resize(shape, type) must be called "
-                 "on the buffer to set valid type for " + type_.name());
-    DALI_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
-                 "Calling type does not match buffer data type: " +
-                 TypeTable::GetTypeName<T>() + " vs " + type_.name());
-    // clang-format on
+    DALI_ENFORCE(type_.id() == TypeTable::GetTypeId<T>(),
+                 make_string("Calling type does not match buffer data type, requested type: ",
+                 TypeTable::GetTypeName<T>(), " current buffer type: ", type_.name(),
+                 ". To set type for the Buffer use 'set_type<T>()' or Resize(shape, type) first."));
     return static_cast<T*>(data_.get());
   }
 
@@ -129,11 +124,9 @@ class DLL_PUBLIC Buffer {
    * the non-const version of the method, or calling 'set_type'.
    */
   inline void* raw_mutable_data() {
-    // Empty tensor
-    if (data_ == nullptr) return nullptr;
-    DALI_ENFORCE(IsValidType(type_),
-                 "Buffer has no type, 'set_type<T>()' or Resize(shape, type) must "
-                 "be called on non-const buffer to set valid type");
+    // Empty tensor in case of earlier reserve
+    if (IsValidType(type_))
+      return nullptr;
     return static_cast<void*>(data_.get());
   }
 
@@ -143,11 +136,9 @@ class DLL_PUBLIC Buffer {
    * the non-const version of the method, or calling 'set_type'.
    */
   inline const void* raw_data() const {
-    // Empty tensor
-    if (data_ == nullptr) return nullptr;
-    DALI_ENFORCE(IsValidType(type_),
-                 "Buffer has no type, 'set_type<T>()' or Resize(shape, type) must "
-                 "be called on non-const buffer to set valid type");
+    // Empty tensor in case of earlier reserve
+    if (IsValidType(type_))
+      return nullptr;
     return static_cast<void*>(data_.get());
   }
 
@@ -282,7 +273,7 @@ class DLL_PUBLIC Buffer {
 
   template <typename T>
   inline void set_type() {
-    set_type(TypeTable::GetTypeID<T>());
+    set_type(TypeTable::GetTypeId<T>());
   }
 
   inline void reserve(size_t new_num_bytes) {
@@ -378,10 +369,6 @@ class DLL_PUBLIC Buffer {
       if (std::is_same<Backend, GPUBackend>::value && device_ == CPU_ONLY_DEVICE_ID) {
         CUDA_CALL(cudaGetDevice(&device_));
       }
-      return;
-    }
-
-    if (!IsValidType(type_)) {
       return;
     }
 

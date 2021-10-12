@@ -134,8 +134,8 @@ void ParseLabels(const caffe2::TensorProtos& protos,
     case MULTI_LABEL_SPARSE: {
       // multiple labels, all 1. in elements defined in protos(consumed_inputs)
       auto& label_tensor = ws->Output<CPUBackend>(consumed_inputs);
-      label_tensor.Resize({num_labels});
       label_tensor.set_type<T>();
+      label_tensor.Resize({num_labels});
 
       auto& label_indices = protos.protos(consumed_inputs);
       const int label_data_size = proto_data_size<T>(label_indices);

@@ -101,18 +101,16 @@ TEST_P(FlipTest, BasicTest) {
   TensorList<CPUBackend> tl;
   if (hwc) {
     tl.ShareData(nhwc_tensor_list_data.ptr(), 2 * data_size);
-    tl.set_type<float>();
     tl.SetLayout("HWC");
     auto shape = TensorListShape<>{{
         {kDataHeight, kDataWidth, kDataChannels},
         {kDataHeight, kDataWidth, kDataChannels}}};
-    tl.Resize(shape);
+    tl.Resize(shape, DALI_FLOAT);
   } else {
     tl.ShareData(nchw_tensor_list_data.ptr(), 2 * data_size);
-    tl.set_type<float>();
     tl.SetLayout("CHW");
     tl.Resize({{{kDataChannels, kDataHeight, kDataWidth},
-              {kDataChannels, kDataHeight, kDataWidth}}});
+              {kDataChannels, kDataHeight, kDataWidth}}}, DALI_FLOAT);
   }
   TensorListWrapper tlout;
   this->RunTest(&tl, tlout, args, FlipVerify);

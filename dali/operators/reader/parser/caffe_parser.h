@@ -42,11 +42,10 @@ class CaffeParser : public Parser<Tensor<CPUBackend>> {
       }
       // copy image
       if (encoded_data) {
-        image.Resize({static_cast<Index>(datum.data().size())});
+        image.Resize({static_cast<Index>(datum.data().size())}, DALI_UINT8);
       } else {
-        image.Resize({datum.height(), datum.width(), datum.channels()});
+        image.Resize({datum.height(), datum.width(), datum.channels()}, DALI_UINT8);
       }
-      image.set_type<uint8_t>();
       std::memcpy(image.mutable_data<uint8_t>(), datum.data().data(),
                   datum.data().size()*sizeof(uint8_t));
       image.SetSourceInfo(data.GetSourceInfo());
@@ -57,8 +56,7 @@ class CaffeParser : public Parser<Tensor<CPUBackend>> {
       auto& label = ws->Output<CPUBackend>(out_tensors);
 
       // copy label
-      label.Resize({1});
-      label.set_type<int>();
+      label.Resize({1}, DALI_INT32);
       label.mutable_data<int>()[0] = datum.label();
       out_tensors++;
     }

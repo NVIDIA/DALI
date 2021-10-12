@@ -99,8 +99,7 @@ class RecordIOLoader : public IndexedFileLoader {
       should_seek_ = true;
       tensor.Reset();
       tensor.SetMeta(meta);
-      tensor.set_type<uint8_t>();
-      tensor.Resize({0});
+      tensor.Resize({0}, DALI_UINT8);
       return;
     }
 
@@ -123,14 +122,12 @@ class RecordIOLoader : public IndexedFileLoader {
           if (tensor.shares_data()) {
             tensor.Reset();
           }
-          tensor.Resize({size});
-          tensor.set_type<uint8_t>();
+          tensor.Resize({size}, DALI_UINT8);
           use_read = true;
         } else {
           n_read = size;
           // Wrap the raw data in the Tensor object.
-          tensor.ShareData(p, size, {size});
-          tensor.set_type<uint8_t>();
+          tensor.ShareData(p, size, {size}, DALI_UINT8);
           next_seek_pos_ = seek_pos + size;
         }
       }

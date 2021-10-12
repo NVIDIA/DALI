@@ -90,8 +90,7 @@ class TransposeTest : public testing::DaliOperatorTest {
     TensorListShape<> batch_shape(shape);
 
     std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
-    tl->Resize(batch_shape);
-    tl->set_type<int>();
+    tl->Resize(batch_shape, DALI_INT32);
 
     for (int i = 0; i < batch_size; i++) {
       Arrange(tl->mutable_tensor<int>(i), shape[i]);

@@ -274,12 +274,10 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   auto dims = CalculateDims(boxes_input);
 
   auto &boxes_output = ws.Output<GPUBackend>(kBoxesOutId);
-  boxes_output.set_type(boxes_input.type());
-  boxes_output.Resize(dims.first);
+  boxes_output.Resize(dims.first, boxes_input.type());
 
   auto &labels_output = ws.Output<GPUBackend>(kLabelsOutId);
-  labels_output.set_type(labels_input.type());
-  labels_output.Resize(dims.second);
+  labels_output.Resize(dims.second, labels_input.type());
 
   samples.resize(curr_batch_size_);
   for (int sample_idx = 0; sample_idx < curr_batch_size_; sample_idx++) {

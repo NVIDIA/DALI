@@ -155,8 +155,7 @@ class DALITest : public ::testing::Test {
       shape.set_tensor_shape(i,
           {image_dims[i % images.size()].h, image_dims[i % images.size()].w, c});
     }
-    tl->set_type<uint8_t>();
-    tl->Resize(shape);
+    tl->Resize(shape, DALI_UINT8);
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i),
                   images[i % images.size()].data(), volume(tl->tensor_shape(i)));
@@ -182,8 +181,7 @@ class DALITest : public ::testing::Test {
       shape.set_tensor_shape(i, {data_sizes[i % nImgs]});
     }
 
-    tl->set_type<uint8_t>();
-    tl->Resize(shape);
+    tl->Resize(shape, DALI_UINT8);
 
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i), data[i % nImgs],

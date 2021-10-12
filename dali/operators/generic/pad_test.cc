@@ -116,8 +116,8 @@ class PadTest : public testing::DaliOperatorTest {
     auto args = GetParam();
     testing::TensorListWrapper tl_out;
     TensorList<CPUBackend> tl_in;
-    tl_in.Resize(tl_shape);
     tl_in.set_type<T>();
+    tl_in.Resize(tl_shape);
     for (size_t i = 0; i < tl_in.num_samples(); ++i) {
       auto t = tl_in.mutable_tensor<T>(i);
       std::copy(batch[i].begin(), batch[i].end(), t);

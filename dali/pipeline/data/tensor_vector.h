@@ -136,7 +136,7 @@ class DLL_PUBLIC TensorVector {
 
   template <typename T>
   void set_type() {
-    set_type(TypeTable::GetTypeID<T>());
+    set_type(TypeTable::GetTypeId<T>());
   }
 
   DALIDataType type() const;

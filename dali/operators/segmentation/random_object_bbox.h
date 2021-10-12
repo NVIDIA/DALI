@@ -180,7 +180,7 @@ class RandomObjectBBox : public Operator<CPUBackend> {
       input = in;
       auto &shape = input->shape();
       tmp_filtered.Resize(shape, DALI_UINT8);
-      tmp_blob.Resize(shape, TypeTable::GetTypeID<BlobLabel>());
+      tmp_blob.Resize(shape, TypeTable::GetTypeId<BlobLabel>());
       filtered = view<uint8_t>(tmp_filtered);
       blobs = view<BlobLabel>(tmp_blob);
       labels.clear();

@@ -892,10 +892,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   void ProcessImages(MixedWorkspace &ws) {
     auto &output = ws.Output<GPUBackend>(0);
-    output.set_type<uint8_t>();
     assert(output_shape_.num_samples() ==
            ws.GetInputBatchSize(0));  // If fails: Incorrect number of samples in shape
-    output.Resize(output_shape_);
+    output.Resize(output_shape_, DALI_UINT8);
     output.SetLayout("HWC");
 
     UpdateTestCounters(samples_hw_batched_.size(), samples_single_.size(), samples_host_.size(),

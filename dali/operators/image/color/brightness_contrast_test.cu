@@ -55,8 +55,8 @@ class BrightnessContrastTest : public testing::DaliOperatorTest {
   template <typename Backend>
   std::unique_ptr<TensorList<Backend>> ToTensorList(std::vector<InputDataType> data) {
     std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
-    tl->Resize(uniform_list_shape(1, shape_));
     tl->template set_type<InputDataType>();
+    tl->Resize(uniform_list_shape(1, shape_));
     auto *ptr = tl->template mutable_tensor<InputDataType>(0);
     assert(data.size() == static_cast<size_t>(volume(shape_)));
     std::memcpy(ptr, data.data(), data.size() * sizeof(InputDataType));

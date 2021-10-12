@@ -64,8 +64,7 @@ void BBoxPaste<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
                                       "Got: " + std::to_string(input.size()));
 
   auto &output = ws.Output<CPUBackend>(0);
-  output.set_type<float>();
-  output.Resize(input.shape());
+  output.Resize(input.shape(), DALI_FLOAT);
   auto *output_data = output.mutable_data<float>();
 
   const auto data_idx = ws.data_idx();

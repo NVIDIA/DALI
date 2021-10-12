@@ -259,8 +259,7 @@ class DataReader : public Operator<Backend> {
       first_output.set_pinned(false);
       first_output.SetSourceInfo(source_info);
       first_output.SetSkipSample(should_skip_sample);
-      first_output.set_type<uint8_t>();
-      first_output.Resize({1});
+      first_output.Resize({1}, DALI_UINT8);
 
       for (std::size_t i = 1; i < cached_outputs.size(); i++) {
         auto& output = ws->Output<CPUBackend>(i);

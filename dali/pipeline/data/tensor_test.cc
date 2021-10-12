@@ -67,14 +67,13 @@ TYPED_TEST_SUITE(TensorTest, Backends);
 
 // Sharing data from a raw pointer resets a Tensor to
 // and invalid state (no type). To get to a valid state
-// we can aquire a type and size in the following orders:
+// we can acquire a type and size in the following orders:
 //
-// type -> size (bytes) : getting size triggers allocation
-// size -> type (bytes) : getting type triggers allocation
-// bytes -> type -> size : shares data, gets type (zero size), gets size
-// (may or may not allocate)
-// bytes -> size -> type : shares data, gets size (no type), gets type
-// (may or may not allocate)
+// To get to a valid state, we can either set:
+// type -> shape : setting shape triggers allocation
+// shape & type : Resize triggers allocation
+//
+// Additionally, `reserve` can be called at any point.
 //
 // The following tests attempt to verify the correct behavior for
 // all of these cases
@@ -95,7 +94,15 @@ TYPED_TEST(TensorTest, TestGetTypeSizeBytes) {
   auto size = volume(shape);
   t.Resize(shape);
 
-  // Validate the internals
+  ASSERT_TRUE(t.has_data());
+  ASSERT_NE(t.raw_data(), nullptr);
+  ASSERT_EQ(t.size(), size);
+  ASSERT_EQ(t.shape(), shape);
+  ASSERT_EQ(t.nbytes(), size*sizeof(float));
+  ASSERT_TRUE(IsType<float>(t.type()));
+
+  tl.reserve(shape.num_elements() * sizeof(float));
+
   ASSERT_NE(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), size);
   ASSERT_EQ(t.shape(), shape);
@@ -103,28 +110,47 @@ TYPED_TEST(TensorTest, TestGetTypeSizeBytes) {
   ASSERT_TRUE(IsType<float>(t.type()));
 }
 
-TYPED_TEST(TensorTest, TestGetSizeTypeBytes) {
+TYPED_TEST(TensorTest, TestReserveResize) {
   Tensor<TypeParam> t;
-
-  // Give the tensor a size
+  // Give the tensor a size. This
+  // should trigger an allocation
   auto shape = this->GetRandShape();
   auto size = volume(shape);
-  t.Resize(shape);
+  t.reserve(size * sizeof(float));
+  ASSERT_THROW(tl.set_pinned(true), std::runtime_error);
 
-  ASSERT_EQ(t.size(), size);
-  ASSERT_EQ(t.shape(), shape);
-  ASSERT_EQ(t.nbytes(), 0);
+  ASSERT_TRUE(t.has_data());
+  ASSERT_EQ(t.capacity(), size * sizeof(float));
+  ASSERT_EQ(tl.num_bytes(), 0);
+  ASSERT_EQ(tl._num_elements(), 0);
+  ASSERT_EQ(t.raw_data(), nullptr);
 
-  // Give the tensor a type. This should
-  // trigger an allocation
+  // Give the tensor a type
   t.template set_type<float>();
 
-  // Validate the internals
+  ASSERT_EQ(t.size(), 0);
+  ASSERT_EQ(t.nbytes(), 0);
+  ASSERT_EQ(tl._num_elements(), 0);
+  ASSERT_EQ(t.raw_data(), nullptr);
+  ASSERT_EQ(t.raw_data(), nullptr);
+
+  t.Resize(shape);
+
+  ASSERT_TRUE(t.has_data());
   ASSERT_NE(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), size);
   ASSERT_EQ(t.shape(), shape);
   ASSERT_EQ(t.nbytes(), size*sizeof(float));
   ASSERT_TRUE(IsType<float>(t.type()));
+
+}
+
+TYPED_TEST(TensorTest, TestResizeWithoutType) {
+  Tensor<TypeParam> t;
+
+  // Give the tensor a size - setting shape on non-typed TL is invalid and results in an error
+  auto shape = this->GetRandShape();
+  ASSERT_THROW(t.Resize(shape), std::runtime_error);
 }
 
 TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
@@ -352,8 +378,8 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
 TYPED_TEST(TensorTest, TestShareData) {
   TensorList<TypeParam> tl;
   auto shape = this->GetRandShapeList();
-  tl.Resize(shape);
   tl.template set_type<float>();
+  tl.Resize(shape);
 
   // Create a tensor and wrap each tensor from the list
   Tensor<TypeParam> tensor;
@@ -381,8 +407,8 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
   TensorVector<TypeParam> tensors(16);
   for (auto& t : tensors) {
     auto shape = this->GetRandShape(4, 4);
-    t->Resize(shape);
     t->template set_type<float>();
+    t->Resize(shape);
   }
 
   TensorList<TypeParam> tl;
@@ -644,14 +670,12 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
     Tensor<TypeParam> empty_tensor;
     TensorShape<> empty_shape = {};
     empty_tensor.Resize(empty_shape);
-    empty_tensor.template set_type<uint8_t>();
-    ASSERT_ANY_THROW(empty_tensor.SubspaceTensor(0));
+    ASSERT_ANY_THROW(empty_tensor.SubspaceTensor(0), DALI_UINT8);
   }
   {
     Tensor<TypeParam> one_dim_tensor;
     TensorShape<> one_dim_shape = {42};
-    one_dim_tensor.Resize(one_dim_shape);
-    one_dim_tensor.template set_type<uint8_t>();
+    one_dim_tensor.Resize(one_dim_shape, DALI_UINT8);
     ASSERT_ANY_THROW(one_dim_tensor.SubspaceTensor(0));
   }
 
@@ -659,8 +683,7 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
   {
     Tensor<TypeParam> tensor;
     auto shape = this->GetRandShape(2, 6);
-    tensor.Resize(shape);
-    tensor.template set_type<uint8_t>();
+    tensor.Resize(shape, DALI_UINT8);
     ASSERT_ANY_THROW(tensor.SubspaceTensor(-1));
     ASSERT_ANY_THROW(tensor.SubspaceTensor(shape[0]));
     ASSERT_ANY_THROW(tensor.SubspaceTensor(shape[0] + 1));
@@ -670,8 +693,7 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
   {
     Tensor<TypeParam> tensor;
     auto shape = this->GetRandShape(2, 6);
-    tensor.Resize(shape);
-    tensor.template set_type<uint8_t>();
+    tensor.Resize(shape, DALI_UINT8);
     int plane_size = 1;
     for (int i = 1; i < shape.size(); i++) {
       plane_size *= shape[i];

@@ -235,8 +235,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     meta.SetSkipSample(true);
     target.data.Reset();
     target.data.SetMeta(meta);
-    target.data.set_type<uint8_t>();
-    target.data.Resize({0});
+    target.data.Resize({0}, DALI_UINT8);
     target.filename.clear();
     return;
   }

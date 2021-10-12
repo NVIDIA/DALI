@@ -109,8 +109,7 @@ void PrepareOutputs(workspace_t<Backend> &ws, const py::object &output_o, int ba
     auto dl_tensors = CastToDLTensorList<Backend>(dl_list, batch_size, idx);
     if (dl_tensors.empty()) continue;
     auto &tlist = ws.template OutputRef<Backend>(idx);
-    tlist.set_type(DLToDALIType(dl_tensors[0]->dl_tensor.dtype));
-    tlist.Resize(GetDLTensorListShape(dl_tensors));
+    tlist.Resize(GetDLTensorListShape(dl_tensors), DLToDALIType(dl_tensors[0]->dl_tensor.dtype));
     CopyOutputData(tlist, dl_tensors, batch_size, ws);
   }
 }

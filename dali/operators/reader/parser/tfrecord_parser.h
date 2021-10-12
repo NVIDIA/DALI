@@ -69,19 +69,19 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
       auto& feature = example.features().feature();
       auto it = feature.find(name);
       if (it == feature.end()) {
-        output.Resize({0});
         // set type
         switch (f.GetType()) {
           case FeatureType::int64:
-             output.Resize({0}, DALI_INT64);
+             output.set_type(DALI_INT64);
             break;
           case FeatureType::string:
-             output.Resize({0}, DALI_UINT8);
+             output.set_type(DALI_UINT8);
             break;
           case FeatureType::float32:
-             output.Resize({0}, DALI_FLOAT);
+             output.set_type(DALI_FLOAT);
             break;
         }
+        output.Resize({0});
         output.SetSourceInfo(data.GetSourceInfo());
         continue;
       }
@@ -96,6 +96,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
       ssize_t number_of_elms = 0;
       switch (f.GetType()) {
         case FeatureType::int64:
+          output.set_type(DALI_INT64);
           number_of_elms = encoded_feature.int64_list().value().size();
           if (!f.HasShape()) {
             output.Resize(InferShape(f, number_of_elms));
@@ -103,22 +104,22 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
           DALI_ENFORCE(number_of_elms <= output.size(), make_string("Output tensor shape is too "
                        "small: [", output.shape(), "]. Expected at least ", number_of_elms,
                        " elements."));
-          output.set_type<int64_t>();
           std::memcpy(output.mutable_data<int64_t>(),
               encoded_feature.int64_list().value().data(),
               encoded_feature.int64_list().value().size()*sizeof(int64_t));
           break;
         case FeatureType::string:
+          output.set_type(DALI_UINT8);
           if (!f.HasShape() || volume(f.Shape()) > 1) {
             DALI_FAIL("Tensors of strings are not supported.");
           }
           output.Resize({static_cast<Index>(encoded_feature.bytes_list().value(0).size())});
-          output.set_type<uint8_t>();
           std::memcpy(output.mutable_data<uint8_t>(),
               encoded_feature.bytes_list().value(0).c_str(),
               encoded_feature.bytes_list().value(0).size()*sizeof(uint8_t));
           break;
         case FeatureType::float32:
+          output.set_type(DALI_FLOAT);
           number_of_elms = encoded_feature.float_list().value().size();
           if (!f.HasShape()) {
             output.Resize(InferShape(f, number_of_elms));
@@ -126,7 +127,6 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
           DALI_ENFORCE(number_of_elms <= output.size(), make_string("Output tensor shape is too "
                        "small: [", output.shape(), "]. Expected at least ", number_of_elms,
                        " elements."));
-          output.set_type<float>();
           std::memcpy(output.mutable_data<float>(),
               encoded_feature.float_list().value().data(),
               number_of_elms * sizeof(float));

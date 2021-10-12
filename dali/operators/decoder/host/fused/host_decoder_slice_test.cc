@@ -27,15 +27,13 @@ class ImageDecoderSliceTest_CPU : public DecodeTestBase<ImgType> {
     vector<std::pair<string, TensorList<CPUBackend>*>>& inputs) override {
       auto shape = uniform_list_shape(this->batch_size_, {2});
 
-      begin_data.set_type<float>();
-      begin_data.Resize(shape);
+      begin_data.Resize(shape, DALI_FLOAT);
       for (int k = 0; k < this->batch_size_; k++) {
         begin_data.mutable_tensor<float>(k)[0] = crop_x;
         begin_data.mutable_tensor<float>(k)[1] = crop_y;
       }
 
-      crop_data.set_type<float>();
-      crop_data.Resize(shape);
+      crop_data.Resize(shape, DALI_FLOAT);
       for (int k = 0; k < this->batch_size_; k++) {
         crop_data.mutable_tensor<float>(k)[0] = crop_w;
         crop_data.mutable_tensor<float>(k)[1] = crop_h;

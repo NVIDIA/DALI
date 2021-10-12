@@ -90,8 +90,7 @@ void ToDecibelsImpl<T>::RunImpl(workspace_t<GPUBackend> &ws) {
   ctx.gpu.stream = ws.stream();
 
   if (args_.ref_max) {
-    max_out_.set_type(max_out_desc_[0].type);
-    max_out_.Resize(max_out_desc_[0].shape);
+    max_out_.Resize(max_out_desc_[0].shape, max_out_desc_[0].type);
     auto max_values_view = view<T, 0>(max_out_);
     kmgr_max_.Run<MaxKernel>(0, 0, ctx, max_values_view, in_view);
     kmgr_todb_.Run<ToDecibelsKernel>(0, 0, ctx, out_view, in_view, args_, max_values_view);

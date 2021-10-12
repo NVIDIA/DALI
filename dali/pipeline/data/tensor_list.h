@@ -100,12 +100,9 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   template <typename SrcBackend>
   DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream,
                               bool use_copy_kernel = false) {
-    if (IsValidType(other.type())) {
-      this->set_type(other.type());
-    }
+    Resize(other.shape(), other.type());
     this->meta_ = other.meta_;
     this->SetLayout(other.GetLayout());
-    Resize(other.shape());
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
                        (std::is_same<Backend, GPUBackend>::value || pinned_);
@@ -131,10 +128,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
       new_shape.set_tensor_shape(i, other[i].shape());
     }
 
-    this->Resize(new_shape);
-    if (IsValidType(type)) {
-      this->set_type(type);
-    }
+    this->Resize(new_shape, type);
     this->SetLayout(layout);
 
     auto nsamples = other.num_samples();
@@ -171,6 +165,9 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    * list.
    */
   DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape) {
+    DALI_ENFORCE(IsValidType(type_),
+                 "TensorList has no type, 'set_type<T>()' or Resize(shape, type) must be called "
+                 "on the TensorList to set a valid type before it can be resized.");
     Resize(new_shape, type_.id());
   }
 
@@ -180,6 +177,9 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    * list.
    */
   DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape, DALIDataType new_type) {
+    DALI_ENFORCE(IsValidType(new_type),
+                 "TensorList cannot be resized with invalid type. To zero out the TensorList "
+                 "Reset() can be used.");
     // Calculate the new size
     Index num_tensor = new_shape.size(), new_size = 0;
     offsets_.resize(num_tensor);

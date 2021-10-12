@@ -63,8 +63,7 @@ class PreemphasisFilterGPU : public PreemphasisFilter<GPUBackend> {
   explicit PreemphasisFilterGPU(const OpSpec &spec) : PreemphasisFilter<GPUBackend>(spec) {
     // void is OK here, pointer sizes are the same size
     int64_t sz = max_batch_size_ * sizeof(detail::SampleDescriptor<void, void>);
-    scratch_mem_.set_type<uint8_t>();
-    scratch_mem_.Resize({sz});
+    scratch_mem_.Resize({sz}, DALI_UINT8);
   }
   void RunImpl(workspace_t<GPUBackend> &ws) override;
 
@@ -92,8 +91,7 @@ void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
   }
 
   int64_t sz = curr_batch_size * sizeof(SampleDesc);
-  scratch_mem_.set_type<uint8_t>();
-  scratch_mem_.Resize({sz});
+  scratch_mem_.Resize({sz}, DALI_UINT8);
   auto sample_descs_gpu = reinterpret_cast<SampleDesc*>(scratch_mem_.mutable_data<uint8_t>());
   auto stream = ws.stream();
   CUDA_CALL(

@@ -211,7 +211,6 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
 
   if (read_text_) {
     auto &text_out = ws.Output<CPUBackend>(next_out_idx++);
-    text_out.set_type<uint8_t>();
     const auto &text = sample.text();
     int64_t text_sz = text.length();
     text_out.Resize({text_sz}, DALI_UINT8);
