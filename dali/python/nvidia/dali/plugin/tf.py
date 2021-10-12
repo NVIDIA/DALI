@@ -380,7 +380,10 @@ if dataset_compatible_tensorflow():
     def dataset_options():
         options = tf.data.Options()
         options.experimental_optimization.apply_default_optimizations = False
-        options.experimental_optimization.autotune = False
+        if hasattr(options.experimental_optimization, 'autotune'):
+            options.experimental_optimization.autotune = False
+        else:
+            options.autotune.enabled = False
 
         return options
 
