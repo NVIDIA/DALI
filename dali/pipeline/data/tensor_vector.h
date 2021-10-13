@@ -126,6 +126,9 @@ class DLL_PUBLIC TensorVector {
   }
 
   DLL_PUBLIC void Resize(const TensorListShape<> &new_shape) {
+    DALI_ENFORCE(IsValidType(type()),
+                 "TensorVector has no type, 'set_type<T>()' or Resize(shape, type) must be called "
+                 "on the TensorVector to set a valid type before it can be resized.");
     return Resize(new_shape, type());
   }
 

@@ -161,7 +161,8 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
 
   inline void reserve(size_t bytes_per_tensor, int batch_size) {
     if (shape_.empty()) {
-      Resize(TensorListShape<>(batch_size));
+      offsets_.resize(batch_size, 0);
+      meta_.resize(batch_size);
     }
     reserve(bytes_per_tensor * batch_size);
   }

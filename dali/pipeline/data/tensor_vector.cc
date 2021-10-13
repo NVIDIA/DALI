@@ -109,6 +109,9 @@ TensorListShape<> TensorVector<Backend>::shape() const {
 
 template <typename Backend>
 void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataType new_type) {
+  DALI_ENFORCE(IsValidType(new_type),
+                "TensorVector cannot be resized with invalid type. To zero out the TensorVector "
+                "Reset() can be used.");
   resize_tensors(new_shape.num_samples());
   if (state_ == State::contiguous) {
     tl_->Resize(new_shape, new_type);
@@ -333,11 +336,10 @@ void TensorVector<Backend>::ShareData(TensorVector<Backend> &tv) {
   state_ = tv.state_;
   pinned_ = tv.is_pinned();
 
-  if (IsValidType(tv.tl_->type())) {
+  if (tv.tl_->has_data()) {
     tl_->ShareData(*tv.tl_);
   } else {
     tl_->Reset();
-    tl_->Resize(tv.tl_->shape());
   }
   int batch_size = tv.num_samples();
   resize_tensors(batch_size);
