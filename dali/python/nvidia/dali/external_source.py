@@ -73,6 +73,9 @@ class _ExternalSourceGroup(object):
         self.use_copy_kernel = use_copy_kernel
         self.batch = batch
         self.batch_info = batch_info
+        # Index of a batch within the epoch that will be returned from get_batch or schedule_and_receive
+        # call. Contrary to Pipeline's `epoch_idx` it is tracked separately by ExternalSourceGroup due to
+        # prefetching of batches in parallel mode.
         self.current_iter = 0
         self.current_sample = 0
         self.flat_iter_idx = 0  # flat index of the next iteration, not affected by reset
@@ -469,7 +472,7 @@ Keyword Args
                 "The argument ``prefetch_queue_depth`` already specified in constructor.")
 
         if batch_info is None:
-            batch_info = self._batch_info
+            batch_info = self._batch_info or False
         elif self._batch_info is not None:
             raise ValueError(
                 "The argument ``batch_info`` already specified in constructor.")

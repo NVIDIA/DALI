@@ -334,7 +334,7 @@ def _test_permute_dataset(batch_size, epoch_size, trailing_samples, cb, py_num_w
             for sample in batch:
                 epoch_data[np.array(sample)[0]] = True
         assert sum(epoch_data) == epoch_size * batch_size, \
-            "Epoch number {} did not contian some samples from data set".format(epoch_idx)
+            "Epoch number {} did not contain some samples from data set".format(epoch_idx)
         try:
             pipe.run()
         except:
