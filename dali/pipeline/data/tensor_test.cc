@@ -141,7 +141,6 @@ TYPED_TEST(TensorTest, TestReserveResize) {
   ASSERT_EQ(t.shape(), shape);
   ASSERT_EQ(t.nbytes(), size * sizeof(float));
   ASSERT_TRUE(IsType<float>(t.type()));
-
 }
 
 TYPED_TEST(TensorTest, TestResizeWithoutType) {
@@ -284,7 +283,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
 
   ASSERT_THROW(t.Resize(shape), std::runtime_error);
 
- // Give the Tensor a type
+  // Give the Tensor a type
   t.template set_type<float>();
   // Give the Tensor a size
   t.Resize(shape);
