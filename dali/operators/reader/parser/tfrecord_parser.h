@@ -86,13 +86,6 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
         continue;
       }
       auto& encoded_feature = it->second;
-      if (f.HasShape() && f.GetType() != FeatureType::string) {
-        if (f.Shape().empty()) {
-          output.Resize({1});
-        } else {
-          output.Resize(f.Shape());
-        }
-      }
       ssize_t number_of_elms = 0;
       switch (f.GetType()) {
         case FeatureType::int64:
@@ -131,6 +124,13 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
               encoded_feature.float_list().value().data(),
               number_of_elms * sizeof(float));
           break;
+      }
+      if (f.HasShape() && f.GetType() != FeatureType::string) {
+        if (f.Shape().empty()) {
+          output.Resize({1});
+        } else {
+          output.Resize(f.Shape());
+        }
       }
       output.SetSourceInfo(data.GetSourceInfo());
     }

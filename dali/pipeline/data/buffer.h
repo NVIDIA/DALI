@@ -124,7 +124,7 @@ class DLL_PUBLIC Buffer {
    * the non-const version of the method, or calling 'set_type'.
    */
   inline void* raw_mutable_data() {
-    return static_cast<void*>(data_.get());
+    return data_.get();
   }
 
   /**
@@ -133,7 +133,7 @@ class DLL_PUBLIC Buffer {
    * the non-const version of the method, or calling 'set_type'.
    */
   inline const void* raw_data() const {
-    return static_cast<void*>(data_.get());
+    return data_.get();
   }
 
   /**
