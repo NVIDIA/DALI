@@ -287,13 +287,13 @@ def _test_epoch_idx(batch_size, epoch_size, cb, py_num_workers, prefetch_queue_d
 
 
 def test_epoch_idx():
-    workers_num = 4
+    num_workers = 4
     prefetch_queue_depth = 2
     for batch_size in (1, 50):
         for epoch_size in (1, 3, 7):
             for reader_queue_depth in (1, 5):
                 sample_cb = SampleCb(batch_size, epoch_size)
-                yield _test_epoch_idx, batch_size, epoch_size, sample_cb, workers_num, prefetch_queue_depth, reader_queue_depth
+                yield _test_epoch_idx, batch_size, epoch_size, sample_cb, num_workers, prefetch_queue_depth, reader_queue_depth
 
 
 class PermutableSampleCb:

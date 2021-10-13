@@ -343,9 +343,9 @@ Keyword Args
 
 `batch_info` : bool, optional, default = False
     Controls if a callable ``source`` that accepts an argument and returns batches should receive
-    (:meth:`~nvidia.dali.types.BatchInfo`) instance or just an integer representing the iteration number.
-    If set to False (the default), only the integer is passed. If ``source`` is not a callable accepting an
-    argument or ``batch`` is set to False, setting this flag has no effect.
+    :meth:`~nvidia.dali.types.BatchInfo` instance or just an integer representing the iteration number.
+    If set to False (the default), only the integer is passed. If ``source`` is not callable, does not
+    accept arguments or ``batch`` is set to False, setting this flag has no effect.
 
 `parallel` : bool, optional, default = False
     If set to True, the corresponding pipeline will run pool of Python workers to run the
