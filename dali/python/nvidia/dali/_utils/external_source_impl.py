@@ -355,6 +355,8 @@ def get_sample_iterable_from_callback(source_desc, batch_size):
                 result = CallableSampleIterator.first_value
                 CallableSampleIterator.first_value = None
             else:
+                # There is no notion of epochs when iterating over DALI Dataset
+                # as the "raise" policy is not supported, so we use epoch 0 only.
                 idx = types.SampleInfo(self.idx_in_epoch, self.idx_in_batch, self.iteration, 0)
                 result = self.source(idx)
             self.idx_in_epoch += 1
