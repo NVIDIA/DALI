@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -106,7 +106,7 @@ class DLL_PUBLIC MTTransformAttr {
   /** @brief Fill the diagonal with a scalar value, put zeros elsewhere */
   template <typename Container>
   void MakeDiagonalMatrix(Container &&mtx, float value) {
-    assert(static_cast<int>(size(mtx)) == input_pt_dim_ * output_pt_dim_);
+    assert(static_cast<int>(dali::size(mtx)) == input_pt_dim_ * output_pt_dim_);
     for (int i = 0, k = 0; i < output_pt_dim_; i++)
       for (int j = 0; j < input_pt_dim_; j++, k++)
           mtx[k] = (i == j ? value : 0);
@@ -114,7 +114,7 @@ class DLL_PUBLIC MTTransformAttr {
 
   template <typename OutRange, typename InRange>
   void Repeat(OutRange &&out, InRange &&in, int times) {
-    ssize_t n = size(in);
+    ssize_t n = dali::size(in);
     resize_if_possible(out, n * times);
     for (ssize_t i = 0, k = 0; i < times; i++)
       for (ssize_t j = 0; j < n; j++, k++)

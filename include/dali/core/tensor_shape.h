@@ -1363,14 +1363,14 @@ template <int out_ndim, int ndim>
 void collapse_dims(TensorListShape<out_ndim> &result,
                    const TensorListShape<ndim> &shape,
                    std::initializer_list<std::pair<int, int>> dim_groups) {
-  collapse_dims<out_ndim>(result, shape, make_span(dim_groups.begin(), size(dim_groups)));
+  collapse_dims<out_ndim>(result, shape, make_span(dim_groups.begin(), dali::size(dim_groups)));
 }
 
 template <int out_ndim = DynamicDimensions, int ndim>
 TensorListShape<out_ndim> collapse_dims(const TensorListShape<ndim> &shape,
                                         std::initializer_list<std::pair<int, int>> dim_groups) {
   TensorListShape<out_ndim> result;
-  collapse_dims<out_ndim>(result, shape, make_span(dim_groups.begin(), size(dim_groups)));
+  collapse_dims<out_ndim>(result, shape, make_span(dim_groups.begin(), dali::size(dim_groups)));
   return result;
 }
 

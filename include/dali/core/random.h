@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ void random_permutation(Collection &out, RNG &rng) {
  */
 template <typename Collection, typename RNG>
 void random_derangement(Collection &out, RNG &rng) {
-  int N = size(out);
+  int N = dali::size(out);
   std::iota(dali::begin(out), dali::end(out), 0);
   for (int i = 0; i < N-1; i++) {
     std::uniform_int_distribution<int> dist(i+1, N-1);
@@ -76,7 +76,7 @@ random_sequence(Collection &out, T lo, T hi, RNG &rng) {
  */
 template <typename Collection, typename RNG>
 void random_sequence_no_fixed_points(Collection &out, int lo, int hi, RNG &rng) {
-  int N = size(out);
+  int N = dali::size(out);
   std::uniform_int_distribution<int> dist1(lo, hi-1);
   int i = 0;
   // when index is below lo, no fixed points possible

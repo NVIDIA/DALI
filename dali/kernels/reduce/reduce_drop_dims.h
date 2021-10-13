@@ -136,7 +136,7 @@ struct DropDims {
   template <typename Indices>
   static int simplify(int64_t *out_shape, unsigned &out_mask,
                       const Indices &in_shape, uint64_t axis_mask) {
-    int dims = size(in_shape);
+    int dims = dali::size(in_shape);
     int d = 0;
     out_shape[0] = in_shape[0];
     bool prev = axis_mask & 1;
@@ -169,7 +169,7 @@ struct DropDims {
   template <typename Indices>
   DropDims(const Indices &in_shape, uint64_t reduced_axes) {
     memset(this, 0, sizeof(*this));
-    if (size(in_shape) == 0) {
+    if (dali::size(in_shape) == 0) {
       start = -1;
       return;
     }
