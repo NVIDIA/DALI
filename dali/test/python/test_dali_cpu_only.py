@@ -109,8 +109,8 @@ def test_gpu_op_bad_device():
         "Failed to load libcuda.so. Check your library paths and if the driver is installed correctly."
     ]
 
-    for args in zip(device_ids, error_msgs):
-        yield check_bad_device, *args
+    for device_id, error_msg in zip(device_ids, error_msgs):
+        yield check_bad_device, device_id, error_msg
 
 def check_mixed_op_bad_device(device_id, error_msg):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=device_id)
@@ -129,8 +129,8 @@ def test_mixed_op_bad_device():
         "Failed to load libcuda.so. Check your library paths and if the driver is installed correctly."
     ]
 
-    for args in zip(device_ids, error_msgs):
-        yield check_mixed_op_bad_device, *args
+    for device_id, error_msg in zip(device_ids, error_msgs):
+        yield check_mixed_op_bad_device, device_id, error_msg
 
 def test_image_decoder_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
@@ -529,8 +529,8 @@ def test_webdataset_reader_cpu():
     webdataset = os.path.join(webdataset_dir, 'MNIST', 'devel-0.tar')
     webdataset_idx = generate_temp_wds_index(webdataset)
     check_no_input(fn.readers.webdataset,
-                   paths=webdataset, 
-                   index_paths=webdataset_idx.name, 
+                   paths=webdataset,
+                   index_paths=webdataset_idx.name,
                    ext=["jpg", "cls"],
                    shard_id=0,
                    num_shards=1)
