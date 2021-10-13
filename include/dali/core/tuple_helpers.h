@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -141,22 +141,18 @@ template <typename... T>
 constexpr const std::tuple<T...> &as_tuple(const std::tuple<T...> &t) { return t; }
 
 template <typename F, typename... T, int... indices>
-constexpr auto apply_indexed(F &&f, const std::tuple<T...> &args, seq<indices...>)
-  ->decltype(f(std::get<indices>(args)...)) {
+constexpr auto apply_indexed(F &&f, const std::tuple<T...> &args, seq<indices...>) {
   return f(std::get<indices>(args)...);
 }
 
 template <typename F, typename... T>
-constexpr auto apply(F &&f, std::tuple<T...> &&args)
-  ->decltype(apply_indexed(f, args, tuple_indices(args))) {
+constexpr auto apply(F &&f, std::tuple<T...> &&args) {
   return apply_indexed(f, args, tuple_indices(args));
 }
 
-
 template <typename F, typename... Args>
-constexpr auto apply_all(F &&f, Args&&... args)
-  ->decltype(apply(f, std::tuple_cat(as_tuple(args)...))) {
-  return apply(f, std::tuple_cat(as_tuple(args)...));
+constexpr auto apply_all(F &&f, Args&&... args) {
+  return dali::detail::apply(f, std::tuple_cat(as_tuple(args)...));
 }
 
 template <size_t total, typename Type, typename Tuple>

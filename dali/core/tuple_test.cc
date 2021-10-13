@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,9 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "dali/kernels/kernel.h"
-#include "dali/kernels/type_tag.h"
-#include "dali/core/static_switch.h"
+#include <tuple>
+#include "dali/core/tuple_helpers.h"
 
 namespace dali {
 namespace kernels {
