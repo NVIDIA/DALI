@@ -34,8 +34,9 @@ def get_pipeline(device, batch_size, tile, ratio, angle):
     pipe.set_outputs(grided, decoded)
   return pipe
 
-@pipeline_def
 def get_random_pipeline(device, batch_size):
+  pipe = Pipeline(batch_size, 4, 0)
+  with pipe:
     input, _ = fn.readers.file(file_root=img_dir)
     decoded = fn.decoders.image(input, device='cpu', output_type=types.RGB)
     decoded = decoded.gpu() if device == 'gpu' else decoded
@@ -43,7 +44,8 @@ def get_random_pipeline(device, batch_size):
     ratio = fn.random.uniform(range=(0.3, 0.7))
     angle = fn.random.uniform(range=(-math.pi, math.pi))
     grided = fn.grid_mask(decoded, device=device, tile=tile, ratio=ratio, angle=angle)
-    return grided, decoded, tile, ratio, angle
+    pipe.set_outputs(grided, decoded, tile, ratio, angle)
+  return pipe
 
 def get_mask(w, h, tile, ratio, angle, d):
   ca = math.cos(angle)
