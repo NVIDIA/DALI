@@ -68,28 +68,34 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
       std::string& name = feature_names_[i];
       auto& feature = example.features().feature();
       auto it = feature.find(name);
+      // set type
+      switch (f.GetType()) {
+        case FeatureType::int64:
+            output.set_type(DALI_INT64);
+          break;
+        case FeatureType::string:
+            output.set_type(DALI_UINT8);
+          break;
+        case FeatureType::float32:
+            output.set_type(DALI_FLOAT);
+          break;
+      }
       if (it == feature.end()) {
-        // set type
-        switch (f.GetType()) {
-          case FeatureType::int64:
-             output.set_type(DALI_INT64);
-            break;
-          case FeatureType::string:
-             output.set_type(DALI_UINT8);
-            break;
-          case FeatureType::float32:
-             output.set_type(DALI_FLOAT);
-            break;
-        }
         output.Resize({0});
         output.SetSourceInfo(data.GetSourceInfo());
         continue;
       }
       auto& encoded_feature = it->second;
+      if (f.HasShape() && f.GetType() != FeatureType::string) {
+        if (f.Shape().empty()) {
+          output.Resize({1});
+        } else {
+          output.Resize(f.Shape());
+        }
+      }
       ssize_t number_of_elms = 0;
       switch (f.GetType()) {
         case FeatureType::int64:
-          output.set_type(DALI_INT64);
           number_of_elms = encoded_feature.int64_list().value().size();
           if (!f.HasShape()) {
             output.Resize(InferShape(f, number_of_elms));
@@ -102,7 +108,6 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
               encoded_feature.int64_list().value().size()*sizeof(int64_t));
           break;
         case FeatureType::string:
-          output.set_type(DALI_UINT8);
           if (!f.HasShape() || volume(f.Shape()) > 1) {
             DALI_FAIL("Tensors of strings are not supported.");
           }
@@ -112,7 +117,6 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
               encoded_feature.bytes_list().value(0).size()*sizeof(uint8_t));
           break;
         case FeatureType::float32:
-          output.set_type(DALI_FLOAT);
           number_of_elms = encoded_feature.float_list().value().size();
           if (!f.HasShape()) {
             output.Resize(InferShape(f, number_of_elms));
@@ -124,13 +128,6 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
               encoded_feature.float_list().value().data(),
               number_of_elms * sizeof(float));
           break;
-      }
-      if (f.HasShape() && f.GetType() != FeatureType::string) {
-        if (f.Shape().empty()) {
-          output.Resize({1});
-        } else {
-          output.Resize(f.Shape());
-        }
       }
       output.SetSourceInfo(data.GetSourceInfo());
     }
