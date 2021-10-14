@@ -20,8 +20,7 @@ namespace dali {
 
 TEST(DLMTensorPtr, CPU) {
   Tensor<CPUBackend> tensor;
-  tensor.set_type<float>();
-  tensor.Resize({100, 50, 3});
+  tensor.Resize({100, 50, 3}, DALI_FLOAT);
   DLMTensorPtr dlm_tensor = GetDLTensorView(tensor);
   ASSERT_EQ(dlm_tensor->dl_tensor.ndim, 3);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[0], 100);
@@ -36,8 +35,7 @@ TEST(DLMTensorPtr, CPU) {
 
 TEST(DLMTensorPtr, GPU) {
   Tensor<GPUBackend> tensor;
-  tensor.set_type<int>();
-  tensor.Resize({100, 50, 1});
+  tensor.Resize({100, 50, 1}, DALI_INT32);
   DLMTensorPtr dlm_tensor = GetDLTensorView(tensor);
   ASSERT_EQ(dlm_tensor->dl_tensor.ndim, 3);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[0], 100);
@@ -53,8 +51,7 @@ TEST(DLMTensorPtr, GPU) {
 
 TEST(DLMTensorPtr, CPUList) {
   TensorList<CPUBackend> tlist;
-  tlist.set_type<double>();
-  tlist.Resize({{100, 50, 1}, {50, 30, 3}});
+  tlist.Resize({{100, 50, 1}, {50, 30, 3}}, DALI_FLOAT64);
   std::vector<DLMTensorPtr> dlm_tensors = GetDLTensorListView(tlist);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.ndim, 3);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.shape[0], 100);
@@ -80,8 +77,7 @@ TEST(DLMTensorPtr, CPUList) {
 
 TEST(DLMTensorPtr, GPUList) {
   TensorList<GPUBackend> tlist;
-  tlist.set_type<uint8>();
-  tlist.Resize({{100, 50, 1}, {50, 30, 3}});
+  tlist.Resize({{100, 50, 1}, {50, 30, 3}}, DALI_UINT8);
   std::vector<DLMTensorPtr> dlm_tensors = GetDLTensorListView(tlist);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.ndim, 3);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.shape[0], 100);
@@ -122,8 +118,7 @@ struct TestDLTensorResource: public DLTensorResource {
 
 TEST(DLMTensorPtr, Cleanup) {
   Tensor<CPUBackend> tensor;
-  tensor.set_type<float>();
-  tensor.Resize({100, 50, 3});
+  tensor.Resize({100, 50, 3}, DALI_FLOAT);
   bool deleter_called = false;
   {
     auto dlm_tensor = MakeDLTensor(tensor.raw_mutable_data(),

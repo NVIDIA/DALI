@@ -68,20 +68,20 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
       std::string& name = feature_names_[i];
       auto& feature = example.features().feature();
       auto it = feature.find(name);
+      // set type
+      switch (f.GetType()) {
+        case FeatureType::int64:
+            output.set_type(DALI_INT64);
+          break;
+        case FeatureType::string:
+            output.set_type(DALI_UINT8);
+          break;
+        case FeatureType::float32:
+            output.set_type(DALI_FLOAT);
+          break;
+      }
       if (it == feature.end()) {
         output.Resize({0});
-        // set type
-        switch (f.GetType()) {
-          case FeatureType::int64:
-             output.Resize({0}, DALI_INT64);
-            break;
-          case FeatureType::string:
-             output.Resize({0}, DALI_UINT8);
-            break;
-          case FeatureType::float32:
-             output.Resize({0}, DALI_FLOAT);
-            break;
-        }
         output.SetSourceInfo(data.GetSourceInfo());
         continue;
       }

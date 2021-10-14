@@ -121,9 +121,8 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     int dims = this->RandInt(1, 4);
     for (int j = 0; j < this->batch_size_; ++j) {
       auto &tensor = vt_cpu_[j];
-      tensor.set_type<int>();
       auto shape = GetRandShape(dims);
-      tensor.Resize(shape);
+      tensor.Resize(shape, DALI_INT32);
       auto data = tensor.template mutable_data<int>();
       for (int i = 0; i < tensor.size(); ++i) {
         data[i] = fill_counter_;
@@ -138,9 +137,8 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     int dims = this->RandInt(1, 4);
     for (int j = 0; j < this->batch_size_; ++j) {
       Tensor<CPUBackend> tensor;
-      tensor.set_type<int>();
       auto shape = GetRandShape(dims);
-      tensor.Resize(shape);
+      tensor.Resize(shape, DALI_INT32);
       auto data = tensor.template mutable_data<int>();
       for (int i = 0; i < tensor.size(); ++i) {
         data[i] = fill_counter_;
@@ -154,10 +152,9 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
 
   template<typename Backend>
   void FeedWithCpuList(ExternalSource<Backend> *src_op) {
-    tl_cpu_.set_type<int>();
     auto rand_shape = GetRandShape(this->RandInt(1, 4));
     TensorListShape<> shape = uniform_list_shape(this->batch_size_, rand_shape);
-    tl_cpu_.Resize(shape);
+    tl_cpu_.Resize(shape, DALI_INT32);
     for (int j = 0; j < this->batch_size_; ++j) {
       auto data = tl_cpu_.template mutable_tensor<int>(j);
       for (int i = 0; i < volume(tl_cpu_.tensor_shape(j)); ++i) {
@@ -171,10 +168,9 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   template<typename Backend>
   void FeedWithGpuList(ExternalSource<Backend> *src_op) {
     TensorList<CPUBackend> tensor_list;
-    tensor_list.set_type<int>();
     auto rand_shape = GetRandShape(this->RandInt(1, 4));
     TensorListShape<> shape = uniform_list_shape(this->batch_size_, rand_shape);
-    tensor_list.Resize(shape);
+    tensor_list.Resize(shape, DALI_INT32);
     for (int j = 0; j < this->batch_size_; ++j) {
       auto data = tensor_list.template mutable_tensor<int>(j);
       for (int i = 0; i < volume(tensor_list.tensor_shape(j)); ++i) {

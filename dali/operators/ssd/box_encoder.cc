@@ -167,13 +167,11 @@ void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 
   // Create output
   auto &bboxes_output = ws.Output<CPUBackend>(kBoxesOutId);
-  bboxes_output.set_type(bboxes_input.type());
-  bboxes_output.Resize({static_cast<int>(anchors_.size()), BoundingBox::size});
+  bboxes_output.Resize({static_cast<int>(anchors_.size()), BoundingBox::size}, bboxes_input.type());
   auto out_boxes = bboxes_output.mutable_data<float>();
 
   auto &labels_output = ws.Output<CPUBackend>(kLabelsOutId);
-  labels_output.set_type(labels_input.type());
-  labels_output.Resize({static_cast<int>(anchors_.size())});
+  labels_output.Resize({static_cast<int>(anchors_.size())}, labels_input.type());
   auto out_labels = labels_output.mutable_data<int>();
 
   WriteAnchorsToOutput(out_boxes, out_labels);

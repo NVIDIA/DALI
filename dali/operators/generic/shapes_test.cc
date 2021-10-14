@@ -34,8 +34,7 @@ void GenerateShapeTestInputs(TensorList<Backend> &out, RNG &rng, int num_samples
     }
   }
   out.Reset();
-  out.Resize(shape);
-  out.template set_type<uint8_t>();
+  out.Resize(shape, DALI_UINT8);
 }
 
 template <typename OutputBackend, typename InputBackend, typename OutputType>
@@ -45,7 +44,7 @@ struct ShapesTestArgs {
   using output_type = OutputType;
 
   static DALIDataType type_id() {
-    return TypeTable::GetTypeID<output_type>();
+    return TypeTable::GetTypeId<output_type>();
   }
 };
 

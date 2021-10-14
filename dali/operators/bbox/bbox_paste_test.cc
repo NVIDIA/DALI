@@ -35,7 +35,7 @@ class BBoxPasteTest<std::integral_constant<bool, ltrb>> : public DALISingleOpTes
     for (int i = 0; i < dims.size(); i++)
       dims.set_tensor_shape(i, { (Index)boxes[i].size(), 4 });
 
-    out->Resize(dims);
+    out->Resize(dims, DALI_FLOAT);
 
     for (size_t i = 0; i < boxes.size(); i++) {
       auto *data = out->mutable_tensor<float>(i);

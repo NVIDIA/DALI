@@ -254,8 +254,7 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_CPU)(benchmark::State& st) {
 
   auto shape = uniform_list_shape(batch_size, {2});
   TensorList<CPUBackend> begin_data;
-  begin_data.set_type<float>();
-  begin_data.Resize(shape);
+  begin_data.Resize(shape, DALI_FLOAT);
   float crop_x = 0.25f, crop_y = 0.124f;
   for (int k = 0; k < batch_size; k++) {
     begin_data.mutable_tensor<float>(k)[0] = crop_x;
@@ -264,8 +263,7 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_CPU)(benchmark::State& st) {
 
   TensorList<CPUBackend> crop_data;
   float crop_w = 0.5f, crop_h = 0.25f;
-  crop_data.set_type<float>();
-  crop_data.Resize(shape);
+  crop_data.Resize(shape, DALI_FLOAT);
   for (int k = 0; k < batch_size; k++) {
     crop_data.mutable_tensor<float>(k)[0] = crop_w;
     crop_data.mutable_tensor<float>(k)[1] = crop_h;
@@ -339,8 +337,7 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_GPU)(benchmark::State& st) {
 
   auto shape = uniform_list_shape(batch_size, {2});
   TensorList<CPUBackend> begin_data;
-  begin_data.set_type<float>();
-  begin_data.Resize(shape);
+  begin_data.Resize(shape, DALI_FLOAT);
   float crop_x = 0.25f, crop_y = 0.124f;
   for (int k = 0; k < batch_size; k++) {
     begin_data.mutable_tensor<float>(k)[0] = crop_x;
@@ -349,8 +346,7 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_GPU)(benchmark::State& st) {
 
   TensorList<CPUBackend> crop_data;
   float crop_w = 0.5f, crop_h = 0.25f;
-  crop_data.set_type<float>();
-  crop_data.Resize(shape);
+  crop_data.Resize(shape, DALI_FLOAT);
   for (int k = 0; k < batch_size; k++) {
     crop_data.mutable_tensor<float>(k)[0] = crop_w;
     crop_data.mutable_tensor<float>(k)[1] = crop_h;

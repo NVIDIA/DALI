@@ -24,7 +24,7 @@
 }
 
 #define DALI_REGISTER_TYPE_IMPL(Type, Id) \
-const auto &_type_info_##Id = TypeTable::GetTypeID<Type>()
+const auto &_type_info_##Id = TypeTable::GetTypeId<Type>()
 
 #include "dali/pipeline/data/types.h"
 #include "dali/util/half.hpp"

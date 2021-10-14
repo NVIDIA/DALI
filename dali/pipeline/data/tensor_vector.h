@@ -42,6 +42,14 @@ class DLL_PUBLIC TensorVector {
  public:
   TensorVector();
 
+  /**
+   * @brief This constructor allows to create a TensorVector with `batch_size` samples,
+   * that will be accessible as individual samples that can currently be individually resized which
+   * is still utilized by the legacy operators.
+   *
+   * TODO(klecki): The API for empty tensor batch container of given number of samples
+   * will be adjusted in next releases.
+   */
   explicit TensorVector(int batch_size);
 
   explicit TensorVector(std::shared_ptr<TensorList<Backend>> tl);
@@ -118,16 +126,17 @@ class DLL_PUBLIC TensorVector {
   }
 
   DLL_PUBLIC void Resize(const TensorListShape<> &new_shape) {
+    DALI_ENFORCE(IsValidType(type()),
+                 "TensorVector has no type, 'set_type<T>()' or Resize(shape, type) must be called "
+                 "on the TensorVector to set a valid type before it can be resized.");
     return Resize(new_shape, type());
   }
 
   DLL_PUBLIC void Resize(const TensorListShape<> &new_shape, DALIDataType new_type);
 
   /**
-   * Change the number of tensors in the TensorVector, without the need of
-   * specifying the shape of every such tensor. When setting the new size,
-   * this function will retain the shapes that already exist. New tensors
-   * are given a shape of 0-volume and appropriate dimension.
+   * Change the number of tensors that can be accessed as samples without the need to
+   * set them a size.
    * @param new_size
    */
   void SetSize(int new_size);
@@ -136,7 +145,7 @@ class DLL_PUBLIC TensorVector {
 
   template <typename T>
   void set_type() {
-    set_type(TypeTable::GetTypeID<T>());
+    set_type(TypeTable::GetTypeId<T>());
   }
 
   DALIDataType type() const;

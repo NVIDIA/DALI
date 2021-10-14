@@ -46,8 +46,7 @@ void Flip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
-  output.set_type(input.type());
-  output.Resize(input.shape());
+  output.Resize(input.shape(), input.type());
   auto curr_batch_size = ws.GetInputBatchSize(0);
   auto horizontal = GetHorizontal(ws, curr_batch_size);
   auto vertical = GetVertical(ws, curr_batch_size);

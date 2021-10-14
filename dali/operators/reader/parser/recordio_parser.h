@@ -72,18 +72,17 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
     ReadSingle(&input, &hdr);
 
     if (hdr.flag == 0) {
-      o_label.Resize({1});
+      o_label.Resize({1}, DALI_FLOAT);
       o_label.mutable_data<float>()[0] = hdr.label;
     } else {
-      o_label.Resize({hdr.flag});
-      o_label.mutable_data<float>();
+      o_label.Resize({hdr.flag}, DALI_FLOAT);
     }
 
     int64_t data_size = clength - sizeof(ImageRecordIOHeader);
     int64_t label_size = hdr.flag * sizeof(float);
     int64_t image_size = data_size - label_size;
     if (cflag == 0) {
-      o_image.Resize({image_size});
+      o_image.Resize({image_size}, DALI_UINT8);
       uint8_t* data = o_image.mutable_data<uint8_t>();
       memcpy(data, input + label_size, image_size);
       if (hdr.flag > 0) {
@@ -115,7 +114,7 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
         memcpy(&temp_vec[s], input, clength);
         input += clength;
       }
-      o_image.Resize({static_cast<Index>(temp_vec.size() - label_size)});
+      o_image.Resize({static_cast<Index>(temp_vec.size() - label_size)}, DALI_UINT8);
       uint8_t* data = o_image.mutable_data<uint8_t>();
       memcpy(data, (&temp_vec[0]) + label_size, temp_vec.size() - label_size);
       if (hdr.flag > 0) {

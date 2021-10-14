@@ -102,9 +102,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
       decoded_image->Decode();
       const auto shape = decoded_image->GetShape();
       // resize the output tensor
-      image.Resize(shape);
-      // force allocation
-      image.mutable_data<uint8_t>();
+      image.Resize(shape, DALI_UINT8);
 
       decoded_image->GetImage(image.mutable_data<uint8_t>());
 

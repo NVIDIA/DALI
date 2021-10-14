@@ -72,8 +72,7 @@ TEST(OpSpecTest, GetArgumentTensorSet) {
   for (const auto &arg_name : {"required_tensor"s, "default_tensor"s, "no_default_tensor"s}) {
     ArgumentWorkspace ws0;
     auto tv = std::make_shared<TensorVector<CPUBackend>>(2);
-    tv->Resize(TensorListShape<0>(2));
-    tv->set_type<int32_t>();
+    tv->Resize(TensorListShape<0>(2), DALI_INT32);
     for (int i = 0; i < 2; i++) {
       tv->tensor_handle(i)->mutable_data<int32_t>()[0] = 42 + i;
     }

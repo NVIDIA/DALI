@@ -91,12 +91,11 @@ typedef ::testing::Types<CPUBackend,
 TYPED_TEST_SUITE(TensorListTest, Backends);
 
 // Note: A TensorList in a valid state has a type. To get to a valid state, we
-// can acquire our type relative to the allocation and the size of the buffer
-// in the following orders:
+// can either set:
+// type -> shape : setting shape triggers allocation
+// shape & type : Resize triggers allocation
 //
-// type -> size (bytes) : getting size triggers allocation
-// size -> type (bytes) : getting type triggers allocation
-// bytes (comes w/ type & size)
+// Additionally, `reserve` can be called at any point.
 //
 // The following tests attempt to verify the correct behavior for all of
 // these cases
@@ -131,18 +130,36 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   ASSERT_EQ(tl.nbytes(), size*sizeof(float));
   ASSERT_TRUE(IsType<float>(tl.type()));
 
+  tl.reserve(shape.num_elements() * sizeof(float));
+
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_NE(tl.raw_tensor(i), nullptr);
     ASSERT_EQ(tl.tensor_offset(i), offsets[i]);
   }
 }
 
-TYPED_TEST(TensorListTest, TestGetSizeTypeBytes) {
+TYPED_TEST(TensorListTest, TestReserveResize) {
   TensorList<TypeParam> tl;
 
-  // Give the tensor a size
   auto shape = this->GetRandShape();
-  tl.Resize(shape);
+  tl.reserve(shape.num_elements() * sizeof(float));
+  ASSERT_THROW(tl.set_pinned(true), std::runtime_error);
+
+  ASSERT_TRUE(tl.has_data());
+  ASSERT_EQ(tl.capacity(), shape.num_elements() * sizeof(float));
+  ASSERT_EQ(tl.nbytes(), 0);
+  ASSERT_EQ(tl._num_elements(), 0);
+  ASSERT_NE(unsafe_raw_data(tl), nullptr);
+
+  // Give the tensor a type
+  tl.template set_type<float>();
+
+  ASSERT_EQ(tl._num_elements(), 0);
+  ASSERT_EQ(tl.nbytes(), 0);
+  ASSERT_TRUE(tl.has_data());
+
+  // We already had the allocation, just give it a shape and a type
+  tl.Resize(shape, DALI_FLOAT);
 
   int num_tensor = shape.size();
   vector<Index> offsets;
@@ -152,28 +169,36 @@ TYPED_TEST(TensorListTest, TestGetSizeTypeBytes) {
     size += volume(shape[i]);
   }
 
-  // Verify the internals
-  ASSERT_EQ(tl._num_elements(), size);
-  ASSERT_EQ(tl.num_samples(), num_tensor);
-  ASSERT_EQ(tl.nbytes(), 0);
-  ASSERT_TRUE(IsType<NoType>(tl.type()));
-
-  // Note: We cannot access the underlying pointer yet because
-  // the buffer is not in a valid state (it has no type).
-
-  // Give the tensor a type & test internals
-  // This should trigger an allocation
-  tl.template set_type<float>();
+  // Validate the internals
   ASSERT_TRUE(tl.has_data());
   ASSERT_EQ(tl.num_samples(), num_tensor);
   ASSERT_EQ(tl._num_elements(), size);
   ASSERT_EQ(tl.nbytes(), size*sizeof(float));
   ASSERT_TRUE(IsType<float>(tl.type()));
 
+
   for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_NE(tl.template tensor<float>(i), nullptr);
+    ASSERT_NE(tl.raw_tensor(i), nullptr);
     ASSERT_EQ(tl.tensor_offset(i), offsets[i]);
   }
+}
+
+TYPED_TEST(TensorListTest, TestResizeWithoutType) {
+  TensorList<TypeParam> tl;
+
+  // Give the tensor a size - setting shape on non-typed TL is invalid and results in an error
+  auto shape = this->GetRandShape();
+  ASSERT_THROW(tl.Resize(shape), std::runtime_error);
+}
+
+TYPED_TEST(TensorListTest, TestSetNoType) {
+  TensorList<TypeParam> tl;
+
+  tl.set_type(DALI_FLOAT);
+  ASSERT_THROW(tl.set_type(DALI_NO_TYPE), std::runtime_error);
+
+  auto shape = this->GetRandShape();
+  ASSERT_THROW(tl.Resize(shape, DALI_NO_TYPE), std::runtime_error);
 }
 
 TYPED_TEST(TensorListTest, TestGetContiguousPointer) {
@@ -269,8 +294,8 @@ TYPED_TEST(TensorListTest, TestZeroSizeResize) {
   TensorList<TypeParam> tensor_list;
 
   TensorListShape<> shape;
-  tensor_list.Resize(shape);
   tensor_list.template set_type<float>();
+  tensor_list.Resize(shape);
 
   ASSERT_FALSE(tensor_list.has_data());
   ASSERT_EQ(tensor_list.nbytes(), 0);
@@ -283,8 +308,7 @@ TYPED_TEST(TensorListTest, TestMultipleZeroSizeResize) {
 
   int num_tensor = this->RandInt(0, 128);
   auto shape = uniform_list_shape(num_tensor, TensorShape<>{ 0 });
-  tensor_list.Resize(shape);
-  tensor_list.template set_type<float>();
+  tensor_list.Resize(shape, DALI_FLOAT);
 
   ASSERT_FALSE(tensor_list.has_data());
   ASSERT_EQ(tensor_list.nbytes(), 0);
@@ -305,8 +329,8 @@ TYPED_TEST(TensorListTest, TestFakeScalarResize) {
 
   int num_scalar = this->RandInt(1, 128);
   auto shape = uniform_list_shape(num_scalar, {1});  // {1} on purpose
-  tensor_list.Resize(shape);
   tensor_list.template set_type<float>();
+  tensor_list.Resize(shape);
 
   ASSERT_TRUE(tensor_list.has_data());
   ASSERT_EQ(tensor_list.nbytes(), num_scalar*sizeof(float));
@@ -325,8 +349,8 @@ TYPED_TEST(TensorListTest, TestTrueScalarResize) {
 
   int num_scalar = this->RandInt(1, 128);
   auto shape = uniform_list_shape(num_scalar, TensorShape<>{});
-  tensor_list.Resize(shape);
   tensor_list.template set_type<float>();
+  tensor_list.Resize(shape);
 
   ASSERT_TRUE(tensor_list.has_data());
   ASSERT_EQ(tensor_list.nbytes(), num_scalar*sizeof(float));
@@ -371,12 +395,13 @@ TYPED_TEST(TensorListTest, TestMultipleResize) {
   }
 
   // Resize the buffer
-  tensor_list.Resize(shape);
+  tensor_list.Resize(shape, DALI_FLOAT);
 
-  // The only thing that should matter is the resize
-  // after the call to 'mutable_data<T>()'
-  ASSERT_NE(tensor_list.template mutable_tensor<float>(0), nullptr);
+  // Neither of the accessors can cause the allocation
+  ASSERT_THROW(tensor_list.template mutable_tensor<double>(0), std::runtime_error);
   ASSERT_TRUE(tensor_list.has_data());
+  ASSERT_NE(tensor_list.template mutable_tensor<float>(0), nullptr);
+
   ASSERT_EQ(tensor_list.num_samples(), num_tensor);
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_NE(tensor_list.raw_tensor(i), nullptr);
@@ -517,8 +542,8 @@ TYPED_TEST(TensorListTest, TestShareData) {
   // We need to use the same size as the underlying buffer
   // N.B. using other type is UB in most cases
   auto flattened_shape = collapse_dims(shape, {std::make_pair(0, shape.sample_dim())});
-  tensor_list2.Resize(flattened_shape);
   tensor_list2.template set_type<float>();
+  tensor_list2.Resize(flattened_shape);
 
   // Make sure the pointers match
   for (size_t i = 0; i < tensor_list.num_samples(); ++i) {

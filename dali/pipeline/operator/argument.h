@@ -54,7 +54,7 @@ class Value {
   virtual std::string ToString() const = 0;
   template <typename T>
   static inline std::unique_ptr<Value> construct(const T& val);
-  DALIDataType GetTypeID() const {
+  DALIDataType GetTypeId() const {
     return type_;
   }
   virtual ~Value() = default;
@@ -74,7 +74,7 @@ class ValueInst : public Value {
  public:
   template <typename... Args>
   explicit ValueInst(Args&&... args) : val_(std::forward<Args>(args)...) {
-    this->type_ = TypeTable::GetTypeID<T>();
+    this->type_ = TypeTable::GetTypeId<T>();
   }
 
   std::string ToString() const override {
@@ -129,7 +129,7 @@ class Argument {
     return get_name();
   }
 
-  virtual DALIDataType GetTypeID() const = 0;
+  virtual DALIDataType GetTypeId() const = 0;
 
   virtual void SerializeToProtobuf(DaliProtoPriv* arg) = 0;
 
@@ -170,8 +170,8 @@ class ArgumentInst : public Argument {
     return ret;
   }
 
-  DALIDataType GetTypeID() const override {
-    return val.GetTypeID();
+  DALIDataType GetTypeId() const override {
+    return val.GetTypeId();
   }
 
   void SerializeToProtobuf(DaliProtoPriv* arg) override {
@@ -199,8 +199,8 @@ class ArgumentInst<std::vector<T>> : public Argument {
     return ret;
   }
 
-  DALIDataType GetTypeID() const override {
-    return val.GetTypeID();
+  DALIDataType GetTypeId() const override {
+    return val.GetTypeId();
   }
 
   void SerializeToProtobuf(DaliProtoPriv* arg) override {

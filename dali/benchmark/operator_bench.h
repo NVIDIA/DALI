@@ -34,8 +34,7 @@ class OperatorBench : public DALIBenchmark {
       int num_out = outputs.size();
       for (int i = 0; i < num_out; i++) {
         auto data_out = std::make_shared<OutputContainer>(batch_size);
-        data_out->Resize(outputs[i].shape);
-        data_out->set_type(outputs[i].type);
+        data_out->Resize(outputs[i].shape, outputs[i].type);
         ws.AddOutput(data_out);
       }
     } else {

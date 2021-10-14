@@ -128,7 +128,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
       auto shape = shape_cat(sequence_sizes_[i] - 1, out_shape);
       new_sizes.set_tensor_shape(i, shape);
     }
-    output.Resize(new_sizes);
+    output.Resize(new_sizes, DALI_FLOAT);
 
     // Prepare input and output TensorViews
     auto tvlin = view<const uint8_t, kNInputDims>(input);
@@ -168,7 +168,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
       auto shape = shape_cat(sequence_sizes_[i] - 1, out_shape);
       new_sizes.set_tensor_shape(i, shape);
     }
-    output.Resize(new_sizes);
+    output.Resize(new_sizes, DALI_FLOAT);
 
     // Prepare input and output TensorViews
     auto tvlin = view<const uint8_t, kNInputDims>(input);

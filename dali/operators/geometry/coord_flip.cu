@@ -105,9 +105,8 @@ void CoordFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
     sample_descs_.emplace_back(std::move(sample_desc));
   }
 
-  scratchpad_.set_type<uint8_t>();
   int64_t sz = curr_batch_size * sizeof(SampleDesc<float>);
-  scratchpad_.Resize({sz});
+  scratchpad_.Resize({sz}, DALI_UINT8);
   auto sample_descs_gpu_ = reinterpret_cast<SampleDesc<float>*>(
       scratchpad_.mutable_data<uint8_t>());
   auto stream = ws.stream();

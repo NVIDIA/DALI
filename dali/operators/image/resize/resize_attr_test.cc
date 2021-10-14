@@ -147,7 +147,7 @@ TEST(ResizeAttr, Resize3DSeparateArgs) {
   ArgumentWorkspace ws;
   auto zcoord = std::make_shared<TensorList<CPUBackend>>();
   zcoord->set_pinned(false);
-  zcoord->Resize(TensorListShape<0>(2));
+  zcoord->Resize(TensorListShape<0>(2), DALI_FLOAT);
   *zcoord->mutable_tensor<float>(0) = 140;
   *zcoord->mutable_tensor<float>(1) = 150;
   ws.AddArgumentInput("resize_z", zcoord);
@@ -175,7 +175,7 @@ TEST(ResizeAttr, Resize3DSubpixelScale) {
   ArgumentWorkspace ws;
   auto zcoord = std::make_shared<TensorList<CPUBackend>>();
   zcoord->set_pinned(false);
-  zcoord->Resize(TensorListShape<0>(2));
+  zcoord->Resize(TensorListShape<0>(2), DALI_FLOAT);
   *zcoord->mutable_tensor<float>(0) = 140;
   *zcoord->mutable_tensor<float>(1) = 150;
   ws.AddArgumentInput("resize_z", zcoord);
@@ -232,7 +232,7 @@ TEST(ResizeAttr, Resize3DStretch) {
   ArgumentWorkspace ws;
   auto zcoord = std::make_shared<TensorList<CPUBackend>>();
   zcoord->set_pinned(false);
-  zcoord->Resize(TensorListShape<0>(2));
+  zcoord->Resize(TensorListShape<0>(2), DALI_FLOAT);
   *zcoord->mutable_tensor<float>(0) = 140;
   *zcoord->mutable_tensor<float>(1) = 150;
   ws.AddArgumentInput("resize_z", zcoord);
@@ -262,7 +262,7 @@ TEST(ResizeAttr, Resize3DSizeArg) {
   auto size = std::make_shared<TensorList<CPUBackend>>();
   auto tls = uniform_list_shape<1>(2, TensorShape<1>{3});
   size->set_pinned(false);
-  size->Resize(tls);
+  size->Resize(tls, DALI_FLOAT);
   size->mutable_tensor<float>(0)[0] = 140;
   size->mutable_tensor<float>(0)[1] = 130;
   size->mutable_tensor<float>(0)[2] = 120;
@@ -480,7 +480,7 @@ TEST(ResizeAttr, RoI) {
   auto roi_input = std::make_shared<TensorList<CPUBackend>>();
   auto tls = uniform_list_shape<1>(2, TensorShape<1>{2});
   roi_input->set_pinned(false);
-  roi_input->Resize(tls);
+  roi_input->Resize(tls, DALI_FLOAT);
   roi_input->mutable_tensor<float>(0)[0] = 330;
   roi_input->mutable_tensor<float>(0)[1] = 40;
   roi_input->mutable_tensor<float>(1)[0] = 80;

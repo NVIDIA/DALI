@@ -183,20 +183,17 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     meta.SetSourceInfo(image_key);
     meta.SetSkipSample(false);
 
-    tensor.set_type<uint8_t>();
-
     // if image is cached, skip loading
     if (ShouldSkipImage(image_key)) {
       meta.SetSkipSample(true);
       tensor.Reset();
       tensor.SetMeta(meta);
-      tensor.set_type<uint8_t>();
-      tensor.Resize({0});
+      tensor.Resize({0}, DALI_UINT8);
       return;
     }
 
     tensor.SetMeta(meta);
-    tensor.Resize({static_cast<Index>(value.mv_size)});
+    tensor.Resize({static_cast<Index>(value.mv_size)}, DALI_UINT8);
     std::memcpy(tensor.raw_mutable_data(),
                 reinterpret_cast<uint8_t*>(value.mv_data),
                 value.mv_size * sizeof(uint8_t));

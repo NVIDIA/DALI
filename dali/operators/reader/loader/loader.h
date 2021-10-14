@@ -106,8 +106,7 @@ class Loader {
   PrepareEmptyTensor(T& tensor) {
     tensor.set_pinned(false);
     // Initialize tensors to a set size to limit expensive reallocations
-    tensor.Resize({tensor_init_bytes_});
-    tensor.template mutable_data<uint8_t>();
+    tensor.Resize({tensor_init_bytes_}, DALI_UINT8);
   }
 
   template <typename T>

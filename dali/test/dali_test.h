@@ -98,7 +98,7 @@ class DALITest : public ::testing::Test {
     }
 
     if (out) {
-      out->Resize({tmp.rows, tmp.cols, c});
+      out->Resize({tmp.rows, tmp.cols, c}, DALI_UINT8);
     }
 
     DALI_ENFORCE(out, "There's no output Tensor to write into");
@@ -155,8 +155,7 @@ class DALITest : public ::testing::Test {
       shape.set_tensor_shape(i,
           {image_dims[i % images.size()].h, image_dims[i % images.size()].w, c});
     }
-    tl->set_type<uint8_t>();
-    tl->Resize(shape);
+    tl->Resize(shape, DALI_UINT8);
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i),
                   images[i % images.size()].data(), volume(tl->tensor_shape(i)));
@@ -182,8 +181,7 @@ class DALITest : public ::testing::Test {
       shape.set_tensor_shape(i, {data_sizes[i % nImgs]});
     }
 
-    tl->set_type<uint8_t>();
-    tl->Resize(shape);
+    tl->Resize(shape, DALI_UINT8);
 
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i), data[i % nImgs],
@@ -204,8 +202,7 @@ class DALITest : public ::testing::Test {
     for (int i = 0; i < n; ++i) {
       auto &ti = t->at(i);
       ti = Tensor<CPUBackend>{};
-      ti.Resize({data_sizes[i % nImgs]});
-      ti.template mutable_data<uint8>();
+      ti.Resize({data_sizes[i % nImgs]}, DALI_UINT8);
       ti.SetSourceInfo(imgs.filenames_[i % nImgs]);
 
       std::memcpy(ti.raw_mutable_data(), data[i % nImgs],
@@ -256,7 +253,7 @@ class DALITest : public ::testing::Test {
       shape.set_tensor_shape(i, {rint(rd_), 4});
     }
 
-    tl->Resize(shape);
+    tl->Resize(shape, DALI_FLOAT);
 
     for (int i = 0; i < n; ++i) {
       MakeRandomBoxes(tl->template mutable_tensor<float>(i), shape[i][0], ltrb);
@@ -275,8 +272,8 @@ class DALITest : public ::testing::Test {
       labels_shape.set_tensor_shape(i, {box_count});
     }
 
-    boxes->Resize(boxes_shape);
-    labels->Resize(labels_shape);
+    boxes->Resize(boxes_shape, DALI_FLOAT);
+    labels->Resize(labels_shape, DALI_INT32);
 
     for (size_t i = 0; i < n; ++i) {
       MakeRandomBoxes(boxes->template mutable_tensor<float>(i),

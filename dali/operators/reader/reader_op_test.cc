@@ -38,8 +38,7 @@ class DummyLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     dummyfile_(dummyfile) {}
 
   void ReadSample(Tensor<CPUBackend> &t) override {
-    t.Resize({1});
-    t.set_type<uint8_t>();
+    t.Resize({1}, DALI_UINT8);
   }
 
   void PrepareMetadataImpl() override {

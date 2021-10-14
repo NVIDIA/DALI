@@ -115,7 +115,7 @@ TYPED_TEST(TypesTest, TestRegisteredType) {
 struct CustomTestType {};
 
 TEST(TypesTest, CustomType) {
-  auto id = TypeTable::GetTypeID<CustomTestType>();
+  auto id = TypeTable::GetTypeId<CustomTestType>();
   ASSERT_NE(id, DALI_NO_TYPE) << "Could not register a custom type.";
 
   auto &info_by_type = TypeTable::GetTypeInfo<CustomTestType>();

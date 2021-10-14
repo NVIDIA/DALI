@@ -109,6 +109,9 @@ TensorListShape<> TensorVector<Backend>::shape() const {
 
 template <typename Backend>
 void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataType new_type) {
+  DALI_ENFORCE(IsValidType(new_type),
+                "TensorVector cannot be resized with invalid type. To zero out the TensorVector "
+                "Reset() can be used.");
   resize_tensors(new_shape.num_samples());
   if (state_ == State::contiguous) {
     tl_->Resize(new_shape, new_type);
@@ -125,26 +128,7 @@ void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataT
 template <typename Backend>
 void TensorVector<Backend>::SetSize(int new_size) {
   DALI_ENFORCE(new_size >= 0, make_string("Incorrect size: ", new_size));
-  if (new_size == 0) {
-    Reset();
-    return;
-  }
-  auto sh = shape();
-  TensorListShape<> new_sh(new_size, sh.sample_dim());
-  TensorShape<> zero_sh(sh[sh.num_samples() - 1]);  // 0-volume shape with given dimensionality
-  for (int i = 0; i < zero_sh.size(); i++) {
-    zero_sh[i] = 0;
-  }
-
-  int i = 0;
-  for (; i < std::min(sh.num_samples(), new_size); i++) {
-    new_sh.set_tensor_shape(i, sh[i]);
-  }
-  for (; i < new_size; i++) {
-    new_sh.set_tensor_shape(i, zero_sh);
-  }
-  assert(!new_sh.empty());
-  Resize(new_sh);
+  resize_tensors(new_size);
 }
 
 
@@ -352,11 +336,10 @@ void TensorVector<Backend>::ShareData(TensorVector<Backend> &tv) {
   state_ = tv.state_;
   pinned_ = tv.is_pinned();
 
-  if (IsValidType(tv.tl_->type())) {
+  if (tv.tl_->has_data()) {
     tl_->ShareData(*tv.tl_);
   } else {
     tl_->Reset();
-    tl_->Resize(tv.tl_->shape());
   }
   int batch_size = tv.num_samples();
   resize_tensors(batch_size);

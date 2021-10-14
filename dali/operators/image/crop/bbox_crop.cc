@@ -533,11 +533,11 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     tp.RunAll();
 
     auto &anchor_out = ws.template OutputRef<CPUBackend>(0);
-    anchor_out.Resize(uniform_list_shape(num_samples, {ndim}));
+    anchor_out.Resize(uniform_list_shape(num_samples, {ndim}), DALI_FLOAT);
     auto anchor_out_view = view<float>(anchor_out);
 
     auto &shape_out = ws.template OutputRef<CPUBackend>(1);
-    shape_out.Resize(uniform_list_shape(num_samples, {ndim}));
+    shape_out.Resize(uniform_list_shape(num_samples, {ndim}), DALI_FLOAT);
     auto shape_out_view = view<float>(shape_out);
 
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
@@ -557,7 +557,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       sh[1] = ncoords;
     }
     auto &bbox_out = ws.template OutputRef<CPUBackend>(2);
-    bbox_out.Resize(bbox_out_shape);
+    bbox_out.Resize(bbox_out_shape, DALI_FLOAT);
     auto bbox_out_view = view<float>(bbox_out);
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       WriteBoxes(make_span(bbox_out_view.tensor_data(sample_idx),
@@ -576,7 +576,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         auto sh = labels_out_shape.tensor_shape_span(sample_idx);
         sh[0] = sample_data_[sample_idx].prospective_crop.bbox_indices.size();
       }
-      labels_out.Resize(labels_out_shape);
+      labels_out.Resize(labels_out_shape, DALI_INT32);
       auto labels_out_view = view<int>(labels_out);
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
         auto *labels_out_data = labels_out_view.tensor_data(sample_idx);
@@ -600,7 +600,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         bbox_indices_out_shape.tensor_shape_span(sample_idx)[0] =
             sample_data_[sample_idx].prospective_crop.bbox_indices.size();
       }
-      bbox_indices_out.Resize(bbox_indices_out_shape);
+      bbox_indices_out.Resize(bbox_indices_out_shape, DALI_INT32);
       auto bbox_indices_out_view = view<int>(bbox_indices_out);
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
         auto *bbox_indices_out_data = bbox_indices_out_view.tensor_data(sample_idx);

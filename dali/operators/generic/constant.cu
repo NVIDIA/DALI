@@ -49,6 +49,7 @@ template <typename Dst, typename Src>
 void FillTensorList(
       TensorList<GPUBackend> &dst, const TensorListShape<> &shape, const std::vector<Src> &src,
       cudaStream_t stream) {
+  dst.set_type<Dst>();
   dst.Resize(shape);
   if (shape.num_samples() == 0)
     return;

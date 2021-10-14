@@ -166,6 +166,9 @@ void Normalize<CPUBackend>::AllocTempStorage() {
     ? uniform_list_shape(n, param_shape_[0])  // extend to all samples, to enable parallelism
     : param_shape_;
 
+  mean_.set_type<float>();
+  inv_stddev_.set_type<float>();
+
   if (ShouldCalcMean()) {
     mean_.Resize(tmp_shape);
   } else if (has_tensor_mean_) {
@@ -199,8 +202,6 @@ void Normalize<CPUBackend>::AllocTempStorage() {
       }
     }
   }
-  mean_.set_type<float>();
-  inv_stddev_.set_type<float>();
 }
 
 

@@ -566,8 +566,8 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
     shape1.set_tensor_shape(i, tl.tensor_shape(i));
     shape2.set_tensor_shape(i, tl.tensor_shape(i+batch_size));
   }
-  tl1.Resize(shape1);
-  tl2.Resize(shape2);
+  tl1.Resize(shape1, DALI_UINT8);
+  tl2.Resize(shape2, DALI_UINT8);
   for (int i = 0; i < batch_size; ++i) {
     std::memcpy(
         tl1.template mutable_tensor<uint8>(i),

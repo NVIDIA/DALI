@@ -32,8 +32,9 @@ void BoxEncoder<GPUBackend>::PrepareAnchors(const vector<float> &anchors) {
     "Anchors size must be divisible by 4, actual value = " + std::to_string(anchors.size()));
 
   anchor_count_ = anchors.size() / BoundingBox::size;
-  anchors_.Resize({anchor_count_, static_cast<int64_t>(BoundingBox::size)});
-  anchors_as_center_wh_.Resize({anchor_count_, static_cast<int64_t>(BoundingBox::size)});
+  anchors_.Resize({anchor_count_, static_cast<int64_t>(BoundingBox::size)}, DALI_FLOAT);
+  anchors_as_center_wh_.Resize({anchor_count_, static_cast<int64_t>(BoundingBox::size)},
+                               DALI_FLOAT);
 
   auto anchors_data_cpu = reinterpret_cast<const float4 *>(anchors.data());
 
@@ -273,12 +274,10 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   auto dims = CalculateDims(boxes_input);
 
   auto &boxes_output = ws.Output<GPUBackend>(kBoxesOutId);
-  boxes_output.set_type(boxes_input.type());
-  boxes_output.Resize(dims.first);
+  boxes_output.Resize(dims.first, boxes_input.type());
 
   auto &labels_output = ws.Output<GPUBackend>(kLabelsOutId);
-  labels_output.set_type(labels_input.type());
-  labels_output.Resize(dims.second);
+  labels_output.Resize(dims.second, labels_input.type());
 
   samples.resize(curr_batch_size_);
   for (int sample_idx = 0; sample_idx < curr_batch_size_; sample_idx++) {

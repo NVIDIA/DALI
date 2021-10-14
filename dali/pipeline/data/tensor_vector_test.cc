@@ -43,12 +43,14 @@ typedef ::testing::Types<CPUBackend, GPUBackend> Backends;
 
 TYPED_TEST_SUITE(TensorVectorSuite, Backends);
 
-// Check if inerleaving any of
-// * Resize
-// * set_type
-// * resreve
+// Check if interleaving any of
 // * set_pinned
-// behaves as it is supposed to.
+// * set_type
+// * Resize(shape)
+// * Resize(shape, type)
+// * reserve
+// behaves as it is supposed to - that is set_type always first, set_type before Reshape,
+// reserve can be without type.
 
 TYPED_TEST(TensorVectorSuite, PinnedAfterReserveThrows) {
   TensorVector<TypeParam> tv_0, tv_1;
@@ -66,8 +68,8 @@ TYPED_TEST(TensorVectorSuite, PinnedAfterReserveThrows) {
 TYPED_TEST(TensorVectorSuite, PinnedAfterResizeThrows) {
   TensorVector<TypeParam> tv;
   tv.reserve(100);
-  tv.Resize({{2, 4}, {4, 2}});
-  tv.template set_type<int32_t>();
+  EXPECT_THROW(tv.Resize({{2, 4}, {4, 2}}), std::runtime_error);
+  tv.Resize({{2, 4}, {4, 2}}, DALI_INT32);
   ASSERT_EQ(tv.num_samples(), 2);
   EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
@@ -83,8 +85,9 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeContiguous) {
   TensorVector<TypeParam> tv;
   tv.set_pinned(false);
   tv.reserve(100);
-  tv.Resize({{2, 4}, {4, 2}});
+  EXPECT_THROW(tv.Resize({{2, 4}, {4, 2}}), std::runtime_error);
   tv.template set_type<int32_t>();
+  tv.Resize({{2, 4}, {4, 2}});
   ASSERT_EQ(tv.num_samples(), 2);
   EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
@@ -100,8 +103,8 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeNoncontiguous) {
   TensorVector<TypeParam> tv;
   tv.set_pinned(false);
   tv.reserve(50, 2);
-  tv.Resize({{2, 4}, {4, 2}});
   tv.template set_type<int32_t>();
+  tv.Resize({{2, 4}, {4, 2}});
   ASSERT_EQ(tv.num_samples(), 2);
   EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
@@ -118,8 +121,8 @@ TYPED_TEST(TensorVectorSuite, BatchResize) {
   ASSERT_EQ(tv.num_samples(), 5);
   tv.reserve(100);
   tv.reserve(200);
-  tv.Resize(uniform_list_shape(5, {10, 20}));
   tv.template set_type<int32_t>();
+  tv.Resize(uniform_list_shape(5, {10, 20}));
   for (auto &t : tv) {
     EXPECT_TRUE(t->shares_data());
   }
@@ -129,7 +132,7 @@ TYPED_TEST(TensorVectorSuite, VariableBatchResizeDown) {
   TensorVector<TypeParam> tv(32);
   ASSERT_EQ(tv.num_samples(), 32);
   TensorListShape<> new_size = {{42}, {42}, {42}, {42}, {42}};
-  tv.Resize(new_size);
+  tv.Resize(new_size, DALI_UINT8);
   ASSERT_EQ(tv.num_samples(), new_size.num_samples());
 }
 
@@ -137,7 +140,7 @@ TYPED_TEST(TensorVectorSuite, VariableBatchResizeUp) {
   TensorVector<TypeParam> tv(2);
   ASSERT_EQ(tv.num_samples(), 2);
   TensorListShape<> new_size = {{42}, {42}, {42}, {42}, {42}};
-  tv.Resize(new_size);
+  tv.Resize(new_size, DALI_UINT8);
   ASSERT_EQ(tv.num_samples(), new_size.num_samples());
 }
 
@@ -192,16 +195,14 @@ class TensorVectorVariableBatchSizeTest : public ::testing::Test {
   }
 
   void GenerateTestTv() {
-    test_tv_.Resize(shape_);
-    test_tv_.set_type<float>();
+    test_tv_.Resize(shape_, DALI_FLOAT);
     for (int i = 0; i < shape_.num_samples(); i++) {
       UniformRandomFill(view<float>(test_tv_[i]), rng_, 0.f, 1.f);
     }
   }
 
   void GenerateTestTl() {
-    test_tl_.Resize(shape_);
-    test_tl_.set_type<float>();
+    test_tl_.Resize(shape_, DALI_FLOAT);
     for (int i = 0; i < shape_.num_samples(); i++) {
       UniformRandomFill(view<float>(test_tl_), rng_, 0.f, 1.f);
     }

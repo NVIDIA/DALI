@@ -56,7 +56,7 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
     DALI_ENFORCE(means.size() == BoundingBox::size,
       "means size must be a list of 4 values.");
 
-    means_.Resize({BoundingBox::size});
+    means_.Resize({BoundingBox::size}, DALI_FLOAT);
     auto means_data = means_.mutable_data<float>();
     MemCopy(means_data, means.data(), BoundingBox::size * sizeof(float));
 
@@ -65,7 +65,7 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
       "stds size must be a list of 4 values.");
     DALI_ENFORCE(std::find(stds.begin(), stds.end(), 0) == stds.end(),
        "stds values must be != 0.");
-    stds_.Resize({BoundingBox::size});
+    stds_.Resize({BoundingBox::size}, DALI_FLOAT);
     auto stds_data = stds_.mutable_data<float>();
     MemCopy(stds_data, stds.data(), BoundingBox::size * sizeof(float));
   }
@@ -78,8 +78,8 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
     curr_batch_size_ = ws.GetInputBatchSize(0);
 
-    best_box_idx_.Resize({curr_batch_size_ * anchor_count_});
-    best_box_iou_.Resize({curr_batch_size_ * anchor_count_});
+    best_box_idx_.Resize({curr_batch_size_ * anchor_count_}, DALI_INT32);
+    best_box_iou_.Resize({curr_batch_size_ * anchor_count_}, DALI_FLOAT);
     return false;
   }
 

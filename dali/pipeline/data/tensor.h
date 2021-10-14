@@ -80,8 +80,7 @@ class Tensor : public Buffer<Backend> {
    */
   template <typename T>
   inline void Copy(const vector<T> &data, cudaStream_t stream) {
-    this->template mutable_data<T>();
-    this->Resize({(Index)data.size()});
+    this->Resize({(Index)data.size()}, TypeTable::GetTypeId<T>());
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
         data.data(), this->size(), stream);
   }
@@ -92,8 +91,7 @@ class Tensor : public Buffer<Backend> {
   template <typename T>
   inline void Copy(span<T> data, cudaStream_t stream) {
     using U = remove_const_t<T>;
-    this->template mutable_data<U>();
-    this->Resize({(Index)data.size()});
+    this->Resize({(Index)data.size()}, TypeTable::GetTypeId<U>());
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
         data.data(), this->size(), stream);
   }
@@ -103,11 +101,10 @@ class Tensor : public Buffer<Backend> {
    */
   template <typename InBackend>
   inline void Copy(const Tensor<InBackend> &other, cudaStream_t stream) {
-    this->set_type(other.type());
+    this->Resize(other.shape(), other.type());
     this->SetLayout(other.GetLayout());
     this->SetSourceInfo(other.GetSourceInfo());
     this->SetSkipSample(other.ShouldSkipSample());
-    this->Resize(other.shape());
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), stream);
   }
@@ -117,13 +114,12 @@ class Tensor : public Buffer<Backend> {
    */
   template <typename InBackend>
   inline void Copy(const TensorList<InBackend> &other, int idx, cudaStream_t stream) {
+    this->Resize(shape_, other.type());
     shape_ = other.tensor_shape(idx);
     device_ = other.device_id();
-    this->set_type(other.type());
     this->SetLayout(other.GetLayout());
     this->SetSourceInfo(other.GetSourceInfo(idx));
     this->SetSkipSample(other.ShouldSkipSample(idx));
-    this->Resize(shape_);
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_tensor(idx), this->size(), stream);
   }
@@ -135,6 +131,9 @@ class Tensor : public Buffer<Backend> {
    * number of elements.
    */
   inline void Resize(const TensorShape<> &shape) {
+    DALI_ENFORCE(IsValidType(type_),
+                 "Tensor has no type, 'set_type<T>()' or Resize(shape, type) must be called "
+                 "on the Tensor to set a valid type before it can be resized.");
     Index new_size = volume(shape);
     ResizeHelper(new_size);
     shape_ = shape;
@@ -147,6 +146,9 @@ class Tensor : public Buffer<Backend> {
    * number of elements.
    */
   inline void Resize(const TensorShape<> &shape, DALIDataType new_type) {
+    DALI_ENFORCE(IsValidType(new_type),
+                 "Tensor cannot be resized with invalid type. To zero out the Tensor "
+                 "Reset() can be used.");
     Index new_size = volume(shape);
     ResizeHelper(new_size, new_type);
     shape_ = shape;

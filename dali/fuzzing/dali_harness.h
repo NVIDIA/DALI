@@ -48,8 +48,7 @@ class FileListHarness {
       shape.set_tensor_shape(i, {images_.sizes_[i]});
     }
 
-    input_data_.template mutable_data<uint8>();
-    input_data_.Resize(shape);
+    input_data_.Resize(shape, DALI_UINT8);
 
     for (int i = 0; i < batch_size_; ++i) {
       std::memcpy(

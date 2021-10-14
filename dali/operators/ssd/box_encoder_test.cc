@@ -261,7 +261,7 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
       labels_shape.set_tensor_shape(i, {coco_object_count[i]});
     }
 
-    boxes_.Resize(boxes_shape);
+    boxes_.Resize(boxes_shape, DALI_FLOAT);
 
     for (int sample = 0; sample < coco_batch_size; ++sample) {
       auto boxes_data = boxes_.mutable_tensor<float>(sample);
@@ -270,7 +270,7 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
         coco_boxes[sample].data(),
         coco_object_count[sample] * 4 * sizeof(float));
 
-      labels_.Resize(labels_shape);
+      labels_.Resize(labels_shape, DALI_INT32);
       auto labels_data = labels_.mutable_tensor<int>(sample);
       MemCopy(labels_data, coco_labels[sample].data(), coco_object_count[sample] * sizeof(int));
     }

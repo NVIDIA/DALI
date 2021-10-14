@@ -45,7 +45,7 @@ class Paste : public Operator<Backend> {
 
     input_ptrs_.reserve(max_batch_size_ * sizeof(uint8_t *));
     output_ptrs_.reserve(max_batch_size_ * sizeof(uint8_t *));
-    in_out_dims_paste_yx_.reserve(max_batch_size_ * sizeof(uint8_t *) * NUM_INDICES);
+    in_out_dims_paste_yx_.reserve(max_batch_size_ * sizeof(int) * NUM_INDICES);
   }
 
   virtual inline ~Paste() = default;
@@ -53,6 +53,9 @@ class Paste : public Operator<Backend> {
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     auto curr_batch_size = ws.GetInputBatchSize(0);
+    input_ptrs_.set_type<const uint8_t *>();
+    output_ptrs_.set_type<uint8_t *>();
+    in_out_dims_paste_yx_.set_type<int>();
     input_ptrs_.Resize({curr_batch_size});
     output_ptrs_.Resize({curr_batch_size});
     in_out_dims_paste_yx_.Resize({curr_batch_size * NUM_INDICES});

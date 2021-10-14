@@ -74,9 +74,9 @@ class ConstantStorage {
 
   const void *GetPointer(int constant_idx, DALIDataType type_id) const {
     if (IsIntegral(type_id)) {
-      return integers_.template data<char>() + constant_idx * kPaddingSize;
+      return integers_.template data<uint8_t>() + constant_idx * kPaddingSize;
     }
-    return reals_.template data<char>() + constant_idx * kPaddingSize;
+    return reals_.template data<uint8_t>() + constant_idx * kPaddingSize;
   }
 
  private:
@@ -93,8 +93,8 @@ class ConstantStorage {
   template <typename T>
   void Rewrite(Tensor<CPUBackend> &result, const std::vector<T> &constants,
                const std::vector<ExprConstant *> &constant_nodes, cudaStream_t = NULL) {
-    result.Resize({static_cast<int64_t>(constants.size() * kPaddingSize)});
-    char *data = result.mutable_data<char>();
+    result.Resize({static_cast<int64_t>(constants.size() * kPaddingSize)}, DALI_UINT8);
+    auto *data = result.mutable_data<uint8_t>();
     DALI_ENFORCE(
         constants.size() == constant_nodes.size(),
         make_string("Number of constants should match the number of nodes in expression tree. Got",

@@ -34,13 +34,11 @@ TEST(ArithmeticOpsTest, TreePropagation) {
   auto &expr_ref = *expr;
   HostWorkspace ws;
   std::shared_ptr<TensorVector<CPUBackend>> in[3];
-  for (auto &ptr : in) {
-    ptr = std::make_shared<TensorVector<CPUBackend>>();
-    ptr->Resize({{1}, {2}});
+  DALIDataType types[3] = {DALI_UINT8, DALI_INT16, DALI_INT32};
+  for (int i = 0; i < 3; i++) {
+    in[i] = std::make_shared<TensorVector<CPUBackend>>();
+    in[i]->Resize({{1}, {2}}, types[i]);
   }
-  in[0]->set_type<uint8_t>();
-  in[1]->set_type<int16_t>();
-  in[2]->set_type<int32_t>();
   in[0]->SetLayout(TensorLayout());
   in[1]->SetLayout(TensorLayout("HW"));
   ws.AddInput(in[0]);
@@ -73,7 +71,7 @@ TEST(ArithmeticOpsTest, PropagateScalarInput) {
   std::shared_ptr<TensorVector<CPUBackend>> in[1];
   for (auto &ptr : in) {
     ptr = std::make_shared<TensorVector<CPUBackend>>();
-    ptr->Resize({{}, {}});
+    ptr->Resize({{}, {}}, DALI_INT32);
   }
   ws.AddInput(in[0]);
 
@@ -90,7 +88,7 @@ TEST(ArithmeticOpsTest, PreservePseudoScalarInput) {
   std::shared_ptr<TensorVector<CPUBackend>> in[1];
   for (auto &ptr : in) {
     ptr = std::make_shared<TensorVector<CPUBackend>>();
-    ptr->Resize({{1}, {1}});
+    ptr->Resize({{1}, {1}}, DALI_INT32);
   }
   ws.AddInput(in[0]);
 
@@ -107,7 +105,7 @@ TEST(ArithmeticOpsTest, TreePropagationError) {
   std::shared_ptr<TensorVector<CPUBackend>> in[3];
   for (auto &ptr : in) {
     ptr = std::make_shared<TensorVector<CPUBackend>>();
-    ptr->Resize({{1}, {2}});
+    ptr->Resize({{1}, {2}}, DALI_INT32);
   }
   in[0]->SetLayout(TensorLayout());
   in[1]->SetLayout(TensorLayout("HW"));
@@ -166,8 +164,8 @@ T GenerateData(int sample, int element) {
 
 template <typename T>
 void FillBatch(TensorList<CPUBackend> &batch, const TensorListShape<> shape) {
-  batch.Resize(shape);
   batch.set_type<T>();
+  batch.Resize(shape);
   for (int i = 0; i < shape.num_samples(); i++) {
     auto *t = batch.template mutable_tensor<T>(i);
     for (int j = 0; j < shape[i].num_elements(); j++) {
@@ -652,8 +650,7 @@ TEST(ArithmeticOpsTest, UnaryPipeline) {
   pipe.Build(outputs);
 
   TensorList<CPUBackend> batch;
-  batch.Resize(uniform_list_shape(batch_size, {tensor_elements}));
-  batch.set_type<int32_t>();
+  batch.Resize(uniform_list_shape(batch_size, {tensor_elements}), DALI_INT32);
   for (int i = 0; i < batch_size; i++) {
     auto *t = batch.mutable_tensor<int32_t>(i);
     for (int j = 0; j < tensor_elements; j++) {

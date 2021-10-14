@@ -217,9 +217,8 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     loader.PrepareMetadata();
     AsrSample sample;
     Tensor<CPUBackend> sample_audio;
-    sample_audio.set_type<int16_t>();
     loader.ReadSample(sample);
-    sample_audio.Resize(sample.shape());
+    sample_audio.Resize(sample.shape(), DALI_INT16);
     sample.decode_audio(sample_audio, 0);
     ASSERT_EQ(sample.index(), 0);
     TensorView<StorageCPU, int16_t> ref(ref_data.data(), {ref_samples, 2});
@@ -245,9 +244,8 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     loader.PrepareMetadata();
     AsrSample sample;
     Tensor<CPUBackend> sample_audio;
-    sample_audio.set_type<float>();
     loader.ReadSample(sample);
-    sample_audio.Resize(sample.shape());
+    sample_audio.Resize(sample.shape(), DALI_FLOAT);
     sample.decode_audio(sample_audio, 0);
     ASSERT_EQ(sample.index(), 0);
     TensorView<StorageCPU, float> ref(downmixed.data(), {ref_samples});
@@ -260,7 +258,6 @@ TEST(NemoAsrLoaderTest, ReadSample) {
 
     AsrSample sample;
     Tensor<CPUBackend> sample_audio;
-    sample_audio.set_type<float>();
     {
       auto spec = OpSpec("NemoAsrReader")
                       .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
@@ -273,7 +270,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
       NemoAsrLoader loader(spec);
       loader.PrepareMetadata();
       loader.ReadSample(sample);
-      sample_audio.Resize(sample.shape());
+      sample_audio.Resize(sample.shape(), DALI_FLOAT);
       sample.decode_audio(sample_audio, 0);
     }
 
@@ -292,7 +289,6 @@ TEST(NemoAsrLoaderTest, ReadSample) {
 
     AsrSample sample_int16;
     Tensor<CPUBackend> sample_int16_audio;
-    sample_int16_audio.set_type<int16_t>();
     {
       auto spec = OpSpec("NemoAsrReader")
                     .AddArg("manifest_filepaths", std::vector<std::string>{manifest_filepath})
@@ -305,7 +301,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
       NemoAsrLoader loader(spec);
       loader.PrepareMetadata();
       loader.ReadSample(sample_int16);
-      sample_int16_audio.Resize(sample_int16.shape());
+      sample_int16_audio.Resize(sample_int16.shape(), DALI_INT16);
       sample_int16.decode_audio(sample_int16_audio, 0);
     }
 
@@ -379,13 +375,12 @@ TEST(NemoAsrLoaderTest, ReadSample_OffsetAndDuration) {
 
     AsrSample sample;
     Tensor<CPUBackend> sample_audio;
-    sample_audio.set_type<int16_t>();
 
     loader.ReadSample(sample);
 
     TensorShape<> expected_sh{length, 2};
     ASSERT_EQ(expected_sh, sample.shape());
-    sample_audio.Resize(sample.shape());
+    sample_audio.Resize(sample.shape(), DALI_INT16);
     sample.decode_audio(sample_audio, 0);
 
     TensorView<StorageCPU, int16_t> ref(ref_data.data() + offset * 2, expected_sh);

@@ -52,8 +52,7 @@ class SequenceRearrangeBaseTest : public testing::DaliOperatorTest {
     }
 
     std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
-    tl->Resize(batch_shape);
-    tl->set_type<int>();
+    tl->Resize(batch_shape, DALI_INT32);
 
     // Fill frames with consecutive numbers
     for (int i = 0; i < batch_size; i++) {
@@ -70,8 +69,7 @@ struct SequenceRearrangeInvalidTest : public SequenceRearrangeBaseTest {
     TensorListShape<> batch_shape = uniform_list_shape(batch_size, {8});
 
     std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
-    tl->Resize(batch_shape);
-    tl->set_type<int>();
+    tl->Resize(batch_shape, DALI_INT32);
     return tl;
   }
 };

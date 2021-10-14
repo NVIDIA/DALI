@@ -88,7 +88,7 @@ Tensor<CPUBackend> cpu_iou(const Tensor<CPUBackend>& box1,
   const float* box1_data = box1.data<float>();
   const float* box2_data = box2.data<float>();
 
-  ious.Resize({N, 1});
+  ious.Resize({N, 1}, DALI_FLOAT);
   float *ious_data = ious.mutable_data<float>();
 
   std::vector<std::pair<float, float>> lt, rb;
@@ -163,7 +163,7 @@ void crop(const Tensor<CPUBackend>& img, vector<int> bounds, Tensor<CPUBackend>&
   const int W = img.dim(1);
   const int C = img.dim(2);
 
-  out.Resize({height, width, C});
+  out.Resize({height, width, C}, DALI_UINT8);
   uint8_t *out_data = out.mutable_data<uint8_t>();
 
   int out_idx = 0;
@@ -193,7 +193,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   // [1x4]
   Tensor<CPUBackend> crop_attempt;
   crop_attempt.set_pinned(false);
-  crop_attempt.Resize({1, 4});
+  crop_attempt.Resize({1, 4}, DALI_FLOAT);
   float *crop_ptr = crop_attempt.mutable_data<float>();
   // iterate until a suitable crop has been found
   while (true) {
@@ -278,10 +278,10 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
       auto &bbox_out = ws.Output<CPUBackend>(1);
       auto &label_out = ws.Output<CPUBackend>(2);
 
-      bbox_out.Resize({valid_bboxes, 4});
+      bbox_out.Resize({valid_bboxes, 4}, DALI_FLOAT);
       auto *bbox_out_data = bbox_out.mutable_data<float>();
 
-      label_out.Resize({valid_bboxes});
+      label_out.Resize({valid_bboxes}, DALI_INT32);
       auto *label_out_data = label_out.mutable_data<int>();
 
       // copy valid bboxes to output and transform them

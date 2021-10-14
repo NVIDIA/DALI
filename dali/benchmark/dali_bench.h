@@ -57,8 +57,7 @@ class DALIBenchmark : public benchmark::Fixture {
       shape.set_tensor_shape(i, { jpegs_.sizes_[i % nImgs] });
     }
 
-    tl->set_type<uint8>();
-    tl->Resize(shape);
+    tl->Resize(shape, DALI_UINT8);
 
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i),

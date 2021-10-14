@@ -173,8 +173,7 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace &ws) {
     std::copy(sample_dims_paste_yx, sample_dims_paste_yx + NUM_INDICES, sample_data);
   }
 
-  output.set_type(input.type());
-  output.Resize(output_shape);
+  output.Resize(output_shape, input.type());
   output.SetLayout("HWC");
 
   for (int i = 0; i < curr_batch_size; ++i) {
