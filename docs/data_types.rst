@@ -102,6 +102,11 @@ SampleInfo
 .. autoclass:: SampleInfo
    :members:
 
+BatchInfo
+^^^^^^^^^^
+.. autoclass:: BatchInfo
+   :members:
+
 TensorLayout
 ^^^^^^^^^^^^
 .. autoclass:: TensorLayout

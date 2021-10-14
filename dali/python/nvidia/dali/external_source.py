@@ -65,13 +65,17 @@ class _ExternalSourceGroup(object):
     def __init__(
             self, callback, is_multioutput, instances=[], *,
             cuda_stream=None, use_copy_kernel=None, batch=True, parallel=False,
-            prefetch_queue_depth=None):
+            prefetch_queue_depth=None, batch_info=None):
         self.instances = list(instances)  # we need a copy!
         self.is_multioutput = is_multioutput
         self.callback = callback
         self._cuda_stream = cuda_stream
         self.use_copy_kernel = use_copy_kernel
         self.batch = batch
+        self.batch_info = batch_info
+        # Index of a batch within the epoch that will be returned from get_batch or schedule_and_receive
+        # call. Contrary to Pipeline's `epoch_idx` it is tracked separately by ExternalSourceGroup due to
+        # prefetching of batches in parallel mode.
         self.current_iter = 0
         self.current_sample = 0
         self.flat_iter_idx = 0  # flat index of the next iteration, not affected by reset
@@ -88,7 +92,7 @@ class _ExternalSourceGroup(object):
     def append(self, instance):
         self.instances.append(instance)
 
-    def callback_args(self, idx_in_batch, batch_size = 0, lead = 0):
+    def callback_args(self, idx_in_batch, epoch_idx, batch_size = 0, lead = 0):
         """Generate information to be passed to ES callback.
 
         Args:
@@ -102,7 +106,12 @@ class _ExternalSourceGroup(object):
             arg = nvidia.dali.types.SampleInfo(
                 self.current_sample + idx_in_batch + batch_size * lead,
                 idx_in_batch,
-                self.current_iter + lead)
+                self.current_iter + lead,
+                epoch_idx)
+        elif self.batch_info:
+            arg = nvidia.dali.types.BatchInfo(
+                self.current_iter + lead,
+                epoch_idx)
         else:
             arg = self.current_iter + lead
         return (arg,)
@@ -115,22 +124,22 @@ class _ExternalSourceGroup(object):
     def cancel_prefetch(self):
         self.scheduled_ahead = 0
 
-    def prefetch(self, pool, context_i, batch_size):
+    def prefetch(self, pool, context_i, batch_size, epoch_idx):
         # NOTE We can't schedule more than what's on top of pipeline's prefetch queue, as the
         # entires in the pipeline are zero-copy and cannot be overwritten.
         while self.scheduled_ahead < self.prefetch_queue_depth:
-            self.schedule_batch(pool, context_i, self.scheduled_ahead, batch_size)
+            self.schedule_batch(pool, context_i, self.scheduled_ahead, batch_size, epoch_idx)
             self.scheduled_ahead += 1
 
-    def schedule_batch(self, pool, context_i, lead, batch_size):
+    def schedule_batch(self, pool, context_i, lead, batch_size, epoch_idx):
         """Schedule computing new batch from source callback by the parallel pool."""
         dst_chunk_i = (self.flat_iter_idx + lead) % pool.queue_depths[context_i]
         pool.schedule_batch(context_i, self.scheduled_job_idx, dst_chunk_i, [
-            self.callback_args(i, batch_size, lead) for i in range(batch_size)
+            self.callback_args(i, epoch_idx, batch_size, lead) for i in range(batch_size)
         ])
         self.scheduled_job_idx += 1
 
-    def schedule_and_receive(self, pipeline, pool, context_i, batch_size):
+    def schedule_and_receive(self, pipeline, pool, context_i, batch_size, epoch_idx):
         """Obtain the computed results of calling source callback in parallel pool and feed
         the results to the ExternalSource nodes in `pipeline`.
         Schedule the execution of the source callback in the pool to compute next batch.
@@ -144,21 +153,21 @@ class _ExternalSourceGroup(object):
             self.flat_iter_idx += 1
             self.current_sample += batch_size
             self.current_iter += 1
-            self.prefetch(pool, context_i, batch_size)
+            self.prefetch(pool, context_i, batch_size, epoch_idx)
             return _ExternalDataBatch(self, pipeline, callback_out, batch_size)
         except StopIteration:
             self.reset_indices()
             pool.reset_context(context_i)
             raise
 
-    def get_batch(self, pipeline, batch_size):
+    def get_batch(self, pipeline, batch_size, epoch_idx):
         """Call the source callback and feed the results to the ExternalSource nodes in `pipeline`.
         Used for the sequential ExternalSource variant."""
         try:
             if self.batch:
-                callback_out = self.callback(*self.callback_args(None))
+                callback_out = self.callback(*self.callback_args(None, epoch_idx))
             else:
-                callback_out = [self.callback(*self.callback_args(i)) for i in range(batch_size)]
+                callback_out = [self.callback(*self.callback_args(i, epoch_idx)) for i in range(batch_size)]
             self.current_sample += batch_size
             self.current_iter += 1
         except StopIteration:
@@ -335,6 +344,12 @@ Keyword Args
 
     Setting ``parallel`` to True automatically sets ``batch`` to False if it was not provided.
 
+`batch_info` : bool, optional, default = False
+    Controls if a callable ``source`` that accepts an argument and returns batches should receive
+    :meth:`~nvidia.dali.types.BatchInfo` instance or just an integer representing the iteration number.
+    If set to False (the default), only the integer is passed. If ``source`` is not callable, does not
+    accept arguments or ``batch`` is set to False, setting this flag has no effect.
+
 `parallel` : bool, optional, default = False
     If set to True, the corresponding pipeline will run pool of Python workers to run the
     callback in parallel. You can specify the number of workers by passing ``py_num_workers``
@@ -364,7 +379,7 @@ Keyword Args
     def __init__(
             self, source=None, num_outputs=None, *, cycle=None, layout=None, name=None,
             device="cpu", cuda_stream=None, use_copy_kernel=None, batch=None, parallel=None,
-            no_copy=None, prefetch_queue_depth=None, **kwargs):
+            no_copy=None, prefetch_queue_depth=None, batch_info=None, **kwargs):
         self._schema = _b.GetSchema("ExternalSource")
         self._spec = _b.OpSpec("ExternalSource")
         self._device = device
@@ -388,6 +403,7 @@ Keyword Args
         self._parallel = parallel
         self._no_copy = no_copy
         self._prefetch_queue_depth = prefetch_queue_depth
+        self._batch_info = batch_info
 
         self._spec.AddArg("device", device)
         for key, value in kwargs.items():
@@ -412,7 +428,7 @@ Keyword Args
     def __call__(
             self, *, source=None, cycle=None, name=None, layout=None, cuda_stream=None,
             use_copy_kernel=None, batch=None, parallel=None, no_copy=None,
-            prefetch_queue_depth=None, **kwargs):
+            prefetch_queue_depth=None, batch_info=None, **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
 
@@ -454,6 +470,12 @@ Keyword Args
         elif self._prefetch_queue_depth is not None:
             raise ValueError(
                 "The argument ``prefetch_queue_depth`` already specified in constructor.")
+
+        if batch_info is None:
+            batch_info = self._batch_info or False
+        elif self._batch_info is not None:
+            raise ValueError(
+                "The argument ``batch_info`` already specified in constructor.")
 
         if no_copy is None:
             no_copy = self._no_copy
@@ -524,6 +546,7 @@ Keyword Args
             'cuda_stream': cuda_stream,
             'use_copy_kernel': use_copy_kernel,
             'batch': batch,
+            'batch_info': batch_info,
             'parallel': parallel,
             'prefetch_queue_depth': prefetch_queue_depth,
         }

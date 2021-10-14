@@ -333,7 +333,7 @@ def get_batch_iterable_from_callback(source_desc):
 def get_sample_iterable_from_callback(source_desc, batch_size):
     """Transform sample callback accepting one argument into an Iterable
     """
-    first = source_desc.source(types.SampleInfo(0, 0, 0))
+    first = source_desc.source(types.SampleInfo(0, 0, 0, 0))
     dtype, shape = _inspect_data(first, False)
 
     class CallableSampleIterator:
@@ -355,7 +355,9 @@ def get_sample_iterable_from_callback(source_desc, batch_size):
                 result = CallableSampleIterator.first_value
                 CallableSampleIterator.first_value = None
             else:
-                idx = types.SampleInfo(self.idx_in_epoch, self.idx_in_batch, self.iteration)
+                # There is no notion of epochs when iterating over DALI Dataset
+                # as the "raise" policy is not supported, so we use epoch 0 only.
+                idx = types.SampleInfo(self.idx_in_epoch, self.idx_in_batch, self.iteration, 0)
                 result = self.source(idx)
             self.idx_in_epoch += 1
             self.idx_in_batch += 1
