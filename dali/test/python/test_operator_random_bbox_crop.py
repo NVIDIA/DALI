@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -363,3 +363,20 @@ def test_random_bbox_crop_no_labels():
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+def test_random_bbox_crop_square():
+    batch_size = 3
+    bbox_source = BBoxDataIterator(100, batch_size, 2, produce_labels=False)
+    bbox_layout = "xyXY"
+    pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=batch_size,
+                                           bbox_source=bbox_source,
+                                           bbox_layout=bbox_layout,
+                                           scaling=[0.5, 0.9], aspect_ratio=[1.0, 1.0],
+                                           input_shape=None, crop_shape=None,
+                                           output_bbox_indices=False)
+    pipe.build()
+    for _ in range(3):
+        outputs = pipe.run()
+        for sample in range(batch_size):
+            out_crop_shape = outputs[2].at(sample)
+            np.testing.assert_allclose(out_crop_shape[0], out_crop_shape[1], rtol=1e-06)
