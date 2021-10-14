@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -116,11 +116,13 @@ The following modes of a random crop are available:
 - | Randomly shaped window, which is randomly placed in the original input space.
   | The random crop window dimensions are selected based on the provided ``aspect_ratio`` and
     relative area restrictions.
+  | If ``input_shape`` is provided, it will be taken into account for the aspect ratio range check.
+  | Otherwise, the aspect ratios are calculated in relative terms.
+  | In other words, without ``input_shape``, an aspect ratio of 1.0 is equivalent to the aspect ratio of the input image.
 - | Fixed size window, which is randomly placed in the original input space.
   | The random crop window dimensions are taken from the ``crop_shape`` argument and the anchor is
   | randomly selected.
-  | When providing ``crop_shape``, a second argument, ``input_shape``,
-    specifying the original dimensions should be provided.
+  | When providing ``crop_shape``, ``input_shape`` is also required.
 
   .. note::
      These dimensions are required to scale the output bounding boxes.
@@ -155,7 +157,7 @@ The resulting crop parameters are provided as two separate outputs, ``anchor`` a
 that can be fed directly to the :meth:`nvidia.dali.fn.slice` operator to complete the cropping
 of the original image. ``anchor`` and ``shape`` contain the starting coordinates and dimensions
 for the crop in the ``[x, y, (z)]`` and ``[w, h, (d)]`` formats, respectively. The coordinates can
-be represented in absolute or relative terms, and the represetnation depends on whether
+be represented in absolute or relative terms, and the representation depends on whether
 the fixed ``crop_shape`` was used.
 
 .. note::
@@ -228,6 +230,12 @@ equal to the ``max`` value.  By default, square windows are generated.
 .. note::
   Providing ``aspect_ratio`` and ``scaling`` is incompatible with explicitly
   specifying ``crop_shape``.
+
+.. note::
+  If ``input_shape`` is provided, it will be taken into account for the calculation of the cropping
+  window aspect ratio.
+  Otherwise, the aspect ratio ranges are relative to the image dimensions. In other words, when ``input_shape``
+  is not specified, an aspect ratio of 1.0 is equivalent to the original aspect ratio of the image.
 )code",
                     std::vector<float>{1.f, 1.f})
     .AddOptionalArg(
@@ -296,18 +304,14 @@ be to not crop, as if the outcome was one more ``thresholds`` value from which t
 The order of dimensions is determined by the layout provided in ``shape_layout``.
 
 .. note::
-  ``crop_shape`` and ``input_shape`` should be provided together and providing those
-  arguments is incompatible with using ``scaling`` and ``aspect_ratio`` arguments.)code",
+  When providing ``crop_shape``, ``input_shape`` should be provided as well. Providing explicit ``crop_shape`` is
+  incompatible with using ``scaling`` and ``aspect_ratio`` arguments.)code",
         std::vector<int>{}, true)
     .AddOptionalArg<int>(
         "input_shape",
         R"code(Specifies the shape of the original input image.
 
 The order of dimensions is determined by the layout that is provided in ``shape_layout``.
-
-.. note::
-  ``crop_shape`` and ``input_shape`` should be provided together but providing those arguments
-  is incompatible ``scaling`` and ``aspect_ratio`` arguments.
 )code",
         std::vector<int>{}, true)
     .AddOptionalArg<TensorLayout>(
@@ -397,8 +401,10 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
                                range.min, ", ", range.max));
     }
 
-    DALI_ENFORCE(has_crop_shape_ == has_input_shape_,
-      "`crop_shape` and `input_shape` should be provided together or not provided");
+    if (has_crop_shape_) {
+      DALI_ENFORCE(has_input_shape_,
+        "``input_shape`` must be provided when providing ``crop_shape``");
+    }
 
     if (spec.ArgumentDefined("ltrb")) {
       if (spec.ArgumentDefined("bbox_layout")) {
@@ -475,9 +481,11 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override {
-    if (spec_.ArgumentDefined("input_shape") && spec_.ArgumentDefined("crop_shape")) {
-      CollectShape(input_shape_, "input_shape", spec_, ws, ndim);
-      CollectShape(crop_shape_, "crop_shape", spec_, ws, ndim);
+    if (has_input_shape_ || has_crop_shape_) {
+      if (has_crop_shape_)
+        CollectShape(crop_shape_, "crop_shape", spec_, ws, ndim);
+      if (has_input_shape_)
+        CollectShape(input_shape_, "input_shape", spec_, ws, ndim);
 
       // Converting the shapes to "WHD" or "WH" if necessary
       auto default_shape_layout = InternalShapeLayout(ndim);
@@ -488,20 +496,25 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         auto perm = GetDimIndices(shape_layout_, default_shape_layout);
         for (int sample = 0; sample < static_cast<int>(input_shape_.size()); sample++) {
           TensorShape<> in_shape = input_shape_[sample];
-          TensorShape<> crop_shape = crop_shape_[sample];
-
-          DALI_ENFORCE(crop_shape.sample_dim() == ndim,
-                    make_string("Unexpected number of dimensions. Expected ", ndim, ", got ",
-                                crop_shape.sample_dim()));
-
           for (int i = 0; i < ndim; i++) {
             int axis = perm[i];
-            DALI_ENFORCE(
-                crop_shape[axis] <= in_shape[axis],
-                make_string("Crop shape can't exceed input shape dimensions. Got crop_shape=",
-                            crop_shape, ", input_shape=", in_shape));
             input_shape_[sample][i] = in_shape[axis];
-            crop_shape_[sample][i]  = crop_shape[axis];
+          }
+
+          if (has_crop_shape_) {
+            TensorShape<> crop_shape = crop_shape_[sample];
+            DALI_ENFORCE(crop_shape.sample_dim() == ndim,
+                      make_string("Unexpected number of dimensions. Expected ", ndim, ", got ",
+                                  crop_shape.sample_dim()));
+
+            for (int i = 0; i < ndim; i++) {
+              int axis = perm[i];
+              DALI_ENFORCE(
+                  crop_shape[axis] <= in_shape[axis],
+                  make_string("Crop shape can't exceed input shape dimensions. Got crop_shape=",
+                              crop_shape, ", input_shape=", in_shape));
+              crop_shape_[sample][i]  = crop_shape[axis];
+            }
           }
         }
       }
@@ -740,10 +753,24 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
             shape[d] = extent_dist(rng);
           }
 
+          // If input shape is provided, we take it into account for the aspect ratio range check
+          // Otherwise, we use the relative shape for aspect ratio check
+          if (has_input_shape_) {
+            auto &in_sh = input_shape_[sample];
+            for (int d = 0; d < ndim; d++)
+              shape[d] *= in_sh[d];
+          }
+
           FixAspectRatios(shape);
 
           if (!ValidAspectRatio(shape)) {
             continue;
+          }
+
+          if (has_input_shape_) {
+            auto &in_sh = input_shape_[sample];
+            for (int d = 0; d < ndim; d++)
+              shape[d] /= in_sh[d];
           }
 
           for (int d = 0; d < ndim; d++) {
@@ -791,7 +818,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     assert(!aspect_ratio_ranges_.empty());
     for (int i = 0; i < ndim; i++) {
       for (int j = i + 1; j < ndim; j++) {
-        if (!aspect_ratio_ranges_[k].Contains(shape[i] / shape[j])) return false;
+        if (!aspect_ratio_ranges_[k].Contains(shape[i] / shape[j]))
+          return false;
         k = (k + 1) % aspect_ratio_ranges_.size();
       }
     }

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import pipeline_def
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
@@ -364,19 +365,41 @@ def test_random_bbox_crop_no_labels():
     for _ in range(3):
         pipe.run()
 
-def test_random_bbox_crop_square():
+def _testimpl_random_bbox_crop_square(use_input_shape):
     batch_size = 3
     bbox_source = BBoxDataIterator(100, batch_size, 2, produce_labels=False)
     bbox_layout = "xyXY"
-    pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=batch_size,
-                                           bbox_source=bbox_source,
-                                           bbox_layout=bbox_layout,
-                                           scaling=[0.5, 0.9], aspect_ratio=[1.0, 1.0],
-                                           input_shape=None, crop_shape=None,
-                                           output_bbox_indices=False)
+
+    @pipeline_def(num_threads=1, batch_size=batch_size, device_id=0, seed=1234)
+    def random_bbox_crop_fixed_aspect_ratio():
+        in_sh = fn.random.uniform(range=(400, 600), shape=(2,), dtype=types.INT32)
+        inputs = fn.external_source(source=bbox_source, num_outputs=bbox_source.num_outputs)
+        outputs = fn.random_bbox_crop(
+            *inputs,
+            device='cpu',
+            aspect_ratio=(1.0, 1.0),
+            scaling=(0.5, 0.8),
+            thresholds=[0.0],
+            threshold_type='iou',
+            bbox_layout="xyXY",
+            total_num_attempts=100,
+            allow_no_crop=False,
+            input_shape=in_sh if use_input_shape else None,
+        )
+        return in_sh, outputs[1]
+
+    pipe = random_bbox_crop_fixed_aspect_ratio()
     pipe.build()
     for _ in range(3):
         outputs = pipe.run()
         for sample in range(batch_size):
-            out_crop_shape = outputs[2].at(sample)
-            np.testing.assert_allclose(out_crop_shape[0], out_crop_shape[1], rtol=1e-06)
+            in_shape = outputs[0].at(sample)
+            out_crop_shape = outputs[1].at(sample)
+            if use_input_shape:
+                np.testing.assert_allclose(in_shape[0] * out_crop_shape[0], in_shape[1] * out_crop_shape[1], rtol=1e-06)
+            else:
+                np.testing.assert_allclose(out_crop_shape[0], out_crop_shape[1], rtol=1e-06)
+
+def test_random_bbox_crop_square():
+    for use_input_shape in [False, True]:
+        yield _testimpl_random_bbox_crop_square, use_input_shape
