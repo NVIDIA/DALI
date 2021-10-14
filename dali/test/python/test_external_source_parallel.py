@@ -16,7 +16,7 @@ import numpy as np
 from nose.tools import with_setup
 from nose_utils import raises
 
-from nvidia.dali.types import SampleInfo
+from nvidia.dali.types import SampleInfo, BatchInfo
 
 from test_pool_utils import *
 from test_utils import compare_pipelines
@@ -58,27 +58,39 @@ class FaultyResetIterable(Iterable):
 
 class SampleCallbackBatched:
 
-    def __init__(self, sample_cb, batch_size):
+    def __init__(self, sample_cb, batch_size, batch_info):
         self.sample_cb = sample_cb
         self.batch_size = batch_size
+        self.batch_info = batch_info
 
-    def __call__(self, batch_i):
+    def __call__(self, batch_info):
+        if not self.batch_info:
+            batch_i = batch_info
+            epoch_idx = 0
+        else:
+            batch_i = batch_info.iteration
+            epoch_idx = batch_info.epoch_idx
         epoch_offset = batch_i * self.batch_size
-        return [self.sample_cb(SampleInfo(epoch_offset + i, i, 0)) for i in range(self.batch_size)]
+        return [self.sample_cb(SampleInfo(epoch_offset + i, i, batch_i, epoch_idx)) for i in range(self.batch_size)]
 
 
 class SampleCallbackIterator:
 
-    def __init__(self, sample_cb, batch_size):
+    def __init__(self, sample_cb, batch_size, batch_info):
         self.iters = 0
-        self.batched = SampleCallbackBatched(sample_cb, batch_size)
+        self.batch_info = batch_info
+        self.epoch_idx = 0
+        self.batched = SampleCallbackBatched(sample_cb, batch_size, batch_info)
 
     def __iter__(self):
+        if self.iters > 0:
+            self.epoch_idx += 1
         self.iters = 0
         return self
 
     def __next__(self):
-        batch = self.batched(self.iters)
+        batch_info = BatchInfo(self.iters, self.epoch_idx) if self.batch_info else self.iters
+        batch = self.batched(batch_info)
         self.iters += 1
         return batch
 
@@ -417,7 +429,7 @@ def _test_all_kinds_parallel(sample_cb, batch_cb, iter_cb, batch_size, py_num_wo
     def pipeline():
         queue_size_1, queue_size_2, queue_size_3 = reader_queue_sizes
         sample_out = dali.fn.external_source(source=sample_cb, parallel=True, batch=False, prefetch_queue_depth=queue_size_1)
-        batch_out = dali.fn.external_source(source=batch_cb, parallel=True, batch=True, prefetch_queue_depth=queue_size_2)
+        batch_out = dali.fn.external_source(source=batch_cb, parallel=True, batch=True, prefetch_queue_depth=queue_size_2, batch_info=True)
         iter_out = dali.fn.external_source(source=iter_cb, parallel=True, batch=True, prefetch_queue_depth=queue_size_3, cycle="raise")
         return (sample_out, batch_out, iter_out)
     pipe = pipeline()
@@ -447,8 +459,8 @@ def test_all_kinds_parallel():
                     continue
                 epoch_size = num_iters * batch_size + trailing
                 sample_cb = ExtCallback((4, 5), epoch_size, np.int32)
-                batch_cb = SampleCallbackBatched(sample_cb, batch_size)
-                iterator_cb = SampleCallbackIterator(sample_cb, batch_size)
+                batch_cb = SampleCallbackBatched(sample_cb, batch_size, batch_info=True)
+                iterator_cb = SampleCallbackIterator(sample_cb, batch_size, batch_info=True)
                 for reader_queue_sizes in ((1, 1, 1), (2, 2, 2), (5, 5, 5), (3, 1, 1), (1, 3, 1), (1, 1, 3)):
                     for num_workers in (1, 7):
                         yield _test_all_kinds_parallel, sample_cb, batch_cb, iterator_cb, batch_size, num_workers, \
@@ -559,13 +571,15 @@ class SampleCb:
 
 
 @with_setup(setup_function, teardown_function)
-def _test_epoch_idx(batch_size, epoch_size, cb, py_num_workers, prefetch_queue_depth, reader_queue_depth):
+def _test_epoch_idx(batch_size, epoch_size, cb, py_num_workers, prefetch_queue_depth, reader_queue_depth, batch_mode, batch_info):
     num_epochs = 3
     pipe = dali.Pipeline(
         batch_size, 1, 0, py_num_workers=py_num_workers, prefetch_queue_depth=prefetch_queue_depth,
         py_start_method="spawn")
     with pipe:
-        ext = dali.fn.external_source(source=cb, parallel=True, batch=False, prefetch_queue_depth=reader_queue_depth)
+        ext = dali.fn.external_source(
+            source=cb, parallel=True, batch=batch_mode,
+            prefetch_queue_depth=reader_queue_depth, batch_info=batch_info)
         pipe.set_outputs(ext)
     pipe.build()
     capture_processes(pipe._py_pool)
@@ -576,11 +590,11 @@ def _test_epoch_idx(batch_size, epoch_size, cb, py_num_workers, prefetch_queue_d
             for sample_i, sample in enumerate(batch):
                 expected = np.array([
                     iteration * batch_size + sample_i,
-                    sample_i, iteration, epoch_idx])
+                    sample_i, iteration, epoch_idx if not batch_mode or batch_info else 0])
                 np.testing.assert_array_equal(sample, expected)
         try:
             pipe.run()
-        except:
+        except StopIteration:
             pipe.reset()
         else:
             assert False, "expected StopIteration"
@@ -593,8 +607,11 @@ def test_epoch_idx():
         for epoch_size in (1, 3, 7):
             for reader_queue_depth in (1, 5):
                 sample_cb = SampleCb(batch_size, epoch_size)
-                yield _test_epoch_idx, batch_size, epoch_size, sample_cb, num_workers, prefetch_queue_depth, reader_queue_depth
-
+                yield _test_epoch_idx, batch_size, epoch_size, sample_cb, num_workers, prefetch_queue_depth, reader_queue_depth, False, None
+                batch_cb = SampleCallbackBatched(sample_cb, batch_size, True)
+                yield _test_epoch_idx, batch_size, epoch_size, batch_cb, num_workers, prefetch_queue_depth, reader_queue_depth, True, True
+                batch_cb = SampleCallbackBatched(sample_cb, batch_size, False)
+                yield _test_epoch_idx, batch_size, epoch_size, batch_cb, num_workers, prefetch_queue_depth, reader_queue_depth, True, False
 
 class PermutableSampleCb:
 
@@ -637,7 +654,7 @@ def _test_permute_dataset(batch_size, epoch_size, trailing_samples, cb, py_num_w
             "Epoch number {} did not contain some samples from data set".format(epoch_idx)
         try:
             pipe.run()
-        except:
+        except StopIteration:
             pipe.reset()
         else:
             assert False, "expected StopIteration"

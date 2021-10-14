@@ -110,8 +110,12 @@ class BatchLoader(SampleLoader):
         super().__init__(data_path)
         self.batch_size = batch_size
 
-    def __call__(self, batch_i):
-        files_paths, labels = tuple(zip(*[self.data_set.get_sample(self.batch_size * batch_i + i, 0) for i in range(self.batch_size)]))
+    def __call__(self, batch_info):
+        assert isinstance(batch_info, types.BatchInfo), \
+            "Expected batch info instance, got {}".format(type(batch_info))
+        batch_i = batch_info.iteration
+        epoch_idx = batch_info.epoch_idx
+        files_paths, labels = tuple(zip(*[self.data_set.get_sample(self.batch_size * batch_i + i, epoch_idx) for i in range(self.batch_size)]))
         return [self.read_file(file_path) for file_path in files_paths], np.array(labels)
 
 
@@ -218,7 +222,9 @@ def external_source_pipeline(
         source_mode=source_mode, prefetch_queue_depth=prefetch_queue_depth, read_encoded=read_encoded)
     with pipe:
         images, labels = dali.fn.external_source(
-            pipe.loader, num_outputs=2, batch=source_mode != "sample", cycle="raise" if source_mode == "generator" else None)
+            pipe.loader, num_outputs=2, batch=source_mode != "sample",
+            cycle="raise" if source_mode == "generator" else None,
+            batch_info=source_mode == "batch")
         if read_encoded:
             images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
         else:
@@ -238,8 +244,11 @@ def external_source_parallel_pipeline(
         read_encoded=read_encoded)
     with pipe:
         images, labels = dali.fn.external_source(
-            pipe.loader, num_outputs=2, parallel=True, prefetch_queue_depth=reader_queue_depth,
-            batch=source_mode != "sample", cycle="raise" if source_mode == "generator" else None)
+            pipe.loader, num_outputs=2, parallel=True,
+            prefetch_queue_depth=reader_queue_depth,
+            batch=source_mode != "sample",
+            cycle="raise" if source_mode == "generator" else None,
+            batch_info=source_mode == "batch")
         if read_encoded:
             images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
         else:

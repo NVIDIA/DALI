@@ -58,7 +58,7 @@ def teardown_function():
     children_pids = [process.pid for process in current_process.children()]
     left = set(pool_processes).intersection(children_pids)
     assert len(left) == 0, ("Pipeline-started processes left after " +
-          "test is finished, pids alive:\n{},\npids started during tests:\n{}."
+          "test is finished, pids alive:\n{},\npids started during tests:\n{}. "
           "Pools not collected: {}").format(left, pool_processes, sum(pools_not_collected))
     alive_threads = [thread.is_alive() for thread in pool_threads]
     assert sum(alive_threads) == 0, "Some pool related threads are left after the test finished. " \
