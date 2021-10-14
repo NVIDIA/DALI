@@ -23,7 +23,7 @@ namespace dali {
 namespace kernels {
 
 template <typename C, typename = element_t<C>>
-constexpr auto size_bytes(const C &c) { return size(c) * sizeof(element_t<C>); }
+constexpr auto size_bytes(const C &c) { return dali::size(c) * sizeof(element_t<C>); }
 
 TEST(Scratchpad, ToContiguous) {
   ScratchpadEstimator se;
