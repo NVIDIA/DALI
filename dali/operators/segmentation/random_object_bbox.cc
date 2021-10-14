@@ -241,8 +241,8 @@ void StoreBox(const OutListCPU<int, 1> &out1,
               const OutListCPU<int, 1> &out2,
               RandomObjectBBox::OutputFormat format,
               int sample_idx, Lo &&start, Hi &&end) {
-  assert(size(start) == size(end));
-  int ndim = size(start);
+  assert(dali::size(start) == dali::size(end));
+  int ndim = dali::size(start);
   switch (format) {
     case RandomObjectBBox::Out_Box:
       for (int i = 0; i < ndim; i++) {

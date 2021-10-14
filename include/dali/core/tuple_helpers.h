@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -155,8 +155,8 @@ constexpr auto apply(F &&f, std::tuple<T...> &&args)
 
 template <typename F, typename... Args>
 constexpr auto apply_all(F &&f, Args&&... args)
-  ->decltype(apply(f, std::tuple_cat(as_tuple(args)...))) {
-  return apply(f, std::tuple_cat(as_tuple(args)...));
+  ->decltype(dali::detail::apply(f, std::tuple_cat(as_tuple(args)...))) {
+  return dali::detail::apply(f, std::tuple_cat(as_tuple(args)...));
 }
 
 template <size_t total, typename Type, typename Tuple>

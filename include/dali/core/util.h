@@ -217,7 +217,7 @@ using if_indexable = if_istype<decltype(std::declval<Collection>()[0]), T>;
 
 template <typename Collection, typename T = void>
 using if_array_like = if_indexable<Collection,
-                                   if_istype<decltype(size(std::declval<Collection>())), T>>;
+                                  if_istype<decltype(dali::size(std::declval<Collection>())), T>>;
 
 template <typename It>
 using is_integer_iterator = std::is_integral<

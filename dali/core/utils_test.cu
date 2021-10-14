@@ -33,14 +33,14 @@ DEVICE_TEST(CoreUtilsDev, Volume, 1, 1) {
 
 DEVICE_TEST(CoreUtilsDev, Size, 1, 1) {
   int a0[] = { 42 };
-  DEV_EXPECT_EQ(size(a0), 1u);
+  DEV_EXPECT_EQ(dali::size(a0), 1u);
   int a1[] = { 2, 3, 4 };
-  DEV_EXPECT_EQ(size(a1), 3u);
+  DEV_EXPECT_EQ(dali::size(a1), 3u);
 
   SmallVector<int, 5> v;
   v.resize(10);
   DEV_EXPECT_EQ(v.size(), 10u);
-  DEV_EXPECT_EQ(size(v), 10u);
+  DEV_EXPECT_EQ(dali::size(v), 10u);
 }
 
 DEFINE_TEST_KERNEL(CoreUtilsDev, Span, span<float> data) {

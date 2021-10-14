@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,8 +38,8 @@ struct check_implicit_conversion {
 
 template <typename Shape, typename Position>
 bool ContainsCoords(const Shape &shape, const Position &pos) {
-  const int shape_dim = size(shape);
-  const int pos_dim = size(pos);
+  const int shape_dim = dali::size(shape);
+  const int pos_dim = dali::size(pos);
   if (pos_dim > shape_dim) {
     return false;
   }
@@ -60,8 +60,8 @@ template <typename Shape, typename Position>
 DALI_HOST_DEV if_array_like<Position, ptrdiff_t> CalcOffset(const Shape &shape,
                                                             const Position &pos) {
   ptrdiff_t ofs = pos[0];
-  const int pos_dim = size(pos);
-  const int shape_dim = size(shape);
+  const int pos_dim = dali::size(pos);
+  const int shape_dim = dali::size(shape);
   int i;
   for (i = 1; i < pos_dim; i++) {
     ofs *= shape[i];

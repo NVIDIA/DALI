@@ -324,7 +324,7 @@ class DLL_PUBLIC Buffer {
     return shrink_threshold_;
   }
 
-  static constexpr double kMaxGrowthFactor = 4;
+  DLL_PUBLIC static constexpr double kMaxGrowthFactor = 4;
 
  protected:
   // Helper to resize the underlying allocation
@@ -413,7 +413,7 @@ DLL_PUBLIC double Buffer<Backend>::shrink_threshold_ =
   std::is_same<Backend, CPUBackend>::value ? 0.5 : 0;
 
 template <typename Backend>
-DLL_PUBLIC constexpr double Buffer<Backend>::kMaxGrowthFactor;
+constexpr double Buffer<Backend>::kMaxGrowthFactor;
 
 
 // Macro so we don't have to list these in all

@@ -34,9 +34,9 @@ inline void copy_to_buffer(char *buffer, const size_t *offsets) {}
  */
 template <typename Collection, typename... Collections>
 void copy_to_buffer(char *buffer,
-                  const size_t *offsets,
-                  const Collection &c,
-                  const Collections &... tail) {
+                   const size_t *offsets,
+                   const Collection &c,
+                   const Collections &... tail) {
   using T = std::remove_cv_t<element_t<Collection>>;
   std::copy(dali::begin(c), dali::end(c), reinterpret_cast<T*>(buffer + offsets[0]));
   copy_to_buffer(buffer, offsets+1, tail...);
@@ -54,12 +54,12 @@ inline void GetCollectionOffsets(size_t base, size_t *offsets) { *offsets = base
  */
 template <typename Collection, typename... Collections>
 void GetCollectionOffsets(size_t base, size_t *offsets,
-                              const Collection &c,
-                              const Collections &...tail) {
+                          const Collection &c,
+                          const Collections &...tail) {
   using T = std::remove_cv_t<element_t<Collection>>;
   base = align_up(base, alignof(T));
   *offsets = base;
-  base += size(c) * sizeof(T);
+  base += dali::size(c) * sizeof(T);
   GetCollectionOffsets(base, offsets + 1, tail...);
 }
 
