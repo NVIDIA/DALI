@@ -141,17 +141,21 @@ template <typename... T>
 constexpr const std::tuple<T...> &as_tuple(const std::tuple<T...> &t) { return t; }
 
 template <typename F, typename... T, int... indices>
-constexpr auto apply_indexed(F &&f, const std::tuple<T...> &args, seq<indices...>) {
+constexpr auto apply_indexed(F &&f, const std::tuple<T...> &args, seq<indices...>)
+  ->decltype(f(std::get<indices>(args)...)) {
   return f(std::get<indices>(args)...);
 }
 
 template <typename F, typename... T>
-constexpr auto apply(F &&f, std::tuple<T...> &&args) {
+constexpr auto apply(F &&f, std::tuple<T...> &&args)
+  ->decltype(apply_indexed(f, args, tuple_indices(args))) {
   return apply_indexed(f, args, tuple_indices(args));
 }
 
+
 template <typename F, typename... Args>
-constexpr auto apply_all(F &&f, Args&&... args) {
+constexpr auto apply_all(F &&f, Args&&... args)
+  ->decltype(dali::detail::apply(f, std::tuple_cat(as_tuple(args)...))) {
   return dali::detail::apply(f, std::tuple_cat(as_tuple(args)...));
 }
 
