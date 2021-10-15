@@ -1,5 +1,5 @@
 c_compiler_version:    # [linux]
-  - 7.3                # [linux]
+  - 7.5                # [linux]
 cxx_compiler_version:  # [linux]
-  - 7.3                # [linux]
+  - 7.5                # [linux]
 
