@@ -98,53 +98,60 @@ class SampleRange:
     indices within the epoch. Used to avoid linear dependency of the task description on the batch size.
     """
 
-    def __init__(self, sample_start, sample_end, iteration, epoch_idx):
+    def __init__(self, sample_start, sample_end, iteration, epoch_idx, *, slice_start=0, slice_end=None):
         self.sample_start = sample_start # idx in epoch of first sample in batch
         self.sample_end = sample_end # idx in epoch of one past last sample in batch
         self.iteration = iteration # index of a batch within epoch
         self.epoch_idx = epoch_idx
+        # idx of first sample in slice (in a batch not an epoch)
+        self.slice_start = slice_start
+        if slice_end is None:
+            slice_end = sample_end - sample_start
+        # idx of one past last sample in slice (in a batch not an epoch)
+        self.slice_end = slice_end
+
+    @classmethod
+    def slice(cls, sample_range, slice_start, slice_end):
+        assert sample_range.slice_start <= slice_start < slice_end <= sample_range.slice_end
+        return cls(
+            sample_range.sample_start, sample_range.sample_end,
+            sample_range.iteration, sample_range.epoch_idx,
+            slice_start=slice_start,
+            slice_end=slice_end)
 
     def get_slice(self, slice_start, slice_end):
-        return SampleRangeSlice(self, slice_start, slice_end)
+        return self.slice(self, slice_start, slice_end)
 
     def __len__(self):
-        return self.sample_end - self.sample_start
-
-
-class SampleRangeSlice:
-    """
-    Subrange of `SampleRange` - used to distribute SampleRange computation among the workers.
-    """
-
-    def __init__(self, sample_range : SampleRange, start, end):
-        assert 0 <= start < end <= len(sample_range)
-        self.sample_range = sample_range
-        self.start = start  # idx of first sample in slice (relative to a batch not an epoch)
-        self.end = end # idx of one past last sample in slice (relative to a batch not an epoch)
+        return self.slice_end - self.slice_start
 
     def iter_samples(self):
         return (SampleInfo(
-            self.sample_range.sample_start + idx_in_batch,
+            self.sample_start + idx_in_batch,
             idx_in_batch,
-            self.sample_range.iteration,
-            self.sample_range.epoch_idx
-            ) for idx_in_batch in range(self.start, self.end))
+            self.iteration,
+            self.epoch_idx
+            ) for idx_in_batch in range(self.slice_start, self.slice_end))
 
 
 class TaskArgs:
 
     @classmethod
-    def make_sample(cls, minibatch_i, sample_range):
-        return cls(minibatch_i=minibatch_i, sample_range=sample_range)
+    def make_sample(cls, start, end, iteration, epoch_idx):
+        sample_range = SampleRange(start, end, iteration, epoch_idx)
+        if len(sample_range) <= 0:
+            raise RuntimeError("Cannot schedule empty batch")
+        return cls(0, sample_range=sample_range)
 
     @classmethod
     def make_batch(cls, batch_args):
-        return cls(minibatch_i=0, batch_args=batch_args)
+        return cls(0, batch_args=batch_args)
 
     def __init__(self, minibatch_i, sample_range : Optional[SampleRange]=None, batch_args=None):
         self.minibatch_i = minibatch_i
         self.sample_range = sample_range
         self.batch_args = batch_args
+        assert ((self.sample_range is None) != (self.batch_args is None))
 
     def is_sample_mode(self):
         return self.sample_range is not None
