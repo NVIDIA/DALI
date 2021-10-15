@@ -28,8 +28,9 @@ from nvidia.dali._multiproc.shared_queue import Dispatcher, DispatcherWorker, Sh
 
 
 class _ProcessedTask:
-    """Internal worker message send to disptacher with completed tasks where it is
-    serialized and dispatched to the pool"""
+    """Internal worker message containing computed minibatch or error message sent from the main thread
+    to the dispatcher thread. The dispatcher thread serializes the batch or the error and
+    forwards the result as `CompletedTask` to the main process"""
 
     def __init__(self, scheduled, shm_chunk, data_batch=None, exception=None,
                  traceback_str=None):
@@ -118,10 +119,14 @@ class SimpleQueueTaskReceiver:
 
 class MixedTaskReceiver:
     """
-    Mixes eager and idle workers each reading from different queue and putting tasks into common tasks_queue.
-    Eager worker reads whenever any data is available and moves them into the common queue,
-    whereas idle worker serves as a fallback that aims to read a single item only if eager worker has no tasks
-    available and main thread waits for tasks.
+    Mixes eager and idle worker threads each taking tasks from a different inter-process queue and
+    putting the tasks into a single (worker's internal) `task_queue`. Eager worker thread takes tasks from
+    the dedicated queue, i.e. tasks that can be processed only by the given worker process.
+    Idle worker thread takes tasks from the general queue, i.e. tasks that can be processed by
+    any worker process from the pool.
+    Eager worker reads tasks whenever any is available and moves them into the worker's internal queue,
+    whereas idle worker serves as a fallback that aims to read a single item only if the internal queue is empty
+    and the main thread does not process any task (is idle).
     """
 
     class MixedReceiverState:
@@ -132,14 +137,14 @@ class MixedTaskReceiver:
             self.idle_cv = threading.Condition(lock=self.lock)
             self.is_idle = False
             self.is_interrupted = False
-            self.tasks_queue = deque()
+            self.task_queue = deque()
 
         def insert_task(self, recv):
             with self.tasks_cv:
                 if recv is None:
-                    self.tasks_queue.appendleft(recv)
+                    self.task_queue.appendleft(recv)
                 else:
-                    self.tasks_queue.extend(recv)
+                    self.task_queue.extend(recv)
                 self.tasks_cv.notify()
 
     def __init__(self, recv_queues):
@@ -170,19 +175,23 @@ class MixedTaskReceiver:
     def get_task(self):
         with self.state.tasks_cv:
             waited = False
-            while len(self.state.tasks_queue) == 0:
-                # there's only one consumer of tasks_queue, so no stealing of tasks between waits can happen
+            while len(self.state.task_queue) == 0:
+                # there's only one consumer of task_queue, so no stealing of tasks between waits can happen
                 if not waited:
                     waited = True
                     self.state.is_idle = True
                     self.state.idle_cv.notify()
                 self.state.tasks_cv.wait()
             self.state.is_idle = False
-            task = self.state.tasks_queue.popleft()
+            task = self.state.task_queue.popleft()
         return task
 
 
 class EagerReceiverWorker:
+    """
+    Worker thread waiting for any tasks available in the inter-process queue `recv_queue`.
+    If anything is available, it takes all the items and puts them into worker's internal task queue.
+    """
 
     def __init__(self, recv_queue, receiver_state : MixedTaskReceiver.MixedReceiverState):
         self.recv_queue = recv_queue
@@ -200,13 +209,19 @@ class EagerReceiverWorker:
 
 
 class IdleReceiverWorker:
+    """
+    Worker thread that, when notified, takes a single task from the inter-process queue and
+    puts it into worker's internal task queue. It aims to take the task only if the main thread
+    reports it has no tasks to process - it rechecks that condition if it had to wait on empty
+    inter-process queue.
+    """
 
     def __init__(self, recv_queue, receiver_state : MixedTaskReceiver.MixedReceiverState):
         self.recv_queue = recv_queue
         self.receiver_state = receiver_state
 
     def _is_idle_state(self):
-        return self.receiver_state.is_idle and len(self.receiver_state.tasks_queue) == 0
+        return self.receiver_state.is_idle and len(self.receiver_state.task_queue) == 0
 
     def _recheck_should_take(self):
         with self.receiver_state.idle_cv:
@@ -216,16 +231,16 @@ class IdleReceiverWorker:
         with self.receiver_state.idle_cv:
             while not self.receiver_state.is_interrupted and not self._is_idle_state():
                 self.receiver_state.idle_cv.wait()
-            return self.receiver_state.is_interrupted
+            return not self.receiver_state.is_interrupted
 
     def receiver_loop(self):
         try:
             while True:
-                if self.wait():
+                if not self.wait():
                     break
                 # Worker has no dedicated work to do (is idle), so take one task from general queue.
                 # If general queue is empty, the call will block and then recheck the condition
-                recv = self.recv_queue.get(get_if_waited=self._recheck_should_take)
+                recv = self.recv_queue.get(predicate=self._recheck_should_take)
                 if recv is None:
                     break
                 if len(recv):  # if _recheck_should_take returned False, recv is an empty list

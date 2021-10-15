@@ -37,13 +37,13 @@ class ShmQueue:
 
     def __init__(self, mp, capacity):
         self.lock = mp.Lock()
-        self.cv_empty = mp.Condition(self.lock)
+        self.cv_not_empty = mp.Condition(self.lock)
         self.capacity = capacity
         self.meta = QueueMeta(capacity, 0, 0, 0)
-        self.meta_capacity = align_up(self.meta.get_size(), self.ALIGN_UP_MSG)
+        self.meta_size = align_up(self.meta.get_size(), self.ALIGN_UP_MSG)
         dummy_msg = self.MSG_CLASS()
-        self.msg_capacity = align_up(dummy_msg.get_size(), self.ALIGN_UP_MSG)
-        self.shm_capacity = align_up(self.meta_capacity + capacity * self.msg_capacity, self.ALIGN_UP_BUFFER)
+        self.msg_size = align_up(dummy_msg.get_size(), self.ALIGN_UP_MSG)
+        self.shm_capacity = align_up(self.meta_size + capacity * self.msg_size, self.ALIGN_UP_BUFFER)
         self.shm = shared_mem.SharedMem.allocate(self.shm_capacity)
         self.is_closed = False
         self.init_offsets()
@@ -60,7 +60,7 @@ class ShmQueue:
         self.init_offsets()
 
     def init_offsets(self):
-        self.msgs_offsets = [i * self.msg_capacity + self.meta_capacity for i in range(self.capacity)]
+        self.msgs_offsets = [i * self.msg_size + self.meta_size for i in range(self.capacity)]
 
     def set_shm(self, shm):
         assert self.shm is None and shm.capacity >= self.shm_capacity
@@ -96,9 +96,9 @@ class ShmQueue:
                 self.write_meta()
                 # Notify only one waiting worker about closing of the queue, the woken up worker
                 # will notify the next one. Avoid notify_all at this point, due to possible deadlock if
-                # one of the notified workers exited abruptly when waiting on cv_empty without proper releasing
+                # one of the notified workers exited abruptly when waiting on cv_not_empty without proper releasing
                 # of the underlying semaphore.
-                self.cv_empty.notify()
+                self.cv_not_empty.notify()
 
     def put(self, msgs : List[MSG_CLASS]) -> Optional[int]:
         assert len(msgs), "Cannot write an empty list of messages"
@@ -117,7 +117,7 @@ class ShmQueue:
                 next_slot = (next_slot + 1) % self.meta.capacity
             self.meta.size += msgs_len
             self.write_meta()
-            self.cv_empty.notify()
+            self.cv_not_empty.notify()
         return msgs_len
 
     def _recv_samples(self, num_samples):
@@ -134,26 +134,38 @@ class ShmQueue:
         waited = False
         self.read_meta()
         while not self.meta.size > 0 and not self.meta.is_closed:
-            self.cv_empty.wait()
+            self.cv_not_empty.wait()
             waited = True
             self.read_meta()
         return waited
 
-    def get(self, num_samples=1, get_if_waited=None) -> Optional[List[MSG_CLASS]]:
+    def get(self, num_samples=1, predicate=None) -> Optional[List[MSG_CLASS]]:
+        """
+        Args:
+        ----------
+        num_samples : optional positive integer
+            Maximal number of messages to take from the queue, if set to None all available messages
+            will be taken. The call blocks until there are any messages available.
+            It may return less than `num_samples`, but an empty list is returned only if `predicate`
+            was specified and it evaluated to False after waiting on empty queue.
+            The call returns None iff the queue was closed.
+        predicate : a parameterless callable
+            Used for double-checking if the item should really be taken after waiting on empty queue.
+        """
         if self.is_closed:
             return
-        with self.cv_empty:  # equivalent to `with self.lock`
+        with self.cv_not_empty:  # equivalent to `with self.lock`
             waited = self._wait_for_samples()
             if self.meta.is_closed:
                 self.is_closed = True
-                self.cv_empty.notify()
+                self.cv_not_empty.notify()
                 return
-            if waited and get_if_waited is not None and not get_if_waited():
+            if waited and predicate is not None and not predicate():
                 recv = []
             else:
                 recv = self._recv_samples(num_samples)
             if self.meta.size > 0:
-                self.cv_empty.notify()
+                self.cv_not_empty.notify()
         return recv
 
 
