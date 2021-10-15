@@ -13,57 +13,28 @@
 # limitations under the License.
 
 
-import struct
 from typing import Optional
 from nvidia.dali.types import SampleInfo
-
-
-class Structure:
-
-    """
-    Utility around Python `struct` module that allows to access and modify `_fields` like an ordinary object attributes,
-    but also read and write their values from/into the buffer in C struct like format.
-    """
-
-    _fields = tuple()
-
-    def __init__(self, *values):
-        self.setup_struct()
-        self.set_values(*values)
-
-    @classmethod
-    def setup_struct(cls):
-        if '_struct_desc' not in cls.__dict__:
-            cls._struct_desc = "@" + "".join(field_type for _, field_type in cls._fields)
-            cls._struct = struct.Struct(cls._struct_desc)
-
-    def __getstate__(self):
-        return self.__dict__.copy()
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        self.setup_struct()
-
-    def set_values(self, *values):
-        for (field_name, _), value in zip(self._fields, values):
-            setattr(self, field_name, value)
-
-    def get_values(self):
-        return tuple(getattr(self, field_name) for field_name, _ in self._fields)
-
-    def pack_into(self, buf, offset):
-        return self._struct.pack_into(buf, offset, *self.get_values())
-
-    def unpack_from(self, buf, offset):
-        values = self._struct.unpack_from(buf, offset)
-        self.set_values(*values)
-        return self
-
-    def get_size(self):
-        return self._struct.size
+from nvidia.dali._multiproc.struct_message import Structure
 
 
 class ShmMessage(Structure):
+    """
+    Type of C-struct like message exchanged via shared memory queue (`ShmQueue`).
+    ----------
+    `worker_id` : int
+        Intger identifying a process that put the message, number from [0, num_workers) range for workers,
+        -1 in case of a main process.
+    `shm_chunk_id` : int
+        Integer identifying shm chunk that contains pickled data to be read by the receiver
+    `shm_capacity` : int
+        Size of the `shm_chunk_id` chunk, receiver should resize the mapping if the chunk
+        was resized by the writer.
+    `offset` : int
+        Offset in the shm chunk where the serialized message starts
+    `num_bytes` : int
+        Size in bytes of the serialized message
+    """
     _fields = ("worker_id", "i"), ("shm_chunk_id", "i"), ("shm_capacity", "i"), ("offset", "i"), ("num_bytes", "i")
 
 
@@ -91,7 +62,7 @@ class WorkerArgs:
     ----------
     `worker_id` : Ordinal of the worker in the workers pool
     `start_method` : Python's multiprocessing start method - `spawn` or `fork`
-    `sources_desc` : Dictionary with External Source's SourceDescription instances as values. Keys are ordinals corresponding to
+    `source_descs` : Dictionary with External Source's SourceDescription instances as values. Keys are ordinals corresponding to
         the order in which callbacks were passed to the pool.
         If `callback_pickler` is not None, actual callback in SourceDescription is replaced with result of its serialization.
     `shm_chunks` : list of either BufShmChunkMeta or BufShmChunk instances (depending on the start method) that
@@ -106,13 +77,13 @@ class WorkerArgs:
         Python wrapper around Unix socket used to pass file descriptors identifying shared memory chunk to parent process.
         None if `start_method='fork'`
     `callback_pickler`
-        Optional custom pickler that was applied to serialize callbacks in `sources_desc`"""
+        Optional custom pickler that was applied to serialize callbacks in `source_descs`"""
 
-    def __init__(self, worker_id, start_method, sources_desc, shm_chunks, general_task_queue,
+    def __init__(self, *, worker_id, start_method, source_descs, shm_chunks, general_task_queue,
                  dedicated_task_queue, result_queue, sock_reader, callback_pickler):
         self.worker_id = worker_id
         self.start_method = start_method
-        self.sources_desc = sources_desc
+        self.source_descs = source_descs
         self.shm_chunks = shm_chunks
         self.general_task_queue = general_task_queue
         self.dedicated_task_queue = dedicated_task_queue
@@ -122,10 +93,14 @@ class WorkerArgs:
 
 
 class SampleRange:
+    """
+    Describes a batch of work in sample mode that consists of SampleInfo instances with consecutive
+    indices within the epoch. Used to avoid linear dependency of the task description on the batch size.
+    """
 
     def __init__(self, sample_start, sample_end, iteration, epoch_idx):
         self.sample_start = sample_start # idx in epoch of first sample in batch
-        self.sample_end = sample_end # one past idx in epoch of last sample in batch
+        self.sample_end = sample_end # idx in epoch of one past last sample in batch
         self.iteration = iteration # index of a batch within epoch
         self.epoch_idx = epoch_idx
 
@@ -137,12 +112,15 @@ class SampleRange:
 
 
 class SampleRangeSlice:
+    """
+    Subrange of `SampleRange` - used to distribute SampleRange computation among the workers.
+    """
 
     def __init__(self, sample_range : SampleRange, start, end):
         assert 0 <= start < end <= len(sample_range)
         self.sample_range = sample_range
-        self.start = start  # first idx of sample within batch
-        self.end = end # one past last idx of sample within batch
+        self.start = start  # idx of first sample in slice (relative to a batch not an epoch)
+        self.end = end # idx of one past last sample in slice (relative to a batch not an epoch)
 
     def iter_samples(self):
         return (SampleInfo(
@@ -153,14 +131,14 @@ class SampleRangeSlice:
             ) for idx_in_batch in range(self.start, self.end))
 
 
-class BatchArgs:
+class TaskArgs:
 
     @classmethod
-    def sample_mode(cls, minibatch_i, sample_range):
+    def make_sample(cls, minibatch_i, sample_range):
         return cls(minibatch_i=minibatch_i, sample_range=sample_range)
 
     @classmethod
-    def batch_mode(cls, batch_args):
+    def make_batch(cls, batch_args):
         return cls(minibatch_i=0, batch_args=batch_args)
 
     def __init__(self, minibatch_i, sample_range : Optional[SampleRange]=None, batch_args=None):
@@ -185,14 +163,14 @@ class ScheduledTask:
         The value is increased every time the corresponding context is resetted,
         this way worker can know if the new epoch started, and if it can restart
         iterator that raised StopIteration but is set to cycle=raise.
-    `task` : BatchArgs
+    `task` : TaskArgs
         Describes the minibatch that should be computed by the worker. If the given source
         is run in batch mode this simply wraps parameters that external source would pass to the
         source in non-parallel mode. In sample mode, it is (part of) the list of nvidia.dali.types.SampleInfo
         produced by the external source.
     """
 
-    def __init__(self, context_i, scheduled_i, epoch_start, task : BatchArgs):
+    def __init__(self, context_i, scheduled_i, epoch_start, task : TaskArgs):
         self.context_i = context_i
         self.scheduled_i = scheduled_i
         self.epoch_start = epoch_start

@@ -64,10 +64,7 @@ class SampleMeta:
 
 
 class SharedBatchMeta:
-    """Container for essential meta data about batch written into shared memory.
-    Contains id of the memory chunk, size of the buffer, and offset of more detailed
-    meta data passed through shared memory (SampleMeta).
-    """
+    """Describes offset within shared memory chunk and size of serialized list of `SampleMeta` instances"""
 
     def __init__(self, meta_offset, meta_size):
         self.meta_offset = meta_offset
@@ -236,6 +233,11 @@ def read_shm_message(shm_chunk : shared_mem.SharedMem, shm_message):
 
 
 def write_shm_message(worker_id, shm : BufShmChunk, message, offset, resize=True):
+    """
+    Pickles `message` instances, stores it in the provided `shm` chunk at given offset and returns
+    `ShmMessage` instances describing the placement of the `message`.
+    Returned instance can be put into ShmQueue.
+    """
     serialized_message = pickle.dumps(message)
     num_bytes = len(serialized_message)
     if num_bytes > shm.shm_chunk.capacity - offset:

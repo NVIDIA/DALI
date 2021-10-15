@@ -295,21 +295,21 @@ class CallableSource:
         return data_batch
 
 
-def get_source_from_desc(sources_desc):
-    if sources_desc.kind == SourceKind.CALLABLE:
-        return CallableSource(sources_desc)
-    elif sources_desc.kind in (SourceKind.ITERABLE, SourceKind.GENERATOR_FUNC):
-        return IterableSource(sources_desc)
+def get_source_from_desc(source_descs):
+    if source_descs.kind == SourceKind.CALLABLE:
+        return CallableSource(source_descs)
+    elif source_descs.kind in (SourceKind.ITERABLE, SourceKind.GENERATOR_FUNC):
+        return IterableSource(source_descs)
     raise RuntimeError("Unsupported source type")
 
 
-def init_callbacks(sources_desc, callback_pickler):
+def init_callbacks(source_descs, callback_pickler):
     if callback_pickler is not None:
-        for source_desc in sources_desc.values():
+        for source_desc in source_descs.values():
             source_desc.source = callback_pickler.loads(source_desc.source)
     callbacks = {
         context_i : get_source_from_desc(source_desc)
-        for context_i, source_desc in sources_desc.items()}
+        for context_i, source_desc in source_descs.items()}
     return callbacks
 
 
@@ -332,7 +332,7 @@ def recv_shm(sock_reader, capacity):
 def init_queue(sock_reader, queue : ShmQueue):
     shm = recv_shm(sock_reader, queue.shm_capacity)
     queue.set_shm(shm)
-    shm.seal()
+    shm.close_handle()
     return queue
 
 
@@ -379,7 +379,7 @@ def worker(worker_args : WorkerArgs):
     * waits for incoming tasks,
     * serializes results and passes them to the main process.
     """
-    callbacks = init_callbacks(worker_args.sources_desc, worker_args.callback_pickler)
+    callbacks = init_callbacks(worker_args.source_descs, worker_args.callback_pickler)
     if worker_args.start_method == "fork":
         shm_chunks = {shm.shm_chunk_id : shm for shm in worker_args.shm_chunks}
     else:

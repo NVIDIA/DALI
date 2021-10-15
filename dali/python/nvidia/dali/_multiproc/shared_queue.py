@@ -82,8 +82,8 @@ class ShmQueue:
         offset = self.msgs_offsets[i]
         msg.pack_into(self.shm.buf, offset)
 
-    def seal(self):
-        self.shm.seal()
+    def close_handle(self):
+        self.shm.close_handle()
 
     def close(self):
         if self.is_closed:

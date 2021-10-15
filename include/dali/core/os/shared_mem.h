@@ -158,7 +158,7 @@ class DLL_PUBLIC SharedMem {
    * from then on but the memory stays mmaped and the mapping can be
    * still adjusted if another process resizes underlying shm.
    */
-  DLL_PUBLIC void seal();
+  DLL_PUBLIC void close_handle();
 
   DLL_PUBLIC void close();
 

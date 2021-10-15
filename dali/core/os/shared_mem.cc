@@ -143,7 +143,7 @@ uint8_t *SharedMem::get_raw_ptr() {
   return !memory_mapping_ ? nullptr : memory_mapping_.get_raw_ptr();
 }
 
-void SharedMem::seal() {
+void SharedMem::close_handle() {
   shm_handle_.reset();
 }
 

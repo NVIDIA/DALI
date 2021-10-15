@@ -104,10 +104,10 @@ class SharedMem:
         self.buf = None
         self.shm.close()
 
-    def seal(self):
+    def close_handle(self):
         """Closes file descriptor for underlying shared memory, from now process cannot resize
            underlying memory with this handle but still can adjust mapping if the underlying shared memory
            is resized, for instance, by another process.
            This means that call to resize with ``trunc``= True will be invalid.
         """
-        self.shm.seal()
+        self.shm.close_handle()

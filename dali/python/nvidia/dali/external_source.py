@@ -136,13 +136,13 @@ class _ExternalSourceGroup(object):
         """Schedule computing new batch from source callback by the parallel pool."""
         dst_chunk_i = (self.flat_iter_idx + lead) % pool.contexts[context_i].queue_depth
         if self.batch:
-            pool.schedule_batch(context_i, dst_chunk_i, WorkBatch.batch_mode(
+            pool.schedule_batch(context_i, dst_chunk_i, WorkBatch.make_batch(
                 self.callback_args(None, epoch_idx, lead=lead)))
         else:
             sample_range_start = self.current_sample + batch_size * lead
             sample_range_end = sample_range_start + batch_size
             iteration = self.current_iter + lead
-            work_batch = WorkBatch.sample_mode(
+            work_batch = WorkBatch.make_sample(
                 sample_range_start, sample_range_end, iteration, epoch_idx)
             pool.schedule_batch(context_i, dst_chunk_i, work_batch)
 

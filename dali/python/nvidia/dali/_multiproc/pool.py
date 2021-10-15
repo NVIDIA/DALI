@@ -25,7 +25,7 @@ from nvidia.dali import pickling
 from nvidia.dali._multiproc import shared_mem
 from nvidia.dali._utils.external_source_impl import SourceDescription, SourceKind
 from nvidia.dali._multiproc.worker import worker
-from nvidia.dali._multiproc.messages import BufShmChunkMeta, ScheduledTask, BatchArgs, WorkerArgs, SampleRange
+from nvidia.dali._multiproc.messages import BufShmChunkMeta, ScheduledTask, TaskArgs, WorkerArgs, SampleRange
 from nvidia.dali._multiproc.shared_batch import deserialize_batch, import_numpy, read_shm_message, \
     BufShmChunk, SharedBatchWriter, write_shm_message, _align_up as align_up
 from nvidia.dali._multiproc.shared_queue import ShmQueue, Dispatcher, DispatcherWorker
@@ -91,9 +91,9 @@ class ShmBuffer:
             for _ in range(self.queue_depth)]
         self.chunks_ids = [chunk_id for dest_buf in self.chunks_ids_by_pos for chunk_id in dest_buf]
 
-    def seal(self):
+    def close_handles(self):
         for shm_chunk_id in self.chunks_ids:
-            self.shm_pool.chunks[shm_chunk_id].shm_chunk.seal()
+            self.shm_pool.chunks[shm_chunk_id].shm_chunk.close_handle()
 
     def get_chunk_by_id(self, shm_chunk_id):
         return self.shm_pool.chunks[shm_chunk_id]
@@ -241,14 +241,14 @@ class WorkBatch:
     """
 
     @classmethod
-    def sample_mode(cls, start, end, iteration, epoch_idx):
+    def make_sample(cls, start, end, iteration, epoch_idx):
         sample_range = SampleRange(start, end, iteration, epoch_idx)
         if len(sample_range) <= 0:
             raise RuntimeError("Cannot schedule empty batch")
         return cls(sample_range=sample_range)
 
     @classmethod
-    def batch_mode(cls, batch_arg):
+    def make_batch(cls, batch_arg):
         return cls(batch_arg=batch_arg)
 
     def __init__(self, sample_range=None, batch_arg=None):
@@ -264,7 +264,7 @@ class WorkBatch:
         if self.is_sample_mode():
             return self._split_samples(num_samples_split)
         self.num_minibatches = 1
-        return [BatchArgs.batch_mode(self.batch_arg)]
+        return [TaskArgs.make_batch(self.batch_arg)]
 
     def _split_samples(self, num_minibatches):
         sample_range = self.sample_range
@@ -278,7 +278,7 @@ class WorkBatch:
             if worker_chunk == 0:
                 break
             samples_slice = sample_range.get_slice(queued_no, queued_no + worker_chunk)
-            minibatch = BatchArgs.sample_mode(minibatch_i, samples_slice)
+            minibatch = TaskArgs.make_sample(minibatch_i, samples_slice)
             minibatches.append(minibatch)
             queued_no += worker_chunk
         self.num_minibatches = num_minibatches
@@ -291,8 +291,8 @@ starts thread keeping track of running processes and initializes communication.
 """
     class WorkerContext:
 
-        def __init__(self, sources_desc : SourceDescription, dedicated_task_queue : Optional[ShmQueue], shm_chunks : List[BufShmChunk], callback_pickler):
-            self.sources_desc = sources_desc
+        def __init__(self, source_descs : SourceDescription, dedicated_task_queue : Optional[ShmQueue], shm_chunks : List[BufShmChunk], callback_pickler):
+            self.source_descs = source_descs
             self.dedicated_task_queue = dedicated_task_queue
             self.shm_chunks = shm_chunks
             self.callback_pickler = callback_pickler
@@ -328,8 +328,15 @@ starts thread keeping track of running processes and initializes communication.
                     write_socks.append(sock_writer)
                     worker_shm_chunks = [BufShmChunkMeta.from_chunk(chunk) for chunk in worker_context.shm_chunks]
                 process_context = WorkerArgs(
-                    worker_i, start_method, worker_context.sources_desc, worker_shm_chunks, general_task_queue,
-                    worker_context.dedicated_task_queue, res_queue, sock_reader, worker_context.callback_pickler)
+                    worker_id=worker_i,
+                    start_method=start_method,
+                    source_descs=worker_context.source_descs,
+                    shm_chunks=worker_shm_chunks,
+                    general_task_queue=general_task_queue,
+                    dedicated_task_queue=worker_context.dedicated_task_queue,
+                    result_queue=res_queue, sock_reader=sock_reader,
+                    callback_pickler=worker_context.callback_pickler
+                )
                 process = mp.Process(target=worker, args=(process_context,))
                 self._processes.append(process)
             self._start_processes(mp, start_method, write_socks, general_task_queue)
@@ -356,13 +363,13 @@ starts thread keeping track of running processes and initializes communication.
             # close underlying file descriptors that are not needed anymore once
             # passed to the workers processes
             for setup in setups:
-                setup.shm_buffer.seal()
+                setup.shm_buffer.close_handles()
             if general_task_queue is not None:
-                general_task_queue.seal()
-            res_queue.seal()
+                general_task_queue.close_handle()
+            res_queue.close_handle()
             for worker_context in worker_contexts:
                 if worker_context.dedicated_task_queue is not None:
-                    worker_context.dedicated_task_queue.seal()
+                    worker_context.dedicated_task_queue.close_handle()
             return instance
         except:
             if instance is not None:
@@ -373,17 +380,17 @@ starts thread keeping track of running processes and initializes communication.
     def create_worker_contexts(cls, mp, setups : List[CallbackSetup], num_workers, start_method, py_callback_pickler):
         callback_pickler = None if start_method == "fork" else pickling._CustomPickler.create(py_callback_pickler)
         if callback_pickler is None:
-            sources_desc = [setup.source_desc for setup in setups]
+            source_descs = [setup.source_desc for setup in setups]
         else:
-            sources_desc = [copy.copy(setup.source_desc) for setup in setups]
-            for source_desc in sources_desc:
+            source_descs = [copy.copy(setup.source_desc) for setup in setups]
+            for source_desc in source_descs:
                 source_desc.source = callback_pickler.dumps(source_desc.source)
         dedicated_workers = [setup.dedicated_worker for setup in setups if setup.dedicated_worker is not None]
         worker_contexts = []
         for worker_id in range(num_workers):
             worker_sources = {
                 source_i : source_desc
-                for source_i, (source_desc, setup) in enumerate(zip(sources_desc, setups))
+                for source_i, (source_desc, setup) in enumerate(zip(source_descs, setups))
                 if setup.dedicated_worker is None or setup.dedicated_worker == worker_id}
             worker_shm_chunks = [
                 shm_chunk for source_i, setup
@@ -669,7 +676,7 @@ class WorkerPool:
                 "there is less of them than ```py_num_workers```".format(
                     num_cbs_dedicated, "s" if num_cbs_dedicated > 1 else "", num_workers), Warning)
                 num_workers = num_cbs_dedicated
-        sources_desc = [group.source_desc for group in groups]
+        source_descs = [group.source_desc for group in groups]
         dedicated_workers = cls.assign_excl_workers(groups, num_workers)
         shm_pool = ShmPool()
         shm_buffers = [
@@ -682,7 +689,7 @@ class WorkerPool:
         setups = [
             CallbackSetup(source_desc, shm_buffer, dedicated_worker)
             for source_desc, shm_buffer, dedicated_worker
-            in zip(sources_desc, shm_buffers, dedicated_workers)]
+            in zip(source_descs, shm_buffers, dedicated_workers)]
         contexts = [CallbackContext(setup) for setup in setups]
         pool = None
         try:
