@@ -18,7 +18,7 @@ import logging
 import numpy as np
 import warnings
 from enum import Enum, unique
-from collections import Iterable
+from collections.abc import Iterable
 
 def _iterator_deprecation_warning():
     warnings.warn("Please set `reader_name` and don't set last_batch_padded and size manually " +

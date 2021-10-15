@@ -19,7 +19,7 @@ from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 import mxnet as mx
 import ctypes
 import numpy as np
-from collections import Iterable
+from collections.abc import Iterable
 
 
 ##################################################

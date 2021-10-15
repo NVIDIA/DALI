@@ -24,13 +24,12 @@ from nvidia.dali.external_source import _is_external_source, _is_external_source
 
 from nvidia.dali._utils.external_source_impl import _get_generator_from_source_desc, _cycle_enabled
 
-from collections import Iterable
 from distutils.version import LooseVersion
 import warnings
 
 from nvidia.dali_tf_plugin import dali_tf_plugin
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Iterable
 
 _dali_tf_module = dali_tf_plugin.load_dali_tf_plugin()
 _dali_tf = _dali_tf_module.dali

@@ -20,7 +20,7 @@ import numpy as np
 import torch
 from torch.utils.dlpack import to_dlpack, from_dlpack
 from test_utils import check_output
-from collections import Iterable
+from collections.abc import Iterable
 
 class TestIterator():
     def __init__(self, n, batch_size, dims = [2], as_tensor = False, device="cuda"):
