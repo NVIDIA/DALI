@@ -14,6 +14,8 @@
 
 
 import struct
+from typing import Optional
+from nvidia.dali.types import SampleInfo
 
 
 class Structure:
@@ -119,23 +121,55 @@ class WorkerArgs:
         self.callback_pickler = callback_pickler
 
 
+class SampleRange:
+
+    def __init__(self, sample_start, sample_end, iteration, epoch_idx):
+        self.sample_start = sample_start # idx in epoch of first sample in batch
+        self.sample_end = sample_end # one past idx in epoch of last sample in batch
+        self.iteration = iteration # index of a batch within epoch
+        self.epoch_idx = epoch_idx
+
+    def get_slice(self, slice_start, slice_end):
+        return SampleRangeSlice(self, slice_start, slice_end)
+
+    def __len__(self):
+        return self.sample_end - self.sample_start
+
+
+class SampleRangeSlice:
+
+    def __init__(self, sample_range : SampleRange, start, end):
+        assert 0 <= start < end <= len(sample_range)
+        self.sample_range = sample_range
+        self.start = start  # first idx of sample within batch
+        self.end = end # one past last idx of sample within batch
+
+    def iter_samples(self):
+        return (SampleInfo(
+            self.sample_range.sample_start + idx_in_batch,
+            idx_in_batch,
+            self.sample_range.iteration,
+            self.sample_range.epoch_idx
+            ) for idx_in_batch in range(self.start, self.end))
+
+
 class BatchArgs:
 
     @classmethod
-    def sample_mode(cls, minibatch_i, samples_args):
-        return cls(minibatch_i=minibatch_i, samples_args=samples_args)
+    def sample_mode(cls, minibatch_i, sample_range):
+        return cls(minibatch_i=minibatch_i, sample_range=sample_range)
 
     @classmethod
     def batch_mode(cls, batch_args):
         return cls(minibatch_i=0, batch_args=batch_args)
 
-    def __init__(self, minibatch_i, samples_args=None, batch_args=None):
+    def __init__(self, minibatch_i, sample_range : Optional[SampleRange]=None, batch_args=None):
         self.minibatch_i = minibatch_i
-        self.samples_args = samples_args
+        self.sample_range = sample_range
         self.batch_args = batch_args
 
     def is_sample_mode(self):
-        return self.samples_args is not None
+        return self.sample_range is not None
 
 
 class ScheduledTask:

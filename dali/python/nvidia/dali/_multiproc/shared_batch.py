@@ -242,10 +242,10 @@ def write_shm_message(worker_id, shm : BufShmChunk, message, offset, resize=True
         if resize:
             SharedBatchWriter.resize_shm_chunk(shm.shm_chunk, offset + num_bytes)
         else:
-            raise RuntimeError(
-                "Could not put message into shared memory region, not enough space in the buffer. "
-                "Consider specifying `bytes_per_minibatch_hint` of parallel external source to at "
-                "least {}".format(offset + num_bytes))
+            # This should not happen, resize is False only when writing task description into memory
+            # in the main process, and the description (ScheduledTask and its members) boils down
+            # to bounded number of integers.
+            assert False, "Could not put message into shared memory region, not enough space in the buffer."
     buffer = shm.shm_chunk.buf[offset:offset+num_bytes]
     buffer[:] = serialized_message
     return ShmMessage(worker_id, shm.shm_chunk_id, shm.shm_chunk.capacity, offset, num_bytes)

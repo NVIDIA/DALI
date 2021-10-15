@@ -25,7 +25,7 @@ from nvidia.dali import pickling
 from nvidia.dali._multiproc import shared_mem
 from nvidia.dali._utils.external_source_impl import SourceDescription, SourceKind
 from nvidia.dali._multiproc.worker import worker
-from nvidia.dali._multiproc.messages import BufShmChunkMeta, ScheduledTask, BatchArgs, WorkerArgs
+from nvidia.dali._multiproc.messages import BufShmChunkMeta, ScheduledTask, BatchArgs, WorkerArgs, SampleRange
 from nvidia.dali._multiproc.shared_batch import deserialize_batch, import_numpy, read_shm_message, \
     BufShmChunk, SharedBatchWriter, write_shm_message, _align_up as align_up
 from nvidia.dali._multiproc.shared_queue import ShmQueue, Dispatcher, DispatcherWorker
@@ -241,23 +241,24 @@ class WorkBatch:
     """
 
     @classmethod
-    def sample_mode(cls, samples_args):
-        if not samples_args:
+    def sample_mode(cls, start, end, iteration, epoch_idx):
+        sample_range = SampleRange(start, end, iteration, epoch_idx)
+        if len(sample_range) <= 0:
             raise RuntimeError("Cannot schedule empty batch")
-        return cls(samples_args=samples_args)
+        return cls(sample_range=sample_range)
 
     @classmethod
     def batch_mode(cls, batch_arg):
         return cls(batch_arg=batch_arg)
 
-    def __init__(self, samples_args=None, batch_arg=None):
-        self.samples_args = samples_args
+    def __init__(self, sample_range=None, batch_arg=None):
+        self.sample_range = sample_range
         self.batch_arg = batch_arg
         self.num_minibatches = None
-        assert ((self.samples_args is None) != (self.batch_arg is None))
+        assert ((self.sample_range is None) != (self.batch_arg is None))
 
     def is_sample_mode(self):
-        return self.samples_args is not None
+        return self.sample_range is not None
 
     def split_work(self, num_samples_split=None):
         if self.is_sample_mode():
@@ -266,18 +267,19 @@ class WorkBatch:
         return [BatchArgs.batch_mode(self.batch_arg)]
 
     def _split_samples(self, num_minibatches):
-        tasks = self.samples_args
-        tasks_num = len(tasks)
-        chunk_size = tasks_num // num_minibatches
-        remainder = tasks_num % num_minibatches
+        sample_range = self.sample_range
+        samples_num = len(sample_range)
+        chunk_size = samples_num // num_minibatches
+        remainder = samples_num % num_minibatches
         queued_no = 0
         minibatches = []
         for minibatch_i in range(num_minibatches):
             worker_chunk = chunk_size + (minibatch_i < remainder)
             if worker_chunk == 0:
                 break
-            samples = BatchArgs.sample_mode(minibatch_i, tasks[queued_no: queued_no + worker_chunk])
-            minibatches.append(samples)
+            samples_slice = sample_range.get_slice(queued_no, queued_no + worker_chunk)
+            minibatch = BatchArgs.sample_mode(minibatch_i, samples_slice)
+            minibatches.append(minibatch)
             queued_no += worker_chunk
         self.num_minibatches = num_minibatches
         return minibatches
@@ -630,7 +632,7 @@ class WorkerPool:
     @classmethod
     def from_groups(
             cls, groups, keep_alive_queue_size, start_method="fork", num_workers=1,
-            min_shm_chunk_size=1024 * 1024, py_callback_pickler=None):
+            initial_chunk_size=1024 * 1024, py_callback_pickler=None):
         """Creates new WorkerPool instance for given list of ExternalSource groups.
 
         Parameters
@@ -646,7 +648,7 @@ class WorkerPool:
             Method of starting worker processes, either fork or spawn.
         `num_workers` : int
             Number of workers to be created in ProcPool.
-        `min_shm_chunk_size` : int
+        `initial_chunk_size` : int
             Minimal initial size of each shared memory chunk, NOTE it must be enough to accommodate serialized `ScheduledTask` instance.
         """
         import_numpy()
@@ -674,7 +676,7 @@ class WorkerPool:
             ShmBuffer(
                 shm_pool,
                 keep_alive_queue_size + group.prefetch_queue_depth,
-                cls.get_initial_shm_chunk(group.bytes_per_minibatch_hint, min_shm_chunk_size),
+                initial_chunk_size,
                 1 if group.batch else num_workers
             ) for group in groups]
         setups = [
@@ -704,12 +706,6 @@ class WorkerPool:
     @classmethod
     def is_iterable_group(cls, group):
         return group.source_desc.kind != SourceKind.CALLABLE
-
-    @classmethod
-    def get_initial_shm_chunk(cls, bytes_per_minibatch_hint, min_shm_chunk_size):
-        if bytes_per_minibatch_hint is None or bytes_per_minibatch_hint < min_shm_chunk_size:
-            return min_shm_chunk_size
-        return bytes_per_minibatch_hint
 
     def schedule_batch(self, context_i, dst_chunk_i, work_batch : WorkBatch):
         """Distribute `work_batch` among workers.

@@ -289,7 +289,7 @@ class CallableSource:
     def __call__(self, scheduled : ScheduledTask):
         task = scheduled.task
         if task.is_sample_mode():
-            data_batch = [self.callback(*task_args) for task_args in task.samples_args]
+            data_batch = [self.callback(sample_info) for sample_info in task.sample_range.iter_samples()]
         else:
             data_batch = self.callback(*task.batch_args)
         return data_batch

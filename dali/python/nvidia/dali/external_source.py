@@ -66,7 +66,7 @@ class _ExternalSourceGroup(object):
     def __init__(
             self, callback, source_desc, is_multioutput, instances=[], *,
             cuda_stream=None, use_copy_kernel=None, batch=True, parallel=False,
-            prefetch_queue_depth=None, batch_info=None, bytes_per_minibatch_hint=None):
+            prefetch_queue_depth=None, batch_info=None):
         self.instances = list(instances)  # we need a copy!
         self.is_multioutput = is_multioutput
         self.callback = callback
@@ -84,7 +84,6 @@ class _ExternalSourceGroup(object):
         self.scheduled_ahead = 0  # number of batches scheduled ahead for parallel ext. src.
         self.parallel = parallel
         self.prefetch_queue_depth = prefetch_queue_depth
-        self.bytes_per_minibatch_hint = bytes_per_minibatch_hint
         if callback is not None:
             arg_count = _accepted_arg_count(callback)
             if arg_count not in [0, 1]:
@@ -140,8 +139,12 @@ class _ExternalSourceGroup(object):
             pool.schedule_batch(context_i, dst_chunk_i, WorkBatch.batch_mode(
                 self.callback_args(None, epoch_idx, lead=lead)))
         else:
-            pool.schedule_batch(context_i, dst_chunk_i, WorkBatch.sample_mode([
-                self.callback_args(i, epoch_idx, batch_size, lead) for i in range(batch_size)]))
+            sample_range_start = self.current_sample + batch_size * lead
+            sample_range_end = sample_range_start + batch_size
+            iteration = self.current_iter + lead
+            work_batch = WorkBatch.sample_mode(
+                sample_range_start, sample_range_end, iteration, epoch_idx)
+            pool.schedule_batch(context_i, dst_chunk_i, work_batch)
 
     def schedule_and_receive(self, pipeline, pool, context_i, batch_size, epoch_idx):
         """Obtain the computed results of calling source callback in parallel pool and feed
@@ -383,17 +386,12 @@ Keyword Args
 `prefetch_queue_depth` : int, option, default = 1
     When run in ``parallel=True`` mode, specifies the number of batches to be computed in advance and stored
     in the internal buffer, otherwise parameter is ignored.
-
-`bytes_per_minibatch_hint` : int, default = None
-    Hint for the initial size of each buffer accommodating (part of) the batch returned from worker
-    in parallel mode. You may want to specify custom value to lower the number of resizes necessary when
-    data produced by the external source don't fit into the buffer.
 """
 
     def __init__(
             self, source=None, num_outputs=None, *, cycle=None, layout=None, name=None,
             device="cpu", cuda_stream=None, use_copy_kernel=None, batch=None, parallel=None,
-            no_copy=None, prefetch_queue_depth=None, batch_info=None, bytes_per_minibatch_hint=None, **kwargs):
+            no_copy=None, prefetch_queue_depth=None, batch_info=None, **kwargs):
         self._schema = _b.GetSchema("ExternalSource")
         self._spec = _b.OpSpec("ExternalSource")
         self._device = device
@@ -418,7 +416,6 @@ Keyword Args
         self._no_copy = no_copy
         self._prefetch_queue_depth = prefetch_queue_depth
         self._batch_info = batch_info
-        self._bytes_per_minibatch_hint = bytes_per_minibatch_hint
 
         self._spec.AddArg("device", device)
         for key, value in kwargs.items():
@@ -443,7 +440,7 @@ Keyword Args
     def __call__(
             self, *, source=None, cycle=None, name=None, layout=None, cuda_stream=None,
             use_copy_kernel=None, batch=None, parallel=None, no_copy=None,
-            prefetch_queue_depth=None, batch_info=None, bytes_per_minibatch_hint=None, **kwargs):
+            prefetch_queue_depth=None, batch_info=None, **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
 
@@ -492,12 +489,6 @@ Keyword Args
             raise ValueError(
                 "The argument ``batch_info`` already specified in constructor.")
 
-        if bytes_per_minibatch_hint is None:
-            bytes_per_minibatch_hint = self._bytes_per_minibatch_hint
-        elif self._bytes_per_minibatch_hint is not None:
-            raise ValueError(
-                "The argument ``bytes_per_minibatch_hint`` already specified in constructor.")
-
         if no_copy is None:
             no_copy = self._no_copy
         elif self._no_copy is not None:
@@ -506,9 +497,6 @@ Keyword Args
         if parallel:
             if prefetch_queue_depth is None:
                 prefetch_queue_depth = 1
-            if bytes_per_minibatch_hint is not None and bytes_per_minibatch_hint <= 0:
-                raise ValueError(
-                "The argument ``bytes_per_minibatch_hint`` must be a positive integer.")
             if no_copy is None:
                 no_copy = True
             if not no_copy:
@@ -567,7 +555,6 @@ Keyword Args
             'batch_info': batch_info,
             'parallel': parallel,
             'prefetch_queue_depth': prefetch_queue_depth,
-            'bytes_per_minibatch_hint': bytes_per_minibatch_hint,
         }
 
         if self._num_outputs is not None:
