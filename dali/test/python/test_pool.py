@@ -202,8 +202,8 @@ def test_pool_iterator_dedicated_worker(start_method):
             samples_count += len(tasks)
             pool.schedule_batch(context_i=0, dst_chunk_i=i, work_batch=work_batch)
             pool.schedule_batch(context_i=1, dst_chunk_i=i, work_batch=TaskArgs.make_batch((i,)))
-        assert pool.contexts[0].setup.dedicated_worker_id is None
-        iter_worker_num = pool.contexts[1].setup.dedicated_worker_id
+        assert pool.contexts[0].dedicated_worker_id is None
+        iter_worker_num = pool.contexts[1].dedicated_worker_id
         iter_worker_pid = pool.pool._processes[iter_worker_num].pid
         for i in range(4):
             batch_0 = pool.receive_batch(context_i=0)
@@ -277,8 +277,8 @@ def _test_multiple_stateful_sources_single_worker(num_workers):
         assert len(pids) == min(num_workers, len(groups))
         pool.schedule_batch(context_i=0, dst_chunk_i=0, work_batch=TaskArgs.make_batch((0,)))
         pool.schedule_batch(context_i=1, dst_chunk_i=0, work_batch=TaskArgs.make_batch((0,)))
-        iter_worker_num_0 = pool.contexts[0].setup.dedicated_worker_id
-        iter_worker_num_1 = pool.contexts[1].setup.dedicated_worker_id
+        iter_worker_num_0 = pool.contexts[0].dedicated_worker_id
+        iter_worker_num_1 = pool.contexts[1].dedicated_worker_id
         iter_worker_pid_0 = pool.pool._processes[iter_worker_num_0].pid
         iter_worker_pid_1 = pool.pool._processes[iter_worker_num_1].pid
         batch_0 = pool.receive_batch(context_i=0)

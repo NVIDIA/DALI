@@ -25,7 +25,7 @@ from nvidia.dali import pickling
 from nvidia.dali._multiproc import shared_mem
 from nvidia.dali._utils.external_source_impl import SourceDescription, SourceKind
 from nvidia.dali._multiproc.worker import worker
-from nvidia.dali._multiproc.messages import BufShmChunkMeta, ScheduledTask, TaskArgs, WorkerArgs, SampleRange
+from nvidia.dali._multiproc.messages import BufShmChunkMeta, ScheduledTask, TaskArgs, WorkerArgs
 from nvidia.dali._multiproc.shared_batch import deserialize_batch, import_numpy, read_shm_message, \
     BufShmChunk, SharedBatchWriter, write_shm_message, _align_up as align_up
 from nvidia.dali._multiproc.shared_queue import ShmQueue, Dispatcher, DispatcherWorker
@@ -33,16 +33,15 @@ from nvidia.dali._multiproc.shared_queue import ShmQueue, Dispatcher, Dispatcher
 
 """
 A pipline with parallel external sources creates `WorkerPool` to parallelize sources computation.
-Each external source in the pipline has its own `ShmChunkManager` with shm chunks dedicated for data
-computed by the given source, and all the chunks for all the external sources are created and
-stored in the ShmPool (to assert unique ids for chunks that are used to identify chunk
-in communication between workers and the pool).
-`ShmChunkManager` is also used to pass minibatch (task) description to the workers.
-`CallbackSetup` combines the source (callback, iterator or generator function) with ShmChunkManager,
-it also describes if the source can be computed by any worker from the pool based on the indices
-passed to the source or should be handled always by a dedicated worker because it relays on internal state
-to produce next batch (as is the case for iterators and generators).
-`CallbackContext` combines `CallbackSetup` with information about currently
+Each external source in the pipline has its own `ShmChunkManager` with a view on shm chunks dedicated
+to data computed by the given source. Those chunks are also used to pass minibatch (task)
+description to the workers. All the chunks for all the external sources in the pipeline
+are created and stored in the common list shared by `ShmChunkManager` instances (index in the list makes
+a unique id for a chunk used in communication between workers and the pool), but a single chunk
+is always allocated and used by a single `ShmChunkManager` instance.
+`CallbackContext` combines the source (callback, iterator or generator function)
+with its `ShmChunkManager` instance and contains optional dedicated_worker_id if the source is stateful
+and needs to be run in a single dedicated worker. Context keeps track of
 scheduled tasks and partial results received from the workers for the given source.
 `Pool` manages actual worker processes and communication between them and the main process,
 it is responsible for starting the workers and additional setup steps (such as passing shm chunks
@@ -51,6 +50,13 @@ through sockets if `spawn` start method is used).
 serialized and put in shm chunks from ShmChunkManagers, whereas messages in ShmQueue contain only
 simple fixed-size meta data such as the id of shm chunk from the buffer to be read, current capacity of
 the shm chunk (which may increase if worker couldn't fit the data) and offset of the data.
+If the pipline contains any stateless source, that can be run in parall, all the workers will share a common
+ShmQueue instance with tasks related to any such source.
+If some source gets a dedicated worker assigned, the worker will receive a dedicated queue not shared with
+other workers and will receive all the dedicated tasks there.
+Thus, a worker can have up to two queues with tasks.
+Additionally there is a single result queue shared by all the workers, that is used to notify main
+process about completed tasks being ready for consumption by the main process.
 """
 
 
@@ -99,20 +105,15 @@ class ShmChunkManager:
     def num_chunks(self):
         return len(self.chunks_ids)
 
-
-class CallbackSetup:
+class CallbackContext:
+    """Keeps track of tasks and partially received results for a given source.
+    Contains source description, dedicated ShmChunkManager instance and
+    information about dedicated worker id if applicable."""
 
     def __init__(self, source_desc : SourceDescription, shm_buffer : ShmChunkManager, dedicated_worker_id : Optional[int]):
         self.source_desc = source_desc
         self.shm_buffer = shm_buffer
         self.dedicated_worker_id = dedicated_worker_id
-
-
-class CallbackContext:
-    """For every CallbackSetup keeps track of scheduled tasks"""
-
-    def __init__(self, setup : CallbackSetup):
-        self.setup = setup
         # counts all the batches ever scheduled for the given source, serves as
         # id for the next scheduled tasks
         self.scheduled_i = 0
@@ -221,22 +222,61 @@ class CallbackContext:
 
     @property
     def queue_depth(self):
-        return self.setup.shm_buffer.queue_depth
+        return self.shm_buffer.queue_depth
+
+
+class WorkerContext:
+
+    def __init__(self, source_descs : SourceDescription, dedicated_task_queue : Optional[ShmQueue],
+                 shm_chunks : List[BufShmChunk], callback_pickler):
+        self.source_descs = source_descs
+        self.dedicated_task_queue = dedicated_task_queue
+        self.shm_chunks = shm_chunks
+        self.callback_pickler = callback_pickler
+
+
+def create_worker_contexts(mp, callback_contexts : List[CallbackContext], num_workers,
+                           start_method, py_callback_pickler) -> List[WorkerContext]:
+    callback_pickler = None if start_method == "fork" else pickling._CustomPickler.create(py_callback_pickler)
+    if callback_pickler is None:
+        source_descs = [cb_context.source_desc for cb_context in callback_contexts]
+    else:
+        source_descs = [copy.copy(cb_context.source_desc) for cb_context in callback_contexts]
+        for source_desc in source_descs:
+            source_desc.source = callback_pickler.dumps(source_desc.source)
+    general_cb_contexts = [
+        i for i, cb_context in enumerate(callback_contexts)
+        if cb_context.dedicated_worker_id is None]
+    worker_contexts = []
+    for worker_id in range(num_workers):
+        dedicated_cb_contexts = [
+            i for i, cb_context in enumerate(callback_contexts)
+            if cb_context.dedicated_worker_id == worker_id]
+        worker_cb_contexts = general_cb_contexts + dedicated_cb_contexts
+        worker_sources = {i : source_descs[i] for i in worker_cb_contexts}
+        worker_shm_chunks = [
+            shm_chunk for i in worker_cb_contexts
+            for shm_chunk in callback_contexts[i].shm_buffer.get_chunks()]
+        if not dedicated_cb_contexts:
+            dedicated_task_queue = None
+        else:
+            # Each scheduled task has a shm chunk assigned for results, the number of
+            # scheduled tasks won't exceed the number of chunks available for results
+            dedicated_task_queue = ShmQueue(mp, capacity=sum(
+                callback_contexts[i].shm_buffer.num_chunks
+                for i in dedicated_cb_contexts))
+        worker_context = WorkerContext(
+            worker_sources, dedicated_task_queue, worker_shm_chunks, callback_pickler)
+        worker_contexts.append(worker_context)
+    return worker_contexts
 
 
 class ProcPool:
     """Runs pool of worker processes, stores pipes and sockets used to communicate with the workers,
 starts thread keeping track of running processes and initializes communication.
 """
-    class WorkerContext:
 
-        def __init__(self, source_descs : SourceDescription, dedicated_task_queue : Optional[ShmQueue], shm_chunks : List[BufShmChunk], callback_pickler):
-            self.source_descs = source_descs
-            self.dedicated_task_queue = dedicated_task_queue
-            self.shm_chunks = shm_chunks
-            self.callback_pickler = callback_pickler
-
-    def __init__(self, mp, workers_contexts : List[WorkerContext], res_queue : ShmQueue, general_task_queue : Optional[ShmQueue]):
+    def __init__(self, mp, workers_contexts : List[WorkerContext], result_queue : ShmQueue, general_task_queue : Optional[ShmQueue]):
         start_method = mp.get_start_method()
         if not workers_contexts:
             raise RuntimeError("Cannot start a pool with no workers")
@@ -252,7 +292,7 @@ starts thread keeping track of running processes and initializes communication.
                 "Alternatively you can change Python workers starting method from ``fork`` to ``spawn`` "
                 "(see DALI Pipeline's ``py_start_method`` option for details). ")
         self._workers_contexts = workers_contexts
-        self._res_queue = res_queue
+        self._result_queue = result_queue
         self._general_task_dispatcher = None
         self._tracker = None
         self._processes = []
@@ -273,7 +313,7 @@ starts thread keeping track of running processes and initializes communication.
                     shm_chunks=worker_shm_chunks,
                     general_task_queue=general_task_queue,
                     dedicated_task_queue=worker_context.dedicated_task_queue,
-                    result_queue=res_queue, sock_reader=sock_reader,
+                    result_queue=result_queue, sock_reader=sock_reader,
                     callback_pickler=worker_context.callback_pickler
                 )
                 process = mp.Process(target=worker, args=(process_context,))
@@ -285,27 +325,30 @@ starts thread keeping track of running processes and initializes communication.
                 sock.close()
 
     @classmethod
-    def from_callback_setups(cls, setups : List[CallbackSetup], num_workers, start_method="fork", py_callback_pickler=None):
+    def from_contexts(cls, contexts : List[CallbackContext], num_workers, start_method="fork", py_callback_pickler=None):
         mp = multiprocessing.get_context(start_method)
-        general_sources_buffs = [setup.shm_buffer for setup in setups if setup.dedicated_worker_id is None]
+        general_sources_buffs = [
+            context.shm_buffer for context in contexts
+            if context.dedicated_worker_id is None]
         if not general_sources_buffs:
             general_task_queue = None
         else:
+            # Each scheduled task has a shm chunk assigned for results, the number of
+            # scheduled tasks won't exceed the number of chunks available for results
             general_task_queue = ShmQueue(mp, capacity=sum(
                 shm_buffer.num_chunks for shm_buffer in general_sources_buffs))
-        res_queue = ShmQueue(mp, capacity=sum(
-            setup.shm_buffer.num_chunks for setup in setups))
-        worker_contexts = cls.create_worker_contexts(mp, setups, num_workers, start_method, py_callback_pickler)
+        # Each computed minibatch makes for one message in the results queue, the number of
+        # messages won't exceed the number of shm chunks available to store the minibatches
+        # in all the `ShmChunkManager` instances.
+        result_queue = ShmQueue(mp, capacity=sum(
+            context.shm_buffer.num_chunks for context in contexts))
+        worker_contexts = create_worker_contexts(mp, contexts, num_workers, start_method, py_callback_pickler)
         instance = None
         try:
-            instance = cls(mp, worker_contexts, res_queue, general_task_queue)
-            # close underlying file descriptors that are not needed anymore once
-            # passed to the workers processes
-            for setup in setups:
-                setup.shm_buffer.close_handles()
+            instance = cls(mp, worker_contexts, result_queue, general_task_queue)
             if general_task_queue is not None:
                 general_task_queue.close_handle()
-            res_queue.close_handle()
+            result_queue.close_handle()
             for worker_context in worker_contexts:
                 if worker_context.dedicated_task_queue is not None:
                     worker_context.dedicated_task_queue.close_handle()
@@ -314,37 +357,6 @@ starts thread keeping track of running processes and initializes communication.
             if instance is not None:
                 instance.close()
             raise
-
-    @classmethod
-    def create_worker_contexts(cls, mp, setups : List[CallbackSetup], num_workers, start_method, py_callback_pickler):
-        callback_pickler = None if start_method == "fork" else pickling._CustomPickler.create(py_callback_pickler)
-        if callback_pickler is None:
-            source_descs = [setup.source_desc for setup in setups]
-        else:
-            source_descs = [copy.copy(setup.source_desc) for setup in setups]
-            for source_desc in source_descs:
-                source_desc.source = callback_pickler.dumps(source_desc.source)
-        dedicated_workers = [setup.dedicated_worker_id for setup in setups if setup.dedicated_worker_id is not None]
-        worker_contexts = []
-        for worker_id in range(num_workers):
-            worker_sources = {
-                source_i : source_desc
-                for source_i, (source_desc, setup) in enumerate(zip(source_descs, setups))
-                if setup.dedicated_worker_id is None or setup.dedicated_worker_id == worker_id}
-            worker_shm_chunks = [
-                shm_chunk for source_i, setup
-                in enumerate(setups) if source_i in worker_sources
-                for shm_chunk in setup.shm_buffer.get_chunks()]
-            if worker_id not in dedicated_workers:
-                dedicated_task_queue = None
-            else:
-                dedicated_task_queue = ShmQueue(mp, capacity=sum(
-                    setup.shm_buffer.num_chunks for setup in setups
-                    if setup.dedicated_worker_id == worker_id))
-            worker_context = cls.WorkerContext(
-                worker_sources, dedicated_task_queue, worker_shm_chunks, callback_pickler)
-            worker_contexts.append(worker_context)
-        return worker_contexts
 
     @property
     def num_workers(self):
@@ -364,7 +376,7 @@ starts thread keeping track of running processes and initializes communication.
     def wait_for_res(self):
         if self._tracker is None:
             raise RuntimeError("Cannot receive data from the pool that has been closed")
-        return self._res_queue.get(None)
+        return self._result_queue.get(None)
 
     def send(self, tasks : List[Tuple[BufShmChunk, Any]], dedicated_worker_id):
         if self._tracker is None:
@@ -387,7 +399,7 @@ starts thread keeping track of running processes and initializes communication.
 
     def _send_queues(self, socks, general_task_queue):
         pid = os.getppid()
-        all_worker_queues = [self._res_queue]
+        all_worker_queues = [self._result_queue]
         if general_task_queue is not None:
             all_worker_queues.append(general_task_queue)
         for queue in all_worker_queues:
@@ -421,7 +433,7 @@ starts thread keeping track of running processes and initializes communication.
                 worker_context.dedicated_task_queue
                 for worker_context in self._workers_contexts
                 if worker_context.dedicated_task_queue is not None]
-            self._tracker.start_thread(self._processes, self._general_task_dispatcher, dedicated_task_queues, self._res_queue)
+            self._tracker.start_thread(self._processes, self._general_task_dispatcher, dedicated_task_queues, self._result_queue)
             if start_method != "fork":
                 self._send_queues(write_socks, general_task_queue)
                 self._send_shm(write_socks)
@@ -431,7 +443,7 @@ starts thread keeping track of running processes and initializes communication.
                 self._tracker = None
                 if self._general_task_dispatcher is not None:
                     # dispatcher starts separate thread so it needs to be closed
-                    # res_queue and dedicated queues can be simply garbage collected
+                    # result_queue and dedicated queues can be simply garbage collected
                     # as the workers are forcefully terminated and main thread is here, so
                     # it is not blocked on receiving
                     self._general_task_dispatcher.stop_thread()
@@ -444,7 +456,7 @@ starts thread keeping track of running processes and initializes communication.
             raise
 
 
-def tracker_thread(processes, tracker_interruption_pipe, general_task_dispatcher, dedicated_task_queues, res_queue):
+def tracker_thread(processes, tracker_interruption_pipe, general_task_dispatcher, dedicated_task_queues, result_queue):
     """Observer thread for ProcPool used for joining processes and distributing
     stop signal (`None` message).
 
@@ -458,7 +470,7 @@ def tracker_thread(processes, tracker_interruption_pipe, general_task_dispatcher
         Wrapper around ShmQueue for scheduling general tasks, used here to notify workers to gently close.
     `dedicated_task_queues` : List[ShmQueue]
         ShmQueues for scheduling general tasks, used to notify workers to gently close.
-    `res_queue` : ShmQueue
+    `result_queue` : ShmQueue
         Queue of completed tasks, used here to notify main thread about the closing,
         and possibly unblock it, if it waits on empty queue.
     """
@@ -479,7 +491,7 @@ def tracker_thread(processes, tracker_interruption_pipe, general_task_dispatcher
         exit_gently = False
         raise
     finally:
-        res_queue.close()  # main thread may be blocked on reading the queue
+        result_queue.close()  # main thread may be blocked on reading the queue
         if exit_gently:
             # try to close task queues and notify waiting processes, so that they can
             # cleanup and exit. Unfortunately if all workers exited abruptly when waiting,
@@ -524,10 +536,10 @@ class Tracker:
             self.thread = None
             return True
 
-    def start_thread(self, processes, general_task_dispatcher, dedicated_task_queues, res_queue):
+    def start_thread(self, processes, general_task_dispatcher, dedicated_task_queues, result_queue):
         thread = threading.Thread(
             target=tracker_thread,
-            args=(processes, self.interruption_pipe, general_task_dispatcher, dedicated_task_queues, res_queue),
+            args=(processes, self.interruption_pipe, general_task_dispatcher, dedicated_task_queues, result_queue),
             daemon=True)
         thread.start()
         self.thread = thread
@@ -564,16 +576,16 @@ class WorkerPool:
             List of callbacks' contexts to be handled by the Worker.
         `pool` : ProcPool
             ProcPool instance enabling basic communication with worker processes, it should be
-            initialized with callbacks' setups from the `contexts`.
+            initialized with `contexts`.
         """
         self.contexts = contexts
         self.pool = pool
         # shm chunks ids must be unique across the pool and each chunk must belong to exactly one context.
-        # In that case we can be identify the callback context by the id of shm chunk.
+        # Thanks to that callback context can be identified by the id of shm chunk.
         self.shm_chunks_contexts = {
              chunk_id: context
              for context in self.contexts
-             for chunk_id in context.setup.shm_buffer.chunks_ids}
+             for chunk_id in context.shm_buffer.chunks_ids}
 
     @classmethod
     def from_groups(
@@ -626,14 +638,17 @@ class WorkerPool:
                 initial_chunk_size,
                 1 if group.batch else num_workers
             ) for group in groups]
-        setups = [
-            CallbackSetup(source_desc, shm_buffer, dedicated_worker_id)
+        contexts = [
+            CallbackContext(source_desc, shm_buffer, dedicated_worker_id)
             for source_desc, shm_buffer, dedicated_worker_id
             in zip(source_descs, shm_buffers, dedicated_workers)]
-        contexts = [CallbackContext(setup) for setup in setups]
         pool = None
         try:
-            pool = ProcPool.from_callback_setups(setups, num_workers, start_method, py_callback_pickler)
+            pool = ProcPool.from_contexts(contexts, num_workers, start_method, py_callback_pickler)
+            # close underlying file descriptors that are not needed anymore once
+            # passed to the workers processes
+            for context in contexts:
+                context.shm_buffer.close_handles()
             return cls(contexts, pool)
         except:
             if pool is not None:
@@ -678,7 +693,7 @@ class WorkerPool:
             return
         minibatches = self.split_work(work_batch)
         num_minibatches = len(minibatches)
-        assert num_minibatches <= context.setup.shm_buffer.num_minibatches
+        assert num_minibatches <= context.shm_buffer.num_minibatches
         scheduled_i = context.push_scheduled(num_minibatches)
         self._distribute(context_i, scheduled_i, dst_chunk_i, minibatches)
 
@@ -696,8 +711,8 @@ class WorkerPool:
             worker_chunk = chunk_size + (minibatch_i < remainder)
             if worker_chunk == 0:
                 break
-            samples_slice = sample_range.get_slice(queued_no, queued_no + worker_chunk)
-            minibatch = TaskArgs(minibatch_i, sample_range=samples_slice)
+            sample_slice = sample_range.get_slice(queued_no, queued_no + worker_chunk)
+            minibatch = TaskArgs(minibatch_i, sample_range=sample_slice)
             minibatches.append(minibatch)
             queued_no += worker_chunk
         return minibatches
@@ -705,11 +720,11 @@ class WorkerPool:
     def _distribute(self, context_i, scheduled_i, dst_chunk_i, minibatches):
         context = self.contexts[context_i]
         scheduled_tasks = [(
-            context.setup.shm_buffer.get_chunk_by_dest(dst_chunk_i, minibatch_i),
+            context.shm_buffer.get_chunk_by_dest(dst_chunk_i, minibatch_i),
             ScheduledTask(context_i, scheduled_i, context.epoch_start, task))
             for minibatch_i, task in enumerate(minibatches)
         ]
-        dedicated_worker_id = context.setup.dedicated_worker_id
+        dedicated_worker_id = context.dedicated_worker_id
         self.pool.send(scheduled_tasks, dedicated_worker_id)
 
     def sync_and_discard(self, context_i):
@@ -748,7 +763,7 @@ class WorkerPool:
             raise RuntimeError("Worker data receiving interrupted")
         for completed_task_meta in completed_tasks_meta:
             context = self.shm_chunks_contexts[completed_task_meta.shm_chunk_id]
-            shm = context.setup.shm_buffer.get_chunk_by_id(completed_task_meta.shm_chunk_id)
+            shm = context.shm_buffer.get_chunk_by_id(completed_task_meta.shm_chunk_id)
             shm_chunk = shm.shm_chunk
             completed_task = read_shm_message(shm_chunk, completed_task_meta)
             context.process_task(shm_chunk, completed_task)
