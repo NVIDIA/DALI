@@ -426,22 +426,12 @@ Cross-compiling for aarch64 Jetson Linux (Docker)
   Support for aarch64 Jetson Linux platform is experimental. Some of the features are available only for
   x86-64 target and they are turned off in this build.
 
-Setup
-^^^^^
-Download the JetPack 4.4 SDK for NVIDIA Jetson using the SDK Manager, following the instruction
-provided here: https://developer.nvidia.com/embedded/jetpack.
-Then select CUDA for the host. After download process has been completed move
-``cuda-repo-ubuntu1804-10-2-local-10.2.89-440.40_1.0-1_amd64.deb`` and
-``cuda-repo-cross-aarch64-10-2-local-10.2.89_1.0-1_all.deb`` from the download folder
-to main DALI folder (they are required for cross build).
-
 Build the aarch64 Jetson Linux Build Container
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
 
-    docker build -t nvidia/dali:tools_aarch64-linux -f docker/Dockerfile.cuda_aarch64.deps .
-    docker build -t nvidia/dali:builder_aarch64-linux --build-arg "AARCH64_CUDA_TOOL_IMAGE_NAME=nvidia/dali:tools_aarch64-linux" -f docker/Dockerfile.build.aarch64-linux .
+    docker build -t nvidia/dali:builder_aarch64-linux -f docker/Dockerfile.build.aarch64-linux .
 
 Compile
 ^^^^^^^
