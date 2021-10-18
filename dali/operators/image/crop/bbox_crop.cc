@@ -48,6 +48,13 @@ void CollectShape(std::vector<i64vec<ndim>> &v,
   v.clear();
   v.reserve(batch_size);
 
+  auto is_non_negative = [](i64vec<ndim> sh) {
+    for (int d = 0; d < ndim; d++)
+      if (sh[d] < 0)
+        return false;
+    return true;
+  };
+
   i64vec<ndim> sample_sh;
   if (spec.HasTensorArgument(name)) {
     auto arg_view = view<const int>(ws.ArgumentInput(name));
@@ -60,10 +67,13 @@ void CollectShape(std::vector<i64vec<ndim>> &v,
       DALI_ENFORCE(shape_len == ndim, make_string(
         "Unexpected number of elements in argument `", name, "`: ", shape_len,
         ", expected: ", ndim));
+      span<const int> sample_data(arg_view.tensor_data(sample), ndim);
+      permute(sample_sh, sample_data, perm);
 
-      const auto* sample_data = arg_view.tensor_data(sample);
-      for (int d = 0; d < ndim; d++)
-        sample_sh[d] = sample_data[perm[d]];
+      DALI_ENFORCE(is_non_negative(sample_sh),
+                   make_string("``", name,
+                               "`` argument should contain non negative values. Got: ", sample_sh));
+
       v.push_back(sample_sh);
     }
   } else if (spec.HasArgument(name)) {
@@ -71,9 +81,11 @@ void CollectShape(std::vector<i64vec<ndim>> &v,
     DALI_ENFORCE(static_cast<int>(tmp.size()) == ndim,
                  make_string("Argument `", name, "` must be a ", ndim, "D vector. Got ", tmp.size(),
                              " elements."));
+    permute(sample_sh, tmp, perm);
 
-    for (int d = 0; d < ndim; d++)
-      sample_sh[d] = tmp[perm[d]];
+    DALI_ENFORCE(is_non_negative(sample_sh),
+                 make_string("``", name,
+                             "`` argument should contain non negative values. Got: ", sample_sh));
 
     v.resize(batch_size, sample_sh);
   } else {
@@ -496,24 +508,6 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         CollectShape(crop_shape_, "crop_shape", spec_, ws, make_cspan(perm));
       if (has_input_shape_)
         CollectShape(input_shape_, "input_shape", spec_, ws, make_cspan(perm));
-
-      for (int sample = 0; sample < static_cast<int>(input_shape_.size()); sample++) {
-        auto in_shape = input_shape_[sample];
-        for (int d = 0; d < ndim; d++) {
-          DALI_ENFORCE(in_shape[d] >= 0,
-            make_string("Input shape dimensions can't be negative. Got input_shape=", in_shape));
-        }
-        if (has_crop_shape_) {
-          auto crop_shape = crop_shape_[sample];
-          for (int d = 0; d < ndim; d++) {
-            DALI_ENFORCE(crop_shape[d] >= 0,
-                make_string("Crop shape dimensions can't be negative. Got crop_shape=", crop_shape));
-            DALI_ENFORCE(crop_shape[d] <= in_shape[d],
-                make_string("Crop shape can't exceed input shape dimensions. Got crop_shape=",
-                            crop_shape, ", input_shape=", in_shape));
-          }
-        }
-      }
     }
     return false;
   }
@@ -735,9 +729,13 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
           }
 
           for (int d = 0; d < ndim; d++) {
-            if (input_shape[d] > crop_shape[d]) {
-              std::uniform_int_distribution<> anchor_dist(0, input_shape[d] - crop_shape[d]);
-              anchor[d] = static_cast<float>(anchor_dist(rng));
+            auto diff = input_shape[d] - crop_shape[d];
+            if (diff > 0) {
+              anchor[d] = static_cast<float>(
+                  std::uniform_int_distribution<>(0, diff)(rng));
+            } else if (diff < 0) {
+              anchor[d] = static_cast<float>(
+                  std::uniform_int_distribution<>(diff, 0)(rng));
             } else {
               anchor[d] = 0.0f;
             }
