@@ -48,13 +48,6 @@ void CollectShape(std::vector<i64vec<ndim>> &v,
   v.clear();
   v.reserve(batch_size);
 
-  auto is_non_negative = [](i64vec<ndim> sh) {
-    for (int d = 0; d < ndim; d++)
-      if (sh[d] < 0)
-        return false;
-    return true;
-  };
-
   i64vec<ndim> sample_sh;
   if (spec.HasTensorArgument(name)) {
     auto arg_view = view<const int>(ws.ArgumentInput(name));
@@ -70,7 +63,7 @@ void CollectShape(std::vector<i64vec<ndim>> &v,
       span<const int> sample_data(arg_view.tensor_data(sample), ndim);
       permute(sample_sh, sample_data, perm);
 
-      DALI_ENFORCE(is_non_negative(sample_sh),
+      DALI_ENFORCE(all_coords(sample_sh >= 0),
                    make_string("``", name,
                                "`` argument should contain non negative values. Got: ", sample_sh));
 
@@ -83,7 +76,7 @@ void CollectShape(std::vector<i64vec<ndim>> &v,
                              " elements."));
     permute(sample_sh, tmp, perm);
 
-    DALI_ENFORCE(is_non_negative(sample_sh),
+    DALI_ENFORCE(all_coords(sample_sh >= 0),
                  make_string("``", name,
                              "`` argument should contain non negative values. Got: ", sample_sh));
 
@@ -634,7 +627,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
    * @remarks The dimensions are fixed on a random order
    * @return true if the shape was modified, false otherwise
    */
-  bool FixAspectRatios(vec<ndim, float>& shape) {
+  bool FixAspectRatios(vec<ndim>& shape) {
     // If aspect ratio is fixed, fix the required dimensions
     std::array<float, ndim*ndim> fixed_aspect_ratios;
     int k = 0;
@@ -715,7 +708,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         break;
       }
 
-      vec<ndim, float> shape, anchor;
+      vec<ndim> shape, anchor;
       Box<ndim, float> rel_crop, out_crop;
       for (int i = 0; i < num_attempts_; i++, count++) {
         if (absolute_crop_dims) {
@@ -752,7 +745,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
           // If input shape is provided, we take it into account for the aspect ratio range check
           // Otherwise, we use the relative shape for aspect ratio check
-          vec<ndim, float> tmp_sh = has_input_shape_ ? shape * input_shape_[sample] : shape;
+          vec<ndim> tmp_sh = has_input_shape_ ? shape * input_shape_[sample] : shape;
 
           bool fixed_ar = FixAspectRatios(tmp_sh);
 
@@ -802,7 +795,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
   }
 
-  bool ValidAspectRatio(vec<ndim, float> shape) {
+  bool ValidAspectRatio(vec<ndim> shape) {
     assert(static_cast<int>(shape.size()) == ndim);
     int k = 0;
     assert(!aspect_ratio_ranges_.empty());
