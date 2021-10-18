@@ -42,7 +42,8 @@ template <int ndim>
 void CollectShape(std::vector<i64vec<ndim>> &v,
                   const std::string &name,
                   const OpSpec& spec,
-                  const workspace_t<CPUBackend>& ws) {
+                  const workspace_t<CPUBackend>& ws,
+                  span<const int> perm) {
   int batch_size = spec.GetArgument<int>("max_batch_size");
   v.clear();
   v.reserve(batch_size);
@@ -61,9 +62,8 @@ void CollectShape(std::vector<i64vec<ndim>> &v,
         ", expected: ", ndim));
 
       const auto* sample_data = arg_view.tensor_data(sample);
-      for (int d = 0; d < ndim; d++) {
-        sample_sh[d] = static_cast<int64_t>(sample_data[d]);
-      }
+      for (int d = 0; d < ndim; d++)
+        sample_sh[d] = sample_data[perm[d]];
       v.push_back(sample_sh);
     }
   } else if (spec.HasArgument(name)) {
@@ -73,7 +73,7 @@ void CollectShape(std::vector<i64vec<ndim>> &v,
                              " elements."));
 
     for (int d = 0; d < ndim; d++)
-      sample_sh[d] = tmp[d];
+      sample_sh[d] = tmp[perm[d]];
 
     v.resize(batch_size, sample_sh);
   } else {
@@ -483,35 +483,34 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override {
     if (has_input_shape_ || has_crop_shape_) {
-      if (has_crop_shape_)
-        CollectShape(crop_shape_, "crop_shape", spec_, ws);
-      if (has_input_shape_)
-        CollectShape(input_shape_, "input_shape", spec_, ws);
-
       // Converting the shapes to "WHD" or "WH" if necessary
       auto default_shape_layout = InternalShapeLayout(ndim);
+      const TensorLayout &layout = shape_layout_.empty() ? default_shape_layout : shape_layout_;
       if (!shape_layout_.empty() && shape_layout_ != default_shape_layout) {
         DALI_ENFORCE(shape_layout_.is_permutation_of(default_shape_layout),
                      make_string("`shape_layout` should be a permutation of ", default_shape_layout,
                                  "` for the provided inputs"));
-        auto perm = GetDimIndices(shape_layout_, default_shape_layout);
-        for (int sample = 0; sample < static_cast<int>(input_shape_.size()); sample++) {
-          auto in_shape = input_shape_[sample];
-          for (int d = 0; d < ndim; d++) {
-            int axis = perm[d];
-            input_shape_[sample][d] = in_shape[axis];
-          }
+      }
+      auto perm = GetDimIndices(layout, default_shape_layout);
+      if (has_crop_shape_)
+        CollectShape(crop_shape_, "crop_shape", spec_, ws, make_cspan(perm));
+      if (has_input_shape_)
+        CollectShape(input_shape_, "input_shape", spec_, ws, make_cspan(perm));
 
-          if (has_crop_shape_) {
-            auto crop_shape = crop_shape_[sample];
-            for (int d = 0; d < ndim; d++) {
-              int axis = perm[d];
-              DALI_ENFORCE(
-                  crop_shape[axis] <= in_shape[axis],
-                  make_string("Crop shape can't exceed input shape dimensions. Got crop_shape=",
-                              crop_shape, ", input_shape=", in_shape));
-              crop_shape_[sample][d]  = crop_shape[axis];
-            }
+      for (int sample = 0; sample < static_cast<int>(input_shape_.size()); sample++) {
+        auto in_shape = input_shape_[sample];
+        for (int d = 0; d < ndim; d++) {
+          DALI_ENFORCE(in_shape[d] >= 0,
+            make_string("Input shape dimensions can't be negative. Got input_shape=", in_shape));
+        }
+        if (has_crop_shape_) {
+          auto crop_shape = crop_shape_[sample];
+          for (int d = 0; d < ndim; d++) {
+            DALI_ENFORCE(crop_shape[d] >= 0,
+                make_string("Crop shape dimensions can't be negative. Got crop_shape=", crop_shape));
+            DALI_ENFORCE(crop_shape[d] <= in_shape[d],
+                make_string("Crop shape can't exceed input shape dimensions. Got crop_shape=",
+                            crop_shape, ", input_shape=", in_shape));
           }
         }
       }
