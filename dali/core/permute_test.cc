@@ -1,4 +1,4 @@
-// Copyright (c) 2020 NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,6 +30,26 @@ TEST(PermuteTest, PopulateCArray) {
     EXPECT_EQ(out[i], ref[i]);
 }
 
+TEST(PermuteTest, PopulateCArraySubset) {
+  int data[] = { 4, 5, 6, 7 };
+  int perm[] = { 3, 1 };
+  int out[]  = { 0, 0 };
+  int ref[]  = { 7, 5 };
+  permute(out, data, perm);
+  for (int i = 0; i < 2; i++)
+    EXPECT_EQ(out[i], ref[i]);
+}
+
+TEST(PermuteTest, PopulateCArrayRepeat) {
+  int data[] = { 4, 5, 6, 7 };
+  int perm[] = { 3, 1, 2, 0, 2 };
+  int out[]  = { 0, 0, 0, 0, 0 };
+  int ref[]  = { 7, 5, 6, 4, 6 };
+  permute(out, data, perm);
+  for (int i = 0; i < 5; i++)
+    EXPECT_EQ(out[i], ref[i]);
+}
+
 TEST(PermuteTest, PopulateSpan) {
   int data[] = { 4, 5, 6, 7 };
   int perm[] = { 2, 3, 1, 0 };
@@ -49,6 +69,15 @@ TEST(PermuteTest, PopulateVector) {
   EXPECT_EQ(out, ref);
 }
 
+TEST(PermuteTest, PopulateVectorSubset) {
+  int data[] = { 4, 5, 6, 7 };
+  int perm[] = { 2, 1, 0 };
+  std::vector<int> out;
+  std::vector<int> ref  = { 6, 5, 4 };
+  permute(out, data, perm);
+  EXPECT_EQ(out, ref);
+}
+
 TEST(PermuteTest, ReturnSameType) {
   std::array<int, 4> data = { 4, 5, 6, 7 };
   int perm[] = { 3, 0, 1, 2 };
@@ -64,6 +93,15 @@ TEST(PermuteTest, ReturnVectorExplicit) {
   std::vector<int> out = permute<std::vector<int>>(data, perm);
   EXPECT_EQ(out, ref);
 }
+
+TEST(PermuteTest, ReturnVectorSubset) {
+  int data[] = { 4, 5, 6, 7 };
+  int perm[] = { 2, 3, 0 };
+  std::vector<int> ref  = { 6, 7, 4 };
+  std::vector<int> out = permute<std::vector<int>>(data, perm);
+  EXPECT_EQ(out, ref);
+}
+
 
 TEST(InversePermuteTest, PopulateCArray) {
   int perm[] = { 2, 3, 1, 0 };

@@ -1406,9 +1406,8 @@ void permute_dims(TensorListShape<out_ndim> &out,
                   const Permutation &axis_order) {
   detail::check_compatible_ndim<out_ndim, in_ndim>();
   int N = in.num_samples();
-  int D = in.sample_dim();
+  int D = dali::size(axis_order);
   out.resize(N, D);
-  assert(D == static_cast<int>(dali::size(axis_order)));
   for (int i = 0; i < N; i++) {
     auto out_sample = out.tensor_shape_span(i);
     auto in_sample = in.tensor_shape_span(i);

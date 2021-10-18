@@ -60,7 +60,7 @@ TransposeMethod GetTransposeMethod(const int64_t *shape,
                                    const int *perm,
                                    int ndim,
                                    int element_size) {
-  if (ndim == 1)
+  if (ndim <= 1)
     return TransposeMethod::Copy;
 
   if (UseTiledTranspose(shape, perm, ndim, element_size))

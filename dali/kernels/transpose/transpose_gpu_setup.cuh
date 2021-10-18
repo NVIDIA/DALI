@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -141,7 +141,8 @@ void InitGenericTranspose(GenericTransposeDesc<T> &desc,
 
   TensorShape<> tmp_strides;
   CalcStrides(tmp_strides, shape);
-  permute(desc.in_strides, tmp_strides, perm);
+  assert(static_cast<size_t>(perm.size()) < dali::size(desc.in_strides));
+  permute(make_span(desc.in_strides, perm.size()), tmp_strides, perm);
 
   if (ndim == 0) {
     desc.out_strides[0] = 0;
