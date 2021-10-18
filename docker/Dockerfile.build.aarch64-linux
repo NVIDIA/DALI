@@ -1,9 +1,8 @@
-ARG AARCH64_CUDA_TOOL_IMAGE_NAME
 ARG AARCH64_BASE_IMAGE=nvidia/cuda:10.2-devel-ubuntu18.04
-FROM ${AARCH64_CUDA_TOOL_IMAGE_NAME} as aarch64_cuda_tools
 FROM ${AARCH64_BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV CUDA_CROSS_VERSION=10.2
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -31,6 +30,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         add-apt-repository ppa:deadsnakes/ppa -y && \
         apt-get update; \
     fi && \
+    apt-key adv --fetch-key http://repo.download.nvidia.com/jetson/jetson-ota-public.asc && \
+    add-apt-repository 'deb http://repo.download.nvidia.com/jetson/x86_64 bionic r32.4' && \
+    apt-get update && \
+    apt-get install -y cuda-cudart-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       cuda-cufft-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       cuda-curand-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       cuda-driver-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       cuda-misc-headers-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       cuda-npp-cross-aarch64-${CUDA_CROSS_VERSION} \
+    && \
     apt-get install -y python3.9 python3.9-dev python3.9-distutils && \
     rm -rf /var/lib/apt/lists/* && \
     curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py && \
@@ -40,17 +49,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cd /tmp && git clone https://github.com/NixOS/patchelf && cd patchelf && \
     ./bootstrap.sh && ./configure --prefix=/usr/ && make -j install && cd / && rm -rf /tmp/patchelf && \
     ln -s /usr/bin/python3 /usr/bin/python
-
-COPY --from=aarch64_cuda_tools *.deb ./
-
-ENV CUDA_CROSS_VERSION=10.2
-ENV CUDA_CROSS_PACKAGES="cudart cufft curand driver misc-headers npp"
-RUN dpkg -i *.deb && \
-    echo "for i in \$CUDA_CROSS_PACKAGES; do echo \"cuda-\$i-cross-aarch64-\${CUDA_CROSS_VERSION}\";done" | bash > /tmp/cuda-packages.txt && \
-    apt-get update \
-   && apt-get install -y $(cat /tmp/cuda-packages.txt) \
-   && rm -rf /var/lib/apt/lists/* \
-   && rm -rf /tmp/cuda-packages.txt
 
 ENV PKG_CONFIG_PATH=/usr/aarch64-linux-gnu/lib/pkgconfig
 
