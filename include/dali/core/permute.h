@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ DALI_NO_EXEC_CHECK
 template <typename OutContainer, typename InContainer, typename Permutation>
 DALI_HOST_DEV
 void permute(OutContainer &&out, const InContainer &in, const Permutation &source_indices) {
-  int n = dali::size(in);
+  int n = dali::size(source_indices);
   resize_if_possible(out, n);
   for (int d = 0; d < n; d++) {
     out[d] = in[source_indices[d]];
