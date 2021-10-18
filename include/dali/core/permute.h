@@ -15,6 +15,7 @@
 #ifndef DALI_CORE_PERMUTE_H_
 #define DALI_CORE_PERMUTE_H_
 
+#include <cassert>
 #include "dali/core/host_dev.h"
 #include "dali/core/util.h"
 #include "dali/core/traits.h"
@@ -27,6 +28,9 @@ DALI_HOST_DEV
 void permute(OutContainer &&out, const InContainer &in, const Permutation &source_indices) {
   int n = dali::size(source_indices);
   resize_if_possible(out, n);
+#ifndef __CUDA_ARCH__
+  assert(static_cast<int>(dali::size(out)) == n);
+#endif
   for (int d = 0; d < n; d++) {
     out[d] = in[source_indices[d]];
   }
