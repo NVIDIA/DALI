@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,6 +63,8 @@ inline void CollapseUnitDims(TensorShape<> &shape, SmallVector<int, static_size>
 template <size_t static_size>
 inline void CollapseAdjacentDims(TensorShape<> &shape, SmallVector<int, static_size> &perm) {
   int ndim = shape.size();
+  if (ndim < 1)
+    return;
 
   SmallVector<int, static_size> dim_map, inv_perm, out_perm;
   TensorShape<> out_shape;
