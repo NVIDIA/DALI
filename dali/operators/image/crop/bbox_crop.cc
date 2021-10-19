@@ -60,8 +60,7 @@ void CollectShape(std::vector<i64vec<ndim>> &v,
       DALI_ENFORCE(shape_len == ndim, make_string(
         "Unexpected number of elements in argument `", name, "`: ", shape_len,
         ", expected: ", ndim));
-      span<const int> sample_data(arg_view.tensor_data(sample), ndim);
-      permute(sample_sh, sample_data, perm);
+      permute(sample_sh, arg_view.tensor_data(sample), perm);
 
       DALI_ENFORCE(all_coords(sample_sh >= 0),
                    make_string("``", name,
