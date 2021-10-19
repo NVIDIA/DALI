@@ -1,5 +1,7 @@
-leak:paddle
+# NVJPEG
+leak:libnvcuvid.so
 # external libraries
+leak:paddle
 leak:llvm
 leak:zmq
 leak:sklearn
