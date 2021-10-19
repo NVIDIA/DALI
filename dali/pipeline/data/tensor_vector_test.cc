@@ -144,6 +144,48 @@ TYPED_TEST(TensorVectorSuite, VariableBatchResizeUp) {
   ASSERT_EQ(tv.num_samples(), new_size.num_samples());
 }
 
+TYPED_TEST(TensorVectorSuite, EmptyShareContiguous) {
+  TensorVector<TypeParam> tv;
+  tv.SetContiguous(true);
+  TensorListShape<> shape = {{100, 0, 0}, {42, 0, 0}};
+  tv.Resize(shape, DALI_UINT8);
+  for (int i = 0; i < shape.num_samples(); i++) {
+    ASSERT_EQ(tv[i].raw_data(), nullptr);
+  }
+
+  TensorVector<TypeParam> target;
+  target.ShareData(tv);
+  ASSERT_EQ(target.num_samples(), shape.num_samples());
+  ASSERT_EQ(target.type(), DALI_UINT8);
+  ASSERT_EQ(target.shape(), shape);
+  ASSERT_TRUE(target.IsContiguous());
+  for (int i = 0; i < shape.num_samples(); i++) {
+    ASSERT_EQ(target[i].raw_data(), nullptr);
+    ASSERT_EQ(target[i].raw_data(), tv[i].raw_data());
+  }
+}
+
+TYPED_TEST(TensorVectorSuite, EmptyShareNonContiguous) {
+  TensorVector<TypeParam> tv;
+  tv.SetContiguous(false);
+  TensorListShape<> shape = {{100, 0, 0}, {42, 0, 0}};
+  tv.Resize(shape, DALI_UINT8);
+  for (int i = 0; i < shape.num_samples(); i++) {
+    ASSERT_EQ(tv[i].raw_data(), nullptr);
+  }
+
+  TensorVector<TypeParam> target;
+  target.ShareData(tv);
+  ASSERT_EQ(target.num_samples(), shape.num_samples());
+  ASSERT_EQ(target.type(), DALI_UINT8);
+  ASSERT_EQ(target.shape(), shape);
+  ASSERT_FALSE(target.IsContiguous());
+  for (int i = 0; i < shape.num_samples(); i++) {
+    ASSERT_EQ(target[i].raw_data(), nullptr);
+    ASSERT_EQ(target[i].raw_data(), tv[i].raw_data());
+  }
+}
+
 namespace {
 
 /**
