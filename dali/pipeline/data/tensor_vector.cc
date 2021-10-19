@@ -335,22 +335,15 @@ void TensorVector<Backend>::ShareData(TensorVector<Backend> &tv) {
   type_ = tv.type_;
   state_ = tv.state_;
   pinned_ = tv.is_pinned();
-
-  if (tv.tl_->has_data()) {
-    tl_->ShareData(*tv.tl_);
-  } else {
-    tl_->Reset();
-  }
-  int batch_size = tv.num_samples();
-  resize_tensors(batch_size);
   views_count_ = 0;
-
-  for (int i = 0; i < batch_size; i++) {
-    if (static_cast<int>(tv.tl_->num_samples()) > i &&
-        tv.tensors_[i]->raw_data() == tv.tl_->raw_tensor(i)) {
-      update_view(i);
-      ++views_count_;
-    } else {
+  if (tv.state_ == State::contiguous) {
+    ShareData(*tv.tl_);
+  } else {
+    state_ = State::noncontiguous;
+    tl_->Reset();
+    int batch_size = tv.num_samples();
+    for (int i = 0; i < batch_size; i++) {
+      resize_tensors(batch_size);
       tensors_[i]->ShareData(*(tv.tensors_[i]));
     }
   }
