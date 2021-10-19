@@ -55,7 +55,7 @@ enable_sanitizer() {
     export PYTHONMALLOC=malloc
     # if something calls dlclose on a module that leaks and it happens before asan can extract symbols we get "unknown module"
     # in the stack trace, to prevent this provide dlclose that does nothing
-    echo "int dlclose(void* a) { return 0; }" > /tmp/fake_dlclost.c && gcc -shared -o /tmp/libfakeclose.so /tmp/fake_dlclost.c
+    echo "int dlclose(void* a) { return 0; }" > /tmp/fake_dlclose.c && gcc -shared -o /tmp/libfakeclose.so /tmp/fake_dlclose.c
     export OLD_LD_PRELOAD=${LD_PRELOAD}
     export LD_PRELOAD="${LD_PRELOAD} /tmp/libfakeclose.so"
 }
