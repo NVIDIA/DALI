@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import pipeline_def
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
@@ -209,9 +210,10 @@ def check_crop_dims_variable_size(anchor, shape, scaling, aspect_ratio):
 def check_crop_dims_fixed_size(anchor, shape, expected_crop_shape, input_shape):
     ndim = len(shape)
     for d in range(ndim):
-        assert(anchor[d] >= 0.0 and anchor[d] <= input_shape[d])
+        anchor_rng = sorted((0.0, input_shape[d] - expected_crop_shape[d]))
+        assert anchor[d] >= anchor_rng[0] and anchor[d] <= anchor_rng[1], \
+            f"Expected anchor[{d}] to be within the range {anchor_rng}. Got: {anchor[d]}"
         assert shape[d] == expected_crop_shape[d], "{} != {}".format(shape, expected_crop_shape)
-        assert(anchor[d] + shape[d] > 0.0)
 
 def check_random_bbox_crop_variable_shape(batch_size, ndim, scaling, aspect_ratio, use_labels, output_bbox_indices):
     bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
@@ -363,3 +365,42 @@ def test_random_bbox_crop_no_labels():
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+def _testimpl_random_bbox_crop_square(use_input_shape):
+    batch_size = 3
+    bbox_source = BBoxDataIterator(100, batch_size, 2, produce_labels=False)
+    bbox_layout = "xyXY"
+
+    @pipeline_def(num_threads=1, batch_size=batch_size, device_id=0, seed=1234)
+    def random_bbox_crop_fixed_aspect_ratio():
+        in_sh = fn.random.uniform(range=(400, 600), shape=(2,), dtype=types.INT32)
+        inputs = fn.external_source(source=bbox_source, num_outputs=bbox_source.num_outputs)
+        outputs = fn.random_bbox_crop(
+            *inputs,
+            device='cpu',
+            aspect_ratio=(1.0, 1.0),
+            scaling=(0.5, 0.8),
+            thresholds=[0.0],
+            threshold_type='iou',
+            bbox_layout="xyXY",
+            total_num_attempts=100,
+            allow_no_crop=False,
+            input_shape=in_sh if use_input_shape else None,
+        )
+        return in_sh, outputs[1]
+
+    pipe = random_bbox_crop_fixed_aspect_ratio()
+    pipe.build()
+    for _ in range(3):
+        outputs = pipe.run()
+        for sample in range(batch_size):
+            in_shape = outputs[0].at(sample)
+            out_crop_shape = outputs[1].at(sample)
+            if use_input_shape:
+                np.testing.assert_allclose(in_shape[0] * out_crop_shape[0], in_shape[1] * out_crop_shape[1], rtol=1e-06)
+            else:
+                np.testing.assert_allclose(out_crop_shape[0], out_crop_shape[1], rtol=1e-06)
+
+def test_random_bbox_crop_square():
+    for use_input_shape in [False, True]:
+        yield _testimpl_random_bbox_crop_square, use_input_shape
