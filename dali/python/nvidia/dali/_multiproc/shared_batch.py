@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from nvidia.dali._multiproc import shared_mem
 from nvidia.dali._multiproc.messages import ShmMessageDesc
 from nvidia.dali._utils.external_source_impl import \
@@ -68,12 +69,17 @@ class BufShmChunk:
     def allocate(cls, shm_chunk_id, initial_chunk_size):
         return cls(shm_chunk_id, initial_chunk_size, shared_mem.SharedMem.allocate(initial_chunk_size))
 
-    def set_shm(self, handle):
+    def open_shm(self, handle):
         # self._shm_chunk should be None only as a result of deserialization of the instance.
         # In that case it is not valid to call other methods until shared memory chunk is restored
-        # with set_shm call
+        # with open_shm call
         assert self._shm_chunk is None
-        self._shm_chunk = shared_mem.SharedMem.open(handle, self.capacity)
+        try:
+            self._shm_chunk = shared_mem.SharedMem.open(handle, self.capacity)
+        except:
+            if handle >= 0:
+                os.close(handle)
+            raise
 
     def resize(self, size, trunc=False):
         self._shm_chunk.resize(size, trunc)

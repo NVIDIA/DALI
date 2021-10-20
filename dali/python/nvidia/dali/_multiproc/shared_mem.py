@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from nvidia.dali import backend as _b
 
 class SharedMem:
@@ -73,7 +74,9 @@ class SharedMem:
         `size` : int
             Size of the existing shared memory chunk.
         """
-        return cls(handle, size)
+        instance = cls(handle, size)
+        assert os.fstat(handle).st_size >= size
+        return instance
 
     @property
     def handle(self):

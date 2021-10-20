@@ -346,8 +346,10 @@ starts thread keeping track of running processes and initializes communication.
         # Each computed minibatch makes for one message in the results queue, the number of
         # messages won't exceed the number of shm chunks available to store the minibatches
         # in all the `ShmChunkManager` instances.
-        result_queue = ShmQueue(mp, capacity=sum(
-            context.shm_manager.num_chunks for context in contexts))
+        scheduled_tasks_upper_bound = sum(context.shm_manager.num_chunks for context in contexts)
+        # assure enough space for messages sent to confirm initialization of workers
+        result_queue_capacity = max(scheduled_tasks_upper_bound, num_workers)
+        result_queue = ShmQueue(mp, capacity=result_queue_capacity)
         callback_pickler = None if start_method == "fork" else pickling._CustomPickler.create(py_callback_pickler)
         worker_contexts = create_worker_contexts(mp, contexts, num_workers, callback_pickler)
         instance = None

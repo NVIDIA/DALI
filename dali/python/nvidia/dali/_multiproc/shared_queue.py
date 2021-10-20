@@ -13,8 +13,8 @@
 # limitations under the License.
 
 from typing import List, Optional
+import os
 import threading
-from numpy.testing._private.utils import raises
 from nvidia.dali._multiproc import shared_mem
 from nvidia.dali._multiproc.messages import Structure, ShmMessageDesc
 from nvidia.dali._multiproc.shared_batch import _align_up as align_up
@@ -63,9 +63,16 @@ class ShmQueue:
     def init_offsets(self):
         self.msgs_offsets = [i * self.msg_size + self.meta_size for i in range(self.capacity)]
 
-    def set_shm(self, shm):
-        assert self.shm is None and shm.capacity >= self.shm_capacity
-        self.shm = shm
+    def open_shm(self, handle, close_handle=True):
+        try:
+            shm = shared_mem.SharedMem.open(handle, self.shm_capacity)
+            self.shm = shm
+            if close_handle:
+                shm.close_handle()
+        except:
+            if close_handle:
+                os.close(handle)
+            raise
 
     def read_meta(self):
         self.meta.unpack_from(self.shm.buf, 0)

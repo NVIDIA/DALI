@@ -15,16 +15,15 @@
 from typing import List
 import threading
 import traceback
-import os
 import socket
 from collections import deque
 from multiprocessing import reduction
 from nvidia.dali._utils.external_source_impl import SourceKind, _is_generator_function
-from nvidia.dali._multiproc.shared_batch import SharedBatchWriter, SharedBatchMeta, BufShmChunk, \
+from nvidia.dali._multiproc.shared_batch import SharedBatchWriter, SharedBatchMeta, \
     assert_valid_data_type, read_shm_message, write_shm_message
 from nvidia.dali._multiproc.messages import CompletedTask, WorkerArgs, ShmMessageDesc, ScheduledTask
 from nvidia.dali._multiproc import shared_mem
-from nvidia.dali._multiproc.shared_queue import Dispatcher, DispatcherWorker, ShmQueue
+from nvidia.dali._multiproc.shared_queue import Dispatcher, DispatcherWorker
 
 
 class _WorkerProcessingResult:
@@ -270,7 +269,7 @@ class IterableSource:
         try:
             return self.get_next()
         except StopIteration:
-            if self.source_desc.cycle != "quiet":
+            if self.source_desc.cycle != "quiet" and self.source_desc.cycle is not True:
                 raise
             # in quiet mode immediately reset the source and return first iteration
             self.reset(epoch_start)
@@ -328,29 +327,6 @@ def init_callbacks(source_descs, callback_pickler):
     return callbacks
 
 
-def recv_shm(sock_reader, capacity):
-    handle, shm_chunk = -1, None
-    try:
-        handle = reduction.recv_handle(sock_reader)
-        assert os.fstat(handle).st_size >= capacity
-        return shared_mem.SharedMem.open(handle, capacity)
-    except:
-        if shm_chunk is not None:
-            shm_chunk.close()
-        # close handle manually if shm_chunk creation failed, otherwise shm_chunk
-        # is responsible for doing so
-        elif handle >= 0:
-            os.close(handle)
-        raise
-
-
-def init_queue(sock_reader, queue : ShmQueue):
-    shm = recv_shm(sock_reader, queue.shm_capacity)
-    queue.set_shm(shm)
-    shm.close_handle()
-    return queue
-
-
 def init_task_receiver(general_task_queue, dedicated_task_queue):
     assert general_task_queue is not None or dedicated_task_queue is not None
     if dedicated_task_queue is None or general_task_queue is None:
@@ -362,34 +338,12 @@ def init_task_receiver(general_task_queue, dedicated_task_queue):
     return receiver
 
 
-def init_shm(shm_chunks, sock_reader):
-    shm_chunks_dict = {}
-    for shm_chunk in shm_chunks:
-        handle = reduction.recv_handle(sock_reader)
-        try:
-            shm_chunk.set_shm(handle)
-        except:
-            if handle >= 0:
-                os.close(handle)
-            raise
-        shm_chunks_dict[shm_chunk.shm_chunk_id] = shm_chunk
-    return shm_chunks_dict
-
-
 def init_dispatcher(worker_id, result_queue, recv_queues):
     dispatcher = Dispatcher(result_queue)
     worker = SharedBatchDispatcherWorker(
         worker_id, recv_queues, dispatcher.pending_cv, dispatcher.pending, result_queue)
     dispatcher.start_thread(worker)
     return dispatcher
-
-
-def sync_init(worker_id, result_queue, sock_reader):
-    # let main process know shared resources setup is done
-    result_queue.put([ShmMessageDesc(worker_id, 0, 0, 0, 0)])
-    if sock_reader is not None:
-        sock_reader.shutdown(socket.SHUT_RDWR)
-        sock_reader.close()
 
 
 def worker(worker_args : WorkerArgs):
@@ -400,16 +354,20 @@ def worker(worker_args : WorkerArgs):
     * serializes results and passes them to the main process.
     """
     callbacks = init_callbacks(worker_args.source_descs, worker_args.callback_pickler)
-    if worker_args.start_method == "fork":
-        shm_chunks = {shm_chunk.shm_chunk_id : shm_chunk for shm_chunk in worker_args.shm_chunks}
-    else:
-        init_queue(worker_args.sock_reader, worker_args.result_queue)
+    if worker_args.start_method != "fork":
+        sock = worker_args.sock_reader
+        worker_args.result_queue.open_shm(reduction.recv_handle(sock))
         if worker_args.general_task_queue is not None:
-            init_queue(worker_args.sock_reader, worker_args.general_task_queue)
+            worker_args.general_task_queue.open_shm(reduction.recv_handle(sock))
         if worker_args.dedicated_task_queue is not None:
-            init_queue(worker_args.sock_reader, worker_args.dedicated_task_queue)
-        shm_chunks = init_shm(worker_args.shm_chunks, worker_args.sock_reader)
-    sync_init(worker_args.worker_id, worker_args.result_queue, worker_args.sock_reader)
+            worker_args.dedicated_task_queue.open_shm(reduction.recv_handle(sock))
+        for shm_chunk in worker_args.shm_chunks:
+            shm_chunk.open_shm(reduction.recv_handle(sock))
+        sock.shutdown(socket.SHUT_RDWR)
+        sock.close()
+    shm_chunks = {shm_chunk.shm_chunk_id : shm_chunk for shm_chunk in worker_args.shm_chunks}
+    # let main process know worker started and shared resources setup is done
+    worker_args.result_queue.put([ShmMessageDesc(worker_args.worker_id, 0, 0, 0, 0)])
     task_receiver, batch_dispatcher = None, None
     try:
         task_receiver = init_task_receiver(

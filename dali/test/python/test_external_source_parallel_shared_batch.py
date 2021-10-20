@@ -22,15 +22,14 @@ import numpy as np
 from nvidia.dali._multiproc.shared_batch import BufShmChunk, SharedBatchWriter, SharedBatchMeta, deserialize_batch
 from nvidia.dali._multiproc.shared_queue import ShmQueue
 from nvidia.dali._multiproc.messages import ShmMessageDesc
-from nvidia.dali._multiproc.worker import init_queue
 
 from test_utils import RandomlyShapedDataIterator
 from nose_utils import raises
 
 
 def check_serialize_deserialize(batch):
-    buf_chunk = BufShmChunk.allocate("chunk_0", 100)
-    with closing(buf_chunk.shm_chunk) as shm_chunk:
+    shm_chunk = BufShmChunk.allocate("chunk_0", 100)
+    with closing(shm_chunk) as shm_chunk:
         writer = SharedBatchWriter(shm_chunk, batch)
         batch_meta = SharedBatchMeta.from_writer(writer)
         deserialized_batch = deserialize_batch(shm_chunk, batch_meta)
@@ -59,8 +58,8 @@ def test_serialize_deserialize_random():
 
 def worker(start_method, sock, task_queue, res_queue, worker_cb, worker_params):
     if start_method == "spawn":
-        init_queue(sock, task_queue)
-        init_queue(sock, res_queue)
+        task_queue.open_shm(multiprocessing.reduction.recv_handle(sock))
+        res_queue.open_shm(multiprocessing.reduction.recv_handle(sock))
         sock.close()
     while True:
         if worker_cb(task_queue, res_queue, **worker_params) is None:
@@ -98,7 +97,7 @@ def test_queue_full_assertion():
                 mp = multiprocessing.get_context(start_method)
                 queue = ShmQueue(mp, capacity)
                 msgs = [ShmMessageDesc(i, i, i, i, i) for i in range(capacity + 1)]
-                yield raises(AssertionError, "The queue is full")(_put_msgs), queue, msgs, one_by_one
+                yield raises(RuntimeError, "The queue is full")(_put_msgs), queue, msgs, one_by_one
 
 
 def copy_callback(task_queue, res_queue, num_samples):

@@ -14,7 +14,7 @@
 
 # custom wrappers around ops
 from nvidia.dali import backend as _b
-from nvidia.dali._multiproc.messages import TaskArgs
+from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs
 import nvidia.dali.types
 from nvidia.dali._utils.external_source_impl import \
         get_callback_from_source as _get_callback_from_source, \
@@ -136,13 +136,13 @@ class _ExternalSourceGroup(object):
         """Schedule computing new batch from source callback by the parallel pool."""
         dst_chunk_i = (self.flat_iter_idx + lead) % pool.contexts[context_i].queue_depth
         if self.batch:
-            pool.schedule_batch(context_i, dst_chunk_i, TaskArgs.make_batch(
+            pool.schedule_batch(context_i, dst_chunk_i, _TaskArgs.make_batch(
                 self.callback_args(None, epoch_idx, lead=lead)))
         else:
             sample_range_start = self.current_sample + batch_size * lead
             sample_range_end = sample_range_start + batch_size
             iteration = self.current_iter + lead
-            work_batch = TaskArgs.make_sample(
+            work_batch = _TaskArgs.make_sample(
                 sample_range_start, sample_range_end, iteration, epoch_idx)
             pool.schedule_batch(context_i, dst_chunk_i, work_batch)
 
@@ -371,8 +371,8 @@ Keyword Args
     that accepts exactly one argument (:meth:`~nvidia.dali.types.SampleInfo` objects that
     represent the index of the requested sample).
     If batch is set to True, the ``source`` can be either a callable, an iterable or a generator function.
-    Callable in batch mode must accept exactly one argument - an integer that represents the index of the
-    batch within the epoch that the callable should return.
+    Callable in batch mode must accept exactly one argument - either :meth:`~nvidia.dali.types.BatchInfo`
+    instance or an integer (see `batch_info`).
 
     Irrespective of ``batch`` value, callables should produce requested sample or batch solely based on
     the SampleInfo instance or index in batch, so that they can be run in parallel in a number of workers.
