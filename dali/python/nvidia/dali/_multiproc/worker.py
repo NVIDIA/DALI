@@ -356,9 +356,9 @@ def init_task_receiver(general_task_queue, dedicated_task_queue):
     if dedicated_task_queue is None or general_task_queue is None:
         return SimpleQueueTaskReceiver(general_task_queue or dedicated_task_queue)
     receiver = MixedTaskReceiver([general_task_queue, dedicated_task_queue])
-    excl_worker = EagerReceiverWorker(dedicated_task_queue, receiver.state)
+    dedicated_worker = EagerReceiverWorker(dedicated_task_queue, receiver.state)
     general_worker = IdleReceiverWorker(general_task_queue, receiver.state)
-    receiver.start_threads([excl_worker, general_worker])
+    receiver.start_threads([dedicated_worker, general_worker])
     return receiver
 
 
@@ -371,10 +371,10 @@ def init_shm(shm_chunks_meta, sock_reader):
     return shm_chunks
 
 
-def init_dispatcher(worker_id, results_queue, recv_queues):
-    dispatcher = Dispatcher(results_queue)
+def init_dispatcher(worker_id, result_queue, recv_queues):
+    dispatcher = Dispatcher(result_queue)
     worker = SharedBatchDispatcherWorker(
-        worker_id, recv_queues, dispatcher.pending_cv, dispatcher.pending, results_queue)
+        worker_id, recv_queues, dispatcher.pending_cv, dispatcher.pending, result_queue)
     dispatcher.start_thread(worker)
     return dispatcher
 

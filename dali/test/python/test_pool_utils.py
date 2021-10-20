@@ -29,8 +29,6 @@ def capture_processes(pool):
         pool_processes.extend(pool.pids())
         proc_pool = pool.pool
         pool_threads.append(proc_pool._tracker.thread)
-        if proc_pool._general_task_dispatcher is not None:
-            pool_threads.append(proc_pool._general_task_dispatcher.thread)
     check_shm_for_dali("All shm chunks should be closed after initial pool setup, found {}")
 
 
