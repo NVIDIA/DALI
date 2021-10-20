@@ -21,7 +21,7 @@ import numpy as np
 
 from nvidia.dali._multiproc.shared_batch import BufShmChunk, SharedBatchWriter, SharedBatchMeta, deserialize_batch
 from nvidia.dali._multiproc.shared_queue import ShmQueue
-from nvidia.dali._multiproc.messages import ShmMessage
+from nvidia.dali._multiproc.messages import ShmMessageDesc
 from nvidia.dali._multiproc.worker import init_queue
 
 from test_utils import RandomlyShapedDataIterator
@@ -97,7 +97,7 @@ def test_queue_full_assertion():
             for one_by_one in (True, False):
                 mp = multiprocessing.get_context(start_method)
                 queue = ShmQueue(mp, capacity)
-                msgs = [ShmMessage(i, i, i, i, i) for i in range(capacity + 1)]
+                msgs = [ShmMessageDesc(i, i, i, i, i) for i in range(capacity + 1)]
                 yield raises(AssertionError, "The queue is full")(_put_msgs), queue, msgs, one_by_one
 
 
@@ -120,7 +120,7 @@ def _test_queue_recv(start_method, worker_params, capacity, send_msgs, recv_msgs
     all_msgs = []
     received = 0
     for send_msg, recv_msg in zip(send_msgs, recv_msgs):
-        msgs = [ShmMessage(next_i(), -next_i(), -next_i(), next_i(), -next_i()) for i in range(send_msg)]
+        msgs = [ShmMessageDesc(next_i(), -next_i(), -next_i(), next_i(), -next_i()) for i in range(send_msg)]
         all_msgs.extend(msgs)
         _put_msgs(task_queue, msgs, send_one_by_one)
         for _ in range(recv_msg):

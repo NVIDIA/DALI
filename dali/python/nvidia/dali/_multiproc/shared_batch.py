@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali._multiproc import shared_mem
-from nvidia.dali._multiproc.messages import ShmMessage
+from nvidia.dali._multiproc.messages import ShmMessageDesc
 from nvidia.dali._utils.external_source_impl import \
         assert_cpu_sample_data_type as _assert_cpu_sample_data_type, \
         sample_to_numpy as _sample_to_numpy
@@ -47,6 +47,53 @@ _sample_error_msg = (
     "DALI TensorCPU, or list or tuple of them representing sample. Got `{}` instead.")
 
 
+class BufShmChunk:
+    """Simple wrapper around shared memory chunks. Adds mem_chunk_id used
+    to identify chunks in the communication between parent and worker process.
+    """
+    def __init__(self, shm_chunk_id, capacity, shm_chunk : shared_mem.SharedMem):
+        self.shm_chunk_id = shm_chunk_id
+        self.capacity = capacity
+        self._shm_chunk = shm_chunk
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['_shm_chunk'] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    @classmethod
+    def allocate(cls, shm_chunk_id, initial_chunk_size):
+        return cls(shm_chunk_id, initial_chunk_size, shared_mem.SharedMem.allocate(initial_chunk_size))
+
+    def set_shm(self, handle):
+        # self._shm_chunk should be None only as a result of deserialization of the instance.
+        # In that case it is not valid to call other methods until shared memory chunk is restored
+        # with set_shm call
+        assert self._shm_chunk is None
+        self._shm_chunk = shared_mem.SharedMem.open(handle, self.capacity)
+
+    def resize(self, size, trunc=False):
+        self._shm_chunk.resize(size, trunc)
+        self.capacity = size
+
+    def close(self):
+        self._shm_chunk.close()
+
+    def close_handle(self):
+        self._shm_chunk.close_handle()
+
+    @property
+    def handle(self):
+        return self._shm_chunk.handle
+
+    @property
+    def buf(self):
+        return self._shm_chunk.buf
+
+
 class SampleMeta:
     """Metadata describing serialized sample in a memory buffer.
 
@@ -75,7 +122,7 @@ class SharedBatchMeta:
         return cls(writer.data_size, writer.meta_data_size)
 
 
-def deserialize_sample(buffer: shared_mem.SharedMem, sample):
+def deserialize_sample(buffer: BufShmChunk, sample):
     if isinstance(sample, SampleMeta):
         offset = sample.offset
         assert offset % sample.dtype.itemsize == 0, "Sample offset is misaligned."
@@ -86,7 +133,7 @@ def deserialize_sample(buffer: shared_mem.SharedMem, sample):
     return sample
 
 
-def deserialize_sample_meta(buffer: shared_mem.SharedMem, shared_batch_meta: SharedBatchMeta):
+def deserialize_sample_meta(buffer: BufShmChunk, shared_batch_meta: SharedBatchMeta):
     """Helper to deserialize SampleMeta from memory based on SharedBatchMeta.
     """
     sbm = shared_batch_meta
@@ -97,13 +144,13 @@ def deserialize_sample_meta(buffer: shared_mem.SharedMem, shared_batch_meta: Sha
     return samples_meta
 
 
-def deserialize_batch(buffer: shared_mem.SharedMem, shared_batch_meta: SharedBatchMeta):
+def deserialize_batch(buffer: BufShmChunk, shared_batch_meta: SharedBatchMeta):
     """Deserialize samples from the smem buffer and SampleMeta descriptions.
 
     Parameters
     ----------
-    buffer : shared_mem.SharedMem
-        Buffer with serialized sample data
+    buffer : BufShmChunk
+        Shared memory chunk with serialized sample data
     shared_batch_meta : SharedBatchMeta
         Metadata about serialized data in memory
 
@@ -154,7 +201,7 @@ class SharedBatchWriter:
     SAMPLE_ALIGNMENT = 128
     BUFFER_ALIGNMENT = 4096
 
-    def __init__(self, shm_chunk: shared_mem.SharedMem, batch, min_trailing_offset=1024*1024):
+    def __init__(self, shm_chunk: BufShmChunk, batch, min_trailing_offset=1024*1024):
         import_numpy()
         self.shm_chunk = shm_chunk
         self.data_size = 0
@@ -197,7 +244,7 @@ class SharedBatchWriter:
         self.data_size = _align_up(data_size, self.SAMPLE_ALIGNMENT)
         self.total_size = _align_up(self.data_size + self.meta_data_size, self.SAMPLE_ALIGNMENT)
         if self.shm_chunk.capacity < self.total_size:
-            self.resize_shm_chunk(self.shm_chunk, self.total_size + self.min_trailing_offset)
+            resize_shm_chunk(self.shm_chunk, self.total_size + self.min_trailing_offset)
         memview = self.shm_chunk.buf
         for sample, sample_meta in zip(batch, meta):
             _apply_to_sample(self._add_array_to_batch, sample, sample_meta, memview, nest_with_sample=1)
@@ -205,49 +252,36 @@ class SharedBatchWriter:
         buffer = memview[self.data_size:(self.data_size + self.meta_data_size)]
         buffer[:] = serialized_meta
 
-    @staticmethod
-    def resize_shm_chunk(shm_chunk, needed_capacity):
-        new_capacity = max(needed_capacity, 2 * shm_chunk.capacity)
-        new_capacity = _align_up(new_capacity, SharedBatchWriter.BUFFER_ALIGNMENT)
-        shm_chunk.resize(new_capacity, trunc=True)
+
+def resize_shm_chunk(shm_chunk, needed_capacity):
+    new_capacity = max(needed_capacity, 2 * shm_chunk.capacity)
+    new_capacity = _align_up(new_capacity, SharedBatchWriter.BUFFER_ALIGNMENT)
+    shm_chunk.resize(new_capacity, trunc=True)
 
 
-class BufShmChunk:
-    """Simple wrapper around shared memory chunks. Adds mem_chunk_id used
-    to identify chunks in the communication between parent and worker process.
-    """
-    def __init__(self, shm_chunk_id, shm_chunk : shared_mem.SharedMem):
-        self.shm_chunk_id = shm_chunk_id
-        self.shm_chunk = shm_chunk
-
-    @classmethod
-    def allocate(cls, shm_chunk_id, initial_chunk_size):
-        return cls(shm_chunk_id, shared_mem.SharedMem.allocate(initial_chunk_size))
-
-
-def read_shm_message(shm_chunk : shared_mem.SharedMem, shm_message):
+def read_shm_message(shm_chunk : BufShmChunk, shm_message):
     if shm_message.shm_capacity != shm_chunk.capacity:
         shm_chunk.resize(shm_message.shm_capacity, trunc=False)
     buffer = shm_chunk.buf[shm_message.offset:shm_message.offset+shm_message.num_bytes]
     return pickle.loads(buffer)
 
 
-def write_shm_message(worker_id, shm : BufShmChunk, message, offset, resize=True):
+def write_shm_message(worker_id, shm_chunk : BufShmChunk, message, offset, resize=True):
     """
     Pickles `message` instances, stores it in the provided `shm` chunk at given offset and returns
-    `ShmMessage` instances describing the placement of the `message`.
+    `ShmMessageDesc` instance describing the placement of the `message`.
     Returned instance can be put into ShmQueue.
     """
     serialized_message = pickle.dumps(message)
     num_bytes = len(serialized_message)
-    if num_bytes > shm.shm_chunk.capacity - offset:
+    if num_bytes > shm_chunk.capacity - offset:
         if resize:
-            SharedBatchWriter.resize_shm_chunk(shm.shm_chunk, offset + num_bytes)
+            resize_shm_chunk(shm_chunk, offset + num_bytes)
         else:
             # This should not happen, resize is False only when writing task description into memory
             # in the main process, and the description (ScheduledTask and its members) boils down
             # to bounded number of integers.
-            assert False, "Could not put message into shared memory region, not enough space in the buffer."
-    buffer = shm.shm_chunk.buf[offset:offset+num_bytes]
+            raise RuntimeError("Could not put message into shared memory region, not enough space in the buffer.")
+    buffer = shm_chunk.buf[offset:offset+num_bytes]
     buffer[:] = serialized_message
-    return ShmMessage(worker_id, shm.shm_chunk_id, shm.shm_chunk.capacity, offset, num_bytes)
+    return ShmMessageDesc(worker_id, shm_chunk.shm_chunk_id, shm_chunk.capacity, offset, num_bytes)

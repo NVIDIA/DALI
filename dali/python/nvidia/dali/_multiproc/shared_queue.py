@@ -14,8 +14,9 @@
 
 from typing import List, Optional
 import threading
+from numpy.testing._private.utils import raises
 from nvidia.dali._multiproc import shared_mem
-from nvidia.dali._multiproc.messages import Structure, ShmMessage
+from nvidia.dali._multiproc.messages import Structure, ShmMessageDesc
 from nvidia.dali._multiproc.shared_batch import _align_up as align_up
 
 
@@ -31,7 +32,7 @@ class ShmQueue:
     closed.
     """
 
-    MSG_CLASS = ShmMessage
+    MSG_CLASS = ShmMessageDesc
     ALIGN_UP_MSG = 4
     ALIGN_UP_BUFFER = 4096
 
@@ -106,7 +107,8 @@ class ShmQueue:
             return
         with self.lock:
             self.read_meta()
-            assert self.meta.size + len(msgs) <= self.meta.capacity, "The queue is full"
+            if self.meta.size + len(msgs) > self.meta.capacity:
+                raise RuntimeError("The queue is full")
             if self.meta.is_closed:
                 self.is_closed = True
                 return

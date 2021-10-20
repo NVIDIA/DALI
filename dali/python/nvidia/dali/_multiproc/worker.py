@@ -22,12 +22,12 @@ from multiprocessing import reduction
 from nvidia.dali._utils.external_source_impl import SourceKind, _is_generator_function
 from nvidia.dali._multiproc.shared_batch import SharedBatchWriter, SharedBatchMeta, BufShmChunk, \
     assert_valid_data_type, read_shm_message, write_shm_message
-from nvidia.dali._multiproc.messages import CompletedTask, WorkerArgs, ShmMessage, ScheduledTask
+from nvidia.dali._multiproc.messages import CompletedTask, WorkerArgs, ShmMessageDesc, ScheduledTask
 from nvidia.dali._multiproc import shared_mem
 from nvidia.dali._multiproc.shared_queue import Dispatcher, DispatcherWorker, ShmQueue
 
 
-class _ProcessedTask:
+class _WorkerProcessingResult:
     """Internal worker message containing computed minibatch or error message sent from the main thread
     to the dispatcher thread. The dispatcher thread serializes the batch or the error and
     forwards the result as `CompletedTask` to the main process"""
@@ -64,21 +64,21 @@ class SharedBatchDispatcherWorker(DispatcherWorker):
         self.worker_id = worker_id
         self.recv_queues = recv_queues
 
-    def serialize_failed_task(self, processed_task : _ProcessedTask):
+    def serialize_failed_task(self, processed_task : _WorkerProcessingResult):
         shm_chunk = processed_task.shm_chunk
         completed_task = CompletedTask.failed(self.worker_id, processed_task)
         return write_shm_message(
             self.worker_id, shm_chunk, completed_task, 0, resize=True)
 
-    def serialize_done_task(self, processed_task : _ProcessedTask):
+    def serialize_done_task(self, processed_task : _WorkerProcessingResult):
         shm_chunk = processed_task.shm_chunk
-        sbw = SharedBatchWriter(shm_chunk.shm_chunk, processed_task.data_batch)
+        sbw = SharedBatchWriter(shm_chunk, processed_task.data_batch)
         batch_meta = SharedBatchMeta.from_writer(sbw)
         completed_task = CompletedTask.done(self.worker_id, processed_task, batch_meta)
         return write_shm_message(
             self.worker_id, shm_chunk, completed_task, sbw.total_size, resize=True)
 
-    def serialize_msgs(self, processed_tasks: List[_ProcessedTask]):
+    def serialize_msgs(self, processed_tasks: List[_WorkerProcessingResult]):
         shm_msgs = []
         for processed_task in processed_tasks:
             if processed_task.is_failed():  # one of the tasks failed
@@ -362,13 +362,18 @@ def init_task_receiver(general_task_queue, dedicated_task_queue):
     return receiver
 
 
-def init_shm(shm_chunks_meta, sock_reader):
-    shm_chunks = {}
-    for shm_chunk_meta in shm_chunks_meta:
-        shm_chunk_id = shm_chunk_meta.shm_chunk_id
-        shm = recv_shm(sock_reader, shm_chunk_meta.capacity)
-        shm_chunks[shm_chunk_id] = BufShmChunk(shm_chunk_id, shm)
-    return shm_chunks
+def init_shm(shm_chunks, sock_reader):
+    shm_chunks_dict = {}
+    for shm_chunk in shm_chunks:
+        handle = reduction.recv_handle(sock_reader)
+        try:
+            shm_chunk.set_shm(handle)
+        except:
+            if handle >= 0:
+                os.close(handle)
+            raise
+        shm_chunks_dict[shm_chunk.shm_chunk_id] = shm_chunk
+    return shm_chunks_dict
 
 
 def init_dispatcher(worker_id, result_queue, recv_queues):
@@ -381,7 +386,7 @@ def init_dispatcher(worker_id, result_queue, recv_queues):
 
 def sync_init(worker_id, result_queue, sock_reader):
     # let main process know shared resources setup is done
-    result_queue.put([ShmMessage(worker_id, 0, 0, 0, 0)])
+    result_queue.put([ShmMessageDesc(worker_id, 0, 0, 0, 0)])
     if sock_reader is not None:
         sock_reader.shutdown(socket.SHUT_RDWR)
         sock_reader.close()
@@ -396,7 +401,7 @@ def worker(worker_args : WorkerArgs):
     """
     callbacks = init_callbacks(worker_args.source_descs, worker_args.callback_pickler)
     if worker_args.start_method == "fork":
-        shm_chunks = {shm.shm_chunk_id : shm for shm in worker_args.shm_chunks}
+        shm_chunks = {shm_chunk.shm_chunk_id : shm_chunk for shm_chunk in worker_args.shm_chunks}
     else:
         init_queue(worker_args.sock_reader, worker_args.result_queue)
         if worker_args.general_task_queue is not None:
@@ -416,7 +421,7 @@ def worker(worker_args : WorkerArgs):
             if scheduled_meta is None:
                 break
             shm_chunk = shm_chunks[scheduled_meta.shm_chunk_id]
-            scheduled = read_shm_message(shm_chunk.shm_chunk, scheduled_meta)
+            scheduled = read_shm_message(shm_chunk, scheduled_meta)
             try:
                 callback = callbacks[scheduled.context_i]
                 data_batch = callback(scheduled)
@@ -424,9 +429,9 @@ def worker(worker_args : WorkerArgs):
                     assert_valid_data_type(sample)
             except Exception as exception:
                 tb_str = traceback.format_exc()
-                processed = _ProcessedTask.failed(scheduled, shm_chunk, exception, tb_str)
+                processed = _WorkerProcessingResult.failed(scheduled, shm_chunk, exception, tb_str)
             else:
-                processed = _ProcessedTask.done(scheduled, shm_chunk, data_batch)
+                processed = _WorkerProcessingResult.done(scheduled, shm_chunk, data_batch)
             batch_dispatcher.append(processed)
     finally:
         if batch_dispatcher is not None:

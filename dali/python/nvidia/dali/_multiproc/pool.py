@@ -25,7 +25,7 @@ from nvidia.dali import pickling
 from nvidia.dali._multiproc import shared_mem
 from nvidia.dali._utils.external_source_impl import SourceDescription, SourceKind
 from nvidia.dali._multiproc.worker import worker
-from nvidia.dali._multiproc.messages import BufShmChunkMeta, ScheduledTask, TaskArgs, WorkerArgs
+from nvidia.dali._multiproc.messages import ScheduledTask, TaskArgs, WorkerArgs
 from nvidia.dali._multiproc.shared_batch import deserialize_batch, import_numpy, read_shm_message, \
     BufShmChunk, SharedBatchWriter, write_shm_message, _align_up as align_up
 from nvidia.dali._multiproc.shared_queue import ShmQueue
@@ -89,7 +89,7 @@ class ShmChunkManager:
 
     def close_handles(self):
         for shm_chunk_id in self.chunks_ids:
-            self.shm_pool[shm_chunk_id].shm_chunk.close_handle()
+            self.shm_pool[shm_chunk_id].close_handle()
 
     def get_chunk_by_id(self, shm_chunk_id):
         return self.shm_pool[shm_chunk_id]
@@ -309,16 +309,14 @@ starts thread keeping track of running processes and initializes communication.
             for worker_i, worker_context in enumerate(workers_contexts):
                 if start_method == "fork":
                     sock_reader = None
-                    worker_shm_chunks = worker_context.shm_chunks
                 else:
                     sock_reader, sock_writer = socket.socketpair()
                     write_socks.append(sock_writer)
-                    worker_shm_chunks = [BufShmChunkMeta.from_chunk(chunk) for chunk in worker_context.shm_chunks]
                 process_context = WorkerArgs(
                     worker_id=worker_i,
                     start_method=start_method,
                     source_descs=worker_context.source_descs,
-                    shm_chunks=worker_shm_chunks,
+                    shm_chunks=worker_context.shm_chunks,
                     general_task_queue=general_task_queue,
                     dedicated_task_queue=worker_context.dedicated_task_queue,
                     result_queue=result_queue, sock_reader=sock_reader,
@@ -425,7 +423,7 @@ starts thread keeping track of running processes and initializes communication.
         pid = os.getppid()
         for sock, worker_context in zip(socks, self._workers_contexts):
             for shm_chunk in worker_context.shm_chunks:
-                multiprocessing.reduction.send_handle(sock, shm_chunk.shm_chunk.handle, pid)
+                multiprocessing.reduction.send_handle(sock, shm_chunk.handle, pid)
 
     def _start_processes(self, mp, start_method, write_socks):
         try:
@@ -723,8 +721,7 @@ class WorkerPool:
             raise RuntimeError("Worker data receiving interrupted")
         for completed_task_meta in completed_tasks_meta:
             context = self.shm_chunks_contexts[completed_task_meta.shm_chunk_id]
-            shm = context.shm_manager.get_chunk_by_id(completed_task_meta.shm_chunk_id)
-            shm_chunk = shm.shm_chunk
+            shm_chunk = context.shm_manager.get_chunk_by_id(completed_task_meta.shm_chunk_id)
             completed_task = read_shm_message(shm_chunk, completed_task_meta)
             context.process_task(shm_chunk, completed_task)
 

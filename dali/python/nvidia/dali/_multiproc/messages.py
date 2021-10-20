@@ -18,9 +18,11 @@ from nvidia.dali.types import SampleInfo
 from nvidia.dali._multiproc.struct_message import Structure
 
 
-class ShmMessage(Structure):
+class ShmMessageDesc(Structure):
     """
     Type of C-struct like message exchanged via shared memory queue (`ShmQueue`).
+    It describes placement (shared memory chunk, offset etc.) of actual data to be read by the receiver
+    of the `ShmMessageDesc` instance.
     ----------
     `worker_id` : int
         Intger identifying a process that put the message, number from [0, num_workers) range for workers,
@@ -38,23 +40,6 @@ class ShmMessage(Structure):
     _fields = ("worker_id", "i"), ("shm_chunk_id", "i"), ("shm_capacity", "i"), ("offset", "i"), ("num_bytes", "i")
 
 
-class BufShmChunkMeta:
-    """
-    Describes shm chunk passed from the main process to a worker process. Used if `spawn` start method is selected
-    and shm chunk handle is passed through a socket to a worker process.
-    ----------
-    `shm_chunk_id` : Integer identifying shm chunk in communication between the main process and workers.
-    `capacity` : Size of the underlying shared memory region.
-    """
-
-    def __init__(self, shm_chunk_id, capacity):
-        self.shm_chunk_id = shm_chunk_id
-        self.capacity = capacity
-
-    @classmethod
-    def from_chunk(cls, buf_shm_chunk):
-        return cls(buf_shm_chunk.shm_chunk_id, buf_shm_chunk.shm_chunk.capacity)
-
 
 class WorkerArgs:
     """
@@ -65,12 +50,13 @@ class WorkerArgs:
     `source_descs` : Dictionary with External Source's SourceDescription instances as values. Keys are ordinals corresponding to
         the order in which callbacks were passed to the pool.
         If `callback_pickler` is not None, actual callback in SourceDescription is replaced with result of its serialization.
-    `shm_chunks` : list of either BufShmChunkMeta or BufShmChunk instances (depending on the start method) that
-        describes all the shared memory chunks available to the worker (they are identified by ids unique inside the pool).
+    `shm_chunks` : list of BufShmChunk instances that describes all the shared memory chunks available
+        to the worker (they are identified by ids unique inside the pool).
     `general_task_queue` : Optional[ShmQueue]
         Queue with tasks for sources without dedicated worker, None if all sources have dedicated worker
     `dedicated_task_queue`: Optional[ShmQueue]
         Queue with tasks for sources that are run solely in the given worker.
+        If `dedicated_task_queue` is None, `general_task_queue` must be provided.
     `result_queue`: ShmQueue
         Queue to report any task done, no matter if dedicated or general.
     `sock_reader` : Optional[socket]
@@ -94,8 +80,10 @@ class WorkerArgs:
 
 class SampleRange:
     """
-    Describes a batch of work in sample mode that consists of SampleInfo instances with consecutive
-    indices within the epoch. Used to avoid linear dependency of the task description on the batch size.
+    Describes a batch or sub-batch of work in sample mode that consists of SampleInfo instances with consecutive
+    indices. It denotes range of samples within given `iteration` of given `epoch_idx`,
+    optionally specifying a slice/sub-range of the sample range.
+    Used to avoid linear dependency of the task description size on the batch size.
     """
 
     def __init__(self, sample_start, sample_end, iteration, epoch_idx, *, slice_start=0, slice_end=None):
