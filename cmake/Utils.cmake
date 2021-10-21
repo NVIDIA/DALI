@@ -1,4 +1,4 @@
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 # caffe_parse_header
 # Reads set of version defines from the header file
@@ -334,7 +334,7 @@ function(build_per_python_lib)
         set(PYTHON_LIB_TARGET_FOR_PYVER "${PYTHON_LIB_ARG_TARGET_NAME}_${PYVER}")
         # check if listed python versions are accesible
         execute_process(
-            COMMAND python${PYVER} -c "exit()"
+            COMMAND python${PYVER}-config --help > /dev/null
             RESULT_VARIABLE  PYTHON_EXISTS)
 
         if (${PYTHON_EXISTS} EQUAL 0)
