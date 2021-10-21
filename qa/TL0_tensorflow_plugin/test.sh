@@ -3,10 +3,16 @@
 pip_packages="nose tensorflow-gpu"
 target_dir=./dali/test/python
 
-# populate epilog and prolog with variants to enable/disable conda and virtual env
-# every test will be executed for bellow configs
-prolog=(: enable_virtualenv)
-epilog=(: disable_virtualenv)
+# reduce the lenght of the sanitizers tests as much as possible
+# use only one TF verion, don't test virtual env
+if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
+    one_config_only=true
+else
+    # populate epilog and prolog with variants to enable/disable conda and virtual env
+    # every test will be executed for bellow configs
+    prolog=(: enable_virtualenv)
+    epilog=(: disable_virtualenv)
+fi
 
 test_body() {
     # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
@@ -26,7 +32,7 @@ test_body() {
     nosetests --verbose test_dali_tf_dataset.py
     nosetests --verbose test_dali_tf_dataset_shape.py
     nosetests --verbose test_dali_tf_dataset_eager.py
-    nosetests --verbose test_dali_tf_dataset_graph.py    
+    nosetests --verbose test_dali_tf_dataset_graph.py
 }
 
 pushd ../..

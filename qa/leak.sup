@@ -1,10 +1,43 @@
-# TODO when all test passes in CI we can set suppress false-positives
+# NVJPEG
+leak:libnvcuvid.so
+# external libraries
 leak:paddle
 leak:llvm
-#leak:PyCode_NewWithPosOnlyArgs
-#leak:PyLong_FromLong
-#leak:_PyLong_New
-#leak:PyBytes_FromString
-#leak:PyCapsule_New
-#leak:av_realloc_f
-#leak:memalign
+leak:zmq
+leak:sklearn
+leak:scipy
+leak:numpy
+leak:libcublas
+leak:libcudnn
+leak:numba
+leak:libmxnet
+leak:libtorch
+leak:libc10
+leak:av_realloc_f
+leak:av_malloc
+# tensorflow
+leak:PyInit__pywrap_debug_events_writer
+leak:_pywrap
+leak:PyInit__op_def_registry
+leak:PyInit__tf_stack
+leak:PyInit__dtypes
+# no idea how to suppress them other than as below but they are not caused by DALI
+# still there is some danger that any of the  below functions appear in a valid leak
+leak:std::string::_Rep::_S_create
+leak:PyLong_FromLong
+leak:PyCode_NewWithPosOnlyArgs
+leak:_PyLong_New
+leak:PyBytes_FromString
+leak:PyType_GenericAlloc
+leak:PyCapsule_New
+leak:_PyObject_GC_NewVar
+leak:_PyObject_GC_New
+leak:PyDict_Copy
+leak:_PyObject_New
+leak:PyUnicode_New
+leak:PyTuple_Pack
+leak:PyTuple_New
+leak:_PyObject_MakeTpCall
+leak:PyDict_SetDefault
+leak:PySequence_List
+leak:_PyFunction_Vectorcall

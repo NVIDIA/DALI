@@ -49,15 +49,21 @@ numer_of_prolog_elms=${#prolog[@]}
 enable_sanitizer() {
     # supress leaks that are false positive or not related to DALI
     export LSAN_OPTIONS=suppressions=$topdir/qa/leak.sup
-    export ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0:log_path=sanitizer.log:start_deactivated=true:allocator_may_return_null=1::detect_leaks=1
+    export ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0:log_path=sanitizer.log:start_deactivated=true:allocator_may_return_null=1:detect_leaks=1:fast_unwind_on_malloc=0
     export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
     # avoid python false positives
     export PYTHONMALLOC=malloc
+    # if something calls dlclose on a module that leaks and it happens before asan can extract symbols we get "unknown module"
+    # in the stack trace, to prevent this provide dlclose that does nothing
+    echo "int dlclose(void* a) { return 0; }" > /tmp/fake_dlclose.c && gcc -shared -o /tmp/libfakeclose.so /tmp/fake_dlclose.c
+    export OLD_LD_PRELOAD=${LD_PRELOAD}
+    export LD_PRELOAD="${LD_PRELOAD} /tmp/libfakeclose.so"
 }
 
 # turn off sanitizer to avoid breaking any non-related system built-ins
 disable_sanitizer() {
     export ASAN_OPTIONS=start_deactivated=true:detect_leaks=0
+    export LD_PRELOAD=${OLD_LD_PRELOAD}
     unset ASAN_SYMBOLIZER_PATH
     unset PYTHONMALLOC
 }
@@ -85,12 +91,8 @@ process_sanitizers_logs() {
     find $topdir -iname "sanitizer.log.*" -print0 | xargs -0 -I file cat file > $topdir/sanitizer.log
     if [ -e $topdir/sanitizer.log ]; then
         cat $topdir/sanitizer.log
-        grep -q ERROR $topdir/sanitizer.log || true
-        # ToDo - enable when the suppression file is completed
-        # grep -q ERROR $topdir/sanitizer.log && exit 1 || true
+        grep -q ERROR $topdir/sanitizer.log && exit 1 || true
     fi
-    # rm so the consequitive test won't reread the same logs over and over
-    find $topdir -iname "sanitizer.log.*" -delete
 }
 
 # get extra index url for given packages
