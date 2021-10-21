@@ -42,8 +42,7 @@ Normalization takes the input images and produces the output by using the follow
        R"code(Output data type.
 
 Supported types: ``FLOAT``, ``FLOAT16``, ``INT8``, ``UINT8``.
-
-If not set, the input type is used.)code", DALI_FLOAT)
+)code", DALI_FLOAT)
   .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("output_layout",
     R"code(Tensor data layout for the output.)code", TensorLayout("CHW"))
