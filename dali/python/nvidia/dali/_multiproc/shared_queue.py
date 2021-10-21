@@ -184,16 +184,35 @@ class Dispatcher:
        a writing process would have to wait too long for a lock on the queue when multiple readers pop
        items one by one."""
 
-    def __init__(self, queue):
+    def __init__(self, target_queue, on_thread_exit=None):
         self.pending_cv = threading.Condition()
         self.pending = []
-        self.queue = queue
-        self.thread = None
+        self.target_queue = target_queue
+        self.on_thread_exit = on_thread_exit
+        self.thread = threading.Thread(target=self._dispatch_loop, daemon=True)
+        self.thread.start()
+
+    def _dispatch_loop(self):
+        try:
+            while True:
+                with self.pending_cv:
+                    while len(self.pending) == 0:
+                        self.pending_cv.wait()
+                    msgs = list(self.pending)
+                    self.pending.clear()
+                if any(msg is None for msg in msgs):
+                    break
+                msgs = self.serialize_msgs(msgs)
+                if self.target_queue.put(msgs) is None:
+                    break
+        finally:
+            if self.on_thread_exit is not None:
+                self.on_thread_exit()
 
     def close(self):
-        if self.queue is not None:
-            self.queue.close()
-            self.queue = None
+        if self.target_queue is not None:
+            self.target_queue.close()
+            self.target_queue = None
         self.stop_thread()
 
     def stop_thread(self):
@@ -201,11 +220,6 @@ class Dispatcher:
             self.append(None)
             self.thread.join()
             self.thread = None
-
-    def start_thread(self, worker):
-        thread = threading.Thread(target=worker.dispatch_loop, daemon=True)
-        thread.start()
-        self.thread = thread
 
     def extend(self, msgs):
         with self.pending_cv:
@@ -216,44 +230,6 @@ class Dispatcher:
         with self.pending_cv:
             self.pending.append(msg)
             self.pending_cv.notify()
-
-
-class DispatcherWorker:
-    """
-    Base class for workers putting items into a message queue in a separate thread
-    Used to avoid writing process waiting for the queue lock when readers take data from the queue
-    """
-
-    def __init__(self, pending_cv, pending, queue):
-        self.pending_cv = pending_cv
-        self.pending = pending
-        self.queue = queue
-        self.is_interrupted_by_sender = False
-        self.is_queue_closed = False
-
-    def dispatch_loop(self):
-        try:
-            while True:
-                with self.pending_cv:
-                    while len(self.pending) == 0:
-                        self.pending_cv.wait()
-                    msgs = list(self.pending)
-                    self.pending.clear()
-                if any(msg is None for msg in msgs):
-                    self.is_interrupted_by_sender = True
-                    break
-                if self.send(msgs) is None:
-                    self.is_queue_closed = True
-                    break
-        finally:
-            self.close()
-
-    def send(self, msgs):
-        msgs = self.serialize_msgs(msgs)
-        return self.queue.put(msgs)
-
-    def close(self):
-        raise NotImplementedError
 
     def serialize_msgs(self, msgs):
         raise NotImplementedError
