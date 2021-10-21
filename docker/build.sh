@@ -45,9 +45,10 @@ export CUDA_VER=${CUDA_VERSION//./}
 
 if [ "${CUDA_VERSION%%\.*}" ]
 then
-  if [ $CUDA_VER != "100" ] && [ $CUDA_VER != "102" ] && [ $CUDA_VER != "110" ] && [ $CUDA_VER != "111" ] && [ $CUDA_VER != "112" ] && [ $CUDA_VER != "113" ] && [ $CUDA_VER != "114" ]
+  if [ $CUDA_VER != "100" ] && [ $CUDA_VER != "102" ] && [ $CUDA_VER != "110" ] && [ $CUDA_VER != "111" ] && \
+     [ $CUDA_VER != "112" ] && [ $CUDA_VER != "113" ] && [ $CUDA_VER != "114" ] && [ $CUDA_VER != "115" ]
   then
-      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 10.0, 10.2, 11.0, 11.1, 11.2, 11.3 and 11.4 are supported"
+      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 10.0, 10.2, 11.0, 11.1, 11.2, 11.3, 11.4 and 11.5 are supported"
       exit 1
   fi
 else
