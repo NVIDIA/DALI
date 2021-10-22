@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,24 +18,24 @@
 
 namespace dali {
 
-template <>
-const Tensor<CPUBackend>& MixedWorkspace::Input(int idx, int data_idx) const {
-  return InputRef<CPUBackend>(idx)[data_idx];
-}
+// template <>
+// const Tensor<CPUBackend>& MixedWorkspace::Input(int idx, int data_idx) const {
+//   return InputRef<CPUBackend>(idx)[data_idx];
+// }
 
-template <>
-const Tensor<GPUBackend>& MixedWorkspace::Input(int idx, int data_idx) const {
-  return InputRef<GPUBackend>(idx)[data_idx];
-}
+// template <>
+// const Tensor<GPUBackend>& MixedWorkspace::Input(int idx, int data_idx) const {
+//   return InputRef<GPUBackend>(idx)[data_idx];
+// }
 
-template <>
-TensorList<CPUBackend>& MixedWorkspace::Output(int idx) {
-  return OutputRef<CPUBackend>(idx);
-}
+// template <>
+// TensorList<CPUBackend>& MixedWorkspace::Output(int idx) {
+//   return OutputRef<CPUBackend>(idx);
+// }
 
-template <>
-TensorList<GPUBackend>& MixedWorkspace::Output(int idx) {
-  return  OutputRef<GPUBackend>(idx);
-}
+// template <>
+// TensorList<GPUBackend>& MixedWorkspace::Output(int idx) {
+//   return  OutputRef<GPUBackend>(idx);
+// }
 
 }  // namespace dali

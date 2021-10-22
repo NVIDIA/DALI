@@ -554,7 +554,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif  // NVJPEG2K_ENABLED
 
     for (int i = 0; i < curr_batch_size; i++) {
-      const auto &in = ws.Input<CPUBackend>(0, i);
+      const auto &in = ws.InputRef<CPUBackend>(0)[i];
       const auto in_size = in.size();
       thread_pool_.AddWork([this, i, &in, in_size](int tid) {
         auto *input_data = in.data<uint8_t>();
@@ -683,7 +683,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   void ProcessImagesCache(MixedWorkspace &ws) {
-    auto& output = ws.Output<GPUBackend>(0);
+    auto& output = ws.OutputRef<GPUBackend>(0);
     for (auto *sample : samples_cache_) {
       assert(sample);
       auto i = sample->sample_idx;
@@ -694,12 +694,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   void ProcessImagesCuda(MixedWorkspace &ws) {
-    auto& output = ws.Output<GPUBackend>(0);
+    auto& output = ws.OutputRef<GPUBackend>(0);
     for (auto *sample : samples_single_) {
       assert(sample);
       auto i = sample->sample_idx;
       auto *output_data = output.mutable_tensor<uint8_t>(i);
-      const auto &in = ws.Input<CPUBackend>(0, i);
+      const auto &in = ws.InputRef<CPUBackend>(0)[i];
       thread_pool_.AddWork(
         [this, sample, &in, output_data](int tid) {
           SampleWorker(sample->sample_idx, sample->file_name, in.size(), tid,
@@ -799,11 +799,11 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   void ProcessImagesHost(MixedWorkspace &ws) {
-    auto& output = ws.Output<GPUBackend>(0);
+    auto& output = ws.OutputRef<GPUBackend>(0);
     for (auto *sample : samples_host_) {
       auto i = sample->sample_idx;
       auto *output_data = output.mutable_tensor<uint8_t>(i);
-      const auto &in = ws.Input<CPUBackend>(0, i);
+      const auto &in = ws.InputRef<CPUBackend>(0)[i];
       ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
       thread_pool_.AddWork(
         [this, sample, &in, output_data, shape](int tid) {
@@ -816,7 +816,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   void ProcessImagesHw(MixedWorkspace &ws) {
 #if IS_HW_DECODER_COMPATIBLE
-    auto& output = ws.Output<GPUBackend>(0);
+    auto& output = ws.OutputRef<GPUBackend>(0);
     if (!samples_hw_batched_.empty()) {
       nvjpegJpegState_t &state = state_hw_batched_;
       assert(state != nullptr);
@@ -839,7 +839,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
       for (auto *sample : samples_hw_batched_) {
         int i = sample->sample_idx;
-        const auto &in = ws.Input<CPUBackend>(0, i);
+        const auto &in = ws.InputRef<CPUBackend>(0)[i];
         const auto &out_shape = output_shape_.tensor_shape(i);
 
         tv[j].ShareData(const_cast<Tensor<CPUBackend> &>(in));
@@ -891,7 +891,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   void ProcessImages(MixedWorkspace &ws) {
-    auto &output = ws.Output<GPUBackend>(0);
+    auto &output = ws.OutputRef<GPUBackend>(0);
     assert(output_shape_.num_samples() ==
            ws.GetInputBatchSize(0));  // If fails: Incorrect number of samples in shape
     output.Resize(output_shape_, DALI_UINT8);
