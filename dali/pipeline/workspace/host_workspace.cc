@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,26 +41,6 @@ void HostWorkspace::GetSample(SampleWorkspace* ws, int data_idx, int thread_idx)
     assert(!arg_pair.second.should_update);
     ws->AddArgumentInput(arg_pair.first, arg_pair.second.tvec);
   }
-}
-
-template <>
-const Tensor<CPUBackend>& HostWorkspace::Input(int idx, int data_idx) const {
-  return InputRef<CPUBackend>(idx)[data_idx];
-}
-
-template <>
-const Tensor<GPUBackend>& HostWorkspace::Input(int idx, int data_idx) const {
-  return InputRef<GPUBackend>(idx)[data_idx];
-}
-
-template <>
-Tensor<CPUBackend>& HostWorkspace::Output(int idx, int data_idx) {
-  return OutputRef<CPUBackend>(idx)[data_idx];
-}
-
-template <>
-Tensor<GPUBackend>& HostWorkspace::Output(int idx, int data_idx) {
-  return OutputRef<GPUBackend>(idx)[data_idx];
 }
 
 }  // namespace dali
