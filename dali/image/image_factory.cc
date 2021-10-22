@@ -94,10 +94,12 @@ ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImage
 
   int matches = is_png + is_bmp + is_jpeg + is_tiff + is_pnm + is_jpeg2k + is_webp;
   if (matches == 0) {
-    if(CheckIsGIF(encoded_image, length)) {
+    if (CheckIsGIF(encoded_image, length)) {
       DALI_FAIL("GIF images are not supported.");
     } else {
-      DALI_FAIL("Unrecognized image format. Supported formats are: JPEG, PNG, BMP, TIFF, PNM, JPEG2000 and WebP.");
+      DALI_FAIL(
+          "Unrecognized image format. Supported formats are: JPEG, PNG, BMP, TIFF, PNM, JPEG2000 "
+          "and WebP.");
     }
   } else if (matches > 1) {
     DALI_FAIL("Ambiguous image format. The header matches more than one image format.");
