@@ -262,8 +262,6 @@ def create_worker_contexts(mp, callback_contexts : List[CallbackContext], num_wo
         source_descs = [copy.copy(cb_context.source_desc) for cb_context in callback_contexts]
         for source_desc in source_descs:
             source_desc.source = callback_pickler.dumps(source_desc.source)
-    # get sources without dedicated worker id assigned (those will be handled by all
-    # the workers in the pool and sent via general_task_queue)
     general_cb_contexts = [
         i for i, cb_context in enumerate(callback_contexts)
         if cb_context.dedicated_worker_id is None]
@@ -346,6 +344,8 @@ class ProcPool:
     @classmethod
     def from_contexts(cls, contexts : List[CallbackContext], num_workers, start_method="fork", py_callback_pickler=None):
         mp = multiprocessing.get_context(start_method)
+        # checks if there are any sources without dedicated worker id, if so, the `general_task_queue`
+        # instance is needed to distribute tasks among all the workers
         general_sources_buffs = [
             context.shm_manager for context in contexts
             if context.dedicated_worker_id is None]
