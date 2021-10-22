@@ -268,7 +268,7 @@ def test_vs_non_parallel():
             yield _test_vs_non_parallel, batch_size, cb_parallel, cb_seq, batch, py_num_workers
 
 
-def generator_shape_emp():
+def generator_shape_empty():
     count = 0
     while True:
         yield [np.full([], count + i) for i in range(50)]
@@ -284,7 +284,7 @@ def generator_shape_100x3():
         yield [np.full([10, 10, 10], count + i) for i in range(50)]
 
 def test_generator_vs_non_parallel():
-    for cb in [generator_shape_emp, generator_shape_10, generator_shape_100x3]:
+    for cb in [generator_shape_empty, generator_shape_10, generator_shape_100x3]:
         yield _test_vs_non_parallel, 50, cb, cb, True, 1
 
 
@@ -505,7 +505,7 @@ def _test_cycle_multiple_iterators(batch_size, iters_num, py_num_workers, reader
     assert len(parallel_outs) == len(seq_outs)
     for parallel_out, seq_out in zip(parallel_outs, seq_outs):
         if parallel_out == StopIteration or seq_out == StopIteration:
-            assert parallel_out == StopIteration and seq_out == StopIteration
+            assert parallel_out == seq_out
             continue
         assert len(parallel_out) == len(seq_out) == 3
         for batch_parallel, batch_seq in zip(parallel_out, seq_out):

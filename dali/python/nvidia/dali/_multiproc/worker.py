@@ -268,36 +268,36 @@ class IterableSource:
 
     def __init__(self, source_desc):
         self.source_desc = source_desc
-        self.reset(epoch_start=0)
-
-    def __call__(self, scheduled : ScheduledTask):
-        epoch_start = scheduled.epoch_start
-        if self.raised_stop_iter:
-            # if iterator is not resetable after failure or epoch was not restarted
-            if epoch_start <= self.epoch_start or self.source_desc.cycle != "raise":
-                raise StopIteration
-            else:
-                self.reset(epoch_start)
-        try:
-            return self.get_next()
-        except StopIteration:
-            if self.source_desc.cycle != "quiet" and self.source_desc.cycle is not True:
-                raise
-            # in quiet mode immediately reset the source and return first iteration
-            self.reset(epoch_start)
-            return self.get_next()
-
-    def reset(self, epoch_start):
         self.iter = IterableSource.get_iter(self.source_desc)
         self.raised_stop_iter = False
-        self.epoch_start = epoch_start
+        self.epoch_start = 0
+
+    def __call__(self, scheduled : ScheduledTask):
+        if self.raised_stop_iter:
+            # if iterator runs in "raise" mode and a new epoch started (i.e. source context was reset)
+            if self.source_desc.cycle == "raise" and self.epoch_start < scheduled.epoch_start:
+                self.iter = IterableSource.get_iter(self.source_desc)
+                self.raised_stop_iter = False
+                self.epoch_start = scheduled.epoch_start
+            else:
+                raise StopIteration
+        return self.get_next()
 
     def get_next(self):
         try:
             return next(self.iter)
         except StopIteration:
             self.raised_stop_iter = True
-            raise
+            if self.source_desc.cycle != "quiet" and self.source_desc.cycle is not True:
+                raise
+            # in quiet mode immediately reset the source and return the first iteration
+            self.iter = IterableSource.get_iter(self.source_desc)
+            next_iter = next(self.iter)
+            # in case it raises again set the `raised_stop_iter` flag to False after the __next__ call,
+            # so that it consistently raises StopIteration from then on
+            # tracking epoch number is not updated, as it is not needed in quiet mode
+            self.raised_stop_iter = False
+            return next_iter
 
     @staticmethod
     def get_iter(source_desc):

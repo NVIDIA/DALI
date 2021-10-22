@@ -182,12 +182,9 @@ def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch
             file_root=data_path,
             prefetch_queue_depth=reader_queue_depth,
             random_shuffle=True,)
-        if read_encoded:
-            images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
-            images = common_pipeline(images)
-        else:  # match external source pipline behavior that decodes images on cpu and moves them with .gpu call
-            images = dali.fn.decoders.image(images, device="cpu", output_type=types.RGB)
-            images = common_pipeline(images.gpu())
+        dev = "mixed" if read_encoded else "cpu"
+        images = dali.fn.decoders.image(images, device=dev, output_type=types.RGB)
+        images = common_pipeline(images.gpu())
         pipe.set_outputs(images, labels)
     return pipe
 
@@ -227,9 +224,7 @@ def external_source_pipeline(
             batch_info=source_mode == "batch")
         if read_encoded:
             images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
-        else:
-            images = images.gpu()
-        images = common_pipeline(images)
+        images = common_pipeline(images.gpu())
         pipe.set_outputs(images, labels)
     return pipe
 
@@ -251,9 +246,7 @@ def external_source_parallel_pipeline(
             batch_info=source_mode == "batch")
         if read_encoded:
             images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
-        else:
-            images = images.gpu()
-        images = common_pipeline(images)
+        images = common_pipeline(images.gpu())
         pipe.set_outputs(images, labels)
     return pipe
 

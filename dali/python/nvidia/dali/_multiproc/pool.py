@@ -22,7 +22,6 @@ import copy
 from collections import deque
 from nvidia.dali import backend as _b
 from nvidia.dali import pickling
-from nvidia.dali._multiproc import shared_mem
 from nvidia.dali._utils.external_source_impl import SourceDescription, SourceKind
 from nvidia.dali._multiproc.worker import worker
 from nvidia.dali._multiproc.messages import ScheduledTask, TaskArgs, WorkerArgs
@@ -294,8 +293,8 @@ def create_worker_contexts(mp, callback_contexts : List[CallbackContext], num_wo
 
 class ProcPool:
     """Runs pool of worker processes, stores pipes and sockets used to communicate with the workers,
-starts thread keeping track of running processes and initializes communication.
-"""
+    starts thread keeping track of running processes and initializes communication.
+    """
 
     def __init__(self, mp, workers_contexts : List[WorkerContext], result_queue : ShmQueue,
                  general_task_queue : Optional[ShmQueue], callback_pickler):
