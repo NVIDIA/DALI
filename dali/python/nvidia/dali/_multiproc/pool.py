@@ -263,6 +263,7 @@ def create_worker_contexts(mp, callback_contexts : List[CallbackContext], num_wo
         source_descs = [copy.copy(cb_context.source_desc) for cb_context in callback_contexts]
         for source_desc in source_descs:
             source_desc.source = callback_pickler.dumps(source_desc.source)
+    # get sources without dedicated worker id assigned (those will be handled by all the workers in the pool)
     general_cb_contexts = [
         i for i, cb_context in enumerate(callback_contexts)
         if cb_context.dedicated_worker_id is None]
@@ -314,7 +315,7 @@ starts thread keeping track of running processes and initializes communication.
         self._workers_contexts = workers_contexts
         self._result_queue = result_queue
         self._general_task_queue = general_task_queue
-        self._tracker = None
+        self._observer = None
         self._processes = []
         write_socks = []
         try:
@@ -389,18 +390,18 @@ starts thread keeping track of running processes and initializes communication.
         return [proc.pid for proc in self._processes]
 
     def close(self):
-        if self._tracker is None:
+        if self._observer is None:
             return
-        self._tracker.close()
-        self._tracker = None
+        self._observer.close()
+        self._observer = None
 
     def wait_for_res(self):
-        if self._tracker is None:
+        if self._observer is None:
             raise RuntimeError("Cannot receive data from the pool that has been closed")
         return self._result_queue.get(None)
 
     def send(self, tasks : List[Tuple[BufShmChunk, Any]], dedicated_worker_id):
-        if self._tracker is None:
+        if self._observer is None:
             raise RuntimeError("Cannot send tasks to the pool that has been closed")
         shm_msg_descs = [write_shm_message(-1, shm_chunk, msg, 0, resize=False) for shm_chunk, msg in tasks]
         if dedicated_worker_id is None:
@@ -449,15 +450,15 @@ starts thread keeping track of running processes and initializes communication.
                 if worker_context.dedicated_task_queue is not None]
             if self._general_task_queue is not None:
                 task_queues.append(self._general_task_queue)
-            self._tracker = Tracker(mp, self._processes, task_queues, self._result_queue)
+            self._observer = Observer(mp, self._processes, task_queues, self._result_queue)
             if start_method != "fork":
                 self._send_queues(write_socks)
                 self._send_shm(write_socks)
             self._sync_initialized_workers()
         except:
-            if self._tracker is not None:
-                self._tracker.close()
-                self._tracker = None
+            if self._observer is not None:
+                self._observer.close()
+                self._observer = None
             else:
                 for proc in self._processes:
                     if proc.is_alive():
@@ -467,70 +468,55 @@ starts thread keeping track of running processes and initializes communication.
                         proc.join()
             raise
 
-
-def tracker_thread(processes, tracker_interruption_pipe, task_queues, result_queue):
-    """Observer thread for ProcPool used for joining processes and distributing
-    stop signal (`None` message).
-
-    Parameters
-    ----------
-    `processes` : List of multiprocessing.Process
-        Worker processes.
-    `tracker_interruption_pipe` : Pipe
-        Read pipe for communicating stop to tracker_thread from main process.
-    `task_queues` : List[ShmQueue]
-        ShmQueues for scheduling tasks for workers, used to notify workers to gently close.
-    `result_queue` : ShmQueue
-        ShmQueue of completed tasks, used here to notify main thread about the closing,
-        and possibly unblock it, if it waits on empty queue.
-    """
-    exit_gently = True
-    try:
-        ps = {p.sentinel: p for p in processes}
-        listen_for = list(ps.keys()) + [tracker_interruption_pipe]
-        # Once one process exits stop the whole group (gracefully if possible)
-        while True:
-            sentinels = multiprocessing.connection.wait(listen_for)
-            proc_sentinels = [s for s in sentinels if s != tracker_interruption_pipe]
-            if tracker_interruption_pipe in sentinels:
-                break
-            if any(ps[sentinel].exitcode is not None for sentinel in proc_sentinels):
-                exit_gently = False
-                break
-    except:
-        exit_gently = False
-        raise
-    finally:
-        result_queue.close()  # main thread may be blocked on reading the queue
-        if exit_gently:
-            # try to close task queues and notify waiting processes, so that they can
-            # cleanup and exit. Unfortunately if all workers exited abruptly when waiting,
-            # an attempt to notify workers with multiprocessing.Condition might lead to deadlock on
-            # underlying semaphore. For this reason it is done only if none of the workers reported
-            # to have exited.
-            for queue in task_queues:
-                queue.close()
-            for proc in processes:
-                proc.join(1)
-        for proc in processes:
-            if proc.exitcode is None:
-                proc.terminate()
-                proc.join()
-
-
-class Tracker:
+class Observer:
 
     def __init__(self, mp, processes, task_queues, result_queue):
-        self.interruption_pipe, self.interrupt_pipe = mp.Pipe(duplex=False)
-        self.thread = threading.Thread(
-            target=tracker_thread,
-            args=(processes, self.interruption_pipe, task_queues, result_queue),
-            daemon=True)
+        self._interruption_pipe, self.interrupt_pipe = mp.Pipe(duplex=False)
+        self._processes = processes
+        self._task_queues = task_queues
+        self._result_queue = result_queue
+        self.thread = threading.Thread(target=self._observer_thread, daemon=True)
         self.thread.start()
+
+    def _observer_thread(self):
+        """Observer thread for ProcPool used for stopping and joining processes.
+        """
+        exit_gently = True
+        try:
+            ps = {p.sentinel: p for p in self._processes}
+            listen_for = list(ps.keys()) + [self._interruption_pipe]
+            # Once one process exits stop the whole group (gracefully if possible)
+            while True:
+                sentinels = multiprocessing.connection.wait(listen_for)
+                proc_sentinels = [s for s in sentinels if s != self._interruption_pipe]
+                if self._interruption_pipe in sentinels:
+                    break
+                if any(ps[sentinel].exitcode is not None for sentinel in proc_sentinels):
+                    exit_gently = False
+                    break
+        except:
+            exit_gently = False
+            raise
+        finally:
+            self._result_queue.close()  # main thread may be blocked on reading the queue
+            if exit_gently:
+                # try to close task queues and notify waiting processes, so that they can
+                # cleanup and exit. Unfortunately if all workers exited abruptly when waiting,
+                # an attempt to notify workers with multiprocessing.Condition might lead to deadlock on
+                # underlying semaphore. For this reason it is done only if none of the workers reported
+                # to have exited.
+                for queue in self._task_queues:
+                    queue.close()
+                for proc in self._processes:
+                    proc.join(1)
+            for proc in self._processes:
+                if proc.exitcode is None:
+                    proc.terminate()
+                    proc.join()
 
     def close(self):
         if self.thread is not None:
-            # send anything via interruption_pipe to notify tracker thread about closing
+            # send anything via interruption_pipe to notify observer thread about closing
             self.interrupt_pipe.send(None)
             self.thread.join()
             self.thread = None

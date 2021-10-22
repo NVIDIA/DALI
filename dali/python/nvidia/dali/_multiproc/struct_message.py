@@ -19,8 +19,10 @@ import struct
 class Structure:
 
     """
-    Utility around Python `struct` module that allows to access and modify `_fields` like an ordinary object attributes,
-    but also read and write their values from/into the buffer in C struct like format.
+    Utility around Python `struct` module (https://docs.python.org/3.6/library/struct.html) that allows to access and modify
+    `_fields` like an ordinary object attributes and read/write their values from/into the buffer in C struct like format.
+    Similar approach of declaring _fields_ with corresponding C types can be found in
+    Python `ctypes` module (https://docs.python.org/3/library/ctypes.html).
     """
 
     # A tuple of (name, type) pairs, where type is a string encoding of a simple type, as used in struct
