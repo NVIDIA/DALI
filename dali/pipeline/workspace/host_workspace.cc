@@ -25,16 +25,16 @@ void HostWorkspace::GetSample(SampleWorkspace* ws, int data_idx, int thread_idx)
   ws->set_thread_idx(thread_idx);
   for (const auto& input_meta : input_index_map_) {
     if (input_meta.storage_device == StorageDevice::CPU) {
-      ws->AddInput(cpu_inputs_[input_meta.index]->tensor_handle(data_idx));
+      ws->AddInput(cpu_inputs_[input_meta.index]->tensor_handle(data_idx).get());
     } else {
-      ws->AddInput(gpu_inputs_[input_meta.index]->tensor_handle(data_idx));
+      ws->AddInput(gpu_inputs_[input_meta.index]->tensor_handle(data_idx).get());
     }
   }
   for (const auto& output_meta : output_index_map_) {
     if (output_meta.storage_device == StorageDevice::CPU) {
-      ws->AddOutput(cpu_outputs_[output_meta.index]->tensor_handle(data_idx));
+      ws->AddOutput(cpu_outputs_[output_meta.index]->tensor_handle(data_idx).get());
     } else {
-      ws->AddOutput(gpu_outputs_[output_meta.index]->tensor_handle(data_idx));
+      ws->AddOutput(gpu_outputs_[output_meta.index]->tensor_handle(data_idx).get());
     }
   }
   for (auto& arg_pair : argument_inputs_) {

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,9 +32,9 @@
 namespace dali {
 
 template <typename Backend>
-using SampleInputType = shared_ptr<Tensor<Backend>>;
+using SampleInputType = Tensor<Backend> *;
 template <typename Backend>
-using SampleOutputType = shared_ptr<Tensor<Backend>>;
+using SampleOutputType = Tensor<Backend> *;
 
 /**
  * @brief SampleWorkspace stores all data required for an operator to
@@ -57,20 +57,6 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
     has_stream_ = false;
     stream_ = 0;
   }
-
-  /**
-   * @brief Returns Tensor with index = data_idx() from the input
-   * TensorList at index = `idx`.
-   */
-  template <typename Backend>
-  DLL_PUBLIC const Tensor<Backend>& Input(int idx) const;
-
-  /**
-   * @brief Returns Tensor with index = data_idx() from the output
-   * TensorList at index = `idx`.
-   */
-  template <typename Backend>
-  DLL_PUBLIC Tensor<Backend>& Output(int idx);
 
   int GetInputBatchSize(int) const {
     DALI_FAIL(
