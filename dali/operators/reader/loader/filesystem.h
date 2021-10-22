@@ -25,8 +25,12 @@ namespace filesystem {
 
 DLL_PUBLIC vector<string> traverse_directories(const string &path, const string &filter);
 
-// TODO(michalz): Make it a more generic utility; support filters.
-DLL_PUBLIC vector<std::pair<string, int>> traverse_directories(const string &file_root);
+/**
+ * @brief Finds all (file, label) pairs matching any filter from the list. If the filters list is
+ * empty matches by known extensions.
+ */
+DLL_PUBLIC vector<std::pair<string, int>> traverse_directories(const string &file_root,
+                                                               const vector<string> &filters);
 
 /**
  * @brief Prepends dir to a relative path and keeps absolute path unchanged.

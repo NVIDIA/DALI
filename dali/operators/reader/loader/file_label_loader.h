@@ -55,6 +55,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
       has_labels_arg_ = spec.TryGetRepeatedArgument(labels, "labels");
       has_file_list_arg_ = spec.TryGetArgument(file_list_, "file_list");
       has_file_root_arg_ = spec.TryGetArgument(file_root_, "file_root");
+      spec.TryGetRepeatedArgument(filters_, "file_filters");
 
       DALI_ENFORCE(has_file_root_arg_ || has_files_arg_ || has_file_list_arg_,
         "``file_root`` argument is required when not using ``files`` or ``file_list``.");
@@ -122,7 +123,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
   void PrepareMetadataImpl() override {
     if (image_label_pairs_.empty()) {
       if (!has_file_list_arg_ && !has_files_arg_) {
-        image_label_pairs_ = filesystem::traverse_directories(file_root_);
+        image_label_pairs_ = filesystem::traverse_directories(file_root_, filters_);
       } else if (has_file_list_arg_) {
         // load (path, label) pairs from list
         std::ifstream s(file_list_);
@@ -196,6 +197,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
 
   string file_root_, file_list_;
   vector<std::pair<string, int>> image_label_pairs_;
+  vector<string> filters_;
 
   bool has_files_arg_     = false;
   bool has_labels_arg_    = false;

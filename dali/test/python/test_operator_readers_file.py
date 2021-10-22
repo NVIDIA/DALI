@@ -14,6 +14,8 @@
 
 import tempfile
 import os
+import glob
+import numpy as np
 import nvidia.dali.fn as fn
 from functools import partial
 from nvidia.dali import Pipeline, pipeline_def
@@ -126,7 +128,35 @@ def test_file_reader_relpath_file_list():
             assert contents == ref_contents(fnames[index])
 
 
-batch_size_alias_test=64
+def _test_file_reader_filter(filters):
+    batch_size = 1
+
+    pipe = Pipeline(batch_size, 1, 0)
+    root = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/single/mixed')
+    files, labels = fn.readers.file(file_root=root, file_filters=filters)
+    pipe.set_outputs(files, labels)
+    pipe.build()
+    
+    fnames = []
+    for label, dir in enumerate(sorted(next(os.walk(root))[1])):
+        for filter in filters:
+            for file in glob.glob(os.path.join(root, dir, filter)):
+                fnames.append((label, file.split('/')[-1], file))
+    fnames = sorted(set(fnames))
+
+    for i in range(len(fnames)):
+        out_f, out_l = pipe.run()
+        with open(fnames[i][2], 'rb') as file:
+            contents = np.array(list(file.read()))
+            assert all(contents == out_f.at(0))
+
+
+def test_file_reader_filters():
+    for filters in [[], ['*.jpg'], ['*.jpg', '*.png', '*.jpeg'], ['dog*.jpg', 'cat*.png', '*.jpg']]:
+        yield _test_file_reader_filter, filters
+
+
+batch_size_alias_test = 64
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def file_pipe(file_op, file_list):

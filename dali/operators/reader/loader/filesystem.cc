@@ -12,18 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/operators/reader/loader/filesystem.h"
+
 #include <dirent.h>
 #include <errno.h>
+#include <fnmatch.h>
 #include <glob.h>
 #include <sys/stat.h>
 #include <algorithm>
-#include <string>
 #include <cstring>
+#include <string>
 #include <utility>
 #include <vector>
-#include "dali/operators/reader/loader/filesystem.h"
-#include "dali/operators/reader/loader/utils.h"
+
 #include "dali/core/error_handling.h"
+#include "dali/operators/reader/loader/utils.h"
 
 namespace dali {
 namespace filesystem {
@@ -46,9 +49,34 @@ std::string join_path(const std::string &dir, const std::string &path) {
 }
 
 
-
-inline void assemble_file_list(std::vector<std::pair<std::string, int>>& file_label_pairs,
+inline void assemble_file_list(std::vector<std::pair<std::string, int>> &file_label_pairs,
                                const std::string &path, const std::string &curr_entry, int label) {
+  std::string curr_dir_path = path + dir_sep + curr_entry;
+  DIR *dir = opendir(curr_dir_path.c_str());
+
+  dirent *entry;
+
+  while ((entry = readdir(dir))) {
+#ifdef _DIRENT_HAVE_D_TYPE
+    /*
+     * we support only regular files and symlinks, if FS returns DT_UNKNOWN
+     * it doesn't mean anything and let us validate filename itself
+     */
+    if (entry->d_type != DT_REG && entry->d_type != DT_LNK && entry->d_type != DT_UNKNOWN) {
+      continue;
+    }
+#endif
+    if (HasKnownExtension(std::string(entry->d_name))) {
+      std::string rel_path = curr_entry + dir_sep + std::string{entry->d_name};
+      file_label_pairs.emplace_back(rel_path, label);
+    }
+  }
+  closedir(dir);
+}
+
+inline void assemble_file_list(std::vector<std::pair<std::string, int>> &file_label_pairs,
+                               const std::string &path, const std::string &curr_entry, int label,
+                               const std::vector<std::string> &filters) {
   std::string curr_dir_path = path + dir_sep + curr_entry;
   DIR *dir = opendir(curr_dir_path.c_str());
 
@@ -66,14 +94,17 @@ inline void assemble_file_list(std::vector<std::pair<std::string, int>>& file_la
     }
 #endif
     std::string rel_path = curr_entry + dir_sep + std::string{entry->d_name};
-    if (HasKnownExtension(std::string(entry->d_name))) {
-      file_label_pairs.emplace_back(rel_path, label);
+    for (auto &filter : filters) {
+      if (fnmatch(filter.c_str(), entry->d_name, 0) == 0) {
+        file_label_pairs.emplace_back(rel_path, label);
+        break;
+      }
     }
   }
   closedir(dir);
 }
 
-vector<std::pair<string, int>> traverse_directories(const std::string &file_root) {
+vector<std::pair<string, int>> traverse_directories(const std::string &file_root, const std::vector<std::string> &filters) {
   // open the root
   DIR *dir = opendir(file_root.c_str());
 
@@ -102,7 +133,12 @@ vector<std::pair<string, int>> traverse_directories(const std::string &file_root
   // could return directories with the same names in completely different order
   std::sort(entry_name_list.begin(), entry_name_list.end());
   for (unsigned dir_count = 0; dir_count < entry_name_list.size(); ++dir_count) {
-    assemble_file_list(file_label_pairs, file_root, entry_name_list[dir_count], dir_count);
+    if (filters.empty()) {
+      assemble_file_list(file_label_pairs, file_root, entry_name_list[dir_count], dir_count);
+    } else {
+      assemble_file_list(file_label_pairs, file_root, entry_name_list[dir_count], dir_count,
+                         filters);
+    }
   }
   // sort file names as well
   std::sort(file_label_pairs.begin(), file_label_pairs.end());
