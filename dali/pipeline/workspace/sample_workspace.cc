@@ -28,7 +28,7 @@ void MakeViewToSample(SampleWorkspace& sample, HostWorkspace& batch, int data_id
       sample.AddInput(&input_ref[data_idx]);
     } else {
       auto &input_ref = batch.InputRef<GPUBackend>(i);
-      sample.AddInput( &input_ref[data_idx]);
+      sample.AddInput(&input_ref[data_idx]);
     }
   }
 
