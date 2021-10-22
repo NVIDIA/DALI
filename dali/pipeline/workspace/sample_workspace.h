@@ -37,8 +37,9 @@ template <typename Backend>
 using SampleOutputType = Tensor<Backend> *;
 
 /**
- * @brief SampleWorkspace stores all data required for an operator to
- * perform its computation on a single sample.
+ * @brief SampleWorkspace is workspace used for the legacy, deprcated CPU Operator implementation.
+ * It has views to all data required for an operator to perform its computation on a single sample,
+ * the data is actually owned by a corresponding HostWorkspace
  */
 class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleOutputType> {
  public:
@@ -125,6 +126,43 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
   cudaStream_t stream_;
   bool has_stream_;
 };
+
+/**
+ * @brief Fill the `sample` with data references to the ones owned by the `batch` for given
+ * `data_idx` and set the `thread_idx`.
+ */
+void MakeViewToSample(SampleWorkspace& sample, HostWorkspace& batch, int data_idx, int thread_idx) {
+  sample.Clear();
+  sample.set_data_idx(data_idx);
+  sample.set_thread_idx(thread_idx);
+  int num_inputs = batch.NumInput();
+  for (int i = 0; i < num_inputs; i++) {
+    if (batch.InputIsType<CPUBackend>(i)) {
+      auto &input_ref = batch.InputRef<CPUBackend>(i);
+      sample.AddInput(&input_ref[data_idx]);
+    } else {
+      auto &input_ref = batch.InputRef<GPUBackend>(i);
+      sample.AddInput( &input_ref[data_idx]);
+    }
+  }
+
+  int num_outputs = batch.NumOutput();
+  for (int i = 0; i < num_outputs; i++) {
+    if (batch.OutputIsType<CPUBackend>(i)) {
+      auto &output_ref = batch.OutputRef<CPUBackend>(i);
+      sample.AddOutput(&output_ref[data_idx]);
+    } else {
+      auto &output_ref = batch.OutputRef<GPUBackend>(i);
+      sample.AddOutput(&output_ref[data_idx]);
+    }
+  }
+  for (auto& arg_pair : batch) {
+    assert(!arg_pair.second.should_update);
+    sample.AddArgumentInput(arg_pair.first, arg_pair.second.tvec);
+  }
+}
+
+
 
 }  // namespace dali
 

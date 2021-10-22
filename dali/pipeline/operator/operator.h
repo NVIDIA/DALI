@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -332,7 +332,7 @@ class Operator<CPUBackend> : public OperatorBase {
     for (int data_idx = 0; data_idx < curr_batch_size; ++data_idx) {
       thread_pool.AddWork([this, &ws, data_idx](int tid) {
         SampleWorkspace sample;
-        ws.GetSample(&sample, data_idx, tid);
+        MakeViewToSample(sample, ws, data_idx, tid);
         this->SetupSharedSampleParams(sample);
         this->RunImpl(sample);
       }, -data_idx);  // -data_idx for FIFO order

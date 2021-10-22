@@ -48,12 +48,6 @@ class DLL_PUBLIC HostWorkspace : public WorkspaceBase<HostInputType, HostOutputT
   DLL_PUBLIC inline HostWorkspace() {}
   DLL_PUBLIC inline ~HostWorkspace() override = default;
 
-  /**
-   * @brief Returns a sample workspace for the given sample
-   * index and thread index
-   */
-  DLL_PUBLIC void GetSample(SampleWorkspace *ws, int data_idx, int thread_idx);
-
   DLL_PUBLIC inline void SetThreadPool(ThreadPool *pool) {
     thread_pool_ = pool;
   }
