@@ -178,7 +178,7 @@ class MixedTaskReceiver:
                     recv = self.general_task_queue.get(predicate=self.receiver_state.is_idle_and_uninterrupted)
                     if recv is None:
                         break
-                    if len(recv):  # if _recheck_should_take returned False, recv is an empty list
+                    if len(recv):  # if `is_idle_and_uninterrupted` returned False, recv is an empty list
                         self.receiver_state.insert_task(recv)
             finally:
                 self.receiver_state.insert_task(None)
@@ -331,8 +331,7 @@ def get_source_from_desc(source_descs):
 
 class WorkerContext:
     """Initializes structures necessary for a worker process to receive,
-    compute and send back tasks based on the arguments passed to the worker
-    entry point at the process start"""
+    compute and send back tasks."""
 
     def __init__(self, worker_args : WorkerArgs):
         self.worker_id = worker_args.worker_id
@@ -343,6 +342,8 @@ class WorkerContext:
         self.shm_chunks = {shm_chunk.shm_chunk_id : shm_chunk for shm_chunk in worker_args.shm_chunks}
         if worker_args.start_method != "fork":
             sock = worker_args.sock_reader
+            # NOTE when making any changes here, make sure to reflect them in the main process, so that
+            # it sends handles to objects in the same order they are set to objects here
             self._recv_queue_handles(sock)
             for shm_chunk in worker_args.shm_chunks:
                 shm_chunk.open_shm(reduction.recv_handle(sock))

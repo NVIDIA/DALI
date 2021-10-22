@@ -28,7 +28,7 @@ def capture_processes(pool):
         pools.append(weakref.ref(pool))
         pool_processes.extend(pool.pids())
         proc_pool = pool.pool
-        pool_threads.append(proc_pool._tracker.thread)
+        pool_threads.append(proc_pool._observer.thread)
     check_shm_for_dali("All shm chunks should be closed after initial pool setup, found {}")
 
 

@@ -210,9 +210,7 @@ class Dispatcher:
                 self.on_thread_exit()
 
     def close(self):
-        if self.target_queue is not None:
-            self.target_queue.close()
-            self.target_queue = None
+        self.target_queue.close()
         self.stop_thread()
 
     def stop_thread(self):

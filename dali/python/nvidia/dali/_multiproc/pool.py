@@ -263,7 +263,8 @@ def create_worker_contexts(mp, callback_contexts : List[CallbackContext], num_wo
         source_descs = [copy.copy(cb_context.source_desc) for cb_context in callback_contexts]
         for source_desc in source_descs:
             source_desc.source = callback_pickler.dumps(source_desc.source)
-    # get sources without dedicated worker id assigned (those will be handled by all the workers in the pool)
+    # get sources without dedicated worker id assigned (those will be handled by all
+    # the workers in the pool and sent via general_task_queue)
     general_cb_contexts = [
         i for i, cb_context in enumerate(callback_contexts)
         if cb_context.dedicated_worker_id is None]
@@ -360,7 +361,7 @@ starts thread keeping track of running processes and initializes communication.
         # messages won't exceed the number of shm chunks available to store the minibatches
         # in all the `ShmChunkManager` instances.
         scheduled_tasks_upper_bound = sum(context.shm_manager.num_chunks for context in contexts)
-        # assure enough space for messages sent to confirm initialization of workers
+        # assure enough space for messages sent to confirm initialization of the workers
         result_queue_capacity = max(scheduled_tasks_upper_bound, num_workers)
         result_queue = ShmQueue(mp, capacity=result_queue_capacity)
         callback_pickler = None if start_method == "fork" else pickling._CustomPickler.create(py_callback_pickler)
@@ -421,7 +422,7 @@ starts thread keeping track of running processes and initializes communication.
             assert (0 <= worker_id <= self.num_workers and worker_id in workers_received for worker_id in synced_ids)
             workers_received.extend(synced_ids)
 
-    def _send_queues(self, write_socks):
+    def _send_queue_handles(self, write_socks):
         pid = os.getppid()
         all_worker_queues = [self._result_queue]
         if self._general_task_queue is not None:
@@ -434,7 +435,7 @@ starts thread keeping track of running processes and initializes communication.
                 multiprocessing.reduction.send_handle(
                     sock, worker_context.dedicated_task_queue.shm.handle, pid)
 
-    def _send_shm(self, socks):
+    def _send_shm_handles(self, socks):
         pid = os.getppid()
         for sock, worker_context in zip(socks, self._workers_contexts):
             for shm_chunk in worker_context.shm_chunks:
@@ -452,8 +453,10 @@ starts thread keeping track of running processes and initializes communication.
                 task_queues.append(self._general_task_queue)
             self._observer = Observer(mp, self._processes, task_queues, self._result_queue)
             if start_method != "fork":
-                self._send_queues(write_socks)
-                self._send_shm(write_socks)
+                # NOTE when making any changes here, make sure to reflect them in the worker process,
+                # so that it sets received handles to objects in the same order
+                self._send_queue_handles(write_socks)
+                self._send_shm_handles(write_socks)
             self._sync_initialized_workers()
         except:
             if self._observer is not None:
@@ -644,7 +647,7 @@ class WorkerPool:
             context.epoch_synced = True
         if context.iter_failed:
             # there is no point in scheduling anything for the context that has reached the end of data
-            # or failed with an error, once user receives batch that raised exception they should reset
+            # or failed with an error, once user receives batch that raised the exception they should reset
             # the context before scheduling new tasks
             return False
         minibatches = self.split_work(work_batch)
@@ -693,7 +696,6 @@ class WorkerPool:
                 assert batch is None
             except StopIteration:
                 pass
-        context.epoch_synced = True
 
     def receive_batch(self, context_i):
         """Returns the next produced batch (in the order of schedule_batch calls) for the
