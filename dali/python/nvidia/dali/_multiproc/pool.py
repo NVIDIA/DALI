@@ -642,21 +642,21 @@ class WorkerPool:
         """
         context = self.contexts[context_i]
         if not context.epoch_synced:
-            self.sync_and_discard(context_i)
+            self._sync_and_discard(context_i)
             context.epoch_synced = True
         if context.iter_failed:
             # there is no point in scheduling anything for the context that has reached the end of data
             # or failed with an error, once user receives batch that raised the exception they should reset
             # the context before scheduling new tasks
             return False
-        minibatches = self.split_work(work_batch)
+        minibatches = self._split_work(work_batch)
         num_minibatches = len(minibatches)
         assert num_minibatches <= context.shm_manager.num_minibatches
         scheduled_i, dst_chunk_i = context.push_scheduled(num_minibatches)
         self._distribute(context_i, scheduled_i, dst_chunk_i, minibatches)
         return True
 
-    def split_work(self, work_batch : TaskArgs):
+    def _split_work(self, work_batch : TaskArgs):
         if not work_batch.is_sample_mode():
             return [work_batch]
         num_minibatches = self.pool.num_workers
@@ -686,7 +686,7 @@ class WorkerPool:
         dedicated_worker_id = context.dedicated_worker_id
         self.pool.send(scheduled_tasks, dedicated_worker_id)
 
-    def sync_and_discard(self, context_i):
+    def _sync_and_discard(self, context_i):
         context = self.contexts[context_i]
         assert not context.epoch_synced
         while context.task_queue:

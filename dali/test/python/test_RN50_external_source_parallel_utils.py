@@ -292,8 +292,8 @@ def parse_test_arguments(supports_distributed):
                         'generator mode iterates over a generator. '
                         'Parameter value has no effect on file reader pipeline.')
     parser.add_argument('--dali_decode', default=False, type=bool,
-                        help='If True decodes with a mixed decoder, otherwise decodes on cpu '
-                        '(in external source callback if applicable) and moves with tensor.gpu()')
+                        help="If True decodes images with DALI's mixed decoder, otherwise decodes on cpu"
+                             "(inside external source callback if applicable) and moves with tensor.gpu()")
 
     if supports_distributed:
         parser.add_argument('--local_rank', default=0, type=int,

@@ -69,13 +69,13 @@ class SharedBatchDispatcher(Dispatcher):
         super().__init__(result_queue, on_thread_exit)
         self.worker_id = worker_id
 
-    def serialize_failed_task(self, processed_task : _WorkerProcessingResult):
+    def _serialize_failed_task(self, processed_task : _WorkerProcessingResult):
         shm_chunk = processed_task.shm_chunk
         completed_task = CompletedTask.failed(self.worker_id, processed_task)
         return write_shm_message(
             self.worker_id, shm_chunk, completed_task, 0, resize=True)
 
-    def serialize_done_task(self, processed_task : _WorkerProcessingResult):
+    def _serialize_done_task(self, processed_task : _WorkerProcessingResult):
         shm_chunk = processed_task.shm_chunk
         sbw = SharedBatchWriter(shm_chunk, processed_task.data_batch)
         batch_meta = SharedBatchMeta.from_writer(sbw)
@@ -87,9 +87,9 @@ class SharedBatchDispatcher(Dispatcher):
         shm_msgs = []
         for processed_task in processed_tasks:
             if processed_task.is_failed():  # one of the tasks failed
-                shm_msgs.append(self.serialize_failed_task(processed_task))
+                shm_msgs.append(self._serialize_failed_task(processed_task))
             else:
-                shm_msgs.append(self.serialize_done_task(processed_task))
+                shm_msgs.append(self._serialize_done_task(processed_task))
         return shm_msgs
 
 
@@ -281,9 +281,9 @@ class IterableSource:
                 self.epoch_start = scheduled.epoch_start
             else:
                 raise StopIteration
-        return self.get_next()
+        return self._get_next()
 
-    def get_next(self):
+    def _get_next(self):
         try:
             return next(self.iter)
         except StopIteration:

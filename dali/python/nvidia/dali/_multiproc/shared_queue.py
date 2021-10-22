@@ -47,8 +47,8 @@ class ShmQueue:
         self.shm_capacity = align_up(self.meta_size + capacity * self.msg_size, self.ALIGN_UP_BUFFER)
         self.shm = shared_mem.SharedMem.allocate(self.shm_capacity)
         self.is_closed = False
-        self.init_offsets()
-        self.write_meta()
+        self._init_offsets()
+        self._write_meta()
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -58,10 +58,45 @@ class ShmQueue:
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self.init_offsets()
+        self._init_offsets()
 
-    def init_offsets(self):
+    def _init_offsets(self):
         self.msgs_offsets = [i * self.msg_size + self.meta_size for i in range(self.capacity)]
+
+    def _read_meta(self):
+        self.meta.unpack_from(self.shm.buf, 0)
+
+    def _write_meta(self):
+        self.meta.pack_into(self.shm.buf, 0)
+
+    def _read_msg(self, i):
+        offset = self.msgs_offsets[i]
+        msg = self.MSG_CLASS()
+        msg.unpack_from(self.shm.buf, offset)
+        return msg
+
+    def _write_msg(self, i, msg):
+        offset = self.msgs_offsets[i]
+        msg.pack_into(self.shm.buf, offset)
+
+    def _recv_samples(self, num_samples):
+        num_take = self.meta.size
+        if num_samples is not None and num_samples < num_take:
+            num_take = num_samples
+        recv = [self._read_msg((self.meta.begining + i) % self.meta.capacity) for i in range(num_take)]
+        self.meta.size -= num_take
+        self.meta.begining = (self.meta.begining + num_take) % self.meta.capacity
+        self._write_meta()
+        return recv
+
+    def _wait_for_samples(self):
+        waited = False
+        self._read_meta()
+        while not self.meta.size > 0 and not self.meta.is_closed:
+            self.cv_not_empty.wait()
+            waited = True
+            self._read_meta()
+        return waited
 
     def open_shm(self, handle, close_handle=True):
         try:
@@ -74,22 +109,6 @@ class ShmQueue:
                 os.close(handle)
             raise
 
-    def read_meta(self):
-        self.meta.unpack_from(self.shm.buf, 0)
-
-    def write_meta(self):
-        self.meta.pack_into(self.shm.buf, 0)
-
-    def read_msg(self, i):
-        offset = self.msgs_offsets[i]
-        msg = self.MSG_CLASS()
-        msg.unpack_from(self.shm.buf, offset)
-        return msg
-
-    def write_msg(self, i, msg):
-        offset = self.msgs_offsets[i]
-        msg.pack_into(self.shm.buf, offset)
-
     def close_handle(self):
         self.shm.close_handle()
 
@@ -97,11 +116,11 @@ class ShmQueue:
         if self.is_closed:
             return
         with self.lock:
-            self.read_meta()
+            self._read_meta()
             self.is_closed = True
             if not self.meta.is_closed:
                 self.meta.is_closed = 1
-                self.write_meta()
+                self._write_meta()
                 # Notify only one waiting worker about closing of the queue, the woken up worker
                 # will notify the next one. Avoid notify_all at this point, due to possible deadlock if
                 # one of the notified workers exited abruptly when waiting on cv_not_empty without proper releasing
@@ -113,7 +132,7 @@ class ShmQueue:
         if self.is_closed:
             return
         with self.lock:
-            self.read_meta()
+            self._read_meta()
             if self.meta.size + len(msgs) > self.meta.capacity:
                 raise RuntimeError("The queue is full")
             if self.meta.is_closed:
@@ -122,31 +141,12 @@ class ShmQueue:
             msgs_len = len(msgs)
             next_slot = (self.meta.begining + self.meta.size) % self.meta.capacity
             for msg in msgs:
-                self.write_msg(next_slot, msg)
+                self._write_msg(next_slot, msg)
                 next_slot = (next_slot + 1) % self.meta.capacity
             self.meta.size += msgs_len
-            self.write_meta()
+            self._write_meta()
             self.cv_not_empty.notify()
         return msgs_len
-
-    def _recv_samples(self, num_samples):
-        num_take = self.meta.size
-        if num_samples is not None and num_samples < num_take:
-            num_take = num_samples
-        recv = [self.read_msg((self.meta.begining + i) % self.meta.capacity) for i in range(num_take)]
-        self.meta.size -= num_take
-        self.meta.begining = (self.meta.begining + num_take) % self.meta.capacity
-        self.write_meta()
-        return recv
-
-    def _wait_for_samples(self):
-        waited = False
-        self.read_meta()
-        while not self.meta.size > 0 and not self.meta.is_closed:
-            self.cv_not_empty.wait()
-            waited = True
-            self.read_meta()
-        return waited
 
     def get(self, num_samples=1, predicate=None) -> Optional[List[MSG_CLASS]]:
         """
