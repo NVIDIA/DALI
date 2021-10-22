@@ -84,18 +84,21 @@ bool CheckIsTiff(const uint8_t *tiff, int size) {
 
 std::unique_ptr<Image>
 ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImageType image_type) {
-  bool is_png = CheckIsPNG(encoded_image, length);
-  bool is_bmp = CheckIsBMP(encoded_image, length);
-  bool is_gif = CheckIsGIF(encoded_image, length);
-  bool is_jpeg = CheckIsJPEG(encoded_image, length);
-  bool is_tiff = CheckIsTiff(encoded_image, length);
-  bool is_pnm = CheckIsPNM(encoded_image, length);
+  bool is_png    = CheckIsPNG(encoded_image, length);
+  bool is_bmp    = CheckIsBMP(encoded_image, length);
+  bool is_jpeg   = CheckIsJPEG(encoded_image, length);
+  bool is_tiff   = CheckIsTiff(encoded_image, length);
+  bool is_pnm    = CheckIsPNM(encoded_image, length);
   bool is_jpeg2k = CheckIsJPEG2k(encoded_image, length);
-  bool is_webp = CheckIsWebP(encoded_image, length);
+  bool is_webp   = CheckIsWebP(encoded_image, length);
 
-  int matches = is_png + is_bmp + is_gif + is_jpeg + is_tiff + is_pnm + is_jpeg2k + is_webp;
+  int matches = is_png + is_bmp + is_jpeg + is_tiff + is_pnm + is_jpeg2k + is_webp;
   if (matches == 0) {
-    DALI_FAIL("Unrecognized image format. Supported formats are: JPEG, PNG, BMP, TIFF, PNM, JPEG2000 and WebP.")
+    if(CheckIsGIF(encoded_image, length)) {
+      DALI_FAIL("GIF images are not supported.");
+    } else {
+      DALI_FAIL("Unrecognized image format. Supported formats are: JPEG, PNG, BMP, TIFF, PNM, JPEG2000 and WebP.");
+    }
   } else if (matches > 1) {
     DALI_FAIL("Ambiguous image format. The header matches more than one image format.");
   }
@@ -110,8 +113,6 @@ ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImage
     return std::make_unique<BmpImage>(encoded_image, length, image_type);
   } else if (is_pnm) {
     return std::make_unique<PnmImage>(encoded_image, length, image_type);
-  } else if (is_gif) {
-    DALI_FAIL("GIF format is not supported");
   } else if (is_tiff) {
 #if LIBTIFF_ENABLED
     return std::make_unique<TiffImage_Libtiff>(encoded_image, length, image_type);
