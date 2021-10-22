@@ -46,26 +46,6 @@ class DLL_PUBLIC MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutp
   DLL_PUBLIC inline MixedWorkspace() : stream_(0), event_(nullptr) {}
   DLL_PUBLIC inline ~MixedWorkspace() override = default;
 
-
-  // /**
-  //  * @brief Returns the input Tensor at index `data_idx` in the input
-  //  * set of Tensors at index `idx`.
-  //  *
-  //  * @throws runtime_error If calling type does not match the type of
-  //  * the output at the given index.
-  //  */
-  // template <typename Backend>
-  // DLL_PUBLIC const Tensor<Backend>& Input(int idx, int data_idx) const;
-
-  // /**
-  //  * @brief Returns the output TensorList at index `idx`.
-  //  *
-  //  * @throws runtime_error If calling type does not match the type of
-  //  * the output at the given index.
-  //  */
-  // template <typename Backend>
-  // DLL_PUBLIC TensorList<Backend>& Output(int idx);
-
   /**
    * @brief Sets the stream for this workspace.
    */
