@@ -131,38 +131,7 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
  * @brief Fill the `sample` with data references to the ones owned by the `batch` for given
  * `data_idx` and set the `thread_idx`.
  */
-void MakeViewToSample(SampleWorkspace& sample, HostWorkspace& batch, int data_idx, int thread_idx) {
-  sample.Clear();
-  sample.set_data_idx(data_idx);
-  sample.set_thread_idx(thread_idx);
-  int num_inputs = batch.NumInput();
-  for (int i = 0; i < num_inputs; i++) {
-    if (batch.InputIsType<CPUBackend>(i)) {
-      auto &input_ref = batch.InputRef<CPUBackend>(i);
-      sample.AddInput(&input_ref[data_idx]);
-    } else {
-      auto &input_ref = batch.InputRef<GPUBackend>(i);
-      sample.AddInput( &input_ref[data_idx]);
-    }
-  }
-
-  int num_outputs = batch.NumOutput();
-  for (int i = 0; i < num_outputs; i++) {
-    if (batch.OutputIsType<CPUBackend>(i)) {
-      auto &output_ref = batch.OutputRef<CPUBackend>(i);
-      sample.AddOutput(&output_ref[data_idx]);
-    } else {
-      auto &output_ref = batch.OutputRef<GPUBackend>(i);
-      sample.AddOutput(&output_ref[data_idx]);
-    }
-  }
-  for (auto& arg_pair : batch) {
-    assert(!arg_pair.second.should_update);
-    sample.AddArgumentInput(arg_pair.first, arg_pair.second.tvec);
-  }
-}
-
-
+void MakeViewToSample(SampleWorkspace& sample, HostWorkspace& batch, int data_idx, int thread_idx);
 
 }  // namespace dali
 
