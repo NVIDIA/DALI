@@ -117,6 +117,9 @@ class CallbackContext:
         # counts all the batches ever scheduled for the given source, serves as
         # id for the next scheduled tasks
         self.scheduled_i = 0
+        # counts all the batches ever returned from the context, used to calculate position
+        # in the ShmChunkManager circular buffer for a next batch
+        self.produced_i = 0
         self.epoch_start = self.scheduled_i
         self.partially_received = {}
         self.scheduled_minibatches = {}
@@ -136,8 +139,9 @@ class CallbackContext:
         self.scheduled_i += 1
         self.partially_received[scheduled_i] = {}
         self.scheduled_minibatches[scheduled_i] = num_minibatches
+        dest_chunk_i = (self.produced_i + self.scheduled_ahead) % self.queue_depth
         self.task_queue.append(scheduled_i)
-        return scheduled_i
+        return scheduled_i, dest_chunk_i
 
     def clear_scheduled(self, scheduled_i):
         del self.partially_received[scheduled_i]
@@ -173,7 +177,7 @@ class CallbackContext:
     def is_error(self, scheduled_i):
         return scheduled_i in self.iter_failed
 
-    def process_task(self, shm_chunk : shared_mem.SharedMem, completed_task):
+    def process_task(self, shm_chunk : BufShmChunk, completed_task):
         scheduled_i = completed_task.scheduled_i
         if completed_task.is_failed():
             if not self.is_error(scheduled_i):
@@ -214,6 +218,7 @@ class CallbackContext:
         """Return the full batch, mark it as cleared and consumed"""
         batch = self.coalesce_received(scheduled_i)
         self.clear_scheduled(scheduled_i)
+        self.produced_i += 1
         return batch
 
     def receive_chunk(self, shm_chunk, completed_task):
@@ -226,6 +231,13 @@ class CallbackContext:
     @property
     def queue_depth(self):
         return self.shm_manager.queue_depth
+
+    @property
+    def scheduled_ahead(self):
+        # at the begining of a new epoch all previously scheduled tasks are discarded
+        if not self.epoch_synced:
+            return 0
+        return len(self.task_queue)
 
 
 class WorkerContext:
@@ -629,7 +641,7 @@ class WorkerPool:
     def is_iterable_group(cls, group):
         return group.source_desc.kind != SourceKind.CALLABLE
 
-    def schedule_batch(self, context_i, dst_chunk_i, work_batch : TaskArgs):
+    def schedule_batch(self, context_i, work_batch : TaskArgs):
         """Distribute `work_batch` among workers.
 
         Parameters
@@ -637,8 +649,6 @@ class WorkerPool:
         `context_i` : int
             Specifies which callback will be used to run the task, it must be the index corresponding
             to the order of callbacks passed when constructing WorkerPool.
-        `dst_chunk_i` : int
-            Index of the memory chunk in the circular buffer to store the output in
         `work_batch` : TaskArgs
             Wrapper around parameters produced by the ExternalSource describing the next batch.
         """
@@ -648,14 +658,15 @@ class WorkerPool:
             context.epoch_synced = True
         if context.iter_failed:
             # there is no point in scheduling anything for the context that has reached the end of data
-            # or failed with error, once user receives batch that raised exception they should reset
+            # or failed with an error, once user receives batch that raised exception they should reset
             # the context before scheduling new tasks
-            return
+            return False
         minibatches = self.split_work(work_batch)
         num_minibatches = len(minibatches)
         assert num_minibatches <= context.shm_manager.num_minibatches
-        scheduled_i = context.push_scheduled(num_minibatches)
+        scheduled_i, dst_chunk_i = context.push_scheduled(num_minibatches)
         self._distribute(context_i, scheduled_i, dst_chunk_i, minibatches)
+        return True
 
     def split_work(self, work_batch : TaskArgs):
         if not work_batch.is_sample_mode():
@@ -689,11 +700,14 @@ class WorkerPool:
 
     def sync_and_discard(self, context_i):
         context = self.contexts[context_i]
+        assert not context.epoch_synced
         while context.task_queue:
             try:
-                self.receive_batch(context_i)
+                batch = self.receive_batch(context_i)
+                assert batch is None
             except StopIteration:
                 pass
+        context.epoch_synced = True
 
     def receive_batch(self, context_i):
         """Returns the next produced batch (in the order of schedule_batch calls) for the

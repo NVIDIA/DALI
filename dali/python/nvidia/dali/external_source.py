@@ -80,8 +80,6 @@ class _ExternalSourceGroup(object):
         # prefetching of batches in parallel mode.
         self.current_iter = 0
         self.current_sample = 0
-        self.flat_iter_idx = 0  # flat index of the next iteration, not affected by reset
-        self.scheduled_ahead = 0  # number of batches scheduled ahead for parallel ext. src.
         self.parallel = parallel
         self.prefetch_queue_depth = prefetch_queue_depth
         if callback is not None:
@@ -121,22 +119,18 @@ class _ExternalSourceGroup(object):
         self.current_iter = 0
         self.current_sample = 0
 
-    def cancel_prefetch(self, pool, context_i):
-        self.scheduled_ahead = 0
-        pool.reset_context(context_i)
-
     def prefetch(self, pool, context_i, batch_size, epoch_idx):
         # NOTE We can't schedule more than what's on top of pipeline's prefetch queue, as the
         # entires in the pipeline are zero-copy and cannot be overwritten.
-        while self.scheduled_ahead < self.prefetch_queue_depth:
-            self.schedule_batch(pool, context_i, self.scheduled_ahead, batch_size, epoch_idx)
-            self.scheduled_ahead += 1
+        context = pool.contexts[context_i]
+        while context.scheduled_ahead < self.prefetch_queue_depth and \
+            self.schedule_batch(pool, context_i, context.scheduled_ahead, batch_size, epoch_idx):
+            pass
 
     def schedule_batch(self, pool, context_i, lead, batch_size, epoch_idx):
         """Schedule computing new batch from source callback by the parallel pool."""
-        dst_chunk_i = (self.flat_iter_idx + lead) % pool.contexts[context_i].queue_depth
         if self.batch:
-            pool.schedule_batch(context_i, dst_chunk_i, _TaskArgs.make_batch(
+            return pool.schedule_batch(context_i, _TaskArgs.make_batch(
                 self.callback_args(None, epoch_idx, lead=lead)))
         else:
             sample_range_start = self.current_sample + batch_size * lead
@@ -144,7 +138,7 @@ class _ExternalSourceGroup(object):
             iteration = self.current_iter + lead
             work_batch = _TaskArgs.make_sample(
                 sample_range_start, sample_range_end, iteration, epoch_idx)
-            pool.schedule_batch(context_i, dst_chunk_i, work_batch)
+            return pool.schedule_batch(context_i, work_batch)
 
     def schedule_and_receive(self, pipeline, pool, context_i, batch_size, epoch_idx):
         """Obtain the computed results of calling source callback in parallel pool and feed
@@ -156,15 +150,13 @@ class _ExternalSourceGroup(object):
             context_i (int): Index of the callback (in the list of parallel groups)"""
         try:
             callback_out = pool.receive_batch(context_i)
-            self.scheduled_ahead -= 1
-            self.flat_iter_idx += 1
             self.current_sample += batch_size
             self.current_iter += 1
             self.prefetch(pool, context_i, batch_size, epoch_idx)
             return _ExternalDataBatch(self, pipeline, callback_out, batch_size)
         except StopIteration:
             self.reset_indices()
-            self.cancel_prefetch(pool, context_i)
+            pool.reset_context(context_i)
             raise
 
     def get_batch(self, pipeline, batch_size, epoch_idx):
@@ -516,7 +508,8 @@ Keyword Args
             elif not batch:
                 what = "an iterable" if source_desc.kind == _SourceKind.ITERABLE else "a generator function"
                 raise TypeError("Parallel external source with {} must be run in a batch mode "
-                        "(specify `batch=True` in the external source definition)".format(what))
+                        "(specify `batch=True` in the external source definition and make sure "
+                        "your source returns batches)".format(what))
         else:
             if prefetch_queue_depth is not None:
                 raise ValueError("The argument `prefetch_queue_depth` is valid only for " +

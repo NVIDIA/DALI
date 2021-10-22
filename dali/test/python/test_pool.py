@@ -120,7 +120,7 @@ def test_pool_one_task(start_method):
         pid = pids[0]
         tasks = [(SampleInfo(0, 0, 0, 0),)]
         work_batch = TaskArgs.make_sample(0, 1, 0, 0)
-        pool.schedule_batch(context_i=0, dst_chunk_i=0, work_batch=work_batch)
+        pool.schedule_batch(context_i=0, work_batch=work_batch)
         batch = pool.receive_batch(context_i=0)
         for task, sample in zip(tasks, batch):
             np.testing.assert_array_equal(answer(pid, *task), sample)
@@ -134,7 +134,7 @@ def test_pool_multi_task(start_method):
         pid = pids[0]
         tasks = [(SampleInfo(i, i, 0, 0),) for i in range(10)]
         work_batch = TaskArgs.make_sample(0, 10, 0, 0)
-        pool.schedule_batch(context_i=0, dst_chunk_i=0, work_batch=work_batch)
+        pool.schedule_batch(context_i=0, work_batch=work_batch)
         batch = pool.receive_batch(context_i=0)
         for task, sample in zip(tasks, batch):
             np.testing.assert_array_equal(answer(pid, *task), sample)
@@ -151,7 +151,7 @@ def test_pool_no_overwrite_batch(start_method):
             work_batches = [TaskArgs.make_sample(i, i + 1, i, 0) for i in range(depth)]
             task_list = [[(SampleInfo(i, 0, i, 0),)] for i in range(depth)]
             for i, work_batch in enumerate(work_batches):
-                pool.schedule_batch(context_i=0, dst_chunk_i=i, work_batch=work_batch)
+                pool.schedule_batch(context_i=0, work_batch=work_batch)
             assert_scheduled_num(pool.contexts[0], depth)
             batches = []
             for i in range(depth):
@@ -176,7 +176,7 @@ def test_pool_work_split_multiple_tasks(start_method):
         assert len(pids) == 2
         work_batch = TaskArgs.make_sample(0, num_tasks, 0, 0)
         tasks = [(SampleInfo(i, i, 0, 0),) for i in range(num_tasks)]
-        pool.schedule_batch(context_i=0, dst_chunk_i=0, work_batch=work_batch)
+        pool.schedule_batch(context_i=0, work_batch=work_batch)
         batch = pool.receive_batch(context_i=0)
         for task, sample in zip(tasks, batch):
             np.testing.assert_array_equal(answer(-1, *task)[1:], sample[1:])
@@ -200,8 +200,8 @@ def test_pool_iterator_dedicated_worker(start_method):
             tasks_list.append(tasks)
             work_batch = TaskArgs.make_sample(samples_count, samples_count + i + 1, i, 0)
             samples_count += len(tasks)
-            pool.schedule_batch(context_i=0, dst_chunk_i=i, work_batch=work_batch)
-            pool.schedule_batch(context_i=1, dst_chunk_i=i, work_batch=TaskArgs.make_batch((i,)))
+            pool.schedule_batch(context_i=0, work_batch=work_batch)
+            pool.schedule_batch(context_i=1, work_batch=TaskArgs.make_batch((i,)))
         assert pool.contexts[0].dedicated_worker_id is None
         iter_worker_num = pool.contexts[1].dedicated_worker_id
         iter_worker_pid = pool.pool._processes[iter_worker_num].pid
@@ -226,8 +226,8 @@ def test_pool_many_ctxs(start_method):
         pid = pids[0]
         tasks = [(SampleInfo(0, 0, 0, 0),)]
         work_batch = TaskArgs.make_sample(0, 1, 0, 0)
-        pool.schedule_batch(context_i=0, dst_chunk_i=0, work_batch=work_batch)
-        pool.schedule_batch(context_i=1, dst_chunk_i=0, work_batch=work_batch)
+        pool.schedule_batch(context_i=0, work_batch=work_batch)
+        pool.schedule_batch(context_i=1, work_batch=work_batch)
         batch_0 = pool.receive_batch(context_i=0)
         batch_1 = pool.receive_batch(context_i=1)
         for task, sample, pid in zip(tasks, batch_0, pids):
@@ -245,16 +245,16 @@ def test_pool_context_sync(start_method):
         for i in range(4):
             tasks = [(SampleInfo(j, 0, 0, 0),) for j in range(10 * (i + 1))]
             work_batch = TaskArgs.make_sample(0, 10 * (i + 1), 0, 0)
-            pool.schedule_batch(context_i=0, dst_chunk_i=i, work_batch=work_batch)
-            pool.schedule_batch(context_i=1, dst_chunk_i=i, work_batch=work_batch)
+            pool.schedule_batch(context_i=0, work_batch=work_batch)
+            pool.schedule_batch(context_i=1, work_batch=work_batch)
         assert_scheduled_num(pool.contexts[0], 4)
         assert_scheduled_num(pool.contexts[1], 4)
         # pool after a reset should discard all previously scheduled tasks (and sync workers to avoid race on writing to results buffer)
         pool.reset()
         tasks = [(SampleInfo(1000 + j, j, 0, 1),) for j in range(5)]
         work_batch = TaskArgs.make_sample(1000, 1005, 0, 1)
-        pool.schedule_batch(context_i=0, dst_chunk_i=0, work_batch=work_batch)
-        pool.schedule_batch(context_i=1, dst_chunk_i=0, work_batch=work_batch)
+        pool.schedule_batch(context_i=0, work_batch=work_batch)
+        pool.schedule_batch(context_i=1, work_batch=work_batch)
         assert_scheduled_num(pool.contexts[0], 1)
         assert_scheduled_num(pool.contexts[1], 1)
         batch_0 = pool.receive_batch(context_i=0)
@@ -275,8 +275,8 @@ def _test_multiple_stateful_sources_single_worker(num_workers):
     with create_pool(groups, keep_alive_queue_size=1, num_workers=num_workers, start_method="spawn") as pool:
         pids = get_pids(pool)
         assert len(pids) == min(num_workers, len(groups))
-        pool.schedule_batch(context_i=0, dst_chunk_i=0, work_batch=TaskArgs.make_batch((0,)))
-        pool.schedule_batch(context_i=1, dst_chunk_i=0, work_batch=TaskArgs.make_batch((0,)))
+        pool.schedule_batch(context_i=0, work_batch=TaskArgs.make_batch((0,)))
+        pool.schedule_batch(context_i=1, work_batch=TaskArgs.make_batch((0,)))
         iter_worker_num_0 = pool.contexts[0].dedicated_worker_id
         iter_worker_num_1 = pool.contexts[1].dedicated_worker_id
         iter_worker_pid_0 = pool.pool._processes[iter_worker_num_0].pid
@@ -311,5 +311,5 @@ def test_pool_invalid_return():
     with create_pool(callbacks, keep_alive_queue_size=1, num_workers=1, start_method="spawn") as pool:
         _ = get_pids(pool)
         work_batch = TaskArgs.make_sample(0, 1, 0, 0)
-        pool.schedule_batch(context_i=0, dst_chunk_i=0, work_batch=work_batch)
+        pool.schedule_batch(context_i=0, work_batch=work_batch)
         pool.receive_batch(context_i=0)

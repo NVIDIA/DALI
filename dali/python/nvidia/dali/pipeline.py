@@ -1041,14 +1041,13 @@ Parameters
             self._iter = 0
             self._epoch_idx += 1
             if self._input_callbacks:
-                for group in self._seq_input_callbacks:
+                for group in self._input_callbacks:
                     group.reset_indices()
                 for i, group in enumerate(self._parallel_input_callbacks):
                     # iterators are not reset or their prefetch results discarded
-                    # otherwise than being direct reason of exception
+                    # unless they have caused an exception
                     if not self._py_pool.is_iterable_group(group):
-                        group.reset_indices()
-                        group.cancel_prefetch(self._py_pool, i)
+                        self._py_pool.reset_context(i)
 
     def empty(self):
         """If there is any work scheduled in the pipeline but not yet consumed
