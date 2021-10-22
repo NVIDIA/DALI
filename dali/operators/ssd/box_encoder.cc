@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -156,8 +156,8 @@ void BoxEncoder<CPUBackend>::WriteMatchesToOutput(
 }
 
 void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  const auto &bboxes_input = ws.Input<CPUBackend>(kBoxesInId);
-  const auto &labels_input = ws.Input<CPUBackend>(kLabelsInId);
+  const auto &bboxes_input = ws.InputRef<CPUBackend>(kBoxesInId);
+  const auto &labels_input = ws.InputRef<CPUBackend>(kLabelsInId);
   const auto num_boxes = bboxes_input.dim(0);
   const auto labels = labels_input.data<int>();
 
@@ -166,11 +166,11 @@ void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   ReadBoxes(make_span(boxes), make_cspan(bboxes_input.data<float>(), bboxes_input.size()), {}, {});
 
   // Create output
-  auto &bboxes_output = ws.Output<CPUBackend>(kBoxesOutId);
+  auto &bboxes_output = ws.OutputRef<CPUBackend>(kBoxesOutId);
   bboxes_output.Resize({static_cast<int>(anchors_.size()), BoundingBox::size}, bboxes_input.type());
   auto out_boxes = bboxes_output.mutable_data<float>();
 
-  auto &labels_output = ws.Output<CPUBackend>(kLabelsOutId);
+  auto &labels_output = ws.OutputRef<CPUBackend>(kLabelsOutId);
   labels_output.Resize({static_cast<int>(anchors_.size())}, labels_input.type());
   auto out_labels = labels_output.mutable_data<int>();
 

@@ -192,7 +192,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   bool RunOutputs() {
     DeviceWorkspace ws;
     exe_->Outputs(&ws);
-    auto &tensor_gpu_list = ws.Output<GPUBackend>(0);
+    auto &tensor_gpu_list = ws.OutputRef<GPUBackend>(0);
     TensorList<CPUBackend> tensor_cpu_list;
     tensor_cpu_list.Copy(tensor_gpu_list, (ws.has_stream() ? ws.stream() : 0));
     CUDA_CALL(cudaStreamSynchronize(ws.has_stream() ? ws.stream() : 0));
@@ -579,9 +579,9 @@ void TestRunExternalSource(Pipeline &pipe, const std::string &name,
   TensorList<CPUBackend> output_cpu;
   pipe.Outputs(&ws);
   if (dev == "cpu") {
-    output_cpu.Copy(ws.Output<CPUBackend>(0), 0);
+    output_cpu.Copy(ws.OutputRef<CPUBackend>(0), 0);
   } else {
-    output_cpu.Copy(ws.Output<GPUBackend>(0), 0);
+    output_cpu.Copy(ws.OutputRef<GPUBackend>(0), 0);
     cudaStreamSynchronize(0);
   }
   ASSERT_EQ(input_cpu.shape(), output_cpu.shape());

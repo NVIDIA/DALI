@@ -599,7 +599,7 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   ASSERT_EQ(ws.NumOutput(), 1);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
-  TensorList<GPUBackend> &res1 = ws.Output<GPUBackend>(0);
+  TensorList<GPUBackend> &res1 = ws.OutputRef<GPUBackend>(0);
   for (int i = 0; i < batch_size; ++i) {
     this->VerifyDecode(
         res1.template tensor<uint8>(i),
@@ -615,7 +615,7 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   auto status_2 = barrier_future_2.wait_for(std::chrono::seconds(5));
   ASSERT_EQ(status_2, std::future_status::ready);
   ASSERT_EQ(cb_counter, 2);
-  TensorList<GPUBackend> &res2 = ws.Output<GPUBackend>(0);
+  TensorList<GPUBackend> &res2 = ws.OutputRef<GPUBackend>(0);
   for (int i = 0; i < batch_size; ++i) {
     this->VerifyDecode(
         res2.template tensor<uint8>(i),

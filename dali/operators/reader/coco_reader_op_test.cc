@@ -107,7 +107,7 @@ class CocoReaderTest : public ::testing::Test {
   int ObjectCount(bool masks) { return masks ? 7 : 194; }
 
   std::vector<int> CopyIds(DeviceWorkspace &ws, int ids_out_idx = 3) {
-    auto &output = ws.Output<dali::CPUBackend>(ids_out_idx);
+    auto &output = ws.OutputRef<dali::CPUBackend>(ids_out_idx);
     const auto &shape = output.shape();
 
     vector<int> ids(shape.size());
@@ -182,8 +182,8 @@ class CocoReaderTest : public ::testing::Test {
 
   void CheckInstances(DeviceWorkspace &ws, bool ltrb, bool ratio, bool skip_empty,
                       int expected_size, bool polygon_masks, bool polygon_masks_legacy) {
-    const auto &boxes_output = ws.Output<dali::CPUBackend>(1);
-    const auto &labels_output = ws.Output<dali::CPUBackend>(2);
+    const auto &boxes_output = ws.OutputRef<dali::CPUBackend>(1);
+    const auto &labels_output = ws.OutputRef<dali::CPUBackend>(2);
 
     const auto &boxes_shape = boxes_output.shape();
     const auto &labels_shape = labels_output.shape();
@@ -254,8 +254,8 @@ class CocoReaderTest : public ::testing::Test {
     }
 
     if (polygon_masks || polygon_masks_legacy) {
-      const auto &polygons_output = ws.Output<dali::CPUBackend>(3);
-      const auto &vertices_output = ws.Output<dali::CPUBackend>(4);
+      const auto &polygons_output = ws.OutputRef<dali::CPUBackend>(3);
+      const auto &vertices_output = ws.OutputRef<dali::CPUBackend>(4);
 
       const auto &polygons_shape = polygons_output.shape();
       const auto &vertices_shape = vertices_output.shape();
@@ -605,7 +605,7 @@ TEST_F(CocoReaderTest, PixelwiseMasks) {
   pipe2.Outputs(&ws2);
 
   for (auto *ws : {&ws1, &ws2}) {
-    const auto &masks_output = ws->Output<dali::CPUBackend>(3);
+    const auto &masks_output = ws->OutputRef<dali::CPUBackend>(3);
 
     const auto &masks_shape = masks_output.shape();
     TensorListShape<3> pixelwise_masks_shape({

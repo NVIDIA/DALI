@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,8 +35,8 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
   }
 
   void Parse(const Tensor<CPUBackend>& data, SampleWorkspace* ws) override {
-    auto& image = ws->Output<CPUBackend>(0);
-    auto& label = ws->Output<CPUBackend>(1);
+    auto& image = ws->OutputRef<CPUBackend>(0);
+    auto& label = ws->OutputRef<CPUBackend>(1);
     ReadSingleImageRecordIO(image, label, data.data<uint8_t>());
     image.SetSourceInfo(data.GetSourceInfo());
   }

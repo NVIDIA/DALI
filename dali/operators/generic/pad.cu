@@ -25,7 +25,7 @@ template <>
 bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                 const workspace_t<GPUBackend> &ws) {
   output_desc.resize(1);
-  const auto &input = ws.Input<GPUBackend>(0);
+  const auto &input = ws.InputRef<GPUBackend>(0);
   auto in_shape = input.shape();
   auto in_layout = input.GetLayout();
   int ndim = in_shape.sample_dim();
@@ -57,8 +57,8 @@ bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 template <>
 void Pad<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.Input<GPUBackend>(0);
-  auto &output = ws.Output<GPUBackend>(0);
+  const auto &input = ws.InputRef<GPUBackend>(0);
+  auto &output = ws.OutputRef<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
   int ndim = input.shape().sample_dim();
   TYPE_SWITCH(input.type(), type2id, T, PAD_SUPPORTED_TYPES, (

@@ -193,7 +193,7 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
   const auto &sample = GetSample(ws.data_idx());
   const auto &sample_audio = GetDecodedAudioSample(ws.data_idx());
 
-  auto &audio = ws.Output<CPUBackend>(0);
+  auto &audio = ws.OutputRef<CPUBackend>(0);
   audio.Copy(sample_audio, 0);
 
   DALIMeta meta;
@@ -203,14 +203,14 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
 
   int next_out_idx = 1;
   if (read_sr_) {
-    auto &sample_rate = ws.Output<CPUBackend>(next_out_idx++);
+    auto &sample_rate = ws.OutputRef<CPUBackend>(next_out_idx++);
     sample_rate.Resize({}, DALI_FLOAT);
     sample_rate.mutable_data<float>()[0] = sample.audio_meta().sample_rate;
     sample_rate.SetMeta(meta);
   }
 
   if (read_text_) {
-    auto &text_out = ws.Output<CPUBackend>(next_out_idx++);
+    auto &text_out = ws.OutputRef<CPUBackend>(next_out_idx++);
     const auto &text = sample.text();
     int64_t text_sz = text.length();
     text_out.Resize({text_sz}, DALI_UINT8);
@@ -219,7 +219,7 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
   }
 
   if (read_idxs_) {
-    auto &idxs_out = ws.Output<CPUBackend>(next_out_idx++);
+    auto &idxs_out = ws.OutputRef<CPUBackend>(next_out_idx++);
     idxs_out.Resize({1}, DALI_INT64);
     *idxs_out.mutable_data<int64_t>() = sample.index();
     idxs_out.SetMeta(meta);

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,35 +17,5 @@
 #include "dali/pipeline/workspace/sample_workspace.h"
 
 namespace dali {
-
-template <>
-const TensorList<CPUBackend>& DeviceWorkspace::Input(int idx) const {
-  return *CPUInput(idx);
-}
-
-template <>
-const TensorList<GPUBackend>& DeviceWorkspace::Input(int idx) const {
-  return *GPUInput(idx);
-}
-
-template <>
-TensorList<CPUBackend>& DeviceWorkspace::MutableInput(int idx) {
-  return *CPUInput(idx);
-}
-
-template <>
-TensorList<GPUBackend>& DeviceWorkspace::MutableInput(int idx) {
-  return *GPUInput(idx);
-}
-
-template <>
-TensorList<CPUBackend>& DeviceWorkspace::Output(int idx) {
-  return *CPUOutput(idx);
-}
-
-template <>
-TensorList<GPUBackend>& DeviceWorkspace::Output(int idx) {
-  return *GPUOutput(idx);
-}
 
 }  // namespace dali

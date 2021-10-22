@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,8 +30,8 @@ void RandomResizedCrop<GPUBackend>::BackendInit() {
 
 template<>
 void RandomResizedCrop<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  auto &input = ws.Input<GPUBackend>(0);
-  auto &output = ws.Output<GPUBackend>(0);
+  auto &input = ws.InputRef<GPUBackend>(0);
+  auto &output = ws.OutputRef<GPUBackend>(0);
   RunResize(ws, output, input);
   output.SetLayout(input.GetLayout());
 }

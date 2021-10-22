@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -164,10 +164,10 @@ class ResizeCropMirrorAttr : protected CropAttr {
    * @return const vector<Index> One matching shape for all inputs
    */
   virtual const std::vector<Index> CheckShapes(const SampleWorkspace *ws) {
-    const auto &input = ws->Input<CPUBackend>(0);
+    const auto &input = ws->InputRef<CPUBackend>(0);
     // enforce that all shapes match
     for (int i = 1; i < ws->NumInput(); ++i) {
-      DALI_ENFORCE(input.SameShape(ws->Input<CPUBackend>(i)));
+      DALI_ENFORCE(input.SameShape(ws->InputRef<CPUBackend>(i)));
     }
 
     DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
@@ -230,8 +230,8 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
   }
 
   inline void RunResizeImpl(SampleWorkspace &ws, resizeCropMirroHost func) {
-    auto &input = ws.Input<CPUBackend>(0);
-    auto &output = ws.Output<CPUBackend>(0);
+    auto &input = ws.InputRef<CPUBackend>(0);
+    auto &output = ws.OutputRef<CPUBackend>(0);
     CheckParam(input, "ResizeCropMirror");
 
     const TransformMeta &meta = per_thread_meta_[ws.thread_idx()];

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ class CaffeParser : public Parser<Tensor<CPUBackend>> {
 
     if (image_available_ && datum.has_data()) {
       bool encoded_data = true;
-      auto& image = ws->Output<CPUBackend>(out_tensors);
+      auto& image = ws->OutputRef<CPUBackend>(out_tensors);
       if (datum.has_encoded() && !datum.encoded()) {
         encoded_data = false;
       }
@@ -53,7 +53,7 @@ class CaffeParser : public Parser<Tensor<CPUBackend>> {
     }
 
     if (label_available_ && datum.has_label()) {
-      auto& label = ws->Output<CPUBackend>(out_tensors);
+      auto& label = ws->OutputRef<CPUBackend>(out_tensors);
 
       // copy label
       label.Resize({1}, DALI_INT32);

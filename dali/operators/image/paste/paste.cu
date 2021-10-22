@@ -124,8 +124,8 @@ void Paste<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace &ws) {
 
 template<>
 void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace &ws) {
-  auto &input = ws.Input<GPUBackend>(0);
-  auto &output = ws.Output<GPUBackend>(0);
+  auto &input = ws.InputRef<GPUBackend>(0);
+  auto &output = ws.OutputRef<GPUBackend>(0);
   auto curr_batch_size = ws.GetInputBatchSize(0);
 
   std::vector<TensorShape<>> output_shape(curr_batch_size);

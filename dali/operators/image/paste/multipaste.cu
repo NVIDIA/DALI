@@ -55,7 +55,7 @@ void MultiPasteGPU::InitSamples(const TensorListShape<> &out_shape) {
 template<typename OutputType, typename InputType>
 void MultiPasteGPU::SetupTyped(const workspace_t<GPUBackend> &ws,
                                const TensorListShape<> &out_shape) {
-  const auto &images = ws.template Input<GPUBackend>(0);
+  const auto &images = ws.template InputRef<GPUBackend>(0);
   const auto &in = view<const InputType, 3>(images);
   using Kernel = kernels::PasteGPU<OutputType, InputType, 3>;
   kernels::KernelContext ctx;
@@ -68,8 +68,8 @@ void MultiPasteGPU::SetupTyped(const workspace_t<GPUBackend> &ws,
 
 template<typename OutputType, typename InputType>
 void MultiPasteGPU::RunTyped(workspace_t<GPUBackend> &ws) {
-  const auto &images = ws.template Input<GPUBackend>(0);
-  auto &output = ws.template Output<GPUBackend>(0);
+  const auto &images = ws.template InputRef<GPUBackend>(0);
+  auto &output = ws.template OutputRef<GPUBackend>(0);
 
   output.SetLayout(images.GetLayout());
   auto out_shape = output.shape();
