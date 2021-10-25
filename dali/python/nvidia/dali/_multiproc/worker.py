@@ -357,16 +357,17 @@ class WorkerContext:
         self.result_queue = worker_args.result_queue
         self.general_task_queue = worker_args.general_task_queue
         self.dedicated_task_queue = worker_args.dedicated_task_queue
-        self.shm_chunks = {shm_chunk.shm_chunk_id : shm_chunk for shm_chunk in worker_args.shm_chunks}
+        shm_chunks = worker_args.shm_chunks
         if worker_args.start_method != "fork":
             setup_socket = worker_args.setup_socket
             # NOTE when making any changes here, make sure to reflect them in the main process, so that
             # it sends handles to objects in the same order they are set to objects here
             self._recv_queue_handles(setup_socket)
-            for shm_chunk in worker_args.shm_chunks:
+            for shm_chunk in shm_chunks:
                 shm_chunk.open_shm(reduction.recv_handle(setup_socket))
             setup_socket.shutdown(socket.SHUT_RDWR)
             setup_socket.close()
+        self.shm_chunks = {shm_chunk.shm_chunk_id : shm_chunk for shm_chunk in shm_chunks}
         self.task_receiver = None
         self.batch_dispatcher = None
         try:
@@ -376,7 +377,7 @@ class WorkerContext:
         except:
             self.close()
             raise
-        # let main process know worker started and shared resources setup is done
+        # let the main process know that the worker started and shared resources setup is done
         worker_args.result_queue.put([ShmMessageDesc(self.worker_id, 0, 0, 0, 0)])
 
     def _init_callbacks(self, source_descs, callback_pickler):
