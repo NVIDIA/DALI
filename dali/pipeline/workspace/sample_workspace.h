@@ -131,7 +131,8 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
  * @brief Fill the `sample` with data references to the ones owned by the `batch` for given
  * `data_idx` and set the `thread_idx`.
  */
-void MakeViewToSample(SampleWorkspace& sample, HostWorkspace& batch, int data_idx, int thread_idx);
+DLL_PUBLIC void MakeViewToSample(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
+                                 int thread_idx);
 
 }  // namespace dali
 
