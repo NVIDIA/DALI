@@ -138,9 +138,19 @@ class DALIDatasetOp::Dataset : public DatasetBase {
     return "DALI::DatasetOp()::Dataset";
   }
 
+#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 8
+
+  tensorflow::int64 CardinalityInternal() const override {
+    return data::kInfiniteCardinality;
+  }
+
+#else
+
   tensorflow::int64 Cardinality() const override {
     return data::kInfiniteCardinality;
   }
+
+#endif
 
  protected:
   PipelineDef pipeline_def_;
