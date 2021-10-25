@@ -163,8 +163,7 @@ class CropMirrorNormalize : public Operator<Backend> {
   void SetupCommonImpl(const workspace_t<Backend> &ws) {
     const auto &input = ws.template InputRef<Backend>(0);
     input_type_ = input.type();
-    if (output_type_ == DALI_NO_TYPE)
-      output_type_ = input_type_;
+    assert(output_type_ != DALI_NO_TYPE);
 
     auto in_shape = input.shape();
     input_layout_ = input.GetLayout();
