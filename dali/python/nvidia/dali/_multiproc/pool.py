@@ -314,14 +314,14 @@ class ProcPool:
         self._general_task_queue = general_task_queue
         self._observer = None
         self._processes = []
-        write_socks = []
+        write_sockets = []
         try:
             for worker_i, worker_context in enumerate(workers_contexts):
                 if start_method == "fork":
-                    sock_reader = None
+                    read_socket = None
                 else:
-                    sock_reader, sock_writer = socket.socketpair()
-                    write_socks.append(sock_writer)
+                    read_socket, write_socket = socket.socketpair()
+                    write_sockets.append(write_socket)
                 process_context = WorkerArgs(
                     worker_id=worker_i,
                     start_method=start_method,
@@ -329,14 +329,14 @@ class ProcPool:
                     shm_chunks=worker_context.shm_chunks,
                     general_task_queue=general_task_queue,
                     dedicated_task_queue=worker_context.dedicated_task_queue,
-                    result_queue=result_queue, sock_reader=sock_reader,
+                    result_queue=result_queue, setup_socket=read_socket,
                     callback_pickler=callback_pickler
                 )
                 process = mp.Process(target=worker, args=(process_context,))
                 self._processes.append(process)
-            self._start_processes(mp, start_method, write_socks)
+            self._start_processes(mp, start_method, write_sockets)
         finally:
-            for sock in write_socks:
+            for sock in write_sockets:
                 sock.shutdown(socket.SHUT_RDWR)
                 sock.close()
 
@@ -420,15 +420,15 @@ class ProcPool:
             assert (0 <= worker_id <= self.num_workers and worker_id in workers_received for worker_id in synced_ids)
             workers_received.extend(synced_ids)
 
-    def _send_queue_handles(self, write_socks):
+    def _send_queue_handles(self, write_sockets):
         pid = os.getppid()
         all_worker_queues = [self._result_queue]
         if self._general_task_queue is not None:
             all_worker_queues.append(self._general_task_queue)
         for queue in all_worker_queues:
-            for sock in write_socks:
+            for sock in write_sockets:
                 multiprocessing.reduction.send_handle(sock, queue.shm.handle, pid)
-        for sock, worker_context in zip(write_socks, self._workers_contexts):
+        for sock, worker_context in zip(write_sockets, self._workers_contexts):
             if worker_context.dedicated_task_queue is not None:
                 multiprocessing.reduction.send_handle(
                     sock, worker_context.dedicated_task_queue.shm.handle, pid)
@@ -439,7 +439,7 @@ class ProcPool:
             for shm_chunk in worker_context.shm_chunks:
                 multiprocessing.reduction.send_handle(sock, shm_chunk.handle, pid)
 
-    def _start_processes(self, mp, start_method, write_socks):
+    def _start_processes(self, mp, start_method, write_sockets):
         try:
             for process in self._processes:
                 process.start()
@@ -453,8 +453,8 @@ class ProcPool:
             if start_method != "fork":
                 # NOTE when making any changes here, make sure to reflect them in the worker process,
                 # so that it sets received handles to objects in the same order
-                self._send_queue_handles(write_socks)
-                self._send_shm_handles(write_socks)
+                self._send_queue_handles(write_sockets)
+                self._send_shm_handles(write_sockets)
             self._sync_initialized_workers()
         except:
             if self._observer is not None:

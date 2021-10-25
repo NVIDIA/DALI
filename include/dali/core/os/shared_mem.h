@@ -154,9 +154,11 @@ class DLL_PUBLIC SharedMem {
   DLL_PUBLIC void resize(uint64_t size, bool trunc = false);
 
   /**
-   * @brief Closes shm_handle_t of underlying shm, process cannot resize underlying shm
-   * from then on but the memory stays mmaped and the mapping can be
-   * still adjusted if another process resizes underlying shm.
+   * @brief Closes shm_handle_t of the underlying shared memory.
+   *
+   * After calling this function, the calling process cannot resize the shared memory object
+   * but the memory stays mapped and the mapping still can be adjusted if another process
+   * resizes the underlying shared memory object.
    */
   DLL_PUBLIC void close_handle();
 

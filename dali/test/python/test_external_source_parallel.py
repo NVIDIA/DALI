@@ -519,7 +519,7 @@ def test_cycle_multiple_iterators():
     iters_num = 17
     num_workers = 4
     for prefetch_queue_depths in ((3, 1, 1), (1, 3, 1), (1, 1, 3), (1, 1, 1), (3, 3, 3)):
-        for cycle_policies in (("raise", "raise"), ("quiet", "raise"), ("raise", "quiet"), ("quiet", "quiet")):
+        for cycle_policies in (("raise", "raise"), ("quiet", "raise"), ("raise", "quiet"), ("quiet", "quiet"), (True, True)):
             for epoch_sizes in ((8, 4, 6), (8, 6, 4), (4, 6, 8), (1, 1, 1)):
                 yield _test_cycle_multiple_iterators, batch_size, iters_num, num_workers, \
                     prefetch_queue_depths, cycle_policies, epoch_sizes

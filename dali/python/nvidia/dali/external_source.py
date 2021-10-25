@@ -367,13 +367,15 @@ Keyword Args
     instance or an integer (see `batch_info`).
 
     Irrespective of ``batch`` value, callables should produce requested sample or batch solely based on
-    the SampleInfo instance or index in batch, so that they can be run in parallel in a number of workers.
+    the SampleInfo/BatchInfo instance or index in batch, so that they can be run in parallel in a number of workers.
     When batch is set to True, callables performance might especially benefit from increasing
     ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
 
     Iterator or generator will be assigned to a single worker that will iterate over it.
 
-    The ``source`` callback must raise StopIteration when the end of data is reached.
+    The ``source`` callback must raise StopIteration when the end of data is reached. Note, that due to
+    prefetching, the callback may be invoked with a few iterations past the end of dataset - make sure
+    it consistently raises StopIteration in that case.
 
 `prefetch_queue_depth` : int, option, default = 1
     When run in ``parallel=True`` mode, specifies the number of batches to be computed in advance and stored

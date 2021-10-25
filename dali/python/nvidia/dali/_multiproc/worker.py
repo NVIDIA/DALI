@@ -311,9 +311,9 @@ class IterableSource:
             # in quiet mode immediately reset the source and return the first iteration
             self.iter = IterableSource.get_iter(self.source_desc)
             next_iter = next(self.iter)
-            # in case it raises again set the `raised_stop_iter` flag to False after the __next__ call,
-            # so that it consistently raises StopIteration from then on
-            # tracking epoch number is not updated, as it is not needed in quiet mode
+            # Set the `raised_stop_iter` flag to False after the __next__ call, so that, if it raises StopIteration
+            # immediately after the reset, the wrapper can consistently raise StopIteration from then on.
+            # The `epoch_start` is not updated - keeping track of it is not necessary in the quiet mode
             self.raised_stop_iter = False
             return next_iter
 
@@ -359,14 +359,14 @@ class WorkerContext:
         self.dedicated_task_queue = worker_args.dedicated_task_queue
         self.shm_chunks = {shm_chunk.shm_chunk_id : shm_chunk for shm_chunk in worker_args.shm_chunks}
         if worker_args.start_method != "fork":
-            sock = worker_args.sock_reader
+            setup_socket = worker_args.setup_socket
             # NOTE when making any changes here, make sure to reflect them in the main process, so that
             # it sends handles to objects in the same order they are set to objects here
-            self._recv_queue_handles(sock)
+            self._recv_queue_handles(setup_socket)
             for shm_chunk in worker_args.shm_chunks:
-                shm_chunk.open_shm(reduction.recv_handle(sock))
-            sock.shutdown(socket.SHUT_RDWR)
-            sock.close()
+                shm_chunk.open_shm(reduction.recv_handle(setup_socket))
+            setup_socket.shutdown(socket.SHUT_RDWR)
+            setup_socket.close()
         self.task_receiver = None
         self.batch_dispatcher = None
         try:
@@ -387,12 +387,12 @@ class WorkerContext:
             context_i : get_source_from_desc(source_desc)
             for context_i, source_desc in source_descs.items()}
 
-    def _recv_queue_handles(self, sock):
-        self.result_queue.open_shm(reduction.recv_handle(sock))
+    def _recv_queue_handles(self, setup_socket):
+        self.result_queue.open_shm(reduction.recv_handle(setup_socket))
         if self.general_task_queue is not None:
-            self.general_task_queue.open_shm(reduction.recv_handle(sock))
+            self.general_task_queue.open_shm(reduction.recv_handle(setup_socket))
         if self.dedicated_task_queue is not None:
-            self.dedicated_task_queue.open_shm(reduction.recv_handle(sock))
+            self.dedicated_task_queue.open_shm(reduction.recv_handle(setup_socket))
 
     def _init_task_receiver(self):
         assert self.general_task_queue is not None or self.dedicated_task_queue is not None

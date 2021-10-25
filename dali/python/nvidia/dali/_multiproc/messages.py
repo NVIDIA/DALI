@@ -59,14 +59,14 @@ class WorkerArgs:
         If `dedicated_task_queue` is None, `general_task_queue` must be provided.
     `result_queue`: ShmQueue
         Queue to report any task done, no matter if dedicated or general.
-    `sock_reader` : Optional[socket]
-        Python wrapper around Unix socket used to pass file descriptors identifying shared memory chunk to parent process.
+    `setup_socket` : Optional[socket]
+        Python wrapper around Unix socket used to pass file descriptors identifying shared memory chunk to child process.
         None if `start_method='fork'`
     `callback_pickler`
         Optional custom pickler that was applied to serialize callbacks in `source_descs`"""
 
     def __init__(self, *, worker_id, start_method, source_descs, shm_chunks, general_task_queue,
-                 dedicated_task_queue, result_queue, sock_reader, callback_pickler):
+                 dedicated_task_queue, result_queue, setup_socket, callback_pickler):
         self.worker_id = worker_id
         self.start_method = start_method
         self.source_descs = source_descs
@@ -74,7 +74,7 @@ class WorkerArgs:
         self.general_task_queue = general_task_queue
         self.dedicated_task_queue = dedicated_task_queue
         self.result_queue = result_queue
-        self.sock_reader = sock_reader
+        self.setup_socket = setup_socket
         self.callback_pickler = callback_pickler
 
 
