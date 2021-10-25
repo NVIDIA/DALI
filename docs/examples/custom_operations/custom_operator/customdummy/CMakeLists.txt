@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.10)
 set(CMAKE_CUDA_ARCHITECTURES "35;50;52;60;61;70;75;80;86")
 
 project(custom_dummy_plugin LANGUAGES CUDA CXX C)
