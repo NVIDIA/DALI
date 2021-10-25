@@ -70,12 +70,30 @@ class SharedBatchDispatcher(Dispatcher):
         self.worker_id = worker_id
 
     def _serialize_failed_task(self, processed_task : _WorkerProcessingResult):
+        """
+        Puts CompletedTask instance (that describes an error encountered when producing batch) in the provided
+        shared memory chunk (`processed_task.shm_chunk`).
+        Returns `ShmMessageDesc` instance, that describes shared memory chunk and placement (offset=0, size) of the
+        serialized CompletedTask instance in the chunk.
+        """
         shm_chunk = processed_task.shm_chunk
         completed_task = CompletedTask.failed(self.worker_id, processed_task)
         return write_shm_message(
             self.worker_id, shm_chunk, completed_task, 0, resize=True)
 
     def _serialize_done_task(self, processed_task : _WorkerProcessingResult):
+        """
+        Puts produced batch in the provided shared memory chunk (`processed_task.shm_chunk`).
+        Layout of the data in the chunk:
+        [1. samples from the batch | 2. batch meta-data | 3. completed task].
+        1. Binary encoded samples from the batch (underlying data of numpy arrays),
+           aimed to be used as initialization buffers for arrays with no additional copy or deserialization.
+        2. Pickled list of meta-data of each sample, such as the sample's binary data offset in the chunk,
+           a shape and a type of the array.
+        3. Pickled CompletedTask instance (that contains offset and size of the serialized list from the second point).
+        Returns `ShmMessageDesc` instance, that describes shared memory chunk and placement (offset, size) of the
+        serialized CompletedTask instance in the chunk.
+        """
         shm_chunk = processed_task.shm_chunk
         sbw = SharedBatchWriter(shm_chunk, processed_task.data_batch)
         batch_meta = SharedBatchMeta.from_writer(sbw)
@@ -315,7 +333,7 @@ class CallableSource:
     def __call__(self, scheduled : ScheduledTask):
         task = scheduled.task
         if task.is_sample_mode():
-            data_batch = [self.callback(sample_info) for sample_info in task.sample_range.iter_samples()]
+            data_batch = [self.callback(sample_info) for sample_info in task.sample_range]
         else:
             data_batch = self.callback(*task.batch_args)
         return data_batch

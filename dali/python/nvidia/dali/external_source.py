@@ -14,7 +14,7 @@
 
 # custom wrappers around ops
 from nvidia.dali import backend as _b
-from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs
+from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs, SampleRange as _SampleRange
 import nvidia.dali.types
 from nvidia.dali._utils.external_source_impl import \
         get_callback_from_source as _get_callback_from_source, \
@@ -136,8 +136,8 @@ class _ExternalSourceGroup(object):
             sample_range_start = self.current_sample + batch_size * lead
             sample_range_end = sample_range_start + batch_size
             iteration = self.current_iter + lead
-            work_batch = _TaskArgs.make_sample(
-                sample_range_start, sample_range_end, iteration, epoch_idx)
+            sample_range = _SampleRange(sample_range_start, sample_range_end, iteration, epoch_idx)
+            work_batch = _TaskArgs.make_sample(sample_range)
             return pool.schedule_batch(context_i, work_batch)
 
     def schedule_and_receive(self, pipeline, pool, context_i, batch_size, epoch_idx):

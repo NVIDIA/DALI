@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali._multiproc.pool import WorkerPool
-from nvidia.dali._multiproc.messages import TaskArgs
+from nvidia.dali._multiproc.messages import TaskArgs, SampleRange
 from contextlib import closing
 from nvidia.dali._utils.external_source_impl import get_callback_from_source
 from nvidia.dali.types import SampleInfo
@@ -119,7 +119,7 @@ def test_pool_one_task(start_method):
         pids = get_pids(pool)
         pid = pids[0]
         tasks = [(SampleInfo(0, 0, 0, 0),)]
-        work_batch = TaskArgs.make_sample(0, 1, 0, 0)
+        work_batch = TaskArgs.make_sample(SampleRange(0, 1, 0, 0))
         pool.schedule_batch(context_i=0, work_batch=work_batch)
         batch = pool.receive_batch(context_i=0)
         for task, sample in zip(tasks, batch):
@@ -133,7 +133,7 @@ def test_pool_multi_task(start_method):
         pids = get_pids(pool)
         pid = pids[0]
         tasks = [(SampleInfo(i, i, 0, 0),) for i in range(10)]
-        work_batch = TaskArgs.make_sample(0, 10, 0, 0)
+        work_batch = TaskArgs.make_sample(SampleRange(0, 10, 0, 0))
         pool.schedule_batch(context_i=0, work_batch=work_batch)
         batch = pool.receive_batch(context_i=0)
         for task, sample in zip(tasks, batch):
@@ -148,7 +148,7 @@ def test_pool_no_overwrite_batch(start_method):
         with create_pool(groups, keep_alive_queue_size=depth, num_workers=1, start_method=start_method) as pool:
             pids = get_pids(pool)
             pid = pids[0]
-            work_batches = [TaskArgs.make_sample(i, i + 1, i, 0) for i in range(depth)]
+            work_batches = [TaskArgs.make_sample(SampleRange(i, i + 1, i, 0)) for i in range(depth)]
             task_list = [[(SampleInfo(i, 0, i, 0),)] for i in range(depth)]
             for i, work_batch in enumerate(work_batches):
                 pool.schedule_batch(context_i=0, work_batch=work_batch)
@@ -174,7 +174,7 @@ def test_pool_work_split_multiple_tasks(start_method):
         num_tasks = 16
         pids = get_pids(pool)
         assert len(pids) == 2
-        work_batch = TaskArgs.make_sample(0, num_tasks, 0, 0)
+        work_batch = TaskArgs.make_sample(SampleRange(0, num_tasks, 0, 0))
         tasks = [(SampleInfo(i, i, 0, 0),) for i in range(num_tasks)]
         pool.schedule_batch(context_i=0, work_batch=work_batch)
         batch = pool.receive_batch(context_i=0)
@@ -198,7 +198,7 @@ def test_pool_iterator_dedicated_worker(start_method):
         for i in range(4):
             tasks = [(SampleInfo(samples_count + j, j, i, 0),) for j in range(i + 1)]
             tasks_list.append(tasks)
-            work_batch = TaskArgs.make_sample(samples_count, samples_count + i + 1, i, 0)
+            work_batch = TaskArgs.make_sample(SampleRange(samples_count, samples_count + i + 1, i, 0))
             samples_count += len(tasks)
             pool.schedule_batch(context_i=0, work_batch=work_batch)
             pool.schedule_batch(context_i=1, work_batch=TaskArgs.make_batch((i,)))
@@ -225,7 +225,7 @@ def test_pool_many_ctxs(start_method):
         pids = get_pids(pool)
         pid = pids[0]
         tasks = [(SampleInfo(0, 0, 0, 0),)]
-        work_batch = TaskArgs.make_sample(0, 1, 0, 0)
+        work_batch = TaskArgs.make_sample(SampleRange(0, 1, 0, 0))
         pool.schedule_batch(context_i=0, work_batch=work_batch)
         pool.schedule_batch(context_i=1, work_batch=work_batch)
         batch_0 = pool.receive_batch(context_i=0)
@@ -244,7 +244,7 @@ def test_pool_context_sync(start_method):
         capture_processes(pool)
         for i in range(4):
             tasks = [(SampleInfo(j, 0, 0, 0),) for j in range(10 * (i + 1))]
-            work_batch = TaskArgs.make_sample(0, 10 * (i + 1), 0, 0)
+            work_batch = TaskArgs.make_sample(SampleRange(0, 10 * (i + 1), 0, 0))
             pool.schedule_batch(context_i=0, work_batch=work_batch)
             pool.schedule_batch(context_i=1, work_batch=work_batch)
         assert_scheduled_num(pool.contexts[0], 4)
@@ -252,7 +252,7 @@ def test_pool_context_sync(start_method):
         # pool after a reset should discard all previously scheduled tasks (and sync workers to avoid race on writing to results buffer)
         pool.reset()
         tasks = [(SampleInfo(1000 + j, j, 0, 1),) for j in range(5)]
-        work_batch = TaskArgs.make_sample(1000, 1005, 0, 1)
+        work_batch = TaskArgs.make_sample(SampleRange(1000, 1005, 0, 1))
         pool.schedule_batch(context_i=0, work_batch=work_batch)
         pool.schedule_batch(context_i=1, work_batch=work_batch)
         assert_scheduled_num(pool.contexts[0], 1)
@@ -310,6 +310,6 @@ def test_pool_invalid_return():
     callbacks = [MockGroup.from_callback(invalid_callback)]
     with create_pool(callbacks, keep_alive_queue_size=1, num_workers=1, start_method="spawn") as pool:
         _ = get_pids(pool)
-        work_batch = TaskArgs.make_sample(0, 1, 0, 0)
+        work_batch = TaskArgs.make_sample(SampleRange(0, 1, 0, 0))
         pool.schedule_batch(context_i=0, work_batch=work_batch)
         pool.receive_batch(context_i=0)

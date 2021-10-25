@@ -82,7 +82,7 @@ class SampleRange:
     """
     Describes a batch or sub-batch of work in sample mode that consists of SampleInfo instances with consecutive
     indices. It denotes range of samples within given `iteration` of given `epoch_idx`,
-    optionally specifying a slice/sub-range of the sample range.
+    optionally specifying a slice/sub-range of the sample range. It does not support spanning over multiple batches.
     Used to avoid linear dependency of the task description size on the batch size.
     """
 
@@ -91,42 +91,59 @@ class SampleRange:
         self.sample_end = sample_end # idx in epoch of one past last sample in batch
         self.iteration = iteration # index of a batch within epoch
         self.epoch_idx = epoch_idx
-        # idx of first sample in slice (in a batch not an epoch)
-        self.slice_start = slice_start
         if slice_end is None:
             slice_end = sample_end - sample_start
+        assert slice_start >= 0 and slice_start <= sample_end - sample_start
+        assert slice_end >= slice_start and slice_end <= sample_end - sample_start
+        # idx of first sample in slice (in a batch not an epoch)
+        self.slice_start = slice_start
         # idx of one past last sample in slice (in a batch not an epoch)
         self.slice_end = slice_end
 
-    @classmethod
-    def slice(cls, sample_range, slice_start, slice_end):
-        assert sample_range.slice_start <= slice_start < slice_end <= sample_range.slice_end
-        return cls(
-            sample_range.sample_start, sample_range.sample_end,
-            sample_range.iteration, sample_range.epoch_idx,
+
+    def _get_index(self, idx, bound):
+        if idx is None:
+            return bound
+        if idx < 0:
+            return self.slice_end + idx
+        return self.slice_start + idx
+
+    def _get_slice(self, range_slice : slice):
+        if range_slice.step is not None and range_slice.step != 1:
+            raise ValueError("SampleRange only supports slicing with step 1")
+
+        slice_start = self._get_index(range_slice.start, self.slice_start)
+        slice_end = self._get_index(range_slice.stop, self.slice_end)
+        slice_start = min(slice_start, self.slice_end)
+        slice_end = max(min(slice_end, self.slice_end), slice_start)
+        return SampleRange(
+            self.sample_start, self.sample_end,
+            self.iteration, self.epoch_idx,
             slice_start=slice_start,
             slice_end=slice_end)
 
-    def get_slice(self, slice_start, slice_end):
-        return self.slice(self, slice_start, slice_end)
-
-    def __len__(self):
-        return self.slice_end - self.slice_start
-
-    def iter_samples(self):
-        return (SampleInfo(
+    def __getitem__(self, idx):
+        if isinstance(idx, slice):
+            return self._get_slice(idx)
+        if idx < 0:
+            idx = self.slice_end + idx
+        if idx < 0 or idx >= len(self):
+            raise IndexError
+        idx_in_batch = self.slice_start + idx
+        return SampleInfo(
             self.sample_start + idx_in_batch,
             idx_in_batch,
             self.iteration,
-            self.epoch_idx
-            ) for idx_in_batch in range(self.slice_start, self.slice_end))
+            self.epoch_idx)
+
+    def __len__(self):
+        return self.slice_end - self.slice_start
 
 
 class TaskArgs:
 
     @classmethod
-    def make_sample(cls, start, end, iteration, epoch_idx):
-        sample_range = SampleRange(start, end, iteration, epoch_idx)
+    def make_sample(cls, sample_range):
         if len(sample_range) <= 0:
             raise RuntimeError("Cannot schedule empty batch")
         return cls(0, sample_range=sample_range)

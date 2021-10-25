@@ -153,10 +153,9 @@ class CallbackContext:
 
     def handle_error(self, batch_i):
         """Check if given batch reported an error and raise it"""
-        exception = None
-        try:
-            if batch_i in self.iter_failed:
-                exception, traceback_str = self.iter_failed[batch_i]
+        if batch_i in self.iter_failed:
+            exception, traceback_str = self.iter_failed[batch_i]
+            try:
                 self.clear_scheduled(batch_i)
                 if isinstance(exception, StopIteration):
                     raise exception
@@ -165,13 +164,13 @@ class CallbackContext:
                     # message, originating from original exception
                     raise Exception(
                         "\n\nException traceback received from worker thread:\n\n" + traceback_str) from exception
-        finally:
-            # Fix circular reference problem on StopIteration - the exception contains reference to the
-            # traceback that refers a frame that contains local variables and among them the exception.
-            # This traceback is then chained into exceptions reraised along the way
-            # (eventually at the pipeline level) which in effect introduces a reference to the pipline
-            # that would be only removed after garbage collection round, delaying finalization of the pool
-            del exception
+            finally:
+                # Fix circular reference problem on StopIteration - the exception contains reference to the
+                # traceback that refers a frame that contains local variables and among them the exception.
+                # This traceback is then chained into exceptions reraised along the way
+                # (eventually at the pipeline level) which in effect introduces a reference to the pipline
+                # that would be only removed after garbage collection round, delaying finalization of the pool
+                del exception
 
     def is_error(self, scheduled_i):
         return scheduled_i in self.iter_failed
@@ -670,7 +669,7 @@ class WorkerPool:
             worker_chunk = chunk_size + (minibatch_i < remainder)
             if worker_chunk == 0:
                 break
-            sample_slice = sample_range.get_slice(queued_no, queued_no + worker_chunk)
+            sample_slice = sample_range[queued_no:queued_no + worker_chunk]
             minibatch = TaskArgs(minibatch_i, sample_range=sample_slice)
             minibatches.append(minibatch)
             queued_no += worker_chunk

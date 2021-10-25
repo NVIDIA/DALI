@@ -112,7 +112,7 @@ uint8_t *MemoryMapping::get_raw_ptr() {
 
 void MemoryMapping::resize(uint64_t new_size) {
   if (!handle_.ptr) {
-    throw std::runtime_error("Cannot resize the memory mapping, because no memory is mapped.");
+    throw std::logic_error("Cannot resize the memory mapping, because no memory is mapped.");
   }
   handle_.ptr = static_cast<uint8_t *>(mremap(handle_.ptr, handle_.size, new_size, MREMAP_MAYMOVE));
   if (handle_.ptr == MAP_FAILED) {
@@ -151,7 +151,7 @@ void SharedMem::resize(uint64_t size, bool trunc) {
   size_ = size * sizeof(uint8_t);
   if (trunc) {
     if (!shm_handle_) {
-      throw std::runtime_error("Cannot resize memory - no valid shared memory handle.");
+      throw std::logic_error("Cannot resize memory - no valid shared memory handle.");
     }
     POSIX_CALL_EX(ftruncate(shm_handle_, size_), "Failed to resize shared memory.");
   }
@@ -159,7 +159,7 @@ void SharedMem::resize(uint64_t size, bool trunc) {
     memory_mapping_.resize(size_);
   } else {
     if (!shm_handle_) {
-      throw std::runtime_error("Cannot mmap memory - no valid shared memory handle.");
+      throw std::logic_error("Cannot mmap memory - no valid shared memory handle.");
     }
     memory_mapping_ = MemoryMapping(shm_handle_, size_);
   }
