@@ -78,7 +78,7 @@ TYPED_TEST(ParserTest, BasicTest) {
   MakeViewToSample(ws, workspace, 0, 0);
 
   shared_ptr<Tensor<CPUBackend>> t(new Tensor<CPUBackend>());
-  ws.AddOutput(t);
+  ws.AddOutput(t.get());
 
   IntArrayParser<CPUBackend> parser(OpSpec("temp"));
   IntArrayWrapper ia_wrapper = {data.data(), data.size()};
