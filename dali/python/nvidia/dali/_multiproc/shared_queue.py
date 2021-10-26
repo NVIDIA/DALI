@@ -27,9 +27,8 @@ class QueueMeta(Structure):
 class ShmQueue:
 
     """
-    Simple fixed capacity shared memory queue of fixed size messages. The queue fails with assertion error
-    if written to when full, attempt to get from empty queue blocks until data is available or queue was
-    closed.
+    Simple fixed capacity shared memory queue of fixed size messages. Writting to a full queue fails,
+    attempt to get from an empty queue blocks until data is available or the queue is closed.
     """
 
     MSG_CLASS = ShmMessageDesc
@@ -121,7 +120,7 @@ class ShmQueue:
             if not self.meta.is_closed:
                 self.meta.is_closed = 1
                 self._write_meta()
-                # Notify only one waiting worker about closing of the queue, the woken up worker
+                # Notify only one waiting worker about closing the queue, the woken up worker
                 # will notify the next one. Avoid notify_all at this point, due to possible deadlock if
                 # one of the notified workers exited abruptly when waiting on cv_not_empty without proper releasing
                 # of the underlying semaphore.

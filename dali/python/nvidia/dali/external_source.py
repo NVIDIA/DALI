@@ -503,9 +503,9 @@ Keyword Args
             if source_desc.kind == _SourceKind.CALLABLE:
                 if not source_desc.has_inputs:
                     raise TypeError(("Callable passed to External Source in parallel mode (when `parallel=True`) "
-                            "must accept exactly one argument: either `nvidia.dali.types.SampleInfo` "
-                            "if run with `batch=False` or an integer that represents the index of the "
-                            "batch within the epoch if `batch=True`. "
+                            "must accept exactly one argument: `nvidia.dali.types.SampleInfo` "
+                            "if run with `batch=False` or either `nvidia.dali.types.BatchInfo` or integer that "
+                            "represents the index of the batch within the epoch if `batch=True`. "
                             "Got a callable that does not accept arguments instead."))
             elif not batch:
                 what = "an iterable" if source_desc.kind == _SourceKind.ITERABLE else "a generator function"

@@ -64,13 +64,16 @@ class ExtCallbackTensorCPU(ExtCallback):
 
 def create_pipe(
         callback, device, batch_size, num_outputs=None, layout=None, py_num_workers=None,
-        py_start_method="fork", parallel=True, device_id=0, batch=False):
+        py_start_method="fork", parallel=True, device_id=0, batch=False, num_threads=1,
+        cycle=None, batch_info=None, prefetch_queue_depth=2, reader_queue_depth=None):
     pipe = dali.pipeline.Pipeline(
-        batch_size, 1, device_id, py_num_workers=py_num_workers, py_start_method=py_start_method)
+        batch_size, num_threads, device_id, py_num_workers=py_num_workers,
+        py_start_method=py_start_method, prefetch_queue_depth=prefetch_queue_depth)
     with pipe:
         inputs = dali.fn.external_source(
-            callback, num_outputs=num_outputs, device=device, layout=layout, batch=batch,
-            parallel=parallel)
+            callback, num_outputs=num_outputs, device=device, layout=layout,
+            batch=batch, parallel=parallel, cycle=cycle, batch_info=batch_info,
+            prefetch_queue_depth=reader_queue_depth)
         if num_outputs is None:
             pipe.set_outputs(inputs)
         else:

@@ -180,20 +180,26 @@ def test_parallel_fork():
     yield raises(RuntimeError, "Cannot fork a process when there is a CUDA context already bound to the process.")(
         build_and_run_pipeline), parallel_pipe, 1
 
+
 def test_dtypes():
     yield from check_spawn_with_callback(ExtCallback)
+
 
 def test_random_data():
     yield from check_spawn_with_callback(ExtCallback, shapes=[(100, 40, 3), (8, 64, 64, 3)], random_data=True)
 
+
 def test_randomly_shaped_data():
     yield from check_spawn_with_callback(ExtCallback, shapes=[(100, 40, 3), (8, 64, 64, 3)], random_data=True, random_shape=True)
+
 
 def test_num_outputs():
     yield from check_spawn_with_callback(ExtCallbackMultipleOutputs, ExtCallbackMultipleOutputs, num_outputs=2, dtypes=[np.uint8, np.float])
 
+
 def test_tensor_cpu():
     yield from check_spawn_with_callback(ExtCallbackTensorCPU)
+
 
 @with_setup(setup_function, teardown_function)
 def _test_exception_propagation(callback, batch_size, num_workers, expected):
@@ -202,12 +208,14 @@ def _test_exception_propagation(callback, batch_size, num_workers, expected):
         py_start_method='spawn', parallel=True)
     raises(expected)(build_and_run_pipeline)(pipe, None)
 
+
 def test_exception_propagation():
     for raised, expected in [(StopIteration, StopIteration), (CustomException, Exception)]:
         callback = ExtCallback((4, 4), 250, np.int32, exception_class=raised)
         for num_workers in [1, 4]:
             for batch_size in [1, 15, 150]:
                 yield _test_exception_propagation, callback, batch_size, num_workers, expected
+
 
 @with_setup(setup_function, teardown_function)
 def _test_stop_iteration_resume(callback, batch_size, layout, num_workers):
@@ -216,12 +224,14 @@ def _test_stop_iteration_resume(callback, batch_size, layout, num_workers):
         py_num_workers=num_workers, py_start_method='spawn', parallel=True)
     check_stop_iteration_resume(pipe, batch_size, layout)
 
+
 def test_stop_iteration_resume():
     callback = ExtCallback((4, 4), 250, 'int32')
     layout = "XY"
     for num_workers in [1, 4]:
         for batch_size in [1, 15, 150]:
             yield _test_stop_iteration_resume, callback, batch_size, layout, num_workers
+
 
 @with_setup(setup_function, teardown_function)
 def _test_layout(callback, batch_size, layout, num_workers):
@@ -230,6 +240,7 @@ def _test_layout(callback, batch_size, layout, num_workers):
         py_start_method='spawn', parallel=True)
     check_layout(pipe, layout)
 
+
 def test_layout():
     for layout, dims in zip(["X", "XY", "XYZ"], ((4,), (4, 4), (4, 4, 4))):
         callback = ExtCallback(dims, 1024, 'int32')
@@ -237,12 +248,14 @@ def test_layout():
             for batch_size in [1, 256, 600]:
                 yield _test_layout, callback, batch_size, layout, num_workers
 
+
 class ext_cb():
     def __init__(self, name, shape):
         self.name = name
         self.shape = shape
     def __call__(self, sinfo):
         return np.full(self.shape, sinfo.idx_in_epoch, dtype=np.int32)
+
 
 @with_setup(setup_function, teardown_function)
 def _test_vs_non_parallel(batch_size, cb_parallel, cb_seq, batch, py_num_workers):
@@ -260,6 +273,7 @@ def _test_vs_non_parallel(batch_size, cb_parallel, cb_seq, batch, py_num_workers
             p = par.at(j)
             assert np.array_equal(s, p)
 
+
 def test_vs_non_parallel():
     for shape in [[], [10], [100, 100, 100]]:
         for batch_size, cb_parallel, cb_seq, batch, py_num_workers in [
@@ -273,15 +287,18 @@ def generator_shape_empty():
     while True:
         yield [np.full([], count + i) for i in range(50)]
 
+
 def generator_shape_10():
     count = 0
     while True:
         yield [np.full([10], count + i) for i in range(50)]
 
+
 def generator_shape_100x3():
     count = 0
     while True:
         yield [np.full([10, 10, 10], count + i) for i in range(50)]
+
 
 def test_generator_vs_non_parallel():
     for cb in [generator_shape_empty, generator_shape_10, generator_shape_100x3]:
@@ -290,10 +307,12 @@ def test_generator_vs_non_parallel():
 
 @with_setup(setup_function, teardown_function)
 def _test_cycle_raise(cb, is_gen_fun, batch_size, epoch_size, reader_queue_size):
-    pipe = dali.Pipeline(batch_size=batch_size, device_id=None, num_threads=5, py_num_workers=1, py_start_method='spawn')
-    with pipe:
-        ext_seq = dali.fn.external_source(cb, parallel=True, batch=True, cycle="raise", prefetch_queue_depth=reader_queue_size)
-        pipe.set_outputs(ext_seq)
+    pipe = create_pipe(
+        cb, "cpu", batch_size=batch_size,
+        py_num_workers=1, py_start_method="spawn",
+        parallel=True, device_id=None, batch=True,
+        num_threads=5, cycle="raise",
+        reader_queue_depth=reader_queue_size)
     pipe.build()
     capture_processes(pipe._py_pool)
     if is_gen_fun:
@@ -319,12 +338,15 @@ def _test_cycle_raise(cb, is_gen_fun, batch_size, epoch_size, reader_queue_size)
                 assert i == epoch_size, "Number of iterations mismatch: expected {}, got {}".format(epoch_size, i)
                 break
 
+
 def generator_epoch_size_1():
     yield [np.full((4, 5), i) for i in range(20)]
+
 
 def generator_epoch_size_4():
     for j in range(4):
         yield [np.full((4, 5), j + i) for i in range(20)]
+
 
 def test_cycle_raise():
     batch_size = 20
@@ -336,12 +358,15 @@ def test_cycle_raise():
         for reader_queue_size in (1, 2, 6):
             yield _test_cycle_raise, cb, is_gen_fun, batch_size, epoch_size, reader_queue_size
 
+
 @with_setup(setup_function, teardown_function)
 def _test_cycle_quiet(cb, is_gen_fun, batch_size, epoch_size, reader_queue_size):
-    pipe = dali.Pipeline(batch_size=batch_size, device_id=None, num_threads=5, py_num_workers=1, py_start_method='spawn')
-    with pipe:
-        ext_seq = dali.fn.external_source(cb, parallel=True, batch=True, cycle="quiet", prefetch_queue_depth=reader_queue_size)
-        pipe.set_outputs(ext_seq)
+    pipe = create_pipe(
+        cb, "cpu", batch_size=batch_size,
+        py_num_workers=1, py_start_method="spawn",
+        parallel=True, device_id=None, batch=True,
+        num_threads=5, cycle="quiet",
+        reader_queue_depth=reader_queue_size)
     pipe.build()
     capture_processes(pipe._py_pool)
     refer_iter = cb
@@ -357,6 +382,7 @@ def _test_cycle_quiet(cb, is_gen_fun, batch_size, epoch_size, reader_queue_size)
         for sample, expected_sample in zip(batch, expected_batch):
             np.testing.assert_equal(sample, expected_sample)
 
+
 def test_cycle_quiet():
     batch_size = 20
     for epoch_size, cb, is_gen_fun in [
@@ -367,12 +393,17 @@ def test_cycle_quiet():
         for reader_queue_size in (1, 2, 6):
             yield _test_cycle_quiet, cb, is_gen_fun, batch_size, epoch_size, reader_queue_size
 
+
+@with_setup(setup_function, teardown_function)
 def _test_cycle_quiet_non_resetable(iterable, reader_queue_size, batch_size, epoch_size):
-    pipe = dali.Pipeline(batch_size=batch_size, device_id=None, num_threads=5, py_num_workers=1, py_start_method='spawn')
-    with pipe:
-        ext_seq = dali.fn.external_source(iterable, parallel=True, batch=True, cycle="quiet", prefetch_queue_depth=reader_queue_size)
-        pipe.set_outputs(ext_seq)
+    pipe = create_pipe(
+        iterable, "cpu", batch_size=batch_size,
+        py_num_workers=1, py_start_method="spawn",
+        parallel=True, device_id=None, batch=True,
+        num_threads=5, cycle="quiet",
+        reader_queue_depth=reader_queue_size)
     pipe.build()
+    capture_processes(pipe._py_pool)
     for _ in range(epoch_size):
         pipe.run()
     try:
@@ -388,6 +419,7 @@ def _test_cycle_quiet_non_resetable(iterable, reader_queue_size, batch_size, epo
     else:
         assert False, "Expected stop iteration at the end of the epoch"
 
+
 def test_cycle_quiet_non_resetable():
     epoch_size = 3
     batch_size = 20
@@ -395,12 +427,15 @@ def test_cycle_quiet_non_resetable():
     for reader_queue_size in (1, 3, 6):
         yield _test_cycle_quiet_non_resetable, iterable, reader_queue_size, batch_size, epoch_size
 
+
 @with_setup(setup_function, teardown_function)
 def _test_cycle_no_resetting(cb, batch_size, epoch_size, reader_queue_size):
-    pipe = dali.Pipeline(batch_size=batch_size, device_id=None, num_threads=5, py_num_workers=1, py_start_method='spawn')
-    with pipe:
-        ext_seq = dali.fn.external_source(cb, parallel=True, batch=True, cycle=None, prefetch_queue_depth=reader_queue_size)
-        pipe.set_outputs(ext_seq)
+    pipe = create_pipe(
+        cb, "cpu", batch_size=batch_size,
+        py_num_workers=1, py_start_method="spawn",
+        parallel=True, device_id=None, batch=True,
+        num_threads=5, cycle=None,
+        reader_queue_depth=reader_queue_size)
     pipe.build()
     capture_processes(pipe._py_pool)
     for _ in range(epoch_size):
@@ -413,6 +448,7 @@ def _test_cycle_no_resetting(cb, batch_size, epoch_size, reader_queue_size):
         assert False, "Expected stop iteration"
     pipe.run()
 
+
 def test_cycle_no_resetting():
     batch_size = 20
     for epoch_size, cb in [
@@ -422,6 +458,7 @@ def test_cycle_no_resetting():
         (4, generator_epoch_size_4),]:
         for reader_queue_size in (1, 2, 6):
             yield raises(StopIteration)(_test_cycle_no_resetting), cb, batch_size, epoch_size, reader_queue_size
+
 
 @with_setup(setup_function, teardown_function)
 def _test_all_kinds_parallel(sample_cb, batch_cb, iter_cb, batch_size, py_num_workers, reader_queue_sizes, num_iters):
@@ -451,6 +488,7 @@ def _test_all_kinds_parallel(sample_cb, batch_cb, iter_cb, batch_size, py_num_wo
                 assert i == num_iters, "Number of iterations mismatch: expected {}, got {}".format(num_iters, i)
                 break
 
+
 def test_all_kinds_parallel():
     for batch_size in (1, 17):
         for num_iters in (1, 3, 31):
@@ -466,6 +504,7 @@ def test_all_kinds_parallel():
                         yield _test_all_kinds_parallel, sample_cb, batch_cb, iterator_cb, batch_size, num_workers, \
                                 reader_queue_sizes, num_iters
 
+
 def collect_iterations(pipe, num_iters):
     outs = []
     for _ in range(num_iters):
@@ -476,6 +515,7 @@ def collect_iterations(pipe, num_iters):
             outs.append(StopIteration)
             pipe.reset()
     return outs
+
 
 @with_setup(setup_function, teardown_function)
 def _test_cycle_multiple_iterators(batch_size, iters_num, py_num_workers, reader_queue_sizes, cycle_policies, epoch_sizes):
@@ -525,8 +565,10 @@ def test_cycle_multiple_iterators():
                     prefetch_queue_depths, cycle_policies, epoch_sizes
 
 
+
 def ext_cb2(sinfo):
     return np.array([sinfo.idx_in_epoch, sinfo.idx_in_batch, sinfo.iteration], dtype=np.int32)
+
 
 @with_setup(setup_function, teardown_function)
 def test_discard():
@@ -573,14 +615,13 @@ class SampleCb:
 @with_setup(setup_function, teardown_function)
 def _test_epoch_idx(batch_size, epoch_size, cb, py_num_workers, prefetch_queue_depth, reader_queue_depth, batch_mode, batch_info):
     num_epochs = 3
-    pipe = dali.Pipeline(
-        batch_size, 1, 0, py_num_workers=py_num_workers, prefetch_queue_depth=prefetch_queue_depth,
-        py_start_method="spawn")
-    with pipe:
-        ext = dali.fn.external_source(
-            source=cb, parallel=True, batch=batch_mode,
-            prefetch_queue_depth=reader_queue_depth, batch_info=batch_info)
-        pipe.set_outputs(ext)
+    pipe = create_pipe(
+        cb, "cpu", batch_size=batch_size,
+        py_num_workers=py_num_workers, py_start_method="spawn",
+        parallel=True, device_id=0, batch=batch_mode,
+        num_threads=1, cycle=None, batch_info=batch_info,
+        prefetch_queue_depth=prefetch_queue_depth,
+        reader_queue_depth=reader_queue_depth)
     pipe.build()
     capture_processes(pipe._py_pool)
     for epoch_idx in range(num_epochs):
@@ -613,6 +654,7 @@ def test_epoch_idx():
                 batch_cb = SampleCallbackBatched(sample_cb, batch_size, False)
                 yield _test_epoch_idx, batch_size, epoch_size, batch_cb, num_workers, prefetch_queue_depth, reader_queue_depth, True, False
 
+
 class PermutableSampleCb:
 
     def __init__(self, batch_size, epoch_size, trailing_samples):
@@ -636,12 +678,13 @@ class PermutableSampleCb:
 @with_setup(setup_function, teardown_function)
 def _test_permute_dataset(batch_size, epoch_size, trailing_samples, cb, py_num_workers, prefetch_queue_depth, reader_queue_depth):
     num_epochs = 3
-    pipe = dali.Pipeline(
-        batch_size, 1, 0, py_num_workers=py_num_workers, prefetch_queue_depth=prefetch_queue_depth,
-        py_start_method="spawn")
-    with pipe:
-        ext = dali.fn.external_source(source=cb, parallel=True, batch=False, prefetch_queue_depth=reader_queue_depth)
-        pipe.set_outputs(ext)
+    pipe = create_pipe(
+        cb, "cpu", batch_size=batch_size,
+        py_num_workers=py_num_workers, py_start_method="spawn",
+        parallel=True, device_id=0, batch=False,
+        num_threads=1, cycle=None,
+        prefetch_queue_depth=prefetch_queue_depth,
+        reader_queue_depth=reader_queue_depth)
     pipe.build()
     capture_processes(pipe._py_pool)
     for epoch_idx in range(num_epochs):
