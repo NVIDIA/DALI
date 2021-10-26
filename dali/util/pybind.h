@@ -206,6 +206,11 @@ py::capsule TensorToDLPackView(Tensor<Backend> &tensor) {
   return DLTensorToCapsule(std::move(dl_tensor));
 }
 
+/**
+ * @brief Convert the TensorList to python list of tensors.
+ *
+ * The returned list is intended to be read-only
+ */
 template <typename Backend>
 py::list TensorListToDLPackView(const TensorList<Backend> &tensors) {
   py::list result;
