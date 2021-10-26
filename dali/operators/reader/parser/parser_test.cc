@@ -75,7 +75,7 @@ TYPED_TEST(ParserTest, BasicTest) {
   HostWorkspace workspace;
   SampleWorkspace ws;
 
-  MakeViewToSample(ws, workspace, 0, 0);
+  MakeSampleView(ws, workspace, 0, 0);
 
   shared_ptr<Tensor<CPUBackend>> t(new Tensor<CPUBackend>());
   ws.AddOutput(t.get());

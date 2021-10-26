@@ -17,7 +17,7 @@
 
 namespace dali {
 
-void MakeViewToSample(SampleWorkspace& sample, HostWorkspace& batch, int data_idx, int thread_idx) {
+void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx, int thread_idx) {
   sample.Clear();
   sample.set_data_idx(data_idx);
   sample.set_thread_idx(thread_idx);

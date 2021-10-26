@@ -332,7 +332,7 @@ class Operator<CPUBackend> : public OperatorBase {
     for (int data_idx = 0; data_idx < curr_batch_size; ++data_idx) {
       thread_pool.AddWork([this, &ws, data_idx](int tid) {
         SampleWorkspace sample;
-        MakeViewToSample(sample, ws, data_idx, tid);
+        MakeSampleView(sample, ws, data_idx, tid);
         this->SetupSharedSampleParams(sample);
         this->RunImpl(sample);
       }, -data_idx);  // -data_idx for FIFO order

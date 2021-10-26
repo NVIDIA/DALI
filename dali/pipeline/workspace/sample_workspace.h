@@ -38,7 +38,7 @@ using SampleOutputType = Tensor<Backend> *;
 
 /**
  * @brief SampleWorkspace is workspace used for the legacy, deprcated CPU Operator implementation.
- * It has views to all data required for an operator to perform its computation on a single sample,
+ * It has views of all data required for an operator to perform its computation on a single sample,
  * the data is actually owned by a corresponding HostWorkspace
  */
 class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleOutputType> {
@@ -131,7 +131,7 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
  * @brief Fill the `sample` with data references to the ones owned by the `batch` for given
  * `data_idx` and set the `thread_idx`.
  */
-DLL_PUBLIC void MakeViewToSample(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
+DLL_PUBLIC void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
                                  int thread_idx);
 
 }  // namespace dali
