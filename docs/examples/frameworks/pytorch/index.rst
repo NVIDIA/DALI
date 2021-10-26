@@ -8,4 +8,4 @@ Pytorch Framework
    pytorch-external_input.ipynb
    pytorch-various-readers.ipynb
    pytorch-lightning.ipynb
-   MNIST-example.ipynb
+   MNIST-catalyst-example.ipynb
