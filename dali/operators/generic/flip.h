@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ class Flip: public Operator<Backend> {
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     output_desc.resize(1);
-    auto &input = ws.template InputRef<Backend>(0);
+    auto &input = ws.template Input<Backend>(0);
     output_desc[0].type =  input.type();
     output_desc[0].shape = input.shape();
     return true;

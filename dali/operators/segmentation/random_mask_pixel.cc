@@ -88,7 +88,7 @@ RandomMaskPixelCPU::RandomMaskPixelCPU(const OpSpec &spec)
 
 bool RandomMaskPixelCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
                                     const workspace_t<CPUBackend> &ws) {
-  const auto &in_masks = ws.template InputRef<CPUBackend>(0);
+  const auto &in_masks = ws.template Input<CPUBackend>(0);
   int nsamples = in_masks.num_samples();
   auto in_masks_shape = in_masks.shape();
   int ndim = in_masks_shape.sample_dim();
@@ -111,8 +111,8 @@ bool RandomMaskPixelCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 template <typename T>
 void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
-  const auto &in_masks = ws.template InputRef<CPUBackend>(0);
-  auto &out_pixel_pos = ws.template OutputRef<CPUBackend>(0);
+  const auto &in_masks = ws.template Input<CPUBackend>(0);
+  auto &out_pixel_pos = ws.template Output<CPUBackend>(0);
   int nsamples = in_masks.num_samples();
   auto in_masks_shape = in_masks.shape();
   int ndim = in_masks_shape.sample_dim();
@@ -171,7 +171,7 @@ void RandomMaskPixelCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
 }
 
 void RandomMaskPixelCPU::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &in_masks = ws.template InputRef<CPUBackend>(0);
+  const auto &in_masks = ws.template Input<CPUBackend>(0);
   TYPE_SWITCH(in_masks.type(), type2id, T, MASK_SUPPORTED_TYPES, (
     RunImplTyped<T>(ws);
   ), (  // NOLINT

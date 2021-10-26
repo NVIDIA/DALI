@@ -22,8 +22,8 @@ namespace dali {
 template <>
 template <int ndim, int element_size>
 void TensorSubscript<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
-  auto &input = ws.template InputRef<GPUBackend>(0);
-  auto &output = ws.template OutputRef<GPUBackend>(0);
+  auto &input = ws.template Input<GPUBackend>(0);
+  auto &output = ws.template Output<GPUBackend>(0);
   int N = input.num_samples();
   using T = kernels::type_of_size<element_size>;
   using Kernel = kernels::SliceGPU<T, T, ndim>;

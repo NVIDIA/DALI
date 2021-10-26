@@ -137,7 +137,7 @@ class ColorTwistBase : public Operator<Backend> {
       contrast_ = std::vector<float>(curr_batch_size, 1);
     }
 
-    auto in_type = ws.template InputRef<Backend>(0).type();
+    auto in_type = ws.template Input<Backend>(0).type();
     output_type_ = output_type_arg_ != DALI_NO_TYPE ? output_type_arg_ : in_type;
 
     if (in_type == DALI_FLOAT16 || in_type == DALI_FLOAT || in_type == DALI_FLOAT64) {

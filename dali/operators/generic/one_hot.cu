@@ -42,7 +42,7 @@ class OneHotGPU : public OneHot<GPUBackend> {
 };
 
 bool OneHotGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template InputRef<GPUBackend>(0);
+  const auto &input = ws.template Input<GPUBackend>(0);
   int num_samples = input.shape().num_samples();
   if (num_samples != recent_n_samples_) {
     recent_n_samples_ = num_samples;
@@ -55,8 +55,8 @@ bool OneHotGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_
 }
 
 void OneHotGPU::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.InputRef<GPUBackend>(0);
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   int output_sample_dim = output.shape().sample_dim();
   int placement_axis = get_placement_axis(output_sample_dim);
   output.SetLayout(GetOutputLayout(ws, placement_axis, output_sample_dim));
@@ -69,8 +69,8 @@ void OneHotGPU::RunImpl(workspace_t<GPUBackend> &ws) {
 
 template <typename OutputType, typename InputType>
 void OneHotGPU::RunImplTyped(workspace_t<GPUBackend> &ws, int axis) {
-  const auto &input = ws.InputRef<GPUBackend>(0);
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   int num_samples = input.shape().num_samples();
 
   uint64_t max_out_vol = 1;

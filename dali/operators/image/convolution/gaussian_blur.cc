@@ -125,7 +125,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
       : spec_(spec), dim_desc_(dim_desc) {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
-    const auto& input = ws.template InputRef<CPUBackend>(0);
+    const auto& input = ws.template Input<CPUBackend>(0);
     int nsamples = input.num_samples();
     auto nthreads = ws.GetThreadPool().NumThreads();
 
@@ -151,8 +151,8 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
   }
 
   void RunImpl(workspace_t<CPUBackend>& ws) override {
-    const auto& input = ws.template InputRef<CPUBackend>(0);
-    auto& output = ws.template OutputRef<CPUBackend>(0);
+    const auto& input = ws.template Input<CPUBackend>(0);
+    auto& output = ws.template Output<CPUBackend>(0);
     output.SetLayout(input.GetLayout());
     auto in_shape = input.shape();
     auto& thread_pool = ws.GetThreadPool();
@@ -204,7 +204,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
 template <>
 bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
                                          const workspace_t<CPUBackend>& ws) {
-  const auto& input = ws.template InputRef<CPUBackend>(0);
+  const auto& input = ws.template Input<CPUBackend>(0);
   auto layout = input.GetLayout();
   auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
   dtype_ = dtype_ != DALI_NO_TYPE ? dtype_ : input.type();

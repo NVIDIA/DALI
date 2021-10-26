@@ -39,9 +39,9 @@ __global__ void LookupValuesImpl(const LutSampleDesc *samples, const kernels::Bl
 
 template<>
 void LookupTable<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  const auto &input = ws.InputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
   const auto &shape = input.shape();
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
 
   const auto stream = ws.stream();

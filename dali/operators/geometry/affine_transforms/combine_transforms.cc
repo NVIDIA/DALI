@@ -60,7 +60,7 @@ class CombineTransformsCPU : public Operator<CPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_descs,
                  const workspace_t<CPUBackend> &ws) override {
     assert(ws.NumInput() > 1);
-    TensorListShape<> in0_shape = ws.template InputRef<CPUBackend>(0).shape();
+    TensorListShape<> in0_shape = ws.template Input<CPUBackend>(0).shape();
     ndim_ = in0_shape[0][0];
     nsamples_ = in0_shape.size();
 
@@ -72,7 +72,7 @@ class CombineTransformsCPU : public Operator<CPUBackend> {
         "(ndim, ndim+1) representing an affine transform. Got: ", in0_shape));
 
     for (int i = 0; i < ws.NumInput(); i++) {
-      const auto &shape = ws.template InputRef<CPUBackend>(i).shape();
+      const auto &shape = ws.template Input<CPUBackend>(i).shape();
       DALI_ENFORCE(shape == in0_shape,
         make_string("All input transforms are expected to have the same shape. Got: ",
                     in0_shape, " and ", shape, " for the ", i, "-th input."));
@@ -97,14 +97,14 @@ class CombineTransformsCPU : public Operator<CPUBackend> {
     }
 
     constexpr int mat_dim = ndim + 1;
-    auto &out = ws.template OutputRef<CPUBackend>(0);
+    auto &out = ws.template Output<CPUBackend>(0);
     out.SetLayout({});  // no layout
 
     SmallVector<TensorListView<StorageCPU, const T, 2>, 64> in_views;
     assert(ws.NumInput() > 1);
     in_views.reserve(ws.NumInput());
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
-      auto &in = ws.template InputRef<CPUBackend>(input_idx);
+      auto &in = ws.template Input<CPUBackend>(input_idx);
       in_views.push_back(view<T, 2>(in));
     }
     auto out_view = view<T, 2>(out);

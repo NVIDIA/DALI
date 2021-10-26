@@ -323,17 +323,17 @@ class TestArgumentInput_Producer : public Operator<CPUBackend> {
 
   void RunImpl(HostWorkspace &ws) override {
     // Initialize all the data with a 0, 1, 2 .... sequence
-    auto &out0 = ws.OutputRef<CPUBackend>(0);
+    auto &out0 = ws.Output<CPUBackend>(0);
     for (int i = 0; i < out0.shape().num_samples(); i++) {
       *out0[i].mutable_data<int>() = i;
     }
 
-    auto &out1 = ws.OutputRef<CPUBackend>(1);
+    auto &out1 = ws.Output<CPUBackend>(1);
     for (int i = 0; i < out1.shape().num_samples(); i++) {
       *out1[i].mutable_data<float>() = i;
     }
 
-    auto &out2 = ws.OutputRef<CPUBackend>(2);
+    auto &out2 = ws.Output<CPUBackend>(2);
     for (int i = 0; i < out2.shape().num_samples(); i++) {
       for (int j = 0; j < 2; j++) {
         out2[i].mutable_data<int>()[j] = i;

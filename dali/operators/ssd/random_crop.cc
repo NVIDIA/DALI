@@ -179,10 +179,10 @@ void crop(const Tensor<CPUBackend>& img, vector<int> bounds, Tensor<CPUBackend>&
 template <>
 void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   // [H, W, C], dtype=uint8_t
-  const auto& img = ws.InputRef<CPUBackend>(0);
+  const auto& img = ws.Input<CPUBackend>(0);
   // [N] : [ltrb, ... ], dtype=float
-  const auto& bboxes = ws.InputRef<CPUBackend>(1);
-  const auto& labels = ws.InputRef<CPUBackend>(2);
+  const auto& bboxes = ws.Input<CPUBackend>(1);
+  const auto& labels = ws.Input<CPUBackend>(2);
   int sample = ws.data_idx();
 
   auto N = bboxes.dim(0);
@@ -202,9 +202,9 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 
     if (option.no_crop()) {
       // copy directly to output without modification
-      ws.OutputRef<CPUBackend>(0).Copy(img, 0);
-      ws.OutputRef<CPUBackend>(1).Copy(bboxes, 0);
-      ws.OutputRef<CPUBackend>(2).Copy(labels, 0);
+      ws.Output<CPUBackend>(0).Copy(img, 0);
+      ws.Output<CPUBackend>(1).Copy(bboxes, 0);
+      ws.Output<CPUBackend>(2).Copy(labels, 0);
       return;
     }
 
@@ -273,10 +273,10 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 
       // now we know how many output bboxes there will be, we can allocate
       // the output.
-      auto &img_out = ws.OutputRef<CPUBackend>(0);
+      auto &img_out = ws.Output<CPUBackend>(0);
       img_out.SetLayout(img.GetLayout());
-      auto &bbox_out = ws.OutputRef<CPUBackend>(1);
-      auto &label_out = ws.OutputRef<CPUBackend>(2);
+      auto &bbox_out = ws.Output<CPUBackend>(1);
+      auto &label_out = ws.Output<CPUBackend>(2);
 
       bbox_out.Resize({valid_bboxes, 4}, DALI_FLOAT);
       auto *bbox_out_data = bbox_out.mutable_data<float>();

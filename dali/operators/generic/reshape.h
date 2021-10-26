@@ -53,7 +53,7 @@ class Reshape : public Operator<Backend> {
   inline void SetOutputType(const Workspace &ws) {
     output_type_ = output_type_arg_ != DALI_NO_TYPE
       ? &TypeTable::GetTypeInfo(output_type_arg_)
-      : &ws.template InputRef<Backend>(0).type_info();
+      : &ws.template Input<Backend>(0).type_info();
   }
 
   std::vector<int> src_dims_;

@@ -131,7 +131,7 @@ bool ROIRandomCropCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
         }
       }
     } else {
-      auto &in = ws.template InputRef<CPUBackend>(0);
+      auto &in = ws.template Input<CPUBackend>(0);
       in_shape_ = in.shape();
     }
 
@@ -175,7 +175,7 @@ bool ROIRandomCropCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 void ROIRandomCropCPU::RunImpl(workspace_t<CPUBackend> &ws) {
-  auto &out_crop_start = ws.template OutputRef<CPUBackend>(0);
+  auto &out_crop_start = ws.template Output<CPUBackend>(0);
   auto crop_start = view<int64_t, 1>(out_crop_start);
 
   int nsamples = crop_start.shape.size();

@@ -179,8 +179,8 @@ SpectrogramImplCpu<time_major>::SpectrogramImplCpu(const OpSpec &spec)
 template <bool time_major>
 bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc,
                                                const workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
   int nsamples = input.num_samples();
@@ -254,8 +254,8 @@ bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc
 
 template <bool time_major>
 void SpectrogramImplCpu<time_major>::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   auto out_shape = output.shape();
   int nsamples = input.num_samples();
   auto& thread_pool = ws.GetThreadPool();

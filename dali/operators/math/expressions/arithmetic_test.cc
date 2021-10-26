@@ -226,7 +226,7 @@ class BinaryArithmeticOpsTest
     vector<T> result_cpu(shape.num_elements());
     auto *target_ptr = result_cpu.data();
     for (int i = 0; i < shape.num_samples(); i++) {
-      auto *result = ws.OutputRef<Backend>(0).template tensor<T>(i);
+      auto *result = ws.Output<Backend>(0).template tensor<T>(i);
       MemCopy(target_ptr, result, shape[i].num_elements() * sizeof(T));
       target_ptr += shape[i].num_elements();
     }
@@ -343,8 +343,8 @@ TEST(ArithmeticOpsTest, GenericPipeline) {
   vector<int32_t> result2_cpu(tensor_elements);
   for (int sample_id = 0; sample_id < batch_size; sample_id++) {
     const auto *data = batch.tensor<int>(sample_id);
-    auto *result = ws.OutputRef<CPUBackend>(0).tensor<int32_t>(sample_id);
-    auto *result2 = ws.OutputRef<GPUBackend>(1).tensor<int32_t>(sample_id);
+    auto *result = ws.Output<CPUBackend>(0).tensor<int32_t>(sample_id);
+    auto *result2 = ws.Output<GPUBackend>(1).tensor<int32_t>(sample_id);
 
     MemCopy(result2_cpu.data(), result2, tensor_elements * sizeof(int));
     CUDA_CALL(cudaStreamSynchronize(0));
@@ -396,16 +396,16 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
   pipe.RunGPU();
   DeviceWorkspace ws;
   pipe.Outputs(&ws);
-  ASSERT_EQ(ws.OutputRef<CPUBackend>(0).type(), DALI_FLOAT);
-  ASSERT_EQ(ws.OutputRef<GPUBackend>(1).type(), DALI_FLOAT);
+  ASSERT_EQ(ws.Output<CPUBackend>(0).type(), DALI_FLOAT);
+  ASSERT_EQ(ws.Output<GPUBackend>(1).type(), DALI_FLOAT);
 
   vector<float> result1_cpu(tensor_elements);
 
   for (int sample_id = 0; sample_id < batch_size; sample_id++) {
     const auto *data0 = batch[0].tensor<int>(sample_id);
     const auto *data1 = batch[1].tensor<int>(sample_id);
-    auto *result0 = ws.OutputRef<CPUBackend>(0).tensor<float>(sample_id);
-    auto *result1 = ws.OutputRef<GPUBackend>(1).tensor<float>(sample_id);
+    auto *result0 = ws.Output<CPUBackend>(0).tensor<float>(sample_id);
+    auto *result1 = ws.Output<GPUBackend>(1).tensor<float>(sample_id);
 
     MemCopy(result1_cpu.data(), result1, tensor_elements * sizeof(float));
     CUDA_CALL(cudaStreamSynchronize(0));
@@ -458,8 +458,8 @@ TEST(ArithmeticOpsTest, ConstantsPipeline) {
 
   for (int sample_id = 0; sample_id < batch_size; sample_id++) {
     const auto *data = batch.tensor<int>(sample_id);
-    auto *result0 = ws.OutputRef<CPUBackend>(0).tensor<int32_t>(sample_id);
-    auto *result1 = ws.OutputRef<CPUBackend>(1).tensor<float>(sample_id);
+    auto *result0 = ws.Output<CPUBackend>(0).tensor<int32_t>(sample_id);
+    auto *result1 = ws.Output<CPUBackend>(1).tensor<float>(sample_id);
 
     for (int i = 0; i < tensor_elements; i++) {
       EXPECT_EQ(result0[i], data[i] + magic_int);
@@ -521,16 +521,16 @@ class ArithmeticOpsScalarTest :  public ::testing::TestWithParam<shape_sequence>
       pipe.Outputs(&ws);
 
 
-      ASSERT_EQ(ws.OutputRef<CPUBackend>(0).shape(), result_shape);
-      ASSERT_EQ(ws.OutputRef<GPUBackend>(1).shape(), result_shape);
+      ASSERT_EQ(ws.Output<CPUBackend>(0).shape(), result_shape);
+      ASSERT_EQ(ws.Output<GPUBackend>(1).shape(), result_shape);
 
 
       for (int sample_id = 0; sample_id < batch_size; sample_id++) {
         const auto *data0 = batch[0].tensor<int>(sample_id);
         const auto *data1 = batch[1].tensor<int>(sample_id);
 
-        const auto *result0 = ws.OutputRef<CPUBackend>(0).tensor<int>(sample_id);
-        const auto *result1 = ws.OutputRef<GPUBackend>(1).tensor<int>(sample_id);
+        const auto *result0 = ws.Output<CPUBackend>(0).tensor<int>(sample_id);
+        const auto *result1 = ws.Output<GPUBackend>(1).tensor<int>(sample_id);
 
         vector<int> result1_cpu(result_shape[sample_id].num_elements());
 
@@ -666,8 +666,8 @@ TEST(ArithmeticOpsTest, UnaryPipeline) {
   vector<int32_t> result1_cpu(tensor_elements);
 
   for (int sample_id = 0; sample_id < batch_size; sample_id++) {
-    auto *result0 = ws.OutputRef<CPUBackend>(0).tensor<int32_t>(sample_id);
-    auto *result1 = ws.OutputRef<GPUBackend>(1).tensor<int32_t>(sample_id);
+    auto *result0 = ws.Output<CPUBackend>(0).tensor<int32_t>(sample_id);
+    auto *result1 = ws.Output<GPUBackend>(1).tensor<int32_t>(sample_id);
 
     MemCopy(result1_cpu.data(), result1, tensor_elements * sizeof(int));
     CUDA_CALL(cudaStreamSynchronize(0));

@@ -108,7 +108,7 @@ void PrepareOutputs(workspace_t<Backend> &ws, const py::object &output_o, int ba
     py::list dl_list = py::cast<py::list>(return_tuple[idx]);
     auto dl_tensors = CastToDLTensorList<Backend>(dl_list, batch_size, idx);
     if (dl_tensors.empty()) continue;
-    auto &tlist = ws.template OutputRef<Backend>(idx);
+    auto &tlist = ws.template Output<Backend>(idx);
     tlist.Resize(GetDLTensorListShape(dl_tensors), DLToDALIType(dl_tensors[0]->dl_tensor.dtype));
     CopyOutputData(tlist, dl_tensors, batch_size, ws);
   }
@@ -232,7 +232,7 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
   void SetOutputLayouts(workspace_t<Backend> &ws) {
     Index output_idx = 0;
     for (auto layout : output_layouts_) {
-      auto &output = ws.template OutputRef<Backend>(output_idx);
+      auto &output = ws.template Output<Backend>(output_idx);
       output.SetLayout(layout);
       ++output_idx;
     }

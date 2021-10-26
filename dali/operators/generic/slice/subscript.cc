@@ -68,8 +68,8 @@ DALI_SCHEMA(TensorSubscript)
 template <>
 template <int ndim, int element_size>
 void TensorSubscript<CPUBackend>::RunTyped(HostWorkspace &ws) {
-  auto &input = ws.template InputRef<CPUBackend>(0);
-  auto &output = ws.template OutputRef<CPUBackend>(0);
+  auto &input = ws.template Input<CPUBackend>(0);
+  auto &output = ws.template Output<CPUBackend>(0);
   int N = input.num_samples();
   using T = kernels::type_of_size<element_size>;
   ThreadPool &tp = ws.GetThreadPool();
@@ -118,10 +118,10 @@ struct SubscriptDimCheck : public Operator<Backend> {
   }
 
   void RunImpl(workspace_t<Backend> &ws) override {
-    auto &in = ws.template InputRef<Backend>(0);
+    auto &in = ws.template Input<Backend>(0);
     DALI_ENFORCE(num_subscripts_ <= in.sample_dim(), make_string("Too many indices (",
       num_subscripts_, ") for a ", in.sample_dim(), "-D tensor."));
-    auto &out = ws.template OutputRef<Backend>(0);
+    auto &out = ws.template Output<Backend>(0);
     out.ShareData(in);
   }
 

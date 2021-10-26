@@ -65,8 +65,8 @@ TEST_F(VideoReaderDecoderTest, CpuConstantFrameRate) {
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
-    auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
-    auto &frame_label_output = ws.template OutputRef<dali::CPUBackend>(1);
+    auto &frame_video_output = ws.template Output<dali::CPUBackend>(0);
+    auto &frame_label_output = ws.template Output<dali::CPUBackend>(1);
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
@@ -133,8 +133,8 @@ TEST_F(VideoReaderDecoderTest, CpuVariableFrameRate) {
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
-    auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
-    auto &frame_label_output = ws.template OutputRef<dali::CPUBackend>(1);
+    auto &frame_video_output = ws.template Output<dali::CPUBackend>(0);
+    auto &frame_label_output = ws.template Output<dali::CPUBackend>(1);
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
@@ -194,7 +194,7 @@ TEST_F(VideoReaderDecoderTest, RandomShuffle) {
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
-    auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
+    auto &frame_video_output = ws.template Output<dali::CPUBackend>(0);
     const auto sample = frame_video_output.tensor<uint8_t>(0);
     CompareFrames(sample, this->GetCfrFrame(0, expected_order[sequence_id]), this->FrameSize(0));
   }
@@ -268,11 +268,11 @@ TEST_F(VideoReaderDecoderTest, CompareReaders) {
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
-    auto &frame_video_output = ws.template OutputRef<dali::CPUBackend>(0);
-    auto &frame_gpu_video_output = ws.template OutputRef<dali::GPUBackend>(1);
+    auto &frame_video_output = ws.template Output<dali::CPUBackend>(0);
+    auto &frame_gpu_video_output = ws.template Output<dali::GPUBackend>(1);
 
-    auto &frame_label_output = ws.template OutputRef<dali::CPUBackend>(2);
-    auto &frame_gpu_label_output = ws.template OutputRef<dali::GPUBackend>(3);
+    auto &frame_label_output = ws.template Output<dali::CPUBackend>(2);
+    auto &frame_gpu_label_output = ws.template Output<dali::GPUBackend>(3);
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       const auto sample = frame_video_output.tensor<uint8_t>(sample_id);

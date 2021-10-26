@@ -47,7 +47,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override {
-    const auto &input = ws.template InputRef<GPUBackend>(0);
+    const auto &input = ws.template Input<GPUBackend>(0);
     auto layout = input.GetLayout();
     auto type = input.type();
     auto shape = input.shape();
@@ -65,8 +65,8 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
   };
 
   void RunImpl(workspace_t<GPUBackend> &ws) override {
-    const auto &input_ref = ws.template InputRef<GPUBackend>(0);
-    auto &output_ref = ws.template OutputRef<GPUBackend>(0);
+    const auto &input_ref = ws.template Input<GPUBackend>(0);
+    auto &output_ref = ws.template Output<GPUBackend>(0);
     output_ref.SetLayout(input_ref.GetLayout());
     auto input = view<const T, Dims>(input_ref);
     auto output = view<T, Dims>(output_ref);
@@ -111,7 +111,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
 template <>
 bool Erase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                   const workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.InputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
   auto in_shape = input.shape();
   auto channel_dim = input.GetLayout().find('C');
   TYPE_SWITCH(input.type(), type2id, T, ERASE_SUPPORTED_TYPES, (

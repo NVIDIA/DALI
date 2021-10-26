@@ -64,13 +64,13 @@ bool TensorJoin<Backend, new_axis>::SetupImpl(
         vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) {
   int njoin = this->spec_.NumRegularInput();
   outputs.resize(1);
-  outputs[0].type = ws.template InputRef<Backend>(0).type();
+  outputs[0].type = ws.template Input<Backend>(0).type();
   auto &output_shape = outputs[0].shape;
 
   // Check that all inputs have the same type
   DALIDataType out_type = outputs[0].type;
   for (int i = 1; i < njoin; i++) {
-    DALIDataType type_id = ws.template InputRef<Backend>(i).type();
+    DALIDataType type_id = ws.template Input<Backend>(i).type();
     DALI_ENFORCE(type_id == out_type, make_string(
         "All inputs must have the same type.\nType of input #0: ", out_type,
         "\nType of input #", i, ": ", type_id));
@@ -97,7 +97,7 @@ void TensorJoin<Backend, new_axis>::SetupTyped(
 
   copy_idx_ = 0;
   for (int i = 0; i < ninp; i++) {
-    auto tlv = view<T>(ws.template InputRef<Backend>(i));
+    auto tlv = view<T>(ws.template Input<Backend>(i));
     if (new_axis || tlv.num_elements() > 0) {  // when concatenating, we can skip empty inputs
       if (inputs.empty())
         copy_idx_ = i;
@@ -109,7 +109,7 @@ void TensorJoin<Backend, new_axis>::SetupTyped(
 
   // No non-empty inputs? Use the first one, even if it's empty.
   if (inputs.empty()) {
-    inputs.push_back(view<T>(ws.template InputRef<Backend>(0)));
+    inputs.push_back(view<T>(ws.template Input<Backend>(0)));
   }
 
   kernels::tensor_join::JoinedShape(output_shape, [&](int index) {
@@ -126,7 +126,7 @@ void TensorJoin<Backend, new_axis>::GetInputLayout(const workspace_t<Backend> &w
 
   int ninp = this->spec_.NumRegularInput();
   for (int i = 0; i < ninp; i++) {
-    auto &in = ws.template InputRef<Backend>(0);
+    auto &in = ws.template Input<Backend>(0);
     TensorLayout tl = in.GetLayout();
     if (!tl.empty()) {
         if (!input_layout_.empty())
@@ -143,7 +143,7 @@ void TensorJoin<Backend, new_axis>::SetOutputLayout(const workspace_t<Backend> &
   if (new_axis) {
     output_layout_ = {};
     if (has_axis_name_) {
-      if (input_layout_.empty() && ws.template InputRef<Backend>(0).shape().sample_dim() > 0) {
+      if (input_layout_.empty() && ws.template Input<Backend>(0).shape().sample_dim() > 0) {
         DALI_FAIL("Specifying the new axis name with ``axis_name`` with non-scalar input requires "
             "a non-empty input layout.");
       }
@@ -172,13 +172,13 @@ void TensorJoin<Backend, new_axis>::SetupAxis() {
 
 template <typename Backend, bool new_axis>
 void TensorJoin<Backend, new_axis>::RunImpl(workspace_t<Backend> &ws) {
-  auto &out = ws.template OutputRef<Backend>(0);
+  auto &out = ws.template Output<Backend>(0);
   if (copy_idx_ >= 0) {
     // just one non-empty input - copy it to the output and return
     TensorListShape<> shape;
     if (new_axis)
       shape = out.shape();
-    out.Copy(ws.template InputRef<Backend>(copy_idx_), ws.has_stream() ? ws.stream() : 0);
+    out.Copy(ws.template Input<Backend>(copy_idx_), ws.has_stream() ? ws.stream() : 0);
     if (new_axis)
       out.Resize(shape);
     out.SetLayout(output_layout_);

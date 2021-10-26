@@ -201,7 +201,7 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
   const ImageLabelWrapper& image_label = GetSample(ws.data_idx());
 
   Index image_size = image_label.image.size();
-  auto &image_output = ws.OutputRef<CPUBackend>(0);
+  auto &image_output = ws.Output<CPUBackend>(0);
   int image_idx = image_label.label;
 
   image_output.Resize({image_size}, DALI_UINT8);
@@ -210,20 +210,20 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
 
   auto &loader_impl = LoaderImpl();
   auto bboxes = loader_impl.bboxes(image_idx);
-  auto &boxes_output = ws.OutputRef<CPUBackend>(1);
+  auto &boxes_output = ws.Output<CPUBackend>(1);
   boxes_output.Resize({bboxes.size(), 4}, DALI_FLOAT);
   std::memcpy(boxes_output.mutable_data<float>(), bboxes.data(),
               bboxes.size() * sizeof(vec<4>));
 
   auto labels = loader_impl.labels(image_idx);
-  auto &labels_output = ws.OutputRef<CPUBackend>(2);
+  auto &labels_output = ws.Output<CPUBackend>(2);
   labels_output.Resize({labels.size()}, DALI_INT32);  // 0.28dev: changed shape from {N, 1} to {N}
   std::memcpy(labels_output.mutable_data<int>(), labels.data(),
               labels.size() * sizeof(int));
 
   int curr_out_idx = 3;
   if (output_polygon_masks_) {
-    auto &polygons_output = ws.OutputRef<CPUBackend>(curr_out_idx++);
+    auto &polygons_output = ws.Output<CPUBackend>(curr_out_idx++);
     auto polygons = loader_impl.polygons(image_idx);
     polygons_output.Resize({polygons.size(), 3}, DALI_INT32);
     std::memcpy(polygons_output.mutable_data<int>(),
@@ -235,7 +235,7 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
         poly_data[i * 3 + 2] *= 2;
       }
     }
-    auto &vertices_output = ws.OutputRef<CPUBackend>(curr_out_idx++);
+    auto &vertices_output = ws.Output<CPUBackend>(curr_out_idx++);
     auto vertices = loader_impl.vertices(image_idx);
     vertices_output.Resize({vertices.size(), 2}, DALI_FLOAT);
     std::memcpy(vertices_output.mutable_data<float>(),
@@ -243,7 +243,7 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
   }
 
   if (output_pixelwise_masks_) {
-    auto &masks_output = ws.OutputRef<CPUBackend>(curr_out_idx++);
+    auto &masks_output = ws.Output<CPUBackend>(curr_out_idx++);
     auto masks_info = loader_impl.pixelwise_masks_info(image_idx);
     masks_output.Resize(masks_info.shape, DALI_INT32);
     masks_output.SetLayout("HWC");
@@ -251,7 +251,7 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
   }
 
   if (output_image_ids_) {
-    auto &id_output = ws.OutputRef<CPUBackend>(curr_out_idx++);
+    auto &id_output = ws.Output<CPUBackend>(curr_out_idx++);
     id_output.Resize({1}, DALI_INT32);
     *(id_output.mutable_data<int>()) = loader_impl.image_id(image_idx);
   }

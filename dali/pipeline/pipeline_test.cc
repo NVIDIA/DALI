@@ -307,9 +307,9 @@ class DummyPresizeOpCPU : public Operator<CPUBackend> {
   }
 
   void RunImpl(HostWorkspace &ws) override {
-    const auto &input = ws.InputRef<CPUBackend>(0);
+    const auto &input = ws.Input<CPUBackend>(0);
     int num_samples = input.shape().num_samples();
-    auto &output = ws.OutputRef<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
     auto tmp_size = output.capacity();
     output.set_type<size_t>();
     output.Resize(uniform_list_shape(num_samples, std::vector<int64_t>{2}));
@@ -332,9 +332,9 @@ class DummyPresizeOpGPU : public Operator<GPUBackend> {
   }
 
   void RunImpl(DeviceWorkspace &ws) override {
-    const auto &input = ws.InputRef<GPUBackend>(0);
+    const auto &input = ws.Input<GPUBackend>(0);
     int num_samples = input.shape().num_samples();
-    auto &output = ws.OutputRef<GPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
     output.set_type<size_t>();
     size_t tmp_size[2] = {output.capacity(), input.capacity()};
     output.Resize(uniform_list_shape(num_samples, std::vector<int64_t>{2}));
@@ -358,9 +358,9 @@ class DummyPresizeOpMixed : public Operator<MixedBackend> {
 
   using Operator<MixedBackend>::Run;
   void Run(MixedWorkspace &ws) override {
-    auto &input = ws.InputRef<CPUBackend>(0);
+    auto &input = ws.Input<CPUBackend>(0);
     int num_samples = input.shape().num_samples();
-    auto &output = ws.OutputRef<GPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
     output.set_type<size_t>();
     size_t tmp_size[2] = {output.capacity(), input.capacity()};
     output.Resize(uniform_list_shape(num_samples, std::vector<int64_t>{2}));
@@ -465,29 +465,29 @@ TEST_F(PipelineTestOnce, TestPresize) {
   pipe.Outputs(&ws);
 
   // we should not presize CPU buffers if they are not pinned
-  ASSERT_EQ(*(ws.OutputRef<CPUBackend>(0).tensor<size_t>(0)), 0);
+  ASSERT_EQ(*(ws.Output<CPUBackend>(0).tensor<size_t>(0)), 0);
 
   int ref_presize = RestrictPinnedMemUsage() ? 0 : presize_val_CPU;
-  ASSERT_EQ(*(ws.OutputRef<CPUBackend>(1).tensor<size_t>(0)), ref_presize);
+  ASSERT_EQ(*(ws.Output<CPUBackend>(1).tensor<size_t>(0)), ref_presize);
 
   size_t tmp[2];
   CUDA_CALL(cudaDeviceSynchronize());
-  CUDA_CALL(cudaMemcpy(&tmp, ws.OutputRef<GPUBackend>(2).tensor<size_t>(0),
+  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(2).tensor<size_t>(0),
             sizeof(size_t) * 2, cudaMemcpyDefault));
   ASSERT_EQ(tmp[0], presize_val_Mixed);
   ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
 
-  CUDA_CALL(cudaMemcpy(&tmp, ws.OutputRef<GPUBackend>(3).tensor<size_t>(0),
+  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(3).tensor<size_t>(0),
             sizeof(size_t) * 2, cudaMemcpyDefault));
   ASSERT_EQ(tmp[0], presize_val_GPU);
   ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
 
-  CUDA_CALL(cudaMemcpy(&tmp, ws.OutputRef<GPUBackend>(4).tensor<size_t>(0),
+  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(4).tensor<size_t>(0),
             sizeof(size_t) * 2, cudaMemcpyDefault));
   ASSERT_EQ(tmp[0], presize_val_GPU);
   ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
 
-  CUDA_CALL(cudaMemcpy(&tmp, ws.OutputRef<GPUBackend>(5).tensor<size_t>(0),
+  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(5).tensor<size_t>(0),
             sizeof(size_t) * 2, cudaMemcpyDefault));
   ASSERT_EQ(tmp[0], presize_val_default);
   ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
@@ -551,7 +551,7 @@ class PrefetchedPipelineTest : public GenericDecoderTest<RGB> {
     ASSERT_EQ(ws.NumOutput(), 1);
     ASSERT_EQ(ws.NumInput(), 0);
     ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
-    TensorList<GPUBackend> &res1 = ws.OutputRef<GPUBackend>(0);
+    TensorList<GPUBackend> &res1 = ws.Output<GPUBackend>(0);
     for (int j = 0; j < batch_size; ++j) {
       this->VerifyDecode(
           res1.template tensor<uint8>(j),

@@ -205,7 +205,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   }
 
   static inline int NumSamples(const Workspace &ws) {
-    return ws.template InputRef<Backend>(0).shape().num_samples();
+    return ws.template Input<Backend>(0).shape().num_samples();
   }
 
   virtual void ResetParams() {
@@ -284,7 +284,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   }
 
   virtual bool SetOutputSizes() {
-    decltype(auto) input_shape = ws_->template InputRef<Backend>(0).shape();
+    decltype(auto) input_shape = ws_->template Input<Backend>(0).shape();
     const int N = input_shape.num_samples();
     out_sizes_.resize(N);
     SpatialShape scalar_size;

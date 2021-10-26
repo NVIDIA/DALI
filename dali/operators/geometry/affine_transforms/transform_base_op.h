@@ -73,7 +73,7 @@ class TransformBaseOp : public Operator<Backend> {
     has_input_ = ws.NumInput() > 0;
     auto curr_batch_size = has_input_ ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
     if (has_input_) {
-      auto &input = ws.template InputRef<Backend>(0);
+      auto &input = ws.template Input<Backend>(0);
       const auto &shape = input.shape();
       DALI_ENFORCE(is_uniform(shape), "All matrices must have the same shape.");
       DALI_ENFORCE(input.type() == dtype_,
@@ -112,7 +112,7 @@ class TransformBaseOp : public Operator<Backend> {
     }
 
     constexpr int mat_dim = ndim + 1;
-    auto &out = ws.template OutputRef<Backend>(0);
+    auto &out = ws.template Output<Backend>(0);
     out.SetLayout({});  // no layout
 
     int64_t num_mats = This().IsConstantTransform() ? 1 : nsamples_;
@@ -123,7 +123,7 @@ class TransformBaseOp : public Operator<Backend> {
 
     auto out_view = view<T>(out);
     if (has_input_) {
-      auto &in = ws.template InputRef<Backend>(0);
+      auto &in = ws.template Input<Backend>(0);
       auto in_view = view<T>(in);
       for (int i = 0; i < nsamples_; i++) {
         int mat_idx = num_mats == 1 ? 0 : i;
@@ -146,7 +146,7 @@ class TransformBaseOp : public Operator<Backend> {
 
   int input_transform_ndim(const workspace_t<Backend> &ws) const {
     assert(has_input_);
-    auto &input = ws.template InputRef<Backend>(0);
+    auto &input = ws.template Input<Backend>(0);
     const auto& shape = input.shape();
     int ndims = shape[0][0];
     assert(shape[0][1] == ndims + 1);

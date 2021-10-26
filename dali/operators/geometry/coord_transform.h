@@ -40,7 +40,7 @@ class CoordTransform : public Operator<Backend>, private MTTransformAttr {
  protected:
   using Operator<Backend>::spec_;
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
-    auto &input = ws.template InputRef<Backend>(0);  // get a reference to the input tensor list
+    auto &input = ws.template Input<Backend>(0);     // get a reference to the input tensor list
     const auto &input_shape = input.shape();         // get a shape - use const-ref to avoid copying
     output_descs.resize(1);                          // only one output
     output_descs[0].type = dtype_;
@@ -67,8 +67,8 @@ class CoordTransform : public Operator<Backend>, private MTTransformAttr {
   }
 
   void RunImpl(workspace_t<Backend> &ws) override {
-    auto &in = ws.template InputRef<Backend>(0);
-    auto &out = ws.template OutputRef<Backend>(0);
+    auto &in = ws.template Input<Backend>(0);
+    auto &out = ws.template Output<Backend>(0);
     out.SetLayout(in.GetLayout());
 
     if (out.shape().num_elements() == 0)

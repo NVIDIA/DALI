@@ -75,7 +75,7 @@ bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
                                                 const HostWorkspace &ws) {
   output_desc.resize(1);
   SetupCommonImpl(ws);
-  const auto &input = ws.InputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
   auto in_shape = input.shape();
   int ndim = in_shape.sample_dim();
   int nsamples = in_shape.size();
@@ -102,8 +102,8 @@ bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
 
 template <>
 void CropMirrorNormalize<CPUBackend>::RunImpl(HostWorkspace &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   output.SetLayout(output_layout_);
   auto in_shape = input.shape();
   auto out_shape = output.shape();

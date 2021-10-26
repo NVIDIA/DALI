@@ -59,8 +59,8 @@ void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
 
 template <>
 void Flip<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   auto layout = input.GetLayout();
   output.SetLayout(layout);
   output.Resize(input.shape(), input.type());

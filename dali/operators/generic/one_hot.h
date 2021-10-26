@@ -80,7 +80,7 @@ class OneHot : public Operator<Backend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template InputRef<Backend>(0);
+    const auto &input = ws.template Input<Backend>(0);
     int input_sample_dim = input.shape().sample_dim();
     int num_samples = input.shape().num_samples();
     DALI_ENFORCE(-1 <= axis_ && axis_ <= input_sample_dim,
@@ -114,7 +114,7 @@ class OneHot : public Operator<Backend> {
     if (!new_axis_name_) {
       return {};
     }
-    const auto &input = ws.template InputRef<Backend>(0);
+    const auto &input = ws.template Input<Backend>(0);
     auto in_layout = input.GetLayout();
     // .size method returns uint_8 which doesn't work well when 0 is printed in error message
     int in_layout_size = in_layout.size();

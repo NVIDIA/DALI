@@ -161,7 +161,7 @@ class NonsilenceOperator : public Operator<Backend> {
       reference_max_ = true;
     }
     window_length_ = spec.GetArgument<int>("window_length", &ws);
-    auto input_type = ws.template InputRef<Backend>(0).type();
+    auto input_type = ws.template Input<Backend>(0).type();
     // If input type is not floating point, there's no need for reset interval
     reset_interval_ = IsFloatingPoint(input_type) ? spec.GetArgument<int>("reset_interval", &ws)
                                                   : -1;
@@ -207,9 +207,9 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
  private:
   template<typename InputType>
   void RunImplTyped(workspace_t<CPUBackend> &ws) {
-    const auto &input = ws.template InputRef<CPUBackend>(0);
-    auto &output_begin = ws.OutputRef<CPUBackend>(0);
-    auto &output_length = ws.OutputRef<CPUBackend>(1);
+    const auto &input = ws.template Input<CPUBackend>(0);
+    auto &output_begin = ws.Output<CPUBackend>(0);
+    auto &output_length = ws.Output<CPUBackend>(1);
     auto curr_batch_size = ws.GetInputBatchSize(0);
     auto &tp = ws.GetThreadPool();
     auto in_shape = input.shape();

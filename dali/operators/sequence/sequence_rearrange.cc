@@ -70,8 +70,8 @@ copy_desc GetCopyDesc(char *output_sample, const char *input_sample, int out_ele
 
 template <>
 void SequenceRearrange<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   auto &thread_pool = ws.GetThreadPool();
   auto out_shape = output.shape();
   auto curr_batch_size = ws.GetInputBatchSize(0);

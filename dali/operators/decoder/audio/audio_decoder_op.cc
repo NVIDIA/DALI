@@ -65,7 +65,7 @@ functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
 
 bool
 AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) {
-  auto &input = ws.template InputRef<Backend>(0);
+  auto &input = ws.template Input<Backend>(0);
   const auto batch_size = input.shape().num_samples();
   GetPerSampleArgument<float>(target_sample_rates_, "sample_rate", ws, batch_size);
 
@@ -139,8 +139,8 @@ AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, DynamicDi
 
 template <typename OutputType>
 void AudioDecoderCpu::DecodeBatch(workspace_t<Backend> &ws) {
-  auto decoded_output = view<OutputType, DynamicDimensions>(ws.template OutputRef<Backend>(0));
-  auto sample_rate_output = view<float, 0>(ws.template OutputRef<Backend>(1));
+  auto decoded_output = view<OutputType, DynamicDimensions>(ws.template Output<Backend>(0));
+  auto sample_rate_output = view<float, 0>(ws.template Output<Backend>(1));
   int batch_size = decoded_output.shape.num_samples();
   auto &tp = ws.GetThreadPool();
 

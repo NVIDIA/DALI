@@ -23,8 +23,8 @@ namespace dali {
 
 bool GridMaskGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                             const workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template InputRef<GPUBackend>(0);
-  const auto &output = ws.template OutputRef<GPUBackend>(0);
+  const auto &input = ws.template Input<GPUBackend>(0);
+  const auto &output = ws.template Output<GPUBackend>(0);
   output_desc.resize(1);
   GetArguments(ws);
   output_desc[0] = {input.shape(), input.type()};
@@ -42,8 +42,8 @@ bool GridMaskGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 void GridMaskGpu::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template InputRef<GPUBackend>(0);
-  auto &output = ws.template OutputRef<GPUBackend>(0);
+  const auto &input = ws.template Input<GPUBackend>(0);
+  auto &output = ws.template Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
   TYPE_SWITCH(input.type(), type2id, Type, GRID_MASK_TYPES, (
       {

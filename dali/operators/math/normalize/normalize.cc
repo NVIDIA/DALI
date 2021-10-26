@@ -146,7 +146,7 @@ using namespace normalize;  // NOLINT
 
 template <typename OutputType, typename InputType>
 void Normalize<CPUBackend>::SetupTyped(const HostWorkspace &ws) {
-  auto &input = ws.InputRef<CPUBackend>(0);
+  auto &input = ws.Input<CPUBackend>(0);
   int nsamples = input.num_samples();
   int nthreads = ws.GetThreadPool().NumThreads();
 
@@ -248,11 +248,11 @@ template <typename OutputType, typename InputType>
 void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
   ThreadPool &tp = ws.GetThreadPool();
 
-  auto &input = ws.InputRef<CPUBackend>(0);
+  auto &input = ws.Input<CPUBackend>(0);
   TensorListView<StorageCPU, const InputType> in_view = view<const InputType>(input);
   auto in_shape = input.shape();
 
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   TensorListView<StorageCPU, OutputType> out_view = view<OutputType>(output);
   output.SetLayout(input.GetLayout());
 

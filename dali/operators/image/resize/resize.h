@@ -95,7 +95,7 @@ template <typename Backend>
 bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                 const workspace_t<Backend> &ws) {
   output_desc.resize(save_attrs_ ? 2 : 1);
-  auto &input = ws.template InputRef<Backend>(0);
+  auto &input = ws.template Input<Backend>(0);
 
   const auto &in_shape = input.shape();
   auto in_type = input.type();

@@ -37,7 +37,7 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     }
   }
 
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
   if (!state_info.no_copy || state_info.copied_shared_data) {
     CUDA_CALL(cudaStreamWaitEvent(stream_used, *internal_copy_to_storage.front(), 0));

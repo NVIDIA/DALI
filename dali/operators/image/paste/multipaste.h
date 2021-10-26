@@ -99,7 +99,7 @@ class MultiPasteOp : public Operator<Backend> {
   }
 
   void AcquireArguments(const OpSpec &spec, const workspace_t<Backend> &ws) {
-    const auto &images = ws.template InputRef<Backend>(0);
+    const auto &images = ws.template Input<Backend>(0);
 
     auto curr_batch_size = ws.GetRequestedBatchSize(0);
     if (curr_batch_size == 0)
@@ -117,7 +117,7 @@ class MultiPasteOp : public Operator<Backend> {
     if (shapes_.IsDefined()) {
       shapes_.Acquire(spec, ws, curr_batch_size, false);
     }
-    input_type_ = ws.template InputRef<Backend>(0).type();
+    input_type_ = ws.template Input<Backend>(0).type();
     output_type_ =
         output_type_arg_ != DALI_NO_TYPE
         ? output_type_arg_
@@ -198,7 +198,7 @@ class MultiPasteOp : public Operator<Backend> {
   using Operator<Backend>::RunImpl;
 
   void RunImpl(workspace_t<Backend> &ws) override {
-    const auto input_type_id = ws.template InputRef<Backend>(0).type();
+    const auto input_type_id = ws.template Input<Backend>(0).type();
     TYPE_SWITCH(input_type_id, type2id, InputType, (MULTIPASTE_INPUT_TYPES), (
         TYPE_SWITCH(output_type_, type2id, OutputType, (MULTIPASTE_OUTPUT_TYPES), (
                 This().template RunTyped<OutputType, InputType>(ws);
@@ -208,7 +208,7 @@ class MultiPasteOp : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const workspace_t<Backend> &ws) override {
-    const auto &images = ws.template InputRef<Backend>(0);
+    const auto &images = ws.template Input<Backend>(0);
     int ndim = images.sample_dim();
     DALI_ENFORCE(ndim == 3, "MultiPaste supports only 2D data with channels (HWC)");
 

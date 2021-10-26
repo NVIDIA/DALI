@@ -33,8 +33,8 @@ The indices must be within ``[0..batch_size)`` range. Repetitions and omissions 
     DALI_INT_VEC, true);
 
 void PermuteBatch<CPUBackend>::RunImpl(HostWorkspace &ws) {
-  auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   const auto &output_shape = output.shape();
   output.SetLayout(input.GetLayout());
 
@@ -52,8 +52,8 @@ void PermuteBatch<CPUBackend>::RunImpl(HostWorkspace &ws) {
 }
 
 void PermuteBatch<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  auto &input = ws.InputRef<GPUBackend>(0);
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
 
   output.SetLayout(input.GetLayout());
   int N = indices_.size();

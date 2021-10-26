@@ -164,7 +164,7 @@ class TensorSubscript : public Operator<Backend> {
   }
 
   bool SetupImpl(vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template InputRef<Backend>(0);
+    const auto &input = ws.template Input<Backend>(0);
     DALI_ENFORCE(input.sample_dim() > 0, "Cannot apply an index to a scalar.");
     const auto &input_shape = input.shape();
     outputs.resize(1);
@@ -313,8 +313,8 @@ class TensorSubscript : public Operator<Backend> {
 
   using Operator<Backend>::RunImpl;
   void RunImpl(workspace_t<Backend> &ws) override {
-    const auto &input = ws.template InputRef<Backend>(0);
-    auto &output = ws.template OutputRef<Backend>(0);
+    const auto &input = ws.template Input<Backend>(0);
+    auto &output = ws.template Output<Backend>(0);
     output.SetLayout(GetOutputLayout(input.GetLayout()));
     VALUE_SWITCH(simplified_in_shape_.sample_dim(), ndim,
       (1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),

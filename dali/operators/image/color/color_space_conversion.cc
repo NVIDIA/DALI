@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,8 +30,8 @@ DALI_SCHEMA(ColorSpaceConversion)
 
 template <>
 void ColorSpaceConversion<CPUBackend>::RunImpl(HostWorkspace &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   output.SetLayout(input.GetLayout());
   auto in_view = view<const uint8_t>(input);
   auto out_view = view<uint8_t>(output);

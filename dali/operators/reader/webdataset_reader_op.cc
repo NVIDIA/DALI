@@ -47,7 +47,7 @@ void WebdatasetReader::RunImpl(HostWorkspace& ws) {
   bool threaded = ws.GetThreadPool().NumThreads() > 1;
 
   for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
-    auto& output = ws.OutputRef<CPUBackend>(output_idx);
+    auto& output = ws.Output<CPUBackend>(output_idx);
     for (int data_idx = 0; data_idx < num_samples; data_idx++) {
       auto& sample = GetSample(data_idx);
       ThreadPool::Work copy_task = [output_idx = output_idx, data_idx = data_idx, &output,
@@ -73,20 +73,20 @@ DALI_SCHEMA(readers__Webdataset)
 
 The webdataset format is a way of providing efficient access to datasets stored in tar archives.
 
-Storing data in POSIX tar archives greatly speeds up I/O operations on mechanical storage devices 
-and on network file systems because it allows the operating system to reduce the number of I/O 
+Storing data in POSIX tar archives greatly speeds up I/O operations on mechanical storage devices
+and on network file systems because it allows the operating system to reduce the number of I/O
 operations and to read the data ahead.
 
-WebDataset fulfils a similar function to Tensorflow's TFRecord/tf.Example classes, but is much 
-easier to adopt because it does not actually require any data conversion. The data is stored in 
-exactly the same format inside tar files as it is on disk, and all preprocessing and data 
+WebDataset fulfils a similar function to Tensorflow's TFRecord/tf.Example classes, but is much
+easier to adopt because it does not actually require any data conversion. The data is stored in
+exactly the same format inside tar files as it is on disk, and all preprocessing and data
 augmentation code remains unchanged.
 
-The dataset consists of one or more tar archives, each of which is further split into samples. 
-A sample contains one or more components that correspond to the actual files contained within 
-the archive. The components that belong to a specific sample are aggregated by filename without 
+The dataset consists of one or more tar archives, each of which is further split into samples.
+A sample contains one or more components that correspond to the actual files contained within
+the archive. The components that belong to a specific sample are aggregated by filename without
 extension (for the specifics about the extensions please read the description of the ``ext`` parameter
-below). Note that samples with their filename starting with a dot will not be loaded, as well as 
+below). Note that samples with their filename starting with a dot will not be loaded, as well as
 entries that are not regular files.
 
 In addition to the tar archive with data, each archive should come with a corresponding index file.
@@ -117,7 +117,7 @@ Has to be the same length as the ``index_paths`` argument.)code",
     .AddArg("ext", R"code(The extension sets for each of the outputs produced.
 
 The number of extension sets determines the number of outputs of the reader.
-The extensions of the components are counted as the text after the first dot in the name of the file 
+The extensions of the components are counted as the text after the first dot in the name of the file
 (excluding the samples starting with a dot). The different extension options should be separated
 with a semicolon (';') and may contain dots.
 
@@ -125,7 +125,7 @@ Example: "left.png;right.jpg")code",
             DALI_STRING_VEC)
     .AddOptionalArg("index_paths",
             R"code(The list of the index files corresponding to the respective webdataset archives.
-            
+
 Has to be the same length as the ``paths`` argument. In case it is not provided,
 it will be inferred automatically from the webdataset archive.)code",
             std::vector<std::string>())

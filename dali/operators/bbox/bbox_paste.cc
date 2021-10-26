@@ -56,14 +56,14 @@ canvas and ``(1,1)`` aligns it to bottom-right.
 
 template<>
 void BBoxPaste<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
   const auto input_data = input.data<float>();
 
   DALI_ENFORCE(input.type() == DALI_FLOAT, "Bounding box in wrong format");
   DALI_ENFORCE(input.size() % 4 == 0, "Bounding box tensor size must be a multiple of 4."
                                       "Got: " + std::to_string(input.size()));
 
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   output.Resize(input.shape(), DALI_FLOAT);
   auto *output_data = output.mutable_data<float>();
 

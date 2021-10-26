@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -213,9 +213,9 @@ typedef NppStatus (*colorTwistFunc)(const Npp8u *pSrc, int nSrcStep, Npp8u *pDst
 
 template<>
 void OldColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  const auto &input = ws.InputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
   DALI_ENFORCE(IsType<uint8_t>(input.type()), "Color augmentations accept only uint8 tensors");
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   output.Resize(input.shape(), DALI_UINT8);
   output.SetLayout(input.GetLayout());
 
@@ -248,8 +248,8 @@ void OldColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
 
 template <>
 void OldColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   const auto &input_shape = input.shape();
 
   CheckParam(input, "Color augmentation");

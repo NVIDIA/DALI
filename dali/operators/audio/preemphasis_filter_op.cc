@@ -56,8 +56,8 @@ class PreemphasisFilterCPU : public PreemphasisFilter<CPUBackend> {
 
 template <typename OutputType, typename InputType>
 void PreemphasisFilterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &input = ws.template Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   auto &tp = ws.GetThreadPool();
   auto shape = input.shape();
   auto nsamples = shape.num_samples();
@@ -92,7 +92,7 @@ void PreemphasisFilterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
 }
 
 void PreemphasisFilterCPU::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
+  const auto &input = ws.template Input<CPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, InputType, PREEMPH_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
       RunImplTyped<OutputType, InputType>(ws);

@@ -230,7 +230,7 @@ submodule and renamed to follow a common pattern. This is a placeholder operator
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   const auto &out_sh = output.shape();
   int nsamples = out_sh.num_samples();
   auto &thread_pool = ws.GetThreadPool();

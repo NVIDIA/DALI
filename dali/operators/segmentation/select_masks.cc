@@ -87,12 +87,12 @@ in ``mask_ids`` input.)code",
 
 bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
                               const workspace_t<CPUBackend> &ws) {
-  const auto &in_mask_ids = ws.template InputRef<CPUBackend>(0);
+  const auto &in_mask_ids = ws.template Input<CPUBackend>(0);
   auto in_mask_ids_shape = in_mask_ids.shape();
   DALI_ENFORCE(in_mask_ids.type() == DALI_INT32, "``mask_ids`` input is expected to be int32");
   DALI_ENFORCE(in_mask_ids_shape.sample_dim() == 1, "``mask_ids`` input is expected to be 1D");
 
-  const auto &in_polygons = ws.template InputRef<CPUBackend>(1);
+  const auto &in_polygons = ws.template Input<CPUBackend>(1);
   auto in_polygons_shape = in_polygons.shape();
   DALI_ENFORCE(in_polygons.type() == DALI_INT32,
                "``polygons`` input is expected to be int32");
@@ -100,7 +100,7 @@ bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
                make_string("``polygons`` input is expected to be 2D. Got ",
                            in_polygons_shape.sample_dim(), "D"));
 
-  const auto &in_vertices = ws.template InputRef<CPUBackend>(2);
+  const auto &in_vertices = ws.template Input<CPUBackend>(2);
   auto in_vertices_shape = in_vertices.shape();
   DALI_ENFORCE(in_vertices_shape.sample_dim() == 2,
                make_string("``vertices`` input is expected to be 2D. Got ",
@@ -194,14 +194,14 @@ bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
 template <typename T>
 void SelectMasksCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   // Inputs were already validated and input 0 was already parsed in SetupImpl
-  const auto &in_polygons = ws.template InputRef<CPUBackend>(1);
+  const auto &in_polygons = ws.template Input<CPUBackend>(1);
   const auto &in_polygons_view = view<const int32_t, 2>(in_polygons);
-  auto &out_polygons = ws.template OutputRef<CPUBackend>(0);
+  auto &out_polygons = ws.template Output<CPUBackend>(0);
   const auto &out_polygons_view = view<int32_t, 2>(out_polygons);
 
-  const auto &in_vertices = ws.template InputRef<CPUBackend>(2);
+  const auto &in_vertices = ws.template Input<CPUBackend>(2);
   const auto &in_vertices_view = reinterpret_view<const T, 2>(in_vertices);
-  auto &out_vertices = ws.template OutputRef<CPUBackend>(1);
+  auto &out_vertices = ws.template Output<CPUBackend>(1);
   const auto &out_vertices_view = reinterpret_view<T, 2>(out_vertices);
 
   for (int i = 0; i < in_polygons_view.num_samples(); i++) {
@@ -231,7 +231,7 @@ void SelectMasksCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
 }
 
 void SelectMasksCPU::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &in_vertices = ws.template InputRef<CPUBackend>(2);
+  const auto &in_vertices = ws.template Input<CPUBackend>(2);
   VALUE_SWITCH(in_vertices.type_info().size(), dtype_sz, (1, 2, 4, 8, 16), (
     using T = kernels::type_of_size<dtype_sz>;
     RunImplTyped<T>(ws);

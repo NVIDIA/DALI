@@ -20,8 +20,8 @@ namespace dali {
 
 template<>
 void DumpImage<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  auto &input = ws.InputRef<GPUBackend>(0);
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
 
 
   DALI_ENFORCE(input.shape().sample_dim() == 3,

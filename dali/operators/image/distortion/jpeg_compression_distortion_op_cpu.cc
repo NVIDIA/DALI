@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,8 +57,8 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
 };
 
 void JpegCompressionDistortionCPU::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   auto in_shape = input.shape();
   int nsamples = input.num_samples();
   auto& thread_pool = ws.GetThreadPool();

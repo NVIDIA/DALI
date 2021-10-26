@@ -152,7 +152,7 @@ class DataReader : public Operator<Backend> {
 
   void EnforceUniformOutput(const HostWorkspace &ws) const {
     for (int out_idx = 0; out_idx < ws.NumOutput(); out_idx++) {
-      auto &out = ws.OutputRef<CPUBackend>(out_idx);
+      auto &out = ws.Output<CPUBackend>(out_idx);
       int n = out.num_samples();
       if (n < 2)
         continue;
@@ -237,7 +237,7 @@ class DataReader : public Operator<Backend> {
       DALI_ENFORCE(cached_outputs.size() == num_outputs,
         "Unexpected number of outputs");
       for (std::size_t i = 0; i < cached_outputs.size(); i++) {
-        auto& output = ws->OutputRef<CPUBackend>(i);
+        auto& output = ws->Output<CPUBackend>(i);
         output.Copy(cached_outputs[i], 0);
       }
       return;
@@ -262,7 +262,7 @@ class DataReader : public Operator<Backend> {
       first_output.Resize({1}, DALI_UINT8);
 
       for (std::size_t i = 1; i < cached_outputs.size(); i++) {
-        auto& output = ws->OutputRef<CPUBackend>(i);
+        auto& output = ws->Output<CPUBackend>(i);
         cached_outputs[i].set_pinned(false);
         cached_outputs[i].Copy(output, 0);
       }

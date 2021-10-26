@@ -30,8 +30,8 @@ class TransposeCPU : public Transpose<CPUBackend> {
   explicit inline TransposeCPU(const OpSpec &spec) : Transpose(spec) {}
 
   void RunImpl(HostWorkspace& ws) {
-        const auto& input = ws.InputRef<CPUBackend>(0);
-    auto& output = ws.OutputRef<CPUBackend>(0);
+        const auto& input = ws.Input<CPUBackend>(0);
+    auto& output = ws.Output<CPUBackend>(0);
     output.SetLayout(output_layout_);
     auto& thread_pool = ws.GetThreadPool();
     auto input_type = input.type();

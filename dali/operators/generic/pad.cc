@@ -186,7 +186,7 @@ template <>
 bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                 const workspace_t<CPUBackend> &ws) {
   output_desc.resize(1);
-  const auto &input = ws.template InputRef<CPUBackend>(0);
+  const auto &input = ws.template Input<CPUBackend>(0);
   auto in_shape = input.shape();
   auto in_layout = input.GetLayout();
   int ndim = in_shape.sample_dim();
@@ -219,8 +219,8 @@ bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 template <>
 void Pad<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   output.SetLayout(input.GetLayout());
   int nsamples = input.num_samples();
   int ndim = input.shape().sample_dim();

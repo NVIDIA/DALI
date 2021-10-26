@@ -67,7 +67,7 @@ class PreemphasisFilter : public Operator<Backend> {
 
   bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
                  const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template InputRef<Backend>(0);
+    const auto &input = ws.template Input<Backend>(0);
     AcquireArguments(ws);
     output_desc.resize(detail::kNumOutputs);
     auto shape = input.shape();

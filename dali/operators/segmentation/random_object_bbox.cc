@@ -113,7 +113,7 @@ to compute than to recalculate the object boxes.)", false);
 
 bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const HostWorkspace &ws) {
   out_descs.resize(spec_.NumOutput());
-  auto &input = ws.InputRef<CPUBackend>(0);
+  auto &input = ws.Input<CPUBackend>(0);
   int ndim = input.sample_dim();
   int N = input.num_samples();
 
@@ -552,7 +552,7 @@ void RandomObjectBBox::AllocateTempStorage(const TensorVector<CPUBackend> &input
 }
 
 void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
-  auto &input = ws.InputRef<CPUBackend>(0);
+  auto &input = ws.Input<CPUBackend>(0);
   int N = input.num_samples();
   if (N == 0)
     return;
@@ -560,13 +560,13 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
   int ndim = input.sample_dim();
   auto &tp = ws.GetThreadPool();
 
-  OutListCPU<int, 1> out1 = view<int, 1>(ws.OutputRef<CPUBackend>(0));
+  OutListCPU<int, 1> out1 = view<int, 1>(ws.Output<CPUBackend>(0));
   OutListCPU<int, 1> out2;
   if (format_ != Out_Box)
-    out2 = view<int, 1>(ws.OutputRef<CPUBackend>(1));
+    out2 = view<int, 1>(ws.Output<CPUBackend>(1));
   OutListCPU<int, 0> class_label_out;
   if (HasClassLabelOutput())
-    class_label_out = view<int, 0>(ws.OutputRef<CPUBackend>(class_output_idx_));
+    class_label_out = view<int, 0>(ws.Output<CPUBackend>(class_output_idx_));
 
   TensorShape<> default_anchor;
   default_anchor.resize(ndim);

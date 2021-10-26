@@ -87,7 +87,7 @@ class ElementExtract : public Operator<Backend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template InputRef<Backend>(0);
+    const auto &input = ws.template Input<Backend>(0);
     output_desc.resize(element_map_.size());
     auto output_shape = detail::GetOutputShape(input.shape(), element_map_, input.GetLayout());
     for (auto &desc : output_desc) {
@@ -98,13 +98,13 @@ class ElementExtract : public Operator<Backend> {
   }
 
   void RunImpl(workspace_t<Backend> &ws) override {
-    auto &input = ws.template InputRef<Backend>(0);
+    auto &input = ws.template Input<Backend>(0);
     auto element_layout = VideoLayoutInfo::GetFrameLayout(input.GetLayout());
     int elements_per_sample = element_map_.size();
     auto data_type = input.type_info();
     for (int k = 0; k < elements_per_sample; k++) {
       int element = element_map_[k];
-      auto &output = ws.template OutputRef<Backend>(k);
+      auto &output = ws.template Output<Backend>(k);
       for (unsigned int i = 0; i < input.num_samples(); i++) {
         auto tensor_shape = input.tensor_shape(i);
         auto element_size = volume(tensor_shape.begin() + 1, tensor_shape.end());

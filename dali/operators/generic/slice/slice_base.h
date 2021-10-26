@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ class SliceBase : public Operator<Backend> {
   void FillArgs(std::vector<kernels::SliceArgs<OutputType, Dims>>& slice_args,
                 const workspace_t<Backend> &ws) {
     this->ProcessCroppingAttrs(ws);
-    const auto &input = ws.template InputRef<Backend>(0);
+    const auto &input = ws.template Input<Backend>(0);
     auto in_shape = input.shape();
     int nsamples = in_shape.num_samples();
     int ndim = in_shape.sample_dim();

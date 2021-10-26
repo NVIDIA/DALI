@@ -48,7 +48,7 @@ class SliceBaseCpu : public OpImplBase<CPUBackend> {
 template <typename OutputType, typename InputType, int Dims>
 bool SliceBaseCpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                                           const workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
+  const auto &input = ws.template Input<CPUBackend>(0);
   auto in_shape = input.shape();
   int nsamples = in_shape.num_samples();
   auto nthreads = ws.GetThreadPool().NumThreads();
@@ -70,8 +70,8 @@ bool SliceBaseCpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc
 
 template <typename OutputType, typename InputType, int Dims>
 void SliceBaseCpu<OutputType, InputType, Dims>::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
-  auto &output = ws.template OutputRef<CPUBackend>(0);
+  const auto &input = ws.template Input<CPUBackend>(0);
+  auto &output = ws.template Output<CPUBackend>(0);
   output.SetLayout(input.GetLayout());
 
   int nsamples = input.num_samples();
@@ -94,7 +94,7 @@ void SliceBaseCpu<OutputType, InputType, Dims>::RunImpl(workspace_t<CPUBackend> 
 template <>
 bool SliceBase<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
+  const auto &input = ws.template Input<CPUBackend>(0);
   auto input_type = input.type();
   auto ndim = input.shape().sample_dim();
 

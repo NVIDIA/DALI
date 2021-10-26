@@ -86,7 +86,7 @@ class MFCC : public Operator<Backend> {
   using Operator<Backend>::RunImpl;
 
   void GetArguments(const workspace_t<Backend> &ws) {
-    auto nsamples = ws.template InputRef<Backend>(0).shape().size();
+    auto nsamples = ws.template Input<Backend>(0).shape().size();
     DctArgs arg;
     arg.ndct = spec_.template GetArgument<int>("n_mfcc");
     DALI_ENFORCE(arg.ndct > 0, "number of MFCCs should be > 0");

@@ -32,8 +32,8 @@ DALI_REGISTER_OPERATOR(Contrast, BrightnessContrastGpu, GPU);
 bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<GPUBackend> &ws) {
   KMgrResize(num_threads_, max_batch_size_);
-  const auto &input = ws.template InputRef<GPUBackend>(0);
-  const auto &output = ws.template OutputRef<GPUBackend>(0);
+  const auto &input = ws.template Input<GPUBackend>(0);
+  const auto &output = ws.template Output<GPUBackend>(0);
   output_desc.resize(1);
   AcquireArguments(ws);
   int N = input.num_samples();
@@ -54,8 +54,8 @@ bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 
 void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template InputRef<GPUBackend>(0);
-  auto &output = ws.template OutputRef<GPUBackend>(0);
+  const auto &input = ws.template Input<GPUBackend>(0);
+  auto &output = ws.template Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
   TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (

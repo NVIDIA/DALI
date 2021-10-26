@@ -195,12 +195,12 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
           reserved_size = 0;
           max_reserved_size = 0;
           if (ws.template OutputIsType<CPUBackend>(i)) {
-            auto &out = ws.template OutputRef<CPUBackend>(i);
+            auto &out = ws.template Output<CPUBackend>(i);
             out_size = out.nbytes();
             reserved_size = out.capacity();
             GetMaxSizes(out, max_out_size, max_reserved_size);
           } else {
-            auto &out = ws.template OutputRef<GPUBackend>(i);
+            auto &out = ws.template Output<GPUBackend>(i);
             out_size = out.nbytes();
             reserved_size = out.capacity();
             GetMaxSizes(out, max_out_size, max_reserved_size);

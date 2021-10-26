@@ -45,7 +45,7 @@ class IntArrayParser : public Parser<IntArrayWrapper> {
 
     printf("H: %d, W: %d, C: %d\n", H, W, C);
 
-    Tensor<Backend>& output = ws->template OutputRef<Backend>(0);
+    Tensor<Backend>& output = ws->template Output<Backend>(0);
     output.Resize({H, W, C}, DALI_INT32);
 
     int *output_data = output.template mutable_data<int>();
