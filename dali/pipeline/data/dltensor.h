@@ -43,7 +43,7 @@ struct DLTensorResource {
   virtual ~DLTensorResource() = default;
 };
 
-DLL_PUBLIC DLMTensorPtr MakeDLTensor(const void *data, DALIDataType type,
+DLL_PUBLIC DLMTensorPtr MakeDLTensor(void *data, DALIDataType type,
                                      bool device, int device_id,
                                      std::unique_ptr<DLTensorResource> resource);
 
