@@ -142,7 +142,7 @@ class WorkspaceBase : public ArgumentWorkspace {
   }
 
   template <typename Backend>
-  auto& Input(int idx) const {
+  const auto& Input(int idx) const {
     return *InputHandle(idx, Backend{});
   }
 

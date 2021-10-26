@@ -97,7 +97,7 @@ void TensorJoin<Backend, new_axis>::SetupTyped(
 
   copy_idx_ = 0;
   for (int i = 0; i < ninp; i++) {
-    auto tlv = view<T>(ws.template Input<Backend>(i));
+    auto tlv = view<const T>(ws.template Input<Backend>(i));
     if (new_axis || tlv.num_elements() > 0) {  // when concatenating, we can skip empty inputs
       if (inputs.empty())
         copy_idx_ = i;
@@ -109,7 +109,7 @@ void TensorJoin<Backend, new_axis>::SetupTyped(
 
   // No non-empty inputs? Use the first one, even if it's empty.
   if (inputs.empty()) {
-    inputs.push_back(view<T>(ws.template Input<Backend>(0)));
+    inputs.push_back(view<const T>(ws.template Input<Backend>(0)));
   }
 
   kernels::tensor_join::JoinedShape(output_shape, [&](int index) {

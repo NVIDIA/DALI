@@ -266,7 +266,7 @@ void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
     auto& in = ws.Input<CPUBackend>(in_id);
     for (int i = 0; i < N; i++) {
-      in_ptrs[N * in_id + i] = reinterpret_cast<uint64_t>(in[i].raw_mutable_data());
+      in_ptrs[N * in_id + i] = reinterpret_cast<uint64_t>(in[i].raw_data());
     }
   }
 

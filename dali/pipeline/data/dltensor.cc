@@ -44,12 +44,12 @@ void DLMTensorPtrDeleter(DLManagedTensor* dlm_tensor_ptr) {
   }
 }
 
-DLMTensorPtr MakeDLTensor(void* data, DALIDataType type,
+DLMTensorPtr MakeDLTensor(const void* data, DALIDataType type,
                           bool device, int device_id,
                           std::unique_ptr<DLTensorResource> resource) {
   DLManagedTensor *dlm_tensor_ptr = &resource->dlm_tensor;
   DLTensor &dl_tensor = dlm_tensor_ptr->dl_tensor;
-  dl_tensor.data = data;
+  dl_tensor.data = const_cast<void*>(data);  // This data is used only as input
   dl_tensor.ndim = resource->shape.size();
   dl_tensor.shape = resource->shape.begin();
   if (!resource->strides.empty()) {

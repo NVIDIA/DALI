@@ -320,7 +320,7 @@ void TensorVector<Backend>::Copy(const TensorVector<SrcBackend> &in_tv, cudaStre
 
 
 template <typename Backend>
-void TensorVector<Backend>::ShareData(TensorList<Backend> &in_tl) {
+void TensorVector<Backend>::ShareData(const TensorList<Backend> &in_tl) {
   SetContiguous(true);
   type_ = in_tl.type_info();
   pinned_ = in_tl.is_pinned();
@@ -331,7 +331,7 @@ void TensorVector<Backend>::ShareData(TensorList<Backend> &in_tl) {
 }
 
 template <typename Backend>
-void TensorVector<Backend>::ShareData(TensorVector<Backend> &tv) {
+void TensorVector<Backend>::ShareData(const TensorVector<Backend> &tv) {
   type_ = tv.type_;
   state_ = tv.state_;
   pinned_ = tv.is_pinned();

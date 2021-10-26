@@ -124,7 +124,7 @@ class TransformBaseOp : public Operator<Backend> {
     auto out_view = view<T>(out);
     if (has_input_) {
       auto &in = ws.template Input<Backend>(0);
-      auto in_view = view<T>(in);
+      auto in_view = view<const T>(in);
       for (int i = 0; i < nsamples_; i++) {
         int mat_idx = num_mats == 1 ? 0 : i;
         ApplyTransform(out_view[i].data, in_view[i].data, matrices[mat_idx]);

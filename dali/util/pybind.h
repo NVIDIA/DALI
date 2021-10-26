@@ -207,7 +207,7 @@ py::capsule TensorToDLPackView(Tensor<Backend> &tensor) {
 }
 
 template <typename Backend>
-py::list TensorListToDLPackView(TensorList<Backend> &tensors) {
+py::list TensorListToDLPackView(const TensorList<Backend> &tensors) {
   py::list result;
   auto dl_tensors = GetDLTensorListView(tensors);
   for (DLMTensorPtr &dl_tensor : dl_tensors) {
