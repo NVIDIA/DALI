@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,13 +32,14 @@
 namespace dali {
 
 template <typename Backend>
-using SampleInputType = shared_ptr<Tensor<Backend>>;
+using SampleInputType = Tensor<Backend> *;
 template <typename Backend>
-using SampleOutputType = shared_ptr<Tensor<Backend>>;
+using SampleOutputType = Tensor<Backend> *;
 
 /**
- * @brief SampleWorkspace stores all data required for an operator to
- * perform its computation on a single sample.
+ * @brief SampleWorkspace is workspace used for the legacy, deprcated CPU Operator implementation.
+ * It has views of all data required for an operator to perform its computation on a single sample,
+ * the data is actually owned by a corresponding HostWorkspace
  */
 class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleOutputType> {
  public:
@@ -57,20 +58,6 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
     has_stream_ = false;
     stream_ = 0;
   }
-
-  /**
-   * @brief Returns Tensor with index = data_idx() from the input
-   * TensorList at index = `idx`.
-   */
-  template <typename Backend>
-  DLL_PUBLIC const Tensor<Backend>& Input(int idx) const;
-
-  /**
-   * @brief Returns Tensor with index = data_idx() from the output
-   * TensorList at index = `idx`.
-   */
-  template <typename Backend>
-  DLL_PUBLIC Tensor<Backend>& Output(int idx);
 
   int GetInputBatchSize(int) const {
     DALI_FAIL(
@@ -139,6 +126,13 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
   cudaStream_t stream_;
   bool has_stream_;
 };
+
+/**
+ * @brief Fill the `sample` with data references to the ones owned by the `batch` for given
+ * `data_idx` and set the `thread_idx`.
+ */
+DLL_PUBLIC void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
+                                 int thread_idx);
 
 }  // namespace dali
 

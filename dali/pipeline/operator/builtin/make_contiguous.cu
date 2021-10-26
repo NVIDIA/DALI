@@ -24,7 +24,7 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
   DALIDataType type = input.type();
 
   for (size_t i = 0; i < input.num_samples(); ++i) {
-    auto &sample = ws.Input<CPUBackend>(0, i);
+    auto &sample = ws.InputRef<CPUBackend>(0)[i];
     size_t sample_bytes = sample.nbytes();
     if (coalesced && sample_bytes > COALESCE_THRESHOLD)
       coalesced = false;
@@ -34,7 +34,7 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
         "in input batch. Cannot copy to contiguous device buffer.");
   }
 
-  auto &output = ws.Output<GPUBackend>(0);
+  auto &output = ws.OutputRef<GPUBackend>(0);
   if (coalesced) {
     DomainTimeRange tr("[DALI][MakeContiguousMixed] coalesced", DomainTimeRange::kBlue);
     cpu_output_buff.Copy(input, 0);

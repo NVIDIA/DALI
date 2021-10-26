@@ -36,7 +36,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {
       thread_pool.AddWork(
           [&ws, sample_id, &tensor_vector_elm](int tid) {
-            Tensor<CPUBackend> &output_tensor = ws.Output<CPUBackend>(0, sample_id);
+            Tensor<CPUBackend> &output_tensor = ws.OutputRef<CPUBackend>(0)[sample_id];
             // HostWorkspace doesn't have any stream
             cudaStream_t stream = 0;
             output_tensor.Copy((*tensor_vector_elm.front())[sample_id], stream);

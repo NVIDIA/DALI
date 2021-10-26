@@ -237,7 +237,7 @@ class DataReader : public Operator<Backend> {
       DALI_ENFORCE(cached_outputs.size() == num_outputs,
         "Unexpected number of outputs");
       for (std::size_t i = 0; i < cached_outputs.size(); i++) {
-        auto& output = ws->Output<CPUBackend>(i);
+        auto& output = ws->OutputRef<CPUBackend>(i);
         output.Copy(cached_outputs[i], 0);
       }
       return;
@@ -262,7 +262,7 @@ class DataReader : public Operator<Backend> {
       first_output.Resize({1}, DALI_UINT8);
 
       for (std::size_t i = 1; i < cached_outputs.size(); i++) {
-        auto& output = ws->Output<CPUBackend>(i);
+        auto& output = ws->OutputRef<CPUBackend>(i);
         cached_outputs[i].set_pinned(false);
         cached_outputs[i].Copy(output, 0);
       }

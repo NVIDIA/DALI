@@ -103,7 +103,7 @@ template <>
 bool ToDecibels<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                        const workspace_t<GPUBackend> &ws) {
   output_desc.resize(kNumOutputs);
-  const auto &input = ws.Input<GPUBackend>(0);
+  const auto &input = ws.InputRef<GPUBackend>(0);
   auto type = input.type();
   TYPE_SWITCH(type, type2id, T, (float), (
       using Impl = ToDecibelsImpl<T>;

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ class IntArrayParser : public Parser<IntArrayWrapper> {
 
     printf("H: %d, W: %d, C: %d\n", H, W, C);
 
-    Tensor<Backend>& output = ws->template Output<Backend>(0);
+    Tensor<Backend>& output = ws->template OutputRef<Backend>(0);
     output.Resize({H, W, C}, DALI_INT32);
 
     int *output_data = output.template mutable_data<int>();
@@ -75,10 +75,10 @@ TYPED_TEST(ParserTest, BasicTest) {
   HostWorkspace workspace;
   SampleWorkspace ws;
 
-  workspace.GetSample(&ws, 0, 0);
+  MakeSampleView(ws, workspace, 0, 0);
 
   shared_ptr<Tensor<CPUBackend>> t(new Tensor<CPUBackend>());
-  ws.AddOutput(t);
+  ws.AddOutput(t.get());
 
   IntArrayParser<CPUBackend> parser(OpSpec("temp"));
   IntArrayWrapper ia_wrapper = {data.data(), data.size()};

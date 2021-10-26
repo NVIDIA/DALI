@@ -78,7 +78,7 @@ py::list PrepareDLTensorInputs<CPUBackend>(HostWorkspace &ws) {
   for (Index idx = 0; idx < ws.NumInput(); ++idx) {
     py::list dl_tensor_list;
     for (Index i = 0; i < ws.GetInputBatchSize(idx); ++i) {
-      auto &t = ws.Input<CPUBackend>(idx, i);
+      auto &t = ws.InputRef<CPUBackend>(idx)[i];
       auto dl_capsule = TensorToDLPackView(const_cast<Tensor<CPUBackend>&>(t));
       dl_tensor_list.append(dl_capsule);
     }
@@ -106,7 +106,7 @@ py::list PrepareDLTensorInputsPerSample<CPUBackend>(HostWorkspace &ws) {
   for (Index s = 0; s < batch_size; ++s) {
     py::list tuple;
     for (Index idx = 0; idx < ws.NumInput(); ++idx) {
-      auto &t = ws.Input<CPUBackend>(idx, s);
+      auto &t = ws.InputRef<CPUBackend>(idx)[s];
       auto dl_capsule = TensorToDLPackView(const_cast<Tensor<CPUBackend>&>(t));
       tuple.append(dl_capsule);
     }

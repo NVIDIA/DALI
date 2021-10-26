@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,8 +37,8 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
     const auto& image_label = GetSample(idx);
 
     // copy from raw_data -> outputs directly
-    auto &image_output = ws.Output<CPUBackend>(0);
-    auto &label_output = ws.Output<CPUBackend>(1);
+    auto &image_output = ws.OutputRef<CPUBackend>(0);
+    auto &label_output = ws.OutputRef<CPUBackend>(1);
 
     Index image_size = image_label.image.size();
 

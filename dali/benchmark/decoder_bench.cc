@@ -81,7 +81,7 @@ class DecoderBench : public DALIBenchmark {
       }
     }
 
-    // WriteCHWBatch<float16>(ws.Output<GPUBackend>(0), 128, 1, "img");
+    // WriteCHWBatch<float16>(ws.OutputRef<GPUBackend>(0), 128, 1, "img");
     int num_batches = st.iterations() + 1;
     st.counters["FPS"] = benchmark::Counter(batch_size*num_batches,
         benchmark::Counter::kIsRate);

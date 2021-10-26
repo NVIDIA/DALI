@@ -465,29 +465,29 @@ TEST_F(PipelineTestOnce, TestPresize) {
   pipe.Outputs(&ws);
 
   // we should not presize CPU buffers if they are not pinned
-  ASSERT_EQ(*(ws.Output<CPUBackend>(0).tensor<size_t>(0)), 0);
+  ASSERT_EQ(*(ws.OutputRef<CPUBackend>(0).tensor<size_t>(0)), 0);
 
   int ref_presize = RestrictPinnedMemUsage() ? 0 : presize_val_CPU;
-  ASSERT_EQ(*(ws.Output<CPUBackend>(1).tensor<size_t>(0)), ref_presize);
+  ASSERT_EQ(*(ws.OutputRef<CPUBackend>(1).tensor<size_t>(0)), ref_presize);
 
   size_t tmp[2];
   CUDA_CALL(cudaDeviceSynchronize());
-  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(2).tensor<size_t>(0),
+  CUDA_CALL(cudaMemcpy(&tmp, ws.OutputRef<GPUBackend>(2).tensor<size_t>(0),
             sizeof(size_t) * 2, cudaMemcpyDefault));
   ASSERT_EQ(tmp[0], presize_val_Mixed);
   ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
 
-  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(3).tensor<size_t>(0),
+  CUDA_CALL(cudaMemcpy(&tmp, ws.OutputRef<GPUBackend>(3).tensor<size_t>(0),
             sizeof(size_t) * 2, cudaMemcpyDefault));
   ASSERT_EQ(tmp[0], presize_val_GPU);
   ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
 
-  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(4).tensor<size_t>(0),
+  CUDA_CALL(cudaMemcpy(&tmp, ws.OutputRef<GPUBackend>(4).tensor<size_t>(0),
             sizeof(size_t) * 2, cudaMemcpyDefault));
   ASSERT_EQ(tmp[0], presize_val_GPU);
   ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
 
-  CUDA_CALL(cudaMemcpy(&tmp, ws.Output<GPUBackend>(5).tensor<size_t>(0),
+  CUDA_CALL(cudaMemcpy(&tmp, ws.OutputRef<GPUBackend>(5).tensor<size_t>(0),
             sizeof(size_t) * 2, cudaMemcpyDefault));
   ASSERT_EQ(tmp[0], presize_val_default);
   ASSERT_EQ(tmp[1], 2 * sizeof(size_t));
@@ -551,7 +551,7 @@ class PrefetchedPipelineTest : public GenericDecoderTest<RGB> {
     ASSERT_EQ(ws.NumOutput(), 1);
     ASSERT_EQ(ws.NumInput(), 0);
     ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
-    TensorList<GPUBackend> &res1 = ws.Output<GPUBackend>(0);
+    TensorList<GPUBackend> &res1 = ws.OutputRef<GPUBackend>(0);
     for (int j = 0; j < batch_size; ++j) {
       this->VerifyDecode(
           res1.template tensor<uint8>(j),

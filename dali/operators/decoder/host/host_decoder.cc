@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@
 namespace dali {
 
 void HostDecoder::RunImpl(SampleWorkspace &ws) {
-  const auto &input = ws.Input<CPUBackend>(0);
-  auto &output = ws.Output<CPUBackend>(0);
+  const auto &input = ws.InputRef<CPUBackend>(0);
+  auto &output = ws.OutputRef<CPUBackend>(0);
   auto file_name = input.GetSourceInfo();
 
   // Verify input

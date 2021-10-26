@@ -43,8 +43,8 @@ void RunKernel(TensorList<GPUBackend> &output, const TensorList<GPUBackend> &inp
 
 template <>
 void Flip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
-  const auto &input = ws.Input<GPUBackend>(0);
-  auto &output = ws.Output<GPUBackend>(0);
+  const auto &input = ws.InputRef<GPUBackend>(0);
+  auto &output = ws.OutputRef<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
   output.Resize(input.shape(), input.type());
   auto curr_batch_size = ws.GetInputBatchSize(0);

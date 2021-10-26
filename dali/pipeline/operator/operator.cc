@@ -50,7 +50,7 @@ void OperatorBase::EnforceUniformOutputBatchSize<MixedBackend>(
   auto ref_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
   for (int i = 0; i < ws.NumOutput(); i++) {
     auto output_batch_size = const_cast<workspace_t<MixedBackend> &>(ws)
-                                 .template Output<GPUBackend>(i)
+                                 .template OutputRef<GPUBackend>(i)
                                  .shape()
                                  .num_samples();
     DALI_ENFORCE(ref_batch_size == output_batch_size,

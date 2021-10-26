@@ -152,7 +152,7 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline,
     EXPECT_EQ(daliNumTensors(&handle, output), batch_size);
     for (int elem = 0; elem < batch_size; elem++) {
       auto *shape = daliShapeAtSample(&handle, output, elem);
-      auto ref_shape = ws.Output<Backend>(output).shape()[elem];
+      auto ref_shape = ws.OutputRef<Backend>(output).shape()[elem];
       int D = ref_shape.size();
       for (int d = 0; d < D; d++)
         EXPECT_EQ(shape[d], ref_shape[d]);
@@ -162,7 +162,7 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline,
 
     TensorList<CPUBackend> pipeline_output_cpu, c_api_output_cpu;
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-    pipeline_output_cpu.Copy(ws.Output<Backend>(0), cuda_stream);
+    pipeline_output_cpu.Copy(ws.OutputRef<Backend>(0), cuda_stream);
 
     auto num_elems = pipeline_output_cpu.shape().num_elements();
     auto backend_buf = AllocBuffer<Backend>(num_elems * sizeof(uint8_t), false);

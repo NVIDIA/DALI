@@ -26,12 +26,12 @@ VideoReaderDecoder::VideoReaderDecoder(const OpSpec &spec)
 
 void VideoReaderDecoder::RunImpl(SampleWorkspace &ws) {
   const auto &sample = GetSample(ws.data_idx());
-  auto &video_output = ws.Output<CPUBackend>(0);
+  auto &video_output = ws.OutputRef<CPUBackend>(0);
 
   video_output.Copy(sample.data_, 0);
 
   if (has_labels_) {
-    auto &label_output = ws.Output<CPUBackend>(1);
+    auto &label_output = ws.OutputRef<CPUBackend>(1);
     label_output.Resize({}, DALIDataType::DALI_INT32);
     label_output.mutable_data<int>()[0] = sample.label_;
   }

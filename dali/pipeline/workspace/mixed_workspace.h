@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,30 +41,8 @@ using MixedOutputType = shared_ptr<TensorList<Backend>>;
  */
 class DLL_PUBLIC MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutputType> {
  public:
-  using WorkspaceBase<MixedInputType, MixedOutputType>::input_t;
-  using WorkspaceBase<MixedInputType, MixedOutputType>::output_t;
   DLL_PUBLIC inline MixedWorkspace() : stream_(0), event_(nullptr) {}
   DLL_PUBLIC inline ~MixedWorkspace() override = default;
-
-
-  /**
-   * @brief Returns the input Tensor at index `data_idx` in the input
-   * set of Tensors at index `idx`.
-   *
-   * @throws runtime_error If calling type does not match the type of
-   * the output at the given index.
-   */
-  template <typename Backend>
-  DLL_PUBLIC const Tensor<Backend>& Input(int idx, int data_idx) const;
-
-  /**
-   * @brief Returns the output TensorList at index `idx`.
-   *
-   * @throws runtime_error If calling type does not match the type of
-   * the output at the given index.
-   */
-  template <typename Backend>
-  DLL_PUBLIC TensorList<Backend>& Output(int idx);
 
   /**
    * @brief Sets the stream for this workspace.

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,38 +42,8 @@ class SampleWorkspace;
  */
 class DLL_PUBLIC HostWorkspace : public WorkspaceBase<HostInputType, HostOutputType> {
  public:
-  using WorkspaceBase<HostInputType, HostOutputType>::input_t;
-  using WorkspaceBase<HostInputType, HostOutputType>::output_t;
-
   DLL_PUBLIC inline HostWorkspace() {}
   DLL_PUBLIC inline ~HostWorkspace() override = default;
-
-  /**
-   * @brief Returns a sample workspace for the given sample
-   * index and thread index
-   */
-  DLL_PUBLIC void GetSample(SampleWorkspace *ws, int data_idx, int thread_idx);
-
-  /**
-   * @brief Returns the Tensor at index `data_idx` in the input
-   * Tensors at index `idx`.
-   *
-   * @throws runtime_error if the calling type does not match the
-   * type of the tensor at the given index
-   */
-  template <typename Backend>
-  DLL_PUBLIC const Tensor<Backend>& Input(int idx, int data_idx) const;
-
-  /**
-   * @brief Returns the Tensor at index `data_idx` in the output
-   * Tensors at index `idx`.
-   *
-   * @throws runtime_error if the calling type does not match the
-   * type of the tensor at the given index
-   */
-  template <typename Backend>
-  DLL_PUBLIC Tensor<Backend>& Output(int idx, int data_idx);
-
 
   DLL_PUBLIC inline void SetThreadPool(ThreadPool *pool) {
     thread_pool_ = pool;

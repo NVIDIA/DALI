@@ -82,14 +82,14 @@ void Resize<GPUBackend>::InitializeBackend() {
 
 template<>
 void Resize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  const auto &input = ws.Input<GPUBackend>(0);
-  auto &output = ws.Output<GPUBackend>(0);
+  const auto &input = ws.InputRef<GPUBackend>(0);
+  auto &output = ws.OutputRef<GPUBackend>(0);
 
   RunResize(ws, output, input);
   output.SetLayout(input.GetLayout());
 
   if (save_attrs_) {
-    auto &attr_out = ws.Output<GPUBackend>(1);
+    auto &attr_out = ws.OutputRef<GPUBackend>(1);
     const auto &attr_shape = attr_out.shape();
     assert(attr_shape.num_samples() == input.shape().num_samples() &&
            attr_shape.sample_dim() == 1 &&
