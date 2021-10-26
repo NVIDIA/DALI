@@ -260,8 +260,8 @@ BoxEncoder<GPUBackend>::CalculateDims(
 }
 
 void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
-  const auto &boxes_input = ws.InputRef<GPUBackend>(kBoxesInId);
-  const auto &labels_input = ws.InputRef<GPUBackend>(kLabelsInId);
+  const auto &boxes_input = ws.Input<GPUBackend>(kBoxesInId);
+  const auto &labels_input = ws.Input<GPUBackend>(kLabelsInId);
   assert(ws.GetInputBatchSize(kBoxesInId) == ws.GetInputBatchSize(kLabelsInId));
   auto curr_batch_size = ws.GetInputBatchSize(kBoxesInId);
 
@@ -273,10 +273,10 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
 
   auto dims = CalculateDims(boxes_input);
 
-  auto &boxes_output = ws.OutputRef<GPUBackend>(kBoxesOutId);
+  auto &boxes_output = ws.Output<GPUBackend>(kBoxesOutId);
   boxes_output.Resize(dims.first, boxes_input.type());
 
-  auto &labels_output = ws.OutputRef<GPUBackend>(kLabelsOutId);
+  auto &labels_output = ws.Output<GPUBackend>(kLabelsOutId);
   labels_output.Resize(dims.second, labels_input.type());
 
   samples.resize(curr_batch_size_);

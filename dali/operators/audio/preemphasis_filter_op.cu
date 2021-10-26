@@ -77,8 +77,8 @@ class PreemphasisFilterGPU : public PreemphasisFilter<GPUBackend> {
 template <typename OutputType, typename InputType>
 void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
   using SampleDesc = detail::SampleDescriptor<OutputType, InputType>;
-  const auto &input = ws.InputRef<GPUBackend>(0);
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   auto curr_batch_size = ws.GetInputBatchSize(0);
 
   std::vector<SampleDesc> samples_cpu(curr_batch_size);
@@ -104,7 +104,7 @@ void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
 }
 
 void PreemphasisFilterGPU::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template InputRef<GPUBackend>(0);
+  const auto &input = ws.template Input<GPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, InputType, PREEMPH_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
       RunImplTyped<OutputType, InputType>(ws);

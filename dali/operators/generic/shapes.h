@@ -99,14 +99,14 @@ class Shapes : public Operator<Backend> {
       tmp_.set_pinned(true);
     }
 
-    auto &output = ws.OutputRef<GPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
     tmp_.Resize(output.shape());
     ConvertShape(tmp_, GetInputShape(ws));
     output.Copy(tmp_, ws.stream());
   }
 
   void RunBackend(HostWorkspace &ws) {
-    ConvertShape(ws.OutputRef<CPUBackend>(0), GetInputShape(ws));
+    ConvertShape(ws.Output<CPUBackend>(0), GetInputShape(ws));
   }
 
   static TensorListShape<1> ShapeShape(const TensorListShape<> &shape) {
@@ -115,14 +115,14 @@ class Shapes : public Operator<Backend> {
 
   static const TensorListShape<> &GetInputShape(const DeviceWorkspace &ws) {
     if (ws.InputIsType<GPUBackend>(0)) {
-      return ws.InputRef<GPUBackend>(0).shape();
+      return ws.Input<GPUBackend>(0).shape();
     } else {
-      return ws.InputRef<CPUBackend>(0).shape();
+      return ws.Input<CPUBackend>(0).shape();
     }
   }
 
   static auto GetInputShape(const HostWorkspace &ws) {
-    return ws.InputRef<CPUBackend>(0).shape();
+    return ws.Input<CPUBackend>(0).shape();
   }
 
  private:

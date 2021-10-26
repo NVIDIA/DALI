@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -99,7 +99,7 @@ void FillTensorVector(
 
 template <>
 void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
-  auto &out = ws.OutputRef<CPUBackend>(0);
+  auto &out = ws.Output<CPUBackend>(0);
   if (output_.num_samples() == 0) {
     output_.set_pinned(out.is_pinned());
     TYPE_SWITCH(output_type_, type2id, type, CONSTANT_OP_SUPPORTED_TYPES,

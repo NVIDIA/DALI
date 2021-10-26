@@ -30,9 +30,9 @@ void Cast<CPUBackend>::PrepareBlocks(const HostWorkspace &ws) {}
 
 template <>
 void Cast<CPUBackend>::RunImpl(HostWorkspace &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
   const auto &input_shape = input.shape();
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   output.SetLayout(input.GetLayout());
 
   auto num_samples = input_shape.num_samples();

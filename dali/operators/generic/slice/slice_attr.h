@@ -234,8 +234,8 @@ class PositionalSliceAttr {
     if (ws.NumInput() != (spec_.GetSchema().MinNumInput() + 2))
       return false;
 
-    const auto &crop_anchor = ws.template InputRef<CPUBackend>(1);
-    const auto &crop_shape = ws.template InputRef<CPUBackend>(2);
+    const auto &crop_anchor = ws.template Input<CPUBackend>(1);
+    const auto &crop_shape = ws.template Input<CPUBackend>(2);
     DALI_ENFORCE(crop_anchor.type() == crop_shape.type(),
                 make_string("Anchor and shape should have the same type. Got: ",
                             crop_anchor.type(), " and ", crop_shape.type()));

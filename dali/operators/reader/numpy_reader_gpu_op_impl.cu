@@ -26,7 +26,7 @@ namespace dali {
 
 template <typename T, int Dims>
 void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   const auto &out_sh = output.shape();
   int ndim = out_sh.sample_dim();
   int nsamples = out_sh.num_samples();
@@ -152,7 +152,7 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
 }
 
 void NumpyReaderGPU::RunImpl(DeviceWorkspace &ws) {
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   int ndim = output.shape().sample_dim();
   auto dtype = output.type();
   VALUE_SWITCH(ndim, Dims, NUMPY_ALLOWED_DIMS, (

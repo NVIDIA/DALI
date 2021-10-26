@@ -111,7 +111,7 @@ class BrightnessContrastOp : public Operator<Backend> {
       contrast_ = std::vector<float>(curr_batch_size, kDefaultContrast);
     }
 
-    input_type_ = ws.template InputRef<Backend>(0).type();
+    input_type_ = ws.template Input<Backend>(0).type();
     output_type_ = output_type_arg_ != DALI_NO_TYPE ? output_type_arg_ : input_type_;
   }
 

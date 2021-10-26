@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ template <typename Backend>
 void OperatorBase::EnforceUniformOutputBatchSize(const workspace_t<Backend> &ws) const {
   auto ref_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
   for (int i = 0; i < ws.NumOutput(); i++) {
-    auto output_batch_size = ws.template OutputRef<Backend>(i).shape().num_samples();
+    auto output_batch_size = ws.template Output<Backend>(i).shape().num_samples();
     DALI_ENFORCE(ref_batch_size == output_batch_size,
                  make_string("Batch size has to be uniform across one iteration. Expected: ",
                              ref_batch_size, "; Actual: ", output_batch_size));
@@ -50,7 +50,7 @@ void OperatorBase::EnforceUniformOutputBatchSize<MixedBackend>(
   auto ref_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
   for (int i = 0; i < ws.NumOutput(); i++) {
     auto output_batch_size = const_cast<workspace_t<MixedBackend> &>(ws)
-                                 .template OutputRef<GPUBackend>(i)
+                                 .template Output<GPUBackend>(i)
                                  .shape()
                                  .num_samples();
     DALI_ENFORCE(ref_batch_size == output_batch_size,

@@ -24,10 +24,10 @@ void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
   int num_inputs = batch.NumInput();
   for (int i = 0; i < num_inputs; i++) {
     if (batch.InputIsType<CPUBackend>(i)) {
-      auto &input_ref = batch.InputRef<CPUBackend>(i);
+      auto &input_ref = batch.Input<CPUBackend>(i);
       sample.AddInput(&input_ref[data_idx]);
     } else {
-      auto &input_ref = batch.InputRef<GPUBackend>(i);
+      auto &input_ref = batch.Input<GPUBackend>(i);
       sample.AddInput(&input_ref[data_idx]);
     }
   }
@@ -35,10 +35,10 @@ void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
   int num_outputs = batch.NumOutput();
   for (int i = 0; i < num_outputs; i++) {
     if (batch.OutputIsType<CPUBackend>(i)) {
-      auto &output_ref = batch.OutputRef<CPUBackend>(i);
+      auto &output_ref = batch.Output<CPUBackend>(i);
       sample.AddOutput(&output_ref[data_idx]);
     } else {
-      auto &output_ref = batch.OutputRef<GPUBackend>(i);
+      auto &output_ref = batch.Output<GPUBackend>(i);
       sample.AddOutput(&output_ref[data_idx]);
     }
   }

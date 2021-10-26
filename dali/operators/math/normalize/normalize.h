@@ -78,7 +78,7 @@ class NormalizeBase : public Operator<Backend> {
   bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template InputRef<Backend>(0);
+    const auto &input = ws.template Input<Backend>(0);
     data_shape_ = input.shape();
     output_descs.resize(1);
     output_descs[0] = { data_shape_, output_type_ };
@@ -134,7 +134,7 @@ class NormalizeBase : public Operator<Backend> {
         GetParamShapeFromAxes();
     } else if (has_axis_names_arg_) {
       TensorLayout names = spec.GetArgument<TensorLayout>("axis_names");
-      const auto &input = ws.template InputRef<Backend>(0);
+      const auto &input = ws.template Input<Backend>(0);
       auto dim_idx = GetDimIndices(input.GetLayout(), names);
       axes_ = dim_idx.to_vector();
       SetAxisMask();

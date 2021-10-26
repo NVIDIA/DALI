@@ -140,7 +140,7 @@ DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistCpu, CPU);
 
 bool ColorTwistCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
   KMgrResize(num_threads_, max_batch_size_);
-  const auto &input = ws.template InputRef<CPUBackend>(0);
+  const auto &input = ws.template Input<CPUBackend>(0);
   output_desc.resize(1);
   DetermineTransformation(ws);
   TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
@@ -158,8 +158,8 @@ bool ColorTwistCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWo
 
 
 void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
-  auto &output = ws.template OutputRef<CPUBackend>(0);
+  const auto &input = ws.template Input<CPUBackend>(0);
+  auto &output = ws.template Output<CPUBackend>(0);
   auto out_shape = output.shape();
   output.SetLayout(input.GetLayout());
   auto &tp = ws.GetThreadPool();

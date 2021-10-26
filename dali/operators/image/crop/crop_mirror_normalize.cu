@@ -27,7 +27,7 @@ bool CropMirrorNormalize<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
   auto curr_batch_size = ws.GetInputBatchSize(0);
   output_desc.resize(1);
   SetupCommonImpl(ws);
-  const auto &input = ws.InputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
   int ndim = input.shape().sample_dim();
   TYPE_SWITCH(input_type_, type2id, InputType, CMN_IN_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, CMN_OUT_TYPES, (
@@ -52,8 +52,8 @@ bool CropMirrorNormalize<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
 
 template<>
 void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  const auto &input = ws.InputRef<GPUBackend>(0);
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(output_layout_);
   int ndim = input.shape().sample_dim();
   TYPE_SWITCH(input_type_, type2id, InputType, CMN_IN_TYPES, (

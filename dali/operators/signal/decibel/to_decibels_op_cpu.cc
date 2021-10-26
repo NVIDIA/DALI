@@ -51,8 +51,8 @@ template <>
 bool ToDecibels<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                        const workspace_t<CPUBackend> &ws) {
   output_desc.resize(kNumOutputs);
-  const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
   int nsamples = input.num_samples();
@@ -74,8 +74,8 @@ bool ToDecibels<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 template <>
 void ToDecibels<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   auto in_shape = input.shape();
   auto& thread_pool = ws.GetThreadPool();
 

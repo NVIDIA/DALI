@@ -41,16 +41,16 @@ class Copy : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     output_desc.resize(1);
-    const auto &input = ws.template InputRef<Backend>(0);
+    const auto &input = ws.template Input<Backend>(0);
     output_desc[0].type = input.type();
     output_desc[0].shape = input.shape();
     return true;
   }
 
   void RunImpl(workspace_t<Backend> &ws) override {
-    auto &input = ws.template InputRef<Backend>(0);
+    auto &input = ws.template Input<Backend>(0);
     auto data_type_size = input.type_info().size();
-    auto &output = ws.template OutputRef<Backend>(0);
+    auto &output = ws.template Output<Backend>(0);
     output.SetLayout(input.GetLayout());
     for (unsigned int i = 0; i < input.num_samples(); i++) {
       auto tensor_shape = input.tensor_shape(i);

@@ -68,8 +68,8 @@ void MultiPasteCPU::SetupTyped(const workspace_t<CPUBackend> & /*ws*/,
 
 template <typename OutputType, typename InputType>
 void MultiPasteCPU::RunTyped(workspace_t<CPUBackend> &ws) {
-  const auto &images = ws.template InputRef<CPUBackend>(0);
-  auto &output = ws.template OutputRef<CPUBackend>(0);
+  const auto &images = ws.template Input<CPUBackend>(0);
+  auto &output = ws.template Output<CPUBackend>(0);
 
   output.SetLayout(images.GetLayout());
   auto out_shape = output.shape();

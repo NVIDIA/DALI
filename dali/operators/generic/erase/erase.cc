@@ -178,7 +178,7 @@ class EraseImplCpu : public OpImplBase<CPUBackend> {
 template <typename T, int Dims>
 bool EraseImplCpu<T, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
+  const auto &input = ws.template Input<CPUBackend>(0);
   auto layout = input.GetLayout();
   auto type = input.type();
   auto shape = input.shape();
@@ -199,8 +199,8 @@ bool EraseImplCpu<T, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 template <typename T, int Dims>
 void EraseImplCpu<T, Dims>::RunImpl(HostWorkspace &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   output.SetLayout(input.GetLayout());
   int nsamples = input.num_samples();
   auto& thread_pool = ws.GetThreadPool();
@@ -220,7 +220,7 @@ void EraseImplCpu<T, Dims>::RunImpl(HostWorkspace &ws) {
 template <>
 bool Erase<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                   const workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
   auto in_shape = input.shape();
   TYPE_SWITCH(input.type(), type2id, T, ERASE_SUPPORTED_TYPES, (
     VALUE_SWITCH(in_shape.sample_dim(), Dims, ERASE_SUPPORTED_NDIMS, (

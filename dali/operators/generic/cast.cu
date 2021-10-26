@@ -38,7 +38,7 @@ __global__ void BatchedCastKernel(const CastSampleDesc *samples,
 
 template <>
 void Cast<GPUBackend>::PrepareBlocks(const DeviceWorkspace &ws) {
-  const auto &input = ws.InputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
   const auto &input_shape = input.shape();
   std::array<std::pair<int, int>, 1> collapse_groups = {{{0, input_shape.sample_dim()}}};
   auto collapsed_shape = collapse_dims<1>(input.shape(), collapse_groups);
@@ -50,9 +50,9 @@ void Cast<GPUBackend>::PrepareBlocks(const DeviceWorkspace &ws) {
 
 template <>
 void Cast<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  const auto &input = ws.InputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
   const auto &input_shape = input.shape();
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
 
   auto num_samples = input_shape.num_samples();

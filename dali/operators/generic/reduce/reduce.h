@@ -83,7 +83,7 @@ class Reduce : public Operator<Backend>, detail::AxesHelper {
   bool SetupImpl(
     std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     output_desc.resize(1);
-    auto &input = ws.template InputRef<Backend>(0);
+    auto &input = ws.template Input<Backend>(0);
 
     output_desc[0].type = OutputType(input.type());
     output_desc[0].shape = input.shape();
@@ -109,10 +109,10 @@ class Reduce : public Operator<Backend>, detail::AxesHelper {
 
   template <typename OutputType, typename InputType>
   void RunTyped(HostWorkspace &ws) {
-    auto& in = ws.InputRef<CPUBackend>(0);
+    auto& in = ws.Input<CPUBackend>(0);
     auto in_view = view<const InputType>(in);
 
-    auto &out = ws.OutputRef<CPUBackend>(0);
+    auto &out = ws.Output<CPUBackend>(0);
     auto out_view = view<OutputType>(out);
 
     auto &thread_pool = ws.GetThreadPool();
@@ -140,10 +140,10 @@ class Reduce : public Operator<Backend>, detail::AxesHelper {
 
   template <typename OutputType, typename InputType>
   void RunTyped(DeviceWorkspace &ws) {
-    auto& in = ws.InputRef<GPUBackend>(0);
+    auto& in = ws.Input<GPUBackend>(0);
     auto in_view = view<const InputType>(in);
 
-    auto &out = ws.OutputRef<GPUBackend>(0);
+    auto &out = ws.Output<GPUBackend>(0);
     auto out_view = view<OutputType>(out);
 
     using Kernel = ReductionType<OutputType, InputType>;
@@ -184,7 +184,7 @@ class ReduceOp : public Reduce<ReductionType, Backend, ReduceOp> {
   explicit inline ReduceOp(const OpSpec &spec) :  Reduce<ReductionType, Backend, ReduceOp>(spec) {}
 
   void RunImplImpl(workspace_t<Backend> &ws) {
-    auto& in = ws.template InputRef<Backend>(0);
+    auto& in = ws.template Input<Backend>(0);
     DALIDataType input_type = in.type();
 
     TYPE_SWITCH(input_type, type2id, DataType, REDUCE_TYPES, (

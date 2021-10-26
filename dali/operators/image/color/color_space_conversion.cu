@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ namespace dali {
 
 template<>
 void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  const auto& input = ws.InputRef<GPUBackend>(0);
-  auto& output = ws.OutputRef<GPUBackend>(0);
+  const auto& input = ws.Input<GPUBackend>(0);
+  auto& output = ws.Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
   auto in_view = view<const uint8_t>(input);
   auto out_view = view<uint8_t>(output);

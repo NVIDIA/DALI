@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -109,7 +109,7 @@ template <typename T, typename Dist>
 void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<CPUBackend> &ws) {
   // Should never be called for Backend != CPUBackend
   static_assert(std::is_same<Backend, CPUBackend>::value, "Invalid backend");
-  auto &output = ws.template OutputRef<CPUBackend>(0);
+  auto &output = ws.template Output<CPUBackend>(0);
   auto out_view = view<T>(output);
   const auto &out_shape = out_view.shape;
   auto &tp = ws.GetThreadPool();
@@ -121,7 +121,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<CPUBackend> &w
 
   TensorListView<detail::storage_tag_map_t<Backend>, const T, DynamicDimensions> in_view;
   if (IsNoiseGen) {
-    const auto &input = ws.InputRef<CPUBackend>(0);
+    const auto &input = ws.Input<CPUBackend>(0);
     in_view = view<const T>(input);
     output.SetLayout(input.GetLayout());
   }

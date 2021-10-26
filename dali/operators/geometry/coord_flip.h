@@ -39,7 +39,7 @@ class CoordFlip : public Operator<Backend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template InputRef<Backend>(0);
+    const auto &input = ws.template Input<Backend>(0);
     DALI_ENFORCE(input.type() == DALI_FLOAT, "Input is expected to be float");
 
     output_desc.resize(1);

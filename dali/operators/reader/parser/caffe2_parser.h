@@ -121,19 +121,19 @@ void ParseLabels(const caffe2::TensorProtos& protos,
                  const int num_labels,
                  SampleWorkspace* ws,
                  int consumed_inputs) {
-  auto& label_tensor = ws->OutputRef<CPUBackend>(consumed_inputs);
+  auto& label_tensor = ws->Output<CPUBackend>(consumed_inputs);
   switch (label_type) {
     case SINGLE_LABEL: {
       // single element, from protos(1) to Output(consumed_inputs)
       // ensure we only have a single label in the proto
       DALI_ENFORCE(proto_data_size<T>(protos.protos(consumed_inputs)) == 1);
 
-      extract_data<T>(protos.protos(consumed_inputs), ws->OutputRef<CPUBackend>(consumed_inputs));
+      extract_data<T>(protos.protos(consumed_inputs), ws->Output<CPUBackend>(consumed_inputs));
       break;
     }
     case MULTI_LABEL_SPARSE: {
       // multiple labels, all 1. in elements defined in protos(consumed_inputs)
-      auto& label_tensor = ws->OutputRef<CPUBackend>(consumed_inputs);
+      auto& label_tensor = ws->Output<CPUBackend>(consumed_inputs);
       label_tensor.set_type<T>();
       label_tensor.Resize({num_labels});
 
@@ -150,7 +150,7 @@ void ParseLabels(const caffe2::TensorProtos& protos,
     }
     case MULTI_LABEL_DENSE: {
       // multiple elements, stored contiguously
-      extract_data<T>(protos.protos(consumed_inputs), ws->OutputRef<CPUBackend>(consumed_inputs));
+      extract_data<T>(protos.protos(consumed_inputs), ws->Output<CPUBackend>(consumed_inputs));
       break;
     }
     case MULTI_LABEL_WEIGHTED_SPARSE: {
@@ -196,7 +196,7 @@ class Caffe2Parser : public Parser<Tensor<CPUBackend>> {
 
 
     if (image_available_) {
-      auto& image = ws->OutputRef<CPUBackend>(consumed_inputs);
+      auto& image = ws->Output<CPUBackend>(consumed_inputs);
       const caffe2::TensorProto& image_proto = protos.protos(consumed_inputs);
 
       // copy image -- if type is string, image is encoded, if bytes, image isn't encoded
@@ -243,7 +243,7 @@ class Caffe2Parser : public Parser<Tensor<CPUBackend>> {
 
     for (int i = additional_proto_start; i < additional_proto_end; ++i) {
       auto& additional_proto = protos.protos(i);
-      auto& output_tensor = ws->OutputRef<CPUBackend>(consumed_inputs);
+      auto& output_tensor = ws->Output<CPUBackend>(consumed_inputs);
 
       switch (additional_proto.data_type()) {
        case caffe2::TensorProto::FLOAT:
@@ -269,7 +269,7 @@ class Caffe2Parser : public Parser<Tensor<CPUBackend>> {
       DALI_ENFORCE(bbox_proto.data_type() == caffe2::TensorProto::INT32);
       DALI_ENFORCE(bbox_proto.int32_data_size() == 4);
 
-      extract_data<int>(bbox_proto, ws->OutputRef<CPUBackend>(consumed_inputs));
+      extract_data<int>(bbox_proto, ws->Output<CPUBackend>(consumed_inputs));
     }
   }
 

@@ -99,7 +99,7 @@ void Constant<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
         }
       ), (DALI_FAIL(make_string("Unsupported type: ", output_type_))));  // NOLINT
   }
-  auto &out = ws.OutputRef<GPUBackend>(0);
+  auto &out = ws.Output<GPUBackend>(0);
 
   out.Reset();
   out.ShareData(output_);

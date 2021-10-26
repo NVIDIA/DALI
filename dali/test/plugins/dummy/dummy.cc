@@ -18,8 +18,8 @@ namespace other_ns {
 
 template <>
 void Dummy<::dali::CPUBackend>::RunImpl(::dali::HostWorkspace &ws) {
-  const auto &input = ws.InputRef<::dali::CPUBackend>(0);
-  auto &output = ws.OutputRef<::dali::CPUBackend>(0);
+  const auto &input = ws.Input<::dali::CPUBackend>(0);
+  auto &output = ws.Output<::dali::CPUBackend>(0);
 
   ::dali::TypeInfo type = input.type_info();
   auto &tp = ws.GetThreadPool();

@@ -63,7 +63,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
                   " (raw data length: ", length, "bytes)."));
 
     for (size_t i = 0; i < features_.size(); ++i) {
-      auto& output = ws->OutputRef<CPUBackend>(i);
+      auto& output = ws->Output<CPUBackend>(i);
       Feature& f = features_[i];
       std::string& name = feature_names_[i];
       auto& feature = example.features().feature();

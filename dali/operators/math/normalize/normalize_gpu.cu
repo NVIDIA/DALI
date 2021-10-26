@@ -144,7 +144,7 @@ Normalize<GPUBackend>::BroadcastMean(KernelContext &ctx, float value) const {
 
 template <typename OutputType, typename InputType>
 void Normalize<GPUBackend>::SetupTyped(const DeviceWorkspace &ws) {
-  auto &input = ws.InputRef<GPUBackend>(0);
+  auto &input = ws.Input<GPUBackend>(0);
   int nsamples = input.num_samples();
 
   KernelContext ctx;
@@ -207,10 +207,10 @@ void Normalize<GPUBackend>::SetupTyped(const DeviceWorkspace &ws) {
 
 template <typename OutputType, typename InputType>
 void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
-  auto &input = ws.InputRef<GPUBackend>(0);
+  auto &input = ws.Input<GPUBackend>(0);
   TensorListView<StorageGPU, const InputType> in_view = view<const InputType>(input);
 
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   TensorListView<StorageGPU, OutputType> out_view = view<OutputType>(output);
   output.SetLayout(input.GetLayout());
 

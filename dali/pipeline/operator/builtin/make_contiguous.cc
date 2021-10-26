@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@
 namespace dali {
 
 void MakeContiguousCPU::RunImpl(HostWorkspace &ws) {
-  auto &input = ws.template InputRef<CPUBackend>(0);
-  auto &output = ws.template OutputRef<CPUBackend>(0);
+  auto &input = ws.template Input<CPUBackend>(0);
+  auto &output = ws.template Output<CPUBackend>(0);
   int batch_size = input.num_samples();
   output.SetLayout(input.GetLayout());
   auto shapes = input.shape();

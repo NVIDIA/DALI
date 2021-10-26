@@ -126,7 +126,7 @@ template <typename Backend, typename Impl, bool IsNoiseGen>
 template <typename T, typename Dist>
 void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &ws) {
   static_assert(std::is_same<Backend, GPUBackend>::value, "Unexpected backend");
-  auto &output = ws.template OutputRef<GPUBackend>(0);
+  auto &output = ws.template Output<GPUBackend>(0);
   auto rngs = backend_data_.randomizer_.states();
   int block_sz = backend_data_.block_size_;
   int max_nblocks = backend_data_.max_blocks_;
@@ -139,7 +139,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &w
   }
 
   if (IsNoiseGen) {
-    const auto& input = ws.template InputRef<GPUBackend>(0);
+    const auto& input = ws.template Input<GPUBackend>(0);
     in_view = view<const T>(input);
     output.SetLayout(input.GetLayout());
   }

@@ -246,7 +246,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
-    const auto &input = ws.InputRef<GPUBackend>(0);
+    const auto &input = ws.Input<GPUBackend>(0);
     output_desc.resize(1);
     output_desc[0].shape = input.shape();
     output_desc[0].type = input.type();
@@ -254,8 +254,8 @@ class DisplacementFilter<GPUBackend, Displacement,
   }
 
   void RunImpl(DeviceWorkspace& ws) override {
-    const auto &input = ws.InputRef<GPUBackend>(0);
-    auto &output = ws.OutputRef<GPUBackend>(0);
+    const auto &input = ws.Input<GPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
     output.SetLayout(input.GetLayout());
 
     if (IsType<float>(input.type())) {
@@ -312,9 +312,9 @@ class DisplacementFilter<GPUBackend, Displacement,
 
   template <typename T>
   bool BatchedGPUKernel(DeviceWorkspace &ws) {
-    const auto &input = ws.InputRef<GPUBackend>(0);
+    const auto &input = ws.Input<GPUBackend>(0);
     const auto &shape = input.shape();
-    auto &output = ws.OutputRef<GPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
     auto stream = ws.stream();
 
     const auto num_samples = shape.num_samples();

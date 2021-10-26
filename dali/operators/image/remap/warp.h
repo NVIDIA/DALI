@@ -84,7 +84,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   void Setup(TensorListShape<> &shape, const Workspace &ws) override {
     param_provider_->SetContext(Spec(), ws);
 
-    input_ = view<const InputType, tensor_ndim>(ws.template InputRef<Backend>(0));
+    input_ = view<const InputType, tensor_ndim>(ws.template Input<Backend>(0));
     param_provider_->Setup();
 
     SetupBackend(shape, ws);
@@ -149,8 +149,8 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   void RunBackend(HostWorkspace &ws) {
     param_provider_->SetContext(Spec(), ws);
 
-    auto output = view<OutputType, tensor_ndim>(ws.template OutputRef<Backend>(0));
-    input_ = view<const InputType,  tensor_ndim>(ws.template InputRef<Backend>(0));
+    auto output = view<OutputType, tensor_ndim>(ws.template Output<Backend>(0));
+    input_ = view<const InputType,  tensor_ndim>(ws.template Input<Backend>(0));
 
     ThreadPool &pool = ws.GetThreadPool();
     auto interp_types = param_provider_->InterpTypes();
@@ -175,8 +175,8 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   void RunBackend(DeviceWorkspace &ws) {
     param_provider_->SetContext(Spec(), ws);
 
-    auto output = view<OutputType, tensor_ndim>(ws.template OutputRef<Backend>(0));
-    input_ = view<const InputType,  tensor_ndim>(ws.template InputRef<Backend>(0));
+    auto output = view<OutputType, tensor_ndim>(ws.template Output<Backend>(0));
+    input_ = view<const InputType,  tensor_ndim>(ws.template Input<Backend>(0));
     auto context = GetContext(ws);
     kmgr_.Run<Kernel>(
         0, 0, context,
@@ -294,7 +294,7 @@ class Warp : public Operator<Backend> {
   void SetupWarp(TensorListShape<> &out_shape,
                  DALIDataType &out_type,
                  const Workspace &ws) {
-    auto &input = ws.template InputRef<Backend>(0);
+    auto &input = ws.template Input<Backend>(0);
     input_shape_ = input.shape();
     input_type_ = input.type();
     output_type_ = output_type_arg_ == DALI_NO_TYPE ? input_type_ : output_type_arg_;
@@ -328,8 +328,8 @@ class Warp : public Operator<Backend> {
   void RunImpl(Workspace &ws) override {
     assert(impl_);
     impl_->Run(ws);
-    auto &out = ws.template OutputRef<Backend>(0);
-    auto &in = ws.template InputRef<Backend>(0);
+    auto &out = ws.template Output<Backend>(0);
+    auto &in = ws.template Input<Backend>(0);
     out.SetLayout(in.GetLayout());
   }
 

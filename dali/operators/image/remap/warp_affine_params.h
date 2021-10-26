@@ -52,9 +52,9 @@ class WarpAffineParamProvider
     bool invert = !spec_->template GetArgument<bool>("inverse_map");
     if (spec_->NumRegularInput() >= 2) {
       if (ws_->template InputIsType<GPUBackend>(1)) {
-        UseInputAsParams(ws_->template InputRef<GPUBackend>(1), invert);
+        UseInputAsParams(ws_->template Input<GPUBackend>(1), invert);
       } else {
-        UseInputAsParams(ws_->template InputRef<CPUBackend>(1), invert);
+        UseInputAsParams(ws_->template Input<CPUBackend>(1), invert);
       }
     } else if (spec_->HasTensorArgument("matrix")) {
       UseInputAsParams(ws_->ArgumentInput("matrix"), invert);

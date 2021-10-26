@@ -63,7 +63,7 @@ class SumOp : public Reduce<ReductionType, Backend, SumOp> {
   }
 
   void RunImplImpl(workspace_t<Backend> &ws) {
-    auto& in = ws.template InputRef<Backend>(0);
+    auto& in = ws.template Input<Backend>(0);
     DALIDataType input_type = in.type();
     DALIDataType output_type = this->OutputType(input_type);
 

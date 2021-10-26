@@ -35,8 +35,8 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
   }
 
   void Parse(const Tensor<CPUBackend>& data, SampleWorkspace* ws) override {
-    auto& image = ws->OutputRef<CPUBackend>(0);
-    auto& label = ws->OutputRef<CPUBackend>(1);
+    auto& image = ws->Output<CPUBackend>(0);
+    auto& label = ws->Output<CPUBackend>(1);
     ReadSingleImageRecordIO(image, label, data.data<uint8_t>());
     image.SetSourceInfo(data.GetSourceInfo());
   }

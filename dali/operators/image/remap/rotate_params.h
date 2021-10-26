@@ -116,7 +116,7 @@ class RotateParamProvider
   using Base::out_sizes_;
 
   void SetParams() override {
-    input_shape_ = convert_dim<spatial_ndim + 1>(ws_->template InputRef<Backend>(0).shape());
+    input_shape_ = convert_dim<spatial_ndim + 1>(ws_->template Input<Backend>(0).shape());
     Collect(angles_, "angle", true);
 
     // For 2D, assume positive CCW rotation when (0,0) denotes top-left corner.

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ class PermuteBatchBase : public Operator<Backend> {
 
   bool SetupImpl(vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override {
     outputs.resize(1);
-    auto &input = ws.template InputRef<Backend>(0);
+    auto &input = ws.template Input<Backend>(0);
     const auto &in_shape = input.shape();
     outputs[0].type = input.type();
 

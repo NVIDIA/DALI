@@ -74,8 +74,8 @@ class OneHotCPU : public OneHot<CPUBackend> {
 };
 
 void OneHotCPU::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
-  auto &output = ws.template OutputRef<CPUBackend>(0);
+  const auto &input = ws.template Input<CPUBackend>(0);
+  auto &output = ws.template Output<CPUBackend>(0);
   auto &tp = ws.GetThreadPool();
   auto in_shape = input.shape();
   auto num_samples = in_shape.num_samples();

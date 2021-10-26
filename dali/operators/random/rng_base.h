@@ -46,7 +46,7 @@ class RNGBase : public Operator<Backend> {
 
   int GetBatchSize(const workspace_t<Backend> &ws) const {
     if (spec_.NumRegularInput() == 1)
-      return ws.template InputRef<Backend>(0).shape().size();
+      return ws.template Input<Backend>(0).shape().size();
     else
       return ws.GetRequestedBatchSize(0);
   }
@@ -54,7 +54,7 @@ class RNGBase : public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const workspace_t<Backend> &ws) override {
     if (IsNoiseGen)
-      dtype_ = ws.template InputRef<Backend>(0).type();
+      dtype_ = ws.template Input<Backend>(0).type();
     else if (!spec_.TryGetArgument(dtype_, "dtype"))
       dtype_ = This().DefaultDataType();
 
@@ -65,13 +65,13 @@ class RNGBase : public Operator<Backend> {
       "Providing argument \"shape\" is incompatible with providing a shape-like input");
 
     if (IsNoiseGen) {
-      shape_ = ws.template InputRef<Backend>(0).shape();
+      shape_ = ws.template Input<Backend>(0).shape();
     } else if (has_shape_like) {
       if (ws.template InputIsType<Backend>(0)) {
-        shape_ = ws.template InputRef<Backend>(0).shape();
+        shape_ = ws.template Input<Backend>(0).shape();
       } else if (std::is_same<GPUBackend, Backend>::value &&
                  ws.template InputIsType<CPUBackend>(0)) {
-        shape_ = ws.template InputRef<CPUBackend>(0).shape();
+        shape_ = ws.template Input<CPUBackend>(0).shape();
       } else {
         DALI_FAIL(
             "Shape-like input can be either CPUBackend or GPUBackend for case of GPU operators.");

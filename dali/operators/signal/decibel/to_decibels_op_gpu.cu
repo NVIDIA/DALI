@@ -57,7 +57,7 @@ class ToDecibelsImpl : public OpImplBase<GPUBackend> {
 template <typename T>
 bool ToDecibelsImpl<T>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                   const workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.InputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
   auto in_view = view<const T>(input);
 
   auto type = type2id<T>::value;
@@ -80,8 +80,8 @@ bool ToDecibelsImpl<T>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 template <typename T>
 void ToDecibelsImpl<T>::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.InputRef<GPUBackend>(0);
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
 
   auto in_view = view<const T>(input);
   auto out_view = view<T>(output);
@@ -103,7 +103,7 @@ template <>
 bool ToDecibels<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                        const workspace_t<GPUBackend> &ws) {
   output_desc.resize(kNumOutputs);
-  const auto &input = ws.InputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
   auto type = input.type();
   TYPE_SWITCH(type, type2id, T, (float), (
       using Impl = ToDecibelsImpl<T>;

@@ -53,7 +53,7 @@ class RandomResizedCrop : public Operator<Backend>
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     InitParams(curr_batch_size);
-    auto &input = ws.template InputRef<Backend>(0);
+    auto &input = ws.template Input<Backend>(0);
     const auto &in_shape = input.shape();
     DALIDataType in_type = input.type();
 

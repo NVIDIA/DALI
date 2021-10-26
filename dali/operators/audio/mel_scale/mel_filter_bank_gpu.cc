@@ -23,7 +23,7 @@ template <>
 bool MelFilterBank<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                           const workspace_t<GPUBackend> &ws) {
   output_desc.resize(kNumOutputs);
-  const auto &input = ws.InputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
   const auto &in_shape = input.shape();
   auto layout = input.GetLayout();
   auto ndim = in_shape.sample_dim();
@@ -45,8 +45,8 @@ bool MelFilterBank<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 template <>
 void MelFilterBank<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.InputRef<GPUBackend>(0);
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   const auto &in_shape = input.shape();
   ctx_.gpu.stream = ws.stream();
   TYPE_SWITCH(input.type(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (

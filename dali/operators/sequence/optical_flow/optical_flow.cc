@@ -113,9 +113,9 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   if (enable_external_hints_) {
     // Fetch data
     // Input is a TensorList, where every Tensor is a sequence
-    const auto &input = ws.InputRef<GPUBackend>(0);
-    const auto &hints = ws.InputRef<GPUBackend>(1);
-    auto &output = ws.OutputRef<GPUBackend>(0);
+    const auto &input = ws.Input<GPUBackend>(0);
+    const auto &hints = ws.Input<GPUBackend>(1);
+    auto &output = ws.Output<GPUBackend>(0);
     output.SetLayout("HWC");  // Channels represent the two flow vector components (x and y)
     // Extract calculation params
     ExtractParams(input, hints);
@@ -153,8 +153,8 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   } else {
     // Fetch data
     // Input is a TensorList, where every Tensor is a sequence
-    const auto &input = ws.InputRef<GPUBackend>(0);
-    auto &output = ws.OutputRef<GPUBackend>(0);
+    const auto &input = ws.Input<GPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
     output.SetLayout(input.GetLayout());
 
     // Extract calculation params

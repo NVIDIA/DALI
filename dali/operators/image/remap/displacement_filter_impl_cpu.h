@@ -104,8 +104,8 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   }
 
   void RunSample(HostWorkspace &ws, int sample_idx, int thread_idx) {
-    const auto &input = ws.InputRef<CPUBackend>(0);
-    auto &output = ws.OutputRef<CPUBackend>(0);
+    const auto &input = ws.Input<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
 
     PrepareDisplacement(ws, sample_idx, thread_idx);
 
@@ -149,7 +149,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
-    const auto &input = ws.InputRef<CPUBackend>(0);
+    const auto &input = ws.Input<CPUBackend>(0);
     output_desc.resize(1);
     output_desc[0].shape = input.shape();
     output_desc[0].type = input.type();
@@ -157,9 +157,9 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   }
 
   void RunImpl(HostWorkspace &ws) override {
-    const auto &input = ws.InputRef<CPUBackend>(0);
+    const auto &input = ws.Input<CPUBackend>(0);
     const auto &shape = input.shape();
-    auto &output = ws.OutputRef<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
     output.SetLayout(input.GetLayout());
 
     if (has_mask_) {

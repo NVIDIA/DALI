@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ class Crop : public SliceBase<Backend> {
 
  protected:
   void ProcessCroppingAttrs(const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template InputRef<Backend>(0);
+    const auto &input = ws.template Input<Backend>(0);
     const TensorLayout in_layout = input.GetLayout();
     DALI_ENFORCE(in_layout.ndim() == input.shape().sample_dim());
     DALI_ENFORCE(ImageLayoutInfo::HasChannel(in_layout) &&

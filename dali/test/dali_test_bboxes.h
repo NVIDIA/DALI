@@ -95,11 +95,11 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     DeviceWorkspace ws;
     pipe->Outputs(&ws);
 
-    auto images_cpu = this->CopyToHost(ws.OutputRef<GPUBackend>(0))[0];
-    images_cpu->SetLayout(ws.OutputRef<GPUBackend>(0).GetLayout());
+    auto images_cpu = this->CopyToHost(ws.Output<GPUBackend>(0))[0];
+    images_cpu->SetLayout(ws.Output<GPUBackend>(0).GetLayout());
 
-    auto boxes_cpu = this->CopyToHost(ws.OutputRef<GPUBackend>(1))[0];
-    boxes_cpu->SetLayout(ws.OutputRef<GPUBackend>(1).GetLayout());
+    auto boxes_cpu = this->CopyToHost(ws.Output<GPUBackend>(1))[0];
+    boxes_cpu->SetLayout(ws.Output<GPUBackend>(1).GetLayout());
 
     return {images_cpu, boxes_cpu};
   }
@@ -145,15 +145,15 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     std::vector<std::shared_ptr<TensorList<CPUBackend>>> ret;
     ret.push_back(std::make_shared<TensorList<CPUBackend>>());
     ret.push_back(std::make_shared<TensorList<CPUBackend>>());
-    ret[0]->Copy(ws.OutputRef<CPUBackend>(0), 0);
-    ret[1]->Copy(ws.OutputRef<CPUBackend>(1), 0);
+    ret[0]->Copy(ws.Output<CPUBackend>(0), 0);
+    ret[1]->Copy(ws.Output<CPUBackend>(1), 0);
     return ret;
   }
 
   vector<std::shared_ptr<TensorList<CPUBackend>>> Reference(
       const vector<TensorList<CPUBackend> *> &inputs,
       DeviceWorkspace *ws) override {
-    auto &from = ws->OutputRef<GPUBackend>(1);
+    auto &from = ws->Output<GPUBackend>(1);
     auto reference = this->CopyToHost(from);
     reference[0]->SetLayout(from.GetLayout());
     return reference;

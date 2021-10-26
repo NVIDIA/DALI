@@ -505,7 +505,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   }
 
   void RunImpl(workspace_t<CPUBackend> &ws) override {
-    const auto &in_boxes = ws.template InputRef<CPUBackend>(0);
+    const auto &in_boxes = ws.template Input<CPUBackend>(0);
     auto in_boxes_view = view<const float>(in_boxes);
     auto in_boxes_shape = in_boxes_view.shape;
     int num_samples = in_boxes_shape.num_samples();
@@ -527,11 +527,11 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
     tp.RunAll();
 
-    auto &anchor_out = ws.template OutputRef<CPUBackend>(0);
+    auto &anchor_out = ws.template Output<CPUBackend>(0);
     anchor_out.Resize(uniform_list_shape(num_samples, {ndim}), DALI_FLOAT);
     auto anchor_out_view = view<float>(anchor_out);
 
-    auto &shape_out = ws.template OutputRef<CPUBackend>(1);
+    auto &shape_out = ws.template Output<CPUBackend>(1);
     shape_out.Resize(uniform_list_shape(num_samples, {ndim}), DALI_FLOAT);
     auto shape_out_view = view<float>(shape_out);
 
@@ -551,7 +551,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       sh[0] = sample_data_[sample_idx].prospective_crop.boxes.size();
       sh[1] = ncoords;
     }
-    auto &bbox_out = ws.template OutputRef<CPUBackend>(2);
+    auto &bbox_out = ws.template Output<CPUBackend>(2);
     bbox_out.Resize(bbox_out_shape, DALI_FLOAT);
     auto bbox_out_view = view<float>(bbox_out);
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
@@ -562,10 +562,10 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
     int next_out_idx = 3;
     if (has_labels_) {
-      const auto &labels_in = ws.template InputRef<CPUBackend>(1);
+      const auto &labels_in = ws.template Input<CPUBackend>(1);
       auto labels_in_view = view<const int>(labels_in);
 
-      auto &labels_out = ws.template OutputRef<CPUBackend>(next_out_idx++);
+      auto &labels_out = ws.template Output<CPUBackend>(next_out_idx++);
       TensorListShape<> labels_out_shape = labels_in.shape();
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
         auto sh = labels_out_shape.tensor_shape_span(sample_idx);
@@ -588,7 +588,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
 
     if (output_bbox_indices_) {
-      auto &bbox_indices_out = ws.template OutputRef<CPUBackend>(next_out_idx++);
+      auto &bbox_indices_out = ws.template Output<CPUBackend>(next_out_idx++);
       TensorListShape<> bbox_indices_out_shape;
       bbox_indices_out_shape.resize(num_samples, 1);
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
@@ -901,7 +901,7 @@ RandomBBoxCrop<CPUBackend>::RandomBBoxCrop(const OpSpec &spec)
 template <>
 bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                            const workspace_t<CPUBackend> &ws) {
-  const auto &boxes = ws.template InputRef<CPUBackend>(0);
+  const auto &boxes = ws.template Input<CPUBackend>(0);
   auto tl_shape = boxes.shape();
   DALI_ENFORCE(tl_shape.sample_dim() == 2, make_string(
     "Unexpected number of dimensions for bounding boxes input: ", tl_shape.sample_dim()));

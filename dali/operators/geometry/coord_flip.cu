@@ -66,8 +66,8 @@ class CoordFlipGPU : public CoordFlip<GPUBackend> {
 };
 
 void CoordFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.InputRef<GPUBackend>(0);
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   auto curr_batch_size = ws.GetInputBatchSize(0);
 
   sample_descs_.clear();

@@ -75,7 +75,7 @@ DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const workspace_t<Backen
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
     auto &e = dynamic_cast<ExprTensor &>(expr);
-    return ws.template InputRef<Backend>(e.GetInputIndex()).GetLayout();
+    return ws.template Input<Backend>(e.GetInputIndex()).GetLayout();
   }
   if (expr.GetSubexpressionCount() == 0) {
     return "";
@@ -110,7 +110,7 @@ DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const workspace_t<Backend
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
     auto &e = dynamic_cast<ExprTensor &>(expr);
-    expr.SetTypeId(ws.template InputRef<Backend>(e.GetInputIndex()).type());
+    expr.SetTypeId(ws.template Input<Backend>(e.GetInputIndex()).type());
     return expr.GetTypeId();
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);
@@ -192,7 +192,7 @@ DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
     auto &e = dynamic_cast<ExprTensor &>(expr);
-    expr.SetShape(ws.template InputRef<Backend>(e.GetInputIndex()).shape());
+    expr.SetShape(ws.template Input<Backend>(e.GetInputIndex()).shape());
     return expr.GetShape();
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);

@@ -87,7 +87,7 @@ TEST_F(VideoReaderTest, ConstantFrameRate) {
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
-  const auto &frames_output = ws.OutputRef<dali::GPUBackend>(0);
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
   const auto &frames_shape = frames_output.shape();
 
   ASSERT_EQ(frames_shape.size(), 1);
@@ -139,8 +139,8 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   pipe.RunGPU();
   pipe.Outputs(&ws);
 
-  const auto &frames_output = ws.OutputRef<dali::GPUBackend>(0);
-  const auto &labels_output = ws.OutputRef<dali::GPUBackend>(1);
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
+  const auto &labels_output = ws.Output<dali::GPUBackend>(1);
 
   TensorList<CPUBackend> labels_cpu;
   labels_cpu.Copy(labels_output, 0);
@@ -196,7 +196,7 @@ TEST_F(VideoReaderTest, PackedBFrames) {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
-    const auto &frames_output = ws.OutputRef<dali::GPUBackend>(0);
+    const auto &frames_output = ws.Output<dali::GPUBackend>(0);
     const auto &frames_shape = frames_output.shape();
 
     ASSERT_EQ(frames_shape.size(), batch_size);
@@ -243,7 +243,7 @@ TEST_F(VideoReaderTest, Vp9Profile0) {
     }
   }
 
-  const auto &frames_output = ws.OutputRef<dali::GPUBackend>(0);
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
   const auto &frames_shape = frames_output.shape();
 
   ASSERT_EQ(frames_shape.size(), 1);
@@ -282,7 +282,7 @@ TEST_F(VideoReaderTest, Vp9Profile2) {
     }
   }
 
-  const auto &frames_output = ws.OutputRef<dali::GPUBackend>(0);
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
   const auto &frames_shape = frames_output.shape();
 
   ASSERT_EQ(frames_shape.size(), 1);
@@ -319,7 +319,7 @@ TEST_F(VideoReaderTest, Vp8Profile0) {
     }
   }
 
-  const auto &frames_output = ws.OutputRef<dali::GPUBackend>(0);
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
   const auto &frames_shape = frames_output.shape();
 
   ASSERT_EQ(frames_shape.size(), 1);
@@ -358,7 +358,7 @@ TEST_F(VideoReaderTest, MJpeg) {
     }
   }
 
-  const auto &frames_output = ws.OutputRef<dali::GPUBackend>(0);
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
   const auto &frames_shape = frames_output.shape();
 
   ASSERT_EQ(frames_shape.size(), 1);
@@ -399,7 +399,7 @@ TEST_F(VideoReaderTest, HEVC) {
     }
   }
 
-  const auto &frames_output = ws.OutputRef<dali::GPUBackend>(0);
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
   const auto &frames_shape = frames_output.shape();
 
   ASSERT_EQ(frames_shape.size(), 16);
@@ -430,9 +430,9 @@ TEST_F(VideoReaderTest, FrameLabels) {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
-    const auto &frames_gpu = ws.OutputRef<dali::GPUBackend>(0);
-    const auto &label_gpu = ws.OutputRef<dali::GPUBackend>(1);
-    const auto &frame_num_gpu = ws.OutputRef<dali::GPUBackend>(2);
+    const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
+    const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
+    const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
 
     TensorList<CPUBackend> frames_cpu;
     frames_cpu.Copy(frames_gpu, 0);
@@ -476,9 +476,9 @@ TEST_F(VideoReaderTest, FrameLabelsFilenames) {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
-    const auto &frames_gpu = ws.OutputRef<dali::GPUBackend>(0);
-    const auto &label_gpu = ws.OutputRef<dali::GPUBackend>(1);
-    const auto &frame_num_gpu = ws.OutputRef<dali::GPUBackend>(2);
+    const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
+    const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
+    const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
 
     TensorList<CPUBackend> frames_cpu;
     frames_cpu.Copy(frames_gpu, 0);
@@ -524,9 +524,9 @@ TEST_F(VideoReaderTest, LabelsFilenames) {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
-    const auto &frames_gpu = ws.OutputRef<dali::GPUBackend>(0);
-    const auto &label_gpu = ws.OutputRef<dali::GPUBackend>(1);
-    const auto &frame_num_gpu = ws.OutputRef<dali::GPUBackend>(2);
+    const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
+    const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
+    const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
 
     TensorList<CPUBackend> frames_cpu;
     frames_cpu.Copy(frames_gpu, 0);
@@ -572,10 +572,10 @@ TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
-    const auto &frames_gpu = ws.OutputRef<dali::GPUBackend>(0);
-    const auto &label_gpu = ws.OutputRef<dali::GPUBackend>(1);
-    const auto &frame_num_gpu = ws.OutputRef<dali::GPUBackend>(2);
-    const auto &timestamp_gpu = ws.OutputRef<dali::GPUBackend>(3);
+    const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
+    const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
+    const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
+    const auto &timestamp_gpu = ws.Output<dali::GPUBackend>(3);
 
     TensorList<CPUBackend> frames_cpu;
     frames_cpu.Copy(frames_gpu, 0);
@@ -634,10 +634,10 @@ TEST_F(VideoReaderTest, TimestampLabels) {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
-    const auto &frames_gpu = ws.OutputRef<dali::GPUBackend>(0);
-    const auto &label_gpu = ws.OutputRef<dali::GPUBackend>(1);
-    const auto &frame_num_gpu = ws.OutputRef<dali::GPUBackend>(2);
-    const auto &timestamp_gpu = ws.OutputRef<dali::GPUBackend>(3);
+    const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
+    const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
+    const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
+    const auto &timestamp_gpu = ws.Output<dali::GPUBackend>(3);
 
     TensorList<CPUBackend> frames_cpu;
     frames_cpu.Copy(frames_gpu, 0);
@@ -680,9 +680,9 @@ TEST_F(VideoReaderTest, StartEndLabels) {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
-    const auto &frames_gpu = ws.OutputRef<dali::GPUBackend>(0);
-    const auto &label_gpu = ws.OutputRef<dali::GPUBackend>(1);
-    const auto &frame_num_gpu = ws.OutputRef<dali::GPUBackend>(2);
+    const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
+    const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
+    const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
 
     TensorList<CPUBackend> frames_cpu;
     frames_cpu.Copy(frames_gpu, 0);
@@ -720,7 +720,7 @@ TEST_F(VideoReaderTest, MultipleFrameRates) {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
-    const auto &frames_output = ws.OutputRef<dali::GPUBackend>(0);
+    const auto &frames_output = ws.Output<dali::GPUBackend>(0);
     const auto &frames_shape = frames_output.shape();
 
     ASSERT_EQ(frames_shape.size(), batch_size);

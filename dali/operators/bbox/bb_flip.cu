@@ -68,10 +68,10 @@ TensorListShape<2> GetNormalizedShape(const TensorListShape<-1> &shape) {
 }
 
 void BbFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
-  auto &input = ws.InputRef<GPUBackend>(0);
+  auto &input = ws.Input<GPUBackend>(0);
   const auto &shape = input.shape();
   auto nsamples = shape.num_samples();
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
 
   DALI_ENFORCE(IsType<float>(input.type()),
                make_string("Expected input data as float; got ", input.type()));

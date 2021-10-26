@@ -1085,14 +1085,14 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
   }
 
   void CheckAnswersForCocoOnCpu(DeviceWorkspace *ws, bool offset = false) {
-    TensorList<CPUBackend> &boxes = ws->OutputRef<dali::CPUBackend>(0);
-    TensorList<CPUBackend> &labels = ws->OutputRef<dali::CPUBackend>(1);
+    TensorList<CPUBackend> &boxes = ws->Output<dali::CPUBackend>(0);
+    TensorList<CPUBackend> &labels = ws->Output<dali::CPUBackend>(1);
     CheckAnswersForCoco(&boxes, &labels, offset);
   }
 
   void CheckAnswersForCocoOnGpu(DeviceWorkspace *ws, bool offset = false) {
-    auto boxes = this->CopyTensorListToHost(ws->OutputRef<dali::GPUBackend>(0));
-    auto labels = this->CopyTensorListToHost(ws->OutputRef<dali::GPUBackend>(1));
+    auto boxes = this->CopyTensorListToHost(ws->Output<dali::GPUBackend>(0));
+    auto labels = this->CopyTensorListToHost(ws->Output<dali::GPUBackend>(1));
     CheckAnswersForCoco(boxes.get(), labels.get(), offset);
   }
 };

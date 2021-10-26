@@ -73,7 +73,7 @@ extern template op_impl_uptr GetGaussianBlurGpuImpl<float, double>(const OpSpec&
 template <>
 bool GaussianBlur<GPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
                                          const workspace_t<GPUBackend>& ws) {
-  const auto& input = ws.template InputRef<GPUBackend>(0);
+  const auto& input = ws.template Input<GPUBackend>(0);
   auto layout = input.GetLayout();
   auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
   dtype_ = dtype_ != DALI_NO_TYPE ? dtype_ : input.type();

@@ -23,8 +23,8 @@ namespace dali {
 template <>
 void SequenceRearrange<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   scatter_gather_.Reset();
-  const auto &input = ws.InputRef<GPUBackend>(0);
-  auto &output = ws.OutputRef<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   const TypeInfo &type = input.type_info();
   auto curr_batch_size = ws.GetInputBatchSize(0);
 

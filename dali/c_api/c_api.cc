@@ -318,9 +318,9 @@ void daliOutputRelease(daliPipelineHandle *pipe_handle) {
 int64_t daliOutputHasUniformShape(daliPipelineHandle* pipe_handle, int i) {
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   if (ws->OutputIsType<dali::CPUBackend>(i)) {
-    return is_uniform(ws->OutputRef<dali::CPUBackend>(i).shape());
+    return is_uniform(ws->Output<dali::CPUBackend>(i).shape());
   } else {
-    return is_uniform(ws->OutputRef<dali::GPUBackend>(i).shape());
+    return is_uniform(ws->Output<dali::GPUBackend>(i).shape());
   }
 }
 
@@ -328,7 +328,7 @@ template<typename T>
 static int64_t *daliShapeAtHelper(dali::DeviceWorkspace *ws, int n, int k) {
   int64_t *c_shape = nullptr;
   std::vector<dali::Index> shape;
-  const auto &out_tensor_list = ws->OutputRef<T>(n);
+  const auto &out_tensor_list = ws->Output<T>(n);
   if (k >= 0) {
     auto shape_span = out_tensor_list.tensor_shape_span(k);
     shape = std::vector<dali::Index>(shape_span.begin(), shape_span.end());
@@ -366,7 +366,7 @@ int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n) {
 
 template <typename T>
 static dali_data_type_t daliTypeAtHelper(dali::DeviceWorkspace* ws, int n) {
-  const auto &out_tensor_list = ws->OutputRef<T>(n);
+  const auto &out_tensor_list = ws->Output<T>(n);
   auto type_id = out_tensor_list.type();
   return static_cast<dali_data_type_t>(static_cast<int>(type_id));
 }
@@ -383,7 +383,7 @@ dali_data_type_t daliTypeAt(daliPipelineHandle* pipe_handle, int n) {
 
 template <typename T>
 static size_t daliNumTensorsHelper(dali::DeviceWorkspace* ws, int n) {
-  return ws->OutputRef<T>(n).num_samples();
+  return ws->Output<T>(n).num_samples();
 }
 
 size_t daliNumTensors(daliPipelineHandle* pipe_handle, int n) {
@@ -397,7 +397,7 @@ size_t daliNumTensors(daliPipelineHandle* pipe_handle, int n) {
 
 template <typename T>
 static size_t daliNumElementsHelper(dali::DeviceWorkspace* ws, int n) {
-  return ws->OutputRef<T>(n)._num_elements();
+  return ws->Output<T>(n)._num_elements();
 }
 
 size_t daliNumElements(daliPipelineHandle* pipe_handle, int n) {
@@ -411,7 +411,7 @@ size_t daliNumElements(daliPipelineHandle* pipe_handle, int n) {
 
 template <typename T>
 static size_t daliTensorSizeHelper(dali::DeviceWorkspace* ws, int n) {
-  return ws->OutputRef<T>(n).nbytes();
+  return ws->Output<T>(n).nbytes();
 }
 
 size_t daliTensorSize(daliPipelineHandle* pipe_handle, int n) {
@@ -425,7 +425,7 @@ size_t daliTensorSize(daliPipelineHandle* pipe_handle, int n) {
 
 template <typename T>
 static size_t daliMaxDimTensorsHelper(dali::DeviceWorkspace* ws, int n) {
-  const auto &out_tensor_list = ws->OutputRef<T>(n);
+  const auto &out_tensor_list = ws->Output<T>(n);
   size_t tensors_num = out_tensor_list.num_samples();
   int max_num_dim = 0;
   for (size_t i = 0; i < tensors_num; ++i) {
@@ -481,10 +481,10 @@ void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
 
   auto &type_info = dali::TypeTable::GetTypeInfo(dali::DALIDataType::DALI_UINT8);
   if (ws->OutputIsType<dali::CPUBackend>(output_idx)) {
-    CopyToExternal(dst, dst_mem_kind, ws->OutputRef<dali::CPUBackend>(output_idx),
+    CopyToExternal(dst, dst_mem_kind, ws->Output<dali::CPUBackend>(output_idx),
                    stream, use_copy_kernel);
   } else {
-    CopyToExternal(dst, dst_mem_kind, ws->OutputRef<dali::GPUBackend>(output_idx),
+    CopyToExternal(dst, dst_mem_kind, ws->Output<dali::GPUBackend>(output_idx),
                    stream, use_copy_kernel);
   }
   if (sync) {
@@ -506,10 +506,10 @@ void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int out
 
   auto &type_info = dali::TypeTable::GetTypeInfo(dali::DALIDataType::DALI_UINT8);
   if (ws->OutputIsType<dali::CPUBackend>(output_idx)) {
-    CopyToExternal(dsts, dst_mem_kind, ws->OutputRef<dali::CPUBackend>(output_idx),
+    CopyToExternal(dsts, dst_mem_kind, ws->Output<dali::CPUBackend>(output_idx),
                    stream, use_copy_kernel);
   } else {
-    CopyToExternal(dsts, dst_mem_kind, ws->OutputRef<dali::GPUBackend>(output_idx),
+    CopyToExternal(dsts, dst_mem_kind, ws->Output<dali::GPUBackend>(output_idx),
                    stream, use_copy_kernel);
   }
   if (sync) {

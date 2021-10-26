@@ -189,7 +189,7 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_desc.resize(out_types_.size());
   in_shapes_.resize(ninputs);
   for (int in_id = 0; in_id < ninputs; in_id++) {
-    auto& in = ws.InputRef<CPUBackend>(in_id);
+    auto& in = ws.Input<CPUBackend>(in_id);
     in_shapes_[in_id] = in.shape();
     DALI_ENFORCE(in_shapes_[in_id].sample_dim() == ins_ndim_[in_id], make_string(
       "Number of dimensions passed in `ins_ndim` at index ", in_id,
@@ -210,7 +210,7 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   if (!setup_fn_) {
     for (int i = 0; i < noutputs; i++) {
-      const auto &in = ws.InputRef<CPUBackend>(i);
+      const auto &in = ws.Input<CPUBackend>(i);
       output_desc[i] = {in.shape(), in.type()};
     }
     return true;
@@ -251,20 +251,20 @@ bool NumbaFuncImpl<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 template <>
 void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
-  auto N = ws.InputRef<CPUBackend>(0).shape().num_samples();
+  auto N = ws.Input<CPUBackend>(0).shape().num_samples();
 
   std::vector<uint64_t> out_ptrs;
   std::vector<uint64_t> in_ptrs;
   out_ptrs.resize(N * out_types_.size());
   in_ptrs.resize(N * in_types_.size());
   for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
-    auto& out = ws.OutputRef<CPUBackend>(out_id);
+    auto& out = ws.Output<CPUBackend>(out_id);
     for (int i = 0; i < N; i++) {
       out_ptrs[N * out_id + i] = reinterpret_cast<uint64_t>(out[i].raw_mutable_data());
     }
   }
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-    auto& in = ws.InputRef<CPUBackend>(in_id);
+    auto& in = ws.Input<CPUBackend>(in_id);
     for (int i = 0; i < N; i++) {
       in_ptrs[N * in_id + i] = reinterpret_cast<uint64_t>(in[i].raw_mutable_data());
     }
@@ -281,7 +281,7 @@ void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
     return;
   }
 
-  auto &out = ws.OutputRef<CPUBackend>(0);
+  auto &out = ws.Output<CPUBackend>(0);
   auto out_shape = out.shape();
   auto &tp = ws.GetThreadPool();
   for (int sample_id = 0; sample_id < N; sample_id++) {

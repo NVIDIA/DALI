@@ -65,7 +65,7 @@ bool MFCC<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                  const workspace_t<GPUBackend> &ws) {
   GetArguments(ws);
   ctx_.gpu.stream = ws.stream();
-  auto &input = ws.InputRef<GPUBackend>(0);
+  auto &input = ws.Input<GPUBackend>(0);
 
   auto in_shape = input.shape();
   int ndim = in_shape.sample_dim();
@@ -87,11 +87,11 @@ bool MFCC<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 template<>
 void MFCC<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
-  auto &input = ws.InputRef<GPUBackend>(0);
+  auto &input = ws.Input<GPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, T, MFCC_SUPPORTED_TYPES, (
     using Kernel = kernels::signal::dct::Dct1DGpu<T>;
     auto in_view = view<const T>(input);
-    auto out_view = view<T>(ws.OutputRef<GPUBackend>(0));
+    auto out_view = view<T>(ws.Output<GPUBackend>(0));
     auto lifter_view = make_tensor_gpu<1>(lifter_coeffs_.data(),
                                           {static_cast<int64_t>(lifter_coeffs_.size())});
     kmgr_.Run<Kernel>(0, 0, ctx_, out_view, in_view, lifter_view);

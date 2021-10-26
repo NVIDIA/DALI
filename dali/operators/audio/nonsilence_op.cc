@@ -80,7 +80,7 @@ bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 
 void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
+  const auto &input = ws.template Input<CPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, InputType, NONSILENCE_TYPES, (
           RunImplTyped<InputType>(ws);
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
