@@ -542,26 +542,34 @@ def test_slice_with_out_of_bounds_error():
                 check_cmn_with_out_of_bounds_error), device, batch_size, in_shape
 
 
-def check_cmn_per_sample_norm_args(device):
+def check_cmn_per_sample_norm_args(device, rand_mean, rand_stdev):
     @pipeline_def(num_threads=3, device_id=0)
     def pipe():
-        image_like = fn.random.uniform(range=(50, 225), shape=(80, 120, 3))
+        image_like = fn.random.uniform(device=device, range=(0, 255), shape=(80, 120, 3))
         image_like = fn.reshape(image_like, layout="HWC")
-        mean = fn.random.uniform(range=(100, 125), shape=(3,))
-        std = fn.random.uniform(range=(55, 60), shape=(3,))
+        mean = [0.485 * 255, 0.456 * 255, 0.406 * 255]
+        std = [0.229 * 255, 0.224 * 255, 0.225 * 255]
+        if rand_mean:
+            mean = fn.random.uniform(range=(100, 125), shape=(3,))
+        if rand_stdev:
+            std = fn.random.uniform(range=(55, 60), shape=(3,))
         out = fn.crop_mirror_normalize(image_like, dtype=types.FLOAT, output_layout="HWC",
                                        mean=mean, std=std, pad_output=False)
         return out, image_like, mean, std
+
     batch_size = 10
     p = pipe(batch_size=batch_size)
     p.build()
     for _ in range(3):
         outs = p.run()
         for s in range(batch_size):
-            out, image_like, mean, std = [np.array(o[s]) for o in outs]
+            out, image_like, mean, std = [
+                np.array(o[s].as_cpu()) if isinstance(o, dali.backend_impl.TensorListGPU) else
+                np.array(o[s]) for o in outs]
         ref_out = (image_like - mean) / std
-        np.testing.assert_allclose(out, ref_out, rtol=1e-6)
+        np.testing.assert_allclose(out, ref_out, atol=1e-6)
 
 def test_per_sample_norm_args():
-    yield check_cmn_per_sample_norm_args, 'cpu'
-    yield check_cmn_per_sample_norm_args, 'gpu'
+    for device in ['cpu', 'gpu']:
+        for random_mean, random_stdev in [(True, True), (True, False), (False, True)]:
+            yield check_cmn_per_sample_norm_args, device, random_mean, random_stdev
