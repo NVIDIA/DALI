@@ -24,10 +24,10 @@ void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
   int num_inputs = batch.NumInput();
   for (int i = 0; i < num_inputs; i++) {
     if (batch.InputIsType<CPUBackend>(i)) {
-      auto &input_ref = *batch.InputPtr<CPUBackend>(i);
+      auto &input_ref = batch.UnsafeMutableInput<CPUBackend>(i);
       sample.AddInput(&input_ref[data_idx]);
     } else {
-      auto &input_ref = *batch.InputPtr<GPUBackend>(i);
+      auto &input_ref = batch.UnsafeMutableInput<GPUBackend>(i);
       sample.AddInput(&input_ref[data_idx]);
     }
   }
