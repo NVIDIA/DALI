@@ -141,24 +141,30 @@ class WorkspaceBase : public ArgumentWorkspace {
     gpu_outputs_index_.clear();
   }
 
+  /** @defgroup InputOutput Input and output APIs
+   * Functions used to access inputs and outputs of the operator in its implementation.
+   * The inputs are read-only while outputs can be modified.
+   * @{
+   */
+
+  /**
+   * @brief Returns the const reference to the input batch at the position `idx`.
+   *
+   * The operator implementation can use this function to access its inputs.
+   */
   template <typename Backend>
-  auto& Input(int idx) const {
+  const auto& Input(int idx) const {
     return *InputHandle(idx, Backend{});
   }
 
+  /**
+   * @brief Returns the mutable reference to the output batch at the position `idx`.
+   *
+   * The operator implementation can use this function to access its outputs.
+   */
   template <typename Backend>
   auto& Output(int idx) const {
     return *OutputHandle(idx, Backend{});
-  }
-
-  template <typename Backend>
-  const InputType<Backend>& InputPtr(int idx) const {
-    return InputHandle(idx, Backend{});
-  }
-
-  template <typename Backend>
-  const OutputType<Backend>& OutputPtr(int idx) const {
-    return OutputHandle(idx, Backend{});
   }
 
   /**
@@ -174,6 +180,47 @@ class WorkspaceBase : public ArgumentWorkspace {
   inline int NumOutput() const {
     return output_index_map_.size();
   }
+
+
+  /** @} */  // end of InputOutput
+
+  /** @defgroup InputOutputInternal Internal API for input and output access
+   * Functions allowing mutable access to both inputs and outputs that should not be used in
+   * operator implementation.
+   * @{
+   */
+
+  /**
+   * @brief Returns the mutable reference to the input batch at the position `idx`.
+   *
+   * Intended only for executor and other internal APIs.
+   */
+  template <typename Backend>
+  auto& UnsafeMutableInput(int idx) const {
+    return *InputHandle(idx, Backend{});
+  }
+
+  /**
+   * @brief Returns the underlying handle to the input batch at the position `idx`.
+   *
+   * Intended only for executor and other internal APIs.
+   */
+  template <typename Backend>
+  const InputType<Backend>& InputPtr(int idx) const {
+    return InputHandle(idx, Backend{});
+  }
+
+  /**
+   * @brief Returns the underlying handle to the output batch at the position `idx`.
+   *
+   * Intended only for executor and other internal APIs.
+   */
+  template <typename Backend>
+  const OutputType<Backend>& OutputPtr(int idx) const {
+    return OutputHandle(idx, Backend{});
+  }
+
+  /** @} */  // end of InputOutputInternal
 
   /**
    * Returns shape of input at given index

@@ -226,7 +226,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
    */
-  DLL_PUBLIC inline void ShareData(TensorList<Backend> &other) {
+  DLL_PUBLIC inline void ShareData(const TensorList<Backend> &other) {
     DALI_ENFORCE(IsValidType(other.type_), "To share data, "
         "the input TensorList must have a valid data type");
 

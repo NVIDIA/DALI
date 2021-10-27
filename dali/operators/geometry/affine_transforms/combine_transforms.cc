@@ -105,7 +105,7 @@ class CombineTransformsCPU : public Operator<CPUBackend> {
     in_views.reserve(ws.NumInput());
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
       auto &in = ws.template Input<CPUBackend>(input_idx);
-      in_views.push_back(view<T, 2>(in));
+      in_views.push_back(view<const T, 2>(in));
     }
     auto out_view = view<T, 2>(out);
     auto read_mat = [](affine_mat_t<T, mat_dim> &next_mat,

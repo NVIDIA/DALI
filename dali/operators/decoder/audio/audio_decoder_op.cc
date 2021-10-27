@@ -88,7 +88,7 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
 
   for (int i = 0; i < batch_size; i++) {
     auto &meta = sample_meta_[i] =
-        decoders_[i]->Open({reinterpret_cast<const char *>(input[i].raw_mutable_data()),
+        decoders_[i]->Open({static_cast<const char *>(input[i].raw_data()),
                             input[i].shape().num_elements()});
     TensorShape<> data_sample_shape = DecodedAudioShape(
         meta, use_resampling_ ? target_sample_rates_[i] : -1.0f, downmix_);
