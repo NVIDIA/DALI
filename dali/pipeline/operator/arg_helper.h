@@ -122,8 +122,9 @@ class ArgValue {
         orig_constant_sz_ = ReadConstant(spec);
       }
       int64_t expected_len = volume(expected_shape);
-      if (orig_constant_sz_ == 1 && expected_len > 1) {
-        data_.resize(expected_len, data_[0]);
+      // broadcast single values to whatever shape, including empty shapes
+      if (orig_constant_sz_ == 1 && expected_len != 1) {
+        data_.resize(std::max(expected_len, 1_i64), data_[0]);
         view_ = constant_view(nsamples, data_.data(), expected_shape);
       } else {
         DALI_ENFORCE(orig_constant_sz_ == volume(expected_shape),
