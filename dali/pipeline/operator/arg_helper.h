@@ -82,11 +82,6 @@ class ArgValue {
     has_arg_const_ = spec.HasArgument(arg_name_);
     has_arg_input_ = spec.HasTensorArgument(arg_name_);
     assert(!(has_arg_const_ && has_arg_input_));
-
-    if (!has_arg_input_) {
-      // if not an argument input, read the constant values, explicit or default
-      orig_constant_sz_ = ReadConstant(spec);
-    }
   }
 
   /**
@@ -122,6 +117,10 @@ class ArgValue {
         make_string("Expected uniform shape for argument \"", arg_name_,
                     "\" but got shape ", view_.shape));
     } else {
+      if (orig_constant_sz_ < 0) {
+        // if not an argument input, read the constant values, explicit or default
+        orig_constant_sz_ = ReadConstant(spec);
+      }
       int64_t expected_len = volume(expected_shape);
       if (orig_constant_sz_ == 1 && expected_len > 1) {
         data_.resize(expected_len, data_[0]);
@@ -152,6 +151,10 @@ class ArgValue {
                       "\" but got shape ", view_.shape));
       }
     } else {
+      if (orig_constant_sz_ < 0) {
+        // if not an argument input, read the constant values, explicit or default
+        orig_constant_sz_ = ReadConstant(spec);
+      }
       auto sh = shape_from_size(orig_constant_sz_);
       view_ = constant_view(nsamples, data_.data(), std::move(sh));
     }
@@ -199,6 +202,7 @@ class ArgValue {
     if (ndim == 0) {
       data_.resize(1);
       if (!spec.TryGetArgument<T>(data_[0], arg_name_)) {
+        data_.clear();
         // something went bad - call GetArgument and let it throw
         (void) spec.GetArgument<T>(arg_name_);
       }
