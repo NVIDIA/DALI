@@ -78,8 +78,8 @@ py::list PrepareDLTensorInputs<CPUBackend>(HostWorkspace &ws) {
   for (Index idx = 0; idx < ws.NumInput(); ++idx) {
     py::list dl_tensor_list;
     for (Index i = 0; i < ws.GetInputBatchSize(idx); ++i) {
-      auto &t = ws.Input<CPUBackend>(idx)[i];
-      auto dl_capsule = TensorToDLPackView(const_cast<Tensor<CPUBackend>&>(t));
+      auto &t = ws.UnsafeMutableInput<CPUBackend>(idx)[i];
+      auto dl_capsule = TensorToDLPackView(t);
       dl_tensor_list.append(dl_capsule);
     }
     input_tuple.append(dl_tensor_list);
@@ -91,7 +91,7 @@ template <>
 py::list PrepareDLTensorInputs<GPUBackend>(DeviceWorkspace &ws) {
   py::list input_tuple;
   for (Index idx = 0; idx < ws.NumInput(); ++idx) {
-    auto &tlist = ws.Input<GPUBackend>(idx);
+    auto &tlist = ws.UnsafeMutableInput<GPUBackend>(idx);
     py::list dl_tensor_list = TensorListToDLPackView(tlist);
     input_tuple.append(dl_tensor_list);
   }
@@ -106,8 +106,8 @@ py::list PrepareDLTensorInputsPerSample<CPUBackend>(HostWorkspace &ws) {
   for (Index s = 0; s < batch_size; ++s) {
     py::list tuple;
     for (Index idx = 0; idx < ws.NumInput(); ++idx) {
-      auto &t = ws.Input<CPUBackend>(idx)[s];
-      auto dl_capsule = TensorToDLPackView(const_cast<Tensor<CPUBackend>&>(t));
+      auto &t = ws.UnsafeMutableInput<CPUBackend>(idx)[s];
+      auto dl_capsule = TensorToDLPackView(t);
       tuple.append(dl_capsule);
     }
     input_tuples.append(tuple);
@@ -122,7 +122,7 @@ py::list PrepareDLTensorInputsPerSample<GPUBackend>(DeviceWorkspace &ws) {
   Index batch_size = ws.Input<GPUBackend>(0).num_samples();
   input_tuples.resize(batch_size);
   for (Index idx = 0; idx < ws.NumInput(); ++idx) {
-    py::list dl_tensor_list = TensorListToDLPackView(ws.Input<GPUBackend>(idx));
+    py::list dl_tensor_list = TensorListToDLPackView(ws.UnsafeMutableInput<GPUBackend>(idx));
     for (Index s = 0; s < batch_size; ++s) {
       input_tuples[s].append(dl_tensor_list[s]);
     }
