@@ -122,8 +122,8 @@ class ArgValue {
         orig_constant_sz_ = ReadConstant(spec);
       }
       int64_t expected_len = volume(expected_shape);
-      // broadcast single values to whatever shape, including empty shapes
       if (orig_constant_sz_ == 1 && expected_len != 1) {
+        // broadcast single values to whatever shape, including empty tensors
         data_.resize(std::max(expected_len, 1_i64), data_[0]);
         view_ = constant_view(nsamples, data_.data(), expected_shape);
       } else {
@@ -188,11 +188,6 @@ class ArgValue {
    */
   int size() const {
     return view_.size();
-  }
-
-  span<const T> constant_values() const {
-    assert(orig_constant_sz_ >= 0);
-    return make_cspan(data_.data(), orig_constant_sz_);
   }
 
  private:
