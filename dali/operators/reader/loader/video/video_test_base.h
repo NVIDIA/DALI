@@ -24,17 +24,17 @@
 namespace dali {
 class VideoTestBase : public ::testing::Test {
  public:
-  const int NumVideos() const { return cfr_frames_.size(); }
+  int NumVideos() const { return cfr_frames_.size(); }
 
-  const int NumFrames(int i) const { return cfr_frames_[i].size(); }
+  int NumFrames(int i) const { return cfr_frames_[i].size(); }
 
-  const int Channels() const { return 3; }
+  int Channels() const { return 3; }
 
-  const int Width(int i) const { return cfr_frames_[i][0].cols; }
+  int Width(int i) const { return cfr_frames_[i][0].cols; }
 
-  const int Height(int i) const { return cfr_frames_[i][0].rows; }
+  int Height(int i) const { return cfr_frames_[i][0].rows; }
 
-  const int FrameSize(int i) const { return Height(i) * Width(i) * Channels(); }
+  int FrameSize(int i) const { return Height(i) * Width(i) * Channels(); }
 
   void CompareFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps = 10);
 
