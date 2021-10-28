@@ -86,15 +86,15 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |pybind11| replace:: pybind11
 .. _pybind11: https://github.com/pybind/pybind11
-.. |pybind11ver| replace:: 2.7.1
-.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.7.1
+.. |pybind11ver| replace:: 2.8.1
+.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.8.1
 .. |pybind11lic| replace:: BSD 3-Clause License
 .. _pybind11lic: https://github.com/pybind/pybind11/blob/master/LICENSE
 
 .. |rapidjson| replace:: RapidJSON
 .. _rapidjson: https://github.com/Tencent/rapidjson
-.. |rapidjsonver| replace:: Top-of-tree (Aug 13, 2021)
-.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/00dbcf2c6e03c47d6c399338b6de060c71356464
+.. |rapidjsonver| replace:: 1.1.0
+.. _rapidjsonver: https://github.com/Tencent/rapidjson/releases/tag/v1.1.0
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt
 
