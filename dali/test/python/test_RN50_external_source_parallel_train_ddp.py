@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,10 +15,7 @@
 
 from test_utils import AverageMeter
 import os
-import argparse
 import time
-import cv2
-import numpy as np
 
 import torch
 import torch.optim
@@ -75,10 +72,12 @@ def training_test(args):
             num_threads=args.workers,
             device_id=args.local_rank,
             data_path=args.data_path,
-            prefetch=args.prefetch,
+            prefetch_queue_depth=args.prefetch,
             reader_queue_depth=args.reader_queue_depth,
             py_start_method=args.worker_init,
-            py_num_workers=args.py_workers)
+            py_num_workers=args.py_workers,
+            source_mode=args.source_mode,
+            read_encoded=args.dali_decode,)
 
         # Start the pipeline workers first, before any CUDA call. The first pipeline factory
         # is the one with Parallel External Source that needs that.

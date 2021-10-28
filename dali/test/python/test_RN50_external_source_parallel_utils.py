@@ -14,16 +14,11 @@
 
 import os
 import argparse
-import time
 import cv2
 import numpy as np
 
 import nvidia.dali as dali
 import nvidia.dali.types as types
-from nvidia.dali.plugin.base_iterator import LastBatchPolicy
-
-from test_utils import AverageMeter
-
 
 class FilesDataSet:
 
@@ -83,9 +78,9 @@ class ShuffledFilesDataSet(FilesDataSet):
         return super().get_sample(self.perm[sample_idx], epoch_idx)
 
 
-class SampleLoader(object):
+class SampleLoader:
 
-    DATA_SET = FilesDataSet
+    DATA_SET = ShuffledFilesDataSet
 
     def __init__(self, data_path):
         self.data_path = data_path
@@ -102,24 +97,64 @@ class SampleLoader(object):
         return self.DATA_SET(data_path=self.data_path)
 
     def read_file(self, file_path):
-        with open(file_path, 'rb') as f:
-            return f.read()
+        return np.fromfile(file_path, dtype=np.uint8)
 
     def __call__(self, sample_info):
         file_path, class_no = self.data_set.get_sample(sample_info.idx_in_epoch, sample_info.epoch_idx)
         return self.read_file(file_path), np.array([class_no])
 
 
-class CV2SampleLoader(SampleLoader):
+class BatchLoader(SampleLoader):
 
+    def __init__(self, data_path, batch_size):
+        super().__init__(data_path)
+        self.batch_size = batch_size
+
+    def __call__(self, batch_info):
+        assert isinstance(batch_info, types.BatchInfo), \
+            "Expected batch info instance, got {}".format(type(batch_info))
+        batch_i = batch_info.iteration
+        epoch_idx = batch_info.epoch_idx
+        files_paths, labels = tuple(zip(*[self.data_set.get_sample(self.batch_size * batch_i + i, epoch_idx) for i in range(self.batch_size)]))
+        return [self.read_file(file_path) for file_path in files_paths], np.array(labels)
+
+
+class CV2SampleLoader(SampleLoader):
     def read_file(self, file_path):
         img = cv2.imread(file_path)
         return img
 
 
-class CV2SampleLoaderPerm(CV2SampleLoader):
+class CV2BatchLoader(BatchLoader):
+    def read_file(self, file_path):
+        img = cv2.imread(file_path)
+        return img
 
-    DATA_SET = ShuffledFilesDataSet
+
+def create_dataset_generator(data_path, batch_size, read_encoded):
+    ds = ShuffledFilesDataSet(data_path)
+    epoch_i = -1
+
+    def create_epoch():
+        nonlocal epoch_i
+        epoch_i += 1
+        i = 0
+        try:
+            while True:
+                batch_imgs, batch_labels = [], []
+                for _ in range(batch_size):
+                    jpeg_filename, label = ds.get_sample(i, epoch_i)
+                    if read_encoded:
+                        jpeg = np.fromfile(jpeg_filename, dtype=np.uint8)
+                    else:
+                        jpeg = cv2.imread(jpeg_filename)
+                    batch_imgs.append(jpeg)
+                    batch_labels.append(np.int32([label]))
+                    i += 1
+                yield batch_imgs, batch_labels
+        except StopIteration:
+            pass
+    return create_epoch, len(ds)
 
 
 def common_pipeline(images):
@@ -136,18 +171,19 @@ def common_pipeline(images):
     return images
 
 
-def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch,
-                         reader_queue_depth, **kwargs,):
+def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch_queue_depth,
+                         reader_queue_depth, read_encoded, **kwargs,):
     pipe = dali.pipeline.Pipeline(
         batch_size=batch_size, num_threads=num_threads, device_id=device_id,
-        prefetch_queue_depth=prefetch)
+        prefetch_queue_depth=prefetch_queue_depth)
     with pipe:
         images, labels = dali.fn.readers.file(
             name="Reader",
             file_root=data_path,
             prefetch_queue_depth=reader_queue_depth,
             random_shuffle=True,)
-        images = dali.fn.decoders.image(images, device="cpu", output_type=types.RGB)
+        dev = "mixed" if read_encoded else "cpu"
+        images = dali.fn.decoders.image(images, device=dev, output_type=types.RGB)
         images = common_pipeline(images.gpu())
         pipe.set_outputs(images, labels)
     return pipe
@@ -155,36 +191,61 @@ def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch
 
 class ExternalSourcePipeline(dali.pipeline.Pipeline):
 
-    def __init__(self, data_path, **kwargs):
+    def __init__(self, data_path, read_encoded, source_mode, **kwargs):
         super().__init__(**kwargs)
-        self.loader = CV2SampleLoaderPerm(data_path)
+        if source_mode == "generator":
+            self.loader, self.data_set_len = create_dataset_generator(
+                data_path, batch_size=kwargs['batch_size'], read_encoded=read_encoded)
+        else:
+            self.data_set_len = None
+            if read_encoded:
+                loader_sample, loader_batch = SampleLoader, BatchLoader
+            else:
+                loader_sample, loader_batch = CV2SampleLoader, CV2BatchLoader
+            if source_mode == "batch":
+                self.loader = loader_batch(data_path, batch_size=kwargs['batch_size'])
+            else:
+                self.loader = loader_sample(data_path)
 
     def epoch_size(self, *args, **kwargs):
-        return len(self.loader.data_set)
+        return self.data_set_len if self.data_set_len is not None else len(self.loader.data_set)
 
 
 def external_source_pipeline(
-        data_path, batch_size, num_threads, device_id, prefetch, reader_queue_depth, **kwargs,):
+        data_path, batch_size, num_threads, device_id, prefetch_queue_depth, reader_queue_depth, read_encoded,
+        source_mode, **kwargs):
     pipe = ExternalSourcePipeline(
-        batch_size=batch_size, num_threads=num_threads, device_id=device_id, data_path=data_path)
+        batch_size=batch_size, num_threads=num_threads, device_id=device_id, data_path=data_path,
+        source_mode=source_mode, prefetch_queue_depth=prefetch_queue_depth, read_encoded=read_encoded)
     with pipe:
-        images, labels = dali.fn.external_source(pipe.loader, batch=False, num_outputs=2)
+        images, labels = dali.fn.external_source(
+            pipe.loader, num_outputs=2, batch=source_mode != "sample",
+            cycle="raise" if source_mode == "generator" else None,
+            batch_info=source_mode == "batch")
+        if read_encoded:
+            images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
         images = common_pipeline(images.gpu())
         pipe.set_outputs(images, labels)
     return pipe
 
 
 def external_source_parallel_pipeline(
-        data_path, batch_size, num_threads, device_id, prefetch, reader_queue_depth,
+        data_path, batch_size, num_threads, device_id, prefetch_queue_depth, reader_queue_depth, read_encoded, source_mode,
         py_num_workers=None, py_start_method="fork"):
     pipe = ExternalSourcePipeline(
         batch_size=batch_size, num_threads=num_threads, device_id=device_id,
-        prefetch_queue_depth=prefetch, py_start_method=py_start_method,
-        py_num_workers=py_num_workers, data_path=data_path)
+        prefetch_queue_depth=prefetch_queue_depth, py_start_method=py_start_method,
+        py_num_workers=py_num_workers, data_path=data_path, source_mode=source_mode,
+        read_encoded=read_encoded)
     with pipe:
         images, labels = dali.fn.external_source(
-            pipe.loader, num_outputs=2, batch=False, parallel=True,
-            prefetch_queue_depth=reader_queue_depth)
+            pipe.loader, num_outputs=2, parallel=True,
+            prefetch_queue_depth=reader_queue_depth,
+            batch=source_mode != "sample",
+            cycle="raise" if source_mode == "generator" else None,
+            batch_info=source_mode == "batch")
+        if read_encoded:
+            images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
         images = common_pipeline(images.gpu())
         pipe.set_outputs(images, labels)
     return pipe
@@ -225,6 +286,14 @@ def parse_test_arguments(supports_distributed):
     parser.add_argument(
         "--test_pipes", nargs="+", default=["parallel", "file_reader", "scalar"],
         help="Pipelines to be tested, allowed values: 'parallel', 'file_reader', 'scalar'")
+    parser.add_argument('--source_mode', default="sample", choices=['sample', 'batch', 'generator'], type=str,
+                        help='Available modes: sample, batch, generator. First two run stateless '
+                        'callbacks that return sample or batch given the index, the '
+                        'generator mode iterates over a generator. '
+                        'Parameter value has no effect on file reader pipeline.')
+    parser.add_argument('--dali_decode', default=False, type=bool,
+                        help="If True decodes images with DALI's mixed decoder, otherwise decodes on cpu"
+                             "(inside external source callback if applicable) and moves with tensor.gpu()")
 
     if supports_distributed:
         parser.add_argument('--local_rank', default=0, type=int,

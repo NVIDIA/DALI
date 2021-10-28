@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from nvidia.dali import backend as _b
 
 class SharedMem:
@@ -39,6 +40,7 @@ class SharedMem:
         if handle is None:
             handle = -1
         self.shm = _b.SharedMem(handle, size)
+        self.capacity = size
 
     def __getattr__(self, key):
         # lazily evaluate and cache 'buf' property, so that it is created only once and only when requested
@@ -72,7 +74,9 @@ class SharedMem:
         `size` : int
             Size of the existing shared memory chunk.
         """
-        return cls(handle, size)
+        instance = cls(handle, size)
+        assert os.fstat(handle).st_size >= size
+        return instance
 
     @property
     def handle(self):
@@ -91,6 +95,7 @@ class SharedMem:
         if 'buf' in self.__dict__:
             del self.__dict__['buf']
         self.shm.resize(size, trunc)
+        self.capacity = size
 
     def close(self):
         """Removes maping of the memory into process address space and closes related handle.
@@ -101,3 +106,11 @@ class SharedMem:
         """
         self.buf = None
         self.shm.close()
+
+    def close_handle(self):
+        """Closes OS handle for underlying shared memory. From now on, the process cannot resize the
+           underlying memory with this handle but still can adjust the mapping if the underlying shared memory
+           is resized, for instance, by another process.
+           This means that call to resize with ``trunc``= True will be illegal.
+        """
+        self.shm.close_handle()

@@ -14,6 +14,7 @@
 
 # custom wrappers around ops
 from nvidia.dali import backend as _b
+from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs, SampleRange as _SampleRange
 import nvidia.dali.types
 from nvidia.dali._utils.external_source_impl import \
         get_callback_from_source as _get_callback_from_source, \
@@ -63,12 +64,13 @@ class _ExternalDataBatch:
 
 class _ExternalSourceGroup(object):
     def __init__(
-            self, callback, is_multioutput, instances=[], *,
+            self, callback, source_desc, is_multioutput, instances=[], *,
             cuda_stream=None, use_copy_kernel=None, batch=True, parallel=False,
             prefetch_queue_depth=None, batch_info=None):
         self.instances = list(instances)  # we need a copy!
         self.is_multioutput = is_multioutput
         self.callback = callback
+        self.source_desc = source_desc
         self._cuda_stream = cuda_stream
         self.use_copy_kernel = use_copy_kernel
         self.batch = batch
@@ -78,9 +80,6 @@ class _ExternalSourceGroup(object):
         # prefetching of batches in parallel mode.
         self.current_iter = 0
         self.current_sample = 0
-        self.flat_iter_idx = 0  # flat index of the next iteration, not affected by reset
-        self.scheduled_job_idx = 0  # sequential index of the parallel job, successful or not
-        self.scheduled_ahead = 0  # number of batches scheduled ahead for parallel ext. src.
         self.parallel = parallel
         self.prefetch_queue_depth = prefetch_queue_depth
         if callback is not None:
@@ -119,25 +118,27 @@ class _ExternalSourceGroup(object):
     def reset_indices(self):
         self.current_iter = 0
         self.current_sample = 0
-        self.cancel_prefetch()
-
-    def cancel_prefetch(self):
-        self.scheduled_ahead = 0
 
     def prefetch(self, pool, context_i, batch_size, epoch_idx):
         # NOTE We can't schedule more than what's on top of pipeline's prefetch queue, as the
         # entires in the pipeline are zero-copy and cannot be overwritten.
-        while self.scheduled_ahead < self.prefetch_queue_depth:
-            self.schedule_batch(pool, context_i, self.scheduled_ahead, batch_size, epoch_idx)
-            self.scheduled_ahead += 1
+        context = pool.contexts[context_i]
+        while context.scheduled_ahead < self.prefetch_queue_depth and \
+            self.schedule_batch(pool, context_i, context.scheduled_ahead, batch_size, epoch_idx):
+            pass
 
     def schedule_batch(self, pool, context_i, lead, batch_size, epoch_idx):
         """Schedule computing new batch from source callback by the parallel pool."""
-        dst_chunk_i = (self.flat_iter_idx + lead) % pool.queue_depths[context_i]
-        pool.schedule_batch(context_i, self.scheduled_job_idx, dst_chunk_i, [
-            self.callback_args(i, epoch_idx, batch_size, lead) for i in range(batch_size)
-        ])
-        self.scheduled_job_idx += 1
+        if self.batch:
+            return pool.schedule_batch(context_i, _TaskArgs.make_batch(
+                self.callback_args(None, epoch_idx, lead=lead)))
+        else:
+            sample_range_start = self.current_sample + batch_size * lead
+            sample_range_end = sample_range_start + batch_size
+            iteration = self.current_iter + lead
+            sample_range = _SampleRange(sample_range_start, sample_range_end, iteration, epoch_idx)
+            work_batch = _TaskArgs.make_sample(sample_range)
+            return pool.schedule_batch(context_i, work_batch)
 
     def schedule_and_receive(self, pipeline, pool, context_i, batch_size, epoch_idx):
         """Obtain the computed results of calling source callback in parallel pool and feed
@@ -149,8 +150,6 @@ class _ExternalSourceGroup(object):
             context_i (int): Index of the callback (in the list of parallel groups)"""
         try:
             callback_out = pool.receive_batch(context_i)
-            self.scheduled_ahead -= 1
-            self.flat_iter_idx += 1
             self.current_sample += batch_size
             self.current_iter += 1
             self.prefetch(pool, context_i, batch_size, epoch_idx)
@@ -239,6 +238,8 @@ Args
 
     A per-batch source may accept one positional argument. If it does, it is the index of current
     iteration within epoch and consecutive calls will be ``source(0)``, ``source(1)``, and so on.
+    If `batch_info` is set to True, instance of :class:`nvidia.dali.types.BatchInfo` will be
+    passed to the source, instead of a plain index.
 
     A per-sample source may accept one positional argument of type
     :class:`nvidia.dali.types.SampleInfo`, which contains index of the sample in current epoch and
@@ -351,25 +352,32 @@ Keyword Args
     accept arguments or ``batch`` is set to False, setting this flag has no effect.
 
 `parallel` : bool, optional, default = False
-    If set to True, the corresponding pipeline will run pool of Python workers to run the
+    If set to True, the corresponding pipeline will start a pool of Python workers to run the
     callback in parallel. You can specify the number of workers by passing ``py_num_workers``
     into pipeline's constructor.
 
-    When ``parallel`` is set to True, ``source`` must return NumPy/MXNet/PyTorch CPU array,
-    TensorCPU, or tuple/list of these types with length matching num_outputs.
+    When ``parallel`` is set to True, samples returned by ``source`` must be
+    NumPy/MXNet/PyTorch CPU arrays or TensorCPU instances.
 
-    Only callables that accept one argument (:meth:`~nvidia.dali.types.SampleInfo` objects that
-    represent the index of the requested sample) can be used as ``source`` when ``parallel`` is
-    set to True. It can be a function or an object implementing ``__call__`` operator, which
-    allows to add an initial state to the object instance.
+    Acceptable sources depend on the value specified for ``batch`` parameter.
 
-    Keep in mind, that **copies** of the ``source`` will be distributed between Python workers,
-    and no global state can be shared between them.
+    If batch is set to False, source must be a callable (a function or an object with __call__ method)
+    that accepts exactly one argument (:meth:`~nvidia.dali.types.SampleInfo` instance that
+    represents the index of the requested sample).
+    If batch is set to True, the ``source`` can be either a callable, an iterable or a generator function.
+    Callable in batch mode must accept exactly one argument - either :meth:`~nvidia.dali.types.BatchInfo`
+    instance or an integer (see `batch_info`).
 
-    The ``source`` callback must raise StopIteration when the end of data is reached.
+    Irrespective of ``batch`` value, callables should produce requested sample or batch solely based on
+    the SampleInfo/BatchInfo instance or index in batch, so that they can be run in parallel in a number of workers.
+    When batch is set to True, callables performance might especially benefit from increasing
+    ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
 
-    Setting ``parallel`` to True makes the external source work in per-sample mode.
-    If ``batch`` was not set it is set to False.
+    Iterator or generator will be assigned to a single worker that will iterate over it.
+
+    The ``source`` callback must raise StopIteration when the end of data is reached. Note, that due to
+    prefetching, the callback may be invoked with a few iterations past the end of dataset - make sure
+    it consistently raises StopIteration in that case.
 
 `prefetch_queue_depth` : int, option, default = 1
     When run in ``parallel=True`` mode, specifies the number of batches to be computed in advance and stored
@@ -490,27 +498,22 @@ Keyword Args
             if not no_copy:
                 raise ValueError("The argument ``no_copy`` cannot be specified to False " +
                     " when used with ``parallel=True``.")
-            if batch:
-                raise ValueError("ExternalSource can be run in parallel only in per-sample " +
-                    "(``batch=False``) mode.")
             if prefetch_queue_depth < 1:
                 raise ValueError(
                     "``prefetch_queue_depth`` must be a positive integer, got {}.".format(
                         prefetch_queue_depth))
             if source_desc.kind == _SourceKind.CALLABLE:
                 if not source_desc.has_inputs:
-                    raise TypeError(("External Source in parallel mode (when `parallel=True`) "
-                            "accepts as `source` only callables that accept exactly one "
-                            "argument of type `nvidia.dali.types.SampleInfo`. This argument "
-                            "represents the requested sample index. Got a callable that does not "
-                            "accept arguments instead."))
-            else:
+                    raise TypeError(("Callable passed to External Source in parallel mode (when `parallel=True`) "
+                            "must accept exactly one argument: `nvidia.dali.types.SampleInfo` "
+                            "if run with `batch=False` or either `nvidia.dali.types.BatchInfo` or integer that "
+                            "represents the index of the batch within the epoch if `batch=True`. "
+                            "Got a callable that does not accept arguments instead."))
+            elif not batch:
                 what = "an iterable" if source_desc.kind == _SourceKind.ITERABLE else "a generator function"
-                raise TypeError(("External Source in parallel mode (when `parallel=True`) accepts "
-                        "as `source` only callables that accept exactly one argument of type"
-                        "`nvidia.dali.types.SampleInfo`. This argument represents the requested "
-                        "sample index. Got {} instead.\nOnly callables allow to distribute work "
-                        "between worker processes without duplicating it.").format(what))
+                raise TypeError("Parallel external source with {} must be run in a batch mode "
+                        "(specify `batch=True` in the external source definition and make sure "
+                        "your source returns batches)".format(what))
         else:
             if prefetch_queue_depth is not None:
                 raise ValueError("The argument `prefetch_queue_depth` is valid only for " +
@@ -554,7 +557,7 @@ Keyword Args
         if self._num_outputs is not None:
             outputs = []
             kwargs = {"no_copy": no_copy}
-            group = _ExternalSourceGroup(callback, True, **group_common_kwargs)
+            group = _ExternalSourceGroup(callback, source_desc, True, **group_common_kwargs)
             for i in range(self._num_outputs):
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
@@ -583,7 +586,7 @@ Keyword Args
             op_instance._callback = callback
             op_instance._output_index = None
             op_instance._group = _ExternalSourceGroup(
-                callback, False, [op_instance], **group_common_kwargs)
+                callback, source_desc, False, [op_instance], **group_common_kwargs)
             op_instance._layout = layout
             op_instance._batch = batch
             op_instance.generate_outputs()

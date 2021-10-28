@@ -76,10 +76,10 @@ def dumps(obj, **kwargs):
 
 
 def loads(data, **kwargs):
-    callbacks = dali_pickle._DaliPickle.loads(data)
+    obj = dali_pickle._DaliPickle.loads(data)
     if kwargs.get('special_loads_param') == 84:
-        return [cb if cb.__name__ != 'callback_const_84' else callback_const_42 for cb in callbacks]
-    return callbacks
+        return obj if obj.__name__ != 'callback_const_84' else callback_const_42
+    return obj
 
 
 # Register dummy reducer for custom type to check if DALI pickler did not interfere with
@@ -139,6 +139,29 @@ def create_closure_callback_img_reader(data_set_size):
         return encoded_img, label
 
     return py_file_reader
+
+
+def create_closure_generator_img_reader(batch_size, data_set_size):
+    data_root = get_dali_extra_path()
+    images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
+
+    with open(os.path.join(images_dir, "image_list.txt"), 'r') as f:
+        file_label = [line.rstrip().split(' ') for line in f if line != '']
+        files, labels = zip(*file_label)
+
+    def py_file_gen_reader():
+        i = 0
+        while i + batch_size <= data_set_size:
+            batch_imgs, batch_labels = [], []
+            for _ in range(batch_size):
+                jpeg_filename = files[i]
+                with open(os.path.join(images_dir, jpeg_filename), 'rb') as f:
+                    batch_imgs.append(np.frombuffer(f.read(), dtype=np.uint8))
+                batch_labels.append(np.int32([labels[i]]))
+                i += 1
+            yield batch_imgs, batch_labels
+
+    return py_file_gen_reader
 
 
 jpeg_file = os.path.join(get_dali_extra_path(), 'db', 'single', 'jpeg', '510', 'ship-1083562_640.jpg')
@@ -206,7 +229,7 @@ def create_stacking_pipeline(callback, py_callback_pickler, batch_size, parallel
     return create_pipline()
 
 
-def create_decoding_pipeline(callback, py_callback_pickler, batch_size, parallel=True, py_num_workers=None, py_start_method="spawn"):
+def create_decoding_pipeline(callback, py_callback_pickler, batch_size, parallel=True, py_num_workers=None, py_start_method="spawn", batch=False):
 
     extra = {}
     if parallel:
@@ -219,7 +242,7 @@ def create_decoding_pipeline(callback, py_callback_pickler, batch_size, parallel
     def create_pipline():
         jpegs, labels = fn.external_source(
             source=callback, num_outputs=2,
-            batch=False, parallel=parallel)
+            batch=batch, parallel=parallel)
         images = fn.decoders.image(jpegs, device="cpu")
         return images, labels
 
@@ -471,6 +494,20 @@ def _test_reader_closure(name, py_callback_pickler):
     callback = create_closure_callback_img_reader(data_set_size=batches_in_epoch * batch_size)
     parallel_pipeline = create_decoding_pipeline(callback, py_callback_pickler, batch_size=batch_size, py_num_workers=2, parallel=True)
     serial_pipeline = create_decoding_pipeline(callback, None, batch_size=batch_size, parallel=False)
+    _build_and_compare_pipelines_epochs(epochs_num, batch_size, parallel_pipeline, serial_pipeline)
+
+
+@register_case(tests_dali_pickling)
+@register_case(tests_dill_pickling)
+@register_case(tests_cloudpickle_pickling)
+def _test_generator_closure(name, py_callback_pickler):
+    batch_size = 7
+    batches_in_epoch = 3
+    epochs_num = 3
+    callback = create_closure_generator_img_reader(
+        batch_size=batch_size, data_set_size=batches_in_epoch * batch_size)
+    parallel_pipeline = create_decoding_pipeline(callback, py_callback_pickler, batch_size=batch_size, py_num_workers=1, parallel=True, batch=True)
+    serial_pipeline = create_decoding_pipeline(callback, None, batch_size=batch_size, parallel=False, batch=True)
     _build_and_compare_pipelines_epochs(epochs_num, batch_size, parallel_pipeline, serial_pipeline)
 
 

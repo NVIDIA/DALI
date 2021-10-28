@@ -642,7 +642,12 @@ Parameters
             self._parallel_input_callbacks = []
             self._seq_input_callbacks = self._input_callbacks
         else:
-            self._parallel_input_callbacks = [group for group in groups if group.parallel]
+            parallel = [group for group in groups if group.parallel]
+            dedicated_worker_cbs = [group for group in parallel if WorkerPool.is_iterable_group(group)]
+            general_cbs = [group for group in parallel if not WorkerPool.is_iterable_group(group)]
+            # make the callbacks that need dedicated worker first in line for prefetching, so that
+            # the worker doesn't get busy with other tasks when dedicated tasks arrive
+            self._parallel_input_callbacks = dedicated_worker_cbs + general_cbs
             self._seq_input_callbacks = [group for group in groups if not group.parallel]
 
     def start_py_workers(self):
@@ -1038,8 +1043,11 @@ Parameters
             if self._input_callbacks:
                 for group in self._input_callbacks:
                     group.reset_indices()
-            if self._py_pool:
-                self._py_pool.reset()
+                for i, group in enumerate(self._parallel_input_callbacks):
+                    # iterators are not reset or their prefetch results discarded
+                    # unless they have caused an exception
+                    if not self._py_pool.is_iterable_group(group):
+                        self._py_pool.reset_context(i)
 
     def empty(self):
         """If there is any work scheduled in the pipeline but not yet consumed

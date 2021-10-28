@@ -54,7 +54,6 @@ class ExtCallbackTorchCuda(ExtCallback):
 @raises(Exception, "Exception traceback received from worker thread*"
                    "TypeError: Unsupported callback return type. GPU tensors*not supported*"
                    "Got*PyTorch GPU tensor")
-@with_setup(setup_function, teardown_function)
 def test_pytorch_cuda():
     callback = ExtCallbackTorchCuda((4, 5), 10, np.int32)
     pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,

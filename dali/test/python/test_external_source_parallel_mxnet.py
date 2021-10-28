@@ -42,7 +42,6 @@ class ExtCallbackMXCuda(ExtCallback):
 @raises(Exception, "Exception traceback received from worker thread*"
                    "TypeError: Unsupported callback return type. GPU tensors*not supported*"
                    "Got*MXNet GPU tensor.")
-@with_setup(setup_function, teardown_function)
 def test_mxnet_cuda():
     callback = ExtCallbackMXCuda((4, 5), 10, np.int32)
     pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
