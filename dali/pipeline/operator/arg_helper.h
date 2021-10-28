@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,11 +62,11 @@ struct ArgShapeFromSize<1> {
 /**
  * @brief Helper to access operator argument data, regardless of whether the data was provided
  * as a build-time constant or a tensor input.
- * 
+ *
  * There are two ways to acquire arguments:
  * - Explicitly providing the expected shape of the data
  * - Inferring the shape of the data from a flat size, either by a default or with a custom callable object.
- * 
+ *
  * @tparam T    Underlying data type.
  * @tparam ndim Number of dimensions of the argument. By default, scalar.
  *              Higher dimensions are expected for arguments that are passed as vector<T>.
@@ -117,29 +117,22 @@ class ArgValue {
         make_string("Expected uniform shape for argument \"", arg_name_,
                     "\" but got shape ", view_.shape));
     } else {
-      if (ndim == 0) {
-        data_.resize(1);
-        if (!spec.TryGetArgument<T>(data_[0], arg_name_)) {
-          // something went bad - call GetArgument and let it throw
-          (void) spec.GetArgument<T>(arg_name_);
-        }
-      } else {
-        if (!spec.TryGetRepeatedArgument<T>(data_, arg_name_)) {
-          // something went bad - call GetRepeatedArgument and let it throw
-          (void) spec.GetRepeatedArgument<T>(arg_name_);
-        }
-        int64_t len = data_.size();
-        int64_t expected_len = volume(expected_shape);
-        if (len == 1 && expected_len > 1) {
-          data_.resize(expected_len, data_[0]);
-        } else {
-          DALI_ENFORCE(len == volume(expected_shape),
-                       make_string("Argument \"", arg_name_, "\" expected shape ", expected_shape,
-                                   " but got ", len,
-                                   " values, which can't be interpreted as the expected shape."));
-        }
+      if (orig_constant_sz_ < 0) {
+        // if not an argument input, read the constant values, explicit or default
+        orig_constant_sz_ = ReadConstant(spec);
       }
-      view_ = constant_view(nsamples, data_.data(), expected_shape);
+      int64_t expected_len = volume(expected_shape);
+      if (orig_constant_sz_ == 1 && expected_len != 1) {
+        // broadcast single values to whatever shape, including empty tensors
+        data_.resize(std::max(expected_len, 1_i64), data_[0]);
+        view_ = constant_view(nsamples, data_.data(), expected_shape);
+      } else {
+        DALI_ENFORCE(orig_constant_sz_ == volume(expected_shape),
+              make_string("Argument \"", arg_name_, "\" expected shape ", expected_shape,
+                          " but got ", orig_constant_sz_,
+                          " values, which can't be interpreted as the expected shape."));
+        view_ = constant_view(nsamples, data_.data(), expected_shape);
+      }
     }
   }
 
@@ -159,19 +152,11 @@ class ArgValue {
                       "\" but got shape ", view_.shape));
       }
     } else {
-      if (ndim == 0) {
-        data_.resize(1);
-        if (!spec.TryGetArgument<T>(data_[0], arg_name_)) {
-          // something went bad - call GetArgument and let it throw
-          (void) spec.GetArgument<T>(arg_name_);
-        }
-      } else {
-        if (!spec.TryGetRepeatedArgument<T>(data_, arg_name_)) {
-          // something went bad - call GetRepeatedArgument and let it throw
-          (void) spec.GetRepeatedArgument<T>(arg_name_);
-        }
+      if (orig_constant_sz_ < 0) {
+        // if not an argument input, read the constant values, explicit or default
+        orig_constant_sz_ = ReadConstant(spec);
       }
-      auto sh = shape_from_size(static_cast<int64_t>(data_.size()));
+      auto sh = shape_from_size(orig_constant_sz_);
       view_ = constant_view(nsamples, data_.data(), std::move(sh));
     }
   }
@@ -207,6 +192,26 @@ class ArgValue {
 
  private:
   /**
+   * @brief Read constant argument data
+   */
+  int ReadConstant(const OpSpec &spec) {
+    if (ndim == 0) {
+      data_.resize(1);
+      if (!spec.TryGetArgument<T>(data_[0], arg_name_)) {
+        data_.clear();
+        // something went bad - call GetArgument and let it throw
+        (void) spec.GetArgument<T>(arg_name_);
+      }
+    } else {
+      if (!spec.TryGetRepeatedArgument<T>(data_, arg_name_)) {
+        // something went bad - call GetRepeatedArgument and let it throw
+        (void) spec.GetRepeatedArgument<T>(arg_name_);
+      }
+    }
+    return data_.size();
+  }
+
+  /**
    * @brief Creates a TensorListView out of a constant arguments by assigning the same
    *        data pointer to all the samples. This way, the user code can be shared regardless
    *        of whether the source of the data was a build time constant or an argument input.
@@ -222,6 +227,8 @@ class ArgValue {
 
   bool has_arg_const_ = false;
   bool has_arg_input_ = false;
+
+  int64_t orig_constant_sz_ = -1;  // not-read
 };
 
 }  // namespace dali
