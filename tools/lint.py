@@ -43,6 +43,7 @@ import subprocess
 negative_filters = [
     ".*operators/reader/nvdecoder/nvcuvid.h",
     ".*operators/reader/nvdecoder/cuviddec.h",
+    ".*operators/reader/loader/video/nvdecode/*",
     ".*operators/sequence/optical_flow/turing_of/nvOpticalFlowCuda.h",
     ".*operators/sequence/optical_flow/turing_of/nvOpticalFlowCommon.h",
     ".*python/dummy.cu"
