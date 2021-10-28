@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, Optional, Tuple
 import threading
 import traceback
 import socket
 from collections import deque
 from multiprocessing import reduction
 from nvidia.dali._utils.external_source_impl import SourceKind, _is_generator_function
-from nvidia.dali._multiproc.shared_batch import SharedBatchWriter, SharedBatchMeta, \
+from nvidia.dali._multiproc.shared_batch import SharedBatchWriter, SharedBatchMeta, BufShmChunk, \
     assert_valid_data_type, read_shm_message, write_shm_message
 from nvidia.dali._multiproc.messages import CompletedTask, WorkerArgs, ShmMessageDesc, ScheduledTask
 from nvidia.dali._multiproc.shared_queue import Dispatcher
@@ -242,6 +242,20 @@ class MixedTaskReceiver:
                     self.task_queue.extend(recv)
                 self.tasks_cv.notify()
 
+        def get_task(self):
+            with self.lock:
+                waited = False
+                while len(self.task_queue) == 0:
+                    # there's only one consumer of task_queue, so no stealing of tasks between waits can happen
+                    if not waited:
+                        waited = True
+                        self.is_idle = True
+                        self.idle_cv.notify()
+                    self.tasks_cv.wait()
+                self.is_idle = False
+                task = self.task_queue.popleft()
+            return task
+
 
     def __init__(self, dedicated_task_queue, general_task_queue):
         self.dedicated_task_queue = dedicated_task_queue
@@ -258,24 +272,13 @@ class MixedTaskReceiver:
     def get_recv_queues(self):
         return [self.general_task_queue, self.dedicated_task_queue]
 
+    def get_task(self):
+        return self.state.get_task()
+
     def close(self):
         for receiver in self.receivers:
             receiver.close()
         self.receivers.clear()
-
-    def get_task(self):
-        with self.state.lock:
-            waited = False
-            while len(self.state.task_queue) == 0:
-                # there's only one consumer of task_queue, so no stealing of tasks between waits can happen
-                if not waited:
-                    waited = True
-                    self.state.is_idle = True
-                    self.state.idle_cv.notify()
-                self.state.tasks_cv.wait()
-            self.state.is_idle = False
-            task = self.state.task_queue.popleft()
-        return task
 
 
 class IterableSource:
@@ -286,20 +289,21 @@ class IterableSource:
 
     def __init__(self, source_desc):
         self.source_desc = source_desc
-        self.iter = IterableSource.get_iter(self.source_desc)
-        self.raised_stop_iter = False
-        self.epoch_start = 0
+        self._reset_iter(0)
 
     def __call__(self, scheduled : ScheduledTask):
         if self.raised_stop_iter:
             # if iterator runs in "raise" mode and a new epoch started (i.e. source context was reset)
             if self.source_desc.cycle == "raise" and self.epoch_start < scheduled.epoch_start:
-                self.iter = IterableSource.get_iter(self.source_desc)
-                self.raised_stop_iter = False
-                self.epoch_start = scheduled.epoch_start
+                self._reset_iter(scheduled.epoch_start)
             else:
                 raise StopIteration
         return self._get_next()
+
+    def _reset_iter(self, epoch_start):
+        self.iter = IterableSource.get_iter(self.source_desc)
+        self.raised_stop_iter = False
+        self.epoch_start = epoch_start
 
     def _get_next(self):
         try:
@@ -401,6 +405,23 @@ class WorkerContext:
             return SimpleQueueTaskReceiver(self.general_task_queue or self.dedicated_task_queue)
         return MixedTaskReceiver(self.dedicated_task_queue, self.general_task_queue)
 
+    def get_task(self) -> Tuple[Optional[ScheduledTask], Optional[BufShmChunk]]:
+        """
+        Returns scheduled task and shm_chunk where results should be placed
+        """
+        scheduled_meta = self.task_receiver.get_task()
+        if scheduled_meta is None:
+            return None, None
+        shm_chunk = self.shm_chunks[scheduled_meta.shm_chunk_id]
+        scheduled = read_shm_message(shm_chunk, scheduled_meta)
+        return scheduled, shm_chunk
+
+    def get_callback(self, context_i):
+        return self.callbacks[context_i]
+
+    def dispatch(self, processed : _WorkerProcessingResult):
+        return self.batch_dispatcher.append(processed)
+
     def close(self):
         if self.batch_dispatcher is not None:
             self.task_receiver.close()
@@ -416,13 +437,11 @@ def worker(worker_args : WorkerArgs):
     worker_context = WorkerContext(worker_args)
     try:
         while True:
-            scheduled_meta = worker_context.task_receiver.get_task()
-            if scheduled_meta is None:
+            scheduled, shm_chunk = worker_context.get_task()
+            if scheduled is None:
                 break
-            shm_chunk = worker_context.shm_chunks[scheduled_meta.shm_chunk_id]
-            scheduled = read_shm_message(shm_chunk, scheduled_meta)
+            callback = worker_context.get_callback(scheduled.context_i)
             try:
-                callback = worker_context.callbacks[scheduled.context_i]
                 data_batch = callback(scheduled)
                 for sample in data_batch:
                     assert_valid_data_type(sample)
@@ -431,6 +450,6 @@ def worker(worker_args : WorkerArgs):
                 processed = _WorkerProcessingResult.failed(scheduled, shm_chunk, exception, tb_str)
             else:
                 processed = _WorkerProcessingResult.done(scheduled, shm_chunk, data_batch)
-            worker_context.batch_dispatcher.append(processed)
+            worker_context.dispatch(processed)
     finally:
         worker_context.close()

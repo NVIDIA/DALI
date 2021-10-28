@@ -470,6 +470,20 @@ class ProcPool:
             raise
 
 class Observer:
+    """
+    Closes the whole pool of worker processes if any of the processes exits. The processes can also be closed from
+    the main process by calling observer `close` method.
+    ----------
+    `mp` : Python's multiprocessing context (depending on start method used: `spawn` or `fork`)
+    `processes` : List of multiprocessing Process instances
+    `task_queues` : List[ShmQueue]
+        Queues that worker processes take tasks from. If `close` method is called and none of the processes
+        exited abruptly so far, the queues will be used to notify the workers about closing to let the workers
+        gracefully exit.
+    `result_queue` : ShmQueue
+        Queue where worker processes report completed tasks. It gets closed along with the worker processes,
+        to prevent the main process blocking on waiting for results from the workers.
+    """
 
     def __init__(self, mp, processes, task_queues, result_queue):
         self._interruption_pipe, self.interrupt_pipe = mp.Pipe(duplex=False)

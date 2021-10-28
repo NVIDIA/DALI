@@ -100,7 +100,6 @@ class SampleRange:
         # idx of one past last sample in slice (in a batch not an epoch)
         self.slice_end = slice_end
 
-
     def _get_index(self, idx, bound):
         if idx is None:
             return bound
@@ -126,10 +125,11 @@ class SampleRange:
         if isinstance(idx, slice):
             return self._get_slice(idx)
         if idx < 0:
-            idx = self.slice_end + idx
-        if idx < 0 or idx >= len(self):
-            raise IndexError
-        idx_in_batch = self.slice_start + idx
+            idx_in_batch = self.slice_end + idx
+        else:
+            idx_in_batch = self.slice_start + idx
+        if idx_in_batch < self.slice_start or idx_in_batch >= self.slice_end:
+            raise IndexError("Index {} out of range for slice of length {}".format(idx, len(self)))
         return SampleInfo(
             self.sample_start + idx_in_batch,
             idx_in_batch,
