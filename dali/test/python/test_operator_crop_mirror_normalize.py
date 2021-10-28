@@ -542,7 +542,7 @@ def test_slice_with_out_of_bounds_error():
                 check_cmn_with_out_of_bounds_error), device, batch_size, in_shape
 
 
-def check_cmn_per_sample_norm_args(device, rand_mean, rand_stdev):
+def check_cmn_per_sample_norm_args(device, rand_mean, rand_stdev, scale, shift):
     @pipeline_def(num_threads=3, device_id=0)
     def pipe():
         image_like = fn.random.uniform(device=device, range=(0, 255), shape=(80, 120, 3))
@@ -554,7 +554,7 @@ def check_cmn_per_sample_norm_args(device, rand_mean, rand_stdev):
         if rand_stdev:
             std = fn.random.uniform(range=(55, 60), shape=(3,))
         out = fn.crop_mirror_normalize(image_like, dtype=types.FLOAT, output_layout="HWC",
-                                       mean=mean, std=std, pad_output=False)
+                                       mean=mean, std=std, scale=scale, shift=shift, pad_output=False)
         return out, image_like, mean, std
 
     batch_size = 10
@@ -566,10 +566,13 @@ def check_cmn_per_sample_norm_args(device, rand_mean, rand_stdev):
             out, image_like, mean, std = [
                 np.array(o[s].as_cpu()) if isinstance(o, dali.backend_impl.TensorListGPU) else
                 np.array(o[s]) for o in outs]
-        ref_out = (image_like - mean) / std
-        np.testing.assert_allclose(out, ref_out, atol=1e-6)
+        ref_scale = scale or 1.0
+        ref_shift = shift or 0.0
+        ref_out = ref_scale * (image_like - mean) / std + ref_shift
+        np.testing.assert_allclose(out, ref_out, atol=ref_scale * 1e-6)
 
 def test_per_sample_norm_args():
     for device in ['cpu', 'gpu']:
         for random_mean, random_stdev in [(True, True), (True, False), (False, True)]:
-            yield check_cmn_per_sample_norm_args, device, random_mean, random_stdev
+            for scale, shift in [(None, None), (255.0, -128.0)]:
+                yield check_cmn_per_sample_norm_args, device, random_mean, random_stdev, scale, shift

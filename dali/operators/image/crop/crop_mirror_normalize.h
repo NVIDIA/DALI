@@ -123,10 +123,8 @@ class CropMirrorNormalize : public Operator<Backend> {
   }
 
   void ProcessNormArgs(int sample_idx) {
-    auto mean_arg =
-        span<const float>{mean_arg_[sample_idx].data, mean_arg_[sample_idx].num_elements()};
-    auto std_arg =
-        span<const float>{std_arg_[sample_idx].data, std_arg_[sample_idx].num_elements()};
+    span<const float> mean_arg(mean_arg_[sample_idx].data, mean_arg_[sample_idx].num_elements());
+    span<const float> std_arg(std_arg_[sample_idx].data, std_arg_[sample_idx].num_elements());
     auto arg_sz = std::max(mean_arg.size(), std_arg.size());
 
     DALI_ENFORCE(
@@ -140,9 +138,9 @@ class CropMirrorNormalize : public Operator<Backend> {
     int nargs = std::max(std_arg.size(), mean_arg.size());
     assert(mean_arg.size() == std_arg.size() || mean_arg.size() == 1 || std_arg.size() == 1);
     for (int d = 0; d < nargs; d++) {
-      float mean_val = mean_arg[d % mean_arg.size()];
-      float std_val = std_arg[d % std_arg.size()];
-      mean_vec_[d] = mean_val - shift_ * std_val / scale_;
+      double mean_val = mean_arg[d % mean_arg.size()];
+      double std_val = std_arg[d % std_arg.size()];
+      mean_vec_[d] = std::fma(-shift_, std_val / scale_, mean_val);
       inv_std_vec_[d] = scale_ / std_val;
     }
 
