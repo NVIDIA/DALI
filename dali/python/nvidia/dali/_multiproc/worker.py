@@ -416,8 +416,8 @@ class WorkerContext:
         scheduled = read_shm_message(shm_chunk, scheduled_meta)
         return scheduled, shm_chunk
 
-    def get_callback(self, context_i):
-        return self.callbacks[context_i]
+    def get_callback(self, scheduled):
+        return self.callbacks[scheduled.context_i]
 
     def dispatch(self, processed : _WorkerProcessingResult):
         return self.batch_dispatcher.append(processed)
@@ -440,7 +440,7 @@ def worker(worker_args : WorkerArgs):
             scheduled, shm_chunk = worker_context.get_task()
             if scheduled is None:
                 break
-            callback = worker_context.get_callback(scheduled.context_i)
+            callback = worker_context.get_callback(scheduled)
             try:
                 data_batch = callback(scheduled)
                 for sample in data_batch:
