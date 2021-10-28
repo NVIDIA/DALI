@@ -238,6 +238,8 @@ Args
 
     A per-batch source may accept one positional argument. If it does, it is the index of current
     iteration within epoch and consecutive calls will be ``source(0)``, ``source(1)``, and so on.
+    If `batch_info` is set to True, instance of :class:`nvidia.dali.types.BatchInfo` will be
+    passed to the source, instead of a plain index.
 
     A per-sample source may accept one positional argument of type
     :class:`nvidia.dali.types.SampleInfo`, which contains index of the sample in current epoch and
@@ -360,8 +362,8 @@ Keyword Args
     Acceptable sources depend on the value specified for ``batch`` parameter.
 
     If batch is set to False, source must be a callable (a function or an object with __call__ method)
-    that accepts exactly one argument (:meth:`~nvidia.dali.types.SampleInfo` objects that
-    represent the index of the requested sample).
+    that accepts exactly one argument (:meth:`~nvidia.dali.types.SampleInfo` instance that
+    represents the index of the requested sample).
     If batch is set to True, the ``source`` can be either a callable, an iterable or a generator function.
     Callable in batch mode must accept exactly one argument - either :meth:`~nvidia.dali.types.BatchInfo`
     instance or an integer (see `batch_info`).

@@ -417,7 +417,8 @@ class ProcPool:
             if shm_msgs is None:
                 raise RuntimeError("Workers initialization failed")
             synced_ids = [shm_msg.worker_id for shm_msg in shm_msgs]
-            assert (0 <= worker_id <= self.num_workers and worker_id in workers_received for worker_id in synced_ids)
+            assert all(0 <= worker_id < self.num_workers and worker_id not in workers_received
+                       for worker_id in synced_ids)
             workers_received.extend(synced_ids)
 
     def _send_queue_handles(self, write_sockets):
