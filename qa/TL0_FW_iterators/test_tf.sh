@@ -10,12 +10,15 @@ do_once() {
 }
 
 test_body() {
-    for fw in "tf"; do
-        python test_RN50_data_fw_iterators.py --framework ${fw} --gpus ${NUM_GPUS} -b 13 \
-            --workers 3 --prefetch 2 -i 100 --epochs 2
-        python test_RN50_data_fw_iterators.py --framework ${fw} --gpus ${NUM_GPUS} -b 13 \
-            --workers 3 --prefetch 2 -i 2 --epochs 2 --fp16
-    done
+    # it takes very long time to run it with sanitizers on and provides little value so turn it off
+    if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
+        for fw in "tf"; do
+            python test_RN50_data_fw_iterators.py --framework ${fw} --gpus ${NUM_GPUS} -b 13 \
+                --workers 3 --prefetch 2 -i 100 --epochs 2
+            python test_RN50_data_fw_iterators.py --framework ${fw} --gpus ${NUM_GPUS} -b 13 \
+                --workers 3 --prefetch 2 -i 2 --epochs 2 --fp16
+        done
+    fi
 }
 
 pushd ../..
