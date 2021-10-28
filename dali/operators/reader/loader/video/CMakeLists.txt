@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+add_subdirectory(nvdecode)
+
 list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/frames_decoder.h")
 list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/video_loader_decoder.h")
 set(DALI_INST_HDRS ${DALI_INST_HDRS} PARENT_SCOPE)
