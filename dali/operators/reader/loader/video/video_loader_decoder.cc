@@ -27,7 +27,7 @@ void VideoLoaderDecoder::ReadSample(VideoSample &sample) {
   MoveToNextShard(current_index_);
 
   sample.data_.Resize(
-    TensorShape<4>{sequence_len_, video_file.Width(), video_file.Height(), video_file.Channels()},
+    TensorShape<4>{sequence_len_, video_file.Height(), video_file.Width(), video_file.Channels()},
     DALIDataType::DALI_UINT8);
 
   auto data = sample.data_.mutable_data<uint8_t>();

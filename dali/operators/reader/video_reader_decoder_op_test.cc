@@ -281,6 +281,9 @@ TEST_F(VideoReaderDecoderTest, CompareReaders) {
       const auto label = frame_label_output.tensor<int>(sample_id);
       const auto label_gpu = frame_gpu_label_output.tensor<int>(sample_id);
 
+      ASSERT_EQ(frame_video_output.tensor_shape(sample_id),
+                frame_gpu_video_output.tensor_shape(sample_id));
+
       int label_gpu_out = -1;
       MemCopy(&label_gpu_out, label_gpu, sizeof(int));
       ASSERT_EQ(label[0], label_gpu_out);
