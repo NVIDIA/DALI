@@ -3580,8 +3580,6 @@ THE SOFTWARE.
 
 NVIDIA Video Codec SDK headers
 
- This copyright notice applies to this header file only:
-
  Copyright (c) 2010-2021 NVIDIA Corporation
 
  Permission is hereby granted, free of charge, to any person
