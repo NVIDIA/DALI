@@ -21,7 +21,7 @@
   source:
     fn: FFmpeg-n4.4.1.tar.gz
     url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/FFmpeg-n4.4.1.tar.gz
-    sha256: 
+    sha256: 468f6d0db9f1d19a51dfb8a2d6946542b5e89c01293cfe36e398865091d73f2d
 
   build:
     number: 0
