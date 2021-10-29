@@ -29,6 +29,7 @@
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
 #include "dali/operators/generic/slice/out_of_bounds_policy.h"
 #include "dali/operators/image/crop/crop_attr.h"
+#include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
@@ -91,7 +92,6 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> ToSliceFlipNormalizePermutePadAr
 
 }  // namespace detail
 
-
 template <typename Backend>
 class CropMirrorNormalize : public Operator<Backend> {
  public:
@@ -101,49 +101,11 @@ class CropMirrorNormalize : public Operator<Backend> {
         output_type_(spec.GetArgument<DALIDataType>("dtype")),
         output_layout_(spec.GetArgument<TensorLayout>("output_layout")),
         pad_output_(spec.GetArgument<bool>("pad_output")),
-        out_of_bounds_policy_(GetOutOfBoundsPolicy(spec)) {
-    float scale = spec.GetArgument<float>("scale");
-    float shift = spec.GetArgument<float>("shift");
-
-    if (!spec.TryGetRepeatedArgument(inv_std_vec_, "std")) {
-      inv_std_vec_ = { spec.GetArgument<float>("std") };
-    }
-    if (!spec.TryGetRepeatedArgument(mean_vec_, "mean")) {
-      mean_vec_ = { spec.GetArgument<float>("mean") };
-    }
-
-
-    DALI_ENFORCE(!mean_vec_.empty() && !inv_std_vec_.empty(),
-      "mean and standard deviation can't be empty");
-
-    DALI_ENFORCE(
-      mean_vec_.size() == inv_std_vec_.size() || mean_vec_.size() == 1 || inv_std_vec_.size() == 1,
-      "`mean` and `stddev` must either be of the same size, be scalars, or one of them can be a "
-      "vector and the other a scalar.");
-
-    // Handle irregular mean/std argument lengths
-    auto args_size = std::max(mean_vec_.size(), inv_std_vec_.size());
-    if (mean_vec_.size() != inv_std_vec_.size()) {
-      if (mean_vec_.size() == 1)
-        mean_vec_.resize(args_size, mean_vec_[0]);
-
-      if (inv_std_vec_.size() == 1)
-        inv_std_vec_.resize(args_size, inv_std_vec_[0]);
-    }
-
-    for (int i = 0, d = args_size; i < d; i++) {
-      mean_vec_[i] -= shift * inv_std_vec_[i] / scale;
-      inv_std_vec_[i] = scale / inv_std_vec_[i];
-    }
-
-    should_normalize_ =
-        !std::all_of(mean_vec_.begin(), mean_vec_.end(), [](float x) { return x == 0.0f; }) ||
-        !std::all_of(inv_std_vec_.begin(), inv_std_vec_.end(), [](float x) { return x == 1.0f; });
-    if (!should_normalize_) {
-      mean_vec_.clear();
-      inv_std_vec_.clear();
-    }
-
+        out_of_bounds_policy_(GetOutOfBoundsPolicy(spec)),
+        mean_arg_("mean", spec),
+        std_arg_("std", spec),
+        scale_(spec.GetArgument<float>("scale")),
+        shift_(spec.GetArgument<float>("shift")) {
     if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
       fill_values_ = spec.GetRepeatedArgument<float>("fill_values");
     }
@@ -160,7 +122,39 @@ class CropMirrorNormalize : public Operator<Backend> {
     return true;
   }
 
-  void SetupCommonImpl(const workspace_t<Backend> &ws) {
+  void ProcessNormArgs(int sample_idx) {
+    span<const float> mean_arg(mean_arg_[sample_idx].data, mean_arg_[sample_idx].num_elements());
+    span<const float> std_arg(std_arg_[sample_idx].data, std_arg_[sample_idx].num_elements());
+    auto arg_sz = std::max(mean_arg.size(), std_arg.size());
+
+    DALI_ENFORCE(
+        mean_arg.size() == std_arg.size() || mean_arg.size() == 1 || std_arg.size() == 1,
+        "``mean`` and ``std`` must either be of the same size, be scalars, or one of them can be a "
+        "vector and the other a scalar.");
+
+    mean_vec_.resize(arg_sz);
+    inv_std_vec_.resize(arg_sz);
+
+    int nargs = std::max(std_arg.size(), mean_arg.size());
+    assert(mean_arg.size() == std_arg.size() || mean_arg.size() == 1 || std_arg.size() == 1);
+    for (int d = 0; d < nargs; d++) {
+      double mean_val = mean_arg[d % mean_arg.size()];
+      double std_val = std_arg[d % std_arg.size()];
+      mean_vec_[d] = std::fma(-shift_, std_val / scale_, mean_val);
+      inv_std_vec_[d] = scale_ / std_val;
+    }
+
+    bool should_norm =
+        !std::all_of(mean_vec_.begin(), mean_vec_.end(), [](float x) { return x == 0.0f; }) ||
+        !std::all_of(inv_std_vec_.begin(), inv_std_vec_.end(), [](float x) { return x == 1.0f; });
+    if (!should_norm) {
+      mean_vec_.clear();
+      inv_std_vec_.clear();
+    }
+  }
+
+  template <int Dims>
+  void SetupCommonImplTyped(const workspace_t<Backend> &ws) {
     const auto &input = ws.template Input<Backend>(0);
     input_type_ = input.type();
     assert(output_type_ != DALI_NO_TYPE);
@@ -192,29 +186,46 @@ class CropMirrorNormalize : public Operator<Backend> {
 
     crop_attr_.ProcessArguments(ws);
 
-    VALUE_SWITCH(ndim, Dims, CMN_NDIMS,
-    (
-      using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
-      // We won't change the underlying type after the first allocation
-      if (!kernel_sample_args_.has_value())
-        kernel_sample_args_ = std::vector<Args>(nsamples);
-      auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
-      kernel_sample_args.clear();
-      kernel_sample_args.reserve(nsamples);
-      // Set internal info for each sample based on CropAttr
-      for (int data_idx = 0; data_idx < nsamples; data_idx++) {
-        auto crop_win_gen = crop_attr_.GetCropWindowGenerator(data_idx);
-        assert(crop_win_gen);
-        CropWindow crop_window = crop_win_gen(in_shape[data_idx], input_layout_);
-        bool horizontal_flip = this->spec_.template GetArgument<int>("mirror", &ws, data_idx);
-        ApplySliceBoundsPolicy(out_of_bounds_policy_, in_shape[data_idx], crop_window.anchor,
-                               crop_window.shape);
-        kernel_sample_args.emplace_back(
-          detail::ToSliceFlipNormalizePermutePadArgs<Dims>(
-            in_shape[data_idx], input_layout_, output_layout_, crop_window, horizontal_flip,
-            pad_output_, make_cspan(mean_vec_), make_cspan(inv_std_vec_),
-            make_cspan(fill_values_)));
-      }
+    mean_arg_.Acquire(spec_, ws, nsamples, true);
+    std_arg_.Acquire(spec_, ws, nsamples, true);
+    bool per_sample_norm_args = mean_arg_.IsArgInput() || std_arg_.IsArgInput();
+    if (!per_sample_norm_args && !const_norm_args_read_) {
+      ProcessNormArgs(0);  // constant, only need to process the arguments once
+      const_norm_args_read_ = true;
+    }
+
+    using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
+    // We won't change the underlying type after the first allocation
+    if (!kernel_sample_args_.has_value())
+      kernel_sample_args_ = std::vector<Args>(nsamples);
+    auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+    kernel_sample_args.clear();
+    kernel_sample_args.reserve(nsamples);
+    // Set internal info for each sample based on CropAttr
+    for (int data_idx = 0; data_idx < nsamples; data_idx++) {
+      auto crop_win_gen = crop_attr_.GetCropWindowGenerator(data_idx);
+      assert(crop_win_gen);
+      CropWindow crop_window = crop_win_gen(in_shape[data_idx], input_layout_);
+      bool horizontal_flip = this->spec_.template GetArgument<int>("mirror", &ws, data_idx);
+      ApplySliceBoundsPolicy(out_of_bounds_policy_, in_shape[data_idx], crop_window.anchor,
+                              crop_window.shape);
+
+      if (per_sample_norm_args)
+        ProcessNormArgs(data_idx);
+
+      kernel_sample_args.emplace_back(
+        detail::ToSliceFlipNormalizePermutePadArgs<Dims>(
+          in_shape[data_idx], input_layout_, output_layout_, crop_window, horizontal_flip,
+          pad_output_, make_cspan(mean_vec_), make_cspan(inv_std_vec_),
+          make_cspan(fill_values_)));
+    }
+  }
+
+  void SetupCommonImpl(const workspace_t<Backend> &ws) {
+    const auto &input = ws.template Input<Backend>(0);
+    int ndim = input.shape().sample_dim();
+    VALUE_SWITCH(ndim, Dims, CMN_NDIMS, (
+      SetupCommonImplTyped<Dims>(ws);
     ), DALI_FAIL(make_string("Not supported number of dimensions: ", ndim)););  // NOLINT
   }
 
@@ -228,11 +239,17 @@ class CropMirrorNormalize : public Operator<Backend> {
 
   // Whether to pad output to 4 channels
   bool pad_output_;
-  bool should_normalize_;
-  std::vector<float> mean_vec_, inv_std_vec_;
 
   std::vector<float> fill_values_;
   OutOfBoundsPolicy out_of_bounds_policy_ = OutOfBoundsPolicy::Error;
+
+  ArgValue<float, 1> mean_arg_;
+  ArgValue<float, 1> std_arg_;
+  float scale_ = 1.0f;
+  float shift_ = 0.0f;
+  bool const_norm_args_read_ = false;
+
+  std::vector<float> mean_vec_, inv_std_vec_;
 
   kernels::KernelManager kmgr_;
   any kernel_sample_args_;

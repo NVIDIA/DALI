@@ -13,7 +13,9 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import pipeline_def
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali as dali
 import numpy as np
@@ -239,7 +241,6 @@ def check_cmn_vs_numpy(device, batch_size, dtype, output_layout,
                                                   mean=mean, std=std, scale=scale, shift=shift, pad_output=should_pad),
                       PythonOpPipeline(batch_size, function, output_layout, mirror_probability),
                       batch_size=batch_size, N_iterations=iterations, eps=eps, max_allowed_error=max_err)
-
 
 def test_cmn_vs_numpy():
     norm_data = [ ([0., 0., 0.], [1., 1., 1.]),
@@ -539,3 +540,39 @@ def test_slice_with_out_of_bounds_error():
         for batch_size in [1, 3]:
             yield raises(RuntimeError, "Slice can't be placed out of bounds with current policy.")(
                 check_cmn_with_out_of_bounds_error), device, batch_size, in_shape
+
+
+def check_cmn_per_sample_norm_args(device, rand_mean, rand_stdev, scale, shift):
+    @pipeline_def(num_threads=3, device_id=0)
+    def pipe():
+        image_like = fn.random.uniform(device=device, range=(0, 255), shape=(80, 120, 3))
+        image_like = fn.reshape(image_like, layout="HWC")
+        mean = [0.485 * 255, 0.456 * 255, 0.406 * 255]
+        std = [0.229 * 255, 0.224 * 255, 0.225 * 255]
+        if rand_mean:
+            mean = fn.random.uniform(range=(100, 125), shape=(3,))
+        if rand_stdev:
+            std = fn.random.uniform(range=(55, 60), shape=(3,))
+        out = fn.crop_mirror_normalize(image_like, dtype=types.FLOAT, output_layout="HWC",
+                                       mean=mean, std=std, scale=scale, shift=shift, pad_output=False)
+        return out, image_like, mean, std
+
+    batch_size = 10
+    p = pipe(batch_size=batch_size)
+    p.build()
+    for _ in range(3):
+        outs = p.run()
+        for s in range(batch_size):
+            out, image_like, mean, std = [
+                np.array(o[s].as_cpu()) if isinstance(o, dali.backend_impl.TensorListGPU) else
+                np.array(o[s]) for o in outs]
+        ref_scale = scale or 1.0
+        ref_shift = shift or 0.0
+        ref_out = ref_scale * (image_like - mean) / std + ref_shift
+        np.testing.assert_allclose(out, ref_out, atol=ref_scale * 1e-6)
+
+def test_per_sample_norm_args():
+    for device in ['cpu', 'gpu']:
+        for random_mean, random_stdev in [(True, True), (True, False), (False, True)]:
+            for scale, shift in [(None, None), (255.0, -128.0)]:
+                yield check_cmn_per_sample_norm_args, device, random_mean, random_stdev, scale, shift

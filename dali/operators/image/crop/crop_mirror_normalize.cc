@@ -53,10 +53,10 @@ Supported types: ``FLOAT``, ``FLOAT16``, ``INT8``, ``UINT8``.
     0, true)
   .AddOptionalArg("mean",
     R"code(Mean pixel values for image normalization.)code",
-    std::vector<float>{0.0f})
+    std::vector<float>{0.0f}, true)
   .AddOptionalArg("std",
     R"code(Standard deviation values for image normalization.)code",
-    std::vector<float>{1.0f})
+    std::vector<float>{1.0f}, true)
   .AddOptionalArg("scale", R"(The value by which the result is multiplied.
 
 This argument is useful when using integer outputs to improve dynamic range utilization.)",
