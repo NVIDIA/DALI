@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/reader/loader/filesystem.h"
-
 #include <dirent.h>
 #include <errno.h>
 #include <fnmatch.h>
@@ -26,6 +24,7 @@
 #include <vector>
 
 #include "dali/core/error_handling.h"
+#include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/utils.h"
 
 namespace dali {
@@ -104,7 +103,8 @@ inline void assemble_file_list(std::vector<std::pair<std::string, int>> &file_la
   closedir(dir);
 }
 
-vector<std::pair<string, int>> traverse_directories(const std::string &file_root, const std::vector<std::string> &filters) {
+vector<std::pair<string, int>> traverse_directories(const std::string &file_root,
+                                                    const std::vector<std::string> &filters) {
   // open the root
   DIR *dir = opendir(file_root.c_str());
 

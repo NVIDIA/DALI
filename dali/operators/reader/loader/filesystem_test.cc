@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "filesystem.h"
+#include "dali/operators/reader/loader/filesystem.h"
 #include <glob.h>
 #include <gtest/gtest.h>
 #include <fstream>
@@ -22,7 +22,6 @@
 #include "dali/test/dali_test_config.h"
 
 namespace dali {
-using namespace filesystem;
 
 class FilesystemTest : public ::testing::Test {
   std::vector<std::pair<std::string, int>> readFileLabelFile() {
@@ -75,7 +74,7 @@ class FilesystemTest : public ::testing::Test {
     std::vector<std::string> correct_match;
     glob_t pglob;
     for (auto &filter : filters) {
-      std::string pattern = file_root + dir_sep + '*' + dir_sep + filter;
+      std::string pattern = file_root + filesystem::dir_sep + '*' + filesystem::dir_sep + filter;
       if (glob(pattern.c_str(), GLOB_TILDE, NULL, &pglob) == 0) {
         for (unsigned int count = 0; count < pglob.gl_pathc; ++count) {
           std::string match(pglob.gl_pathv[count]);
@@ -95,7 +94,7 @@ class FilesystemTest : public ::testing::Test {
 
 TEST_F(FilesystemTest, EmptyFilter) {
   std::vector<std::string> filters{};
-  auto file_label_pairs_filtered = traverse_directories(file_root, filters);
+  auto file_label_pairs_filtered = filesystem::traverse_directories(file_root, filters);
   ASSERT_EQ(this->file_label_pairs.size(), file_label_pairs_filtered.size());
   for (size_t i = 0; i < file_label_pairs_filtered.size(); ++i) {
     ASSERT_EQ(this->file_label_pairs[i].first, file_label_pairs_filtered[i].first);
@@ -104,7 +103,7 @@ TEST_F(FilesystemTest, EmptyFilter) {
 
 TEST_F(FilesystemTest, SingleFilter) {
   std::vector<std::string> filters{"dog*.jpg"};
-  auto file_label_pairs_filtered = traverse_directories(file_root, filters);
+  auto file_label_pairs_filtered = filesystem::traverse_directories(file_root, filters);
   std::vector<std::string> correct_match = globMatch(filters);
 
 
@@ -115,7 +114,7 @@ TEST_F(FilesystemTest, SingleFilter) {
 
 TEST_F(FilesystemTest, MultipleOverlappingFilters) {
   std::vector<std::string> filters{"dog*.jpg", "snail*.jpg", "*_1280.jpg"};
-  auto file_label_pairs_filtered = traverse_directories(file_root, filters);
+  auto file_label_pairs_filtered = filesystem::traverse_directories(file_root, filters);
   std::vector<std::string> correct_match = globMatch(filters);
 
   for (size_t i = 0; i < file_label_pairs_filtered.size(); ++i) {
