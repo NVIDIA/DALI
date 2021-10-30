@@ -139,7 +139,7 @@ class DLL_PUBLIC FramesDecoder {
    */
   void Reset();
 
- private:
+ protected:
    /**
    * @brief Gets the packet from the decoder and reads a frame from it to provided buffer. Returns 
    * boolean indicating, if the frame was succesfully read.
@@ -164,6 +164,12 @@ class DLL_PUBLIC FramesDecoder {
    * @returns True, if the read was succesful, or false, when ther are no more frames in last the packet.
    */
   bool ReadFlushFrame(uint8_t *data, bool copy_to_output = true);
+
+  virtual bool DecodeFrame(uint8_t *data, bool copy_to_output = true);
+
+  bool DecodeFrameFfmpeg(uint8_t *data, bool copy_to_output = true) ;
+
+  void SendFlushPacket();
 
   void CopyToOutput(uint8_t *data);
 
