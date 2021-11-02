@@ -1143,7 +1143,9 @@ PYBIND11_MODULE(backend_impl, m) {
 
   ExposeBufferPolicyFunctions(m);
 
-  m.def("LoadLibrary", &PluginManager::LoadLibrary);
+  m.def("LoadLibrary", &PluginManager::LoadLibrary,
+    py::arg("lib_path"),
+    py::arg("global_symbols") = false);
 
   m.def("GetCxx11AbiFlag", &GetCxx11AbiFlag);
 
