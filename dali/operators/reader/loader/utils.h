@@ -31,6 +31,10 @@ static const std::vector<std::string> kKnownImageExtensions = {".jpg", ".jpeg", 
 
 static const std::vector<std::string> kKnownAudioExtensions = {".flac", ".ogg", ".wav"};
 
+static const std::vector<std::string> kKnownExtensionsGlob = {
+    "*.jpg", "*.jpeg", "*.png", "*.bmp",  "*.tif",  "*.tiff", "*.pnm", "*.ppm",
+    "*.pgm", "*.pbm",  "*.jp2", "*.webp", "*.flac", "*.ogg",  "*.wav"};
+
 /**
  * Checks, if the name of the file provided in the argument ends with image extension, that is known.
  */

@@ -128,32 +128,34 @@ def test_file_reader_relpath_file_list():
             assert contents == ref_contents(fnames[index])
 
 
-def _test_file_reader_filter(filters):
-    batch_size = 1
-
-    pipe = Pipeline(batch_size, 1, 0)
+def _test_file_reader_filter(filters, batch_size, num_threads):
+    pipe = Pipeline(batch_size, num_threads, 0)
     root = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/single/mixed')
     files, labels = fn.readers.file(file_root=root, file_filters=filters)
     pipe.set_outputs(files, labels)
     pipe.build()
     
-    fnames = []
+    fnames = set()
     for label, dir in enumerate(sorted(next(os.walk(root))[1])):
         for filter in filters:
             for file in glob.glob(os.path.join(root, dir, filter)):
-                fnames.append((label, file.split('/')[-1], file))
-    fnames = sorted(set(fnames))
+                fnames.add((label, file.split('/')[-1], file))
 
-    for i in range(len(fnames)):
-        out_f, out_l = pipe.run()
-        with open(fnames[i][2], 'rb') as file:
-            contents = np.array(list(file.read()))
-            assert all(contents == out_f.at(0))
+    fnames = sorted(fnames)
+
+    for i in range(len(fnames) // batch_size):
+        out_f, _ = pipe.run()
+        for j in range(batch_size):
+            with open(fnames[i * batch_size + j][2], 'rb') as file:
+                contents = np.array(list(file.read()))
+                assert all(contents == out_f.at(j))
 
 
 def test_file_reader_filters():
-    for filters in [[], ['*.jpg'], ['*.jpg', '*.png', '*.jpeg'], ['dog*.jpg', 'cat*.png', '*.jpg']]:
-        yield _test_file_reader_filter, filters
+    for filters in [['*.jpg'], ['*.jpg', '*.png', '*.jpeg'], ['dog*.jpg', 'cat*.png', '*.jpg']]:
+        for num_threads in [1, 2, 4, 8]:
+            for batch_size in [1, 3, 10]:
+                yield _test_file_reader_filter, filters, batch_size, num_threads
 
 
 batch_size_alias_test = 64

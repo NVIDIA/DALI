@@ -15,11 +15,12 @@
 #ifndef DALI_OPERATORS_READER_FILE_READER_OP_H_
 #define DALI_OPERATORS_READER_FILE_READER_OP_H_
 
-#include <utility>
 #include <string>
+#include <utility>
 #include <vector>
-#include "dali/operators/reader/reader_op.h"
+
 #include "dali/operators/reader/loader/file_label_loader.h"
+#include "dali/operators/reader/reader_op.h"
 
 namespace dali {
 

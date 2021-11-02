@@ -55,7 +55,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
       has_labels_arg_ = spec.TryGetRepeatedArgument(labels, "labels");
       has_file_list_arg_ = spec.TryGetArgument(file_list_, "file_list");
       has_file_root_arg_ = spec.TryGetArgument(file_root_, "file_root");
-      spec.TryGetRepeatedArgument(filters_, "file_filters");
+      bool has_file_filters_arg = spec.TryGetRepeatedArgument(filters_, "file_filters");
 
       DALI_ENFORCE(has_file_root_arg_ || has_files_arg_ || has_file_list_arg_,
         "``file_root`` argument is required when not using ``files`` or ``file_list``.");
@@ -66,6 +66,9 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
       DALI_ENFORCE(has_files_arg_ || !has_labels_arg_,
         "The argument ``labels`` is valid only when file paths "
         "are provided as ``files`` argument.");
+
+      DALI_ENFORCE(!has_file_filters_arg || filters_.size() > 0,
+                   "``file_filters`` list cannot be empty.");
 
       if (has_file_list_arg_) {
         DALI_ENFORCE(!file_list_.empty(), "``file_list`` argument cannot be empty");

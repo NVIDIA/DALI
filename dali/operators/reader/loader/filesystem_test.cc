@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/reader/loader/filesystem.h"
 #include <glob.h>
 #include <gtest/gtest.h>
 #include <fstream>
 #include <string>
 #include <vector>
+
 #include "dali/core/error_handling.h"
+#include "dali/operators/reader/loader/filesystem.h"
+#include "dali/operators/reader/loader/utils.h"
 #include "dali/test/dali_test_config.h"
 
 namespace dali {
@@ -92,9 +94,8 @@ class FilesystemTest : public ::testing::Test {
   std::vector<std::pair<std::string, int>> file_label_pairs;
 };
 
-TEST_F(FilesystemTest, EmptyFilter) {
-  std::vector<std::string> filters{};
-  auto file_label_pairs_filtered = filesystem::traverse_directories(file_root, filters);
+TEST_F(FilesystemTest, MatchAllFilter) {
+  auto file_label_pairs_filtered = filesystem::traverse_directories(file_root, kKnownExtensionsGlob);
   ASSERT_EQ(this->file_label_pairs.size(), file_label_pairs_filtered.size());
   for (size_t i = 0; i < file_label_pairs_filtered.size(); ++i) {
     ASSERT_EQ(this->file_label_pairs[i].first, file_label_pairs_filtered[i].first);

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,9 @@
 #include <cstring>
 #include <string>
 #include <vector>
+
 #include "dali/core/error_handling.h"
+#include "dali/core/format.h"
 #include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/utils.h"
 #include "dali/test/dali_test_config.h"
@@ -31,7 +33,7 @@ static std::vector<std::string> getSubdirs(const std::string &file_root) {
   // open the root
   DIR *dir = opendir(file_root.c_str());
 
-  DALI_ENFORCE(dir != nullptr, "Directory " + file_root + " could not be opened.");
+  DALI_ENFORCE(dir != nullptr, make_string("Directory ", file_root, " could not be opened."));
 
   struct dirent *entry;
 
@@ -47,7 +49,8 @@ static std::vector<std::string> getSubdirs(const std::string &file_root) {
     std::string entry_name(entry->d_name);
     std::string full_path = filesystem::join_path(file_root, entry_name);
     int ret = stat(full_path.c_str(), &s);
-    DALI_ENFORCE(ret == 0, "Could not access " + full_path + " during directory traversal.");
+    DALI_ENFORCE(ret == 0,
+                 make_string("Could not access ", full_path, " during directory traversal."));
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
       continue;
     if (S_ISDIR(s.st_mode)) {

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include <string>
 
 #include "dali/operators/reader/file_reader_op.h"
+#include "dali/operators/reader/loader/utils.h"
 
 namespace dali {
 
@@ -42,7 +43,7 @@ For example, this directory structure::
   <file_root>/2/car.jpeg
   <file_root>/2/truck.jp2
 
-without specified ``file_filters`` will yield the following outputs::
+by default will yield the following outputs::
 
   <contents of 0/image0.jpg>        0
   <contents of 0/world_map.jpg>     0
@@ -106,10 +107,11 @@ This argument is mutually exclusive with ``file_list``.)", nullptr)
 ``files`` argument.
 
 If not used, sequential 0-based indices are used as labels)", nullptr)
-  .AddOptionalArg<vector<string>>("file_filters", R"(A list of glob strings to filter the
+  .AddOptionalArg<string>("file_filters", R"(A list of glob strings to filter the
 list of files in the sub-directories of the ``file_root``.
 
-This argument is ignored when file paths are taken from ``file_list`` or ``files``.)", nullptr)
+This argument is ignored when file paths are taken from ``file_list`` or ``files``.)",
+      kKnownExtensionsGlob)
   .AddParent("LoaderBase");
 
 
