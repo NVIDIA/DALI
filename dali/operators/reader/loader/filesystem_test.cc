@@ -95,7 +95,8 @@ class FilesystemTest : public ::testing::Test {
 };
 
 TEST_F(FilesystemTest, MatchAllFilter) {
-  auto file_label_pairs_filtered = filesystem::traverse_directories(file_root, kKnownExtensionsGlob);
+  auto file_label_pairs_filtered =
+      filesystem::traverse_directories(file_root, kKnownExtensionsGlob);
   ASSERT_EQ(this->file_label_pairs.size(), file_label_pairs_filtered.size());
   for (size_t i = 0; i < file_label_pairs_filtered.size(); ++i) {
     ASSERT_EQ(this->file_label_pairs[i].first, file_label_pairs_filtered[i].first);
