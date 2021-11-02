@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,9 +18,11 @@
 
 namespace dali {
 
-void PluginManager::LoadLibrary(const std::string& lib_path) {
+void PluginManager::LoadLibrary(const std::string& lib_path, bool global_symbols) {
     // dlopen is thread safe
-    auto handle = dlopen(lib_path.c_str(), RTLD_LAZY | RTLD_LOCAL);
+    int flags = global_symbols ? RTLD_GLOBAL : RTLD_LOCAL;
+    flags |= RTLD_LAZY;
+    auto handle = dlopen(lib_path.c_str(), flags);
     DALI_ENFORCE(handle != nullptr, "Failed to load library: " + std::string(dlerror()));
 }
 
