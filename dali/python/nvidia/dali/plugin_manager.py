@@ -1,4 +1,4 @@
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,17 +15,20 @@
 from nvidia.dali import backend as b
 from nvidia.dali import ops as ops
 
-def load_library(library_path):
+def load_library(library_path : str, global_symbols : bool = False):
     """Loads a DALI plugin, containing one or more operators.
 
     Args:
         library_path: Path to the plugin library (relative or absolute)
-    
+        global_symbols: If ``True``, the library is loaded with ``RTLD_GLOBAL`` flag or equivalent;
+            otherwise ``RTLD_LOCAL`` is used. Some libraries (for example Halide) require being
+            loaded with ``RTLD_GLOBAL`` - use this setting if your plugin uses any such library.
+
     Returns:
         None.
 
     Raises:
         RuntimeError: when unable to load the library.
     """
-    b.LoadLibrary(library_path)
+    b.LoadLibrary(library_path, global_symbols)
     ops.Reload()
