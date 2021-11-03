@@ -103,7 +103,7 @@ class BasePackage():
 
 
     def get_dependencies(self, cuda_version=None, idx=None):
-        """Obtains dependant packages list if exists. Otherwise return empty string
+        """Obtains dependant packages list if exists. Otherwise return an empty list
 
             Parameters
             ----------
@@ -111,10 +111,7 @@ class BasePackage():
                 Package version
         """
         version = self.get_version(idx, cuda_version)
-        ret = getattr(version, "dependencies", None)
-        if ret is None:
-            return ""
-        return ret
+        return getattr(version, "dependencies",  [])
 
     def get_name(self, cuda_version=None, idx=None):
         """Retrives package name.
