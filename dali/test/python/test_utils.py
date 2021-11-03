@@ -272,9 +272,6 @@ class RandomlyShapedDataIterator(object):
         return self
 
     def __next__(self):
-        import_numpy()
-        np.random.seed(self.seed)
-        random.seed(self.seed)
         self.test_data = []
         for _ in range(self.batch_size):
             # Scale between 0.5 and 1.0
@@ -294,7 +291,6 @@ class RandomlyShapedDataIterator(object):
 
         batch = self.test_data
         self.i = (self.i + 1) % self.n
-        self.seed = self.seed + 12345678
         return (batch)
 
     next = __next__
