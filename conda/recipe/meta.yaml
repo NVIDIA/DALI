@@ -67,8 +67,8 @@ requirements:
   host:
     - python
     - future >=0.17.1
-    - protobuf >=3.18.0
-    - libprotobuf-static >=3.18.0
+    - protobuf >=3.19.0
+    - libprotobuf-static >=3.19.0
     - libjpeg-turbo >=2.1.0
     - tensorflow-gpu =2.2.0
     - tensorflow-estimator =2.2.0

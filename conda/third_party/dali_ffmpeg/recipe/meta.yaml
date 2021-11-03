@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "4.4" %}
+{% set build_version = "4.4.1" %}
 
   package:
     name: dali-ffmpeg
     version: {{ build_version }}
 
   source:
-    fn: FFmpeg-n4.4_v3.tar.gz
-    url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/FFmpeg-n4.4_v3.tar.gz
-    sha256: 9b395c17e3c49979367e841a3526df7f2db38629f731b108dbb8a278855eccdd
+    fn: FFmpeg-n4.4.1.tar.gz
+    url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/FFmpeg-n4.4.1.tar.gz
+    sha256: 468f6d0db9f1d19a51dfb8a2d6946542b5e89c01293cfe36e398865091d73f2d
 
   build:
     number: 0
