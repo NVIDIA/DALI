@@ -272,6 +272,7 @@ class RandomlyShapedDataIterator(object):
         return self
 
     def __next__(self):
+        import_numpy()
         self.test_data = []
         for _ in range(self.batch_size):
             # Scale between 0.5 and 1.0
