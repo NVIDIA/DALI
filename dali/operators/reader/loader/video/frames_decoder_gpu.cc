@@ -16,6 +16,11 @@
 #include "dali/operators/reader/loader/video/nvdecode/NvDecoder.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_utils.h"
+#include <cuda.h>
+#include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/tensor.h"
+#include "dali/operators/reader/loader/video/nvdecode/ColorSpace.h"
+#include "dali/operators/reader/loader/video/nvdecode/NvCodecUtils.h"
 
 
 namespace dali {
@@ -33,7 +38,17 @@ bool FramesDecoderGpu::DecodeFrame(uint8_t *data, bool copy_to_output) {
   static NvDecoder dec(context, false, cudaVideoCodec_MPEG4, false, false, &r, &d);
   int n_frames_returned = dec.Decode(av_state_->packet_->data, av_state_->packet_->size);
 
-  return n_frames_returned > 0;
+  if (n_frames_returned == 0) {
+    return false;
+  }
+
+  uint8_t *frame = dec.GetFrame();
+  int iMatrix = dec.GetVideoFormatInfo().video_signal_description.matrix_coefficients;
+  CUDA_CALL(cudaDeviceSynchronize());
+  Nv12ToColor32<RGBA32>(frame, dec.GetWidth(), data, dec.GetWidth(), dec.GetWidth() * 4, dec.GetHeight(), iMatrix);
+  CUDA_CALL(cudaDeviceSynchronize());
+
+  return true;
 }
 
 

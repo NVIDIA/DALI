@@ -41,50 +41,50 @@ struct CUDAContext : UniqueHandle<CUcontext, CUDAContext> {
 };
 
 
-TEST_F(FramesDecoderGpuTest, VariableFrameRateAvi) {
-    ASSERT_TRUE(cuInitChecked());
-    CUdevice cu_test_device = 0;
-    CUDA_CALL(cuDeviceGet(&cu_test_device, 0));
-    auto cu_test_ctx = CUDAContext::Create(0, cu_test_device);
-    CUDA_CALL(cuCtxSetCurrent(cu_test_ctx));
+// TEST_F(FramesDecoderGpuTest, VariableFrameRateAvi) {
+//     ASSERT_TRUE(cuInitChecked());
+//     CUdevice cu_test_device = 0;
+//     CUDA_CALL(cuDeviceGet(&cu_test_device, 0));
+//     auto cu_test_ctx = CUDAContext::Create(0, cu_test_device);
+//     CUDA_CALL(cuCtxSetCurrent(cu_test_ctx));
 
-    std::string path = testing::dali_extra_path() + "/db/video/cfr/test_1.avi";
+//     std::string path = testing::dali_extra_path() + "/db/video/cfr/test_1.avi";
 
-    // Create file, build index
-    FramesDecoderGpu file(path);
+//     // Create file, build index
+//     FramesDecoderGpu file(path);
 
-    ASSERT_EQ(file.Height(), 720);
-    ASSERT_EQ(file.Width(), 1280);
-    ASSERT_EQ(file.Channels(), 3);
-    ASSERT_EQ(file.NumFrames(), 50);
+//     ASSERT_EQ(file.Height(), 720);
+//     ASSERT_EQ(file.Width(), 1280);
+//     ASSERT_EQ(file.Channels(), 3);
+//     ASSERT_EQ(file.NumFrames(), 50);
 
-    std::vector<uint8_t> frame(file.FrameSize());
+//     std::vector<uint8_t> frame(file.FrameSize());
 
-    // Read first frame
-    for (int i = 0; i < 10; ++i)
-        file.ReadNextFrame(frame.data());
-    // this->CompareFrames(frame.data(), this->GetCfrFrame(0, 0), file.FrameSize(), 50);
+//     // Read first frame
+//     for (int i = 0; i < 10; ++i)
+//         file.ReadNextFrame(frame.data());
+//     // this->CompareFrames(frame.data(), this->GetCfrFrame(0, 0), file.FrameSize(), 50);
 
-    // // Seek to frame
-    // file.SeekFrame(25);
-    // file.ReadNextFrame(frame.data());
-    // this->CompareFrames(frame.data(), this->GetCfrFrame(0, 25), file.FrameSize(), 50);
+//     // // Seek to frame
+//     // file.SeekFrame(25);
+//     // file.ReadNextFrame(frame.data());
+//     // this->CompareFrames(frame.data(), this->GetCfrFrame(0, 25), file.FrameSize(), 50);
 
-    // // Seek back to frame
-    // file.SeekFrame(12);
-    // file.ReadNextFrame(frame.data());
-    // this->CompareFrames(frame.data(), this->GetCfrFrame(0, 12), file.FrameSize(), 50);
+//     // // Seek back to frame
+//     // file.SeekFrame(12);
+//     // file.ReadNextFrame(frame.data());
+//     // this->CompareFrames(frame.data(), this->GetCfrFrame(0, 12), file.FrameSize(), 50);
 
-    // // Seek to last frame (flush frame)
-    // file.SeekFrame(49);
-    // file.ReadNextFrame(frame.data());
-    // this->CompareFrames(frame.data(), this->GetCfrFrame(0, 49), file.FrameSize(), 50);
+//     // // Seek to last frame (flush frame)
+//     // file.SeekFrame(49);
+//     // file.ReadNextFrame(frame.data());
+//     // this->CompareFrames(frame.data(), this->GetCfrFrame(0, 49), file.FrameSize(), 50);
 
-    // // Wrap around to first frame
-    // ASSERT_FALSE(file.ReadNextFrame(frame.data()));
-    // file.Reset();
-    // file.ReadNextFrame(frame.data());
-    // this->CompareFrames(frame.data(), this->GetCfrFrame(0, 0), file.FrameSize(), 50);
-}
+//     // // Wrap around to first frame
+//     // ASSERT_FALSE(file.ReadNextFrame(frame.data()));
+//     // file.Reset();
+//     // file.ReadNextFrame(frame.data());
+//     // this->CompareFrames(frame.data(), this->GetCfrFrame(0, 0), file.FrameSize(), 50);
+// }
 
 }  // namespace dali
