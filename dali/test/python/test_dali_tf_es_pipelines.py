@@ -25,10 +25,12 @@ def get_sample_one_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=T
     def callback(x):
         if x.iteration > iter_limit:
             raise StopIteration()
-        size = x.idx_in_batch % 16 + 1, x.iteration % 16 + 3
+        size = x.idx_in_batch % 16 + 1, x.iteration % 16 + 4
         result = np.full(size, x.idx_in_epoch, dtype=dtype)
-        result[0][0] = x.idx_in_batch
-        result[0][1] = x.iteration
+        result[0][0] = x.idx_in_epoch
+        result[0][1] = x.idx_in_batch
+        result[0][2] = x.iteration
+        result[0][3] = x.epoch_idx
         return result
     return callback
 
@@ -36,8 +38,11 @@ def get_batch_one_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=Tr
     def callback(x):
         if x > iter_limit:
             raise StopIteration()
-        size = (x % 16 + 1,)
+        size = (x % 16 + 3,)
         result = [np.full(size, x, dtype=dtype)] * batch_size
+        for i, elem in enumerate(result):
+            elem[0] = i
+            elem[1] = x
         return np.stack(result) if dense else result
     return callback
 
@@ -47,17 +52,21 @@ def get_no_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=True):
             self.counter = 0
 
         def __call__(self):
-            size = (self.counter % 16 + 1,)
+            size = (self.counter % 16 + 3,)
             bs = 1 if batch_size is None else batch_size
             if self.counter // bs > iter_limit:
                 self.counter = 0
                 raise StopIteration()
-            result = np.full(size, self.counter, dtype=dtype)
+            curr_counter = self.counter
             self.counter += 1
             if batch_size is None:
+                result = np.full(size, curr_counter, dtype=dtype)
                 return result
             else:
-                return np.stack([result] * batch_size)
+                result = [np.full(size, curr_counter, dtype=dtype)] * batch_size
+                for i, elem in enumerate(result):
+                    elem[0] = i
+                return np.stack(result)
     return Callable()
 
 class UnwrapIterator:
@@ -82,6 +91,8 @@ class DenseIterator:
 
 
 class FiniteIterator:
+    """Used to wrap RandomlyShapedDataIterator to add iteration counts and finite data size
+    """
     def __init__(self, iterator, iter_limit):
         self.iterator = iterator
         self.iter_limit = iter_limit
@@ -93,8 +104,14 @@ class FiniteIterator:
     def __next__(self):
         if self.i > self.iter_limit:
             raise StopIteration()
+        result = next(self.iterator)
+        for i, elem in enumerate(result):
+            assert len(elem.shape) == (2), f"Got unexpected shape {elem.shape}"
+            assert elem.shape[1] >= 2, f"Got unexpected shape {elem.shape}"
+            elem[0][0] = i
+            elem[0][1] = self.i
         self.i += 1
-        return np.stack(next(self.iterator))
+        return result
 
 
 def get_iterable(dtype, iter_limit=1000, batch_size=None, dense=True):
