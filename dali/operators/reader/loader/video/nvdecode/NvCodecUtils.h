@@ -45,7 +45,6 @@ inline bool check(CUresult e, int iLine, const char *szFile) {
 #ifdef __CUDA_RUNTIME_H__
 inline bool check(cudaError_t e, int iLine, const char *szFile) {
     if (e != cudaSuccess) {
-        LOG(FATAL) << "CUDA runtime API error " << cudaGetErrorName(e) << " at line " << iLine << " in file " << szFile;
         return false;
     }
     return true;
