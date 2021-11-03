@@ -103,7 +103,7 @@ class BasePackage():
 
 
     def get_dependencies(self, cuda_version=None, idx=None):
-        """Obtains dependant packages list if exists. Otherwise return an empty list
+        """Obtains dependant packages list if exists. Otherwise return None
 
             Parameters
             ----------
@@ -111,7 +111,7 @@ class BasePackage():
                 Package version
         """
         version = self.get_version(idx, cuda_version)
-        return getattr(version, "dependencies",  [])
+        return getattr(version, "dependencies", None)
 
     def get_name(self, cuda_version=None, idx=None):
         """Retrives package name.
@@ -205,7 +205,10 @@ class BasePackage():
                 Cuda version used for this query
         """
         pkg_cmd = "{name}=={version}".format(name=self.get_name(cuda_version, idx), version=self.get_version(idx, cuda_version))
-        return " ".join([pkg_cmd] + self.get_dependencies(cuda_version, idx))
+        deps_cmd = self.get_dependencies(cuda_version, idx)
+        if deps_cmd is not None:
+            pkg_cmd =  " ".join([pkg_cmd] + deps_cmd)
+        return pkg_cmd
 
     def get_all_install_strings(self, cuda_version=None):
         """Gets all installation string that pip should accept for a given
