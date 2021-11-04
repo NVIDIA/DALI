@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -189,11 +189,14 @@ std::string OpSchema::GetArgumentDefaultValueString(const std::string &name) con
 
   auto &val = *value_ptr;
   auto str = val.ToString();
-  if (val.GetTypeId() == DALI_STRING ||
-      val.GetTypeId() == DALI_TENSOR_LAYOUT)
+  if (val.GetTypeId() == DALI_STRING || val.GetTypeId() == DALI_TENSOR_LAYOUT) {
     return python_repr(str);
-  else
+  } else if (val.GetTypeId() == DALI_STRING_VEC) {
+    auto str_vec = dynamic_cast<ValueInst<std::vector<std::string>> &>(val).Get();
+    return python_repr(str_vec);
+  } else {
     return str;
+  }
 }
 
 std::vector<std::string> OpSchema::GetArgumentNames() const {
