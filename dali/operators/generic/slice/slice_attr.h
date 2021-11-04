@@ -189,7 +189,7 @@ class NamedSliceAttr {
   }
 
  private:
-  const OpSpec &spec_;
+  const OpSpec spec_;
 
   std::vector<int> axes_;
   TensorLayout axis_names_;
@@ -332,7 +332,7 @@ class PositionalSliceAttr {
   }
 
  private:
-  const OpSpec &spec_;
+  const OpSpec spec_;
   bool normalized_anchor_, normalized_shape_;
   std::vector<int> axes_;
   TensorLayout axis_names_;
@@ -379,7 +379,7 @@ class SliceAttr {
   }
 
  private:
-  const OpSpec &spec_;
+  const OpSpec spec_;
   NamedSliceAttr named_slice_attr_;
   PositionalSliceAttr pos_slice_attr_;
   bool use_named_args_ = false;

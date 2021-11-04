@@ -369,8 +369,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   ~RandomBBoxCropImpl() = default;
 
   explicit RandomBBoxCropImpl(const OpSpec &spec)
-      : spec_(spec),
-        num_attempts_{spec.GetArgument<int>("num_attempts")},
+      : num_attempts_{spec.GetArgument<int>("num_attempts")},
         has_labels_(spec.NumRegularInput() > 1),
         has_crop_shape_(spec.ArgumentDefined("crop_shape")),
         has_input_shape_(spec.ArgumentDefined("input_shape")),
@@ -895,8 +894,7 @@ RandomBBoxCrop<CPUBackend>::~RandomBBoxCrop() = default;
 
 template <>
 RandomBBoxCrop<CPUBackend>::RandomBBoxCrop(const OpSpec &spec)
-    : Operator<CPUBackend>(spec)
-    , spec_(spec) {}
+    : Operator<CPUBackend>(spec) {}
 
 template <>
 bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,

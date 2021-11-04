@@ -97,7 +97,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   const OpSpec &Spec() const { return spec_; }
 
  private:
-  const OpSpec &spec_;
+  const OpSpec spec_;
   kernels::KernelManager kmgr_;
 
   TensorListView<Storage, const InputType, tensor_ndim> input_;

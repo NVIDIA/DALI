@@ -99,7 +99,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
   }
 
  private:
-  const OpSpec &spec_;
+  const OpSpec spec_;
   std::vector<int> axes_;
   std::vector<kernels::EraseArgs<T, Dims>> args_;
   TensorList<GPUBackend> regions_gpu_;
