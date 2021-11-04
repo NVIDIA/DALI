@@ -57,6 +57,8 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
       has_file_root_arg_ = spec.TryGetArgument(file_root_, "file_root");
       bool has_file_filters_arg = spec.TryGetRepeatedArgument(filters_, "file_filters");
 
+      case_sensitive_filter_ = spec.GetArgument<bool>("case_sensitive_filter");
+
       DALI_ENFORCE(has_file_root_arg_ || has_files_arg_ || has_file_list_arg_,
         "``file_root`` argument is required when not using ``files`` or ``file_list``.");
 
@@ -126,7 +128,8 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
   void PrepareMetadataImpl() override {
     if (image_label_pairs_.empty()) {
       if (!has_file_list_arg_ && !has_files_arg_) {
-        image_label_pairs_ = filesystem::traverse_directories(file_root_, filters_);
+        image_label_pairs_ =
+            filesystem::traverse_directories(file_root_, filters_, case_sensitive_filter_);
       } else if (has_file_list_arg_) {
         // load (path, label) pairs from list
         std::ifstream s(file_list_);
@@ -206,6 +209,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
   bool has_labels_arg_    = false;
   bool has_file_list_arg_ = false;
   bool has_file_root_arg_ = false;
+  bool case_sensitive_filter_;
 
   bool shuffle_after_epoch_;
   Index current_index_;

@@ -28,8 +28,9 @@ DLL_PUBLIC vector<string> traverse_directories(const string &path, const string 
 /**
  * @brief Finds all (file, label) pairs matching any filter from the list.
  */
-DLL_PUBLIC vector<std::pair<string, int>> traverse_directories(const string &file_root,
-                                                               const vector<string> &filters);
+DLL_PUBLIC vector<std::pair<string, int>> traverse_directories(
+    const string &file_root, const vector<string> &filters,
+    const bool case_sensitive_filter = false);
 
 /**
  * @brief Prepends dir to a relative path and keeps absolute path unchanged.

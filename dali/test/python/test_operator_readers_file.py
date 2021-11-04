@@ -15,6 +15,7 @@
 import tempfile
 import os
 import glob
+import random
 import numpy as np
 import nvidia.dali.fn as fn
 from functools import partial
@@ -153,9 +154,9 @@ def _test_file_reader_filter(filters, batch_size, num_threads):
 
 def test_file_reader_filters():
     for filters in [['*.jpg'], ['*.jpg', '*.png', '*.jpeg'], ['dog*.jpg', 'cat*.png', '*.jpg']]:
-        for num_threads in [1, 2, 4, 8]:
-            for batch_size in [1, 3, 10]:
-                yield _test_file_reader_filter, filters, batch_size, num_threads
+        num_threads = random.choice([1, 2, 4, 8])
+        batch_size = random.choice([1, 3, 10])
+        yield _test_file_reader_filter, filters, batch_size, num_threads
 
 
 batch_size_alias_test = 64

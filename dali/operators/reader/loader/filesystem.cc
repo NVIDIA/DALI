@@ -49,7 +49,8 @@ std::string join_path(const std::string &dir, const std::string &path) {
 
 inline void assemble_file_list(std::vector<std::pair<std::string, int>> &file_label_pairs,
                                const std::string &path, const std::string &curr_entry, int label,
-                               const std::vector<std::string> &filters) {
+                               const std::vector<std::string> &filters,
+                               const bool case_sensitive_filter) {
   std::string curr_dir_path = join_path(path, curr_entry);
   DIR *dir = opendir(curr_dir_path.c_str());
 
@@ -68,7 +69,7 @@ inline void assemble_file_list(std::vector<std::pair<std::string, int>> &file_la
 #endif
     std::string rel_path = join_path(curr_entry, std::string{entry->d_name});
     for (auto &filter : filters) {
-      if (fnmatch(filter.c_str(), entry->d_name, 0) == 0) {
+      if (fnmatch(filter.c_str(), entry->d_name, case_sensitive_filter ? 0 : FNM_CASEFOLD) == 0) {
         file_label_pairs.emplace_back(rel_path, label);
         break;
       }
@@ -78,7 +79,8 @@ inline void assemble_file_list(std::vector<std::pair<std::string, int>> &file_la
 }
 
 vector<std::pair<string, int>> traverse_directories(const std::string &file_root,
-                                                    const std::vector<std::string> &filters) {
+                                                    const std::vector<std::string> &filters,
+                                                    const bool case_sensitive_filter) {
   // open the root
   DIR *dir = opendir(file_root.c_str());
 
@@ -108,7 +110,7 @@ vector<std::pair<string, int>> traverse_directories(const std::string &file_root
   std::sort(entry_name_list.begin(), entry_name_list.end());
   for (unsigned dir_count = 0; dir_count < entry_name_list.size(); ++dir_count) {
       assemble_file_list(file_label_pairs, file_root, entry_name_list[dir_count], dir_count,
-                         filters);
+                         filters, case_sensitive_filter);
   }
   // sort file names as well
   std::sort(file_label_pairs.begin(), file_label_pairs.end());
