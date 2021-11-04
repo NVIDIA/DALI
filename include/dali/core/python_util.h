@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ inline void python_repr(std::ostream &os, const std::string &s) {
 }
 
 template <typename T>
-if_iterable<T> python_repr(std::ostream &os, const T &collection) {
+void python_repr(std::ostream &os, const std::vector<T> &collection) {
   os << "[";
   bool first = true;
   for (const auto &v : collection) {
