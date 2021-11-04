@@ -57,7 +57,9 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
       has_file_root_arg_ = spec.TryGetArgument(file_root_, "file_root");
       bool has_file_filters_arg = spec.TryGetRepeatedArgument(filters_, "file_filters");
 
-      case_sensitive_filter_ = spec.GetArgument<bool>("case_sensitive_filter");
+      // TODO(ksztenderski): CocoLoader inherits after FileLabelLoader and it doesn't work with
+      // GetArgument.
+      spec.TryGetArgument(case_sensitive_filter_, "case_sensitive_filter");
 
       DALI_ENFORCE(has_file_root_arg_ || has_files_arg_ || has_file_list_arg_,
         "``file_root`` argument is required when not using ``files`` or ``file_list``.");
@@ -205,11 +207,11 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
   vector<std::pair<string, int>> image_label_pairs_;
   vector<string> filters_;
 
-  bool has_files_arg_     = false;
-  bool has_labels_arg_    = false;
+  bool has_files_arg_ = false;
+  bool has_labels_arg_ = false;
   bool has_file_list_arg_ = false;
   bool has_file_root_arg_ = false;
-  bool case_sensitive_filter_;
+  bool case_sensitive_filter_ = false;
 
   bool shuffle_after_epoch_;
   Index current_index_;
