@@ -128,7 +128,7 @@ def _get_kwargs(schema):
                 if schema.HasArgumentDefaultValue(arg):
                     default_value_string = schema.GetArgumentDefaultValueString(arg)
                     default_value = ast.literal_eval(default_value_string)
-                    type_name += ", default = {}".format(_default_converter(dtype, default_value))
+                    type_name += ", default = `{}`".format(_default_converter(dtype, default_value))
             doc += schema.GetArgumentDox(arg)
             if deprecation_warning:
                 doc += "\n\n" + deprecation_warning
