@@ -15,9 +15,10 @@
 #ifndef DALI_CORE_PYTHON_UTIL_H_
 #define DALI_CORE_PYTHON_UTIL_H_
 
-#include <string>
-#include <sstream>
 #include <map>
+#include <sstream>
+#include <string>
+#include <vector>
 #include "dali/core/util.h"
 
 namespace dali {
