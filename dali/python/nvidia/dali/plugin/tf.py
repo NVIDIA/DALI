@@ -387,10 +387,6 @@ if dataset_compatible_tensorflow():
         return options
 
     class _DALIDatasetV2(dataset_ops.DatasetV2):
-        @classmethod
-        def experimental_constructor(cls):
-            return cls(randint(0, 33))
-
         def __init__(
                 self,
                 pipeline,
