@@ -42,10 +42,10 @@ class JpegCompressionDistortion : public Operator<Backend> {
     const auto &input = ws.template Input<Backend>(0);
     output_desc.resize(1);
     const auto &in_sh = input.shape();
-    assert(in_sh.sample_dim() == 3);  // should be check by the layout
+    assert(in_sh.sample_dim() == 3 || in_sh.sample_dim() == 4);  // should be check by the layout
     for (int s = 0; s < in_sh.num_samples(); s++) {
-      DALI_ENFORCE(in_sh.tensor_shape_span(s)[2] == 3,
-        make_string("Expected RGB samples with HWC layout, got shape: ", in_sh[s]));
+      DALI_ENFORCE(in_sh.tensor_shape_span(s).back() == 3,
+                   make_string("Expected RGB samples with (F)HWC layout, got shape: ", in_sh[s]));
     }
 
     output_desc[0] = {in_sh, input.type()};

@@ -24,47 +24,86 @@ import cv2
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'tiff')
 dump_images = False
+sequence_length = 10
 
-def _testimpl_jpeg_compression_distortion(batch_size, device, quality):
-  @pipeline_def()
+class InputImagesIter(object):
+  def __init__(self, batch_size, sequence_length):
+    self.batch_size = batch_size
+    self.sequence_length = sequence_length
+    with open(os.path.join(images_dir, 'image_list.txt')) as file:
+      self.files = [line.rstrip() for line in file if line != '']
+
+  def __iter__(self):
+    self.i = 0
+    return self
+
+  def __next__(self):
+    batch = []
+    for _ in range(self.batch_size):
+      in_img = None
+      # Skip input image if format isn't supported by OpenCV
+      while in_img is None:
+        filename, label = self.files[self.i].split(' ')
+        in_img = cv2.imread(os.path.join(images_dir, filename))
+        self.i = (self.i + 1) % len(self.files)
+        # Convert to rgb, to match dali channel order
+      rgb = cv2.cvtColor(in_img, cv2.COLOR_BGR2RGB)
+      batch.append(np.stack([rgb] * self.sequence_length))
+    return batch
+
+def _comapare_to_cv_distortion(in_img, out_img, q, no):
+  bgr = cv2.cvtColor(in_img, cv2.COLOR_RGB2BGR)
+  encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), q]
+  _, encoded_img = cv2.imencode('.jpg', bgr, params=encode_params)
+
+  decoded_img_bgr = cv2.imdecode(encoded_img, cv2.IMREAD_COLOR)
+  decoded_img = cv2.cvtColor(decoded_img_bgr, cv2.COLOR_BGR2RGB)
+
+  if dump_images:
+    i, j = no
+    cv2.imwrite(f"./reference_q{q}_sample{i}_{j}.bmp", cv2.cvtColor(decoded_img, cv2.COLOR_BGR2RGB))
+    cv2.imwrite(f"./output_q{q}_sample{i}_{j}.bmp", cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB))
+
+  diff = cv2.absdiff(out_img, decoded_img)
+  assert np.average(diff) < 5, f"Absolute difference with the reference is too big: {np.average(diff)}"
+
+def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
+  @pipeline_def(batch_size=batch_size, num_threads=3, device_id=0)
   def jpeg_distortion_pipe(device='cpu', quality=None):
-    encoded, _ = fn.readers.file(file_root=images_dir)
-    in_images = fn.decoders.image(encoded, device='cpu')
+    if layout == 'FHWC':
+      iii = InputImagesIter(batch_size, sequence_length)
+      in_tensors = fn.external_source(source=iii, layout='FHWC')
+    else:
+      encoded, _ = fn.readers.file(file_root=images_dir)
+      in_tensors = fn.decoders.image(encoded, device='cpu')
+
+    inputs = in_tensors.gpu() if device == 'gpu' else in_tensors
     if quality is None:
       quality = fn.random.uniform(range=[1, 99], dtype=types.INT32)
-    images = in_images.gpu() if device == 'gpu' else in_images
-    out_images = fn.jpeg_compression_distortion(images, quality=quality)
-    return out_images, in_images, quality
+    out_tensors = fn.jpeg_compression_distortion(inputs, quality=quality)
+    return (out_tensors, in_tensors, quality)
 
   pipe = jpeg_distortion_pipe(device=device, quality=quality,
                               batch_size=batch_size, num_threads=2, device_id=0)
   pipe.build()
   for _ in range(3):
     out = pipe.run()
-    out_images = out[0].as_cpu() if device == 'gpu' else out[0]
-    in_images = out[1]
+    out_data = out[0].as_cpu() if device == 'gpu' else out[0]
+    in_data = out[1]
     quality = out[2]
     for i in range(batch_size):
-      out_img = np.array(out_images[i])
-      in_img = np.array(in_images[i])
+      out_tensor = np.array(out_data[i])
+      in_tensor = np.array(in_data[i])
       q = int(np.array(quality[i]))
-
-      bgr = cv2.cvtColor(in_img, cv2.COLOR_RGB2BGR)
-      encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), q]
-      _, encoded_img = cv2.imencode('.jpg', bgr, params=encode_params)
-
-      decoded_img_bgr = cv2.imdecode(encoded_img, cv2.IMREAD_COLOR)
-      decoded_img = cv2.cvtColor(decoded_img_bgr, cv2.COLOR_BGR2RGB)
-
-      if dump_images:
-        cv2.imwrite(f"./reference_q{q}_sample{i}.bmp", cv2.cvtColor(decoded_img, cv2.COLOR_BGR2RGB))
-        cv2.imwrite(f"./output_q{q}_sample{i}.bmp", cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB))
-
-      diff = cv2.absdiff(out_img, decoded_img)
-      assert np.average(diff) < 5, f"Absolute difference with the reference is too big: {np.average(diff)}"
+      if layout == 'FHWC':
+        for j in range(in_tensor.shape[0]):
+          _comapare_to_cv_distortion(in_tensor[j], out_tensor[j], q, (i, j))
+      else:
+        _comapare_to_cv_distortion(in_tensor, out_tensor, q, (i, 0))
 
 def test_jpeg_compression_distortion():
   for batch_size in [1, 15]:
     for device in ['cpu', 'gpu']:
       for quality in [2, None, 50]:
-        yield _testimpl_jpeg_compression_distortion, batch_size, device, quality
+        for layout in ['HWC', 'FHWC'] if device == 'cpu' else ['HWC']:
+          yield _testimpl_jpeg_compression_distortion, batch_size, device, quality, layout
