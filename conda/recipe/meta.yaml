@@ -74,9 +74,9 @@ requirements:
     - libprotobuf-static >=3.18.0
     - libjpeg-turbo >=2.1.0
     # use the latest TF
-    - tensorflow-gpu
-    - tensorflow-estimator
-    - tensorboard
+    - tensorflow-gpu >2
+    - tensorflow-estimator >2
+    - tensorboard >2
     - dali-opencv
     - dali-ffmpeg
     - boost >=1.76
@@ -94,9 +94,9 @@ requirements:
     - future >=0.17.1
     - libjpeg-turbo >=2.1.0
     # use the latest TF
-    - tensorflow-gpu
-    - tensorflow-estimator
-    - tensorboard
+    - tensorflow-gpu >2
+    - tensorflow-estimator >2
+    - tensorboard >2
     - lmdb >=0.9.29
     - libtiff >=4.3.0
     - libsndfile >=1.0.31
