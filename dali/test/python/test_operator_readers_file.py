@@ -129,36 +129,11 @@ def test_file_reader_relpath_file_list():
             assert contents == ref_contents(fnames[index])
 
 
-def _test_file_reader_filter(filters, batch_size, num_threads):
+def _test_file_reader_filter(filters, batch_size, num_threads, subpath, case_sensitive_filter):
     pipe = Pipeline(batch_size, num_threads, 0)
-    root = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/single/mixed')
-    files, labels = fn.readers.file(file_root=root, file_filters=filters)
-    pipe.set_outputs(files, labels)
-    pipe.build()
-    
-    fnames = set()
-    for label, dir in enumerate(sorted(next(os.walk(root))[1])):
-        for filter in filters:
-            for file in glob.glob(os.path.join(root, dir, filter)):
-                fnames.add((label, file.split('/')[-1], file))
-
-    fnames = sorted(fnames)
-
-    for i in range(len(fnames) // batch_size):
-        out_f, _ = pipe.run()
-        for j in range(batch_size):
-            with open(fnames[i * batch_size + j][2], 'rb') as file:
-                contents = np.array(list(file.read()))
-                assert all(contents == out_f.at(j))
-
-
-def _test_file_reader_filter_case_sensitive(filters):
-    batch_size = 3
-    pipe = Pipeline(batch_size, 1, 0)
-    root = os.path.join(
-        os.environ['DALI_EXTRA_PATH'], 'db/single/case_sensitive')
+    root = os.path.join(os.environ['DALI_EXTRA_PATH'], subpath)
     files, labels = fn.readers.file(
-        file_root=root, file_filters=filters, case_sensitive_filter=True)
+        file_root=root, file_filters=filters, case_sensitive_filter=case_sensitive_filter)
     pipe.set_outputs(files, labels)
     pipe.build()
 
@@ -182,10 +157,9 @@ def test_file_reader_filters():
     for filters in [['*.jpg'], ['*.jpg', '*.png', '*.jpeg'], ['dog*.jpg', 'cat*.png', '*.jpg']]:
         num_threads = random.choice([1, 2, 4, 8])
         batch_size = random.choice([1, 3, 10])
-        yield _test_file_reader_filter, filters, batch_size, num_threads
+        yield _test_file_reader_filter, filters, batch_size, num_threads, 'db/single/mixed', False
 
-    yield _test_file_reader_filter_case_sensitive, ['*.jPg', '*.JPg']
-
+    yield _test_file_reader_filter, ['*.jPg', '*.JPg'], 3, 1, 'db/single/case_sensitive', True
 
 batch_size_alias_test = 64
 
