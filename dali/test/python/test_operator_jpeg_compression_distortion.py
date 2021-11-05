@@ -28,8 +28,7 @@ dump_images = False
 sequence_length = 10
 
 class InputImagesIter(object):
-  def __init__(self, batch_size, sequence_length):
-    self.batch_size = batch_size
+  def __init__(self, sequence_length):
     self.sequence_length = sequence_length
     with open(os.path.join(images_dir, 'image_list.txt')) as file:
       self.files = [line.rstrip() for line in file if line != '']
@@ -51,17 +50,14 @@ class InputImagesIter(object):
     return self
 
   def __next__(self):
-    batch = []
-    for _ in range(self.batch_size):
-      first = self._load_next()
-      seq = [first]
-      for _ in range(self.sequence_length):
-        img = self._load_next()
-        if img.shape != first.shape:
-          img = cv2.resize(img, (first.shape[1], first.shape[0]))
-        seq.append(img)
-      batch.append(np.stack(seq))
-    return batch
+    first = self._load_next()
+    seq = [first]
+    for _ in range(self.sequence_length):
+      img = self._load_next()
+      if img.shape != first.shape:
+        img = cv2.resize(img, (first.shape[1], first.shape[0]))
+      seq.append(img)
+    return np.stack(seq)
 
 def _comapare_to_cv_distortion(in_img, out_img, q, no):
   bgr = cv2.cvtColor(in_img, cv2.COLOR_RGB2BGR)
@@ -83,8 +79,8 @@ def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
   @pipeline_def(batch_size=batch_size, num_threads=3, device_id=0)
   def jpeg_distortion_pipe(device='cpu', quality=None):
     if layout == 'FHWC':
-      iii = InputImagesIter(batch_size, sequence_length)
-      in_tensors = fn.external_source(source=iii, layout='FHWC')
+      iii = InputImagesIter(sequence_length)
+      in_tensors = fn.external_source(source=iii, layout='FHWC', batch=False)
     else:
       encoded, _ = fn.readers.file(file_root=images_dir)
       in_tensors = fn.decoders.image(encoded, device='cpu')
