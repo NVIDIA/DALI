@@ -67,12 +67,16 @@ requirements:
   host:
     - python
     - future >=0.17.1
-    - protobuf >=3.19.0
-    - libprotobuf-static >=3.19.0
+    # for python 3.6 the latest protobuf conflicts with other dependencies
+    # leave it as >= 3.18 and let conda just pick the latest that could be resolved
+    # in the dependency tree
+    - protobuf >=3.18.0
+    - libprotobuf-static >=3.18.0
     - libjpeg-turbo >=2.1.0
-    - tensorflow-gpu =2.4.1
-    - tensorflow-estimator =2.4.1
-    - tensorboard =2.5.0
+    # use the latest TF
+    - tensorflow-gpu
+    - tensorflow-estimator
+    - tensorboard
     - dali-opencv
     - dali-ffmpeg
     - boost >=1.76
@@ -89,9 +93,10 @@ requirements:
     - python
     - future >=0.17.1
     - libjpeg-turbo >=2.1.0
-    - tensorflow-gpu =2.4.1
-    - tensorflow-estimator =2.4.1
-    - tensorboard =2.5.0
+    # use the latest TF
+    - tensorflow-gpu
+    - tensorflow-estimator
+    - tensorboard
     - lmdb >=0.9.29
     - libtiff >=4.3.0
     - libsndfile >=1.0.31
