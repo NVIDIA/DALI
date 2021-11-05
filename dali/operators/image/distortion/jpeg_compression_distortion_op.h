@@ -30,7 +30,6 @@ class JpegCompressionDistortion : public Operator<Backend> {
  protected:
   explicit JpegCompressionDistortion(const OpSpec &spec)
       : Operator<Backend>(spec),
-        spec_(spec),
         quality_arg_("quality", spec) {
   }
 
@@ -53,8 +52,10 @@ class JpegCompressionDistortion : public Operator<Backend> {
     return true;
   }
 
-  OpSpec spec_;
   ArgValue<int> quality_arg_;
+
+ private:
+  using Operator<Backend>::spec_;
 };
 
 }  // namespace dali

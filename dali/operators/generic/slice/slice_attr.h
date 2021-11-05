@@ -52,8 +52,7 @@ class NamedSliceAttr {
                                  const char* rel_shape_name = "rel_shape",
                                  const char* axes_arg_name = "axes",
                                  const char* axis_names_arg_name = "axis_names")
-      : spec_(spec),
-        start_(start_name, spec),
+      : start_(start_name, spec),
         rel_start_(rel_start_name, spec),
         end_(end_name, spec),
         rel_end_(rel_end_name, spec),
@@ -78,7 +77,8 @@ class NamedSliceAttr {
   }
 
   template <typename Backend>
-  bool ProcessArguments(const workspace_t<Backend> &ws, int curr_batch_size = -1, int ndim = -1) {
+  bool ProcessArguments(const OpSpec& spec, const workspace_t<Backend>& ws,
+                        int curr_batch_size = -1, int ndim = -1) {
     if (curr_batch_size < 0)
       curr_batch_size = ws.GetInputBatchSize(0);
     if (ndim < 0)
@@ -91,18 +91,18 @@ class NamedSliceAttr {
     }
 
     if (start_.IsDefined())
-      start_.Acquire(spec_, ws, curr_batch_size, args_shape);
+      start_.Acquire(spec, ws, curr_batch_size, args_shape);
     else if (rel_start_.IsDefined())
-      rel_start_.Acquire(spec_, ws, curr_batch_size, args_shape);
+      rel_start_.Acquire(spec, ws, curr_batch_size, args_shape);
 
     if (end_.IsDefined())
-      end_.Acquire(spec_, ws, curr_batch_size, args_shape);
+      end_.Acquire(spec, ws, curr_batch_size, args_shape);
     else if (rel_end_.IsDefined())
-      rel_end_.Acquire(spec_, ws, curr_batch_size, args_shape);
+      rel_end_.Acquire(spec, ws, curr_batch_size, args_shape);
     else if (shape_.IsDefined())
-      shape_.Acquire(spec_, ws, curr_batch_size, args_shape);
+      shape_.Acquire(spec, ws, curr_batch_size, args_shape);
     else if (rel_shape_.IsDefined())
-      rel_shape_.Acquire(spec_, ws, curr_batch_size, args_shape);
+      rel_shape_.Acquire(spec, ws, curr_batch_size, args_shape);
 
     for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
       ProcessNamedArgs(data_idx);
@@ -189,8 +189,6 @@ class NamedSliceAttr {
   }
 
  private:
-  const OpSpec spec_;
-
   std::vector<int> axes_;
   TensorLayout axis_names_;
 
@@ -212,7 +210,7 @@ class NamedSliceAttr {
 
 class PositionalSliceAttr {
  public:
-  explicit inline PositionalSliceAttr(const OpSpec& spec) : spec_(spec) {
+  explicit inline PositionalSliceAttr(const OpSpec& spec) {
     normalized_anchor_ = spec.GetArgument<bool>("normalized_anchor");
     normalized_shape_ = spec.GetArgument<bool>("normalized_shape");
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
@@ -221,7 +219,7 @@ class PositionalSliceAttr {
   }
 
   template <typename Backend>
-  bool ProcessArguments(const workspace_t<Backend> &ws) {
+  bool ProcessArguments(const OpSpec &spec, const workspace_t<Backend> &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     int ndim = ws.GetInputDim(0);
 
@@ -231,7 +229,7 @@ class PositionalSliceAttr {
                                static_cast<int>(axis_names_.size()));
     }
 
-    if (ws.NumInput() != (spec_.GetSchema().MinNumInput() + 2))
+    if (ws.NumInput() != (spec.GetSchema().MinNumInput() + 2))
       return false;
 
     const auto &crop_anchor = ws.template Input<CPUBackend>(1);
@@ -332,7 +330,6 @@ class PositionalSliceAttr {
   }
 
  private:
-  const OpSpec spec_;
   bool normalized_anchor_, normalized_shape_;
   std::vector<int> axes_;
   TensorLayout axis_names_;
@@ -343,25 +340,24 @@ class PositionalSliceAttr {
 class SliceAttr {
  public:
   explicit inline SliceAttr(const OpSpec &spec)
-      : spec_(spec),
-        named_slice_attr_(spec),
+      : named_slice_attr_(spec),
         pos_slice_attr_(spec) {
   }
 
   template <typename Backend>
-  void ProcessArguments(const workspace_t<Backend> &ws) {
-    use_named_args_ = named_slice_attr_.template ProcessArguments<Backend>(ws);
+  void ProcessArguments(const OpSpec &spec, const workspace_t<Backend> &ws) {
+    use_named_args_ = named_slice_attr_.template ProcessArguments<Backend>(spec, ws);
     if (use_named_args_) {
-      if (spec_.HasArgument("normalized_anchor") || spec_.HasArgument("normalized_shape")) {
+      if (spec.HasArgument("normalized_anchor") || spec.HasArgument("normalized_shape")) {
         DALI_WARN(
             "Warning: ``normalized_anchor``/``normalized_shape`` is only relevant "
             "when using positional slice arguments");
       }
-      DALI_ENFORCE(ws.NumInput() == spec_.GetSchema().MinNumInput(),
+      DALI_ENFORCE(ws.NumInput() == spec.GetSchema().MinNumInput(),
                   "Named arguments start/end/shape are not compatible with positional"
                   " anchor and shape inputs");
-    } else if (ws.NumInput() == (spec_.GetSchema().MinNumInput() + 2)) {
-      bool processed_pos_args = pos_slice_attr_.template ProcessArguments<Backend>(ws);
+    } else if (ws.NumInput() == (spec.GetSchema().MinNumInput() + 2)) {
+      bool processed_pos_args = pos_slice_attr_.template ProcessArguments<Backend>(spec, ws);
       DALI_ENFORCE(processed_pos_args, "Failed to process positional arguments (start, shape)");
     } else {
       DALI_FAIL(
@@ -379,7 +375,6 @@ class SliceAttr {
   }
 
  private:
-  const OpSpec spec_;
   NamedSliceAttr named_slice_attr_;
   PositionalSliceAttr pos_slice_attr_;
   bool use_named_args_ = false;

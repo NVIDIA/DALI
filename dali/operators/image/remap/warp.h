@@ -77,8 +77,13 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   using ParamProvider = WarpParamProvider<Backend, spatial_ndim, MappingParams, BorderType>;
   using Workspace = workspace_t<Backend>;
 
-  WarpOpImpl(const OpSpec &spec, std::unique_ptr<ParamProvider> pp)
-  : spec_(spec), param_provider_(std::move(pp)) {
+  /**
+   * @param spec  Pointer to a persistent OpSpec object,
+   *              which is guaranteed to be alive for the entire lifetime of this object
+   * @param pp    Parameter provider pointer
+   */
+  WarpOpImpl(const OpSpec *spec, std::unique_ptr<ParamProvider> pp)
+  : spec_(*spec), param_provider_(std::move(pp)) {
   }
 
   void Setup(TensorListShape<> &shape, const Workspace &ws) override {
@@ -97,7 +102,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   const OpSpec &Spec() const { return spec_; }
 
  private:
-  const OpSpec spec_;
+  const OpSpec &spec_;
   kernels::KernelManager kmgr_;
 
   TensorListView<Storage, const InputType, tensor_ndim> input_;
@@ -315,7 +320,7 @@ class Warp : public Operator<Backend> {
             using ImplType = WarpOpImpl<Backend, Kernel>;
             if (!dynamic_cast<ImplType*>(impl_.get())) {
               auto param_provider = This().template CreateParamProvider<spatial_ndim, BorderType>();
-              impl_.reset(new ImplType(Spec(), std::move(param_provider)));
+              impl_.reset(new ImplType(&Spec(), std::move(param_provider)));
             }
           });))),
         (DALI_FAIL("Only 2D and 3D warping is supported")));

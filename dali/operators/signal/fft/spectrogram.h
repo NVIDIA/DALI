@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,8 +47,6 @@ class DLL_PUBLIC Spectrogram : public Operator<Backend> {
   using Operator<Backend>::RunImpl;
 
  private:
-  OpSpec spec__;
-
   std::unique_ptr<OpImplBase<Backend>> impl_;
 };
 

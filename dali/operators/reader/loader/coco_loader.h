@@ -121,7 +121,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
       DALI_FAIL("``pixelwise_masks`` and ``polygon_masks`` are mutually exclusive");
     }
 
-    if (HasSavePreprocessedAnnotations(spec) != HasSavePreprocessedAnnotationsDir(spec)) {
+    if (HasSavePreprocessedAnnotations(spec_) != HasSavePreprocessedAnnotationsDir(spec_)) {
       DALI_FAIL("``save_preprocessed_annotations`` and ``save_preprocessed_annotations_dir`` "
                 "should be provided together");
     }

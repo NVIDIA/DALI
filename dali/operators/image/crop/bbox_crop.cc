@@ -368,17 +368,22 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
   ~RandomBBoxCropImpl() = default;
 
-  explicit RandomBBoxCropImpl(const OpSpec &spec)
-      : num_attempts_{spec.GetArgument<int>("num_attempts")},
-        has_labels_(spec.NumRegularInput() > 1),
-        has_crop_shape_(spec.ArgumentDefined("crop_shape")),
-        has_input_shape_(spec.ArgumentDefined("input_shape")),
-        bbox_layout_(spec.GetArgument<TensorLayout>("bbox_layout")),
-        shape_layout_(spec.GetArgument<TensorLayout>("shape_layout")),
-        all_boxes_above_threshold_(spec.GetArgument<bool>("all_boxes_above_threshold")),
-        output_bbox_indices_(spec.GetArgument<bool>("output_bbox_indices")),
-        rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int>("max_batch_size")) {
-    auto scaling_arg = spec.GetRepeatedArgument<float>("scaling");
+  /**
+   * @param spec  Pointer to a persistent OpSpec object,
+   *              which is guaranteed to be alive for the entire lifetime of this object
+   */
+  explicit RandomBBoxCropImpl(const OpSpec *spec)
+      : spec_(*spec),
+        num_attempts_{spec_.GetArgument<int>("num_attempts")},
+        has_labels_(spec_.NumRegularInput() > 1),
+        has_crop_shape_(spec_.ArgumentDefined("crop_shape")),
+        has_input_shape_(spec_.ArgumentDefined("input_shape")),
+        bbox_layout_(spec_.GetArgument<TensorLayout>("bbox_layout")),
+        shape_layout_(spec_.GetArgument<TensorLayout>("shape_layout")),
+        all_boxes_above_threshold_(spec_.GetArgument<bool>("all_boxes_above_threshold")),
+        output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")),
+        rngs_(spec_.GetArgument<int64_t>("seed"), spec_.GetArgument<int>("max_batch_size")) {
+    auto scaling_arg = spec_.GetRepeatedArgument<float>("scaling");
     DALI_ENFORCE(scaling_arg.size() == 2,
                  make_string("`scaling` must be a range `[min, max]`. Got ",
                              scaling_arg.size(), " values"));
@@ -389,7 +394,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         make_string("`scaling` range must be positive and min <= max. Got: ", scale_range_.min,
                     ", ", scale_range_.max));
 
-    auto aspect_ratio_arg = spec.GetRepeatedArgument<float>("aspect_ratio");
+    auto aspect_ratio_arg = spec_.GetRepeatedArgument<float>("aspect_ratio");
     DALI_ENFORCE(aspect_ratio_arg.size() == 2 || aspect_ratio_arg.size() == 6,
         make_string(
             "`aspect_ratio` range argument should have 2 elements, or 6 elements in case of "
@@ -410,8 +415,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         "``input_shape`` must be provided when providing ``crop_shape``");
     }
 
-    if (spec.ArgumentDefined("ltrb")) {
-      if (spec.ArgumentDefined("bbox_layout")) {
+    if (spec_.ArgumentDefined("ltrb")) {
+      if (spec_.ArgumentDefined("bbox_layout")) {
         DALI_FAIL(
             "`ltrb` and `bbox_layout` can't be provided at the same time. `ltrb` was deprecated in "
             "favor of `bbox_layout`.");
@@ -422,23 +427,23 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
           "`bbox_layout=\"xyXY\"`, and `ltrb=False` is equivalent to `bbox_layout=\"xyWH\"`");
     }
 
-    bool allow_no_crop = spec.GetArgument<bool>("allow_no_crop");
+    bool allow_no_crop = spec_.GetArgument<bool>("allow_no_crop");
     if (has_crop_shape_) {
       // If it was left default but a crop_shape was provided, disallow no crop silently
-      if (!spec.HasArgument("allow_no_crop")) {
+      if (!spec_.HasArgument("allow_no_crop")) {
         DALI_WARN("Using explicit `crop_shape`, `allow_no_crop` will not take effect.");
         allow_no_crop = false;
       }
 
       DALI_ENFORCE(!allow_no_crop,
                    "`allow_no_crop` is incompatible with providing the crop shape explicitly");
-      DALI_ENFORCE(!spec.HasArgument("aspect_ratio"),
+      DALI_ENFORCE(!spec_.HasArgument("aspect_ratio"),
                    "`aspect_ratio` is incompatible with providing the crop shape explicitly");
-      DALI_ENFORCE(!spec.HasArgument("scaling"),
+      DALI_ENFORCE(!spec_.HasArgument("scaling"),
                    "`scaling` is incompatible with providing the crop shape explicitly");
     }
 
-    auto thresholds = spec.GetRepeatedArgument<float>("thresholds");
+    auto thresholds = spec_.GetRepeatedArgument<float>("thresholds");
     DALI_ENFORCE(!thresholds.empty(),
       "At least one threshold value must be provided");
     DALI_ENFORCE(num_attempts_ > 0,
@@ -449,8 +454,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       sample_options_.push_back({false, threshold});
     }
 
-    if (spec.HasArgument("threshold_type")) {
-      auto threshold_type = spec.GetArgument<std::string>("threshold_type");
+    if (spec_.HasArgument("threshold_type")) {
+      auto threshold_type = spec_.GetArgument<std::string>("threshold_type");
       if (threshold_type == "iou") {
         overlap_metric_ = OverlapMetric::IoU;
       } else  if (threshold_type == "overlap") {
@@ -466,8 +471,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
 
     total_num_attempts_ = -1;
-    if (spec.HasArgument("total_num_attempts")) {
-      total_num_attempts_ = spec.GetArgument<int>("total_num_attempts");
+    if (spec_.HasArgument("total_num_attempts")) {
+      total_num_attempts_ = spec_.GetArgument<int>("total_num_attempts");
       DALI_ENFORCE(total_num_attempts_ > 0,
         "Minimum total number of attempts must be greater than zero");
     }
@@ -857,7 +862,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   }
 
  private:
-  OpSpec spec_;
+  const OpSpec &spec_;
   int num_attempts_;
   int total_num_attempts_;
   bool has_labels_;
@@ -920,7 +925,7 @@ bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   if (impl_ == nullptr || impl_ndim_ != num_dims) {
     VALUE_SWITCH(num_dims, ndim, (2, 3),
-      (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(spec_);),
+      (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(&spec_);),
       (DALI_FAIL(make_string("Not supported number of dimensions", num_dims));));
     impl_ndim_ = num_dims;
   }
