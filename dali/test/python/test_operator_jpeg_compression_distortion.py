@@ -16,6 +16,7 @@ from nvidia.dali import pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali as dali
+from random import shuffle
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import os
@@ -32,6 +33,18 @@ class InputImagesIter(object):
     self.sequence_length = sequence_length
     with open(os.path.join(images_dir, 'image_list.txt')) as file:
       self.files = [line.rstrip() for line in file if line != '']
+    shuffle(self.files)
+
+  def _load_next(self):
+    in_img = None
+      # Skip input image if format isn't supported by OpenCV
+    while in_img is None:
+      filename, label = self.files[self.i].split(' ')
+      in_img = cv2.imread(os.path.join(images_dir, filename))
+      self.i = (self.i + 1) % len(self.files)
+    # Convert to rgb, to match dali channel order
+    rgb = cv2.cvtColor(in_img, cv2.COLOR_BGR2RGB)
+    return rgb
 
   def __iter__(self):
     self.i = 0
@@ -40,15 +53,14 @@ class InputImagesIter(object):
   def __next__(self):
     batch = []
     for _ in range(self.batch_size):
-      in_img = None
-      # Skip input image if format isn't supported by OpenCV
-      while in_img is None:
-        filename, label = self.files[self.i].split(' ')
-        in_img = cv2.imread(os.path.join(images_dir, filename))
-        self.i = (self.i + 1) % len(self.files)
-        # Convert to rgb, to match dali channel order
-      rgb = cv2.cvtColor(in_img, cv2.COLOR_BGR2RGB)
-      batch.append(np.stack([rgb] * self.sequence_length))
+      first = self._load_next()
+      seq = [first]
+      for _ in range(self.sequence_length):
+        img = self._load_next()
+        if img.shape != first.shape:
+          img = cv2.resize(img, (first.shape[1], first.shape[0]))
+        seq.append(img)
+      batch.append(np.stack(seq))
     return batch
 
 def _comapare_to_cv_distortion(in_img, out_img, q, no):
