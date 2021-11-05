@@ -24,11 +24,13 @@
 
 
 namespace dali {
-class VideoReaderDecoderTest : public VideoTestBase {
+class VideoReaderDecoderCpuTest : public VideoTestBase {
 };
 
+class VideoReaderDecoderGpuTest : public VideoTestBase {
+};
 
-TEST_F(VideoReaderDecoderTest, CpuConstantFrameRate) {
+TEST_F(VideoReaderDecoderCpuTest, CpuConstantFrameRate) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
@@ -96,7 +98,7 @@ TEST_F(VideoReaderDecoderTest, CpuConstantFrameRate) {
   }
 }
 
-TEST_F(VideoReaderDecoderTest, CpuVariableFrameRate) {
+TEST_F(VideoReaderDecoderCpuTest, CpuVariableFrameRate) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
@@ -164,7 +166,78 @@ TEST_F(VideoReaderDecoderTest, CpuVariableFrameRate) {
   }
 }
 
-TEST_F(VideoReaderDecoderTest, RandomShuffle) {
+TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
+  const int batch_size = 4;
+  const int sequence_length = 6;
+  const int stride = 3;
+  const int step = 10;
+
+  Pipeline pipe(batch_size, 4, 0);
+
+  vector<uint8_t> frame;
+  frame.reserve(std::max(this->FrameSize(0), this->FrameSize(1)));
+
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "gpu")
+    .AddArg("sequence_length", sequence_length)
+    .AddArg("stride", stride)
+    .AddArg("step", step)
+    .AddArg("initial_fill", 1)
+    .AddArg(
+      "filenames",
+      std::vector<std::string>{
+        testing::dali_extra_path() + "/db/video/vfr/test_1.mp4",
+        testing::dali_extra_path() + "/db/video/vfr/test_2.mp4"})
+    .AddOutput("frames", "gpu"));
+
+  pipe.Build({{"frames", "gpu"}});
+
+  int num_sequences = 1;
+  int sequence_id = 0;
+  int batch_id = 0;
+  int gt_frame_id = 0;
+
+  int video_idx = 0;
+
+  while (sequence_id < num_sequences) {
+    DeviceWorkspace ws;
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+
+    auto &frame_video_output = ws.template Output<dali::GPUBackend>(0);
+
+    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+      const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
+
+      for (int i = 0; i < sequence_length; ++i) {
+        frame.clear();
+        MemCopy(
+          frame.data(),
+          sample + i * this->FrameSize(video_idx),
+          FrameSize(video_idx) * sizeof(uint8_t));
+        this->CompareFrames(
+          frame.data(),
+          this->GetVfrFrame(video_idx, gt_frame_id + i * stride),
+          this->FrameSize(video_idx));
+      }
+
+      gt_frame_id += step;
+      ++sequence_id;
+
+      if (gt_frame_id + stride * sequence_length >= this->NumFrames(video_idx)) {
+        gt_frame_id = 0;
+        ++video_idx;
+        if (video_idx == this->NumVideos()) {
+          video_idx = 0;
+        }
+      }
+    }
+    ++batch_id;
+  }
+}
+
+TEST_F(VideoReaderDecoderCpuTest, RandomShuffle) {
   const int batch_size = 1;
   const int sequence_length = 1;
   const int seed = 1;
@@ -201,7 +274,7 @@ TEST_F(VideoReaderDecoderTest, RandomShuffle) {
 }
 
 
-TEST_F(VideoReaderDecoderTest, CompareReaders) {
+TEST_F(VideoReaderDecoderCpuTest, CompareReaders) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;

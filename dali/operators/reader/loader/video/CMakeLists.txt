@@ -16,12 +16,14 @@ add_subdirectory(nvdecode)
 
 list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/frames_decoder.h")
 list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/frames_decoder_gpu.h")
-list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/video_loader_decoder.h")
+list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/video_loader_decoder_cpu.h")
+list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/video_loader_decoder_gpu.h")
 set(DALI_INST_HDRS ${DALI_INST_HDRS} PARENT_SCOPE)
 
 list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/frames_decoder.cc")
 list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/frames_decoder_gpu.cc")
-list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_loader_decoder.cc")
+list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_loader_decoder_cpu.cc")
+list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_loader_decoder_gpu.cc")
 set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)
 
 if (BUILD_TEST)

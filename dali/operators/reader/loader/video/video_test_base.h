@@ -42,6 +42,8 @@ class VideoTestBase : public ::testing::Test {
 
   uint8_t *GetVfrFrame(int video_id, int frame_id) { return vfr_frames_[video_id][frame_id].data; }
 
+  void SaveFrame(uint8_t *frame, int frame_id, int sample_id, int batch_id, std::string subfolder, int width, int height, int channels);
+
  protected:
   static std::vector<std::vector<cv::Mat>> cfr_frames_;
   static std::vector<std::vector<cv::Mat>> vfr_frames_;

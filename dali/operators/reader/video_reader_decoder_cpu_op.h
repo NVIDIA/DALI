@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_VIDEO_READER_DECODER_OP_H_
-#define DALI_OPERATORS_READER_VIDEO_READER_DECODER_OP_H_
+#ifndef DALI_OPERATORS_READER_VIDEO_READER_DECODER_CPU_OP_H_
+#define DALI_OPERATORS_READER_VIDEO_READER_DECODER_CPU_OP_H_
 
 #include "dali/operators/reader/reader_op.h"
-#include "dali/operators/reader/loader/video/video_loader_decoder.h"
+#include "dali/operators/reader/loader/video/video_loader_decoder_cpu.h"
 
 namespace dali {
-class VideoReaderDecoder : public DataReader<CPUBackend, VideoSample> {
+class VideoReaderDecoderCpu : public DataReader<CPUBackend, VideoSample<CPUBackend>> {
  public:
-  explicit VideoReaderDecoder(const OpSpec &spec);
+  explicit VideoReaderDecoderCpu(const OpSpec &spec);
 
  protected:
   void RunImpl(SampleWorkspace &ws) override;
@@ -32,4 +32,4 @@ class VideoReaderDecoder : public DataReader<CPUBackend, VideoSample> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_VIDEO_READER_DECODER_OP_H_
+#endif  // DALI_OPERATORS_READER_VIDEO_READER_DECODER_CPU_OP_H_

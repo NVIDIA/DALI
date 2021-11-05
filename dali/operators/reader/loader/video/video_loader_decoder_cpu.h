@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_H_
-#define DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_H_
+#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_CPU_H_
+#define DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_CPU_H_
 
 #include <string>
 #include <vector>
@@ -33,16 +33,19 @@ class VideoSampleDesc {
   int video_idx_ = -1;
 };
 
+template <typename Backend>
 class VideoSample {
  public:
-  Tensor<CPUBackend> data_;
+  Tensor<Backend> data_;
   int label_;
 };
 
-class VideoLoaderDecoder : public Loader<CPUBackend, VideoSample> {
+using VideoSampleCpu = VideoSample<CPUBackend>;
+
+class VideoLoaderDecoderCpu : public Loader<CPUBackend, VideoSampleCpu> {
  public:
-  explicit inline VideoLoaderDecoder(const OpSpec &spec) :
-    Loader<CPUBackend, VideoSample>(spec),
+  explicit inline VideoLoaderDecoderCpu(const OpSpec &spec) :
+    Loader<CPUBackend, VideoSampleCpu>(spec),
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
     sequence_len_(spec.GetArgument<int>("sequence_length")),
     stride_(spec.GetArgument<int>("stride")),
@@ -53,9 +56,9 @@ class VideoLoaderDecoder : public Loader<CPUBackend, VideoSample> {
     has_labels_ = spec.TryGetRepeatedArgument(labels_, "labels");
   }
 
-  void ReadSample(VideoSample &sample) override;
+  void ReadSample(VideoSampleCpu &sample) override;
 
-  void PrepareEmpty(VideoSample &sample) override;
+  void PrepareEmpty(VideoSampleCpu &sample) override;
 
  protected:
   Index SizeImpl() override;
@@ -80,4 +83,4 @@ class VideoLoaderDecoder : public Loader<CPUBackend, VideoSample> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_H_
+#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_CPU_H_
