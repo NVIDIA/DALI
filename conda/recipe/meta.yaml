@@ -67,8 +67,11 @@ requirements:
   host:
     - python
     - future >=0.17.1
-    - protobuf >=3.19.0
-    - libprotobuf-static >=3.19.0
+    # for python 3.6 the latest protobuf conflicts with other dependencies
+    # leave it as >= 3.18 and let conda just pick the latest that could be resolved
+    # in the dependency tree
+    - protobuf >=3.18.0
+    - libprotobuf-static >=3.18.0
     - libjpeg-turbo >=2.1.0
     - tensorflow-gpu =2.2.0
     - tensorflow-estimator =2.2.0
