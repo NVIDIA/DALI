@@ -1,5 +1,7 @@
-ARG TOOLKIT_BASE_IMAGE=ubuntu:18.04
+ARG TOOLKIT_BASE_IMAGE=ubuntu:20.04
 FROM ${TOOLKIT_BASE_IMAGE} as cuda
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && apt install -y libxml2 curl perl gcc && \
     rm -rf /var/lib/apt/lists/*
