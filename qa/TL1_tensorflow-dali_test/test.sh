@@ -1,5 +1,5 @@
 #!/bin/bash -e
-pip_packages="horovod==0.21.3"
+pip_packages="horovod==0.23.0"
 target_dir=./docs/examples/use_cases/tensorflow/resnet-n
 
 do_once() {
@@ -14,7 +14,7 @@ do_once() {
 
     # check if CUDA version is at least 11.x
     if [ "${CUDA_VERSION:0:2}" == "11" ]; then
-        # install TF 2.5.x for CUDA 11.x test
+        # install TF 2.6.x for CUDA 11.x test
         install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
     else
         # install TF 2.3.x for CUDA 10.x test
@@ -58,7 +58,7 @@ do_once() {
     export HOROVOD_WITHOUT_PYTORCH=1
     # horovod is added to `pip_packages` so it can be preloaded, but install it here when
     # TF is already available and we can set env variables
-    install_pip_pkg "pip install --force-reinstall horovod==0.21.3 -f /pip-packages"
+    install_pip_pkg "pip install --force-reinstall horovod==0.23.0 -f /pip-packages"
 
     for file in $(ls /data/imagenet/train-val-tfrecord-480-subset);
     do

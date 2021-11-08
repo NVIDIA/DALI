@@ -24,6 +24,7 @@ def create_piecewise_constant_decay_with_warmup(batch_size, epoch_size,
                                           lr_values, warmup_steps,
                                           compute_lr_on_cpu, name)
 
+@tf.keras.utils.register_keras_serializable(package='Custom')
 class PiecewiseConstantDecayWithWarmup(
     tf.keras.optimizers.schedules.LearningRateSchedule):
   """Piecewise constant decay with warmup schedule."""
