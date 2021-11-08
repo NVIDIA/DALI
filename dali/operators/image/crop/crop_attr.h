@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,13 +34,13 @@ namespace dali {
 class CropAttr {
  public:
   static constexpr int kNoCrop = -1;
-  explicit inline CropAttr(const OpSpec& spec) : spec__(spec) {
-    auto max_batch_size = spec__.GetArgument<int>("max_batch_size");
+  explicit inline CropAttr(const OpSpec& spec) {
+    auto max_batch_size = spec.GetArgument<int>("max_batch_size");
     int crop_h = kNoCrop, crop_w = kNoCrop, crop_d = kNoCrop;
-    bool has_crop_arg = spec__.HasArgument("crop");
-    bool has_crop_w_arg = spec__.ArgumentDefined("crop_w");
-    bool has_crop_h_arg = spec__.ArgumentDefined("crop_h");
-    bool has_crop_d_arg = spec__.ArgumentDefined("crop_d");
+    bool has_crop_arg = spec.HasArgument("crop");
+    bool has_crop_w_arg = spec.ArgumentDefined("crop_w");
+    bool has_crop_h_arg = spec.ArgumentDefined("crop_h");
+    bool has_crop_d_arg = spec.ArgumentDefined("crop_d");
     is_whole_image_ = !has_crop_arg && !has_crop_w_arg && !has_crop_h_arg && !has_crop_d_arg;
 
     DALI_ENFORCE(has_crop_w_arg == has_crop_h_arg,
@@ -81,22 +81,22 @@ class CropAttr {
     crop_window_generators_.resize(max_batch_size, {});
   }
 
-  void ProcessArguments(const ArgumentWorkspace *ws, std::size_t data_idx) {
-    crop_x_norm_[data_idx] = spec__.GetArgument<float>("crop_pos_x", ws, data_idx);
-    crop_y_norm_[data_idx] = spec__.GetArgument<float>("crop_pos_y", ws, data_idx);
+  void ProcessArguments(const OpSpec &spec, const ArgumentWorkspace *ws, std::size_t data_idx) {
+    crop_x_norm_[data_idx] = spec.GetArgument<float>("crop_pos_x", ws, data_idx);
+    crop_y_norm_[data_idx] = spec.GetArgument<float>("crop_pos_y", ws, data_idx);
     if (has_crop_d_)
-      crop_z_norm_[data_idx] = spec__.GetArgument<float>("crop_pos_z", ws, data_idx);
-    if (spec__.ArgumentDefined("crop_w")) {
+      crop_z_norm_[data_idx] = spec.GetArgument<float>("crop_pos_z", ws, data_idx);
+    if (spec.ArgumentDefined("crop_w")) {
       crop_width_[data_idx] = static_cast<int>(
-        spec__.GetArgument<float>("crop_w", ws, data_idx));
+        spec.GetArgument<float>("crop_w", ws, data_idx));
     }
-    if (spec__.ArgumentDefined("crop_h")) {
+    if (spec.ArgumentDefined("crop_h")) {
       crop_height_[data_idx] = static_cast<int>(
-        spec__.GetArgument<float>("crop_h", ws, data_idx));
+        spec.GetArgument<float>("crop_h", ws, data_idx));
     }
-    if (spec__.ArgumentDefined("crop_d")) {
+    if (spec.ArgumentDefined("crop_d")) {
       crop_depth_[data_idx] = static_cast<int>(
-        spec__.GetArgument<float>("crop_d", ws, data_idx));
+        spec.GetArgument<float>("crop_d", ws, data_idx));
     }
 
     crop_window_generators_[data_idx] =
@@ -165,15 +165,15 @@ class CropAttr {
     return anchor;
   }
 
-  void ProcessArguments(const ArgumentWorkspace &ws) {
-    auto max_batch_size = static_cast<size_t>(spec__.GetArgument<int>("max_batch_size"));
+  void ProcessArguments(const OpSpec &spec, const ArgumentWorkspace &ws) {
+    auto max_batch_size = static_cast<size_t>(spec.GetArgument<int>("max_batch_size"));
     for (std::size_t data_idx = 0; data_idx < max_batch_size; data_idx++) {
-      ProcessArguments(&ws, data_idx);
+      ProcessArguments(spec, &ws, data_idx);
     }
   }
 
-  void ProcessArguments(const SampleWorkspace &ws) {
-    ProcessArguments(&ws, ws.data_idx());
+  void ProcessArguments(const OpSpec &spec, const SampleWorkspace &ws) {
+    ProcessArguments(spec, &ws, ws.data_idx());
   }
 
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
@@ -194,9 +194,6 @@ class CropAttr {
   std::vector<CropWindowGenerator> crop_window_generators_;
   bool is_whole_image_ = false;
   bool has_crop_d_ = false;
-
- private:
-  OpSpec spec__;
 };
 
 }  // namespace dali

@@ -36,37 +36,37 @@ namespace gaussian_blur {
 // Functions below are explicitly instantiated in separate compilation unit to allow
 // for parallel compitlation of underlying kernels.
 
-extern template op_impl_uptr GetGaussianBlurGpuImpl<uint8_t, uint8_t>(const OpSpec&, DimDesc);
-extern template op_impl_uptr GetGaussianBlurGpuImpl<float, uint8_t>(const OpSpec&, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<uint8_t, uint8_t>(const OpSpec*, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<float, uint8_t>(const OpSpec*, DimDesc);
 
-extern template op_impl_uptr GetGaussianBlurGpuImpl<int8_t, int8_t>(const OpSpec&, DimDesc);
-extern template op_impl_uptr GetGaussianBlurGpuImpl<float, int8_t>(const OpSpec&, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<int8_t, int8_t>(const OpSpec*, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<float, int8_t>(const OpSpec*, DimDesc);
 
-extern template op_impl_uptr GetGaussianBlurGpuImpl<uint16_t, uint16_t>(const OpSpec&, DimDesc);
-extern template op_impl_uptr GetGaussianBlurGpuImpl<float, uint16_t>(const OpSpec&, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<uint16_t, uint16_t>(const OpSpec*, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<float, uint16_t>(const OpSpec*, DimDesc);
 
-extern template op_impl_uptr GetGaussianBlurGpuImpl<int16_t, int16_t>(const OpSpec&, DimDesc);
-extern template op_impl_uptr GetGaussianBlurGpuImpl<float, int16_t>(const OpSpec&, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<int16_t, int16_t>(const OpSpec*, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<float, int16_t>(const OpSpec*, DimDesc);
 
-extern template op_impl_uptr GetGaussianBlurGpuImpl<uint32_t, uint32_t>(const OpSpec&, DimDesc);
-extern template op_impl_uptr GetGaussianBlurGpuImpl<float, uint32_t>(const OpSpec&, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<uint32_t, uint32_t>(const OpSpec*, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<float, uint32_t>(const OpSpec*, DimDesc);
 
-extern template op_impl_uptr GetGaussianBlurGpuImpl<int32_t, int32_t>(const OpSpec&, DimDesc);
-extern template op_impl_uptr GetGaussianBlurGpuImpl<float, int32_t>(const OpSpec&, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<int32_t, int32_t>(const OpSpec*, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<float, int32_t>(const OpSpec*, DimDesc);
 
-extern template op_impl_uptr GetGaussianBlurGpuImpl<uint64_t, uint64_t>(const OpSpec&, DimDesc);
-extern template op_impl_uptr GetGaussianBlurGpuImpl<float, uint64_t>(const OpSpec&, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<uint64_t, uint64_t>(const OpSpec*, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<float, uint64_t>(const OpSpec*, DimDesc);
 
-extern template op_impl_uptr GetGaussianBlurGpuImpl<int64_t, int64_t>(const OpSpec&, DimDesc);
-extern template op_impl_uptr GetGaussianBlurGpuImpl<float, int64_t>(const OpSpec&, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<int64_t, int64_t>(const OpSpec*, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<float, int64_t>(const OpSpec*, DimDesc);
 
-extern template op_impl_uptr GetGaussianBlurGpuImpl<float16, float16>(const OpSpec&, DimDesc);
-extern template op_impl_uptr GetGaussianBlurGpuImpl<float, float16>(const OpSpec&, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<float16, float16>(const OpSpec*, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<float, float16>(const OpSpec*, DimDesc);
 
-extern template op_impl_uptr GetGaussianBlurGpuImpl<float, float>(const OpSpec&, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<float, float>(const OpSpec*, DimDesc);
 
-extern template op_impl_uptr GetGaussianBlurGpuImpl<double, double>(const OpSpec&, DimDesc);
-extern template op_impl_uptr GetGaussianBlurGpuImpl<float, double>(const OpSpec&, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<double, double>(const OpSpec*, DimDesc);
+extern template op_impl_uptr GetGaussianBlurGpuImpl<float, double>(const OpSpec*, DimDesc);
 
 }  // namespace gaussian_blur
 
@@ -83,9 +83,9 @@ bool GaussianBlur<GPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
   // clang-format off
   TYPE_SWITCH(input.type(), type2id, In, GAUSSIAN_BLUR_GPU_SUPPORTED_TYPES, (
       if (dtype_ == input.type()) {
-        impl_ = GetGaussianBlurGpuImpl<In, In>(spec_, dim_desc);
+        impl_ = GetGaussianBlurGpuImpl<In, In>(&spec_, dim_desc);
       } else {
-        impl_ = GetGaussianBlurGpuImpl<float, In>(spec_, dim_desc);
+        impl_ = GetGaussianBlurGpuImpl<float, In>(&spec_, dim_desc);
       }
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
   // clang-format on

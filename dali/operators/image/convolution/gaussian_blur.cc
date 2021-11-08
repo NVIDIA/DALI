@@ -121,8 +121,12 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
   using Kernel = kernels::SeparableConvolutionCpu<Out, In, float, axes, has_channels>;
   static constexpr int ndim = Kernel::ndim;
 
-  explicit GaussianBlurOpCpu(const OpSpec& spec, const DimDesc& dim_desc)
-      : spec_(spec), dim_desc_(dim_desc) {}
+  /**
+   * @param spec  Pointer to a persistent OpSpec object,
+   *              which is guaranteed to be alive for the entire lifetime of this object
+   */
+  explicit GaussianBlurOpCpu(const OpSpec* spec, const DimDesc& dim_desc)
+      : spec_(*spec), dim_desc_(dim_desc) {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template Input<CPUBackend>(0);
@@ -188,7 +192,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
   }
 
  private:
-  OpSpec spec_;
+  const OpSpec &spec_;
   DimDesc dim_desc_;
 
   kernels::KernelManager kmgr_;
@@ -217,9 +221,9 @@ bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
       VALUE_SWITCH(static_cast<int>(dim_desc.has_channels), HAS_CHANNELS, (0, 1), (
         constexpr bool has_ch = HAS_CHANNELS;
         if (dtype_ == input.type()) {
-          impl_ = std::make_unique<GaussianBlurOpCpu<In, In, AXES, has_ch>>(spec_, dim_desc);
+          impl_ = std::make_unique<GaussianBlurOpCpu<In, In, AXES, has_ch>>(&spec_, dim_desc);
         } else {
-          impl_ = std::make_unique<GaussianBlurOpCpu<float, In, AXES, has_ch>>(spec_, dim_desc);
+          impl_ = std::make_unique<GaussianBlurOpCpu<float, In, AXES, has_ch>>(&spec_, dim_desc);
         }
       ), ()); // NOLINT, no other possible conversion
     ), DALI_FAIL("Axis count out of supported range."));  // NOLINT

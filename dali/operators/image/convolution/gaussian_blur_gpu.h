@@ -44,8 +44,12 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
       kernels::SeparableConvolutionGpu<Out, In, WindowType, axes, has_channels, is_sequence>;
   static constexpr int ndim = Kernel::ndim;
 
-  explicit GaussianBlurOpGpu(const OpSpec& spec, const DimDesc& dim_desc)
-      : spec_(spec), dim_desc_(dim_desc) {}
+  /**
+   * @param spec  Pointer to a persistent OpSpec object,
+   *              which is guaranteed to be alive for the entire lifetime of this object
+   */
+  explicit GaussianBlurOpGpu(const OpSpec* spec, const DimDesc& dim_desc)
+      : spec_(*spec), dim_desc_(dim_desc) {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<GPUBackend>& ws) override {
     ctx_.gpu.stream = ws.stream();
@@ -107,7 +111,7 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
   }
 
  private:
-  OpSpec spec_;
+  const OpSpec &spec_;
   DimDesc dim_desc_;
 
   kernels::KernelManager kmgr_;
@@ -127,7 +131,7 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
  * to allow for parallel compilation of underlying kernels.
  */
 template <typename Out, typename In>
-std::unique_ptr<OpImplBase<GPUBackend>> GetGaussianBlurGpuImpl(const OpSpec& spec,
+std::unique_ptr<OpImplBase<GPUBackend>> GetGaussianBlurGpuImpl(const OpSpec* spec,
                                                                DimDesc dim_desc) {
   std::unique_ptr<OpImplBase<GPUBackend>> result;
   VALUE_SWITCH(dim_desc.usable_axes_count, AXES, GAUSSIAN_BLUR_SUPPORTED_AXES, (

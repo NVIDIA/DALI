@@ -42,7 +42,11 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
  public:
   using EraseKernel = kernels::EraseGpu<T, Dims, channel_dim>;
 
-  explicit EraseImplGpu(const OpSpec &spec) : spec_(spec) {
+  /**
+   * @param spec  Pointer to a persistent OpSpec object,
+   *              which is guaranteed to be alive for the entire lifetime of this object
+   */
+  explicit EraseImplGpu(const OpSpec *spec) : spec_(*spec) {
     kmgr_.Resize<EraseKernel>(1, 1);
   }
 
@@ -117,11 +121,11 @@ bool Erase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   TYPE_SWITCH(input.type(), type2id, T, ERASE_SUPPORTED_TYPES, (
     VALUE_SWITCH(in_shape.sample_dim(), Dims, ERASE_SUPPORTED_NDIMS, (
       if (channel_dim == -1)
-        impl_ = std::make_unique<EraseImplGpu<T, Dims, -1>>(spec_);
+        impl_ = std::make_unique<EraseImplGpu<T, Dims, -1>>(&spec_);
       else if (channel_dim == 0)
-        impl_ = std::make_unique<EraseImplGpu<T, Dims, 0>>(spec_);
+        impl_ = std::make_unique<EraseImplGpu<T, Dims, 0>>(&spec_);
       else if (channel_dim == Dims-1)
-        impl_ = std::make_unique<EraseImplGpu<T, Dims, Dims-1>>(spec_);
+        impl_ = std::make_unique<EraseImplGpu<T, Dims, Dims-1>>(&spec_);
       else
         DALI_FAIL("Unsupported layout. Only 'no channel', "
                   "'channel first' and 'channel last' layouts are supported.");

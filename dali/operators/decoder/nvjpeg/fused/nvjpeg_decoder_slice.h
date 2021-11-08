@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ class nvJPEGDecoderSlice : public nvJPEGDecoder {
  protected:
   using OperatorBase::Run;
   void Run(MixedWorkspace &ws) override {
-    slice_attr_.ProcessArguments<MixedBackend>(ws);
+    slice_attr_.ProcessArguments<MixedBackend>(spec_, ws);
     nvJPEGDecoder::Run(ws);
   }
 

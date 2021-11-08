@@ -54,6 +54,7 @@ class NumpyReader : public DataReader<Backend, Target> {
   USE_READER_OPERATOR_MEMBERS(Backend, Target);
   using DataReader<Backend, Target>::GetCurrBatchSize;
   using DataReader<Backend, Target>::GetSample;
+  using Operator<Backend>::spec_;
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<Backend>& ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
@@ -65,7 +66,7 @@ class NumpyReader : public DataReader<Backend, Target> {
     int ndim = file_0.get_shape().sample_dim();
     TensorListShape<> sh(batch_size, ndim);
 
-    bool has_roi_args = slice_attr_.template ProcessArguments<Backend>(ws, batch_size, ndim);
+    bool has_roi_args = slice_attr_.template ProcessArguments<Backend>(spec_, ws, batch_size, ndim);
     rois_.clear();
     if (has_roi_args)
       rois_.resize(batch_size);
