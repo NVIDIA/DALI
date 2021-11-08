@@ -41,11 +41,12 @@ class SourceKind(Enum):
 class SourceDescription:
     """Keep the metadata about the source parameter that was originally passed
     """
-    def __init__(self, source, kind: SourceKind, has_inputs: bool, cycle: str):
+    def __init__(self, source, kind: SourceKind, has_inputs: bool, cycle: str, batch_info = False):
         self.source = source
         self.kind = kind
         self.has_inputs = has_inputs
         self.cycle = cycle
+        self.batch_info = batch_info
 
     def __str__(self) -> str:
         if self.kind == SourceKind.CALLABLE:
@@ -225,8 +226,10 @@ def accepted_arg_count(callable):
     return callable.__code__.co_argcount - implicit_args
 
 
-def get_callback_from_source(source, cycle):
+def get_callback_from_source(source, cycle, batch_info=False):
     """Repack the source into a unified callback function. Additionally prepare the SourceDescription.
+
+    `batch_info` is usable only with callables.
 
     Returns
     -------
@@ -275,7 +278,7 @@ def get_callback_from_source(source, cycle):
                 raise TypeError("Source must be callable, iterable or a parameterless generator function")
             # We got a callable
             desc = SourceDescription(source, SourceKind.CALLABLE,
-                                      accepted_arg_count(source) > 0, cycle)
+                                      accepted_arg_count(source) > 0, cycle, batch_info)
             callback = source
     else:
         desc = None
@@ -300,11 +303,10 @@ def _inspect_data(data, is_batched):
         return as_numpy.dtype, (None,) * as_numpy.ndim
 
 
-def get_batch_iterable_from_callback(source_desc):
+def get_batch_iterable_from_callback(source_desc: SourceDescription):
     """Transform batch callback accepting one argument into an Iterable
     """
-
-    first = source_desc.source(0)
+    first = source_desc.source(types.BatchInfo(0, 0) if source_desc.batch_info else 0)
     dtype, shape = _inspect_data(first, True)
 
     class CallableBatchIterator:
@@ -323,14 +325,20 @@ def get_batch_iterable_from_callback(source_desc):
                 result = CallableBatchIterator.first_value
                 CallableBatchIterator.first_value = None
             else:
-                result = self.source(self.iteration)
+                if source_desc.batch_info:
+                    # There is no notion of epochs when iterating over DALI Dataset
+                    # as the "raise" policy is not supported, so we use epoch 0 only.
+                    argument = types.BatchInfo(self.iteration, 0)
+                else:
+                    argument = self.iteration
+                result = self.source(argument)
             self.iteration += 1
             return batch_to_numpy(result, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg)
 
     return CallableBatchIterator, dtype, shape
 
 
-def get_sample_iterable_from_callback(source_desc, batch_size):
+def get_sample_iterable_from_callback(source_desc: SourceDescription, batch_size):
     """Transform sample callback accepting one argument into an Iterable
     """
     first = source_desc.source(types.SampleInfo(0, 0, 0, 0))
@@ -369,7 +377,7 @@ def get_sample_iterable_from_callback(source_desc, batch_size):
     return CallableSampleIterator, dtype, shape
 
 
-def get_iterable_from_callback(source_desc, is_batched):
+def get_iterable_from_callback(source_desc: SourceDescription, is_batched):
     """Transform callback that doesn't accept arguments into iterable
     """
     print("get_iterable_from_callback")
@@ -398,7 +406,7 @@ def get_iterable_from_callback(source_desc, is_batched):
     return CallableIterator, dtype, shape
 
 
-def get_iterable_from_iterable_or_generator(source_desc, is_batched):
+def get_iterable_from_iterable_or_generator(source_desc: SourceDescription, is_batched):
     """Wrap iterable or generator function into another iterable while peeking the first element
 
     If the source is generator function it must be called first.
@@ -441,7 +449,7 @@ def get_iterable_from_iterable_or_generator(source_desc, is_batched):
     return PeekFirstGenerator, dtype, shape
 
 
-def _get_generator_from_source_desc(source_desc, batch_size, is_batched):
+def _get_generator_from_source_desc(source_desc: SourceDescription, batch_size, is_batched):
     """Based on DALI source description create a generator function, type and shape specification
     compatible with TF Generator Dataset.
 

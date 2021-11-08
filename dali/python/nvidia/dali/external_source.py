@@ -398,7 +398,7 @@ Keyword Args
         import nvidia.dali.ops
         kwargs, self._call_args = nvidia.dali.ops._separate_kwargs(kwargs)
 
-        callback, source_desc = _get_callback_from_source(source, cycle)
+        callback, source_desc = _get_callback_from_source(source, cycle, batch_info or False)
 
         if name is not None and num_outputs is not None:
             raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
@@ -440,6 +440,12 @@ Keyword Args
         ""
         from nvidia.dali.ops import _OperatorInstance
 
+        if batch_info is None:
+            batch_info = self._batch_info or False
+        elif self._batch_info is not None:
+            raise ValueError(
+                "The argument ``batch_info`` already specified in constructor.")
+
         if source is None:
             if cycle is not None:
                 if self._callback:
@@ -454,7 +460,7 @@ Keyword Args
         else:
             if self._callback is not None:
                 raise RuntimeError("``source`` already specified in constructor.")
-            callback, source_desc = _get_callback_from_source(source, cycle)
+            callback, source_desc = _get_callback_from_source(source, cycle, self._batch_info)
 
             # Keep the metadata for Pipeline inspection
             self._source_desc = source_desc
@@ -478,12 +484,6 @@ Keyword Args
         elif self._prefetch_queue_depth is not None:
             raise ValueError(
                 "The argument ``prefetch_queue_depth`` already specified in constructor.")
-
-        if batch_info is None:
-            batch_info = self._batch_info or False
-        elif self._batch_info is not None:
-            raise ValueError(
-                "The argument ``batch_info`` already specified in constructor.")
 
         if no_copy is None:
             no_copy = self._no_copy

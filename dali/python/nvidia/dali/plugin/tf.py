@@ -564,7 +564,6 @@ if dataset_compatible_tensorflow():
                 with tf.device('/cpu:0'):
                     tf_gen, dtype, shape = _get_generator_from_source_desc(
                         source_desc, self._batch_size, external_source._batch)
-                    # dataset = tf.data.Dataset.from_generator(tf_gen, output_types=dtype)
                     signature = _get_signature(dtype, shape)
                     dataset = tf.data.Dataset.from_generator(tf_gen, output_signature=signature)
                     if _cycle_enabled(source_desc.cycle):
