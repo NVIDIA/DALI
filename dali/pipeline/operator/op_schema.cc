@@ -189,7 +189,6 @@ std::string OpSchema::GetArgumentDefaultValueString(const std::string &name) con
 
   auto &val = *value_ptr;
   auto str = val.ToString();
-
   if (val.GetTypeId() == DALI_STRING || val.GetTypeId() == DALI_TENSOR_LAYOUT) {
     return python_repr(str);
   } else if (val.GetTypeId() == DALI_STRING_VEC) {

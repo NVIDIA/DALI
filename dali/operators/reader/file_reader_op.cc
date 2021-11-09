@@ -31,7 +31,9 @@ This operator can be used in the following modes:
 In this mode, the directory indicated in ``file_root`` argument should contain one or more
 subdirectories. The files in these subdirectories are listed and assigned labels based on
 lexicographical order of the subdirectory. If you provide ``file_filters`` argument with
-list of glob strings, the operator will list files matching at least one of the patterns.
+a list of glob strings, the operator will list files matching at least one of the patterns.
+Otherwise, a default set of filters is used (see the default value of ``file_filters`` for
+details).
 
 For example, this directory structure::
 
@@ -53,7 +55,7 @@ by default will yield the following outputs::
   <contents of 2/car.jpeg>          2
   <contents of 2/truck.jp2>         2
 
-and with ``file_filters = [*.jpg, *.jpeg]`` will yield the following outputs::
+and with ``file_filters = ["*.jpg", "*.jpeg"]`` will yield the following outputs::
 
   <contents of 0/image0.jpg>        0
   <contents of 0/world_map.jpg>     0
@@ -112,8 +114,8 @@ list of files in the sub-directories of the ``file_root``.
 
 This argument is ignored when file paths are taken from ``file_list`` or ``files``.)",
       kKnownExtensionsGlob)
-  .AddOptionalArg<bool>("case_sensitive_filter", R"(If set to True, the filter will be applied
-to original file paths, otherwise to lower-cased file paths.)", false)
+  .AddOptionalArg<bool>("case_sensitive_filter", R"(If set to True, the filter will be matched
+  case-sensitively, otherwise case-insensitively.)", false)
   .AddParent("LoaderBase");
 
 
