@@ -115,7 +115,7 @@ list of files in the sub-directories of the ``file_root``.
 This argument is ignored when file paths are taken from ``file_list`` or ``files``.)",
       kKnownExtensionsGlob)
   .AddOptionalArg<bool>("case_sensitive_filter", R"(If set to True, the filter will be matched
-  case-sensitively, otherwise case-insensitively.)", false)
+case-sensitively, otherwise case-insensitively.)", false)
   .AddParent("LoaderBase");
 
 
