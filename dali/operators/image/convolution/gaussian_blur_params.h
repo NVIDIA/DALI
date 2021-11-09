@@ -40,6 +40,17 @@ struct DimDesc {
   int total_axes_count;
   bool has_channels;
   bool is_sequence;
+
+  bool operator==(const DimDesc &other) const {
+    return usable_axes_start == other.usable_axes_start &&
+      usable_axes_count == other.usable_axes_count &&
+      total_axes_count == other.total_axes_count && has_channels == other.has_channels &&
+      is_sequence == other.is_sequence;
+  }
+
+  bool operator!=(const DimDesc &other) const {
+    return !(*this == other);
+  }
 };
 
 template <int axes>
