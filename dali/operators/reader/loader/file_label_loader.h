@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,6 +55,11 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
       has_labels_arg_ = spec.TryGetRepeatedArgument(labels, "labels");
       has_file_list_arg_ = spec.TryGetArgument(file_list_, "file_list");
       has_file_root_arg_ = spec.TryGetArgument(file_root_, "file_root");
+      bool has_file_filters_arg = spec.TryGetRepeatedArgument(filters_, "file_filters");
+
+      // TODO(ksztenderski): CocoLoader inherits after FileLabelLoader and it doesn't work with
+      // GetArgument.
+      spec.TryGetArgument(case_sensitive_filter_, "case_sensitive_filter");
 
       DALI_ENFORCE(has_file_root_arg_ || has_files_arg_ || has_file_list_arg_,
         "``file_root`` argument is required when not using ``files`` or ``file_list``.");
@@ -65,6 +70,9 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
       DALI_ENFORCE(has_files_arg_ || !has_labels_arg_,
         "The argument ``labels`` is valid only when file paths "
         "are provided as ``files`` argument.");
+
+      DALI_ENFORCE(!has_file_filters_arg || filters_.size() > 0,
+                   "``file_filters`` list cannot be empty.");
 
       if (has_file_list_arg_) {
         DALI_ENFORCE(!file_list_.empty(), "``file_list`` argument cannot be empty");
@@ -122,7 +130,8 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
   void PrepareMetadataImpl() override {
     if (image_label_pairs_.empty()) {
       if (!has_file_list_arg_ && !has_files_arg_) {
-        image_label_pairs_ = filesystem::traverse_directories(file_root_);
+        image_label_pairs_ =
+            filesystem::traverse_directories(file_root_, filters_, case_sensitive_filter_);
       } else if (has_file_list_arg_) {
         // load (path, label) pairs from list
         std::ifstream s(file_list_);
@@ -196,11 +205,13 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
 
   string file_root_, file_list_;
   vector<std::pair<string, int>> image_label_pairs_;
+  vector<string> filters_;
 
-  bool has_files_arg_     = false;
-  bool has_labels_arg_    = false;
+  bool has_files_arg_ = false;
+  bool has_labels_arg_ = false;
   bool has_file_list_arg_ = false;
   bool has_file_root_arg_ = false;
+  bool case_sensitive_filter_ = false;
 
   bool shuffle_after_epoch_;
   Index current_index_;

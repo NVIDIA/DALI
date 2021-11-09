@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include <string>
 
 #include "dali/operators/reader/file_reader_op.h"
+#include "dali/operators/reader/loader/utils.h"
 
 namespace dali {
 
@@ -29,7 +30,10 @@ This operator can be used in the following modes:
 
 In this mode, the directory indicated in ``file_root`` argument should contain one or more
 subdirectories. The files in these subdirectories are listed and assigned labels based on
-lexicographical order of the subdirectory.
+lexicographical order of the subdirectory. If you provide ``file_filters`` argument with
+a list of glob strings, the operator will list files matching at least one of the patterns.
+Otherwise, a default set of filters is used (see the default value of ``file_filters`` for
+details).
 
 For example, this directory structure::
 
@@ -41,7 +45,7 @@ For example, this directory structure::
   <file_root>/2/car.jpeg
   <file_root>/2/truck.jp2
 
-will yield the following outputs::
+by default will yield the following outputs::
 
   <contents of 0/image0.jpg>        0
   <contents of 0/world_map.jpg>     0
@@ -50,6 +54,13 @@ will yield the following outputs::
   <contents of 1/dog.tif>           1
   <contents of 2/car.jpeg>          2
   <contents of 2/truck.jp2>         2
+
+and with ``file_filters = ["*.jpg", "*.jpeg"]`` will yield the following outputs::
+
+  <contents of 0/image0.jpg>        0
+  <contents of 0/world_map.jpg>     0
+  <contents of 1/cat.jpeg>          1
+  <contents of 2/car.jpeg>          2
 
 2. Use file names and labels stored in a text file.
 
@@ -98,6 +109,13 @@ This argument is mutually exclusive with ``file_list``.)", nullptr)
 ``files`` argument.
 
 If not used, sequential 0-based indices are used as labels)", nullptr)
+  .AddOptionalArg<string>("file_filters", R"(A list of glob strings to filter the
+list of files in the sub-directories of the ``file_root``.
+
+This argument is ignored when file paths are taken from ``file_list`` or ``files``.)",
+      kKnownExtensionsGlob)
+  .AddOptionalArg<bool>("case_sensitive_filter", R"(If set to True, the filter will be matched
+case-sensitively, otherwise case-insensitively.)", false)
   .AddParent("LoaderBase");
 
 
