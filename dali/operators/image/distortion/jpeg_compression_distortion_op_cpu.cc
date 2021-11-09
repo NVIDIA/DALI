@@ -58,13 +58,8 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
   std::vector<ThreadCtx> thread_ctx_;
 };
 
-template <typename Span>
-static TensorShape<4> layout_shape(TensorLayout layout, Span shape) {
-  return layout == "FHWC"? shape : shape_cat(1, TensorShape<>(shape));
-}
-
-template <typename threadCtx>
-static void RunJpegDistortionCPU(threadCtx &ctx, const uint8_t *input, uint8_t *output,
+template <typename ThreadCtx>
+static void RunJpegDistortionCPU(ThreadCtx &ctx, const uint8_t *input, uint8_t *output,
                                  size_t width, size_t height, int quality) {
   auto in_mat = cv::Mat(height, width, CV_8UC3, const_cast<uint8_t *>(input));
   auto out_mat = cv::Mat(height, width, CV_8UC3, output);
@@ -87,12 +82,20 @@ void JpegCompressionDistortionCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   thread_ctx_.resize(thread_pool.NumThreads());
 
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-    auto shape = layout_shape(input.GetLayout(), in_shape.tensor_shape_span(sample_idx));
-    for (int elem_idx = 0; elem_idx < shape[0]; elem_idx++) {
-      int height = shape[1];
-      int width = shape[2];
-      int channels = shape[3];
-      size_t frame_size = volume(&shape[1], &shape[4]);
+    auto shape = in_shape.tensor_shape_span(sample_idx);
+    int ndim = shape.size();
+    auto layout = input.GetLayout();
+    int w_dim = layout.find('W');
+    int h_dim = layout.find('H');
+    int c_dim = layout.find('C');
+    int f_dim = layout.find('F');
+    int64_t nframes =
+        volume(&shape[0], &shape[f_dim + 1]);  // note that if f_dim is -1, this evaluates to an
+                                               // empty range, which has a volume of 1
+    int64_t frame_size = volume(&shape[f_dim + 1], &shape[ndim]);
+    int64_t width = shape[w_dim];
+    int64_t height = shape[h_dim];
+    for (int elem_idx = 0; elem_idx < nframes; elem_idx++) {
       thread_pool.AddWork(
           [&, sample_idx, elem_idx, width, height, frame_size,
            quality = quality_arg_[sample_idx].data[0]](int thread_id) {
@@ -100,7 +103,7 @@ void JpegCompressionDistortionCPU::RunImpl(workspace_t<CPUBackend> &ws) {
             auto *out = out_view[sample_idx].data + elem_idx * frame_size;
             RunJpegDistortionCPU(thread_ctx_[thread_id], in, out, width, height, quality);
           },
-          in_shape.tensor_size(sample_idx));
+          frame_size);
     }
   }
   thread_pool.RunAll();

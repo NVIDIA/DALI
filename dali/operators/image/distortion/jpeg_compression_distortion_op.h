@@ -45,7 +45,9 @@ class JpegCompressionDistortion : public Operator<Backend> {
     assert(in_sh.sample_dim() == 3 || in_sh.sample_dim() == 4);  // should be check by the layout
     for (int s = 0; s < in_sh.num_samples(); s++) {
       DALI_ENFORCE(in_sh.tensor_shape_span(s).back() == 3,
-                   make_string("Expected RGB samples with (F)HWC layout, got shape: ", in_sh[s]));
+                   make_string("Invalid number of channels. Expected a channel-last layout, with 3 "
+                               "channels (RGB), got shape: ",
+                               in_sh[s]));
     }
 
     output_desc[0] = {in_sh, input.type()};

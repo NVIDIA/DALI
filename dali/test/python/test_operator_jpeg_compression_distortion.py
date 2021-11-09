@@ -36,7 +36,7 @@ class InputImagesIter(object):
 
   def _load_next(self):
     in_img = None
-      # Skip input image if format isn't supported by OpenCV
+    # Skip input image if format isn't supported by OpenCV
     while in_img is None:
       filename, label = self.files[self.i].split(' ')
       in_img = cv2.imread(os.path.join(images_dir, filename))
@@ -59,7 +59,7 @@ class InputImagesIter(object):
       seq.append(img)
     return np.stack(seq)
 
-def _comapare_to_cv_distortion(in_img, out_img, q, no):
+def _compare_to_cv_distortion(in_img, out_img, q, no):
   bgr = cv2.cvtColor(in_img, cv2.COLOR_RGB2BGR)
   encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), q]
   _, encoded_img = cv2.imencode('.jpg', bgr, params=encode_params)
@@ -105,9 +105,9 @@ def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
       q = int(np.array(quality[i]))
       if layout == 'FHWC':
         for j in range(in_tensor.shape[0]):
-          _comapare_to_cv_distortion(in_tensor[j], out_tensor[j], q, (i, j))
+          _compare_to_cv_distortion(in_tensor[j], out_tensor[j], q, (i, j))
       else:
-        _comapare_to_cv_distortion(in_tensor, out_tensor, q, (i, 0))
+        _compare_to_cv_distortion(in_tensor, out_tensor, q, (i, 0))
 
 def test_jpeg_compression_distortion():
   for batch_size in [1, 15]:
