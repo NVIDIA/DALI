@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -98,9 +98,10 @@ class GaussianWindows {
   }
 
   void PrepareWindows(const GaussianBlurParams<axes> &params) {
-    bool changed = previous != params;
-    if (!changed)
+    if (previous == params) {
       return;
+    }
+    previous = params;
 
     // Reallocate if necessary and fill the windows
     bool is_uniform = params.IsUniform();
