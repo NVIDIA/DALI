@@ -1,12 +1,15 @@
-ARG TOOLKIT_BASE_IMAGE=ubuntu:18.04
+ARG TOOLKIT_BASE_IMAGE=ubuntu:20.04
 FROM ${TOOLKIT_BASE_IMAGE} as cuda
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && apt install -y libxml2 curl perl gcc && \
     rm -rf /var/lib/apt/lists/*
 
 RUN curl -LO https://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda_10.2.89_440.33.01_linux.run && \
     chmod +x cuda_*.run && \
-    ./cuda_*.run --silent --no-opengl-libs --toolkit && \
+    # just installing with override on Ubuntu 20:04 doesn't work for some reason so unpack and move
+    ./cuda_*.run --extract=/tmp/cuda/ --override && mv /tmp/cuda/cuda-toolkit/ /usr/local/cuda && \
     rm -f cuda_*.run;
 
 FROM scratch
