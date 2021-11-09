@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <vector>
 #include <opencv2/opencv.hpp>
+#include <vector>
 #include "dali/operators/image/distortion/jpeg_compression_distortion_op.h"
 
 namespace dali {
@@ -33,13 +33,15 @@ This operation produces images by subjecting the input to a transformation that
 mimics JPEG compression with given ``quality`` factor followed by decompression.
 )code")
     .NumInput(1)
-    .InputLayout(0, "HWC")
+    .InputLayout({"HWC", "FHWC"})
     .NumOutput(1)
-    .AddOptionalArg("quality",
+    .AddOptionalArg(
+        "quality",
         R"code(JPEG compression quality from 1 (lowest quality) to 100 (highest quality).
 
 Any values outside the range 1-100 will be clamped.)code",
-                    50, true);
+        50, true)
+    .AllowSequences();
 
 class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend> {
  public:
@@ -56,6 +58,18 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
   std::vector<ThreadCtx> thread_ctx_;
 };
 
+template <typename ThreadCtx>
+static void RunJpegDistortionCPU(ThreadCtx &ctx, const uint8_t *input, uint8_t *output,
+                                 size_t width, size_t height, int quality) {
+  auto in_mat = cv::Mat(height, width, CV_8UC3, const_cast<uint8_t *>(input));
+  auto out_mat = cv::Mat(height, width, CV_8UC3, output);
+
+  cv::cvtColor(in_mat, out_mat, cv::COLOR_RGB2BGR);
+  cv::imencode(".jpg", out_mat, ctx.encoded, {cv::IMWRITE_JPEG_QUALITY, quality});
+  cv::imdecode(ctx.encoded, cv::IMREAD_COLOR, &out_mat);
+  cv::cvtColor(out_mat, out_mat, cv::COLOR_BGR2RGB);
+}
+
 void JpegCompressionDistortionCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
@@ -68,17 +82,29 @@ void JpegCompressionDistortionCPU::RunImpl(workspace_t<CPUBackend> &ws) {
   thread_ctx_.resize(thread_pool.NumThreads());
 
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-    thread_pool.AddWork(
-      [&, sample_idx, quality = quality_arg_[sample_idx].data[0]](int thread_id) {
-        auto &ctx = thread_ctx_[thread_id];
-        auto sh = in_shape.tensor_shape_span(sample_idx);
-        cv::Mat in_mat(sh[0], sh[1], CV_8UC3, const_cast<unsigned char*>(in_view[sample_idx].data));
-        cv::Mat out_mat(sh[0], sh[1], CV_8UC3, out_view[sample_idx].data);
-        cv::cvtColor(in_mat, out_mat, cv::COLOR_RGB2BGR);
-        cv::imencode(".jpg", out_mat, ctx.encoded, {cv::IMWRITE_JPEG_QUALITY, quality});
-        cv::imdecode(ctx.encoded, cv::IMREAD_COLOR, &out_mat);
-        cv::cvtColor(out_mat, out_mat, cv::COLOR_BGR2RGB);
-      }, in_shape.tensor_size(sample_idx));
+    auto shape = in_shape.tensor_shape_span(sample_idx);
+    int ndim = shape.size();
+    auto layout = input.GetLayout();
+    int w_dim = layout.find('W');
+    int h_dim = layout.find('H');
+    int c_dim = layout.find('C');
+    int f_dim = layout.find('F');
+    int64_t nframes =
+        volume(&shape[0], &shape[f_dim + 1]);  // note that if f_dim is -1, this evaluates to an
+                                               // empty range, which has a volume of 1
+    int64_t frame_size = volume(&shape[f_dim + 1], &shape[ndim]);
+    int64_t width = shape[w_dim];
+    int64_t height = shape[h_dim];
+    for (int elem_idx = 0; elem_idx < nframes; elem_idx++) {
+      thread_pool.AddWork(
+          [&, sample_idx, elem_idx, width, height, frame_size,
+           quality = quality_arg_[sample_idx].data[0]](int thread_id) {
+            auto *in = in_view[sample_idx].data + elem_idx * frame_size;
+            auto *out = out_view[sample_idx].data + elem_idx * frame_size;
+            RunJpegDistortionCPU(thread_ctx_[thread_id], in, out, width, height, quality);
+          },
+          frame_size);
+    }
   }
   thread_pool.RunAll();
 }
