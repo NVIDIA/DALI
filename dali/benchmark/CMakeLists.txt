@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ if (BUILD_BENCHMARK)
 
   target_link_libraries(dali_benchmark PRIVATE dali dali_operators benchmark ${DALI_LIBS})
   if (BUILD_NVML)
-    target_link_libraries(dali_benchmark PRIVATE $<TARGET_OBJECTS:dynlink_nvml>)
+    target_link_libraries(dali_benchmark PRIVATE dynlink_nvml)
   endif(BUILD_NVML)
   target_link_libraries(dali_benchmark PRIVATE "-pie")
   set_target_properties(dali_benchmark PROPERTIES POSITION_INDEPENDENT_CODE ON)

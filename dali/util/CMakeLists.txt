@@ -70,9 +70,9 @@ if(BUILD_NVML)
         VERBATIM)
 
     set_source_files_properties(${NVML_GENERATED_STUB} PROPERTIES GENERATED TRUE)
-    add_library(dynlink_nvml OBJECT nvml_wrap.cc nvml.cc ${NVML_GENERATED_STUB})
+    add_library(dynlink_nvml STATIC nvml_wrap.cc nvml.cc ${NVML_GENERATED_STUB})
   else()
-    add_library(dynlink_nvml OBJECT nvml_wrap.cc nvml.cc)
+    add_library(dynlink_nvml STATIC nvml_wrap.cc nvml.cc)
   endif()
 endif()
 
