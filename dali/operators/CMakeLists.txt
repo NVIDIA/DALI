@@ -1,5 +1,5 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-#
+# Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -59,7 +59,7 @@ set_target_properties(dali_operators PROPERTIES
 target_link_libraries(dali_operators PUBLIC dali dali_kernels dali_core)
 target_link_libraries(dali_operators PRIVATE dynlink_cuda ${DALI_LIBS})
 if (BUILD_NVML)
-  target_link_libraries(dali_operators PRIVATE $<TARGET_OBJECTS:dynlink_nvml>)
+  target_link_libraries(dali_operators PRIVATE dynlink_nvml)
 endif(BUILD_NVML)
 
 if (BUILD_CUFILE)
@@ -86,7 +86,7 @@ if (BUILD_TEST)
   target_link_libraries(dali_operator_test PUBLIC dali_operators)
   target_link_libraries(dali_operator_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})
   if (BUILD_NVML)
-    target_link_libraries(dali_operator_test PRIVATE $<TARGET_OBJECTS:dynlink_nvml>)
+    target_link_libraries(dali_operator_test PRIVATE dynlink_nvml)
   endif(BUILD_NVML)
   if (BUILD_CUFILE)
     target_link_libraries(dali_operator_test PRIVATE dynlink_cufile)
