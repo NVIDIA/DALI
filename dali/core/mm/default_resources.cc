@@ -191,7 +191,7 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
       return make_shared_composite_resource(std::move(rsrc), upstream);
     } else {
       using resource_type = mm::async_pool_resource<mm::memory_kind::device,
-              pool_resource_base<memory_kind::device, any_context, coalescing_free_tree, spinlock>>;
+              pool_resource_base<memory_kind::device, coalescing_free_tree, spinlock>>;
       auto rsrc = std::make_shared<resource_type>(upstream.get());
       return make_shared_composite_resource(std::move(rsrc), upstream);
     }
@@ -210,7 +210,7 @@ inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
     return make_shared_composite_resource(std::move(rsrc), upstream);
   } else {
     using resource_type = mm::async_pool_resource<mm::memory_kind::pinned,
-        pool_resource_base<memory_kind::pinned, any_context, coalescing_free_tree, spinlock>>;
+        pool_resource_base<memory_kind::pinned, coalescing_free_tree, spinlock>>;
     auto rsrc = std::make_shared<resource_type>(upstream.get());
     return make_shared_composite_resource(std::move(rsrc), upstream);
   }

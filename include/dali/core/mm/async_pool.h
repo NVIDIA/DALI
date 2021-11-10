@@ -35,7 +35,7 @@ namespace dali {
 namespace mm {
 
 template <typename Kind,
-    typename GlobalPool = deferred_dealloc_pool<Kind, any_context, coalescing_free_tree, spinlock>,
+    typename GlobalPool = deferred_dealloc_pool<Kind, coalescing_free_tree, spinlock>,
     typename LockType = std::mutex,
     typename Upstream = memory_resource<Kind>>
 class async_pool_resource : public async_memory_resource<Kind> {

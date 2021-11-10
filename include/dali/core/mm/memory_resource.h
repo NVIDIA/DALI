@@ -38,7 +38,6 @@ namespace mm {
 
 namespace memory_kind = cuda::memory_kind;
 
-using cuda::any_context;
 using cuda::memory_resource;
 using cuda::resource_view;
 using cuda::stream_ordered_resource_view;
