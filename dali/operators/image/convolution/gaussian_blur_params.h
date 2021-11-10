@@ -107,6 +107,10 @@ class GaussianWindows {
     previous.sigmas = uniform_array<axes>(-1.f);
     previous.window_sizes = uniform_array<axes>(0);
   }
+  // If ``memory`` was copied, ``precomputed_window`` would have old pointers,
+  // prevent that form happening on GaussianWindows vector resize.
+  GaussianWindows(GaussianWindows &) = delete;
+  GaussianWindows(GaussianWindows &&) = default;
 
   void PrepareWindows(const GaussianBlurParams<axes> &params) {
     if (previous == params) {
