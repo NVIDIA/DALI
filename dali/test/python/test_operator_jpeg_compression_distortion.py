@@ -25,6 +25,7 @@ import cv2
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'tiff')
 dump_images = False
+dump_broken = False
 sequence_length = 10
 
 class InputImagesIter(object):
@@ -67,13 +68,15 @@ def _compare_to_cv_distortion(in_img, out_img, q, no):
   decoded_img_bgr = cv2.imdecode(encoded_img, cv2.IMREAD_COLOR)
   decoded_img = cv2.cvtColor(decoded_img_bgr, cv2.COLOR_BGR2RGB)
 
-  if dump_images:
+  diff = cv2.absdiff(out_img, decoded_img)
+  diff_in_range = np.average(diff) < 5, f"Absolute difference with the reference is too big: {np.average(diff)}"
+
+  if dump_images or (dump_broken and not diff_in_range):
     i, j = no
     cv2.imwrite(f"./reference_q{q}_sample{i}_{j}.bmp", cv2.cvtColor(decoded_img, cv2.COLOR_BGR2RGB))
     cv2.imwrite(f"./output_q{q}_sample{i}_{j}.bmp", cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB))
 
-  diff = cv2.absdiff(out_img, decoded_img)
-  assert np.average(diff) < 5, f"Absolute difference with the reference is too big: {np.average(diff)}"
+  assert diff_in_range, f"Absolute difference with the reference is too big: {np.average(diff)}"
 
 def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
   @pipeline_def(batch_size=batch_size, num_threads=3, device_id=0)
@@ -113,5 +116,5 @@ def test_jpeg_compression_distortion():
   for batch_size in [1, 15]:
     for device in ['cpu', 'gpu']:
       for quality in [2, None, 50]:
-        for layout in ['HWC', 'FHWC'] if device == 'cpu' else ['HWC']:
+        for layout in ['HWC', 'FHWC']:
           yield _testimpl_jpeg_compression_distortion, batch_size, device, quality, layout
