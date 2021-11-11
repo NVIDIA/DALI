@@ -17,6 +17,7 @@ import ctypes
 import math
 
 import numpy as np
+import paddle
 
 from nvidia.dali import types
 from nvidia.dali.backend import TensorListCPU, TensorGPU, TensorListGPU
@@ -72,6 +73,8 @@ def feed_ndarray(dali_tensor, ptr, cuda_stream=None):
                     (if not provided, an internal user stream will be selected)
     """
 
+    if cuda_stream is None:
+        cuda_stream = paddle.device.cuda.current_stream().cuda_stream 
     cuda_stream = types._raw_cuda_stream(cuda_stream)
 
     c_type_pointer = ctypes.c_void_p(ptr)
