@@ -67,8 +67,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
     try {
       synchronize();
     } catch (const CUDAError &e) {
-      if ((e.is_rt_api() && e.rt_error() != cudaErrorCudartUnloading) ||
-          (e.is_drv_api() && e.drv_error() != CUDA_ERROR_DEINITIALIZED))
+      if (!e.is_unloading())
         std::terminate();
     }
     for (auto &kv : stream_free_) {
@@ -81,8 +80,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
         try {
           global_pool_.deallocate_no_sync(f->addr, f->bytes, f->alignment);
         } catch (const CUDAError &e) {
-          if ((e.is_rt_api() && e.rt_error() != cudaErrorCudartUnloading) ||
-              (e.is_drv_api() && e.drv_error() != CUDA_ERROR_DEINITIALIZED))
+          if (!e.is_unloading())
             std::terminate();
         }
         f = remove_pending_free(free_blocks, f, false);

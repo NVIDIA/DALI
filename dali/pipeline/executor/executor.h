@@ -68,7 +68,7 @@ static void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mu
 class DLL_PUBLIC ExecutorBase {
  public:
   using ExecutorCallback = std::function<void(void)>;
-  DLL_PUBLIC virtual ~ExecutorBase() noexcept(false) {}
+  DLL_PUBLIC virtual ~ExecutorBase() = default;
   DLL_PUBLIC virtual void Build(OpGraph *graph, vector<string> output_names) = 0;
   DLL_PUBLIC virtual void Init() = 0;
   DLL_PUBLIC virtual void RunCPU() = 0;
@@ -118,6 +118,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
     stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
   }
+
+  DLL_PUBLIC ~Executor() override;
 
   DLL_PUBLIC void EnableMemoryStats(bool enable_memory_stats = false) override {
     enable_memory_stats_ = enable_memory_stats;
