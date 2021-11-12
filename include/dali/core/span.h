@@ -66,6 +66,13 @@ class span {
   span &operator=(const span &other) noexcept = default;
 
   // [span.sub], span subviews
+  template <index_type count>
+  DALI_HOST_DEV constexpr auto first() const { return span<element_type, count>(data_, count); }
+  DALI_HOST_DEV constexpr auto first(index_type count) const { return span<element_type, dynamic_extent>(data_, count); }
+
+  template <index_type count>
+  DALI_HOST_DEV constexpr auto last() const { return span<element_type, count>(data_ + size() - count, count); }
+  DALI_HOST_DEV constexpr auto last(index_type count) const { return span<element_type, dynamic_extent>(data_ + size() - count, count); }
 
   // [span.obs], span observers
   DALI_HOST_DEV constexpr index_type size() const noexcept { return Extent; }
@@ -122,6 +129,13 @@ class span<ElementType, dynamic_extent> {
 
   // [span.sub], span subviews
 
+  template <index_type count>
+  DALI_HOST_DEV constexpr auto first() const { return span<element_type, count>(data_, count); }
+  DALI_HOST_DEV constexpr auto first(index_type count) const { return span<element_type, dynamic_extent>(data_, count); }
+
+  template <index_type count>
+  DALI_HOST_DEV constexpr auto last() const { return span<element_type, count>(data_ + size() - count, count); }
+  DALI_HOST_DEV constexpr auto last(index_type count) const { return span<element_type, dynamic_extent>(data_ + size() - count, count); }
   // [span.obs], span observers
   DALI_HOST_DEV constexpr index_type size() const noexcept { return size_; }
   DALI_HOST_DEV constexpr index_type size_bytes() const noexcept {
