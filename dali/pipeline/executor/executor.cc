@@ -28,9 +28,6 @@
 
 namespace dali {
 
-template class DLL_PUBLIC Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
-template class DLL_PUBLIC Executor<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
-
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::PreRun() {
   auto batch_size = InferBatchSize(batch_size_providers_);
@@ -386,5 +383,8 @@ int Executor<WorkspacePolicy, QueuePolicy>::InferBatchSize(
   }
   return batch_size;
 }
+
+template class DLL_PUBLIC Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
+template class DLL_PUBLIC Executor<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
 
 }  // namespace dali
