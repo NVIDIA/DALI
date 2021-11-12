@@ -26,8 +26,8 @@ namespace mm {
 
 namespace detail {
 
-template <typename Kind, typename Context>
-memory_resource<Kind, Context> &GetResourceInterface(const memory_resource<Kind, Context> &);
+template <typename Kind>
+memory_resource<Kind> &GetResourceInterface(const memory_resource<Kind> &);
 
 template <typename Kind>
 async_memory_resource<Kind> &GetResourceInterface(const async_memory_resource<Kind> &);
@@ -78,11 +78,11 @@ class CompositeResourceBase : public Interface {
 template <typename Interface, typename Resource, typename... Extra>
 class CompositeResourceImpl;
 
-template <typename Kind, typename Context, typename Resource, typename... Extra>
-class CompositeResourceImpl<memory_resource<Kind, Context>, Resource, Extra...>
-: public CompositeResourceBase<memory_resource<Kind, Context>, Resource, Extra...> {
+template <typename Kind, typename Resource, typename... Extra>
+class CompositeResourceImpl<memory_resource<Kind>, Resource, Extra...>
+: public CompositeResourceBase<memory_resource<Kind>, Resource, Extra...> {
  public:
-  using Base = CompositeResourceBase<memory_resource<Kind, Context>, Resource, Extra...>;
+  using Base = CompositeResourceBase<memory_resource<Kind>, Resource, Extra...>;
   using Base::Base;
 };
 

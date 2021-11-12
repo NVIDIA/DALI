@@ -63,14 +63,14 @@ struct AsyncDeleter {
 /**
  * @brief Obtains a type-erased deleter for given memory resource and allocation parameters.
  */
-template <typename Kind, typename Context>
-Deleter GetDeleter(memory_resource<Kind, Context> *resource, size_t size, size_t alignment) {
+template <typename Kind>
+Deleter GetDeleter(memory_resource<Kind> *resource, size_t size, size_t alignment) {
   Deleter del;
   del.resource = static_cast<void *>(resource);
   del.size = size;
   del.alignment = alignment;
   del.free = [](void *res_vptr, void *mem, size_t sz, size_t align) {
-    static_cast<memory_resource<Kind, Context>*>(res_vptr)->deallocate(mem, sz, align);
+    static_cast<memory_resource<Kind>*>(res_vptr)->deallocate(mem, sz, align);
   };
   return del;
 }
@@ -127,10 +127,9 @@ void set_dealloc_stream(async_uptr<T> &ptr, cudaStream_t stream) {
  * @param bytes     Size, in bytes, of the memory being allocated
  * @param alignment Alignment of the requested memory
  * @tparam Kind     The kind of requested memory.
- * @tparam Context  The execution context in which the memory will be available.
  */
-template <typename Kind, typename Context>
-std::pair<void*, Deleter> alloc_raw(memory_resource<Kind, Context> *mr,
+template <typename Kind>
+std::pair<void*, Deleter> alloc_raw(memory_resource<Kind> *mr,
                                     size_t bytes, size_t alignment = alignof(std::max_align_t)) {
   void *mem = mr->allocate(bytes, alignment);
   return { mem, GetDeleter(mr, bytes, alignment) };
@@ -168,10 +167,9 @@ auto alloc_raw(size_t bytes, size_t alignment = alignof(std::max_align_t)) {
  * @param count     Number of objects for which the storage should suffice.
  * @tparam T        Type of the object for which the storage is allocated.
  * @tparam Kind     The kind of requested memory.
- * @tparam Context  The execution context in which the memory will be available.
  */
-template <typename T, typename Kind, typename Context>
-uptr<T> alloc_raw_unique(memory_resource<Kind, Context> *mr, size_t count,
+template <typename T, typename Kind>
+uptr<T> alloc_raw_unique(memory_resource<Kind> *mr, size_t count,
                          size_t alignment = alignof(T)) {
   size_t bytes = sizeof(T) * count;
   auto mem_del = alloc_raw(mr, bytes, alignment);
@@ -213,10 +211,9 @@ auto alloc_raw_unique(size_t count, size_t alignment = alignof(T)) {
  * @param alignment Alignment, in bytes; defaults to the alignment required by `T`
  * @tparam T        Type of the object for which the storage is allocated.
  * @tparam Kind     The kind of requested memory.
- * @tparam Context  The execution context in which the memory will be available.
  */
-template <typename T, typename Kind, typename Context>
-std::shared_ptr<T> alloc_raw_shared(memory_resource<Kind, Context> *mr, size_t count,
+template <typename T, typename Kind>
+std::shared_ptr<T> alloc_raw_shared(memory_resource<Kind> *mr, size_t count,
                                     size_t alignment = alignof(T)) {
   size_t bytes = sizeof(T) * count;
   auto mem_del = alloc_raw(mr, bytes, alignment);
