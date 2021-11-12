@@ -27,7 +27,7 @@ namespace dali {
 // and "Usability Enhancements for std::span"
 // http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p1024r3.pdf
 // Adopted to c++20
-// Missing: containers constructors, static <-> dynamic, reverse iterators, subspans, comparisions
+// Missing: containers constructors, static <-> dynamic, reverse iterators, comparisions
 
 using span_extent_t = ptrdiff_t;
 constexpr span_extent_t dynamic_extent = span_extent_t(-1);

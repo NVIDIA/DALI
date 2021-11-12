@@ -1517,10 +1517,9 @@ auto unfold_outer_dim(const TensorListShape<ndim> &shapes) -> TensorListShape<re
 
   for (int i = 0, k = 0; i < shapes.size(); ++i) {
     auto shape = shapes.tensor_shape_span(i);
-    auto subshape = make_span(shape.begin() + 1, dyn_out_ndim);
     int nouter_dim = shape[0];
     for (int j = 0; j < nouter_dim; j++) {
-      result.set_tensor_shape(k++, subshape);
+      result.set_tensor_shape(k++, shape.last(dyn_out_ndim));
     }
   }
 
