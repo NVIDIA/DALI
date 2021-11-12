@@ -68,7 +68,7 @@ static void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mu
 class DLL_PUBLIC ExecutorBase {
  public:
   using ExecutorCallback = std::function<void(void)>;
-  DLL_PUBLIC virtual ~ExecutorBase() = default;
+  DLL_PUBLIC virtual ~ExecutorBase() {}
   DLL_PUBLIC virtual void Build(OpGraph *graph, vector<string> output_names) = 0;
   DLL_PUBLIC virtual void Init() = 0;
   DLL_PUBLIC virtual void RunCPU() = 0;
