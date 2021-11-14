@@ -34,6 +34,7 @@ if (BUILD_BENCHMARK)
     "${CMAKE_CURRENT_SOURCE_DIR}/preemphasis_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/thread_pool_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/normal_distribution_gpu_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/one_hot_bench.cc"
   )
 
   if (BUILD_LMDB)
