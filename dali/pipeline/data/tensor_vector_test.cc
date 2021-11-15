@@ -54,12 +54,12 @@ TYPED_TEST_SUITE(TensorVectorSuite, Backends);
 
 TYPED_TEST(TensorVectorSuite, PinnedAfterReserveThrows) {
   TensorVector<TypeParam> tv_0, tv_1;
-  tv_0.reserve(100);
+  tv_0.reserve(100, 2);
   EXPECT_THROW(tv_0.set_pinned(false), std::runtime_error);
   tv_1.reserve(100, 2);
   EXPECT_THROW(tv_1.set_pinned(false), std::runtime_error);
   TensorVector<TypeParam> tv_2(2), tv_3(2);
-  tv_2.reserve(100);
+  tv_2.reserve(100, 2);
   EXPECT_THROW(tv_2.set_pinned(false), std::runtime_error);
   tv_3.reserve(100, 2);
   EXPECT_THROW(tv_3.set_pinned(false), std::runtime_error);
@@ -67,7 +67,7 @@ TYPED_TEST(TensorVectorSuite, PinnedAfterReserveThrows) {
 
 TYPED_TEST(TensorVectorSuite, PinnedAfterResizeThrows) {
   TensorVector<TypeParam> tv;
-  tv.reserve(100);
+  tv.reserve(100, 2);
   EXPECT_THROW(tv.Resize({{2, 4}, {4, 2}}), std::runtime_error);
   tv.Resize({{2, 4}, {4, 2}}, DALI_INT32);
   ASSERT_EQ(tv.num_samples(), 2);
@@ -84,7 +84,7 @@ TYPED_TEST(TensorVectorSuite, PinnedAfterResizeThrows) {
 TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeContiguous) {
   TensorVector<TypeParam> tv;
   tv.set_pinned(false);
-  tv.reserve(100);
+  tv.reserve(100, 2);
   EXPECT_THROW(tv.Resize({{2, 4}, {4, 2}}), std::runtime_error);
   tv.template set_type<int32_t>();
   tv.Resize({{2, 4}, {4, 2}});
@@ -119,8 +119,8 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeNoncontiguous) {
 TYPED_TEST(TensorVectorSuite, BatchResize) {
   TensorVector<TypeParam> tv(5);
   ASSERT_EQ(tv.num_samples(), 5);
-  tv.reserve(100);
-  tv.reserve(200);
+  tv.reserve(100, 5);
+  tv.reserve(200, 5);
   tv.template set_type<int32_t>();
   tv.Resize(uniform_list_shape(5, {10, 20}));
   for (auto &t : tv) {

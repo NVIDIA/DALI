@@ -92,6 +92,18 @@ class DLL_PUBLIC Buffer {
   inline Buffer() = default;
   virtual ~Buffer() = default;
 
+  // let's allow movement
+  Buffer(const Buffer&) = delete;
+  Buffer& operator=(const Buffer&) = delete;
+  Buffer(Buffer&& b) {
+    move_buffer(std::move(b));
+  }
+
+  Buffer& operator=(Buffer&&b) {
+    move_buffer(std::move(b));
+    return *this;
+  }
+
   /**
    * @brief Returns a typed pointer to the underlying storage.
    * The calling type must match the underlying type of the buffer.
@@ -307,7 +319,7 @@ class DLL_PUBLIC Buffer {
     return shares_data_;
   }
 
-  DISABLE_COPY_MOVE_ASSIGN(Buffer);
+  // DISABLE_COPY_MOVE_ASSIGN(Buffer);
 
   static void SetGrowthFactor(double factor) {
     assert(factor >= 1.0);
@@ -326,7 +338,44 @@ class DLL_PUBLIC Buffer {
 
   DLL_PUBLIC static constexpr double kMaxGrowthFactor = 4;
 
- protected:
+  DLL_PUBLIC std::shared_ptr<void> unsafe_data() {
+    return data_;
+  }
+
+  DLL_PUBLIC inline void ShareData(const Buffer<Backend> &other) {
+    DALI_ENFORCE(IsValidType(other.type_), "To share data, "
+        "the input TensorList must have a valid data type");
+    type_         = other.type_;
+    data_         = other.data_;
+    // allocate_     = std::move(buffer.allocate_);
+    size_         = other.size_;
+    num_bytes_    = other.num_bytes_;
+    device_       = other.device_;
+    shares_data_  = other.shares_data_;
+    pinned_       = other.pinned_;
+
+    // If the other tensor has a non-zero size allocation, mark that
+    // we are now sharing an allocation with another buffer
+    shares_data_ = num_bytes_ > 0 ? true : false;
+  }
+
+  DLL_PUBLIC inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, DALIDataType type) {
+    DALI_ENFORCE(IsValidType(type), "To share data, "
+        "the input TensorList must have a valid data type");
+    type_         = TypeTable::GetTypeInfo(type);
+    data_         = ptr;
+    // allocate_     = std::move(buffer.allocate_);
+    size_         = bytes / type_.size();
+    num_bytes_    = bytes;
+    shares_data_ = true;
+    pinned_ = false;
+    device_ = CPU_ONLY_DEVICE_ID;
+    // device_       = other.device_;
+    // shares_data_  = other.shares_data_;
+    // pinned_       = other.pinned_;
+  }
+
+
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
     ResizeHelper(new_size, type_);
@@ -377,6 +426,7 @@ class DLL_PUBLIC Buffer {
     }
   }
 
+ protected:
   void move_buffer(Buffer &&buffer) {
     type_         = std::move(buffer.type_);
     data_         = std::move(buffer.data_);
