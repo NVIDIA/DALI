@@ -97,7 +97,8 @@ class DLL_PUBLIC Buffer {
   Buffer& operator=(const Buffer&) = delete;
   Buffer(Buffer&& b) {
     move_buffer(std::move(b));
-  };
+  }
+
   Buffer& operator=(Buffer&&b) {
     move_buffer(std::move(b));
     return *this;
