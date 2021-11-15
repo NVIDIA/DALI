@@ -95,7 +95,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   using Buffer<Backend>::is_pinned;
   using Buffer<Backend>::device_id;
   using Buffer<Backend>::set_device_id;
-  using Buffer<Backend>::set_type;
+  // using Buffer<Backend>::set_type;
   using Buffer<Backend>::reserve;
   // using Buffer<Backend>::reset;  // Available via USE_BUFFER_MEMBERS
   using Buffer<Backend>::shares_data;
@@ -111,10 +111,29 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     this->meta_ = other.meta_;
     this->SetLayout(other.GetLayout());
 
+
+    auto nsamples = other.num_samples();
+    SmallVector<const void*, 256> srcs;
+    srcs.reserve(nsamples);
+    SmallVector<void*, 256> dsts;
+    dsts.reserve(nsamples);
+    SmallVector<Index, 256> sizes;
+    sizes.reserve(nsamples);
+    for (size_t i = 0; i < nsamples; i++) {
+      dsts.emplace_back(this->raw_mutable_tensor(i));
+      srcs.emplace_back(other.raw_tensor(i));
+      sizes.emplace_back(other.shape()[i].num_elements());
+      this->meta_[i].SetSourceInfo(other.meta_[i].GetSourceInfo());
+      this->meta_[i].SetSkipSample(other.meta_[i].ShouldSkipSample());
+    }
+
+
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
                        (std::is_same<Backend, GPUBackend>::value || pinned_);
-    type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(), other.raw_data(),
-                                             this->size(), stream, use_copy_kernel);
+    // type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(), other.raw_data(),
+    //                                          this->size(), stream, use_copy_kernel);
+    type_.template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(),
+                                             nsamples, stream, use_copy_kernel);
   }
 
   template <typename SrcBackend>
@@ -172,6 +191,28 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
 
   inline void reserve(size_t bytes_per_batch) = delete;
 
+  inline void set_type(const DALIDataType new_type_id) {
+    DALI_ENFORCE(new_type_id != DALI_NO_TYPE, "new_type must be valid type.");
+    if (new_type_id == type_.id()) return;
+    const TypeInfo &new_type = TypeTable::GetTypeInfo(new_type_id);
+
+    size_t new_num_bytes = size_ * new_type.size();
+    if (shares_data_) {
+      DALI_ENFORCE(new_num_bytes == num_bytes_ || new_num_bytes == 0,
+                   "Buffer that shares data cannot have size "
+                   "different than total underlying allocation");
+    }
+
+    type_ = new_type;
+    Resize(shape_, type_.id());
+  }
+
+  template <typename T>
+  inline void set_type() {
+    set_type(TypeTable::GetTypeId<T>());
+  }
+
+
   /**
    * @brief Resize function to allocate a list of tensors. The input vector
    * contains a set of dimensions for each tensor to be allocated in the
@@ -205,6 +246,9 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     // Resize the underlying allocation and save the new shape
     // ResizeHelper(new_size, new_type);
     shape_ = new_shape;
+    type_ = TypeTable::GetTypeInfo(new_type);
+    size_ = new_shape.num_elements();
+    num_bytes_ = size_ * type_.size();
 
     // Tensor views of this TensorList is no longer valid
     tensor_views_.clear();
@@ -275,7 +319,6 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, const TensorListShape<> &shape,
                         DALIDataType type = DALI_NO_TYPE) {
-
     if (!shape.empty()) {
       DALI_ENFORCE(IsValidType(type),
                    "TensorList cannot share data with non-empty shape without type specified. "
@@ -691,7 +734,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   friend shared_ptr<void> unsafe_sample_owner(TensorList<Backend> &tl, int sample_idx) {
     // create new aliasing pointer to current data allocation, so we share the use count
     // and the deleter correctly.
-    return tl.samples_[sample_idx].data_;
+    return tl.samples_[sample_idx].unsafe_data();
   }
 
   /** @} */  // end of ContiguousAccessorFunctions

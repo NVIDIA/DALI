@@ -95,8 +95,13 @@ class DLL_PUBLIC Buffer {
   // let's allow movement
   Buffer(const Buffer&) = delete;
   Buffer& operator=(const Buffer&) = delete;
-  Buffer(Buffer&&) = default;
-  Buffer& operator=(Buffer&&) = default;
+  Buffer(Buffer&& b) {
+    move_buffer(std::move(b));
+  };
+  Buffer& operator=(Buffer&&b) {
+    move_buffer(std::move(b));
+    return *this;
+  }
 
   /**
    * @brief Returns a typed pointer to the underlying storage.
@@ -332,6 +337,9 @@ class DLL_PUBLIC Buffer {
 
   DLL_PUBLIC static constexpr double kMaxGrowthFactor = 4;
 
+  DLL_PUBLIC std::shared_ptr<void> unsafe_data() {
+    return data_;
+  }
 
   DLL_PUBLIC inline void ShareData(const Buffer<Backend> &other) {
     DALI_ENFORCE(IsValidType(other.type_), "To share data, "
@@ -364,7 +372,6 @@ class DLL_PUBLIC Buffer {
     // device_       = other.device_;
     // shares_data_  = other.shares_data_;
     // pinned_       = other.pinned_;
-
   }
 
 

@@ -129,7 +129,7 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   ASSERT_EQ(tl.nbytes(), size*sizeof(float));
   ASSERT_TRUE(IsType<float>(tl.type()));
 
-  tl.reserve(shape.num_elements() * sizeof(float));
+  tl.reserve(shape.num_elements() * sizeof(float) / shape.num_samples(), shape.num_samples());
 
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_NE(tl.raw_tensor(i), nullptr);
@@ -140,7 +140,7 @@ TYPED_TEST(TensorListTest, TestReserveResize) {
   TensorList<TypeParam> tl;
 
   auto shape = this->GetRandShape();
-  tl.reserve(shape.num_elements() * sizeof(float));
+  tl.reserve(shape.num_elements() * sizeof(float) / shape.num_samples(), shape.num_samples());
   ASSERT_THROW(tl.set_pinned(true), std::runtime_error);
 
   ASSERT_TRUE(tl.has_data());
