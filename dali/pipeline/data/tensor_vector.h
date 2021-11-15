@@ -168,7 +168,7 @@ class DLL_PUBLIC TensorVector {
   /**
    * @brief Reserve as contiguous tensor list internally
    */
-  void reserve(size_t total_bytes);
+  void reserve(size_t total_bytes) = delete;
 
   /**
    * @brief Reserve as vector of `batch_size` tensors internally

@@ -244,16 +244,16 @@ bool TensorVector<Backend>::is_pinned() const {
 }
 
 
-template <typename Backend>
-void TensorVector<Backend>::reserve(size_t total_bytes) {
-  if (state_ == State::noncontiguous) {
-    tensors_.clear();
-    curr_tensors_size_ = 0;
-  }
-  state_ = State::contiguous;
-  tl_->reserve(total_bytes);
-  UpdateViews();
-}
+// template <typename Backend>
+// void TensorVector<Backend>::reserve(size_t total_bytes) {
+//   if (state_ == State::noncontiguous) {
+//     tensors_.clear();
+//     curr_tensors_size_ = 0;
+//   }
+//   state_ = State::contiguous;
+//   tl_->reserve(total_bytes);
+//   UpdateViews();
+// }
 
 
 template <typename Backend>

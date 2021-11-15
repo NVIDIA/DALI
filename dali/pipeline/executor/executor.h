@@ -669,7 +669,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
   auto reserve_batch = [](auto &storage, const OperatorBase &op, Index hint, int batch_size) {
     // If the Op Can Infer Outputs we want to do one contiguous pre-allocation
     if (op.CanInferOutputs()) {
-      storage->reserve(hint * batch_size);
+      storage->reserve(hint, batch_size);
     } else {
       storage->reserve(hint, batch_size);
     }

@@ -92,6 +92,12 @@ class DLL_PUBLIC Buffer {
   inline Buffer() = default;
   virtual ~Buffer() = default;
 
+  // let's allow movement
+  Buffer(const Buffer&) = delete;
+  Buffer& operator=(const Buffer&) = delete;
+  Buffer(Buffer&&) = default;
+  Buffer& operator=(Buffer&&) = default;
+
   /**
    * @brief Returns a typed pointer to the underlying storage.
    * The calling type must match the underlying type of the buffer.
@@ -307,7 +313,7 @@ class DLL_PUBLIC Buffer {
     return shares_data_;
   }
 
-  DISABLE_COPY_MOVE_ASSIGN(Buffer);
+  // DISABLE_COPY_MOVE_ASSIGN(Buffer);
 
   static void SetGrowthFactor(double factor) {
     assert(factor >= 1.0);
@@ -326,7 +332,7 @@ class DLL_PUBLIC Buffer {
 
   DLL_PUBLIC static constexpr double kMaxGrowthFactor = 4;
 
- protected:
+
   DLL_PUBLIC inline void ShareData(const Buffer<Backend> &other) {
     DALI_ENFORCE(IsValidType(other.type_), "To share data, "
         "the input TensorList must have a valid data type");
@@ -350,7 +356,7 @@ class DLL_PUBLIC Buffer {
     type_         = TypeTable::GetTypeInfo(type);
     data_         = ptr;
     // allocate_     = std::move(buffer.allocate_);
-    size_         = bytes / type.size();
+    size_         = bytes / type_.size();
     num_bytes_    = bytes;
     shares_data_ = true;
     pinned_ = false;
@@ -412,6 +418,7 @@ class DLL_PUBLIC Buffer {
     }
   }
 
+ protected:
   void move_buffer(Buffer &&buffer) {
     type_         = std::move(buffer.type_);
     data_         = std::move(buffer.data_);

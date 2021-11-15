@@ -162,8 +162,8 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   inline void reserve(size_t bytes_per_tensor, int batch_size) {
     if (shape_.empty()) {
       samples_.resize(batch_size);
-      for (auto &sample : samples) {
-        sample_.reserve(bytes_per_tensor);
+      for (auto &sample : samples_) {
+        sample.reserve(bytes_per_tensor);
       }
       meta_.resize(batch_size);
     }
@@ -296,15 +296,15 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     // Tensor views of this TensorList is no longer valid
     tensor_views_.clear();
 
-    DALI_ENFORCE(!shape.empty() && type != DALIDataType
-                 : DALI_NO_TYPE, "I don't want to deal with empty shares");
+    DALI_ENFORCE(!shape.empty() && type != DALIDataType::DALI_NO_TYPE,
+                 "I don't want to deal with empty shares");
 
     int num_samples = shape.num_samples();
     ptrdiff_t offset = 0;
-    uint8_t *data_base = ptr.get();
+    uint8_t *data_base = static_cast<uint8_t*>(ptr.get());
     for (int i = 0; i < num_samples; i++) {
       // Aliasing ptr
-      std::shared_ptr<void> sample = std::shared_ptr<void>(data_base, ptr);
+      std::shared_ptr<void> sample(ptr, data_base);
       auto sample_volume = shape[i].num_elements();
       samples_[i].ShareData(sample, sample_volume * type_.size(), type);
       data_base += sample_volume * type_.size();
@@ -414,7 +414,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    */
   template <typename T>
   DLL_PUBLIC inline T* mutable_tensor(int idx) {
-    return samples_[idx]->mutable_data<T>();
+    return samples_[idx].template mutable_data<T>();
   }
 
   /**
@@ -422,21 +422,21 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    */
   template <typename T>
   DLL_PUBLIC inline const T* tensor(int idx) const {
-    return samples_[idx]->data<T>();
+    return samples_[idx].template data<T>();
   }
 
   /**
    * @brief Returns a raw pointer to the tensor with the given index.
    */
   DLL_PUBLIC inline void* raw_mutable_tensor(int idx) {
-    return samples_[idx]->raw_mutable_data();
+    return samples_[idx].raw_mutable_data();
   }
 
   /**
    * @brief Returns a const raw pointer to the tensor with the given index.
    */
   DLL_PUBLIC inline const void* raw_tensor(int idx) const {
-    return samples_[idx]->raw_data();
+    return samples_[idx].raw_data();
   }
 
   /**
@@ -646,7 +646,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   // underlying allocation for random access
   TensorListShape<> shape_;
   std::vector<Index> offsets_;
-  std::vector<Buffer> samples_;
+  std::vector<Buffer<Backend>> samples_;
   std::vector<DALIMeta> meta_;
   TensorLayout layout_;
 
