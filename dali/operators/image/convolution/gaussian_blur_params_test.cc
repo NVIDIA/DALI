@@ -92,11 +92,11 @@ auto CollectWindowsForParams(
   for (size_t i = 0; i < num_iters; i++) {
     windows.PrepareWindows(params[i]);
     auto window_views = windows.GetWindows();
-    for (int axe = 0; axe < axes; axe++) {
-      auto *data = window_views[axe].data;
-      windows_hist[i][axe].assign(data, data + window_views[axe].num_elements());
-      TensorShape<1> expected_shape = {params[i].window_sizes[axe]};
-      EXPECT_EQ(window_views[axe].shape, expected_shape);
+    for (int axis = 0; axis < axes; axis++) {
+      auto *data = window_views[axis].data;
+      windows_hist[i][axis].assign(data, data + window_views[axis].num_elements());
+      TensorShape<1> expected_shape = {params[i].window_sizes[axis]};
+      EXPECT_EQ(window_views[axis].shape, expected_shape);
     }
   }
   return windows_hist;
@@ -204,9 +204,9 @@ TEST(GaussianWindowsTest, UpdateWindowsOnSigmaChange) {
     {{7, 7}, {1.0f, 2.0f}}
   }};
   auto windows_hist = CollectWindowsForParams(params);
-  for (int axe = 0; axe < axes; axe++) {
-    EXPECT_NE(windows_hist[0][axe], windows_hist[1][axe]);
-    EXPECT_EQ(windows_hist[0][axe], windows_hist[2][axe]);
+  for (int axis = 0; axis < axes; axis++) {
+    EXPECT_NE(windows_hist[0][axis], windows_hist[1][axis]);
+    EXPECT_EQ(windows_hist[0][axis], windows_hist[2][axis]);
   }
   EXPECT_EQ(windows_hist[0][0], windows_hist[3][0]);
   EXPECT_EQ(windows_hist[1][0], windows_hist[3][1]);
@@ -221,9 +221,9 @@ TEST(GaussianWindowsTest, UpdateWindowsOnWindowSizeChange) {
     {{7, 7}, {1.0f, 1.0f}}
   }};
   auto windows_hist = CollectWindowsForParams(params);
-  for (int axe = 0; axe < axes; axe++) {
-    EXPECT_NE(windows_hist[0][axe], windows_hist[1][axe]);
-    EXPECT_EQ(windows_hist[0][axe], windows_hist[2][axe]);
+  for (int axis = 0; axis < axes; axis++) {
+    EXPECT_NE(windows_hist[0][axis], windows_hist[1][axis]);
+    EXPECT_EQ(windows_hist[0][axis], windows_hist[2][axis]);
   }
 }
 

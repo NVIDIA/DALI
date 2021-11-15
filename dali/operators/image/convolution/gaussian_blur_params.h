@@ -41,14 +41,14 @@ struct DimDesc {
   bool has_channels;
   bool is_sequence;
 
-  bool operator==(const DimDesc &other) const {
+  inline bool operator==(const DimDesc &other) const {
     return usable_axes_start == other.usable_axes_start &&
       usable_axes_count == other.usable_axes_count &&
       total_axes_count == other.total_axes_count && has_channels == other.has_channels &&
       is_sequence == other.is_sequence;
   }
 
-  bool operator!=(const DimDesc &other) const {
+  inline bool operator!=(const DimDesc &other) const {
     return !(*this == other);
   }
 };
@@ -112,9 +112,9 @@ class GaussianWindows {
   GaussianWindows(GaussianWindows &) = delete;
   GaussianWindows(GaussianWindows &&) = default;
 
-  void PrepareWindows(const GaussianBlurParams<axes> &params) {
+  bool PrepareWindows(const GaussianBlurParams<axes> &params) {
     if (previous == params) {
-      return;
+      return false;
     }
     previous = params;
 
@@ -141,6 +141,7 @@ class GaussianWindows {
         precomputed_window[i] = tmp_view;
       }
     }
+    return true;
   }
 
   // Return the already filled windows
@@ -153,35 +154,6 @@ class GaussianWindows {
   GaussianBlurParams<axes> previous;
   std::vector<float> memory;
 };
-
-// This can be fused and we can handle batch of params at a time
-// instead of vector of sample params but depending on the parameter changes
-// it will probably impact allocation patterns in different ways and need
-// to be evaluated if it is fine or not
-template <int axes>
-void RepackAsTL(std::array<TensorListShape<1>, axes> &out,
-                const std::vector<GaussianBlurParams<axes>> &params) {
-  for (int axis = 0; axis < axes; axis++) {
-    out[axis].resize(params.size());
-    for (size_t i = 0; i < params.size(); i++) {
-      out[axis].set_tensor_shape(i, {params[i].window_sizes[axis]});
-    }
-  }
-}
-
-template <int axes>
-void RepackAsTL(std::array<TensorListView<StorageCPU, const float, 1>, axes> &out,
-                const std::vector<GaussianWindows<axes>> &windows) {
-  for (int axis = 0; axis < axes; axis++) {
-    int nsamples = windows.size();
-    out[axis].data.resize(nsamples);
-    out[axis].shape.resize(nsamples);
-    for (int i = 0; i < nsamples; i++) {
-      out[axis].data[i] = windows[i].GetWindows()[axis].data;
-      out[axis].shape.set_tensor_shape(i, windows[i].GetWindows()[axis].shape);
-    }
-  }
-}
 
 }  // namespace gaussian_blur
 }  // namespace dali
