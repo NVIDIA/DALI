@@ -81,7 +81,6 @@ class TensorListTest : public DALITest {
     for (int i = 0; i < num_tensor; ++i) {
       ASSERT_NE(tensor_list->template mutable_tensor<float>(i), nullptr);
       ASSERT_EQ(tensor_list->tensor_shape(i), shape[i]);
-      ASSERT_EQ(tensor_list->tensor_offset(i), (*offsets)[i]);
     }
   }
 };
@@ -130,11 +129,10 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   ASSERT_EQ(tl.nbytes(), size*sizeof(float));
   ASSERT_TRUE(IsType<float>(tl.type()));
 
-  tl.reserve(shape.num_elements() * sizeof(float));
+  tl.reserve(shape.num_elements() * sizeof(float) / shape.num_samples(), shape.num_samples());
 
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_NE(tl.raw_tensor(i), nullptr);
-    ASSERT_EQ(tl.tensor_offset(i), offsets[i]);
   }
 }
 
@@ -142,7 +140,7 @@ TYPED_TEST(TensorListTest, TestReserveResize) {
   TensorList<TypeParam> tl;
 
   auto shape = this->GetRandShape();
-  tl.reserve(shape.num_elements() * sizeof(float));
+  tl.reserve(shape.num_elements() * sizeof(float) / shape.num_samples(), shape.num_samples());
   ASSERT_THROW(tl.set_pinned(true), std::runtime_error);
 
   ASSERT_TRUE(tl.has_data());
@@ -179,7 +177,6 @@ TYPED_TEST(TensorListTest, TestReserveResize) {
 
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_NE(tl.raw_tensor(i), nullptr);
-    ASSERT_EQ(tl.tensor_offset(i), offsets[i]);
   }
 }
 
@@ -320,7 +317,6 @@ TYPED_TEST(TensorListTest, TestMultipleZeroSizeResize) {
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_EQ(tensor_list.template tensor<float>(i), nullptr);
     ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{ 0 });
-    ASSERT_EQ(tensor_list.tensor_offset(i), 0);
   }
 }
 
@@ -340,7 +336,6 @@ TYPED_TEST(TensorListTest, TestFakeScalarResize) {
   for (int i = 0; i < num_scalar; ++i) {
     ASSERT_NE(tensor_list.raw_tensor(i), nullptr);
     ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{1});  // {1} on purpose
-    ASSERT_EQ(tensor_list.tensor_offset(i), i);
   }
 }
 
@@ -360,7 +355,6 @@ TYPED_TEST(TensorListTest, TestTrueScalarResize) {
   for (int i = 0; i < num_scalar; ++i) {
     ASSERT_NE(tensor_list.raw_tensor(i), nullptr);
     ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{});
-    ASSERT_EQ(tensor_list.tensor_offset(i), i);
   }
 }
 
@@ -406,7 +400,6 @@ TYPED_TEST(TensorListTest, TestMultipleResize) {
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_NE(tensor_list.raw_tensor(i), nullptr);
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
-    ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
 }
 TYPED_TEST(TensorListTest, TestCopy) {
@@ -466,7 +459,6 @@ TYPED_TEST(TensorListTest, TestTypeChangeSameSize) {
   for (size_t i = 0; i < tensor_list.num_samples(); ++i) {
     ASSERT_EQ(ptrs[i], tensor_list.raw_tensor(i));
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
-    ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
 
   // No memory allocation should have occurred
@@ -493,7 +485,6 @@ TYPED_TEST(TensorListTest, TestTypeChangeSmaller) {
   for (size_t i = 0; i < tensor_list.num_samples(); ++i) {
     ASSERT_EQ(unsafe_raw_data(tensor_list), base_ptr);
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
-    ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
 
   // nbytes should have reduced by a factor of 4
@@ -518,7 +509,6 @@ TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
   ASSERT_EQ(tensor_list.num_samples(), shape.size());
   for (size_t i = 0; i < tensor_list.num_samples(); ++i) {
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
-    ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
 
   // nbytes should have increased by a factor of 2
@@ -565,7 +555,6 @@ TYPED_TEST(TensorListTest, TestShareData) {
   for (size_t i = 0; i < tensor_list.num_samples(); ++i) {
     ASSERT_EQ(tensor_list.raw_tensor(i), tensor_list2.raw_tensor(i));
     ASSERT_EQ(tensor_list2.tensor_shape(i), shape[i]);
-    ASSERT_EQ(tensor_list2.tensor_offset(i), offsets[i]);
   }
 
   // Trigger allocation through buffer API, verify we cannot do that

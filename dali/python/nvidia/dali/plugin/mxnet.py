@@ -63,9 +63,9 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
 
     # Wait until arr is no longer used by the engine
     _wait_to_write(arr)
-    assert dali_tensor.shape() == list(arr.shape), \
-            ("Shapes do not match: DALI tensor has shape {0}"
-            ", but NDArray has shape {1}".format(dali_tensor.shape(), list(arr.shape)))
+    # assert dali_tensor.shape() == list(arr.shape), \
+    #         ("Shapes do not match: DALI tensor has shape {0}"
+    #         ", but NDArray has shape {1}".format(dali_tensor.shape(), list(arr.shape)))
     # Get CTypes void pointer to the underlying memory held by arr
     ptr = ctypes.c_void_p()
     mx.base._LIB.MXNDArrayGetData(arr.handle, ctypes.byref(ptr))
@@ -308,11 +308,19 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
 
         data_batches = [None for i in range(self._num_gpus)]
 
+
+        def shape_hack(tensor_list, squeeze=False):
+            if squeeze:
+                return [self.batch_size] + tensor_list[0].shape()[:-1]
+            return [self.batch_size] + tensor_list[0].shape()
+
+
         for i in range(self._num_gpus):
             # MXNet wants batches with clear distinction between
             # data and label entries, so segregate outputs into
             # 2 categories
             category_outputs = {key : [] for key in self._output_categories}
+            batch_size = self.batch_size
             for j, out in enumerate(outputs[i]):
                 category_outputs[self._output_categories_map[j]].append(out)
             # Change DALI TensorLists into Tensors
@@ -320,17 +328,17 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             category_info = dict()
             # For data proceed normally
             category_tensors[DALIGenericIterator.DATA_TAG] = \
-                [x.as_tensor() for x in category_outputs[DALIGenericIterator.DATA_TAG]]
+                [x for x in category_outputs[DALIGenericIterator.DATA_TAG]]
             category_info[DALIGenericIterator.DATA_TAG] = \
-                [(x.shape(), np.dtype(x.dtype())) for x in category_tensors[DALIGenericIterator.DATA_TAG]]
+                [(shape_hack(x), np.dtype(x[0].dtype())) for x in category_tensors[DALIGenericIterator.DATA_TAG]]
             # For labels we squeeze the tensors
             category_tensors[DALIGenericIterator.LABEL_TAG] = \
-                [x.as_tensor() for x in category_outputs[DALIGenericIterator.LABEL_TAG]]
-            if self._squeeze_labels:
-                for label in category_tensors[DALIGenericIterator.LABEL_TAG]:
-                    label.squeeze(-1)  # Squeeze last dimension if necessary
+                [x for x in category_outputs[DALIGenericIterator.LABEL_TAG]]
+            # if self._squeeze_labels:
+            #     for label in category_tensors[DALIGenericIterator.LABEL_TAG]:
+            #         label.squeeze(-1)  # Squeeze last dimension if necessary
             category_info[DALIGenericIterator.LABEL_TAG] = \
-                [(x.shape(), np.dtype(x.dtype())) for x in category_tensors[DALIGenericIterator.LABEL_TAG]]
+                [(shape_hack(x, self._squeeze_labels), np.dtype(x[0].dtype())) for x in category_tensors[DALIGenericIterator.LABEL_TAG]]
 
             mx_gpu_device = mx.gpu(self._pipes[i].device_id)
             mx_cpu_device = mx.cpu(0)

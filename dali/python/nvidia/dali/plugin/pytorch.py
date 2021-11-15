@@ -59,9 +59,9 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
 
     assert to_torch_type[dali_type] == arr.dtype, ("The element type of DALI Tensor/TensorList"
             " doesn't match the element type of the target PyTorch Tensor: {} vs {}".format(to_torch_type[dali_type], arr.dtype))
-    assert dali_tensor.shape() == list(arr.size()), \
-            ("Shapes do not match: DALI tensor has size {0}"
-            ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
+    # assert dali_tensor.shape() == list(arr.size()), \
+    #         ("Shapes do not match: DALI tensor has size {0}"
+    #         ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
     cuda_stream = types._raw_cuda_stream(cuda_stream)
 
     # turn raw int to a c void pointer
@@ -202,8 +202,8 @@ class DALIGenericIterator(_DaliBaseIterator):
             category_tensors = dict()
             category_shapes = dict()
             for category, out in category_outputs.items():
-                category_tensors[category] = out.as_tensor()
-                category_shapes[category] = category_tensors[category].shape()
+                category_tensors[category] = out
+                category_shapes[category] = [self.batch_size] + category_tensors[category][0].shape()
 
             category_torch_type = dict()
             category_device = dict()
@@ -211,8 +211,8 @@ class DALIGenericIterator(_DaliBaseIterator):
             torch_cpu_device = torch.device('cpu')
             # check category and device
             for category in self._output_categories:
-                category_torch_type[category] = to_torch_type[np.dtype(category_tensors[category].dtype())]
-                if type(category_tensors[category]) is TensorGPU:
+                category_torch_type[category] = to_torch_type[np.dtype(category_tensors[category][0].dtype())]
+                if isinstance(category_tensors[category], (TensorGPU, TensorListGPU)):
                     if not torch_gpu_device:
                         torch_gpu_device = torch.device('cuda', dev_id)
                     category_device[category] = torch_gpu_device
