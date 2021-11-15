@@ -327,6 +327,41 @@ class DLL_PUBLIC Buffer {
   DLL_PUBLIC static constexpr double kMaxGrowthFactor = 4;
 
  protected:
+  DLL_PUBLIC inline void ShareData(const Buffer<Backend> &other) {
+    DALI_ENFORCE(IsValidType(other.type_), "To share data, "
+        "the input TensorList must have a valid data type");
+    type_         = other.type_;
+    data_         = other.data_;
+    // allocate_     = std::move(buffer.allocate_);
+    size_         = other.size_;
+    num_bytes_    = other.num_bytes_;
+    device_       = other.device_;
+    shares_data_  = other.shares_data_;
+    pinned_       = other.pinned_;
+
+    // If the other tensor has a non-zero size allocation, mark that
+    // we are now sharing an allocation with another buffer
+    shares_data_ = num_bytes_ > 0 ? true : false;
+  }
+
+  DLL_PUBLIC inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, DALIDataType type) {
+    DALI_ENFORCE(IsValidType(type), "To share data, "
+        "the input TensorList must have a valid data type");
+    type_         = TypeTable::GetTypeInfo(type);
+    data_         = ptr;
+    // allocate_     = std::move(buffer.allocate_);
+    size_         = bytes / type.size();
+    num_bytes_    = bytes;
+    shares_data_ = true;
+    pinned_ = false;
+    device_ = CPU_ONLY_DEVICE_ID;
+    // device_       = other.device_;
+    // shares_data_  = other.shares_data_;
+    // pinned_       = other.pinned_;
+
+  }
+
+
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
     ResizeHelper(new_size, type_);
