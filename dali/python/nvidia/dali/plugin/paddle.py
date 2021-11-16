@@ -17,6 +17,7 @@ import ctypes
 import math
 
 import numpy as np
+import paddle
 
 from nvidia.dali import types
 from nvidia.dali.backend import TensorListCPU, TensorGPU, TensorListGPU
@@ -72,6 +73,8 @@ def feed_ndarray(dali_tensor, ptr, cuda_stream=None):
                     (if not provided, an internal user stream will be selected)
     """
 
+    if cuda_stream is None:
+        cuda_stream = paddle.device.cuda.current_stream().cuda_stream 
     cuda_stream = types._raw_cuda_stream(cuda_stream)
 
     c_type_pointer = ctypes.c_void_p(ptr)
@@ -315,12 +318,6 @@ class DALIGenericIterator(_DaliBaseIterator):
                                          category_pd_type[cat])
             data_batches[i] = pd_tensors
 
-            # due to https://github.com/PaddlePaddle/Paddle/issues/35555 the tensors are allocated
-            # first by setting shape and calling _mutable_data, then the device is synchronized
-            # and after that, another call to _mutable_data is made to obtain the pointer and
-            # copy data from the pipeline to the tensor
-            # when the issue is solved the copy can be moved to the preceding loop
-            fluid.core._cuda_synchronize(pd_gpu_place)
             for cat, tensor in category_tensors.items():
                 ptr = pd_tensors[cat]._mutable_data(category_place[cat],
                                                category_pd_type[cat])
