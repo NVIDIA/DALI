@@ -83,7 +83,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
    */
   void bulk_deallocate(span<const dealloc_params> params) {
     if (!params.empty()) {
-      synchronize(params);
+      // synchronize(params);
       lock_guard guard(pool_lock_);
       for (const auto &p : params)
         deallocate_impl(p.ptr, p.bytes, p.alignment, false, false);

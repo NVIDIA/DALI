@@ -304,7 +304,7 @@ class pool_resource_base : public memory_resource<Kind> {
 
   void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
     (void)alignment;
-    synchronize();
+    // synchronize();
     deallocate_no_sync(ptr, bytes, alignment);
   }
 
