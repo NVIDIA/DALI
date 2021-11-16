@@ -1523,23 +1523,23 @@ def check_iterator_build_error(ErrorType, Iterator, glob, *args, **kwargs):
 def test_pytorch_wrong_last_batch_policy_type():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     check_iterator_build_error(ValueError, PyTorchIterator,
-                               glob="Wrong type for `last_batch_policy`.*",
+                               glob="Wrong type for `last_batch_policy`.",
                                output_map=["data"], last_batch_policy='FILL')
 
 def test_paddle_wrong_last_batch_policy_type():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     check_iterator_build_error(ValueError, PaddleIterator,
-                               glob="Wrong type for `last_batch_policy`.*",
+                               glob="Wrong type for `last_batch_policy`.",
                                output_map=["data"], last_batch_policy='FILL')
 
 def test_mxnet_wrong_last_batch_policy_type():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     check_iterator_build_error(ValueError, MXNetIterator,
-                               glob="Wrong type for `last_batch_policy`.*",
+                               glob="Wrong type for `last_batch_policy`.",
                                output_map=[("data", MXNetIterator.DATA_TAG)], last_batch_policy='FILL')
 
 def test_gluon_wrong_last_batch_policy_type():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
     check_iterator_build_error(ValueError, GluonIterator,
-                               glob="Wrong type for `last_batch_policy`.*",
+                               glob="Wrong type for `last_batch_policy`.",
                                output_types=[GluonIterator.DENSE_TAG], last_batch_policy='FILL')
