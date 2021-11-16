@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,6 +40,17 @@ struct DimDesc {
   int total_axes_count;
   bool has_channels;
   bool is_sequence;
+
+  inline bool operator==(const DimDesc &other) const {
+    return usable_axes_start == other.usable_axes_start &&
+      usable_axes_count == other.usable_axes_count &&
+      total_axes_count == other.total_axes_count && has_channels == other.has_channels &&
+      is_sequence == other.is_sequence;
+  }
+
+  inline bool operator!=(const DimDesc &other) const {
+    return !(*this == other);
+  }
 };
 
 template <int axes>
@@ -96,11 +107,16 @@ class GaussianWindows {
     previous.sigmas = uniform_array<axes>(-1.f);
     previous.window_sizes = uniform_array<axes>(0);
   }
+  // If ``memory`` was copied, ``precomputed_window`` would have old pointers,
+  // prevent that form happening on GaussianWindows vector resize.
+  GaussianWindows(GaussianWindows &) = delete;
+  GaussianWindows(GaussianWindows &&) = default;
 
-  void PrepareWindows(const GaussianBlurParams<axes> &params) {
-    bool changed = previous != params;
-    if (!changed)
-      return;
+  bool PrepareWindows(const GaussianBlurParams<axes> &params) {
+    if (previous == params) {
+      return false;
+    }
+    previous = params;
 
     // Reallocate if necessary and fill the windows
     bool is_uniform = params.IsUniform();
@@ -125,6 +141,7 @@ class GaussianWindows {
         precomputed_window[i] = tmp_view;
       }
     }
+    return true;
   }
 
   // Return the already filled windows
@@ -137,35 +154,6 @@ class GaussianWindows {
   GaussianBlurParams<axes> previous;
   std::vector<float> memory;
 };
-
-// This can be fused and we can handle batch of params at a time
-// instead of vector of sample params but depending on the parameter changes
-// it will probably impact allocation patterns in different ways and need
-// to be evaluated if it is fine or not
-template <int axes>
-void RepackAsTL(std::array<TensorListShape<1>, axes> &out,
-                const std::vector<GaussianBlurParams<axes>> &params) {
-  for (int axis = 0; axis < axes; axis++) {
-    out[axis].resize(params.size());
-    for (size_t i = 0; i < params.size(); i++) {
-      out[axis].set_tensor_shape(i, {params[i].window_sizes[axis]});
-    }
-  }
-}
-
-template <int axes>
-void RepackAsTL(std::array<TensorListView<StorageCPU, const float, 1>, axes> &out,
-                const std::vector<GaussianWindows<axes>> &windows) {
-  for (int axis = 0; axis < axes; axis++) {
-    int nsamples = windows.size();
-    out[axis].data.resize(nsamples);
-    out[axis].shape.resize(nsamples);
-    for (int i = 0; i < nsamples; i++) {
-      out[axis].data[i] = windows[i].GetWindows()[axis].data;
-      out[axis].shape.set_tensor_shape(i, windows[i].GetWindows()[axis].shape);
-    }
-  }
-}
 
 }  // namespace gaussian_blur
 }  // namespace dali

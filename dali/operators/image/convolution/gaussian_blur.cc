@@ -215,20 +215,25 @@ bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
   DALI_ENFORCE(dtype_ == input.type() || dtype_ == DALI_FLOAT,
                "Output data type must be same as input, FLOAT or skipped (defaults to input type)");
 
-  // clang-format off
-  TYPE_SWITCH(input.type(), type2id, In, GAUSSIAN_BLUR_CPU_SUPPORTED_TYPES, (
-    VALUE_SWITCH(dim_desc.usable_axes_count, AXES, GAUSSIAN_BLUR_SUPPORTED_AXES, (
-      VALUE_SWITCH(static_cast<int>(dim_desc.has_channels), HAS_CHANNELS, (0, 1), (
-        constexpr bool has_ch = HAS_CHANNELS;
-        if (dtype_ == input.type()) {
-          impl_ = std::make_unique<GaussianBlurOpCpu<In, In, AXES, has_ch>>(&spec_, dim_desc);
-        } else {
-          impl_ = std::make_unique<GaussianBlurOpCpu<float, In, AXES, has_ch>>(&spec_, dim_desc);
-        }
-      ), ()); // NOLINT, no other possible conversion
-    ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
-  // clang-format on
+  if (!impl_ || impl_in_dtype_ != input.type() || impl_dim_desc_ != dim_desc) {
+    impl_in_dtype_ = input.type();
+    impl_dim_desc_ = dim_desc;
+
+    // clang-format off
+    TYPE_SWITCH(input.type(), type2id, In, GAUSSIAN_BLUR_CPU_SUPPORTED_TYPES, (
+      VALUE_SWITCH(dim_desc.usable_axes_count, AXES, GAUSSIAN_BLUR_SUPPORTED_AXES, (
+        VALUE_SWITCH(static_cast<int>(dim_desc.has_channels), HAS_CHANNELS, (0, 1), (
+          constexpr bool has_ch = HAS_CHANNELS;
+          if (dtype_ == input.type()) {
+            impl_ = std::make_unique<GaussianBlurOpCpu<In, In, AXES, has_ch>>(&spec_, dim_desc);
+          } else {
+            impl_ = std::make_unique<GaussianBlurOpCpu<float, In, AXES, has_ch>>(&spec_, dim_desc);
+          }
+        ), ()); // NOLINT, no other possible conversion
+      ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
+    // clang-format on
+  }
 
   return impl_->SetupImpl(output_desc, ws);
 }

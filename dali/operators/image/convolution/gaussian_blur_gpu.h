@@ -73,15 +73,23 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
     for (auto &win_shape : window_shapes_) {
       win_shape.resize(nsamples);
     }
+    for (auto &windows : windows_tl_) {
+      windows.data.resize(nsamples);
+      windows.shape.resize(nsamples);
+    }
 
     kmgr_.template Resize<Kernel>(nthreads, nsamples);
 
     for (int i = 0; i < nsamples; i++) {
       params_[i] = ObtainSampleParams<axes>(i, spec_, ws);
-      windows_[i].PrepareWindows(params_[i]);
+      if (windows_[i].PrepareWindows(params_[i])) {
+        for (int axis = 0; axis < axes; axis++) {
+          window_shapes_[axis].set_tensor_shape(i, {params_[i].window_sizes[axis]});
+          windows_tl_[axis].data[i] = windows_[i].GetWindows()[axis].data;
+          windows_tl_[axis].shape.set_tensor_shape(i, windows_[i].GetWindows()[axis].shape);
+        }
+      }
     }
-    RepackAsTL<axes>(window_shapes_, params_);
-    RepackAsTL<axes>(windows_tl_, windows_);
     auto& req = kmgr_.Setup<Kernel>(0, ctx_, processed_shape.to_static<ndim>(), window_shapes_);
     return true;
   }

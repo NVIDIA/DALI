@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -56,6 +56,8 @@ class GaussianBlur : public Operator<Backend> {
   DALIDataType dtype_ = DALI_NO_TYPE;
   USE_OPERATOR_MEMBERS();
   std::unique_ptr<OpImplBase<Backend>> impl_;
+  DALIDataType impl_in_dtype_ = DALI_NO_TYPE;
+  gaussian_blur::DimDesc impl_dim_desc_;
 };
 
 namespace gaussian_blur {
