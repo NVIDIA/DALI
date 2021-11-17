@@ -239,6 +239,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     samples_.resize(num_tensor);
     for (Index i = 0; i < num_tensor; ++i) {
       auto tensor_size = volume(new_shape[i]);
+      samples_[i].reset();
       samples_[i].ResizeHelper(tensor_size, new_type);
     }
     DALI_ENFORCE(new_size >= 0, "Invalid negative buffer size.");
