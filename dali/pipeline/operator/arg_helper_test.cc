@@ -35,8 +35,8 @@ void SetupData(TensorVector<CPUBackend> &tv,
   }
 }
 
-template <int ndim>
-void ArgValueTestTensorInput(TensorListShape<ndim> ts) {
+template <int ndim, typename... AcquireArgs>
+void ArgValueTestTensorInput(TensorListShape<ndim> ts, AcquireArgs... args) {
   // using a real operator to avoid registering a new one just for this test
   OpSpec spec("MTTransformAttr");
   ArgumentWorkspace ws;
@@ -46,7 +46,7 @@ void ArgValueTestTensorInput(TensorListShape<ndim> ts) {
   spec.AddArgumentInput("M", "M");
 
   ArgValue<float, ndim> arg("M", spec);
-  arg.Acquire(spec, ws, kNumSamples, true);
+  arg.Acquire(spec, ws, kNumSamples, args...);
 
   ASSERT_TRUE(arg.IsArgInput());
   ASSERT_EQ(kNumSamples, arg.size());
@@ -61,25 +61,46 @@ void ArgValueTestTensorInput(TensorListShape<ndim> ts) {
 }
 
 TEST(ArgValue, TensorInput_0D) {
-  ArgValueTestTensorInput<0>(
-    uniform_list_shape(kNumSamples, TensorShape<0>{}));
+  TensorShape<0> sample_sh{};
+  auto sh = uniform_list_shape(kNumSamples, sample_sh);
+  ArgValueTestTensorInput<0>(sh, true);
+  ArgValueTestTensorInput<0>(sh, sh);
+  ArgValueTestTensorInput<0>(sh, sample_sh);
 }
 
 TEST(ArgValue, TensorInput_1D) {
-  ArgValueTestTensorInput<1>(
-    uniform_list_shape(kNumSamples, TensorShape<1>{3}));
+  TensorShape<1> sample_sh{3};
+  auto sh = uniform_list_shape(kNumSamples, sample_sh);
+  ArgValueTestTensorInput<1>(sh, true);
+  ArgValueTestTensorInput<1>(sh, sh);
+  ArgValueTestTensorInput<1>(sh, sample_sh);
 }
 
 TEST(ArgValue, TensorInput_2D) {
-  ArgValueTestTensorInput<2>(
-    uniform_list_shape(kNumSamples, TensorShape<2>{3, 2}));
+  TensorShape<2> sample_sh{3, 2};
+  auto sh = uniform_list_shape(kNumSamples, sample_sh);
+  ArgValueTestTensorInput<2>(sh, true);
+  ArgValueTestTensorInput<2>(sh, sh);
+  ArgValueTestTensorInput<2>(sh, sample_sh);
 }
 
 TEST(ArgValue, TensorInput_3D) {
-  ArgValueTestTensorInput<3>(
-    uniform_list_shape(kNumSamples, TensorShape<3>{3, 2, 2}));
+  TensorShape<3> sample_sh{3, 2, 2};
+  auto sh = uniform_list_shape(kNumSamples, sample_sh);
+  ArgValueTestTensorInput<3>(sh, true);
+  ArgValueTestTensorInput<3>(sh, sh);
+  ArgValueTestTensorInput<3>(sh, sample_sh);
 }
 
+TEST(ArgValue, TensorInput_3D_per_sample) {
+  TensorListShape<3> sh({{37, 23, 3}, {12, 22, 3}, {42, 42, 3}, {8, 8, 3}, {64, 32, 3}});
+  ASSERT_EQ(kNumSamples, sh.size());  // just in case (as it is used inside the test)
+  ArgValueTestTensorInput<3>(sh, sh);
+  EXPECT_THROW(ArgValueTestTensorInput<3>(sh, true), std::runtime_error);
+  EXPECT_THROW(ArgValueTestTensorInput<3>(sh, sh[0]), std::runtime_error);
+  EXPECT_THROW(ArgValueTestTensorInput<3>(sh, uniform_list_shape(kNumSamples, sh[0])),
+               std::runtime_error);
+}
 
 TEST(ArgValueTests, Constant_0D) {
   int nsamples = 5;

@@ -19,32 +19,54 @@
 
 namespace dali {
 
-bool ProcessAxesArgs(std::vector<int> &axes, TensorLayout &axis_names, const OpSpec &spec,
-                     const char *axes_arg_name, const char *axis_names_arg_name) {
-  axes.clear();
+namespace detail {
+
+SmallVector<int, 8> GetAxes(AxesMode axes_mode, const TensorLayout& shape_layout,
+                            const TensorLayout& axis_names, const ArgValue<int, 1>& axes_arg,
+                            int data_idx, int ndim) {
+  SmallVector<int, 8> axes;
+  if (axes_mode == AxesMode::AxisNames) {
+    axes = GetDimIndices(shape_layout, axis_names).to_vector();
+  } else if (axes_mode == AxesMode::Axes) {
+    axes.resize(axes_arg[data_idx].num_elements());
+    for (size_t i = 0; i < axes.size(); i++)
+      axes[i] = axes_arg[data_idx].data[i];
+  } else {
+    assert(axes_mode == AxesMode::AllAxes);
+    axes.resize(ndim);
+    std::iota(axes.begin(), axes.end(), 0);
+  }
+  return axes;
+}
+
+AxesMode ProcessAxesArgs(TensorLayout& axis_names, const OpSpec& spec,
+                         const char* axes_arg_name, const char* axis_names_arg_name) {
+  SmallVector<int, 8> tmp_axes;
   axis_names = TensorLayout{};
-  const bool has_axes_arg = axes_arg_name && spec.HasArgument(axes_arg_name);
+  const bool has_axes_arg = axes_arg_name && spec.ArgumentDefined(axes_arg_name);
   const bool has_axis_names_arg = axis_names_arg_name && spec.HasArgument(axis_names_arg_name);
   if (has_axes_arg && has_axis_names_arg) {
     DALI_FAIL(make_string("\"", axes_arg_name, "\" and \"", axis_names_arg_name,
                           "\" are mutually exclusive"));
   } else if (has_axes_arg) {
-    axes = spec.GetRepeatedArgument<int>(axes_arg_name);
-    return true;
+    return AxesMode::Axes;
   } else if (axis_names_arg_name && spec.TryGetArgument(axis_names, axis_names_arg_name)) {
-    return true;
-  } else if (axes_arg_name && spec.TryGetArgument(axes, axes_arg_name)) {
-    return true;
+    return AxesMode::AxisNames;
+  } else if (axes_arg_name && spec.TryGetArgument(tmp_axes, axes_arg_name)) {
+    return AxesMode::Axes;
   }
-  return false;
+  return AxesMode::AllAxes;
 }
+
+
+}  // namespace detail
 
 DALI_SCHEMA(SliceAttr)
     .DocStr(R"code(Slice attributes placeholder)code")
     .AddOptionalArg("axes",
         R"code(Order of dimensions used for the anchor and shape slice inputs as dimension
 indices.)code",
-        std::vector<int>{1, 0})
+        std::vector<int>{1, 0}, true)
     .AddOptionalArg("axis_names",
         R"code(Order of the dimensions used for the anchor and shape slice inputs,
 as described in layout.
