@@ -285,7 +285,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     shape_ = other.shape_;
     size_ = other.size_;
     samples_.resize(other.samples_.size());
-    for (size_t i = 0; samples_.size(); i++) {
+    for (size_t i = 0; i < samples_.size(); i++) {
       samples_[i].ShareData(other.samples_[i]);
     }
     type_ = other.type_;
