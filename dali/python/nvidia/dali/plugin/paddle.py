@@ -73,8 +73,6 @@ def feed_ndarray(dali_tensor, ptr, cuda_stream=None):
                     (if not provided, an internal user stream will be selected)
     """
 
-    if cuda_stream is None:
-        cuda_stream = paddle.device.cuda.current_stream().cuda_stream 
     cuda_stream = types._raw_cuda_stream(cuda_stream)
 
     c_type_pointer = ctypes.c_void_p(ptr)
@@ -318,10 +316,11 @@ class DALIGenericIterator(_DaliBaseIterator):
                                          category_pd_type[cat])
             data_batches[i] = pd_tensors
 
+            stream = paddle.device.cuda.current_stream(dev_id).cuda_stream
             for cat, tensor in category_tensors.items():
                 ptr = pd_tensors[cat]._mutable_data(category_place[cat],
                                                category_pd_type[cat])
-                feed_ndarray(tensor, ptr)
+                feed_ndarray(tensor, ptr, stream)
 
         self._schedule_runs()
 
