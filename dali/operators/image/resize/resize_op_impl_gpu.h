@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -79,6 +79,7 @@ class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
       kernels::KernelRequirements &req = kmgr_.Setup<Kernel>(mb_idx, ctx, mb.input, param_slice);
       mb.out_shape = req.output_shapes[0].to_static<frame_ndim>();
     }
+    kmgr_.ReserveMaxScratchpad(0);
   }
 
   void RunResize(DeviceWorkspace &ws,
