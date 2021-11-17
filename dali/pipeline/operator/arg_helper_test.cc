@@ -35,7 +35,10 @@ void SetupData(TensorVector<CPUBackend> &tv,
   }
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> Per sample axes
 template <int ndim, typename... AcquireArgs>
 void ArgValueTestTensorInput(TensorListShape<ndim> ts, AcquireArgs... args) {
   // using a real operator to avoid registering a new one just for this test
