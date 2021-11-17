@@ -185,7 +185,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
                 Setting this flag to False will cause the iterator to return
                 exactly 'size' entries.
-    last_batch_policy : default = FILL
+    last_batch_policy, optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there is no enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`.
                 Both ``FILL`` and ``PARTIAL`` would return a full batch but the ``pad`` property
@@ -208,17 +208,17 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    last_batch_policy = PARTIAL, last_batch_padded = True  -> last batch = ``[7, 7]`` and MXNet array property ``.pad=1``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = True  -> last batch = ``[7, 7]`` and MXNet array property ``.pad=1``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = PARTIAL, last_batch_padded = False -> last batch = ``[7, 1]`` and MXNet array property ``.pad=1``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = False -> last batch = ``[7, 1]`` and MXNet array property ``.pad=1``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = FILL, last_batch_padded = True   -> last batch = ``[7, 7]`` and MXNet array property ``.pad=0``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]`` and MXNet array property ``.pad=0``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = FILL, last_batch_padded = False  -> last batch = ``[7, 1]`` and MXNet array property ``.pad=0``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]`` and MXNet array property ``.pad=0``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
     def __init__(self,
                  pipelines,
@@ -454,7 +454,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
                 Setting this flag to False will cause the iterator to return
                 exactly 'size' entries.
-    last_batch_policy : default = FILL
+    last_batch_policy, optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there is no enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`.
                 Both ``FILL`` and ``PARTIAL`` would return a full batch but the ``pad`` property
@@ -478,17 +478,17 @@ class DALIClassificationIterator(DALIGenericIterator):
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    last_batch_policy = PARTIAL, last_batch_padded = True  -> last batch = ``[7, 7]`` and MXNet array property ``.pad=1``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = True  -> last batch = ``[7, 7]`` and MXNet array property ``.pad=1``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = PARTIAL, last_batch_padded = False -> last batch = ``[7, 1]`` and MXNet array property ``.pad=1``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = False -> last batch = ``[7, 1]`` and MXNet array property ``.pad=1``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = FILL, last_batch_padded = True   -> last batch = ``[7, 7]`` and MXNet array property ``.pad=0``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]`` and MXNet array property ``.pad=0``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = FILL, last_batch_padded = False  -> last batch = ``[7, 1]`` and MXNet array property ``.pad=0``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]`` and MXNet array property ``.pad=0``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
     def __init__(self,
                  pipelines,
@@ -570,7 +570,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
                 Setting this flag to False will cause the iterator to return
                 exactly 'size' entries.
-    last_batch_policy : default = FILL
+    last_batch_policy, optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there is no enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
     last_batch_padded : bool, optional, default = False
@@ -592,17 +592,17 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    last_batch_policy = PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
     def __init__(self,
                  pipelines,

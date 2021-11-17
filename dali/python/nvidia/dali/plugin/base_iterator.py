@@ -82,7 +82,7 @@ class _DaliBaseIterator(object):
                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
                 Setting this flag to False will cause the iterator to return
                 exactly 'size' entries.
-    last_batch_policy : default = FILL
+    last_batch_policy, optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there is no enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
     last_batch_padded : bool, optional, default = False
@@ -103,17 +103,17 @@ class _DaliBaseIterator(object):
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    last_batch_policy = PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
     def __init__(self,
                  pipelines,
@@ -124,7 +124,6 @@ class _DaliBaseIterator(object):
                  last_batch_padded=False,
                  last_batch_policy=LastBatchPolicy.FILL,
                  prepare_first_batch=True):
-
         assert pipelines is not None, "Number of provided pipelines has to be at least 1"
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
@@ -147,6 +146,9 @@ class _DaliBaseIterator(object):
             else:
                 self._last_batch_policy = LastBatchPolicy.PARTIAL
         else:
+            if type(last_batch_policy) is not LastBatchPolicy:
+                raise ValueError("Wrong type for `last_batch_policy`. "
+                                 f"Expected {LastBatchPolicy}, got {type(last_batch_policy)}")
             self._last_batch_policy = last_batch_policy
 
         self._last_batch_padded = last_batch_padded
