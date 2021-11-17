@@ -90,7 +90,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   using Buffer<Backend>::type_info;
   using Buffer<Backend>::set_alloc_func;
   using Buffer<Backend>::alloc_func;
-  using Buffer<Backend>::has_data;
+  // using Buffer<Backend>::has_data;
   using Buffer<Backend>::set_pinned;
   using Buffer<Backend>::is_pinned;
   using Buffer<Backend>::device_id;
@@ -99,6 +99,10 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   using Buffer<Backend>::reserve;
   // using Buffer<Backend>::reset;  // Available via USE_BUFFER_MEMBERS
   using Buffer<Backend>::shares_data;
+
+  inline bool has_data() const noexcept {
+    return !samples_.empty() && samples_[0].has_data();
+  }
 
   /**
    * @brief Copies the input TensorList, resizing this TensorList and
@@ -327,7 +331,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     // don't check ptr as we want to share empty data as well
 
     // Save our new pointer and bytes. Reset our type, shape, and size
-    data_ = ptr;
+    // data_ = ptr;
     num_bytes_ = bytes;
     type_ = TypeTable::GetTypeInfo(type);
     // shape_ = {};
@@ -335,6 +339,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     // offsets_.clear();
     size_ = shape.num_elements();
     device_ = CPU_ONLY_DEVICE_ID;
+    layout_ = {};
 
     // Tensor views of this TensorList is no longer valid
     tensor_views_.clear();
@@ -345,6 +350,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     int num_samples = shape.num_samples();
     ptrdiff_t offset = 0;
     uint8_t *data_base = static_cast<uint8_t*>(ptr.get());
+    samples_.resize(num_samples);
     for (int i = 0; i < num_samples; i++) {
       // Aliasing ptr
       std::shared_ptr<void> sample(ptr, data_base);
@@ -352,6 +358,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
       samples_[i].ShareData(sample, sample_volume * type_.size(), type);
       data_base += sample_volume * type_.size();
     }
+    meta_.resize(num_samples, DALIMeta(layout_));
 
 
     // If the input pointer stores a non-zero size allocation, mark
