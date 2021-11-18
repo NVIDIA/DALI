@@ -46,6 +46,7 @@ class Tensor : public Buffer<Backend> {
   inline ~Tensor() override = default;
 
   using Buffer<Backend>::is_pinned;
+  using Buffer<Backend>::has_data;
 
   /**
    *

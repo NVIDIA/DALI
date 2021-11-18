@@ -95,7 +95,7 @@ class DLL_PUBLIC TensorList {
   DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, AccessOrder order = {},
                               bool use_copy_kernel = false) {
     // TODO(michalz): pass the stream to Resize
-    if (std::is_same<Backend, GPUBackend>::value || is_pinned())
+    if (has_data() && (std::is_same<Backend, GPUBackend>::value || is_pinned()))
       CUDA_CALL(cudaStreamSynchronize(stream));
     Resize(other.shape(), other.type());
     if (!order)
@@ -117,7 +117,7 @@ class DLL_PUBLIC TensorList {
   DLL_PUBLIC inline void Copy(const TensorVector<SrcBackend> &other, AccessOrder order = {},
                               bool use_copy_kernel = false) {
     // TODO(michalz): pass the stream to Resize
-    if (std::is_same<Backend, GPUBackend>::value || is_pinned())
+    if (has_data() && (std::is_same<Backend, GPUBackend>::value || is_pinned()))
       CUDA_CALL(cudaStreamSynchronize(stream));
     auto type = other[0].type();
     auto layout = other[0].GetLayout();

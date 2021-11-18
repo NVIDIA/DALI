@@ -440,8 +440,15 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
       tv_elm = tv_data_.GetEmpty();
     }
     // set pinned if needed
+<<<<<<< HEAD
     tv_elm.front()->set_order(AccessOrder::host());
     if (batch.is_pinned() !=  tv_elm.front()->is_pinned()) {
+=======
+    if (batch.is_pinned() != tv_elm.front()->is_pinned()) {
+      if (tv_elm.front()->capacity() && tv_elm.front()->is_pinned() &&
+          device_id_ != CPU_ONLY_DEVICE_ID)
+        CUDA_CALL(cudaStreamSynchronize(stream));
+>>>>>>> Fix CPU-only mode (hopefully).
       tv_elm.front()->Reset();
       tv_elm.front()->set_pinned(batch.is_pinned());
     }
