@@ -159,7 +159,7 @@ bool UseVMM() {
 bool UseDeferredDealloc() {
   static bool value = []() {
     const char *env = std::getenv("DALI_USE_DEFERRED_DEALLOC");
-    return !env || atoi(env);
+    return env && atoi(env);
   }();
   return value;
 }
