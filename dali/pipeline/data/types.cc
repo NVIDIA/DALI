@@ -50,7 +50,7 @@ void ScatterGatherCopy(void **dsts, const void **srcs, const Index *sizes, int n
   for (int i = 0; i < n; i++) {
     sc->AddCopy(dsts[i], srcs[i], sizes[i] * element_size);
   }
-  sc->Run(stream, true, kernels::ScatterGatherGPU::Method::Kernel);
+  sc->Run(stream, true, kernels::ScatterGatherGPU::Method::Memcpy);
 }
 
 void ScatterGatherCopy(void *dst, const void **srcs, const Index *sizes, int n, int element_size,
@@ -62,7 +62,7 @@ void ScatterGatherCopy(void *dst, const void **srcs, const Index *sizes, int n, 
     sc->AddCopy(sample_dst, srcs[i], nbytes);
     sample_dst += nbytes;
   }
-  sc->Run(stream, true, kernels::ScatterGatherGPU::Method::Kernel);
+  sc->Run(stream, true, kernels::ScatterGatherGPU::Method::Memcpy);
 }
 
 void ScatterGatherCopy(void **dsts, const void *src, const Index *sizes, int n, int element_size,
@@ -74,7 +74,7 @@ void ScatterGatherCopy(void **dsts, const void *src, const Index *sizes, int n, 
     sc->AddCopy(dsts[i], sample_src, nbytes);
     sample_src += nbytes;
   }
-  sc->Run(stream, true, kernels::ScatterGatherGPU::Method::Kernel);
+  sc->Run(stream, true, kernels::ScatterGatherGPU::Method::Memcpy);
 }
 
 }  // namespace detail
