@@ -1158,6 +1158,15 @@ PYBIND11_MODULE(backend_impl, m) {
     return context != nullptr;
   });
 
+  m.def("CheckCudaVersion", []{
+      int runtimeVersion = -1;
+      auto ret = cudaRuntimeGetVersion(&runtimeVersion);
+      if (ret != cudaSuccess) {
+        return -1;
+      }
+      return runtimeVersion;
+  });
+
 #if SHM_WRAPPER_ENABLED
 
   py::class_<SharedMem>(m, "SharedMem")

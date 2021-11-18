@@ -16,9 +16,15 @@ find_path(NVJPEG_INCLUDE_DIR nvjpeg.h
     PATHS ${NVJPEG_ROOT_DIR} ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
     PATH_SUFFIXES include)
 
-find_library(NVJPEG_LIBRARY libnvjpeg_static.a nvjpeg
-    PATHS ${NVJPEG_ROOT_DIR} ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}
-    PATH_SUFFIXES lib lib64)
+if (LINK_CUDA_DYNAMICALLY)
+  find_library(NVJPEG_LIBRARY libnvjpeg.so nvjpeg
+      PATHS ${NVJPEG_ROOT_DIR} ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}
+      PATH_SUFFIXES lib lib64)
+else()
+  find_library(NVJPEG_LIBRARY libnvjpeg_static.a nvjpeg
+      PATHS ${NVJPEG_ROOT_DIR} ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}
+      PATH_SUFFIXES lib lib64)
+endif (LINK_CUDA_DYNAMICALLY)
 
 
 # nvJPEG 9.0 calls itself 0.1.x via API calls, and the header file doesn't tell you which

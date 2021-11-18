@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,3 +47,7 @@ if not initialized:
 
     for lib in default_plugins:
         LoadLibrary(os.path.join(os.path.dirname(__file__), lib))
+
+if CheckCudaVersion() == -1:
+    deprecation_warning("No CUDA installation detected. Please make sure it is available "
+                        "in the or installed as native package or as a pip wheel.")
