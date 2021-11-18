@@ -18,7 +18,6 @@
 #include <mutex>
 #include <condition_variable>
 #include "dali/core/mm/memory_resource.h"
-#include "dali/core/mm/detail/deferred_dealloc.h"
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/device_guard.h"
@@ -26,12 +25,6 @@
 
 namespace dali {
 namespace mm {
-
-enum class sync_scope {
-  none  = 0,   ///< no synchronization required
-  device = 1,  ///< synchronize with the current device
-  system = 2   ///< synchronize with all devices in the system
-};
 
 struct pool_options {
   /**
@@ -58,24 +51,6 @@ struct pool_options {
    */
   bool return_to_upstream_on_failure = true;
 
-  /**
-   * @brief To what extent should `deallocate` synchronize before making the memory available
-   */
-  sync_scope sync = sync_scope::none;
-
-  /**
-   * @brief Enables deferred deallocation if the pool supports it (otherwise ignored)
-   */
-  bool enable_deferred_deallocation = false;
-
-  /**
-   * @brief Maximum number of outstanding deferred deallocations
-   *
-   * If there are more outstanding deferred deallocations than this number,
-   * the subsequent allocation blocks.
-   */
-  int max_outstanding_deallocations = 16;
-
   size_t upstream_alignment = 256;
 };
 
@@ -88,63 +63,14 @@ constexpr pool_options default_device_pool_opts() noexcept {
 }
 
 template <typename Kind>
-constexpr sync_scope default_sync_scope() {
-  return sync_scope::system;  // pinned, managed
-}
-
-template <>
-constexpr sync_scope default_sync_scope<memory_kind::host>() {
-  return sync_scope::none;
-}
-
-template <>
-constexpr sync_scope default_sync_scope<memory_kind::device>() {
-  return sync_scope::device;
-}
-
-template <typename Kind>
 constexpr pool_options default_pool_opts() noexcept {
-  auto opt = default_device_pool_opts();
-  opt.sync = default_sync_scope<Kind>();
-  opt.enable_deferred_deallocation = true;
-  return opt;
+  return default_device_pool_opts();
 }
 
 template <>
 constexpr pool_options default_pool_opts<memory_kind::host>() noexcept {
   return default_host_pool_opts();
 }
-
-namespace detail {
-
-inline void synchronize_all_devices() {
-  int ndev;
-  CUDA_CALL(cudaGetDeviceCount(&ndev));
-  DeviceGuard dg;
-  for (int i = 0; i < ndev; i++) {
-    CUdevice device;
-    CUDA_CALL(cuDeviceGet(&device, i));
-    unsigned flags = 0;
-    int active = 0;
-    // Check if there's an active primary context for the device - if there is, we shoud
-    // synchronize with that device; otherwise we can skip it.
-    CUDA_CALL(cuDevicePrimaryCtxGetState(device, &flags, &active));
-    if (active) {
-      CUDA_CALL(cudaSetDevice(i));
-      CUDA_CALL(cudaDeviceSynchronize());
-    }
-  }
-}
-
-inline void synchronize(sync_scope scope) {
-  if (scope == sync_scope::device) {
-      CUDA_CALL(cudaDeviceSynchronize());
-  } else if (scope == sync_scope::system) {
-    synchronize_all_devices();
-  }
-}
-
-}  // namespace detail
 
 template <typename Kind, class FreeList, class LockType>
 class pool_resource_base : public memory_resource<Kind> {
@@ -172,72 +98,9 @@ class pool_resource_base : public memory_resource<Kind> {
     free_list_.clear();
   }
 
-  /**
-   * @brief Deallocates multiple blocks of memory, but synchronizes only once
-   *
-   * @remarks This function must not use do_deallocate virtual function.
-   */
-  void bulk_deallocate(span<const dealloc_params> params) {
-    if (!params.empty()) {
-      synchronize(params);
-      lock_guard guard(lock_);
-      for (const dealloc_params &par : params) {
-        free_list_.put(par.ptr, par.bytes);
-      }
-    }
-  }
-
-  void synchronize(span<const dealloc_params> params) {
-    if (options_.sync == sync_scope::device) {
-      int prev = -1;
-      const int kMaxDevices = 256;
-      uint32_t dev_mask[kMaxDevices >> 5] = {};  // NOLINT - linter doesn't notice it's a constant expression
-      for (const dealloc_params &par : params) {
-        int dev = par.sync_device;
-        if (dev < 0) {
-          CUDA_CALL(cudaGetDevice(&dev));
-        }
-        if (dev < kMaxDevices) {  // that should do in all realistic cases
-          int bin = dev >> 5;
-          uint32_t mask = 1 << (dev & 31);
-          if (dev_mask[bin] & mask)
-            continue;  // already synchronized
-          dev_mask[bin] |= mask;
-        } else if (dev == prev) {  // if there's a highly unlikely system with >256 devices
-          continue;                // we just check if the device is the same as previous or not
-        }
-        DeviceGuard dg(dev);
-        CUDA_CALL(cudaDeviceSynchronize());
-        prev = dev;
-      }
-    } else if (options_.sync == sync_scope::system) {
-      detail::synchronize_all_devices();
-    }
-  }
-
-  void synchronize() {
-    detail::synchronize(options_.sync);
-  }
-
-  /**
-   * @brief Flushes deferred deallocations, if supported
-   *
-   * This function is overriden by the deferred_deallocator modifier
-   */
-  virtual void flush_deferred() {}  /* no-op */
-
   int device_ordinal() const noexcept {
     return device_ordinal_;
   }
-
-  bool deferred_dealloc_enabled() const noexcept {
-    return options_.enable_deferred_deallocation;
-  }
-
-  int deferred_dealloc_max_outstanding() const noexcept {
-    return options_.max_outstanding_deallocations;
-  }
-
 
   /**
    * @brief Tries to obtain a block from the internal free list.
@@ -254,18 +117,6 @@ class pool_resource_base : public memory_resource<Kind> {
       lock_guard guard(lock_);
       return free_list_.get(bytes, alignment);
     }
-  }
-
-  /**
-   * @brief Deallocates a block memory without synchronization
-   *
-   * Places a block of memory in the free list for immediate reuse.
-   * The caller must guarantee, that the memory is available without
-   * any additional synchronization in the execution context for this resource.
-   */
-  void deallocate_no_sync(void *ptr, size_t bytes, size_t alignment = alignof(std::max_align_t)) {
-    lock_guard guard(lock_);
-    free_list_.put(ptr, bytes);
   }
 
   constexpr const pool_options &options() const noexcept {
@@ -303,15 +154,8 @@ class pool_resource_base : public memory_resource<Kind> {
   }
 
   void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
-    (void)alignment;
-    // synchronize();
-    deallocate_no_sync(ptr, bytes, alignment);
-  }
-
-  void set_default_device() {
-    if (options_.sync == sync_scope::device && device_ordinal_ < 0) {
-      CUDA_CALL(cudaGetDevice(&device_ordinal_));
-    }
+    lock_guard guard(lock_);
+    free_list_.put(ptr, bytes);
   }
 
   void *get_upstream_block(size_t &blk_size, size_t min_bytes, size_t alignment) {
@@ -323,8 +167,6 @@ class pool_resource_base : public memory_resource<Kind> {
         new_block = upstream_->allocate(blk_size, alignment);
         break;
       } catch (const std::bad_alloc &) {
-        // If there are outstanding deallocations, wait for them to complete.
-        flush_deferred();
         if (!options_.try_smaller_on_failure)
           throw;
         if (blk_size == min_bytes) {
@@ -419,21 +261,10 @@ class pool_resource_base : public memory_resource<Kind> {
   using upstream_lock_guard = std::lock_guard<std::mutex>;
 };
 
-template <typename Kind, class FreeList, class LockType>
-class deferred_dealloc_pool
-: public deferred_dealloc_resource<pool_resource_base<Kind, FreeList, LockType>> {
- public:
-  using base = deferred_dealloc_resource<pool_resource_base<Kind, FreeList, LockType>>;
-  using base::base;
-};
-
 namespace detail {
 
 template <typename Kind, class FreeList, class LockType>
 struct can_merge<pool_resource_base<Kind, FreeList, LockType>> : can_merge<FreeList> {};
-
-template <typename Kind, class FreeList, class LockType>
-struct can_merge<deferred_dealloc_pool<Kind, FreeList, LockType>> : can_merge<FreeList> {};
 
 }  // namespace detail
 
