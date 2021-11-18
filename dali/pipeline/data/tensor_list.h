@@ -242,6 +242,9 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     // Calculate the new size
     Index num_tensor = new_shape.size(), new_size = 0;
     samples_.resize(num_tensor);
+    for (auto &sample : samples_) {
+      sample.reset();
+    }
     for (Index i = 0; i < num_tensor; ++i) {
       auto tensor_size = volume(new_shape[i]);
       samples_[i].ResizeHelper(tensor_size, new_type);
