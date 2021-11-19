@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,13 +81,18 @@ class ConstantStorage {
 
  private:
   Tensor<Backend> integers_, reals_;
+  Tensor<CPUBackend> result_cpu_;
+  cudaStream_t prev_copy_stream_ = NULL;
 
   template <typename T>
   void Rewrite(Tensor<GPUBackend> &result, const std::vector<T> &constants,
                const std::vector<ExprConstant *> &constant_nodes, cudaStream_t stream) {
-    Tensor<CPUBackend> result_cpu;
-    Rewrite(result_cpu, constants, constant_nodes);
-    result.Copy(result_cpu, stream);
+    if (prev_copy_stream_ != stream) {
+      CUDA_CALL(cudaStreamSynchronize(prev_copy_stream_));
+    }
+    prev_copy_stream_ = stream;
+    Rewrite(result_cpu_, constants, constant_nodes);
+    result.Copy(result_cpu_, stream);
   }
 
   template <typename T>
