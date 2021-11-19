@@ -18,12 +18,12 @@
 
 // Dynamically handle dependencies on external libraries (other than cudart).
 
-#ifndef DALI_UTIL_NVJPEG_WRAP_H_
-#define DALI_UTIL_NVJPEG_WRAP_H_
-
+#ifndef DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_WRAP_H_
+#define DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_WRAP_H_
 
 #include <nvjpeg.h>
 
+#include <string>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
@@ -111,5 +111,5 @@ inline void cudaResultCheck<nvjpegStatus_t>(nvjpegStatus_t status, string extra)
 
 }  // namespace dali
 
-#endif  // DALI_UTIL_NVJPEG_WRAP_H_
+#endif  // DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_WRAP_H_
 

@@ -58,18 +58,14 @@ if (BUILD_NVJPEG2K)
 endif (BUILD_NVJPEG2K)
 
 # NVIDIA NPP library
-if (WITH_DYNAMIC_CUDA_LIBS)
-  CUDA_find_library(CUDA_nppicc_LIBRARY nppicc)
-  CUDA_find_library(CUDA_nppc_LIBRARY nppc)
-else ()
+if (NOT WITH_DYNAMIC_CUDA_LIBS)
   CUDA_find_library(CUDA_nppicc_LIBRARY nppicc_static)
   CUDA_find_library(CUDA_nppc_LIBRARY nppc_static)
-endif (WITH_DYNAMIC_CUDA_LIBS)
-
-list(APPEND DALI_LIBS ${CUDA_nppicc_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppicc_static.a)
-list(APPEND DALI_LIBS ${CUDA_nppc_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppc_static.a)
+  list(APPEND DALI_LIBS ${CUDA_nppicc_LIBRARY})
+  list(APPEND DALI_EXCLUDES libnppicc_static.a)
+  list(APPEND DALI_LIBS ${CUDA_nppc_LIBRARY})
+  list(APPEND DALI_EXCLUDES libnppc_static.a)
+endif (NOT WITH_DYNAMIC_CUDA_LIBS)
 
 # cuFFT library
 if (WITH_DYNAMIC_CUDA_LIBS)
