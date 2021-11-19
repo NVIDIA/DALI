@@ -36,6 +36,22 @@ SmallVector<int, 8> GetAxes(AxesMode axes_mode, const TensorLayout& shape_layout
     axes.resize(ndim);
     std::iota(axes.begin(), axes.end(), 0);
   }
+
+  SmallVector<bool, 8> axes_check;
+  axes_check.resize(ndim, false);
+  for (size_t i = 0; i < axes.size(); i++) {
+    auto &dim = axes[i];
+    DALI_ENFORCE(dim >= -ndim && dim < ndim,
+                  make_string("Axis ", axes[i], "out of range. Expected range is [", -ndim, ", ",
+                              ndim - 1, "] for a", ndim, "D input"));
+    if (dim < 0)
+      dim += ndim;
+    if (axes_check[dim])
+      DALI_FAIL(make_string("Axis index ", dim,
+                            " occurs more than once in ``axes`` "
+                            "(might include negative indices referring to the same axis"));
+    axes_check[dim] = true;
+  }
   return axes;
 }
 
@@ -65,7 +81,11 @@ DALI_SCHEMA(SliceAttr)
     .DocStr(R"code(Slice attributes placeholder)code")
     .AddOptionalArg("axes",
         R"code(Order of dimensions used for the anchor and shape slice inputs as dimension
-indices.)code",
+indices.
+
+Negative values are interpreted as counting dimensions from the back.
+Valid range: ``[-ndim, ndim-1]``, where ndim is the number of dimensions in the input data.
+)code",
         std::vector<int>{1, 0}, true)
     .AddOptionalArg("axis_names",
         R"code(Order of the dimensions used for the anchor and shape slice inputs,

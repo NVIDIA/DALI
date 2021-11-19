@@ -705,7 +705,7 @@ def test_no_slice():
         for dtype in [types.UINT8, types.UINT16, types.FLOAT]:
             yield check_no_slice, device, dtype, batch_size, num_threads
 
-def check_dynamic_axes(device, batch_size, num_threads):
+def check_dynamic_axes(device, batch_size, num_threads, use_negative):
     def get_dynamic_axes():
         options = [
             np.array([0, 1], dtype=np.int32),
@@ -713,6 +713,17 @@ def check_dynamic_axes(device, batch_size, num_threads):
             np.array([0], dtype=np.int32),
             np.array([1], dtype=np.int32),
         ]
+        if use_negative:
+            options += [
+                np.array([-2, -3], dtype=np.int32),
+                np.array([-2, 0], dtype=np.int32),
+                np.array([-3, 1], dtype=np.int32),
+                np.array([0, -2], dtype=np.int32),
+                np.array([1, -3], dtype=np.int32),
+                np.array([-2], dtype=np.int32),
+                np.array([-3], dtype=np.int32),
+            ]
+
         axes = []
         rel_start = []
         rel_shape = []
@@ -737,6 +748,7 @@ def check_dynamic_axes(device, batch_size, num_threads):
         return image, axes, rel_start, rel_shape, sliced1, sliced2
     pipe = make_pipe()
     pipe.build()
+    ndim = 3
     for _ in range(3):
         outs = pipe.run()
         for sample_idx in range(batch_size):
@@ -754,18 +766,24 @@ def check_dynamic_axes(device, batch_size, num_threads):
                 outs[5][sample_idx].as_cpu() if device == 'gpu' else
                 outs[5][sample_idx]
             )
-            start = [0 for _ in range(2)]
-            end = [in_img.shape[i] for i in range(2)]
+            start = np.zeros([ndim], dtype=np.int32)
+            end = np.array([in_img.shape[i] for i in range(ndim)], dtype=np.int32)
             for i in range(len(axes)):
                 a = axes[i]
-                assert a == 0 or a == 1
+                assert a >= -ndim and a <= (ndim-1)
                 start[a] = roundint(rel_start[i] * in_img.shape[a])
                 end[a] = roundint((rel_start[i] + rel_shape[i]) * in_img.shape[a])
-            np.testing.assert_allclose(in_img[start[0]:end[0], start[1]:end[1]], sliced1)
-            np.testing.assert_allclose(in_img[start[0]:end[0], start[1]:end[1]], sliced2)
+            np.testing.assert_allclose(in_img[start[0]:end[0], start[1]:end[1], start[2]:end[2]], sliced1)
+            np.testing.assert_allclose(in_img[start[0]:end[0], start[1]:end[1], start[2]:end[2]], sliced2)
 
 def test_dynamic_axes():
     batch_size=10
     num_threads=3
     for device in ['cpu', 'gpu']:
-        yield check_dynamic_axes, device, batch_size, num_threads
+        yield check_dynamic_axes, device, batch_size, num_threads, False
+
+def test_negative_axes():
+    batch_size=10
+    num_threads=3
+    for device in ['cpu', 'gpu']:
+        yield check_dynamic_axes, device, batch_size, num_threads, True
