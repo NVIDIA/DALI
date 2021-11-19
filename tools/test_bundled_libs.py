@@ -47,10 +47,7 @@ def main():
                         "liblsan.so",
                         "libubsan.so",
                         "libtsan.so",
-                        "libcufft.so",
-                        "libnppicc.so",
-                        "libnppc.so",
-                        "libnvjpeg.so"
+                        "libcufft.so"
                     ]}
 
     bundled_libs = argv[1:]

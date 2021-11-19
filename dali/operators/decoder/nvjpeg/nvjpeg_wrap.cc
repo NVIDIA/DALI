@@ -26,6 +26,8 @@ namespace {
 typedef void* NVJPEGRIVER;
 
 static const char __NvjpegLibName[] = "libnvjpeg.so";
+static const char __NvjpegLibName10[] = "libnvjpeg.so.10";
+static const char __NvjpegLibName11[] = "libnvjpeg.so.11";
 
 NVJPEGRIVER loadNvjpegLibrary() {
   NVJPEGRIVER ret = nullptr;
@@ -33,7 +35,15 @@ NVJPEGRIVER loadNvjpegLibrary() {
   ret = dlopen(__NvjpegLibName, RTLD_NOW);
 
   if (!ret) {
-    printf("dlopen \"%s\" failed!\n", __NvjpegLibName);
+    ret = dlopen(__NvjpegLibName10, RTLD_NOW);
+
+    if (!ret) {
+      ret = dlopen(__NvjpegLibName11, RTLD_NOW);
+
+      if (!ret) {
+        printf("dlopen \"%s\" failed!\n", __NvjpegLibName);
+      }
+    }
   }
   return ret;
 }

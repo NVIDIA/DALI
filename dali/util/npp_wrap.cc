@@ -26,14 +26,23 @@ namespace {
 typedef void* NPPRIVER;
 
 static const char __NppLibName[] = "libnppc.so";
+static const char __NppLibName10[] = "libnppc.so.10";
+static const char __NppLibName11[] = "libnppc.so.11";
 
 NPPRIVER loadNppLibrary() {
   NPPRIVER ret = nullptr;
 
   ret = dlopen(__NppLibName, RTLD_NOW);
-
   if (!ret) {
-    printf("dlopen \"%s\" failed!\n", __NppLibName);
+    ret = dlopen(__NppLibName10, RTLD_NOW);
+
+    if (!ret) {
+      ret = dlopen(__NppLibName11, RTLD_NOW);
+
+      if (!ret) {
+        printf("dlopen \"%s\" failed!\n", __NppLibName);
+      }
+    }
   }
   return ret;
 }
