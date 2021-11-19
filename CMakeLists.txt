@@ -41,6 +41,10 @@ option(BUILD_DALI_NODEPS "Disable components that require extra external librari
 option(LINK_DRIVER "Links directly with libcuda.so instead of dlopen it at runtime" OFF)
 option(WITH_DYNAMIC_CUDA_LIBS "Links CUDA libraires dynamically (NPP, nvJPEG, cuFFT)" OFF)
 
+if (WITH_DYNAMIC_CUDA_LIBS)
+  add_definitions(-DWITH_DYNAMIC_CUDA_LIBS=1)
+endif(WITH_DYNAMIC_CUDA_LIBS)
+
 # Tests use OpenCV...
 cmake_dependent_option(BUILD_TEST "Build googletest test suite" ON
                        "NOT BUILD_DALI_NODEPS" OFF)

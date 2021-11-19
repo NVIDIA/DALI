@@ -17,6 +17,20 @@
 
 #include <npp.h>
 #include <string>
+<<<<<<< HEAD
+=======
+
+#include "dali/core/common.h"
+#include "dali/core/error_handling.h"
+#include "dali/core/cuda_error.h"
+#include "dali/core/format.h"
+
+#if defined(WITH_DYNAMIC_CUDA_LIBS)
+  bool nppIsSymbolAvailable(const char *name);
+#else
+  inline bool nppIsSymbolAvailable(const char*) { return true; }
+#endif
+>>>>>>> Add missing files, enable cuFFT loading
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -39,7 +53,11 @@ class NppError : public std::runtime_error {
         return "Unsupported round mode";
 
       case NPP_RESIZE_NO_OPERATION_ERROR:
+<<<<<<< HEAD
         return "One of the output image dimensions is less than 1 pixel.";
+=======
+        return "One of the output image dimensions is less than 1 pixel";
+>>>>>>> Add missing files, enable cuFFT loading
 
       case NPP_NOT_SUFFICIENT_COMPUTE_CAPABILITY:
         return "NPP_NOT_SUFFICIENT_COMPUTE_CAPABILITY";
@@ -50,6 +68,7 @@ class NppError : public std::runtime_error {
         return "NPP_BAD_ARGUMENT_ERROR";
 
       case NPP_COEFF_ERROR:
+<<<<<<< HEAD
         return "Unallowable values of the transformation coefficients.";
 
       case NPP_RECT_ERROR:
@@ -57,12 +76,25 @@ class NppError : public std::runtime_error {
 
       case NPP_QUAD_ERROR:
         return "The quadrangle is nonconvex or degenerates into triangle, line or point.";
+=======
+        return "Unallowable values of the transformation coefficients";
+
+      case NPP_RECT_ERROR:
+        return "NPP_RECTANGLE_ERROR";
+
+      case NPP_QUAD_ERROR:
+        return "The quadrangle is nonconvex or degenerates into triangle, line or point";
+>>>>>>> Add missing files, enable cuFFT loading
 
       case NPP_MEM_ALLOC_ERR:
         return "NPP_MEMORY_ALLOCATION_ERROR";
 
       case NPP_HISTO_NUMBER_OF_LEVELS_ERROR:
+<<<<<<< HEAD
         return "Number of levels for histogram is less than 2.";
+=======
+        return "Number of levels for histogram is less than 2";
+>>>>>>> Add missing files, enable cuFFT loading
 
       case NPP_INVALID_INPUT:
         return "NPP_INVALID_INPUT";
@@ -82,6 +114,7 @@ class NppError : public std::runtime_error {
         return "NPP_BAD_ARGUMENT_ERROR";
 
       case NPP_COEFFICIENT_ERROR:
+<<<<<<< HEAD
         return "Unallowable values of the transformation coefficients.";
 
       case NPP_RECTANGLE_ERROR:
@@ -89,12 +122,25 @@ class NppError : public std::runtime_error {
 
       case NPP_QUADRANGLE_ERROR:
         return "The quadrangle is nonconvex or degenerates into triangle, line or point.";
+=======
+        return "Unallowable values of the transformation coefficients";
+
+      case NPP_RECTANGLE_ERROR:
+        return "Size of the rectangle region is less than or equal to 1";
+
+      case NPP_QUADRANGLE_ERROR:
+        return "NPP_QUADRANGLE_ERROR";
+>>>>>>> Add missing files, enable cuFFT loading
 
       case NPP_MEMORY_ALLOCATION_ERR:
         return "NPP_MEMORY_ALLOCATION_ERROR";
 
       case NPP_HISTOGRAM_NUMBER_OF_LEVELS_ERROR:
+<<<<<<< HEAD
         return "Number of levels for histogram is less than 2.";
+=======
+        return "NPP_HISTOGRAM_NUMBER_OF_LEVELS_ERROR";
+>>>>>>> Add missing files, enable cuFFT loading
 
       case NPP_INVALID_HOST_POINTER_ERROR:
         return "NPP_INVALID_HOST_POINTER_ERROR";
@@ -104,7 +150,11 @@ class NppError : public std::runtime_error {
 #endif
 
       case NPP_LUT_NUMBER_OF_LEVELS_ERROR:
+<<<<<<< HEAD
         return "Number of levels for LUT is less than .2";
+=======
+        return "Number of levels for LUT is less than 2";
+>>>>>>> Add missing files, enable cuFFT loading
 
       case NPP_TEXTURE_BIND_ERROR:
         return "NPP_TEXTURE_BIND_ERROR";
@@ -113,7 +163,11 @@ class NppError : public std::runtime_error {
         return "NPP_WRONG_INTERSECTION_ROI_ERROR";
 
       case NPP_NOT_EVEN_STEP_ERROR:
+<<<<<<< HEAD
         return "Step value is not pixel multiple.";
+=======
+        return "Step value is not pixel multiple";
+>>>>>>> Add missing files, enable cuFFT loading
 
       case NPP_INTERPOLATION_ERROR:
         return "NPP_INTERPOLATION_ERROR";
@@ -157,7 +211,11 @@ class NppError : public std::runtime_error {
         return "NPP_ALIGNMENT_ERROR";
 
       case NPP_STEP_ERROR:
+<<<<<<< HEAD
         return "Step is less or equal zero.";
+=======
+        return "tep is less or equal zero";
+>>>>>>> Add missing files, enable cuFFT loading
 
       case NPP_SIZE_ERROR:
         return "NPP_SIZE_ERROR";

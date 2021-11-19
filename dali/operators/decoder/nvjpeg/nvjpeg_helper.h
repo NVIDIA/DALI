@@ -15,9 +15,11 @@
 #ifndef DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_HELPER_H_
 #define DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_HELPER_H_
 
+#include <nvjpeg.h>
 
 #include <string>
 #include <memory>
+
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
@@ -26,6 +28,12 @@
 #include "dali/core/backend_tags.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/image/image_factory.h"
+
+#if defined(WITH_DYNAMIC_CUDA_LIBS)
+  bool nvjpegIsSymbolAvailable(const char *name);
+#else
+  inline bool nvjpegIsSymbolAvailable(const char*) { return true; }
+#endif
 
 namespace dali {
 

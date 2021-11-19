@@ -23,7 +23,6 @@
 #include <numeric>
 #include <atomic>
 #include "dali/pipeline/operator/operator.h"
-#include "dali/operators/decoder/nvjpeg/nvjpeg_wrap.h"
 #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
 #include "dali/operators/decoder/nvjpeg/nvjpeg_memory.h"
 #include "dali/operators/decoder/nvjpeg/nvjpeg2k_helper.h"

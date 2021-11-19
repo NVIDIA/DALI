@@ -18,31 +18,29 @@
 #include <string>
 #include <unordered_map>
 
-#include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
-
+#include "dali/kernels/signal/fft/cufft_helper.h"
 
 namespace {
 
-typedef void* NVJPEGDRIVER;
+typedef void* CUFFTDIVER;
 
-static const char __NvjpegLibName[] = "libnvjpeg.so";
-static const char __NvjpegLibName10[] = "libnvjpeg.so.10";
-static const char __NvjpegLibName11[] = "libnvjpeg.so.11";
+static const char __CufftLibName[] = "libcufft.so";
+static const char __CufftLibName10[] = "libcufft.so.10";
+static const char __CufftLibNamee11[] = "libcufft.so.11";
 
-NVJPEGDRIVER loadNvjpegLibrary() {
-  NVJPEGDRIVER ret = nullptr;
+CUFFTDIVER loadCufftLibrary() {
+  CUFFTDIVER ret = nullptr;
 
-  ret = dlopen(__NvjpegLibName, RTLD_NOW);
-
+  ret = dlopen(__CufftLibName, RTLD_NOW);
   if (!ret) {
-    ret = dlopen(__NvjpegLibName10, RTLD_NOW);
+    ret = dlopen(__CufftLibName10, RTLD_NOW);
 
     if (!ret) {
-      ret = dlopen(__NvjpegLibName11, RTLD_NOW);
+      ret = dlopen(__CufftLibNamee11, RTLD_NOW);
 
       if (!ret) {
-        throw std::runtime_error("dlopen libnvjpeg.so failed!. Please install "
-                                 "CUDA toolkit or nvJPEG python wheel.");
+        throw std::runtime_error("dlopen libcufft.so failed!. Please install "
+                                 "CUDA toolkit or cuFFT python wheel.");
       }
     }
   }
@@ -51,19 +49,19 @@ NVJPEGDRIVER loadNvjpegLibrary() {
 
 }  // namespace
 
-void *NvjpegLoadSymbol(const char *name) {
-  static NVJPEGDRIVER nvjpegDrvLib = loadNvjpegLibrary();
-  void *ret = nvjpegDrvLib ? dlsym(nvjpegDrvLib, name) : nullptr;
+void *CufftLoadSymbol(const char *name) {
+  static CUFFTDIVER cufftDrvLib = loadCufftLibrary();
+  void *ret = cufftDrvLib ? dlsym(cufftDrvLib, name) : nullptr;
   return ret;
 }
 
-bool nvjpegIsSymbolAvailable(const char *name) {
+bool cufftIsSymbolAvailable(const char *name) {
   static std::mutex symbol_mutex;
   static std::unordered_map<std::string, void*> symbol_map;
   std::lock_guard<std::mutex> lock(symbol_mutex);
   auto it = symbol_map.find(name);
   if (it == symbol_map.end()) {
-    auto *ptr = NvjpegLoadSymbol(name);
+    auto *ptr = CufftLoadSymbol(name);
     symbol_map.insert({name, ptr});
     return ptr != nullptr;
   }

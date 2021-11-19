@@ -68,12 +68,10 @@ if (NOT WITH_DYNAMIC_CUDA_LIBS)
 endif (NOT WITH_DYNAMIC_CUDA_LIBS)
 
 # cuFFT library
-if (WITH_DYNAMIC_CUDA_LIBS)
-  CUDA_find_library(CUDA_cufft_LIBRARY cufft)
-else()
+if (NOT WITH_DYNAMIC_CUDA_LIBS)
   CUDA_find_library(CUDA_cufft_LIBRARY cufft_static)
-endif (WITH_DYNAMIC_CUDA_LIBS)
-list(APPEND DALI_EXCLUDES libcufft_static.a)
+  list(APPEND DALI_EXCLUDES libcufft_static.a)
+endif (NOT WITH_DYNAMIC_CUDA_LIBS)
 
 # CULIBOS needed when using static CUDA libs
 CUDA_find_library(CUDA_culibos_LIBRARY culibos)

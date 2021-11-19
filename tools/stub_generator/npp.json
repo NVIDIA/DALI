@@ -1,0 +1,16 @@
+{
+   "extra_include":[
+      "<npp.h>"
+   ],
+   "return_type":"NppStatus",
+   "calling_conv":"",
+   "not_found_error":"NPP_NOT_SUPPORTED_MODE_ERROR",
+"functions": {
+      "nppGetStream": {
+         "return_type":"cudaStream_t",
+         "not_found_error":"0" },
+      "nppSetStream": {},
+      "nppiColorTwist32f_8u_C3R": {},
+      "nppiColorTwist32f_8u_C1R": {}
+   }
+}

@@ -47,7 +47,3 @@ if not initialized:
 
     for lib in default_plugins:
         LoadLibrary(os.path.join(os.path.dirname(__file__), lib))
-
-if CheckCudaVersion() == -1:
-    deprecation_warning("No CUDA installation detected. Please make sure it is available "
-                        "in the or installed as native package or as a pip wheel.")

@@ -18,19 +18,18 @@
 #include <string>
 #include <unordered_map>
 
-#include "dali/util/npp_wrap.h"
-
+#include "dali/util/npp.h"
 
 namespace {
 
-typedef void* NPPRIVER;
+typedef void* NPPDRIVER;
 
 static const char __NppLibName[] = "libnppc.so";
 static const char __NppLibName10[] = "libnppc.so.10";
 static const char __NppLibName11[] = "libnppc.so.11";
 
-NPPRIVER loadNppLibrary() {
-  NPPRIVER ret = nullptr;
+NPPDRIVER loadNppLibrary() {
+  NPPDRIVER ret = nullptr;
 
   ret = dlopen(__NppLibName, RTLD_NOW);
   if (!ret) {
@@ -40,7 +39,8 @@ NPPRIVER loadNppLibrary() {
       ret = dlopen(__NppLibName11, RTLD_NOW);
 
       if (!ret) {
-        printf("dlopen \"%s\" failed!\n", __NppLibName);
+        throw std::runtime_error("dlopen libnppc.so failed!. Please install "
+                                 "CUDA toolkit or NPP python wheel.");
       }
     }
   }
@@ -50,7 +50,7 @@ NPPRIVER loadNppLibrary() {
 }  // namespace
 
 void *NppLoadSymbol(const char *name) {
-  static NPPRIVER nppDrvLib = loadNppLibrary();
+  static NPPDRIVER nppDrvLib = loadNppLibrary();
   void *ret = nppDrvLib ? dlsym(nppDrvLib, name) : nullptr;
   return ret;
 }

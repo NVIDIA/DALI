@@ -46,8 +46,7 @@ def main():
                         "libasan.so",
                         "liblsan.so",
                         "libubsan.so",
-                        "libtsan.so",
-                        "libcufft.so"
+                        "libtsan.so"
                     ]}
 
     bundled_libs = argv[1:]
