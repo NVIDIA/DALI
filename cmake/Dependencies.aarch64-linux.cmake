@@ -29,13 +29,13 @@ CUDA_find_library(CUDART_LIB cudart_static)
 list(APPEND DALI_EXCLUDES libcudart_static.a)
 
 # NVIDIA NPPC library
-if (LINK_CUDA_DYNAMICALLY)
+if (WITH_DYNAMIC_CUDA_LIBS)
   CUDA_find_library(CUDA_nppic_LIBRARY nppicc)
   CUDA_find_library(CUDA_nppc_LIBRARY nppc)
 else ()
   CUDA_find_library(CUDA_nppicc_LIBRARY nppicc_static)
   CUDA_find_library(CUDA_nppc_LIBRARY nppc_static)
-endif (LINK_CUDA_DYNAMICALLY)
+endif (WITH_DYNAMIC_CUDA_LIBS)
 
 list(APPEND DALI_LIBS ${CUDA_nppicc_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppicc_static.a)
@@ -43,11 +43,11 @@ list(APPEND DALI_LIBS ${CUDA_nppc_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppc_static.a)
 
 # cuFFT library
-if (LINK_CUDA_DYNAMICALLY)
+if (WITH_DYNAMIC_CUDA_LIBS)
   CUDA_find_library(CUDA_cufft_LIBRARY cufft)
 else()
   CUDA_find_library(CUDA_cufft_LIBRARY cufft_static)
-endif (LINK_CUDA_DYNAMICALLY)
+endif (WITH_DYNAMIC_CUDA_LIBS)
 list(APPEND DALI_EXCLUDES libcufft_static.a)
 
 # CULIBOS needed when using static CUDA libs

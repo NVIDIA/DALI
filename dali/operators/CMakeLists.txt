@@ -62,6 +62,10 @@ if (BUILD_NVML)
   target_link_libraries(dali_operators PRIVATE dynlink_nvml)
 endif(BUILD_NVML)
 
+if (BUILD_NVJPEG AND WITH_DYNAMIC_CUDA_LIBS)
+  target_link_libraries(dali_operators PRIVATE dynlink_nvjpeg)
+endif(BUILD_NVJPEG AND WITH_DYNAMIC_CUDA_LIBS)
+
 if (BUILD_CUFILE)
   target_link_libraries(dali_operators PRIVATE dynlink_cufile)
 endif()

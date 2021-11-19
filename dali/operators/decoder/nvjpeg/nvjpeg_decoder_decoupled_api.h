@@ -23,6 +23,7 @@
 #include <numeric>
 #include <atomic>
 #include "dali/pipeline/operator/operator.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg_wrap.h"
 #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
 #include "dali/operators/decoder/nvjpeg/nvjpeg_memory.h"
 #include "dali/operators/decoder/nvjpeg/nvjpeg2k_helper.h"
@@ -139,14 +140,16 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         // when such value is provided
         preallocate_width_hint = preallocate_width_hint ? preallocate_width_hint : 1;
         preallocate_height_hint = preallocate_height_hint ? preallocate_height_hint : 1;
-        CUDA_CALL(nvjpegDecodeBatchedPreAllocate(
-          handle_,
-          state_hw_batched_,
-          CalcHwDecoderBatchSize(hw_decoder_load_, max_batch_size_),
-          preallocate_width_hint,
-          preallocate_height_hint,
-          NVJPEG_CSS_444,
-          GetFormat(output_image_type_)));
+        if (nvjpegIsSymbolAvailable("nvjpegDecodeBatchedPreAllocate")) {
+          CUDA_CALL(nvjpegDecodeBatchedPreAllocate(
+            handle_,
+            state_hw_batched_,
+            CalcHwDecoderBatchSize(hw_decoder_load_, max_batch_size_),
+            preallocate_width_hint,
+            preallocate_height_hint,
+            NVJPEG_CSS_444,
+            GetFormat(output_image_type_)));
+        }
 #endif
         using_hw_decoder_ = true;
         in_data_.reserve(max_batch_size_);

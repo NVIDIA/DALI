@@ -27,8 +27,13 @@ if (BUILD_NVJPEG)
                     "requires NVIDIA drivers compatible with CUDA ${NVJPEG_VERSION} or later")
   endif()
   include_directories(SYSTEM ${NVJPEG_INCLUDE_DIR})
-  list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
-  list(APPEND DALI_EXCLUDES libnvjpeg_static.a)
+
+  # load using dlopen or link statically here
+  if (NOT WITH_DYNAMIC_CUDA_LIBS)
+    list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
+    list(APPEND DALI_EXCLUDES libnvjpeg_static.a)
+  endif (NOT WITH_DYNAMIC_CUDA_LIBS)
+
   add_definitions(-DDALI_USE_NVJPEG)
 
   if (${NVJPEG_LIBRARY_0_2_0})
@@ -53,13 +58,13 @@ if (BUILD_NVJPEG2K)
 endif (BUILD_NVJPEG2K)
 
 # NVIDIA NPP library
-if (LINK_CUDA_DYNAMICALLY)
+if (WITH_DYNAMIC_CUDA_LIBS)
   CUDA_find_library(CUDA_nppicc_LIBRARY nppicc)
   CUDA_find_library(CUDA_nppc_LIBRARY nppc)
 else ()
   CUDA_find_library(CUDA_nppicc_LIBRARY nppicc_static)
   CUDA_find_library(CUDA_nppc_LIBRARY nppc_static)
-endif (LINK_CUDA_DYNAMICALLY)
+endif (WITH_DYNAMIC_CUDA_LIBS)
 
 list(APPEND DALI_LIBS ${CUDA_nppicc_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppicc_static.a)
@@ -67,11 +72,11 @@ list(APPEND DALI_LIBS ${CUDA_nppc_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppc_static.a)
 
 # cuFFT library
-if (LINK_CUDA_DYNAMICALLY)
+if (WITH_DYNAMIC_CUDA_LIBS)
   CUDA_find_library(CUDA_cufft_LIBRARY cufft)
 else()
   CUDA_find_library(CUDA_cufft_LIBRARY cufft_static)
-endif (LINK_CUDA_DYNAMICALLY)
+endif (WITH_DYNAMIC_CUDA_LIBS)
 list(APPEND DALI_EXCLUDES libcufft_static.a)
 
 # CULIBOS needed when using static CUDA libs

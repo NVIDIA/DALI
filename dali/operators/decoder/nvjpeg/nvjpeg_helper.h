@@ -15,11 +15,9 @@
 #ifndef DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_HELPER_H_
 #define DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_HELPER_H_
 
-#include <nvjpeg.h>
 
 #include <string>
 #include <memory>
-
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"

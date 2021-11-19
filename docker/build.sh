@@ -167,7 +167,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_FFTS=${BUILD_FFTS}                  \
                                         BUILD_CUFILE=${BUILD_CUFILE}              \
                                         LINK_DRIVER=${LINK_DRIVER}                \
-                                        LINK_CUDA_DYNAMICALLY=${LINK_CUDA_DYNAMICALLY} \
+                                        WITH_DYNAMIC_CUDA_LIBS=${WITH_DYNAMIC_CUDA_LIBS} \
                                         STRIP_BINARY=${STRIP_BINARY}              \
                                         VERBOSE_LOGS=${VERBOSE_LOGS}              \
                                         WERROR=${WERROR}                          \
@@ -207,7 +207,7 @@ else
                                    --build-arg "BUILD_FFTS=${BUILD_FFTS}"                  \
                                    --build-arg "BUILD_CUFILE=${BUILD_CUFILE}"              \
                                    --build-arg "LINK_DRIVER=${LINK_DRIVER}"                \
-                                   --build-arg "LINK_CUDA_DYNAMICALLY=${LINK_CUDA_DYNAMICALLY}"\
+                                   --build-arg "WITH_DYNAMIC_CUDA_LIBS=${WITH_DYNAMIC_CUDA_LIBS}"\
                                    --build_arg "STRIP_BINARY=${STRIP_BINARY}"              \
                                    --build-arg "VERBOSE_LOGS=${VERBOSE_LOGS}"              \
                                    --build-arg "WERROR=${WERROR}"                          \
