@@ -28,7 +28,7 @@
 #if defined(WITH_DYNAMIC_CUDA_LIBS)
   bool nppIsSymbolAvailable(const char *name);
 #else
-  inline bool nppIsSymbolAvailable(const char*) { return true; }
+  #define nppIsSymbolAvailable(T) (true)
 #endif
 >>>>>>> Add missing files, enable cuFFT loading
 

@@ -26,7 +26,7 @@
 #if defined(WITH_DYNAMIC_CUDA_LIBS)
   bool cufftIsSymbolAvailable(const char *name);
 #else
-  inline bool cufftIsSymbolAvailable(const char*) { return true; }
+  #define cufftIsSymbolAvailable(T) (true)
 #endif
 
 namespace dali {

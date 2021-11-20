@@ -32,7 +32,7 @@
 #if defined(WITH_DYNAMIC_CUDA_LIBS)
   bool nvjpegIsSymbolAvailable(const char *name);
 #else
-  inline bool nvjpegIsSymbolAvailable(const char*) { return true; }
+  #define nvjpegIsSymbolAvailable(T) (true)
 #endif
 
 namespace dali {
