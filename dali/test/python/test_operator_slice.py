@@ -730,8 +730,10 @@ def check_dynamic_axes(device, batch_size, num_threads, use_negative):
         for _ in range(batch_size):
             axes_choice = random.choice(options)
             axes += [axes_choice]
-            rel_start += [np.random.uniform(0.0, 0.2, axes_choice.shape)]
-            rel_shape += [np.random.uniform(0.4, 0.6, axes_choice.shape)]
+            rel_start += [np.array(np.random.uniform(0.0, 0.2, axes_choice.shape),
+                                   dtype=np.float32)]
+            rel_shape += [np.array(np.random.uniform(0.4, 0.6, axes_choice.shape),
+                                   dtype=np.float32)]
         return axes, rel_start, rel_shape
 
     @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=0)
@@ -741,8 +743,6 @@ def check_dynamic_axes(device, batch_size, num_threads, use_negative):
         if device == 'gpu':
             image = image.gpu()
         axes, rel_start, rel_shape = fn.external_source(source=get_dynamic_axes, num_outputs=3)
-        rel_start = fn.cast(rel_start, dtype=types.FLOAT)
-        rel_shape = fn.cast(rel_shape, dtype=types.FLOAT)
         sliced1 = fn.slice(image, rel_start=rel_start, rel_shape=rel_shape, axes=axes)
         sliced2 = fn.slice(image, rel_start, rel_shape, axes=axes)
         return image, axes, rel_start, rel_shape, sliced1, sliced2
@@ -773,8 +773,9 @@ def check_dynamic_axes(device, batch_size, num_threads, use_negative):
                 assert a >= -ndim and a <= (ndim-1)
                 start[a] = roundint(rel_start[i] * in_img.shape[a])
                 end[a] = roundint((rel_start[i] + rel_shape[i]) * in_img.shape[a])
-            np.testing.assert_allclose(in_img[start[0]:end[0], start[1]:end[1], start[2]:end[2]], sliced1)
-            np.testing.assert_allclose(in_img[start[0]:end[0], start[1]:end[1], start[2]:end[2]], sliced2)
+            ref_sliced = in_img[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
+            np.testing.assert_allclose(ref_sliced, sliced1)
+            np.testing.assert_allclose(ref_sliced, sliced2)
 
 def test_dynamic_axes():
     batch_size=10
@@ -787,3 +788,28 @@ def test_negative_axes():
     num_threads=3
     for device in ['cpu', 'gpu']:
         yield check_dynamic_axes, device, batch_size, num_threads, True
+
+def check_wrong_axes(device, wrong_axes_range=None, named_args=False):
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def make_pipe():
+        fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device=device)
+        if wrong_axes_range:
+            axes = fn.random.uniform(range=wrong_axes_range, shape=(2,), dtype=types.INT32)
+        rel_start = fn.random.uniform(range=[0.0, 0.3], shape=(2,), dtype=types.FLOAT)
+        rel_shape = fn.random.uniform(range=[0.4, 0.6], shape=(2,), dtype=types.FLOAT)
+        if named_args:
+            sliced = fn.slice(fake_data, rel_start=rel_start, rel_shape=rel_shape, axes=axes)
+        else:
+            sliced = fn.slice(fake_data, rel_start, rel_shape, axes=axes)
+        return sliced
+    p = make_pipe()
+    p.build()
+    # Note: [[] and []] are '[' and ']' characters.
+    assert_raises(RuntimeError, p.run,
+                  glob='Axis * out of range. Expected range is [[]-3, 2[]] for a 3D input')
+
+def test_wrong_axes():
+    for device in ['cpu', 'gpu']:
+        for wrong_axes_range in [(-10, -4), (3, 10)]:
+            for named_args in [False, True]:
+                yield check_wrong_axes, device, wrong_axes_range, named_args
