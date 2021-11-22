@@ -295,10 +295,10 @@ class NppError : public std::runtime_error {
 
   static std::string Message(NppStatus result, const char *details) {
     if (details && *details) {
-      return make_string("npp error: ", result, " ", ErrorString(result),
+      return make_string("npp error ", result, ": ", ErrorString(result),
                          "\nDetails:\n", details);
     } else {
-      return make_string("npp error: ", result, " ", ErrorString(result));
+      return make_string("npp error ", result, ": ", ErrorString(result));
     }
   }
 
