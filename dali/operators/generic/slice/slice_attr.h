@@ -42,7 +42,7 @@ enum class AxesMode : uint8_t {
 };
 
 /**
- * @brief Gets a small vector with the final axes for a particular sample, given the current config
+ * @brief Gets a SmallVector with the final axes for a particular sample, given the current config
  */
 SmallVector<int, 8> GetAxes(AxesMode axes_mode, const TensorLayout& shape_layout,
                             const TensorLayout& axis_names, const ArgValue<int, 1>& axes_arg,
@@ -51,7 +51,7 @@ SmallVector<int, 8> GetAxes(AxesMode axes_mode, const TensorLayout& shape_layout
 
 /**
  * @brief Process axes arguments.
- * @return true if there are axes defined, false otherwise (use all axes).
+ * @return AxesMode axes mode to be used
  */
 AxesMode ProcessAxesArgs(TensorLayout& axis_names, const OpSpec& spec,
                          const char* axes_arg_name = "axes",

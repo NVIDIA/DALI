@@ -42,8 +42,8 @@ SmallVector<int, 8> GetAxes(AxesMode axes_mode, const TensorLayout& shape_layout
   for (size_t i = 0; i < axes.size(); i++) {
     auto &dim = axes[i];
     DALI_ENFORCE(dim >= -ndim && dim < ndim,
-                  make_string("Axis ", axes[i], "out of range. Expected range is [", -ndim, ", ",
-                              ndim - 1, "] for a", ndim, "D input"));
+                  make_string("Axis ", axes[i], " out of range. Expected range is [", -ndim, ", ",
+                              ndim - 1, "] for a ", ndim, "D input"));
     if (dim < 0)
       dim += ndim;
     if (axes_check[dim])
