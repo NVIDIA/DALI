@@ -23,42 +23,18 @@
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/span.h"
+#include "dali/core/static_switch.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_view.h"
+#include "dali/operators/util/axis_args.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/util/crop_window.h"
-#include "dali/core/static_switch.h"
 
 #define SLICE_ARGS_TYPES (int32_t, int64_t, float)
 
 namespace dali {
-
-namespace detail {
-
-enum class AxesMode : uint8_t {
-  Axes, AxisNames, AllAxes
-};
-
-/**
- * @brief Gets a SmallVector with the final axes for a particular sample, given the current config
- */
-SmallVector<int, 8> GetAxes(AxesMode axes_mode, const TensorLayout& shape_layout,
-                            const TensorLayout& axis_names, const ArgValue<int, 1>& axes_arg,
-                            int data_idx, int ndim);
-
-
-/**
- * @brief Process axes arguments.
- * @return AxesMode axes mode to be used
- */
-AxesMode ProcessAxesArgs(TensorLayout& axis_names, const OpSpec& spec,
-                         const char* axes_arg_name = "axes",
-                         const char* axis_names_arg_name = "axis_names");
-
-
-}  // namespace detail
 
 class NamedSliceAttr {
  public:
@@ -71,7 +47,7 @@ class NamedSliceAttr {
                                  const char* rel_shape_name = "rel_shape",
                                  const char* axes_arg_name = "axes",
                                  const char* axis_names_arg_name = "axis_names")
-      : axes_arg_(axes_arg_name, spec),
+      : axis_args_(spec, axes_arg_name, axis_names_arg_name),
         start_(start_name, spec),
         rel_start_(rel_start_name, spec),
         end_(end_name, spec),
@@ -80,8 +56,6 @@ class NamedSliceAttr {
         rel_shape_(rel_shape_name, spec) {
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
-
-    axes_mode_ = detail::ProcessAxesArgs(axis_names_, spec, axes_arg_name, axis_names_arg_name);
 
     has_start_ = start_.IsDefined() || rel_start_.IsDefined();
 
@@ -105,16 +79,8 @@ class NamedSliceAttr {
     if (ndim < 0)
       ndim = ws.GetInputDim(0);
 
-    TensorListShape<1> args_shape;
-    if (axes_mode_ == detail::AxesMode::AxisNames) {
-      args_shape = uniform_list_shape(curr_batch_size, TensorShape<1>{axis_names_.size()});
-    } else if (axes_mode_ == detail::AxesMode::Axes) {
-      axes_arg_.Acquire(spec, ws, curr_batch_size);
-      args_shape = axes_arg_.get().shape;
-    } else {
-      assert(axes_mode_ == detail::AxesMode::AllAxes);
-      args_shape = uniform_list_shape(curr_batch_size, TensorShape<1>{ndim});
-    }
+    axis_args_.Acquire(spec, ws, curr_batch_size);
+    auto args_shape = axis_args_.AxesShape();  // args should have as many elements as axes
 
     if (start_.IsDefined())
       start_.Acquire(spec, ws, curr_batch_size, args_shape);
@@ -150,8 +116,7 @@ class NamedSliceAttr {
         slice.shape = shape;
 
         int ndim = shape.sample_dim();
-        auto axes =
-            detail::GetAxes(axes_mode_, shape_layout, axis_names_, axes_arg_, data_idx, ndim);
+        auto axes = axis_args_.Get(data_idx, ndim, shape_layout);
 
         constexpr double i64min = static_cast<double>(std::numeric_limits<int64_t>::min());
         constexpr double i64max = static_cast<double>(std::numeric_limits<int64_t>::max());
@@ -211,8 +176,7 @@ class NamedSliceAttr {
   }
 
  private:
-  TensorLayout axis_names_;
-  ArgValue<int, 1> axes_arg_;
+  AxisArgs axis_args_;
 
   ArgValue<int, 1> start_;
   ArgValue<float, 1> rel_start_;
@@ -226,19 +190,17 @@ class NamedSliceAttr {
   std::vector<CropWindowGenerator> crop_window_generators_;
 
   bool has_start_, has_end_, has_shape_;
-  detail::AxesMode axes_mode_ = detail::AxesMode::AxisNames;
 };
 
 
 class PositionalSliceAttr {
  public:
   explicit inline PositionalSliceAttr(const OpSpec& spec)
-      : axes_arg_("axes", spec) {
+      : axis_args_(spec, "axes", "axis_names") {
     normalized_anchor_ = spec.GetArgument<bool>("normalized_anchor");
     normalized_shape_ = spec.GetArgument<bool>("normalized_shape");
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
-    axes_mode_ = detail::ProcessAxesArgs(axis_names_, spec, "axes", "axis_names");
   }
 
   template <typename Backend>
@@ -246,11 +208,10 @@ class PositionalSliceAttr {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     int ndim = ws.GetInputDim(0);
 
-    if (axes_mode_ == detail::AxesMode::Axes)
-      axes_arg_.Acquire(spec, ws, curr_batch_size);
-
     if (ws.NumInput() != (spec.GetSchema().MinNumInput() + 2))
       return false;
+
+    axis_args_.Acquire(spec, ws, curr_batch_size);
 
     const auto &crop_anchor = ws.template Input<CPUBackend>(1);
     const auto &crop_shape = ws.template Input<CPUBackend>(2);
@@ -298,7 +259,7 @@ class PositionalSliceAttr {
         slice.shape = shape;
 
         int ndim = shape.sample_dim();
-        auto axes = GetAxes(axes_mode_, shape_layout, axis_names_, axes_arg_, data_idx, ndim);
+        auto axes = axis_args_.Get(data_idx, ndim, shape_layout);
 
         // checking anchor is enough (we already checked they have the same size earlier)
         DALI_ENFORCE(static_cast<int>(axes.size()) == slice_anchor_data.size(),
@@ -348,10 +309,8 @@ class PositionalSliceAttr {
 
  private:
   bool normalized_anchor_, normalized_shape_;
-  TensorLayout axis_names_;
-  ArgValue<int, 1> axes_arg_;
+  AxisArgs axis_args_;
   std::vector<CropWindowGenerator> crop_window_generators_;
-  detail::AxesMode axes_mode_ = detail::AxesMode::AxisNames;
 };
 
 class SliceAttr {
