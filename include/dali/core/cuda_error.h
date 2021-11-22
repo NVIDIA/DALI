@@ -98,6 +98,12 @@ inline void cudaResultCheck(Code code) {
     "cudaResultCheck not implemented for this type of status code");
 }
 
+template <typename Code>
+inline void cudaResultCheck(Code code, string extra) {
+  static_assert(!std::is_same<Code, Code>::value,
+    "cudaResultCheck not implemented for this type of status code");
+}
+
 template <>
 inline void cudaResultCheck<cudaError_t>(cudaError_t status) {
   switch (status) {
@@ -154,6 +160,11 @@ inline void cudaResultDestructorCheck<CUresult>(CUresult status) {
 template <typename T>
 inline void CUDA_CALL(T status) {
   return dali::cudaResultCheck(status);
+}
+
+template <typename T>
+inline void CUDA_CALL_EX(T status, std::string extra) {
+  return dali::cudaResultCheck(status, extra);
 }
 
 template <typename T>
