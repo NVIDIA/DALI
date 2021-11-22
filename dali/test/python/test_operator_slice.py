@@ -793,8 +793,7 @@ def check_wrong_axes(device, wrong_axes_range=None, named_args=False):
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def make_pipe():
         fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device=device)
-        if wrong_axes_range:
-            axes = fn.random.uniform(range=wrong_axes_range, shape=(2,), dtype=types.INT32)
+        axes = fn.random.uniform(range=wrong_axes_range, shape=(2,), dtype=types.INT32)
         rel_start = fn.random.uniform(range=[0.0, 0.3], shape=(2,), dtype=types.FLOAT)
         rel_shape = fn.random.uniform(range=[0.4, 0.6], shape=(2,), dtype=types.FLOAT)
         if named_args:
