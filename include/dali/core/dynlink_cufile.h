@@ -105,10 +105,10 @@ class CufileError : public std::runtime_error {
 
   static std::string Message(CUfileError_t result, const char *details) {
     if (details && *details) {
-      return make_string("cufile error ", result.err, ": ", ErrorString(result),
+      return make_string("cuFile error (", result.err, "): ", ErrorString(result),
                          "\nDetails:\n", details);
     } else {
-      return make_string("cufile error ", result.err, ": ", ErrorString(result));
+      return make_string("cuFile error (", result.err, "): ", ErrorString(result));
     }
   }
 

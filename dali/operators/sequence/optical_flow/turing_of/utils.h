@@ -64,10 +64,10 @@ class NvofError : public std::runtime_error {
 
   static std::string Message(NV_OF_STATUS result, const char *details) {
     if (details && *details) {
-      return make_string("NVIDIA Optical flow error ", result, ": ", ErrorString(result),
+      return make_string("NVIDIA Optical flow error (", result, "): ", ErrorString(result),
                          "\nDetails:\n", details);
     } else {
-      return make_string("NVIDIA Optical flow error ", result, ": ", ErrorString(result));
+      return make_string("NVIDIA Optical flow error (", result, "): ", ErrorString(result));
     }
   }
 

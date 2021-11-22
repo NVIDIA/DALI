@@ -72,10 +72,10 @@ class NvjpegError : public std::runtime_error {
 
   static std::string Message(nvjpegStatus_t result, const char *details) {
     if (details && *details) {
-      return make_string("nvJPEG error ", result, ": ", ErrorString(result),
+      return make_string("nvJPEG error (", result, "): ", ErrorString(result),
                          "\nDetails:\n", details);
     } else {
-      return make_string("nvJPEG error ", result, ": ", ErrorString(result));
+      return make_string("nvJPEG error (", result, "): ", ErrorString(result));
     }
   }
 

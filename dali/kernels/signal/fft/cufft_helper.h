@@ -73,10 +73,10 @@ class CUFFTError : public std::runtime_error {
 
   static std::string Message(cufftResult result, const char *details) {
     if (details && *details) {
-      return make_string("CUFFT error ", result, ": ", ErrorString(result),
+      return make_string("CUFFT error (", result, "): ", ErrorString(result),
                          "\nDetails:\n", details);
     } else {
-      return make_string("CUFFT error ", result, ": ", ErrorString(result));
+      return make_string("CUFFT error (", result, "): ", ErrorString(result));
     }
   }
 
