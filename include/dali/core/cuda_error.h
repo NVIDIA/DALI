@@ -174,11 +174,6 @@ inline void CUDA_CALL_EX(T status, const std::string &extra) {
 }
 
 template <typename T>
-inline void CUDA_CALL_EX(T status, std::string extra) {
-  return dali::cudaResultCheck(status, extra);
-}
-
-template <typename T>
 inline void CUDA_DTOR_CALL(T status) {
   return dali::cudaResultDestructorCheck(status);
 }
