@@ -17,35 +17,39 @@
 
 namespace dali {
 
-AxisArgs::AxisArgs(const OpSpec &spec, const char *axes_arg, const char *axis_names_arg,
+AxisArgs::AxisArgs(const OpSpec &spec, const char *axis_index_arg, const char *axis_name_arg,
                    unsigned int flags)
     : flags_(flags) {
-  bool has_axes_arg = axes_arg && spec.ArgumentDefined(axes_arg);
-  bool has_axis_names_arg = axis_names_arg && spec.HasArgument(axis_names_arg);
-  if (has_axes_arg && has_axis_names_arg) {
+  bool has_axis_index_arg = axis_index_arg && spec.ArgumentDefined(axis_index_arg);
+  bool has_axis_name_arg = axis_name_arg && spec.HasArgument(axis_name_arg);
+  if (has_axis_index_arg && has_axis_name_arg) {
     DALI_FAIL(
-        make_string("\"", axes_arg, "\" and \"", axis_names_arg, "\" are mutually exclusive"));
+        make_string("\"", axis_index_arg, "\" and \"", axis_name_arg, "\" are mutually exclusive"));
   }
 
-  if (axes_arg)  // unique_ptr serves as optional
-    axes_ = std::make_unique<ArgValue<int, 1>>(axes_arg, spec);
+  if (axis_index_arg)  // unique_ptr serves as optional
+    axes_ = std::make_unique<ArgValue<int, 1>>(axis_index_arg, spec);
 
-  per_sample_axes_ = axes_arg && spec.HasTensorArgument(axes_arg);
+  per_sample_axes_ = axis_index_arg && spec.HasTensorArgument(axis_index_arg);
 
   bool allow_empty = flags_ & AllowEmpty;
+  if (!allow_empty && !axis_index_arg && !axis_name_arg) {
+    DALI_FAIL("At least one argument name must be provided if allow_empty is false.");
+  }
+
   if (!per_sample_axes_) {
-    if ((has_axis_names_arg || !has_axes_arg) && axis_names_arg) {
-      use_axis_names_ = spec.TryGetArgument(axis_names_, axis_names_arg);
+    if ((has_axis_name_arg || !has_axis_index_arg) && axis_name_arg) {
+      use_axis_names_ = spec.TryGetArgument(axis_names_, axis_name_arg);
       if (use_axis_names_ && !allow_empty && axis_names_.empty())
-        DALI_FAIL(make_string("Can't have empty axes. Check argument name: ", axis_names_arg));
+        DALI_FAIL(make_string("Can't have empty axes. Check argument name: ", axis_name_arg));
     }
-    if (!use_axis_names_ && axes_arg) {
+    if (!use_axis_names_ && axis_index_arg) {
       std::vector<int> tmp;  // TODO(janton): support SmallVector in TryGetRepeatedArgument
-      if (spec.TryGetRepeatedArgument(tmp, axes_arg))
+      if (spec.TryGetRepeatedArgument(tmp, axis_index_arg))
         const_axes_ = {tmp.begin(), tmp.end()};
 
       if (!allow_empty && const_axes_.empty())
-        DALI_FAIL(make_string("Can't have empty axes. Check argument name: ", axes_arg));
+        DALI_FAIL(make_string("Can't have empty axes. Check argument name: ", axis_index_arg));
     }
   }
 }
