@@ -145,7 +145,8 @@ std::unique_ptr<OpImplBase<GPUBackend>> GetGaussianBlurGpuImpl(const OpSpec* spe
   VALUE_SWITCH(dim_desc.usable_axes_count, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
     BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
       BOOL_SWITCH(dim_desc.is_sequence, IsSequence, (
-        result.reset(new GaussianBlurOpGpu<Out, In, Axes, HasChannels, IsSequence>(spec, std::move(dim_desc)));
+        result.reset(
+          new GaussianBlurOpGpu<Out, In, Axes, HasChannels, IsSequence>(spec, std::move(dim_desc)));
       ));  // NOLINT
     ));  // NOLINT
   ), DALI_FAIL("Axis count out of supported range."));  // NOLINT

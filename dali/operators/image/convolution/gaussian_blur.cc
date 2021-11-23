@@ -224,9 +224,11 @@ bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
       VALUE_SWITCH(dim_desc.usable_axes_count, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
         BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
           if (dtype_ == input.type()) {
-            impl_ = std::make_unique<GaussianBlurOpCpu<In, In, Axes, HasChannels>>(&spec_, dim_desc);
+            impl_ =
+              std::make_unique<GaussianBlurOpCpu<In, In, Axes, HasChannels>>(&spec_, dim_desc);
           } else {
-            impl_ = std::make_unique<GaussianBlurOpCpu<float, In, Axes, HasChannels>>(&spec_, dim_desc);
+            impl_ =
+              std::make_unique<GaussianBlurOpCpu<float, In, Axes, HasChannels>>(&spec_, dim_desc);
           }
         ));  // NOLINT
       ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
