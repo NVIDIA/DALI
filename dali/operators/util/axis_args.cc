@@ -59,6 +59,15 @@ void AxisArgs::Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsam
     assert(axes_);
     axes_->Acquire(spec, ws, nsamples);
     shape_ = axes_->get().shape;
+
+    if (!(flags_ & AllowNonUniformLen)) {
+      if (shape_.size() > 0) {
+        int len = shape_.tensor_shape_span(0)[0];
+        for (int i = 1; i < shape_.num_samples(); i++)
+          DALI_ENFORCE(len == shape_.tensor_shape_span(i)[0],
+                       "Every sample should contain the same number of axes");
+      }
+    }
   } else if (use_axis_names_) {
     shape_ = uniform_list_shape(nsamples, TensorShape<1>(axis_names_.size()));
   } else {

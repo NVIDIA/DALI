@@ -28,11 +28,12 @@ namespace dali {
 class AxisArgs {
  public:
   enum Flags : unsigned {
-    AllowEmpty = 0b0001,
-    AllowMultiple = 0b0010,
-    AllIfEmpty = 0b0100,
-    AllowNegative = 0b1000,
-    DefaultFlags = AllowEmpty | AllowMultiple | AllIfEmpty | AllowNegative
+    AllowEmpty = 0b00000001,
+    AllowMultiple = 0b00000010,
+    AllIfEmpty = 0b00000100,
+    AllowNegative = 0b000001000,
+    AllowNonUniformLen = 0b00010000,
+    DefaultFlags = AllowEmpty | AllowMultiple | AllIfEmpty | AllowNegative | AllowNonUniformLen
   };
 
   AxisArgs(const OpSpec &spec, const char *axes_arg, const char *axis_names_arg,
