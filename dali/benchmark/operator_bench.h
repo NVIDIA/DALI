@@ -119,12 +119,15 @@ class OperatorBench : public DALIBenchmark {
     CUDA_CALL(cudaStreamSynchronize(0));
     for (auto _ : st) {
       op_ptr->Run(ws);
-      CUDA_CALL(cudaStreamSynchronize(0));
 
       int num_batches = st.iterations() + 1;
       st.counters["FPS"] = benchmark::Counter(batch_size * num_batches,
         benchmark::Counter::kIsRate);
     }
+
+    st.ResumeTiming();
+    CUDA_CALL(cudaStreamSynchronize(0));
+    st.PauseTiming();
   }
 
   template <typename T>
