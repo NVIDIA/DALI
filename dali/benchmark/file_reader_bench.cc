@@ -61,6 +61,7 @@ static std::vector<std::string> getSubdirs(const std::string &file_root) {
   // sort directories
   std::sort(entry_name_list.begin(), entry_name_list.end());
 
+  closedir(dir);
   return entry_name_list;
 }
 
