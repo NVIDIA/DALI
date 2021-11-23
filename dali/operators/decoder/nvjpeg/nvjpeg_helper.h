@@ -97,13 +97,12 @@ inline void cudaResultCheck<nvjpegStatus_t>(nvjpegStatus_t status) {
 }
 
 template <>
-inline void cudaResultCheck<nvjpegStatus_t>(nvjpegStatus_t status, string extra) {
+inline void cudaResultCheck<nvjpegStatus_t>(nvjpegStatus_t status, const string &extra) {
   switch (status) {
   case NVJPEG_STATUS_SUCCESS:
     return;
   default:
-    string extra_info = extra;
-    throw dali::NvjpegError(status, extra_info.c_str());
+    throw dali::NvjpegError(status, extra.c_str());
   }
 }
 

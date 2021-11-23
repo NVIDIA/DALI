@@ -99,7 +99,7 @@ inline void cudaResultCheck(Code code) {
 }
 
 template <typename Code>
-inline void cudaResultCheck(Code code, string extra) {
+inline void cudaResultCheck(Code code, const std::string &extra) {
   static_assert(!std::is_same<Code, Code>::value,
     "cudaResultCheck not implemented for this type of status code");
 }
@@ -162,8 +162,14 @@ inline void CUDA_CALL(T status) {
   return dali::cudaResultCheck(status);
 }
 
+/**
+  * @param status A status code that indicates an error or success
+  * @param extra Additional information about an error, if it occurs. The
+  *              caller should take care not to construct a string solely for the
+  *              purpose of this parameter due to performance overhead.
+  */
 template <typename T>
-inline void CUDA_CALL_EX(T status, std::string extra) {
+inline void CUDA_CALL_EX(T status, const std::string &extra) {
   return dali::cudaResultCheck(status, extra);
 }
 
