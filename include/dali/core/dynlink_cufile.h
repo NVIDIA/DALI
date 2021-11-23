@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -105,10 +105,10 @@ class CufileError : public std::runtime_error {
 
   static std::string Message(CUfileError_t result, const char *details) {
     if (details && *details) {
-      return make_string("cufile error: ", result.err, " ", ErrorString(result),
+      return make_string("cuFile error (", result.err, "): ", ErrorString(result),
                          "\nDetails:\n", details);
     } else {
-      return make_string("cufile error: ", result.err, " ", ErrorString(result));
+      return make_string("cuFile error (", result.err, "): ", ErrorString(result));
     }
   }
 

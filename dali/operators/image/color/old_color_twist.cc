@@ -236,7 +236,7 @@ void OldColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
       size.width = input.tensor_shape(i)[1];
       const int nStep = C_ * size.width;  // W * C
       colorTwistFunc twist_func = C_ == 3 ? nppiColorTwist32f_8u_C3R : nppiColorTwist32f_8u_C1R;
-      DALI_CHECK_NPP(twist_func(input.tensor<uint8_t>(i), nStep, output.mutable_tensor<uint8_t>(i),
+      CUDA_CALL(twist_func(input.tensor<uint8_t>(i), nStep, output.mutable_tensor<uint8_t>(i),
                                 nStep, size, matrix));
     } else {
       CUDA_CALL(cudaMemcpyAsync(output.raw_mutable_tensor(i), input.raw_tensor(i),

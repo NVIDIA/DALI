@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,29 +23,84 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/unique_handle.h"
 #include "dali/core/format.h"
+#include "dali/core/common.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 
-#define NVJPEG2K_CALL(code)                             \
-  do {                                                  \
-    nvjpeg2kStatus_t status = code;                     \
-    if (status != NVJPEG2K_STATUS_SUCCESS) {            \
-      auto error = make_string("NVJPEG2K error \"",     \
-        static_cast<int>(status), "\"");                \
-      DALI_FAIL(error);                                 \
-    }                                                   \
-  } while (0)
+class Nvjpeg2kError : public std::runtime_error {
+ public:
+  explicit Nvjpeg2kError(nvjpeg2kStatus_t result, const char *details = nullptr)
+  : std::runtime_error(Message(result, details))
+  , result_(result) {}
 
-#define NVJPEG2K_CALL_EX(code, extra)                   \
-  do {                                                  \
-    nvjpeg2kStatus_t status = code;                     \
-    std::string extra_info = extra;                     \
-    if (status != NVJPEG2K_STATUS_SUCCESS) {            \
-      auto error = make_string("NVJPEG2K error \"",     \
-        static_cast<int>(status), "\" : ", extra_info); \
-      DALI_FAIL(error);                                 \
-    }                                                   \
-  } while (0)
+  static const char *ErrorString(nvjpeg2kStatus_t result) {
+    switch (result) {
+      case NVJPEG2K_STATUS_SUCCESS:
+        return "The API call has finished successfully. Note that many of the calls are "
+                "asynchronous and some of the errors may be seen only after synchronization.";
+      case NVJPEG2K_STATUS_NOT_INITIALIZED :
+        return "The library handle was not initialized.";
+      case NVJPEG2K_STATUS_INVALID_PARAMETER:
+        return "Wrong parameter was passed. For example, a null pointer as input data, or "
+               "an invalid enum value";
+      case NVJPEG2K_STATUS_BAD_JPEG:
+        return "Cannot parse the JPEG2000 stream. Likely due to a corruption that cannot "
+               "be handled";
+      case NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED:
+        return "Attempting to decode a JPEG2000 stream that is not supported by "
+               "the nvJPEG2000 library.";
+      case NVJPEG2K_STATUS_ALLOCATOR_FAILURE:
+        return "The user-provided allocator functions, for either memory allocation or "
+               "for releasing the memory, returned a non-zero code.";
+      case NVJPEG2K_STATUS_EXECUTION_FAILED:
+        return "Error during the execution of the device tasks.";
+      case NVJPEG2K_STATUS_ARCH_MISMATCH:
+        return "The device capabilities are not enough for the set of input parameters provided.";
+      case NVJPEG2K_STATUS_INTERNAL_ERROR:
+        return "Unknown error occurred in the library.";
+      case NVJPEG2K_STATUS_IMPLEMENTATION_NOT_SUPPORTED:
+        return "API is not supported by the backend.";
+      default:
+        return "< unknown error >";
+    }
+  }
+
+  static std::string Message(nvjpeg2kStatus_t result, const char *details) {
+    if (details && *details) {
+      return make_string("nvJPEG2000 error (", result, "): ", ErrorString(result),
+                         "\nDetails:\n", details);
+    } else {
+      return make_string("nvJPEG2000 error (", result, "): ", ErrorString(result));
+    }
+  }
+
+
+  nvjpeg2kStatus_t result() const { return result_; }
+
+ private:
+  nvjpeg2kStatus_t result_;
+};
+
+template <>
+inline void cudaResultCheck<nvjpeg2kStatus_t>(nvjpeg2kStatus_t status) {
+  switch (status) {
+  case NVJPEG2K_STATUS_SUCCESS:
+    return;
+  default:
+    throw dali::Nvjpeg2kError(status);
+  }
+}
+
+template <>
+inline void cudaResultCheck<nvjpeg2kStatus_t>(nvjpeg2kStatus_t status, const string &extra) {
+  switch (status) {
+  case NVJPEG2K_STATUS_SUCCESS:
+    return;
+  default:
+    throw dali::Nvjpeg2kError(status, extra.c_str());
+  }
+}
 
 struct NvJPEG2KHandle : public UniqueHandle<nvjpeg2kHandle_t, NvJPEG2KHandle> {
   DALI_INHERIT_UNIQUE_HANDLE(nvjpeg2kHandle_t, NvJPEG2KHandle);
@@ -71,7 +126,7 @@ struct NvJPEG2KStream : public UniqueHandle<nvjpeg2kStream_t, NvJPEG2KStream> {
 
   static NvJPEG2KStream Create() {
     nvjpeg2kStream_t handle{};
-    NVJPEG2K_CALL(nvjpeg2kStreamCreate(&handle));
+    CUDA_CALL(nvjpeg2kStreamCreate(&handle));
     return NvJPEG2KStream(handle);
   }
 
@@ -86,7 +141,7 @@ struct NvJPEG2KDecodeState : public UniqueHandle<nvjpeg2kDecodeState_t, NvJPEG2K
   DALI_INHERIT_UNIQUE_HANDLE(nvjpeg2kDecodeState_t, NvJPEG2KDecodeState);
 
   explicit NvJPEG2KDecodeState(nvjpeg2kHandle_t nvjpeg2k_handle) {
-    NVJPEG2K_CALL(nvjpeg2kDecodeStateCreate(nvjpeg2k_handle, &handle_));
+    CUDA_CALL(nvjpeg2kDecodeStateCreate(nvjpeg2k_handle, &handle_));
   }
 
   static constexpr nvjpeg2kDecodeState_t null_handle() { return nullptr; }
