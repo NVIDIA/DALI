@@ -25,8 +25,6 @@ This part of the repository contains extra dependencies required to build DALI, 
 +-----------------+---------------------+---------------------+
 | |rapidjson|_    | |rapidjsonver|_     | |rapidjsonlic|_     |
 +-----------------+---------------------+---------------------+
-| |thrust|_       | |thrustver|_        | |thrustlic|_        |
-+-----------------+---------------------+---------------------+
 
 .. |benchmark| replace:: Google Benchmark
 .. _benchmark: https://github.com/google/benchmark
@@ -97,10 +95,3 @@ This part of the repository contains extra dependencies required to build DALI, 
 .. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/4d6cb08189cf7336821f04090b612baa2ca6a90d
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt
-
-.. |thrust| replace:: Thrust
-.. _thrust: https://github.com/NVIDIA/thrust
-.. |thrustver| replace:: 1.14.0
-.. _thrustver: https://github.com/NVIDIA/thrust/releases/tag/1.14.0
-.. |thrustlic| replace:: Apache License 2.0
-.. _thrustlic: https://github.com/NVIDIA/thrust/blob/main/LICENSE
