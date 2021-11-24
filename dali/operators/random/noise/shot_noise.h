@@ -79,7 +79,7 @@ class ShotNoise : public RNGBase<Backend, ShotNoise<Backend>, true> {
 
   template <typename T>
   bool SetupDists(Impl<T>* dists_data, int nsamples) {
-    if (!factor_.IsDefined()) {
+    if (!factor_.HasExplicitValue()) {
       return false;
     }
     for (int s = 0; s < nsamples; s++) {

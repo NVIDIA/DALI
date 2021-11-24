@@ -96,7 +96,7 @@ ROIRandomCropCPU::ROIRandomCropCPU(const OpSpec &spec)
       roi_shape_("roi_shape", spec),
       crop_shape_("crop_shape", spec),
       in_shape_arg_("in_shape", spec) {
-  DALI_ENFORCE((roi_end_.IsDefined() + roi_shape_.IsDefined()) == 1,
+  DALI_ENFORCE((roi_end_.HasExplicitValue() + roi_shape_.HasExplicitValue()) == 1,
     "Either ROI end or ROI shape should be defined, but not both");
 }
 
@@ -110,18 +110,18 @@ bool ROIRandomCropCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   TensorShape<1> sh{ndim};
   roi_start_.Acquire(spec_, ws, nsamples, sh);
-  if (roi_end_.IsDefined()) {
+  if (roi_end_.HasExplicitValue()) {
     roi_end_.Acquire(spec_, ws, nsamples, sh);
   } else {
-    assert(roi_shape_.IsDefined());
+    assert(roi_shape_.HasExplicitValue());
     roi_shape_.Acquire(spec_, ws, nsamples, sh);
   }
 
   in_shape_.shapes.clear();
-  if (in_shape_arg_.IsDefined() || ws.NumInput() == 1) {
-    DALI_ENFORCE((in_shape_arg_.IsDefined() + (ws.NumInput() == 1)) == 1,
+  if (in_shape_arg_.HasExplicitValue() || ws.NumInput() == 1) {
+    DALI_ENFORCE((in_shape_arg_.HasExplicitValue() + (ws.NumInput() == 1)) == 1,
       "``in_shape`` argument is incompatible with providing an input.");
-    if (in_shape_arg_.IsDefined()) {
+    if (in_shape_arg_.HasExplicitValue()) {
       in_shape_.resize(nsamples, ndim);
       in_shape_arg_.Acquire(spec_, ws, nsamples, sh);
       for (int s = 0; s < nsamples; s++) {
@@ -149,7 +149,7 @@ bool ROIRandomCropCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
                                  "Got: crop_shape[", crop_shape_[s].data[d], "] and sample_shape[",
                                  sample_sh[d], "] for d=", d));
       }
-      if (roi_shape_.IsDefined()) {
+      if (roi_shape_.HasExplicitValue()) {
         for (int d = 0; d < ndim; d++) {
           auto roi_end = roi_start_[s].data[d] + roi_shape_[s].data[d];
           DALI_ENFORCE(roi_start_[s].data[d] >= 0 && sample_sh[d] >= roi_end,
@@ -190,7 +190,7 @@ void ROIRandomCropCPU::RunImpl(workspace_t<CPUBackend> &ws) {
       int64_t roi_start = roi_start_[sample_idx].data[d];
       int64_t crop_extent = crop_shape_[sample_idx].data[d];
 
-      if (roi_end_.IsDefined()) {
+      if (roi_end_.HasExplicitValue()) {
         roi_extent = roi_end_[sample_idx].data[d] - roi_start;
       } else {
         roi_extent = roi_shape_[sample_idx].data[d];

@@ -82,14 +82,14 @@ class TransformTranslationCPU
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    assert(offset_.IsDefined());
+    assert(offset_.HasExplicitValue());
     ArgValueFlags flags = ArgValue_EnforceUniform;
     offset_.Acquire(spec, ws, nsamples_, flags);
     ndim_ = offset_[0].num_elements();
   }
 
   bool IsConstantTransform() const {
-    return !offset_.IsArgInput();
+    return !offset_.HasArgumentInput();
   }
 
  private:

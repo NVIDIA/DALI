@@ -62,16 +62,17 @@ class NamedSliceAttr {
     crop_window_generators_.resize(max_batch_sz);
     use_all_axes_ = !ProcessAxesArgs(axes_, axis_names_, spec, axes_arg_name, axis_names_arg_name);
 
-    has_start_ = start_.IsDefined() || rel_start_.IsDefined();
+    has_start_ = start_.HasExplicitValue() || rel_start_.HasExplicitValue();
 
-    if ((start_.IsDefined() + rel_start_.IsDefined()) > 1)
+    if ((start_.HasExplicitValue() + rel_start_.HasExplicitValue()) > 1)
       DALI_FAIL(make_string("\"", start_name, "\" and \"", rel_start_name,
                             "\" arguments are mutually exclusive"));
 
-    has_end_ = end_.IsDefined() || rel_end_.IsDefined();
-    has_shape_ = shape_.IsDefined() || rel_shape_.IsDefined();
+    has_end_ = end_.HasExplicitValue() || rel_end_.HasExplicitValue();
+    has_shape_ = shape_.HasExplicitValue() || rel_shape_.HasExplicitValue();
 
-    if ((end_.IsDefined() + rel_end_.IsDefined() + shape_.IsDefined() + rel_shape_.IsDefined()) > 1)
+    if ((end_.HasExplicitValue() + rel_end_.HasExplicitValue() + shape_.HasExplicitValue() +
+         rel_shape_.HasExplicitValue()) > 1)
       DALI_FAIL(make_string("\"", end_name, "\", \"", rel_end_name, "\", \"", shape_name,
                             "\", and \"", rel_shape_name, "\" arguments are mutually exclusive"));
   }
@@ -90,18 +91,18 @@ class NamedSliceAttr {
                                static_cast<int>(axis_names_.size()));
     }
 
-    if (start_.IsDefined())
+    if (start_.HasExplicitValue())
       start_.Acquire(spec, ws, curr_batch_size, args_shape);
-    else if (rel_start_.IsDefined())
+    else if (rel_start_.HasExplicitValue())
       rel_start_.Acquire(spec, ws, curr_batch_size, args_shape);
 
-    if (end_.IsDefined())
+    if (end_.HasExplicitValue())
       end_.Acquire(spec, ws, curr_batch_size, args_shape);
-    else if (rel_end_.IsDefined())
+    else if (rel_end_.HasExplicitValue())
       rel_end_.Acquire(spec, ws, curr_batch_size, args_shape);
-    else if (shape_.IsDefined())
+    else if (shape_.HasExplicitValue())
       shape_.Acquire(spec, ws, curr_batch_size, args_shape);
-    else if (rel_shape_.IsDefined())
+    else if (rel_shape_.HasExplicitValue())
       rel_shape_.Acquire(spec, ws, curr_batch_size, args_shape);
 
     for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
@@ -138,9 +139,9 @@ class NamedSliceAttr {
           auto dim = axes[i];
 
           double anchor_val = 0;
-          if (start_.IsDefined()) {
+          if (start_.HasExplicitValue()) {
             anchor_val = start_[data_idx].data[i];
-          } else if (rel_start_.IsDefined()) {
+          } else if (rel_start_.HasExplicitValue()) {
             anchor_val = rel_start_[data_idx].data[i] * shape[dim];
           }
           DALI_ENFORCE(anchor_val >= i64min && anchor_val <= i64max,
@@ -148,17 +149,17 @@ class NamedSliceAttr {
                                    "]. Got: ", anchor_val));
 
           double end_val = shape[dim];
-          if (end_.IsDefined()) {
+          if (end_.HasExplicitValue()) {
             end_val = end_[data_idx].data[i];
-          } else if (rel_end_.IsDefined()) {
+          } else if (rel_end_.HasExplicitValue()) {
             end_val = rel_end_[data_idx].data[i] * shape[dim];
-          } else if (shape_.IsDefined()) {
+          } else if (shape_.HasExplicitValue()) {
             double shape_val = shape_[data_idx].data[i];
             DALI_ENFORCE(shape_val >= 0 && shape_val <= i64max,
               make_string("shape value out of range [", 0, ", ", i64max, "]. Got: ", shape_val));
 
             end_val = anchor_val + shape_val;
-          } else if (rel_start_.IsDefined() && rel_shape_.IsDefined()) {
+          } else if (rel_start_.HasExplicitValue() && rel_shape_.HasExplicitValue()) {
             // special case - minimize the floating point error by multiplying only once after sum
             double rel_start_val = rel_start_[data_idx].data[i];
             double rel_shape_val = rel_shape_[data_idx].data[i];
@@ -166,7 +167,7 @@ class NamedSliceAttr {
               make_string("negative shapes are not allowed. Got: ", rel_shape_val));
 
             end_val = (rel_start_val + rel_shape_val) * shape[dim];
-          } else if (rel_shape_.IsDefined()) {
+          } else if (rel_shape_.HasExplicitValue()) {
             double shape_val = rel_shape_[data_idx].data[i] * shape[dim];
             DALI_ENFORCE(shape_val >= 0 && shape_val <= i64max,
                          make_string("shape value out of range [", 0, ", ", i64max,

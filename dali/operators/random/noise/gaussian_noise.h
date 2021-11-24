@@ -62,7 +62,7 @@ class GaussianNoise : public RNGBase<Backend, GaussianNoise<Backend>, true> {
       : BaseImpl(spec),
         mean_("mean", spec),
         stddev_("stddev", spec) {
-    if (mean_.IsDefined() || stddev_.IsDefined()) {
+    if (mean_.HasExplicitValue() || stddev_.HasExplicitValue()) {
       backend_data_.ReserveDistsData(sizeof(Impl<double>) * max_batch_size_);
     }
   }
@@ -78,7 +78,7 @@ class GaussianNoise : public RNGBase<Backend, GaussianNoise<Backend>, true> {
 
   template <typename T>
   bool SetupDists(Impl<T>* dists_data, int nsamples) {
-    if (!mean_.IsDefined() && !stddev_.IsDefined()) {
+    if (!mean_.HasExplicitValue() && !stddev_.HasExplicitValue()) {
       return false;
     }
     for (int s = 0; s < nsamples; s++) {

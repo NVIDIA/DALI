@@ -139,8 +139,8 @@ class TransformCropCPU
   }
 
   bool IsConstantTransform() const {
-    return !from_start_.IsArgInput() && !from_end_.IsArgInput() &&
-           !to_start_.IsArgInput() && !to_end_.IsArgInput();
+    return !from_start_.HasArgumentInput() && !from_end_.HasArgumentInput() &&
+           !to_start_.HasArgumentInput() && !to_end_.HasArgumentInput();
   }
 
  private:

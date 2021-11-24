@@ -49,7 +49,7 @@ void ArgValueTestTensorInput(TensorListShape<ndim> ts, AcquireArgs... args) {
   ArgValue<float, ndim> arg("M", spec);
   arg.Acquire(spec, ws, kNumSamples, args...);
 
-  ASSERT_TRUE(arg.IsArgInput());
+  ASSERT_TRUE(arg.HasArgumentInput());
   ASSERT_EQ(kNumSamples, arg.size());
   for (int i = 0; i < kNumSamples; i++) {
     auto sh = ts[i];
@@ -85,6 +85,10 @@ void ArgValueTestAllowEmpty(TensorListShape<ndim> expected_sh, AcquireArgs... ar
   ArgValue<float, ndim> arg("M", spec);
   arg.Acquire(spec, ws, kNumSamples, expected_sample_sh, ArgValue_AllowEmpty);
 
+  EXPECT_EQ(kNumSamples, arg.size());
+  EXPECT_TRUE(arg.HasValue());
+  EXPECT_TRUE(arg);
+
   EXPECT_FALSE(arg.IsEmpty(0));
   EXPECT_FALSE(arg.IsEmpty(1));
   EXPECT_TRUE(arg.IsEmpty(2));
@@ -97,8 +101,16 @@ void ArgValueTestAllowEmpty(TensorListShape<ndim> expected_sh, AcquireArgs... ar
   ArgumentWorkspace ws2;
   ArgValue<float, ndim> arg2("M", spec2);
   arg2.Acquire(spec2, ws2, kNumSamples, expected_sample_sh, ArgValue_AllowEmpty);
-  for (int i = 0; i < kNumSamples; i++)
-    EXPECT_TRUE(arg2.IsEmpty(i));
+
+  EXPECT_EQ(kNumSamples, arg2.size());
+  EXPECT_TRUE(arg2.HasValue());
+  EXPECT_TRUE(arg2);
+
+  // Not provided
+  OpSpec spec3("MTTransformAttr");  // need to use a real op name
+  ArgumentWorkspace ws3;
+  ArgValue<float, ndim> arg3("M", spec3);
+  EXPECT_FALSE(arg3.HasValue());
 }
 
 
@@ -151,7 +163,7 @@ TEST(ArgValueTests, Constant_0D) {
   ArgValue<float, 0> arg("shape", spec);
   workspace_t<CPUBackend> ws;
   arg.Acquire(spec, ws, nsamples);
-  ASSERT_TRUE(arg.IsConstant());
+  ASSERT_TRUE(arg.HasExplicitConstant());
   ASSERT_EQ(TensorShape<0>{}, arg[0].shape);
   ASSERT_EQ(0.123f, *arg[0].data);
 
@@ -170,7 +182,7 @@ TEST(ArgValueTests, Constant_1D) {
   ArgValue<float, 1> arg("shape", spec);
   workspace_t<CPUBackend> ws;
   arg.Acquire(spec, ws, nsamples, ArgValue_EnforceUniform);
-  ASSERT_TRUE(arg.IsConstant());
+  ASSERT_TRUE(arg.HasExplicitConstant());
   for (int i = 0; i < kNumSamples; i++) {
     ASSERT_EQ(expected_shape, arg[i].shape);
     for (int j = 0; j < expected_shape.num_elements(); j++) {
@@ -208,7 +220,7 @@ TEST(ArgValueTests, Constant_2D) {
   arg2.Acquire(spec, ws, nsamples, expected_shape);
 
   for (auto &arg : {arg1, arg2}) {
-    ASSERT_TRUE(arg.IsConstant());
+    ASSERT_TRUE(arg.HasExplicitConstant());
     for (int i = 0; i < kNumSamples; i++) {
       ASSERT_EQ(expected_shape, arg[i].shape);
       for (int j = 0; j < expected_shape.num_elements(); j++) {
