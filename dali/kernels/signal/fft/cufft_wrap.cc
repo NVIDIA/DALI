@@ -25,23 +25,21 @@ namespace {
 typedef void* CUFFTDIVER;
 
 static const char __CufftLibName[] = "libcufft.so";
-static const char __CufftLibName10[] = "libcufft.so.10";
-static const char __CufftLibNamee11[] = "libcufft.so.11";
+#if CUDA_VERSION > 11000
+static const char __CufftLibNameCuVer[] = "libcufft.so.11";
+#else
+static const char __CufftLibNameCuVer[] = "libcufft.so.10";
+#endif
 
 CUFFTDIVER loadCufftLibrary() {
   CUFFTDIVER ret = nullptr;
 
-  ret = dlopen(__CufftLibName, RTLD_NOW);
+  ret = dlopen(__CufftLibNameCuVer, RTLD_NOW);
   if (!ret) {
-    ret = dlopen(__CufftLibName10, RTLD_NOW);
-
+    ret = dlopen(__CufftLibName, RTLD_NOW);
     if (!ret) {
-      ret = dlopen(__CufftLibNamee11, RTLD_NOW);
-
-      if (!ret) {
-        throw std::runtime_error("dlopen libcufft.so failed!. Please install "
-                                 "CUDA toolkit or cuFFT python wheel.");
-      }
+      throw std::runtime_error("dlopen libcufft.so failed!. Please install "
+                                "CUDA toolkit or cuFFT python wheel.");
     }
   }
   return ret;

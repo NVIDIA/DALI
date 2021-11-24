@@ -26,24 +26,22 @@ namespace {
 typedef void* NVJPEGDRIVER;
 
 static const char __NvjpegLibName[] = "libnvjpeg.so";
-static const char __NvjpegLibName10[] = "libnvjpeg.so.10";
-static const char __NvjpegLibName11[] = "libnvjpeg.so.11";
+#if CUDA_VERSION > 11000
+static const char __NvjpegLibNameCuVer[] = "libnvjpeg.so.11";
+#else
+static const char __NvjpegLibNameCuVer[] = "libnvjpeg.so.10";
+#endif
 
 NVJPEGDRIVER loadNvjpegLibrary() {
   NVJPEGDRIVER ret = nullptr;
 
-  ret = dlopen(__NvjpegLibName, RTLD_NOW);
+  ret = dlopen(__NvjpegLibNameCuVer, RTLD_NOW);
 
   if (!ret) {
-    ret = dlopen(__NvjpegLibName10, RTLD_NOW);
-
+    ret = dlopen(__NvjpegLibName, RTLD_NOW);
     if (!ret) {
-      ret = dlopen(__NvjpegLibName11, RTLD_NOW);
-
-      if (!ret) {
-        throw std::runtime_error("dlopen libnvjpeg.so failed!. Please install "
-                                 "CUDA toolkit or nvJPEG python wheel.");
-      }
+      throw std::runtime_error("dlopen libnvjpeg.so failed!. Please install "
+                                "CUDA toolkit or nvJPEG python wheel.");
     }
   }
   return ret;

@@ -22,26 +22,42 @@
 
 namespace {
 
-typedef void* NPPDRIVER;
+typedef void* NPPCDRIVER;
+typedef void* NPPICCDRIVER;
 
-static const char __NppLibName[] = "libnppc.so";
-static const char __NppLibName10[] = "libnppc.so.10";
-static const char __NppLibName11[] = "libnppc.so.11";
+static const char __NppcLibName[] = "libnppc.so";
+static const char __NppiccLibName[] = "libnppicc.so";
+#if CUDA_VERSION > 11000
+static const char __NppcLibNameCuVer[] = "libnppc.so.11";
+static const char __NppiccLibNameCuVer[] = "libnppicc.so.11";
+#else
+static const char __NppcLibNameCuVer[] = "libnppc.so.10";
+static const char __NppiccLibNameCuVer[] = "libnppicc.so.10";
+#endif
 
-NPPDRIVER loadNppLibrary() {
-  NPPDRIVER ret = nullptr;
+NPPCDRIVER loadNppcLibrary() {
+  NPPCDRIVER ret = nullptr;
 
-  ret = dlopen(__NppLibName, RTLD_NOW);
+  ret = dlopen(__NppcLibNameCuVer, RTLD_NOW);
   if (!ret) {
-    ret = dlopen(__NppLibName10, RTLD_NOW);
-
+    ret = dlopen(__NppcLibName, RTLD_NOW);
     if (!ret) {
-      ret = dlopen(__NppLibName11, RTLD_NOW);
+      throw std::runtime_error("dlopen libnppc.so failed!. Please install "
+                                "CUDA toolkit or NPP python wheel.");
+    }
+  }
+  return ret;
+}
 
-      if (!ret) {
-        throw std::runtime_error("dlopen libnppc.so failed!. Please install "
-                                 "CUDA toolkit or NPP python wheel.");
-      }
+NPPICCDRIVER loadNppiccLibrary() {
+  NPPICCDRIVER ret = nullptr;
+
+  ret = dlopen(__NppiccLibNameCuVer, RTLD_NOW);
+  if (!ret) {
+    ret = dlopen(__NppiccLibName, RTLD_NOW);
+    if (!ret) {
+      throw std::runtime_error("dlopen libnppicc.so failed!. Please install "
+                                "CUDA toolkit or NPP python wheel.");
     }
   }
   return ret;
@@ -49,9 +65,16 @@ NPPDRIVER loadNppLibrary() {
 
 }  // namespace
 
+// Loads symbol from either libnppc or libnppicc providing a unified
+// interface to whole npp
 void *NppLoadSymbol(const char *name) {
-  static NPPDRIVER nppDrvLib = loadNppLibrary();
-  void *ret = nppDrvLib ? dlsym(nppDrvLib, name) : nullptr;
+  static NPPCDRIVER nppcDrvLib = loadNppcLibrary();
+  static NPPICCDRIVER nppiccDrvLib = loadNppiccLibrary();
+  // check processing library, core later if symbol not found
+  void *ret = nppiccDrvLib ? dlsym(nppiccDrvLib, name) : nullptr;
+  if (!ret) {
+    ret = nppcDrvLib ? dlsym(nppcDrvLib, name) : nullptr;
+  }
   return ret;
 }
 
