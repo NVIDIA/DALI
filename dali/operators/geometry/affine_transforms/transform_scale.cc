@@ -89,7 +89,7 @@ class TransformScaleCPU
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
     assert(scale_.IsDefined());
-    unsigned int flags = ArgValue_EnforceUniform;
+    ArgValueFlags flags = ArgValue_EnforceUniform;
     scale_.Acquire(spec, ws, nsamples_, flags);
     int scale_ndim = scale_[0].num_elements();
 

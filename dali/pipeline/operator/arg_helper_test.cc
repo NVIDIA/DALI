@@ -35,6 +35,7 @@ void SetupData(TensorVector<CPUBackend> &tv,
   }
 }
 
+
 template <int ndim, typename... AcquireArgs>
 void ArgValueTestTensorInput(TensorListShape<ndim> ts, AcquireArgs... args) {
   // using a real operator to avoid registering a new one just for this test
@@ -59,6 +60,47 @@ void ArgValueTestTensorInput(TensorListShape<ndim> ts, AcquireArgs... args) {
     }
   }
 }
+
+template <int ndim, typename... AcquireArgs>
+void ArgValueTestAllowEmpty(TensorListShape<ndim> expected_sh, AcquireArgs... args) {
+  ASSERT_TRUE(is_uniform(expected_sh));  // the test assumes that
+  auto sh = expected_sh;
+  sh.tensor_shape_span(2)[0] = 0;  // this makes the sample with idx 2 empty
+
+  EXPECT_THROW(ArgValueTestTensorInput<ndim>(sh, expected_sh, ArgValue_Default),
+               std::runtime_error);
+  ArgValueTestTensorInput<ndim>(sh, expected_sh, ArgValue_AllowEmpty);
+
+  auto expected_sample_sh = sh[0];
+  EXPECT_THROW(ArgValueTestTensorInput<ndim>(sh, expected_sample_sh, ArgValue_Default),
+               std::runtime_error);
+  ArgValueTestTensorInput<ndim>(sh, expected_sample_sh, ArgValue_AllowEmpty);
+
+  OpSpec spec("MTTransformAttr");  // need to use a real op name
+  ArgumentWorkspace ws;
+  auto arg_data = std::make_shared<TensorVector<CPUBackend>>();
+  SetupData(*arg_data, sh);
+  ws.AddArgumentInput("M", arg_data);
+  spec.AddArgumentInput("M", "M");
+  ArgValue<float, ndim> arg("M", spec);
+  arg.Acquire(spec, ws, kNumSamples, expected_sample_sh, ArgValue_AllowEmpty);
+
+  EXPECT_FALSE(arg.IsEmpty(0));
+  EXPECT_FALSE(arg.IsEmpty(1));
+  EXPECT_TRUE(arg.IsEmpty(2));
+  EXPECT_FALSE(arg.IsEmpty(3));
+  EXPECT_FALSE(arg.IsEmpty(4));
+
+  // All empty
+  OpSpec spec2("MTTransformAttr");  // need to use a real op name
+  spec2.AddArg("M", std::vector<float>{});
+  ArgumentWorkspace ws2;
+  ArgValue<float, ndim> arg2("M", spec2);
+  arg2.Acquire(spec2, ws2, kNumSamples, expected_sample_sh, ArgValue_AllowEmpty);
+  for (int i = 0; i < kNumSamples; i++)
+    EXPECT_TRUE(arg2.IsEmpty(i));
+}
+
 
 TEST(ArgValue, TensorInput_0D) {
   TensorShape<0> sample_sh{};
@@ -155,7 +197,7 @@ TEST(ArgValueTests, Constant_2D) {
       return TensorShape<2>{mat_ndim, mat_ndim + 1};
     };
 
-  unsigned int flags = ArgValue_EnforceUniform;
+  ArgValueFlags flags = ArgValue_EnforceUniform;
   ArgValue<float, 2> err("M", spec);
   EXPECT_THROW(err.Acquire(spec, ws, nsamples, flags), std::logic_error);  // can't infer shape
 
@@ -175,5 +217,14 @@ TEST(ArgValueTests, Constant_2D) {
     }
   }
 }
+
+TEST(ArgValue, TensorInput_1D_ExpectedShape_AllowEmpty) {
+  ArgValueTestAllowEmpty<1>(uniform_list_shape(kNumSamples, TensorShape<1>{3}));
+}
+
+TEST(ArgValue, TensorInput_3D_ExpectedShape_AllowEmpty) {
+  ArgValueTestAllowEmpty<3>(uniform_list_shape(kNumSamples, TensorShape<3>{10, 10, 3}));
+}
+
 
 }  // namespace dali

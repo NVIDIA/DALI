@@ -186,7 +186,7 @@ class CropMirrorNormalize : public Operator<Backend> {
 
     crop_attr_.ProcessArguments(spec, ws);
 
-    unsigned int flags = ArgValue_EnforceUniform;
+    ArgValueFlags flags = ArgValue_EnforceUniform;
     mean_arg_.Acquire(spec_, ws, nsamples, flags);
     std_arg_.Acquire(spec_, ws, nsamples, flags);
     bool per_sample_norm_args = mean_arg_.IsArgInput() || std_arg_.IsArgInput();

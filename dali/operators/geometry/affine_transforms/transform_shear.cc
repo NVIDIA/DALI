@@ -174,7 +174,7 @@ class TransformShearCPU
         return shape[0];
       }
     };
-    unsigned int flags = ArgValue_EnforceUniform;
+    ArgValueFlags flags = ArgValue_EnforceUniform;
     if (shear_.IsDefined()) {
       shear_.Acquire(spec, ws, nsamples_, flags, shape_from_size);
       ndim_ = analyze_shape(shear_.get().tensor_shape(0));

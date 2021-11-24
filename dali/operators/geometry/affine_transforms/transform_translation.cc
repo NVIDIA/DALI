@@ -83,7 +83,7 @@ class TransformTranslationCPU
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
     assert(offset_.IsDefined());
-    unsigned int flags = ArgValue_EnforceUniform;
+    ArgValueFlags flags = ArgValue_EnforceUniform;
     offset_.Acquire(spec, ws, nsamples_, flags);
     ndim_ = offset_[0].num_elements();
   }

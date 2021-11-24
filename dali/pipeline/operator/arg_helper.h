@@ -70,6 +70,10 @@ enum ArgValueFlags : unsigned {
   ArgValue_Default = 0
 };
 
+static constexpr ArgValueFlags operator |(ArgValueFlags a, ArgValueFlags b) {
+  return ArgValueFlags(unsigned(a) | unsigned(b));  //  NOLINT
+}
+
 
 /**
  * @brief Helper to access operator argument data, regardless of whether the data was provided
@@ -123,7 +127,7 @@ class ArgValue {
    */
   void Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples,
                const TensorListShape<ndim> &expected_shape,
-               unsigned int flags = ArgValue_Default) {
+               ArgValueFlags flags = ArgValue_Default) {
     assert(!(flags & ArgValue_EnforceUniform) || is_uniform(expected_shape));
     if (has_arg_input_) {
       view_ = view<const T, ndim>(ws.ArgumentInput(arg_name_));
@@ -177,7 +181,7 @@ class ArgValue {
    */
   void Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples,
                const TensorShape<ndim> &expected_shape,
-               unsigned int flags = ArgValue_Default) {
+               ArgValueFlags flags = ArgValue_Default) {
     if (has_arg_input_) {
       view_ = view<const T, ndim>(ws.ArgumentInput(arg_name_));
       span<const int64_t> expected_sh_span(&expected_shape[0], expected_shape.size());
@@ -224,7 +228,7 @@ class ArgValue {
    */
   template <typename ShapeFromSizeFn = ArgShapeFromSize<ndim>>
   void Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples,
-               unsigned int flags = ArgValue_Default,
+               ArgValueFlags flags = ArgValue_Default,
                ShapeFromSizeFn &&shape_from_size = {}) {
     if (has_arg_input_) {
       view_ = view<const T, ndim>(ws.ArgumentInput(arg_name_));
@@ -315,7 +319,7 @@ class ArgValue {
   }
 
   std::string arg_name_;
-  unsigned int flags_;
+  ArgValueFlags flags_;
 
   std::vector<T> data_;
   TLV view_;
