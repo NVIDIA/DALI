@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -94,12 +94,12 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
   }
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
-    prob_.Acquire(spec, ws, nsamples, true);
-    salt_vs_pepper_.Acquire(spec, ws, nsamples, true);
+    prob_.Acquire(spec, ws, nsamples);
+    salt_vs_pepper_.Acquire(spec, ws, nsamples);
     if (salt_val_.IsDefined())
-      salt_val_.Acquire(spec, ws, nsamples, true);
+      salt_val_.Acquire(spec, ws, nsamples);
     if (pepper_val_.IsDefined())
-      pepper_val_.Acquire(spec, ws, nsamples, true);
+      pepper_val_.Acquire(spec, ws, nsamples);
   }
 
   DALIDataType DefaultDataType() const {

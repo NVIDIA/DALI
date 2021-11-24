@@ -105,17 +105,17 @@ class MultiPasteOp : public Operator<Backend> {
     if (curr_batch_size == 0)
       return;
 
-    output_size_.Acquire(spec, ws, curr_batch_size, true);
-    in_idx_.Acquire(spec, ws, curr_batch_size, false);
+    output_size_.Acquire(spec, ws, curr_batch_size, ArgValue_EnforceUniform);
+    in_idx_.Acquire(spec, ws, curr_batch_size);
 
     if (out_anchors_.IsDefined()) {
-      out_anchors_.Acquire(spec, ws, curr_batch_size, false);
+      out_anchors_.Acquire(spec, ws, curr_batch_size);
     }
     if (in_anchors_.IsDefined()) {
-      in_anchors_.Acquire(spec, ws, curr_batch_size, false);
+      in_anchors_.Acquire(spec, ws, curr_batch_size);
     }
     if (shapes_.IsDefined()) {
-      shapes_.Acquire(spec, ws, curr_batch_size, false);
+      shapes_.Acquire(spec, ws, curr_batch_size);
     }
     input_type_ = ws.template Input<Backend>(0).type();
     output_type_ =

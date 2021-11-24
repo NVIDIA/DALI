@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -174,12 +174,13 @@ class TransformShearCPU
         return shape[0];
       }
     };
+    unsigned int flags = ArgValue_EnforceUniform;
     if (shear_.IsDefined()) {
-      shear_.Acquire(spec, ws, nsamples_, true, shape_from_size);
+      shear_.Acquire(spec, ws, nsamples_, flags, shape_from_size);
       ndim_ = analyze_shape(shear_.get().tensor_shape(0));
     } else {
       assert(angles_.IsDefined());
-      angles_.Acquire(spec, ws, nsamples_, true, shape_from_size);
+      angles_.Acquire(spec, ws, nsamples_, flags, shape_from_size);
       ndim_ = analyze_shape(angles_.get().tensor_shape(0));
       for (int i = 0; i < angles_.size(); i++) {
         const auto& angles = angles_[i];

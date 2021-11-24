@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -89,7 +89,8 @@ class TransformScaleCPU
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
     assert(scale_.IsDefined());
-    scale_.Acquire(spec, ws, nsamples_, true);
+    unsigned int flags = ArgValue_EnforceUniform;
+    scale_.Acquire(spec, ws, nsamples_, flags);
     int scale_ndim = scale_[0].num_elements();
 
     if (scale_ndim > 1) {

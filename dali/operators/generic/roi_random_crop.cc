@@ -105,7 +105,7 @@ bool ROIRandomCropCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
   int nsamples = spec_.HasTensorArgument("crop_shape") ?
                      ws.ArgumentInput("crop_shape").num_samples() :
                      ws.GetRequestedBatchSize(0);
-  crop_shape_.Acquire(spec_, ws, nsamples, true);
+  crop_shape_.Acquire(spec_, ws, nsamples, ArgValue_EnforceUniform);
   int ndim = crop_shape_[0].shape[0];
 
   TensorShape<1> sh{ndim};

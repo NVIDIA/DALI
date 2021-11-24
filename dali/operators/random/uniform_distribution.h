@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -150,7 +150,7 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
     if (values_.IsDefined()) {
       // read only once for build time arguments
       if (!values_.IsConstant() || per_sample_values_.empty()) {
-        values_.Acquire(spec, ws, values_.IsConstant() ? max_batch_size_ : nsamples, false);
+        values_.Acquire(spec, ws, values_.IsConstant() ? max_batch_size_ : nsamples);
         per_sample_values_.resize(values_.size());
         per_sample_nvalues_.resize(values_.size());
         if (std::is_same<Backend, GPUBackend>::value) {
