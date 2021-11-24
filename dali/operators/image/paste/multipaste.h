@@ -105,17 +105,17 @@ class MultiPasteOp : public Operator<Backend> {
     if (curr_batch_size == 0)
       return;
 
-    output_size_.Acquire(spec, ws, curr_batch_size, true);
-    in_idx_.Acquire(spec, ws, curr_batch_size, false);
+    output_size_.Acquire(spec, ws, curr_batch_size, ArgValue_EnforceUniform);
+    in_idx_.Acquire(spec, ws, curr_batch_size);
 
-    if (out_anchors_.IsDefined()) {
-      out_anchors_.Acquire(spec, ws, curr_batch_size, false);
+    if (out_anchors_.HasExplicitValue()) {
+      out_anchors_.Acquire(spec, ws, curr_batch_size);
     }
-    if (in_anchors_.IsDefined()) {
-      in_anchors_.Acquire(spec, ws, curr_batch_size, false);
+    if (in_anchors_.HasExplicitValue()) {
+      in_anchors_.Acquire(spec, ws, curr_batch_size);
     }
-    if (shapes_.IsDefined()) {
-      shapes_.Acquire(spec, ws, curr_batch_size, false);
+    if (shapes_.HasExplicitValue()) {
+      shapes_.Acquire(spec, ws, curr_batch_size);
     }
     input_type_ = ws.template Input<Backend>(0).type();
     output_type_ =
@@ -139,20 +139,20 @@ class MultiPasteOp : public Operator<Backend> {
     for (int i = 0; i < curr_batch_size; i++) {
       const int64_t n_paste = in_idx_[i].shape[0];
 
-      if (in_anchors_.IsDefined()) {
+      if (in_anchors_.HasExplicitValue()) {
         DALI_ENFORCE(in_anchors_[i].shape[0] == n_paste,
                      "in_anchors must be same length as in_idx");
         DALI_ENFORCE(in_anchors_[i].shape[1] == spatial_ndim_,
                      make_string("Unexpected number of dimensions for ``in_anchors``. Expected ",
                      spatial_ndim_, ", got ", in_anchors_[i].shape[1]));
       }
-      if (shapes_.IsDefined()) {
+      if (shapes_.HasExplicitValue()) {
         DALI_ENFORCE(shapes_[i].shape[0] == n_paste, "shapes must be same length as in_idx");
         DALI_ENFORCE(shapes_[i].shape[1] == spatial_ndim_,
                      make_string("Unexpected number of dimensions for ``shapes``. Expected ",
                      spatial_ndim_, ", got ", shapes_[i].shape[1]));
       }
-      if (out_anchors_.IsDefined()) {
+      if (out_anchors_.HasExplicitValue()) {
         DALI_ENFORCE(out_anchors_[i].shape[0] == n_paste,
                      "out_anchors must be same length as in_idx");
         DALI_ENFORCE(out_anchors_[i].shape[1] == spatial_ndim_,
@@ -242,7 +242,7 @@ class MultiPasteOp : public Operator<Backend> {
   }
 
   inline Coords GetInAnchors(int sample_num, int paste_num) const {
-    return in_anchors_.IsDefined()
+    return in_anchors_.HasExplicitValue()
            ? subtensor(in_anchors_[sample_num], paste_num)
            : zero_anchors_;
   }
@@ -250,7 +250,7 @@ class MultiPasteOp : public Operator<Backend> {
   inline SmallVector<int, 4> GetShape(int sample_num, int paste_num, Coords in_shape,
                                       Coords in_anchor = {}) const {
     SmallVector<int, 4> sh;
-    if (shapes_.IsDefined()) {
+    if (shapes_.HasExplicitValue()) {
       auto sh_view = subtensor(shapes_[sample_num], paste_num);
       sh.resize(sh_view.num_elements());
       for (size_t d = 0; d < sh.size(); d++)
@@ -270,7 +270,7 @@ class MultiPasteOp : public Operator<Backend> {
   }
 
   inline Coords GetOutAnchors(int sample_num, int paste_num) const {
-    return out_anchors_.IsDefined()
+    return out_anchors_.HasExplicitValue()
            ? subtensor(out_anchors_[sample_num], paste_num)
            : zero_anchors_;
   }

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ class TransformScaleCPU
       TransformBaseOp<CPUBackend, TransformScaleCPU>(spec),
       scale_("scale", spec),
       center_("center", spec) {
-    assert(scale_.IsDefined());
+    assert(scale_.HasExplicitValue());
     if (spec.HasArgument("ndim"))
       ndim_arg_ = spec.GetArgument<int>("ndim");
   }
@@ -78,7 +78,7 @@ class TransformScaleCPU
         mat(d, d) = scale[d];
       }
 
-      if (center_.IsDefined()) {
+      if (center_.HasExplicitValue()) {
         auto center = center_[i].data;
         for (int d = 0; d < ndim; d++) {
           mat(d, ndim) = center[d] * (T(1) - scale[d]);
@@ -88,8 +88,9 @@ class TransformScaleCPU
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    assert(scale_.IsDefined());
-    scale_.Acquire(spec, ws, nsamples_, true);
+    assert(scale_.HasExplicitValue());
+    ArgValueFlags flags = ArgValue_EnforceUniform;
+    scale_.Acquire(spec, ws, nsamples_, flags);
     int scale_ndim = scale_[0].num_elements();
 
     if (scale_ndim > 1) {
@@ -102,13 +103,13 @@ class TransformScaleCPU
       ndim_ = 1;
     }
 
-    if (center_.IsDefined()) {
+    if (center_.HasExplicitValue()) {
       center_.Acquire(spec, ws, nsamples_, TensorShape<1>{ndim_});
     }
   }
 
   bool IsConstantTransform() const {
-    return !scale_.IsArgInput() && !center_.IsArgInput();
+    return !scale_.HasArgumentInput() && !center_.HasArgumentInput();
   }
 
  private:

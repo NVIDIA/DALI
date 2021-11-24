@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ class ShotNoise : public RNGBase<Backend, ShotNoise<Backend>, true> {
   }
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
-    factor_.Acquire(spec, ws, nsamples, true);
+    factor_.Acquire(spec, ws, nsamples);
   }
 
   DALIDataType DefaultDataType() const {
@@ -79,7 +79,7 @@ class ShotNoise : public RNGBase<Backend, ShotNoise<Backend>, true> {
 
   template <typename T>
   bool SetupDists(Impl<T>* dists_data, int nsamples) {
-    if (!factor_.IsDefined()) {
+    if (!factor_.HasExplicitValue()) {
       return false;
     }
     for (int s = 0; s < nsamples; s++) {
