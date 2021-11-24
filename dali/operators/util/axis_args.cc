@@ -54,7 +54,7 @@ AxisArgs::AxisArgs(const OpSpec &spec, const char *axis_index_arg, const char *a
   }
 }
 
-void AxisArgs::Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples) {
+void AxisArgs::Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples, int ndim) {
   if (per_sample_axes_) {
     assert(axes_);
     axes_->Acquire(spec, ws, nsamples);
@@ -63,6 +63,10 @@ void AxisArgs::Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsam
     shape_ = uniform_list_shape(nsamples, TensorShape<1>(axis_names_.size()));
   } else {
     shape_ = uniform_list_shape(nsamples, TensorShape<1>(const_axes_.size()));
+  }
+
+  if (shape_.num_elements() == 0 && (flags_ & AllIfEmpty)) {
+    shape_ = uniform_list_shape(nsamples, TensorShape<1>(ndim));
   }
 }
 

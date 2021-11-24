@@ -38,9 +38,36 @@ class AxisArgs {
   AxisArgs(const OpSpec &spec, const char *axes_arg, const char *axis_names_arg,
            unsigned int flags = DefaultFlags);
 
-  void Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples);
+  /**
+   * @brief Acquire axes information from the workspace
+   *
+   * @param spec
+   * @param ws
+   * @param nsamples
+   * @param ndim Number of dimensions. If AllIfEmpty, it will be used to calculate the
+   *             effective shape of the axes when the argument is empty
+   *             (as many elements as ndim)
+   */
+  void Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples, int ndim);
+
+  /**
+   * @brief Returns the effective axes shape, given the input dimensionality.
+   * @remarks When AllIfEmpty is selected, the effective axes shape will have as many
+   *          elements as ndim provided to Acquire.
+   *
+   * @return TensorListShape<1>
+   */
   TensorListShape<1> AxesShape();
 
+  /**
+   * @brief Retrieve the final axes for a particular sample,
+   *        given its input dimensionalityand layout.
+   *
+   * @param data_idx
+   * @param ndim
+   * @param layout
+   * @return SmallVector<int, 6>
+   */
   SmallVector<int, 6> Get(int data_idx, int ndim, const TensorLayout &layout);
 
  private:

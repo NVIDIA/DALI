@@ -80,22 +80,23 @@ class NamedSliceAttr {
     if (ndim < 0)
       ndim = ws.GetInputDim(0);
 
-    axis_args_.Acquire(spec, ws, curr_batch_size);
-    auto args_shape = axis_args_.AxesShape();  // args should have as many elements as axes
+    axis_args_.Acquire(spec, ws, curr_batch_size, ndim);
+    auto args_sh = axis_args_.AxesShape();
 
+    ArgValueFlags flags = ArgValue_AllowEmpty;
     if (start_.HasExplicitValue())
-      start_.Acquire(spec, ws, curr_batch_size, args_shape);
+      start_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
     else if (rel_start_.HasExplicitValue())
-      rel_start_.Acquire(spec, ws, curr_batch_size, args_shape);
+      rel_start_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
 
     if (end_.HasExplicitValue())
-      end_.Acquire(spec, ws, curr_batch_size, args_shape);
+      end_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
     else if (rel_end_.HasExplicitValue())
-      rel_end_.Acquire(spec, ws, curr_batch_size, args_shape);
+      rel_end_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
     else if (shape_.HasExplicitValue())
-      shape_.Acquire(spec, ws, curr_batch_size, args_shape);
+      shape_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
     else if (rel_shape_.HasExplicitValue())
-      rel_shape_.Acquire(spec, ws, curr_batch_size, args_shape);
+      rel_shape_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
 
     for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
       ProcessNamedArgs(data_idx);
@@ -126,9 +127,9 @@ class NamedSliceAttr {
           auto dim = axes[i];
 
           double anchor_val = 0;
-          if (start_.HasExplicitValue()) {
+          if (start_ && !start_.IsEmpty(data_idx)) {
             anchor_val = start_[data_idx].data[i];
-          } else if (rel_start_.HasExplicitValue()) {
+          } else if (rel_start_ && !rel_start_.IsEmpty(data_idx)) {
             anchor_val = rel_start_[data_idx].data[i] * shape[dim];
           }
           DALI_ENFORCE(anchor_val >= i64min && anchor_val <= i64max,
@@ -136,17 +137,18 @@ class NamedSliceAttr {
                                    "]. Got: ", anchor_val));
 
           double end_val = shape[dim];
-          if (end_.HasExplicitValue()) {
+          if (end_ && !end_.IsEmpty(data_idx)) {
             end_val = end_[data_idx].data[i];
-          } else if (rel_end_.HasExplicitValue()) {
+          } else if (rel_end_ && !rel_end_.IsEmpty(data_idx)) {
             end_val = rel_end_[data_idx].data[i] * shape[dim];
-          } else if (shape_.HasExplicitValue()) {
+          } else if (shape_ && !shape_.IsEmpty(data_idx)) {
             double shape_val = shape_[data_idx].data[i];
             DALI_ENFORCE(shape_val >= 0 && shape_val <= i64max,
               make_string("shape value out of range [", 0, ", ", i64max, "]. Got: ", shape_val));
 
             end_val = anchor_val + shape_val;
-          } else if (rel_start_.HasExplicitValue() && rel_shape_.HasExplicitValue()) {
+          } else if (rel_start_ && rel_shape_ && !rel_start_.IsEmpty(data_idx) &&
+                     !rel_shape_.IsEmpty(data_idx)) {
             // special case - minimize the floating point error by multiplying only once after sum
             double rel_start_val = rel_start_[data_idx].data[i];
             double rel_shape_val = rel_shape_[data_idx].data[i];
@@ -154,7 +156,7 @@ class NamedSliceAttr {
               make_string("negative shapes are not allowed. Got: ", rel_shape_val));
 
             end_val = (rel_start_val + rel_shape_val) * shape[dim];
-          } else if (rel_shape_.HasExplicitValue()) {
+          } else if (rel_shape_ && !rel_shape_.IsEmpty(data_idx)) {
             double shape_val = rel_shape_[data_idx].data[i] * shape[dim];
             DALI_ENFORCE(shape_val >= 0 && shape_val <= i64max,
                          make_string("shape value out of range [", 0, ", ", i64max,
@@ -212,7 +214,7 @@ class PositionalSliceAttr {
     if (ws.NumInput() != (spec.GetSchema().MinNumInput() + 2))
       return false;
 
-    axis_args_.Acquire(spec, ws, curr_batch_size);
+    axis_args_.Acquire(spec, ws, curr_batch_size, ndim);
 
     const auto &crop_anchor = ws.template Input<CPUBackend>(1);
     const auto &crop_shape = ws.template Input<CPUBackend>(2);
