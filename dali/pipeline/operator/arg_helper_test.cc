@@ -65,7 +65,9 @@ template <int ndim, typename... AcquireArgs>
 void ArgValueTestAllowEmpty(TensorListShape<ndim> expected_sh, AcquireArgs... args) {
   ASSERT_TRUE(is_uniform(expected_sh));  // the test assumes that
   auto sh = expected_sh;
-  sh.tensor_shape_span(2)[0] = 0;  // this makes the sample with idx 2 empty
+
+  int empty_sample_idx = 2;
+  sh.tensor_shape_span(empty_sample_idx)[0] = 0;  // this makes the sample empty
 
   EXPECT_THROW(ArgValueTestTensorInput<ndim>(sh, expected_sh, ArgValue_Default),
                std::runtime_error);
@@ -89,11 +91,8 @@ void ArgValueTestAllowEmpty(TensorListShape<ndim> expected_sh, AcquireArgs... ar
   EXPECT_TRUE(arg.HasValue());
   EXPECT_TRUE(arg);
 
-  EXPECT_FALSE(arg.IsEmpty(0));
-  EXPECT_FALSE(arg.IsEmpty(1));
-  EXPECT_TRUE(arg.IsEmpty(2));
-  EXPECT_FALSE(arg.IsEmpty(3));
-  EXPECT_FALSE(arg.IsEmpty(4));
+  for (int i = 0; i < kNumSamples; i++)
+    EXPECT_EQ(i == empty_sample_idx, arg.IsEmpty(i));
 
   // All empty
   OpSpec spec2("MTTransformAttr");  // need to use a real op name
@@ -105,6 +104,8 @@ void ArgValueTestAllowEmpty(TensorListShape<ndim> expected_sh, AcquireArgs... ar
   EXPECT_EQ(kNumSamples, arg2.size());
   EXPECT_TRUE(arg2.HasValue());
   EXPECT_TRUE(arg2);
+  for (int i = 0; i < kNumSamples; i++)
+    EXPECT_TRUE(arg2.IsEmpty(i));
 
   // Not provided
   OpSpec spec3("MTTransformAttr");  // need to use a real op name
