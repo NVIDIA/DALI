@@ -142,14 +142,13 @@ template <typename Out, typename In>
 std::unique_ptr<OpImplBase<GPUBackend>> GetGaussianBlurGpuImpl(const OpSpec* spec,
                                                                DimDesc dim_desc) {
   std::unique_ptr<OpImplBase<GPUBackend>> result;
-  VALUE_SWITCH(dim_desc.usable_axes_count, AXES, GAUSSIAN_BLUR_SUPPORTED_AXES, (
-    VALUE_SWITCH(static_cast<int>(dim_desc.has_channels), HAS_CHANNELS, (0, 1), (
-      VALUE_SWITCH(static_cast<int>(dim_desc.is_sequence), IS_SEQUENCE, (0, 1), (
-        constexpr bool has_ch = HAS_CHANNELS;
-        constexpr bool is_seq = IS_SEQUENCE;
-          result.reset(new GaussianBlurOpGpu<Out, In, AXES, has_ch, is_seq>(spec, dim_desc));
-      ), ());  // NOLINT, no other possible conversion
-    ), ());  // NOLINT, no other possible conversion
+  VALUE_SWITCH(dim_desc.usable_axes_count, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
+    BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
+      BOOL_SWITCH(dim_desc.is_sequence, IsSequence, (
+        result.reset(
+          new GaussianBlurOpGpu<Out, In, Axes, HasChannels, IsSequence>(spec, std::move(dim_desc)));
+      ));  // NOLINT
+    ));  // NOLINT
   ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
   return result;
 }
