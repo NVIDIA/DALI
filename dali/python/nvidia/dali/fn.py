@@ -16,6 +16,7 @@
 import sys
 from nvidia.dali import backend as _b
 from nvidia.dali import internal as _internal
+import nvidia.dali.pipeline as pipeline
 
 _special_case_mapping = {
     "b_box" : "bbox",
@@ -75,10 +76,16 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
 
         return op_class(**init_args)(*inputs, **call_args)
 
+    def fn_wrapper(*inputs, **kwargs):
+        if pipeline.PipelineDebug.debug_on:
+            return pipeline.PipelineDebug.current().wrap_op_call(op_wrapper, *inputs, **kwargs)
+        else:
+            return op_wrapper(*inputs, **kwargs)
+            
     op_wrapper.__name__ = wrapper_name
     op_wrapper.__qualname__ = wrapper_name
     op_wrapper.__doc__ = wrapper_doc
-    return op_wrapper
+    return fn_wrapper
 
 def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
     """Wrap the DALI Operator with fn API and insert the function into appropriate module.
