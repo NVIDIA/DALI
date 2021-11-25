@@ -32,7 +32,8 @@ namespace dali {
 namespace kernels {
 
 template <int ndim_, bool has_channels_, int axis_, typename InType_, typename OutType_ = float,
-          typename WinType_ = float>
+          typename WinType_ = float,
+          typename Transform_ = conv_transform::TransScaleSat<OutType_, WinType_>>
 struct convolution_params {
   static constexpr int ndim = ndim_;
   static constexpr bool has_channels = has_channels_;
@@ -40,6 +41,7 @@ struct convolution_params {
   using InType = InType_;
   using WinType = WinType_;
   using OutType = OutType_;
+  using Transform = Transform_;
 };
 
 template <typename T>
@@ -47,7 +49,9 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
   using InType = typename T::InType;
   using WinType = typename T::WinType;
   using OutType = typename T::OutType;
-  using KernelCpu = ConvolutionCpu<OutType, InType, WinType, T::ndim, T::axis, T::has_channels>;
+  using Transform = typename T::Transform;
+  using KernelCpu = ConvolutionCpu<OutType, InType, WinType, T::ndim, T::axis, T::has_channels,
+                                   Transform>;
   using KernelGpu = ConvolutionGpu<OutType, InType, WinType, T::ndim, T::axis, T::has_channels>;
 
   TensorListShape<T::ndim> GetShape() {
@@ -106,7 +110,8 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
       auto scratchpad = scratch_alloc.GetScratchpad();
       ctx_cpu.scratchpad = &scratchpad;
 
-      kernel_cpu.Run(ctx_cpu, baseline_out_[sample], baseline_in_[sample], k_win_[sample], 0.5f);
+      kernel_cpu.Run(ctx_cpu, baseline_out_[sample], baseline_in_[sample],
+                     k_win_[sample], 0.5f);
     }
 
     auto req = kernel_gpu.Setup(ctx_gpu, in_.shape, shape_window);

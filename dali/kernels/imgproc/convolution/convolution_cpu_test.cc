@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -135,8 +135,90 @@ REGISTER_TYPED_TEST_SUITE_P(CyclicWindowWrapperTest, FillAndCycle, DotProduct);
 INSTANTIATE_TYPED_TEST_SUITE_P(CyclicWindowWrapper, CyclicWindowWrapperTest,
                                CyclicWindowWrapperValues);
 
+enum transformCase {
+  NoTransform,
+  Scale025,
+  AccOutput,
+  AddTensor,
+};
+
+template <int transform_case, typename OutType, int ndim, int baseline_ndim>
+struct TransformParam;
+
+template<typename OutType, int ndim, int baseline_ndim>
+struct TransformParam<NoTransform, OutType, ndim, baseline_ndim> {
+  using Transform = conv_transform::TransScaleSat<OutType, float>;
+  TransformParam(TensorView<StorageCPU, OutType, ndim> &out,
+                 TensorView<StorageCPU, OutType, baseline_ndim> &baseline_out,
+                 bool in_place) {}
+  static Transform Create() {
+    return {};
+  }
+};
+
+template<typename OutType, int ndim, int baseline_ndim>
+struct TransformParam<Scale025, OutType, ndim, baseline_ndim> {
+  static constexpr float scale = 0.25f;
+  using Transform = conv_transform::TransScaleSat<OutType, float>;
+  TransformParam(TensorView<StorageCPU, OutType, ndim> &out,
+                 TensorView<StorageCPU, OutType, baseline_ndim> &baseline_out,
+                 bool in_place) {
+    auto vol = volume(baseline_out.shape);
+    for (int i = 0; i < vol; i++) {
+      baseline_out.data[i] = baseline_out.data[i] * scale;
+    }
+  }
+  static Transform Create() {
+    return {scale};
+  }
+};
+
+template<typename OutType, int ndim, int baseline_ndim>
+struct TransformParam<AccOutput, OutType, ndim, baseline_ndim> {
+  using Transform = conv_transform::TransScaleAddOutSat<OutType, float>;
+  TransformParam(TensorView<StorageCPU, OutType, ndim> &out,
+                 TensorView<StorageCPU, OutType, baseline_ndim> &baseline_out,
+                 bool in_place) {
+    auto vol = volume(out.shape);
+    if (in_place) {
+      for (int i = 0; i < vol; i++) {
+        baseline_out.data[i] += out.data[i];
+      }
+    } else {
+      for (int i = 0; i < vol; i++) {
+        baseline_out.data[i] += i % 199;
+        out.data[i] = i % 199;
+      }
+    }
+  }
+  static Transform Create() {
+    return {1.f};
+  }
+};
+
+template<typename OutType, int ndim, int baseline_ndim>
+struct TransformParam<AddTensor, OutType, ndim, baseline_ndim> {
+  using Transform = conv_transform::TransScaleAddBufferSat<float, OutType, float>;
+  TransformParam(TensorView<StorageCPU, OutType, ndim> &out,
+                 TensorView<StorageCPU, OutType, baseline_ndim> &baseline_out,
+                 bool in_place) {
+    acc_list_.reshape(uniform_list_shape<ndim>(1, out.shape));
+    acc_ = acc_list_.cpu()[0];
+    auto vol = volume(baseline_out.shape);
+    for (int i = 0; i < vol; i++) {
+      acc_.data[i] = i % 199;
+      baseline_out.data[i] += acc_.data[i];
+    }
+  }
+  Transform Create() {
+    return {acc_.data, 1.f};
+  }
+  TestTensorList<float, ndim> acc_list_;
+  TensorView<StorageCPU, float, ndim> acc_;
+};
+
 template <int ndim_, bool has_channels_, int axis_, int window_size_, typename InType_,
-          bool in_place_>
+          bool in_place_, int transform_case_ = NoTransform>
 struct convolution_params {
   static constexpr int ndim = ndim_;
   static constexpr int baseline_ndim = ndim + (has_channels_ ? 0 : 1);
@@ -145,6 +227,9 @@ struct convolution_params {
   static constexpr int window_size = window_size_;
   static constexpr bool in_place = in_place_;
   using InType = InType_;
+  using TransformCase = TransformParam<transform_case_, float, ndim, baseline_ndim>;
+  using Transform = typename TransformCase::Transform;
+
   static_assert(!in_place_ || std::is_same<InType, float>::value,
                 "Input type must be float if you want to test in place transformation.");
 };
@@ -152,7 +237,9 @@ struct convolution_params {
 template <typename T>
 struct ConvolutionCpuKernelTest : public ::testing::Test {
   using Kernel =
-      ConvolutionCpu<float, typename T::InType, float, T::ndim, T::axis, T::has_channels>;
+      ConvolutionCpu<float, typename T::InType, float, T::ndim, T::axis, T::has_channels,
+                     typename T::Transform>;
+  using TransformCase = typename T::TransformCase;
 
   TensorShape<T::ndim> GetShape() {
     if (T::has_channels) {
@@ -222,7 +309,8 @@ struct ConvolutionCpuKernelTest : public ::testing::Test {
     ctx.scratchpad = &scratchpad;
 
     testing::BaselineConvolve(baseline_out_, baseline_in_, k_win_, T::axis, T::window_size / 2);
-    kernel.Run(ctx, out_, in_, k_win_);
+    TransformCase tranform(out_, baseline_out_, T::in_place);
+    kernel.Run(ctx, out_, in_, k_win_, tranform.Create());
 
     // for validation we need the same shape
     TensorView<StorageCPU, float, T::ndim> baseline_out_reshaped = {baseline_out_.data, out_.shape};
@@ -248,42 +336,73 @@ struct ConvolutionCpuKernelTest : public ::testing::Test {
 
 TYPED_TEST_SUITE_P(ConvolutionCpuKernelTest);
 
-using ConvolutionTestValues = ::testing::Types<convolution_params<1, false, 0, 1, uint8_t, false>,
-                                               convolution_params<1, false, 0, 3, uint8_t, false>,
-                                               convolution_params<1, false, 0, 21, uint8_t, false>,
-                                               convolution_params<1, false, 0, 51, uint8_t, false>,
-                                               convolution_params<2, true, 0, 1, uint8_t, false>,
-                                               convolution_params<2, true, 0, 3, uint8_t, false>,
-                                               convolution_params<2, true, 0, 21, uint8_t, false>,
-                                               convolution_params<2, true, 0, 51, uint8_t, false>,
+using ConvolutionTestValues = ::testing::Types<
+        convolution_params<1, false, 0, 1, uint8_t, false>,
+        convolution_params<1, false, 0, 1, uint8_t, false, Scale025>,
+        convolution_params<1, false, 0, 1, uint8_t, false, AccOutput>,
+        convolution_params<1, false, 0, 1, uint8_t, false, AddTensor>,
+        convolution_params<1, false, 0, 3, uint8_t, false>,
+        convolution_params<1, false, 0, 3, uint8_t, false, Scale025>,
+        convolution_params<1, false, 0, 3, uint8_t, false, AccOutput>,
+        convolution_params<1, false, 0, 3, uint8_t, false, AddTensor>,
+        convolution_params<1, false, 0, 21, uint8_t, false>,
+        convolution_params<1, false, 0, 51, uint8_t, false>,
+        convolution_params<2, true, 0, 1, uint8_t, false>,
+        convolution_params<2, true, 0, 3, uint8_t, false>,
+        convolution_params<2, true, 0, 21, uint8_t, false>,
+        convolution_params<2, true, 0, 51, uint8_t, false>,
+        convolution_params<2, true, 0, 51, uint8_t, false, Scale025>,
+        convolution_params<2, true, 0, 51, uint8_t, false, AccOutput>,
+        convolution_params<2, true, 0, 51, uint8_t, false, AddTensor>,
 
-                                               convolution_params<1, false, 0, 1, float, true>,
-                                               convolution_params<1, false, 0, 3, float, true>,
-                                               convolution_params<1, false, 0, 21, float, true>,
-                                               convolution_params<1, false, 0, 51, float, true>,
-                                               convolution_params<2, true, 0, 1, float, true>,
-                                               convolution_params<2, true, 0, 3, float, true>,
-                                               convolution_params<2, true, 0, 21, float, true>,
-                                               convolution_params<2, true, 0, 51, float, true>,
+        convolution_params<1, false, 0, 1, float, true>,
+        convolution_params<1, false, 0, 1, float, true, Scale025>,
+        convolution_params<1, false, 0, 1, float, true, AccOutput>,
+        convolution_params<1, false, 0, 1, float, true, AddTensor>,
+        convolution_params<1, false, 0, 3, float, true>,
+        convolution_params<1, false, 0, 21, float, true>,
+        convolution_params<1, false, 0, 51, float, true>,
+        convolution_params<1, false, 0, 51, float, true, Scale025>,
+        convolution_params<1, false, 0, 51, float, true, AccOutput>,
+        convolution_params<1, false, 0, 51, float, true, AddTensor>,
+        convolution_params<2, true, 0, 1, float, true>,
+        convolution_params<2, true, 0, 3, float, true>,
+        convolution_params<2, true, 0, 3, float, true, Scale025>,
+        convolution_params<2, true, 0, 3, float, true, AccOutput>,
+        convolution_params<2, true, 0, 3, float, true, AddTensor>,
+        convolution_params<2, true, 0, 21, float, true>,
+        convolution_params<2, true, 0, 51, float, true>,
+        convolution_params<2, true, 0, 51, float, true, Scale025>,
+        convolution_params<2, true, 0, 51, float, true, AccOutput>,
+        convolution_params<2, true, 0, 51, float, true, AddTensor>,
 
-                                               convolution_params<2, false, 0, 1, uint8_t, false>,
-                                               convolution_params<2, false, 0, 3, uint8_t, false>,
-                                               convolution_params<2, false, 1, 1, uint8_t, false>,
-                                               convolution_params<2, false, 1, 3, uint8_t, false>,
-                                               convolution_params<3, true, 0, 3, uint8_t, false>,
-                                               convolution_params<3, true, 1, 3, uint8_t, false>,
+        convolution_params<2, false, 0, 1, uint8_t, false>,
+        convolution_params<2, false, 0, 3, uint8_t, false>,
+        convolution_params<2, false, 1, 1, uint8_t, false>,
+        convolution_params<2, false, 1, 3, uint8_t, false>,
+        convolution_params<3, true, 0, 3, uint8_t, false>,
+        convolution_params<3, true, 1, 3, uint8_t, false>,
+        convolution_params<3, true, 1, 3, uint8_t, false, Scale025>,
+        convolution_params<3, true, 1, 3, uint8_t, false, AccOutput>,
+        convolution_params<3, true, 1, 3, uint8_t, false, AddTensor>,
 
-                                               convolution_params<3, false, 1, 1, uint8_t, false>,
-                                               convolution_params<3, false, 1, 3, uint8_t, false>,
-                                               convolution_params<3, false, 1, 7, uint8_t, false>,
-                                               convolution_params<3, false, 1, 11, uint8_t, false>,
-                                               convolution_params<3, false, 1, 21, uint8_t, false>,
-                                               convolution_params<3, false, 1, 101, uint8_t, false>,
+        convolution_params<3, false, 1, 1, uint8_t, false>,
+        convolution_params<3, false, 1, 3, uint8_t, false>,
+        convolution_params<3, false, 1, 7, uint8_t, false>,
+        convolution_params<3, false, 1, 11, uint8_t, false>,
+        convolution_params<3, false, 1, 21, uint8_t, false>,
+        convolution_params<3, false, 1, 101, uint8_t, false>,
+        convolution_params<3, false, 1, 101, uint8_t, false, Scale025>,
+        convolution_params<3, false, 1, 101, uint8_t, false, AccOutput>,
+        convolution_params<3, false, 1, 101, uint8_t, false, AddTensor>,
 
-                                               convolution_params<3, false, 1, 1, float, true>,
-                                               convolution_params<3, false, 1, 3, float, true>,
-                                               convolution_params<3, false, 1, 21, float, true>,
-                                               convolution_params<3, false, 1, 101, float, true>>;
+        convolution_params<3, false, 1, 1, float, true>,
+        convolution_params<3, false, 1, 3, float, true>,
+        convolution_params<3, false, 1, 21, float, true>,
+        convolution_params<3, false, 1, 101, float, true>,
+        convolution_params<3, false, 1, 101, float, true, Scale025>,
+        convolution_params<3, false, 1, 101, float, true, AccOutput>,
+        convolution_params<3, false, 1, 101, float, true, AddTensor>>;
 
 TYPED_TEST_P(ConvolutionCpuKernelTest, DoConvolution) {
   this->RunTest();
