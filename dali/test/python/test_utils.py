@@ -556,3 +556,67 @@ def restrict_python_version(major, minor=None):
         return lambda: _test_skipped(f"Insufficient Python version {version_info.major}.{version_info.minor} - required {major}.{minor}")
 
     return decorator
+
+def generator_random_imagelike_data(batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3),
+                                    dtype=None, val_range=[0, 255]):
+    import_numpy()
+    if dtype is None:
+        dtype = np.uint8
+    def gen():
+        out = []
+        ndim = 3
+        for _ in range(batch_size):
+            shape = [
+                np.random.randint(min_sh[d], max_sh[d] + 1,
+                                  size=1, dtype=np.int32)[0]
+                    for d in range(ndim)
+            ]
+            arr = np.array(np.random.uniform(val_range[0], val_range[1], shape), dtype=dtype)
+            out += [arr]
+        return out
+    return gen
+
+def generator_random_axes_for_3d_input(batch_size, use_negative=False, use_empty=False,
+                                       extra_out_desc=[]):
+    import_numpy()
+    def gen():
+        ndim = 3
+        options = [
+            np.array([0, 1], dtype=np.int32),
+            np.array([1, 0], dtype=np.int32),
+            np.array([0], dtype=np.int32),
+            np.array([1], dtype=np.int32),
+        ]
+        if use_negative:
+            options += [
+                np.array([-2, -3], dtype=np.int32),
+                np.array([-2, 0], dtype=np.int32),
+                np.array([-3, 1], dtype=np.int32),
+                np.array([0, -2], dtype=np.int32),
+                np.array([1, -3], dtype=np.int32),
+                np.array([-2], dtype=np.int32),
+                np.array([-3], dtype=np.int32),
+            ]
+        if use_empty:
+            # Add it 4 times to increase the probability to be choosen
+            options += 4 * [
+                np.array([], dtype=np.int32)
+            ]
+
+        axes = []
+        num_extra_outs = len(extra_out_desc)
+        extra_outputs = [num_extra_outs * []]
+
+        extra_outputs = [num_extra_outs * []]
+        for _ in range(batch_size):
+            axes_choice = random.choice(options)
+            axes += [axes_choice]
+            axes_sh = axes_choice.shape if axes_choice.shape[0] > 0 else [ndim]
+            for out_idx in range(num_extra_outs):
+                range_start, range_end, dtype = extra_out_desc[out_idx]
+                extra_outputs[out_idx] += [
+                    np.array(np.random.uniform(range_start, range_end, axes_sh),
+                    dtype=dtype)
+                ]
+        return axes, *extra_outputs
+    return gen

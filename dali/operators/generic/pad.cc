@@ -147,19 +147,22 @@ axis to match the largest sample in the batch and an alignment of 2.
   .NumOutput(1)
   .AddOptionalArg("fill_value",
     R"code(The value to pad the batch with.)code",
-    0.0f)
+    0.0f, true)
   .AddOptionalArg<int>("axes",
     R"code(Indices of the axes on which the batch samples will be padded.
 
-Indices are zero-based, with 0 being the outer-most dimension of the tensor. The ``axis_names``
-and ``axes`` arguments are mutually exclusive. If ``axes`` and ``axis_names`` are empty, or
-have not been provided, the output will be padded on all of the axes.)code", std::vector<int>())
+Negative values are interpreted as counting dimensions from the back.
+Valid range: ``[-ndim, ndim-1]``, where ndim is the number of dimensions in the input data.
+
+The ``axis_names`` and ``axes`` arguments are mutually exclusive. If ``axes`` and ``axis_names``
+are empty, or have not been provided, the output will be padded on all of the axes.)code",
+    std::vector<int>(), true)
   .AddOptionalArg<TensorLayout>("axis_names",
     R"code(Names of the axes on which the batch samples will be padded.
 
-Dimension names should correspond to dimensions in the input layout. The ``axis_names`` and
-``axes`` arguments are mutually exclusive. If ``axes`` and ``axis_names`` are empty, or
-have not been not provided, the output will be padded on all of the axes.)code", "")
+The ``axis_names`` and ``axes`` arguments are mutually exclusive. If ``axes`` and ``axis_names``
+are empty, or have not been provided, the output will be padded on all of the axes.)code",
+    "")
   .AddOptionalArg<int>("align",
     R"code(If specified, this argument determines the alignment on the dimensions specified
 by ``axes`` or ``axis_names``.

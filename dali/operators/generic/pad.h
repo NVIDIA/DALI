@@ -38,14 +38,10 @@ class Pad : public Operator<Backend> {
  public:
   inline explicit Pad(const OpSpec &spec)
       : Operator<Backend>(spec)
-      , fill_value_(spec.GetArgument<float>("fill_value"))
-      , axis_args_(spec, "axes", "axis_names",
-                   AxisArgs::AllowEmpty |
-                   AxisArgs::AllowMultiple |
-                   AxisArgs::AllIfEmpty |
-                   AxisArgs::AllowNegative)
+      , axis_args_(spec, "axes", "axis_names")
       , shape_("shape", spec)
-      , align_("align", spec) {
+      , align_("align", spec)
+      , fill_value_("fill_value", spec) {
   }
 
  protected:
@@ -66,17 +62,16 @@ class Pad : public Operator<Backend> {
     int ndim = in_shape.sample_dim();
     int nsamples = in_shape.num_samples();
 
-    axis_args_.Acquire(spec, ws, curr_batch_size);
-    auto axes_sh = axis_args_.AxesShape();
-    if (axes_sh.num_elements() == 0) {
-      axes_sh = uniform_list_shape(nsamples, TensorShape<1>(ndim));
-    }
-    int naxes = axes_sh.tensor_shape_span(0)[0];
+    assert(fill_value_);
+    fill_value_.Acquire(spec, ws, curr_batch_size);
 
-    if (shape_.IsDefined())
+    axis_args_.Acquire(spec, ws, curr_batch_size, ndim);
+    auto axes_sh = axis_args_.AxesShape();
+
+    if (shape_.HasExplicitValue())
       shape_.Acquire(spec, ws, curr_batch_size, axes_sh);
 
-    if (align_.IsDefined()) {
+    if (align_.HasExplicitValue()) {
       align_.Acquire(spec, ws, curr_batch_size, axes_sh);
       for (int i = 0; i < nsamples; i++) {
         const auto &a = align_[i];
@@ -116,10 +111,9 @@ class Pad : public Operator<Backend> {
 
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
       auto axes = axis_args_.Get(sample_idx, ndim, in_layout);
-      int naxes = axes.size();
 
-      bool has_req_shape = shape_.IsDefined() && shape_[sample_idx].num_elements() > 0;
-      bool has_align = align_.IsDefined() && align_[sample_idx].num_elements() > 0;
+      bool has_req_shape = shape_.HasExplicitValue() && shape_[sample_idx].num_elements() > 0;
+      bool has_align = align_.HasExplicitValue() && align_[sample_idx].num_elements() > 0;
 
       auto &sample_args = kernel_sample_args[sample_idx];
       const auto &sample_shape = in_shape.tensor_shape_span(sample_idx);
@@ -128,8 +122,9 @@ class Pad : public Operator<Backend> {
         sample_args.shape[d] = sample_shape[d];
       }
       sample_args.fill_values.resize(1);
-      sample_args.fill_values[0] = fill_value_;
+      sample_args.fill_values[0] = fill_value_[sample_idx].data[0];
 
+      int naxes = axes.size();
       for (int i = 0; i < naxes; i++) {
         int64_t req_extent = has_req_shape ? shape_[sample_idx].data[i] : -1;
         auto req_align = has_align ? align_[sample_idx].data[i] : 1;
@@ -152,10 +147,11 @@ class Pad : public Operator<Backend> {
     return kernel_sample_args;
   }
 
-  float fill_value_;
   AxisArgs axis_args_;
   ArgValue<int, 1> shape_;
   ArgValue<int, 1> align_;
+  ArgValue<float> fill_value_;
+
   kernels::KernelManager kmgr_;
   any kernel_sample_args_;
 
