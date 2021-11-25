@@ -143,7 +143,7 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   const auto &labels_output = ws.Output<dali::GPUBackend>(1);
 
   TensorList<CPUBackend> labels_cpu;
-  labels_cpu.Copy(labels_output, 0);
+  labels_cpu.Copy(labels_output);
   CUDA_CALL(cudaStreamSynchronize(0));
   labels_cpu.set_type<int>();
 
@@ -435,11 +435,11 @@ TEST_F(VideoReaderTest, FrameLabels) {
     const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
 
     TensorList<CPUBackend> frames_cpu;
-    frames_cpu.Copy(frames_gpu, 0);
+    frames_cpu.Copy(frames_gpu);
     TensorList<CPUBackend> labels_cpu;
-    labels_cpu.Copy(label_gpu, 0);
+    labels_cpu.Copy(label_gpu);
     TensorList<CPUBackend> frame_num_cpu;
-    frame_num_cpu.Copy(frame_num_gpu, 0);
+    frame_num_cpu.Copy(frame_num_gpu);
     CUDA_CALL(cudaStreamSynchronize(0));
 
     const auto *frames = frames_cpu.tensor<uint8_t>(0);
@@ -481,11 +481,11 @@ TEST_F(VideoReaderTest, FrameLabelsFilenames) {
     const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
 
     TensorList<CPUBackend> frames_cpu;
-    frames_cpu.Copy(frames_gpu, 0);
+    frames_cpu.Copy(frames_gpu);
     TensorList<CPUBackend> labels_cpu;
-    labels_cpu.Copy(label_gpu, 0);
+    labels_cpu.Copy(label_gpu);
     TensorList<CPUBackend> frame_num_cpu;
-    frame_num_cpu.Copy(frame_num_gpu, 0);
+    frame_num_cpu.Copy(frame_num_gpu);
     CUDA_CALL(cudaStreamSynchronize(0));
 
     const auto *frames = frames_cpu.tensor<uint8_t>(0);
@@ -529,11 +529,11 @@ TEST_F(VideoReaderTest, LabelsFilenames) {
     const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
 
     TensorList<CPUBackend> frames_cpu;
-    frames_cpu.Copy(frames_gpu, 0);
+    frames_cpu.Copy(frames_gpu);
     TensorList<CPUBackend> labels_cpu;
-    labels_cpu.Copy(label_gpu, 0);
+    labels_cpu.Copy(label_gpu);
     TensorList<CPUBackend> frame_num_cpu;
-    frame_num_cpu.Copy(frame_num_gpu, 0);
+    frame_num_cpu.Copy(frame_num_gpu);
     CUDA_CALL(cudaStreamSynchronize(0));
 
     const auto *frames = frames_cpu.tensor<uint8_t>(0);
@@ -578,13 +578,13 @@ TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
     const auto &timestamp_gpu = ws.Output<dali::GPUBackend>(3);
 
     TensorList<CPUBackend> frames_cpu;
-    frames_cpu.Copy(frames_gpu, 0);
+    frames_cpu.Copy(frames_gpu);
     TensorList<CPUBackend> labels_cpu;
-    labels_cpu.Copy(label_gpu, 0);
+    labels_cpu.Copy(label_gpu);
     TensorList<CPUBackend> frame_num_cpu;
-    frame_num_cpu.Copy(frame_num_gpu, 0);
+    frame_num_cpu.Copy(frame_num_gpu);
     TensorList<CPUBackend> timestamps_cpu;
-    timestamps_cpu.Copy(timestamp_gpu, 0);
+    timestamps_cpu.Copy(timestamp_gpu);
     CUDA_CALL(cudaStreamSynchronize(0));
 
     const auto *label = labels_cpu.tensor<int>(0);
@@ -640,13 +640,13 @@ TEST_F(VideoReaderTest, TimestampLabels) {
     const auto &timestamp_gpu = ws.Output<dali::GPUBackend>(3);
 
     TensorList<CPUBackend> frames_cpu;
-    frames_cpu.Copy(frames_gpu, 0);
+    frames_cpu.Copy(frames_gpu);
     TensorList<CPUBackend> labels_cpu;
-    labels_cpu.Copy(label_gpu, 0);
+    labels_cpu.Copy(label_gpu);
     TensorList<CPUBackend> timestamps_cpu;
-    timestamps_cpu.Copy(timestamp_gpu, 0);
+    timestamps_cpu.Copy(timestamp_gpu);
     TensorList<CPUBackend> frame_num_cpu;
-    frame_num_cpu.Copy(frame_num_gpu, 0);
+    frame_num_cpu.Copy(frame_num_gpu);
     CUDA_CALL(cudaStreamSynchronize(0));
 
     const auto *frame_num = frame_num_cpu.tensor<int>(0);
@@ -685,11 +685,11 @@ TEST_F(VideoReaderTest, StartEndLabels) {
     const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
 
     TensorList<CPUBackend> frames_cpu;
-    frames_cpu.Copy(frames_gpu, 0);
+    frames_cpu.Copy(frames_gpu);
     TensorList<CPUBackend> labels_cpu;
-    labels_cpu.Copy(label_gpu, 0);
+    labels_cpu.Copy(label_gpu);
     TensorList<CPUBackend> timestamps_cpu;
-    timestamps_cpu.Copy(frame_num_gpu, 0);
+    timestamps_cpu.Copy(frame_num_gpu);
     CUDA_CALL(cudaStreamSynchronize(0));
 
     const auto *label = labels_cpu.tensor<int>(0);

@@ -465,14 +465,14 @@ class DALISingleOpTest : public DALITest {
     // copy to host
     vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;
     outputs.push_back(std::make_shared<TensorList<CPUBackend>>());
-    outputs[0]->Copy(calcOutput, 0);
+    outputs[0]->Copy(calcOutput);
     return outputs;
   }
 
   template <typename T>
   std::shared_ptr<TensorList<CPUBackend>> CopyTensorListToHost(const TensorList<T> &calcOutput) {
     auto output = std::make_shared<TensorList<CPUBackend>>();
-    output->Copy(calcOutput, 0);
+    output->Copy(calcOutput);
 
     return output;
   }

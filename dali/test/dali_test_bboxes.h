@@ -145,8 +145,8 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     std::vector<std::shared_ptr<TensorList<CPUBackend>>> ret;
     ret.push_back(std::make_shared<TensorList<CPUBackend>>());
     ret.push_back(std::make_shared<TensorList<CPUBackend>>());
-    ret[0]->Copy(ws.Output<CPUBackend>(0), 0);
-    ret[1]->Copy(ws.Output<CPUBackend>(1), 0);
+    ret[0]->Copy(ws.Output<CPUBackend>(0));
+    ret[1]->Copy(ws.Output<CPUBackend>(1));
     return ret;
   }
 

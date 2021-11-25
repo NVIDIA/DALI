@@ -202,9 +202,9 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 
     if (option.no_crop()) {
       // copy directly to output without modification
-      ws.Output<CPUBackend>(0).Copy(img, 0);
-      ws.Output<CPUBackend>(1).Copy(bboxes, 0);
-      ws.Output<CPUBackend>(2).Copy(labels, 0);
+      ws.Output<CPUBackend>(0).Copy(img);
+      ws.Output<CPUBackend>(1).Copy(bboxes);
+      ws.Output<CPUBackend>(2).Copy(labels);
       return;
     }
 

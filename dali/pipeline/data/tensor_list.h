@@ -84,23 +84,32 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Copies the input TensorList, resizing this TensorList and
    * changing the underlying data type if needed.
+   *
+   * The copy ordering can be:
+   * - explict, as specified in `order`
+   * - the one from `source`, if set
+   * - the one from `this`
+   * If neither is specified, the copy happens on the defualt stream (applies to GPU only).
    */
   template <typename SrcBackend>
-  DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream,
+  DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, AccessOrder order = {},
                               bool use_copy_kernel = false) {
     Resize(other.shape(), other.type());
+    if (!order)
+      order = other.order() ? other.order() : order();
+    order.join(order());
     this->meta_ = other.meta_;
     this->SetLayout(other.GetLayout());
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
                        (std::is_same<Backend, GPUBackend>::value || is_pinned());
-    type_info().template Copy<Backend, SrcBackend>(unsafe_raw_mutable_data(*this),
-                                                  unsafe_raw_data(other), this->_num_elements(),
-                                                  stream, use_copy_kernel);
+    type_info().Copy<Backend, SrcBackend>(this->raw_mutable_data(), other.raw_data(),
+                                          this->size(), order.stream(), use_copy_kernel);
+    order().join(order);
   }
 
   template <typename SrcBackend>
-  DLL_PUBLIC inline void Copy(const TensorVector<SrcBackend> &other, cudaStream_t stream,
+  DLL_PUBLIC inline void Copy(const TensorVector<SrcBackend> &other, AccessOrder order = {},
                               bool use_copy_kernel = false) {
     auto type = other[0].type();
     auto layout = other[0].GetLayout();
@@ -117,7 +126,12 @@ class DLL_PUBLIC TensorList {
       new_shape.set_tensor_shape(i, other[i].shape());
     }
 
+    if (!order)
+      order = other.order() ? other.order() : order();
+    order.join(order());
+
     this->Resize(new_shape, type);
+    order.join(order());
     this->SetLayout(layout);
 
     auto nsamples = other.num_samples();
@@ -137,8 +151,9 @@ class DLL_PUBLIC TensorList {
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
                        (std::is_same<Backend, GPUBackend>::value || is_pinned());
-    type_info().template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(), nsamples,
-                                                   stream, use_copy_kernel);
+    type_info().Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(), nsamples,
+                                          nsamples, order.stream(), use_copy_kernel);
+    order().join(order);
   }
 
   inline void reserve(size_t bytes_per_tensor, int batch_size) {
@@ -211,43 +226,43 @@ class DLL_PUBLIC TensorList {
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
    */
-  DLL_PUBLIC inline void ShareData(const TensorList<Backend> &other) {
+  inline void ShareData(const TensorList<Backend> &other) {
     DALI_ENFORCE(IsValidType(other.type()), "To share data, "
         "the input TensorList must have a valid data type");
 
-    // Save the calling TensorLists meta-data
+    // Share the underlying buffer
     data_.ShareData(other.data_);
+
+    // Copy the shape and metadata
     shape_ = other.shape_;
     offsets_ = other.offsets_;
+    meta_ = other.meta_;
+    layout_ = other.layout_;
 
     // Tensor views of this TensorList is no longer valid
     tensor_views_.clear();
-
-    // copy metadata
-    meta_ = other.meta_;
-    layout_ = other.layout_;
   }
 
   /**
-   * @brief Wraps the raw allocation. The input pointer must not be nullptr.
-   * if the size of the allocation is zero, the TensorList is reset to
-   * a default state and is NOT marked as sharing data.
+   * @brief Interprets a raw allocation as a tensor list with given shape.
    *
-   * The size of the tensor list is calculated based on shape and type or reset to 0
-   * if the shape is empty or the type is DALI_NO_TYPE.
+   * If the size of the allocation is zero, the TensorList is reset to a default
+   * state and is NOT marked as sharing data.
+   *
    * After calling this function any following call to `set_type` and `Resize`
-   * must match the total size of underlying allocation (`num_bytes_`) of
+   * must note exceed the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
-   *
-   * The TensorList object assumes no ownership of the input allocation,
-   * and will not de-allocate it when it is done using it. It is up to
-   * the user to manage the lifetime of the allocation such that it
-   * persist while it is in use by the Tensor.
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
-                        const TensorListShape<> &shape, DALIDataType type = DALI_NO_TYPE) {
-    // don't check ptr as we want to share empty data as well
+                        const TensorListShape<> &shape, DALIDataType type = DALI_NO_TYPE,
+                        AccessOrder order = {}) {
+    // Free the underlying storage.
+    free_storage();
+
+    // Set the new order, if provided.
+    if (order)
+      this->set_order(order);
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_.set_backing_allocation(ptr, bytes, pinned, type, shape.num_elements());
@@ -264,21 +279,20 @@ class DLL_PUBLIC TensorList {
   }
 
   /**
-   * @brief Wraps the raw allocation. The input pointer must not be nullptr.
-   * if the size of the allocation is zero, the TensorList is reset to
-   * a default state and is NOT marked as sharing data.
+   * @brief Interprets a raw allocation as a tensor list with given shape.
    *
-   * The size of the tensor list is calculated based on shape and type or reset to 0
-   * if the shape is empty or the type is DALI_NO_TYPE.
+   * If the size of the allocation is zero, the TensorList is reset to a default
+   * state and is NOT marked as sharing data.
+   *
    * After calling this function any following call to `set_type` and `Resize`
-   * must match the total size of underlying allocation (`num_bytes_`) of
+   * must note exceed the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
    *
-   * The TensorList object assumes no ownership of the input allocation,
-   * and will not de-allocate it when it is done using it. It is up to
-   * the user to manage the lifetime of the allocation such that it
-   * persist while it is in use by the Tensor.
+   * The TensorList object assumes no ownership of the input allocation, and will
+   * not de-allocate it when it is done using it. It is up to the user to
+   * manage the lifetime of the allocation such that it persist while it is
+   * in use by the TensorList.
    */
   DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, bool pinned,
                                    const TensorListShape<> &shape,
@@ -287,21 +301,20 @@ class DLL_PUBLIC TensorList {
   }
 
   /**
-   * @brief Wraps the raw allocation. The input pointer must not be nullptr.
-   * if the size of the allocation is zero, the TensorList is reset to
-   * a default state and is NOT marked as sharing data.
+   * @brief Interprets a raw allocation as a tensor list with given shape.
    *
-   * After wrapping the allocation, the TensorLists size is set to 0,
-   * and its type is reset to NoType (if not provided otherwise).
+   * If the size of the allocation is zero, the TensorList is reset to a default
+   * state and is NOT marked as sharing data.
+   *
    * After calling this function any following call to `set_type` and `Resize`
-   * must match the total size of underlying allocation (`num_bytes_`) of
+   * must note exceed the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
    *
-   * The TensorList object assumes no ownership of the input allocation,
-   * and will not de-allocate it when it is done using it. It is up to
-   * the user to manage the lifetime of the allocation such that it
-   * persist while it is in use by the Tensor.
+   * The TensorList object assumes no ownership of the input allocation, and will
+   * not de-allocate it when it is done using it. It is up to the user to
+   * manage the lifetime of the allocation such that it persist while it is
+   * in use by the TensorList.
    */
   DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, bool pinned = false,
                                    const DALIDataType type = DALI_NO_TYPE) {
@@ -495,7 +508,7 @@ class DLL_PUBLIC TensorList {
    * @brief Returns a Tensor view with given shape or nullptr if no
    * such exists
    */
-  inline Tensor<Backend> * GetViewWithShape(const TensorShape<> &shape) {
+  inline Tensor<Backend> *GetViewWithShape(const TensorShape<> &shape) {
     for (auto &t : tensor_views_) {
       if (t.shape() == shape) {
         return &t;
@@ -531,8 +544,9 @@ class DLL_PUBLIC TensorList {
 
     tensor_views_.emplace_back();
     auto &tensor = tensor_views_.back();
-    tensor.ShareData(data_.get_data_ptr(), data_.capacity(), data_.is_pinned(), new_shape, type());
-    tensor.set_device_id(data_.device_id());
+
+    tensor.set_device_id(device_);
+    tensor.ShareData(data_.get_data_ptr(), data_.capacity(), data_.is_pinned(), new_shape, type(), order());
 
     return &tensor;
   }
