@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,10 +64,10 @@ class NvofError : public std::runtime_error {
 
   static std::string Message(NV_OF_STATUS result, const char *details) {
     if (details && *details) {
-      return make_string("NVIDIA Optical flow error: ", result, " ", ErrorString(result),
+      return make_string("NVIDIA Optical flow error (", result, "): ", ErrorString(result),
                          "\nDetails:\n", details);
     } else {
-      return make_string("NVIDIA Optical flow error: ", result, " ", ErrorString(result));
+      return make_string("NVIDIA Optical flow error (", result, "): ", ErrorString(result));
     }
   }
 

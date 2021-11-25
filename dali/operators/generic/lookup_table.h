@@ -53,8 +53,8 @@ struct LutSampleDesc {
 template <typename Backend>
 class LookupTable : public Operator<Backend> {
  public:
-  static constexpr size_t kLookupTableSize = 0x10000;
-  static constexpr size_t kMaxKey = kLookupTableSize - 1;
+  static constexpr int kLookupTableSize = 0x10000;
+  static constexpr int kMaxKey = kLookupTableSize - 1;
 
   explicit inline LookupTable(const OpSpec &spec)
       : Operator<Backend>(spec),
@@ -144,8 +144,9 @@ void DoLookup(Output &output, Input key, const Output *lookup_table, Output defa
   constexpr auto max_key = ConvertSat<Input>(LookupTable<Backend>::kMaxKey);
 
   if (check_range) {
-    output = (std::is_unsigned<Input>::value || key >= 0) && key <= max_key ? lookup_table[key] :
-                                                                              default_value;
+    using UInput = std::make_unsigned_t<Input>;
+    // checking that key is in the range 0 <= key <= max_key
+    output = UInput(key) <= UInput(max_key) ? lookup_table[key] : default_value;
   } else {
     output = lookup_table[key];
   }

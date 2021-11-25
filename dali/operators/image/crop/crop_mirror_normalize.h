@@ -186,9 +186,10 @@ class CropMirrorNormalize : public Operator<Backend> {
 
     crop_attr_.ProcessArguments(spec, ws);
 
-    mean_arg_.Acquire(spec_, ws, nsamples, true);
-    std_arg_.Acquire(spec_, ws, nsamples, true);
-    bool per_sample_norm_args = mean_arg_.IsArgInput() || std_arg_.IsArgInput();
+    ArgValueFlags flags = ArgValue_EnforceUniform;
+    mean_arg_.Acquire(spec_, ws, nsamples, flags);
+    std_arg_.Acquire(spec_, ws, nsamples, flags);
+    bool per_sample_norm_args = mean_arg_.HasArgumentInput() || std_arg_.HasArgumentInput();
     if (!per_sample_norm_args && !const_norm_args_read_) {
       ProcessNormArgs(0);  // constant, only need to process the arguments once
       const_norm_args_read_ = true;

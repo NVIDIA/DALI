@@ -135,15 +135,15 @@ bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const HostWorksp
 
 void RandomObjectBBox::AcquireArgs(const HostWorkspace &ws, int N, int ndim) {
   background_.Acquire(spec_, ws, N);
-  if (classes_.IsDefined())
+  if (classes_.HasExplicitValue())
     classes_.Acquire(spec_, ws, N);
   foreground_prob_.Acquire(spec_, ws, N);
-  if (weights_.IsDefined())
+  if (weights_.HasExplicitValue())
     weights_.Acquire(spec_, ws, N);
-  if (threshold_.IsDefined())
+  if (threshold_.HasExplicitValue())
     threshold_.Acquire(spec_, ws, N, TensorShape<1>{ndim});
 
-  if (weights_.IsDefined() && classes_.IsDefined()) {
+  if (weights_.HasExplicitValue() && classes_.HasExplicitValue()) {
     DALI_ENFORCE(weights_.get().shape == classes_.get().shape, make_string(
       "If both ``classes`` and ``class_weights`` are provided, their shapes must match. Got:"
       "\n  classes.shape = ", classes_.get().shape,
@@ -341,11 +341,11 @@ void RandomObjectBBox::ClassInfo::Init(const int *bg_ptr,
 }
 
 void RandomObjectBBox::InitClassInfo(int sample_idx) {
-  const int *bg = background_.IsDefined() ? background_[sample_idx].data : nullptr;
+  const int *bg = background_.HasExplicitValue() ? background_[sample_idx].data : nullptr;
   InTensorCPU<int, 1> class_tv;
   InTensorCPU<float, 1> weight_tv;
-  if (classes_.IsDefined() && !ignore_class_) class_tv  = classes_[sample_idx];
-  if (weights_.IsDefined() && !ignore_class_) weight_tv = weights_[sample_idx];
+  if (classes_.HasExplicitValue() && !ignore_class_) class_tv  = classes_[sample_idx];
+  if (weights_.HasExplicitValue() && !ignore_class_) weight_tv = weights_[sample_idx];
   class_info_.Init(bg, class_tv, weight_tv);
 }
 
@@ -353,7 +353,7 @@ template <int ndim>
 int RandomObjectBBox::PickBox(span<Box<ndim, int>> boxes, int sample_idx) {
   auto beg = boxes.begin();
   auto end = boxes.end();
-  if (threshold_.IsDefined()) {
+  if (threshold_.HasExplicitValue()) {
     vec<ndim, int> threshold;
     const int *thresh = threshold_[sample_idx].data;
     assert(threshold_.get().shape[sample_idx] == TensorShape<1>{ ndim });
@@ -485,7 +485,7 @@ bool RandomObjectBBox::PickForegroundBox(
         cache_entry->labels = context.labels;
     }
 
-    if (!classes_.IsDefined() && !weights_.IsDefined()) {
+    if (!classes_.HasExplicitValue() && !weights_.HasExplicitValue()) {
       class_info_.FromLabels(context.labels);
     } else {
       class_info_.DisableAbsentClasses(context.labels);

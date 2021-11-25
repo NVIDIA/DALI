@@ -57,16 +57,17 @@ class NamedSliceAttr {
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
 
-    has_start_ = start_.IsDefined() || rel_start_.IsDefined();
+    has_start_ = start_.HasExplicitValue() || rel_start_.HasExplicitValue();
 
-    if ((start_.IsDefined() + rel_start_.IsDefined()) > 1)
+    if ((start_.HasExplicitValue() + rel_start_.HasExplicitValue()) > 1)
       DALI_FAIL(make_string("\"", start_name, "\" and \"", rel_start_name,
                             "\" arguments are mutually exclusive"));
 
-    has_end_ = end_.IsDefined() || rel_end_.IsDefined();
-    has_shape_ = shape_.IsDefined() || rel_shape_.IsDefined();
+    has_end_ = end_.HasExplicitValue() || rel_end_.HasExplicitValue();
+    has_shape_ = shape_.HasExplicitValue() || rel_shape_.HasExplicitValue();
 
-    if ((end_.IsDefined() + rel_end_.IsDefined() + shape_.IsDefined() + rel_shape_.IsDefined()) > 1)
+    if ((end_.HasExplicitValue() + rel_end_.HasExplicitValue() + shape_.HasExplicitValue() +
+         rel_shape_.HasExplicitValue()) > 1)
       DALI_FAIL(make_string("\"", end_name, "\", \"", rel_end_name, "\", \"", shape_name,
                             "\", and \"", rel_shape_name, "\" arguments are mutually exclusive"));
   }
@@ -79,22 +80,23 @@ class NamedSliceAttr {
     if (ndim < 0)
       ndim = ws.GetInputDim(0);
 
-    axis_args_.Acquire(spec, ws, curr_batch_size);
-    auto args_shape = axis_args_.AxesShape();  // args should have as many elements as axes
+    axis_args_.Acquire(spec, ws, curr_batch_size, ndim);
+    auto args_sh = axis_args_.AxesShape();
 
-    if (start_.IsDefined())
-      start_.Acquire(spec, ws, curr_batch_size, args_shape);
-    else if (rel_start_.IsDefined())
-      rel_start_.Acquire(spec, ws, curr_batch_size, args_shape);
+    ArgValueFlags flags = ArgValue_AllowEmpty;
+    if (start_.HasExplicitValue())
+      start_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
+    else if (rel_start_.HasExplicitValue())
+      rel_start_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
 
-    if (end_.IsDefined())
-      end_.Acquire(spec, ws, curr_batch_size, args_shape);
-    else if (rel_end_.IsDefined())
-      rel_end_.Acquire(spec, ws, curr_batch_size, args_shape);
-    else if (shape_.IsDefined())
-      shape_.Acquire(spec, ws, curr_batch_size, args_shape);
-    else if (rel_shape_.IsDefined())
-      rel_shape_.Acquire(spec, ws, curr_batch_size, args_shape);
+    if (end_.HasExplicitValue())
+      end_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
+    else if (rel_end_.HasExplicitValue())
+      rel_end_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
+    else if (shape_.HasExplicitValue())
+      shape_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
+    else if (rel_shape_.HasExplicitValue())
+      rel_shape_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
 
     for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
       ProcessNamedArgs(data_idx);
@@ -125,9 +127,9 @@ class NamedSliceAttr {
           auto dim = axes[i];
 
           double anchor_val = 0;
-          if (start_.IsDefined()) {
+          if (start_ && !start_.IsEmpty(data_idx)) {
             anchor_val = start_[data_idx].data[i];
-          } else if (rel_start_.IsDefined()) {
+          } else if (rel_start_ && !rel_start_.IsEmpty(data_idx)) {
             anchor_val = rel_start_[data_idx].data[i] * shape[dim];
           }
           DALI_ENFORCE(anchor_val >= i64min && anchor_val <= i64max,
@@ -135,17 +137,18 @@ class NamedSliceAttr {
                                    "]. Got: ", anchor_val));
 
           double end_val = shape[dim];
-          if (end_.IsDefined()) {
+          if (end_ && !end_.IsEmpty(data_idx)) {
             end_val = end_[data_idx].data[i];
-          } else if (rel_end_.IsDefined()) {
+          } else if (rel_end_ && !rel_end_.IsEmpty(data_idx)) {
             end_val = rel_end_[data_idx].data[i] * shape[dim];
-          } else if (shape_.IsDefined()) {
+          } else if (shape_ && !shape_.IsEmpty(data_idx)) {
             double shape_val = shape_[data_idx].data[i];
             DALI_ENFORCE(shape_val >= 0 && shape_val <= i64max,
               make_string("shape value out of range [", 0, ", ", i64max, "]. Got: ", shape_val));
 
             end_val = anchor_val + shape_val;
-          } else if (rel_start_.IsDefined() && rel_shape_.IsDefined()) {
+          } else if (rel_start_ && rel_shape_ && !rel_start_.IsEmpty(data_idx) &&
+                     !rel_shape_.IsEmpty(data_idx)) {
             // special case - minimize the floating point error by multiplying only once after sum
             double rel_start_val = rel_start_[data_idx].data[i];
             double rel_shape_val = rel_shape_[data_idx].data[i];
@@ -153,7 +156,7 @@ class NamedSliceAttr {
               make_string("negative shapes are not allowed. Got: ", rel_shape_val));
 
             end_val = (rel_start_val + rel_shape_val) * shape[dim];
-          } else if (rel_shape_.IsDefined()) {
+          } else if (rel_shape_ && !rel_shape_.IsEmpty(data_idx)) {
             double shape_val = rel_shape_[data_idx].data[i] * shape[dim];
             DALI_ENFORCE(shape_val >= 0 && shape_val <= i64max,
                          make_string("shape value out of range [", 0, ", ", i64max,
@@ -211,7 +214,7 @@ class PositionalSliceAttr {
     if (ws.NumInput() != (spec.GetSchema().MinNumInput() + 2))
       return false;
 
-    axis_args_.Acquire(spec, ws, curr_batch_size);
+    axis_args_.Acquire(spec, ws, curr_batch_size, ndim);
 
     const auto &crop_anchor = ws.template Input<CPUBackend>(1);
     const auto &crop_shape = ws.template Input<CPUBackend>(2);

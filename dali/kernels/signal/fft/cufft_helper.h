@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -73,10 +73,10 @@ class CUFFTError : public std::runtime_error {
 
   static std::string Message(cufftResult result, const char *details) {
     if (details && *details) {
-      return make_string("CUFFT error: ", result, " ", ErrorString(result),
+      return make_string("CUFFT error (", result, "): ", ErrorString(result),
                          "\nDetails:\n", details);
     } else {
-      return make_string("CUFFT error: ", result, " ", ErrorString(result));
+      return make_string("CUFFT error (", result, "): ", ErrorString(result));
     }
   }
 

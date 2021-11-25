@@ -55,9 +55,11 @@ class RandomObjectBBox : public Operator<CPUBackend> {
     use_cache_ = spec.GetArgument<bool>("cache_objects");
     bool output_class = spec.GetArgument<bool>("output_class");
 
-    if (ignore_class_ && (classes_.IsDefined() || weights_.IsDefined() || output_class)) {
-      DALI_FAIL("Class-related arguments ``classes``, ``weights`` and ``output_class`` "
-                "cannot be used when ``ignore_class`` is True");
+    if (ignore_class_ &&
+        (classes_.HasExplicitValue() || weights_.HasExplicitValue() || output_class)) {
+      DALI_FAIL(
+          "Class-related arguments ``classes``, ``weights`` and ``output_class`` "
+          "cannot be used when ``ignore_class`` is True");
     }
 
     // additional class id output goes last, if at all; -1 denotes that it's absent

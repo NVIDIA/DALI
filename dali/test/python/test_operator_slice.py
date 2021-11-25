@@ -705,7 +705,7 @@ def test_no_slice():
         for dtype in [types.UINT8, types.UINT16, types.FLOAT]:
             yield check_no_slice, device, dtype, batch_size, num_threads
 
-def check_dynamic_axes(device, batch_size, num_threads, use_negative):
+def check_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty):
     def get_dynamic_axes():
         options = [
             np.array([0, 1], dtype=np.int32),
@@ -723,6 +723,11 @@ def check_dynamic_axes(device, batch_size, num_threads, use_negative):
                 np.array([-2], dtype=np.int32),
                 np.array([-3], dtype=np.int32),
             ]
+        if use_empty:
+            # Add it 4 times to increase the probability to be choosen
+            options += 4 * [
+                np.array([], dtype=np.int32)
+            ]
 
         axes = []
         rel_start = []
@@ -730,9 +735,10 @@ def check_dynamic_axes(device, batch_size, num_threads, use_negative):
         for _ in range(batch_size):
             axes_choice = random.choice(options)
             axes += [axes_choice]
-            rel_start += [np.array(np.random.uniform(0.0, 0.2, axes_choice.shape),
+            axes_sh = axes_choice.shape if axes_choice.shape[0] > 0 else [3]
+            rel_start += [np.array(np.random.uniform(0.0, 0.2, axes_sh),
                                    dtype=np.float32)]
-            rel_shape += [np.array(np.random.uniform(0.4, 0.6, axes_choice.shape),
+            rel_shape += [np.array(np.random.uniform(0.4, 0.6, axes_sh),
                                    dtype=np.float32)]
         return axes, rel_start, rel_shape
 
@@ -756,6 +762,9 @@ def check_dynamic_axes(device, batch_size, num_threads, use_negative):
                 outs[0][sample_idx].as_cpu() if device == 'gpu' else
                 outs[0][sample_idx])
             axes = np.array(outs[1][sample_idx])
+            naxes = axes.shape[0]
+            if naxes == 0:  # Empty axes mean "all axes"
+                axes = np.array(range(ndim), dtype=np.int32)
             rel_start = np.array(outs[2][sample_idx])
             rel_shape = np.array(outs[3][sample_idx])
             sliced1 = np.array(
@@ -781,13 +790,19 @@ def test_dynamic_axes():
     batch_size=10
     num_threads=3
     for device in ['cpu', 'gpu']:
-        yield check_dynamic_axes, device, batch_size, num_threads, False
+        yield check_dynamic_axes, device, batch_size, num_threads, False, False
 
 def test_negative_axes():
     batch_size=10
     num_threads=3
     for device in ['cpu', 'gpu']:
-        yield check_dynamic_axes, device, batch_size, num_threads, True
+        yield check_dynamic_axes, device, batch_size, num_threads, True, False
+
+def test_empty_axes():
+    batch_size=10
+    num_threads=3
+    for device in ['cpu', 'gpu']:
+        yield check_dynamic_axes, device, batch_size, num_threads, False, True
 
 def check_wrong_axes(device, wrong_axes_range=None, named_args=False):
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)

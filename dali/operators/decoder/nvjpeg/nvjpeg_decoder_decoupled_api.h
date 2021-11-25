@@ -15,7 +15,6 @@
 #ifndef DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_DECODER_DECOUPLED_API_H_
 #define DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_DECODER_DECOUPLED_API_H_
 
-#include <nvjpeg.h>
 #include <functional>
 #include <string>
 #include <utility>
@@ -106,15 +105,15 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       if (driverVersion < 455) {
         try_init_hw_decoder = false,
         hw_decoder_load_ = 0;
-        NVJPEG_CALL(nvjpegDestroy(handle_));
+        CUDA_CALL(nvjpegDestroy(handle_));
         LOG_LINE << "NVJPEG_BACKEND_HARDWARE is disabled due to performance reason" << std::endl;
-        NVJPEG_CALL(nvjpegCreateSimple(&handle_));
+        CUDA_CALL(nvjpegCreateSimple(&handle_));
         DALI_WARN("Due to performance reason HW NVJPEG decoder is disbaled for the driver "
                   "older than 455.x");
       } else {
 #endif
         LOG_LINE << "Using NVJPEG_BACKEND_HARDWARE" << std::endl;
-        NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
+        CUDA_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
         if (!RestrictPinnedMemUsage()) {
           hw_decoder_images_staging_.set_pinned(true);
           // assume close the worst case size 300kb per image
@@ -140,7 +139,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         // when such value is provided
         preallocate_width_hint = preallocate_width_hint ? preallocate_width_hint : 1;
         preallocate_height_hint = preallocate_height_hint ? preallocate_height_hint : 1;
-        NVJPEG_CALL(nvjpegDecodeBatchedPreAllocate(
+        CUDA_CALL(nvjpegDecodeBatchedPreAllocate(
           handle_,
           state_hw_batched_,
           CalcHwDecoderBatchSize(hw_decoder_load_, max_batch_size_),
@@ -159,18 +158,18 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
     } else {
       LOG_LINE << "NVJPEG_BACKEND_HARDWARE is either disabled or not supported" << std::endl;
-      NVJPEG_CALL(nvjpegCreateSimple(&handle_));
+      CUDA_CALL(nvjpegCreateSimple(&handle_));
     }
 #else
-    NVJPEG_CALL(nvjpegCreateSimple(&handle_));
+    CUDA_CALL(nvjpegCreateSimple(&handle_));
 #endif
 
     size_t device_memory_padding = spec.GetArgument<Index>("device_memory_padding");
     size_t host_memory_padding = spec.GetArgument<Index>("host_memory_padding");
     size_t device_memory_padding_jpeg2k = spec.GetArgument<Index>("device_memory_padding_jpeg2k");
     size_t host_memory_padding_jpeg2k = spec.GetArgument<Index>("host_memory_padding_jpeg2k");
-    NVJPEG_CALL(nvjpegSetDeviceMemoryPadding(device_memory_padding, handle_));
-    NVJPEG_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding, handle_));
+    CUDA_CALL(nvjpegSetDeviceMemoryPadding(device_memory_padding, handle_));
+    CUDA_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding, handle_));
 
     nvjpegDevAllocator_t *device_allocator_ptr = &device_allocator_;
     nvjpegPinnedAllocator_t *pinned_allocator_ptr = &pinned_allocator_;
@@ -191,16 +190,16 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     // create the handles, streams and events we'll use
     // We want to use nvJPEG default device allocator
     for (auto &stream : jpeg_streams_) {
-      NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &stream));
+      CUDA_CALL(nvjpegJpegStreamCreate(handle_, &stream));
     }
     for (auto &stream : hw_decoder_jpeg_streams_) {
-      NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &stream));
+      CUDA_CALL(nvjpegJpegStreamCreate(handle_, &stream));
     }
     for (auto &buffer : pinned_buffers_) {
-      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, pinned_allocator_ptr, &buffer));
+      CUDA_CALL(nvjpegBufferPinnedCreate(handle_, pinned_allocator_ptr, &buffer));
     }
     for (auto &buffer : device_buffers_) {
-      NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, device_allocator_ptr, &buffer));
+      CUDA_CALL(nvjpegBufferDeviceCreate(handle_, device_allocator_ptr, &buffer));
     }
     for (auto &stream : streams_) {
       CUDA_CALL(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking,
@@ -278,17 +277,17 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
 
       for (auto &stream  : jpeg_streams_) {
-        NVJPEG_CALL(nvjpegJpegStreamDestroy(stream));
+        CUDA_CALL(nvjpegJpegStreamDestroy(stream));
       }
       for (auto &stream  : hw_decoder_jpeg_streams_) {
-        NVJPEG_CALL(nvjpegJpegStreamDestroy(stream));
+        CUDA_CALL(nvjpegJpegStreamDestroy(stream));
       }
 
       for (auto &buffer : pinned_buffers_) {
-        NVJPEG_CALL(nvjpegBufferPinnedDestroy(buffer));
+        CUDA_CALL(nvjpegBufferPinnedDestroy(buffer));
       }
       for (auto &buffer : device_buffers_) {
-        NVJPEG_CALL(nvjpegBufferDeviceDestroy(buffer));
+        CUDA_CALL(nvjpegBufferDeviceDestroy(buffer));
       }
       for (auto &event : decode_events_) {
         CUDA_CALL(cudaEventDestroy(event));
@@ -301,10 +300,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       CUDA_CALL(cudaStreamDestroy(hw_decode_stream_));
 
       if (state_hw_batched_) {
-        NVJPEG_CALL(nvjpegJpegStateDestroy(state_hw_batched_));
+        CUDA_CALL(nvjpegJpegStateDestroy(state_hw_batched_));
       }
 
-      NVJPEG_CALL(nvjpegDestroy(handle_));
+      CUDA_CALL(nvjpegDestroy(handle_));
 
       // Free any remaining buffers and remove the thread entry from the global map
       for (auto thread_id : thread_pool_.GetThreadIds()) {
@@ -380,14 +379,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     SampleData(int idx, nvjpegHandle_t &handle, DALIImageType img_type)
         : sample_idx(idx) {
-      NVJPEG_CALL(nvjpegDecodeParamsCreate(handle, &params));
-      NVJPEG_CALL(nvjpegDecodeParamsSetOutputFormat(params, GetFormat(img_type)));
-      NVJPEG_CALL(nvjpegDecodeParamsSetAllowCMYK(params, true));
+      CUDA_CALL(nvjpegDecodeParamsCreate(handle, &params));
+      CUDA_CALL(nvjpegDecodeParamsSetOutputFormat(params, GetFormat(img_type)));
+      CUDA_CALL(nvjpegDecodeParamsSetAllowCMYK(params, true));
 
       for (auto backend : {NVJPEG_BACKEND_HYBRID, NVJPEG_BACKEND_GPU_HYBRID}) {
         auto &decoder = decoders[backend].decoder;
-        NVJPEG_CALL(nvjpegDecoderCreate(handle, backend, &decoder));
-        NVJPEG_CALL(nvjpegDecoderStateCreate(handle, decoder, &decoders[backend].state));
+        CUDA_CALL(nvjpegDecoderCreate(handle, backend, &decoder));
+        CUDA_CALL(nvjpegDecoderStateCreate(handle, decoder, &decoders[backend].state));
       }
     }
 
@@ -405,17 +404,17 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     ~SampleData() {
       try {
-        NVJPEG_CALL(nvjpegDecodeParamsDestroy(params));
+        CUDA_CALL(nvjpegDecodeParamsDestroy(params));
         for (auto &decoder_data : decoders) {
           auto &state = decoder_data.state;
           if (state) {
-            NVJPEG_CALL(nvjpegJpegStateDestroy(state));
+            CUDA_CALL(nvjpegJpegStateDestroy(state));
             state = nullptr;
           }
 
           auto &decoder = decoder_data.decoder;
           if (decoder) {
-            NVJPEG_CALL(nvjpegDecoderDestroy(decoder));
+            CUDA_CALL(nvjpegDecoderDestroy(decoder));
             decoder = nullptr;
           }
         }
@@ -519,14 +518,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                    0, 0, jpeg2k_stream);
     if (ret == NVJPEG2K_STATUS_SUCCESS) {
       nvjpeg2kImageInfo_t image_info;
-      NVJPEG2K_CALL(nvjpeg2kStreamGetImageInfo(jpeg2k_stream, &image_info));
+      CUDA_CALL(nvjpeg2kStreamGetImageInfo(jpeg2k_stream, &image_info));
       nvjpeg2kImageComponentInfo_t comp;
-      NVJPEG2K_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, 0));
+      CUDA_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, 0));
       uint32_t height = comp.component_height;
       uint32_t width = comp.component_width;
       data.bpp = comp.precision;
       for (uint32_t c = 1; c < image_info.num_components; ++c) {
-        NVJPEG2K_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, c));
+        CUDA_CALL(nvjpeg2kStreamGetImageComponentInfo(jpeg2k_stream, &comp, c));
         if (height != comp.component_height ||
             width != comp.component_width ||
             data.bpp != comp.precision) {
@@ -601,11 +600,11 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           data.roi.EnforceInRange(shape);
           output_shape_.set_tensor_shape(
             i, {data.roi.shape[0], data.roi.shape[1], data.req_nchannels});
-          NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, data.roi.anchor[1], data.roi.anchor[0],
+          CUDA_CALL(nvjpegDecodeParamsSetROI(data.params, data.roi.anchor[1], data.roi.anchor[0],
                                               data.roi.shape[1], data.roi.shape[0]));
         } else {
           output_shape_.set_tensor_shape(i, {data.shape[0], data.shape[1], data.req_nchannels});
-          NVJPEG_CALL(nvjpegDecodeParamsSetROI(data.params, 0, 0, -1, -1));
+          CUDA_CALL(nvjpegDecodeParamsSetROI(data.params, 0, 0, -1, -1));
         }
 
         // only when we have ROI info check if nvjpegDecodeBatchedSupportedEx supports it
@@ -618,7 +617,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                         hw_decoder_jpeg_streams_[tid]);
             if (ret == NVJPEG_STATUS_SUCCESS) {
               int is_supported = -1;
-              NVJPEG_CALL(nvjpegDecodeBatchedSupportedEx(handle_, hw_decoder_jpeg_streams_[tid],
+              CUDA_CALL(nvjpegDecodeBatchedSupportedEx(handle_, hw_decoder_jpeg_streams_[tid],
                                                           data.params, &is_supported));
               hw_decode = is_supported == 0;
             }
@@ -772,7 +771,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                sample->roi, use_fast_idct_);
 
     } else {
-      NVJPEG2K_CALL_EX(ret, sample->file_name);
+      CUDA_CALL_EX(ret, sample->file_name);
     }
   }
 #endif  // NVJPEG2K_ENABLED
@@ -824,7 +823,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       int max_cpu_threads = 1;
 
       nvjpegOutputFormat_t format = GetFormat(output_image_type_);
-      NVJPEG_CALL(nvjpegDecodeBatchedInitialize(handle_, state, samples_hw_batched_.size(),
+      CUDA_CALL(nvjpegDecodeBatchedInitialize(handle_, state, samples_hw_batched_.size(),
                                                 max_cpu_threads, format));
 
       in_data_.resize(samples_hw_batched_.size());
@@ -863,7 +862,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           in_data_[k] = hw_decoder_images_staging_.mutable_tensor<uint8_t>(k);
         }
       }
-      NVJPEG_CALL(nvjpegDecodeBatchedEx(handle_, state, in_data_.data(), in_lengths_.data(),
+      CUDA_CALL(nvjpegDecodeBatchedEx(handle_, state, in_data_.data(), in_lengths_.data(),
                                         nvjpeg_destinations_.data(), nvjpeg_params_.data(),
                                         hw_decode_stream_));
 
@@ -953,7 +952,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     auto &state = data.selected_decoder->state;
     assert(state != nullptr);
 
-    NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(state, pinned_buffers_[buff_idx]));
+    CUDA_CALL(nvjpegStateAttachPinnedBuffer(state, pinned_buffers_[buff_idx]));
 
     nvjpegStatus_t ret = nvjpegJpegStreamParse(handle_, input_data, in_size, false, false,
                                                jpeg_streams_[jpeg_stream_idx]);
@@ -972,12 +971,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                stream, file_name, data.roi, use_fast_idct_);
       if (ret != NVJPEG_STATUS_JPEG_NOT_SUPPORTED && ret != NVJPEG_STATUS_BAD_JPEG) {
         auto warning_msg = make_string("NVJPEG error \"", static_cast<int>(ret),
-                                       "\" : ", nvjpeg_parse_error_code(ret), " ", file_name);
+                                       "\" : ", dali::NvjpegError::Message(ret, nullptr),
+                                       " ", file_name);
         DALI_WARN(warning_msg);
       }
       return;
     }
-    NVJPEG_CALL_EX(ret, file_name);
+    CUDA_CALL_EX(ret, file_name);
 
     assert(data.method == DecodeMethod::NvjpegCuda);
     if (data.method == DecodeMethod::NvjpegCuda) {
@@ -988,9 +988,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       nvjpeg_image.pitch[0] = out_shape[1] * out_shape[2];
 
       CUDA_CALL(cudaEventSynchronize(decode_events_[thread_id]));
-      NVJPEG_CALL_EX(nvjpegStateAttachDeviceBuffer(state, device_buffers_[thread_id]), file_name);
+      CUDA_CALL_EX(nvjpegStateAttachDeviceBuffer(state, device_buffers_[thread_id]), file_name);
 
-      NVJPEG_CALL_EX(nvjpegDecodeJpegTransferToDevice(handle_, decoder, state,
+      CUDA_CALL_EX(nvjpegDecodeJpegTransferToDevice(handle_, decoder, state,
                                                       jpeg_streams_[jpeg_stream_idx], stream),
                      file_name);
 
@@ -999,7 +999,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       // if nvJPEG fails try HostDecoder
       if (ret != NVJPEG_STATUS_SUCCESS) {
         auto warning_msg = make_string("NVJPEG error \"", static_cast<int>(ret),
-                                       "\" : ", nvjpeg_parse_error_code(ret), " ", file_name);
+                                       "\" : ", dali::NvjpegError::Message(ret, nullptr),
+                                       " ", file_name);
         DALI_WARN(warning_msg);
         HostFallback<StorageGPU>(input_data, in_size, output_image_type_, output_data,
                                  stream, file_name, data.roi, use_fast_idct_);
