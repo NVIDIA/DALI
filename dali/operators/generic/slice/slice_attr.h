@@ -21,25 +21,20 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
+#include "dali/core/small_vector.h"
+#include "dali/core/span.h"
+#include "dali/core/static_switch.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_view.h"
+#include "dali/operators/util/axis_args.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/util/crop_window.h"
-#include "dali/core/static_switch.h"
 
 #define SLICE_ARGS_TYPES (int32_t, int64_t, float)
 
 namespace dali {
-
-/**
- * @brief Process axes arguments.
- * @return true if there are axes defined, false otherwise (use all axes).
- */
-bool ProcessAxesArgs(std::vector<int>& axes, TensorLayout& axis_names, const OpSpec& spec,
-                     const char* axes_arg_name = "axes",
-                     const char* axis_names_arg_name = "axis_names");
 
 class NamedSliceAttr {
  public:
@@ -52,7 +47,8 @@ class NamedSliceAttr {
                                  const char* rel_shape_name = "rel_shape",
                                  const char* axes_arg_name = "axes",
                                  const char* axis_names_arg_name = "axis_names")
-      : start_(start_name, spec),
+      : axis_args_(spec, axes_arg_name, axis_names_arg_name),
+        start_(start_name, spec),
         rel_start_(rel_start_name, spec),
         end_(end_name, spec),
         rel_end_(rel_end_name, spec),
@@ -60,7 +56,6 @@ class NamedSliceAttr {
         rel_shape_(rel_shape_name, spec) {
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
-    use_all_axes_ = !ProcessAxesArgs(axes_, axis_names_, spec, axes_arg_name, axis_names_arg_name);
 
     has_start_ = start_.HasExplicitValue() || rel_start_.HasExplicitValue();
 
@@ -85,25 +80,23 @@ class NamedSliceAttr {
     if (ndim < 0)
       ndim = ws.GetInputDim(0);
 
-    auto args_shape = TensorShape<1>(ndim);
-    if (!use_all_axes_) {
-      args_shape[0] = std::max(static_cast<int>(axes_.size()),
-                               static_cast<int>(axis_names_.size()));
-    }
+    axis_args_.Acquire(spec, ws, curr_batch_size, ndim);
+    auto args_sh = axis_args_.AxesShape();
 
+    ArgValueFlags flags = ArgValue_AllowEmpty;
     if (start_.HasExplicitValue())
-      start_.Acquire(spec, ws, curr_batch_size, args_shape);
+      start_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
     else if (rel_start_.HasExplicitValue())
-      rel_start_.Acquire(spec, ws, curr_batch_size, args_shape);
+      rel_start_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
 
     if (end_.HasExplicitValue())
-      end_.Acquire(spec, ws, curr_batch_size, args_shape);
+      end_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
     else if (rel_end_.HasExplicitValue())
-      rel_end_.Acquire(spec, ws, curr_batch_size, args_shape);
+      rel_end_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
     else if (shape_.HasExplicitValue())
-      shape_.Acquire(spec, ws, curr_batch_size, args_shape);
+      shape_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
     else if (rel_shape_.HasExplicitValue())
-      rel_shape_.Acquire(spec, ws, curr_batch_size, args_shape);
+      rel_shape_.Acquire(spec, ws, curr_batch_size, args_sh, flags);
 
     for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
       ProcessNamedArgs(data_idx);
@@ -124,13 +117,8 @@ class NamedSliceAttr {
         slice.anchor = std::vector<int64_t>(shape.size(), 0);
         slice.shape = shape;
 
-        auto axes = axes_;
-        if (!axis_names_.empty()) {
-          axes = GetDimIndices(shape_layout, axis_names_).to_vector();
-        } else if (use_all_axes_) {
-          axes.resize(shape.sample_dim());
-          std::iota(axes.begin(), axes.end(), 0);
-        }
+        int ndim = shape.sample_dim();
+        auto axes = axis_args_.Get(data_idx, ndim, shape_layout);
 
         constexpr double i64min = static_cast<double>(std::numeric_limits<int64_t>::min());
         constexpr double i64max = static_cast<double>(std::numeric_limits<int64_t>::max());
@@ -139,9 +127,9 @@ class NamedSliceAttr {
           auto dim = axes[i];
 
           double anchor_val = 0;
-          if (start_.HasExplicitValue()) {
+          if (start_ && !start_.IsEmpty(data_idx)) {
             anchor_val = start_[data_idx].data[i];
-          } else if (rel_start_.HasExplicitValue()) {
+          } else if (rel_start_ && !rel_start_.IsEmpty(data_idx)) {
             anchor_val = rel_start_[data_idx].data[i] * shape[dim];
           }
           DALI_ENFORCE(anchor_val >= i64min && anchor_val <= i64max,
@@ -149,17 +137,18 @@ class NamedSliceAttr {
                                    "]. Got: ", anchor_val));
 
           double end_val = shape[dim];
-          if (end_.HasExplicitValue()) {
+          if (end_ && !end_.IsEmpty(data_idx)) {
             end_val = end_[data_idx].data[i];
-          } else if (rel_end_.HasExplicitValue()) {
+          } else if (rel_end_ && !rel_end_.IsEmpty(data_idx)) {
             end_val = rel_end_[data_idx].data[i] * shape[dim];
-          } else if (shape_.HasExplicitValue()) {
+          } else if (shape_ && !shape_.IsEmpty(data_idx)) {
             double shape_val = shape_[data_idx].data[i];
             DALI_ENFORCE(shape_val >= 0 && shape_val <= i64max,
               make_string("shape value out of range [", 0, ", ", i64max, "]. Got: ", shape_val));
 
             end_val = anchor_val + shape_val;
-          } else if (rel_start_.HasExplicitValue() && rel_shape_.HasExplicitValue()) {
+          } else if (rel_start_ && rel_shape_ && !rel_start_.IsEmpty(data_idx) &&
+                     !rel_shape_.IsEmpty(data_idx)) {
             // special case - minimize the floating point error by multiplying only once after sum
             double rel_start_val = rel_start_[data_idx].data[i];
             double rel_shape_val = rel_shape_[data_idx].data[i];
@@ -167,7 +156,7 @@ class NamedSliceAttr {
               make_string("negative shapes are not allowed. Got: ", rel_shape_val));
 
             end_val = (rel_start_val + rel_shape_val) * shape[dim];
-          } else if (rel_shape_.HasExplicitValue()) {
+          } else if (rel_shape_ && !rel_shape_.IsEmpty(data_idx)) {
             double shape_val = rel_shape_[data_idx].data[i] * shape[dim];
             DALI_ENFORCE(shape_val >= 0 && shape_val <= i64max,
                          make_string("shape value out of range [", 0, ", ", i64max,
@@ -190,8 +179,7 @@ class NamedSliceAttr {
   }
 
  private:
-  std::vector<int> axes_;
-  TensorLayout axis_names_;
+  AxisArgs axis_args_;
 
   ArgValue<int, 1> start_;
   ArgValue<float, 1> rel_start_;
@@ -205,18 +193,17 @@ class NamedSliceAttr {
   std::vector<CropWindowGenerator> crop_window_generators_;
 
   bool has_start_, has_end_, has_shape_;
-  bool use_all_axes_ = false;
 };
 
 
 class PositionalSliceAttr {
  public:
-  explicit inline PositionalSliceAttr(const OpSpec& spec) {
+  explicit inline PositionalSliceAttr(const OpSpec& spec)
+      : axis_args_(spec, "axes", "axis_names") {
     normalized_anchor_ = spec.GetArgument<bool>("normalized_anchor");
     normalized_shape_ = spec.GetArgument<bool>("normalized_shape");
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
-    use_all_axes_ = !ProcessAxesArgs(axes_, axis_names_, spec, "axes", "axis_names");
   }
 
   template <typename Backend>
@@ -224,14 +211,10 @@ class PositionalSliceAttr {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     int ndim = ws.GetInputDim(0);
 
-    auto args_shape = TensorShape<1>(ndim);
-    if (!use_all_axes_) {
-      args_shape[0] = std::max(static_cast<int>(axes_.size()),
-                               static_cast<int>(axis_names_.size()));
-    }
-
     if (ws.NumInput() != (spec.GetSchema().MinNumInput() + 2))
       return false;
+
+    axis_args_.Acquire(spec, ws, curr_batch_size, ndim);
 
     const auto &crop_anchor = ws.template Input<CPUBackend>(1);
     const auto &crop_shape = ws.template Input<CPUBackend>(2);
@@ -243,10 +226,11 @@ class PositionalSliceAttr {
       auto anchor_view = view<const ArgsType>(crop_anchor);
       auto shape_view = view<const ArgsType>(crop_shape);
       for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
-        VerifyArgsShape(anchor_view.tensor_shape(data_idx), shape_view.tensor_shape(data_idx));
-        ProcessPositionalInputArgs(data_idx,
-                                    anchor_view.tensor_data(data_idx),
-                                    shape_view.tensor_data(data_idx));
+        span<const ArgsType> anchor(anchor_view.tensor_data(data_idx),
+                                    anchor_view.tensor_shape_span(data_idx)[0]);
+        span<const ArgsType> shape(shape_view.tensor_data(data_idx),
+                                   shape_view.tensor_shape_span(data_idx)[0]);
+        ProcessPositionalInputArgs(data_idx, anchor, shape);
       }
     ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", args_dtype)));  // NOLINT
     return true;
@@ -260,33 +244,40 @@ class PositionalSliceAttr {
  private:
   template <typename AnchorT, typename ShapeT>
   void ProcessPositionalInputArgs(int data_idx,
-                                  const AnchorT *slice_anchor_data,
-                                  const ShapeT *slice_shape_data) {
+                                  span<const AnchorT> slice_anchor_data,
+                                  span<const ShapeT> slice_shape_data) {
     bool normalized_anchor = std::is_floating_point<AnchorT>::value && normalized_anchor_;
     bool normalized_shape  = std::is_floating_point<ShapeT>::value && normalized_shape_;
+    DALI_ENFORCE(
+        slice_anchor_data.size() == slice_shape_data.size(),
+        make_string("Slice anchor and shape should have the same number of arguments. Got: ",
+                    slice_anchor_data.size(), " and ", slice_shape_data.size()));
+
     crop_window_generators_[data_idx] =
       [this, slice_anchor_data, slice_shape_data,
-       normalized_anchor, normalized_shape]
+       normalized_anchor, normalized_shape, data_idx]
       (const TensorShape<> &shape, const TensorLayout& shape_layout) {
         CropWindow slice;
         slice.anchor = std::vector<int64_t>(shape.size(), 0);
         slice.shape = shape;
 
-        auto axes = axes_;
-        if (!axis_names_.empty()) {
-          axes = GetDimIndices(shape_layout, axis_names_).to_vector();
-        } else if (use_all_axes_) {
-          axes.resize(shape.sample_dim());
-          std::iota(axes.begin(), axes.end(), 0);
-        }
+        int ndim = shape.sample_dim();
+        auto axes = axis_args_.Get(data_idx, ndim, shape_layout);
+
+        // checking anchor is enough (we already checked they have the same size earlier)
+        DALI_ENFORCE(static_cast<int>(axes.size()) == slice_anchor_data.size(),
+                     make_string("Expected ", axes.size(),
+                                 " elements for slice arguments (start/shape). Got ",
+                                 slice_anchor_data.size()));
 
         constexpr double i64min = static_cast<double>(std::numeric_limits<int64_t>::min());
         constexpr double i64max = static_cast<double>(std::numeric_limits<int64_t>::max());
 
         for (size_t i = 0; i < axes.size(); i++) {
           auto dim = axes[i];
+
           double anchor_val = slice_anchor_data[i];
-          double shape_val = slice_shape_data ? slice_shape_data[i] : 0;
+          double shape_val = slice_shape_data.data() ? slice_shape_data[i] : 0;
           double end_val = 0.0;
           // special case - minimize the floating point error by multiplying only once after sum
           if (normalized_anchor && normalized_shape) {
@@ -319,23 +310,10 @@ class PositionalSliceAttr {
       };
   }
 
-  void VerifyArgsShape(const TensorShape<>& crop_anchor_shape,
-                       const TensorShape<>& crop_shape_shape) {
-    DALI_ENFORCE(crop_anchor_shape == crop_shape_shape);
-    DALI_ENFORCE(crop_anchor_shape.sample_dim() <= 1,
-                 "Anchor and shape must be 1D tensors or scalars");
-    size_t args_size = volume(crop_anchor_shape);
-    auto axes_size = !axis_names_.empty() ? axis_names_.size() : axes_.size();
-    DALI_ENFORCE(args_size == axes_size,
-      make_string("Unexpected number of arguments ", args_size, " vs ", axes_size));
-  }
-
  private:
   bool normalized_anchor_, normalized_shape_;
-  std::vector<int> axes_;
-  TensorLayout axis_names_;
+  AxisArgs axis_args_;
   std::vector<CropWindowGenerator> crop_window_generators_;
-  bool use_all_axes_ = false;
 };
 
 class SliceAttr {

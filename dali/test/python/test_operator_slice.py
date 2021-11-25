@@ -18,6 +18,7 @@ from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import os
+import random
 from functools import partial
 from test_utils import check_batch
 from test_utils import compare_pipelines
@@ -681,6 +682,8 @@ def check_no_slice(device, dtype, batch_size, num_threads):
     def make_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder, random_shuffle=False)
         image = fn.decoders.image(encoded, device="cpu", output_type=types.RGB)
+        if device == 'gpu':
+            image = image.gpu()
         image = fn.cast(image, dtype=dtype)
         sliced1 = fn.slice(image, 0, 3, axes=(2,))
         sliced2 = fn.slice(image, rel_start=(0, 0, 0), rel_end=(1, 1, 1), axis_names="HWC")
@@ -690,9 +693,9 @@ def check_no_slice(device, dtype, batch_size, num_threads):
     for _ in range(3):
         outs = pipe.run()
         nouts = len(outs)
-        in_img = np.array(outs[0][0])
+        in_img = np.array(outs[0][0].as_cpu() if device == 'gpu' else outs[0][0])
         for out_idx in range(1, nouts):
-            out_img = np.array(outs[out_idx][0])
+            out_img = np.array(outs[out_idx][0].as_cpu() if device == 'gpu' else outs[out_idx][0])
             np.testing.assert_array_equal(in_img, out_img)
 
 def test_no_slice():
@@ -701,3 +704,111 @@ def test_no_slice():
     for device in ['cpu', 'gpu']:
         for dtype in [types.UINT8, types.UINT16, types.FLOAT]:
             yield check_no_slice, device, dtype, batch_size, num_threads
+
+def check_dynamic_axes(device, batch_size, num_threads, use_negative):
+    def get_dynamic_axes():
+        options = [
+            np.array([0, 1], dtype=np.int32),
+            np.array([1, 0], dtype=np.int32),
+            np.array([0], dtype=np.int32),
+            np.array([1], dtype=np.int32),
+        ]
+        if use_negative:
+            options += [
+                np.array([-2, -3], dtype=np.int32),
+                np.array([-2, 0], dtype=np.int32),
+                np.array([-3, 1], dtype=np.int32),
+                np.array([0, -2], dtype=np.int32),
+                np.array([1, -3], dtype=np.int32),
+                np.array([-2], dtype=np.int32),
+                np.array([-3], dtype=np.int32),
+            ]
+
+        axes = []
+        rel_start = []
+        rel_shape = []
+        for _ in range(batch_size):
+            axes_choice = random.choice(options)
+            axes += [axes_choice]
+            rel_start += [np.array(np.random.uniform(0.0, 0.2, axes_choice.shape),
+                                   dtype=np.float32)]
+            rel_shape += [np.array(np.random.uniform(0.4, 0.6, axes_choice.shape),
+                                   dtype=np.float32)]
+        return axes, rel_start, rel_shape
+
+    @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=0)
+    def make_pipe():
+        encoded, _ = fn.readers.caffe(path=caffe_db_folder, random_shuffle=False)
+        image = fn.decoders.image(encoded, device="cpu", output_type=types.RGB)
+        if device == 'gpu':
+            image = image.gpu()
+        axes, rel_start, rel_shape = fn.external_source(source=get_dynamic_axes, num_outputs=3)
+        sliced1 = fn.slice(image, rel_start=rel_start, rel_shape=rel_shape, axes=axes)
+        sliced2 = fn.slice(image, rel_start, rel_shape, axes=axes)
+        return image, axes, rel_start, rel_shape, sliced1, sliced2
+    pipe = make_pipe()
+    pipe.build()
+    ndim = 3
+    for _ in range(3):
+        outs = pipe.run()
+        for sample_idx in range(batch_size):
+            in_img = np.array(
+                outs[0][sample_idx].as_cpu() if device == 'gpu' else
+                outs[0][sample_idx])
+            axes = np.array(outs[1][sample_idx])
+            rel_start = np.array(outs[2][sample_idx])
+            rel_shape = np.array(outs[3][sample_idx])
+            sliced1 = np.array(
+                outs[4][sample_idx].as_cpu() if device == 'gpu' else
+                outs[4][sample_idx]
+            )
+            sliced2 = np.array(
+                outs[5][sample_idx].as_cpu() if device == 'gpu' else
+                outs[5][sample_idx]
+            )
+            start = np.zeros([ndim], dtype=np.int32)
+            end = np.array([in_img.shape[i] for i in range(ndim)], dtype=np.int32)
+            for i in range(len(axes)):
+                a = axes[i]
+                assert a >= -ndim and a <= (ndim-1)
+                start[a] = roundint(rel_start[i] * in_img.shape[a])
+                end[a] = roundint((rel_start[i] + rel_shape[i]) * in_img.shape[a])
+            ref_sliced = in_img[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
+            np.testing.assert_allclose(ref_sliced, sliced1)
+            np.testing.assert_allclose(ref_sliced, sliced2)
+
+def test_dynamic_axes():
+    batch_size=10
+    num_threads=3
+    for device in ['cpu', 'gpu']:
+        yield check_dynamic_axes, device, batch_size, num_threads, False
+
+def test_negative_axes():
+    batch_size=10
+    num_threads=3
+    for device in ['cpu', 'gpu']:
+        yield check_dynamic_axes, device, batch_size, num_threads, True
+
+def check_wrong_axes(device, wrong_axes_range=None, named_args=False):
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def make_pipe():
+        fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device=device)
+        axes = fn.random.uniform(range=wrong_axes_range, shape=(2,), dtype=types.INT32)
+        rel_start = fn.random.uniform(range=[0.0, 0.3], shape=(2,), dtype=types.FLOAT)
+        rel_shape = fn.random.uniform(range=[0.4, 0.6], shape=(2,), dtype=types.FLOAT)
+        if named_args:
+            sliced = fn.slice(fake_data, rel_start=rel_start, rel_shape=rel_shape, axes=axes)
+        else:
+            sliced = fn.slice(fake_data, rel_start, rel_shape, axes=axes)
+        return sliced
+    p = make_pipe()
+    p.build()
+    # Note: [[] and []] are '[' and ']' characters.
+    assert_raises(RuntimeError, p.run,
+                  glob='Axis * out of range. Expected range is [[]-3, 2[]] for a 3D input')
+
+def test_wrong_axes():
+    for device in ['cpu', 'gpu']:
+        for wrong_axes_range in [(-10, -4), (3, 10)]:
+            for named_args in [False, True]:
+                yield check_wrong_axes, device, wrong_axes_range, named_args
