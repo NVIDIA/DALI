@@ -28,11 +28,13 @@ namespace kernels {
 
 namespace conv_transform {
 
-/**
- * @brief Transforms enable postprocessing of values computed by 1D convolution before
+/** @defgroup Transforms Convolution postprocessing transformations
+ * Transforms enable postprocessing of values computed by 1D convolution before
  * they are stored in the output. It may be just conversion and scaling,
  * but also can be used to accumulate results in the output buffer.
+ * @{
  */
+
 template <typename Out, typename W>
 struct TransScaleSat {
   TransScaleSat(float scale = 1.f) : scale{scale} {} // NOLINT
@@ -68,6 +70,8 @@ struct TransScaleAddBufferSat {
   Intermediate* acc_ptr;
   float scale;
 };
+
+/** @} */  // end of InputOutput
 
 }  // namespace conv_transform
 
