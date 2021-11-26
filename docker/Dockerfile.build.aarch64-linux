@@ -119,6 +119,7 @@ CMD WERROR=ON           \
     VERBOSE_LOGS=OFF    \
     BUILD_CUFILE=OFF    \
     TEST_BUNDLED_LIBS=NO\
+    WITH_DYNAMIC_CUDA_LIBS=ON\
     WHL_PLATFORM_NAME=manylinux2014_aarch64            \
     BUNDLE_PATH_PREFIX="/usr/aarch64-linux-gnu"        \
     EXTRA_CMAKE_OPTIONS="-DCMAKE_TOOLCHAIN_FILE:STRING=$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake \

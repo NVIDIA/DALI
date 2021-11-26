@@ -50,9 +50,11 @@ if (NOT WITH_DYNAMIC_CUDA_LIBS)
 endif (NOT WITH_DYNAMIC_CUDA_LIBS)
 
 # CULIBOS needed when using static CUDA libs
-CUDA_find_library(CUDA_culibos_LIBRARY culibos)
-list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
-list(APPEND DALI_EXCLUDES libculibos.a)
+if (NOT WITH_DYNAMIC_CUDA_LIBS)
+  CUDA_find_library(CUDA_culibos_LIBRARY culibos)
+  list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
+  list(APPEND DALI_EXCLUDES libculibos.a)
+endif (NOT WITH_DYNAMIC_CUDA_LIBS)
 
 # TODO(klecki): Do we need host includes?
 include_directories(${CUDA_TOOLKIT_TARGET_DIR}/include)

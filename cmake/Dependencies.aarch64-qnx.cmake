@@ -48,16 +48,18 @@ if (NOT WITH_DYNAMIC_CUDA_LIBS)
   list(APPEND DALI_EXCLUDES libnppc_static.a)
 endif (NOT WITH_DYNAMIC_CUDA_LIBS)
 
-# cuFFT libraryif (WITH_DYNAMIC_CUDA_LIBS)
+# cuFFT library
 if (NOT WITH_DYNAMIC_CUDA_LIBS)
   CUDA_find_library(CUDA_cufft_LIBRARY cufft_static)
   list(APPEND DALI_EXCLUDES libcufft_static.a)
 endif (NOT WITH_DYNAMIC_CUDA_LIBS)
 
 # CULIBOS needed when using static CUDA libs
-CUDA_find_library(CUDA_culibos_LIBRARY culibos)
-list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
-list(APPEND DALI_EXCLUDES libculibos.a)
+if (NOT WITH_DYNAMIC_CUDA_LIBS)
+  CUDA_find_library(CUDA_culibos_LIBRARY culibos)
+  list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
+  list(APPEND DALI_EXCLUDES libculibos.a)
+  endif (NOT WITH_DYNAMIC_CUDA_LIBS)
 
 include_directories(${CUDA_TOOLKIT_TARGET_DIR}/include)
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
