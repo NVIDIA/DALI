@@ -392,7 +392,7 @@ void ExposeTensor(py::module &m) {
     .def("layout", [](Tensor<CPUBackend> &t) {
       return t.GetLayout().str();
     })
-    .def("as_gpu", [](Tensor<CPUBackend> &t) -> Tensor<GPUBackend>* {
+    .def("_as_gpu", [](Tensor<CPUBackend> &t) -> Tensor<GPUBackend>* {
           auto ret = std::make_unique<Tensor<GPUBackend>>();
           ret->set_pinned(false);
           UserStream * us = UserStream::Get();
@@ -672,7 +672,7 @@ void ExposeTensorList(py::module &m) {
       is_pinned : bool
             If provided memory is page-locked (pinned)
       )code")
-    .def("as_gpu", [](TensorList<CPUBackend> &t) {
+    .def("_as_gpu", [](TensorList<CPUBackend> &t) {
           auto ret = std::make_shared<TensorList<GPUBackend>>();
           ret->set_pinned(false);
           UserStream * us = UserStream::Get();

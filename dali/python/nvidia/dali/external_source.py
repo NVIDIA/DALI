@@ -16,6 +16,7 @@
 from nvidia.dali import backend as _b
 from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs, SampleRange as _SampleRange
 import nvidia.dali.types
+import nvidia.dali.pipeline as pipeline
 from nvidia.dali._utils.external_source_impl import \
         get_callback_from_source as _get_callback_from_source, \
         accepted_arg_count as _accepted_arg_count, \
@@ -614,7 +615,7 @@ def _has_external_source(pipeline):
     return False
 
 
-def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None,
+def _external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None,
                     cuda_stream = None, use_copy_kernel = None, batch = True, **kwargs):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
@@ -634,7 +635,6 @@ provided memory is copied to the internal buffer.
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
     which is more performant.
     """
-
     if batch is None:
         batch = True
 
@@ -647,6 +647,15 @@ provided memory is copied to the internal buffer.
     op = ExternalSource(device = device, num_outputs = num_outputs, source = source,
                         cycle = cycle, layout = layout, cuda_stream = cuda_stream,
                         use_copy_kernel = use_copy_kernel, batch = batch, **kwargs)
-    return op(name = name)
+    return op(name=name)
+
+
+def external_source(*inputs, **kwargs):
+    """external_source wrapper to switch between standard and debug mode."""
+    if pipeline.PipelineDebug._external_source_debug:
+        return pipeline.PipelineDebug.current()._external_source(*inputs, **kwargs)
+    else:
+        return _external_source(*inputs, **kwargs)
+
 
 external_source.__doc__ += ExternalSource._args_doc

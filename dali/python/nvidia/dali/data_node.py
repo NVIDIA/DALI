@@ -219,7 +219,9 @@ class DataNodeDebug(DataNode):
         self._tensor = tensor
 
     def gpu(self):
-        return DataNodeDebug(self._tensor.as_gpu(), self.name, 'gpu', self.source)
+        if self.device == 'gpu':
+            return self
+        return DataNodeDebug(self._tensor._as_gpu(), self.name, 'gpu', self.source)
 
     def as_tensor(self):
         return self._tensor

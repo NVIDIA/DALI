@@ -77,8 +77,8 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
         return op_class(**init_args)(*inputs, **call_args)
 
     def fn_wrapper(*inputs, **kwargs):
-        if pipeline.PipelineDebug.debug_on:
-            return pipeline.PipelineDebug.current().wrap_op_call(op_wrapper, *inputs, **kwargs)
+        if pipeline.PipelineDebug._debug_on:
+            return pipeline.PipelineDebug.current()._wrap_op_call(op_wrapper, *inputs, **kwargs)
         else:
             return op_wrapper(*inputs, **kwargs)
             
