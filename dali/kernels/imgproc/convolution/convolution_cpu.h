@@ -28,13 +28,17 @@ namespace kernels {
 
 namespace conv_transform {
 
-/** @defgroup Transforms Convolution postprocessing transformations
+/** @defgroup ConvolutionTransforms Convolution postprocessing transformations
  * Transforms enable postprocessing of values computed by 1D convolution before
  * they are stored in the output. It may be just conversion and scaling,
  * but also can be used to accumulate results in the output buffer.
  * @{
  */
 
+/**
+ * @brief Stores the convolution value in the output tensor, performs scaling and
+ * converts to the output type with saturation.
+ */
 template <typename Out, typename W>
 struct TransScaleSat {
   TransScaleSat(float scale = 1.f) : scale{scale} {} // NOLINT
@@ -46,6 +50,10 @@ struct TransScaleSat {
   float scale;
 };
 
+/**
+ * @brief Adds the convolution value to the output tensor, performs scaling and
+ * converts to the output type with saturation.
+ */
 template <typename Out, typename W>
 struct TransScaleAddOutSat {
   TransScaleAddOutSat(float scale = 1.f) : scale{scale} {} // NOLINT
@@ -58,6 +66,12 @@ struct TransScaleAddOutSat {
   float scale;
 };
 
+/**
+ * @brief Stores in the output tensor the convolution values with pointwise addition of `acc_ptr`.
+ * Performs scaling and converts to the output type with saturation.
+ * The `acc_ptr` and `out_ptr` should not overlap, if the `acc_ptr` is same as `out_ptr`,
+ * use `TransScaleAddOutSat` instead.
+ */
 template <typename Intermediate, typename Out, typename W>
 struct TransScaleAddBufferSat {
   TransScaleAddBufferSat(Intermediate* acc_ptr, float scale = 1.f) // NOLINT
@@ -71,7 +85,7 @@ struct TransScaleAddBufferSat {
   float scale;
 };
 
-/** @} */  // end of InputOutput
+/** @} */  // end of ConvolutionTransforms
 
 }  // namespace conv_transform
 
