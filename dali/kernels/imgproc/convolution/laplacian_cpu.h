@@ -34,14 +34,16 @@ using namespace conv_transform;  // NOLINT
 
 /**
  * @brief Computes convolution to obtain partial derivative in one of the dimensions.
- * If it is OpenCV style convolution that applies smoothing in perpendicular dimensions,
- * SeparableConvolution kernel is used to compute multidimensional convolution,
- * otherwise (if window sizes in non derivative dimensions are one) skips unnecessary
- * convolutions, performing only single one dimensional convolution with derivative kernel.
+ * Convolution consits of `axes` windows, each to convolve along one dimension of the input data,
+ * where `deriv_axis`-th window is supposed to compute partial derivative along that axis,
+ * whereas the remaining windows should perform smoothing. It is assumed that smoothing
+ * window of size 1 must be equal to `[1]`, this way, if window sizes in non-derivative directions
+ * are one, the smoothing convolutions can be skipped and only a single one-dimensional
+ * convolution in derivative direction is performed.
  */
 template <typename Out, typename In, typename W, int axes, int deriv_axis,
           bool has_channels = false, typename T = conv_transform::TransScaleSat<Out, W>>
-struct Convolution {
+struct PartialDeriv {
   using MultiDimConv = SeparableConvolutionCpu<Out, In, W, axes, has_channels, T>;
   static constexpr int ndim = MultiDimConv::ndim;
   using SingleDimConv = ConvolutionCpu<Out, In, W, ndim, deriv_axis, has_channels, T>;
@@ -93,7 +95,7 @@ struct Convolution {
  * @brief Provides Laplacian specializations for 2 and 3 dimensional data.
  *  Run methods expect additional ``acc`` buffer that will be used to accumulate
  *  partial derivatives. If ``Intermediate`` and ``Out`` are the same type,
- *  the `acc` and ``out`` can be the same tensor.
+ *  the ``acc`` and ``out`` can be the same tensor.
  */
 template <typename T, typename Intermediate, typename Out, typename In, typename W, int axes,
           bool has_channels>
@@ -103,9 +105,9 @@ template <typename T, typename Intermediate, typename Out, typename In, typename
           bool has_channels>
 struct LaplacianCPUBase<T, Intermediate, Out, In, W, 2, has_channels> {
   static constexpr int axes = 2;
-  using DxKernel = Convolution<Intermediate, In, W, axes, 0, has_channels,
-                               TransScaleSat<Intermediate, W>>;
-  using DyKernel = Convolution<Out, In, W, axes, 1, has_channels, T>;
+  using DyKernel = PartialDeriv<Intermediate, In, W, axes, 0, has_channels,
+                                TransScaleSat<Intermediate, W>>;
+  using DxKernel = PartialDeriv<Out, In, W, axes, 1, has_channels, T>;
   static constexpr int ndim = DyKernel::ndim;  // Dx ndim is the same
 
   KernelRequirements Setup(KernelContext& ctx, const TensorShape<ndim>& in_shape,
@@ -113,8 +115,8 @@ struct LaplacianCPUBase<T, Intermediate, Out, In, W, 2, has_channels> {
     KernelRequirements req;
     req.output_shapes.push_back(uniform_list_shape<ndim>(1, in_shape));
 
-    auto req_dx = sobel_dx_.Setup(ctx, in_shape, window_sizes[0]);
-    auto req_dy = sobel_dy_.Setup(ctx, in_shape, window_sizes[1]);
+    auto req_dy = sobel_dy_.Setup(ctx, in_shape, window_sizes[0]);
+    auto req_dx = sobel_dx_.Setup(ctx, in_shape, window_sizes[1]);
 
     // Calculate max scratch memory required by sub-kernels
     sub_scratch_sizes_ = MaxScratchSize(req_dx.scratch_sizes, req_dy.scratch_sizes);
@@ -142,25 +144,25 @@ struct LaplacianCPUBase<T, Intermediate, Out, In, W, 2, has_channels> {
     sub_ctx.scratchpad = &sub_scratch;
 
     // Clear the scratchpad for sub-kernels to reuse memory
-    sobel_dx_.Run(sub_ctx, acc, in, windows[0], scale[0]);
+    sobel_dy_.Run(sub_ctx, acc, in, windows[0], scale[0]);
     sub_scratch.Clear();
-    sobel_dy_.Run(sub_ctx, out, in, windows[1], transform);
+    sobel_dx_.Run(sub_ctx, out, in, windows[1], transform);
   }
 
   scratch_sizes_t sub_scratch_sizes_;
-  DxKernel sobel_dx_;
   DyKernel sobel_dy_;
+  DxKernel sobel_dx_;
 };
 
 template <typename T, typename Intermediate, typename Out, typename In, typename W,
           bool has_channels>
 struct LaplacianCPUBase<T, Intermediate, Out, In, W, 3, has_channels> {
   static constexpr int axes = 3;
-  using DxKernel = Convolution<Intermediate, In, W, axes, 0, has_channels,
-                               TransScaleSat<Intermediate, W>>;
-  using DyKernel = Convolution<Intermediate, In, W, axes, 1, has_channels,
-                               TransScaleAddOutSat<Intermediate, W>>;
-  using DzKernel = Convolution<Out, In, W, axes, 2, has_channels, T>;
+  using DzKernel = PartialDeriv<Intermediate, In, W, axes, 0, has_channels,
+                                TransScaleSat<Intermediate, W>>;
+  using DyKernel = PartialDeriv<Intermediate, In, W, axes, 1, has_channels,
+                                TransScaleAddOutSat<Intermediate, W>>;
+  using DxKernel = PartialDeriv<Out, In, W, axes, 2, has_channels, T>;
   static constexpr int ndim = DzKernel::ndim;  // Dx and Dy ndim are the same
 
   KernelRequirements Setup(KernelContext& ctx, const TensorShape<ndim>& in_shape,
@@ -168,9 +170,9 @@ struct LaplacianCPUBase<T, Intermediate, Out, In, W, 3, has_channels> {
     KernelRequirements req;
     req.output_shapes.push_back(uniform_list_shape<ndim>(1, in_shape));
 
-    auto req_dx = sobel_dx_.Setup(ctx, in_shape, window_sizes[0]);
+    auto req_dz = sobel_dz_.Setup(ctx, in_shape, window_sizes[0]);
     auto req_dy = sobel_dy_.Setup(ctx, in_shape, window_sizes[1]);
-    auto req_dz = sobel_dz_.Setup(ctx, in_shape, window_sizes[2]);
+    auto req_dx = sobel_dx_.Setup(ctx, in_shape, window_sizes[2]);
 
     // Calculate max scratch memory required by sub-kernels
     sub_scratch_sizes_ = MaxScratchSize(req_dx.scratch_sizes, req_dy.scratch_sizes);
@@ -199,24 +201,34 @@ struct LaplacianCPUBase<T, Intermediate, Out, In, W, 3, has_channels> {
     sub_ctx.scratchpad = &sub_scratch;
 
     // Clear the scratchpad for sub-kernels to reuse memory
-    sobel_dx_.Run(sub_ctx, acc, in, windows[0], scale[0]);
+    sobel_dz_.Run(sub_ctx, acc, in, windows[0], scale[0]);
     sub_scratch.Clear();
     sobel_dy_.Run(sub_ctx, acc, in, windows[1], scale[1]);
     sub_scratch.Clear();
-    sobel_dz_.Run(sub_ctx, out, in, windows[2], transform);
+    sobel_dx_.Run(sub_ctx, out, in, windows[2], transform);
   }
 
   scratch_sizes_t sub_scratch_sizes_;
-  DxKernel sobel_dx_;
-  DyKernel sobel_dy_;
   DzKernel sobel_dz_;
+  DyKernel sobel_dy_;
+  DxKernel sobel_dx_;
 };
 
 
 /**
- * @brief Laplacian kernel. Provides separate specialization for 1 dimensional data. For other cases
- * there are two specializations depending on whether ``Intermediate`` is the same as ``Out``, if not
- * the extra intermediate buffer is used to accumulate partial derivatives.
+ * @brief Laplacian kernel.
+ * Provides separate specialization for 1 dimensional data. For other cases
+ * there are two specializations depending on whether ``Intermediate`` is the same as ``Out``:
+ * if not, the extra intermediate buffer is used to accumulate partial derivatives.
+ *
+ * For `axes` dimensional input data, there will be computed and summed `axes` partial derivatives,
+ * one in each direction. The `i-th` partial derivative is computed by performing
+ * a `axes`-dimensional separable convolution, where the `i-th` window is responsible for actual
+ * derivative approximation and the remaining windows provide smoothing.
+ * In total, there are ``axes * axes`` windows involved in computing laplacian. Thus,
+ * the arguments that describe windows passed to the kernel methods are `axes x axes` dimensional
+ * arrays of parameters, where ``[i][j]`` parameter refers to j-th window of i-th partial
+ * derivative.
  */
 template <typename Intermediate, typename Out, typename In, typename W, int axes, bool has_channels,
           typename Dummy = void>
