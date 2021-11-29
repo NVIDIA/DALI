@@ -115,6 +115,9 @@ struct CUFFTHandle : public UniqueHandle<cufftHandle, CUFFTHandle> {
   }
 };
 
+// Obtain cuFFT library version or -1 if it is not available
+int cufftGetVersion();
+
 }  // namespace dali
 
 #endif  // DALI_KERNELS_SIGNAL_FFT_CUFFT_HELPER_H_

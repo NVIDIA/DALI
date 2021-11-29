@@ -18,7 +18,6 @@ set(DALI_INST_HDRS ${DALI_INST_HDRS}
   "${CMAKE_CURRENT_SOURCE_DIR}/image.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/mmaped_file.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/std_file.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/npp.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/ocv.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/thread_safe_queue.h"
@@ -29,7 +28,6 @@ set(DALI_SRCS ${DALI_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/image.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/mmaped_file.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/std_file.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/npp.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/ocv.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/user_stream.cc")
@@ -83,30 +81,9 @@ if(BUILD_NVML)
   endif()
 endif()
 
-if (WITH_DYNAMIC_CUDA_TOOLKIT)
-    set(NPP_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_npp_gen.cc")
-    add_custom_command(
-        OUTPUT ${NPP_GENERATED_STUB}
-        COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py --unique_prefix=Npp --
-                    "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/npp.json" ${NPP_GENERATED_STUB}
-                    "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/npp.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
-                    # for some reason QNX fails with 'too many errors emitted' is this is not set
-                    "-ferror-limit=0"
-                    ${DEFAULT_COMPILER_INCLUDE}
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py
-                "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/npp.h"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/npp.json"
-        COMMENT "Running npp.h stub generator"
-        VERBATIM)
-
-    set_source_files_properties(${NPP_GENERATED_STUB} PROPERTIES GENERATED TRUE)
-    add_library(dynlink_npp STATIC npp_wrap.cc ${NPP_GENERATED_STUB})
-endif()
-
 set(DALI_INST_HDRS ${DALI_INST_HDRS} PARENT_SCOPE)
 set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 set(DALI_TEST_SRCS ${DALI_TEST_SRCS} PARENT_SCOPE)
 
 list(FILTER DALI_SRCS EXCLUDE REGEX ".*nvml.*\.cc")
-list(FILTER DALI_SRCS EXCLUDE REGEX ".*npp_wrap.cc")
 set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)

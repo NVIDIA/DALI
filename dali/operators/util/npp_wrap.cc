@@ -18,7 +18,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "dali/util/npp.h"
+#include "dali/operators/util/npp.h"
 
 namespace {
 

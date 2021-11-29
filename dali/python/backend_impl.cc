@@ -20,6 +20,7 @@
 #endif
 #include "dali/core/python_util.h"
 #include "dali/operators.h"
+#include "dali/kernels/kernel.h"
 #include "dali/operators/reader/parser/tfrecord_parser.h"
 #include "dali/pipeline/data/copy_to_external.h"
 #include "dali/pipeline/data/dltensor.h"
@@ -1156,6 +1157,43 @@ PYBIND11_MODULE(backend_impl, m) {
     CUcontext context;
     CUDA_CALL(cuCtxGetCurrent(&context));
     return context != nullptr;
+  });
+
+  m.def("GetCudaVersion", [] {
+    int version = -1;
+    auto ret = cudaDriverGetVersion(&version);
+    if (ret != cudaSuccess) {
+      return -1;
+    } else {
+      return version;
+    }
+  });
+
+  m.def("GetCufftVersion", [] {
+    int ret = -1;
+    try {
+      // we don't want to throw when it is not available, just return -1
+      ret = GetCufftVersion();
+    } catch (std::runtime_error) {}
+    return ret;
+  });
+
+  m.def("GetNppVersion", [] {
+    int ret = -1;
+    try {
+      // we don't want to throw when it is not available, just return -1
+      ret = GetNppVersion();
+    } catch (std::runtime_error) {}
+    return ret;
+  });
+
+  m.def("GetNvjpegVersion", [] {
+    int ret = -1;
+    try {
+      // we don't want to throw when it is not available, just return -1
+      ret = GetNvjpegVersion();
+    } catch (std::runtime_error) {}
+    return ret;
   });
 
 #if SHM_WRAPPER_ENABLED

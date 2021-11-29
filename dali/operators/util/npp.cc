@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,27 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/util/npp.h"
+#include "dali/operators/util/npp.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
 
 namespace dali {
 
-int NPPInterpForDALIInterp(DALIInterpType type, NppiInterpolationMode *npp_type) {
-  switch (type) {
-  case DALI_INTERP_NN:
-    *npp_type =  NPPI_INTER_NN;
-    break;
-  case DALI_INTERP_LINEAR:
-    *npp_type =  NPPI_INTER_LINEAR;
-    break;
-  case DALI_INTERP_CUBIC:
-    *npp_type =  NPPI_INTER_CUBIC;
-    break;
-  default:
-    return DALIError;
+DLL_PUBLIC int NPPGetVersion() {
+  auto version_s = nppGetLibVersion();
+  int version = -1;
+  if (version_s) {
+    version = version_s->major*1000 + version_s->minor*10 + version_s->build;
   }
-  return DALISuccess;
+  return version;
 }
 
 }  // namespace dali

@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,13 @@
 #include "dali/core/util.h"
 
 namespace dali {
+
+/**
+ * @brief  Returns version of available cuFFT library
+ *
+ * @returns MAJOR*1000 + MINOR*10 + PATH or -1 if not available
+ */
+int GetCufftVersion();
 
 /**
  * @brief Defines the DALI kernel API. See dali::kernels::examples::Kernel for details

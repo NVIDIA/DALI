@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,11 @@
 
 #include "dali/core/api_helper.h"
 #include "dali/operators.h"
+#include "dali/operators/util/npp.h"
+
+#if DALI_USE_NVJPEG
+  #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
+#endif
 
 /*
  * The point of these functions is to force the linker to link against dali_operators lib
@@ -24,7 +29,21 @@
  */
 
 namespace dali {
+
 DLL_PUBLIC void InitOperatorsLib() {}
+
+DLL_PUBLIC int GetNppVersion() {
+  return NPPGetVersion();
+}
+
+DLL_PUBLIC int GetNvjpegVersion() {
+#if DALI_USE_NVJPEG
+  return nvjpegGetVersion();
+#else
+  return -1;
+#endif
+}
+
 }  // namespace dali
 
 extern "C" DLL_PUBLIC void daliInitOperators() {}
