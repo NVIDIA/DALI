@@ -81,6 +81,8 @@ class DLL_PUBLIC AccessOrder {
    */
   void join(const AccessOrder &other) const;
 
+  void wait(cudaEvent_t event) const;
+
   bool operator==(const AccessOrder &other) const noexcept {
     return is_device() == other.is_device() && stream() == other.stream();
   }

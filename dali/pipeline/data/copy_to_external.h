@@ -61,6 +61,13 @@ inline void CopyToExternalImpl(void* dst,
 
   // TODO(klecki): Add a proper test for non-contiguous access when we can have non-contiguous
   // data here.
+
+  constexpr bool is_gpu_copy = std::is_same_v<DstBackend, GPUBackend> ||
+                               std::is_same_v<SrcBackend, GPUBackend>;
+  if constexpr (is_gpu_copy) {
+    src.order().join(stream);
+  }
+
   if (src.IsContiguous()) {
     type_info.template Copy<DstBackend, SrcBackend>(dst, unsafe_raw_data(src), src._num_elements(),
                                                     stream, use_copy_kernel);
@@ -86,6 +93,12 @@ inline void CopyToExternalImpl(void** dsts,
                                const TensorList<SrcBackend> &src,
                                cudaStream_t stream, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
+
+  constexpr bool is_gpu_copy = std::is_same_v<DstBackend, GPUBackend> ||
+                               std::is_same_v<SrcBackend, GPUBackend>;
+  if constexpr (is_gpu_copy) {
+    src.order().join(stream);
+  }
 
   const auto &type_info = src.type_info();
   const auto &src_shape = src.shape();

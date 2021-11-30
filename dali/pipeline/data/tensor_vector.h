@@ -63,7 +63,7 @@ class DLL_PUBLIC TensorVector {
     return tl_->order();
   }
 
-  void set_order(AccessOrder order);
+  void set_order(AccessOrder order, bool synchronize = true);
 
   Tensor<Backend> &operator[](size_t pos) {
     return *(tensors_[pos]);
@@ -195,10 +195,10 @@ class DLL_PUBLIC TensorVector {
   void Reset();
 
   template <typename SrcBackend>
-  void Copy(const TensorList<SrcBackend> &in_tl, AccessOrder order);
+  void Copy(const TensorList<SrcBackend> &in_tl, AccessOrder order = {});
 
   template <typename SrcBackend>
-  void Copy(const TensorVector<SrcBackend> &in_tv, AccessOrder order);
+  void Copy(const TensorVector<SrcBackend> &in_tv, AccessOrder order = {});
 
   void ShareData(const TensorList<Backend> &in_tl);
 

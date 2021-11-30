@@ -40,4 +40,14 @@ void AccessOrder::join(const AccessOrder &other) const {
   }
 }
 
+void AccessOrder::wait(cudaEvent_t event) const {
+  if (!has_value())
+    throw std::logic_error("A null AccessOrder cannot wait for an event.");
+  if (is_device()) {
+    CUDA_DTOR_CALL(cudaStreamWaitEvent(stream(), event, 0));
+  } else {
+    CUDA_DTOR_CALL(cudaEventSynchronize(event));
+  }
+}
+
 }  // namespace dali

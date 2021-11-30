@@ -308,9 +308,9 @@ class DALISingleOpTest : public DALITest {
       auto idx = output_indices[i];
       if (output_device == "gpu") {
         // copy to host
-        calc_output->Copy(ws->Output<GPUBackend>(idx), nullptr);
+        calc_output->Copy(ws->Output<GPUBackend>(idx));
       } else {
-        calc_output->Copy(ws->Output<CPUBackend>(idx), nullptr);
+        calc_output->Copy(ws->Output<CPUBackend>(idx));
       }
 
       auto& ref_output = res[i];

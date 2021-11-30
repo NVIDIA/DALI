@@ -96,7 +96,7 @@ class DLL_PUBLIC ExecutorBase {
  * other is in use by the user.
  */
 template <typename WorkspacePolicy, typename QueuePolicy>
-class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public QueuePolicy {
+class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
  public:
   DLL_PUBLIC inline Executor(int max_batch_size, int num_thread, int device_id,
                              size_t bytes_per_sample_hint, bool set_affinity = false,
@@ -281,9 +281,13 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
    private:
     vector<cudaEvent_t> events_;
   };
-
   int max_batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
+
+  std::mutex cpu_memory_stats_mutex_;
+  std::mutex mixed_memory_stats_mutex_;
+  std::mutex gpu_memory_stats_mutex_;
+
   cudaEvent_t mixed_stage_event_ = {};
   cudaEvent_t gpu_stage_event_ = {};
 
@@ -345,12 +349,12 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
   std::atomic<bool> enable_memory_stats_;
   ExecutorMetaMap cpu_memory_stats_, mixed_memory_stats_, gpu_memory_stats_;
-  std::mutex cpu_memory_stats_mutex_;
-  std::mutex mixed_memory_stats_mutex_;
-  std::mutex gpu_memory_stats_mutex_;
+
 
   /// Graph nodes, which define batch size for the entire graph
   std::vector<BatchSizeProvider *> batch_size_providers_;
+
+  WorkspacePolicy ws_policy_;
 
  private:
   template <typename InputRef>
@@ -465,9 +469,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   // workspaces so that nothing has to be altered
   // during execution (this is necessary for
   // asynchronous executors that can overlap work issue)
-  WorkspacePolicy::InitializeWorkspaceStore(*graph_, tensor_to_store_queue_, &thread_pool_,
-                                            mixed_op_stream_, gpu_op_stream_, mixed_op_events_,
-                                            queue_sizes_);
+  ws_policy_.InitializeWorkspaceStore(*graph_, tensor_to_store_queue_, &thread_pool_,
+                                      mixed_op_stream_, gpu_op_stream_, mixed_op_events_,
+                                      queue_sizes_);
 
   // Producer-consumer queues info
   SetupOutputQueuesForGraph();
@@ -521,13 +525,16 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   // We than need to wait for GPU outputs from Mixed & GPU stages that are computed asynchronously.
   // If the output event list is not empty, it means that there are outputs on GPU that we
   // have to wait for.
+
+  AccessOrder sync_order = ws->has_stream() ? AccessOrder(ws->stream()) : AccessOrder::host();
+
   if (!mixed_output_events_.empty()) {
     auto queue_idx = output_idx[OpType::MIXED];
-    CUDA_CALL(cudaEventSynchronize(mixed_output_events_.GetEvent(queue_idx)));
+    sync_order.wait(mixed_output_events_.GetEvent(queue_idx));
   }
   if (!gpu_output_events_.empty()) {
     auto queue_idx = output_idx[OpType::GPU];
-    CUDA_CALL(cudaEventSynchronize(gpu_output_events_.GetEvent(queue_idx)));
+    sync_order.wait(gpu_output_events_.GetEvent(queue_idx));
   }
 }
 

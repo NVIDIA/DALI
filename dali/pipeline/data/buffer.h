@@ -54,8 +54,8 @@ DLL_PUBLIC bool RestrictPinnedMemUsage();
 
 template <typename Backend>
 inline shared_ptr<uint8_t> AllocBuffer(size_t bytes,
-                                       bool pinned, int device_id,
-                                       AccessOrder order) {
+                                       bool pinned, int device_id = -1,
+                                       AccessOrder order = {}) {
   return AllocBuffer(bytes, pinned, device_id, order, static_cast<Backend*>(nullptr));
 }
 

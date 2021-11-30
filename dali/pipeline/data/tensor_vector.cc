@@ -107,9 +107,9 @@ TensorListShape<> TensorVector<Backend>::shape() const {
 }
 
 template <typename Backend>
-void TensorVector<Backend>::set_order(AccessOrder order) {
+void TensorVector<Backend>::set_order(AccessOrder order, bool synchronize) {
   // Optimization: synchronize only once, if needed.
-  if (this->order().is_device() && order) {
+  if (this->order().is_device() && order && synchronize) {
     bool need_sync = tl_->has_data();
     if (!need_sync) {
       for (auto &t : tensors_) {

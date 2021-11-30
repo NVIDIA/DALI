@@ -94,7 +94,7 @@ class Tensor : public Buffer<Backend> {
    * Loads the Tensor with data from a span.
    */
   template <typename T>
-  inline void Copy(span<T> data, AccessOrder order) {
+  inline void Copy(span<T> data, AccessOrder order = {}) {
     using U = remove_const_t<T>;
     this->Resize({(Index)data.size()}, TypeTable::GetTypeId<U>());
     if (!order)

@@ -83,8 +83,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl() {
   // Process each CPU Op in batch
   for (int cpu_op_id = 0; cpu_op_id < graph_->NumOp(OpType::CPU) && !exec_error_; ++cpu_op_id) {
     OpNode &op_node = graph_->Node(OpType::CPU, cpu_op_id);
-    typename WorkspacePolicy::template ws_t<OpType::CPU> ws =
-        WorkspacePolicy::template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
+    auto ws = ws_policy_.template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
 
     ws.SetBatchSizes(batch_size);
 
@@ -138,8 +137,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
   for (int i = 0; i < graph_->NumOp(OpType::MIXED) && !exec_error_; ++i) {
     OpNode &op_node = graph_->Node(OpType::MIXED, i);
     try {
-      typename WorkspacePolicy::template ws_t<OpType::MIXED> ws =
-          WorkspacePolicy::template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
+      auto ws = ws_policy_.template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
 
       ws.SetBatchSizes(batch_size);
 
@@ -206,8 +204,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl() {
   for (int i = 0; i < graph_->NumOp(OpType::GPU) && !exec_error_; ++i) {
     OpNode &op_node = graph_->Node(OpType::GPU, i);
     try {
-      typename WorkspacePolicy::template ws_t<OpType::GPU> ws =
-          WorkspacePolicy::template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, i);
+      auto ws = ws_policy_.template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, i);
 
       ws.SetBatchSizes(batch_size);
 
@@ -299,6 +296,24 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
+  cudaStream_t prev_stage_stream = ws.has_stream() && ws.stream() == gpu_op_stream_
+    ? mixed_op_stream_ : gpu_op_stream_;
+
+  for (int i = 0; i < ws.NumOutput(); i++) {
+    auto set_order = [&](auto &output) {
+      // NOTE: the stage streams are synchronized by the executor
+      bool need_sync = output.order().stream() != prev_stage_stream;
+      auto order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();
+      output.set_order(order, need_sync);
+    };
+
+    if (ws.template OutputIsType<CPUBackend>(i)) {
+      set_order(ws.template Output<CPUBackend>(i));
+    } else {
+      set_order(ws.template Output<GPUBackend>(i));
+    }
+  }
+
   for (int i = 0; i < ws.NumInput(); i++) {
     DALI_ENFORCE(
         ws.GetInputBatchSize(i) <= max_batch_size_,
@@ -322,6 +337,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     }
     if (had_empty_layout) empty_layout_in_idxs.push_back(i);
   }
+
   if (op.Setup(output_desc, ws)) {
     DALI_ENFORCE(
         static_cast<size_t>(ws.NumOutput()) == output_desc.size(),

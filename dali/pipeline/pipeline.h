@@ -509,8 +509,8 @@ class DLL_PUBLIC Pipeline {
   int original_seed_;
   size_t current_seed_;
 
-  OpGraph graph_;
   std::unique_ptr<ExecutorBase> executor_;
+  OpGraph graph_;
   std::map<string, EdgeMeta> edge_names_;
 
   struct OpDefinition {
