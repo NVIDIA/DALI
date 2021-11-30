@@ -23,7 +23,7 @@
 #include "dali/core/format.h"
 
 
-#if defined(WITH_DYNAMIC_CUDA_LIBS)
+#if defined(WITH_DYNAMIC_CUDA_TOOLKIT)
   bool cufftIsSymbolAvailable(const char *name);
 #else
   #define cufftIsSymbolAvailable(T) (true)

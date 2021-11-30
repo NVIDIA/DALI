@@ -127,6 +127,6 @@ CMD cmake                \
   -DBUILD_NVML=OFF       \
   -DBUILD_CUFILE=OFF     \
   -DVERBOSE_LOGS=OFF     \
-  -DWITH_DYNAMIC_CUDA_LIBS=ON\
+  -DWITH_DYNAMIC_CUDA_TOOLKIT=ON\
   .. &&                  \
   make install -j"$(grep ^processor /proc/cpuinfo | wc -l)"

@@ -39,27 +39,27 @@ CUDA_find_library(CUDART_LIB cudart_static)
 list(APPEND DALI_EXCLUDES libcudart_static.a)
 
 # NVIDIA NPP library
-if (NOT WITH_DYNAMIC_CUDA_LIBS)
+if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
   CUDA_find_library(CUDA_nppicc_LIBRARY nppicc_static)
   CUDA_find_library(CUDA_nppc_LIBRARY nppc_static)
   list(APPEND DALI_LIBS ${CUDA_nppicc_LIBRARY})
   list(APPEND DALI_EXCLUDES libnppicc_static.a)
   list(APPEND DALI_LIBS ${CUDA_nppc_LIBRARY})
   list(APPEND DALI_EXCLUDES libnppc_static.a)
-endif (NOT WITH_DYNAMIC_CUDA_LIBS)
+endif ()
 
 # cuFFT library
-if (NOT WITH_DYNAMIC_CUDA_LIBS)
+if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
   CUDA_find_library(CUDA_cufft_LIBRARY cufft_static)
   list(APPEND DALI_EXCLUDES libcufft_static.a)
-endif (NOT WITH_DYNAMIC_CUDA_LIBS)
+endif ()
 
 # CULIBOS needed when using static CUDA libs
-if (NOT WITH_DYNAMIC_CUDA_LIBS)
+if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
   CUDA_find_library(CUDA_culibos_LIBRARY culibos)
   list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
   list(APPEND DALI_EXCLUDES libculibos.a)
-  endif (NOT WITH_DYNAMIC_CUDA_LIBS)
+endif ()
 
 include_directories(${CUDA_TOOLKIT_TARGET_DIR}/include)
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
@@ -79,7 +79,7 @@ include(cmake/Dependencies.common.cmake)
 
 ##################################################################
 # Protobuf
-##################################################################
+\##################################################################
 set(Protobuf_CROSS YES)
 set(Protobuf_USE_STATIC_LIBS YES)
 find_package(Protobuf 2.0 REQUIRED)

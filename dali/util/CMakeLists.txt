@@ -83,7 +83,7 @@ if(BUILD_NVML)
   endif()
 endif()
 
-if (WITH_DYNAMIC_CUDA_LIBS)
+if (WITH_DYNAMIC_CUDA_TOOLKIT)
     set(NPP_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_npp_gen.cc")
     add_custom_command(
         OUTPUT ${NPP_GENERATED_STUB}

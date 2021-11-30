@@ -38,12 +38,14 @@ adjust_source_file_language_property("${DALI_KERNEL_SRCS}")
 set_source_files_properties("dummy.cu" PROPERTIES LANGUAGE CUDA)
 add_library(dali_kernels ${LIBTYPE} ${DALI_KERNEL_SRCS})
 target_link_libraries(dali_kernels PUBLIC dali_core)
-if (WITH_DYNAMIC_CUDA_LIBS)
+
+if (WITH_DYNAMIC_CUDA_TOOLKIT)
   target_link_libraries(dali_kernels PRIVATE dynlink_cufft)
 else()
   target_link_libraries(dali_kernels PRIVATE ${CUDA_cufft_LIBRARY})
   target_link_libraries(dali_kernels PRIVATE "-Wl,--exclude-libs,${CUDA_cufft_LIBRARY}")
-endif (WITH_DYNAMIC_CUDA_LIBS)
+endif ()
+
 target_link_libraries(dali_kernels PRIVATE ${DALI_LIBS} dynlink_cuda)
 target_link_libraries(dali_kernels PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 set_target_properties(dali_kernels PROPERTIES
