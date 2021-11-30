@@ -68,11 +68,11 @@ class Pad : public Operator<Backend> {
     axis_args_.Acquire(spec, ws, curr_batch_size, ndim);
     auto axes_sh = axis_args_.AxesShape();
 
-    if (shape_.HasExplicitValue())
-      shape_.Acquire(spec, ws, curr_batch_size, axes_sh);
+    if (shape_)
+      shape_.Acquire(spec, ws, curr_batch_size, axes_sh, ArgValue_AllowEmpty);
 
-    if (align_.HasExplicitValue()) {
-      align_.Acquire(spec, ws, curr_batch_size, axes_sh);
+    if (align_) {
+      align_.Acquire(spec, ws, curr_batch_size, axes_sh, ArgValue_AllowEmpty);
       for (int i = 0; i < nsamples; i++) {
         const auto &a = align_[i];
         for (int k = 0; k < a.num_elements(); k++)
@@ -113,7 +113,7 @@ class Pad : public Operator<Backend> {
       auto axes = axis_args_.Get(sample_idx, ndim, in_layout);
 
       bool has_req_shape = shape_ && !shape_.IsEmpty(sample_idx);
-      bool has_align = align_ && align_.IsEmpty(sample_idx);
+      bool has_align = align_ && !align_.IsEmpty(sample_idx);
 
       auto &sample_args = kernel_sample_args[sample_idx];
       const auto &sample_shape = in_shape.tensor_shape_span(sample_idx);
