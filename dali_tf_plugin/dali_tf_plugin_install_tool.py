@@ -230,10 +230,12 @@ class InstallerHelper:
             # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
             # https://github.com/tensorflow/tensorflow/issues/17316
             # Do not remove it.
+            # the latest TF in conda needs to include /PREFIX/include
+            root_include = "-I/" + os.getenv("PREFIX") + "/include"
             cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -Wl,-rpath,\'$ORIGIN\' -std=c++14 -DNDEBUG -shared ' \
                 + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' \
-                + tf_cflags + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' ' \
-                + cuda_lflags + ' -O2'
+                + tf_cflags + ' ' + root_include + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' \
+                + tf_lflags + ' ' + cuda_lflags + ' -O2'
             print("Build DALI TF library:\n\n " + cmd + '\n\n')
             subprocess.check_call(cmd, cwd=self.src_path, shell=True)
 
