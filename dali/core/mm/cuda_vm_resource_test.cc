@@ -212,6 +212,47 @@ class VMResourceTest : public ::testing::Test {
     EXPECT_EQ(region.available_blocks, 3);
   }
 
+  void TestExceptionSafety() {
+    size_t block_size = 64_uz << 20;
+    size_t free = 0, total = 0;
+    CUDA_CALL(cudaFree(nullptr));  // initialize the default context
+    CUDA_CALL(cuMemGetInfo(&free, &total));
+    size_t va_size = next_pow2(total * 3 / 2);
+    size_t attempted_alloc = total - block_size;
+    cuda_vm_resource_base res(-1, block_size, va_size);
+    size_t size1 = 4*block_size + (4<<20);
+    size_t size2 = 2*block_size - (8<<20);
+    size_t size3 = size1;
+    size_t size4 = (4<<20);
+    void *p1 = res.allocate(size1);
+    void *p2 = res.allocate(size2);
+    res.deallocate(p1, size1);
+    auto &region = res.va_regions_[0];
+    EXPECT_EQ(region.available_blocks, 4);
+    EXPECT_EQ(region.mapped.find(false), 6);
+    EXPECT_EQ(region.available.find(true), 0);
+    EXPECT_EQ(region.available.find(false), 4);
+    EXPECT_THROW((void)res.allocate(attempted_alloc), std::bad_alloc);
+    EXPECT_EQ(region.available_blocks, 4);
+    EXPECT_EQ(region.mapped.find(false), 6);
+    EXPECT_EQ(region.available.find(true), 0);
+    EXPECT_EQ(region.available.find(false), 4);
+    void *p3 = res.allocate(size1);
+    EXPECT_EQ(p3, p1);
+    EXPECT_EQ(region.available_blocks, 0);
+    EXPECT_EQ(region.mapped.find(true), 0);
+    EXPECT_EQ(region.mapped.find(false), 6);
+    EXPECT_EQ(region.available.find(true), region.available.ssize());
+    EXPECT_EQ(region.available.find(false), 0);
+    void *p4 = res.allocate(size4);
+    EXPECT_EQ(region.available_blocks, 0);
+    EXPECT_EQ(region.mapped.find(true), 0);
+    EXPECT_EQ(region.mapped.find(false), 6);
+    EXPECT_EQ(region.available.find(true), region.available.ssize());
+    EXPECT_EQ(region.available.find(false), 0);
+    EXPECT_EQ(res.stat_.allocated_blocks, 6);
+  }
+
   std::mt19937_64 rng_{12345};
 };
 
@@ -356,6 +397,12 @@ TEST_F(VMResourceTest, OOM) {
     }
   };
   EXPECT_THROW(hog(), std::bad_alloc);
+}
+
+TEST_F(VMResourceTest, ExceptionSafety) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory Management not supported on this platform";
+  this->TestExceptionSafety();
 }
 
 }  // namespace test
