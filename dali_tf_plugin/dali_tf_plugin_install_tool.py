@@ -231,7 +231,7 @@ class InstallerHelper:
             # https://github.com/tensorflow/tensorflow/issues/17316
             # Do not remove it.
             # the latest TF in conda needs to include /PREFIX/include
-            root_include = "-I/" + os.getenv("PREFIX") + "/include"
+            root_include = "-I" + os.getenv("PREFIX", default="/usr") + "/include"
             cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -Wl,-rpath,\'$ORIGIN\' -std=c++14 -DNDEBUG -shared ' \
                 + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' \
                 + tf_cflags + ' ' + root_include + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' \
