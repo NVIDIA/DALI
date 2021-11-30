@@ -19,26 +19,25 @@
 namespace dali {
 
   BENCHMARK_DEFINE_F(OperatorBench, CoinFlipGPU)(benchmark::State& st) {
-  int batch_size = st.range(0);
-  int H = st.range(1);
-  int W = st.range(1);
+    int batch_size = st.range(0);
+    int H = st.range(1);
+    int W = st.range(1);
 
-  this->RunGPU<uint8_t>(
-  st,
-  OpSpec("CoinFlip")
-  .AddArg("max_batch_size", batch_size)
-  .AddArg("num_threads", 1)
-  .AddArg("device", "gpu")
-  .AddInput("data", "gpu"),
-  batch_size, H, W, 1);
-}
+    this->RunGPU<uint8_t>(st,
+                          OpSpec("CoinFlip")
+                            .AddArg("max_batch_size", batch_size)
+                            .AddArg("num_threads", 1)
+                            .AddArg("device", "gpu")
+                            .AddInput("data", "gpu"),
+                          batch_size, H, W, 1);
+  }
 
-BENCHMARK_REGISTER_F(OperatorBench, CoinFlipGPU)->Iterations(100)
-->Unit(benchmark::kMicrosecond)
-->UseRealTime()
-->ArgsProduct({
-  benchmark::CreateRange(1, 256, 2),
-  {500, 1000, 2000},
-});
+  BENCHMARK_REGISTER_F(OperatorBench, CoinFlipGPU)->Iterations(100)
+  ->Unit(benchmark::kMicrosecond)
+  ->UseRealTime()
+  ->ArgsProduct({
+    benchmark::CreateRange(1, 256, 2),
+    {500, 1000, 2000},
+  });
 
 }  // namespace dali
