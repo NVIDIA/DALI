@@ -48,7 +48,15 @@ STRIP_DEBUG=${2:-NO}
 TEST_BUNDLED_LIBS=${3:-NO}
 OUTWHLNAME=${4:-$(basename $INWHL)}
 DEPS_PATH=${5:-/usr/local}
-OUTDIR=/wheelhouse
+OUTDIR=${6:-/wheelhouse}
+COMPRESSION=${7:-YES} # whether to compress the resulting wheel
+
+if [[ "$COMPRESSION" == "NO" ]]; then
+    ZIP_FLAG="-0"
+else
+    ZIP_FLAG=""
+fi
+
 SCRIPT_PATH=$(dirname $(readlink -f $0))
 
 # For some reason the pip wheel builder inserts "-none-" into the tag even if you gave it an ABI name
@@ -267,7 +275,7 @@ fi
 echo "Compressing wheel..."
 mkdir -p $OUTDIR
 rm -f $OUTDIR/$OUTWHLNAME
-zip -rq $OUTDIR/$OUTWHLNAME *
+zip $ZIP_FLAG -rq $OUTDIR/$OUTWHLNAME *
 echo "Finished compressing wheel"
 
 # clean up

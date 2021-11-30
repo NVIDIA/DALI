@@ -68,6 +68,7 @@ export BUILD_TF_PLUGIN=${BUILD_TF_PLUGIN:-NO}
 export PREBUILD_TF_PLUGINS=${PREBUILD_TF_PLUGINS:-YES}
 export DALI_BUILD_DIR=${DALI_BUILD_DIR:-build-docker-${CMAKE_BUILD_TYPE}-${CUDA_VER}}_${ARCH}
 export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux2014_${ARCH}}
+export WHL_COMPRESSION=${WHL_COMPRESSION:-YES}
 #################################
 export BASE_NAME=quay.io/pypa/manylinux2014_${ARCH}
 export DEPS_IMAGE=nvidia/dali:${ARCH}.deps
@@ -146,6 +147,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         rm -rf /opt/dali/${DALI_BUILD_DIR}/nvidia* && \
                                         ARCH=${ARCH}                              \
                                         WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME}    \
+                                        WHL_COMPRESSION=${WHL_COMPRESSION}        \
                                         CUDA_TARGET_ARCHS=\"${CUDA_TARGET_ARCHS}\"\
                                         CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}      \
                                         BUILD_TEST=${BUILD_TEST}                  \
@@ -186,6 +188,7 @@ else
     docker build -t ${BUILDER_WHL} --build-arg "DEPS_IMAGE_NAME=${CUDA_DEPS_IMAGE}"        \
                                    --build-arg "ARCH=${ARCH}"                              \
                                    --build-arg "WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME}"    \
+                                   --build-arg "WHL_COMPRESSION=${WHL_COMPRESSION}"        \
                                    --build-arg "CUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}"    \
                                    --build-arg "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"      \
                                    --build-arg "BUILD_TEST=${BUILD_TEST}"                  \
