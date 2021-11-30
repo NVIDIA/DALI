@@ -29,7 +29,7 @@
 #include "dali/kernels/common/copy.h"
 #include "dali/image/image_factory.h"
 
-#if defined(WITH_DYNAMIC_CUDA_TOOLKIT)
+#if WITH_DYNAMIC_CUDA_TOOLKIT_ENABLED
   bool nvjpegIsSymbolAvailable(const char *name);
 #else
   #define nvjpegIsSymbolAvailable(T) (true)
