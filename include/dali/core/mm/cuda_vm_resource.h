@@ -211,7 +211,10 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     void *va = get_va(size, alignment);
     try {
       map_storage(va, size);
-    } catch (std::bad_alloc &) {
+    } catch (const CUDABadAlloc &e) {
+      free_va_.put(va, size);
+      throw CUDABadAlloc(size);
+    } catch (...) {
       free_va_.put(va, size);
       throw;
     }
