@@ -79,7 +79,7 @@ include(cmake/Dependencies.common.cmake)
 
 ##################################################################
 # Protobuf
-\##################################################################
+##################################################################
 set(Protobuf_CROSS YES)
 set(Protobuf_USE_STATIC_LIBS YES)
 find_package(Protobuf 2.0 REQUIRED)
