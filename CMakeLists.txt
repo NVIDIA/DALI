@@ -140,7 +140,7 @@ if (NOT CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
 endif()
 
 # ; creates a list here
-set (PYTHON_VERSIONS "3.6;3.7;3.8;3.9")
+set (PYTHON_VERSIONS "3.6;3.7;3.8;3.9;3.10")
 
 if (STATIC_LIBS)
   message (STATUS "Building static libraries")
