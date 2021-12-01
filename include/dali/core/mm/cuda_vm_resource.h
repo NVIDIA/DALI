@@ -721,12 +721,10 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
   }
 
   /**
-   * @brief Obtains `count` physical storage blocks.
+   * @brief Obtains up to `count` physical storage blocks from available ones.
    *
-   * Obtains `count` physical storage blocks and places them in the collection `out`.
-   * The blocks might be obtained either by:
-   * - unmapping existing mapped but free blocks, if available
-   * - allocating new blocks.
+   * Obtains `count` physical storage blocks and places their source regions and indices in `out`.
+   * The are obtained either by unmapping existing mapped but free blocks.
    */
   template <typename Collection>
   void get_free_blocks(Collection &out, int count) {
