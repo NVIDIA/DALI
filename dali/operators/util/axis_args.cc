@@ -65,8 +65,16 @@ void AxisArgs::Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsam
     shape_ = uniform_list_shape(nsamples, TensorShape<1>(const_axes_.size()));
   }
 
-  if (shape_.num_elements() == 0 && (flags_ & AllIfEmpty)) {
-    shape_ = uniform_list_shape(nsamples, TensorShape<1>(ndim));
+  if (flags_ & AllIfEmpty) {
+    TensorShape<1> sh(ndim);
+    if (shape_.num_elements() == 0) {
+      shape_ = uniform_list_shape(nsamples, sh);
+    } else {
+      for (int i = 0; i < shape_.size(); i++) {
+        if (volume(shape_.tensor_shape_span(i)) == 0)
+          shape_.set_tensor_shape(i, sh);
+      }
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.math as math
@@ -21,8 +21,10 @@ import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 from nose_utils import assert_raises
-
-from test_utils import RandomlyShapedDataIterator
+from test_utils import RandomlyShapedDataIterator, \
+                       generator_random_axes_for_3d_input, \
+                       generator_random_data, \
+                       as_array
 
 class PadSynthDataPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator,
@@ -228,3 +230,95 @@ def check_pad_to_square(device='cpu', batch_size=3, ndim=2, num_iter=3):
 def test_pad_to_square():
     yield check_pad_to_square, 'cpu'
     yield check_pad_to_square, 'gpu'
+
+def check_pad_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty):
+    shape_arg_desc = (100, 120, np.int32)
+    get_dynamic_axes = generator_random_axes_for_3d_input(
+        batch_size, use_negative=use_negative, use_empty=use_empty,
+        extra_out_desc=[shape_arg_desc])
+
+    image_gen = generator_random_data(
+        batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3),
+        dtype=np.float32, val_range=[0.0, 1.0])
+
+    @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=0)
+    def make_pipe():
+        image = fn.external_source(source=image_gen)
+        if device == 'gpu':
+            image = image.gpu()
+        axes, shape = fn.external_source(source=get_dynamic_axes, num_outputs=2)
+        fill_value = fn.random.uniform(device='cpu', range=[0.0, 255.0])
+        pad1 = fn.pad(image, axes=axes, fill_value=fill_value)
+        pad2 = fn.pad(image, axes=axes, shape=shape, fill_value=fill_value)
+        return image, axes, shape, pad1, pad2, fill_value
+    pipe = make_pipe()
+    pipe.build()
+    ndim = 3
+    for _ in range(3):
+        outs = pipe.run()
+        max_shape = ndim * [-1]
+        for sample_idx in range(batch_size):
+            in_img_sh = as_array(outs[0][sample_idx]).shape
+            for dim in range(ndim):
+                if in_img_sh[dim] > max_shape[dim]:
+                    max_shape[dim] = in_img_sh[dim]
+
+        for sample_idx in range(batch_size):
+            in_img = as_array(outs[0][sample_idx])
+            axes = as_array(outs[1][sample_idx])
+            naxes = axes.shape[0]
+            if naxes == 0:  # Empty axes mean "all axes"
+                axes = np.array(range(ndim), dtype=np.int32)
+            shape = as_array(outs[2][sample_idx])
+            pad1 = as_array(outs[3][sample_idx])
+            pad2 = as_array(outs[4][sample_idx])
+            fill_value = as_array(outs[5][sample_idx])
+            in_sh = in_img.shape
+            expected_pad1_sh = np.copy(pad1.shape)
+            for d in axes:
+                expected_pad1_sh[d] = max_shape[d]
+            np.testing.assert_allclose(expected_pad1_sh, pad1.shape)
+            np.testing.assert_allclose(pad1[:in_sh[0], :in_sh[1], :in_sh[2]], in_img)
+            np.testing.assert_allclose(pad1[in_sh[0]:, :in_sh[1]:, :in_sh[2]:], fill_value)
+            expected_pad2_sh = np.copy(pad2.shape)
+            for d, req_extent in zip(axes, shape):
+                expected_pad2_sh[d] = req_extent if req_extent > 0 else max_shape[d]
+            np.testing.assert_allclose(expected_pad2_sh, pad2.shape)
+            np.testing.assert_allclose(pad2[:in_sh[0], :in_sh[1], :in_sh[2]], in_img)
+            np.testing.assert_allclose(pad2[in_sh[0]:, :in_sh[1]:, :in_sh[2]:], fill_value)
+
+def test_dynamic_axes():
+    batch_size=10
+    num_threads=3
+    for device in ['cpu', 'gpu']:
+        yield check_pad_dynamic_axes, device, batch_size, num_threads, False, False
+
+def test_negative_axes():
+    batch_size=10
+    num_threads=3
+    for device in ['cpu', 'gpu']:
+        yield check_pad_dynamic_axes, device, batch_size, num_threads, True, False
+
+def test_empty_axes():
+    batch_size=10
+    num_threads=3
+    for device in ['cpu', 'gpu']:
+        yield check_pad_dynamic_axes, device, batch_size, num_threads, False, True
+
+def check_pad_wrong_axes(device, wrong_axes_range=None):
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def make_pipe():
+        fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device=device)
+        axes = fn.random.uniform(range=wrong_axes_range, shape=(2,), dtype=types.INT32)
+        padded = fn.pad(fake_data, axes=axes)
+        return padded
+    p = make_pipe()
+    p.build()
+    # Note: [[] and []] are '[' and ']' characters.
+    assert_raises(RuntimeError, p.run,
+                  glob='Axis * out of range. Expected range is [[]-3, 2[]] for a 3D input')
+
+def test_wrong_axes():
+    for device in ['cpu', 'gpu']:
+        for wrong_axes_range in [(-10, -4), (3, 10)]:
+            yield check_pad_wrong_axes, device, wrong_axes_range
