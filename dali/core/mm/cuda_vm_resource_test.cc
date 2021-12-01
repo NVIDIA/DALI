@@ -229,11 +229,13 @@ class VMResourceTest : public ::testing::Test {
     res.deallocate(p1, size1);
     auto &region = res.va_regions_[0];
     EXPECT_EQ(region.available_blocks, 4);
+    EXPECT_EQ(region.mapped.find(true), 0);
     EXPECT_EQ(region.mapped.find(false), 6);
     EXPECT_EQ(region.available.find(true), 0);
     EXPECT_EQ(region.available.find(false), 4);
     EXPECT_THROW((void)res.allocate(attempted_alloc), std::bad_alloc);
     EXPECT_EQ(region.available_blocks, 4);
+    EXPECT_EQ(region.mapped.find(true), 0);
     EXPECT_EQ(region.mapped.find(false), 6);
     EXPECT_EQ(region.available.find(true), 0);
     EXPECT_EQ(region.available.find(false), 4);
