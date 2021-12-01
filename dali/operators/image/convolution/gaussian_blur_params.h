@@ -35,11 +35,11 @@ inline float DiameterToSigma(int diameter) {
 }
 
 struct DimDesc {
-  int usable_axes_start;
-  int usable_axes_count;
-  int total_axes_count;
-  bool has_channels;
-  bool is_sequence;
+  int usable_axes_start = -1;
+  int usable_axes_count = -1;
+  int total_axes_count = -1;
+  bool has_channels = false;
+  bool is_sequence = false;
 
   inline bool operator==(const DimDesc &other) const {
     return usable_axes_start == other.usable_axes_start &&
