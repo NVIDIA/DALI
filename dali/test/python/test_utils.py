@@ -619,7 +619,7 @@ def generator_random_axes_for_3d_input(batch_size, use_negative=False, use_empty
                     np.array(np.random.uniform(range_start, range_end, axes_sh), dtype=dtype)
                 )
             extra_outputs.append(extra_out)
-        return axes, *extra_outputs
+        return tuple([axes] + extra_outputs)
     return gen
 
 def as_array(tensor):
