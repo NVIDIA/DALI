@@ -16,7 +16,6 @@
 from nvidia.dali import backend as _b
 from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs, SampleRange as _SampleRange
 import nvidia.dali.types
-import nvidia.dali.pipeline as pipeline
 from nvidia.dali._utils.external_source_impl import \
         get_callback_from_source as _get_callback_from_source, \
         accepted_arg_count as _accepted_arg_count, \
@@ -650,12 +649,13 @@ provided memory is copied to the internal buffer.
     return op(name=name)
 
 
-def external_source(*inputs, **kwargs):
+def external_source(*inputs, name=None, **kwargs):
     """external_source wrapper to switch between standard and debug mode."""
-    if pipeline.PipelineDebug._external_source_debug:
-        return pipeline.PipelineDebug.current()._external_source(*inputs, **kwargs)
+    from nvidia.dali.pipeline import PipelineDebug
+    if PipelineDebug._external_source_debug:
+        return PipelineDebug.current()._external_source(lambda:  _external_source(*inputs, name=name, **kwargs), name)
     else:
-        return _external_source(*inputs, **kwargs)
+        return _external_source(*inputs, name=name, **kwargs)
 
 
 external_source.__doc__ += ExternalSource._args_doc

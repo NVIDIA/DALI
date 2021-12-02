@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 import sys
 from nvidia.dali import backend as _b
 from nvidia.dali import internal as _internal
-import nvidia.dali.pipeline as pipeline
 
 _special_case_mapping = {
     "b_box" : "bbox",
@@ -77,8 +76,9 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
         return op_class(**init_args)(*inputs, **call_args)
 
     def fn_wrapper(*inputs, **kwargs):
-        if pipeline.PipelineDebug._debug_on:
-            return pipeline.PipelineDebug.current()._wrap_op_call(op_wrapper, *inputs, **kwargs)
+        from nvidia.dali.pipeline import PipelineDebug
+        if PipelineDebug._debug_on:
+            return PipelineDebug.current()._wrap_op_call(op_wrapper, *inputs, **kwargs)
         else:
             return op_wrapper(*inputs, **kwargs)
             

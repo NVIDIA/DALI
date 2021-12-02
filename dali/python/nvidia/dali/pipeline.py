@@ -23,7 +23,6 @@ from nvidia.dali.backend import CheckDLPackCapsule
 import nvidia.dali.fn as fn
 from threading import local as tls
 from . import data_node as _data_node
-from queue import Queue
 import functools
 import inspect
 import warnings
@@ -711,67 +710,6 @@ Parameters
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
-    def _transform_data(self, data, layout = None, cuda_stream = None):
-        from nvidia.dali.external_source import _check_data_batch
-
-        infer_stream = False
-        if cuda_stream is None:
-            infer_stream = True
-        if cuda_stream == -1:
-            cuda_stream = None
-        else:
-            cuda_stream = types._raw_cuda_stream(cuda_stream)
-
-        def to_numpy(x):
-            if types._is_mxnet_array(x):
-                return x.asnumpy()
-            elif types._is_torch_tensor(x):
-                return x.numpy()
-            else:
-                return x
-
-        # __cuda_array_interface__ doesn't provide any way to pass the information about the device
-        # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
-        # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
-        if isinstance(data, (Tensors.TensorListCPU, Tensors.TensorListGPU)):
-            if layout is not None:
-                data = _check_data_batch(data, self._max_batch_size, layout)
-            return type(data)(data, layout)
-        elif isinstance(data, list):
-            inputs = []
-            checked = False
-            for datum in data:
-                info = CheckDLPackCapsule(datum)
-                if not info[0] and not checked:
-                    _check_data_batch(data, self._max_batch_size, layout)
-                    checked = True
-                if isinstance(datum, (Tensors.TensorCPU, Tensors.TensorGPU)):
-                    inp = type(datum)(datum, layout=layout) if layout is not None else datum
-                elif hasattr(datum, "__cuda_array_interface__") or (info[0] and info[1]):
-                    if infer_stream:
-                        cuda_stream = _get_default_stream_for_array(datum)
-                    inp = Tensors.TensorGPU(datum, layout or "")
-                else:
-                    datum = to_numpy(datum)
-                    inp = Tensors.TensorCPU(datum, layout or "")
-                inputs.append(inp)
-            assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
-                   "Mixed input types are not support, all need to reside on the CPU or GPU"
-            return inputs
-        else:
-            info = CheckDLPackCapsule(data)
-            if not info[0]:
-                _check_data_batch(data, self._max_batch_size, layout)
-            if hasattr(data, "__cuda_array_interface__") or (info[0] and info[1]):
-                if infer_stream:
-                    cuda_stream = _get_default_stream_for_array(data)
-                inp = Tensors.TensorListGPU(data, layout or "")
-            else:
-                data = to_numpy(data)
-                inp = Tensors.TensorListCPU(data, layout or "")
-            return inp
-
-
     def feed_input(self, data_node, data, layout = None, cuda_stream = None, use_copy_kernel = False):
         """Pass a mutlidimensional array or DLPack (or a list thereof) to an output of ExternalSource.
         In the case of the GPU input, the data must be modified on the same stream as the one
@@ -831,15 +769,67 @@ Parameters
         else:
             _data_node._check(data_node)
             name = data_node.name
-            
-        res = self._transform_data(data, layout, cuda_stream)
 
-        if isinstance(data, (Tensors.TensorListCPU, Tensors.TensorListGPU)):
-            self._pipe.SetExternalTLInput(name, res, ctypes.c_void_p(cuda_stream), use_copy_kernel)
-        elif isinstance(data, list):
-            self._pipe.SetExternalTensorInput(name, res, ctypes.c_void_p(cuda_stream), use_copy_kernel)
+        from nvidia.dali.external_source import _check_data_batch
+
+        infer_stream = False
+        if cuda_stream is None:
+            infer_stream = True
+        if cuda_stream == -1:
+            cuda_stream = None
         else:
-            self._pipe.SetExternalTLInput(name, res, ctypes.c_void_p(cuda_stream), use_copy_kernel)
+            cuda_stream = types._raw_cuda_stream(cuda_stream)
+
+        def to_numpy(x):
+            if types._is_mxnet_array(x):
+                return x.asnumpy()
+            elif types._is_torch_tensor(x):
+                return x.numpy()
+            else:
+                return x
+
+        # __cuda_array_interface__ doesn't provide any way to pass the information about the device
+        # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
+        # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
+        if isinstance(data, (Tensors.TensorListCPU, Tensors.TensorListGPU)):
+            if layout is not None:
+                _check_data_batch(data, self._max_batch_size, layout)
+                data = type(data)(data, layout)
+
+            self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
+        elif isinstance(data, list):
+            inputs = []
+            checked = False
+            for datum in data:
+                info = CheckDLPackCapsule(datum)
+                if not info[0] and not checked:
+                    _check_data_batch(data, self._max_batch_size, layout)
+                    checked = True
+                if isinstance(datum, (Tensors.TensorCPU, Tensors.TensorGPU)):
+                    inp = type(datum)(datum, layout=layout) if layout is not None else datum
+                elif hasattr(datum, "__cuda_array_interface__") or (info[0] and info[1]):
+                    if infer_stream:
+                        cuda_stream = _get_default_stream_for_array(datum)
+                    inp = Tensors.TensorGPU(datum, layout or "")
+                else:
+                    datum = to_numpy(datum)
+                    inp = Tensors.TensorCPU(datum, layout or "")
+                inputs.append(inp)
+            assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
+                   "Mixed input types are not support, all need to reside on the CPU or GPU"
+            self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream), use_copy_kernel)
+        else:
+            info = CheckDLPackCapsule(data)
+            if not info[0]:
+                _check_data_batch(data, self._max_batch_size, layout)
+            if hasattr(data, "__cuda_array_interface__") or (info[0] and info[1]):
+                if infer_stream:
+                    cuda_stream = _get_default_stream_for_array(data)
+                inp = Tensors.TensorListGPU(data, layout or "")
+            else:
+                data = to_numpy(data)
+                inp = Tensors.TensorListCPU(data, layout or "")
+            self._pipe.SetExternalTLInput(name, inp, ctypes.c_void_p(cuda_stream), use_copy_kernel)
 
     def _run_cpu(self):
         """Run CPU portion of the pipeline."""
@@ -1261,6 +1251,9 @@ def _discriminate_args(func, **func_kwargs):
     func_argspec = inspect.getfullargspec(func)
     ctor_argspec = inspect.getfullargspec(Pipeline.__init__)
 
+    if 'debug' not in func_argspec.args and 'debug' not in func_argspec.kwonlyargs:
+        func_kwargs.pop('debug', False)
+
     ctor_args = {}
     fn_args = {}
 
@@ -1296,12 +1289,11 @@ class PipelineDebug(Pipeline):
         kwargs['exec_async'] = False
         self._subpipeline_kwargs = kwargs
         self._subpipelines = {}
-        self._external_source_data = {}
+        self._external_source_pipelines = {}
+        self._feed_input_data = {}
         self._subpipelines_built = False
         self._cur_subpipeline_id = -1
         self._exec_func = exec_func
-        self._es_input_name = 'input_'
-        self._es_kwarg_name = 'kwarg_'
 
     def __enter__(self):
         PipelineDebug._debug_on = True
@@ -1321,24 +1313,51 @@ class PipelineDebug(Pipeline):
         self._built = True
 
     def run(self):
+        import numpy as np
         if not self._built:
             raise RuntimeError('Pipeline must be built first.')
         with self:
-            return tuple([tensor.as_tensor() for tensor in self._exec_func()])
+            res = self._exec_func()
+            if res is None:
+                res = ()
+            elif not isinstance(res, tuple):
+                res = (res,)
 
-    def feed_input(self, data_node, data, layout=None, cuda_stream=None, use_copy_kernel=False):
-        if data_node not in self._external_source_data:
-            self._external_source_data[data_node] = Queue()
-        self._external_source_data[data_node].put((data, layout, cuda_stream))
+            # Transforming all variables to TensorLists.
+            return tuple([val.get() if isinstance(val, DataNodeDebug) else Tensors.TensorListCPU(
+                np.tile(val, (self._max_batch_size, *[1]*np.array(val).ndim))) for val in res])
+
+    def feed_input(self, data_node, data, **kwargs):
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+
+        if data_node not in self._external_source_pipelines:
+            # Saving data, because pipeline hasn't been run yet.
+            if data_node not in self._feed_input_data:
+                self._feed_input_data[data_node] = []
+            self._feed_input_data[data_node].append((data, kwargs))
+        else:
+            self._external_source_pipelines[data_node].feed_input(data_node, data, **kwargs)
 
     def _create_subpipeline(self, op_wrapper, inputs, **kwargs):
         """Creates pipeline wrapper around operator call (only once)."""
         @pipeline_def(**self._subpipeline_kwargs)
         def pipe():
-            inputs_preprocessed = [fn.external_source(
-                name=f'{self._es_input_name}{i}', device=input.device) for i, input in enumerate(inputs)]
+            inputs_preprocessed = []
+            for i, input in enumerate(inputs):
+                if isinstance(input, DataNodeDebug):
+                    inputs_preprocessed.append(fn.external_source(
+                        name=f'{PipelineDebug._es_input_name}{i}', device=input.device))
+                else:
+                    try:
+                        # Getting anything that can be transformed to a DataNode.
+                        inputs_preprocessed.append(fn.external_source(input, batch=False))
+                    except TypeError:
+                        # If it cannot be transformed to a DataNode assume that user knows what their doing,
+                        # e.g. using constants with arithmetic operator.
+                        inputs_preprocessed.append(input)
             kwargs_preprocessed = {key: value if not isinstance(value, DataNodeDebug) else fn.external_source(
-                name=f'{self._es_kwarg_name}{key}', device=value.device) for key, value in kwargs.items()}
+                name=f'{PipelineDebug._es_kwarg_name}{key}', device=value.device) for key, value in kwargs.items()}
             res = op_wrapper(*inputs_preprocessed, **kwargs_preprocessed)
             return tuple(res) if isinstance(res, list) else res
 
@@ -1348,26 +1367,45 @@ class PipelineDebug(Pipeline):
         PipelineDebug._external_source_debug = True
         return p
 
-    def _external_source(self, *inputs, **kwargs):
-        if len(inputs) > 0:
-            res = self._transform_data(*inputs)
-        if 'name' in kwargs:
-            if kwargs['name'] not in self._external_source_data or \
-                    self._external_source_data[kwargs['name']].empty():
-                raise RuntimeError('External source is not fed with enough data.')
-            else:
-                res = self._transform_data(*self._external_source_data[kwargs['name']].get())
-        return DataNodeDebug(res, '_external_source', kwargs.get('device', 'cpu'), '')
+    def _external_source(self, op_wrapper, name):
+        # TODO(ksztenderski): Possibly remove this wrapper to avoid running data through the backend and back.
+        @pipeline_def(**self._subpipeline_kwargs)
+        def external_source_pipeline():
+            res = op_wrapper()
+            return tuple(res) if isinstance(res, list) else res
+
+        self._cur_subpipeline_id += 1
+        key = inspect.getframeinfo(
+            inspect.currentframe().f_back.f_back)[:3] + (self._cur_subpipeline_id,)
+        if not self._subpipelines_built:
+            PipelineDebug._external_source_debug = False
+            p = external_source_pipeline()
+            p.build()
+
+            # feed_input all data collected after build and before run
+            for (data, kwargs) in self._feed_input_data.pop(name, []):
+                p.feed_input(name, data, **kwargs)
+
+            self._subpipelines[key] = p
+            self._external_source_pipelines[name] = p
+            PipelineDebug._external_source_debug = True
+
+        if key in self._subpipelines:
+            return self._run_subpipeline(self._subpipelines[key], (), {})
+        else:
+            raise RuntimeError('Operator not built. It may be a result of changes in execution order'
+                               ' of operators since building pipeline.')
 
     def _run_subpipeline(self, pipe, inputs, kwargs):
         """Run pipeline wrapper of a single operator."""
         PipelineDebug._debug_on = False
 
         for i, input in enumerate(inputs):
-            pipe.feed_input(f'{self._es_input_name}{i}', input.as_tensor())
+            if isinstance(input, DataNodeDebug):
+                pipe.feed_input(f'{PipelineDebug._es_input_name}{i}', input.get())
         for key, value in kwargs.items():
             if isinstance(value, DataNodeDebug):
-                pipe.feed_input(f'{self._es_kwarg_name}{key}', value.as_tensor())
+                pipe.feed_input(f'{PipelineDebug._es_kwarg_name}{key}', value.get())
 
         res = pipe.run()
         res = tuple([DataNodeDebug(tensor, **data_node.__dict__)
@@ -1390,11 +1428,13 @@ class PipelineDebug(Pipeline):
         if key in self._subpipelines:
             return self._run_subpipeline(self._subpipelines[key], inputs, kwargs)
         else:
-            raise RuntimeError('Operator not built.It may be a result of changes in execution order'
+            raise RuntimeError('Operator not built. It may be a result of changes in execution order'
                                ' of operators since building pipeline.')
 
     _debug_on = False
     _external_source_debug = False
+    _es_input_name = 'input_'
+    _es_kwarg_name = 'kwarg_'
 
 
 def pipeline_def(fn=None, **pipeline_kwargs):
@@ -1473,7 +1513,7 @@ def pipeline_def(fn=None, **pipeline_kwargs):
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
             debug_mode_on = pipeline_kwargs.pop('debug', False)
-            debug_mode_on = kwargs.pop('debug', debug_mode_on)
+            debug_mode_on = kwargs.get('debug', debug_mode_on)
             ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
             if debug_mode_on:
                 pipe = PipelineDebug(functools.partial(func, *args, **fn_kwargs), **{**pipeline_kwargs, **ctor_args})
