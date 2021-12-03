@@ -18,6 +18,7 @@
 #include <utility>
 #include "dali/core/util.h"
 #include "dali/core/traits.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 namespace kernels {
@@ -56,6 +57,16 @@ OutShape GetStrides(const Shape& shape) {
   OutShape strides = shape;
   CalcStrides(strides, shape);
   return strides;
+}
+
+inline int64_t GetSMCount() {
+  static int64_t count = 0;
+  if (!count) {
+    cudaDeviceProp prop;
+    CUDA_CALL(cudaGetDeviceProperties(&prop, 0));
+    count = prop.multiProcessorCount;
+  }
+  return count;
 }
 
 }  // namespace kernels
