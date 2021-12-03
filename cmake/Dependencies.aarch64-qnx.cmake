@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,22 +39,27 @@ CUDA_find_library(CUDART_LIB cudart_static)
 list(APPEND DALI_EXCLUDES libcudart_static.a)
 
 # NVIDIA NPP library
-CUDA_find_library(CUDA_nppicc_static_LIBRARY nppicc_static)
-CUDA_find_library(CUDA_nppc_static_LIBRARY nppc_static)
-list(APPEND DALI_LIBS ${CUDA_nppicc_static_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppicc_static.a)
-list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppc_static.a)
+if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+  CUDA_find_library(CUDA_nppicc_LIBRARY nppicc_static)
+  CUDA_find_library(CUDA_nppc_LIBRARY nppc_static)
+  list(APPEND DALI_LIBS ${CUDA_nppicc_LIBRARY})
+  list(APPEND DALI_EXCLUDES libnppicc_static.a)
+  list(APPEND DALI_LIBS ${CUDA_nppc_LIBRARY})
+  list(APPEND DALI_EXCLUDES libnppc_static.a)
+endif ()
 
 # cuFFT library
-CUDA_find_library(CUDA_cufft_static_LIBRARY cufft_static)
-list(APPEND DALI_EXCLUDES libcufft_static.a)
-
+if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+  CUDA_find_library(CUDA_cufft_LIBRARY cufft_static)
+  list(APPEND DALI_EXCLUDES libcufft_static.a)
+endif ()
 
 # CULIBOS needed when using static CUDA libs
-CUDA_find_library(CUDA_culibos_LIBRARY culibos)
-list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
-list(APPEND DALI_EXCLUDES libculibos.a)
+if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+  CUDA_find_library(CUDA_culibos_LIBRARY culibos)
+  list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
+  list(APPEND DALI_EXCLUDES libculibos.a)
+endif ()
 
 include_directories(${CUDA_TOOLKIT_TARGET_DIR}/include)
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)

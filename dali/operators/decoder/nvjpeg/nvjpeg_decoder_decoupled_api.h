@@ -139,16 +139,19 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         // when such value is provided
         preallocate_width_hint = preallocate_width_hint ? preallocate_width_hint : 1;
         preallocate_height_hint = preallocate_height_hint ? preallocate_height_hint : 1;
-        CUDA_CALL(nvjpegDecodeBatchedPreAllocate(
-          handle_,
-          state_hw_batched_,
-          CalcHwDecoderBatchSize(hw_decoder_load_, max_batch_size_),
-          preallocate_width_hint,
-          preallocate_height_hint,
-          NVJPEG_CSS_444,
-          GetFormat(output_image_type_)));
+        if (nvjpegIsSymbolAvailable("nvjpegDecodeBatchedPreAllocate")) {
+          CUDA_CALL(nvjpegDecodeBatchedPreAllocate(
+            handle_,
+            state_hw_batched_,
+            CalcHwDecoderBatchSize(hw_decoder_load_, max_batch_size_),
+            preallocate_width_hint,
+            preallocate_height_hint,
+            NVJPEG_CSS_444,
+            GetFormat(output_image_type_)));
+        }
 #endif
         using_hw_decoder_ = true;
+        using_hw_decoder_roi_ = nvjpegIsSymbolAvailable("nvjpegDecodeBatchedSupportedEx");
         in_data_.reserve(max_batch_size_);
         in_lengths_.reserve(max_batch_size_);
         nvjpeg_destinations_.reserve(max_batch_size_);
@@ -617,8 +620,16 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                         hw_decoder_jpeg_streams_[tid]);
             if (ret == NVJPEG_STATUS_SUCCESS) {
               int is_supported = -1;
-              CUDA_CALL(nvjpegDecodeBatchedSupportedEx(handle_, hw_decoder_jpeg_streams_[tid],
-                                                          data.params, &is_supported));
+              // if nvjpegDecodeBatchedSupportedEx is not available ROI support in HW decoder is
+              // not available, so check only if we can decode images without ROI
+              // otherwise use the hybrid approach
+              if (nvjpegIsSymbolAvailable("nvjpegDecodeBatchedSupportedEx")) {
+                CUDA_CALL(nvjpegDecodeBatchedSupportedEx(handle_, hw_decoder_jpeg_streams_[tid],
+                                                         data.params, &is_supported));
+              } else if (!crop_generator) {
+                CUDA_CALL(nvjpegDecodeBatchedSupported(handle_, hw_decoder_jpeg_streams_[tid],
+                                                       &is_supported));
+              }
               hw_decode = is_supported == 0;
             }
             if (!hw_decode) {
@@ -862,9 +873,16 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           in_data_[k] = hw_decoder_images_staging_.mutable_tensor<uint8_t>(k);
         }
       }
-      CUDA_CALL(nvjpegDecodeBatchedEx(handle_, state, in_data_.data(), in_lengths_.data(),
+      // if nvjpegDecodeBatchedSupportedEx is available nvjpegDecodeBatchedEx should be as well,
+      // otherwise no ROI should be provided anyway so we can safely call nvjpegDecodeBatched
+      if (nvjpegIsSymbolAvailable("nvjpegDecodeBatchedEx")) {
+        CUDA_CALL(nvjpegDecodeBatchedEx(handle_, state, in_data_.data(), in_lengths_.data(),
                                         nvjpeg_destinations_.data(), nvjpeg_params_.data(),
                                         hw_decode_stream_));
+      } else {
+        CUDA_CALL(nvjpegDecodeBatched(handle_, state, in_data_.data(), in_lengths_.data(),
+                                      nvjpeg_destinations_.data(), hw_decode_stream_));
+      }
 
       if (output_image_type_ == DALI_YCbCr) {
         // We don't decode directly to YCbCr, since we want to control the YCbCr definition,
@@ -1063,6 +1081,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   int device_id_;
 
   bool using_hw_decoder_ = false;
+  bool using_hw_decoder_roi_ = false;
   float hw_decoder_load_ = 0.0f;
   int hw_decoder_bs_ = 0;
 
@@ -1100,6 +1119,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     RegisterDiagnostic("nsamples_host", &nsamples_host_);
     RegisterDiagnostic("nsamples_nvjpeg2k", &nsamples_nvjpeg2k_);
     RegisterDiagnostic("using_hw_decoder", &using_hw_decoder_);
+    RegisterDiagnostic("using_hw_decoder_roi", &using_hw_decoder_roi_);
   }
 
   int CalcHwDecoderBatchSize(float hw_decoder_load, int curr_batch_size) {

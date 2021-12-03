@@ -4,7 +4,7 @@
    ],
    "return_type":"nvmlReturn_t",
    "calling_conv":"DECLDIR",
-   "not_found_error":"NVML_ERROR_FUNCTION_NOT_FOUND ",
+   "not_found_error":"NVML_ERROR_FUNCTION_NOT_FOUND",
    "functions": {
       "nvmlInit": {},
       "nvmlInit_v2": {},

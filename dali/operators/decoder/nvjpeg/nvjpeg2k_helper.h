@@ -75,7 +75,6 @@ class Nvjpeg2kError : public std::runtime_error {
     }
   }
 
-
   nvjpeg2kStatus_t result() const { return result_; }
 
  private:

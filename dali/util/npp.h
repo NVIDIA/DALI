@@ -22,6 +22,13 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/format.h"
+
+#if WITH_DYNAMIC_CUDA_TOOLKIT_ENABLED
+  bool nppIsSymbolAvailable(const char *name);
+#else
+  #define nppIsSymbolAvailable(T) (true)
+#endif
+
 namespace dali {
 
 class NppError : public std::runtime_error {

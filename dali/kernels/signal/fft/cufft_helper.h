@@ -22,6 +22,12 @@
 #include "dali/core/unique_handle.h"
 #include "dali/core/format.h"
 
+#if WITH_DYNAMIC_CUDA_TOOLKIT_ENABLED
+  bool cufftIsSymbolAvailable(const char *name);
+#else
+  #define cufftIsSymbolAvailable(T) (true)
+#endif
+
 namespace dali {
 
 class CUFFTError : public std::runtime_error {

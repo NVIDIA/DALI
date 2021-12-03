@@ -211,8 +211,8 @@ echo "Fixed hashed names"
 patch_rpath() {
     local FILE=$1
     UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
-    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs'"
-    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs" $FILE
+    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:/usr/local/cuda/lib64:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib'"
+    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:/usr/local/cuda/lib64:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib" $FILE
     patchelf --print-rpath $FILE
 }
 echo "Fixing rpath of main files..."
