@@ -17,8 +17,11 @@ from nvidia.dali.pipeline.experimental import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
+import os
+from test_utils import get_dali_extra_path
 
 rn50_pipeline_base_debug_values = {}
+file_root = os.path.join(get_dali_extra_path(), 'db/single/jpeg')
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
@@ -27,7 +30,7 @@ def rn50_pipeline_base(debug=False):
     if debug:
         rn50_pipeline_base_debug_values['rng'] = rng.get()
     jpegs, labels = fn.readers.file(
-        file_root='/home/ksztenderski/DALI_extra/db/single/jpeg', shard_id=0, num_shards=2)
+        file_root=file_root, shard_id=0, num_shards=2)
     if debug:
         rn50_pipeline_base_debug_values['jpegs'] = jpegs.get()
         rn50_pipeline_base_debug_values['labels'] = labels.get()
@@ -53,7 +56,7 @@ def rn50_pipeline():
     tmp = rng ^ 1
     print(f'rng xor: {tmp.get().as_array()}')
     jpegs, labels = fn.readers.file(
-        file_root='/home/ksztenderski/DALI_extra/db/single/jpeg', shard_id=0, num_shards=2)
+        file_root=file_root, shard_id=0, num_shards=2)
     if jpegs.get().is_dense_tensor():
         print(f'jpegs: {jpegs.get().as_array()}')
     else:
@@ -82,10 +85,9 @@ def rn50_pipeline():
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
 def load_images_pipeline():
     jpegs, labels = fn.readers.file(
-        file_root='/home/ksztenderski/DALI_extra/db/single/jpeg', shard_id=0, num_shards=2)
+        file_root=file_root, shard_id=0, num_shards=2)
     images = fn.decoders.image(jpegs, output_type=types.RGB)
     return images, labels
-
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
