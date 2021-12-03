@@ -20,13 +20,19 @@ namespace dali {
 
 static void OneHotGPUArgs(benchmark::internal::Benchmark *b) {
   for (int batch_size = 256; batch_size >= 1; batch_size /= 2) {
-    for (int H = 1000; H >= 500; H /= 2) {
-      int W = H;
-      int AXIS = 1;
-      int NUM_CLASSES = 2;      
-      b->Args({batch_size, H, W, AXIS, NUM_CLASSES});
-      AXIS = 2;
-      b->Args({batch_size, H, W, AXIS, NUM_CLASSES});
+    int h = 64, w = h;
+    int axis = -1;
+    int numClasses = 500;
+    b->Args({batch_size, h, w, axis, numClasses});
+    axis = 1;
+    b->Args({batch_size, h, w, axis, numClasses});
+    for (h = 32; h >= 8 ; h /= 2) {
+      w = h;
+      axis = -1;
+      numClasses = 1000;      
+      b->Args({batch_size, h, w, axis, numClasses});
+      axis = 1;
+      b->Args({batch_size, h, w, axis, numClasses});
     }
   }
 }
