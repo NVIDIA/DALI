@@ -87,7 +87,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
           if (!e.is_unloading())
             std::terminate();
         }
-        f = remove_pending_free(free_blocks, f, false);
+        f = remove_pending_free(free_blocks, f, false, false);
       }
       assert(free_blocks.free_list.head == nullptr);
       assert(free_blocks.free_list.tail == nullptr);
@@ -423,7 +423,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
     auto *f = find_first_ready(free);
     while (f) {
       global_pool_.deallocate_no_sync(f->addr, f->bytes, f->alignment);
-      f = remove_pending_free(free, f);
+      f = remove_pending_free(free, f, true);
     }
   }
 
@@ -433,7 +433,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
     try {
       free.by_size.insert({bytes, pending});
     } catch (...) {
-      remove_pending_free(free.free_list, pending);
+      remove_pending_free(free.free_list, pending, true);
       throw;
     }
   }
@@ -482,15 +482,18 @@ class async_pool_resource : public async_memory_resource<Kind> {
   }
 
   pending_free *remove_pending_free(PerStreamFreeBlocks &free, pending_free *f,
-                                    bool remove_by_size = true) {
+                                    bool remove_by_size = true, bool recycle_event = true) {
     if (remove_by_size)
       free.by_size.erase({ f->bytes, f });
-    return remove_pending_free(free.free_list, f);
+    return remove_pending_free(free.free_list, f, recycle_event);
   }
 
-  pending_free *remove_pending_free(PendingFreeList &free, pending_free *f) {
+  pending_free *remove_pending_free(PendingFreeList &free, pending_free *f, bool recycle_event) {
     ContextScope scope(f->ctx);
-    CUDAEventPool::instance().Put(std::move(f->event));
+    if (recycle_event)
+      CUDAEventPool::instance().Put(std::move(f->event));
+    else
+      f->event.reset();
     auto *prev = f->prev;
     auto *next = f->next;
     if (free.head == f)
