@@ -255,7 +255,7 @@ class SliceGPU {
     block_count_ = 0;
     for (auto sample_size : sample_sizes) {
       block_count_ += std::ceil(
-      sample_size / static_cast<float>(blockSize));
+        sample_size / static_cast<float>(blockSize));
     }
 
     se.add<mm::memory_kind::host, detail::SliceBlockDesc>(block_count_);
