@@ -82,9 +82,9 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
         else:
             return op_wrapper(*inputs, **kwargs)
             
-    op_wrapper.__name__ = wrapper_name
-    op_wrapper.__qualname__ = wrapper_name
-    op_wrapper.__doc__ = wrapper_doc
+    fn_wrapper.__name__ = wrapper_name
+    fn_wrapper.__qualname__ = wrapper_name
+    fn_wrapper.__doc__ = wrapper_doc
     return fn_wrapper
 
 def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
