@@ -13,9 +13,9 @@ ENV PYVER=${PYVER} PYV=${PYV} PYTHONPATH=/opt/python/v
 ENV PYBIN=${PYTHONPATH}/bin \
     PYLIB=${PYTHONPATH}/lib
 
-ENV PATH=/opt/python/cp36-cp36/bin:/opt/python/cp37-cp37m/bin:/opt/python/cp38-cp38/bin:/opt/python/cp39-cp39/bin:${PYBIN}:${PATH} \
-    LD_LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:${PYLIB}:${LD_LIBRARY_PATH} \
-    LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:${PYLIB}:${LIBRARY_PATH}
+ENV PATH=/opt/python/cp36-cp36/bin:/opt/python/cp37-cp37m/bin:/opt/python/cp38-cp38/bin:/opt/python/cp39-cp39/bin:${PYBIN}:/opt/python/cp310-cp310/bin:${PYBIN}:${PATH} \
+    LD_LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:/opt/python/cp310-cp310/lib:${PYLIB}:${LD_LIBRARY_PATH} \
+    LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:/opt/python/cp310-cp310/lib:${PYLIB}:${LIBRARY_PATH}
 
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
@@ -94,6 +94,8 @@ ARG DALI_TIMESTAMP
 ENV DALI_TIMESTAMP=${DALI_TIMESTAMP}
 ARG WHL_PLATFORM_NAME
 ENV WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME}
+ARG WHL_COMPRESSION
+ENV WHL_COMPRESSION=${WHL_COMPRESSION}
 ARG EXTRA_CMAKE_OPTIONS
 ENV EXTRA_CMAKE_OPTIONS=${EXTRA_CMAKE_OPTIONS}
 
