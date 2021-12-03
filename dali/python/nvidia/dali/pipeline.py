@@ -17,6 +17,7 @@ from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
+from nvidia.dali import internal
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali import pickling as dali_pickle
 from nvidia.dali.backend import CheckDLPackCapsule
@@ -28,6 +29,7 @@ import inspect
 import warnings
 import weakref
 import ctypes
+import sys
 
 pipeline_tls = tls()
 
@@ -1512,11 +1514,32 @@ def pipeline_def(fn=None, **pipeline_kwargs):
     def actual_decorator(func):
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
+            ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
+            pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
+            with pipe:
+                pipe_outputs = func(*args, **fn_kwargs)
+                if isinstance(pipe_outputs, tuple):
+                    po = pipe_outputs
+                elif pipe_outputs is None:
+                    po = ()
+                else:
+                    po = (pipe_outputs,)
+                pipe.set_outputs(*po)
+            return pipe
+        return create_pipeline
+    return actual_decorator(fn) if fn else actual_decorator
+
+
+def pipeline_def_experimental(fn=None, **pipeline_kwargs):
+    def actual_decorator(func):
+        @functools.wraps(func)
+        def create_pipeline(*args, **kwargs):
             debug_mode_on = pipeline_kwargs.pop('debug', False)
             debug_mode_on = kwargs.get('debug', debug_mode_on)
             ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
             if debug_mode_on:
-                pipe = PipelineDebug(functools.partial(func, *args, **fn_kwargs), **{**pipeline_kwargs, **ctor_args})
+                pipe = PipelineDebug(functools.partial(func, *args, **fn_kwargs),
+                                     **{**pipeline_kwargs, **ctor_args})
             else:
                 pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
                 with pipe:
@@ -1531,3 +1554,9 @@ def pipeline_def(fn=None, **pipeline_kwargs):
             return pipe
         return create_pipeline
     return actual_decorator(fn) if fn else actual_decorator
+
+
+current_module = sys.modules[__name__]
+experimental_module = internal.get_submodule(current_module, 'experimental')
+pipeline_def_experimental.__module__ = experimental_module
+setattr(experimental_module, 'pipeline_def', pipeline_def_experimental)

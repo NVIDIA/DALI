@@ -634,6 +634,7 @@ provided memory is copied to the internal buffer.
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
     which is more performant.
     """
+
     if batch is None:
         batch = True
 
@@ -646,7 +647,7 @@ provided memory is copied to the internal buffer.
     op = ExternalSource(device = device, num_outputs = num_outputs, source = source,
                         cycle = cycle, layout = layout, cuda_stream = cuda_stream,
                         use_copy_kernel = use_copy_kernel, batch = batch, **kwargs)
-    return op(name=name)
+    return op(name = name)
 
 
 def external_source(*inputs, name=None, **kwargs):

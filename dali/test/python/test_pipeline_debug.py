@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from nvidia.dali import pipeline_def
+from nvidia.dali.pipeline.experimental import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
