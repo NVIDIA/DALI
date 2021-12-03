@@ -351,6 +351,7 @@ void SetDefaultDeviceResource(int device_id, device_async_resource *resource, bo
 // This function is for testing purposes only - it must be visible
 DLL_PUBLIC void _Test_FreeDeviceResources() {
   // clear does not deallocate - we need something stronger
+  std::lock_guard<std::mutex> mtx(g_resources.mtx);
   decltype(g_resources.device) empty;
   g_resources.device.swap(empty);
 }
