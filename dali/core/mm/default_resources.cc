@@ -266,11 +266,11 @@ const std::shared_ptr<managed_async_resource> &ShareDefaultResourceImpl<memory_k
 }
 
 const std::shared_ptr<device_async_resource> &ShareDefaultDeviceResourceImpl(int device_id) {
+  std::lock_guard<std::mutex> lock(g_resources.mtx);
   if (device_id < 0) {
     CUDA_CALL(cudaGetDevice(&device_id));
   }
   if (g_resources.device.empty()) {
-    std::lock_guard<std::mutex> lock(g_resources.mtx);
     int ndevs = 0;
     CUDA_CALL(cudaGetDeviceCount(&ndevs));
     g_resources.device.resize(ndevs);
@@ -280,7 +280,6 @@ const std::shared_ptr<device_async_resource> &ShareDefaultDeviceResourceImpl(int
       "Shoud be 0 <= device_id < ", g_resources.device.size(), " or negative for current device."));
   }
   if (!g_resources.device[device_id]) {
-    std::lock_guard<std::mutex> lock(g_resources.mtx);
     if (!g_resources.device[device_id]) {
       DeviceGuard devg(device_id);
       static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
