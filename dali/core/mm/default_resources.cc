@@ -75,11 +75,14 @@ struct DefaultResources {
   void InitDeviceResArray() {
     if (!device) {
       std::lock_guard<std::mutex> lock(mtx);
-      int ndevs = 0;
-      CUDA_CALL(cudaGetDeviceCount(&ndevs));
-      decltype(device) tmp(new std::shared_ptr<device_async_resource>[ndevs]);
-      num_devices = ndevs;
-      device = std::move(tmp);
+      if (!device) {
+        int ndevs = 0;
+        CUDA_CALL(cudaGetDeviceCount(&ndevs));
+        decltype(device) tmp(new std::shared_ptr<device_async_resource>[ndevs]);
+        std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+        num_devices = ndevs;
+        device = std::move(tmp);
+      }
     }
   }
 
