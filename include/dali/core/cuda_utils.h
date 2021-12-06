@@ -93,6 +93,16 @@ int MaxThreadsPerBlock(KernelFunction *f) {
   return max_block_size[device];
 }
 
+inline int GetSMCount() {
+  static int count = 0;
+  if (!count) {
+    cudaDeviceProp prop;
+    CUDA_CALL(cudaGetDeviceProperties(&prop, 0));
+    count = prop.multiProcessorCount;
+  }
+  return count;
+}
+
 }  // namespace dali
 
 #endif  // DALI_CORE_CUDA_UTILS_H_
