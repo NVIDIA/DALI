@@ -248,7 +248,7 @@ struct LaplacianCPU<Intermediate, Out, In, W, axes, has_channels,
     auto req = Base::Setup(ctx, in_shape, window_sizes);
     ScratchpadEstimator se;
     se.add<mm::memory_kind::host, Intermediate>(volume(in_shape));
-    req.scratch_sizes = AppendScratchSize(req.scratch_sizes, se.sizes);
+    req.scratch_sizes = AppendScratchSize(se.sizes, req.scratch_sizes);
     return req;
   }
 
