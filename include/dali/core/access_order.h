@@ -65,15 +65,29 @@ class DLL_PUBLIC AccessOrder {
 
   static constexpr cudaStream_t host_sync_stream() noexcept {
     // TODO(michalz): Unify with dali::mm::host_sync
-    // Use cast magic and an intermediate variable to make it constexpr
-    int i = 4321;
+    const int i = 4321;
+    // C++ standard makes it impossible to have a constexpr pointer with a fixed
+    // numerical value, so we have to resort to some compiler specific tricks.
+    // Clang and GCC support a __builtin_constant_p hack, other compilers
+    // have relaxed constexpr handling.
+#ifdef __GNUC__
+    return __builtin_constant_p((cudaStream_t)i) ? (cudaStream_t)i : (cudaStream_t)i;
+#else
     return static_cast<cudaStream_t>(static_cast<void *>(static_cast<char*>(nullptr) + i));
+#endif
   }
 
   static constexpr cudaStream_t null_stream() noexcept {
-    // Use cast magic and an intermediate variable to make it constexpr
-    int i = -1;
+    const int i = -1;
+    // C++ standard makes it impossible to have a constexpr pointer with a fixed
+    // numerical value, so we have to resort to some compiler specific tricks.
+    // Clang and GCC support a __builtin_constant_p hack, other compilers
+    // have relaxed constexpr handling.
+#ifdef __GNUC__
+    return __builtin_constant_p((cudaStream_t)i) ? (cudaStream_t)i : (cudaStream_t)i;
+#else
     return static_cast<cudaStream_t>(static_cast<void *>(static_cast<char*>(nullptr) - i));
+#endif
   }
 
   /**
