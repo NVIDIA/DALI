@@ -232,7 +232,7 @@ struct LaplacianCpuBase<T, Intermediate, Out, In, W, 3, has_channels> {
  * @tparam Out           Desired output type. Conversion with clamping the output values
  *                       is performed if needed.
  * @tparam In            Input type.
- * @tparam W             Type of convolution window elements.
+ * @tparam W             Type of convolution window elements (see @ref SeparableConvolutionCpu).
  * @tparam axes          Number of spatial dimensions of the input data (and the number of partial
  *                       derivatives to compute).
  * @tparam has_channels  True iff the input data has ``axes + 1`` dimensions with the last
