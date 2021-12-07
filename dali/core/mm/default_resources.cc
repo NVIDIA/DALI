@@ -52,7 +52,8 @@ struct DefaultResources {
   std::shared_ptr<host_memory_resource> host;
   std::shared_ptr<pinned_async_resource> pinned_async;
   std::shared_ptr<managed_async_resource> managed;
-  std::vector<std::shared_ptr<device_async_resource>> device;
+  std::unique_ptr<std::shared_ptr<device_async_resource>[]> device;
+  int num_devices = 0;
   std::mutex mtx;
 
   void ReleasePinned() {
@@ -71,6 +72,27 @@ struct DefaultResources {
     Release(host);
   }
 
+  void InitDeviceResArray() {
+    if (!device) {
+      std::lock_guard<std::mutex> lock(mtx);
+      if (!device) {
+        int ndevs = 0;
+        CUDA_CALL(cudaGetDeviceCount(&ndevs));
+        decltype(device) tmp(new std::shared_ptr<device_async_resource>[ndevs]);
+        std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+        num_devices = ndevs;
+        device = std::move(tmp);
+      }
+    }
+  }
+
+  void CheckDeviceIndex(int device_id) const {
+    if (device_id < 0 || device_id >= num_devices) {
+      throw std::out_of_range(make_string(device_id, " is not a valid CUDA device index. "
+        "Shoud be 0 <= device_id < ", num_devices, " or negative for current device."));
+    }
+  }
+
  private:
   template <typename Ptr>
   void Release(Ptr &p) noexcept(false) {
@@ -82,10 +104,8 @@ struct DefaultResources {
   }
 
   template <typename T>
-  void Abandon(std::vector<T> &v) {
-    for (auto &x : v)
-      Abandon(x);
-    v.clear();
+  void Abandon(std::unique_ptr<T> &p) {
+    (void)p.release();
   }
 
   template <typename T>
@@ -269,16 +289,8 @@ const std::shared_ptr<device_async_resource> &ShareDefaultDeviceResourceImpl(int
   if (device_id < 0) {
     CUDA_CALL(cudaGetDevice(&device_id));
   }
-  if (g_resources.device.empty()) {
-    std::lock_guard<std::mutex> lock(g_resources.mtx);
-    int ndevs = 0;
-    CUDA_CALL(cudaGetDeviceCount(&ndevs));
-    g_resources.device.resize(ndevs);
-  }
-  if (static_cast<size_t>(device_id) >= g_resources.device.size()) {
-    throw std::out_of_range(make_string(device_id, " is not a valid CUDA device index. "
-      "Shoud be 0 <= device_id < ", g_resources.device.size(), " or negative for current device."));
-  }
+  g_resources.InitDeviceResArray();
+  g_resources.CheckDeviceIndex(device_id);
   if (!g_resources.device[device_id]) {
     std::lock_guard<std::mutex> lock(g_resources.mtx);
     if (!g_resources.device[device_id]) {
@@ -328,19 +340,12 @@ void SetDefaultResource<memory_kind::pinned>(pinned_async_resource *resource, bo
 
 
 void SetDefaultDeviceResource(int device_id, std::shared_ptr<device_async_resource> resource) {
-  std::lock_guard<std::mutex> lock(g_resources.mtx);
   if (device_id < 0) {
     CUDA_CALL(cudaGetDevice(&device_id));
   }
-  int ndevs = g_resources.device.size();
-  if (ndevs == 0) {
-    CUDA_CALL(cudaGetDeviceCount(&ndevs));
-    g_resources.device.resize(ndevs);
-  }
-  if (device_id < 0 || device_id >= ndevs) {
-    throw std::out_of_range(make_string(device_id, " is not a valid CUDA device index. "
-      "Shoud be 0 <= device_id < ", g_resources.device.size(), " or negative for current device."));
-  }
+  g_resources.InitDeviceResArray();
+  std::lock_guard<std::mutex> lock(g_resources.mtx);
+  g_resources.CheckDeviceIndex(device_id);
   g_resources.device[device_id] = std::move(resource);
 }
 
@@ -350,9 +355,9 @@ void SetDefaultDeviceResource(int device_id, device_async_resource *resource, bo
 
 // This function is for testing purposes only - it must be visible
 DLL_PUBLIC void _Test_FreeDeviceResources() {
-  // clear does not deallocate - we need something stronger
-  decltype(g_resources.device) empty;
-  g_resources.device.swap(empty);
+  std::lock_guard<std::mutex> mtx(g_resources.mtx);
+  g_resources.device.reset();
+  g_resources.num_devices = 0;
 }
 
 template <> DLL_PUBLIC
