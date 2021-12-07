@@ -19,8 +19,8 @@
 
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/common/utils.h"
-#include "dali/kernels/imgproc/convolution/separable_convolution_cpu.h"
 #include "dali/kernels/imgproc/convolution/convolution_cpu.h"
+#include "dali/kernels/imgproc/convolution/separable_convolution_cpu.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/scratch.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
@@ -29,8 +29,6 @@ namespace dali {
 namespace kernels {
 
 namespace laplacian {
-
-using namespace conv_transform;  // NOLINT
 
 /**
  * @brief Computes convolution to obtain partial derivative in one of the dimensions.
@@ -74,7 +72,7 @@ struct PartialDeriv {
     return multi_dim_impl_->Setup(ctx, in_shape, window_sizes);
   }
 
-  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> &out,
+  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim>& out,
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<TensorView<StorageCPU, const W, 1>, axes>& windows,
            const T& transform = {}) {
@@ -99,14 +97,14 @@ struct PartialDeriv {
  */
 template <typename T, typename Intermediate, typename Out, typename In, typename W, int axes,
           bool has_channels>
-struct LaplacianCPUBase;
+struct LaplacianCpuBase;
 
 template <typename T, typename Intermediate, typename Out, typename In, typename W,
           bool has_channels>
-struct LaplacianCPUBase<T, Intermediate, Out, In, W, 2, has_channels> {
+struct LaplacianCpuBase<T, Intermediate, Out, In, W, 2, has_channels> {
   static constexpr int axes = 2;
   using DyKernel = PartialDeriv<Intermediate, In, W, axes, 0, has_channels,
-                                TransScaleSat<Intermediate, W>>;
+                                conv_transform::TransScaleSat<Intermediate, W>>;
   using DxKernel = PartialDeriv<Out, In, W, axes, 1, has_channels, T>;
   static constexpr int ndim = DyKernel::ndim;  // Dx ndim is the same
 
@@ -125,8 +123,8 @@ struct LaplacianCPUBase<T, Intermediate, Out, In, W, 2, has_channels> {
     return req;
   }
 
-  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> &out,
-           const TensorView<StorageCPU, Intermediate, ndim> &acc,
+  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim>& out,
+           const TensorView<StorageCPU, Intermediate, ndim>& acc,
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<std::array<TensorView<StorageCPU, const W, 1>, axes>, axes>& windows,
            const std::array<float, axes>& scale, const T& transform) {
@@ -136,8 +134,8 @@ struct LaplacianCPUBase<T, Intermediate, Out, In, W, 2, has_channels> {
     for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
       auto sz = sub_scratch_sizes_[i];
       auto kind_id = static_cast<mm::memory_kind_id>(i);
-      sub_scratch.allocs[i] = BumpAllocator(
-        static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
+      sub_scratch.allocs[i] =
+          BumpAllocator(static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
     }
 
     KernelContext sub_ctx = ctx;
@@ -156,12 +154,12 @@ struct LaplacianCPUBase<T, Intermediate, Out, In, W, 2, has_channels> {
 
 template <typename T, typename Intermediate, typename Out, typename In, typename W,
           bool has_channels>
-struct LaplacianCPUBase<T, Intermediate, Out, In, W, 3, has_channels> {
+struct LaplacianCpuBase<T, Intermediate, Out, In, W, 3, has_channels> {
   static constexpr int axes = 3;
   using DzKernel = PartialDeriv<Intermediate, In, W, axes, 0, has_channels,
-                                TransScaleSat<Intermediate, W>>;
+                                conv_transform::TransScaleSat<Intermediate, W>>;
   using DyKernel = PartialDeriv<Intermediate, In, W, axes, 1, has_channels,
-                                TransScaleAddOutSat<Intermediate, W>>;
+                                conv_transform::TransScaleAddOutSat<Intermediate, W>>;
   using DxKernel = PartialDeriv<Out, In, W, axes, 2, has_channels, T>;
   static constexpr int ndim = DzKernel::ndim;  // Dx and Dy ndim are the same
 
@@ -182,8 +180,8 @@ struct LaplacianCPUBase<T, Intermediate, Out, In, W, 3, has_channels> {
     return req;
   }
 
-  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> &out,
-           const TensorView<StorageCPU, Intermediate, ndim> &acc,
+  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim>& out,
+           const TensorView<StorageCPU, Intermediate, ndim>& acc,
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<std::array<TensorView<StorageCPU, const W, 1>, axes>, axes>& windows,
            const std::array<float, axes>& scale, const T& transform) {
@@ -193,8 +191,8 @@ struct LaplacianCPUBase<T, Intermediate, Out, In, W, 3, has_channels> {
     for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
       auto sz = sub_scratch_sizes_[i];
       auto kind_id = static_cast<mm::memory_kind_id>(i);
-      sub_scratch.allocs[i] = BumpAllocator(
-        static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
+      sub_scratch.allocs[i] =
+          BumpAllocator(static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
     }
 
     KernelContext sub_ctx = ctx;
@@ -229,6 +227,17 @@ struct LaplacianCPUBase<T, Intermediate, Out, In, W, 3, has_channels> {
  * the arguments that describe windows passed to the kernel methods are `axes x axes` dimensional
  * arrays of parameters, where ``[i][j]`` parameter refers to j-th window of i-th partial
  * derivative.
+ *
+ * @tparam Intermediate  Intermediate type used to accumulate partial derivatives.
+ * @tparam Out           Desired output type. Conversion with clamping the output values
+ *                       is performed if needed.
+ * @tparam In            Input type.
+ * @tparam W             Type of convolution window elements.
+ * @tparam axes          Number of spatial dimensions of the input data (and the number of partial
+ *                       derivatives to compute).
+ * @tparam has_channels  True iff the input data has ``axes + 1`` dimensions with the last
+ *                       one treated as channels.
+ * @tparam Dummy         Dummy type used with enable_if_t to disambiguate template specializations.
  */
 template <typename Intermediate, typename Out, typename In, typename W, int axes, bool has_channels,
           typename Dummy = void>
@@ -237,10 +246,10 @@ struct LaplacianCPU;
 template <typename Intermediate, typename Out, typename In, typename W, int axes, bool has_channels>
 struct LaplacianCPU<Intermediate, Out, In, W, axes, has_channels,
                     std::enable_if_t<!std::is_same<Intermediate, Out>::value && axes != 1>>
-                    : LaplacianCPUBase<TransScaleAddBufferSat<Intermediate, Out, W>,
-                                       Intermediate, Out, In, W, axes, has_channels>  {
-  using Base = LaplacianCPUBase<TransScaleAddBufferSat<Intermediate, Out, W>, Intermediate,
-                                Out, In, W, axes, has_channels>;
+    : LaplacianCpuBase<conv_transform::TransScaleAddBufferSat<Intermediate, Out, W>, Intermediate,
+                       Out, In, W, axes, has_channels> {
+  using Base = LaplacianCpuBase<conv_transform::TransScaleAddBufferSat<Intermediate, Out, W>,
+                                Intermediate, Out, In, W, axes, has_channels>;
   using Base::ndim;
 
   KernelRequirements Setup(KernelContext& ctx, const TensorShape<ndim>& in_shape,
@@ -252,11 +261,11 @@ struct LaplacianCPU<Intermediate, Out, In, W, axes, has_channels,
     return req;
   }
 
-  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> &out,
+  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim>& out,
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<std::array<TensorView<StorageCPU, const W, 1>, axes>, axes>& windows,
            const std::array<float, axes>& scale) {
-    auto *tmp = ctx.scratchpad->AllocateHost<Intermediate>(volume(in.shape));
+    auto* tmp = ctx.scratchpad->AllocateHost<Intermediate>(volume(in.shape));
     auto acc = TensorView<StorageCPU, Intermediate, ndim>(tmp, in.shape);
     Base::Run(ctx, out, acc, in, windows, scale, {tmp, scale[axes - 1]});
   }
@@ -264,12 +273,13 @@ struct LaplacianCPU<Intermediate, Out, In, W, axes, has_channels,
 
 template <typename Out, typename In, typename W, int axes, bool has_channels>
 struct LaplacianCPU<Out, Out, In, W, axes, has_channels, std::enable_if_t<axes != 1>>
-                    : LaplacianCPUBase<TransScaleAddOutSat<Out, W>, Out, Out, In, W,
-                                       axes, has_channels> {
-  using Base = LaplacianCPUBase<TransScaleAddOutSat<Out, W>, Out, Out, In, W, axes, has_channels>;
+    : LaplacianCpuBase<conv_transform::TransScaleAddOutSat<Out, W>, Out, Out, In, W, axes,
+                       has_channels> {
+  using Base = LaplacianCpuBase<conv_transform::TransScaleAddOutSat<Out, W>, Out, Out, In, W, axes,
+                                has_channels>;
   using Base::ndim;
 
-  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> &out,
+  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim>& out,
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<std::array<TensorView<StorageCPU, const W, 1>, axes>, axes>& windows,
            const std::array<float, axes>& scale) {
@@ -281,7 +291,7 @@ template <typename Intermediate, typename Out, typename In, typename W, bool has
 struct LaplacianCPU<Intermediate, Out, In, W, 1, has_channels> {
   static constexpr int axes = 1;
   using ConvKernel = SeparableConvolutionCpu<Out, In, W, axes, has_channels,
-                                             TransScaleSat<Out, W>>;
+                                             conv_transform::TransScaleSat<Out, W>>;
   static constexpr int ndim = ConvKernel::ndim;
 
   KernelRequirements Setup(KernelContext& ctx, const TensorShape<ndim>& in_shape,
@@ -289,7 +299,7 @@ struct LaplacianCPU<Intermediate, Out, In, W, 1, has_channels> {
     return conv_.Setup(ctx, in_shape, window_sizes[0]);
   }
 
-  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> &out,
+  void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim>& out,
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<std::array<TensorView<StorageCPU, const W, 1>, axes>, axes>& windows,
            const std::array<float, axes>& scale) {
@@ -302,8 +312,8 @@ struct LaplacianCPU<Intermediate, Out, In, W, 1, has_channels> {
 }  // namespace laplacian
 
 template <typename Out, typename In, typename W, int axes, bool has_channels>
-using LaplacianCPU = laplacian::LaplacianCPU<decltype(std::declval<W>() * std::declval<In>()),
-                                             Out, In, W, axes, has_channels>;
+using LaplacianCPU = laplacian::LaplacianCPU<decltype(std::declval<W>() * std::declval<In>()), Out,
+                                             In, W, axes, has_channels>;
 
 }  // namespace kernels
 }  // namespace dali
