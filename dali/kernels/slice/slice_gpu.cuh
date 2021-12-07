@@ -246,7 +246,7 @@ class SliceGPU {
       total_volume += volume(args.shape);
     }
 
-    unsigned min_blocks = 4 * GetSMCount();
+    unsigned min_blocks = 4 * GetSmCount();
     block_size_ = kMaxBlockSize;
     while (total_volume / block_size_ < min_blocks && block_size_ > kMinBlockSize) {
       block_size_ /= 2;

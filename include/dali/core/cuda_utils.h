@@ -93,7 +93,7 @@ int MaxThreadsPerBlock(KernelFunction *f) {
   return max_block_size[device];
 }
 
-inline int GetSMCount() {
+inline int GetSmCount() {
   static int count = 0;
   if (!count) {
     cudaDeviceProp prop;
