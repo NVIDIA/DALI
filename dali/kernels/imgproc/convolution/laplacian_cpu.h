@@ -241,10 +241,10 @@ struct LaplacianCpuBase<T, Intermediate, Out, In, W, 3, has_channels> {
  */
 template <typename Intermediate, typename Out, typename In, typename W, int axes, bool has_channels,
           typename Dummy = void>
-struct LaplacianCPU;
+struct LaplacianCpu;
 
 template <typename Intermediate, typename Out, typename In, typename W, int axes, bool has_channels>
-struct LaplacianCPU<Intermediate, Out, In, W, axes, has_channels,
+struct LaplacianCpu<Intermediate, Out, In, W, axes, has_channels,
                     std::enable_if_t<!std::is_same<Intermediate, Out>::value && axes != 1>>
     : LaplacianCpuBase<conv_transform::TransScaleAddBufferSat<Intermediate, Out, W>, Intermediate,
                        Out, In, W, axes, has_channels> {
@@ -272,7 +272,7 @@ struct LaplacianCPU<Intermediate, Out, In, W, axes, has_channels,
 };
 
 template <typename Out, typename In, typename W, int axes, bool has_channels>
-struct LaplacianCPU<Out, Out, In, W, axes, has_channels, std::enable_if_t<axes != 1>>
+struct LaplacianCpu<Out, Out, In, W, axes, has_channels, std::enable_if_t<axes != 1>>
     : LaplacianCpuBase<conv_transform::TransScaleAddOutSat<Out, W>, Out, Out, In, W, axes,
                        has_channels> {
   using Base = LaplacianCpuBase<conv_transform::TransScaleAddOutSat<Out, W>, Out, Out, In, W, axes,
@@ -288,7 +288,7 @@ struct LaplacianCPU<Out, Out, In, W, axes, has_channels, std::enable_if_t<axes !
 };
 
 template <typename Intermediate, typename Out, typename In, typename W, bool has_channels>
-struct LaplacianCPU<Intermediate, Out, In, W, 1, has_channels> {
+struct LaplacianCpu<Intermediate, Out, In, W, 1, has_channels> {
   static constexpr int axes = 1;
   using ConvKernel = SeparableConvolutionCpu<Out, In, W, axes, has_channels,
                                              conv_transform::TransScaleSat<Out, W>>;
@@ -312,7 +312,7 @@ struct LaplacianCPU<Intermediate, Out, In, W, 1, has_channels> {
 }  // namespace laplacian
 
 template <typename Out, typename In, typename W, int axes, bool has_channels>
-using LaplacianCPU = laplacian::LaplacianCPU<decltype(std::declval<W>() * std::declval<In>()), Out,
+using LaplacianCpu = laplacian::LaplacianCpu<decltype(std::declval<W>() * std::declval<In>()), Out,
                                              In, W, axes, has_channels>;
 
 }  // namespace kernels

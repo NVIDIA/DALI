@@ -120,7 +120,7 @@ template <typename T>
 struct LaplacianCpuKernelTest : public ::testing::Test {
   static constexpr int axes = T::axes;
   static constexpr int window_size = T::window_size;
-  using Kernel = LaplacianCPU<float, float, float, axes, false>;
+  using Kernel = LaplacianCpu<float, float, float, axes, false>;
 
   void SetUp() override {
     int padding = 2;  // add padding zeros so that border101 has no effect
@@ -253,7 +253,7 @@ struct LaplacianCpuTest : public ::testing::Test {
   using Out = typename T::Out;
   using In = typename T::In;
   using W = float;
-  using Kernel = LaplacianCPU<Out, In, W, axes, has_channels>;
+  using Kernel = LaplacianCpu<Out, In, W, axes, has_channels>;
   using Conv = SeparableConvolutionCpu<W, In, W, axes, has_channels>;
 
   static std::array<int, ndim> GetShape() {
