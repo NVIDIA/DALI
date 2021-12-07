@@ -193,12 +193,12 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const SliceBlo
 template <typename OutputType, typename InputType, int Dims>
 class SliceGPU {
  private:
-  static constexpr int64_t kBlockDim = 256;
-  static constexpr int64_t kMinBlockSize = 4 * kBlockDim;
-  static constexpr int64_t kMaxBlockSize = 64 * kBlockDim;
+  static constexpr uint64_t kBlockDim = 256;
+  static constexpr uint64_t kMinBlockSize = 4 * kBlockDim;
+  static constexpr uint64_t kMaxBlockSize = 64 * kBlockDim;
 
-  int64_t block_size_ = kMaxBlockSize;
-  int64_t block_count_ = 0;
+  uint64_t block_size_ = kMaxBlockSize;
+  uint64_t block_count_ = 0;
 
  public:
   KernelRequirements Setup(KernelContext &context,
@@ -246,7 +246,7 @@ class SliceGPU {
       total_volume += volume(args.shape);
     }
 
-    int min_blocks = 4 * GetSMCount();
+    unsigned min_blocks = 4 * GetSMCount();
     block_size_ = kMaxBlockSize;
     while (total_volume / block_size_ < min_blocks && block_size_ > kMinBlockSize) {
       block_size_ /= 2;
