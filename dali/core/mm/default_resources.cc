@@ -81,6 +81,7 @@ struct DefaultResources {
         decltype(device) tmp(new std::shared_ptr<device_async_resource>[ndevs]);
         std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
         num_devices = ndevs;
+        std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
         device = std::move(tmp);
       }
     }
