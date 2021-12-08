@@ -35,8 +35,8 @@ max_window_size = 23
 shape_layout_axes_cases = [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
                            ((20, 30, 3), "HWC", 2), ((20, 30), "HW", 2),
                            ((3, 30, 20), "CWH", 2), ((5, 20, 30, 3), "FHWC", 2),
-                           ((5, 10, 10, 7, 3), "FDHWC",
-                            3), ((5, 3, 20, 30), "FCHW", 2),
+                           ((5, 10, 10, 7, 3), "FDHWC", 3),
+                           ((5, 3, 20, 30), "FCHW", 2),
                            ((3, 5, 10, 10, 7), "CFDHW", 3)]
 
 
@@ -493,7 +493,8 @@ def check_fixed_param_laplacian(batch_size, in_type, out_type, shape, layout, ax
             window_sizes = np.array(window_sizes, dtype=np.int32)
             scales = None if scales is None else np.array(
                 scales, dtype=np.float32)
-            sample = laplacian_baseline(data[i], out_type or in_type, window_sizes, scales, normalize, axes, skip_axes)
+            sample = laplacian_baseline(
+                data[i], out_type or in_type, window_sizes, scales, normalize, axes, skip_axes)
             baseline.append(sample)
         if out_type == np.float32:
             max_error = 1e-4
@@ -532,7 +533,8 @@ def test_fixed_params_laplacian():
 
 def check_build_time_fail(batch_size, shape, layout, axes, window_size, scale, normalize, err_regex):
     with assert_raises(RuntimeError, regex=err_regex):
-        check_fixed_param_laplacian(batch_size, np.uint8, None, shape, layout, axes, window_size, scale, normalize)
+        check_fixed_param_laplacian(
+            batch_size, np.uint8, None, shape, layout, axes, window_size, scale, normalize)
 
 
 def check_tensor_input_fail(batch_size, shape, layout, window_size, scale, normalize, dtype, err_regex):
@@ -545,12 +547,15 @@ def check_tensor_input_fail(batch_size, shape, layout, window_size, scale, norma
     @pipeline_def
     def pipeline():
         data = fn.external_source(iterator, layout=layout)
-        window_size, scale = fn.external_source(gen_params, batch=False, num_outputs=2)
-        edges = fn.laplacian(data, window_size=window_size, scale=scale, normalize=normalize, dtype=dtype)
+        window_size, scale = fn.external_source(
+            gen_params, batch=False, num_outputs=2)
+        edges = fn.laplacian(data, window_size=window_size,
+                             scale=scale, normalize=normalize, dtype=dtype)
         return edges, data
 
     with assert_raises(RuntimeError, regex=err_regex):
-        pipe = pipeline(device_id=types.CPU_ONLY_DEVICE_ID, num_threads=4, batch_size=batch_size)
+        pipe = pipeline(device_id=types.CPU_ONLY_DEVICE_ID,
+                        num_threads=4, batch_size=batch_size)
         pipe.build()
         pipe.run()
 
@@ -587,11 +592,15 @@ def test_fail_laplacian():
             "Smoothing window size must be an odd integer between 1 and \d"
     for window_size in [[3, 7, 3], [7, 7, 7, 7, 7]]:
         yield check_build_time_fail, 10, (10, 10, 3), "HWC", 2, window_size, 1., False, \
-            "Argument `window_size` is expected to have 1, 2 or 2x2 elements, got {}".format(len(window_size))
+            "Argument `window_size` is expected to have 1, 2 or 2x2 elements, got {}".format(
+                len(window_size))
         yield check_tensor_input_fail, 10, (10, 10, 3), "HWC", window_size, 1., False, types.FLOAT, \
-            "Argument `window_size` for sample \d is expected to have 1, 2 or 2x2 elements, got {}".format(len(window_size))
+            "Argument `window_size` for sample \d is expected to have 1, 2 or 2x2 elements, got {}".format(
+                len(window_size))
     for scale in [[3, 7, 3], [7, 7, 7, 7, 7]]:
         yield check_build_time_fail, 10, (10, 10, 3), "HWC", 2, 3, scale, False, \
-            "Argument \"scale\" expects either a single value or a list of 2 elements. {} given.".format(len(scale))
+            "Argument \"scale\" expects either a single value or a list of 2 elements. {} given.".format(
+                len(scale))
         yield check_tensor_input_fail, 10, (10, 10, 3), "HWC", 5, scale, False, types.FLOAT, \
-            "Argument scale for sample 0 is expected to have 1 or 2 elements, got: {}".format(len(scale))
+            "Argument scale for sample 0 is expected to have 1 or 2 elements, got: {}".format(
+                len(scale))
