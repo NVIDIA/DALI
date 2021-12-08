@@ -18,6 +18,7 @@ import numpy as np
 from nvidia.dali.pipeline import Pipeline
 from test_utils import check_batch
 from nose_utils import raises
+from nvidia.dali.types import DALIDataType
 
 def build_src_pipe(device, layout = None):
     if layout is None:
@@ -189,3 +190,28 @@ def test_epoch_idx():
         yield _test_epoch_idx, batch_size, epoch_size, batch_cb, batch_info, True
     sample_cb = SampleCb(batch_size, epoch_size)
     yield _test_epoch_idx, batch_size, epoch_size, sample_cb, None, False
+
+
+def test_dtype_arg():
+    batch_size = 2
+    src_data = [
+        [np.ones((120, 120, 3), dtype=np.uint8)]*batch_size
+    ]
+    src_pipe = Pipeline(batch_size, 1, 0)
+    src_ext = fn.external_source(source=src_data, device='cpu', dtype=DALIDataType.UINT8)
+    src_pipe.set_outputs(src_ext)
+    src_pipe.build()
+    src_pipe.run()
+
+
+@raises(RuntimeError, glob="ExternalSource expected data of type uint8 and got: float")
+def test_incorrect_dtype_arg():
+    batch_size = 2
+    src_data = [
+        [np.ones((120, 120, 3), dtype=np.float32)]*batch_size
+    ]
+    src_pipe = Pipeline(batch_size, 1, 0)
+    src_ext = fn.external_source(source=src_data, device='cpu', dtype=DALIDataType.UINT8)
+    src_pipe.set_outputs(src_ext)
+    src_pipe.build()
+    src_pipe.run()

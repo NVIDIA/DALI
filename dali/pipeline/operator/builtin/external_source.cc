@@ -92,6 +92,11 @@ The memory location must match the specified ``device`` parameter of the operato
 For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
 For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you provide a list
 of separate Tensors, there will be an additional copy made internally, consuming both memory
-and bandwidth.)code", false);
+and bandwidth.)code", false)
+  .AddOptionalArg("dtype", R"code(Input data type.
+
+The operator will validate that the fetched data is of the provided type.
+If the argument is omitted or ``DALIDataType.NO_TYPE`` is passed, the operator will infer
+the type based on the provided data.)code", DALI_NO_TYPE);
 
 }  // namespace dali

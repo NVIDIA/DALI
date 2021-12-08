@@ -218,6 +218,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         blocking_(spec.GetArgument<bool>("blocking")),
         no_copy_(spec.GetArgument<bool>("no_copy")),
         device_id_(spec.GetArgument<int>("device_id")),
+        dtype_(spec.GetArgument<DALIDataType>("dtype")),
+        previous_dtype_(DALIDataType::DALI_NO_TYPE),
         sync_worker_(device_id_, false) {
     output_name_ = spec.Output(0);
     sync_worker_.WaitForInit();
@@ -502,6 +504,19 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         OperatorBase::max_batch_size_ >= static_cast<int>(batch.num_samples()),
         make_string("Data list provided to ExternalSource needs to have batch_size <= ",
                     OperatorBase::max_batch_size_, ", found ", batch.num_samples(), " samples."));
+
+    DALI_ENFORCE(
+        dtype_ == DALI_NO_TYPE || dtype_ == batch.type(),
+        make_string("ExternalSource expected data of type ", TypeTable::GetTypeInfo(dtype_).name(),
+        " and got: ", batch.type_info().name()));
+
+    if (previous_dtype_ != DALI_NO_TYPE && previous_dtype_ != batch.type()) {
+      DALI_WARN("Type of the data fed to the external source has changed from the previous iteration."
+                " The incosistent data type is not a supported feature and it"
+                " will not work starting from DALI version 2.0.");
+    }
+    previous_dtype_ = batch.type();
+
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
@@ -537,6 +552,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   bool blocking_ = true;
   bool no_copy_ = false;
   int device_id_;
+  DALIDataType dtype_;
+  DALIDataType previous_dtype_;
 
   /*
    * now it only indicates that there is data in the ExternalSource, in the future
