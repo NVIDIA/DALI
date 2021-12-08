@@ -21,9 +21,9 @@ import cv2
 from scipy.ndimage import convolve1d, filters as sp_filters
 import os
 from nose_utils import assert_raises
-from nose.plugins.attrib import attr
 
 from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator
+
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -31,7 +31,6 @@ images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 test_iters = 4
 min_window_size = 3
 max_window_size = 23
-
 
 shape_layout_axes_cases = [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
                            ((20, 30, 3), "HWC", 2), ((20, 30), "HW", 2),
@@ -180,7 +179,6 @@ def _test_vs_open_cv(batch_size, window_size, in_type, out_type, normalize, gray
                     max_allowed_error=max_error, expected_layout="HWC")
 
 
-@attr('slow')
 def test_vs_open_cv():
     batch_size = 10
     for normalize in [True, False]:

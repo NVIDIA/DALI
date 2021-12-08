@@ -22,7 +22,6 @@
 #include "dali/kernels/imgproc/convolution/separable_convolution_cpu.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/convolution/gaussian_blur.h"
-#include "dali/operators/image/convolution/convolution_utils.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 
