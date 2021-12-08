@@ -187,9 +187,10 @@ def test_vs_open_cv():
                 output_types = [None] if in_type == types.FLOAT else [
                     None, types.FLOAT]
                 for out_type in output_types:
-                    # For bigger windows and uint8 mode cv2 seems to use some integral type that saturates too early
-                    # (in any case the resulting picture is mostly black and different than the result of running the
-                    # cv2.laplacian with floats and than clamping the results)
+                    # For bigger windows and uint8 mode, cv2 seems to use some integral type that
+                    # saturates too early (in any case the resulting picture is mostly black and
+                    # different from the result of running cv2.laplacian with floats and then
+                    # clamping the results)
                     if out_type is None and in_type == types.UINT8:
                         rng = range(1, 13, 2)
                     else:
