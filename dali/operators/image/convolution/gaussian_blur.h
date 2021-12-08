@@ -94,8 +94,6 @@ inline GaussianBlurParams<axes> ObtainSampleParams(int sample, const OpSpec& spe
   return params;
 }
 
-DimDesc ParseAndValidateDim(int ndim, TensorLayout layout);
-
 }  // namespace gaussian_blur
 }  // namespace dali
 

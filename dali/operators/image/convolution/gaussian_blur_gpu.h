@@ -27,12 +27,15 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/convolution/gaussian_blur.h"
 #include "dali/operators/image/convolution/gaussian_blur_params.h"
+#include "dali/operators/image/convolution/convolution_utils.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 
 namespace dali {
 
 namespace gaussian_blur {
+
+using namespace convolution_utils;  // NOLINT
 
 using op_impl_uptr = std::unique_ptr<OpImplBase<GPUBackend>>;
 

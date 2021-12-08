@@ -34,25 +34,6 @@ inline float DiameterToSigma(int diameter) {
   return (radius - 1) * 0.3 + 0.8;
 }
 
-struct DimDesc {
-  int usable_axes_start = -1;
-  int usable_axes_count = -1;
-  int total_axes_count = -1;
-  bool has_channels = false;
-  bool is_sequence = false;
-
-  inline bool operator==(const DimDesc &other) const {
-    return usable_axes_start == other.usable_axes_start &&
-      usable_axes_count == other.usable_axes_count &&
-      total_axes_count == other.total_axes_count && has_channels == other.has_channels &&
-      is_sequence == other.is_sequence;
-  }
-
-  inline bool operator!=(const DimDesc &other) const {
-    return !(*this == other);
-  }
-};
-
 template <int axes>
 struct GaussianBlurParams {
   DeviceArray<int, axes> window_sizes;

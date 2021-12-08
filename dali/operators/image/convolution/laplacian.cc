@@ -1,0 +1,228 @@
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <functional>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "dali/core/static_switch.h"
+#include "dali/kernels/imgproc/convolution/laplacian_cpu.h"
+#include "dali/kernels/kernel_manager.h"
+#include "dali/operators/image/convolution/laplacian.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/common.h"
+
+namespace dali {
+
+using namespace convolution_utils;  // NOLINT
+
+DALI_SCHEMA(Laplacian)
+    .DocStr(R"code(Computes laplacian of the input.
+
+Laplacian is calculated as a sum of second order partial derivatives in each spacial
+dimension of the data. Each derivative is computed by applying to the input a convolution
+with separable second-order Sobel kernel.
+
+Kernel used to compute ``i-th`` partial derivative of ``n``-dimensional input can be parametrized
+with ``n`` window sizes. The ``i-th`` window size corresponds to the window that approximates
+a derivative along i-th axis. The remaining sizes refer to smoothing windows along
+corresponding axes.
+
+In total, for ``n`` spacial dimensions, there are ``n * n`` window sizes.
+The window size parameter can be:
+  * A single value used for all windows (if not specified, it defaults to 3)
+  * ``n * n`` values, where ``window_size[i][j]`` is a size of window applied along ``j-th`` axis
+    while computing ``i-th`` partial derivative. A ``window_size[i][i]`` value corresponds to
+    derivative window size, the remianing values refer to smoothing windows.
+  * ``n`` values, where first value refers to the derivative window size and
+    remaingin values refer to smoothing windows. Values are shifted to obtain parameters
+    for all ``n`` partial derivatives. For instance, for volumetric data and
+    ``window_sizes = [dz, sy, sx]``, partial derivative along ``z`` axis will use
+    windows of size [dz, sy, sx], along ``y`` axis will use windows of size ``[sx, dz, sy]``
+    and along ``z`` axis: ``[sy, sx, dz]``. Note, it is equivalent to specifying
+    ``window_sizes = [dz, sy, sx, sx, dz, sy, sy, sx, dz]``.
+
+Window sizes must be odd. Size of a derivative window must be at least 3. Smoothing
+window can be of size 1, which implies no smoothing along corresponding axis.
+
+To normalize output, derivative kernel that uses ``n`` windows of total size equal to ``s``,
+should be scaled by 2^(-s + n + 2). If ``normalize`` argument is set to True,
+normalization is done by the operator. You can also specify ``scale`` argument to customize
+scaling factors. Scale can be either a single value or ``n`` values, one for every
+partial derivative.
+
+For now, operator uses 32-bit floats as intermediate type.
+
+.. note::
+  The channel ``C`` and frame ``F`` dimensions are not considered data axes. If channels are present,
+  only channel-first or channel-last inputs are supported.
+
+)code")
+    .NumInput(1)
+    .NumOutput(1)
+    .AllowSequences()
+    .SupportVolumetric()
+    .AddOptionalArg<int>(laplacian::kWindowSizeArgName,
+                         "Size or sizes of windows used in convolutions",
+                         std::vector<int>{laplacian::defaultWindowSize}, true)
+    .AddOptionalArg<float>(laplacian::scaleArgName,
+                           "Factor or factors to manually scale partial derivatives",
+                           std::vector<float>{laplacian::scaleArgDefault}, true)
+    .AddOptionalArg<bool>(laplacian::normalizeArgName,
+                          "If set to True, automatically scales partial derivatives to normalize "
+                          "the output. Must be False if ``scale`` is specified.",
+                          laplacian::normalizeArgDefault)
+    .AddOptionalArg("dtype", R"code(Output data type.
+
+Supported type: `FLOAT`. If not set, the input type is used.)code",
+                    DALI_NO_TYPE);
+
+
+namespace laplacian {
+
+template <typename Out, typename In, int axes, bool has_channels>
+class LaplacianOpCpu : public OpImplBase<CPUBackend> {
+ public:
+  using Kernel = kernels::LaplacianCpu<Out, In, float, axes, has_channels>;
+  static constexpr int ndim = Kernel::ndim;
+
+  explicit LaplacianOpCpu(const OpSpec& spec, const DimDesc& dim_desc)
+      : args{spec}, dim_desc_{dim_desc} {}
+
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
+    const auto& input = ws.template Input<CPUBackend>(0);
+    int nsamples = input.num_samples();
+    auto nthreads = ws.GetThreadPool().NumThreads();
+
+    output_desc.resize(1);
+    output_desc[0].type = type2id<Out>::value;
+    output_desc[0].shape.resize(nsamples, input.shape().sample_dim());
+
+    args.ObtainLaplacianArgs(ws, nsamples);
+    windows_.resize(nsamples);
+
+    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+      const auto& window_sizes = args.GetWindowSizes(sample_idx);
+      for (int i = 0; i < axes; i++) {
+        for (int j = 0; j < axes; j++) {
+          windows_[sample_idx][i][j] = lap_windows_.GetWindow(window_sizes[i][j], i == j);
+        }
+      }
+    }
+
+    kmgr_.template Resize<Kernel>(nthreads, nsamples);
+    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+      // We take only last `ndim` siginificant dimensions to handle sequences as well
+      auto elem_shape = input[sample_idx].shape().template last<ndim>();
+      kmgr_.Setup<Kernel>(sample_idx, ctx_, elem_shape, args.GetWindowSizes(sample_idx));
+      // The shape of data stays untouched
+      output_desc[0].shape.set_tensor_shape(sample_idx, input[sample_idx].shape());
+    }
+    return true;
+  }
+
+  void RunImpl(workspace_t<CPUBackend>& ws) override {
+    const auto& input = ws.template Input<CPUBackend>(0);
+    auto& output = ws.template Output<CPUBackend>(0);
+    output.SetLayout(input.GetLayout());
+    auto in_shape = input.shape();
+    auto& thread_pool = ws.GetThreadPool();
+
+    int nsamples = input.shape().num_samples();
+    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+      const auto& shape = input[sample_idx].shape();
+      auto elem_volume = volume(shape.begin() + dim_desc_.usable_axes_start, shape.end());
+      auto priority = elem_volume * args.GetTotalWindowSizes(sample_idx);
+
+      int seq_elements = 1;
+      int64_t stride = 0;
+      if (dim_desc_.is_sequence) {
+        seq_elements = volume(shape.begin(), shape.begin() + dim_desc_.usable_axes_start);
+        stride = elem_volume;
+      }
+      for (int elem_idx = 0; elem_idx < seq_elements; elem_idx++) {
+        thread_pool.AddWork(
+            [this, &input, &output, sample_idx, elem_idx, stride](int thread_id) {
+              const auto& scales = args.GetScales(sample_idx);
+              auto elem_shape = input[sample_idx].shape().template last<ndim>();
+              auto in_view = TensorView<StorageCPU, const In, ndim>{
+                  input[sample_idx].template data<In>() + stride * elem_idx, elem_shape};
+              auto out_view = TensorView<StorageCPU, Out, ndim>{
+                  output[sample_idx].template mutable_data<Out>() + stride * elem_idx, elem_shape};
+              // Copy context so that the kernel instance can modify scratchpad
+              auto ctx = ctx_;
+              kmgr_.Run<Kernel>(thread_id, sample_idx, ctx, out_view, in_view, windows_[sample_idx],
+                                scales);
+            },
+            priority);
+      }
+    }
+    thread_pool.RunAll();
+  }
+
+ private:
+  LaplacianArgs<axes> args;
+  DimDesc dim_desc_;
+
+  kernels::KernelManager kmgr_;
+  kernels::KernelContext ctx_;
+
+  LaplacianWindows<float> lap_windows_;
+  std::vector<std::array<std::array<TensorView<StorageCPU, const float, 1>, axes>, axes>> windows_;
+};
+
+
+}  // namespace laplacian
+
+bool Laplacian::SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) {
+  const auto& input = ws.template Input<CPUBackend>(0);
+  auto layout = input.GetLayout();
+  auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
+  dtype_ = dtype_ != DALI_NO_TYPE ? dtype_ : input.type();
+  DALI_ENFORCE(dtype_ == input.type() || dtype_ == DALI_FLOAT,
+               "Output data type must be same as input, FLOAT or skipped (defaults to input type)");
+
+  if (!impl_ || impl_in_dtype_ != input.type() || impl_dim_desc_ != dim_desc) {
+    impl_in_dtype_ = input.type();
+    impl_dim_desc_ = dim_desc;
+
+    // clang-format off
+    TYPE_SWITCH(input.type(), type2id, In, LAPLACIAN_CPU_SUPPORTED_TYPES, (
+      VALUE_SWITCH(dim_desc.usable_axes_count, Axes, LAPLACIAN_SUPPORTED_AXES, (
+        BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
+          if (dtype_ == input.type()) {
+            using LaplacianSame = laplacian::LaplacianOpCpu<In, In, Axes, HasChannels>;
+            impl_ = std::make_unique<LaplacianSame>(spec_, dim_desc);
+          } else {
+            using LaplacianFloat = laplacian::LaplacianOpCpu<float, In, Axes, HasChannels>;
+            impl_ = std::make_unique<LaplacianFloat>(spec_, dim_desc);
+          }
+        )); // NOLINT
+      ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
+    // clang-format on
+  }
+
+  return impl_->SetupImpl(output_desc, ws);
+}
+
+void Laplacian::RunImpl(workspace_t<CPUBackend>& ws) {
+  impl_->RunImpl(ws);
+}
+
+DALI_REGISTER_OPERATOR(Laplacian, Laplacian, CPU);
+
+}  // namespace dali
