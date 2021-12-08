@@ -32,39 +32,33 @@ using namespace convolution_utils;  // NOLINT
 DALI_SCHEMA(Laplacian)
     .DocStr(R"code(Computes laplacian of the input.
 
-Laplacian is calculated as a sum of second order partial derivatives in each spacial
-dimension of the data. Each derivative is computed by applying to the input a convolution
-with separable second-order Sobel kernel.
+Laplacian is calculated as a sum of second order partial derivatives in each spatial
+dimension of the data. Each partial derivative is approximated with a separable convolution,
+that uses derivative window in the direction of the partial derivative and smoothing windows in
+the remaining axes.
 
-Kernel used to compute ``i-th`` partial derivative of ``n``-dimensional input can be parametrized
-with ``n`` window sizes. The ``i-th`` window size corresponds to the window that approximates
-a derivative along i-th axis. The remaining sizes refer to smoothing windows along
-corresponding axes.
-
-In total, for ``n`` spacial dimensions, there are ``n * n`` window sizes.
+In total, for ``n`` spatial dimensions, there are ``n * n`` window sizes.
 The window size parameter can be:
-  * A single value used for all windows (if not specified, it defaults to 3)
-  * ``n * n`` values, where ``window_size[i][j]`` is a size of window applied along ``j-th`` axis
-    while computing ``i-th`` partial derivative. A ``window_size[i][i]`` value corresponds to
-    derivative window size, the remianing values refer to smoothing windows.
-  * ``n`` values, where first value refers to the derivative window size and
-    remaingin values refer to smoothing windows. Values are shifted to obtain parameters
-    for all ``n`` partial derivatives. For instance, for volumetric data and
-    ``window_sizes = [dz, sy, sx]``, partial derivative along ``z`` axis will use
-    windows of size [dz, sy, sx], along ``y`` axis will use windows of size ``[sx, dz, sy]``
-    and along ``z`` axis: ``[sy, sx, dz]``. Note, it is equivalent to specifying
-    ``window_sizes = [dz, sy, sx, sx, dz, sy, sy, sx, dz]``.
+  * A single value used for all windows.
+  * ``n * n`` values, where ``window_size[i][j]`` is a size of window applied along ``j``-th axis
+    while computing ``i``-th partial derivative. Values ``window_size[i][i]`` describe
+    derivative window sizes, the remianing values refer to smoothing windows.
+  * ``n`` values, where the first value describes the derivative window size and
+    remaining values refer to smoothing windows. Values are shifted to the right to
+    obtain parameters for all partial derivatives. For instance, for volumetric data, specifing
+    ``window_sizes = [w1, w2, w3]`` is same as setting
+    ``window_sizes = [w1, w2, w3, w3, w1, w2, w2, w3, w1]``.
 
 Window sizes must be odd. Size of a derivative window must be at least 3. Smoothing
 window can be of size 1, which implies no smoothing along corresponding axis.
 
 To normalize output, derivative kernel that uses ``n`` windows of total size equal to ``s``,
 should be scaled by 2^(-s + n + 2). If ``normalize`` argument is set to True,
-normalization is done by the operator. You can also specify ``scale`` argument to customize
-scaling factors. Scale can be either a single value or ``n`` values, one for every
+normalization is done by the operator. Alternatively, you can specify ``scale`` argument
+to customize scaling factors. Scale can be either a single value or ``n`` values, one for every
 partial derivative.
 
-For now, operator uses 32-bit floats as intermediate type.
+Operator uses 32-bit floats as intermediate type.
 
 .. note::
   The channel ``C`` and frame ``F`` dimensions are not considered data axes. If channels are present,
@@ -76,10 +70,10 @@ For now, operator uses 32-bit floats as intermediate type.
     .AllowSequences()
     .SupportVolumetric()
     .AddOptionalArg<int>(laplacian::kWindowSizeArgName,
-                         "Size or sizes of windows used in convolutions",
+                         "Sizes of windows used in convolutions",
                          std::vector<int>{laplacian::defaultWindowSize}, true)
     .AddOptionalArg<float>(laplacian::scaleArgName,
-                           "Factor or factors to manually scale partial derivatives",
+                           "Factors to manually scale partial derivatives",
                            std::vector<float>{laplacian::scaleArgDefault}, true)
     .AddOptionalArg<bool>(laplacian::normalizeArgName,
                           "If set to True, automatically scales partial derivatives to normalize "
