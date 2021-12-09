@@ -52,13 +52,13 @@ The window size parameter can be:
 Window sizes must be odd. Size of a derivative window must be at least 3. Smoothing
 window can be of size 1, which implies no smoothing along corresponding axis.
 
-To normalize output, derivative kernel that uses ``n`` windows of total size equal to ``s``,
+To normalize output, derivative kernel that uses ``n`` windows of total size equal to ``s``
 should be scaled by 2^(-s + n + 2). If ``normalize`` argument is set to True,
 normalization is done by the operator. Alternatively, you can specify ``scale`` argument
 to customize scaling factors. Scale can be either a single value or ``n`` values, one for every
 partial derivative.
 
-Operator uses 32-bit floats as intermediate type.
+Operator uses floats as an intermediate type.
 
 .. note::
   The channel ``C`` and frame ``F`` dimensions are not considered data axes. If channels are present,
