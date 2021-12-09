@@ -44,9 +44,9 @@ def to_batch(tl, batch_size):
     return [np.array(tl[i]) for i in range(batch_size)]
 
 
-# Simple sanity check if convolving a square matrix that has zeros everywhere
-# execpt the middle cell, gives expected separable convolution kernel,
-# i.e. the product of 1D convolution windows.
+# Simple sanity check if laplacian of a square matrix that has zeros everywhere
+# execpt the middle cell, gives sum of separable convolution kernels used
+# to compute the partial derivatives, i.e. sum of the products of 1D convolution windows.
 def _test_kernels(num_dims, smoothing, normalize):
     batch_size = (max_window_size + 2 - min_window_size) // 2
 
