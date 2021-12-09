@@ -510,11 +510,10 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         make_string("ExternalSource expected data of type ", TypeTable::GetTypeInfo(dtype_).name(),
         " and got: ", batch.type_info().name()));
 
-    if (previous_dtype_ != DALI_NO_TYPE && previous_dtype_ != batch.type()) {
-      DALI_WARN("Type of the data fed to the external source has changed from the previous iteration."
-                " The incosistent data type is not a supported feature and it"
-                " will not work starting from DALI version 2.0.");
-    }
+    DALI_ENFORCE(previous_dtype_ == DALI_NO_TYPE || previous_dtype_ == batch.type(),
+      make_string("Type of the data fed to the external source has changed from the previous iteration. ",
+                  "Type in the previous iteration was ", TypeTable::GetTypeInfo(previous_dtype_).name(),
+                  " and the current type is ", batch.type_info().name(), "."));
     previous_dtype_ = batch.type();
 
     // Note: If we create a GPU source, we will need to figure

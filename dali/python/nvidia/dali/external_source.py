@@ -298,6 +298,8 @@ Keyword Args
     If the argument is omitted or :const:`DALIDataType.NO_TYPE` is passed, the operator will infer
     the type from the provided data.
 
+    This argument will be required starting from DALI 2.0.
+
 `cuda_stream` : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``, such as ``cupy.cuda.Stream`` or ``torch.cuda.Stream``
     The CUDA stream is used to copy data to the GPU or from a GPU source.
 

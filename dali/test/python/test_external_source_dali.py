@@ -215,3 +215,18 @@ def test_incorrect_dtype_arg():
     src_pipe.set_outputs(src_ext)
     src_pipe.build()
     src_pipe.run()
+
+@raises(RuntimeError, glob="Type of the data fed to the external source has changed from the previous iteration. "
+                           "Type in the previous iteration was float and the current type is uint8.")
+def test_changing_dtype():
+    batch_size = 2
+    src_data = [
+        [np.ones((120, 120, 3), dtype=np.float32)]*batch_size,
+        [np.ones((120, 120, 3), dtype=np.uint8)]*batch_size
+    ]
+    src_pipe = Pipeline(batch_size, 1, 0)
+    src_ext = fn.external_source(source=src_data, device='cpu')
+    src_pipe.set_outputs(src_ext)
+    src_pipe.build()
+    src_pipe.run()
+    src_pipe.run()
