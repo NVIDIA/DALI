@@ -24,6 +24,18 @@
 namespace dali {
 namespace kernels {
 
+template <typename Out, int axes>
+inline std::enable_if_t<std::is_integral<Out>::value> CompareOut(
+    TensorView<StorageCPU, Out, axes>& out, TensorView<StorageCPU, Out, axes>& baseline) {
+  Check(out, baseline);
+}
+
+template <typename Out, int axes>
+inline std::enable_if_t<!std::is_integral<Out>::value> CompareOut(
+    TensorView<StorageCPU, Out, axes>& out, TensorView<StorageCPU, Out, axes>& baseline) {
+  Check(out, baseline, EqualEpsRel(1e-6, 1e-5));
+}
+
 /**
  * @brief Smoothing window (d_order=0) of size 2n + 1 is [1, 2, 1] conv composed
  * with itself n - 1 times so that the window has appropriate size: it boils down
@@ -148,7 +160,7 @@ struct LaplacianCpuKernelTest : public ::testing::Test {
     ctx.scratchpad = &scratchpad;
 
     kernel.Run(ctx, out_, in_, lapl_params_.tensor_windows, uniform_array<axes>(1.f));
-    Check(out_, kernel_);
+    CompareOut(out_, kernel_);
   }
 
   T lapl_params_;
@@ -325,7 +337,7 @@ struct LaplacianCpuTest : public ::testing::Test {
 
     kernel.Run(ctx, out_, in_, lapl_params_.tensor_windows, weights_);
     RunBaseline();
-    Check(out_, baseline_out_);
+    CompareOut(out_, baseline_out_);
   }
 
   std::array<int, ndim> shape_;
