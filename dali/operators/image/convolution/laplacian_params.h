@@ -61,16 +61,21 @@ class LaplacianWindows {
     assert(window_size % 2 == 1);
     auto window_idx = window_size / 2;
     if (!is_deriv) {
-      PrepareSmootingWindow(window_size);
+      PrepareSmoothingWindow(window_size);
       return smoothing_views_[window_idx];
     }
-    PrepareSmootingWindow(window_size - 2);
+    PrepareSmoothingWindow(window_size - 2);
     PrepareDerivWindow(window_size);
     return deriv_views_[window_idx];
   }
 
  private:
-  inline void PrepareSmootingWindow(int window_size) {
+  /**
+   * @brief Smoothing window of size 2n + 1 is [1, 2, 1] conv composed with itself n - 1 times
+   * so that the window has appropriate size: it boils down to computing binominal coefficients:
+   * (1 + 1) ^ (2n).
+   */
+  inline void PrepareSmoothingWindow(int window_size) {
     for (; smooth_computed_ < window_size; smooth_computed_++) {
       auto cur_size = smooth_computed_ + 1;
       auto cur_idx = cur_size / 2;
@@ -87,6 +92,10 @@ class LaplacianWindows {
     }
   }
 
+  /**
+   * @brief Derivative window of size 3 is [1, -2, 1] (which is [1, -1] composed with itself).
+   * Bigger windows are convolutions of smoothing windows with [1, -2, 1].
+   */
   inline void PrepareDerivWindow(int window_size) {
     for (; deriv_computed_ < window_size; deriv_computed_++) {
       auto cur_size = deriv_computed_ + 1;
@@ -179,7 +188,7 @@ class LaplacianArgs {
                                  " elements, got ", vol, "."));
         SetSampleWindowSizes(window_sizes_[sample_idx],
                              make_span(tensor.template data<int>(), vol));
-        VerifyWindowSizes(window_sizes_[sample_idx], sample_idx);
+        ValidateWindowSizes(window_sizes_[sample_idx], sample_idx);
       }
     }
   }
@@ -196,11 +205,11 @@ class LaplacianArgs {
                  make_string("Argument `", kWindowSizeArgName, "` is expected to have 1, ", axes,
                              " or ", axes, "x", axes, " elements, got ", in_size, "."));
     SetSampleWindowSizes(window_sizes, make_span(tmp));
-    VerifyWindowSizes(window_sizes, 0);
+    ValidateWindowSizes(window_sizes, 0);
     return window_sizes;
   }
 
-  void VerifyWindowSizes(const std::array<std::array<int, axes>, axes> &window_sizes,
+  void ValidateWindowSizes(const std::array<std::array<int, axes>, axes> &window_sizes,
                          int sample_idx) {
     for (int i = 0; i < axes; i++) {
       for (int j = 0; j < axes; j++) {
