@@ -212,6 +212,9 @@ def test_resize_cpu():
 def test_gaussian_blur_cpu():
     check_single_input(fn.gaussian_blur, window_size=5)
 
+def test_laplacian_cpu():
+    check_single_input(fn.laplacian, window_size=5)
+
 def test_crop_mirror_normalize_cpu():
     check_single_input(fn.crop_mirror_normalize)
 
@@ -1048,6 +1051,7 @@ tested_methods = [
     "cast",
     "resize",
     "gaussian_blur",
+    "laplacian",
     "crop_mirror_normalize",
     "flip",
     "jpeg_compression_distortion",
