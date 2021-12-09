@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
+#include "dali/core/util.h"
 
 namespace dali {
 
@@ -20,19 +21,10 @@ DLL_PUBLIC int nvjpegGetVersion() {
   int major = -1;
   int minor = -1;
   int patch = -1;
-  auto ret = nvjpegGetProperty(MAJOR_VERSION, &major);
-  if (ret != NVJPEG_STATUS_SUCCESS) {
-    return -1;
-  }
-  ret = nvjpegGetProperty(MINOR_VERSION, &minor);
-  if (ret != NVJPEG_STATUS_SUCCESS) {
-    return -1;
-  }
-  ret = nvjpegGetProperty(PATCH_LEVEL, &patch);
-  if (ret != NVJPEG_STATUS_SUCCESS) {
-    return -1;
-  }
-  return major*1000 + minor*10 + patch;
+  GetVersionProperty(nvjpegGetProperty, &major, MAJOR_VERSION, NVJPEG_STATUS_SUCCESS);
+  GetVersionProperty(nvjpegGetProperty, &minor, MINOR_VERSION, NVJPEG_STATUS_SUCCESS);
+  GetVersionProperty(nvjpegGetProperty, &patch, PATCH_LEVEL, NVJPEG_STATUS_SUCCESS);
+  return GetVersionNumber(major, minor, patch);
 }
 
 }  // namespace dali

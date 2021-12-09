@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/kernels/signal/fft/cufft_helper.h"
+#include "dali/core/util.h"
 
 namespace dali {
 
@@ -20,19 +21,10 @@ DLL_PUBLIC int cufftGetVersion() {
   int major = -1;
   int minor = -1;
   int patch = -1;
-  auto ret = cufftGetProperty(MAJOR_VERSION, &major);
-  if (ret != CUFFT_SUCCESS) {
-    return -1;
-  }
-  ret = cufftGetProperty(MAJOR_VERSION, &minor);
-  if (ret != CUFFT_SUCCESS) {
-    return -1;
-  }
-  ret = cufftGetProperty(PATCH_LEVEL, &patch);
-  if (ret != CUFFT_SUCCESS) {
-    return -1;
-  }
-  return major*1000 + minor*10 + patch;
+  GetVersionProperty(cufftGetProperty, &major, MAJOR_VERSION, CUFFT_SUCCESS);
+  GetVersionProperty(cufftGetProperty, &minor, MINOR_VERSION, CUFFT_SUCCESS);
+  GetVersionProperty(cufftGetProperty, &patch, PATCH_LEVEL, CUFFT_SUCCESS);
+  return GetVersionNumber(major, minor, patch);
 }
 
 }  // namespace dali
