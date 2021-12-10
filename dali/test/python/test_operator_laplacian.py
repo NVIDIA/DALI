@@ -234,7 +234,7 @@ def _test_vs_scipy(batch_size, num_dims, in_type, out_type):
         edges = to_batch(edges, batch_size)
         input = to_batch(input, batch_size)
         baseline = laplacian_sp(input, out_type)
-        max_error = 1e-6 if in_type != np.float64 else 1e-4
+        max_error = 1e-6
         check_batch(edges, baseline, batch_size, max_allowed_error=max_error)
 
 
@@ -242,9 +242,8 @@ def test_vs_scipy():
     batch_size = 10
     for num_dims in [1, 2, 3]:
         # scipy simply wraps integers instead of saturating them, so uint8 inputs won't match
-        for in_type in [np.int16, np.int32, np.int64, np.float32, np.float64]:
-            output_types = [None] if in_type in [
-                np.float32, np.float64] else [None, np.float32]
+        for in_type in [np.int16, np.int32, np.int64, np.float32]:
+            output_types = [None] if in_type == np.float32 else [None, np.float32]
             for out_type in output_types:
                 yield _test_vs_scipy, batch_size, num_dims, in_type, out_type
 

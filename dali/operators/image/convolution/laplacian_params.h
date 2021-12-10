@@ -20,24 +20,29 @@
 
 #include "dali/core/small_vector.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/common.h"
 
 
 namespace dali {
 namespace laplacian {
 
-constexpr static const char *kWindowSizeArgName = "window_size";
+constexpr static const char *windowSizeArgName = "window_size";
+constexpr static const int defaultWindowSize = 3;
+constexpr static const char *smoothingSizeArgName = "smoothing_size";
+constexpr static auto smoothingSizeDefault = nullptr;
 constexpr static const char *scaleArgName = "scale";
 constexpr static const float scaleArgDefault = 1.0f;
 constexpr static const char *normalizeArgName = "normalize";
 constexpr static const bool normalizeArgDefault = false;
 
-// OpenCV uses windows sizes up to 31, but may be run on double precision floats.
+// The operator uses the same windows as OpenCV. OpenCV uses windows sizes up to 31,
+// but it may be run on double precision floats, while DALI supports only
+// float32 as intermediate type.
 // For reasonable precision with floats, 23 is set as a maximal window size, because it is
 // maximal value for which smoothing window coefficients difference do not exceed 10^6.
 // NB. For smoothing window of size 29, float64 and float32 coefficients start to differ.
 constexpr static const int maxWindowSize = 23;
-constexpr static const int defaultWindowSize = 3;
 
 template <typename T>
 class LaplacianWindows {
@@ -63,10 +68,11 @@ class LaplacianWindows {
     if (!is_deriv) {
       PrepareSmoothingWindow(window_size);
       return smoothing_views_[window_idx];
+    } else {
+      PrepareSmoothingWindow(window_size - 2);
+      PrepareDerivWindow(window_size);
+      return deriv_views_[window_idx];
     }
-    PrepareSmoothingWindow(window_size - 2);
-    PrepareDerivWindow(window_size);
-    return deriv_views_[window_idx];
   }
 
  private:
@@ -141,14 +147,37 @@ class LaplacianArgs {
  public:
   explicit LaplacianArgs(const OpSpec &spec)
       : spec_{spec},
-        has_win_size_t_input_{spec.HasTensorArgument(kWindowSizeArgName)},
-        has_scale_t_input_{spec.HasTensorArgument(scaleArgName)},
-        has_scale_const_input_{spec.HasArgument(scaleArgName)},
+        deriv_arg_(windowSizeArgName, spec),
+        smoothing_arg_(smoothingSizeArgName, spec),
+        scales_arg_(scaleArgName, spec),
         normalize_{spec.GetArgument<bool>(normalizeArgName)} {}
 
   void ObtainLaplacianArgs(const ArgumentWorkspace &ws, int nsamples) {
-    ObtainWindowSizes(ws, nsamples);
-    ObtainScales(ws, nsamples);
+    auto shape_from_size = [](const char *arg_name) {
+      return [arg_name](int64_t size) {
+        if (size == 1) {
+          return TensorShape<>{};
+        } else if (size == axes) {
+          return TensorShape<>{axes};
+        }
+        DALI_FAIL(make_string("Argument `", arg_name, "` is expected to have 1 or ", axes,
+                              " elements, got: ", size, "."));
+      };
+    };
+    auto flags = ArgValue_Default;
+    deriv_arg_.Acquire(spec_, ws, nsamples, flags, shape_from_size(windowSizeArgName));
+    if (smoothing_arg_.HasExplicitValue()) {
+      smoothing_arg_.Acquire(spec_, ws, nsamples, flags, shape_from_size(smoothingSizeArgName));
+    }
+    ComputeWindowSizes(ws, nsamples);
+    if (!normalize_) {
+      scales_arg_.Acquire(spec_, ws, nsamples, flags, shape_from_size(scaleArgName));
+      CopyBroadcastScales(ws, nsamples);
+    } else {
+      DALI_ENFORCE(!scales_arg_.HasExplicitValue(),
+                   "Parameter ``scale`` cannot be specified when ``normalize`` is set to True");
+      ComputeScales(nsamples);
+    }
   }
 
   inline const std::array<std::array<int, axes>, axes> &GetWindowSizes(int sample_idx) {
@@ -168,49 +197,57 @@ class LaplacianArgs {
   }
 
  private:
-  void ObtainWindowSizes(const ArgumentWorkspace &ws, int nsamples) {
-    if (!has_win_size_t_input_) {
-      int prev_size = window_sizes_.size();
-      if (prev_size < nsamples) {
-        auto window_sizes = prev_size == 0 ? ObtainConstWindowSizes() : window_sizes_[0];
-        window_sizes_.resize(nsamples, window_sizes);
+  bool HasPerSampleWindows() {
+    return deriv_arg_.HasArgumentInput() || smoothing_arg_.HasArgumentInput();
+  }
+
+  void ComputeWindowSizes(const ArgumentWorkspace &ws, int nsamples) {
+    int prev_size = window_sizes_.size();
+    if (HasPerSampleWindows() || prev_size < nsamples) {
+      window_sizes_.resize(nsamples);
+    }
+    int sample_idx = HasPerSampleWindows() ? 0 : prev_size;
+    for (; sample_idx < nsamples; sample_idx++) {
+      SetSampleWindowSizes(sample_idx);
+      ValidateWindowSizes(sample_idx);
+    }
+  }
+
+  void SetSampleWindowSizes(int sample_idx) {
+    auto &window_sizes = window_sizes_[sample_idx];
+    const auto &deriv_arg = deriv_arg_[sample_idx];
+    auto num_deriv_specified = deriv_arg.num_elements();
+    DALI_ENFORCE(num_deriv_specified == 1 || num_deriv_specified == axes,
+                 make_string("Argument `", windowSizeArgName, "` for sample ", sample_idx,
+                             " is expected to have 1 or ", axes,
+                             " elements, got: ", num_deriv_specified, "."));
+    if (!smoothing_arg_.HasExplicitValue()) {
+      for (int i = 0; i < axes; i++) {
+        for (int j = 0; j < axes; j++) {
+          window_sizes[i][j] = deriv_arg.data[num_deriv_specified == axes ? i : 0];
+        }
       }
     } else {
-      window_sizes_.resize(nsamples);
-      for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-        const auto &tv = ws.ArgumentInput(kWindowSizeArgName);
-        const auto &tensor = tv[sample_idx];
-        const auto &shape = tensor.shape();
-        auto vol = volume(shape);
-        DALI_ENFORCE(vol == 1 || vol == axes || vol == num_windows,
-                     make_string("Argument `", kWindowSizeArgName, "` for sample ", sample_idx,
-                                 " is expected to have 1, ", axes, " or ", axes, "x", axes,
-                                 " elements, got ", vol, "."));
-        SetSampleWindowSizes(window_sizes_[sample_idx],
-                             make_span(tensor.template data<int>(), vol));
-        ValidateWindowSizes(window_sizes_[sample_idx], sample_idx);
+      const auto &smooth_arg = smoothing_arg_[sample_idx];
+      auto num_smooth_specified = smooth_arg.num_elements();
+      DALI_ENFORCE(num_smooth_specified == 1 || num_smooth_specified == axes,
+                   make_string("Argument `", smoothingSizeArgName, "` for sample ", sample_idx,
+                               " is expected to have 1 or ", axes,
+                               " elements, got: ", num_smooth_specified, "."));
+      for (int i = 0; i < axes; i++) {
+        for (int j = 0; j < axes; j++) {
+          if (i == j) {
+            window_sizes[i][j] = deriv_arg.data[num_deriv_specified == axes ? i : 0];
+          } else {
+            window_sizes[i][j] = smooth_arg.data[num_smooth_specified == axes ? j : 0];
+          }
+        }
       }
     }
   }
 
-  std::array<std::array<int, axes>, axes> ObtainConstWindowSizes() {
-    std::vector<int> tmp;
-    if (!spec_.TryGetRepeatedArgument<int>(tmp, kWindowSizeArgName)) {
-      int scalar = spec_.GetArgument<int>(kWindowSizeArgName);
-      tmp.assign(axes, scalar);
-    }
-    std::array<std::array<int, axes>, axes> window_sizes;
-    auto in_size = tmp.size();
-    DALI_ENFORCE(in_size == 1 || in_size == axes || in_size == num_windows,
-                 make_string("Argument `", kWindowSizeArgName, "` is expected to have 1, ", axes,
-                             " or ", axes, "x", axes, " elements, got ", in_size, "."));
-    SetSampleWindowSizes(window_sizes, make_span(tmp));
-    ValidateWindowSizes(window_sizes, 0);
-    return window_sizes;
-  }
-
-  void ValidateWindowSizes(const std::array<std::array<int, axes>, axes> &window_sizes,
-                         int sample_idx) {
+  void ValidateWindowSizes(int sample_idx) {
+    auto &window_sizes = window_sizes_[sample_idx];
     for (int i = 0; i < axes; i++) {
       for (int j = 0; j < axes; j++) {
         bool is_deriv = i == j;
@@ -225,72 +262,45 @@ class LaplacianArgs {
     }
   }
 
-  void SetSampleWindowSizes(std::array<std::array<int, axes>, axes> &window_sizes,
-                            span<const int> in) {
-    auto in_size = in.size();
-    if (in_size == num_windows) {
-      for (int i = 0; i < axes; i++) {
-        memcpy(window_sizes[i].data(), in.data() + i * axes, sizeof(int) * axes);
+  void ComputeScales(int nsamples) {
+    if (HasPerSampleWindows()) {
+      scales_.resize(nsamples);
+      for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+        scales_[sample_idx] = GetNormalizationFactors<axes>(window_sizes_[sample_idx]);
       }
-      return;
-    }
-    if (in_size == axes) {
-      memcpy(window_sizes[0].data(), in.data(), sizeof(int) * axes);
-      for (int i = 1; i < axes; i++) {
-        for (int j = 0; j < axes; j++) {
-          window_sizes[i][j] = window_sizes[0][(axes - i + j) % axes];
-        }
-      }
-      return;
-    }
-    for (int i = 0; i < axes; i++) {
-      for (int j = 0; j < axes; j++) {
-        window_sizes[i][j] = in[0];
+    } else {
+      int prev_size = scales_.size();
+      if (prev_size < nsamples) {
+        auto scale = prev_size == 0 ? GetNormalizationFactors<axes>(window_sizes_[0]) : scales_[0];
+        scales_.resize(nsamples, scale);
       }
     }
   }
 
-  void ObtainScales(const ArgumentWorkspace &ws, int nsamples) {
-    if (normalize_) {
-      DALI_ENFORCE(!has_scale_t_input_ && !has_scale_const_input_,
-                   "Parameter ``scale`` cannot be specified when ``normalize`` is set to True");
-      if (has_win_size_t_input_) {
-        scales_.resize(nsamples);
-        for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-          scales_[sample_idx] = GetNormalizationFactors<axes>(window_sizes_[sample_idx]);
-        }
+  void CopyBroadcastScales(const ArgumentWorkspace &ws, int nsamples) {
+    int prev_size = scales_.size();
+    if (scales_arg_.HasArgumentInput() || prev_size < nsamples) {
+      scales_.resize(nsamples);
+    }
+    int sample_idx = scales_arg_.HasArgumentInput() ? 0 : prev_size;
+    for (; sample_idx < nsamples; sample_idx++) {
+      auto specified_scales = scales_arg_[sample_idx];
+      auto num_specified = specified_scales.num_elements();
+      if (num_specified == axes) {
+        std::copy(specified_scales.data, specified_scales.data + num_specified,
+                  scales_[sample_idx].begin());
       } else {
-        int prev_size = scales_.size();
-        if (prev_size < nsamples) {
-          auto scale =
-              prev_size == 0 ? GetNormalizationFactors<axes>(window_sizes_[0]) : scales_[0];
-          scales_.resize(nsamples, scale);
-        }
-      }
-    } else {  // !normalize_
-      if (has_scale_t_input_) {
-        scales_.resize(nsamples);
-        for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-          GetGeneralizedArg<float>(make_span(scales_[sample_idx]), scaleArgName, sample_idx, spec_,
-                                   ws);
-        }
-      } else {
-        int prev_size = scales_.size();
-        if (prev_size < nsamples) {
-          std::array<float, axes> scale;
-          GetGeneralizedArg<float>(make_span(scale), scaleArgName, 0, spec_, ws);
-          scales_.resize(nsamples, scale);
-        }
+        std::fill(scales_[sample_idx].begin(), scales_[sample_idx].end(), specified_scales.data[0]);
       }
     }
   }
 
   static constexpr int num_windows = axes * axes;
   OpSpec spec_;
-  bool has_win_size_t_input_;
-  bool has_scale_t_input_;
-  bool has_scale_const_input_;
 
+  ArgValue<int, DynamicDimensions> deriv_arg_;      // either single value or per axis
+  ArgValue<int, DynamicDimensions> smoothing_arg_;  // either none, single value or per axis
+  ArgValue<float, DynamicDimensions> scales_arg_;   // either single value or per axis
   bool normalize_;
   std::vector<std::array<float, axes>> scales_;
   std::vector<std::array<std::array<int, axes>, axes>> window_sizes_;

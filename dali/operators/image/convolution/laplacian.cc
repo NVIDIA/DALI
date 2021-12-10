@@ -69,9 +69,12 @@ Operator uses 32-bit floats as an intermediate type.
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
-    .AddOptionalArg<int>(laplacian::kWindowSizeArgName,
-                         "Sizes of windows used in convolutions",
+    .AddOptionalArg<int>(laplacian::windowSizeArgName,
+                         "Size of derivative window used in convolutions",
                          std::vector<int>{laplacian::defaultWindowSize}, true)
+    .AddOptionalArg<std::vector<int>>(laplacian::smoothingSizeArgName,
+                         "Size of smoothing window used in convolutions",
+                         laplacian::smoothingSizeDefault, true)
     .AddOptionalArg<float>(laplacian::scaleArgName,
                            "Factors to manually scale partial derivatives",
                            std::vector<float>{laplacian::scaleArgDefault}, true)
