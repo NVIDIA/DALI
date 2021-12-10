@@ -49,7 +49,7 @@ class Laplacian : public Operator<CPUBackend> {
   void RunImpl(workspace_t<CPUBackend>& ws) override;
 
  private:
-  DALIDataType dtype_ = DALI_NO_TYPE;
+  DALIDataType dtype_;
   USE_OPERATOR_MEMBERS();
   std::unique_ptr<OpImplBase<CPUBackend>> impl_;
   DALIDataType impl_in_dtype_ = DALI_NO_TYPE;

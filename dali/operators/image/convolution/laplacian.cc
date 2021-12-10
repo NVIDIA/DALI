@@ -30,19 +30,19 @@ namespace dali {
 using namespace convolution_utils;  // NOLINT
 
 DALI_SCHEMA(Laplacian)
-    .DocStr(R"code(Computes laplacian of the input.
+    .DocStr(R"code(Computes the Laplacian of an input.
 
-Laplacian is calculated as a sum of second order partial derivatives in each spatial
-dimension of the data. Each partial derivative is approximated with a separable convolution,
-that uses derivative window in the direction of the partial derivative and smoothing windows in
-the remaining axes.
+The Laplacian is calculated as the sum of second order partial derivatives with respect to each
+spatial dimension. Each partial derivative is approximated with a separable convolution,
+that uses a derivative window in the direction of the partial derivative and smoothing windows
+in the remaining axes.
 
 In total, for ``n`` spatial dimensions, there are ``n * n`` window sizes.
 The window size parameter can be:
   * A single value used for all windows.
   * ``n * n`` values, where ``window_size[i][j]`` is a size of window applied along ``j``-th axis
     while computing ``i``-th partial derivative. Values ``window_size[i][i]`` describe
-    derivative window sizes, the remianing values refer to smoothing windows.
+    derivative window sizes, the remaining values refer to smoothing windows.
   * ``n`` values, where the first value describes the derivative window size and
     remaining values refer to smoothing windows. Values are shifted to the right to
     obtain parameters for all partial derivatives. For instance, for volumetric data, specifing
@@ -53,12 +53,12 @@ Window sizes must be odd. Size of a derivative window must be at least 3. Smooth
 window can be of size 1, which implies no smoothing along corresponding axis.
 
 To normalize output, derivative kernel that uses ``n`` windows of total size equal to ``s``
-should be scaled by 2^(-s + n + 2). If ``normalize`` argument is set to True,
+should be scaled by ``2^(-s + n + 2)``. If ``normalize`` argument is set to True,
 normalization is done by the operator. Alternatively, you can specify ``scale`` argument
 to customize scaling factors. Scale can be either a single value or ``n`` values, one for every
 partial derivative.
 
-Operator uses floats as an intermediate type.
+Operator uses 32-bit floats as an intermediate type.
 
 .. note::
   The channel ``C`` and frame ``F`` dimensions are not considered data axes. If channels are present,
@@ -185,19 +185,18 @@ bool Laplacian::SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_
   const auto& input = ws.template Input<CPUBackend>(0);
   auto layout = input.GetLayout();
   auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
-  dtype_ = dtype_ != DALI_NO_TYPE ? dtype_ : input.type();
-  DALI_ENFORCE(dtype_ == input.type() || dtype_ == DALI_FLOAT,
+  auto dtype = dtype_ == DALI_NO_TYPE ? input.type() : dtype_;
+  DALI_ENFORCE(dtype == input.type() || dtype == DALI_FLOAT,
                "Output data type must be same as input, FLOAT or skipped (defaults to input type)");
 
   if (!impl_ || impl_in_dtype_ != input.type() || impl_dim_desc_ != dim_desc) {
     impl_in_dtype_ = input.type();
     impl_dim_desc_ = dim_desc;
 
-    // clang-format off
     TYPE_SWITCH(input.type(), type2id, In, LAPLACIAN_CPU_SUPPORTED_TYPES, (
       VALUE_SWITCH(dim_desc.usable_axes_count, Axes, LAPLACIAN_SUPPORTED_AXES, (
         BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
-          if (dtype_ == input.type()) {
+          if (dtype == input.type()) {
             using LaplacianSame = laplacian::LaplacianOpCpu<In, In, Axes, HasChannels>;
             impl_ = std::make_unique<LaplacianSame>(spec_, dim_desc);
           } else {
@@ -207,7 +206,6 @@ bool Laplacian::SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_
         )); // NOLINT
       ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
     ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
-    // clang-format on
   }
 
   return impl_->SetupImpl(output_desc, ws);
