@@ -13,39 +13,32 @@
 # limitations under the License.
 
 
-from nvidia.dali.pipeline.experimental import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-import numpy as np
-import os
-from test_utils import get_dali_extra_path
+from nvidia.dali.pipeline.experimental import pipeline_def
+from test_utils import compare_pipelines, get_dali_extra_path
 
-rn50_pipeline_base_debug_values = {}
+import cupy
+import mxnet
+import numpy as np
+import torch
+import os
+from nose_utils import raises
+
 file_root = os.path.join(get_dali_extra_path(), 'db/single/jpeg')
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
-def rn50_pipeline_base(debug=False):
+def rn50_pipeline_base():
     rng = fn.random.coin_flip(probability=0.5, seed=47)
-    if debug:
-        rn50_pipeline_base_debug_values['rng'] = rng.get()
     jpegs, labels = fn.readers.file(
         file_root=file_root, shard_id=0, num_shards=2)
-    if debug:
-        rn50_pipeline_base_debug_values['jpegs'] = jpegs.get()
-        rn50_pipeline_base_debug_values['labels'] = labels.get()
     images = fn.decoders.image(jpegs, device='mixed', output_type=types.RGB)
-    if debug:
-        rn50_pipeline_base_debug_values['images'] = images.get()
     resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224), seed=27)
-    if debug:
-        rn50_pipeline_base_debug_values['resized_images'] = resized_images.get()
     out_type = types.FLOAT16
 
     output = fn.crop_mirror_normalize(resized_images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
         224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
-    if debug:
-        rn50_pipeline_base_debug_values['output'] = output.get()
     return rng, jpegs, labels, images, resized_images, output
 
 
@@ -91,54 +84,130 @@ def load_images_pipeline():
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
-def numpy_array_injection_pipeline(images):
+def es_pipeline():
+    images = fn.external_source(name='input')
+    labels = fn.external_source(name='labels')
     rng = fn.random.coin_flip(probability=0.5, seed=47)
     images = fn.random_resized_crop(images, size=(224, 224), seed=27)
-    print(images.get().layout())
     out_type = types.FLOAT16
 
     output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
         224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
-    return (output)
+    return rng, images, output, labels
 
 
-def run_pipeline(func, *args, **kwargs):
-    pipe = func(*args, **kwargs)
-    pipe.build()
-    return pipe.run()
+@pipeline_def(batch_size=8, num_threads=3, device_id=0)
+def es_pipeline_standard():
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2)
+    images = fn.decoders.image(jpegs, output_type=types.RGB)
+    rng = fn.random.coin_flip(probability=0.5, seed=47)
+    images = fn.random_resized_crop(images, size=(224, 224), seed=27)
+    out_type = types.FLOAT16
+
+    output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
+        224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    return rng, images, output, labels
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
+def injection_pipeline(callback, device='cpu'):
+    rng = fn.random.coin_flip(probability=0.5, seed=47)
+    images = fn.random_resized_crop(callback(), device=device, size=(224, 224), seed=27)
+    out_type = types.FLOAT16
+
+    output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
+        224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    return rng, images, output
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0)
+def injection_pipeline_standard():
+    jpegs, _ = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2)
+    images = fn.decoders.image(jpegs, output_type=types.RGB)
+    rng = fn.random.coin_flip(probability=0.5, seed=47)
+    images = fn.random_resized_crop(images, size=(224, 224), seed=27)
+    out_type = types.FLOAT16
+
+    output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
+        224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    return rng, images, output
+
+
+order_change = False
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
+def order_change_pipeline():
+    if order_change:
+        rng = fn.random.coin_flip(probability=0.5, seed=47)
+    else:
+        rng = 0
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2)
+    images = fn.decoders.image(jpegs, device='mixed', output_type=types.RGB)
+    resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224), seed=27)
+    out_type = types.FLOAT16
+
+    output = fn.crop_mirror_normalize(resized_images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
+        224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    return rng, jpegs, labels, images, resized_images, output
 
 
 def test_debug_pipeline_base():
-    rng, jpegs, labels, images, resized_images, output = run_pipeline(rn50_pipeline_base)
-    rng_, jpegs_, labels_, images_, resized_images_, output_ = run_pipeline(
-        rn50_pipeline_base, debug=True)
-
-    np.testing.assert_array_equal(rng.as_array(), rng_.as_array())
-    np.testing.assert_array_equal(rng.as_array(), rn50_pipeline_base_debug_values['rng'].as_array())
-    np.testing.assert_array_equal(labels.as_array(), labels_.as_array())
-    np.testing.assert_array_equal(labels.as_array(), labels_.as_array(),
-                                  rn50_pipeline_base_debug_values['labels'])
-    for j, j_, jd in zip(jpegs, jpegs_, rn50_pipeline_base_debug_values['jpegs']):
-        np.testing.assert_array_equal(j, j_)
-        np.testing.assert_array_equal(j, jd)
-    for i, i_, id in zip(images, images_, rn50_pipeline_base_debug_values['images']):
-        np.testing.assert_array_equal(i.as_cpu(), i_.as_cpu())
-        np.testing.assert_array_equal(i.as_cpu(), id.as_cpu())
-    for i, i_, id in zip(resized_images, resized_images_, rn50_pipeline_base_debug_values['resized_images']):
-        np.testing.assert_array_equal(i.as_cpu(), i_.as_cpu())
-        np.testing.assert_array_equal(i.as_cpu(), id.as_cpu())
-    for o, o_, od in zip(output, output_, rn50_pipeline_base_debug_values['output']):
-        np.testing.assert_array_equal(o.as_cpu(), o_.as_cpu())
-        np.testing.assert_array_equal(o.as_cpu(), od.as_cpu())
+    pipe_standard = rn50_pipeline_base()
+    pipe_debug = rn50_pipeline_base(debug=True)
+    compare_pipelines(pipe_standard, pipe_debug, 8, 10)
 
 
 def test_operations_on_debug_pipeline():
-    run_pipeline(rn50_pipeline)
+    pipe = rn50_pipeline()
+    pipe.build()
+    pipe.run()
 
 
-def test_numpy_injection():
-    load_pipeline = load_images_pipeline()
-    load_pipeline.build()
-    images_o, _ = load_pipeline.run()
-    images_o = [np.array(i) for i in images_o]
-    run_pipeline(numpy_array_injection_pipeline, images_o)
+def _test_injection(device, name, transform, eps=1e-07):
+    print(f'\nTesting {name}')
+    pipe_load = load_images_pipeline()
+    pipe_load.build()
+    pipe_standard = injection_pipeline_standard()
+    pipe_debug = injection_pipeline(lambda: transform(pipe_load.run()[0]), device)
+    compare_pipelines(pipe_standard, pipe_debug, 8, 10, eps=eps)
+
+
+def test_injections():
+    yield _test_injection, 'cpu', 'numpy array', lambda xs: [np.array(x) for x in xs]
+    yield _test_injection, 'cpu', 'mxnet array', lambda xs: [mxnet.nd.array(x, dtype='uint8') for x in xs]
+    yield _test_injection, 'cpu', 'torch cpu tensor', lambda xs: [torch.tensor(np.array(x), device='cpu') for x in xs]
+    yield _test_injection, 'gpu', 'torch gpu tensor', lambda xs: [torch.tensor(np.array(x), device='cuda') for x in xs], 1e-03
+    yield _test_injection, 'gpu', 'cupy array', lambda xs: [cupy.array(x) for x in xs], 1e-03
+    yield _test_injection, 'gpu', 'list of TensorGPU', lambda xs: [x._as_gpu() for x in xs], 1e-03
+    yield _test_injection, 'cpu', 'TensorListCPU', lambda xs: xs
+    yield _test_injection, 'gpu', 'TensorListGPU', lambda xs: xs._as_gpu(), 1e-03
+
+
+def test_external_source_debug():
+    n_iters = 10
+    pipe_load = load_images_pipeline()
+    pipe_standard = es_pipeline_standard()
+    pipe_debug = es_pipeline()
+    pipe_load.build()
+    pipe_standard.build()
+    pipe_debug.build()
+    for _ in range(n_iters):
+        images, labels = pipe_load.run()
+        pipe_debug.feed_input('input', [np.array(t) for t in images])
+        pipe_debug.feed_input('labels', np.array(labels.as_tensor()))
+    compare_pipelines(pipe_standard, pipe_debug, 8, 10)
+
+
+@raises(RuntimeError, glob='Unexpected operator *. Debug mode does not support'
+        ' changing the order of operators executed within the pipeline.')
+def test_operators_order_change():
+    global order_change
+    pipe = order_change_pipeline()
+    pipe.build()
+    pipe.run()
+    order_change = True
+    pipe.run()

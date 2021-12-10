@@ -76,12 +76,16 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
         return op_class(**init_args)(*inputs, **call_args)
 
     def fn_wrapper(*inputs, **kwargs):
-        from nvidia.dali.pipeline import PipelineDebug
-        if PipelineDebug._debug_on:
-            return PipelineDebug.current()._wrap_op_call(op_wrapper, *inputs, **kwargs)
+        from nvidia.dali._debug_mode import _PipelineDebug
+        current_pipeline = _PipelineDebug.current()
+        if getattr(current_pipeline, '_debug_on', False):
+            return current_pipeline._wrap_op_call(op_wrapper, *inputs, **kwargs)
         else:
             return op_wrapper(*inputs, **kwargs)
-            
+
+    op_wrapper.__name__ = wrapper_name
+    op_wrapper.__qualname__ = wrapper_name
+    op_wrapper.__doc__ = wrapper_doc
     fn_wrapper.__name__ = wrapper_name
     fn_wrapper.__qualname__ = wrapper_name
     fn_wrapper.__doc__ = wrapper_doc

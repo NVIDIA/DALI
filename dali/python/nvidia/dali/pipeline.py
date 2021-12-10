@@ -21,7 +21,6 @@ from nvidia.dali import internal
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali import pickling as dali_pickle
 from nvidia.dali.backend import CheckDLPackCapsule
-import nvidia.dali.fn as fn
 from threading import local as tls
 from . import data_node as _data_node
 import functools
@@ -33,7 +32,7 @@ import sys
 
 pipeline_tls = tls()
 
-from .data_node import DataNode, DataNodeDebug
+from .data_node import DataNode
 
 DataNode.__module__ = __name__  # move to pipeline
 
@@ -172,7 +171,7 @@ Parameters
                  set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
                  *,
                  enable_memory_stats=False, py_num_workers=1, py_start_method="fork",
-                 py_callback_pickler=None):
+                 py_callback_pickler=None, debug=False):
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads
@@ -230,6 +229,8 @@ Parameters
             self._gpu_queue_size = prefetch_queue_depth
         else:
             raise TypeError("Expected prefetch_queue_depth to be either int or Dict[int, int]")
+        if debug:
+            raise RuntimeError("Debug mode is only supported with 'pipeline_def' decorator.")
 
     @property
     def batch_size(self):
@@ -1281,164 +1282,6 @@ def _discriminate_args(func, **func_kwargs):
     return ctor_args, fn_args
 
 
-class PipelineDebug(Pipeline):
-    """Debug mode for pipeline. Allows access to data inside the pipeline execution by wrapping all
-     operators inside their pipelines"""
-
-    def __init__(self, exec_func, **kwargs):
-        super().__init__(**kwargs)
-        kwargs['exec_pipelined'] = False
-        kwargs['exec_async'] = False
-        self._subpipeline_kwargs = kwargs
-        self._subpipelines = {}
-        self._external_source_pipelines = {}
-        self._feed_input_data = {}
-        self._subpipelines_built = False
-        self._cur_subpipeline_id = -1
-        self._exec_func = exec_func
-
-    def __enter__(self):
-        PipelineDebug._debug_on = True
-        PipelineDebug._external_source_debug = True
-        self._cur_subpipeline_id = -1
-        return super().__enter__()
-
-    def __exit__(self, *exc):
-        PipelineDebug._debug_on = False
-        PipelineDebug._external_source_debug = False
-        if not self._subpipelines_built:
-            self._subpipelines_built = True
-        return super().__exit__(*exc)
-
-    def build(self):
-        """Require user to call build() before run() to follow convention of default pipeline."""
-        self._built = True
-
-    def run(self):
-        import numpy as np
-        if not self._built:
-            raise RuntimeError('Pipeline must be built first.')
-        with self:
-            res = self._exec_func()
-            if res is None:
-                res = ()
-            elif not isinstance(res, tuple):
-                res = (res,)
-
-            # Transforming all variables to TensorLists.
-            return tuple([val.get() if isinstance(val, DataNodeDebug) else Tensors.TensorListCPU(
-                np.tile(val, (self._max_batch_size, *[1]*np.array(val).ndim))) for val in res])
-
-    def feed_input(self, data_node, data, **kwargs):
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
-
-        if data_node not in self._external_source_pipelines:
-            # Saving data, because pipeline hasn't been run yet.
-            if data_node not in self._feed_input_data:
-                self._feed_input_data[data_node] = []
-            self._feed_input_data[data_node].append((data, kwargs))
-        else:
-            self._external_source_pipelines[data_node].feed_input(data_node, data, **kwargs)
-
-    def _create_subpipeline(self, op_wrapper, inputs, **kwargs):
-        """Creates pipeline wrapper around operator call (only once)."""
-        @pipeline_def(**self._subpipeline_kwargs)
-        def pipe():
-            inputs_preprocessed = []
-            for i, input in enumerate(inputs):
-                if isinstance(input, DataNodeDebug):
-                    inputs_preprocessed.append(fn.external_source(
-                        name=f'{PipelineDebug._es_input_name}{i}', device=input.device))
-                else:
-                    try:
-                        # Getting anything that can be transformed to a DataNode.
-                        inputs_preprocessed.append(fn.external_source(input, batch=False))
-                    except TypeError:
-                        # If it cannot be transformed to a DataNode assume that user knows what their doing,
-                        # e.g. using constants with arithmetic operator.
-                        inputs_preprocessed.append(input)
-            kwargs_preprocessed = {key: value if not isinstance(value, DataNodeDebug) else fn.external_source(
-                name=f'{PipelineDebug._es_kwarg_name}{key}', device=value.device) for key, value in kwargs.items()}
-            res = op_wrapper(*inputs_preprocessed, **kwargs_preprocessed)
-            return tuple(res) if isinstance(res, list) else res
-
-        PipelineDebug._external_source_debug = False
-        p = pipe()
-        p.build()
-        PipelineDebug._external_source_debug = True
-        return p
-
-    def _external_source(self, op_wrapper, name):
-        # TODO(ksztenderski): Possibly remove this wrapper to avoid running data through the backend and back.
-        @pipeline_def(**self._subpipeline_kwargs)
-        def external_source_pipeline():
-            res = op_wrapper()
-            return tuple(res) if isinstance(res, list) else res
-
-        self._cur_subpipeline_id += 1
-        key = inspect.getframeinfo(
-            inspect.currentframe().f_back.f_back)[:3] + (self._cur_subpipeline_id,)
-        if not self._subpipelines_built:
-            PipelineDebug._external_source_debug = False
-            p = external_source_pipeline()
-            p.build()
-
-            # feed_input all data collected after build and before run
-            for (data, kwargs) in self._feed_input_data.pop(name, []):
-                p.feed_input(name, data, **kwargs)
-
-            self._subpipelines[key] = p
-            self._external_source_pipelines[name] = p
-            PipelineDebug._external_source_debug = True
-
-        if key in self._subpipelines:
-            return self._run_subpipeline(self._subpipelines[key], (), {})
-        else:
-            raise RuntimeError('Operator not built. It may be a result of changes in execution order'
-                               ' of operators since building pipeline.')
-
-    def _run_subpipeline(self, pipe, inputs, kwargs):
-        """Run pipeline wrapper of a single operator."""
-        PipelineDebug._debug_on = False
-
-        for i, input in enumerate(inputs):
-            if isinstance(input, DataNodeDebug):
-                pipe.feed_input(f'{PipelineDebug._es_input_name}{i}', input.get())
-        for key, value in kwargs.items():
-            if isinstance(value, DataNodeDebug):
-                pipe.feed_input(f'{PipelineDebug._es_kwarg_name}{key}', value.get())
-
-        res = pipe.run()
-        res = tuple([DataNodeDebug(tensor, **data_node.__dict__)
-                    for tensor, data_node in zip(res, pipe._graph_out)])
-
-        PipelineDebug._debug_on = True
-
-        if len(res) == 1:
-            return res[0]
-
-        return res
-
-    def _wrap_op_call(self, op_wrapper, *inputs, **kwargs):
-        self._cur_subpipeline_id += 1
-        key = inspect.getframeinfo(
-            inspect.currentframe().f_back.f_back)[:3] + (self._cur_subpipeline_id,)
-        if not self._subpipelines_built:
-            self._subpipelines[key] = self._create_subpipeline(op_wrapper, inputs, **kwargs)
-
-        if key in self._subpipelines:
-            return self._run_subpipeline(self._subpipelines[key], inputs, kwargs)
-        else:
-            raise RuntimeError('Operator not built. It may be a result of changes in execution order'
-                               ' of operators since building pipeline.')
-
-    _debug_on = False
-    _external_source_debug = False
-    _es_input_name = 'input_'
-    _es_kwarg_name = 'kwarg_'
-
-
 def pipeline_def(fn=None, **pipeline_kwargs):
     """
     Decorator that converts a graph definition function into a DALI pipeline factory.
@@ -1530,15 +1373,16 @@ def pipeline_def(fn=None, **pipeline_kwargs):
     return actual_decorator(fn) if fn else actual_decorator
 
 
-def pipeline_def_experimental(fn=None, **pipeline_kwargs):
+def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
+    from nvidia.dali._debug_mode import _PipelineDebug
     def actual_decorator(func):
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
-            debug_mode_on = pipeline_kwargs.pop('debug', False)
+            debug_mode_on = pipeline_kwargs.get('debug', False)
             debug_mode_on = kwargs.get('debug', debug_mode_on)
             ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
             if debug_mode_on:
-                pipe = PipelineDebug(functools.partial(func, *args, **fn_kwargs),
+                pipe = _PipelineDebug(functools.partial(func, *args, **fn_kwargs),
                                      **{**pipeline_kwargs, **ctor_args})
             else:
                 pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
@@ -1556,7 +1400,10 @@ def pipeline_def_experimental(fn=None, **pipeline_kwargs):
     return actual_decorator(fn) if fn else actual_decorator
 
 
-current_module = sys.modules[__name__]
-experimental_module = internal.get_submodule(current_module, 'experimental')
-pipeline_def_experimental.__module__ = experimental_module
-setattr(experimental_module, 'pipeline_def', pipeline_def_experimental)
+def _insert_experimental_pipeline_def():
+    current_module = sys.modules[__name__]
+    experimental_module = internal.get_submodule(current_module, 'experimental')
+    _pipeline_def_experimental.__module__ = experimental_module
+    setattr(experimental_module, 'pipeline_def', _pipeline_def_experimental)
+
+_insert_experimental_pipeline_def()
