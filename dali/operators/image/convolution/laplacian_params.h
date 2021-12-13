@@ -20,7 +20,6 @@
 
 #include "dali/core/small_vector.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/common.h"
 
 
@@ -147,34 +146,19 @@ class LaplacianArgs {
  public:
   explicit LaplacianArgs(const OpSpec &spec)
       : spec_{spec},
-        deriv_arg_(windowSizeArgName, spec),
-        smoothing_arg_(smoothingSizeArgName, spec),
-        scales_arg_(scaleArgName, spec),
+        has_deriv_tensor_(spec.HasTensorArgument(windowSizeArgName)),
+        has_smooth_const_(spec.HasArgument(smoothingSizeArgName)),
+        has_smooth_tensor_(spec.HasTensorArgument(smoothingSizeArgName)),
+        has_scales_const_(spec.HasArgument(scaleArgName)),
+        has_scales_tensor_(spec.HasTensorArgument(scaleArgName)),
         normalize_{spec.GetArgument<bool>(normalizeArgName)} {}
 
   void ObtainLaplacianArgs(const ArgumentWorkspace &ws, int nsamples) {
-    auto shape_from_size = [](const char *arg_name) {
-      return [arg_name](int64_t size) {
-        if (size == 1) {
-          return TensorShape<>{};
-        } else if (size == axes) {
-          return TensorShape<>{axes};
-        }
-        DALI_FAIL(make_string("Argument `", arg_name, "` is expected to have 1 or ", axes,
-                              " elements, got: ", size, "."));
-      };
-    };
-    auto flags = ArgValue_Default;
-    deriv_arg_.Acquire(spec_, ws, nsamples, flags, shape_from_size(windowSizeArgName));
-    if (smoothing_arg_.HasExplicitValue()) {
-      smoothing_arg_.Acquire(spec_, ws, nsamples, flags, shape_from_size(smoothingSizeArgName));
-    }
-    ComputeWindowSizes(ws, nsamples);
+    ObtainWindowSizes(ws, nsamples);
     if (!normalize_) {
-      scales_arg_.Acquire(spec_, ws, nsamples, flags, shape_from_size(scaleArgName));
-      CopyBroadcastScales(ws, nsamples);
+      ObtainScales(ws, nsamples);
     } else {
-      DALI_ENFORCE(!scales_arg_.HasExplicitValue(),
+      DALI_ENFORCE(!HasScaleSpecified(),
                    "Parameter ``scale`` cannot be specified when ``normalize`` is set to True");
       ComputeScales(nsamples);
     }
@@ -198,66 +182,54 @@ class LaplacianArgs {
 
  private:
   bool HasPerSampleWindows() {
-    return deriv_arg_.HasArgumentInput() || smoothing_arg_.HasArgumentInput();
+    return has_deriv_tensor_ || has_smooth_tensor_;
   }
 
-  void ComputeWindowSizes(const ArgumentWorkspace &ws, int nsamples) {
+  bool HasSmoothingSpecified() {
+    return has_smooth_const_ || has_smooth_tensor_;
+  }
+
+  bool HasScaleSpecified() {
+    return has_scales_const_ || has_scales_tensor_;
+  }
+
+  void ObtainWindowSizes(const ArgumentWorkspace &ws, int nsamples) {
     int prev_size = window_sizes_.size();
     if (HasPerSampleWindows() || prev_size < nsamples) {
       window_sizes_.resize(nsamples);
     }
     int sample_idx = HasPerSampleWindows() ? 0 : prev_size;
     for (; sample_idx < nsamples; sample_idx++) {
-      SetSampleWindowSizes(sample_idx);
-      ValidateWindowSizes(sample_idx);
+      SetSampleWindowSizes(ws, sample_idx);
     }
   }
 
-  void SetSampleWindowSizes(int sample_idx) {
+  void SetSampleWindowSizes(const ArgumentWorkspace &ws, int sample_idx) {
     auto &window_sizes = window_sizes_[sample_idx];
-    const auto &deriv_arg = deriv_arg_[sample_idx];
-    auto num_deriv_specified = deriv_arg.num_elements();
-    DALI_ENFORCE(num_deriv_specified == 1 || num_deriv_specified == axes,
-                 make_string("Argument `", windowSizeArgName, "` for sample ", sample_idx,
-                             " is expected to have 1 or ", axes,
-                             " elements, got: ", num_deriv_specified, "."));
-    if (!smoothing_arg_.HasExplicitValue()) {
+    std::array<int, axes> deriv_arg;
+    GetGeneralizedArg<int>(make_span(deriv_arg), windowSizeArgName, sample_idx, spec_, ws);
+    for (auto d_size : deriv_arg) {
+      DALI_ENFORCE(3 <= d_size && d_size <= maxWindowSize && d_size % 2 == 1,
+                   make_string("Window size must be an odd integer between 3 and ", maxWindowSize,
+                               ", got ", d_size, " for sample: ", sample_idx, "."));
+    }
+    if (!HasSmoothingSpecified()) {
       for (int i = 0; i < axes; i++) {
-        for (int j = 0; j < axes; j++) {
-          window_sizes[i][j] = deriv_arg.data[num_deriv_specified == axes ? i : 0];
-        }
+        std::fill(window_sizes[i].begin(), window_sizes[i].end(), deriv_arg[i]);
       }
     } else {
-      const auto &smooth_arg = smoothing_arg_[sample_idx];
-      auto num_smooth_specified = smooth_arg.num_elements();
-      DALI_ENFORCE(num_smooth_specified == 1 || num_smooth_specified == axes,
-                   make_string("Argument `", smoothingSizeArgName, "` for sample ", sample_idx,
-                               " is expected to have 1 or ", axes,
-                               " elements, got: ", num_smooth_specified, "."));
+      std::array<int, axes> smooth_arg;
+      GetGeneralizedArg<int>(make_span(smooth_arg), smoothingSizeArgName, sample_idx, spec_, ws);
+      for (auto s_size : smooth_arg) {
+        DALI_ENFORCE(
+            1 <= s_size && s_size <= maxWindowSize && s_size % 2 == 1,
+            make_string("Smoothing window size must be an odd integer between 1 and ",
+                        maxWindowSize, ", got ", s_size, " for sample: ", sample_idx, "."));
+      }
       for (int i = 0; i < axes; i++) {
         for (int j = 0; j < axes; j++) {
-          if (i == j) {
-            window_sizes[i][j] = deriv_arg.data[num_deriv_specified == axes ? i : 0];
-          } else {
-            window_sizes[i][j] = smooth_arg.data[num_smooth_specified == axes ? j : 0];
-          }
+          window_sizes[i][j] = i == j ? deriv_arg[i] : smooth_arg[j];
         }
-      }
-    }
-  }
-
-  void ValidateWindowSizes(int sample_idx) {
-    auto &window_sizes = window_sizes_[sample_idx];
-    for (int i = 0; i < axes; i++) {
-      for (int j = 0; j < axes; j++) {
-        bool is_deriv = i == j;
-        auto win_size = window_sizes[i][j];
-        auto min_size = is_deriv ? 3 : 1;
-        DALI_ENFORCE(
-            min_size <= win_size && win_size <= maxWindowSize && win_size % 2 == 1,
-            make_string((is_deriv ? "Derivative " : "Smoothing "),
-                        "window size must be an odd integer between ", min_size, " and ",
-                        maxWindowSize, ", got ", win_size, " for sample: ", sample_idx, "."));
       }
     }
   }
@@ -277,30 +249,22 @@ class LaplacianArgs {
     }
   }
 
-  void CopyBroadcastScales(const ArgumentWorkspace &ws, int nsamples) {
+  void ObtainScales(const ArgumentWorkspace &ws, int nsamples) {
     int prev_size = scales_.size();
-    if (scales_arg_.HasArgumentInput() || prev_size < nsamples) {
+    if (has_scales_tensor_ || prev_size < nsamples) {
       scales_.resize(nsamples);
     }
-    int sample_idx = scales_arg_.HasArgumentInput() ? 0 : prev_size;
-    for (; sample_idx < nsamples; sample_idx++) {
-      auto specified_scales = scales_arg_[sample_idx];
-      auto num_specified = specified_scales.num_elements();
-      if (num_specified == axes) {
-        std::copy(specified_scales.data, specified_scales.data + num_specified,
-                  scales_[sample_idx].begin());
-      } else {
-        std::fill(scales_[sample_idx].begin(), scales_[sample_idx].end(), specified_scales.data[0]);
-      }
+    for (int sample_idx = has_scales_tensor_ ? 0 : prev_size; sample_idx < nsamples; sample_idx++) {
+      GetGeneralizedArg<float>(make_span(scales_[sample_idx]), scaleArgName, sample_idx, spec_, ws);
     }
   }
 
   static constexpr int num_windows = axes * axes;
   OpSpec spec_;
 
-  ArgValue<int, DynamicDimensions> deriv_arg_;      // either single value or per axis
-  ArgValue<int, DynamicDimensions> smoothing_arg_;  // either none, single value or per axis
-  ArgValue<float, DynamicDimensions> scales_arg_;   // either single value or per axis
+  bool has_deriv_tensor_;
+  bool has_smooth_const_, has_smooth_tensor_;
+  bool has_scales_const_, has_scales_tensor_;
   bool normalize_;
   std::vector<std::array<float, axes>> scales_;
   std::vector<std::array<std::array<int, axes>, axes>> window_sizes_;
