@@ -511,8 +511,9 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         " and got: ", batch.type_info().name()));
 
     DALI_ENFORCE(previous_dtype_ == DALI_NO_TYPE || previous_dtype_ == batch.type(),
-      make_string("Type of the data fed to the external source has changed from the previous iteration. ",
-                  "Type in the previous iteration was ", TypeTable::GetTypeInfo(previous_dtype_).name(),
+      make_string("Type of the data fed to the external source has changed from the "
+                  "previous iteration. Type in the previous iteration was ",
+                  TypeTable::GetTypeInfo(previous_dtype_).name(),
                   " and the current type is ", batch.type_info().name(), "."));
     previous_dtype_ = batch.type();
 
