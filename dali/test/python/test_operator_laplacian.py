@@ -37,14 +37,14 @@ shape_layout_axes_cases = [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
                            ((3, 30, 20), "CWH", 2), ((5, 20, 30, 3), "FHWC", 2),
                            ((5, 10, 10, 7, 3), "FDHWC", 3),
                            ((5, 3, 20, 30), "FCHW", 2),
-                           ((3, 5, 10, 10, 7), "CFDHW", 3)]
+                           ((3, 5, 10, 10, 7), "FCDHW", 3)]
 
 
 def to_batch(tl, batch_size):
     return [np.array(tl[i]) for i in range(batch_size)]
 
 
-# Simple check if laplacian of a square matrix that has zeros everywhere execpt
+# Simple check if laplacian of a square matrix that has zeros everywhere except
 # the middle cell, gives sum of separable convolution kernels used to compute
 # the partial derivatives, i.e. sum of the products of 1D convolution windows.
 def _test_kernels(num_dims, smoothing, normalize):

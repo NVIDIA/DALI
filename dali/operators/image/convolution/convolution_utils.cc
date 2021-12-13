@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,11 +46,9 @@ DimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
                  make_string("Only channel-first or channel-last layouts are supported, got: ",
                              layout, "."));
   }
-  DALI_ENFORCE(
-      !VideoLayoutInfo::HasSequence(layout_tmp),
+  DALI_ENFORCE(!VideoLayoutInfo::HasSequence(layout_tmp),
       make_string("For sequences, layout should begin with 'F' or 'CF', got: ", layout, "."));
-  DALI_ENFORCE(
-      axes_start <= 2,
+  DALI_ENFORCE(axes_start <= 2,
       make_string("Found more the one occurrence of 'F' or 'C' axes in layout: ", layout, "."));
   DALI_ENFORCE(axes_count <= kMaxDim,
                make_string("Too many dimensions, found: ", axes_count,
