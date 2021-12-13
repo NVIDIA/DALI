@@ -37,26 +37,31 @@ spatial dimension. Each partial derivative is approximated with a separable conv
 that uses a derivative window in the direction of the partial derivative and smoothing windows
 in the remaining axes.
 
-In total, for ``n`` spatial dimensions, there are ``n * n`` window sizes.
-The window size parameter can be:
-  * A single value used for all windows.
-  * ``n * n`` values, where ``window_size[i][j]`` is a size of window applied along ``j``-th axis
-    while computing ``i``-th partial derivative. Values ``window_size[i][i]`` describe
-    derivative window sizes, the remaining values refer to smoothing windows.
-  * ``n`` values, where the first value describes the derivative window size and
-    remaining values refer to smoothing windows. Values are shifted to the right to
-    obtain parameters for all partial derivatives. For instance, for volumetric data, specifing
-    ``window_sizes = [w1, w2, w3]`` is same as setting
-    ``window_sizes = [w1, w2, w3, w3, w1, w2, w2, w3, w1]``.
+By default, each partial derivative is approximated by convolving along all spacial axes: the axis
+in partial derivative direction uses derivative window of ``window_size`` and the remaining
+axes are convolved with smoothing windows of the same size. If ``smoothing_size`` is specified,
+the smoothing windows applied to a given axis can have different size than the derivative windows.
+In particular, specifing ``smoothing_size = 1`` implies no smoothing in axes perpendicular
+to a derivative direction.
 
-Window sizes must be odd. Size of a derivative window must be at least 3. Smoothing
-window can be of size 1, which implies no smoothing along corresponding axis.
+Both ``window_size`` and ``smoothing_size`` can be specified as a single value or per axis.
+For example, for volumetric input, if ``window_size=[dz, dy, dx]``
+and ``smoothing_size=[sz, sy, sx]`` are specified, the following windows will be used:
+  * for partial derivative in ``z`` direction: derivative windows of size ``dz`` along ``z`` axis,
+    and smoothing windows of size ``sy`` and ``sx`` along `y` and `x` respectively.
+  * for partial derivative in ``y`` direction: derivative windows of size ``dy`` along ``y`` axis,
+    and smoothing windows of size ``sz`` and ``sx`` along `z` and `x` respectively.
+  * for partial derivative in ``x`` direction: derivative windows of size ``dx`` along ``x`` axis,
+    and smoothing windows of size ``sz`` and ``sy`` along `z` and `y` respectively.
 
-To normalize output, derivative kernel that uses ``n`` windows of total size equal to ``s``
-should be scaled by ``2^(-s + n + 2)``. If ``normalize`` argument is set to True,
-normalization is done by the operator. Alternatively, you can specify ``scale`` argument
-to customize scaling factors. Scale can be either a single value or ``n`` values, one for every
-partial derivative.
+Window sizes amd smoothing sizes must be odd. Size of a derivative window must be at least 3.
+Smoothing window can be of size 1, which implies no smoothing along corresponding axis.
+
+To normalize output ``normalize=True`` can be used. Each partial derivative is scaled
+by ``2^(-s + n + 2)``, where ``s`` is the sum of window sizes used to calculate given partial
+derivative (including the smoothing windows) and ``n`` is the number of data dimensions/axes.
+Alternatively, you can specify ``scale`` argument to customize scaling factors.
+Scale can be either a single value or ``n`` values, one for every partial derivative.
 
 Operator uses 32-bit floats as an intermediate type.
 
@@ -73,10 +78,9 @@ Operator uses 32-bit floats as an intermediate type.
                          "Size of derivative window used in convolutions",
                          std::vector<int>{laplacian::defaultWindowSize}, true)
     .AddOptionalArg<std::vector<int>>(laplacian::smoothingSizeArgName,
-                         "Size of smoothing window used in convolutions",
-                         laplacian::smoothingSizeDefault, true)
-    .AddOptionalArg<float>(laplacian::scaleArgName,
-                           "Factors to manually scale partial derivatives",
+                                      "Size of smoothing window used in convolutions",
+                                      laplacian::smoothingSizeDefault, true)
+    .AddOptionalArg<float>(laplacian::scaleArgName, "Factors to manually scale partial derivatives",
                            std::vector<float>{laplacian::scaleArgDefault}, true)
     .AddOptionalArg<bool>(laplacian::normalizeArgName,
                           "If set to True, automatically scales partial derivatives to normalize "
