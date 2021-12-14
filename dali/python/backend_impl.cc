@@ -1174,7 +1174,7 @@ PYBIND11_MODULE(backend_impl, m) {
     try {
       // we don't want to throw when it is not available, just return -1
       ret = GetCufftVersion();
-    } catch (std::runtime_error) {}
+    } catch (const std::runtime_error &) {}
     return ret;
   });
 
@@ -1183,7 +1183,7 @@ PYBIND11_MODULE(backend_impl, m) {
     try {
       // we don't want to throw when it is not available, just return -1
       ret = GetNppVersion();
-    } catch (std::runtime_error) {}
+    } catch (const std::runtime_error &) {}
     return ret;
   });
 
@@ -1192,7 +1192,7 @@ PYBIND11_MODULE(backend_impl, m) {
     try {
       // we don't want to throw when it is not available, just return -1
       ret = GetNvjpegVersion();
-    } catch (std::runtime_error) {}
+    } catch (const std::runtime_error &) {}
     return ret;
   });
 
