@@ -58,7 +58,7 @@ Window sizes and smoothing sizes must be odd. The size of a derivative window mu
 Smoothing window can be of size 1, which implies no smoothing along corresponding axis.
 
 To normalize output ``normalize=True`` can be used. Each partial derivative is scaled
-by ``2^(-s + n + 2)``, where ``s`` is the sum of window sizes used to calculate given partial
+by ``2^(-s + n + 2)``, where ``s`` is the sum of the window sizes used to calculate a given partial
 derivative (including the smoothing windows) and ``n`` is the number of data dimensions/axes.
 Alternatively, you can specify ``scale`` argument to customize scaling factors.
 Scale can be either a single value or ``n`` values, one for every partial derivative.
@@ -101,7 +101,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
   static constexpr int ndim = Kernel::ndim;
 
   explicit LaplacianOpCpu(const OpSpec& spec, const DimDesc& dim_desc)
-      : args{spec}, dim_desc_{dim_desc} {}
+      : spec_{spec}, args{spec}, dim_desc_{dim_desc} {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template Input<CPUBackend>(0);
@@ -112,7 +112,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
     output_desc[0].type = type2id<Out>::value;
     output_desc[0].shape.resize(nsamples, input.shape().sample_dim());
 
-    args.ObtainLaplacianArgs(ws, nsamples);
+    args.ObtainLaplacianArgs(spec_, ws, nsamples);
     windows_.resize(nsamples);
 
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
@@ -141,19 +141,15 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
     output.SetLayout(input.GetLayout());
     auto in_shape = input.shape();
     auto& thread_pool = ws.GetThreadPool();
-
     int nsamples = input.shape().num_samples();
+
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
       const auto& shape = input[sample_idx].shape();
       auto elem_volume = volume(shape.begin() + dim_desc_.usable_axes_start, shape.end());
       auto priority = elem_volume * args.GetTotalWindowSizes(sample_idx);
+      int seq_elements = volume(shape.begin(), shape.begin() + dim_desc_.usable_axes_start);
+      int64_t stride = elem_volume;
 
-      int seq_elements = 1;
-      int64_t stride = 0;
-      if (dim_desc_.is_sequence()) {
-        seq_elements = volume(shape.begin(), shape.begin() + dim_desc_.usable_axes_start);
-        stride = elem_volume;
-      }
       for (int elem_idx = 0; elem_idx < seq_elements; elem_idx++) {
         thread_pool.AddWork(
             [this, &input, &output, sample_idx, elem_idx, stride](int thread_id) {
@@ -175,6 +171,8 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
   }
 
  private:
+  const OpSpec &spec_;
+
   LaplacianArgs<axes> args;
   DimDesc dim_desc_;
 

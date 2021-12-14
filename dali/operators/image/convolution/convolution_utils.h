@@ -35,8 +35,8 @@ struct DimDesc {
 
   inline bool operator==(const DimDesc &other) const {
     return usable_axes_start == other.usable_axes_start &&
-      usable_axes_count == other.usable_axes_count &&
-      total_axes_count == other.total_axes_count;
+           usable_axes_count == other.usable_axes_count &&
+           total_axes_count == other.total_axes_count;
   }
 
   inline bool operator!=(const DimDesc &other) const {
@@ -44,7 +44,7 @@ struct DimDesc {
   }
 };
 
-DimDesc ParseAndValidateDim(int ndim, TensorLayout layout);
+DimDesc ParseAndValidateDim(int ndim, const TensorLayout &layout);
 
 }  // namespace convolution_utils
 }  // namespace dali

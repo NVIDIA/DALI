@@ -145,18 +145,17 @@ template <int axes>
 class LaplacianArgs {
  public:
   explicit LaplacianArgs(const OpSpec &spec)
-      : spec_{spec},
-        has_deriv_tensor_(spec.HasTensorArgument(windowSizeArgName)),
+      : has_deriv_tensor_(spec.HasTensorArgument(windowSizeArgName)),
         has_smooth_const_(spec.HasArgument(smoothingSizeArgName)),
         has_smooth_tensor_(spec.HasTensorArgument(smoothingSizeArgName)),
         has_scales_const_(spec.HasArgument(scaleArgName)),
         has_scales_tensor_(spec.HasTensorArgument(scaleArgName)),
         normalize_{spec.GetArgument<bool>(normalizeArgName)} {}
 
-  void ObtainLaplacianArgs(const ArgumentWorkspace &ws, int nsamples) {
-    ObtainWindowSizes(ws, nsamples);
+  void ObtainLaplacianArgs(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples) {
+    ObtainWindowSizes(spec, ws, nsamples);
     if (!normalize_) {
-      ObtainScales(ws, nsamples);
+      ObtainScales(spec, ws, nsamples);
     } else {
       DALI_ENFORCE(!HasScaleSpecified(),
                    "Parameter ``scale`` cannot be specified when ``normalize`` is set to True");
@@ -193,21 +192,21 @@ class LaplacianArgs {
     return has_scales_const_ || has_scales_tensor_;
   }
 
-  void ObtainWindowSizes(const ArgumentWorkspace &ws, int nsamples) {
+  void ObtainWindowSizes(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples) {
     int prev_size = window_sizes_.size();
     if (HasPerSampleWindows() || prev_size < nsamples) {
       window_sizes_.resize(nsamples);
     }
     int sample_idx = HasPerSampleWindows() ? 0 : prev_size;
     for (; sample_idx < nsamples; sample_idx++) {
-      SetSampleWindowSizes(ws, sample_idx);
+      SetSampleWindowSizes(spec, ws, sample_idx);
     }
   }
 
-  void SetSampleWindowSizes(const ArgumentWorkspace &ws, int sample_idx) {
+  void SetSampleWindowSizes(const OpSpec &spec, const ArgumentWorkspace &ws, int sample_idx) {
     auto &window_sizes = window_sizes_[sample_idx];
     std::array<int, axes> deriv_arg;
-    GetGeneralizedArg<int>(make_span(deriv_arg), windowSizeArgName, sample_idx, spec_, ws);
+    GetGeneralizedArg<int>(make_span(deriv_arg), windowSizeArgName, sample_idx, spec, ws);
     for (auto d_size : deriv_arg) {
       DALI_ENFORCE(3 <= d_size && d_size <= maxWindowSize && d_size % 2 == 1,
                    make_string("Window size must be an odd integer between 3 and ", maxWindowSize,
@@ -219,7 +218,7 @@ class LaplacianArgs {
       }
     } else {
       std::array<int, axes> smooth_arg;
-      GetGeneralizedArg<int>(make_span(smooth_arg), smoothingSizeArgName, sample_idx, spec_, ws);
+      GetGeneralizedArg<int>(make_span(smooth_arg), smoothingSizeArgName, sample_idx, spec, ws);
       for (auto s_size : smooth_arg) {
         DALI_ENFORCE(
             1 <= s_size && s_size <= maxWindowSize && s_size % 2 == 1,
@@ -249,18 +248,17 @@ class LaplacianArgs {
     }
   }
 
-  void ObtainScales(const ArgumentWorkspace &ws, int nsamples) {
+  void ObtainScales(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples) {
     int prev_size = scales_.size();
     if (has_scales_tensor_ || prev_size < nsamples) {
       scales_.resize(nsamples);
     }
     for (int sample_idx = has_scales_tensor_ ? 0 : prev_size; sample_idx < nsamples; sample_idx++) {
-      GetGeneralizedArg<float>(make_span(scales_[sample_idx]), scaleArgName, sample_idx, spec_, ws);
+      GetGeneralizedArg<float>(make_span(scales_[sample_idx]), scaleArgName, sample_idx, spec, ws);
     }
   }
 
   static constexpr int num_windows = axes * axes;
-  OpSpec spec_;
 
   bool has_deriv_tensor_;
   bool has_smooth_const_, has_smooth_tensor_;

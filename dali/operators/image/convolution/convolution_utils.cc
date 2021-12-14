@@ -20,7 +20,7 @@
 namespace dali {
 namespace convolution_utils {
 
-DimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
+DimDesc ParseAndValidateDim(int ndim, const TensorLayout &layout) {
   static constexpr int kMaxDim = 3;
   if (layout.empty()) {
     // assuming plain data with no channels
@@ -46,7 +46,7 @@ DimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
   DALI_ENFORCE(
       std::all_of(layout.begin() + axes_start, layout.begin() + axes_end,
                   std::bind(std::not_equal_to<char>(), 'F', std::placeholders::_1)),
-      make_string("For sequences, layout should begin with 'F' or 'CF', got: ", layout, "."));
+      make_string("For sequences, layout should begin with 'F' or 'C', got: ", layout, "."));
   DALI_ENFORCE(
       axes_start <= 2,
       make_string("Found more the one occurrence of 'F' or 'C' axes in layout: ", layout, "."));
