@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@
 
 namespace dali {
 
+DLL_PUBLIC int DeviceFromStream(cudaStream_t s);
+
 /**
  * @brief A wrapper class for CUDA stream handle (cudaStream_t),
  *
@@ -42,6 +44,10 @@ class DLL_PUBLIC CUDAStream : public UniqueHandle<cudaStream_t, CUDAStream>{
   /// @brief Creates a stream with given priority on specified device
   ///        (or current device, if device_id < 0)
   static CUDAStream CreateWithPriority(bool non_blocking, int priority, int device_id = -1);
+
+  inline int GetDevice() const {
+    return DeviceFromStream(*this);
+  }
 
   /// @brief Calls cudaStreamDestroy on the handle.
   static void DestroyHandle(cudaStream_t stream);
