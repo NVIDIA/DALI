@@ -37,12 +37,12 @@ spatial dimension. Each partial derivative is approximated with a separable conv
 that uses a derivative window in the direction of the partial derivative and smoothing windows
 in the remaining axes.
 
-By default, each partial derivative is approximated by convolving along all spacial axes: the axis
+By default, each partial derivative is approximated by convolving along all spatial axes: the axis
 in partial derivative direction uses derivative window of ``window_size`` and the remaining
 axes are convolved with smoothing windows of the same size. If ``smoothing_size`` is specified,
-the smoothing windows applied to a given axis can have different size than the derivative windows.
-In particular, specifing ``smoothing_size = 1`` implies no smoothing in axes perpendicular
-to a derivative direction.
+the smoothing windows applied to a given axis can have different size than the derivative window.
+Specifying ``smoothing_size = 1`` implies no smoothing in axes perpendicular
+to the derivative direction.
 
 Both ``window_size`` and ``smoothing_size`` can be specified as a single value or per axis.
 For example, for volumetric input, if ``window_size=[dz, dy, dx]``
@@ -54,7 +54,7 @@ and ``smoothing_size=[sz, sy, sx]`` are specified, the following windows will be
   * for partial derivative in ``x`` direction: derivative windows of size ``dx`` along ``x`` axis,
     and smoothing windows of size ``sz`` and ``sy`` along `z` and `y` respectively.
 
-Window sizes amd smoothing sizes must be odd. Size of a derivative window must be at least 3.
+Window sizes and smoothing sizes must be odd. The size of a derivative window must be at least 3.
 Smoothing window can be of size 1, which implies no smoothing along corresponding axis.
 
 To normalize output ``normalize=True`` can be used. Each partial derivative is scaled
