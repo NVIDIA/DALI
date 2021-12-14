@@ -202,7 +202,7 @@ bool Laplacian::SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_
 
     TYPE_SWITCH(input.type(), type2id, In, LAPLACIAN_CPU_SUPPORTED_TYPES, (
       VALUE_SWITCH(dim_desc.usable_axes_count, Axes, LAPLACIAN_SUPPORTED_AXES, (
-        BOOL_SWITCH(dim_desc.has_channels(), HasChannels, (
+        BOOL_SWITCH(dim_desc.is_channel_last(), HasChannels, (
           if (dtype == input.type()) {
             using LaplacianSame = laplacian::LaplacianOpCpu<In, In, Axes, HasChannels>;
             impl_ = std::make_unique<LaplacianSame>(spec_, dim_desc);

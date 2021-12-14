@@ -25,7 +25,7 @@ struct DimDesc {
   int usable_axes_count;
   int total_axes_count;
 
-  inline bool has_channels() const {
+  inline bool is_channel_last() const {
     return usable_axes_start + usable_axes_count < total_axes_count;
   }
 

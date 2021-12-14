@@ -184,7 +184,7 @@ bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
     // clang-format off
     TYPE_SWITCH(input.type(), type2id, In, GAUSSIAN_BLUR_CPU_SUPPORTED_TYPES, (
       VALUE_SWITCH(dim_desc.usable_axes_count, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
-        BOOL_SWITCH(dim_desc.has_channels(), HasChannels, (
+        BOOL_SWITCH(dim_desc.is_channel_last(), HasChannels, (
           if (dtype_ == input.type()) {
             impl_ =
               std::make_unique<GaussianBlurOpCpu<In, In, Axes, HasChannels>>(&spec_, dim_desc);

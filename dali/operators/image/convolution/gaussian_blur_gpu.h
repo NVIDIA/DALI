@@ -146,7 +146,7 @@ std::unique_ptr<OpImplBase<GPUBackend>> GetGaussianBlurGpuImpl(const OpSpec* spe
                                                                DimDesc dim_desc) {
   std::unique_ptr<OpImplBase<GPUBackend>> result;
   VALUE_SWITCH(dim_desc.usable_axes_count, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
-    BOOL_SWITCH(dim_desc.has_channels(), HasChannels, (
+    BOOL_SWITCH(dim_desc.is_channel_last(), HasChannels, (
       BOOL_SWITCH(dim_desc.is_sequence(), IsSequence, (
         result.reset(
           new GaussianBlurOpGpu<Out, In, Axes, HasChannels, IsSequence>(spec, std::move(dim_desc)));
