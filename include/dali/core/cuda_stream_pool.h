@@ -15,6 +15,7 @@
 #ifndef DALI_CORE_CUDA_STREAM_POOL_H_
 #define DALI_CORE_CUDA_STREAM_POOL_H_
 
+#include <cassert>
 #include <atomic>
 #include <vector>
 #include <utility>
@@ -195,7 +196,7 @@ class CUDAStreamLease {
  private:
   CUDAStreamLease(CUDAStream &&stream, int device_id, CUDAStreamPool *owner)
   : stream_(std::move(stream)), device_id_(device_id), owner_(owner) {
-    assert(owner && stream);
+    assert(owner_ && stream_);
     ++owner->lease_count_;
   }
 
