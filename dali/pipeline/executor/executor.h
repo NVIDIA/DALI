@@ -26,6 +26,7 @@
 #include <mutex>
 
 #include "dali/core/common.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/nvtx.h"
 #include "dali/pipeline/data/backend.h"
@@ -107,13 +108,10 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
         callback_(nullptr),
-        stream_pool_(max_num_stream, true, default_cuda_stream_priority),
         event_pool_(),
         thread_pool_(num_thread, device_id, set_affinity),
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth),
-        mixed_op_stream_(0),
-        gpu_op_stream_(0),
         enable_memory_stats_(false) {
     DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0.");
 
@@ -330,10 +328,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   std::queue<int> batch_sizes_cpu_, batch_sizes_mixed_, batch_sizes_gpu_;
 
   OpGraph *graph_ = nullptr;
-  // we need to keep this above the stream_pool_ so we still have it when the stream_pool_
-  // destructor runs and it waits for streams to finish
   ExecutorCallback callback_;
-  StreamPool stream_pool_;
   EventPool event_pool_;
   ThreadPool thread_pool_;
   std::vector<std::string> errors_;
@@ -341,7 +336,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   bool exec_error_;
   QueueSizes queue_sizes_;
   std::vector<tensor_data_store_queue_t> tensor_to_store_queue_;
-  cudaStream_t mixed_op_stream_, gpu_op_stream_;
+  CUDAStreamLease mixed_op_stream_, gpu_op_stream_;
   // MixedOpId -> queue_idx -> cudaEvent_t
   // To introduce dependency from MIXED to GPU Ops
   MixedOpEventMap mixed_op_events_;
@@ -451,8 +446,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   // Setup stream and events that will be used for execution
   if (device_id_ != CPU_ONLY_DEVICE_ID) {
     DeviceGuard g(device_id_);
-    mixed_op_stream_ = stream_pool_.GetStream();
-    gpu_op_stream_ = stream_pool_.GetStream();
+    mixed_op_stream_ = CUDAStreamPool::instance().Get(device_id_);
+    gpu_op_stream_ = CUDAStreamPool::instance().Get(device_id_);
     mixed_op_events_ =
         CreateEventsForMixedOps(event_pool_, *graph_, stage_queue_depths_[OpType::MIXED]);
 
