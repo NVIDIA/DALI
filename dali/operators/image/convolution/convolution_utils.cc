@@ -40,6 +40,7 @@ DimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
     has_channels = true;
   }
   int axes_count = axes_end - axes_start;
+  DALI_ENFORCE(axes_count > 0, make_string("No spatial axes found in the layout: ", layout));
   DALI_ENFORCE(
       std::all_of(layout.begin() + axes_start, layout.begin() + axes_end,
                   std::bind(std::not_equal_to<char>(), 'C', std::placeholders::_1)),
@@ -51,7 +52,6 @@ DimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
   DALI_ENFORCE(
       axes_start <= 2,
       make_string("Found more the one occurrence of 'F' or 'C' axes in layout: ", layout, "."));
-  DALI_ENFORCE(axes_count > 0, make_string("No spatial axes found in the layout: ", layout));
   DALI_ENFORCE(axes_count <= kMaxDim,
                make_string("Too many dimensions, found: ", axes_count,
                            " data axes, maximum supported is: ", kMaxDim, "."));
