@@ -73,7 +73,7 @@ struct SliceBlockDesc {
 };
 
 template<typename OutputType>
-constexpr int coalesced_pixels = sizeof(OutputType) >= 4 ? 1 : 4 / sizeof(OutputType);
+constexpr int coalesced_values = sizeof(OutputType) >= 4 ? 1 : 4 / sizeof(OutputType);
 
 /**
  * @brief Simplified algorithm when no padding is necessary
@@ -90,9 +90,9 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
     return;
   }
 
-  for (; offset < block_end; offset += blockDim.x * coalesced_pixels<OutputType>) {
+  for (; offset < block_end; offset += blockDim.x * coalesced_values<OutputType>) {
     #pragma unroll
-    for (uint64_t i = 0; i < coalesced_pixels<OutputType>; i++) {
+    for (uint64_t i = 0; i < coalesced_values<OutputType>; i++) {
       uint64_t idx = offset + i;
       if (idx >= block_end) break;
       uint64_t out_idx = idx;
@@ -138,9 +138,9 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
     inner_in_extent = Dims > 1 ? in_strides[LastDim - 1] : in_shape[LastDim] * in_strides[LastDim];
   }
 
-  for (; offset < block_end; offset += blockDim.x * coalesced_pixels<OutputType>) {
+  for (; offset < block_end; offset += blockDim.x * coalesced_values<OutputType>) {
     #pragma unroll
-    for (uint64_t i = 0; i < coalesced_pixels<OutputType>; i++) {
+    for (uint64_t i = 0; i < coalesced_values<OutputType>; i++) {
       uint64_t idx = offset + i;
       if (idx >= block_end) break;
       uint64_t out_idx = idx;
@@ -179,7 +179,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
 template <typename OutputType, typename InputType, int Dims, bool SupportPad>
 __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const SliceBlockDesc *blocks) {
   int sampleIdx = blocks[blockIdx.x].sampleIdx;
-  uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x * coalesced_pixels<OutputType>;
+  uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x * coalesced_values<OutputType>;
   uint64_t block_end = blocks[blockIdx.x].offset + blocks[blockIdx.x].size;
   auto sample = samples[sampleIdx];
   auto *out = static_cast<OutputType*>(sample.out);
