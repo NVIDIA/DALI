@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operator/common.h"
+#include <functional>
+
 #include "dali/operators/image/convolution/convolution_utils.h"
+#include "dali/pipeline/operator/common.h"
 
 namespace dali {
 namespace convolution_utils {
@@ -25,35 +27,35 @@ DimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
     DALI_ENFORCE(ndim <= kMaxDim,
                  make_string("Input data with empty layout cannot have more than ", kMaxDim,
                              " dimensions, got input with ", ndim, " dimensions."));
-    return {0, ndim, ndim, false, false};
+    return {0, ndim, ndim};
   }
-  // not-empty layout
   int axes_start = 0;
-  int axes_count = ndim;
-  bool has_channels = ImageLayoutInfo::IsChannelLast(layout);
-  if (has_channels) {
-    axes_count--;
-  }
-  // Skip possible occurrences of 'C' or 'F' at the beggining
-  TensorLayout layout_tmp = layout;
-  while (ImageLayoutInfo::IsChannelFirst(layout_tmp) || VideoLayoutInfo::IsSequence(layout_tmp)) {
+  int axes_end = ndim;
+  bool has_channels = false;
+  while (axes_start < ndim && (layout[axes_start] == 'C' || layout[axes_start] == 'F')) {
     axes_start++;
-    axes_count--;
-    layout_tmp = layout_tmp.sub(1);
   }
-  if (!has_channels) {
-    DALI_ENFORCE(!ImageLayoutInfo::HasChannel(layout_tmp),
-                 make_string("Only channel-first or channel-last layouts are supported, got: ",
-                             layout, "."));
+  if (axes_end > 0 && layout[axes_end - 1] == 'C') {
+    axes_end--;
+    has_channels = true;
   }
-  DALI_ENFORCE(!VideoLayoutInfo::HasSequence(layout_tmp),
+  int axes_count = axes_end - axes_start;
+  DALI_ENFORCE(
+      std::all_of(layout.begin() + axes_start, layout.begin() + axes_end,
+                  std::bind(std::not_equal_to<char>(), 'C', std::placeholders::_1)),
+      make_string("Only channel-first or channel-last layouts are supported, got: ", layout, "."));
+  DALI_ENFORCE(
+      std::all_of(layout.begin() + axes_start, layout.begin() + axes_end,
+                  std::bind(std::not_equal_to<char>(), 'F', std::placeholders::_1)),
       make_string("For sequences, layout should begin with 'F' or 'CF', got: ", layout, "."));
-  DALI_ENFORCE(axes_start <= 2,
+  DALI_ENFORCE(
+      axes_start <= 2,
       make_string("Found more the one occurrence of 'F' or 'C' axes in layout: ", layout, "."));
+  DALI_ENFORCE(axes_count > 0, make_string("No spatial axes found in the layout: ", layout));
   DALI_ENFORCE(axes_count <= kMaxDim,
                make_string("Too many dimensions, found: ", axes_count,
                            " data axes, maximum supported is: ", kMaxDim, "."));
-  return {axes_start, axes_count, axes_count + (axes_start != 0), has_channels, axes_start != 0};
+  return {axes_start, axes_count, ndim};
 }
 
 }  // namespace convolution_utils

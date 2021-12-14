@@ -536,7 +536,8 @@ def test_fail_laplacian():
         ((5, 3, 20, 3, 30), "FCHCW", 2,
             "Only channel-first or channel-last layouts are supported, got: .*\."),
         ((5, 3, 20, 3, 30), "FCCHW", 2,
-            "Found more the one occurrence of 'F' or 'C' axes in layout: .*\.")
+            "Found more the one occurrence of 'F' or 'C' axes in layout: .*\."),
+        ((5, 3), "CF", 2, "No spatial axes found in the layout"),
     ]
     for shape, layout, axes, err_regex in args:
         yield check_build_time_fail, 10, shape, layout, axes, 11, 11, 1., False, err_regex

@@ -150,7 +150,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
 
       int seq_elements = 1;
       int64_t stride = 0;
-      if (dim_desc_.is_sequence) {
+      if (dim_desc_.is_sequence()) {
         seq_elements = volume(shape.begin(), shape.begin() + dim_desc_.usable_axes_start);
         stride = elem_volume;
       }
@@ -202,7 +202,7 @@ bool Laplacian::SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_
 
     TYPE_SWITCH(input.type(), type2id, In, LAPLACIAN_CPU_SUPPORTED_TYPES, (
       VALUE_SWITCH(dim_desc.usable_axes_count, Axes, LAPLACIAN_SUPPORTED_AXES, (
-        BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
+        BOOL_SWITCH(dim_desc.has_channels(), HasChannels, (
           if (dtype == input.type()) {
             using LaplacianSame = laplacian::LaplacianOpCpu<In, In, Axes, HasChannels>;
             impl_ = std::make_unique<LaplacianSame>(spec_, dim_desc);
