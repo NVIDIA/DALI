@@ -139,7 +139,9 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
   }
 
   for (; offset < block_end; offset += blockDim.x * coalesced_values<OutputType>) {
+    #ifndef __clang__
     #pragma unroll
+    #endif
     for (uint64_t i = 0; i < coalesced_values<OutputType>; i++) {
       uint64_t idx = offset + i;
       if (idx >= block_end) break;
