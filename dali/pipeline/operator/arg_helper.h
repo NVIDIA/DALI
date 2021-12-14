@@ -59,6 +59,22 @@ struct ArgShapeFromSize<1> {
  * @}
  */
 
+
+/**
+ * @brief ArgValue flags for acquire
+ *
+ */
+enum ArgValueFlags : unsigned {
+  ArgValue_EnforceUniform = 0b0001,  // Enforces a uniform shape
+  ArgValue_AllowEmpty = 0b0010,      // Allows empty samples
+  ArgValue_Default = 0               // Default behavior
+};
+
+static constexpr ArgValueFlags operator |(ArgValueFlags a, ArgValueFlags b) {
+  return ArgValueFlags(unsigned(a) | unsigned(b));  //  NOLINT
+}
+
+
 /**
  * @brief Helper to access operator argument data, regardless of whether the data was provided
  * as a build-time constant or a tensor input.
@@ -79,53 +95,144 @@ class ArgValue {
 
   ArgValue(std::string arg_name, const OpSpec &spec)
       : arg_name_(std::move(arg_name)) {
-    has_arg_const_ = spec.HasArgument(arg_name_);
+    has_explicit_const_ = spec.HasArgument(arg_name_);
     has_arg_input_ = spec.HasTensorArgument(arg_name_);
-    assert(!(has_arg_const_ && has_arg_input_));
+    assert(!(has_explicit_const_ && has_arg_input_));
+
+    ReadConstant(spec, false);  // not raising errors here
   }
 
   /**
-   * @brief true if the argument was provided explicitly
+   * @brief true if there is a value available (explicit or default)
    */
-  bool IsDefined() const {
-    return has_arg_const_ || has_arg_input_;
+  bool HasValue() const {
+    return has_arg_input_ || has_constant_value_;
   }
 
   /**
-   * @brief true if the argument is a build-time constant
+   * @brief true if there is a value explicitly provided (constant or argument input)
    */
-  bool IsConstant() const {
-    return has_arg_const_;
+  bool HasExplicitValue() const {
+    return has_arg_input_ || has_explicit_const_;
   }
 
   /**
-   * @brief true if the argument is a tensor input
+   * @brief true if there is a constant explicitly provided
    */
-  bool IsArgInput() const {
+  bool HasExplicitConstant() const {
+    return has_explicit_const_;
+  }
+
+  /**
+   * @brief true if there is an argument input
+   */
+  bool HasArgumentInput() const {
     return has_arg_input_;
+  }
+
+  explicit operator bool() const {
+    return HasValue();
   }
 
   /**
    * @brief Acquires argument data, enforcing that the shape of the data matches the
    *        expected shape or it is a scalar, which can also be broadcasted to the expected shape
+   *
+   * @param spec
+   * @param ws
+   * @param nsamples
+   * @param expected_shape
+   * @param flags bit flags controlling the behavior (see ArgValue)
    */
   void Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples,
-               const TensorShape<ndim> &expected_shape) {
+               const TensorListShape<ndim> &expected_shape,
+               ArgValueFlags flags = ArgValue_Default) {
+    assert(!(flags & ArgValue_EnforceUniform) || is_uniform(expected_shape));
     if (has_arg_input_) {
       view_ = view<const T, ndim>(ws.ArgumentInput(arg_name_));
-      DALI_ENFORCE(is_uniform(view_.shape) && expected_shape == view_.shape[0],
-        make_string("Expected uniform shape for argument \"", arg_name_,
-                    "\" but got shape ", view_.shape));
-    } else {
-      if (orig_constant_sz_ < 0) {
-        // if not an argument input, read the constant values, explicit or default
-        orig_constant_sz_ = ReadConstant(spec);
+      if (flags & ArgValue_AllowEmpty) {
+        for (int i = 0; i < nsamples; i++) {
+          auto sh_span = view_.shape.tensor_shape_span(i);
+          auto expected_sh_span = expected_shape.tensor_shape_span(i);
+          DALI_ENFORCE(
+              volume(sh_span) == 0 || sh_span == expected_sh_span,
+              make_string("Unexpected shape for argument \"", arg_name_, "\". Expected ",
+                          expected_shape, " or empty, but got ", view_.shape));
+        }
+      } else {
+        DALI_ENFORCE(expected_shape == view_.shape,
+          make_string("Unexpected shape for argument \"", arg_name_,
+                      "\". Expected ", expected_shape, ", but got ", view_.shape));
       }
+    } else {
+      if (!has_constant_value_)
+        ReadConstant(spec);  // just to raise the appropriate error
+
+      int64_t expected_len = expected_shape.num_elements();
+      if (orig_constant_sz_ == 1 && expected_len != 1) {
+        // broadcast single values to whatever shape, including empty tensors
+        data_.resize(std::max(expected_len, 1_i64), data_[0]);
+        view_ = TLV(data_.data(), expected_shape);
+      } else if (orig_constant_sz_ == 0 && (flags & ArgValue_AllowEmpty)) {
+        view_ = constant_view(nsamples, data_.data(), TensorShape<ndim>{});
+      } else {
+        if (!is_uniform(expected_shape)) {
+          DALI_FAIL(make_string("Can't interpret argument ", arg_name_,
+                                ". Provided an constant argument with ", orig_constant_sz_,
+                                " elements but the expected shape is not uniform."));
+        }
+        // at this point we know the expected shape is uniform
+        auto expected_sample_sh = expected_shape[0];
+        DALI_ENFORCE(orig_constant_sz_ == volume(expected_sample_sh),
+              make_string("Argument \"", arg_name_, "\" expected shape ", expected_sample_sh,
+                          " but got ", orig_constant_sz_,
+                          " values, which can't be interpreted as the expected shape."));
+        view_ = constant_view(nsamples, data_.data(), expected_sample_sh);
+      }
+    }
+  }
+
+  /**
+   * @brief Acquires argument data, enforcing that the shape of the data matches the
+   *        expected shape or it is a scalar, which can also be broadcasted to the expected shape
+   *
+   * @param spec
+   * @param ws
+   * @param nsamples
+   * @param expected_shape
+   * @param flags bit flags controlling the behavior (see ArgValue)
+   */
+  void Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples,
+               const TensorShape<ndim> &expected_shape,
+               ArgValueFlags flags = ArgValue_Default) {
+    if (has_arg_input_) {
+      view_ = view<const T, ndim>(ws.ArgumentInput(arg_name_));
+      span<const int64_t> expected_sh_span(&expected_shape[0], expected_shape.size());
+      if (flags & ArgValue_AllowEmpty) {
+        for (int i = 0; i < nsamples; i++) {
+          auto sh_span = view_.shape.tensor_shape_span(i);
+          DALI_ENFORCE(
+              volume(sh_span) == 0 || sh_span == expected_sh_span,
+              make_string("Unexpected shape for argument \"", arg_name_, "\". Expected ",
+                          expected_shape, " or empty, but got ", view_.shape));
+        }
+      } else {
+        DALI_ENFORCE(
+            is_uniform(view_.shape) && expected_sh_span == view_.shape.tensor_shape_span(0),
+            make_string("Expected uniform shape for argument \"", arg_name_, "\" but got shape ",
+                        view_.shape));
+      }
+    } else {
+      if (!has_constant_value_)
+        ReadConstant(spec);  // just to raise the appropriate error
+
       int64_t expected_len = volume(expected_shape);
       if (orig_constant_sz_ == 1 && expected_len != 1) {
         // broadcast single values to whatever shape, including empty tensors
         data_.resize(std::max(expected_len, 1_i64), data_[0]);
         view_ = constant_view(nsamples, data_.data(), expected_shape);
+      } else if (orig_constant_sz_ == 0 && (flags & ArgValue_AllowEmpty)) {
+        view_ = constant_view(nsamples, data_.data(), TensorShape<ndim>{});
       } else {
         DALI_ENFORCE(orig_constant_sz_ == volume(expected_shape),
               make_string("Argument \"", arg_name_, "\" expected shape ", expected_shape,
@@ -140,22 +247,29 @@ class ArgValue {
    * @brief Acquires argument data, inferring the data shape in case of non-tensor arguments.
    *        The shape of scalar and 1D arguments is inferred by default. For 2 or more dimensions,
    *        a custom callable ``shape_from_size`` is expected.
+   *
+   * @tparam ShapeFromSizeFn
+   * @param spec
+   * @param ws
+   * @param nsamples
+   * @param flags bit flags controlling the behavior (see ArgValue)
+   * @param shape_from_size
    */
   template <typename ShapeFromSizeFn = ArgShapeFromSize<ndim>>
   void Acquire(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples,
-               bool enforce_uniform = false, ShapeFromSizeFn &&shape_from_size = {}) {
+               ArgValueFlags flags = ArgValue_Default,
+               ShapeFromSizeFn &&shape_from_size = {}) {
     if (has_arg_input_) {
       view_ = view<const T, ndim>(ws.ArgumentInput(arg_name_));
-      if (enforce_uniform) {
+      if (flags & ArgValue_EnforceUniform) {
         DALI_ENFORCE(is_uniform(view_.shape),
           make_string("Expected uniform shape for argument \"", arg_name_,
                       "\" but got shape ", view_.shape));
       }
     } else {
-      if (orig_constant_sz_ < 0) {
-        // if not an argument input, read the constant values, explicit or default
-        orig_constant_sz_ = ReadConstant(spec);
-      }
+      if (!has_constant_value_)
+        ReadConstant(spec);  // just to raise the appropriate error
+
       auto sh = shape_from_size(orig_constant_sz_);
       view_ = constant_view(nsamples, data_.data(), std::move(sh));
     }
@@ -178,9 +292,18 @@ class ArgValue {
   /**
    * @brief Get a tensor view to the argument data for a given sample index
    */
-  TV operator[](size_t idx) const {
-    assert(idx < static_cast<size_t>(size()));
+  TV operator[](int idx) const {
+    assert(idx >= 0 && idx < size());
     return view_[idx];
+  }
+
+  /**
+   * @brief true if the argument is empty or the particular sample
+   *        has a 0-volume shape
+   */
+  bool IsEmpty(int idx) const {
+    assert(idx >= 0 && idx < size());
+    return volume(view_.shape.tensor_shape_span(idx)) == 0;
   }
 
   /**
@@ -194,21 +317,24 @@ class ArgValue {
   /**
    * @brief Read constant argument data
    */
-  int ReadConstant(const OpSpec &spec) {
+  void ReadConstant(const OpSpec &spec, bool error_if_no_value = true) {
+    data_.clear();
     if (ndim == 0) {
       data_.resize(1);
-      if (!spec.TryGetArgument<T>(data_[0], arg_name_)) {
+      has_constant_value_ = spec.TryGetArgument<T>(data_[0], arg_name_);
+      if (!has_constant_value_) {
         data_.clear();
-        // something went bad - call GetArgument and let it throw
-        (void) spec.GetArgument<T>(arg_name_);
+        if (error_if_no_value)  // call GetArgument and let it throw
+          (void) spec.GetArgument<T>(arg_name_);
       }
     } else {
-      if (!spec.TryGetRepeatedArgument<T>(data_, arg_name_)) {
-        // something went bad - call GetRepeatedArgument and let it throw
-        (void) spec.GetRepeatedArgument<T>(arg_name_);
+      has_constant_value_ = spec.TryGetRepeatedArgument<T>(data_, arg_name_);
+      if (!has_constant_value_) {
+        if (error_if_no_value)  // call GetRepeatedArgument and let it throw
+          (void) spec.GetRepeatedArgument<T>(arg_name_);
       }
     }
-    return data_.size();
+    orig_constant_sz_ = data_.size();
   }
 
   /**
@@ -222,13 +348,16 @@ class ArgValue {
   }
 
   std::string arg_name_;
+  ArgValueFlags flags_;
+
   std::vector<T> data_;
   TLV view_;
 
-  bool has_arg_const_ = false;
-  bool has_arg_input_ = false;
+  bool has_explicit_const_ = false;  // explicit constant
+  bool has_arg_input_ = false;  // tensor input
 
-  int64_t orig_constant_sz_ = -1;  // not-read
+  int64_t orig_constant_sz_ = -1;  // Original size of the constant value (-1 -> not-read)
+  bool has_constant_value_ = false;  // has a constant (explicit or default) defined
 };
 
 }  // namespace dali

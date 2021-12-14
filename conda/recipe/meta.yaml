@@ -72,13 +72,12 @@ requirements:
     # in the dependency tree
     - protobuf >=3.18.0
     - libprotobuf-static >=3.18.0
-    - libjpeg-turbo >=2.1.0
-    - tensorflow-gpu =2.2.0
-    - tensorflow-estimator =2.2.0
-    - tensorboard =2.2.2
+    - libjpeg-turbo >=2.1.1
+    - tensorflow-gpu =2.6.2
+    - tensorflow-estimator =2.6.2
+    - tensorboard
     - dali-opencv
     - dali-ffmpeg
-    - boost >=1.76
     - lmdb >=0.9.29
     - libtiff >=4.3.0
     - libsndfile >=1.0.31
@@ -91,10 +90,10 @@ requirements:
   run:
     - python
     - future >=0.17.1
-    - libjpeg-turbo >=2.1.0
-    - tensorflow-gpu =2.2.0
-    - tensorflow-estimator =2.2.0
-    - tensorboard =2.2.2
+    - libjpeg-turbo >=2.1.1
+    - tensorflow-gpu =2.6.2
+    - tensorflow-estimator =2.6.2
+    - tensorboard
     - lmdb >=0.9.29
     - libtiff >=4.3.0
     - libsndfile >=1.0.31

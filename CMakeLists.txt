@@ -39,6 +39,7 @@ check_cxx_compiler_flag(-fopenmp-simd CXX_HAVE_OMP_SIMD)
 # Build options
 option(BUILD_DALI_NODEPS "Disable components that require extra external libraries to be present in the system. Effectively, it builds only the DALI core and kernel libraries")
 option(LINK_DRIVER "Links directly with libcuda.so instead of dlopen it at runtime" OFF)
+option(WITH_DYNAMIC_CUDA_TOOLKIT "Links CUDA toolkit libraires dynamically (NPP, nvJPEG, cuFFT)" OFF)
 
 # Tests use OpenCV...
 cmake_dependent_option(BUILD_TEST "Build googletest test suite" ON
@@ -140,7 +141,7 @@ if (NOT CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
 endif()
 
 # ; creates a list here
-set (PYTHON_VERSIONS "3.6;3.7;3.8;3.9")
+set (PYTHON_VERSIONS "3.6;3.7;3.8;3.9;3.10")
 
 if (STATIC_LIBS)
   message (STATUS "Building static libraries")
@@ -195,6 +196,7 @@ propagate_option(BUILD_NVDEC)
 propagate_option(BUILD_NVML)
 propagate_option(BUILD_CUFILE)
 propagate_option(LINK_DRIVER)
+propagate_option(WITH_DYNAMIC_CUDA_TOOLKIT)
 
 # add more flags after they are populated by find_package from Dependencies.cmake
 

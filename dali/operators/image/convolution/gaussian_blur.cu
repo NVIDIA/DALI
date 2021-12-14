@@ -80,15 +80,20 @@ bool GaussianBlur<GPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
   DALI_ENFORCE(dtype_ == input.type() || dtype_ == DALI_FLOAT,
                "Output data type must be same as input, FLOAT or skipped (defaults to input type)");
 
-  // clang-format off
-  TYPE_SWITCH(input.type(), type2id, In, GAUSSIAN_BLUR_GPU_SUPPORTED_TYPES, (
+  if (!impl_ || impl_in_dtype_ != input.type() || impl_dim_desc_ != dim_desc) {
+    impl_in_dtype_ = input.type();
+    impl_dim_desc_ = dim_desc;
+
+    // clang-format off
+    TYPE_SWITCH(input.type(), type2id, In, GAUSSIAN_BLUR_GPU_SUPPORTED_TYPES, (
       if (dtype_ == input.type()) {
         impl_ = GetGaussianBlurGpuImpl<In, In>(&spec_, dim_desc);
       } else {
         impl_ = GetGaussianBlurGpuImpl<float, In>(&spec_, dim_desc);
       }
-  ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
-  // clang-format on
+    ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
+    // clang-format on
+  }
 
   return impl_->SetupImpl(output_desc, ws);
 }

@@ -85,10 +85,15 @@ void JpegCompressionDistortionCPU::RunImpl(workspace_t<CPUBackend> &ws) {
     auto shape = in_shape.tensor_shape_span(sample_idx);
     int ndim = shape.size();
     auto layout = input.GetLayout();
+
     int w_dim = layout.find('W');
+    assert(w_dim >= 0);
     int h_dim = layout.find('H');
+    assert(h_dim >= 0);
     int c_dim = layout.find('C');
+    assert(c_dim >= 0);
     int f_dim = layout.find('F');
+
     int64_t nframes =
         volume(&shape[0], &shape[f_dim + 1]);  // note that if f_dim is -1, this evaluates to an
                                                // empty range, which has a volume of 1

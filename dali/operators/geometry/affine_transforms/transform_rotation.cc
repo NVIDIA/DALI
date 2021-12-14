@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ class TransformRotationCPU
       angle_("angle", spec),
       axis_("axis", spec),
       center_("center", spec) {
-    assert(angle_.IsDefined());
+    assert(angle_.HasExplicitValue());
   }
 
   /**
@@ -79,7 +79,7 @@ class TransformRotationCPU
       auto angle = angle_[i].data[0];
       mat = rotation2D(deg2rad(angle));
 
-      if (center_.IsDefined()) {
+      if (center_.HasExplicitValue()) {
         const vec2 &center = as_vec<2>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
@@ -100,7 +100,7 @@ class TransformRotationCPU
       const vec3 &axis = as_vec<3>(axis_[i]);
       mat = rotation3D(axis, deg2rad(angle));
 
-      if (center_.IsDefined()) {
+      if (center_.HasExplicitValue()) {
         const vec3 &center = as_vec<3>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
@@ -109,17 +109,17 @@ class TransformRotationCPU
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
     angle_.Acquire(spec, ws, nsamples_, TensorShape<0>{});
-    ndim_ = axis_.IsDefined() ? 3 : 2;
-    if (axis_.IsDefined()) {
+    ndim_ = axis_.HasExplicitValue() ? 3 : 2;
+    if (axis_.HasExplicitValue()) {
       axis_.Acquire(spec, ws, nsamples_, TensorShape<1>{ndim_});
     }
-    if (center_.IsDefined()) {
+    if (center_.HasExplicitValue()) {
       center_.Acquire(spec, ws, nsamples_, TensorShape<1>{ndim_});
     }
   }
 
   bool IsConstantTransform() const {
-    return !angle_.IsArgInput() && !axis_.IsArgInput() && !center_.IsArgInput();
+    return !angle_.HasArgumentInput() && !axis_.HasArgumentInput() && !center_.HasArgumentInput();
   }
 
  private:

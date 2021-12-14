@@ -1,4 +1,4 @@
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,7 +38,14 @@ adjust_source_file_language_property("${DALI_KERNEL_SRCS}")
 set_source_files_properties("dummy.cu" PROPERTIES LANGUAGE CUDA)
 add_library(dali_kernels ${LIBTYPE} ${DALI_KERNEL_SRCS})
 target_link_libraries(dali_kernels PUBLIC dali_core)
-target_link_libraries(dali_kernels PRIVATE ${CUDA_cufft_static_LIBRARY})
+
+if (WITH_DYNAMIC_CUDA_TOOLKIT)
+  target_link_libraries(dali_kernels PRIVATE dynlink_cufft)
+else()
+  target_link_libraries(dali_kernels PRIVATE ${CUDA_cufft_LIBRARY})
+  target_link_libraries(dali_kernels PRIVATE "-Wl,--exclude-libs,${CUDA_cufft_LIBRARY}")
+endif ()
+
 target_link_libraries(dali_kernels PRIVATE ${DALI_LIBS} dynlink_cuda)
 target_link_libraries(dali_kernels PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 set_target_properties(dali_kernels PROPERTIES

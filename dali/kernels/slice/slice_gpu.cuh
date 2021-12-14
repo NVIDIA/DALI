@@ -193,9 +193,12 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const SliceBlo
 template <typename OutputType, typename InputType, int Dims>
 class SliceGPU {
  private:
-  static constexpr int64_t kBlockDim = 256;
-  static constexpr int64_t kBlockSize = 64 * kBlockDim;
-  int64_t block_count_ = 0;
+  static constexpr uint64_t kBlockDim = 256;
+  static constexpr uint64_t kMinBlockSize = 4 * kBlockDim;
+  static constexpr uint64_t kMaxBlockSize = 64 * kBlockDim;
+
+  uint64_t block_size_ = kMaxBlockSize;
+  uint64_t block_count_ = 0;
 
  public:
   KernelRequirements Setup(KernelContext &context,
@@ -237,14 +240,21 @@ class SliceGPU {
 
     std::vector<int64_t> sample_sizes;
     sample_sizes.reserve(slice_args.size());
+    int64_t total_volume = 0;
     for (auto &args : slice_args) {
       sample_sizes.push_back(volume(args.shape));
+      total_volume += volume(args.shape);
+    }
+
+    unsigned min_blocks = 4 * GetSmCount();
+    block_size_ = kMaxBlockSize;
+    while (total_volume / block_size_ < min_blocks && block_size_ > kMinBlockSize) {
+      block_size_ /= 2;
     }
 
     block_count_ = 0;
     for (auto sample_size : sample_sizes) {
-      block_count_ += std::ceil(
-        sample_size / static_cast<float>(kBlockSize));
+      block_count_ += div_ceil(sample_size, block_size_);
     }
 
     se.add<mm::memory_kind::host, detail::SliceBlockDesc>(block_count_);
@@ -319,7 +329,7 @@ class SliceGPU {
       uint64_t offset = 0;
       uint64_t remaining = sample_sizes[i];
       while (remaining > 0) {
-        uint64_t size = remaining < kBlockSize ? remaining : kBlockSize;
+        uint64_t size = remaining < block_size_ ? remaining : block_size_;
         block_descs_cpu[block_idx++] = {i, offset, size};
         remaining -= size;
         offset += size;

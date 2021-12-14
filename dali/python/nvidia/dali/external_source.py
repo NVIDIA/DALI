@@ -291,6 +291,15 @@ Keyword Args
     output. If the list has fewer than ``num_outputs`` elements, only the first
     outputs have the layout set, the rest of the outputs don't have a layout set.
 
+`dtype` : `nvidia.dali.types.DALIDataType` or list/tuple thereof, optional
+    Input data type.
+
+    The operator will validate that the fetched data is of the provided type.
+    If the argument is omitted or :const:`DALIDataType.NO_TYPE` is passed, the operator will infer
+    the type from the provided data.
+
+    This argument will be required starting from DALI 2.0.
+
 `cuda_stream` : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``, such as ``cupy.cuda.Stream`` or ``torch.cuda.Stream``
     The CUDA stream is used to copy data to the GPU or from a GPU source.
 
@@ -385,13 +394,14 @@ Keyword Args
 """
 
     def __init__(
-            self, source=None, num_outputs=None, *, cycle=None, layout=None, name=None,
+            self, source=None, num_outputs=None, *, cycle=None, layout=None, dtype=None, name=None,
             device="cpu", cuda_stream=None, use_copy_kernel=None, batch=None, parallel=None,
             no_copy=None, prefetch_queue_depth=None, batch_info=None, **kwargs):
         self._schema = _b.GetSchema("ExternalSource")
         self._spec = _b.OpSpec("ExternalSource")
         self._device = device
         self._layout = layout
+        self._dtype = dtype
         self._cuda_stream = cuda_stream
         self._use_copy_kernel = use_copy_kernel
 
@@ -414,6 +424,8 @@ Keyword Args
         self._batch_info = batch_info
 
         self._spec.AddArg("device", device)
+        if dtype is not None:
+            self._spec.AddArg("dtype", dtype)
         for key, value in kwargs.items():
             self._spec.AddArg(key, value)
 
@@ -434,7 +446,7 @@ Keyword Args
         return False
 
     def __call__(
-            self, *, source=None, cycle=None, name=None, layout=None, cuda_stream=None,
+            self, *, source=None, cycle=None, name=None, layout=None, dtype=None, cuda_stream=None,
             use_copy_kernel=None, batch=None, parallel=None, no_copy=None,
             prefetch_queue_depth=None, batch_info=None, **kwargs):
         ""
@@ -525,6 +537,12 @@ Keyword Args
             else:
                 layout = self._layout
 
+        if self._dtype is not None:
+            if dtype is not None:
+                raise RuntimeError("``dtype`` already specified in constructor.")
+            else:
+                dtype = self._dtype
+
         if self._cuda_stream is not None:
             if cuda_stream is not None:
                 raise RuntimeError("``cuda_stream`` already specified in constructor.")
@@ -570,6 +588,16 @@ Keyword Args
                         op_instance._layout = layout
                 else:
                     op_instance._layout = None
+
+                if dtype is not None:
+                    if isinstance(dtype, (list, tuple)):
+                        op_instance._dtype = dtype[i] if i < len(dtype) else nvidia.dali.types.DALIDataType.NO_TYPE
+                    else:
+                        op_instance._dtype = dtype
+                else:
+                    op_instance._dtype = nvidia.dali.types.DALIDataType.NO_TYPE
+
+
                 op_instance._batch = batch
 
                 group.append(op_instance)
@@ -588,6 +616,7 @@ Keyword Args
             op_instance._group = _ExternalSourceGroup(
                 callback, source_desc, False, [op_instance], **group_common_kwargs)
             op_instance._layout = layout
+            op_instance._dtype = dtype
             op_instance._batch = batch
             op_instance.generate_outputs()
 
@@ -614,8 +643,8 @@ def _has_external_source(pipeline):
     return False
 
 
-def external_source(source=None, num_outputs=None, *, cycle=None, name=None, device="cpu", layout=None,
-                    cuda_stream=None, use_copy_kernel=None, batch=True, **kwargs):
+def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None,
+                    dtype = None, cuda_stream = None, use_copy_kernel = None, batch = True, **kwargs):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.

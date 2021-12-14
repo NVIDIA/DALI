@@ -48,7 +48,15 @@ STRIP_DEBUG=${2:-NO}
 TEST_BUNDLED_LIBS=${3:-NO}
 OUTWHLNAME=${4:-$(basename $INWHL)}
 DEPS_PATH=${5:-/usr/local}
-OUTDIR=/wheelhouse
+OUTDIR=${6:-/wheelhouse}
+COMPRESSION=${7:-YES} # whether to compress the resulting wheel
+
+if [[ "$COMPRESSION" == "NO" ]]; then
+    ZIP_FLAG="-0"
+else
+    ZIP_FLAG=""
+fi
+
 SCRIPT_PATH=$(dirname $(readlink -f $0))
 
 # For some reason the pip wheel builder inserts "-none-" into the tag even if you gave it an ABI name
@@ -203,8 +211,8 @@ echo "Fixed hashed names"
 patch_rpath() {
     local FILE=$1
     UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
-    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs'"
-    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs" $FILE
+    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:/usr/local/cuda/lib64:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib'"
+    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:/usr/local/cuda/lib64:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib" $FILE
     patchelf --print-rpath $FILE
 }
 echo "Fixing rpath of main files..."
@@ -267,7 +275,7 @@ fi
 echo "Compressing wheel..."
 mkdir -p $OUTDIR
 rm -f $OUTDIR/$OUTWHLNAME
-zip -rq $OUTDIR/$OUTWHLNAME *
+zip $ZIP_FLAG -rq $OUTDIR/$OUTWHLNAME *
 echo "Finished compressing wheel"
 
 # clean up

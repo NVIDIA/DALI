@@ -32,8 +32,8 @@ namespace mm {
  * Monotonic buffer resources don't require manual deallocation of the returned pointers.
  * The memory is freed in bulk when the underlying buffer is freed.
  */
-template <typename Kind, typename Context = any_context>
-class monotonic_buffer_resource : public memory_resource<Kind, Context> {
+template <typename Kind>
+class monotonic_buffer_resource : public memory_resource<Kind> {
  public:
   monotonic_buffer_resource() = default;
   monotonic_buffer_resource(void *memory, size_t bytes)
@@ -75,8 +75,7 @@ class monotonic_buffer_resource : public memory_resource<Kind, Context> {
   char *curr_ = nullptr, *limit_ = nullptr;
 };
 
-template <typename Kind, typename Context = any_context,
-          bool host_impl = detail::is_host_accessible<Kind>>
+template <typename Kind, bool host_impl = detail::is_host_accessible<Kind>>
 class monotonic_memory_resource;
 
 /**
@@ -87,10 +86,10 @@ class monotonic_memory_resource;
  * The lifetime of a monotonic resource is limited and all memory will be deallocated in bulk
  * when the resource is destroyed.
  */
-template <typename Kind, typename Context>
-class monotonic_memory_resource<Kind, Context, true> : public memory_resource<Kind, Context> {
+template <typename Kind>
+class monotonic_memory_resource<Kind, true> : public memory_resource<Kind> {
  public:
-  explicit monotonic_memory_resource(memory_resource<Kind, Context> *upstream,
+  explicit monotonic_memory_resource(memory_resource<Kind> *upstream,
                                      size_t next_block_size = 1024)
   : upstream_(upstream), next_block_size_(next_block_size) {}
 
@@ -163,15 +162,11 @@ class monotonic_memory_resource<Kind, Context, true> : public memory_resource<Ki
   void do_deallocate(void *data, size_t bytes, size_t alignment) override {
   }
 
-  Context do_get_context() const noexcept override {
-    return upstream_->get_context();
-  }
-
   static constexpr size_t sentinel_value = detail::sentinel_value<size_t>::value;
 
   char *curr_ = nullptr, *limit_ = nullptr;
 
-  memory_resource<Kind, Context> *upstream_;
+  memory_resource<Kind> *upstream_;
   size_t next_block_size_;
   struct block_info {
     size_t sentinel;
@@ -192,10 +187,10 @@ class monotonic_memory_resource<Kind, Context, true> : public memory_resource<Ki
  * The lifetime of a monotonic resource is limited and all memory will be deallocated in bulk
  * when the resource is destroyed.
  */
-template <typename Kind, typename Context>
-class monotonic_memory_resource<Kind, Context, false> : public memory_resource<Kind, Context> {
+template <typename Kind>
+class monotonic_memory_resource<Kind, false> : public memory_resource<Kind> {
  public:
-  explicit monotonic_memory_resource(memory_resource<Kind, Context> *upstream,
+  explicit monotonic_memory_resource(memory_resource<Kind> *upstream,
                                      size_t next_block_size = 1024)
   : upstream_(upstream), next_block_size_(next_block_size) {}
 
@@ -258,13 +253,9 @@ class monotonic_memory_resource<Kind, Context, false> : public memory_resource<K
   void do_deallocate(void *data, size_t bytes, size_t alignment) override {
   }
 
-  Context do_get_context() const noexcept override {
-    return upstream_->get_context();
-  }
-
   char *curr_ = nullptr, *limit_ = nullptr;
 
-  memory_resource<Kind, Context> *upstream_;
+  memory_resource<Kind> *upstream_;
   size_t next_block_size_;
   struct upstream_block {
     void *base;
@@ -276,8 +267,7 @@ class monotonic_memory_resource<Kind, Context, false> : public memory_resource<K
 
 using monotonic_host_resource = monotonic_memory_resource<memory_kind::host>;
 
-template <typename Context = any_context>
-using monotonic_device_resource = monotonic_memory_resource<memory_kind::device, Context>;
+using monotonic_device_resource = monotonic_memory_resource<memory_kind::device>;
 
 }  // namespace mm
 }  // namespace dali

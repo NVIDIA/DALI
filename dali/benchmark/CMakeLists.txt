@@ -35,6 +35,11 @@ if (BUILD_BENCHMARK)
     "${CMAKE_CURRENT_SOURCE_DIR}/thread_pool_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/normal_distribution_gpu_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/file_reader_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/copy_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/gaussian_blur_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/flip_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cast_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/coin_flip_bench.cc"
   )
 
   if (BUILD_LMDB)

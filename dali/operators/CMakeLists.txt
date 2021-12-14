@@ -60,7 +60,18 @@ target_link_libraries(dali_operators PUBLIC dali dali_kernels dali_core)
 target_link_libraries(dali_operators PRIVATE dynlink_cuda ${DALI_LIBS})
 if (BUILD_NVML)
   target_link_libraries(dali_operators PRIVATE dynlink_nvml)
+  target_link_libraries(dali_operators PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_nvml>")
 endif(BUILD_NVML)
+
+if (BUILD_NVJPEG AND WITH_DYNAMIC_CUDA_TOOLKIT)
+  target_link_libraries(dali_operators PRIVATE dynlink_nvjpeg)
+  target_link_libraries(dali_operators PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_nvjpeg>")
+endif(BUILD_NVJPEG AND WITH_DYNAMIC_CUDA_TOOLKIT)
+
+if (WITH_DYNAMIC_CUDA_TOOLKIT)
+  target_link_libraries(dali_operators PRIVATE dynlink_npp)
+  target_link_libraries(dali_operators PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_npp>")
+endif(WITH_DYNAMIC_CUDA_TOOLKIT)
 
 if (BUILD_CUFILE)
   target_link_libraries(dali_operators PRIVATE dynlink_cufile)

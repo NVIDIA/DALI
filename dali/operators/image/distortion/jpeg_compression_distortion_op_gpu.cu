@@ -38,36 +38,6 @@ class JpegCompressionDistortionGPU : public JpegCompressionDistortion<GPUBackend
   std::vector<int> quality_;
 };
 
-template <int ndim>
-TensorListShape<ndim - 1> unfold_outer_dim(const TensorListShape<ndim> &shapes) {
-  static_assert(ndim > 1,
-                "Can't reduce dimentionality of dynamic, or single dimentional TensorListShape");
-
-  constexpr static int out_dim = ndim - 1;
-
-  using OutShapeType = TensorShape<out_dim>;
-  std::vector<OutShapeType> result;
-
-  size_t nshapes = 0;
-
-  for (int i = 0; i < shapes.size(); ++i) {
-    nshapes += shapes[i][0];
-  }
-
-  result.reserve(nshapes);
-
-  for (int i = 0; i < shapes.size(); ++i) {
-    auto shape = shapes[i];
-    auto nouter_dim = shape[0];
-    auto subshape = shape.last(out_dim).template to_static<out_dim>();
-    for (int j = 0; j < nouter_dim; j++) {
-      result.push_back(subshape);
-    }
-  }
-
-  return result;
-}
-
 template <typename Type>
 TensorListView<StorageGPU, Type, 3> frames_to_samples(
     const TensorListView<StorageGPU, Type, 4> &view) {

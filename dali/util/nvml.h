@@ -97,10 +97,10 @@ class NvmlError : public std::runtime_error {
 
   static std::string Message(nvmlReturn_t result, const char *details) {
     if (details && *details) {
-      return make_string("nvml error: ", result, " ", ErrorString(result),
+      return make_string("nvml error (", result, "): ", ErrorString(result),
                          "\nDetails:\n", details);
     } else {
-      return make_string("nvml error: ", result, " ", ErrorString(result));
+      return make_string("nvml error (", result, "): ", ErrorString(result));
     }
   }
 

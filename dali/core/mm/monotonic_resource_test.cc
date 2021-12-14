@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ TEST(MMTest, MonotonicHostResource) {
 TEST(MMTest, MonotonicDeviceResource) {
   test_device_resource upstream;
   {
-    monotonic_device_resource<> mr(&upstream);
+    monotonic_device_resource mr(&upstream);
     void *m1 = mr.allocate(100);
     ASSERT_NE(m1, nullptr);
     CUDA_CALL(cudaMemset(m1, 0xff, 100));

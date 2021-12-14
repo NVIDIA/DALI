@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -139,7 +139,7 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
       : RNGBase<Backend, UniformDistribution<Backend>, false>(spec),
         values_("values", spec),
         range_("range", spec) {
-    int size_dist = values_.IsDefined() ? sizeof(typename ImplDiscrete<double>::type)
+    int size_dist = values_.HasExplicitValue() ? sizeof(typename ImplDiscrete<double>::type)
                                         : sizeof(typename ImplContinuous<double>::type);
     backend_data_.ReserveDistsData(size_dist * max_batch_size_);
     per_sample_values_.reserve(max_batch_size_);
@@ -147,10 +147,10 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
   }
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
-    if (values_.IsDefined()) {
+    if (values_.HasExplicitValue()) {
       // read only once for build time arguments
-      if (!values_.IsConstant() || per_sample_values_.empty()) {
-        values_.Acquire(spec, ws, values_.IsConstant() ? max_batch_size_ : nsamples, false);
+      if (!values_.HasExplicitConstant() || per_sample_values_.empty()) {
+        values_.Acquire(spec, ws, values_.HasExplicitConstant() ? max_batch_size_ : nsamples);
         per_sample_values_.resize(values_.size());
         per_sample_nvalues_.resize(values_.size());
         if (std::is_same<Backend, GPUBackend>::value) {
@@ -199,7 +199,7 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
 
   template <typename T>
   bool SetupDists(typename ImplDiscrete<T>::type* dists, int nsamples) {
-    assert(values_.IsDefined());
+    assert(values_.HasExplicitValue());
     for (int s = 0; s < nsamples; s++) {
       dists[s] = typename ImplDiscrete<T>::type{per_sample_values_[s], per_sample_nvalues_[s]};
     }
@@ -209,7 +209,7 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
   template <typename T>
   void RunImplTyped(workspace_t<Backend> &ws) {
     using Base = RNGBase<Backend, UniformDistribution<Backend>, false>;
-    if (values_.IsDefined()) {
+    if (values_.HasExplicitValue()) {
       using ImplT = typename ImplDiscrete<T>::type;
       Base::template RunImplTyped<T, ImplT>(ws);
     } else {

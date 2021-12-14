@@ -32,7 +32,7 @@ void TestPoolResource(int num_iter) {
   test_host_resource upstream;
   {
     auto opt = default_host_pool_opts();
-    pool_resource_base<memory_kind::host, any_context, FreeList, detail::dummy_lock>
+    pool_resource_base<memory_kind::host, FreeList, detail::dummy_lock>
       pool(&upstream, opt);
     std::mt19937_64 rng(12345);
     std::bernoulli_distribution is_free(0.4);
@@ -91,7 +91,7 @@ TEST(MMPoolResource, CoalescingFreeTree) {
 TEST(MMPoolResource, ReturnToUpstream) {
   test_device_resource upstream;
   {
-    pool_resource_base<memory_kind::device, any_context, coalescing_free_tree, detail::dummy_lock>
+    pool_resource_base<memory_kind::device, coalescing_free_tree, detail::dummy_lock>
       pool(&upstream);
     size_t size = 1<<28;  // 256M
     for (;;) {
@@ -119,7 +119,7 @@ TEST(MMPoolResource, TestBulkDeallocate) {
   {
     pool_options opts;
     opts.min_block_size = 1000000;
-    pool_resource_base<memory_kind::host, any_context, coalescing_free_tree, detail::dummy_lock>
+    pool_resource_base<memory_kind::host, coalescing_free_tree, detail::dummy_lock>
       pool(&upstream, opts);
     vector<dealloc_params> params;
     std::mt19937_64 rng(12345);
@@ -145,16 +145,16 @@ TEST(MMPoolResource, TestBulkDeallocate) {
 
 namespace {
 
-template <typename Kind, typename Context = any_context>
+template <typename Kind>
 class test_defer_dealloc
-    : public deferred_dealloc_pool<Kind, Context, coalescing_free_tree, spinlock> {
+    : public deferred_dealloc_pool<Kind, coalescing_free_tree, spinlock> {
  public:
-  using pool = deferred_dealloc_pool<Kind, Context, coalescing_free_tree, spinlock>;
+  using pool = deferred_dealloc_pool<Kind, coalescing_free_tree, spinlock>;
   bool ready() const noexcept {
     return this->no_pending_deallocs();
   }
 
-  explicit test_defer_dealloc(memory_resource<Kind, Context> *upstream) : pool(upstream) {}
+  explicit test_defer_dealloc(memory_resource<Kind> *upstream) : pool(upstream) {}
 
   void check() {
     // wait up to 1 second for the deferred deallocations to drain
@@ -283,8 +283,7 @@ TEST(MMPoolResource, ParallelDeferred) {
   test_pinned_resource upstream;
   CUDA_CALL(cudaFree(nullptr));  // initialize device context
   {
-    using pool_t = deferred_dealloc_pool<memory_kind::pinned, any_context,
-                                        coalescing_free_tree, spinlock>;
+    using pool_t = deferred_dealloc_pool<memory_kind::pinned, coalescing_free_tree, spinlock>;
     pool_t pool(&upstream);
     std::vector<std::thread> threads;
 
