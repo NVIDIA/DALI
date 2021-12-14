@@ -42,6 +42,12 @@ def rn50_pipeline_base():
     return rng, jpegs, labels, images, resized_images, output
 
 
+def test_debug_pipeline_base():
+    pipe_standard = rn50_pipeline_base()
+    pipe_debug = rn50_pipeline_base(debug=True)
+    compare_pipelines(pipe_standard, pipe_debug, 8, 10)
+
+
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
 def rn50_pipeline():
     rng = fn.random.coin_flip(probability=0.5, seed=47)
@@ -75,12 +81,63 @@ def rn50_pipeline():
     return (output, labels.gpu())
 
 
+def test_operations_on_debug_pipeline():
+    pipe = rn50_pipeline()
+    pipe.build()
+    pipe.run()
+
+
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
 def load_images_pipeline():
     jpegs, labels = fn.readers.file(
         file_root=file_root, shard_id=0, num_shards=2)
     images = fn.decoders.image(jpegs, output_type=types.RGB)
     return images, labels
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
+def injection_pipeline(callback, device='cpu'):
+    rng = fn.random.coin_flip(probability=0.5, seed=47)
+    images = fn.random_resized_crop(callback(), device=device, size=(224, 224), seed=27)
+    out_type = types.FLOAT16
+
+    output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
+        224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    return rng, images, output
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0)
+def injection_pipeline_standard():
+    jpegs, _ = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2)
+    images = fn.decoders.image(jpegs, output_type=types.RGB)
+    rng = fn.random.coin_flip(probability=0.5, seed=47)
+    images = fn.random_resized_crop(images, size=(224, 224), seed=27)
+    out_type = types.FLOAT16
+
+    output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
+        224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    return rng, images, output
+
+
+def _test_injection(device, name, transform, eps=1e-07):
+    print(f'\nTesting {name}')
+    pipe_load = load_images_pipeline()
+    pipe_load.build()
+    pipe_standard = injection_pipeline_standard()
+    pipe_debug = injection_pipeline(lambda: transform(pipe_load.run()[0]), device)
+    compare_pipelines(pipe_standard, pipe_debug, 8, 10, eps=eps)
+
+
+def test_injections():
+    yield _test_injection, 'cpu', 'numpy array', lambda xs: [np.array(x) for x in xs]
+    yield _test_injection, 'cpu', 'mxnet array', lambda xs: [mxnet.nd.array(x, dtype='uint8') for x in xs]
+    yield _test_injection, 'cpu', 'torch cpu tensor', lambda xs: [torch.tensor(np.array(x), device='cpu') for x in xs]
+    yield _test_injection, 'gpu', 'torch gpu tensor', lambda xs: [torch.tensor(np.array(x), device='cuda') for x in xs], 1e-03
+    yield _test_injection, 'gpu', 'cupy array', lambda xs: [cupy.array(x) for x in xs], 1e-03
+    yield _test_injection, 'gpu', 'list of TensorGPU', lambda xs: [x._as_gpu() for x in xs], 1e-03
+    yield _test_injection, 'cpu', 'TensorListCPU', lambda xs: xs
+    yield _test_injection, 'gpu', 'TensorListGPU', lambda xs: xs._as_gpu(), 1e-03
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
@@ -110,83 +167,6 @@ def es_pipeline_standard():
     return rng, images, output, labels
 
 
-@pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
-def injection_pipeline(callback, device='cpu'):
-    rng = fn.random.coin_flip(probability=0.5, seed=47)
-    images = fn.random_resized_crop(callback(), device=device, size=(224, 224), seed=27)
-    out_type = types.FLOAT16
-
-    output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
-        224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
-    return rng, images, output
-
-
-@pipeline_def(batch_size=8, num_threads=3, device_id=0)
-def injection_pipeline_standard():
-    jpegs, _ = fn.readers.file(
-        file_root=file_root, shard_id=0, num_shards=2)
-    images = fn.decoders.image(jpegs, output_type=types.RGB)
-    rng = fn.random.coin_flip(probability=0.5, seed=47)
-    images = fn.random_resized_crop(images, size=(224, 224), seed=27)
-    out_type = types.FLOAT16
-
-    output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
-        224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
-    return rng, images, output
-
-
-order_change = False
-
-
-@pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
-def order_change_pipeline():
-    if order_change:
-        rng = fn.random.coin_flip(probability=0.5, seed=47)
-    else:
-        rng = 0
-    jpegs, labels = fn.readers.file(
-        file_root=file_root, shard_id=0, num_shards=2)
-    images = fn.decoders.image(jpegs, device='mixed', output_type=types.RGB)
-    resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224), seed=27)
-    out_type = types.FLOAT16
-
-    output = fn.crop_mirror_normalize(resized_images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
-        224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
-    return rng, jpegs, labels, images, resized_images, output
-
-
-def test_debug_pipeline_base():
-    pipe_standard = rn50_pipeline_base()
-    pipe_debug = rn50_pipeline_base(debug=True)
-    compare_pipelines(pipe_standard, pipe_debug, 8, 10)
-
-
-def test_operations_on_debug_pipeline():
-    pipe = rn50_pipeline()
-    pipe.build()
-    pipe.run()
-
-
-def _test_injection(device, name, transform, eps=1e-07):
-    print(f'\nTesting {name}')
-    pipe_load = load_images_pipeline()
-    pipe_load.build()
-    pipe_standard = injection_pipeline_standard()
-    pipe_debug = injection_pipeline(lambda: transform(pipe_load.run()[0]), device)
-    compare_pipelines(pipe_standard, pipe_debug, 8, 10, eps=eps)
-
-
-def test_injections():
-    yield _test_injection, 'cpu', 'numpy array', lambda xs: [np.array(x) for x in xs]
-    yield _test_injection, 'cpu', 'mxnet array', lambda xs: [mxnet.nd.array(x, dtype='uint8') for x in xs]
-    yield _test_injection, 'cpu', 'torch cpu tensor', lambda xs: [torch.tensor(np.array(x), device='cpu') for x in xs]
-    yield _test_injection, 'gpu', 'torch gpu tensor', lambda xs: [torch.tensor(np.array(x), device='cuda') for x in xs], 1e-03
-    yield _test_injection, 'gpu', 'cupy array', lambda xs: [cupy.array(x) for x in xs], 1e-03
-    yield _test_injection, 'gpu', 'list of TensorGPU', lambda xs: [x._as_gpu() for x in xs], 1e-03
-    yield _test_injection, 'cpu', 'TensorListCPU', lambda xs: xs
-    yield _test_injection, 'gpu', 'TensorListGPU', lambda xs: xs._as_gpu(), 1e-03
-
-
 def test_external_source_debug():
     n_iters = 10
     pipe_load = load_images_pipeline()
@@ -202,12 +182,108 @@ def test_external_source_debug():
     compare_pipelines(pipe_standard, pipe_debug, 8, 10)
 
 
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
+def order_change_pipeline():
+    if order_change_pipeline.change:
+        rng = 0
+    else:
+        order_change_pipeline.change = True
+        rng = fn.random.coin_flip(probability=0.5, seed=47)
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2)
+    images = fn.decoders.image(jpegs, device='mixed', output_type=types.RGB)
+    resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224), seed=27)
+    out_type = types.FLOAT16
+
+    output = fn.crop_mirror_normalize(resized_images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
+        224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    return rng, jpegs, labels, images, resized_images, output
+
+
 @raises(RuntimeError, glob='Unexpected operator *. Debug mode does not support'
         ' changing the order of operators executed within the pipeline.')
 def test_operators_order_change():
-    global order_change
+    order_change_pipeline.change = False
     pipe = order_change_pipeline()
     pipe.build()
     pipe.run()
-    order_change = True
+    pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
+def inputs_len_change():
+    input = [np.zeros(1)] * 8
+    if inputs_len_change.change:
+        inputs_len_change.change = False
+        inputs = [input]
+    else:
+        inputs = [input]*2
+    return fn.cat(*inputs)
+
+
+@raises(RuntimeError, glob='Trying to use operator * with different number of inputs than when it was built.')
+def test_inputs_len_change():
+    inputs_len_change.change = True
+    pipe = inputs_len_change()
+    pipe.build()
+    pipe.run()
+    pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
+def kwargs_len_change():
+    input = [np.zeros(1)] * 8
+    inputs = [input]*2
+    kwargs = {}
+    if kwargs_len_change.change:
+        kwargs_len_change.change = False
+        kwargs['axis'] = 0
+    print(len(kwargs))
+    return fn.cat(*inputs, **kwargs)
+
+
+@raises(RuntimeError, glob='Trying to use operator * with different number of keyward arguments than when it was built.')
+def test_kwargs_len_change():
+    kwargs_len_change.change = True
+    pipe = kwargs_len_change()
+    pipe.build()
+    pipe.run()
+    pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
+def inputs_batch_change():
+    if inputs_batch_change.change:
+        inputs_batch_change.change = False
+        input = np.zeros(8)
+    else:
+        input = [np.zeros(1)]*8
+    return fn.random.coin_flip(input)
+
+
+@raises(RuntimeError, glob='In operator * input *')
+def test_inputs_batch_change():
+    inputs_batch_change.change = True
+    pipe = inputs_batch_change()
+    pipe.build()
+    pipe.run()
+    pipe.run()
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
+def kwargs_batch_change():
+    kwargs = {}
+    if kwargs_batch_change.change:
+        kwargs_batch_change.change = False
+        kwargs['probability'] = 0.75
+    else:
+        kwargs['probability'] = [np.zeros(1)]*8
+    return fn.random.coin_flip(**kwargs)
+
+
+@raises(RuntimeError, glob='In operator * argument *')
+def test_kwargs_batch_change():
+    kwargs_batch_change.change = True
+    pipe = kwargs_batch_change()
+    pipe.build()
+    pipe.run()
     pipe.run()

@@ -171,7 +171,7 @@ Parameters
                  set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
                  *,
                  enable_memory_stats=False, py_num_workers=1, py_start_method="fork",
-                 py_callback_pickler=None, debug=False):
+                 py_callback_pickler=None):
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads
@@ -229,8 +229,6 @@ Parameters
             self._gpu_queue_size = prefetch_queue_depth
         else:
             raise TypeError("Expected prefetch_queue_depth to be either int or Dict[int, int]")
-        if debug:
-            raise RuntimeError("Debug mode is only supported with 'pipeline_def' decorator.")
 
     @property
     def batch_size(self):
@@ -1375,11 +1373,11 @@ def pipeline_def(fn=None, **pipeline_kwargs):
 
 def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
     from nvidia.dali._debug_mode import _PipelineDebug
+    pipeline_debug =  pipeline_kwargs.pop('debug', False)
     def actual_decorator(func):
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
-            debug_mode_on = pipeline_kwargs.get('debug', False)
-            debug_mode_on = kwargs.get('debug', debug_mode_on)
+            debug_mode_on = kwargs.get('debug', pipeline_debug)
             ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
             if debug_mode_on:
                 pipe = _PipelineDebug(functools.partial(func, *args, **fn_kwargs),

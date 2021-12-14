@@ -57,8 +57,8 @@ DALI pipelines are executed in stages. The stages correspond to the ``device`` p
 that can be specified for the operator, and are executed in following order:
 
 #. ``'cpu'`` - operators that accept CPU inputs and produce CPU outputs.
-#. ``'mixed'`` - operators that accept CPU inputs and produce GPU outputs, for exampe :meth:`nvidia.dali.fn.decoders.image`.
-#. ``'gpu'`` - operators that accept GPU inputs and produce GPU outpus.
+#. ``'mixed'`` - operators that accept CPU inputs and produce GPU outputs, for example :meth:`nvidia.dali.fn.decoders.image`.
+#. ``'gpu'`` - operators that accept GPU inputs and produce GPU outputs.
 
 Data produced by a CPU operator may be explicitly copied to the GPU by calling ``.gpu()``
 on a :class:`~nvidia.dali.pipeline.DataNode` (an output of a DALI operator).
@@ -143,3 +143,41 @@ DataNode
 --------
 .. autoclass:: nvidia.dali.pipeline.DataNode
    :members:
+
+Pipeline Debug Mode (experimental)
+------------------
+
+Pipeline can be run in debug mode by replacing :meth:`@nvidia.dali.pipeline_def <nvidia.dali.pipeline_def>` decorator with its experimental variant
+``@nvidia.dali.experimental.pipeline_def`` and setting parameter ``debug`` to True. It allows you
+to access and modify data inside of the pipeline execution graph as well as use non-DALI data types
+as inputs for DALI operators.
+
+In this mode outputs of operators are of type ``DataNodeDebug`` which is an equivalent to
+:class:`~nvidia.dali.pipeline.DataNode` in the standard mode. You can perform the same
+operations on objects of type ``DataNodeDebug`` as on ``DataNode``, that includes arithmetic
+operations.
+
+Use ``.get()`` to access data associated with the ``DataNodeDebug`` object during current execution
+of :meth:`Pipeline.run`::
+
+    @nvidia.dali.experimental.pipeline_def(debug=True)
+    def my_pipe():
+        data, _ = fn.readers.file(file_root=images_dir)
+        img = fn.decoders.image(data)
+        print(np.array(img.get()[0]))
+        ...
+
+Use non-DALI data types (e.g. NumPy ndarray, PyTorch Tensor) directly with DALI operators::
+
+    @nvidia.dali.experimental.pipeline_def(batch_size=8, debug=True)
+    def my_pipe():
+        img = [np.random.rand(640, 480, 3) for _ in range(8)]
+        output = fn.flip(img)
+        ...
+
+.. warning::
+    Using debug mode will drastically worsen performance of your pipeline. Use it only for
+    debugging purposes.
+
+.. note::
+    This feature is experimental and its API might change without notice.

@@ -614,7 +614,8 @@ def _has_external_source(pipeline):
     return False
 
 
-def external_source(*inputs, name=None, **kwargs):
+def external_source(source=None, num_outputs=None, *, cycle=None, name=None, device="cpu", layout=None,
+                    cuda_stream=None, use_copy_kernel=None, batch=True, **kwargs):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.
@@ -655,9 +656,12 @@ provided memory is copied to the internal buffer.
     # Wrapper around external_source to switch between standard and debug mode.
     current_pipeline = _PipelineDebug.current()
     if getattr(current_pipeline, '_debug_on', False):
-        return current_pipeline._external_source(_external_source, name, *inputs, **kwargs)
+        return current_pipeline._external_source(_external_source, source, num_outputs, cycle=cycle, name=name,
+                                                 device=device, layout=layout, cuda_stream=cuda_stream,
+                                                 use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
     else:
-        return _external_source(*inputs, name=name, **kwargs)
+        return _external_source(source, num_outputs, cycle=cycle, name=name, device=device, layout=layout,
+                                cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
 
 
 external_source.__doc__ += ExternalSource._args_doc
