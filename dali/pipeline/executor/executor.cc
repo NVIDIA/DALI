@@ -38,17 +38,27 @@ void Executor<WorkspacePolicy, QueuePolicy>::PreRun() {
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 Executor<WorkspacePolicy, QueuePolicy>::~Executor() {
+  Shutdown();
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::Shutdown() {
+  try {
+    SyncDevice();
+  } catch (const CUDAError &e) {
+    if (!e.is_unloading())
+      throw;
+  }
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::SyncDevice() {
   if (device_id_ != CPU_ONLY_DEVICE_ID) {
-    try {
-      DeviceGuard dg(device_id_);
-      if (mixed_op_stream_)
-        CUDA_DTOR_CALL(cudaStreamSynchronize(mixed_op_stream_));
-      if (gpu_op_stream_)
-        CUDA_DTOR_CALL(cudaStreamSynchronize(gpu_op_stream_));
-    } catch (const CUDAError &e) {
-      if (!e.is_unloading())
-        std::terminate();
-    }
+    DeviceGuard dg(device_id_);
+    if (mixed_op_stream_)
+      CUDA_DTOR_CALL(cudaStreamSynchronize(mixed_op_stream_));
+    if (gpu_op_stream_)
+      CUDA_DTOR_CALL(cudaStreamSynchronize(gpu_op_stream_));
   }
 }
 

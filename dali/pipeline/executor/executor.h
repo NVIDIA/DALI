@@ -80,6 +80,7 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void SetCompletionCallback(ExecutorCallback cb) = 0;
   DLL_PUBLIC virtual void EnableMemoryStats(bool enable_memory_stats = false) = 0;
   DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
+  DLL_PUBLIC virtual void Shutdown() = 0;
 
  protected:
   // virtual to allow the TestPruneWholeGraph test in gcc
@@ -134,6 +135,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DLL_PUBLIC void ReleaseOutputs() override;
   DLL_PUBLIC void SetCompletionCallback(ExecutorCallback cb) override;
   DLL_PUBLIC ExecutorMetaMap GetExecutorMeta() override;
+  DLL_PUBLIC void Shutdown() override;
 
   DLL_PUBLIC void ShutdownQueue() {
     QueuePolicy::SignalStop();
@@ -145,6 +147,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DLL_PUBLIC void RunCPUImpl();
   DLL_PUBLIC void RunMixedImpl();
   DLL_PUBLIC void RunGPUImpl();
+  DLL_PUBLIC void SyncDevice();
 
   template<typename T>
   inline void GetMaxSizesCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
