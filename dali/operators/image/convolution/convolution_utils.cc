@@ -31,13 +31,11 @@ DimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
   }
   int axes_start = 0;
   int axes_end = ndim;
-  bool has_channels = false;
   while (axes_start < ndim && (layout[axes_start] == 'C' || layout[axes_start] == 'F')) {
     axes_start++;
   }
   if (axes_end > 0 && layout[axes_end - 1] == 'C') {
     axes_end--;
-    has_channels = true;
   }
   int axes_count = axes_end - axes_start;
   DALI_ENFORCE(axes_count > 0, make_string("No spatial axes found in the layout: ", layout));
