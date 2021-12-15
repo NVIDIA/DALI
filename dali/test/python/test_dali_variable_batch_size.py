@@ -31,7 +31,6 @@ import re
 import random
 import nose
 from nose.plugins.attrib import attr
-from test_optical_flow import is_of_supported
 
 """
 How to test variable (iter-to-iter) batch size for a given op?
@@ -60,6 +59,27 @@ common cases:
    whether the operator works, without qualitative comparison. Use `run_pipeline`
    instead of `check_pipeline`.
 """
+
+
+is_of_supported_var = None
+def is_of_supported(device_id=0):
+    global is_of_supported_var
+    if is_of_supported_var is not None:
+        return is_of_supported_var
+
+    compute_cap = 0
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+        compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
+        compute_cap = compute_cap[0] + compute_cap[1] / 10.
+    except ModuleNotFoundError:
+        print("NVML not found")
+        pass
+
+    is_of_supported_var = compute_cap >= 7.5
+    return is_of_supported_var
 
 
 def generate_data(max_batch_size, n_iter, sample_shape, lo=0., hi=1., dtype=np.float32):
@@ -296,6 +316,7 @@ ops_image_custom_args = [
     (fn.fast_resize_crop_mirror, {'crop': [5, 5], 'resize_shorter': 10, 'devices': ['cpu']}),
     (fn.flip, {'horizontal': True}),
     (fn.gaussian_blur, {'window_size': 5}),
+    (fn.get_property, {'key': "layout"}),
     (fn.laplacian, {'window_size': 3, 'devices': ['cpu']}),
     (fn.laplacian, {'window_size': 3, 'smoothing_size': 1, 'devices': ['cpu']}),
     (fn.laplacian, {'window_size': 3, 'normalized_kernel': True, 'devices': ['cpu']}),
@@ -1089,6 +1110,7 @@ tested_methods = [
     "erase",
     "flip",
     "gaussian_blur",
+    "get_property",
     "normalize",
     "resize",
     "bb_flip",
@@ -1173,30 +1195,30 @@ tested_methods = [
 excluded_methods = [
     "hidden.*",
     "multi_paste",                   # ToDo - crashes
-    "coco_reader",                   # readers do do not support variable batch size yet
-    "sequence_reader",               # readers do do not support variable batch size yet
-    "numpy_reader",                  # readers do do not support variable batch size yet
-    "file_reader",                   # readers do do not support variable batch size yet
-    "caffe_reader",                  # readers do do not support variable batch size yet
-    "caffe2_reader",                 # readers do do not support variable batch size yet
-    "mxnet_reader",                  # readers do do not support variable batch size yet
-    "tfrecord_reader",               # readers do do not support variable batch size yet
-    "nemo_asr_reader",               # readers do do not support variable batch size yet
-    "video_reader",                  # readers do do not support variable batch size yet
-    "video_reader_resize",           # readers do do not support variable batch size yet
-    "readers.coco",                  # readers do do not support variable batch size yet
-    "readers.sequence",              # readers do do not support variable batch size yet
-    "readers.numpy",                 # readers do do not support variable batch size yet
-    "readers.file",                  # readers do do not support variable batch size yet
-    "readers.caffe",                 # readers do do not support variable batch size yet
-    "readers.caffe2",                # readers do do not support variable batch size yet
-    "readers.mxnet",                 # readers do do not support variable batch size yet
-    "readers.tfrecord",              # readers do do not support variable batch size yet
-    "readers.nemo_asr",              # readers do do not support variable batch size yet
-    "readers.video",                 # readers do do not support variable batch size yet
-    "readers.video_resize",          # readers do do not support variable batch size yet
-    "readers.webdataset",            # readers do do not support variable batch size yet
-    "experimental.readers.video",    # readers do do not support variable batch size yet
+    "coco_reader",                   # readers do not support variable batch size yet
+    "sequence_reader",               # readers do not support variable batch size yet
+    "numpy_reader",                  # readers do not support variable batch size yet
+    "file_reader",                   # readers do not support variable batch size yet
+    "caffe_reader",                  # readers do not support variable batch size yet
+    "caffe2_reader",                 # readers do not support variable batch size yet
+    "mxnet_reader",                  # readers do not support variable batch size yet
+    "tfrecord_reader",               # readers do not support variable batch size yet
+    "nemo_asr_reader",               # readers do not support variable batch size yet
+    "video_reader",                  # readers do not support variable batch size yet
+    "video_reader_resize",           # readers do not support variable batch size yet
+    "readers.coco",                  # readers do not support variable batch size yet
+    "readers.sequence",              # readers do not support variable batch size yet
+    "readers.numpy",                 # readers do not support variable batch size yet
+    "readers.file",                  # readers do not support variable batch size yet
+    "readers.caffe",                 # readers do not support variable batch size yet
+    "readers.caffe2",                # readers do not support variable batch size yet
+    "readers.mxnet",                 # readers do not support variable batch size yet
+    "readers.tfrecord",              # readers do not support variable batch size yet
+    "readers.nemo_asr",              # readers do not support variable batch size yet
+    "readers.video",                 # readers do not support variable batch size yet
+    "readers.video_resize",          # readers do not support variable batch size yet
+    "readers.webdataset",            # readers do not support variable batch size yet
+    "experimental.readers.video",    # readers do not support variable batch size yet
 ]
 
 def test_coverage():
