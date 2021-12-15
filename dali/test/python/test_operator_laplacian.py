@@ -397,7 +397,7 @@ def check_per_sample_laplacian(batch_size, window_dim, smoothing_dim, normalize,
             baseline.append(laplacian_baseline(
                 data[i], out_type or in_type, window_size[i], smoothing_size[i], scale[i], axes, skip_axes))
         if out_type == np.float32:
-            # Normalized abs values are up to 255 so it still gives over 5 decimal digits of precision
+            # Normalized abs values are up to `axes`` * 255 so it still gives over 5 decimal digits of precision
             max_error = 1e-3
         else:
             max_error = 1

@@ -57,7 +57,7 @@ and ``smoothing_size=[sz, sy, sx]`` are specified, the following windows will be
 Window sizes and smoothing sizes must be odd. The size of a derivative window must be at least 3.
 Smoothing window can be of size 1, which implies no smoothing along corresponding axis.
 
-To normalize output ``normalize=True`` can be used. Each partial derivative is scaled
+To normalize partial derivatives, ``normalize=True`` can be used. Each partial derivative is scaled
 by ``2^(-s + n + 2)``, where ``s`` is the sum of the window sizes used to calculate a given partial
 derivative (including the smoothing windows) and ``n`` is the number of data dimensions/axes.
 Alternatively, you can specify ``scale`` argument to customize scaling factors.
