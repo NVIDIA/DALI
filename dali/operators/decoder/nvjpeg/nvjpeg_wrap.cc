@@ -26,7 +26,7 @@ namespace {
 typedef void* NVJPEGDRIVER;
 
 static const char __NvjpegLibName[] = "libnvjpeg.so";
-#if CUDA_VERSION > 11000
+#if CUDA_VERSION >= 11000
 static const char __NvjpegLibNameCuVer[] = "libnvjpeg.so.11";
 #else
 static const char __NvjpegLibNameCuVer[] = "libnvjpeg.so.10";

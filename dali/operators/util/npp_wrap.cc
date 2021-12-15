@@ -27,7 +27,7 @@ typedef void* NPPICCDRIVER;
 
 static const char __NppcLibName[] = "libnppc.so";
 static const char __NppiccLibName[] = "libnppicc.so";
-#if CUDA_VERSION > 11000
+#if CUDA_VERSION >= 11000
 static const char __NppcLibNameCuVer[] = "libnppc.so.11";
 static const char __NppiccLibNameCuVer[] = "libnppicc.so.11";
 #else
