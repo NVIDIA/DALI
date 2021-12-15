@@ -77,7 +77,7 @@ def _test_kernels(num_dims, smoothing, normalize):
             get_inputs, num_outputs=4)
         kernels = fn.laplacian(
             ones, window_size=window_sizes, smoothing_size=smoothing_sizes,
-            dtype=types.FLOAT, normalize=normalize)
+            dtype=types.FLOAT, normalized_kernel=normalize)
         return kernels, scales
 
     def outer(*vs):
@@ -130,7 +130,7 @@ def laplacian_pipe(window_size, in_type, out_type, normalize, grayscale):
     if in_type != types.UINT8:
         imgs = fn.cast(imgs, dtype=in_type)
     edges = fn.laplacian(imgs, window_size=window_size, smoothing_size=smoothing_size,
-                         normalize=normalize, dtype=out_type)
+                         normalized_kernel=normalize, dtype=out_type)
     return edges, imgs
 
 
@@ -360,7 +360,7 @@ def laplacian_per_sample_pipeline(iterator, layout, window_dim, smoothing_dim, a
 
     exponent = w_exponent + s_exponent
     scale = 2.**(-exponent)
-    kwargs = {'normalize': True} if normalize else {'scale': scale}
+    kwargs = {'normalized_kernel': True} if normalize else {'scale': scale}
 
     if out_type == np.float32:
         kwargs['dtype'] = types.FLOAT
@@ -397,7 +397,7 @@ def check_per_sample_laplacian(batch_size, window_dim, smoothing_dim, normalize,
             baseline.append(laplacian_baseline(
                 data[i], out_type or in_type, window_size[i], smoothing_size[i], scale[i], axes, skip_axes))
         if out_type == np.float32:
-            # Normalized abs values are up to `axes`` * 255 so it still gives over 5 decimal digits of precision
+            # Normalized abs values are up to 2 * `axes` * 255 so it still gives over 5 decimal digits of precision
             max_error = 1e-3
         else:
             max_error = 1
@@ -430,7 +430,7 @@ def check_fixed_param_laplacian(batch_size, in_type, out_type, shape, layout, ax
         else:
             dtype_arg = {"dtype": types.FLOAT}
         edges = fn.laplacian(data, window_size=window_size, smoothing_size=smoothing_size,
-                             scale=scales, normalize=normalize, **dtype_arg)
+                             scale=scales, normalized_kernel=normalize, **dtype_arg)
         return edges, data
 
     pipe = pipeline(
@@ -515,7 +515,7 @@ def check_tensor_input_fail(batch_size, shape, layout, window_size, smoothing_si
         window_size, smoothing_size, scale = fn.external_source(
             gen_params, batch=False, num_outputs=3)
         edges = fn.laplacian(data, window_size=window_size, smoothing_size=smoothing_size,
-                             scale=scale, normalize=normalize, dtype=dtype)
+                             scale=scale, normalized_kernel=normalize, dtype=dtype)
         return edges, data
 
     with assert_raises(RuntimeError, regex=err_regex):
@@ -545,7 +545,7 @@ def test_fail_laplacian():
         "Output data type must be same as input, FLOAT or skipped"
 
     yield check_build_time_fail, 10, (10, 10, 3), "HWC", 2, 11, 11, 1., True, \
-        "Parameter ``scale`` cannot be specified when ``normalize`` is set to True"
+        "Parameter ``scale`` cannot be specified when ``normalized_kernel`` is set to True"
     for window_size in [-3, 10, max_window_size + 1]:
         yield check_build_time_fail, 10, (10, 10, 3), "HWC", 2, window_size, 5, 1., False, \
             "Window size must be an odd integer between 3 and \d"

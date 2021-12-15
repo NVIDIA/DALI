@@ -87,10 +87,11 @@ Smoothing size must be odd and between 1 and 23.)code",
     .AddOptionalArg<float>(laplacian::scaleArgName,
                            "Factors to manually scale partial derivatives.",
                            std::vector<float>{laplacian::scaleArgDefault}, true)
-    .AddOptionalArg<bool>(laplacian::normalizeArgName,
-                          "If set to True, automatically scales partial derivatives to normalize "
-                          "the output. Must be False if ``scale`` is specified.",
-                          laplacian::normalizeArgDefault)
+    .AddOptionalArg<bool>(
+        laplacian::normalizeArgName,
+        "If set to True, automatically scales partial derivatives kernels. Must be False "
+        "if ``scale`` is specified.",
+        laplacian::normalizeArgDefault)
     .AddOptionalArg("dtype", R"code(Output data type.
 
 Supported type: `FLOAT`. If not set, the input type is used.)code",
@@ -185,6 +186,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
   kernels::KernelContext ctx_;
 
   LaplacianWindows<float> lap_windows_;
+  // windows_[i][j] is a window used in convolution along j-th axis in the i-th partial derivative
   std::vector<std::array<std::array<TensorView<StorageCPU, const float, 1>, axes>, axes>> windows_;
 };
 

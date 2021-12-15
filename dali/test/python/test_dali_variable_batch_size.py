@@ -318,7 +318,7 @@ ops_image_custom_args = [
     (fn.gaussian_blur, {'window_size': 5}),
     (fn.laplacian, {'window_size': 3, 'devices': ['cpu']}),
     (fn.laplacian, {'window_size': 3, 'smoothing_size': 1, 'devices': ['cpu']}),
-    (fn.laplacian, {'window_size': 3, 'normalize': True, 'devices': ['cpu']}),
+    (fn.laplacian, {'window_size': 3, 'normalized_kernel': True, 'devices': ['cpu']}),
     (fn.normalize, {'batch': True}),
     (fn.pad, {'fill_value': -1, 'axes': (0,), 'shape': (10,)}),
     (fn.pad, {'fill_value': -1, 'axes': (0,), 'align': 16}),

@@ -32,7 +32,7 @@ constexpr static const char *smoothingSizeArgName = "smoothing_size";
 constexpr static auto smoothingSizeDefault = nullptr;
 constexpr static const char *scaleArgName = "scale";
 constexpr static const float scaleArgDefault = 1.0f;
-constexpr static const char *normalizeArgName = "normalize";
+constexpr static const char *normalizeArgName = "normalized_kernel";
 constexpr static const bool normalizeArgDefault = false;
 
 // The operator uses the same windows as OpenCV. OpenCV uses windows sizes up to 31,
@@ -158,7 +158,8 @@ class LaplacianArgs {
       ObtainScales(spec, ws, nsamples);
     } else {
       DALI_ENFORCE(!HasScaleSpecified(),
-                   "Parameter ``scale`` cannot be specified when ``normalize`` is set to True");
+                   make_string("Parameter ``", scaleArgName, "`` cannot be specified when ``",
+                               normalizeArgName, "`` is set to True"));
       ComputeScales(nsamples);
     }
   }
