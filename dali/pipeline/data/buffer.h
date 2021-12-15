@@ -71,10 +71,10 @@ inline string ShapeString(vector<Index> shape) {
  * underlying storage is located (CPU or GPU).
  *
  * Buffers are untyped on construction, and don't receive a valid type until
- * 'set_type' or 'data<T>()' is called on a non-const buffer. Upon receiving
+ * 'set_type' is called on a non-const buffer. Upon receiving
  * a valid type, the underlying storage for the buffer is allocated. The type
  * of the underlying data can change over the lifetime of an object if
- * 'set_type' or 'data<T>()' is called again where the calling type does not
+ * 'set_type' is called again where the calling type does not
  * match the underlying type on the buffer. In this case, the Buffer swaps its
  * current type, but only re-allocates memory if it does not have enough bytes
  * of allocated storage to store the number of elements in the buffer with the
@@ -307,6 +307,28 @@ class DLL_PUBLIC Buffer {
     return shares_data_;
   }
 
+  inline void SetBackingAllocation(const Buffer<Backend> &other) {
+    DALI_ENFORCE(IsValidType(other.type_), "Only valid type when creating an allocation");
+    type_ = other.type_;
+    data_ = other.data_;
+    allocate_ = {};
+    size_ = other.size_;
+    shares_data_ = true;
+    num_bytes_ = other.num_bytes_;
+    device_ = other.device_;
+  }
+
+  inline void SetBackingAllocation(const shared_ptr<void> &ptr, size_t bytes, DALIDataType type, size_t size = 0) {
+    DALI_ENFORCE(IsValidType(type), "Only valid type when creating an allocation");
+    type_ = TypeTable::GetTypeInfo(type);
+    data_ = ptr;
+    allocate_ = {};
+    size_ = size;
+    shares_data_ = true;
+    num_bytes_ = bytes;
+    device_ = CPU_ONLY_DEVICE_ID; // TODO(klecki): Do we keep old, set new, or pass it here?
+  }
+
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
 
   static void SetGrowthFactor(double factor) {
@@ -326,7 +348,6 @@ class DLL_PUBLIC Buffer {
 
   DLL_PUBLIC static constexpr double kMaxGrowthFactor = 4;
 
- protected:
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
     ResizeHelper(new_size, type_);
@@ -390,6 +411,7 @@ class DLL_PUBLIC Buffer {
     buffer.reset();
   }
 
+ protected:
   static double growth_factor_;
   static double shrink_threshold_;
 
