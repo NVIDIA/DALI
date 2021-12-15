@@ -56,18 +56,18 @@ def _test_kernels(num_dims, smoothing, normalize):
         smoothing_sizes = []
         scales = []
         padding = 2
-        for k in range(min_window_size, max_window_size + 2, 2):
-            a_size = k + padding
-            a = np.full((a_size,) * num_dims, 0, dtype=np.float32)
+        for win_size in range(min_window_size, max_window_size + 2, 2):
+            a_size = win_size + padding
+            a = np.zeros((a_size,) * num_dims, dtype=np.float32)
             a[(a_size // 2,) * num_dims] = 1
             ones.append(a)
-            window_sizes.append(np.array(k, dtype=np.int32))
+            window_sizes.append(np.array(win_size, dtype=np.int32))
             if smoothing:
-                smoothing_sizes.append(np.array(k, dtype=np.int32))
-                exponent = num_dims * k - 2 - num_dims
+                smoothing_sizes.append(np.array(win_size, dtype=np.int32))
+                exponent = num_dims * win_size - 2 - num_dims
             else:
                 smoothing_sizes.append(np.array(1, dtype=np.int32))
-                exponent = k - 3
+                exponent = win_size - 3
             scales.append(np.array(2.**(-exponent), dtype=np.float32))
         return ones, window_sizes, smoothing_sizes, scales
 
@@ -86,11 +86,11 @@ def _test_kernels(num_dims, smoothing, normalize):
             acc = np.outer(acc, v)
         return acc.reshape(tuple(len(v) for v in vs))
 
-    def get_cv2_kernel(k, smoothing):
-        d, s = cv2.getDerivKernels(2, 0, k)
+    def get_cv2_kernel(win_size, smoothing):
+        d, s = cv2.getDerivKernels(2, 0, win_size)
         if not smoothing:
-            s = np.zeros(k)
-            s[k // 2] = 1.
+            s = np.zeros(win_size)
+            s[win_size // 2] = 1.
         windows = [[d if i == j else s for j in range(
             num_dims)] for i in range(num_dims)]
         return sum(outer(*ws) for ws in windows)
@@ -101,10 +101,10 @@ def _test_kernels(num_dims, smoothing, normalize):
     (kernels, scales) = pipe.run()
     kernels = [np.array(ker)[(slice(1, -1),) * num_dims] for ker in kernels]
     scales = [np.array(sf).item() for sf in scales]
-    rng = range(min_window_size, max_window_size + 2, 2)
-    assert (len(kernels) == len(rng) == len(scales))
-    for scale_factor, kernel, k in zip(scales, kernels, rng):
-        baseline_kernel = get_cv2_kernel(k, smoothing)
+    win_sizes = range(min_window_size, max_window_size + 2, 2)
+    assert(len(kernels) == len(win_sizes) == len(scales))
+    for scale_factor, kernel, win_size in zip(scales, kernels, win_sizes):
+        baseline_kernel = get_cv2_kernel(win_size, smoothing)
         if normalize:
             baseline_kernel *= scale_factor
         np.testing.assert_allclose(kernel, baseline_kernel, rtol=1e-5)
@@ -195,10 +195,10 @@ def test_vs_open_cv():
                     # different from the result of running cv2.laplacian with floats and then
                     # clamping the results)
                     if out_type is None and in_type == types.UINT8:
-                        rng = range(1, 13, 2)
+                        win_sizes = range(1, 13, 2)
                     else:
-                        rng = range(1, max_window_size + 2, 2)
-                    for window_size in rng:
+                        win_sizes = range(1, max_window_size + 2, 2)
+                    for window_size in win_sizes:
                         yield _test_vs_open_cv, batch_size, window_size, in_type, out_type, normalize, grayscale
 
 
@@ -339,8 +339,8 @@ def laplacian_per_sample_pipeline(iterator, layout, window_dim, smoothing_dim, a
     else:
         window_shape = [axes for _ in range(window_dim)]
         window_size = fn.random.uniform(
-            range=[1, max_window_size // 2], shape=window_shape)
-        window_size = fn.cast(window_size, dtype=types.INT32) * 2 + 1
+            range=[1, max_window_size // 2], shape=window_shape,
+            dtype=types.INT32) * 2 + 1
         window_arg = window_size
         w_exponent = window_size - 3
 
@@ -350,8 +350,8 @@ def laplacian_per_sample_pipeline(iterator, layout, window_dim, smoothing_dim, a
     else:
         smoothing_shape = [axes for _ in range(smoothing_dim)]
         smoothing_size = fn.random.uniform(
-            range=[0, max_window_size // 2], shape=smoothing_shape)
-        smoothing_size = fn.cast(smoothing_size, dtype=types.INT32) * 2 + 1
+            range=[0, max_window_size // 2], shape=smoothing_shape,
+            dtype=types.INT32) * 2 + 1
         if smoothing_dim == 1:
             s_exponent = fn.reductions.sum(
                 smoothing_size, axes=0) - smoothing_size - axes + 1

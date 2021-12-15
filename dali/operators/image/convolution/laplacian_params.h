@@ -86,14 +86,14 @@ class LaplacianWindows {
       auto cur_idx = cur_size / 2;
       auto &prev_view = smoothing_views_[cur_size % 2 == 0 ? cur_idx - 1 : cur_idx];
       auto &view = smoothing_views_[cur_idx];
-      auto prevval = *prev_view(0);
-      *view(0) = prevval;
+      auto prev_val = *prev_view(0);
+      *view(0) = prev_val;
       for (int j = 1; j < cur_size - 1; j++) {
         auto val = *prev_view(j);
-        *view(j) = prevval + *prev_view(j);
-        prevval = val;
+        *view(j) = prev_val + *prev_view(j);
+        prev_val = val;
       }
-      *view(cur_size - 1) = prevval;
+      *view(cur_size - 1) = prev_val;
     }
   }
 
@@ -107,14 +107,14 @@ class LaplacianWindows {
       auto cur_idx = cur_size / 2;
       auto &prev_view = cur_size % 2 == 0 ? smoothing_views_[cur_idx - 1] : deriv_views_[cur_idx];
       auto &view = deriv_views_[cur_idx];
-      auto prevval = *prev_view(0);
-      *view(0) = -prevval;
+      auto prev_val = *prev_view(0);
+      *view(0) = -prev_val;
       for (int j = 1; j < cur_size - 1; j++) {
         auto val = *prev_view(j);
-        *view(j) = prevval - *prev_view(j);
-        prevval = val;
+        *view(j) = prev_val - *prev_view(j);
+        prev_val = val;
       }
-      *view(cur_size - 1) = prevval;
+      *view(cur_size - 1) = prev_val;
     }
   }
 

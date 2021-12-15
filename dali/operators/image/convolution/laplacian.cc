@@ -75,12 +75,17 @@ Operator uses 32-bit floats as an intermediate type.
     .AllowSequences()
     .SupportVolumetric()
     .AddOptionalArg<int>(laplacian::windowSizeArgName,
-                         "Size of derivative window used in convolutions",
+                         R"code(Size of derivative window used in convolutions.
+
+Window size must be odd and between 3 and 23.)code",
                          std::vector<int>{laplacian::defaultWindowSize}, true)
     .AddOptionalArg<std::vector<int>>(laplacian::smoothingSizeArgName,
-                                      "Size of smoothing window used in convolutions",
+                                      R"code(Size of smoothing window used in convolutions.
+
+Smoothing size must be odd and between 1 and 23.)code",
                                       laplacian::smoothingSizeDefault, true)
-    .AddOptionalArg<float>(laplacian::scaleArgName, "Factors to manually scale partial derivatives",
+    .AddOptionalArg<float>(laplacian::scaleArgName,
+                           "Factors to manually scale partial derivatives.",
                            std::vector<float>{laplacian::scaleArgDefault}, true)
     .AddOptionalArg<bool>(laplacian::normalizeArgName,
                           "If set to True, automatically scales partial derivatives to normalize "
@@ -171,7 +176,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
   }
 
  private:
-  const OpSpec &spec_;
+  const OpSpec& spec_;
 
   LaplacianArgs<axes> args;
   DimDesc dim_desc_;
