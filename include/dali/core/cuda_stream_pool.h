@@ -32,7 +32,7 @@ class DLL_PUBLIC CUDAStreamPool {
   ~CUDAStreamPool();
 
   /**
-   * @brief Get a stream for given device.
+   * @brief Gets a stream for given device.
    *
    * @param device_id   CUDA runtime API device ordinal. If negative, calling thread's
    *                    current device is used.
@@ -43,19 +43,19 @@ class DLL_PUBLIC CUDAStreamPool {
   CUDAStreamLease Get(int device_id = -1);
 
   /**
-   * @brief Place a stream for given device in the pool.
+   * @brief Places a stream for given device in the pool.
    *
    * @param device_id CUDA runtime API device ordinal of the device for which the stream was
-   *                  created. If negative, the device is obtained form the device context
+   *                  created. If negative, the device is obtained from the device context
    *                  associated with the stream.
    *
-   * @remarks It is an error to misstate the device_id. Placing a stream with improper deviceid
+   * @remarks It is an error to misstate the device_id. Placing a stream with improper device_id
    *          will render the stream pool unusable.
    */
   void Put(CUDAStream &&stream, int device_id = -1);
 
   /**
-   * @brief Remove all streams currently in the pool and deletes auxiliary data structures.
+   * @brief Removes all streams currently in the pool and deletes auxiliary data structures.
    *
    * NOTE: Avoid using this function on the pool returned by `instance()`
    */
@@ -86,7 +86,7 @@ class DLL_PUBLIC CUDAStreamPool {
   };
 
   StreamEntry *unused_ = nullptr;
-  std::atomic_int lease_count_;
+  std::atomic_int lease_count_ = 0;
 
   vector<StreamEntry *> dev_streams_;
   spinlock lock_;
@@ -151,7 +151,7 @@ class CUDAStreamLease {
   }
 
   /**
-   * @brief Detach the stream from the pool. In most cases this should not be necessary.
+   * @brief Detaches the stream from the pool. In most cases this should not be necessary.
    */
   CUDAStream release() noexcept {
     auto ret = std::move(stream_);

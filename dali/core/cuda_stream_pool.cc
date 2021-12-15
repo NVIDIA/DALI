@@ -26,14 +26,13 @@ CUDAStreamPool::~CUDAStreamPool() {
 }
 
 CUDAStreamPool::CUDAStreamPool() {
-  lease_count_ = 0;
   int num_devices = 0;
   CUDA_CALL(cudaGetDeviceCount(&num_devices));
   dev_streams_.resize(num_devices);
 }
 
 CUDAStreamLease CUDAStreamPool::Get(int device_id) {
-  if (device_id == -1)
+  if (device_id < 0)
     CUDA_CALL(cudaGetDevice(&device_id));
 
   CUDAStream s = GetFromPool(device_id);
