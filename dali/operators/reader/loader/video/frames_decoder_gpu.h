@@ -16,8 +16,17 @@
 #define DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_GPU_H_
 
 #include "dali/operators/reader/loader/video/frames_decoder.h"
+#include "dali/operators/reader/loader/video/nvdecode/NvDecoder.h"
 
 namespace dali {
+struct NvDecodeState {
+  CUvideodecoder decoder;
+  CUvideoparser parser;
+
+  CUVIDSOURCEDATAPACKET packet = { 0 };
+
+  uint8_t *decoded_frame_yuv;
+};
 
 class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
  public:
@@ -28,8 +37,16 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
    */
   explicit FramesDecoderGpu(const std::string &filename);
 
- private:
   bool DecodeFrame(uint8_t *data, bool copy_to_output = true) override;
+
+  void SeekFrame(int frame_id) override;
+
+  std::unique_ptr<NvDecoder> decoder_;
+  std::unique_ptr<NvDecodeState> nvdecode_state_;
+
+  uint8_t *current_frame_output_ = nullptr;
+  bool current_copy_to_output_ = false;
+  bool decode_success_ = false;
 };
 
 }  // namespace dali

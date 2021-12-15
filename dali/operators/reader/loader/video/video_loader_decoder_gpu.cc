@@ -32,22 +32,15 @@ void VideoLoaderDecoderGpu::ReadSample(VideoSample<GPUBackend> &sample) {
     sequence_shape,
     DALIDataType::DALI_UINT8);
 
-  Tensor<CPUBackend> buffer;
-  buffer.Resize(
-    sequence_shape,
-    DALIDataType::DALI_UINT8);
-
   auto data = sample.data_.mutable_data<uint8_t>();
-  auto buffer_data = buffer.mutable_data<uint8_t>();
 
   // TODO(awolant): Extract decoding outside of ReadSample (ReaderDecoder abstraction)
   for (int i = 0; i < sequence_len_; ++i) {
     // TODO(awolant): This seek can be optimized - for consecutive frames not needed etc.
-    video_file.SeekFrame(sample_span.start_ + i * sample_span.stride_);
-    video_file.ReadNextFrame(buffer_data + i * video_file.FrameSize());
+    int frame_id = sample_span.start_ + i * sample_span.stride_;
+    video_file.SeekFrame(frame_id);
+    video_file.ReadNextFrame(data + i * video_file.FrameSize());
   }
-
-  MemCopy(data, buffer_data, volume(sequence_shape) * sizeof(uint8_t));
 
   if (has_labels_) {
     sample.label_ = labels_[sample_span.video_idx_];

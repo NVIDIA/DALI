@@ -131,7 +131,7 @@ class DLL_PUBLIC FramesDecoder {
    * 
    * @param frame_id Id of the frame to seek to
    */
-  void SeekFrame(int frame_id);
+  virtual void SeekFrame(int frame_id);
 
   /**
    * @brief Seeks to the first frame
@@ -152,7 +152,7 @@ class DLL_PUBLIC FramesDecoder {
    * @returns True, if the read was succesful, or false, when all regular farmes were consumed.
    * 
    */
-  bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true);
+  bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true, bool for_index = false);
 
   /**
    * @brief Reads frames from the last packet. This packet can hold
@@ -187,6 +187,7 @@ class DLL_PUBLIC FramesDecoder {
   bool flush_state_ = false;
   std::string filename_;
   std::vector<IndexEntry> index_;
+  int current_frame_ = -1;
 };
 }  // namespace dali
 

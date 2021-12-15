@@ -20,7 +20,7 @@
 
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/loader/video/video_loader_decoder_cpu.h"
-#include "dali/operators/reader/loader/video/frames_decoder.h"
+#include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
 
 namespace dali {
 using VideoSampleGpu = VideoSample<GPUBackend>;
@@ -54,7 +54,7 @@ class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
   std::vector<std::string> filenames_;
   std::vector<int> labels_;
   bool has_labels_ = false;
-  std::vector<FramesDecoder> video_files_;
+  std::vector<FramesDecoderGpu> video_files_;
   std::vector<VideoSampleDesc> sample_spans_;
 
   Index current_index_ = 0;

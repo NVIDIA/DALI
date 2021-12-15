@@ -167,12 +167,14 @@ TEST_F(VideoReaderDecoderCpuTest, CpuVariableFrameRate) {
 }
 
 TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
-  const int batch_size = 4;
-  const int sequence_length = 6;
-  const int stride = 3;
-  const int step = 10;
+  const int batch_size = 1;
+  const int sequence_length = 1;
+  const int stride = 1;
+  const int step = 1;
+  // const int stride = 1;
+  // const int step = 7;
 
-  Pipeline pipe(batch_size, 4, 0);
+  Pipeline pipe(batch_size, 1, 0);
 
   vector<uint8_t> frame;
   frame.reserve(std::max(this->FrameSize(0), this->FrameSize(1)));
@@ -182,12 +184,12 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
     .AddArg("step", step)
-    .AddArg("initial_fill", 1)
     .AddArg(
       "filenames",
       std::vector<std::string>{
-        testing::dali_extra_path() + "/db/video/vfr/test_1.mp4",
-        testing::dali_extra_path() + "/db/video/vfr/test_2.mp4"})
+        testing::dali_extra_path() + "/db/video/vfr/test_1.avi",
+        testing::dali_extra_path() + "/db/video/vfr/test_2.avi"})
+    .AddArg("initial_fill", 1)
     .AddOutput("frames", "gpu"));
 
   pipe.Build({{"frames", "gpu"}});
@@ -211,15 +213,18 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
       const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
 
       for (int i = 0; i < sequence_length; ++i) {
+        std::cout << "Testing" << gt_frame_id + i * stride << std::endl;
         frame.clear();
         MemCopy(
           frame.data(),
           sample + i * this->FrameSize(video_idx),
           FrameSize(video_idx) * sizeof(uint8_t));
-        this->CompareFrames(
+        this->CompareFramesAvg(
           frame.data(),
           this->GetVfrFrame(video_idx, gt_frame_id + i * stride),
           this->FrameSize(video_idx));
+        this->SaveFrame(frame.data(), i, sample_id, batch_id, "reader", Width(video_idx), Height(video_idx), 3);
+        this->SaveFrame(this->GetCfrFrame(video_idx, gt_frame_id + i * stride), i, sample_id, batch_id, "gt", Width(video_idx), Height(video_idx), 3);
       }
 
       gt_frame_id += step;
