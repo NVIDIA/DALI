@@ -72,8 +72,14 @@ struct SliceBlockDesc {
   uint64_t size;
 };
 
+#if CUDA_VERSION >= 11020
 template<typename OutputType>
 constexpr int coalesced_values = sizeof(OutputType) >= 4 ? 1 : 4 / sizeof(OutputType);
+#else
+// temporary workaround for a mysterious test failure in CUDA < 11.2
+template<typename OutputType>
+constexpr int coalesced_values = 1;
+#endif
 
 /**
  * @brief Simplified algorithm when no padding is necessary
