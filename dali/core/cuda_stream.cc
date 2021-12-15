@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,25 @@
 #include "dali/core/device_guard.h"
 
 namespace dali {
+
+DLL_PUBLIC int DeviceFromStream(cudaStream_t s) {
+  int dev = 0;
+  if (s == 0 || s == cudaStreamLegacy || s == cudaStreamPerThread) {
+    CUDA_CALL(cudaGetDevice(&dev));
+    return dev;
+  }
+  CUcontext ctx;
+  CUDA_CALL(cuStreamGetCtx(s, &ctx));
+  CUDA_CALL(cuCtxPushCurrent(ctx));
+  try {
+    CUDA_CALL(cuCtxGetDevice(&dev));
+  } catch (...) {
+    CUDA_CALL(cuCtxPopCurrent(&ctx));
+    throw;
+  }
+  CUDA_CALL(cuCtxPopCurrent(&ctx));
+  return dev;
+}
 
 CUDAStream CUDAStream::Create(bool non_blocking, int device_id) {
   cudaStream_t stream;
