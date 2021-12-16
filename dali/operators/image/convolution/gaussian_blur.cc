@@ -28,6 +28,7 @@
 namespace dali {
 
 using namespace gaussian_blur;  // NOLINT
+using namespace convolution_utils;  // NOLINT
 
 DALI_SCHEMA(GaussianBlur)
     .DocStr(R"code(Applies a Gaussian Blur to the input.
@@ -73,45 +74,6 @@ Supported type: `FLOAT`. If not set, the input type is used.)code",
 
 
 namespace gaussian_blur {
-DimDesc ParseAndValidateDim(int ndim, TensorLayout layout) {
-  static constexpr int kMaxDim = 3;
-  if (layout.empty()) {
-    // assuming plain data with no channels
-    DALI_ENFORCE(ndim <= kMaxDim,
-                 make_string("Input data with empty layout cannot have more than ", kMaxDim,
-                             " dimensions, got input with ", ndim, " dimensions."));
-    return {0, ndim, ndim, false, false};
-  }
-  // not-empty layout
-  int axes_start = 0;
-  int axes_count = ndim;
-  bool has_channels = ImageLayoutInfo::IsChannelLast(layout);
-  if (has_channels) {
-    axes_count--;
-  }
-  // Skip possible occurrences of 'C' or 'F' at the beggining
-  TensorLayout layout_tmp = layout;
-  while (ImageLayoutInfo::IsChannelFirst(layout_tmp) || VideoLayoutInfo::IsSequence(layout_tmp)) {
-    axes_start++;
-    axes_count--;
-    layout_tmp = layout_tmp.sub(1);
-  }
-  if (!has_channels) {
-    DALI_ENFORCE(!ImageLayoutInfo::HasChannel(layout_tmp),
-                 make_string("Only channel-first or channel-last layouts are supported, got: ",
-                             layout, "."));
-  }
-  DALI_ENFORCE(
-      !VideoLayoutInfo::HasSequence(layout_tmp),
-      make_string("For sequences, layout should begin with 'F' or 'CF', got: ", layout, "."));
-  DALI_ENFORCE(
-      axes_start <= 2,
-      make_string("Found more the one occurrence of 'F' or 'C' axes in layout: ", layout, "."));
-  DALI_ENFORCE(axes_count <= kMaxDim,
-               make_string("Too many dimensions, found: ", axes_count,
-                           " data axes, maximum supported is: ", kMaxDim, "."));
-  return {axes_start, axes_count, axes_count + (axes_start != 0), has_channels, axes_start != 0};
-}
 
 // axes here is dimension of element processed by kernel - in case of sequence it's 1 less than the
 // actual dim
@@ -168,7 +130,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
 
       int seq_elements = 1;
       int64_t stride = 0;
-      if (dim_desc_.is_sequence) {
+      if (dim_desc_.is_sequence()) {
         seq_elements = volume(shape.begin(), shape.begin() + dim_desc_.usable_axes_start);
         stride = elem_volume;
       }
@@ -222,7 +184,7 @@ bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
     // clang-format off
     TYPE_SWITCH(input.type(), type2id, In, GAUSSIAN_BLUR_CPU_SUPPORTED_TYPES, (
       VALUE_SWITCH(dim_desc.usable_axes_count, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
-        BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
+        BOOL_SWITCH(dim_desc.is_channel_last(), HasChannels, (
           if (dtype_ == input.type()) {
             impl_ =
               std::make_unique<GaussianBlurOpCpu<In, In, Axes, HasChannels>>(&spec_, dim_desc);

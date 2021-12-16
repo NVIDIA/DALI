@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -114,7 +114,7 @@ void GetGeneralizedArg(span<T> result, const std::string &name, int sample_idx, 
       DALI_ENFORCE(vol == 1 || vol == argument_length,
                    make_string("Argument ", name, " for sample ", sample_idx,
                                " is expected to have 1 or ", argument_length,
-                               "elements, got: ", shape[0], "."));
+                               " elements, got: ", shape[0], "."));
     }
     if (vol == 1) {
       for (int i = 0; i < argument_length; i++) {

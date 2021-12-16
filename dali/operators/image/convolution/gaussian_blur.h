@@ -20,6 +20,7 @@
 
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
+#include "dali/operators/image/convolution/convolution_utils.h"
 #include "dali/operators/image/convolution/gaussian_blur_params.h"
 #include "dali/pipeline/operator/common.h"
 
@@ -57,7 +58,7 @@ class GaussianBlur : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
   std::unique_ptr<OpImplBase<Backend>> impl_;
   DALIDataType impl_in_dtype_ = DALI_NO_TYPE;
-  gaussian_blur::DimDesc impl_dim_desc_;
+  convolution_utils::DimDesc impl_dim_desc_;
 };
 
 namespace gaussian_blur {
@@ -93,8 +94,6 @@ inline GaussianBlurParams<axes> ObtainSampleParams(int sample, const OpSpec& spe
   }
   return params;
 }
-
-DimDesc ParseAndValidateDim(int ndim, TensorLayout layout);
 
 }  // namespace gaussian_blur
 }  // namespace dali

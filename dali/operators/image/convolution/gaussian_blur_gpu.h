@@ -27,12 +27,15 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/convolution/gaussian_blur.h"
 #include "dali/operators/image/convolution/gaussian_blur_params.h"
+#include "dali/operators/image/convolution/convolution_utils.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 
 namespace dali {
 
 namespace gaussian_blur {
+
+using namespace convolution_utils;  // NOLINT
 
 using op_impl_uptr = std::unique_ptr<OpImplBase<GPUBackend>>;
 
@@ -143,8 +146,8 @@ std::unique_ptr<OpImplBase<GPUBackend>> GetGaussianBlurGpuImpl(const OpSpec* spe
                                                                DimDesc dim_desc) {
   std::unique_ptr<OpImplBase<GPUBackend>> result;
   VALUE_SWITCH(dim_desc.usable_axes_count, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
-    BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
-      BOOL_SWITCH(dim_desc.is_sequence, IsSequence, (
+    BOOL_SWITCH(dim_desc.is_channel_last(), HasChannels, (
+      BOOL_SWITCH(dim_desc.is_sequence(), IsSequence, (
         result.reset(
           new GaussianBlurOpGpu<Out, In, Axes, HasChannels, IsSequence>(spec, std::move(dim_desc)));
       ));  // NOLINT
