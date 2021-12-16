@@ -135,7 +135,7 @@ class Tensor : public Buffer<Backend> {
                  "Tensor has no type, 'set_type<T>()' or Resize(shape, type) must be called "
                  "on the Tensor to set a valid type before it can be resized.");
     Index new_size = volume(shape);
-    ResizeHelper(new_size);
+    resize(new_size);
     shape_ = shape;
   }
 
@@ -150,7 +150,7 @@ class Tensor : public Buffer<Backend> {
                  "Tensor cannot be resized with invalid type. To zero out the Tensor "
                  "Reset() can be used.");
     Index new_size = volume(shape);
-    ResizeHelper(new_size, new_type);
+    resize(new_size, new_type);
     shape_ = shape;
   }
 

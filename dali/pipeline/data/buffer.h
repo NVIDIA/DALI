@@ -91,6 +91,21 @@ class DLL_PUBLIC Buffer {
    */
   inline Buffer() = default;
   virtual ~Buffer() = default;
+  Buffer(const Buffer &other) = delete;
+  Buffer& operator=(const Buffer &other) = delete;
+
+  Buffer(Buffer &&other) {
+    move_buffer(std::move(other));
+  }
+
+  Buffer& operator=(Buffer &&other) {
+    if (this != &other) {
+      move_buffer(std::move(other));
+    }
+    return *this;
+  }
+
+
 
   /**
    * @brief Returns a typed pointer to the underlying storage.
@@ -148,7 +163,7 @@ class DLL_PUBLIC Buffer {
    */
   inline size_t nbytes() const {
     // Note: This returns the number of bytes occupied by the current
-    // number of elements stored in the buffer. This is not neccessarily
+    // number of elements stored in the buffer. This is not necessarily
     // the number of bytes of the underlying allocation (num_bytes_)
     return size_ * type_.size();
   }
@@ -311,6 +326,12 @@ class DLL_PUBLIC Buffer {
     return shares_data_;
   }
 
+  /**
+   * @brief Set another Buffer as the backing memory for this Buffer.
+   *
+   * Current Buffer will be marked as sharing data, and reallocation of memory will be
+   * prohibited until reset() is called.
+   */
   inline void set_backing_allocation(const Buffer<Backend> &other) {
     DALI_ENFORCE(IsValidType(other.type_), "Only valid type when creating an allocation");
     type_ = other.type_;
@@ -322,8 +343,16 @@ class DLL_PUBLIC Buffer {
     device_ = other.device_;
   }
 
+  /**
+   * @brief Set external memory as the backing memory for this Buffer.
+   *
+   * Current Buffer will be marked as sharing data, and reallocation of memory will be
+   * prohibited until reset() is called.
+   *
+   * For GPU memory, it is assumed to be associated with current device.
+   */
   inline void set_backing_allocation(const shared_ptr<void> &ptr, size_t bytes,
-                                   DALIDataType type = DALI_NO_TYPE, size_t size = 0) {
+                                     DALIDataType type = DALI_NO_TYPE, size_t size = 0) {
     type_ = TypeTable::GetTypeInfo(type);
     data_ = ptr;
     allocate_ = {};
@@ -337,8 +366,6 @@ class DLL_PUBLIC Buffer {
       device_ = CPU_ONLY_DEVICE_ID;
     }
   }
-
-  DISABLE_COPY_MOVE_ASSIGN(Buffer);
 
   static void SetGrowthFactor(double factor) {
     assert(factor >= 1.0);
@@ -357,23 +384,28 @@ class DLL_PUBLIC Buffer {
 
   DLL_PUBLIC static constexpr double kMaxGrowthFactor = 4;
 
-  // Helper to resize the underlying allocation
-  inline void ResizeHelper(Index new_size) {
-    ResizeHelper(new_size, type_);
+  /**
+   * @brief Resize the Buffer to hold `new_size` elements of current type.
+   */
+  inline void resize(Index new_size) {
+    resize(new_size, type_);
   }
 
-
-  // Helper to resize the underlying allocation
-  inline void ResizeHelper(Index new_size, DALIDataType new_type_id) {
+  /**
+   * @brief Resize the Buffer to hold `new_size` elements of type `new_type_id`.
+   */
+  inline void resize(Index new_size, DALIDataType new_type_id) {
     // don't look up the type unless it's different than current one
     const auto &new_type = new_type_id == type_.id() ? type_ : TypeTable::GetTypeInfo(new_type_id);
-    ResizeHelper(new_size, new_type);
+    resize(new_size, new_type);
   }
 
-  // Helper to resize the underlying allocation
-  inline void ResizeHelper(Index new_size, const TypeInfo &new_type) {
+  /**
+   * @brief Resize the Buffer to hold `new_size` elements of type `new_type_id`.
+   */
+  inline void resize(Index new_size, const TypeInfo &new_type) {
     DALI_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
-
+    DALI_ENFORCE(IsValidType(new_type), "Buffer can only be resized with a valid type.");
     // If we use NoType the result will always be 0
     size_t new_num_bytes = new_size * new_type.size();
 
@@ -407,6 +439,7 @@ class DLL_PUBLIC Buffer {
     }
   }
 
+ protected:
   void move_buffer(Buffer &&buffer) {
     type_         = std::move(buffer.type_);
     data_         = std::move(buffer.data_);
@@ -420,7 +453,6 @@ class DLL_PUBLIC Buffer {
     buffer.reset();
   }
 
- protected:
   static double growth_factor_;
   static double shrink_threshold_;
 
@@ -450,7 +482,7 @@ constexpr double Buffer<Backend>::kMaxGrowthFactor;
 // Macro so we don't have to list these in all
 // classes that derive from Buffer
 #define USE_BUFFER_MEMBERS()           \
-  using Buffer<Backend>::ResizeHelper; \
+  using Buffer<Backend>::resize; \
   using Buffer<Backend>::reset;        \
   using Buffer<Backend>::type_;        \
   using Buffer<Backend>::data_;        \

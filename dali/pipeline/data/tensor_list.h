@@ -185,7 +185,7 @@ class DLL_PUBLIC TensorList {
     DALI_ENFORCE(new_size >= 0, "Invalid negative buffer size.");
 
     // Resize the underlying allocation and save the new shape
-    data_.ResizeHelper(new_size, new_type);
+    data_.resize(new_size, new_type);
     shape_ = new_shape;
 
     // Tensor views of this TensorList is no longer valid
@@ -329,7 +329,7 @@ class DLL_PUBLIC TensorList {
       other.meta_.clear();
       other.layout_ = {};
 
-      data_.move_buffer(std::move(other.data_));
+      data_ = std::move(other.data_);
     }
     return *this;
   }
@@ -596,42 +596,75 @@ class DLL_PUBLIC TensorList {
     meta_[idx] = meta;
   }
 
-  bool is_pinned() const {
-    return data_.is_pinned();
-  }
+  // Reexpose all public Buffer functions apart from contiguous buffer accessors.
+  // TensorList is being reworked to sample-only access and this is intermediate step
+  // that prevents reintroducing that access in any of DALI operators
 
+
+  /**
+   * @brief Returns the TypeInfo object that keeps track of the
+   * datatype of the underlying storage.
+   */
   const TypeInfo &type_info() const {
     return data_.type_info();
   }
 
+  /**
+   * @brief Returns the id of the datatype of the underlying storage.
+   */
   DALIDataType type() const {
     return data_.type();
   }
 
+  /**
+   * @brief Returns the size in bytes of the underlying data
+   */
   size_t nbytes() const {
     return data_.nbytes();
   }
 
+  /**
+   * @brief Returns the real size of the allocation
+   */
   size_t capacity() const {
     return data_.capacity();
   }
 
-
+  /**
+   * @brief Set the type of the TensorList. The type needs to be set before calling
+   * the Resize function that gives the shape. Type can be changed, if the current storage
+   * is not big enough, the memory will be reallocated.
+   */
   inline void set_type(const DALIDataType new_type_id) {
     data_.set_type(new_type_id);
   }
 
+  /**
+   * @brief Set the type of the TensorList. The type needs to be set before calling
+   * the Resize function that gives the shape. Type can be changed, if the current storage
+   * is not big enough, the memory will be reallocated.
+   */
   template <typename T>
   inline void set_type() {
     data_.set_type(TypeTable::GetTypeId<T>());
   }
 
+  /**
+   * @brief Sets the type of allocation (pinned/non-pinned) for CPU TensorList
+   */
   inline void set_pinned(bool pinned) {
     data_.set_pinned(pinned);
   }
 
+  /**
+   * @brief Returns the type of allocation (pinned/non-pinned) for CPU TensorList
+   */
+  bool is_pinned() const {
+    return data_.is_pinned();
+  }
+
    /**
-   * @brief Returns a device this buffer was allocated on
+   * @brief Returns a device this TensorList was allocated on
    * If the backend is CPUBackend, return -1
    */
   int device_id() const {
@@ -639,7 +672,7 @@ class DLL_PUBLIC TensorList {
   }
 
   /**
-   * @brief Sets a device this buffer was allocated on
+   * @brief Sets a device this TensorList was allocated on
    * If the backend is CPUBackend, should be -1
    */
   void set_device_id(int device) {
@@ -660,25 +693,28 @@ class DLL_PUBLIC TensorList {
     return data_.shares_data();
   }
 
+  /**
+   * @brief Sets a custom allocation function.
+   *
+   * Sets a custom allocation function. The allocation function returns
+   * a shared pointer with a matching deleter.
+   *
+   * @remarks Experimental - subject to change
+   */
+  inline void set_alloc_func(typename Buffer<Backend>::AllocFunc allocate) {
+    data_.set_alloc_func(std::move(allocate));
+  }
 
-  // Reexpose all public Buffer functions apart from contiguous buffer accessors.
-  // TensorList is being reworked to sample-only access and this is intermediate step
-  // that prevents reintroducing that access in any of DALI operators
-
-  // using Buffer<Backend>::nbytes;
-  // using Buffer<Backend>::capacity;
-  // using Buffer<Backend>::type;
-  // using Buffer<Backend>::type_info;
-  // using Buffer<Backend>::set_alloc_func;
-  // using Buffer<Backend>::alloc_func;
-  // using Buffer<Backend>::has_data;
-  // using Buffer<Backend>::set_pinned;
-  // using Buffer<Backend>::device_id;
-  // using Buffer<Backend>::set_device_id;
-  // using Buffer<Backend>::set_type;
-  // using Buffer<Backend>::reserve;
-  // // using Buffer<Backend>::reset;  // Available via USE_BUFFER_MEMBERS
-  // using Buffer<Backend>::shares_data;
+  /**
+   * @brief Returns the current custom allocation function.
+   *
+   * @return Allocation function. If not set, an empty function object is returned.
+   *
+   * @remarks Experimental - subject to change
+   */
+  const typename Buffer<Backend>::AllocFunc &alloc_func() const noexcept {
+    return data_.alloc_func();
+  }
 
  protected:
   Buffer<Backend> data_;
