@@ -207,6 +207,10 @@ class DLL_PUBLIC Buffer {
     return !!data_;
   }
 
+  std::shared_ptr<void> get_data_ptr() const {
+    return data_;
+  }
+
   /**
    * @brief Sets the type of allocation (pinned/non-pinned) for CPU buffers
    */
@@ -307,7 +311,7 @@ class DLL_PUBLIC Buffer {
     return shares_data_;
   }
 
-  inline void SetBackingAllocation(const Buffer<Backend> &other) {
+  inline void set_backing_allocation(const Buffer<Backend> &other) {
     DALI_ENFORCE(IsValidType(other.type_), "Only valid type when creating an allocation");
     type_ = other.type_;
     data_ = other.data_;
@@ -318,15 +322,20 @@ class DLL_PUBLIC Buffer {
     device_ = other.device_;
   }
 
-  inline void SetBackingAllocation(const shared_ptr<void> &ptr, size_t bytes, DALIDataType type, size_t size = 0) {
-    DALI_ENFORCE(IsValidType(type), "Only valid type when creating an allocation");
+  inline void set_backing_allocation(const shared_ptr<void> &ptr, size_t bytes,
+                                   DALIDataType type = DALI_NO_TYPE, size_t size = 0) {
     type_ = TypeTable::GetTypeInfo(type);
     data_ = ptr;
     allocate_ = {};
     size_ = size;
     shares_data_ = true;
     num_bytes_ = bytes;
-    device_ = CPU_ONLY_DEVICE_ID; // TODO(klecki): Do we keep old, set new, or pass it here?
+    // setting the allocation, get the device
+    if (std::is_same<Backend, GPUBackend>::value) {
+      CUDA_CALL(cudaGetDevice(&device_));
+    } else {
+      device_ = CPU_ONLY_DEVICE_ID;
+    }
   }
 
   DISABLE_COPY_MOVE_ASSIGN(Buffer);

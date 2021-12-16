@@ -215,7 +215,7 @@ class DLL_PUBLIC TensorList {
         "the input TensorList must have a valid data type");
 
     // Save the calling TensorLists meta-data
-    data_.SetBackingAllocation(other.data_);
+    data_.set_backing_allocation(other.data_);
     shape_ = other.shape_;
     offsets_ = other.offsets_;
 
@@ -250,7 +250,7 @@ class DLL_PUBLIC TensorList {
     DALI_ENFORCE(bytes > 0, "No empty allocations");
 
     // Save our new pointer and bytes. Reset our type, shape, and size
-    data_.SetBackingAllocation(ptr, bytes, type, shape.num_elements());
+    data_.set_backing_allocation(ptr, bytes, type, shape.num_elements());
     shape_ = {};
     offsets_.clear();
 
@@ -530,7 +530,7 @@ class DLL_PUBLIC TensorList {
 
     tensor_views_.emplace_back();
     auto &tensor = tensor_views_.back();
-    tensor.ShareData(data_, data_.capacity(), new_shape, type());
+    tensor.ShareData(data_.get_data_ptr(), data_.capacity(), new_shape, type());
     tensor.set_device_id(data_.device_id());
 
     return &tensor;
@@ -653,6 +653,13 @@ class DLL_PUBLIC TensorList {
     return data_.has_data();
   }
 
+  /**
+   * @brief Returns a bool indicating if the list shares its underlying storage.
+   */
+  inline bool shares_data() const {
+    return data_.shares_data();
+  }
+
 
   // Reexpose all public Buffer functions apart from contiguous buffer accessors.
   // TensorList is being reworked to sample-only access and this is intermediate step
@@ -722,7 +729,7 @@ class DLL_PUBLIC TensorList {
   friend shared_ptr<void> unsafe_sample_owner(TensorList<Backend> &tl, int sample_idx) {
     // create new aliasing pointer to current data allocation, so we share the use count
     // and the deleter correctly.
-    return {tl.data_, tl.raw_mutable_tensor(sample_idx)};
+    return {tl.data_.get_data_ptr(), tl.raw_mutable_tensor(sample_idx)};
   }
 
   /** @} */  // end of ContiguousAccessorFunctions
