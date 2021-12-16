@@ -27,8 +27,7 @@ void MakeContiguousCPU::RunImpl(HostWorkspace &ws) {
   for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
     thread_pool.AddWork([sample_id, &input, &output] (int tid) {
       // HostWorkspace doesn't have any stream
-      cudaStream_t stream = 0;
-      output[sample_id].Copy(input[sample_id], stream);
+      output[sample_id].Copy(input[sample_id], AccessOrder::host());
     }, shapes.tensor_size(sample_id));
   }
   thread_pool.RunAll();
