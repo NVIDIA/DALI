@@ -18,12 +18,10 @@ import nvidia.dali.types as types
 from nvidia.dali.pipeline.experimental import pipeline_def
 from test_utils import compare_pipelines, get_dali_extra_path
 
-import cupy
-import mxnet
 import numpy as np
-import torch
 import os
 from nose_utils import raises
+from nose.plugins.attrib import attr
 
 file_root = os.path.join(get_dali_extra_path(), 'db/single/jpeg')
 
@@ -129,12 +127,30 @@ def _test_injection(device, name, transform, eps=1e-07):
     compare_pipelines(pipe_standard, pipe_debug, 8, 10, eps=eps)
 
 
-def test_injections():
-    yield _test_injection, 'cpu', 'numpy array', lambda xs: [np.array(x) for x in xs]
-    yield _test_injection, 'cpu', 'mxnet array', lambda xs: [mxnet.nd.array(x, dtype='uint8') for x in xs]
+def test_injection_numpy():
+    _test_injection('cpu', 'numpy array', lambda xs: [np.array(x) for x in xs])
+
+
+@attr('mxnet')
+def test_injection_mxnet():
+    import mxnet
+    _test_injection('cpu', 'mxnet array', lambda xs: [mxnet.nd.array(x, dtype='uint8') for x in xs])
+
+
+@attr('pytorch')
+def test_injection_torch():
+    import torch
     yield _test_injection, 'cpu', 'torch cpu tensor', lambda xs: [torch.tensor(np.array(x), device='cpu') for x in xs]
     yield _test_injection, 'gpu', 'torch gpu tensor', lambda xs: [torch.tensor(np.array(x), device='cuda') for x in xs], 1e-03
-    yield _test_injection, 'gpu', 'cupy array', lambda xs: [cupy.array(x) for x in xs], 1e-03
+
+
+@attr('cupy')
+def test_injection_cupy():
+    import cupy
+    _test_injection('gpu', 'cupy array', lambda xs: [cupy.array(x) for x in xs], 1e-03)
+
+
+def test_injection_dali_types():
     yield _test_injection, 'gpu', 'list of TensorGPU', lambda xs: [x._as_gpu() for x in xs], 1e-03
     yield _test_injection, 'cpu', 'TensorListCPU', lambda xs: xs
     yield _test_injection, 'gpu', 'TensorListGPU', lambda xs: xs._as_gpu(), 1e-03
@@ -173,7 +189,6 @@ def test_external_source_debug():
     pipe_standard = es_pipeline_standard()
     pipe_debug = es_pipeline()
     pipe_load.build()
-    pipe_standard.build()
     pipe_debug.build()
     for _ in range(n_iters):
         images, labels = pipe_load.run()
@@ -269,6 +284,7 @@ def test_inputs_batch_change():
     pipe.run()
     pipe.run()
 
+
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
 def kwargs_batch_change():
     kwargs = {}
@@ -287,3 +303,15 @@ def test_kwargs_batch_change():
     pipe.build()
     pipe.run()
     pipe.run()
+
+
+@pipeline_def
+def init_config_pipeline():
+  jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
+  return jpegs, labels
+
+
+def test_init_config_pipeline():
+    pipe_standard = init_config_pipeline(batch_size=8, num_threads=3, device_id=0)
+    pipe_debug = init_config_pipeline(batch_size=8, num_threads=3, device_id=0, debug=True)
+    compare_pipelines(pipe_standard, pipe_debug, 8, 10)

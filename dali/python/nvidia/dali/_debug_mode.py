@@ -225,7 +225,10 @@ class _PipelineDebug(_pipeline.Pipeline):
         return False, 'cpu', data
 
     def _create_subpipeline(self, op_wrapper, inputs, kwargs):
-        """Creates pipeline wrapper around operator call (only once)."""
+        """Creates pipeline wrapper around operator call (only in the first run).
+        Each pipeline uses ExternalSource operators for processing inputs and kwargs.
+        Returns pipeline and classification of data as batch.
+        """
 
         inputs_external_source = [False]*len(inputs)
         kwargs_external_source = {}

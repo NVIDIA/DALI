@@ -147,15 +147,14 @@ DataNode
 Pipeline Debug Mode (experimental)
 ------------------
 
-Pipeline can be run in debug mode by replacing :meth:`@nvidia.dali.pipeline_def <nvidia.dali.pipeline_def>` decorator with its experimental variant
-``@nvidia.dali.experimental.pipeline_def`` and setting parameter ``debug`` to True. It allows you
-to access and modify data inside of the pipeline execution graph as well as use non-DALI data types
-as inputs for DALI operators.
+Pipeline can be run in debug mode by replacing ``@nvidia.dali.pipeline_def`` decorator with its
+experimental variant ``@nvidia.dali.experimental.pipeline_def`` and setting parameter ``debug`` to
+True. It allows you to access and modify data inside the pipeline execution graph, as well as use
+non-DALI data types as inputs to the DALI operators.
 
 In this mode outputs of operators are of type ``DataNodeDebug`` which is an equivalent to
-:class:`~nvidia.dali.pipeline.DataNode` in the standard mode. You can perform the same
-operations on objects of type ``DataNodeDebug`` as on ``DataNode``, that includes arithmetic
-operations.
+``DataNode`` in the standard mode. You can perform the same operations on objects of type
+``DataNodeDebug`` as on ``DataNode``, that includes arithmetic operations.
 
 Use ``.get()`` to access data associated with the ``DataNodeDebug`` object during current execution
 of :meth:`Pipeline.run`::

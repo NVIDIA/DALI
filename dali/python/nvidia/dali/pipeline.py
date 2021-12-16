@@ -1379,11 +1379,12 @@ def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
         def create_pipeline(*args, **kwargs):
             debug_mode_on = kwargs.get('debug', pipeline_debug)
             ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
+            pipeline_args = {**pipeline_kwargs, **ctor_args}  # Merge and overwrite dict
             if debug_mode_on:
                 pipe = _PipelineDebug(functools.partial(func, *args, **fn_kwargs),
-                                     **{**pipeline_kwargs, **ctor_args})
+                                     **pipeline_args)
             else:
-                pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
+                pipe = Pipeline(**pipeline_args)
                 with pipe:
                     pipe_outputs = func(*args, **fn_kwargs)
                     if isinstance(pipe_outputs, tuple):
