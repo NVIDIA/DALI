@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTIL_NPP_H_
-#define DALI_UTIL_NPP_H_
+#ifndef DALI_OPERATORS_UTIL_NPP_H_
+#define DALI_OPERATORS_UTIL_NPP_H_
 
 #include <npp.h>
 #include <string>
@@ -326,14 +326,9 @@ inline void cudaResultCheck<NppStatus>(NppStatus status) {
   }
 }
 
-template <typename T>
-NppiSize ToNppiSize(const T& size) {
-  NppiSize out;
-  out.width = size.width;
-  out.height = size.height;
-  return out;
-}
+// Obtain NPP library version or -1 if it is not available
+int NPPGetVersion();
 
 }  // namespace dali
 
-#endif  // DALI_UTIL_NPP_H_
+#endif  // DALI_OPERATORS_UTIL_NPP_H_

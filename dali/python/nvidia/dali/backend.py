@@ -45,5 +45,20 @@ if not initialized:
                             "The next release will support only 10.2 from 10.x familly. "
                             "Please update your environment to CUDA version 10.2 or newer.")
 
+    if GetCudaVersion() == -1:
+        deprecation_warning("GPU is not available. Only CPU operators are available.")
+
+    if GetCufftVersion() == -1:
+        deprecation_warning("Cannot access cuFFT library. Please check cuda installation and/or "
+                            "if is an appropriate wheel is installed.")
+
+    if GetNppVersion() == -1:
+        deprecation_warning("Cannot access NPP library. Please check cuda installation and/or "
+                            "if is an appropriate wheel is installed.")
+
+    if GetNvjpegVersion() == -1:
+        deprecation_warning("Cannot access nvJPEG library. Please check cuda installation and/or "
+                            "if is an appropriate wheel is installed.")
+
     for lib in default_plugins:
         LoadLibrary(os.path.join(os.path.dirname(__file__), lib))

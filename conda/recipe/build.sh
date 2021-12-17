@@ -45,6 +45,13 @@ export PATH=/usr/local/cuda/bin:${PATH}
 export CXXFLAGS="${CXXFLAGS} -DNO_ALIGNED_ALLOC"
 export PATH=/usr/local/cuda/bin:${PATH}
 
+# make it on by default for CUDA 11.x
+if [ "${CUDA_VERSION/./}" -ge 110 ]; then
+  export WITH_DYNAMIC_CUDA_TOOLKIT_DEFAULT=ON
+else
+  export WITH_DYNAMIC_CUDA_TOOLKIT_DEFAULT=OFF
+fi
+
 # Create build directory for cmake and enter it
 mkdir $SRC_DIR/build
 cd $SRC_DIR/build
@@ -77,6 +84,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_NVML=${BUILD_NVML:-ON}                      \
       -DBUILD_CUFILE=${BUILD_CUFILE:-ON}                  \
       -DLINK_LIBCUDA=${LINK_LIBCUDA:-OFF}                 \
+      -DWITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT:-${WITH_DYNAMIC_CUDA_TOOLKIT_DEFAULT}}\
       -DVERBOSE_LOGS=${VERBOSE_LOGS:-OFF}                 \
       -DWERROR=${WERROR:-ON}                              \
       -DBUILD_WITH_ASAN=${BUILD_WITH_ASAN:-OFF}           \
@@ -115,31 +123,46 @@ DEPS_SONAME=(
 PKGNAME_PATH=dali/python/nvidia/dali/
 mkdir -p $PKGNAME_PATH/.libs
 
+# copy needed dependent .so files and tag them with their hash
+original=()
 patched=()
-for filepath in "${DEPS_LIST[@]}"; do
+
+copy_and_patch() {
+    local filepath=$1
     filename=$(basename $filepath)
-    patchedname=$(fname_with_sha256 $filepath)
-    patchedpath=$PKGNAME_PATH/.libs/$patchedname
-    patched+=("$patchedname")
 
     if [[ ! -f "$filepath" ]]; then
         echo "Didn't find $filename, skipping..."
-        continue
+        return
     fi
+    patchedname=$(fname_with_sha256 $filepath)
+    patchedpath=$PKGNAME_PATH/.libs/$patchedname
+    original+=("$filename")
+    patched+=("$patchedname")
+
     echo "Copying $filepath to $patchedpath"
     cp $filepath $patchedpath
 
     echo "Patching DT_SONAME field in $patchedpath"
-    patchelf --set-soname $patchedname $patchedpath
-done
+    patchelf --set-soname $patchedname $patchedpath &
+}
 
-find $PKGNAME_PATH -name '*.so*' -o -name '*.bin' | while read sofile; do
-    for ((i=0;i<${#DEPS_LIST[@]};++i)); do
-        origname=${DEPS_SONAME[i]}
-        patchedname=${patched[i]}
+echo "Patching DT_SONAMEs..."
+for filepath in "${DEPS_LIST[@]}"; do
+    copy_and_patch $filepath
+done
+wait
+echo "Patched DT_SONAMEs"
+
+patch_hashed_names() {
+    local sofile=$1
+    needed_so_files=$(patchelf --print-needed $sofile)
+    for ((j=0;j<${#original[@]};++j)); do
+        origname=${original[j]}
+        patchedname=${patched[j]}
         if [[ "$origname" != "$patchedname" ]]; then
             set +e
-            patchelf --print-needed $sofile | grep $origname 2>&1 >/dev/null
+            echo $needed_so_files | grep $origname 2>&1 >/dev/null
             ERRCODE=$?
             set -e
             if [ "$ERRCODE" -eq "0" ]; then
@@ -148,7 +171,22 @@ find $PKGNAME_PATH -name '*.so*' -o -name '*.bin' | while read sofile; do
             fi
         fi
     done
+}
+echo "Patching to fix the so names to the hashed names..."
+# get list of files to iterate over
+sofile_list=()
+while IFS=  read -r -d $'\0'; do
+    sofile_list+=("$REPLY")
+done < <(find $PKGNAME_PATH -name '*.so*' -print0)
+while IFS=  read -r -d $'\0'; do
+    sofile_list+=("$REPLY")
+done < <(find $PKGNAME_PATH -name '*.bin' -print0)
+for ((i=0;i<${#sofile_list[@]};++i)); do
+    sofile=${sofile_list[i]}
+    patch_hashed_names $sofile &
 done
+wait
+echo "Fixed hashed names"
 
 # set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
 PKGNAME_PATH=$PWD/dali/python/nvidia/dali

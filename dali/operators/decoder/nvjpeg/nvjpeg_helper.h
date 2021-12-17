@@ -112,6 +112,9 @@ inline void cudaResultCheck<nvjpegStatus_t>(nvjpegStatus_t status, const string 
   }
 }
 
+// Obtain nvJPEG library version or -1 if it is not available
+int nvjpegGetVersion();
+
 struct StateNvJPEG {
   nvjpegBackend_t nvjpeg_backend;
   nvjpegBufferPinned_t pinned_buffer;

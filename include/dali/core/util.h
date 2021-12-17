@@ -432,4 +432,24 @@ inline auto flatten(span<const std::array<T, N>, extent> in) {
 
 }  // namespace dali
 
+/// @brief Returns the product of all elements in shape
+/// @param getter - function obtaining property
+/// @param value - value where to put the property, in case of failure it gets -1
+/// @param property - enum for the select right property
+/// @param success_status - enum value for success status of getter
+template <typename F, typename E, typename S>
+void GetVersionProperty(F getter, int *value, E property, S success_status) {
+  if (getter(property, value) != success_status) {
+    *value = -1;
+  }
+}
+
+// gets single int that can be represented as int value
+static int GetVersionNumber(int major, int minor, int patch) {
+  if (major < 0 || minor < 0 || patch < 0) {
+    return -1;
+  }
+  return major*1000 + minor*10 + patch;
+}
+
 #endif  // DALI_CORE_UTIL_H_

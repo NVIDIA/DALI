@@ -17,7 +17,7 @@
 #include <vector>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/image/transform.h"
-#include "dali/util/npp.h"
+#include "dali/operators/util/npp.h"
 
 namespace dali {
 namespace old {

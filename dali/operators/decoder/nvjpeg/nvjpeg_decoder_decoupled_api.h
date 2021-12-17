@@ -30,7 +30,6 @@
 #include "dali/core/mm/memory.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
-#include "dali/util/npp.h"
 #include "dali/util/nvml.h"
 #include "dali/image/image_factory.h"
 #include "dali/pipeline/util/thread_pool.h"

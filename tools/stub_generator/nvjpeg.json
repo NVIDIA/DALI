@@ -39,6 +39,7 @@
       "nvjpegDecodeJpegTransferToDevice": {},
       "nvjpegDecodeJpegHost": {},
       "nvjpegDecodeJpegDevice": {},
-      "nvjpegBufferDeviceCreate": {}
+      "nvjpegBufferDeviceCreate": {},
+      "nvjpegGetProperty": {}
    }
 }

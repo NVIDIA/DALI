@@ -12,6 +12,7 @@
       "cufftMakePlanMany": {},
       "cufftSetStream": {},
       "cufftSetWorkArea": {},
-      "cufftExecR2C": {}
+      "cufftExecR2C": {},
+      "cufftGetProperty": {}
    }
 }

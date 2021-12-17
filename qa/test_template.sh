@@ -109,6 +109,12 @@ do
     for variant in $(seq 0 $((${numer_of_prolog_elms}-1))); do
         ${prolog[variant]}
         echo "Test variant run: $variant"
+        # install the latest cuda wheel for CUDA 11.x tests if not in conda and if it is x86_64
+        version_ge "$CUDA_VERSION" "110" && \
+          if [ -z "$CONDA_PREFIX" ] && [ "$(uname -m)" == "x86_64" ]; then
+            install_pip_pkg "pip install --upgrade nvidia-npp-cu11 nvidia-nvjpeg-cu11 nvidia-cufft-cu11 -f /pip-packages"
+          fi
+
         # install packages
         inst=$($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
         if [ -n "$inst" ]; then

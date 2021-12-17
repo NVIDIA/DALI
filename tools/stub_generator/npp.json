@@ -10,6 +10,9 @@
          "return_type":"cudaStream_t",
          "not_found_error":"0" },
       "nppSetStream": {},
+      "nppGetLibVersion": {
+         "return_type":"NppLibraryVersion *",
+         "not_found_error":"nullptr" },
       "nppiColorTwist32f_8u_C3R": {},
       "nppiColorTwist32f_8u_C1R": {}
    }
