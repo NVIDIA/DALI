@@ -17,6 +17,7 @@ from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
+from nvidia.dali import internal
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali import pickling as dali_pickle
 from nvidia.dali.backend import CheckDLPackCapsule
@@ -27,6 +28,7 @@ import inspect
 import warnings
 import weakref
 import ctypes
+import sys
 
 pipeline_tls = tls()
 
@@ -1250,6 +1252,9 @@ def _discriminate_args(func, **func_kwargs):
     func_argspec = inspect.getfullargspec(func)
     ctor_argspec = inspect.getfullargspec(Pipeline.__init__)
 
+    if 'debug' not in func_argspec.args and 'debug' not in func_argspec.kwonlyargs:
+        func_kwargs.pop('debug', False)
+
     ctor_args = {}
     fn_args = {}
 
@@ -1364,3 +1369,40 @@ def pipeline_def(fn=None, **pipeline_kwargs):
             return pipe
         return create_pipeline
     return actual_decorator(fn) if fn else actual_decorator
+
+
+def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
+    from nvidia.dali._debug_mode import _PipelineDebug
+    pipeline_debug =  pipeline_kwargs.pop('debug', False)
+    def actual_decorator(func):
+        @functools.wraps(func)
+        def create_pipeline(*args, **kwargs):
+            debug_mode_on = kwargs.get('debug', pipeline_debug)
+            ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
+            pipeline_args = {**pipeline_kwargs, **ctor_args}  # Merge and overwrite dict
+            if debug_mode_on:
+                pipe = _PipelineDebug(functools.partial(func, *args, **fn_kwargs),
+                                     **pipeline_args)
+            else:
+                pipe = Pipeline(**pipeline_args)
+                with pipe:
+                    pipe_outputs = func(*args, **fn_kwargs)
+                    if isinstance(pipe_outputs, tuple):
+                        po = pipe_outputs
+                    elif pipe_outputs is None:
+                        po = ()
+                    else:
+                        po = (pipe_outputs,)
+                    pipe.set_outputs(*po)
+            return pipe
+        return create_pipeline
+    return actual_decorator(fn) if fn else actual_decorator
+
+
+def _insert_experimental_pipeline_def():
+    current_module = sys.modules[__name__]
+    experimental_module = internal.get_submodule(current_module, 'experimental')
+    _pipeline_def_experimental.__module__ = experimental_module
+    setattr(experimental_module, 'pipeline_def', _pipeline_def_experimental)
+
+_insert_experimental_pipeline_def()

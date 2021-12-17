@@ -393,6 +393,19 @@ void ExposeTensor(py::module &m) {
     .def("layout", [](Tensor<CPUBackend> &t) {
       return t.GetLayout().str();
     })
+    .def("_as_gpu", [](Tensor<CPUBackend> &t) -> Tensor<GPUBackend>* {
+          auto ret = std::make_unique<Tensor<GPUBackend>>();
+          UserStream * us = UserStream::Get();
+          cudaStream_t s = us->GetStream(*ret);
+          DeviceGuard g((*ret).device_id());
+          ret->Copy(t, s);
+          us->Wait(*ret);
+          return ret.release();
+        },
+      R"code(
+      Returns a `TensorGPU` object being a copy of this `TensorCPU`.
+      )code",
+      py::return_value_policy::take_ownership)
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {
           CopyToExternal<mm::memory_kind::host>(ctypes_void_ptr(p), t, 0, false);
@@ -660,6 +673,19 @@ void ExposeTensorList(py::module &m) {
       is_pinned : bool
             If provided memory is page-locked (pinned)
       )code")
+    .def("_as_gpu", [](TensorList<CPUBackend> &t) {
+          auto ret = std::make_shared<TensorList<GPUBackend>>();
+          UserStream * us = UserStream::Get();
+          cudaStream_t s = us->GetStream(*ret);
+          DeviceGuard g((*ret).device_id());
+          ret->Copy(t, s);
+          us->Wait(*ret);
+          return ret;
+        },
+      R"code(
+      Returns a `TensorListGPU` object being a copy of this `TensorListCPU`.
+      )code",
+      py::return_value_policy::take_ownership)
     .def("layout", [](TensorList<CPUBackend> &t) {
       return t.GetLayout().str();
     })

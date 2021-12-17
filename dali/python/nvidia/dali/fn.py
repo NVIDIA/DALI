@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,10 +75,21 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
 
         return op_class(**init_args)(*inputs, **call_args)
 
+    def fn_wrapper(*inputs, **kwargs):
+        from nvidia.dali._debug_mode import _PipelineDebug
+        current_pipeline = _PipelineDebug.current()
+        if getattr(current_pipeline, '_debug_on', False):
+            return current_pipeline._wrap_op_call(op_wrapper, inputs, kwargs)
+        else:
+            return op_wrapper(*inputs, **kwargs)
+
     op_wrapper.__name__ = wrapper_name
     op_wrapper.__qualname__ = wrapper_name
     op_wrapper.__doc__ = wrapper_doc
-    return op_wrapper
+    fn_wrapper.__name__ = wrapper_name
+    fn_wrapper.__qualname__ = wrapper_name
+    fn_wrapper.__doc__ = wrapper_doc
+    return fn_wrapper
 
 def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
     """Wrap the DALI Operator with fn API and insert the function into appropriate module.
