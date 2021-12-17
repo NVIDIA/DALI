@@ -189,7 +189,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         Based on data type determines if we should use external_source and with which device. If the type can be
         recognized as a batch without being falsely categorized as such, it is. This includes lists of supported
         tensor-like objects e.g. numpy arrays (the only list not treated as a batch is a list of objects of
-        primitive types), DataBodeDebug and TensorLists.
+        primitive types), :class:`DataNodeDebug` and TensorLists.
         """
 
         def is_primitive_type(x):
