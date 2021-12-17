@@ -184,11 +184,11 @@ class _ExternalSourceGroup(object):
                 else:
                     # extract a single output
                     data = [callback_out[i][op._output_index] for i in range(batch_size)]
-                pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
+                pipeline._feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
         else:
             data = callback_out
             op = self.instances[0]
-            pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
+            pipeline._feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
 
 
 class ExternalSource():
