@@ -72,13 +72,14 @@ struct SourceInfo : public Property<Backend> {
   }
 
  private:
-  std::string GetSourceInfo(const BatchContainer& input, size_t idx) {
+  const std::string& GetSourceInfo(const BatchContainer& input, size_t idx) {
     return input[idx].GetMeta().GetSourceInfo();
   }
 };
 
 template <>
-std::string SourceInfo<GPUBackend>::GetSourceInfo(const TensorList<GPUBackend>& input, size_t idx) {
+const std::string& SourceInfo<GPUBackend>::GetSourceInfo(const TensorList<GPUBackend>& input,
+                                                         size_t idx) {
   return input.GetMeta(static_cast<int>(idx)).GetSourceInfo();
 }
 
