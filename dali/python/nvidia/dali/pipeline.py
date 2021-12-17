@@ -711,66 +711,7 @@ Parameters
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
-    def feed_input(self, data_node, data, layout = None, cuda_stream = None, use_copy_kernel = False):
-        """Pass a mutlidimensional array or DLPack (or a list thereof) to an output of ExternalSource.
-        In the case of the GPU input, the data must be modified on the same stream as the one
-        used by feed_input. See ``cuda_stream`` parameter for details.
-
-        Parameters
-        ----------
-        data_node : :class:`DataNode` or str
-            The name of the :class:`nvidia.dali.fn.external_source` node or a :class:`DataNode`
-            object returned by a call to that ExternalSource.
-
-        data : an ndarray or DLPack or a list thereof
-            The array(s) may be one of:
-
-              * NumPy ndarray (CPU)
-              * MXNet ndarray (CPU)
-              * PyTorch tensor (CPU or GPU)
-              * CuPy array (GPU)
-              * objects implementing ``__cuda_array_interface__``
-              * DALI `TensorList` or list of DALI `Tensor` objects
-
-            The data to be used as the output of the ExternalSource referred to by `data_node`.
-
-        layout : str or None
-            The description of the data layout (or empty string, if not specified).
-            It should be a string of the length that matches the dimensionality of the data, batch
-            dimension excluded. For a batch of channel-first images, this should be "CHW", for
-            channel-last video it's "FHWC" and so on.
-            If ``data`` is a DALI `TensorList` or a list of DALI `Tensor` objects and ``layout``
-            is ``None``, the layout is taken from ``data``.
-
-        cuda_stream : optional, `cudaStream_t` or an object convertible to `cudaStream_t`, e.g. `cupy.cuda.Stream`, `torch.cuda.Stream`
-            The CUDA stream, which is going to be used for copying data to GPU or from a GPU
-            source. If not set, best effort will be taken to maintain correctness - i.e. if the data
-            is provided as a tensor/array from a recognized library (CuPy, PyTorch), the library's
-            current stream is used. This should work in typical scenarios, but advanced use cases
-            (and code using unsupported libraries) may still need to supply the stream handle
-            explicitly.
-
-            Special values:
-
-              *  0 - use default CUDA stream
-              * -1 - use DALI's internal stream
-
-            If internal stream is used, the call to ``feed_input`` will block until the copy to
-            internal buffer is complete, since there's no way to synchronize with this stream to
-            prevent overwriting the array with new data in another stream.
-
-        use_copy_kernel : optional, `bool`
-            If set to True, DALI will use a CUDA kernel to feed the data (only applicable when copying
-            data to/from GPU memory) instead of cudaMemcpyAsync (default).
-        """
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
-        if isinstance(data_node, str):
-            name = data_node
-        else:
-            _data_node._check(data_node)
-            name = data_node.name
-
+    def _feed_input(self, name, data, layout = None, cuda_stream = None, use_copy_kernel = False):
         from nvidia.dali.external_source import _check_data_batch
 
         infer_stream = False
@@ -831,6 +772,73 @@ Parameters
                 data = to_numpy(data)
                 inp = Tensors.TensorListCPU(data, layout or "")
             self._pipe.SetExternalTLInput(name, inp, ctypes.c_void_p(cuda_stream), use_copy_kernel)
+
+    def feed_input(self, data_node, data, layout = None, cuda_stream = None, use_copy_kernel = False):
+        """Pass a mutlidimensional array or DLPack (or a list thereof) to an output of ExternalSource.
+        In the case of the GPU input, the data must be modified on the same stream as the one
+        used by feed_input. See ``cuda_stream`` parameter for details.
+
+        Parameters
+        ----------
+        data_node : :class:`DataNode` or str
+            The name of the :class:`nvidia.dali.fn.external_source` node or a :class:`DataNode`
+            object returned by a call to that ExternalSource.
+
+        data : an ndarray or DLPack or a list thereof
+            The array(s) may be one of:
+
+              * NumPy ndarray (CPU)
+              * MXNet ndarray (CPU)
+              * PyTorch tensor (CPU or GPU)
+              * CuPy array (GPU)
+              * objects implementing ``__cuda_array_interface__``
+              * DALI `TensorList` or list of DALI `Tensor` objects
+
+            The data to be used as the output of the ExternalSource referred to by `data_node`.
+
+        layout : str or None
+            The description of the data layout (or empty string, if not specified).
+            It should be a string of the length that matches the dimensionality of the data, batch
+            dimension excluded. For a batch of channel-first images, this should be "CHW", for
+            channel-last video it's "FHWC" and so on.
+            If ``data`` is a DALI `TensorList` or a list of DALI `Tensor` objects and ``layout``
+            is ``None``, the layout is taken from ``data``.
+
+        cuda_stream : optional, `cudaStream_t` or an object convertible to `cudaStream_t`, e.g. `cupy.cuda.Stream`, `torch.cuda.Stream`
+            The CUDA stream, which is going to be used for copying data to GPU or from a GPU
+            source. If not set, best effort will be taken to maintain correctness - i.e. if the data
+            is provided as a tensor/array from a recognized library (CuPy, PyTorch), the library's
+            current stream is used. This should work in typical scenarios, but advanced use cases
+            (and code using unsupported libraries) may still need to supply the stream handle
+            explicitly.
+
+            Special values:
+
+              *  0 - use default CUDA stream
+              * -1 - use DALI's internal stream
+
+            If internal stream is used, the call to ``feed_input`` will block until the copy to
+            internal buffer is complete, since there's no way to synchronize with this stream to
+            prevent overwriting the array with new data in another stream.
+
+        use_copy_kernel : optional, `bool`
+            If set to True, DALI will use a CUDA kernel to feed the data (only applicable when copying
+            data to/from GPU memory) instead of cudaMemcpyAsync (default).
+        """
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        if isinstance(data_node, str):
+            name = data_node
+        else:
+            _data_node._check(data_node)
+            name = data_node.name
+
+        # Check for use of feed_input on an external_source operator that was initialized with 'source'.
+        if next((op._callback is not None for op in self._ops if op.name == name), False):
+            raise RuntimeError(f"Cannot use `feed_input` on the external source '{name}' with a `source`"
+                                " argument specified.")
+        
+        self._feed_input(name, data, layout, cuda_stream, use_copy_kernel)
 
     def _run_cpu(self):
         """Run CPU portion of the pipeline."""
