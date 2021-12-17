@@ -31,6 +31,7 @@ import re
 import random
 import nose
 from nose.plugins.attrib import attr
+from test_optical_flow import is_of_supported
 
 """
 How to test variable (iter-to-iter) batch size for a given op?
@@ -59,27 +60,6 @@ common cases:
    whether the operator works, without qualitative comparison. Use `run_pipeline`
    instead of `check_pipeline`.
 """
-
-
-is_of_supported_var = None
-def is_of_supported(device_id=0):
-    global is_of_supported_var
-    if is_of_supported_var is not None:
-        return is_of_supported_var
-
-    compute_cap = 0
-    try:
-        import pynvml
-        pynvml.nvmlInit()
-        handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
-        compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
-        compute_cap = compute_cap[0] + compute_cap[1] / 10.
-    except ModuleNotFoundError:
-        print("NVML not found")
-        pass
-
-    is_of_supported_var = compute_cap >= 7.5
-    return is_of_supported_var
 
 
 def generate_data(max_batch_size, n_iter, sample_shape, lo=0., hi=1., dtype=np.float32):
