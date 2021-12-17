@@ -134,8 +134,8 @@ def test_equivalence():
     for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
       for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
         for op in ['brightness', 'contrast']:
-          for is_video in random.choice([True, False]):
-            yield check_equivalence, device, inp_dtype, out_dtype, op, is_video
+          is_video = random.choice([True, False])
+          yield check_equivalence, device, inp_dtype, out_dtype, op, is_video
 
 def check_vs_ref(device, inp_dtype, out_dtype, is_video):
   batch_size=32
@@ -156,5 +156,5 @@ def test_vs_ref():
   for device in ['cpu', 'gpu']:
     for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
       for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
-        for is_video in random.choice([True, False]):
-          yield check_vs_ref, device, inp_dtype, out_dtype, is_video
+        is_video = random.choice([True, False])
+        yield check_vs_ref, device, inp_dtype, out_dtype, is_video
