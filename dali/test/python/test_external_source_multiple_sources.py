@@ -25,8 +25,8 @@ def pipeline():
     return output
 
 
-@raises(RuntimeError, glob="Cannot feed input data to the external source 'input'. "
-        "It was already populated with data through 'source' parameter.")
+@raises(RuntimeError, glob="Cannot use `feed_input` on the external source 'input' with a `source`"
+        " argument specified.")
 def test_feed_input_with_source():
     pipe = pipeline()
     pipe.build()

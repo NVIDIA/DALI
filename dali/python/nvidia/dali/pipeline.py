@@ -775,8 +775,8 @@ Parameters
             instance = values.get('self', None)
             class_obj = getattr(instance, '__class__', None) if instance else None
             if not class_obj or getattr(class_obj, '__name__', None) != '_ExternalSourceGroup':
-                raise RuntimeError(f"Cannot feed input data to the external source '{name}'. "
-                                   "It was already populated with data through 'source' parameter.")
+                raise RuntimeError(f"Cannot use `feed_input` on the external source '{name}' with a `source`"
+                                   " argument specified.")
 
         from nvidia.dali.external_source import _check_data_batch
 
