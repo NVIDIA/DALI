@@ -152,19 +152,16 @@ class BrightnessContrastCpu : public BrightnessContrastOp<CPUBackend> {
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
  private:
-  template <typename Kernel, typename InputType>
+  template <typename Kernel, typename InputType, int ndim = 3>
   TensorListShape<> CallSetup(const TensorVector<CPUBackend> &input) {
     kernels::KernelContext ctx;
     TensorListShape<> sh = input.shape();
-    TensorListShape<> ret(sh.num_samples(), 3);
     assert(static_cast<size_t>(sh.num_samples()) == brightness_.size());
     for (int i = 0; i < sh.num_samples(); i++) {
-      const auto tvin = view<const InputType, 3>(input[i]);
+      const auto tvin = view<const InputType, ndim>(input[i]);
       const auto reqs = kernel_manager_.Setup<Kernel>(i, ctx, tvin, brightness_[i], contrast_[i]);
-      const TensorListShape<> &out_sh = reqs.output_shapes[0];
-      ret.set_tensor_shape(i, out_sh.tensor_shape(0));
     }
-    return ret;
+    return sh;
   }
 };
 
@@ -183,11 +180,11 @@ class BrightnessContrastGpu : public BrightnessContrastOp<GPUBackend> {
   void RunImpl(workspace_t<GPUBackend> &ws) override;
 
  private:
-  template <typename Kernel, typename InputType>
+  template <typename Kernel, typename InputType, int ndim = 3>
   const TensorListShape<> &CallSetup(const DeviceWorkspace &ws, const TensorList<GPUBackend> &tl) {
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
-    const auto tvin = view<const InputType, 3>(tl);
+    const auto tvin = view<const InputType, ndim>(tl);
     const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin, brightness_, contrast_);
     return reqs.output_shapes[0];
   }

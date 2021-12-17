@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali as dali
 import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 import nvidia.dali.types as types
 import numpy as np
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
+import random
 
 def max_range(dtype):
   if dtype == np.half or dtype == np.single or dtype == np.double:
@@ -52,7 +52,6 @@ def dali_type_to_np(dtype):
 
 def bricon_ref(input, brightness, brightness_shift, contrast, contrast_center, out_dtype):
   output_range = max_range(out_dtype)
-  input_range = max_range(input.dtype)
   output = brightness_shift * output_range + brightness * (contrast_center + contrast * (input - contrast_center))
   return convert_sat(output, out_dtype)
 
@@ -110,11 +109,12 @@ def bricon_ref_pipe(data_iterator, contrast_center, dtype, dev='cpu'):
   return fn.python_function(inp, brightness, brightness_shift, contrast,\
                             function=ref_operator(contrast_center, dali_type_to_np(dtype)))
 
-def check_equivalence(device, inp_dtype, out_dtype, op):
+def check_equivalence(device, inp_dtype, out_dtype, op, is_video):
   batch_size=32
   n_iters = 16
-  ri1 = RandomDataIterator(batch_size, shape=(128, 32, 3), dtype=dali_type_to_np(inp_dtype))
-  ri2 = RandomDataIterator(batch_size, shape=(128, 32, 3), dtype=dali_type_to_np(inp_dtype))
+  shape = (128, 32, 3) if not is_video else (random.randint(2, 5), 128, 32, 3)
+  ri1 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
+  ri2 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
   contrast_center = 0.4 * max_range(dali_type_to_np(inp_dtype))
   if op == 'brightness':
     pipe1 = bri_pipe(ri1, out_dtype, device, batch_size=batch_size)
@@ -134,14 +134,15 @@ def test_equivalence():
     for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
       for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
         for op in ['brightness', 'contrast']:
-          yield check_equivalence, device, inp_dtype, out_dtype, op
+          for is_video in random.choice([True, False]):
+            yield check_equivalence, device, inp_dtype, out_dtype, op, is_video
 
-
-def check_vs_ref(device, inp_dtype, out_dtype):
+def check_vs_ref(device, inp_dtype, out_dtype, is_video):
   batch_size=32
   n_iters = 8
-  ri1 = RandomDataIterator(batch_size, shape=(128, 32, 3), dtype=dali_type_to_np(inp_dtype))
-  ri2 = RandomDataIterator(batch_size, shape=(128, 32, 3), dtype=dali_type_to_np(inp_dtype))
+  shape = (128, 32, 3) if not is_video else (random.randint(2, 5), 128, 32, 3)
+  ri1 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
+  ri2 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
   contrast_center = 0.4 * max_range(dali_type_to_np(inp_dtype))
   pipe1 = bricon_ref_pipe(ri1, contrast_center, out_dtype, device, batch_size=batch_size)
   pipe2 = bricon_pipe(ri2, contrast_center, True, True, out_dtype, device, batch_size=batch_size)
@@ -151,10 +152,9 @@ def check_vs_ref(device, inp_dtype, out_dtype):
     eps = 1
   compare_pipelines(pipe1, pipe2, batch_size, n_iters, eps=eps)
 
-
-
 def test_vs_ref():
   for device in ['cpu', 'gpu']:
     for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
       for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
-        yield check_vs_ref, device, inp_dtype, out_dtype
+        for is_video in random.choice([True, False]):
+          yield check_vs_ref, device, inp_dtype, out_dtype, is_video

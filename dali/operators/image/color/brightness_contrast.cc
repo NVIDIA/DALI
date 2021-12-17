@@ -18,8 +18,8 @@
 namespace dali {
 namespace {
 
-template <typename Out, typename In>
-using TheKernel = kernels::MultiplyAddCpu<Out, In, 3>;
+template <typename Out, typename In, int ndim = 3>
+using TheKernel = kernels::MultiplyAddCpu<Out, In, ndim>;
 
 }  // namespace
 
@@ -94,51 +94,65 @@ DALI_REGISTER_OPERATOR(Contrast, BrightnessContrastCpu, CPU);
 
 bool BrightnessContrastCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
-  KMgrResize(num_threads_, max_batch_size_);
-  const auto &input = ws.template Input<CPUBackend>(0);
-  const auto &output = ws.template Output<CPUBackend>(0);
-  output_desc.resize(1);
-  AcquireArguments(ws);
-  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
-          {
-              using Kernel = TheKernel<OutputType, InputType>;
-              kernel_manager_.Initialize<Kernel>();
-              auto shapes = CallSetup<Kernel, InputType>(input);
-              output_desc[0] = {shapes, output_type_};
-          }
-      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
-  return true;
+    KMgrResize(num_threads_, max_batch_size_);
+    const auto &input = ws.template Input<CPUBackend>(0);
+    const auto &output = ws.template Output<CPUBackend>(0);
+    output_desc.resize(1);
+    AcquireArguments(ws);
+    TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
+        TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
+            {
+                TensorListShape<> sh = input.shape();
+                VALUE_SWITCH(sh.sample_dim(), static_dims, (3, 4),
+                    (
+                        using Kernel = TheKernel<OutputType, InputType, static_dims>;
+                        kernel_manager_.Initialize<Kernel>();
+                        auto shapes = CallSetup<Kernel, InputType, static_dims>(input);
+                        output_desc[0] = {shapes, output_type_};
+                    ),  // NOLINT
+                    (
+                        assert(!"Unsiported number of input dimensions")
+                    ));  // NOLINT
+            }
+        ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
+    return true;
 }
 
 
 void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template Input<CPUBackend>(0);
-  auto &output = ws.template Output<CPUBackend>(0);
-  output.SetLayout(input.GetLayout());
-  auto out_shape = output.shape();
-  auto& tp = ws.GetThreadPool();
-  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
-          {
-              using Kernel = TheKernel<OutputType, InputType>;
-              for (int sample_id = 0; sample_id < input.shape().num_samples(); sample_id++) {
-                tp.AddWork([&, sample_id](int thread_id) {
-                    kernels::KernelContext ctx;
-                    auto tvin = view<const InputType, 3>(input[sample_id]);
-                    auto tvout = view<OutputType, 3>(output[sample_id]);
-                    float add, mul;
-                    OpArgsToKernelArgs<OutputType, InputType>(add, mul,
-                      brightness_[sample_id], brightness_shift_[sample_id], contrast_[sample_id]);
-                    kernel_manager_.Run<Kernel>(thread_id, sample_id, ctx, tvout, tvin,
-                                                add, mul);
-                }, out_shape.tensor_size(sample_id));
-              }
-          }
-      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
-  tp.RunAll();
+    const auto &input = ws.template Input<CPUBackend>(0);
+    auto &output = ws.template Output<CPUBackend>(0);
+    output.SetLayout(input.GetLayout());
+    auto out_shape = output.shape();
+    auto& tp = ws.GetThreadPool();
+    TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
+        TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
+            {
+                for (int sample_id = 0; sample_id < input.shape().num_samples(); sample_id++) {
+                    tp.AddWork([&, sample_id](int thread_id) {
+                        float add, mul;
+                        OpArgsToKernelArgs<OutputType, InputType>(add, mul,
+                        brightness_[sample_id], brightness_shift_[sample_id], contrast_[sample_id]);
+                        TensorListShape<> sh = input.shape();
+                        VALUE_SWITCH(sh.sample_dim(), static_dims, (3, 4),
+                            (
+                                using Kernel = TheKernel<OutputType, InputType, static_dims>;
+                                kernels::KernelContext ctx;
+                                auto tvin = view<const InputType, static_dims>(input[sample_id]);
+                                auto tvout = view<OutputType, static_dims>(output[sample_id]);
+                                kernel_manager_.Run<Kernel>(thread_id, sample_id, ctx, tvout, tvin,
+                                                            add, mul);
+                            ),  // NOLINT
+                            (
+                                assert(!"Unsiported number of input dimensions")
+                            ));  // NOLINT
+                    }, out_shape.tensor_size(sample_id));
+                }
+            }
+        ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
+    tp.RunAll();
 }
 
 }  // namespace dali

@@ -104,7 +104,7 @@ Values must be non-negative.
 
 Example values:
 
-- `0` – Completely desaturated image.
+- `0` - Completely desaturated image.
 - `1` - No change to image's saturation.
 )code", 1.f, true)
     .AddOptionalArg("contrast",

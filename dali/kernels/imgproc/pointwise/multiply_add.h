@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,16 +62,31 @@ class MultiplyAddCpu {
            const InTensorCPU<InputType, ndims> &in, float addend, float multiplier,
            const Roi *roi = nullptr) {
     auto adjusted_roi = AdjustRoi(roi, in.shape);
-    auto num_channels = in.shape[2];
-    auto image_width = in.shape[1];
+    int num_channels = in.shape[2];
+    int image_width = in.shape[1];
+    int image_hight = in.shape[0];
+    int img_start = 0;
+    int img_end = 1;
+    if (in.dim() > 3) {
+      num_channels = in.shape[3];
+      image_width = in.shape[2];
+      image_hight = in.shape[1];
+      // wer cannot use .z as it is field, [] is resolved in the runtime
+      img_start = adjusted_roi.lo[3];
+      img_end = adjusted_roi.hi[3];
+    }
     auto ptr = out.data;
 
     ptrdiff_t row_stride = image_width * num_channels;
-    auto *row = in.data + adjusted_roi.lo.y * row_stride;
-    for (int y = adjusted_roi.lo.y; y < adjusted_roi.hi.y; y++) {
-      for (int xc = adjusted_roi.lo.x * num_channels; xc < adjusted_roi.hi.x * num_channels; xc++)
-        *ptr++ = ConvertSat<OutputType>(row[xc] * multiplier + addend);
-      row += row_stride;
+    ptrdiff_t img_stride = row_stride * (adjusted_roi.lo.y + adjusted_roi.hi.y);
+    auto *row = in.data + adjusted_roi.lo.y * row_stride + img_start * row_stride * image_hight;
+    for (int z = img_start; z < img_end; z++) {
+      for (int y = adjusted_roi.lo.y; y < adjusted_roi.hi.y; y++) {
+        for (int xc = adjusted_roi.lo.x * num_channels; xc < adjusted_roi.hi.x * num_channels; xc++)
+          *ptr++ = ConvertSat<OutputType>(row[xc] * multiplier + addend);
+        row += row_stride;
+      }
+      row += img_stride;
     }
   }
 };
