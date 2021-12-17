@@ -769,6 +769,15 @@ Parameters
             _data_node._check(data_node)
             name = data_node.name
 
+        # Check if user uses feed_input on an external_source operator that was initialized with 'source'
+        if next((op._callback is not None for op in self._ops if op.name == name), False):
+            _, _, _, values = inspect.getargvalues(inspect.currentframe().f_back)
+            instance = values.get('self', None)
+            class_obj = getattr(instance, '__class__', None) if instance else None
+            if not class_obj or getattr(class_obj, '__name__', None) != '_ExternalSourceGroup':
+                raise RuntimeError(f"Cannot feed input data to the external source '{name}'. "
+                                   "It was already populated with data through 'source' parameter.")
+
         from nvidia.dali.external_source import _check_data_batch
 
         infer_stream = False
