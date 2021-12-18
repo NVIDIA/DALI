@@ -58,7 +58,7 @@ class GaussianBlur : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
   std::unique_ptr<OpImplBase<Backend>> impl_;
   DALIDataType impl_in_dtype_ = DALI_NO_TYPE;
-  convolution_utils::DimDesc impl_dim_desc_;
+  convolution_utils::DimDesc impl_dim_desc_ = {};
 };
 
 namespace gaussian_blur {

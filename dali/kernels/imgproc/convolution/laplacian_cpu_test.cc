@@ -150,7 +150,7 @@ struct LaplacianCpuKernelTest : public ::testing::Test {
 
   void RunTest() {
     Kernel kernel;
-    KernelContext ctx;
+    KernelContext ctx = {};
 
     auto req = kernel.Setup(ctx, in_.shape, lapl_params_.window_sizes);
 
@@ -269,6 +269,7 @@ struct LaplacianCpuTest : public ::testing::Test {
   using Conv = SeparableConvolutionCpu<W, In, W, axes, has_channels>;
 
   static std::array<int, ndim> GetShape() {
+    static_assert(ndim == axes + has_channels);
     std::array<int, ndim> shape;
     for (int i = 0; i < axes; i++) {
       shape[i] = dim_sizes[i];
@@ -291,7 +292,7 @@ struct LaplacianCpuTest : public ::testing::Test {
 
   void RunBaseline() {
     Conv kernel;
-    KernelContext ctx;
+    KernelContext ctx = {};
     auto vol = volume(shape_);
     for (int axis = 0; axis < axes; axis++) {
       auto req = kernel.Setup(ctx, shape_, lapl_params_.window_sizes[axis]);
@@ -328,7 +329,7 @@ struct LaplacianCpuTest : public ::testing::Test {
 
   void RunTest() {
     Kernel kernel;
-    KernelContext ctx;
+    KernelContext ctx = {};
     auto req = kernel.Setup(ctx, in_.shape, lapl_params_.window_sizes);
     ScratchpadAllocator scratch_alloc;
     scratch_alloc.Reserve(req.scratch_sizes);

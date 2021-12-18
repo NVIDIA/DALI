@@ -696,8 +696,8 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
       int block_idx = region_block.second;
       auto mem = r->unmap_block(block_idx);  // This can (potentially) throw
       stat_.total_unmaps++;
-      char *ptr = r->block_ptr<char>(block_idx);
-      free_mapped_.get_specific_block(ptr, block_size_);
+      char *block_ptr = r->block_ptr<char>(block_idx);
+      free_mapped_.get_specific_block(block_ptr, block_size_);
       stat_take_free(block_size_);
       free_blocks[i++] = std::move(mem);
     }
