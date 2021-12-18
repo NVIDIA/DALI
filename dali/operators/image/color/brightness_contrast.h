@@ -186,8 +186,8 @@ class BrightnessContrastGpu : public BrightnessContrastOp<GPUBackend> {
     auto ndim = sh.sample_dim();
     DALI_ENFORCE(ndim >= 3 && ndim <= 4, "Unsupported number of dims");
     const auto tvin = ndim == 3 ? view<const InputType, 3>(tl) :
-                      reinterpret<const InputType, 3>(view<const InputType, 4>(tl),
-                                        collapse_dim(view<const InputType, 4>(tl).shape, 0), true);
+                                  reinterpret<const InputType, 3>(view<const InputType, 4>(tl),
+                                    collapse_dim(view<const InputType, 4>(tl).shape, 0), true);
     kernel_manager_.Setup<Kernel>(0, ctx, tvin, brightness_, contrast_);
   }
   std::vector<float> addends_, multipliers_;

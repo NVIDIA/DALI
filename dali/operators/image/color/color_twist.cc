@@ -152,14 +152,14 @@ bool ColorTwistCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWo
   DALI_ENFORCE(num_dims >= 3 && num_dims <= 4, make_string("Only 3 and 4 dimensions are "
               "supported received ", num_dims));
   TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
-      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
-          {
-              using Kernel = TheKernel<OutputType, InputType>;
-              kernel_manager_.Initialize<Kernel>();
-              CallSetup<Kernel, InputType>(input);
-              output_desc[0] = {sh, output_type_};
-          }
-      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+    TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
+      {
+        using Kernel = TheKernel<OutputType, InputType>;
+        kernel_manager_.Initialize<Kernel>();
+        CallSetup<Kernel, InputType>(input);
+        output_desc[0] = {sh, output_type_};
+      }
+    ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
   return true;
 }
@@ -172,30 +172,30 @@ void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   output.SetLayout(input.GetLayout());
   auto &tp = ws.GetThreadPool();
   TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
-      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
-          {
-              using Kernel = TheKernel<OutputType, InputType>;
-              TensorListShape<> sh = input.shape();
-              auto num_dims = sh.sample_dim();
-              int num_frames = num_dims == 3 ? 1 : sh[0][0];
-              for (int i = 0; i < input.shape().num_samples(); i++) {
-                auto sample_shape = out_shape.tensor_shape_span(i);
-                auto vol = volume(sample_shape.begin() + static_cast<int>(num_dims != 3),
-                                  sample_shape.end());
-                for (int frame_id = 0; frame_id < num_frames; frame_id++) {
-                    tp.AddWork([&, i, frame_id, num_dims](int thread_id) {
-                    kernels::KernelContext ctx;
-                    auto tvin = num_dims == 3 ? view<const InputType, 3>(input[i]) :
-                                subtensor(view<const InputType, 4>(input[i]), frame_id);
-                    auto tvout = num_dims == 3 ? view<OutputType, 3>(output[i]) :
-                                 subtensor(view<OutputType, 4>(output[i]), frame_id);
-                    kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin,
-                                                tmatrices_[i], toffsets_[i]);
-                    }, vol);
-                }
-              }
+    TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
+      {
+        using Kernel = TheKernel<OutputType, InputType>;
+        TensorListShape<> sh = input.shape();
+        auto num_dims = sh.sample_dim();
+        int num_frames = num_dims == 3 ? 1 : sh[0][0];
+        for (int i = 0; i < input.shape().num_samples(); i++) {
+          auto sample_shape = out_shape.tensor_shape_span(i);
+          auto vol = volume(sample_shape.begin() + static_cast<int>(num_dims != 3),
+                            sample_shape.end());
+          for (int frame_id = 0; frame_id < num_frames; frame_id++) {
+              tp.AddWork([&, i, frame_id, num_dims](int thread_id) {
+              kernels::KernelContext ctx;
+              auto tvin = num_dims == 3 ? view<const InputType, 3>(input[i]) :
+                                          subtensor(view<const InputType, 4>(input[i]), frame_id);
+              auto tvout = num_dims == 3 ? view<OutputType, 3>(output[i]) :
+                                           subtensor(view<OutputType, 4>(output[i]), frame_id);
+              kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin,
+                                          tmatrices_[i], toffsets_[i]);
+              }, vol);
           }
-      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+        }
+      }
+    ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
   tp.RunAll();
 }
