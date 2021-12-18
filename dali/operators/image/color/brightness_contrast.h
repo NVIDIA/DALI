@@ -183,13 +183,13 @@ class BrightnessContrastGpu : public BrightnessContrastOp<GPUBackend> {
     ctx.gpu.stream = ws.stream();
     const auto tvin = view<const InputType, ndim>(tl);
     if constexpr (ndim == 3) {
-        kernel_manager_.Setup<Kernel>(0, ctx, tvin, brightness_, contrast_);
+      kernel_manager_.Setup<Kernel>(0, ctx, tvin, brightness_, contrast_);
     } else if constexpr (ndim == 4) {  // NOLINT
-        const auto tvin_reint = reinterpret<const InputType, 3>(tvin,
-                                                                collapse_dim(tvin.shape, 0), true);
-        kernel_manager_.Setup<Kernel>(0, ctx, tvin_reint, brightness_, contrast_);
+      const auto tvin_reint = reinterpret<const InputType, 3>(tvin,
+                                                              collapse_dim(tvin.shape, 0), true);
+      kernel_manager_.Setup<Kernel>(0, ctx, tvin_reint, brightness_, contrast_);
     } else {
-        static_assert(ndim >= 3 && ndim <= 4, "Unsupported number of dims");
+      static_assert(ndim >= 3 && ndim <= 4, "Unsupported number of dims");
     }
   }
   std::vector<float> addends_, multipliers_;

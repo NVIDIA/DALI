@@ -152,7 +152,7 @@ void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
                                                                       contrast_[sample_id]);
                             kernel_manager_.Run<Kernel>(thread_id, 0, ctx, tvout, tvin,
                                                         add, mul);
-                        }, out_shape.tensor_size(sample_id));
+                        }, vol);
                     }
                 }
             }

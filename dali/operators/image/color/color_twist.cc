@@ -54,7 +54,7 @@ they would in case of rotation.)code",
 
 If a value is not set, the input type is used.)code",
                     DALI_UINT8)
-    .InputLayout(0, "HWC");
+    .InputLayout(0, {"HWC", "FHWC"});
 
 DALI_SCHEMA(ColorTransformBase)
     .DocStr(R"code(Base Schema for color transformations operators.)code")
@@ -72,7 +72,7 @@ DALI_SCHEMA(Hue)
     .AddOptionalArg("hue",
         R"code(The hue change in degrees.)code", 0.f, true)
     .AddParent("ColorTransformBase")
-    .InputLayout(0, "HWC");
+    .InputLayout(0, {"HWC", "FHWC"});
 
 DALI_SCHEMA(Saturation)
     .DocStr(R"code(Changes the saturation level of the image.)code")
@@ -89,7 +89,7 @@ Example values:
 - `1` - No change to image's saturation.
 )code", 1.f, true)
     .AddParent("ColorTransformBase")
-    .InputLayout(0, "HWC");
+    .InputLayout(0, {"HWC", "FHWC"});
 
 DALI_SCHEMA(ColorTwist)
     .DocStr(R"code(Adjusts hue, saturation and brightness of the image.)code")
@@ -130,7 +130,7 @@ Example values:
 * `2` - Increase brightness twice.
 )code", 1.f, true)
     .AddParent("ColorTransformBase")
-    .InputLayout(0, "HWC");
+    .InputLayout(0, {"HWC", "FHWC"});
 
 
 DALI_REGISTER_OPERATOR(Hsv, ColorTwistCpu, CPU)
@@ -143,13 +143,21 @@ bool ColorTwistCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWo
   const auto &input = ws.template Input<CPUBackend>(0);
   output_desc.resize(1);
   DetermineTransformation(ws);
+  auto sh = input.shape();
+  auto num_dims = sh.sample_dim();
+  auto layout = input.GetLayout();
+  int c_dim = layout.find('C');
+  DALI_ENFORCE(c_dim == num_dims - 1 || layout.empty(), make_string("Only channel last or empty "
+              "layouts are supported, received ", layout, " instead"));
+  DALI_ENFORCE(num_dims >= 3 && num_dims <= 4, make_string("Only 3 and 4 dimensions are "
+              "supported received ", num_dims));
   TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
           {
               using Kernel = TheKernel<OutputType, InputType>;
               kernel_manager_.Initialize<Kernel>();
-              auto shapes = CallSetup<Kernel, InputType>(input);
-              output_desc[0] = {shapes, output_type_};
+              CallSetup<Kernel, InputType>(input);
+              output_desc[0] = {sh, output_type_};
           }
       ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
@@ -167,14 +175,24 @@ void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
           {
               using Kernel = TheKernel<OutputType, InputType>;
+              TensorListShape<> sh = input.shape();
+              auto num_dims = sh.sample_dim();
+              int num_frames = num_dims == 3 ? 1 : sh[0][0];
               for (int i = 0; i < input.shape().num_samples(); i++) {
-                tp.AddWork([&, i](int thread_id) {
-                  kernels::KernelContext ctx;
-                  auto tvin = view<const InputType, 3>(input[i]);
-                  auto tvout = view<OutputType, 3>(output[i]);
-                  kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin,
-                                              tmatrices_[i], toffsets_[i]);
-                }, out_shape.tensor_size(i));
+                auto sample_shape = out_shape.tensor_shape_span(i);
+                auto vol = volume(sample_shape.begin() + static_cast<int>(num_dims != 3),
+                                  sample_shape.end());
+                for (int frame_id = 0; frame_id < num_frames; frame_id++) {
+                    tp.AddWork([&, i, frame_id, num_dims](int thread_id) {
+                    kernels::KernelContext ctx;
+                    auto tvin = num_dims == 3 ? view<const InputType, 3>(input[i]) :
+                                subtensor(view<const InputType, 4>(input[i]), frame_id);
+                    auto tvout = num_dims == 3 ? view<OutputType, 3>(output[i]) :
+                                 subtensor(view<OutputType, 4>(output[i]), frame_id);
+                    kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin,
+                                                tmatrices_[i], toffsets_[i]);
+                    }, vol);
+                }
               }
           }
       ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT

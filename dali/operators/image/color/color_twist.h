@@ -206,19 +206,14 @@ class ColorTwistCpu : public ColorTwistBase<CPUBackend> {
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
  private:
-  template <typename Kernel, typename InputType>
-  TensorListShape<> CallSetup(const TensorVector<CPUBackend> &input) {
+  template <typename Kernel, typename InputType, int ndim = 3>
+  void CallSetup(const TensorVector<CPUBackend> &input) {
     kernels::KernelContext ctx;
     TensorListShape<> sh = input.shape();
-    TensorListShape<> ret(sh.num_samples(), 3);
+    TensorListShape<> ret(sh.num_samples(), ndim);
     assert(static_cast<size_t>(sh.num_samples()) == tmatrices_.size());
-    for (int i = 0; i < sh.num_samples(); i++) {
-      const auto tvin = view<const InputType, 3>(input[i]);
-      const auto reqs = kernel_manager_.Setup<Kernel>(i, ctx, tvin, tmatrices_[i], toffsets_[i]);
-      const TensorListShape<> &out_sh = reqs.output_shapes[0];
-      ret.set_tensor_shape(i, out_sh.tensor_shape(0));
-    }
-    return ret;
+    // there is no need to call setup for the CPU as besides ROI adjustment it doesn't do anything
+    // in the case of this operator ROI is not used
   }
 };
 
@@ -238,14 +233,23 @@ class ColorTwistGpu : public ColorTwistBase<GPUBackend> {
   void RunImpl(workspace_t<GPUBackend> &ws) override;
 
  private:
-  template <typename Kernel, typename InputType>
-  const TensorListShape<> &CallSetup(const DeviceWorkspace &ws, const TensorList<GPUBackend> &tl) {
+  template <typename Kernel, typename InputType, int ndim = 3>
+  void CallSetup(const DeviceWorkspace &ws, const TensorList<GPUBackend> &tl) {
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
-    const auto tvin = view<const InputType, 3>(tl);
-    const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin, make_cspan(tmatrices_),
-                                                     make_cspan(toffsets_));
-    return reqs.output_shapes[0];
+    const auto tvin = view<const InputType, ndim>(tl);
+
+    if constexpr (ndim == 3) {
+      const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin, make_cspan(tmatrices_),
+                                                      make_cspan(toffsets_));
+    } else if constexpr (ndim == 4) {  // NOLINT
+      const auto tvin_reint = reinterpret<const InputType, 3>(tvin,
+                                                              collapse_dim(tvin.shape, 0), true);
+      const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin_reint, make_cspan(tmatrices_),
+                                                       make_cspan(toffsets_));
+    } else {
+        static_assert(ndim >= 3 && ndim <= 4, "Unsupported number of dims");
+    }
   }
 };
 

@@ -75,6 +75,7 @@ void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
     TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
         TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
             {
+                using Kernel = TheKernel<OutputType, InputType>;
                 kernels::KernelContext ctx;
                 ctx.gpu.stream = ws.stream();
                 for (unsigned i = 0; i < input.num_samples(); i++) {
@@ -84,20 +85,19 @@ void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
                 VALUE_SWITCH(num_dims, static_dims, (3, 4),
                 (
                     if constexpr (static_dims == 3) {
-                        using Kernel = TheKernel<OutputType, InputType>;
                         auto tvin = view<const InputType, 3>(input);
                         auto tvout = view<OutputType, 3>(output);
-                        kernel_manager_.Run<Kernel>(0, 0, ctx, tvout, tvin, addends_, multipliers_);
+                        kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, tvout, tvin,
+                                                    addends_, multipliers_);
                     } else if constexpr (static_dims == 4) {  // NOLINT
-                        using Kernel = TheKernel<OutputType, InputType>;
                         auto tvin = view<const InputType, 4>(input);
                         auto tvin_reint = reinterpret<const InputType, 3>(tvin,
                                                                 collapse_dim(tvin.shape, 0), true);
                         auto tvout = view<OutputType, 4>(output);
                         auto tvout_reint = reinterpret<OutputType, 3>(tvout,
                                                                 collapse_dim(tvout.shape, 0), true);
-                        kernel_manager_.Run<Kernel>(0, 0, ctx, tvout_reint, tvin_reint,
-                                                    addends_, multipliers_);
+                        kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, tvout_reint,
+                                                    tvin_reint, addends_, multipliers_);
                     }
                 ),  // NOLINT
                 (
