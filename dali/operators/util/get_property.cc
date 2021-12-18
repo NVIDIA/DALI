@@ -90,7 +90,6 @@ void SourceInfo<GPUBackend>::FillOutput(workspace_t<GPUBackend>& ws) {
   for (size_t sample_id = 0; sample_id < input.num_samples(); sample_id++) {
     auto si = GetSourceInfo(input, sample_id);
     auto output_ptr = output.raw_mutable_tensor(static_cast<int>(sample_id));
-    assert(ws.has_stream());  // GPU operator must have CUDA stream assigned
     cudaMemcpyAsync(output_ptr, si.c_str(), si.length(), cudaMemcpyDefault, ws.stream());
   }
 }
@@ -130,7 +129,6 @@ void Layout<GPUBackend>::FillOutput(workspace_t<GPUBackend>& ws) {
   for (size_t sample_id = 0; sample_id < input.num_samples(); sample_id++) {
     auto layout = GetLayout(input, sample_id);
     auto output_ptr = output.raw_mutable_tensor(static_cast<int>(sample_id));
-    assert(ws.has_stream());  // GPU operator must have CUDA stream assigned
     cudaMemcpyAsync(output_ptr, layout.c_str(), layout.size(), cudaMemcpyDefault, ws.stream());
   }
 }
