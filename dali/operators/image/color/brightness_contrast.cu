@@ -50,16 +50,11 @@ bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
     TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
         TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
             {
-                VALUE_SWITCH(num_dims, static_dims, (3, 4),
-                (
-                    using Kernel = TheKernel<OutputType, InputType>;
-                    kernel_manager_.Initialize<Kernel>();
-                    CallSetup<Kernel, InputType, static_dims>(ws, input);
-                    output_desc[0] = {input.shape(), output_type_};
-                ),  // NOLINT
-                (
-                    DALI_FAIL("Not supported number of dims");
-                ));  // NOLINT
+                using Kernel = TheKernel<OutputType, InputType>;
+                kernel_manager_.Initialize<Kernel>();
+                CallSetup<Kernel, InputType>(ws, input);
+                output_desc[0] = {input.shape(), output_type_};
+
             }
         ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
     ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
@@ -82,27 +77,14 @@ void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
                     OpArgsToKernelArgs<OutputType, InputType>(addends_[i], multipliers_[i],
                         brightness_[i], brightness_shift_[i], contrast_[i]);
                 }
-                VALUE_SWITCH(num_dims, static_dims, (3, 4),
-                (
-                    if constexpr (static_dims == 3) {
-                        auto tvin = view<const InputType, 3>(input);
-                        auto tvout = view<OutputType, 3>(output);
-                        kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, tvout, tvin,
-                                                    addends_, multipliers_);
-                    } else if constexpr (static_dims == 4) {  // NOLINT
-                        auto tvin = view<const InputType, 4>(input);
-                        auto tvin_reint = reinterpret<const InputType, 3>(tvin,
-                                                                collapse_dim(tvin.shape, 0), true);
-                        auto tvout = view<OutputType, 4>(output);
-                        auto tvout_reint = reinterpret<OutputType, 3>(tvout,
-                                                                collapse_dim(tvout.shape, 0), true);
-                        kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, tvout_reint,
-                                                    tvin_reint, addends_, multipliers_);
-                    }
-                ),  // NOLINT
-                (
-                    DALI_FAIL("Not supported number of dims");
-                ));  // NOLINT
+                auto tvin = num_dims == 3 ? view<const InputType, 3>(input) :
+                            reinterpret<const InputType, 3>(view<const InputType, 4>(input),
+                                      collapse_dim(view<const InputType, 4>(input).shape, 0), true);
+                auto tvout = num_dims == 3 ? view<OutputType, 3>(output):
+                            reinterpret<OutputType, 3>(view<OutputType, 4>(output),
+                                      collapse_dim(view<OutputType, 4>(output).shape, 0), true);
+                kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, tvout, tvin,
+                                            addends_, multipliers_);
             }
         ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
     ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
