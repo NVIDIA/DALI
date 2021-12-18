@@ -66,42 +66,6 @@ bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
     return true;
 }
 
-template<typename InputType, typename OutputType, int ndim>
-struct helper;
-
-template<typename InputType, typename OutputType>
-struct helper <InputType, OutputType, 3> {
-    static void RunImplHelper(const TensorList<dali::GPUBackend> &in,
-                       TensorList<dali::GPUBackend> &out,
-                       kernels::KernelContext &ctx,
-                       kernels::KernelManager &kernel_manager,
-                       std::vector<float> &addends,
-                       std::vector<float> &multipliers) {
-        using Kernel = TheKernel<OutputType, InputType>;
-        auto tvin = view<const InputType, 3>(in);
-        auto tvout = view<OutputType, 3>(out);
-        kernel_manager.Run<Kernel>(0, 0, ctx, tvout, tvin, addends, multipliers);
-    }
-};
-
-template<typename InputType, typename OutputType>
-struct helper <InputType, OutputType, 4> {
-    static void RunImplHelper(const TensorList<dali::GPUBackend> &in,
-                       TensorList<dali::GPUBackend> &out,
-                       kernels::KernelContext &ctx,
-                       kernels::KernelManager &kernel_manager,
-                       std::vector<float> &addends,
-                       std::vector<float> &multipliers) {
-        using Kernel = TheKernel<OutputType, InputType>;
-        auto tvin = view<const InputType, 4>(in);
-        auto tvin_reint = reinterpret<const InputType, 3>(tvin, collapse_dim(tvin.shape, 0), true);
-        auto tvout = view<OutputType, 4>(out);
-        auto tvout_reint = reinterpret<OutputType, 3>(tvout, collapse_dim(tvout.shape, 0), true);
-        kernel_manager.Run<Kernel>(0, 0, ctx, tvout_reint, tvin_reint, addends, multipliers);
-    }
-};
-
-
 void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
     const auto &input = ws.template Input<GPUBackend>(0);
     auto &output = ws.template Output<GPUBackend>(0);
@@ -113,16 +77,28 @@ void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
             {
                 kernels::KernelContext ctx;
                 ctx.gpu.stream = ws.stream();
-                for (int i = 0; i < input.num_samples(); i++) {
+                for (unsigned i = 0; i < input.num_samples(); i++) {
                     OpArgsToKernelArgs<OutputType, InputType>(addends_[i], multipliers_[i],
                         brightness_[i], brightness_shift_[i], contrast_[i]);
                 }
                 VALUE_SWITCH(num_dims, static_dims, (3, 4),
                 (
-                    helper<InputType, OutputType, static_dims>::RunImplHelper(input, output, ctx,
-                                                                              kernel_manager_,
-                                                                              addends_,
-                                                                              multipliers_);
+                    if constexpr (static_dims == 3) {
+                        using Kernel = TheKernel<OutputType, InputType>;
+                        auto tvin = view<const InputType, 3>(input);
+                        auto tvout = view<OutputType, 3>(output);
+                        kernel_manager_.Run<Kernel>(0, 0, ctx, tvout, tvin, addends_, multipliers_);
+                    } else if constexpr (static_dims == 4) {  // NOLINT
+                        using Kernel = TheKernel<OutputType, InputType>;
+                        auto tvin = view<const InputType, 4>(input);
+                        auto tvin_reint = reinterpret<const InputType, 3>(tvin,
+                                                                collapse_dim(tvin.shape, 0), true);
+                        auto tvout = view<OutputType, 4>(output);
+                        auto tvout_reint = reinterpret<OutputType, 3>(tvout,
+                                                                collapse_dim(tvout.shape, 0), true);
+                        kernel_manager_.Run<Kernel>(0, 0, ctx, tvout_reint, tvin_reint,
+                                                    addends_, multipliers_);
+                    }
                 ),  // NOLINT
                 (
                     DALI_FAIL("Not supported number of dims");
