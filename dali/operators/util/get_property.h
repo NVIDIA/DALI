@@ -27,8 +27,8 @@ namespace detail {
 
 /**
  * Base class for a property of the Tensor.
- * @tparam Backend Backend of the operator
- * @tparam BatchContainer TensorList<GPUBackend> or TensorVector<CPUBackend>
+ * @tparam Backend Backend of the operator.
+ * @tparam BatchContainer TensorList<GPUBackend> or TensorVector<CPUBackend>.
  */
 template <typename Backend, typename BatchContainer = batch_container_t<Backend>>
 struct Property {
@@ -36,12 +36,12 @@ struct Property {
   virtual ~Property() = default;
 
   /**
-   * @return The shape of the tensor containing the property, based on the input to the operator
+   * @return The shape of the tensor containing the property, based on the input to the operator.
    */
   virtual TensorListShape<> GetShape(const BatchContainer & input) = 0;
 
   /**
-   * @return The type of the tensor containing the property, based on the input to the operator
+   * @return The type of the tensor containing the property, based on the input to the operator.
    */
   virtual DALIDataType GetType(const BatchContainer & input) = 0;
 

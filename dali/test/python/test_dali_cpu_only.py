@@ -979,20 +979,19 @@ def test_subscript_dim_check():
     check_single_input(fn.subscript_dim_check, num_subscripts=3)
 
 
-def test_file_properties():
+def test_get_property():
     @pipeline_def
-    def file_properties(root_path):
-        read, _ = fn.readers.file(file_root=root_path)
+    def file_properties(files):
+        read, _ = fn.readers.file(files=files)
         return fn.get_property(read, key="source_info")
 
-    root_path = os.path.join(data_root, 'db', 'single', 'png')
-    ref_paths = ["0/cat-1046544_640.png", "0/cat-111793_640.png", "0/cat-1245673_640.png", "0/cat-2184682_640.png",
-                 "0/cat-300572_640.png", "0/cat-3113513_640.png", "0/cat-3449999_640.png", "0/cat-3504008_640.png"]
-    p = file_properties(root_path, batch_size=8, num_threads=4, device_id=None)
+    root_path = os.path.join(data_root, 'db', 'single', 'png', '0')
+    files = [os.path.join(root_path, i) for i in os.listdir(root_path)]
+    p = file_properties(files, batch_size=8, num_threads=4, device_id=0)
     p.build()
     output = p.run()
     for out in output:
-        for source_info, ref in zip(out, ref_paths):
+        for source_info, ref in zip(out, files):
             assert np.array(source_info).tobytes().decode() == ref
 
 

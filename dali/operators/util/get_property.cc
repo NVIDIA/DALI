@@ -20,10 +20,8 @@ namespace dali {
 DALI_SCHEMA(GetProperty)
     .DocStr(
         R"code(Returns a property of the tensor passed as an input.
-The type of the output will depend on the ``key`` of the requested property.
 
-Some of the properties are returned as a byte-array. The easiest way to convert them to string
-would be to )code")
+The type of the output will depend on the ``key`` of the requested property.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddArg("key",
@@ -34,8 +32,8 @@ would be to )code")
                      to the source of the data. For example, when the Tensor is read via :meth:`fn.readers.file`,
                      the ``source_info`` property will contain full path of that file. When the Tensor
                      is read by :meth:`fn.readers.webdataset`, the property will contain full path of the tar
-                     archive and the index of the component in that archive. Lastly, when the Tensor
-                     is loaded via :meth:`fn.external_source`, the ``source_info`` will be empty.
+                     archive and the index of the component in that archive. When the Tensor
+                     is loaded via :meth:`~nvidia.dali.fn.external_source`, the ``source_info`` will be empty.
 * ``"layout"``: Returned type: byte-array
                 Data layout in the given Tensor.
 )code",
@@ -48,12 +46,20 @@ DALI_REGISTER_OPERATOR(GetProperty, GetProperty<GPUBackend>, GPU)
 namespace detail {
 namespace {
 
+const DALIMeta& GetMeta(const TensorVector<CPUBackend>& batch, int tensor_idx) {
+  return batch[tensor_idx].GetMeta();
+}
+
+const DALIMeta& GetMeta(const TensorList<GPUBackend>& batch, int tensor_idx) {
+  return batch.GetMeta(static_cast<int>(tensor_idx));
+}
+
 template <typename Backend, typename BatchContainer = batch_container_t<Backend>>
 struct SourceInfo : public Property<Backend> {
   TensorListShape<> GetShape(const BatchContainer& input) override {
     TensorListShape<> ret{static_cast<int>(input.num_samples()), 1};
     for (int i = 0; i < ret.size(); i++) {
-      ret.set_tensor_shape(i, {static_cast<int>(GetSourceInfo(input, i).length())});
+      ret.set_tensor_shape(i, {static_cast<int64_t>(GetSourceInfo(input, i).length())});
     }
     return ret;
   }
@@ -73,15 +79,9 @@ struct SourceInfo : public Property<Backend> {
 
  private:
   const std::string& GetSourceInfo(const BatchContainer& input, size_t idx) {
-    return input[idx].GetMeta().GetSourceInfo();
+    return GetMeta(input, idx).GetSourceInfo();
   }
 };
-
-template <>
-const std::string& SourceInfo<GPUBackend>::GetSourceInfo(const TensorList<GPUBackend>& input,
-                                                         size_t idx) {
-  return input.GetMeta(static_cast<int>(idx)).GetSourceInfo();
-}
 
 template <>
 void SourceInfo<GPUBackend>::FillOutput(workspace_t<GPUBackend>& ws) {
@@ -112,20 +112,16 @@ struct Layout : public Property<Backend> {
     auto& output = ws.template Output<Backend>(0);
     for (size_t sample_id = 0; sample_id < input.num_samples(); sample_id++) {
       auto layout = GetLayout(input, sample_id);
-      output[sample_id].Copy(make_cspan((const uint8_t*)layout.c_str(), layout.size()), nullptr);
+      output[sample_id].Copy(
+          make_cspan(reinterpret_cast<const uint8_t*>(layout.c_str()), layout.size()), nullptr);
     }
   }
 
  private:
   const TensorLayout& GetLayout(const BatchContainer& input, int idx) {
-    return input[idx].GetMeta().GetLayout();
+    return GetMeta(input, idx).GetLayout();
   }
 };
-
-template <>
-const TensorLayout& Layout<GPUBackend>::GetLayout(const TensorList<GPUBackend>& input, int idx) {
-  return input.GetMeta(idx).GetLayout();
-}
 
 template <>
 void Layout<GPUBackend>::FillOutput(workspace_t<GPUBackend>& ws) {
