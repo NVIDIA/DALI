@@ -40,5 +40,6 @@ The type of the output will depend on the ``key`` of the requested property.)cod
             DALI_STRING);
 
 DALI_REGISTER_OPERATOR(GetProperty, GetProperty<CPUBackend>, CPU)
+DALI_REGISTER_OPERATOR(GetProperty, GetProperty<GPUBackend>, GPU)
 
 }  // namespace dali
