@@ -987,7 +987,7 @@ def test_get_property():
 
     root_path = os.path.join(data_root, 'db', 'single', 'png', '0')
     files = [os.path.join(root_path, i) for i in os.listdir(root_path)]
-    p = file_properties(files, batch_size=8, num_threads=4, device_id=0)
+    p = file_properties(files, batch_size=8, num_threads=4, device_id=None)
     p.build()
     output = p.run()
     for out in output:
