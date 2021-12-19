@@ -18,46 +18,20 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "dali/operators/util/property.h"
 #include "dali/pipeline/data/type_traits.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
-namespace detail {
-
-/**
- * Base class for a property of the Tensor.
- * @tparam Backend Backend of the operator.
- * @tparam BatchContainer TensorList<GPUBackend> or TensorVector<CPUBackend>.
- */
-template <typename Backend, typename BatchContainer = batch_container_t<Backend>>
-struct Property {
-  Property() = default;
-  virtual ~Property() = default;
-
-  /**
-   * @return The shape of the tensor containing the property, based on the input to the operator.
-   */
-  virtual TensorListShape<> GetShape(const BatchContainer & input) = 0;
-
-  /**
-   * @return The type of the tensor containing the property, based on the input to the operator.
-   */
-  virtual DALIDataType GetType(const BatchContainer & input) = 0;
-
-  /**
-   * This function implements filling the output of the operator. Its implementation should
-   * be similar to any RunImpl function of the operator.
-   */
-  virtual void FillOutput(workspace_t<Backend> &) = 0;
-};
-
-}  // namespace detail
 
 template <typename Backend>
 class GetProperty : public Operator<Backend> {
  public:
-  explicit GetProperty(const OpSpec &spec);
+  explicit GetProperty(const OpSpec &spec) : Operator<Backend>(spec) {
+    auto property_name = spec.template GetArgument<std::string>("key");
+    PropertyFactory(property_name);
+  }
 
   ~GetProperty() override = default;
   DISABLE_COPY_MOVE_ASSIGN(GetProperty);
@@ -80,12 +54,19 @@ class GetProperty : public Operator<Backend> {
   }
 
  private:
-  void PropertyFactory(const std::string &property_key);
+  void PropertyFactory(const std::string &property_key) {
+    if (property_key == "source_info") {
+      property_ = std::make_unique<tensor_property::SourceInfo<Backend>>();
+    } else if (property_key == "layout") {
+      property_ = std::make_unique<tensor_property::Layout<Backend>>();
+    } else {
+      DALI_FAIL(make_string("Unknown property key: ", property_key));
+    }
+  }
 
-  std::unique_ptr<detail::Property<Backend>> property_;
+  std::unique_ptr<tensor_property::Property<Backend>> property_;
 };
 
 }  // namespace dali
-
 
 #endif  // DALI_OPERATORS_UTIL_GET_PROPERTY_H_

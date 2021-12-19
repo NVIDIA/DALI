@@ -15,6 +15,8 @@
 #ifndef DALI_PIPELINE_DATA_TYPE_TRAITS_H_
 #define DALI_PIPELINE_DATA_TYPE_TRAITS_H_
 
+#include <type_traits>
+
 namespace dali {
 
 template <typename Backend>
