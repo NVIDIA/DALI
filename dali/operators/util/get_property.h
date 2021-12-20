@@ -28,10 +28,10 @@ namespace dali {
 template <typename Backend>
 class GetProperty : public Operator<Backend> {
  public:
-  explicit GetProperty(const OpSpec &spec) : Operator<Backend>(spec) {
-    auto property_name = spec.template GetArgument<std::string>("key");
-    PropertyFactory(property_name);
-  }
+  explicit GetProperty(const OpSpec &spec)
+      : Operator<Backend>(spec),
+        property_key_(spec.template GetArgument<std::string>("key")),
+        property_(PropertyFactory(property_key_)) {}
 
   ~GetProperty() override = default;
   DISABLE_COPY_MOVE_ASSIGN(GetProperty);
@@ -54,16 +54,17 @@ class GetProperty : public Operator<Backend> {
   }
 
  private:
-  void PropertyFactory(const std::string &property_key) {
-    if (property_key == "source_info") {
-      property_ = std::make_unique<tensor_property::SourceInfo<Backend>>();
-    } else if (property_key == "layout") {
-      property_ = std::make_unique<tensor_property::Layout<Backend>>();
+  std::unique_ptr<tensor_property::Property<Backend>> PropertyFactory() {
+    if (property_key_ == "source_info") {
+      return std::make_unique<tensor_property::SourceInfo<Backend>>();
+    } else if (property_key_ == "layout") {
+      return std::make_unique<tensor_property::Layout<Backend>>();
     } else {
-      DALI_FAIL(make_string("Unknown property key: ", property_key));
+      DALI_FAIL(make_string("Unknown property key: ", property_key_));
     }
   }
 
+  const std::string property_key_;
   std::unique_ptr<tensor_property::Property<Backend>> property_;
 };
 

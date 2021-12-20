@@ -83,11 +83,12 @@ def tfr_properties(root_path, index_path, device):
     inputs = fn.readers.tfrecord(path=root_path, index_path=index_path,
                                  features={"image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
                                            "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)})
+    enc, lab = fn.get_property(inputs["image/encoded"], key="source_info"), \
+               fn.get_property(inputs["image/class/label"], key="source_info")
     if device == 'gpu':
-        return fn.get_property(inputs["image/encoded"], key="source_info").gpu(), \
-               fn.get_property(inputs["image/class/label"], key="source_info").gpu()
-    return fn.get_property(inputs["image/encoded"], key="source_info"), \
-           fn.get_property(inputs["image/class/label"], key="source_info")
+        enc = enc.gpu()
+        lab = lab.gpu()
+    return enc, lab
 
 
 def _test_tfr_properties(device):

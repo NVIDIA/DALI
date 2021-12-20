@@ -30,7 +30,7 @@ inline const DALIMeta& GetMeta(const TensorVector<CPUBackend>& batch, int tensor
 }
 
 inline const DALIMeta& GetMeta(const TensorList<GPUBackend>& batch, int tensor_idx) {
-  return batch.GetMeta(static_cast<int>(tensor_idx));
+  return batch.GetMeta(tensor_idx);
 }
 
 }  // namespace detail

@@ -28,14 +28,11 @@ The type of the output will depend on the ``key`` of the requested property.)cod
             R"code(Specifies, which property is requested. The following properties are supported:
 
 * ``"source_info"``: Returned type: byte-array.
-                     Information about the origin of the sample. The actual origin may differ according
-                     to the source of the data. For example, when the Tensor is read via :meth:`fn.readers.file`,
-                     the ``source_info`` property will contain full path of that file. When the Tensor
-                     is read by :meth:`fn.readers.webdataset`, the property will contain full path of the tar
-                     archive and the index of the component in that archive. When the Tensor
-                     is loaded via :meth:`~nvidia.dali.fn.external_source`, the ``source_info`` will be empty.
+                     String-like byte array, which contains information about the origin of the sample.
+                     Fox example, :meth:`fn.get_property` called on tensor loaded via :meth:`fn.readers.file`
+                     returns full path of the file, from which the tensor comes from.
 * ``"layout"``: Returned type: byte-array
-                Data layout in the given Tensor.
+                :ref:`Data layout<layout_str_doc>` in the given Tensor.
 )code",
             DALI_STRING);
 
