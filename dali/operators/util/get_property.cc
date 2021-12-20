@@ -25,7 +25,9 @@ The type of the output will depend on the ``key`` of the requested property.)cod
     .NumInput(1)
     .NumOutput(1)
     .AddArg("key",
-            R"code(Specifies, which property is requested. The following properties are supported:
+            R"code(Specifies, which property is requested.
+
+The following properties are supported:
 
 * ``"source_info"``: Returned type: byte-array.
                      String-like byte array, which contains information about the origin of the sample.
