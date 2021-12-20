@@ -31,7 +31,7 @@ class GetProperty : public Operator<Backend> {
   explicit GetProperty(const OpSpec &spec)
       : Operator<Backend>(spec),
         property_key_(spec.template GetArgument<std::string>("key")),
-        property_(PropertyFactory(property_key_)) {}
+        property_(PropertyFactory()) {}
 
   ~GetProperty() override = default;
   DISABLE_COPY_MOVE_ASSIGN(GetProperty);

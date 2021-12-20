@@ -17,7 +17,7 @@ import os
 import numpy as np
 from nvidia.dali import fn
 from test_utils import get_dali_extra_path
-from nose.tools import raises
+from nose_utils import raises
 
 test_data_root = get_dali_extra_path()
 
@@ -143,6 +143,7 @@ def improper_property(root_path, device):
     return fn.get_property(read, key=["this key doesn't exist"])
 
 
+@raises(RuntimeError, glob="Unknown property key*")
 def _test_improper_property(device):
     root_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
     p = improper_property(root_path, device, batch_size=8, num_threads=4, device_id=0)
@@ -150,7 +151,6 @@ def _test_improper_property(device):
     output = p.run()
 
 
-@raises
 def test_improper_property():
     for dev in ['cpu', 'gpu']:
         yield _test_improper_property, dev
