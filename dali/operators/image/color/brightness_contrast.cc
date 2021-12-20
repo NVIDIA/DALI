@@ -47,7 +47,9 @@ the type.)code",
     .AddOptionalArg("dtype",
                     R"code(Output data type.
 
-If not set, the input type is used.)code", DALI_NO_TYPE);
+If not set, the input type is used.)code", DALI_NO_TYPE)
+    .AllowSequences()
+    .SupportVolumetric();
 
 DALI_SCHEMA(Contrast)
     .DocStr(R"code(Adjusts the contrast of the images.
@@ -70,7 +72,9 @@ the half of the input type's positive range (or 0.5 for ``float``) is used.)code
     .AddOptionalArg("dtype",
                     R"code(Output data type.
 
-If not set, the input type is used.)code", DALI_NO_TYPE);
+If not set, the input type is used.)code", DALI_NO_TYPE)
+    .AllowSequences()
+    .SupportVolumetric();
 
 DALI_SCHEMA(BrightnessContrast)
     .AddParent("Brightness")
@@ -85,7 +89,9 @@ Where the output_range is 1 for float outputs or the maximum positive value for 
 
 This operator can also change the type of data.)code")
     .NumInput(1)
-    .NumOutput(1);
+    .NumOutput(1)
+    .AllowSequences()
+    .SupportVolumetric();
 
 DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrastCpu, CPU)
 DALI_REGISTER_OPERATOR(Brightness, BrightnessContrastCpu, CPU);

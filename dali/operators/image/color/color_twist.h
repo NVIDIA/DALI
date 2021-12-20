@@ -49,13 +49,7 @@ const mat3 Rgb2Yiq = {{
                               {.211f, -.523f, .311f}
                       }};
 
-// Inversion of Rgb2Yiq, but pre-calculated, cause mat<> doesn't do inversion.
-const mat3 Yiq2Rgb = {{
-                              {1, .956f, .621f},
-                              {1, -.272f, -.647f},
-                              {1, -1.107f, 1.705f}
-                      }};
-
+const mat3 Yiq2Rgb = inverse(Rgb2Yiq);
 
 /**
  * Composes transformation matrix for hue

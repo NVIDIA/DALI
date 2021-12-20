@@ -54,7 +54,8 @@ they would in case of rotation.)code",
 
 If a value is not set, the input type is used.)code",
                     DALI_UINT8)
-    .InputLayout(0, {"HWC", "FHWC"});
+    .InputLayout(0, {"HWC", "FHWC"})
+    .AllowSequences();
 
 DALI_SCHEMA(ColorTransformBase)
     .DocStr(R"code(Base Schema for color transformations operators.)code")
@@ -63,7 +64,9 @@ DALI_SCHEMA(ColorTransformBase)
     .AddOptionalArg(color::kOutputType, R"code(Output data type.
 
 If not set, the input type is used.)code",
-                    DALI_UINT8);
+                    DALI_UINT8)
+    .AllowSequences()
+    .SupportVolumetric();
 
 DALI_SCHEMA(Hue)
     .DocStr(R"code(Changes the hue level of the image.)code")
@@ -72,7 +75,9 @@ DALI_SCHEMA(Hue)
     .AddOptionalArg("hue",
         R"code(The hue change in degrees.)code", 0.f, true)
     .AddParent("ColorTransformBase")
-    .InputLayout(0, {"HWC", "FHWC"});
+    .InputLayout(0, {"HWC", "FHWC"})
+    .AllowSequences()
+    .SupportVolumetric();
 
 DALI_SCHEMA(Saturation)
     .DocStr(R"code(Changes the saturation level of the image.)code")
@@ -89,7 +94,9 @@ Example values:
 - `1` - No change to image's saturation.
 )code", 1.f, true)
     .AddParent("ColorTransformBase")
-    .InputLayout(0, {"HWC", "FHWC"});
+    .InputLayout(0, {"HWC", "FHWC"})
+    .AllowSequences()
+    .SupportVolumetric();
 
 DALI_SCHEMA(ColorTwist)
     .DocStr(R"code(Adjusts hue, saturation and brightness of the image.)code")
@@ -130,7 +137,9 @@ Example values:
 * `2` - Increase brightness twice.
 )code", 1.f, true)
     .AddParent("ColorTransformBase")
-    .InputLayout(0, {"HWC", "FHWC"});
+    .InputLayout(0, {"HWC", "FHWC"})
+    .AllowSequences()
+    .SupportVolumetric();
 
 
 DALI_REGISTER_OPERATOR(Hsv, ColorTwistCpu, CPU)
