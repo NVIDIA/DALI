@@ -4,6 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
+
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
@@ -12,15 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.fn as fn
-from nvidia.dali import pipeline_def, math
-import nvidia.dali.types as types
+import math
 import numpy as np
-from test_utils import check_batch
+import nvidia.dali.fn as fn
+from nvidia.dali import pipeline_def
+import nvidia.dali.types as types
 from test_utils import RandomDataIterator
 import random
-from skimage.color import rgb2hsv
-
+from nvidia.dali import math as dali_math
 
 def dali_type_to_np(dtype):
     if dtype == types.FLOAT:
@@ -34,79 +34,73 @@ def dali_type_to_np(dtype):
     else:
         assert False
 
-def max_range(dtype):
-    if dtype == np.half or dtype == np.single or dtype == np.double:
-        return 1.0
+@pipeline_def()
+def ColorTwistPipeline(data_iterator, out_type):
+    imgs = fn.external_source(source=data_iterator)
+    imgs = dali_math.abs(imgs)
+    H = fn.random.uniform(range=[-20, 20])
+    S = fn.random.uniform(range=[0, 2])
+    brightness = fn.random.uniform(range=[0, 2])
+    contrast = fn.random.uniform(range=[0, 2])
+    out_cpu = fn.color_twist(imgs, hue=H, saturation=S, brightness=brightness, contrast=contrast, dtype=out_type)
+    out_gpu = fn.color_twist(imgs.gpu(), hue=H, saturation=S, brightness=brightness, contrast=contrast, dtype=out_type)
+    return imgs, out_cpu, out_gpu, H, S, brightness, contrast
+
+rgb2yiq = np.array([[.299,  .587,  .114],
+                    [.596, -.274, -.321],
+                    [.211, -.523,  .311]])
+
+#yiq2rgb = np.linalg.inv(rgb2yiq)
+yiq2rgb = np.array([[1, .956, .621],
+                    [1, -.272, -.647],
+                    [1, -1.107, 1.705]])
+
+def ref_color_twist(img, H, S, brightness, contrast):
+    if np.issubdtype(np.array(img).dtype, np.floating):
+        grey = 0.5
+        max_range = 1
     else:
-        return np.iinfo(dtype).max
+        grey = 128
+        max_range = 255
+    angle = math.radians(H)
+    s, c = math.sin(angle), math.cos(angle)
+    # Rotate the color components by angle and scale by S.
+    # The fun part is that it doesn't really matter that much which
+    hmat = np.array([[1,    0,    0],
+                     [0,  c*S,  s*S],
+                     [0, -s*S,  c*S]])
 
-def type_range(dtype):
-    if dtype in [np.half, np.single, np.double]:
-        return (0, np.finfo(dtype).max)
-    else:
-        return (0, np.iinfo(dtype).max)
+    m = np.matmul(yiq2rgb, np.matmul(hmat, rgb2yiq))
 
-def convert_sat(data, out_dtype):
-    clipped = np.clip(data, *type_range(out_dtype))
-    if out_dtype not in [np.half, np.single, np.double]:
-        clipped = np.round(clipped)
-    return clipped.astype(out_dtype)
+    num_pixels = np.prod(img.shape[:-1])
+    pixels = img.reshape([num_pixels, img.shape[-1]])
+    pixels = np.matmul(pixels, m.transpose())
+    pixels = ((pixels - grey) * contrast + grey) * brightness
+    img = pixels.reshape(img.shape)
 
-def color_twist_ref(input, hue, sat, bri, con, out_dtype):
-    # input = bri * con * input
-    # hsv_img = rgb2hsv(input)
-    # hue_img = hsv_img[:, :, 0]
-    # value_img = hsv_img[:, :, 2]
+    return np.clip(img, 0, max_range)
 
-    if np.issubdtype(input.dtype, np.floating):
-        contrast_center = 0.5
-    else:
-        contrast_center = 128
-    output = bri * (contrast_center + con * (input - contrast_center))
-    print(input, convert_sat(output, out_dtype), bri, con, contrast_center + con * (input - contrast_center))
-    return convert_sat(output, out_dtype)
+def check(input, out_cpu, out_gpu, H, S, brightness, contrast):
+    ref = ref_color_twist(input, H, S, brightness, contrast)
+    print(ref, "vs", out_cpu)
+    assert np.allclose(out_cpu, ref, 1/512, 0.55)
+    assert np.allclose(out_gpu, ref, 1/512, 0.55)
 
-def ref_operator(out_dtype):
-  return lambda input, hue, sat, bri, con: \
-                color_twist_ref(input, hue, sat, bri,con, out_dtype)
-
-@pipeline_def(num_threads=4, device_id=0, seed=1234, exec_pipelined=False, exec_async=False)
-def color_twist_pipe(data_iterator, out_dtype, device):
-    inp = fn.external_source(source=data_iterator)
-    inp = math.abs(inp)
-    # hue = fn.random.uniform(range=[-20., 20.])
-    # sat = fn.random.uniform(range=[0., 1.])
-    hue = 0
-    sat = 1
-    bri = fn.random.uniform(range=[0., 2.])
-    con = fn.random.uniform(range=[0., 2.])
-    twist_inp = inp if device == 'cpu' else inp.gpu()
-    ret = fn.color_twist(twist_inp, device=device, hue=hue, saturation=sat, brightness=bri, contrast=con)
-    ref = fn.python_function(inp, hue, sat, bri ,con, function=ref_operator(dali_type_to_np(out_dtype)))
-    ref = fn.reshape(ref, layout="HWC")
-    return ref, ret
-
-def check_vs_ref(device, inp_dtype, out_dtype, is_video):
-    batch_size=32
+def check_ref(inp_dtype, is_video):
+    batch_size = 32
     n_iters = 8
     shape = (128, 32, 3) if not is_video else (random.randint(2, 5), 128, 32, 3)
     ri1 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
-    pipe = color_twist_pipe(ri1, out_dtype, device, batch_size=batch_size)
-    if out_dtype in [np.half, np.single, np.double]:
-        eps = 1e-4
-    else:
-        eps = 1
+    pipe = ColorTwistPipeline(seed=2139, batch_size=batch_size, num_threads=4, device_id=0, data_iterator=ri1, out_type=inp_dtype)
     pipe.build()
     for _ in range(n_iters):
-        out = pipe.run()
-        print(np.array(out[0].as_tensor()), " vs ", np.array(out[1].as_tensor()))
-        check_batch(out[0], out[1], eps=eps)
+        inp, out_cpu, out_gpu, H, S, B, C = pipe.run()
+        out_gpu = out_gpu.as_cpu()
+        for i in range(batch_size):
+            h, s, b, c = H.at(i), S.at(i), B.at(i), C.at(i)
+            check(inp.at(i), out_cpu.at(i), out_gpu.at(i), h, s, b, c)
 
-def test_vs_ref():
-    for device in ['cpu', 'gpu']:
-        for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
-            for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
-                is_video = random.choice([False])
-                yield check_vs_ref, device, inp_dtype, out_dtype, is_video
-
-check_vs_ref('cpu', types.INT16, types.FLOAT, False)
+def test_color_twist():
+    for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
+        is_video = random.choice([False, True])
+        yield check_ref, inp_dtype, is_video
