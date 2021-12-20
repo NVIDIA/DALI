@@ -93,6 +93,7 @@ process_sanitizers_logs() {
         cat $topdir/sanitizer.log
         grep -q ERROR $topdir/sanitizer.log && exit 1 || true
     fi
+    find $topdir -iname "sanitizer.log*" -delete
 }
 
 # get extra index url for given packages
@@ -142,10 +143,15 @@ do
         test_body_wrapper
         RV=$?
         set -e
-        # if sanitizers are enabled run test until the end so we have as much data as possible
-        if [ $RV -gt 0 ] && [ -z "$DALI_ENABLE_SANITIZERS" ]; then
-            mkdir -p $topdir/core_artifacts
-            cp core* $topdir/core_artifacts || true
+        if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
+            process_sanitizers_logs
+        fi
+        if [ $RV -gt 0 ]; then
+            # if sanitizers are enabled don't capture core
+            if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
+                mkdir -p $topdir/core_artifacts
+                cp core* $topdir/core_artifacts || true
+            fi
             exit ${RV}
         fi
         # remove packages
@@ -156,7 +162,3 @@ do
         ${epilog[variant]}
     done
 done
-
-if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
-    process_sanitizers_logs
-fi
