@@ -333,7 +333,6 @@ class DLL_PUBLIC Buffer {
    * prohibited until reset() is called.
    */
   inline void set_backing_allocation(const Buffer<Backend> &other) {
-    DALI_ENFORCE(IsValidType(other.type_), "Only valid type when creating an allocation");
     type_ = other.type_;
     data_ = other.data_;
     allocate_ = {};
@@ -482,7 +481,7 @@ constexpr double Buffer<Backend>::kMaxGrowthFactor;
 // Macro so we don't have to list these in all
 // classes that derive from Buffer
 #define USE_BUFFER_MEMBERS()           \
-  using Buffer<Backend>::resize; \
+  using Buffer<Backend>::resize;       \
   using Buffer<Backend>::reset;        \
   using Buffer<Backend>::type_;        \
   using Buffer<Backend>::data_;        \

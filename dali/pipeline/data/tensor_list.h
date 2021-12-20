@@ -26,6 +26,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/meta.h"
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
 
@@ -247,7 +248,6 @@ class DLL_PUBLIC TensorList {
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, const TensorListShape<> &shape,
                         DALIDataType type = DALI_NO_TYPE) {
     // don't check ptr as we want to share empty data as well
-    DALI_ENFORCE(bytes > 0, "No empty allocations");
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_.set_backing_allocation(ptr, bytes, type, shape.num_elements());
