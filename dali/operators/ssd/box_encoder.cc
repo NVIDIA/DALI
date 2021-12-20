@@ -111,6 +111,8 @@ void BoxEncoder<CPUBackend>::WriteAnchorsToOutput(float *out_boxes, int *out_lab
 
 // Calculate offset from CenterWH ref box and anchor
 // based on eq (2)  in https://arxiv.org/abs/1512.02325 with extra normalization
+// Scale argument is used to maintain numerical consistency with reference implementation:
+// https://github.com/mlcommons/training/blob/master/single_stage_detector/ssd/utils.py
 std::pair<vec2, vec2>
 GetOffsets(vec2 box_center,
            vec2 box_extent,

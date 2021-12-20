@@ -81,6 +81,8 @@ __device__ inline void FindBestMatch(const int N, volatile float *vals, volatile
   }
 }
 
+// Scale argument is used to maintain numerical consistency with reference implementation:
+// https://github.com/mlcommons/training/blob/master/single_stage_detector/ssd/utils.py
 __device__ float4 MatchOffsets(
   float4 box, float4 anchor, const float *means, const float *stds, float scale) {
   box.x *= scale; box.y *= scale; box.z *= scale; box.w *= scale;
