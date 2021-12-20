@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
@@ -978,6 +978,23 @@ def test_tensor_subscript():
 def test_subscript_dim_check():
     check_single_input(fn.subscript_dim_check, num_subscripts=3)
 
+
+def test_get_property():
+    @pipeline_def
+    def file_properties(files):
+        read, _ = fn.readers.file(files=files)
+        return fn.get_property(read, key="source_info")
+
+    root_path = os.path.join(data_root, 'db', 'single', 'png', '0')
+    files = [os.path.join(root_path, i) for i in os.listdir(root_path)]
+    p = file_properties(files, batch_size=8, num_threads=4, device_id=None)
+    p.build()
+    output = p.run()
+    for out in output:
+        for source_info, ref in zip(out, files):
+            assert np.array(source_info).tobytes().decode() == ref
+
+
 tested_methods = [
     "audio_decoder",
     "image_decoder",
@@ -1009,6 +1026,7 @@ tested_methods = [
     "crop",
     "constant",
     "dump_image",
+    "get_property",
     "numpy_reader",
     "tfrecord_reader",
     "file_reader",

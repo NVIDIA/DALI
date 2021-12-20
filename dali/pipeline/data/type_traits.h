@@ -15,6 +15,8 @@
 #ifndef DALI_PIPELINE_DATA_TYPE_TRAITS_H_
 #define DALI_PIPELINE_DATA_TYPE_TRAITS_H_
 
+#include <type_traits>
+
 namespace dali {
 
 template <typename Backend>
@@ -56,6 +58,22 @@ struct is_batch_container {
       is_backend<Backend>::value &&
       (is_tensor_vector<T, Backend>::value || is_tensor_list<T, Backend>::value);
 };
+
+template <typename Backend = CPUBackend>
+struct BatchContainer {
+  using type = TensorVector<CPUBackend>;
+};
+
+template <>
+struct BatchContainer<GPUBackend> {
+  using type = TensorList<GPUBackend>;
+};
+
+/**
+ * Returns the typical batch container used for given Backend
+ */
+template <typename Backend>
+using batch_container_t = typename BatchContainer<Backend>::type;
 
 namespace test {
 static_assert(is_batch_container<TensorVector, CPUBackend>::value, "Test failed");
