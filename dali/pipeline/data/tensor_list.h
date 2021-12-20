@@ -158,7 +158,7 @@ class DLL_PUBLIC TensorList {
    * list.
    */
   DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape) {
-    DALI_ENFORCE(IsValidType(type_info()),
+    DALI_ENFORCE(IsValidType(type()),
                  "TensorList has no type, 'set_type<T>()' or Resize(shape, type) must be called "
                  "on the TensorList to set a valid type before it can be resized.");
     Resize(new_shape, type());
@@ -212,7 +212,7 @@ class DLL_PUBLIC TensorList {
    * Size can be set to 0 and type to NoType as intermediate step.
    */
   DLL_PUBLIC inline void ShareData(const TensorList<Backend> &other) {
-    DALI_ENFORCE(IsValidType(other.type_info()), "To share data, "
+    DALI_ENFORCE(IsValidType(other.type()), "To share data, "
         "the input TensorList must have a valid data type");
 
     // Save the calling TensorLists meta-data
@@ -518,7 +518,7 @@ class DLL_PUBLIC TensorList {
     // need to create a new view
     DALI_ENFORCE(num_samples() > 0,
                  "To create a view Tensor, the Tensor List must have at least 1 element.");
-    DALI_ENFORCE(IsValidType(type_info()),
+    DALI_ENFORCE(IsValidType(type()),
                  "To create a view Tensor, the Tensor List must have a valid data type.");
     DALI_ENFORCE(IsContiguousTensor(),
                  "To create a view Tensor, all tensors in the input TensorList must be contiguous "
