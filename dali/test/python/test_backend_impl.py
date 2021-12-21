@@ -82,6 +82,20 @@ def test_array_interface_tensor_cpu():
     assert np.array_equal(tensorlist[0].__array_interface__['shape'], tensorlist[0].shape())
     assert tensorlist[0].__array_interface__['typestr'] == tensorlist[0].dtype()
 
+def check_transfer(dali_type):
+    arr = np.random.rand(3, 5, 6)
+    data = dali_type(arr)
+    data_gpu = data._as_gpu()
+    data_cpu = data_gpu.as_cpu()
+    if dali_type is TensorListCPU:
+        np.testing.assert_array_equal(arr, data_cpu.as_array())
+    else:
+        np.testing.assert_array_equal(arr, np.array(data_cpu))
+
+def test_transfer_cpu_gpu():
+    for dali_type in [TensorCPU, TensorListCPU]:
+        yield check_transfer, dali_type
+
 def check_array_types(t):
     arr = np.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=t)
     tensor = TensorCPU(arr, "NHWC")
