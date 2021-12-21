@@ -7,7 +7,8 @@ source $topdir/qa/setup_test_common.sh
 version_ge "$CUDA_VERSION" "110" && \
   mv /usr/local/cuda /usr/local/cuda_bak && \
   ln -s cuda-11.1 /usr/local/cuda && \
-  pip uninstall -y `pip list | grep nvidia-cu | cut -d " " -f1` `pip list | grep nvidia-n | cut -d " " -f1` || true
+  pip uninstall -y `pip list | grep nvidia-cu | cut -d " " -f1` `pip list | grep nvidia-n | cut -d " " -f1` \
+  || true
 
 pushd ../TL0_python-self-test-core
 bash -e ./test.sh
@@ -24,4 +25,5 @@ popd
 # restore old CUDA symlink, reinstall the latest CUDA wheels
 version_ge "$CUDA_VERSION" "110" && \
   rm -rf /usr/local/cuda && mv /usr/local/cuda_bak /usr/local/cuda && \
-  pip install nvidia-cufft-cu11 nvidia-npp-cu11 nvidia-nvjpeg-cu11
+  pip install nvidia-cufft-cu11 nvidia-npp-cu11 nvidia-nvjpeg-cu11 \
+  || true
