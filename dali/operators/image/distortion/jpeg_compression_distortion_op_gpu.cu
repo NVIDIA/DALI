@@ -60,11 +60,13 @@ void JpegCompressionDistortionGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   if (is_sequence) {
     in_view = frames_to_samples(view<const uint8_t, 4>(input));
     out_view = frames_to_samples(view<uint8_t, 4>(output));
-    quality_.resize(in_view.size());
+    quality_.clear();
+    quality_.reserve(in_view.size());
   } else {
     in_view = view<const uint8_t, 3>(input);
     out_view = view<uint8_t, 3>(output);
-    quality_.resize(in_view.size());
+    quality_.clear();
+    quality_.reserve(in_view.size());
   }
 
   // Set quality argument for an image from samples
@@ -72,12 +74,12 @@ void JpegCompressionDistortionGPU::RunImpl(workspace_t<GPUBackend> &ws) {
     for (int i = 0; i < nsamples; i++) {
       auto nframes = input.tensor_shape_span(i)[0];
       for (int j = 0; j < nframes; ++j) {
-        quality_[i] = quality_arg_[i].data[0];
+        quality_.push_back(quality_arg_[i].data[0]);
       }
     }
   } else {
     for (int i = 0; i < nsamples; i++) {
-      quality_[i] = quality_arg_[i].data[0];
+      quality_.push_back(quality_arg_[i].data[0]);
     }
   }
 
