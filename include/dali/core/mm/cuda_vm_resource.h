@@ -593,7 +593,6 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     auto *region = va_find(ptr);
     assert(region);
     CUdeviceptr region_start  = region->address_range.ptr();
-    CUdeviceptr region_end    = region->address_range.end();
     ptrdiff_t offset = dptr - region_start;
     int start_block_idx = offset / block_size_;
     int end_block_idx = (offset + size + block_size_ - 1) / block_size_;
