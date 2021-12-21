@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ namespace dali {
 
 TEST(ConvertSat, float2int) {
   for (int exp = -10; exp < 100; exp++) {
-    for (float sig = -256; sig <= 256; sig++) {
+    for (int sig = -256; sig <= 256; sig++) {
       float f = ldexpf(sig, exp);
       float integral;
       float fract = modff(f, &integral);
