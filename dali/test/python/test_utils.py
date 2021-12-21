@@ -623,4 +623,5 @@ def generator_random_axes_for_3d_input(batch_size, use_negative=False, use_empty
     return gen
 
 def as_array(tensor):
+    import_numpy()
     return np.array(tensor.as_cpu() if isinstance(tensor, TensorGPU) else tensor)
