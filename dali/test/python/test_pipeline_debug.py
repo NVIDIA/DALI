@@ -315,3 +315,38 @@ def test_init_config_pipeline():
     pipe_standard = init_config_pipeline(batch_size=8, num_threads=3, device_id=0)
     pipe_debug = init_config_pipeline(batch_size=8, num_threads=3, device_id=0, debug=True)
     compare_pipelines(pipe_standard, pipe_debug, 8, 10)
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def seed_pipeline():
+    coin_flip = fn.random.coin_flip()
+    normal = fn.random.normal()
+    uniform = fn.random.uniform()
+    batch_permutation = fn.batch_permutation()
+    return coin_flip, normal, uniform, batch_permutation
+
+
+def test_seed_generation():
+    pipe1 = seed_pipeline()
+    pipe2 = seed_pipeline()
+    compare_pipelines(pipe1, pipe2, 8, 10)
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def seed_rn50_pipeline_base():
+    rng = fn.random.coin_flip(probability=0.5)
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2)
+    images = fn.decoders.image(jpegs, device='mixed', output_type=types.RGB)
+    resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224))
+    out_type = types.FLOAT16
+
+    output = fn.crop_mirror_normalize(resized_images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
+        224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    return rng, jpegs, labels, images, resized_images, output
+
+
+def test_seed_generation_base():
+    pipe1 = seed_rn50_pipeline_base()
+    pipe2 = seed_rn50_pipeline_base()
+    compare_pipelines(pipe1, pipe2, 8, 10)

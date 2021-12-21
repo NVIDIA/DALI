@@ -131,6 +131,11 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._cur_subpipeline_id = -1
         self._exec_func = exec_func
 
+        import numpy as np
+        if 'seed' in kwargs:
+            np.random.seed(kwargs['seed'])
+        self._seeds = np.random.randint(-2**63, 2**63-1, 1024)
+
     def __enter__(self):
         raise RuntimeError("Currently pipeline in debug mode works only with `pipeline_def` decorator."
                            "Using `with` statement is not supported.")
@@ -256,6 +261,8 @@ class _PipelineDebug(_pipeline.Pipeline):
                 else:
                     kwargs_preprocessed[key] = value
 
+            if 'seed' not in kwargs_preprocessed and op_wrapper.__name__ != '_arithm_op':
+                kwargs_preprocessed['seed'] = self._seeds[self._cur_subpipeline_id]
             res = op_wrapper(*inputs_preprocessed, **kwargs_preprocessed)
 
             return tuple(res) if isinstance(res, list) else res
