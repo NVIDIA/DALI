@@ -27,7 +27,7 @@ if (BUILD_OPENCV)
   include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
   list(APPEND DALI_LIBS ${OpenCV_LIBRARIES})
   message("OpenCV libraries: ${OpenCV_LIBRARIES}")
-  list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a;libopencv_imgcodecs.a;liblibwebp.a;libittnotify.a;libpng.a;liblibtiff.a;liblibjasper.a;libIlmImf.a;liblibjpeg-turbo.a)
+  list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a;libopencv_imgcodecs.a;liblibwebp.a;libittnotify.a;libpng.a;liblibtiff.a;liblibjasper.a;libIlmImf.a;liblibjpeg-turbo.a;libz.a)
 endif()
 
 ##################################################################

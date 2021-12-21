@@ -13,7 +13,7 @@ ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
 
 # add devtoolset-7 to paths
 ENV PATH=/opt/rh/devtoolset-7/root/usr/bin:$PATH \
-    LD_LIBRARY_PATH=/lib64:/opt/rh/devtoolset-7/root/usr/lib64:/opt/rh/devtoolset-7/root/usr/lib:/opt/rh/devtoolset-7/root/usr/lib64/dyninst:/opt/rh/devtoolset-7/root/usr/lib/dynin:$LD_LIBRARY_PATH
+    LD_LIBRARY_PATH=/opt/rh/devtoolset-7/root/usr/lib64:/opt/rh/devtoolset-7/root/usr/lib:/opt/rh/devtoolset-7/root/usr/lib64/dyninst:/opt/rh/devtoolset-7/root/usr/lib/dynin:$LD_LIBRARY_PATH
 
 # CUDA 10 doesn't support gcc > 7 so install 7 and remove other
 RUN yum remove -y devtoolset* && \
