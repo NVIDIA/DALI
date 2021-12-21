@@ -72,14 +72,9 @@ struct SliceBlockDesc {
   uint64_t size;
 };
 
-#if CUDA_VERSION >= 11020
 template<typename OutputType>
 constexpr int coalesced_values = sizeof(OutputType) >= 4 ? 1 : 4 / sizeof(OutputType);
-#else
-// temporary workaround for a mysterious test failure in CUDA < 11.2
-template<typename OutputType>
-constexpr int coalesced_values = 1;
-#endif
+
 
 /**
  * @brief Simplified algorithm when no padding is necessary
@@ -166,8 +161,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
         if (d == channel_dim)
           i_c = i_d;
         out_of_bounds |= is_out_of_bounds(anchor[d] + i_d, in_shape[d]);
-        if (!out_of_bounds)
-          in_idx += i_d * in_strides[d];
+        in_idx += i_d * in_strides[d];
       }
 
       constexpr int d = LastDim;
@@ -175,11 +169,13 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
       if (AllDims && d == channel_dim)
         i_c = i_d;
       out_of_bounds |= is_out_of_bounds(inner_in_anchor + i_d, inner_in_extent);
-      if (!out_of_bounds)
-        in_idx += i_d;  // in_strides[d] is 1
+      in_idx += i_d;  // in_strides[d] is 1
 
       // Fill values are reused a lot, so let's make sure they are cached (by using __ldg())
-      out[out_idx] = out_of_bounds ? __ldg(&fill_values[i_c]) : clamp<OutputType>(in[in_idx]);
+      OutputType value = __ldg(&fill_values[i_c]);
+      if (!out_of_bounds)
+        value = clamp<OutputType>(in[in_idx]);
+      out[out_idx] = value;
     }
   }
 }
