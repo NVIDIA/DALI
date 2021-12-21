@@ -277,6 +277,10 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 
   # Settings specific to builds where Clang is used for compiling CUDA code
   if (DALI_CLANG_ONLY)
+    # Full power of clang-tidy
+    set(CMAKE_CXX_CLANG_TIDY clang-tidy -warnings-as-errors=-*,bugprone-*,misc-*,modernize-*,clang-analyzer-* -header-filter=.*)
+    message(STATUS "CMAKE_CXX_CLANG_TIDY is set to ${CMAKE_CXX_CLANG_TIDY}")
+
     # Enable SFINAE with ellipsis in device code
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Xclang -fcuda-allow-variadic-functions")
 
