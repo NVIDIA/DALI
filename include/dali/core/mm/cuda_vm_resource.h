@@ -606,7 +606,6 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       int next_unmapped = region->mapped.find(false, block_idx);
       if (next_unmapped >= end_block_idx)
         break;  // everything we need is mapped
-      block_idx = next_unmapped;
       int next_mapped = region->mapped.find(true, next_unmapped + 1);
       int next = std::min(end_block_idx, next_mapped);
       blocks_to_map += next - next_unmapped;
