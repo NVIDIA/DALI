@@ -193,6 +193,7 @@ DLL_PUBLIC void Dct1DGpu<OutputType, InputType>::Run(KernelContext &ctx,
 
   int i = 0;
   for (auto &table_entry : cos_tables_) {
+    // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
     auto cpu_table = cpu_cos_table[i % 2];
     auto &buffer_event = buffer_events_[i % 2];
     int n;
