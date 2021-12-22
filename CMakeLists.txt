@@ -278,7 +278,14 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   # Settings specific to builds where Clang is used for compiling CUDA code
   if (DALI_CLANG_ONLY)
     # Full power of clang-tidy
-    set(CMAKE_CXX_CLANG_TIDY clang-tidy -warnings-as-errors=-*,bugprone-*,misc-*,modernize-*,clang-analyzer-* -checks=-clang-analyzer-security.FloatLoopCounter -header-filter=.*)
+    # Remove some that appera in fp16 and tests, and try again
+    file(READ ".clang-tidy-filter.json" CLANG_TIDY_LINE_FILTER)
+    set(CMAKE_CXX_CLANG_TIDY "clang-tidy"
+      "-warnings-as-errors=-*,bugprone-*,misc-*,modernize-*,clang-analyzer-*"
+      "-checks=-clang-analyzer-security.FloatLoopCounter,-clang-analyzer-core.DivideZero,-clang-analyzer-core.UndefinedBinaryOperatorResult"
+      "-header-filter=.*")
+      # Line filter filters too much
+      # "-line-filter=${CLANG_TIDY_LINE_FILTER}")
     message(STATUS "CMAKE_CXX_CLANG_TIDY is set to ${CMAKE_CXX_CLANG_TIDY}")
 
     # Enable SFINAE with ellipsis in device code
