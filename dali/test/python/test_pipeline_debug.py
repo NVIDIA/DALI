@@ -105,12 +105,12 @@ def injection_pipeline(callback, device='cpu'):
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
-def injection_pipeline_standard():
+def injection_pipeline_standard(device='cpu'):
     jpegs, _ = fn.readers.file(
         file_root=file_root, shard_id=0, num_shards=2)
     images = fn.decoders.image(jpegs, output_type=types.RGB)
     rng = fn.random.coin_flip(probability=0.5, seed=47)
-    images = fn.random_resized_crop(images, size=(224, 224), seed=27)
+    images = fn.random_resized_crop(images, device=device, size=(224, 224), seed=27)
     out_type = types.FLOAT16
 
     output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
@@ -122,7 +122,7 @@ def _test_injection(device, name, transform, eps=1e-07):
     print(f'\nTesting {name}')
     pipe_load = load_images_pipeline()
     pipe_load.build()
-    pipe_standard = injection_pipeline_standard()
+    pipe_standard = injection_pipeline_standard(device)
     pipe_debug = injection_pipeline(lambda: transform(pipe_load.run()[0]), device)
     compare_pipelines(pipe_standard, pipe_debug, 8, 10, eps=eps)
 
