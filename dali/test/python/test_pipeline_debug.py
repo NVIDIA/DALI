@@ -110,6 +110,8 @@ def injection_pipeline_standard(device='cpu'):
         file_root=file_root, shard_id=0, num_shards=2)
     images = fn.decoders.image(jpegs, output_type=types.RGB)
     rng = fn.random.coin_flip(probability=0.5, seed=47)
+    if device == "gpu":
+        images = images.gpu()
     images = fn.random_resized_crop(images, device=device, size=(224, 224), seed=27)
     out_type = types.FLOAT16
 
@@ -141,19 +143,19 @@ def test_injection_mxnet():
 def test_injection_torch():
     import torch
     yield _test_injection, 'cpu', 'torch cpu tensor', lambda xs: [torch.tensor(np.array(x), device='cpu') for x in xs]
-    yield _test_injection, 'gpu', 'torch gpu tensor', lambda xs: [torch.tensor(np.array(x), device='cuda') for x in xs], 1e-03
+    yield _test_injection, 'gpu', 'torch gpu tensor', lambda xs: [torch.tensor(np.array(x), device='cuda') for x in xs]
 
 
 @attr('cupy')
 def test_injection_cupy():
     import cupy
-    _test_injection('gpu', 'cupy array', lambda xs: [cupy.array(x) for x in xs], 1e-03)
+    _test_injection('gpu', 'cupy array', lambda xs: [cupy.array(x) for x in xs])
 
 
 def test_injection_dali_types():
-    yield _test_injection, 'gpu', 'list of TensorGPU', lambda xs: [x._as_gpu() for x in xs], 1e-03
+    yield _test_injection, 'gpu', 'list of TensorGPU', lambda xs: [x._as_gpu() for x in xs]
     yield _test_injection, 'cpu', 'TensorListCPU', lambda xs: xs
-    yield _test_injection, 'gpu', 'TensorListGPU', lambda xs: xs._as_gpu(), 1e-03
+    yield _test_injection, 'gpu', 'TensorListGPU', lambda xs: xs._as_gpu()
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
