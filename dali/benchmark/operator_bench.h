@@ -90,7 +90,7 @@ class OperatorBench : public DALIBenchmark {
               TensorLayout layout = "HWC",
               bool fill_in_data = false,
               int64_t sync_each_n = -1) {
-    assert(layout.size() == shape.size());
+    assert(layout.size() == shape.sample_dim());
 
     auto op_ptr = InstantiateOperator(op_spec);
 
@@ -120,17 +120,21 @@ class OperatorBench : public DALIBenchmark {
     CUDA_CALL(cudaStreamSynchronize(0));
 
     int64_t batches = 0;
-    for (auto _ : st) {
+
+    while (true) {
+      if (!st.KeepRunning()) {
+        // If no iterations left, synchronize and exit the loop
+        CUDA_CALL(cudaStreamSynchronize(0));
+        break;
+      }
+
       op_ptr->Run(ws);
       batches++;
+
       if (sync_each_n > 0 && batches % sync_each_n == 0) {
         CUDA_CALL(cudaStreamSynchronize(0));
       }
     }
-
-    st.ResumeTiming();
-    CUDA_CALL(cudaStreamSynchronize(0));
-    st.PauseTiming();
     st.counters["FPS"] = benchmark::Counter(batch_size * st.iterations(),
                                             benchmark::Counter::kIsRate);
   }
