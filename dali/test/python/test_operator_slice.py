@@ -13,10 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali import Pipeline, pipeline_def, ops, fn, types
-import nvidia.dali as dali
-from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
 import os
 from functools import partial
 from math import floor
@@ -789,3 +786,33 @@ def test_wrong_axes():
         for wrong_axes_range in [(-10, -4), (3, 10)]:
             for named_args in [False, True]:
                 yield check_wrong_axes, device, wrong_axes_range, named_args
+
+def check_scalar(device):
+    batch_size = 5
+    def get_data():
+        out = [np.random.ranf(size=[1000]).astype(dtype=np.single) for _ in range(batch_size)]
+        return out
+
+    @pipeline_def(batch_size=batch_size, num_threads=1, device_id=0)
+    def test_pipe():
+        data = fn.external_source(source=get_data)
+        shape = types.ScalarConstant(10)
+        anchor = types.ScalarConstant(5)
+        if device != 'cpu':
+            data = data.gpu()
+        sliced = fn.slice(data, start = anchor, shape = shape, axes=[0], device=device)
+        return data, sliced, shape, anchor
+
+    pipe = test_pipe()
+    pipe.build()
+    ref, data, shape, anchor = pipe.run()
+    for sample_idx in range(batch_size):
+        d = as_array(data[sample_idx])
+        r = as_array(ref[sample_idx])
+        s = as_array(shape[sample_idx])
+        a = as_array(anchor[sample_idx])
+        np.testing.assert_allclose(d, r[a:a+s])
+
+def test_scalar():
+    for device in ['cpu', 'gpu']:
+        yield check_scalar, device
