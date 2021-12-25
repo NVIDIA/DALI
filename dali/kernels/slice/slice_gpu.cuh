@@ -85,7 +85,7 @@ union PackedBuffer {
   inline void store(T* mem, size_t count) {
     if (kCapacity == 1) {
       *mem = *values;
-    } else if (count == kCapacity) {
+    } else if (count == kCapacity && (uint64_t)mem % kCapacity == 0) {
       *reinterpret_cast<PackedType*>(mem) = raw;
     } else {
       #pragma unroll
