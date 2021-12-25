@@ -75,18 +75,18 @@ struct SliceBlockDesc {
 template<typename T>
 union PackedBuffer {
   using PackedType = uint32_t;
-  static constexpr size_t capacity = sizeof(T) >= sizeof(PackedType) ? 1 : sizeof(PackedType) / sizeof(T);
+  static constexpr size_t kCapacity = sizeof(T) >= sizeof(PackedType) ?
+                                      1 : sizeof(PackedType) / sizeof(T);
 
-  T values[capacity];
+  T values[kCapacity];
   PackedType raw;
 
   __device__
   inline void store(T* mem, size_t count) {
-    if (capacity == 1) {
+    if (kCapacity == 1) {
       *mem = *values;
-    }
-    else if (count == capacity) {
-      *(PackedType*)mem = raw;
+    } else if (count == kCapacity) {
+      *reinterpret_cast<PackedType*>(mem) = raw;
     } else {
       #pragma unroll
       for (size_t i = 0; i < count; i++) {
@@ -111,12 +111,12 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
     return;
   }
 
-  for (; offset < block_end; offset += blockDim.x * PackedBuffer<OutputType>::capacity) {
+  for (; offset < block_end; offset += blockDim.x * PackedBuffer<OutputType>::kCapacity) {
     PackedBuffer<OutputType> result;
 
     uint64_t i;
     #pragma unroll
-    for (i = 0; i < PackedBuffer<OutputType>::capacity; i++) {
+    for (i = 0; i < PackedBuffer<OutputType>::kCapacity; i++) {
       uint64_t idx = offset + i;
       if (idx >= block_end) break;
       uint64_t in_idx = 0;
@@ -162,14 +162,14 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
     inner_in_extent = Dims > 1 ? in_strides[LastDim - 1] : in_shape[LastDim] * in_strides[LastDim];
   }
 
-  for (; offset < block_end; offset += blockDim.x * PackedBuffer<OutputType>::capacity) {
+  for (; offset < block_end; offset += blockDim.x * PackedBuffer<OutputType>::kCapacity) {
     PackedBuffer<OutputType> result;
 
     uint64_t i;
     #ifndef __clang__
     #pragma unroll
     #endif
-    for (i = 0; i < PackedBuffer<OutputType>::capacity; i++) {
+    for (i = 0; i < PackedBuffer<OutputType>::kCapacity; i++) {
       uint64_t idx = offset + i;
       if (idx >= block_end) break;
 
@@ -209,7 +209,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
 template <typename OutputType, typename InputType, int Dims, bool SupportPad>
 __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const SliceBlockDesc *blocks) {
   int sampleIdx = blocks[blockIdx.x].sampleIdx;
-  uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x * PackedBuffer<OutputType>::capacity;
+  uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x * PackedBuffer<OutputType>::kCapacity;
   uint64_t block_end = blocks[blockIdx.x].offset + blocks[blockIdx.x].size;
   auto sample = samples[sampleIdx];
   auto *out = static_cast<OutputType*>(sample.out);
