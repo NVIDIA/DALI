@@ -72,9 +72,29 @@ struct SliceBlockDesc {
   uint64_t size;
 };
 
-template<typename OutputType>
-constexpr int coalesced_values = sizeof(OutputType) >= 4 ? 1 : 4 / sizeof(OutputType);
+template<typename T>
+union PackedBuffer {
+  using PackedType = uint32_t;
+  static constexpr size_t capacity = sizeof(T) >= sizeof(PackedType) ? 1 : sizeof(PackedType) / sizeof(T);
 
+  T values[capacity];
+  PackedType raw;
+
+  __device__
+  inline void store(T* mem, size_t count) {
+    if (capacity == 1) {
+      *mem = *values;
+    }
+    else if (count == capacity) {
+      *(PackedType*)mem = raw;
+    } else {
+      #pragma unroll
+      for (size_t i = 0; i < count; i++) {
+        mem[i] = values[i];
+      }
+    }
+  }
+};
 
 /**
  * @brief Simplified algorithm when no padding is necessary
@@ -91,12 +111,14 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
     return;
   }
 
-  for (; offset < block_end; offset += blockDim.x * coalesced_values<OutputType>) {
+  for (; offset < block_end; offset += blockDim.x * PackedBuffer<OutputType>::capacity) {
+    PackedBuffer<OutputType> result;
+
+    uint64_t i;
     #pragma unroll
-    for (uint64_t i = 0; i < coalesced_values<OutputType>; i++) {
+    for (i = 0; i < PackedBuffer<OutputType>::capacity; i++) {
       uint64_t idx = offset + i;
       if (idx >= block_end) break;
-      uint64_t out_idx = idx;
       uint64_t in_idx = 0;
 
       #pragma unroll
@@ -105,8 +127,9 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
         in_idx += i_d * in_strides[d];
       }
       in_idx += idx;  // remaining dims have equal strides
-      out[out_idx] = clamp<OutputType>(in[in_idx]);
+      result.values[i] = clamp<OutputType>(in[in_idx]);
     }
+    result.store(&out[offset], i);
   }
 }
 
@@ -139,14 +162,16 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
     inner_in_extent = Dims > 1 ? in_strides[LastDim - 1] : in_shape[LastDim] * in_strides[LastDim];
   }
 
-  for (; offset < block_end; offset += blockDim.x * coalesced_values<OutputType>) {
+  for (; offset < block_end; offset += blockDim.x * PackedBuffer<OutputType>::capacity) {
+    PackedBuffer<OutputType> result;
+
+    uint64_t i;
     #ifndef __clang__
     #pragma unroll
     #endif
-    for (uint64_t i = 0; i < coalesced_values<OutputType>; i++) {
+    for (i = 0; i < PackedBuffer<OutputType>::capacity; i++) {
       uint64_t idx = offset + i;
       if (idx >= block_end) break;
-      uint64_t out_idx = idx;
 
       // If no dimensions were skipped (AllDims=true) we can avoid division in the last dimension,
       // because know the strides are 1 (or we treat them as 1 if we fused dimensions)
@@ -175,15 +200,16 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
       OutputType value = __ldg(&fill_values[i_c]);
       if (!out_of_bounds)
         value = clamp<OutputType>(in[in_idx]);
-      out[out_idx] = value;
+      result.values[i] = value;
     }
+    result.store(&out[offset], i);
   }
 }
 
 template <typename OutputType, typename InputType, int Dims, bool SupportPad>
 __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const SliceBlockDesc *blocks) {
   int sampleIdx = blocks[blockIdx.x].sampleIdx;
-  uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x * coalesced_values<OutputType>;
+  uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x * PackedBuffer<OutputType>::capacity;
   uint64_t block_end = blocks[blockIdx.x].offset + blocks[blockIdx.x].size;
   auto sample = samples[sampleIdx];
   auto *out = static_cast<OutputType*>(sample.out);
