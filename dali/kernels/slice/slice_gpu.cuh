@@ -81,8 +81,7 @@ union PackedBuffer {
   T values[kCapacity];
   PackedType raw;
 
-  __device__
-  inline void store(T* mem, size_t count) {
+  __device__ inline void store(T* mem, size_t count) {
     if (kCapacity == 1) {
       *mem = *values;
     } else if (count == kCapacity && (uint64_t)mem % kCapacity == 0) {
