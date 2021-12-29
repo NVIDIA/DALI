@@ -336,7 +336,7 @@ def test_seed_generation():
 def seed_rn50_pipeline_base():
     rng = fn.random.coin_flip(probability=0.5)
     jpegs, labels = fn.readers.file(
-        file_root=file_root, shard_id=0, num_shards=2)
+        file_root=file_root, shard_id=0, num_shards=2, random_shuffle=True)
     images = fn.decoders.image(jpegs, device='mixed', output_type=types.RGB)
     resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224))
     out_type = types.FLOAT16
