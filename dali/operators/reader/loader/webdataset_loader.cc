@@ -256,8 +256,8 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
 
     // Skipping cached samples
     const std::string source_info =
-        make_string("archive ", paths_[current_sample.wds_shard_index],
-                    GetSampleSource(current_sample), "component offset ", component.offset);
+        make_string_delim(" ", "Archive:", paths_[current_sample.wds_shard_index],
+                    GetSampleSource(current_sample), "; Component offset:", component.offset);
     DALIMeta meta;
     meta.SetSourceInfo(source_info);
     if (ShouldSkipImage(source_info)) {

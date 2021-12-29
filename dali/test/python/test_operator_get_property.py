@@ -69,7 +69,7 @@ def _test_wds_properties(device):
         out = out if device == 'cpu' else out.as_cpu()
         for source_info, offset in zip(out, ref_offset):
             assert _uint8_tensor_to_string(
-                source_info) == f"archive {root_path}tar file at \"{root_path}\"component offset {offset}"
+                source_info) == f"Archive: {root_path} tar file at \"{root_path}\" ; Component offset: {offset}"
 
 
 def test_wds_properties():
