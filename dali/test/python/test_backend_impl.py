@@ -142,3 +142,11 @@ def test_tensor_cpu_squeeze():
              (0, (1, 5, 1), "ABC", "BC"),
              (None, (3, 5, 1), "ABC", "AB")]:
         yield check_squeeze, shape, dim, in_layout, expected_out_layout
+
+
+def test_tensorlist_shape():
+    shapes = [(3, 4, 5, 6), (1, 8, 7, 6, 5), (1,), (1, 1)]
+    for shape in shapes:
+        arr = np.empty(shape)
+        tl = TensorListCPU(arr, 'NHWC')
+        assert tl.shape() == [shape[1:]] * shape[0]
