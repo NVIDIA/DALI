@@ -84,7 +84,7 @@ union PackedBuffer {
   __device__ inline void store(T* mem, size_t count) {
     if (kCapacity == 1) {
       *mem = *values;
-    } else if (count == kCapacity && (uint64_t)mem % kCapacity == 0) {
+    } else if (count == kCapacity && (uint64_t)mem % sizeof(PackedType) == 0) {
       *reinterpret_cast<PackedType*>(mem) = raw;
     } else {
       #pragma unroll
