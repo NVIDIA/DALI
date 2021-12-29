@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,8 +20,9 @@ DALI_SCHEMA(Rotate)
   .DocStr(R"code(Rotates the images by the specified angle.)code")
   .NumInput(1)
   .NumOutput(1)
-  .InputLayout(0, { "HWC", "DHWC" })
+  .InputLayout(0, { "HWC", "DHWC", "FHWC" })
   .SupportVolumetric()
+  .AllowSequences()
   .AddOptionalArg<float>("axis", R"code(Applies **only** to three-dimension and is the axis
 around which to rotate the image.
 

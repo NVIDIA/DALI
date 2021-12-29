@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -108,6 +108,10 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     spec_ = &spec;
     ws_ = &ws;
     num_samples_ = NumSamples(ws);
+    auto &input = ws_->template Input<Backend>(0);
+    auto layout = input.GetLayout();
+    is_sequence_ = layout.find('F') == 0;
+    seq_len_ = is_sequence_ ? input.shape()[0][0] : 1;
   }
 
   /** @brief Prepares parameters and output sizes for a warp operator
@@ -175,9 +179,19 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
    */
   TensorView<StorageGPU, const MappingParams, 1> ParamsGPU() {
     if (!params_gpu_.data && params_cpu_.data) {
-      auto *p = AllocParams<mm::memory_kind::device>(params_cpu_.num_elements());
-      auto tmp = make_tensor_gpu(p, params_cpu_.shape);
-      kernels::copy(tmp, params_cpu_, GetStream());
+      auto *p = AllocParams<mm::memory_kind::device>(params_cpu_.num_elements() * seq_len_);
+      auto tensor_shape = params_cpu_.shape;
+      tensor_shape[0] *= seq_len_;
+      std::vector<MappingParams> tmp_array;
+      tmp_array.resize(params_cpu_.num_elements() * seq_len_);
+      for (int i = 0; i < params_cpu_.num_elements(); ++i) {
+        for (int j = 0; j < seq_len_; ++j) {
+          tmp_array[i * seq_len_ + j] = params_cpu_.data[i];
+        }
+      }
+      auto tmp = make_tensor_gpu(p, tensor_shape);
+      auto tmp_tensor = make_tensor_cpu(tmp_array.data(), tensor_shape);
+      kernels::copy(tmp, tmp_tensor, GetStream());
     }
     return params_gpu_;
   }
@@ -277,7 +291,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
       assert(HasExplicitSize());
       SpatialShape out_shape;
       GetUniformOutputSize(out_shape);
-      out_sizes_.resize(num_samples_);
+      out_sizes_.resize(num_samples_ * seq_len_);
       for (auto &s : out_sizes_)
         s = out_shape;
     }
@@ -286,7 +300,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   virtual bool SetOutputSizes() {
     decltype(auto) input_shape = ws_->template Input<Backend>(0).shape();
     const int N = input_shape.num_samples();
-    out_sizes_.resize(N);
+    out_sizes_.resize(N * seq_len_);
     SpatialShape scalar_size;
 
     if (HasExplicitSize()) {
@@ -297,7 +311,9 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     } else {
       assert(KeepOriginalSize());
       for (int i = 0; i < N; i++) {
-        out_sizes_[i] = input_shape[i].template first<spatial_ndim>();
+        for (int j = 0; j < seq_len_; ++j) {
+          out_sizes_[i * seq_len_ + j] = input_shape[i].template first<spatial_ndim>();
+        }
       }
       return true;
     }
@@ -341,6 +357,8 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   const OpSpec *spec_ = nullptr;
   const Workspace *ws_ = nullptr;
   int num_samples_ = 0;
+  bool is_sequence_ = false;
+  int seq_len_ = 1;
 
   std::vector<SpatialShape> out_sizes_;
   TensorView<StorageGPU, const MappingParams, 1> params_gpu_;

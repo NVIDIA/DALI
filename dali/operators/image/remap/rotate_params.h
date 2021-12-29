@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -114,9 +114,28 @@ class RotateParamProvider
   using Base::params_cpu_;
   using Base::num_samples_;
   using Base::out_sizes_;
+  using Base::is_sequence_;
+  using Base::seq_len_;
 
   void SetParams() override {
-    input_shape_ = convert_dim<spatial_ndim + 1>(ws_->template Input<Backend>(0).shape());
+    auto &input = ws_->template Input<Backend>(0);
+    TensorListShape<spatial_ndim + 1> new_shape;
+
+    if (is_sequence_) {
+      auto num_samples = input.num_samples();
+      auto sh = input.shape();
+
+      new_shape.resize(num_samples * seq_len_);
+      for (unsigned i = 0; i < num_samples; ++i) {
+        const auto &sample_shape = sh[i];
+        for (int j = 0; j < seq_len_; ++j) {
+          new_shape.set_tensor_shape(i * seq_len_ + j,
+                                     {sample_shape.begin()+1, sample_shape.end()});
+        }
+      }
+    }
+
+    input_shape_ = is_sequence_ ? new_shape : convert_dim<spatial_ndim + 1>(input.shape());
     Collect(angles_, "angle", true);
 
     // For 2D, assume positive CCW rotation when (0,0) denotes top-left corner.
@@ -230,13 +249,14 @@ class RotateParamProvider
   void AdjustParams(std::integral_constant<int, 2>) {
     using kernels::shape2vec;
     using kernels::skip_dim;
-    assert(input_shape_.num_samples() == num_samples_);
-    assert(static_cast<int>(out_sizes_.size()) == num_samples_);
+    assert(input_shape_.num_samples() == num_samples_ * seq_len_);
+    assert(static_cast<int>(out_sizes_.size()) == num_samples_ * seq_len_);
 
+    // ToDo - allocate more here, and revert changes in ParamsGPU
     auto *params = this->template AllocParams<mm::memory_kind::host>();
     for (int i = 0; i < num_samples_; i++) {
-      ivec2 in_size = shape2vec(skip_dim<2>(input_shape_[i]));
-      ivec2 out_size = shape2vec(out_sizes_[i]);
+      ivec2 in_size = shape2vec(skip_dim<2>(input_shape_[i * seq_len_]));
+      ivec2 out_size = shape2vec(out_sizes_[i * seq_len_]);
 
       float a = deg2rad(angles_[i]);
       mat3 M = translation(in_size*0.5f) * rotation2D(-a) * translation(-out_size*0.5f);
@@ -268,10 +288,13 @@ class RotateParamProvider
   }
 
   void InferSize(std::integral_constant<int, 2>) {
-    assert(static_cast<int>(out_sizes_.size()) == num_samples_);
+    assert(static_cast<int>(out_sizes_.size()) == num_samples_ * seq_len_);
     for (int i = 0; i < num_samples_; i++) {
-      auto in_shape = kernels::skip_dim<2>(input_shape_[i]);
-      out_sizes_[i] = RotatedCanvasSize(in_shape, deg2rad(angles_[i]));
+      auto in_shape = kernels::skip_dim<2>(input_shape_[i * seq_len_]);
+      auto canvas_size = RotatedCanvasSize(in_shape, deg2rad(angles_[i]));
+      for (int j = 0; j < seq_len_; ++j) {
+        out_sizes_[i * seq_len_ + j] = canvas_size;
+      }
     }
   }
 

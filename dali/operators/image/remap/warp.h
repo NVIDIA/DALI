@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -88,8 +88,28 @@ class WarpOpImpl : public OpImplInterface<Backend> {
 
   void Setup(TensorListShape<> &shape, const Workspace &ws) override {
     param_provider_->SetContext(Spec(), ws);
+    auto &input = ws.template Input<Backend>(0);
+    auto sh = input.shape();
+    auto layout = input.GetLayout();
+    is_sequence_ = layout.find('F') == 0;
+    TensorListShape<tensor_ndim> new_shape;
 
-    input_ = view<const InputType, tensor_ndim>(ws.template Input<Backend>(0));
+    if (is_sequence_) {
+      auto num_samples = input.num_samples();
+      seq_len_ = sh[0][0];
+
+      new_shape.resize(num_samples * seq_len_);
+      for (unsigned i = 0; i < num_samples; ++i) {
+        const auto &sample_shape = sh[i];
+        for (int j = 0; j < seq_len_; ++j) {
+          new_shape.set_tensor_shape(i * seq_len_ + j,
+                                     {sample_shape.begin()+1, sample_shape.end()});
+        }
+      }
+    }
+    input_ = is_sequence_ ? reinterpret<const InputType, tensor_ndim>(
+                                        view<const InputType, 4>(input), new_shape, true) :
+                view<const InputType, tensor_ndim>(input);
     param_provider_->Setup();
 
     SetupBackend(shape, ws);
@@ -109,6 +129,9 @@ class WarpOpImpl : public OpImplInterface<Backend> {
 
   std::unique_ptr<ParamProvider> param_provider_;
 
+  bool is_sequence_ = false;
+  int seq_len_ = 1;
+
   kernels::KernelContext GetContext(const Workspace &ws) {
     kernels::KernelContext context;
     context.gpu.stream = ws.has_stream() ? ws.stream() : 0;
@@ -118,70 +141,145 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   void SetupBackend(TensorListShape<> &shape, const DeviceWorkspace &ws) {
     auto context = GetContext(ws);
     kmgr_.Resize<Kernel>(1, 1);
+    std::vector<TensorShape<spatial_ndim>> tmp_sizes;
+    if (is_sequence_) {
+      tmp_sizes.resize(input_.num_samples());
+      for (int i = 0; i < input_.num_samples() / seq_len_; ++i) {
+        for (int j = 0; j < seq_len_; ++j) {
+          tmp_sizes[i * seq_len_ + j] = param_provider_->OutputSizes()[i];
+        }
+      }
+    }
+    span<const TensorShape<spatial_ndim>> out_sizes = is_sequence_ ? make_span(tmp_sizes) :
+                                                        param_provider_->OutputSizes();
     auto &req = kmgr_.Setup<Kernel>(
         0, context,
         input_,
         param_provider_->ParamsGPU(),
-        param_provider_->OutputSizes(),
+        out_sizes,
         param_provider_->InterpTypes(),
         param_provider_->Border());
-    shape = req.output_shapes[0];
+    if (is_sequence_) {
+      auto &input = ws.template Input<Backend>(0);
+      TensorListShape<4> new_shape;
+      new_shape.resize(input.num_samples());
+      for (int i = 0; i < input.num_samples(); ++i) {
+        new_shape.set_tensor_shape(i, shape_cat(seq_len_, req.output_shapes[0][i * seq_len_]));
+      }
+      shape = new_shape;
+    } else {
+      shape = req.output_shapes[0];
+    }
   }
 
   void SetupBackend(TensorListShape<> &shape, const HostWorkspace &ws) {
     int threads = ws.HasThreadPool() ? ws.GetThreadPool().NumThreads() : 1;
-    int N = input_.num_samples();
+    int N = is_sequence_ ? input_.num_samples() / seq_len_ : input_.num_samples();
     kmgr_.Resize<Kernel>(threads, N);
 
     shape.resize(N, input_.sample_dim());
     auto interp_types = param_provider_->InterpTypes();
 
     auto context = GetContext(ws);
-    for (int i = 0; i < N; i++) {
-      DALIInterpType interp_type = interp_types.size() > 1 ? interp_types[i] : interp_types[0];
-      auto &req = kmgr_.Setup<Kernel>(
-          i, context,
-          input_[i],
-          *param_provider_->ParamsCPU()(i),
-          param_provider_->OutputSizes()[i],
-          interp_type,
-          param_provider_->Border());
-      shape.set_tensor_shape(i, req.output_shapes[0][0]);
+    for (int i = 0; i < input_.num_samples(); i++) {
+      for (int j = 0; j < seq_len_; ++j) {
+        DALIInterpType interp_type = interp_types.size() > 1 ? interp_types[i] : interp_types[0];
+        auto &req = kmgr_.Setup<Kernel>(
+            i, context,
+            input_[i * seq_len_ + j],
+            *param_provider_->ParamsCPU()(i),
+            param_provider_->OutputSizes()[i],
+            interp_type,
+            param_provider_->Border());
+        if (j == 0 && is_sequence_) {
+          shape.set_tensor_shape(i, shape_cat(seq_len_, req.output_shapes[0][0]));
+        } else {
+          shape.set_tensor_shape(i, req.output_shapes[0][0]);
+        }
+      }
     }
   }
 
 
   void RunBackend(HostWorkspace &ws) {
     param_provider_->SetContext(Spec(), ws);
+    int N = is_sequence_ ? input_.num_samples() / seq_len_ : input_.num_samples();
+    auto &org_output = ws.template Output<Backend>(0);
 
-    auto output = view<OutputType, tensor_ndim>(ws.template Output<Backend>(0));
-    input_ = view<const InputType,  tensor_ndim>(ws.template Input<Backend>(0));
+    TensorListShape<tensor_ndim> new_shape;
+    if (is_sequence_) {
+      auto num_samples = N;
+      auto sh = org_output.shape();
+
+      new_shape.resize(input_.num_samples());
+      for (int i = 0; i < num_samples; ++i) {
+        const auto &sample_shape = sh[i];
+        for (int j = 0; j < seq_len_; ++j) {
+          new_shape.set_tensor_shape(i * seq_len_ + j,
+                                     {sample_shape.begin()+1, sample_shape.end()});
+        }
+      }
+    }
+    auto output = is_sequence_ ? reinterpret<OutputType, tensor_ndim>(
+                                  view<const OutputType, 4>(org_output), new_shape, true) :
+                  view<OutputType, tensor_ndim>(org_output);
 
     ThreadPool &pool = ws.GetThreadPool();
     auto interp_types = param_provider_->InterpTypes();
-
-    for (int i = 0; i < input_.num_samples(); i++) {
-      pool.AddWork([&, i](int tid) {
-        DALIInterpType interp_type = interp_types.size() > 1 ? interp_types[i] : interp_types[0];
-        auto context = GetContext(ws);
-        kmgr_.Run<Kernel>(
-            tid, i, context,
-            output[i],
-            input_[i],
-            *param_provider_->ParamsCPU()(i),
-            param_provider_->OutputSizes()[i],
-            interp_type,
-            param_provider_->Border());
-      }, output.shape.tensor_size(i));
+    for (int i = 0; i < N; i++) {
+      for (int j = 0; j < seq_len_; ++j) {
+        pool.AddWork([&, i, j](int tid) {
+          DALIInterpType interp_type = interp_types.size() > 1 ? interp_types[i] : interp_types[0];
+          auto context = GetContext(ws);
+          kmgr_.Run<Kernel>(
+              tid, i, context,
+              output[i*seq_len_ + j],
+              input_[i*seq_len_ + j],
+              *param_provider_->ParamsCPU()(i),
+              param_provider_->OutputSizes()[i],
+              interp_type,
+              param_provider_->Border());
+        }, output.shape.tensor_size(i));
+      }
     }
     pool.RunAll();
+    if (is_sequence_) {
+      auto num_samples = N / seq_len_;
+      auto sh = org_output.shape();
+      TensorListShape<tensor_ndim + 1> new_shape;
+
+      new_shape.resize(num_samples);
+      for (int i = 0; i < num_samples; ++i) {
+        const auto &sample_shape = sh[i * seq_len_];
+        new_shape.set_tensor_shape(i, shape_cat(seq_len_, sample_shape));
+      }
+      org_output.Resize(new_shape);
+    }
   }
 
   void RunBackend(DeviceWorkspace &ws) {
     param_provider_->SetContext(Spec(), ws);
+    int N = is_sequence_ ? input_.num_samples() / seq_len_ : input_.num_samples();
+    auto &org_output = ws.template Output<Backend>(0);
 
-    auto output = view<OutputType, tensor_ndim>(ws.template Output<Backend>(0));
-    input_ = view<const InputType,  tensor_ndim>(ws.template Input<Backend>(0));
+    TensorListShape<tensor_ndim> new_shape;
+    if (is_sequence_) {
+      auto num_samples = N;
+      auto sh = org_output.shape();
+
+      new_shape.resize(input_.num_samples());
+      for (int i = 0; i < num_samples; ++i) {
+        const auto &sample_shape = sh[i];
+        for (int j = 0; j < seq_len_; ++j) {
+          new_shape.set_tensor_shape(i * seq_len_ + j,
+                                     {sample_shape.begin()+1, sample_shape.end()});
+        }
+      }
+    }
+    auto output = is_sequence_ ? reinterpret<OutputType, tensor_ndim>(
+                                  view<const OutputType, 4>(org_output), new_shape, true) :
+                  view<OutputType, tensor_ndim>(org_output);
+
     auto context = GetContext(ws);
     kmgr_.Run<Kernel>(
         0, 0, context,
@@ -191,6 +289,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
         param_provider_->OutputSizes(),
         param_provider_->InterpTypes(),
         param_provider_->Border());
+
   }
 };
 
@@ -257,7 +356,10 @@ class Warp : public Operator<Backend> {
   }
 
   int SpatialDim() const {
-    return input_shape_.sample_dim()-1;
+    if (is_sequence_)
+      return input_shape_.sample_dim()-2;
+    else
+      return input_shape_.sample_dim()-1;
   }
 
   bool BorderClamp() const {
@@ -270,6 +372,10 @@ class Warp : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &outputs, const Workspace &ws) override {
     outputs.resize(1);
+
+    auto &input = ws.template Input<Backend>(0);
+    auto layout = input.GetLayout();
+    is_sequence_  = layout.find('F') == 0;
 
     DALIDataType out_type;
     SetupWarp(outputs[0].shape, out_type, ws);
@@ -345,6 +451,7 @@ class Warp : public Operator<Backend> {
   TensorListShape<> input_shape_;
   std::unique_ptr<OpImplInterface<Backend>> impl_;
   bool border_clamp_;
+  bool is_sequence_;
 };
 
 
