@@ -89,8 +89,8 @@ py::list py_shape(const Tensor<Backend> &t) {
 }
 
 template <typename Backend>
-py::list py_shape_list(const TensorList<Backend> &tl) {
-  py::list ret(tl.shape().size());
+std::vector<py::tuple> py_shape_list(const TensorList<Backend> &tl) {
+  std::vector<py::tuple> ret(tl.shape().size());
   for (int i = 0; i < tl.shape().size(); ++i) {
     ret[i] = py::tuple(as_py_list(tl.tensor_shape(i)));
   }
