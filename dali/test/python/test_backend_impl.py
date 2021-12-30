@@ -149,4 +149,6 @@ def test_tensorlist_shape():
     for shape in shapes:
         arr = np.empty(shape)
         tl = TensorListCPU(arr, 'NHWC')
+        tl_gpu = tl._as_gpu()
         assert tl.shape() == [shape[1:]] * shape[0]
+        assert tl_gpu.shape() == [shape[1:]] * shape[0]
