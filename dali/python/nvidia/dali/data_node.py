@@ -57,6 +57,9 @@ class DataNode(object):
         self.device = device
         self.source = source
 
+    def __repr__(self):
+        return f'DataNode(name="{self.name}", device="{self.device}", source={self.source})'
+
 
     # Note: Regardless of whether we want the cpu or gpu version
     # of a tensor, we keep the source argument the same so that

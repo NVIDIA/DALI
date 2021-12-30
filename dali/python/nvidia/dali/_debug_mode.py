@@ -32,6 +32,12 @@ class DataNodeDebug(_DataNode):
         super().__init__(name, device, source)
         self._data = data
 
+    def __repr__(self):
+        return f'DataNodeDebug(data={self._data}, name="{self.name}", device="{self.device}", source={self.source})'
+
+    def __str__(self):
+        return f'DataNodeDebug(data={self._data}, name="{self.name}", device="{self.device}", source={self.source}, dtype="{self._data[0].dtype()}", shape={"self.shape()"})'
+
     def gpu(self):
         if self.device == 'gpu':
             return self
