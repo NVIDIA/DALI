@@ -261,11 +261,15 @@ class SliceGPU {
       total_volume += volume(args.shape);
     }
 
-    unsigned min_blocks = 4 * GetSmCount();
-    block_size_ = kMaxBlockSize;
-    while (total_volume / block_size_ < min_blocks && block_size_ > kMinBlockSize) {
-      block_size_ /= 2;
-    }
+    int blocksPerSM;
+    CUDA_CALL(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocksPerSM,
+              detail::SliceKernel<OutputType, InputType, Dims, false>, kBlockDim, 0));
+    unsigned blocks_in_wave = blocksPerSM * GetSmCount();
+    unsigned waves = div_ceil(total_volume, kMaxBlockSize * blocks_in_wave);
+    unsigned values_per_thread = div_ceil(total_volume, blocks_in_wave * kBlockDim * waves);
+    block_size_ = values_per_thread * kBlockDim;
+    if (block_size_ < kMinBlockSize) block_size_ = kMinBlockSize;
+    if (block_size_ > kMaxBlockSize) block_size_ = kMaxBlockSize;
 
     block_count_ = 0;
     for (auto sample_size : sample_sizes) {
