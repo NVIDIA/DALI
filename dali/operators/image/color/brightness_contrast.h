@@ -26,6 +26,8 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/format.h"
 
+#define BRIGHTNESS_CONTRAST_SUPPORTED_TYPES (uint8_t, int16_t, int32_t, float)
+
 namespace dali {
 
 namespace brightness_contrast {
@@ -150,6 +152,9 @@ class BrightnessContrastCpu : public BrightnessContrastOp<CPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
 
   void RunImpl(workspace_t<CPUBackend> &ws) override;
+
+  template <typename OutputType, typename InputType>
+  void RunImplHelper(workspace_t<CPUBackend> &ws);
 };
 
 
@@ -165,6 +170,10 @@ class BrightnessContrastGpu : public BrightnessContrastOp<GPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
 
   void RunImpl(workspace_t<GPUBackend> &ws) override;
+
+  template <typename OutputType, typename InputType>
+  void RunImplHelper(workspace_t<GPUBackend> &ws);
+
   std::vector<float> addends_, multipliers_;
 };
 

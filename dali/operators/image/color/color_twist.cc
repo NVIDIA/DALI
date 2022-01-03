@@ -153,10 +153,8 @@ bool ColorTwistCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWo
   output_desc.resize(1);
   DetermineTransformation(ws);
   auto sh = input.shape();
-  auto layout = input.GetLayout();
-  assert(ImageLayoutInfo::IsChannelLast(layout));
-  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
-    TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
+  TYPE_SWITCH(input.type(), type2id, InputType, COLOR_TWIST_SUPPORTED_TYPES, (
+    TYPE_SWITCH(output_type_, type2id, OutputType, COLOR_TWIST_SUPPORTED_TYPES, (
       {
         using Kernel = TheKernel<OutputType, InputType>;
         kernel_manager_.Initialize<Kernel>();
@@ -169,35 +167,42 @@ bool ColorTwistCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWo
 }
 
 
-void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+template <typename OutputType, typename InputType>
+void ColorTwistCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);
   auto &output = ws.template Output<CPUBackend>(0);
   auto out_shape = output.shape();
   output.SetLayout(input.GetLayout());
   auto &tp = ws.GetThreadPool();
-  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
-    TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
+  using Kernel = TheKernel<OutputType, InputType>;
+  TensorListShape<> sh = input.shape();
+  auto num_dims = sh.sample_dim();
+  for (int i = 0; i < input.shape().num_samples(); i++) {
+    auto sample_shape = out_shape.tensor_shape_span(i);
+    auto vol = volume(sample_shape.begin() + static_cast<int>(num_dims != 3),
+                    sample_shape.end());
+    int num_frames = num_dims == 3 ? 1 : sh[i][0];
+    for (int frame_id = 0; frame_id < num_frames; frame_id++) {
+      tp.AddWork([&, i, frame_id, num_dims](int thread_id) {
+      kernels::KernelContext ctx;
+      auto tvin = num_dims == 3 ? view<const InputType, 3>(input[i]) :
+                                  subtensor(view<const InputType, 4>(input[i]), frame_id);
+      auto tvout = num_dims == 3 ? view<OutputType, 3>(output[i]) :
+                                  subtensor(view<OutputType, 4>(output[i]), frame_id);
+      kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin,
+                                  tmatrices_[i], toffsets_[i]);
+      }, vol);
+    }
+  }
+}
+
+void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+  const auto &input = ws.template Input<CPUBackend>(0);
+  auto &tp = ws.GetThreadPool();
+  TYPE_SWITCH(input.type(), type2id, InputType, COLOR_TWIST_SUPPORTED_TYPES, (
+    TYPE_SWITCH(output_type_, type2id, OutputType, COLOR_TWIST_SUPPORTED_TYPES, (
       {
-        using Kernel = TheKernel<OutputType, InputType>;
-        TensorListShape<> sh = input.shape();
-        auto num_dims = sh.sample_dim();
-        int num_frames = num_dims == 3 ? 1 : sh[0][0];
-        for (int i = 0; i < input.shape().num_samples(); i++) {
-          auto sample_shape = out_shape.tensor_shape_span(i);
-          auto vol = volume(sample_shape.begin() + static_cast<int>(num_dims != 3),
-                            sample_shape.end());
-          for (int frame_id = 0; frame_id < num_frames; frame_id++) {
-              tp.AddWork([&, i, frame_id, num_dims](int thread_id) {
-              kernels::KernelContext ctx;
-              auto tvin = num_dims == 3 ? view<const InputType, 3>(input[i]) :
-                                          subtensor(view<const InputType, 4>(input[i]), frame_id);
-              auto tvout = num_dims == 3 ? view<OutputType, 3>(output[i]) :
-                                           subtensor(view<OutputType, 4>(output[i]), frame_id);
-              kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin,
-                                          tmatrices_[i], toffsets_[i]);
-              }, vol);
-          }
-        }
+        RunImplHelper<OutputType, InputType>(ws);
       }
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT

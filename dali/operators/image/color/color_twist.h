@@ -27,6 +27,8 @@
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
+#define COLOR_TWIST_SUPPORTED_TYPES (uint8_t, int16_t, int32_t, float, float16)
+
 namespace dali {
 namespace color {
 
@@ -198,6 +200,9 @@ class ColorTwistCpu : public ColorTwistBase<CPUBackend> {
                  const workspace_t<CPUBackend> &ws) override;
 
   void RunImpl(workspace_t<CPUBackend> &ws) override;
+
+  template <typename OutputType, typename InputType>
+  void RunImplHelper(workspace_t<CPUBackend> &ws);
 };
 
 
@@ -214,6 +219,9 @@ class ColorTwistGpu : public ColorTwistBase<GPUBackend> {
                  const workspace_t<GPUBackend> &ws) override;
 
   void RunImpl(workspace_t<GPUBackend> &ws) override;
+
+  template <typename OutputType, typename InputType>
+  void RunImplHelper(workspace_t<GPUBackend> &ws);
 };
 
 }  // namespace dali

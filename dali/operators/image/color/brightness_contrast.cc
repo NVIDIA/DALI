@@ -109,10 +109,8 @@ bool BrightnessContrastCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_desc.resize(1);
   AcquireArguments(ws);
   auto sh = input.shape();
-  auto layout = input.GetLayout();
-  assert(ImageLayoutInfo::IsChannelLast(layout));
-  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-    TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
+  TYPE_SWITCH(input.type(), type2id, InputType, BRIGHTNESS_CONTRAST_SUPPORTED_TYPES, (
+    TYPE_SWITCH(output_type_, type2id, OutputType, BRIGHTNESS_CONTRAST_SUPPORTED_TYPES, (
       {
         using Kernel = TheKernel<OutputType, InputType>;
         kernel_manager_.Initialize<Kernel>();
@@ -124,43 +122,49 @@ bool BrightnessContrastCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   return true;
 }
 
-
-void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+template <typename OutputType, typename InputType>
+void BrightnessContrastCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);
   auto &output = ws.template Output<CPUBackend>(0);
   output.SetLayout(input.GetLayout());
   auto out_shape = output.shape();
   auto& tp = ws.GetThreadPool();
-  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-    TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
+  using Kernel = TheKernel<OutputType, InputType>;
+  TensorListShape<> sh = input.shape();
+  auto num_dims = sh.sample_dim();
+  for (int sample_id = 0; sample_id < input.shape().num_samples(); sample_id++) {
+    int num_frames = num_dims == 3 ? 1 : sh[sample_id][0];
+    for (int frame_id = 0; frame_id < num_frames; frame_id++) {
+      auto sample_shape = out_shape.tensor_shape_span(sample_id);
+      auto vol = volume(sample_shape.begin() + static_cast<int>(num_dims != 3),
+                        sample_shape.end());
+      tp.AddWork([&, sample_id, frame_id, num_dims](int thread_id) {
+        kernels::KernelContext ctx;
+        auto tvin = num_dims == 3 ? view<const InputType, 3>(input[sample_id]) :
+                                    subtensor(view<const InputType, 4>(input[sample_id]),
+                                                                        frame_id);
+        auto tvout = num_dims == 3 ? view<OutputType, 3>(output[sample_id]) :
+                                      subtensor(view<OutputType, 4>(output[sample_id]),
+                                                                    frame_id);
+        float add, mul;
+        OpArgsToKernelArgs<OutputType, InputType>(add, mul,
+                                                  brightness_[sample_id],
+                                                  brightness_shift_[sample_id],
+                                                  contrast_[sample_id]);
+        kernel_manager_.Run<Kernel>(thread_id, 0, ctx, tvout, tvin,
+                                    add, mul);
+      }, vol);
+    }
+  }
+}
+
+void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+  const auto &input = ws.template Input<CPUBackend>(0);
+  auto& tp = ws.GetThreadPool();
+  TYPE_SWITCH(input.type(), type2id, InputType, BRIGHTNESS_CONTRAST_SUPPORTED_TYPES, (
+    TYPE_SWITCH(output_type_, type2id, OutputType, BRIGHTNESS_CONTRAST_SUPPORTED_TYPES, (
       {
-        using Kernel = TheKernel<OutputType, InputType>;
-        TensorListShape<> sh = input.shape();
-        auto num_dims = sh.sample_dim();
-        int num_frames = num_dims == 3 ? 1 : sh[0][0];
-        for (int sample_id = 0; sample_id < input.shape().num_samples(); sample_id++) {
-          for (int frame_id = 0; frame_id < num_frames; frame_id++) {
-            auto sample_shape = out_shape.tensor_shape_span(sample_id);
-            auto vol = volume(sample_shape.begin() + static_cast<int>(num_dims != 3),
-                              sample_shape.end());
-            tp.AddWork([&, sample_id, frame_id, num_dims](int thread_id) {
-              kernels::KernelContext ctx;
-              auto tvin = num_dims == 3 ? view<const InputType, 3>(input[sample_id]) :
-                                          subtensor(view<const InputType, 4>(input[sample_id]),
-                                                                             frame_id);
-              auto tvout = num_dims == 3 ? view<OutputType, 3>(output[sample_id]) :
-                                           subtensor(view<OutputType, 4>(output[sample_id]),
-                                                                         frame_id);
-              float add, mul;
-              OpArgsToKernelArgs<OutputType, InputType>(add, mul,
-                                                        brightness_[sample_id],
-                                                        brightness_shift_[sample_id],
-                                                        contrast_[sample_id]);
-              kernel_manager_.Run<Kernel>(thread_id, 0, ctx, tvout, tvin,
-                                          add, mul);
-            }, vol);
-          }
-        }
+        RunImplHelper<OutputType, InputType>(ws);
       }
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
