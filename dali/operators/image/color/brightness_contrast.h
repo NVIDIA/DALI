@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -150,16 +150,6 @@ class BrightnessContrastCpu : public BrightnessContrastOp<CPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
 
   void RunImpl(workspace_t<CPUBackend> &ws) override;
-
- private:
-  template <typename Kernel, typename InputType>
-  void CallSetup(const TensorVector<CPUBackend> &input) {
-    kernels::KernelContext ctx;
-    TensorListShape<> sh = input.shape();
-    assert(static_cast<size_t>(sh.num_samples()) == brightness_.size());
-    // there is no need to call setup for the CPU as besides ROI adjustment it doesn't do anything
-    // in the case of this operator ROI is not used
-  }
 };
 
 
@@ -175,21 +165,6 @@ class BrightnessContrastGpu : public BrightnessContrastOp<GPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
 
   void RunImpl(workspace_t<GPUBackend> &ws) override;
-
- private:
-  template <typename Kernel, typename InputType>
-  void CallSetup(const DeviceWorkspace &ws, const TensorList<GPUBackend> &tl) {
-    kernels::KernelContext ctx;
-    ctx.gpu.stream = ws.stream();
-    const auto &input = ws.template Input<GPUBackend>(0);
-    auto sh = input.shape();
-    auto ndim = sh.sample_dim();
-    DALI_ENFORCE(ndim >= 3 && ndim <= 4, "Unsupported number of dims");
-    const auto tvin = ndim == 3 ? view<const InputType, 3>(tl) :
-                                  reinterpret<const InputType, 3>(view<const InputType, 4>(tl),
-                                    collapse_dim(view<const InputType, 4>(tl).shape, 0), true);
-    kernel_manager_.Setup<Kernel>(0, ctx, tvin, brightness_, contrast_);
-  }
   std::vector<float> addends_, multipliers_;
 };
 

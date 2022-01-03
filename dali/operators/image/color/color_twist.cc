@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -75,7 +75,7 @@ DALI_SCHEMA(Hue)
     .AddOptionalArg("hue",
         R"code(The hue change in degrees.)code", 0.f, true)
     .AddParent("ColorTransformBase")
-    .InputLayout(0, {"HWC", "FHWC"})
+    .InputLayout(0, {"HWC", "FHWC", "DHWC"})
     .AllowSequences()
     .SupportVolumetric();
 
@@ -94,12 +94,12 @@ Example values:
 - `1` - No change to image's saturation.
 )code", 1.f, true)
     .AddParent("ColorTransformBase")
-    .InputLayout(0, {"HWC", "FHWC"})
+    .InputLayout(0, {"HWC", "FHWC", "DHWC"})
     .AllowSequences()
     .SupportVolumetric();
 
 DALI_SCHEMA(ColorTwist)
-    .DocStr(R"code(Adjusts hue, saturation and brightness of the image.)code")
+    .DocStr(R"code(Adjusts hue, saturation, brightness and contrast of the image.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("hue",
@@ -137,7 +137,7 @@ Example values:
 * `2` - Increase brightness twice.
 )code", 1.f, true)
     .AddParent("ColorTransformBase")
-    .InputLayout(0, {"HWC", "FHWC"})
+    .InputLayout(0, {"HWC", "FHWC", "DHWC"})
     .AllowSequences()
     .SupportVolumetric();
 
@@ -153,19 +153,14 @@ bool ColorTwistCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWo
   output_desc.resize(1);
   DetermineTransformation(ws);
   auto sh = input.shape();
-  auto num_dims = sh.sample_dim();
   auto layout = input.GetLayout();
-  int c_dim = layout.find('C');
-  DALI_ENFORCE(c_dim == num_dims - 1 || layout.empty(), make_string("Only channel last or empty "
-              "layouts are supported, received ", layout, " instead"));
-  DALI_ENFORCE(num_dims >= 3 && num_dims <= 4, make_string("Only 3 and 4 dimensions are "
-              "supported received ", num_dims));
+  assert(ImageLayoutInfo::IsChannelLast(layout));
   TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
     TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
       {
         using Kernel = TheKernel<OutputType, InputType>;
         kernel_manager_.Initialize<Kernel>();
-        CallSetup<Kernel, InputType>(input);
+        assert(static_cast<size_t>(sh.num_samples()) == tmatrices_.size());
         output_desc[0] = {sh, output_type_};
       }
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT

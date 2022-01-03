@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -101,10 +101,10 @@ def check(input, out_cpu, out_gpu, H, S, brightness, contrast, out_dtype):
     assert np.allclose(out_cpu, ref, rel_err, abs_err)
     assert np.allclose(out_gpu, ref, rel_err, abs_err)
 
-def check_ref(inp_dtype, out_dtype, is_video):
+def check_ref(inp_dtype, out_dtype, has_3_dims):
     batch_size = 32
     n_iters = 8
-    shape = (128, 32, 3) if not is_video else (random.randint(2, 5), 128, 32, 3)
+    shape = (128, 32, 3) if not has_3_dims else (random.randint(2, 5), 128, 32, 3)
     in_dtype = dali_type_to_np(inp_dtype)
     ri1 = RandomDataIterator(batch_size, shape=shape, dtype=in_dtype)
     pipe = ColorTwistPipeline(seed=2139, batch_size=batch_size, num_threads=4, device_id=0, data_iterator=ri1,
@@ -120,5 +120,5 @@ def check_ref(inp_dtype, out_dtype, is_video):
 def test_color_twist():
     for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
         for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
-            is_video = random.choice([False, True])
-            yield check_ref, inp_dtype, out_dtype, is_video
+            has_3_dims = random.choice([False, True])
+            yield check_ref, inp_dtype, out_dtype, has_3_dims

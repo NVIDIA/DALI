@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,13 +38,8 @@ bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   AcquireArguments(ws);
   int N = input.num_samples();
   auto sh = input.shape();
-  auto num_dims = sh.sample_dim();
   auto layout = input.GetLayout();
-  int c_dim = layout.find('C');
-  DALI_ENFORCE(c_dim == num_dims - 1 || layout.empty(), make_string("Only channel last or empty "
-              "layouts are supported, received ", layout, " instead"));
-  DALI_ENFORCE(num_dims >= 3 && num_dims <= 4, make_string("Only 3 and 4 dimensions are "
-              "supported received ", num_dims));
+  assert(ImageLayoutInfo::IsChannelLast(layout));
   addends_.resize(N);
   multipliers_.resize(N);
   TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
@@ -52,7 +47,14 @@ bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
       {
         using Kernel = TheKernel<OutputType, InputType>;
         kernel_manager_.Initialize<Kernel>();
-        CallSetup<Kernel, InputType>(ws, input);
+        kernels::KernelContext ctx;
+        ctx.gpu.stream = ws.stream();
+        auto ndim = sh.sample_dim();
+        const auto tvin = ndim == 3 ? view<const InputType, 3>(input) :
+                          reinterpret<const InputType, 3>(view<const InputType, 4>(input),
+                                            collapse_dim(view<const InputType, 4>(input).shape, 0),
+                                                         true);
+        kernel_manager_.Setup<Kernel>(0, ctx, tvin, brightness_, contrast_);
         output_desc[0] = {input.shape(), output_type_};
       }
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
@@ -83,7 +85,7 @@ void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
         auto tvout = num_dims == 3 ? view<OutputType, 3>(output):
                                      reinterpret<OutputType, 3>(view<OutputType, 4>(output),
                                        collapse_dim(view<OutputType, 4>(output).shape, 0), true);
-        kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, tvout, tvin,
+        kernel_manager_.Run<Kernel>(0, 0, ctx, tvout, tvin,
                                     addends_, multipliers_);
       }
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT

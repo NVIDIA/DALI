@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,7 +49,8 @@ the type.)code",
 
 If not set, the input type is used.)code", DALI_NO_TYPE)
     .AllowSequences()
-    .SupportVolumetric();
+    .SupportVolumetric()
+    .InputLayout({"FHWC", "DHWC", "HWC"});
 
 DALI_SCHEMA(Contrast)
     .DocStr(R"code(Adjusts the contrast of the images.
@@ -74,7 +75,8 @@ the half of the input type's positive range (or 0.5 for ``float``) is used.)code
 
 If not set, the input type is used.)code", DALI_NO_TYPE)
     .AllowSequences()
-    .SupportVolumetric();
+    .SupportVolumetric()
+    .InputLayout({"FHWC", "DHWC", "HWC"});
 
 DALI_SCHEMA(BrightnessContrast)
     .AddParent("Brightness")
@@ -91,7 +93,8 @@ This operator can also change the type of data.)code")
     .NumInput(1)
     .NumOutput(1)
     .AllowSequences()
-    .SupportVolumetric();
+    .SupportVolumetric()
+    .InputLayout({"FHWC", "DHWC", "HWC"});
 
 DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrastCpu, CPU)
 DALI_REGISTER_OPERATOR(Brightness, BrightnessContrastCpu, CPU);
@@ -106,19 +109,14 @@ bool BrightnessContrastCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_desc.resize(1);
   AcquireArguments(ws);
   auto sh = input.shape();
-  auto num_dims = sh.sample_dim();
   auto layout = input.GetLayout();
-  int c_dim = layout.find('C');
-  DALI_ENFORCE(c_dim == num_dims - 1 || layout.empty(), make_string("Only channel last or empty "
-              "layouts are supported, received ", layout, " instead"));
-  DALI_ENFORCE(num_dims >= 3 && num_dims <= 4, make_string("Only 3 and 4 dimensions are "
-              "supported received ", num_dims));
+  assert(ImageLayoutInfo::IsChannelLast(layout));
   TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
     TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
       {
         using Kernel = TheKernel<OutputType, InputType>;
         kernel_manager_.Initialize<Kernel>();
-        CallSetup<Kernel, InputType>(input);
+        assert(static_cast<size_t>(sh.num_samples()) == brightness_.size());
         output_desc[0] = {sh, output_type_};
       }
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
