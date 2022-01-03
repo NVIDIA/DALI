@@ -585,6 +585,19 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
   return ptr;
 }
 
+template <typename Backend>
+std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_of_tensors, string &layout) {
+  auto tl = std::make_shared<TensorList<Backend>>(list_of_tensors.size());
+  TensorVector<Backend> tv(list_of_tensors.size());
+  for (size_t i = 0; i < list_of_tensors.size(); ++i) {
+    auto &t = list_of_tensors[i].cast<Tensor<Backend>&>();
+    tv[i] = std::move(t);
+  }
+  tl->Copy(tv, 0);
+  tl->SetLayout(layout);
+  return tl;
+}
+
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
 template <typename Backend>
 py::tuple TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
@@ -675,6 +688,19 @@ void ExposeTensorList(py::module &m) {
       is_pinned : bool
             If provided memory is page-locked (pinned)
       )code")
+    .def(py::init([](py::list &list_of_tensors, string layout = "") {
+        return TensorListFromListOfTensors<CPUBackend>(list_of_tensors, layout);
+      }),
+        "list_of_tensors"_a,
+        "layout"_a = "",
+        R"code(
+        List of tensors residing in the CPU memory.
+
+        list_of_tensors : [TensorCPU]
+              Python list of TensorCPU objects
+        layout : str
+              Layout of the data
+        )code")
     .def("_as_gpu", [](TensorList<CPUBackend> &t) {
           auto ret = std::make_shared<TensorList<GPUBackend>>();
           int dev = -1;
@@ -888,6 +914,19 @@ void ExposeTensorList(py::module &m) {
       device_id : int
             Device of where this tensor resides. If not provided, the current device is used.
       )code")
+    .def(py::init([](py::list &list_of_tensors, string layout = "") {
+        return TensorListFromListOfTensors<GPUBackend>(list_of_tensors, layout);
+      }),
+        "list_of_tensors"_a,
+        "layout"_a = "",
+        R"code(
+        List of tensors residing in the GPU memory.
+
+        list_of_tensors : [TensorGPU]
+              Python list of TensorGPU objects
+        layout : str
+              Layout of the data
+        )code")
     .def(py::init([]() {
           // Construct a default TensorList on GPU
           return new TensorList<GPUBackend>;

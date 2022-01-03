@@ -685,9 +685,8 @@ provided memory is copied to the internal buffer.
     # Wrapper around external_source to switch between standard and debug mode.
     current_pipeline = _PipelineDebug.current()
     if getattr(current_pipeline, '_debug_on', False):
-        return current_pipeline._external_source(_external_source, source, num_outputs, cycle=cycle, name=name,
-                                                 device=device, layout=layout, dtype=dtype, cuda_stream=cuda_stream,
-                                                 use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
+        return current_pipeline._external_source(source=source, num_outputs=num_outputs, cycle=cycle, name=name,
+                                                 layout=layout, batch=batch, **kwargs)
     else:
         return _external_source(source, num_outputs, cycle=cycle, name=name, device=device, layout=layout, dtype=dtype,
                                 cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
