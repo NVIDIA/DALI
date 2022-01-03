@@ -896,6 +896,19 @@ void ExposeTensorList(py::module &m) {
         }),
       "tl"_a,
       "layout"_a = py::none())
+    .def(py::init([](py::list &list_of_tensors, string layout = "") {
+        return TensorListFromListOfTensors<GPUBackend>(list_of_tensors, layout);
+      }),
+        "list_of_tensors"_a,
+        "layout"_a = "",
+        R"code(
+        List of tensors residing in the GPU memory.
+
+        list_of_tensors : [TensorGPU]
+              Python list of TensorGPU objects
+        layout : str
+              Layout of the data
+        )code")
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
           auto t = std::make_shared<TensorList<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
@@ -914,19 +927,6 @@ void ExposeTensorList(py::module &m) {
       device_id : int
             Device of where this tensor resides. If not provided, the current device is used.
       )code")
-    .def(py::init([](py::list &list_of_tensors, string layout = "") {
-        return TensorListFromListOfTensors<GPUBackend>(list_of_tensors, layout);
-      }),
-        "list_of_tensors"_a,
-        "layout"_a = "",
-        R"code(
-        List of tensors residing in the GPU memory.
-
-        list_of_tensors : [TensorGPU]
-              Python list of TensorGPU objects
-        layout : str
-              Layout of the data
-        )code")
     .def(py::init([]() {
           // Construct a default TensorList on GPU
           return new TensorList<GPUBackend>;

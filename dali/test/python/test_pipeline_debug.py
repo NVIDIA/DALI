@@ -218,7 +218,7 @@ def _test_external_source_debug(source, batch):
             x = np.random.rand(8, 5, 1)
             pipe_debug.feed_input('input', x)
             pipe_standard.feed_input('input', x)
-    
+
     compare_pipelines(pipe_standard, pipe_debug, 8, n_iters)
 
 
