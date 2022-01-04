@@ -586,7 +586,8 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
 }
 
 template <typename Backend>
-std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_of_tensors, string &layout) {
+std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_of_tensors,
+                                                                 string &layout) {
   auto tl = std::make_shared<TensorList<Backend>>(list_of_tensors.size());
   TensorVector<Backend> tv(list_of_tensors.size());
   for (size_t i = 0; i < list_of_tensors.size(); ++i) {
@@ -691,16 +692,16 @@ void ExposeTensorList(py::module &m) {
     .def(py::init([](py::list &list_of_tensors, string layout = "") {
         return TensorListFromListOfTensors<CPUBackend>(list_of_tensors, layout);
       }),
-        "list_of_tensors"_a,
-        "layout"_a = "",
-        R"code(
-        List of tensors residing in the CPU memory.
+      "list_of_tensors"_a,
+      "layout"_a = "",
+      R"code(
+      List of tensors residing in the CPU memory.
 
-        list_of_tensors : [TensorCPU]
-              Python list of TensorCPU objects
-        layout : str
-              Layout of the data
-        )code")
+      list_of_tensors : [TensorCPU]
+            Python list of TensorCPU objects
+      layout : str
+            Layout of the data
+      )code")
     .def("_as_gpu", [](TensorList<CPUBackend> &t) {
           auto ret = std::make_shared<TensorList<GPUBackend>>();
           int dev = -1;
@@ -899,16 +900,16 @@ void ExposeTensorList(py::module &m) {
     .def(py::init([](py::list &list_of_tensors, string layout = "") {
         return TensorListFromListOfTensors<GPUBackend>(list_of_tensors, layout);
       }),
-        "list_of_tensors"_a,
-        "layout"_a = "",
-        R"code(
-        List of tensors residing in the GPU memory.
+      "list_of_tensors"_a,
+      "layout"_a = "",
+      R"code(
+      List of tensors residing in the GPU memory.
 
-        list_of_tensors : [TensorGPU]
-              Python list of TensorGPU objects
-        layout : str
-              Layout of the data
-        )code")
+      list_of_tensors : [TensorGPU]
+            Python list of TensorGPU objects
+      layout : str
+            Layout of the data
+      )code")
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
           auto t = std::make_shared<TensorList<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
