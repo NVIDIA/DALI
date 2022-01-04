@@ -95,7 +95,13 @@ class ColorTwistBase : public Operator<Backend> {
   explicit ColorTwistBase(const OpSpec &spec)
       : Operator<Backend>(spec),
         output_type_arg_(spec.GetArgument<DALIDataType>(color::kOutputType)),
-        output_type_(DALI_NO_TYPE) {}
+        output_type_(DALI_NO_TYPE) {
+    if (std::is_same<Backend, GPUBackend>::value) {
+      kernel_manager_.Resize(1, 1);
+    } else {
+      kernel_manager_.Resize(num_threads_, max_batch_size_);
+    }
+  }
 
   bool CanInferOutputs() const override {
     return true;
@@ -143,14 +149,6 @@ class ColorTwistBase : public Operator<Backend> {
     }
   }
 
-  void KMgrResize(int num_threads, int batch_size) {
-    if (std::is_same<Backend, GPUBackend>::value) {
-      kernel_manager_.Resize(1, 1);
-    } else {
-      kernel_manager_.Resize(num_threads, batch_size);
-    }
-  }
-
   /**
    * @brief Creates transformation matrices based on given args
    */
@@ -168,6 +166,22 @@ class ColorTwistBase : public Operator<Backend> {
                Yiq2Rgb * hue_mat(hue_[i]) * sat_mat(saturation_[i]) * mat3(value_[i]) * Rgb2Yiq;
       toffsets_[i] = (half_range_ - half_range_ * contrast_[i]) * brightness_[i];
     }
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                 const workspace_t<Backend> &ws) override {
+    const auto &input = ws.template Input<Backend>(0);
+    const auto &output = ws.template Output<Backend>(0);
+    DetermineTransformation(ws);
+    auto sh = input.shape();
+    auto num_dims = sh.sample_dim();
+    assert(static_cast<size_t>(sh.num_samples()) == tmatrices_.size());
+    auto layout = input.GetLayout();
+    assert(ImageLayoutInfo::IsChannelLast(layout));
+    assert(num_dims == 3 || num_dims == 4);
+    output_desc.resize(1);
+    output_desc[0] = {sh, output_type_};
+    return true;
   }
 
   USE_OPERATOR_MEMBERS();
@@ -196,9 +210,6 @@ class ColorTwistCpu : public ColorTwistBase<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(ColorTwistCpu);
 
  protected:
-  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                 const workspace_t<CPUBackend> &ws) override;
-
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
   template <typename OutputType, typename InputType>
@@ -215,9 +226,6 @@ class ColorTwistGpu : public ColorTwistBase<GPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(ColorTwistGpu);
 
  protected:
-  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                 const workspace_t<GPUBackend> &ws) override;
-
   void RunImpl(workspace_t<GPUBackend> &ws) override;
 
   template <typename OutputType, typename InputType>

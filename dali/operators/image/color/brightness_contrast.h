@@ -67,6 +67,12 @@ class BrightnessContrastOp : public Operator<Backend> {
         input_type_(DALI_NO_TYPE) {
     if (spec.HasArgument("contrast_center"))
       contrast_center_ = spec.GetArgument<float>("contrast_center");
+
+    if (std::is_same<Backend, GPUBackend>::value) {
+      kernel_manager_.Resize(1, 1);
+    } else {
+      kernel_manager_.Resize(num_threads_, max_batch_size_);
+    }
   }
 
   bool CanInferOutputs() const override {
@@ -117,12 +123,20 @@ class BrightnessContrastOp : public Operator<Backend> {
     output_type_ = output_type_arg_ != DALI_NO_TYPE ? output_type_arg_ : input_type_;
   }
 
-  void KMgrResize(int num_threads, int batch_size) {
-    if (std::is_same<Backend, GPUBackend>::value) {
-      kernel_manager_.Resize(1, 1);
-    } else {
-      kernel_manager_.Resize(num_threads, batch_size);
-    }
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                 const workspace_t<Backend> &ws) override {
+    const auto &input = ws.template Input<Backend>(0);
+    const auto &output = ws.template Output<Backend>(0);
+    AcquireArguments(ws);
+
+    auto sh = input.shape();
+    auto layout = input.GetLayout();
+    assert(ImageLayoutInfo::IsChannelLast(layout));
+    auto num_dims = sh.sample_dim();
+    assert(num_dims == 3 || num_dims == 4);
+    output_desc.resize(1);
+    output_desc[0] = {input.shape(), output_type_};
+    return true;
   }
 
   USE_OPERATOR_MEMBERS();
@@ -149,8 +163,6 @@ class BrightnessContrastCpu : public BrightnessContrastOp<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(BrightnessContrastCpu);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
-
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
   template <typename OutputType, typename InputType>
@@ -167,8 +179,6 @@ class BrightnessContrastGpu : public BrightnessContrastOp<GPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(BrightnessContrastGpu);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
-
   void RunImpl(workspace_t<GPUBackend> &ws) override;
 
   template <typename OutputType, typename InputType>

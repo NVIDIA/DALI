@@ -17,47 +17,11 @@
 #include "dali/kernels/imgproc/pointwise/linear_transformation_gpu.h"
 
 namespace dali {
-namespace {
-
-template <typename Out, typename In>
-using TheKernel = kernels::LinearTransformationGpu<Out, In, 3, 3, 2>;
-
-}  // namespace
 
 DALI_REGISTER_OPERATOR(Hsv, ColorTwistGpu, GPU)
 DALI_REGISTER_OPERATOR(Hue, ColorTwistGpu, GPU);
 DALI_REGISTER_OPERATOR(Saturation, ColorTwistGpu, GPU);
 DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistGpu, GPU);
-
-bool ColorTwistGpu::SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) {
-  KMgrResize(num_threads_, max_batch_size_);
-  const auto &input = ws.template Input<GPUBackend>(0);
-  output_desc.resize(1);
-  DetermineTransformation(ws);
-  auto sh = input.shape();
-  auto layout = input.GetLayout();
-  assert(ImageLayoutInfo::IsChannelLast(layout));
-  TYPE_SWITCH(input.type(), type2id, InputType, COLOR_TWIST_SUPPORTED_TYPES, (
-    TYPE_SWITCH(output_type_, type2id, OutputType, COLOR_TWIST_SUPPORTED_TYPES, (
-      {
-        using Kernel = TheKernel<OutputType, InputType>;
-        kernel_manager_.Initialize<Kernel>();
-        kernels::KernelContext ctx;
-        ctx.gpu.stream = ws.stream();
-        auto ndim = sh.sample_dim();
-        DALI_ENFORCE(ndim >= 3 && ndim <= 4, "Unsupported number of dims");
-        const auto tvin = ndim == 3 ? view<const InputType, 3>(input) :
-                          reinterpret<const InputType, 3>(view<const InputType, 4>(input),
-                                            collapse_dim(view<const InputType, 4>(input).shape, 0),
-                                                         true);
-        const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin, make_cspan(tmatrices_),
-                                                        make_cspan(toffsets_));
-        output_desc[0] = {input.shape(), output_type_};
-      }
-    ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
-  return true;
-}
 
 template <typename OutputType, typename InputType>
 void ColorTwistGpu::RunImplHelper(workspace_t<GPUBackend> &ws) {
@@ -66,17 +30,27 @@ void ColorTwistGpu::RunImplHelper(workspace_t<GPUBackend> &ws) {
   output.SetLayout(input.GetLayout());
   auto sh = input.shape();
   auto num_dims = sh.sample_dim();
-  using Kernel = TheKernel<OutputType, InputType>;
+
+  TensorListView<StorageGPU, const InputType, 3> tvin;
+  TensorListView<StorageGPU, OutputType, 3> tvout;
+  if (num_dims == 4) {
+    auto collapsed_sh = collapse_dim(view<const InputType, 4>(input).shape, 0);
+    tvin = reinterpret<const InputType, 3>(view<const InputType, 4>(input), collapsed_sh, true);
+    tvout = reinterpret<OutputType, 3>(view<OutputType, 4>(output), collapsed_sh, true);
+  } else {
+    tvin = view<const InputType, 3>(input);
+    tvout = view<OutputType, 3>(output);
+  }
+
+  using Kernel = kernels::LinearTransformationGpu<OutputType, InputType, 3, 3, 2>;
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
-  auto tvin = num_dims == 3 ? view<const InputType, 3>(input) :
-                              reinterpret<const InputType, 3>(view<const InputType, 4>(input),
-                                collapse_dim(view<const InputType, 4>(input).shape, 0), true);
-  auto tvout = num_dims == 3 ? view<OutputType, 3>(output):
-                                reinterpret<OutputType, 3>(view<OutputType, 4>(output),
-                                  collapse_dim(view<OutputType, 4>(output).shape, 0), true);
-  kernel_manager_.Run<Kernel>(0, 0, ctx, tvout, tvin,
-                                make_cspan(tmatrices_), make_cspan(toffsets_));
+  kernel_manager_.Initialize<Kernel>();
+
+  auto tmatrices = make_cspan(tmatrices_);
+  auto toffsets = make_cspan(toffsets_);
+  kernel_manager_.Setup<Kernel>(0, ctx, tvin, tmatrices, toffsets);
+  kernel_manager_.Run<Kernel>(0, 0, ctx, tvout, tvin, tmatrices, toffsets);
 }
 
 void ColorTwistGpu::RunImpl(workspace_t<GPUBackend> &ws) {
