@@ -33,7 +33,7 @@ void BrightnessContrastGpu::RunImplHelper(workspace_t<GPUBackend> &ws) {
 
   addends_.resize(num_samples);
   multipliers_.resize(num_samples);
-  for (unsigned i = 0; i < num_samples; i++) {
+  for (int i = 0; i < num_samples; i++) {
     OpArgsToKernelArgs<OutputType, InputType>(addends_[i], multipliers_[i],
                                               brightness_[i], brightness_shift_[i],
                                               contrast_[i]);
