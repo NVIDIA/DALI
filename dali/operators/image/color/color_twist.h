@@ -174,11 +174,9 @@ class ColorTwistBase : public Operator<Backend> {
     const auto &output = ws.template Output<Backend>(0);
     DetermineTransformation(ws);
     auto sh = input.shape();
-    auto num_dims = sh.sample_dim();
     assert(static_cast<size_t>(sh.num_samples()) == tmatrices_.size());
-    auto layout = input.GetLayout();
-    assert(ImageLayoutInfo::IsChannelLast(layout));
-    assert(num_dims == 3 || num_dims == 4);
+    assert(ImageLayoutInfo::IsChannelLast(input.GetLayout()));
+    assert(sh.sample_dim() == 3 || sh.sample_dim() == 4);
     output_desc.resize(1);
     output_desc[0] = {sh, output_type_};
     return true;

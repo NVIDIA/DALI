@@ -130,12 +130,10 @@ class BrightnessContrastOp : public Operator<Backend> {
     AcquireArguments(ws);
 
     auto sh = input.shape();
-    auto layout = input.GetLayout();
-    assert(ImageLayoutInfo::IsChannelLast(layout));
-    auto num_dims = sh.sample_dim();
-    assert(num_dims == 3 || num_dims == 4);
+    assert(ImageLayoutInfo::IsChannelLast(input.GetLayout()));
+    assert(sh.sample_dim() == 3 || sh.sample_dim() == 4);
     output_desc.resize(1);
-    output_desc[0] = {input.shape(), output_type_};
+    output_desc[0] = {sh, output_type_};
     return true;
   }
 
