@@ -198,10 +198,14 @@ def test_dtype_arg():
         [np.ones((120, 120, 3), dtype=np.uint8)]*batch_size
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
-    src_ext = fn.external_source(source=src_data, device='cpu', dtype=DALIDataType.UINT8)
+    src_ext = fn.external_source(source=src_data, dtype=DALIDataType.UINT8)
     src_pipe.set_outputs(src_ext)
     src_pipe.build()
-    src_pipe.run()
+    out, = src_pipe.run()
+    for i in range(batch_size):
+        t = out.at(i)
+        assert t.dtype == np.uint8
+        np.array_equal(t, np.ones((120, 120, 3), dtype=np.uint8))
 
 
 def test_dtype_arg_multioutput():
@@ -211,11 +215,18 @@ def test_dtype_arg_multioutput():
          [np.ones((120, 120, 3), dtype=np.float32)]*batch_size]
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
-    src_ext, src_ext2 = fn.external_source(source=src_data, device='cpu', num_outputs=2,
+    src_ext, src_ext2 = fn.external_source(source=src_data, num_outputs=2,
                                            dtype=[DALIDataType.UINT8, DALIDataType.FLOAT])
     src_pipe.set_outputs(src_ext, src_ext2)
     src_pipe.build()
-    src_pipe.run()
+    out1, out2 = src_pipe.run()
+    for i in range(batch_size):
+        t1 = out1.at(i)
+        t2 = out2.at(i)
+        assert t1.dtype == np.uint8
+        assert np.array_equal(t1, np.ones((120, 120, 3), dtype=np.uint8))
+        assert t2.dtype == np.float32
+        assert np.allclose(t2, [np.ones((120, 120, 3), dtype=np.float32)])
 
 
 @raises(RuntimeError, glob="ExternalSource expected data of type uint8 and got: float")
@@ -225,7 +236,7 @@ def test_incorrect_dtype_arg():
         [np.ones((120, 120, 3), dtype=np.float32)]*batch_size
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
-    src_ext = fn.external_source(source=src_data, device='cpu', dtype=DALIDataType.UINT8)
+    src_ext = fn.external_source(source=src_data, dtype=DALIDataType.UINT8)
     src_pipe.set_outputs(src_ext)
     src_pipe.build()
     src_pipe.run()
@@ -239,7 +250,7 @@ def test_changing_dtype():
         [np.ones((120, 120, 3), dtype=np.uint8)]*batch_size
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
-    src_ext = fn.external_source(source=src_data, device='cpu')
+    src_ext = fn.external_source(source=src_data)
     src_pipe.set_outputs(src_ext)
     src_pipe.build()
     src_pipe.run()
