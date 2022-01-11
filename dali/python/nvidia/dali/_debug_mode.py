@@ -132,7 +132,9 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._exec_func = exec_func
 
         import numpy as np
-        seed = kwargs.get('seed', np.random.randint(0, 2**32))
+        seed = kwargs.get('seed', -1)
+        if seed < 0:
+            seed  = np.random.randint(0, 2**32)
         self._seed_generator = np.random.default_rng(seed)
 
     def __enter__(self):
