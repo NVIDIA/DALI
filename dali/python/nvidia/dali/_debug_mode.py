@@ -156,21 +156,21 @@ class _ExternalSourceDebug:
                 raise TypeError("External source callback must be a callable with 0 or 1 argument")
             self.accepts_arg = arg_count > 0
 
-    def _callback_args(self, idx_in_batch, epoch_idx, batch_size=0, lead=0):
+    def _callback_args(self, idx_in_batch, epoch_idx):
         if not self.accepts_arg:
             return ()
         if idx_in_batch is not None:
             arg = _types.SampleInfo(
-                self._current_sample + idx_in_batch + batch_size * lead,
+                self._current_sample + idx_in_batch,
                 idx_in_batch,
-                self._current_iter + lead,
+                self._current_iter,
                 epoch_idx)
         elif self._batch_info:
             arg = _types.BatchInfo(
-                self._current_iter + lead,
+                self._current_iter,
                 epoch_idx)
         else:
-            arg = self._current_iter + lead
+            arg = self._current_iter
         return (arg,)
 
     def _get_batch(self, epoch_idx):

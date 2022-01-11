@@ -594,8 +594,17 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
     auto &t = list_of_tensors[i].cast<Tensor<Backend>&>();
     tv[i] = std::move(t);
   }
-  tl->Copy(tv, 0);
+
+  cudaStream_t stream = 0;
+  if (!list_of_tensors.empty() && std::is_same<Backend, GPUBackend>::value) {
+    auto &t = list_of_tensors[0].cast<Tensor<GPUBackend>&>();
+    stream = UserStream::Get()->GetStream(t);
+  }
+
+  tl->Copy(tv, stream);
   tl->SetLayout(layout);
+  CUDA_CALL(cudaStreamSynchronize(stream));
+
   return tl;
 }
 

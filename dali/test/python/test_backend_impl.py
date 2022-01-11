@@ -144,7 +144,7 @@ def test_tensor_cpu_squeeze():
         yield check_squeeze, shape, dim, in_layout, expected_out_layout
 
 
-def test_tensorlist_constructor_from_list_of_tensors():
+def test_tl_from_list_of_tensors_same_shape():
     for shape in [(10, 1), (4, 5, 6), (13, 1), (1, 1)]:
         arr = np.random.rand(*shape)
 
@@ -153,7 +153,18 @@ def test_tensorlist_constructor_from_list_of_tensors():
         np.testing.assert_array_equal(tl_cpu_from_np.as_array(), tl_cpu_from_tensors.as_array())
 
         tl_gpu_from_np = tl_cpu_from_np._as_gpu()
-        list = [TensorCPU(a)._as_gpu() for a in arr]
-        tl_gpu_from_tensors = TensorListGPU(list)
+        tl_gpu_from_tensors = TensorListGPU([TensorCPU(a)._as_gpu() for a in arr])
         np.testing.assert_array_equal(tl_gpu_from_np.as_cpu().as_array(),
                                       tl_gpu_from_tensors.as_cpu().as_array())
+
+def test_tl_from_list_of_tensors_different_shapes():
+    shapes = [(1, 2, 3), (4, 5, 6), (128, 128, 128), (8, 8, 8), (13, 47, 131)]
+    for size in [10, 5, 36, 1]:
+        np_arrays = [np.random.rand(*shapes[i]) for i in np.random.choice(range(len(shapes)), size=size)]
+
+        tl_cpu = TensorListCPU([TensorCPU(a) for a in np_arrays])
+        tl_gpu = TensorListGPU([TensorCPU(a)._as_gpu() for a in np_arrays])
+
+        for arr, tensor_cpu, tensor_gpu in zip(np_arrays, tl_cpu, tl_gpu):
+            np.testing.assert_array_equal(arr, tensor_cpu)
+            np.testing.assert_array_equal(arr, tensor_gpu.as_cpu())
