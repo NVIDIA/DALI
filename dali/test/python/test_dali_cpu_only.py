@@ -191,9 +191,6 @@ def test_color_twist_cpu():
 def test_saturation_cpu():
     check_single_input(fn.saturation)
 
-def test_old_color_twist_cpu():
-    check_single_input(fn.old_color_twist)
-
 def test_shapes_cpu():
     check_single_input(fn.shapes)
 
@@ -1062,7 +1059,6 @@ tested_methods = [
     "hsv",
     "color_twist",
     "saturation",
-    "old_color_twist",
     "shapes",
     "crop",
     "color_space_conversion",

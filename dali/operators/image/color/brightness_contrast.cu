@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,62 +17,56 @@
 #include "dali/kernels/imgproc/pointwise/multiply_add_gpu.h"
 
 namespace dali {
-namespace {
-
-template <typename Out, typename In>
-using TheKernel = kernels::MultiplyAddGpu<Out, In, 3>;
-
-}  // namespace
 
 DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrastGpu, GPU)
 DALI_REGISTER_OPERATOR(Brightness, BrightnessContrastGpu, GPU);
 DALI_REGISTER_OPERATOR(Contrast, BrightnessContrastGpu, GPU);
 
-
-bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                      const workspace_t<GPUBackend> &ws) {
-  KMgrResize(num_threads_, max_batch_size_);
-  const auto &input = ws.template Input<GPUBackend>(0);
-  const auto &output = ws.template Output<GPUBackend>(0);
-  output_desc.resize(1);
-  AcquireArguments(ws);
-  int N = input.num_samples();
-  addends_.resize(N);
-  multipliers_.resize(N);
-  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
-          {
-              using Kernel = TheKernel<OutputType, InputType>;
-              kernel_manager_.Initialize<Kernel>();
-              auto &shapes = CallSetup<Kernel, InputType>(ws, input);
-              output_desc[0] = {shapes, output_type_};
-          }
-      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
-  return true;
-}
-
-
-void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
+template <typename OutputType, typename InputType>
+void BrightnessContrastGpu::RunImplHelper(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.template Input<GPUBackend>(0);
   auto &output = ws.template Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
-  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
-          {
-              using Kernel = TheKernel<OutputType, InputType>;
-              kernels::KernelContext ctx;
-              ctx.gpu.stream = ws.stream();
-              auto tvin = view<const InputType, 3>(input);
-              auto tvout = view<OutputType, 3>(output);
-              for (int i = 0; i < tvin.num_samples(); i++) {
-                OpArgsToKernelArgs<OutputType, InputType>(addends_[i], multipliers_[i],
-                      brightness_[i], brightness_shift_[i], contrast_[i]);
-              }
-              kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, tvout, tvin,
-                                          addends_, multipliers_);
-          }
-      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+  auto sh = input.shape();
+  int num_samples = input.num_samples();
+  auto num_dims = sh.sample_dim();
+
+  addends_.resize(num_samples);
+  multipliers_.resize(num_samples);
+  for (int i = 0; i < num_samples; i++) {
+    OpArgsToKernelArgs<OutputType, InputType>(addends_[i], multipliers_[i],
+                                              brightness_[i], brightness_shift_[i],
+                                              contrast_[i]);
+  }
+
+  TensorListView<StorageGPU, const InputType, 3> tvin;
+  TensorListView<StorageGPU, OutputType, 3> tvout;
+  if (num_dims == 4) {
+    auto collapsed_sh = collapse_dim(view<const InputType, 4>(input).shape, 0);
+    tvin = reinterpret<const InputType, 3>(view<const InputType, 4>(input), collapsed_sh, true);
+    tvout = reinterpret<OutputType, 3>(view<OutputType, 4>(output), collapsed_sh, true);
+  } else {
+    tvin = view<const InputType, 3>(input);
+    tvout = view<OutputType, 3>(output);
+  }
+
+  using Kernel = kernels::MultiplyAddGpu<OutputType, InputType, 3>;
+  kernels::KernelContext ctx;
+  ctx.gpu.stream = ws.stream();
+  kernel_manager_.Initialize<Kernel>();
+
+  kernel_manager_.Setup<Kernel>(0, ctx, tvin, brightness_, contrast_);
+  kernel_manager_.Run<Kernel>(0, 0, ctx, tvout, tvin, addends_, multipliers_);
+}
+
+void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
+  const auto &input = ws.template Input<GPUBackend>(0);
+  TYPE_SWITCH(input.type(), type2id, InputType, BRIGHTNESS_CONTRAST_SUPPORTED_TYPES, (
+    TYPE_SWITCH(output_type_, type2id, OutputType, BRIGHTNESS_CONTRAST_SUPPORTED_TYPES, (
+      {
+        RunImplHelper<OutputType, InputType>(ws);
+      }
+    ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
 }
 

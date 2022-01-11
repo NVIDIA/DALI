@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,6 +27,8 @@
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
+#define COLOR_TWIST_SUPPORTED_TYPES (uint8_t, int16_t, int32_t, float, float16)
+
 namespace dali {
 namespace color {
 
@@ -49,13 +51,7 @@ const mat3 Rgb2Yiq = {{
                               {.211f, -.523f, .311f}
                       }};
 
-// Inversion of Rgb2Yiq, but pre-calculated, cause mat<> doesn't do inversion.
-const mat3 Yiq2Rgb = {{
-                              {1, .956f, .621f},
-                              {1, -.272f, -.647f},
-                              {1, -1.107f, 1.705f}
-                      }};
-
+const mat3 Yiq2Rgb = inverse(Rgb2Yiq);
 
 /**
  * Composes transformation matrix for hue
@@ -99,7 +95,13 @@ class ColorTwistBase : public Operator<Backend> {
   explicit ColorTwistBase(const OpSpec &spec)
       : Operator<Backend>(spec),
         output_type_arg_(spec.GetArgument<DALIDataType>(color::kOutputType)),
-        output_type_(DALI_NO_TYPE) {}
+        output_type_(DALI_NO_TYPE) {
+    if (std::is_same<Backend, GPUBackend>::value) {
+      kernel_manager_.Resize(1, 1);
+    } else {
+      kernel_manager_.Resize(num_threads_, max_batch_size_);
+    }
+  }
 
   bool CanInferOutputs() const override {
     return true;
@@ -147,14 +149,6 @@ class ColorTwistBase : public Operator<Backend> {
     }
   }
 
-  void KMgrResize(int num_threads, int batch_size) {
-    if (std::is_same<Backend, GPUBackend>::value) {
-      kernel_manager_.Resize(1, 1);
-    } else {
-      kernel_manager_.Resize(num_threads, batch_size);
-    }
-  }
-
   /**
    * @brief Creates transformation matrices based on given args
    */
@@ -172,6 +166,20 @@ class ColorTwistBase : public Operator<Backend> {
                Yiq2Rgb * hue_mat(hue_[i]) * sat_mat(saturation_[i]) * mat3(value_[i]) * Rgb2Yiq;
       toffsets_[i] = (half_range_ - half_range_ * contrast_[i]) * brightness_[i];
     }
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                 const workspace_t<Backend> &ws) override {
+    const auto &input = ws.template Input<Backend>(0);
+    const auto &output = ws.template Output<Backend>(0);
+    DetermineTransformation(ws);
+    auto sh = input.shape();
+    assert(static_cast<size_t>(sh.num_samples()) == tmatrices_.size());
+    assert(ImageLayoutInfo::IsChannelLast(input.GetLayout()));
+    assert(sh.sample_dim() == 3 || sh.sample_dim() == 4);
+    output_desc.resize(1);
+    output_desc[0] = {sh, output_type_};
+    return true;
   }
 
   USE_OPERATOR_MEMBERS();
@@ -200,26 +208,10 @@ class ColorTwistCpu : public ColorTwistBase<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(ColorTwistCpu);
 
  protected:
-  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                 const workspace_t<CPUBackend> &ws) override;
-
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
- private:
-  template <typename Kernel, typename InputType>
-  TensorListShape<> CallSetup(const TensorVector<CPUBackend> &input) {
-    kernels::KernelContext ctx;
-    TensorListShape<> sh = input.shape();
-    TensorListShape<> ret(sh.num_samples(), 3);
-    assert(static_cast<size_t>(sh.num_samples()) == tmatrices_.size());
-    for (int i = 0; i < sh.num_samples(); i++) {
-      const auto tvin = view<const InputType, 3>(input[i]);
-      const auto reqs = kernel_manager_.Setup<Kernel>(i, ctx, tvin, tmatrices_[i], toffsets_[i]);
-      const TensorListShape<> &out_sh = reqs.output_shapes[0];
-      ret.set_tensor_shape(i, out_sh.tensor_shape(0));
-    }
-    return ret;
-  }
+  template <typename OutputType, typename InputType>
+  void RunImplHelper(workspace_t<CPUBackend> &ws);
 };
 
 
@@ -232,21 +224,10 @@ class ColorTwistGpu : public ColorTwistBase<GPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(ColorTwistGpu);
 
  protected:
-  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                 const workspace_t<GPUBackend> &ws) override;
-
   void RunImpl(workspace_t<GPUBackend> &ws) override;
 
- private:
-  template <typename Kernel, typename InputType>
-  const TensorListShape<> &CallSetup(const DeviceWorkspace &ws, const TensorList<GPUBackend> &tl) {
-    kernels::KernelContext ctx;
-    ctx.gpu.stream = ws.stream();
-    const auto tvin = view<const InputType, 3>(tl);
-    const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin, make_cspan(tmatrices_),
-                                                     make_cspan(toffsets_));
-    return reqs.output_shapes[0];
-  }
+  template <typename OutputType, typename InputType>
+  void RunImplHelper(workspace_t<GPUBackend> &ws);
 };
 
 }  // namespace dali
