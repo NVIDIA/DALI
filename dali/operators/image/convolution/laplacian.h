@@ -53,7 +53,7 @@ class Laplacian : public Operator<CPUBackend> {
   USE_OPERATOR_MEMBERS();
   std::unique_ptr<OpImplBase<CPUBackend>> impl_;
   DALIDataType impl_in_dtype_ = DALI_NO_TYPE;
-  convolution_utils::DimDesc impl_dim_desc_;
+  convolution_utils::DimDesc impl_dim_desc_ = {};
 };
 
 }  // namespace dali

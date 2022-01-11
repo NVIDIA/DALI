@@ -105,12 +105,14 @@ def injection_pipeline(callback, device='cpu'):
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
-def injection_pipeline_standard():
+def injection_pipeline_standard(device='cpu'):
     jpegs, _ = fn.readers.file(
         file_root=file_root, shard_id=0, num_shards=2)
     images = fn.decoders.image(jpegs, output_type=types.RGB)
     rng = fn.random.coin_flip(probability=0.5, seed=47)
-    images = fn.random_resized_crop(images, size=(224, 224), seed=27)
+    if device == "gpu":
+        images = images.gpu()
+    images = fn.random_resized_crop(images, device=device, size=(224, 224), seed=27)
     out_type = types.FLOAT16
 
     output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type, crop=(
@@ -122,7 +124,7 @@ def _test_injection(device, name, transform, eps=1e-07):
     print(f'\nTesting {name}')
     pipe_load = load_images_pipeline()
     pipe_load.build()
-    pipe_standard = injection_pipeline_standard()
+    pipe_standard = injection_pipeline_standard(device)
     pipe_debug = injection_pipeline(lambda: transform(pipe_load.run()[0]), device)
     compare_pipelines(pipe_standard, pipe_debug, 8, 10, eps=eps)
 
@@ -141,19 +143,19 @@ def test_injection_mxnet():
 def test_injection_torch():
     import torch
     yield _test_injection, 'cpu', 'torch cpu tensor', lambda xs: [torch.tensor(np.array(x), device='cpu') for x in xs]
-    yield _test_injection, 'gpu', 'torch gpu tensor', lambda xs: [torch.tensor(np.array(x), device='cuda') for x in xs], 1e-03
+    yield _test_injection, 'gpu', 'torch gpu tensor', lambda xs: [torch.tensor(np.array(x), device='cuda') for x in xs]
 
 
 @attr('cupy')
 def test_injection_cupy():
     import cupy
-    _test_injection('gpu', 'cupy array', lambda xs: [cupy.array(x) for x in xs], 1e-03)
+    _test_injection('gpu', 'cupy array', lambda xs: [cupy.array(x) for x in xs])
 
 
 def test_injection_dali_types():
-    yield _test_injection, 'gpu', 'list of TensorGPU', lambda xs: [x._as_gpu() for x in xs], 1e-03
+    yield _test_injection, 'gpu', 'list of TensorGPU', lambda xs: [x._as_gpu() for x in xs]
     yield _test_injection, 'cpu', 'TensorListCPU', lambda xs: xs
-    yield _test_injection, 'gpu', 'TensorListGPU', lambda xs: xs._as_gpu(), 1e-03
+    yield _test_injection, 'gpu', 'TensorListGPU', lambda xs: xs._as_gpu()
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
@@ -315,6 +317,29 @@ def test_init_config_pipeline():
     pipe_standard = init_config_pipeline(batch_size=8, num_threads=3, device_id=0)
     pipe_debug = init_config_pipeline(batch_size=8, num_threads=3, device_id=0, debug=True)
     compare_pipelines(pipe_standard, pipe_debug, 8, 10)
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def shape_pipeline(output_device):
+    jpegs, _ = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2)
+    images = fn.decoders.image(jpegs, device=output_device, output_type=types.RGB)
+    assert images.shape() == [tuple(im.shape()) for im in images.get()]
+    return images
+
+
+def _test_shape_pipeline(device):
+    pipe = shape_pipeline(device)
+    pipe.build()
+    res, = pipe.run()
+
+    # Test TensorList.shape() directly.
+    assert res.shape() == [tuple(im.shape()) for im in res]
+
+
+def test_shape_pipeline():
+    for device in ['cpu', 'mixed']:
+        yield _test_shape_pipeline, device
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)

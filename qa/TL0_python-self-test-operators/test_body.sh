@@ -5,7 +5,7 @@ test_nose() {
     FILTER_PATTERN="test_operator_readers_.*\.py\|test_operator_decoders_.*\.py"
 
     for test_script in $(ls test_operator_*.py | sed "/$FILTER_PATTERN/d"); do
-        nosetests --verbose --attr '!slow' ${test_script}
+        nosetests --verbose --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
     done
 }
 

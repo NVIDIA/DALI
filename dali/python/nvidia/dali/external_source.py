@@ -184,11 +184,11 @@ class _ExternalSourceGroup(object):
                 else:
                     # extract a single output
                     data = [callback_out[i][op._output_index] for i in range(batch_size)]
-                pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
+                pipeline._feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
         else:
             data = callback_out
             op = self.instances[0]
-            pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
+            pipeline._feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
 
 
 class ExternalSource():
@@ -424,8 +424,6 @@ Keyword Args
         self._batch_info = batch_info
 
         self._spec.AddArg("device", device)
-        if dtype is not None:
-            self._spec.AddArg("dtype", dtype)
         for key, value in kwargs.items():
             self._spec.AddArg(key, value)
 
@@ -577,6 +575,11 @@ Keyword Args
             kwargs = {"no_copy": no_copy}
             group = _ExternalSourceGroup(callback, source_desc, True, **group_common_kwargs)
             for i in range(self._num_outputs):
+                if dtype is not None:
+                    if isinstance(dtype, (list, tuple)):
+                        kwargs['dtype'] = dtype[i] if i < len(dtype) else nvidia.dali.types.DALIDataType.NO_TYPE
+                    else:
+                        kwargs['dtype'] = dtype
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
                 op_instance._output_index = i
@@ -588,15 +591,6 @@ Keyword Args
                         op_instance._layout = layout
                 else:
                     op_instance._layout = None
-
-                if dtype is not None:
-                    if isinstance(dtype, (list, tuple)):
-                        op_instance._dtype = dtype[i] if i < len(dtype) else nvidia.dali.types.DALIDataType.NO_TYPE
-                    else:
-                        op_instance._dtype = dtype
-                else:
-                    op_instance._dtype = nvidia.dali.types.DALIDataType.NO_TYPE
-
 
                 op_instance._batch = batch
 
@@ -610,13 +604,14 @@ Keyword Args
                 kwargs["name"] = name
             if no_copy is not None:
                 kwargs["no_copy"] = no_copy
+            if dtype is not None:
+                kwargs['dtype'] = dtype
             op_instance = _OperatorInstance([], self, **kwargs)
             op_instance._callback = callback
             op_instance._output_index = None
             op_instance._group = _ExternalSourceGroup(
                 callback, source_desc, False, [op_instance], **group_common_kwargs)
             op_instance._layout = layout
-            op_instance._dtype = dtype
             op_instance._batch = batch
             op_instance.generate_outputs()
 

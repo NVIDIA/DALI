@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,12 +16,6 @@
 #include "dali/kernels/imgproc/pointwise/linear_transformation_cpu.h"
 
 namespace dali {
-namespace {
-
-template <typename Out, typename In>
-using TheKernel = kernels::LinearTransformationCpu<Out, In, 3, 3, 3>;
-
-}  // namespace
 
 DALI_SCHEMA(Hsv)
     .DocStr(R"code(Adjusts hue, saturation and value (brightness) of the images.
@@ -54,7 +48,8 @@ they would in case of rotation.)code",
 
 If a value is not set, the input type is used.)code",
                     DALI_UINT8)
-    .InputLayout(0, "HWC");
+    .InputLayout(0, {"HWC", "FHWC", "DHWC"})
+    .AllowSequences();
 
 DALI_SCHEMA(ColorTransformBase)
     .DocStr(R"code(Base Schema for color transformations operators.)code")
@@ -63,7 +58,9 @@ DALI_SCHEMA(ColorTransformBase)
     .AddOptionalArg(color::kOutputType, R"code(Output data type.
 
 If not set, the input type is used.)code",
-                    DALI_UINT8);
+                    DALI_UINT8)
+    .AllowSequences()
+    .SupportVolumetric();
 
 DALI_SCHEMA(Hue)
     .DocStr(R"code(Changes the hue level of the image.)code")
@@ -72,7 +69,9 @@ DALI_SCHEMA(Hue)
     .AddOptionalArg("hue",
         R"code(The hue change in degrees.)code", 0.f, true)
     .AddParent("ColorTransformBase")
-    .InputLayout(0, "HWC");
+    .InputLayout(0, {"HWC", "FHWC", "DHWC"})
+    .AllowSequences()
+    .SupportVolumetric();
 
 DALI_SCHEMA(Saturation)
     .DocStr(R"code(Changes the saturation level of the image.)code")
@@ -89,10 +88,12 @@ Example values:
 - `1` - No change to image's saturation.
 )code", 1.f, true)
     .AddParent("ColorTransformBase")
-    .InputLayout(0, "HWC");
+    .InputLayout(0, {"HWC", "FHWC", "DHWC"})
+    .AllowSequences()
+    .SupportVolumetric();
 
 DALI_SCHEMA(ColorTwist)
-    .DocStr(R"code(Adjusts hue, saturation and brightness of the image.)code")
+    .DocStr(R"code(Adjusts hue, saturation, brightness and contrast of the image.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("hue",
@@ -104,7 +105,7 @@ Values must be non-negative.
 
 Example values:
 
-- `0` – Completely desaturated image.
+- `0` - Completely desaturated image.
 - `1` - No change to image's saturation.
 )code", 1.f, true)
     .AddOptionalArg("contrast",
@@ -130,7 +131,9 @@ Example values:
 * `2` - Increase brightness twice.
 )code", 1.f, true)
     .AddParent("ColorTransformBase")
-    .InputLayout(0, "HWC");
+    .InputLayout(0, {"HWC", "FHWC", "DHWC"})
+    .AllowSequences()
+    .SupportVolumetric();
 
 
 DALI_REGISTER_OPERATOR(Hsv, ColorTwistCpu, CPU)
@@ -138,48 +141,56 @@ DALI_REGISTER_OPERATOR(Hue, ColorTwistCpu, CPU);
 DALI_REGISTER_OPERATOR(Saturation, ColorTwistCpu, CPU);
 DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistCpu, CPU);
 
-bool ColorTwistCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
-  KMgrResize(num_threads_, max_batch_size_);
-  const auto &input = ws.template Input<CPUBackend>(0);
-  output_desc.resize(1);
-  DetermineTransformation(ws);
-  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
-      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
-          {
-              using Kernel = TheKernel<OutputType, InputType>;
-              kernel_manager_.Initialize<Kernel>();
-              auto shapes = CallSetup<Kernel, InputType>(input);
-              output_desc[0] = {shapes, output_type_};
-          }
-      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
-  return true;
-}
 
-
-void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+template <typename OutputType, typename InputType>
+void ColorTwistCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);
   auto &output = ws.template Output<CPUBackend>(0);
   auto out_shape = output.shape();
   output.SetLayout(input.GetLayout());
   auto &tp = ws.GetThreadPool();
-  TYPE_SWITCH(input.type(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
-      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
-          {
-              using Kernel = TheKernel<OutputType, InputType>;
-              for (int i = 0; i < input.shape().num_samples(); i++) {
-                tp.AddWork([&, i](int thread_id) {
-                  kernels::KernelContext ctx;
-                  auto tvin = view<const InputType, 3>(input[i]);
-                  auto tvout = view<OutputType, 3>(output[i]);
-                  kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin,
-                                              tmatrices_[i], toffsets_[i]);
-                }, out_shape.tensor_size(i));
-              }
-          }
-      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
+  using Kernel = kernels::LinearTransformationCpu<OutputType, InputType, 3, 3, 3>;
+  kernel_manager_.Initialize<Kernel>();
+  TensorListShape<> sh = input.shape();
+  auto num_dims = sh.sample_dim();
+  assert(num_dims == 3 || num_dims == 4);
+  int num_samples = input.shape().num_samples();
+  for (int i = 0; i < num_samples; i++) {
+    auto sample_shape = out_shape.tensor_shape_span(i);
+    auto vol = volume(sample_shape.begin() + num_dims - 3, sample_shape.end());
+    if (num_dims == 4) {
+      int num_frames = sample_shape[0];
+      for (int frame_id = 0; frame_id < num_frames; frame_id++) {
+        tp.AddWork([&, i, frame_id](int thread_id) {
+          kernels::KernelContext ctx;
+          auto tvin = subtensor(view<const InputType, 4>(input[i]), frame_id);
+          auto tvout = subtensor(view<OutputType, 4>(output[i]), frame_id);
+          kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin,
+                                      tmatrices_[i], toffsets_[i]);
+        }, vol);
+      }
+    } else {
+      tp.AddWork([&, i](int thread_id) {
+        kernels::KernelContext ctx;
+        auto tvin = view<const InputType, 3>(input[i]);
+        auto tvout = view<OutputType, 3>(output[i]);
+        kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin,
+                                    tmatrices_[i], toffsets_[i]);
+      }, vol);
+    }
+  }
   tp.RunAll();
+}
+
+void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+  const auto &input = ws.template Input<CPUBackend>(0);
+  TYPE_SWITCH(input.type(), type2id, InputType, COLOR_TWIST_SUPPORTED_TYPES, (
+    TYPE_SWITCH(output_type_, type2id, OutputType, COLOR_TWIST_SUPPORTED_TYPES, (
+      {
+        RunImplHelper<OutputType, InputType>(ws);
+      }
+    ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
 }
 
 

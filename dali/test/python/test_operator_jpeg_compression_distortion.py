@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import nvidia.dali.types as types
 import nvidia.dali as dali
 from random import shuffle
 import numpy as np
+from test_utils import as_array
 from numpy.testing import assert_array_equal, assert_allclose
 import os
 import cv2
@@ -118,3 +119,41 @@ def test_jpeg_compression_distortion():
       for quality in [2, None, 50]:
         for layout in ['HWC', 'FHWC']:
           yield _testimpl_jpeg_compression_distortion, batch_size, device, quality, layout
+
+def _testimpl_jpeg_compression_distortion_sequence(batch_size, device, seq_len, quality):
+  @pipeline_def(batch_size=batch_size, num_threads=3, device_id=0)
+  def jpeg_distortion_pipe(device='cpu', quality=None):
+    iii = InputImagesIter(seq_len)
+    inputs = fn.external_source(source=iii, layout='FHWC', batch=False)
+    if device == 'gpu':
+      inputs = inputs.gpu()
+    if quality is None:
+      quality = fn.random.uniform(range=[1, 99], dtype=types.INT32)
+    tmp = fn.jpeg_compression_distortion(inputs, quality=quality)
+    outs = []
+    for i in range(seq_len):
+      # First, slice of the distorted sequence
+      outs.append(fn.slice(tmp, axes=(0,), start=(i,), end=(i+1,)))
+      # Second, distorted slice of the input
+      slice_in = fn.slice(inputs, axes=(0,), start=(i,), end=(i+1,))
+      outs.append(fn.jpeg_compression_distortion(slice_in, quality=quality))
+    return tuple(outs)
+
+  pipe = jpeg_distortion_pipe(device=device, quality=quality)
+  pipe.build()
+  for _ in range(3):
+    out = pipe.run()
+    nouts = len(out)
+    assert nouts == (2 * seq_len)
+    for i in range(0, nouts, 2):
+      for s in range(batch_size):
+        out_data1 = as_array(out[i][s])
+        out_data2 = as_array(out[i+1][s])
+        np.testing.assert_array_equal(out_data1, out_data2)
+
+def test_jpeg_compression_distortion_sequence():
+  seq_len = 10
+  for batch_size in [1, 15]:
+    for device in ['cpu', 'gpu']:
+      for quality in [2, None, 50]:
+          yield _testimpl_jpeg_compression_distortion_sequence, batch_size, device, seq_len, quality

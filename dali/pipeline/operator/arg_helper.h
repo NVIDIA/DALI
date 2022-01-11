@@ -348,7 +348,6 @@ class ArgValue {
   }
 
   std::string arg_name_;
-  ArgValueFlags flags_;
 
   std::vector<T> data_;
   TLV view_;

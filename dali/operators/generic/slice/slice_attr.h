@@ -227,9 +227,13 @@ class PositionalSliceAttr {
       auto shape_view = view<const ArgsType>(crop_shape);
       for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
         span<const ArgsType> anchor(anchor_view.tensor_data(data_idx),
-                                    anchor_view.tensor_shape_span(data_idx)[0]);
+                                    anchor_view.shape.ndim != 0 ?
+                                      anchor_view.tensor_shape_span(data_idx)[0] :
+                                      1);
         span<const ArgsType> shape(shape_view.tensor_data(data_idx),
-                                   shape_view.tensor_shape_span(data_idx)[0]);
+                                   anchor_view.shape.ndim != 0 ?
+                                      anchor_view.tensor_shape_span(data_idx)[0] :
+                                      1);
         ProcessPositionalInputArgs(data_idx, anchor, shape);
       }
     ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", args_dtype)));  // NOLINT

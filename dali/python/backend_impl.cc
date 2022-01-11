@@ -88,6 +88,15 @@ py::list py_shape(const Tensor<Backend> &t) {
   return as_py_list(t.shape());
 }
 
+template <typename Backend>
+std::vector<py::tuple> py_shape_list(const TensorList<Backend> &tl) {
+  std::vector<py::tuple> ret(tl.shape().size());
+  for (int i = 0; i < tl.shape().size(); ++i) {
+    ret[i] = py::tuple(as_py_list(tl.tensor_shape(i)));
+  }
+  return ret;
+}
+
 static string TensorLayoutRepr(const TensorLayout &tl) {
   std::stringstream ss;
   ss << "nvidia.dali.types.TensorLayout('";
@@ -395,9 +404,11 @@ void ExposeTensor(py::module &m) {
     })
     .def("_as_gpu", [](Tensor<CPUBackend> &t) -> Tensor<GPUBackend>* {
           auto ret = std::make_unique<Tensor<GPUBackend>>();
-          UserStream * us = UserStream::Get();
+          int dev = -1;
+          CUDA_CALL(cudaGetDevice(&dev));
+          ret->set_device_id(dev);
+          UserStream *us = UserStream::Get();
           cudaStream_t s = us->GetStream(*ret);
-          DeviceGuard g((*ret).device_id());
           ret->Copy(t, s);
           us->Wait(*ret);
           return ret.release();
@@ -675,9 +686,11 @@ void ExposeTensorList(py::module &m) {
       )code")
     .def("_as_gpu", [](TensorList<CPUBackend> &t) {
           auto ret = std::make_shared<TensorList<GPUBackend>>();
-          UserStream * us = UserStream::Get();
+          int dev = -1;
+          CUDA_CALL(cudaGetDevice(&dev));
+          ret->set_device_id(dev);
+          UserStream *us = UserStream::Get();
           cudaStream_t s = us->GetStream(*ret);
-          DeviceGuard g((*ret).device_id());
           ret->Copy(t, s);
           us->Wait(*ret);
           return ret;
@@ -689,6 +702,10 @@ void ExposeTensorList(py::module &m) {
     .def("layout", [](TensorList<CPUBackend> &t) {
       return t.GetLayout().str();
     })
+    .def("shape", &py_shape_list<CPUBackend>,
+      R"code(
+      Shape of the tensor list.
+      )code")
     .def("at", [](TensorList<CPUBackend> &tl, Index id) -> py::array {
           DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
               "buffer info for tensor w/ invalid type.");
@@ -905,6 +922,10 @@ void ExposeTensorList(py::module &m) {
       Returns a `TensorListCPU` object being a copy of this `TensorListGPU`.
       )code",
       py::return_value_policy::take_ownership)
+    .def("shape", &py_shape_list<GPUBackend>,
+      R"code(
+      Shape of the tensor list.
+      )code")
     .def("__len__", [](TensorList<GPUBackend> &t) {
           return t.num_samples();
         })
