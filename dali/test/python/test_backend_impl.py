@@ -144,6 +144,16 @@ def test_tensor_cpu_squeeze():
         yield check_squeeze, shape, dim, in_layout, expected_out_layout
 
 
+def test_tensorlist_shape():
+    shapes = [(3, 4, 5, 6), (1, 8, 7, 6, 5), (1,), (1, 1)]
+    for shape in shapes:
+        arr = np.empty(shape)
+        tl = TensorListCPU(arr)
+        tl_gpu = tl._as_gpu()
+        assert tl.shape() == [shape[1:]] * shape[0]
+        assert tl_gpu.shape() == [shape[1:]] * shape[0]
+
+
 def test_tensorlist_constructor_from_list_of_tensors():
     for shape in [(10, 1), (4, 5, 6), (13, 1), (1, 1)]:
         arr = np.random.rand(*shape)

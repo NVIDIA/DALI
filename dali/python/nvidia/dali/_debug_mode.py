@@ -39,6 +39,9 @@ class DataNodeDebug(_DataNode):
     def get(self):
         return self._data
 
+    def shape(self):
+        return self._data.shape()
+
     def __add__(self, other):
         return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["add", self, other], {})
 
