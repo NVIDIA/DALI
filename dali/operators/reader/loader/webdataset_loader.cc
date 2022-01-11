@@ -261,7 +261,8 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
         make_string_delim(" ", "Archive:", paths_[current_sample.wds_shard_index],
                     GetSampleSource(current_sample), "; Component offset:", component.offset);
     DALIMeta meta;
-    meta.SetSourceInfo(component.filename);
+    meta.SetSourceInfo(make_string_delim(':', paths_[current_sample.wds_shard_index],
+                                         component.offset, component.filename));
     if (ShouldSkipImage(image_key)) {
       meta.SetSkipSample(true);
       for (auto& output : component.outputs) {
