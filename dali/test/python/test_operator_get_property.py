@@ -61,15 +61,15 @@ def wds_properties(root_path, device):
 
 def _test_wds_properties(device):
     root_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
-    ref_offset = [1536, 4096, 6144, 8704, 11264, 13824, 16384, 18432]
+    ref_filenames = ["2000.jpg", "2001.jpg", "2002.jpg", "2003.jpg", "2004.jpg", "2005.jpg",
+                     "2006.jpg", "2007.jpg"]
     p = wds_properties(root_path, device, batch_size=8, num_threads=4, device_id=0)
     p.build()
     output = p.run()
     for out in output:
         out = out if device == 'cpu' else out.as_cpu()
-        for source_info, offset in zip(out, ref_offset):
-            assert _uint8_tensor_to_string(
-                source_info) == f"Archive: {root_path} tar file at \"{root_path}\" ; Component offset: {offset}"
+        for source_info, ref in zip(out, ref_filenames):
+            assert _uint8_tensor_to_string(source_info) == ref
 
 
 def test_wds_properties():

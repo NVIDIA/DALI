@@ -137,19 +137,19 @@ inline void ParseTarFile(std::vector<SampleDesc>& samples_container,
       continue;
     }
 
-    std::string filename, ext;
-    std::tie(filename, ext) = split_name(tar_archive.GetFileName());
+    std::string root_name, ext;
+    std::tie(root_name, ext) = split_name(tar_archive.GetFileName());
 
-    if (filename.empty()) {
+    if (root_name.empty()) {
       continue;
     }
 
-    if (filename != last_filename) {
+    if (root_name != last_filename) {
       samples_container.emplace_back();
       samples_container.back().components =
           VectorRange<ComponentDesc>(components_container, last_components_size,
                                      components_container.size() - last_components_size);
-      last_filename = filename;
+      last_filename = root_name;
       last_components_size = components_container.size();
     }
 
@@ -157,6 +157,7 @@ inline void ParseTarFile(std::vector<SampleDesc>& samples_container,
     components_container.back().size = tar_archive.GetFileSize();
     components_container.back().offset = tar_archive.TellArchive() + tar_archive.HeaderSize();
     components_container.back().ext = std::move(ext);
+    components_container.back().filename = tar_archive.GetFileName();
   }
   samples_container.emplace_back();
   samples_container.back().components =
@@ -240,6 +241,7 @@ std::string WebdatasetLoader::GetSampleSource(const detail::wds::SampleDesc& sam
   }
 }
 
+
 void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
   MoveToNextShard(sample_index_);
   detail::wds::SampleDesc& current_sample = samples_[sample_index_];
@@ -255,12 +257,12 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
     current_wds_shard->Seek(component.offset);
 
     // Skipping cached samples
-    const std::string source_info =
+    const std::string image_key =
         make_string_delim(" ", "Archive:", paths_[current_sample.wds_shard_index],
                     GetSampleSource(current_sample), "; Component offset:", component.offset);
     DALIMeta meta;
-    meta.SetSourceInfo(source_info);
-    if (ShouldSkipImage(source_info)) {
+    meta.SetSourceInfo(component.filename);
+    if (ShouldSkipImage(image_key)) {
       meta.SetSkipSample(true);
       for (auto& output : component.outputs) {
         sample[output].Reset();
