@@ -59,14 +59,14 @@ NvDecoder::NvDecoder(int device_id,
     "Check your library paths and if NVIDIA driver is installed correctly.");
 
 
-  // This is a workaround for an issue with nvcuvid in drivers >460 and <= 470.21 where concurrent
+  // This is a workaround for an issue with nvcuvid in drivers >460 and < 470.21 where concurrent
   // use on default context and non-default streams may lead to memory corruption.
   bool use_default_stream = false;
 #if NVML_ENABLED
   {
     nvml::Init();
     static float driver_version = nvml::GetDriverVersion();
-    if (driver_version > 460 && driver_version <= 470.21)
+    if (driver_version > 460 && driver_version < 470.21)
       use_default_stream = true;
   }
 #else
