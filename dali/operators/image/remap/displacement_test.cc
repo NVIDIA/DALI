@@ -31,7 +31,7 @@ TYPED_TEST(DisplacementTest, Water) {
   const OpArg params[] = {{"ampl_x", "2.", DALI_FLOAT},
                           {"ampl_y", "3.", DALI_FLOAT},
                           {"phase_x", "0.2", DALI_FLOAT}};
-  this->RunTest("Water", params, sizeof(params)/sizeof(params[0]));
+  this->RunTest("Water", params, sizeof(params)/sizeof(params[0]), false, 0.002);
 }
 
 /*
