@@ -355,7 +355,8 @@ class DLL_PUBLIC Buffer {
       } else {
         // re-allocating: get the device
         if (std::is_same<Backend, GPUBackend>::value || pinned_) {
-          if (!order_)
+          device_ = order_.device_id();
+          if (device_ < 0)
             CUDA_CALL(cudaGetDevice(&device_));
         } else {
           device_ = CPU_ONLY_DEVICE_ID;

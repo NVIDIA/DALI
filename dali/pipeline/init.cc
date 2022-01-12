@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "dali/core/math_util.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
+#include "dali/core/cuda_stream_pool.h"
 
 namespace dali {
 
@@ -66,6 +67,7 @@ void InitializeBufferPolicies() {
 void DALIInit(const OpSpec &cpu_allocator,
               const OpSpec &pinned_cpu_allocator,
               const OpSpec &gpu_allocator) {
+  (void)CUDAStreamPool::instance();
   (void)cpu_allocator;
   (void)pinned_cpu_allocator;
   (void)gpu_allocator;
