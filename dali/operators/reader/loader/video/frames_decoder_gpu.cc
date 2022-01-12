@@ -19,7 +19,6 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/reader/loader/video/nvdecode/ColorSpace.h"
-#include "dali/operators/reader/loader/video/nvdecode/NvCodecUtils.h"
 #include <unistd.h>
 #include "dali/core/error_handling.h"
 
@@ -31,6 +30,12 @@ int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
 
 int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
+  if (frames_decoder->flush_) {
+    frames_decoder->flush_ = false;
+    frames_decoder->decode_success_ = false;
+    return 0;
+  }
+
   frames_decoder->decode_success_ = false;
 
   CUDA_CALL(cuvidDecodePicture(frames_decoder->nvdecode_state_->decoder, picture_params));
@@ -58,16 +63,6 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
     &pitch,
     &videoProcessingParameters));
 
-  CUVIDGETDECODESTATUS DecodeStatus;
-  memset(&DecodeStatus, 0, sizeof(DecodeStatus));
-  CUresult result = cuvidGetDecodeStatus(frames_decoder->nvdecode_state_->decoder, picture_params->CurrPicIdx, &DecodeStatus);
-  if (result != CUDA_SUCCESS) {
-    CUDA_CALL(cuvidUnmapVideoFrame(frames_decoder->nvdecode_state_->decoder, frame));
-
-    if (DecodeStatus.decodeStatus == cuvidDecodeStatus_Invalid) {
-      return 0;
-    }
-  }
 
   if (frames_decoder->current_copy_to_output_) {
     CUDA_CALL(cudaDeviceSynchronize());
@@ -92,11 +87,6 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
 
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename) :
   FramesDecoder(filename) {
-    // CUcontext context;
-    // CUDA_CALL(cuCtxGetCurrent(&context));
-
-    // decoder_ = std::make_unique<NvDecoder>(context, true, cudaVideoCodec_MPEG4);
-
     nvdecode_state_ = std::make_unique<NvDecodeState>();
 
     // Create nv decoder
@@ -132,28 +122,22 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename) :
 }
 
 void FramesDecoderGpu::SeekFrame(int frame_id) {
-  // DALI_ENFORCE(
-  //   frame_id >= 0 && frame_id < NumFrames(),
-  //   make_string("Invalid seek frame id. frame_id = ", frame_id, ", num_frames = ", NumFrames()));
+  flush_ = true;
+  CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
+  memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
+  packet->payload = nullptr;
+  packet->payload_size = 0;
+  packet->flags = CUVID_PKT_ENDOFSTREAM;
+  CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
 
-  // Reset();
-  // CUcontext context;
-  // CUDA_CALL(cuCtxGetCurrent(&context));
-  // decoder_ = std::make_unique<NvDecoder>(context, true, cudaVideoCodec_MPEG4);
-  // // decoder_->setReconfigParams(nullptr, nullptr);
-
-  // for (int i = 0; i < frame_id; ++i) {
-  //   ReadNextFrame(nullptr, false);
-  // }
-
-  // CUcontext context;
-  // CUDA_CALL(cuCtxGetCurrent(&context));
-  // decoder_ = std::make_unique<NvDecoder>(context, true, cudaVideoCodec_MPEG4);
   FramesDecoder::SeekFrame(frame_id);
 }
 
 bool FramesDecoderGpu::DecodeFrame(uint8_t *data, bool copy_to_output) {
-  // return FramesDecoder::DecodeFrame(data, true);
+  static int counter = 0;
+  std::cout << "Decode call: " << counter << std::endl;
+  ++counter;
+
   decode_success_ = false;
   current_frame_output_ = data;
   current_copy_to_output_ = copy_to_output;
@@ -166,35 +150,6 @@ bool FramesDecoderGpu::DecodeFrame(uint8_t *data, bool copy_to_output) {
   packet->timestamp = index_[current_frame_-1].pts;
 
   CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
-
-  // int n_frames_returned = decoder_->Decode(av_state_->packet_->data, av_state_->packet_->size, CUVID_PKT_TIMESTAMP, index_[current_frame_-1].pts);
-
-
-  
-  // if (copy_to_output)
-  //   cout << "GPU: "  << av_state_->packet_->size << endl;
-
-  // if (n_frames_returned == 0) {
-  //   // n_frames_returned = decoder_->Decode(av_state_->packet_->data, av_state_->packet_->size, CUVID_PKT_TIMESTAMP, index_[current_frame_-1].pts);
-  //   if (n_frames_returned == 0) {
-  //     return false;
-  // }
-  // }
-
-  // if (n_frames_returned > 1) {
-  //   DALI_FAIL("dużo ramek");
-  // }
-
-  // if (!copy_to_output) {
-  //   return true;
-  // }
-  
-  // int64_t timestamp = 0;
-  // uint8_t *frame = decoder_->GetFrame(&timestamp);
-  // CUDA_CALL(cudaDeviceSynchronize());
-  // Nv12ToColor32(frame, Width(), data, Width()* 3, Width(), Height(), 1);
-  // CUDA_CALL(cudaDeviceSynchronize());
-
 
   return decode_success_;
 }

@@ -16,7 +16,8 @@
 #define DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_GPU_H_
 
 #include "dali/operators/reader/loader/video/frames_decoder.h"
-#include "dali/operators/reader/loader/video/nvdecode/NvDecoder.h"
+#include "dali/operators/reader/loader/video/nvdecode/cuviddec.h"
+#include "dali/operators/reader/loader/video/nvdecode/nvcuvid.h"
 
 namespace dali {
 struct NvDecodeState {
@@ -41,12 +42,12 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   void SeekFrame(int frame_id) override;
 
-  std::unique_ptr<NvDecoder> decoder_;
   std::unique_ptr<NvDecodeState> nvdecode_state_;
 
   uint8_t *current_frame_output_ = nullptr;
   bool current_copy_to_output_ = false;
   bool decode_success_ = false;
+  bool flush_ = false;
 };
 
 }  // namespace dali

@@ -168,11 +168,9 @@ TEST_F(VideoReaderDecoderCpuTest, CpuVariableFrameRate) {
 
 TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
   const int batch_size = 1;
-  const int sequence_length = 1;
+  const int sequence_length = 10;
   const int stride = 1;
   const int step = 1;
-  // const int stride = 1;
-  // const int step = 7;
 
   Pipeline pipe(batch_size, 1, 0);
 

@@ -95,7 +95,7 @@ void FramesDecoder::BuildIndex() {
     entry.is_flush_frame = false;
 
     // DALI_ENFORCE(av_state_->packet_->pts == av_state_->frame_->pts);
-    std::cout << av_state_->packet_->pts << ", " << av_state_->frame_->pts << std::endl;
+    // std::cout << av_state_->packet_->pts << ", " << av_state_->frame_->pts << std::endl;
 
     if (entry.is_keyframe) {
       last_keyframe = index_.size();
@@ -201,8 +201,14 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output, bool fo
       continue;
     }
 
-    if (DecodeFrame(data, copy_to_output)) {
-      return true;
+    if (for_index) {
+      if (DecodeFrameFfmpeg(data, copy_to_output)) {
+        return true;
+      }
+    } else {
+      if (DecodeFrame(data, copy_to_output)) {
+        return true;
+      }
     }
 
   }
