@@ -332,7 +332,7 @@ class DLL_PUBLIC Buffer {
    * Current Buffer will be marked as sharing data, and reallocation of memory will be
    * prohibited until reset() is called.
    */
-  inline void set_backing_allocation(const Buffer<Backend> &other) {
+  inline void ShareData(const Buffer<Backend> &other) {
     type_ = other.type_;
     data_ = other.data_;
     allocate_ = {};
@@ -356,7 +356,7 @@ class DLL_PUBLIC Buffer {
     data_ = ptr;
     allocate_ = {};
     size_ = size;
-    shares_data_ = true;
+    shares_data_ = data_ != nullptr;
     num_bytes_ = bytes;
     pinned_ = pinned;
     // setting the allocation, get the device

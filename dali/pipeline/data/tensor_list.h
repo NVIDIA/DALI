@@ -137,8 +137,8 @@ class DLL_PUBLIC TensorList {
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
                        (std::is_same<Backend, GPUBackend>::value || is_pinned());
-    type_info().template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(),
-                                             nsamples, stream, use_copy_kernel);
+    type_info().template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(), nsamples,
+                                                   stream, use_copy_kernel);
   }
 
   inline void reserve(size_t bytes_per_tensor, int batch_size) {
@@ -216,7 +216,7 @@ class DLL_PUBLIC TensorList {
         "the input TensorList must have a valid data type");
 
     // Save the calling TensorLists meta-data
-    data_.set_backing_allocation(other.data_);
+    data_.ShareData(other.data_);
     shape_ = other.shape_;
     offsets_ = other.offsets_;
 
