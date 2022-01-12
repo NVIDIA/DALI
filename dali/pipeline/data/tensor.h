@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -226,14 +226,14 @@ class Tensor : public Buffer<Backend> {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes,
-                        const TensorShape<> &shape,
-                        DALIDataType type = DALI_NO_TYPE) {
+  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+                        const TensorShape<> &shape, DALIDataType type = DALI_NO_TYPE) {
     // don't check ptr as we want to share empty data as well
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_ = ptr;
     num_bytes_ = bytes;
+    pinned_ = pinned;
     type_ = TypeTable::GetTypeInfo(type);
     Index new_size = volume(shape);
     shape_ = shape;
@@ -261,9 +261,9 @@ class Tensor : public Buffer<Backend> {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(void *ptr, size_t bytes, const TensorShape<> &shape,
+  inline void ShareData(void *ptr, size_t bytes, bool pinned, const TensorShape<> &shape,
                         DALIDataType type = DALI_NO_TYPE) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape, type);
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type);
   }
 
   /**
@@ -283,9 +283,9 @@ class Tensor : public Buffer<Backend> {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(void *ptr, size_t bytes,
+  inline void ShareData(void *ptr, size_t bytes, bool pinned = false,
                         DALIDataType type = DALI_NO_TYPE) {
-    ShareData(ptr, bytes, { 0 }, type);
+    ShareData(ptr, bytes, pinned, { 0 }, type);
   }
 
   inline void Reset() {

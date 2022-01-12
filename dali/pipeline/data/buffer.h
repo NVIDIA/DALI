@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -350,7 +350,7 @@ class DLL_PUBLIC Buffer {
    *
    * For GPU memory, it is assumed to be associated with current device.
    */
-  inline void set_backing_allocation(const shared_ptr<void> &ptr, size_t bytes,
+  inline void set_backing_allocation(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
                                      DALIDataType type = DALI_NO_TYPE, size_t size = 0) {
     type_ = TypeTable::GetTypeInfo(type);
     data_ = ptr;
@@ -358,8 +358,9 @@ class DLL_PUBLIC Buffer {
     size_ = size;
     shares_data_ = true;
     num_bytes_ = bytes;
+    pinned_ = pinned;
     // setting the allocation, get the device
-    if (std::is_same<Backend, GPUBackend>::value) {
+    if ((std::is_same<Backend, GPUBackend>::value || pinned_) && device_ != CPU_ONLY_DEVICE_ID) {
       CUDA_CALL(cudaGetDevice(&device_));
     } else {
       device_ = CPU_ONLY_DEVICE_ID;

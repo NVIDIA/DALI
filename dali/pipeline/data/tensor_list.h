@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -245,12 +245,12 @@ class DLL_PUBLIC TensorList {
    * the user to manage the lifetime of the allocation such that it
    * persist while it is in use by the Tensor.
    */
-  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, const TensorListShape<> &shape,
-                        DALIDataType type = DALI_NO_TYPE) {
+  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+                        const TensorListShape<> &shape, DALIDataType type = DALI_NO_TYPE) {
     // don't check ptr as we want to share empty data as well
 
     // Save our new pointer and bytes. Reset our type, shape, and size
-    data_.set_backing_allocation(ptr, bytes, type, shape.num_elements());
+    data_.set_backing_allocation(ptr, bytes, pinned, type, shape.num_elements());
     shape_ = {};
     offsets_.clear();
 
@@ -280,9 +280,10 @@ class DLL_PUBLIC TensorList {
    * the user to manage the lifetime of the allocation such that it
    * persist while it is in use by the Tensor.
    */
-  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, const TensorListShape<> &shape,
+  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, bool pinned,
+                                   const TensorListShape<> &shape,
                                    DALIDataType type = DALI_NO_TYPE) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape, type);
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), pinned, bytes, shape, type);
   }
 
   /**
@@ -302,9 +303,9 @@ class DLL_PUBLIC TensorList {
    * the user to manage the lifetime of the allocation such that it
    * persist while it is in use by the Tensor.
    */
-  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes,
+  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, bool pinned = false,
                                    const DALIDataType type = DALI_NO_TYPE) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, TensorListShape<>{}, type);
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), pinned, bytes, TensorListShape<>{}, type);
   }
 
   DLL_PUBLIC void Reset() {
@@ -530,7 +531,7 @@ class DLL_PUBLIC TensorList {
 
     tensor_views_.emplace_back();
     auto &tensor = tensor_views_.back();
-    tensor.ShareData(data_.get_data_ptr(), data_.capacity(), new_shape, type());
+    tensor.ShareData(data_.get_data_ptr(), data_.capacity(), data_.is_pinned(), new_shape, type());
     tensor.set_device_id(data_.device_id());
 
     return &tensor;
