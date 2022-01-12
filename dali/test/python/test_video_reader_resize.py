@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import test_utils
 from nvidia.dali.pipeline import Pipeline
+import gc
 
 
 video_directory = '/tmp/labelled_videos/'
@@ -112,8 +113,8 @@ def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
     pipeline = video_reader_pipeline(batch_size, video_reader_params)
 
     def get_next_frame():
-        pipe_out = pipeline.run()
-        sequences_out = pipe_out[0].as_cpu().as_array()
+        pipe_out, = pipeline.run()
+        sequences_out = pipe_out.as_cpu().as_array()
         for sample in range(batch_size):
             for frame in range(video_reader_params['sequence_length']):
                 yield [np.expand_dims(sequences_out[sample][frame], 0)]
@@ -135,8 +136,9 @@ def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
 
 def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_length):
     global_sample_id = 0
-    batch, = pipeline.run()
-    batch = batch.as_cpu()
+    batch_gpu, = pipeline.run()
+    batch = batch_gpu.as_cpu()
+
     for sample_id in range(batch_size):
         global_sample_id = global_sample_id + 1
         sample = batch.at(sample_id)
@@ -149,7 +151,6 @@ def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_leng
                 assert (gt_frame.shape == frame.shape), "Shapes are not equal: {} != {}".format(
                             gt_frame.shape, frame.shape)
 
-
 def run_for_params(batch_size, video_reader_params, resize_params):
     pipeline = video_reader_resize_pipeline(
         batch_size, video_reader_params, resize_params)
@@ -159,6 +160,8 @@ def run_for_params(batch_size, video_reader_params, resize_params):
 
     compare_video_resize_pipelines(
         pipeline, gt_pipeline, batch_size, video_reader_params['sequence_length'])
+
+    gc.collect()
 
 
 def test_video_resize(batch_size=2):
