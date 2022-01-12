@@ -239,6 +239,7 @@ class SliceGPU {
 
   uint64_t block_size_ = kMaxBlockSize;
   uint64_t block_count_ = 0;
+  int blocks_per_sm_ = 0;
 
  public:
   KernelRequirements Setup(KernelContext &context,
@@ -280,17 +281,21 @@ class SliceGPU {
 
     std::vector<int64_t> sample_sizes;
     sample_sizes.reserve(slice_args.size());
-    int64_t total_volume = 0;
+    uint64_t total_volume = 0;
     for (auto &args : slice_args) {
       sample_sizes.push_back(volume(args.shape));
       total_volume += volume(args.shape);
     }
 
-    unsigned min_blocks = 4 * GetSmCount();
-    block_size_ = kMaxBlockSize;
-    while (total_volume / block_size_ < min_blocks && block_size_ > kMinBlockSize) {
-      block_size_ /= 2;
+    if (blocks_per_sm_ == 0) {
+      CUDA_CALL(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm_,
+                detail::SliceKernel<OutputType, InputType, Dims, false>, kBlockDim, 0));
     }
+    unsigned max_active_blocks = blocks_per_sm_ * GetSmCount();
+    uint64_t waves = div_ceil(total_volume + 1, kMaxBlockSize * max_active_blocks);
+    block_size_ = div_ceil(total_volume, max_active_blocks * waves);
+    if (block_size_ < kMinBlockSize) block_size_ = kMinBlockSize;
+    if (block_size_ > kMaxBlockSize) block_size_ = kMaxBlockSize;
 
     block_count_ = 0;
     for (auto sample_size : sample_sizes) {
