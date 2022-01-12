@@ -223,7 +223,6 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         sync_worker_(device_id_, false) {
     output_name_ = spec.Output(0);
     sync_worker_.WaitForInit();
-    DALI_ENFORCE(dtype_ != DALI_NO_TYPE, "SPECIFY DTYPE");
   }
 
   inline ~ExternalSource() {
