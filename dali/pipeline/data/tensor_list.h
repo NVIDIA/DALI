@@ -283,7 +283,7 @@ class DLL_PUBLIC TensorList {
   DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, bool pinned,
                                    const TensorListShape<> &shape,
                                    DALIDataType type = DALI_NO_TYPE) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), pinned, bytes, shape, type);
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type);
   }
 
   /**
@@ -305,7 +305,7 @@ class DLL_PUBLIC TensorList {
    */
   DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, bool pinned = false,
                                    const DALIDataType type = DALI_NO_TYPE) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), pinned, bytes, TensorListShape<>{}, type);
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, TensorListShape<>{}, type);
   }
 
   DLL_PUBLIC void Reset() {

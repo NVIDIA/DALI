@@ -751,8 +751,8 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test) {
     SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape), 42 * i);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     MemCopy(data[i].get(), input_cpu.get(), num_elems, cuda_stream);
-    input_wrapper[i].ShareData(std::static_pointer_cast<void>(data[i]),
-                               false, num_elems * sizeof(uint8_t), input_shape, DALI_UINT8);
+    input_wrapper[i].ShareData(std::static_pointer_cast<void>(data[i]), num_elems * sizeof(uint8_t),
+                               false, input_shape, DALI_UINT8);
     pipe_ptr->SetExternalInput(input_name, input_wrapper[i]);
     if (flag_to_test == DALI_ext_force_no_copy) {
       // for no copy, we just pass the view to data
