@@ -424,8 +424,8 @@ DALI_DECLARE_OPTYPE_REGISTRY(MixedOperator, OperatorBase);
 
 // Must be called from .cc or .cu file
 #define DALI_REGISTER_OPERATOR(OpName, OpType, device)                                  \
-  int DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();                                     \
-  static int ANONYMIZE_VARIABLE(OpName) = DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName(); \
+  int CONCAT_2(DALI_OPERATOR_SCHEMA_REQUIRED_FOR_, OpName)();                                     \
+  static int ANONYMIZE_VARIABLE(OpName) = CONCAT_2(DALI_OPERATOR_SCHEMA_REQUIRED_FOR_, OpName)(); \
   DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType, device##Operator, ::dali::OperatorBase, #device)
 
 

@@ -18,50 +18,17 @@
 #include <vector>
 #include <algorithm>
 
-#include "dali/pipeline/operator/operator.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/kernels/reduce/reductions.h"
 #include "dali/kernels/reduce/reduce_cpu.h"
 #include "dali/kernels/reduce/reduce_gpu.h"
 #include "dali/kernels/reduce/reduce_setup_utils.h"
+#include "dali/kernels/reduce/reductions.h"
+#include "dali/operators/generic/reduce/axes_helper.h"
+#include "dali/pipeline/operator/operator.h"
 
 #define REDUCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)  // NOLINT
 
 namespace dali {
-namespace detail {
-
-class AxesHelper {
- public:
-  explicit inline AxesHelper(const OpSpec &spec) {
-    has_axes_arg_ = spec.TryGetRepeatedArgument(axes_, "axes");
-    has_axis_names_arg_ = spec.TryGetArgument(axis_names_, "axis_names");
-    has_empty_axes_arg_ =
-      (has_axes_arg_ && axes_.empty()) || (has_axis_names_arg_ && axis_names_.empty());
-
-    DALI_ENFORCE(!has_axes_arg_ || !has_axis_names_arg_,
-      "Arguments `axes` and `axis_names` are mutually exclusive");
-  }
-
-  void PrepareAxes(const TensorLayout &layout, int sample_dim) {
-    if (has_axis_names_arg_) {
-      axes_ = GetDimIndices(layout, axis_names_).to_vector();
-      return;
-    }
-
-    if (!has_axes_arg_) {
-      axes_.resize(sample_dim);
-      std::iota(axes_.begin(), axes_.end(), 0);
-    }
-  }
-
-  bool has_axes_arg_;
-  bool has_axis_names_arg_;
-  bool has_empty_axes_arg_;
-  vector<int> axes_;
-  TensorLayout axis_names_;
-};
-
-}  // namespace detail
 
 template <
   template <typename T, typename R> class ReductionType,
