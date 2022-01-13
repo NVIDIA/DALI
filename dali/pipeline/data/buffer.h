@@ -360,7 +360,7 @@ class DLL_PUBLIC Buffer {
     num_bytes_ = bytes;
     pinned_ = pinned;
     // setting the allocation, get the device
-    if ((std::is_same<Backend, GPUBackend>::value || pinned_) && device_ != CPU_ONLY_DEVICE_ID) {
+    if ((std::is_same<Backend, GPUBackend>::value || pinned_) && device_ == CPU_ONLY_DEVICE_ID) {
       CUDA_CALL(cudaGetDevice(&device_));
     } else {
       device_ = CPU_ONLY_DEVICE_ID;
