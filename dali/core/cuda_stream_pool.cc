@@ -26,7 +26,9 @@ CUDAStreamPool::~CUDAStreamPool() {
 
 CUDAStreamPool::CUDAStreamPool() {
   int num_devices = 0;
-  CUDA_CALL(cudaGetDeviceCount(&num_devices));
+  auto e = cudaGetDeviceCount(&num_devices);
+  if (e != cudaSuccess && e != cudaErrorNoDevice)
+    throw CUDAError(e);
   dev_streams_.resize(num_devices);
 }
 
