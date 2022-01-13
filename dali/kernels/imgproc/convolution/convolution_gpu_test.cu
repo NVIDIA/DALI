@@ -47,9 +47,9 @@ struct TransformParam<Scale05, OutType, WinType, ndim> {
 
   void FillOut(const TensorListView<StorageCPU, OutType, ndim> &out) {}
 
-  std::vector<TransformCpu> GetCpuTransforms() {
-    std::vector<TransformCpu> transforms(nsamples_, {0.5f});
-    return transforms;
+  TransformCpu GetCpuTransform(int sample_idx) {
+    (void)sample_idx;
+    return {0.5f};
   }
 
   ConvEpilogue GetGpuEpilogue() {
@@ -81,12 +81,8 @@ struct TransformParam<AccScaleOutput, OutType, WinType, ndim> {
     }
   }
 
-  std::vector<TransformCpu> GetCpuTransforms() {
-    std::vector<TransformCpu> transforms;
-    for (int i = 0; i < nsamples_; i++) {
-      transforms.push_back(scales_[i]);
-    }
-    return transforms;
+  TransformCpu GetCpuTransform(int sample_idx) {
+    return {scales_[sample_idx]};
   }
 
   ConvEpilogue GetGpuEpilogue() {
@@ -171,13 +167,8 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
     TransformCase transform(num_samples);
     baseline_out_ = baseline_output_.cpu();
     transform.FillOut(baseline_out_);
-    {
-      auto cpu_out = output_.cpu();
-      transform.FillOut(cpu_out);
-    }
+    transform.FillOut(output_.cpu());
     out_ = output_.gpu();
-
-    auto cpu_transforms = transform.GetCpuTransforms();
 
     for (int sample = 0; sample < num_samples; sample++) {
       int window_size = shape_window[sample][0];
@@ -189,7 +180,7 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
       ctx_cpu.scratchpad = &scratchpad;
 
       kernel_cpu.Run(ctx_cpu, baseline_out_[sample], baseline_in_[sample], k_win_[sample],
-                     cpu_transforms[sample]);
+                     transform.GetCpuTransform(sample));
     }
 
     auto req = kernel_gpu.Setup(ctx_gpu, in_.shape, shape_window);
