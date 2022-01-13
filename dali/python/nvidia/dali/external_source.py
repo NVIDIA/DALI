@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
 
 # custom wrappers around ops
 from nvidia.dali import backend as _b
+from nvidia.dali import tensors as _tensors
+from nvidia.dali import types as _types
 from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs, SampleRange as _SampleRange
 import nvidia.dali.types
 from nvidia.dali._utils.external_source_impl import \
@@ -51,6 +53,54 @@ def _check_data_batch(data, batch_size, layout):
                     raise RuntimeError("All tensors in a batch must have the same number of dimensions")
         if layout is not None and layout != "" and dim != len(layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
+
+
+def _prep_data_for_feed_input(data, batch_size, layout):
+    def to_numpy(x):
+        if _types._is_mxnet_array(x):
+            return x.asnumpy()
+        elif _types._is_torch_tensor(x):
+            return x.numpy()
+        else:
+            return x
+
+    # __cuda_array_interface__ doesn't provide any way to pass the information about the device
+    # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
+    # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
+    if isinstance(data, (_tensors.TensorListCPU, _tensors.TensorListGPU)):
+        if layout is not None:
+            _check_data_batch(data, batch_size, layout)
+            data = type(data)(data, layout)
+    elif isinstance(data, list):
+        inputs = []
+        checked = False
+        for datum in data:
+            info = _b.CheckDLPackCapsule(datum)
+            if not info[0] and not checked:
+                _check_data_batch(data, batch_size, layout)
+                checked = True
+            if isinstance(datum, (_tensors.TensorCPU, _tensors.TensorGPU)):
+                inp = type(datum)(datum, layout=layout) if layout is not None else datum
+            elif hasattr(datum, "__cuda_array_interface__") or (info[0] and info[1]):
+                inp = _tensors.TensorGPU(datum, layout or "")
+            else:
+                datum = to_numpy(datum)
+                inp = _tensors.TensorCPU(datum, layout or "")
+            inputs.append(inp)
+        assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
+            "Mixed input types are not support, all need to reside on the CPU or GPU"
+        data = inputs
+    else:
+        info = _b.CheckDLPackCapsule(data)
+        if not info[0]:
+            _check_data_batch(data, batch_size, layout)
+        if hasattr(data, "__cuda_array_interface__") or (info[0] and info[1]):
+            data = _tensors.TensorListGPU(data, layout or "")
+        else:
+            data = to_numpy(data)
+            data = _tensors.TensorListCPU(data, layout or "")
+    return data
+
 
 class _ExternalDataBatch:
     def __init__(self, group, pipeline, data, batch_size):
@@ -680,9 +730,8 @@ provided memory is copied to the internal buffer.
     # Wrapper around external_source to switch between standard and debug mode.
     current_pipeline = _PipelineDebug.current()
     if getattr(current_pipeline, '_debug_on', False):
-        return current_pipeline._external_source(_external_source, source, num_outputs, cycle=cycle, name=name,
-                                                 device=device, layout=layout, dtype=dtype, cuda_stream=cuda_stream,
-                                                 use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
+        return current_pipeline._external_source(source=source, num_outputs=num_outputs, cycle=cycle, name=name,
+                                                 layout=layout, batch=batch, **kwargs)
     else:
         return _external_source(source, num_outputs, cycle=cycle, name=name, device=device, layout=layout, dtype=dtype,
                                 cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
