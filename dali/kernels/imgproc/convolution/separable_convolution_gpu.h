@@ -30,7 +30,7 @@ namespace kernels {
 
 /**
  * @brief Apply convolution in all spatial axes, starting from the innermost to outermost.
- *        If channel axis is pressent, the convolution is not applied there.
+ *        If channel axis is present, the convolution is not applied there.
  *        If it is marked as sequence, the outermost dimension denotes frames and
  *        convolution is not applied to it.
  *
@@ -44,7 +44,8 @@ namespace kernels {
  *
  * Here be boilerplate.
  */
-template <typename Out, typename In, typename W, int axes, bool has_channels, bool is_sequence>
+template <typename Out, typename In, typename W, int axes, bool has_channels = false,
+          bool is_sequence = false>
 struct SeparableConvolutionGpu;
 
 template <typename Out, typename In, typename W, bool has_channels, bool is_sequence>
@@ -113,7 +114,7 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
            const std::array<TensorListView<StorageCPU, const W, 1>, axes>& windows,
            const std::array<span<const int>, 2> anchors = {},
            const ConvEpilogue& conv_epilogue = 1.f) {
-    auto* tmp = ctx.scratchpad->AllocateGPU<Intermediate>(in.shape.num_elements());
+    auto *tmp = ctx.scratchpad->AllocateGPU<Intermediate>(in.shape.num_elements());
 
     auto intermediate = TensorListView<StorageGPU, Intermediate, ndim>(tmp, in.shape);
 
@@ -123,8 +124,8 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
     for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
       auto sz = sub_scratch_sizes_[i];
       auto kind_id = static_cast<mm::memory_kind_id>(i);
-      sub_scratch.allocs[i] =
-          BumpAllocator(static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
+      sub_scratch.allocs[i] = BumpAllocator(
+        static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
     }
 
     KernelContext sub_ctx = ctx;
@@ -196,8 +197,8 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
     for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
       auto sz = sub_scratch_sizes_[i];
       auto kind_id = static_cast<mm::memory_kind_id>(i);
-      sub_scratch.allocs[i] =
-          BumpAllocator(static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
+      sub_scratch.allocs[i] = BumpAllocator(
+        static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
     }
 
     KernelContext sub_ctx = ctx;

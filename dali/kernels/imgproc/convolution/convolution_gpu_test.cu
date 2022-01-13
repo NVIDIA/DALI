@@ -42,6 +42,7 @@ struct TransformParam;
 template <typename OutType, typename WinType, int ndim>
 struct TransformParam<Scale05, OutType, WinType, ndim> {
   using TransformCpu = conv_transform::TransScaleSat<OutType, WinType>;
+  static constexpr transformCase transform_case = Scale05;
   explicit TransformParam(int nsamples) : nsamples_{nsamples} {}
 
   void FillOut(const TensorListView<StorageCPU, OutType, ndim> &out) {}
@@ -62,6 +63,7 @@ struct TransformParam<Scale05, OutType, WinType, ndim> {
 template <typename OutType, typename WinType, int ndim>
 struct TransformParam<AccScaleOutput, OutType, WinType, ndim> {
   using TransformCpu = conv_transform::TransScaleAddOutSat<OutType, WinType>;
+  static constexpr transformCase transform_case = AccScaleOutput;
   explicit TransformParam(int nsamples) : nsamples_{nsamples}, scales_(nsamples) {
     for (int sample_idx = 0; sample_idx < nsamples_; sample_idx++) {
       scales_[sample_idx] = 1.f / (sample_idx + 1);
@@ -118,6 +120,8 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
   using KernelCpu =
       ConvolutionCpu<OutType, InType, WinType, T::ndim, T::axis, T::has_channels, TransformCpu>;
   using KernelGpu = ConvolutionGpu<OutType, InType, WinType, T::ndim, T::axis, T::has_channels>;
+
+  static constexpr transformCase transform_case = TransformCase::transform_case;
 
   TensorListShape<T::ndim> GetShape() {
     if (T::has_channels) {
@@ -200,7 +204,7 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
     output_.invalidate_cpu();
     auto out_cpu_ = output_.cpu();
 
-    double eps = 0.01;
+    double eps = std::is_integral<OutType>::value && transform_case == AccScaleOutput ? 1 : 0.01;
     Check(out_cpu_, baseline_out_, EqualEps(eps));
   }
 
@@ -243,8 +247,10 @@ using ConvolutionTestValues = ::testing::Types<
     convolution_params<1, false, 0, float, float>,
     convolution_params<1, false, 0, float, float, float, AccScaleOutput>,
     convolution_params<1, false, 0, int32_t, int32_t>,
+    convolution_params<1, false, 0, int32_t, int32_t, float, AccScaleOutput>,
     convolution_params<1, false, 0, uint32_t, uint32_t>,
     convolution_params<1, false, 0, int16_t, int16_t>,
+    convolution_params<1, false, 0, int16_t, int16_t, float, AccScaleOutput>,
     convolution_params<1, false, 0, int16_t, float>,
     convolution_params<1, false, 0, int16_t, float, float, AccScaleOutput>,
     convolution_params<1, false, 0, uint32_t, uint32_t>,

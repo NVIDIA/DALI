@@ -62,7 +62,7 @@ struct LaplacianGpuTest : public ::testing::Test {
   static TensorListShape<ndim> GetShape() {
     static const TensorListShape<> shapes = {
         {7, 29, 145, 128}, {3, 64, 64, 64}, {4, 164, 164, 164}, {11, 12, 12, 12},
-        {4, 4, 200, 180},  {1, 200, 4, 180}, {1, 75, 75, 75},     {8, 16, 512, 512}};
+        {4, 4, 200, 180},  {1, 200, 4, 180}, {1, 75, 75, 75},     {2, 16, 256, 256}};
     static const TensorListShape<> channels = {{3}, {3}, {1}, {5}, {7}, {3}, {5}, {1}};
     if (!has_channels) {
       return shapes.template first<ndim>();
