@@ -156,7 +156,7 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
                            bool enforce_intermediate = false) {
     KernelRequirements req;
     ScratchpadEstimator se;
-    bool use_out_as_intermediate_ = !enforce_intermediate && outFitsIntermediate;
+    use_out_as_intermediate_ = !enforce_intermediate && outFitsIntermediate;
     int intermediate_count = use_out_as_intermediate_ ? 1 : 2;
     se.add<mm::memory_kind::device, Intermediate>(in_shape.num_elements() * intermediate_count);
     req.scratch_sizes = se.sizes;

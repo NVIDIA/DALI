@@ -56,6 +56,15 @@ __global__ void BatchedCastKernel(const CastSampleDesc* samples,
 
 }  // namespace detail
 
+/**
+ * @brief Computes convolution to obtain partial derivative in one of the dimensions.
+ * Convolution consits of `axes` windows, each to convolve along one dimension of the input data,
+ * where `deriv_axis`-th window is supposed to compute partial derivative along that axis,
+ * whereas the remaining windows should perform smoothing. Setup method expects
+ * a `has_smoothing` hint if all window sizes in non-derivative directions are one. If so,
+ * the smoothing convolutions can be skipped and only a single one-dimensional
+ * convolution in derivative direction is performed.
+ */
 template <typename Out, typename In, typename W, int axes, int deriv_axis, bool has_channels,
           bool is_sequence>
 struct PartialDerivGpu {
@@ -100,9 +109,6 @@ struct PartialDerivGpu {
 
 /**
  * @brief Provides Laplacian specializations for 2 and 3 dimensional data.
- *  Run methods expect additional ``acc`` buffer that will be used to accumulate
- *  partial derivatives. If ``Intermediate`` and ``Out`` are the same type,
- *  the ``acc`` and ``out`` can be the same tensor.
  */
 template <typename Out, typename In, typename W, int axes, bool has_channels, bool is_sequence>
 struct LaplacianGpuBase;
@@ -219,6 +225,22 @@ struct LaplacianGpuBase<Out, In, W, 3, has_channels, is_sequence> {
   DxKernel sobel_dx_;
 };
 
+
+/**
+ * @brief Laplacian kernel.
+ * Provides separate specialization for 1 dimensional data. For other cases
+ * there are two specializations depending on whether ``Intermediate`` is the same as ``Out``:
+ * if not, the extra intermediate buffer is used to accumulate partial derivatives and then
+ * the result is cast and moved to the output TensorListView.
+ *
+ * For `axes` dimensional input data, there will be computed and summed `axes` partial derivatives,
+ * one in each direction. The `i-th` partial derivative is computed by performing
+ * a `axes`-dimensional separable convolution, where the `i-th` window is responsible for actual
+ * derivative approximation and the remaining windows provide smoothing.
+ * In total, there are ``axes * axes`` windows involved in computing laplacian.
+ *
+ * Dummy type is used with enable_if_t to disambiguate template specializations.
+ */
 template <typename Intermediate, typename Out, typename In, typename W, int axes, bool has_channels,
           bool is_sequence, typename Dummy = void>
 struct LaplacianGpu;

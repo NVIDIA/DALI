@@ -27,7 +27,6 @@
 #include "dali/kernels/reduce/online_reducer.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
-
 namespace dali {
 namespace kernels {
 
@@ -75,9 +74,9 @@ struct ConvEpilogue {
  *
  * For the convolution we pass D = C = `out`.
  * Parameters `alpha` and `beta` can be customized by passing `conv_epilogue` to `Run` method.
- * By default, a single `alpha` is used for the entire batch and `beta` defaults to 0, so that
- * the C matrix is zeroed. However, `alpha` can be specified per-sample and if non-zero `beta`
- * parameter is used, the convolution output will be added to the provided `out` buffer.
+ * By default, a single `alpha` is used for the entire batch but it can be specified
+ * per sample as a span of floats. The `beta` parameter defaults to 0, so that
+ * the C matrix is zeroed.
  * A and B correspond to `in` and `window` (the order depends on whether it's an inner or an outer
  * convolution). Effectively, we calculate ``D = alpha * A * B + beta * D``.
  */
