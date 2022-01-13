@@ -6,14 +6,9 @@ Please fill the relevant information in this PR template.
 Fields with `- [ ]` represent check-boxes that can be marked after you create and save the Pull Request.
 --->
 
-## Description
-- [ ] **Bug fix** (*non-breaking change which fixes an issue*)
-- [ ] **New feature** (*non-breaking change which adds functionality*)
-- [ ] **Breaking change** (*fix or feature that would cause existing functionality to not work as expected*)
-- [ ] **Refactoring** (*Redesign of existing code that doesn't affect functionality*)
-- [ ] **Other** (*e.g. Documentation, Tests, Configuration*)
 
-### What happened in this PR
+
+## What happened in this PR?
 <!---
 Please explain what kind of change is in this PR and why it is submitted.
 Any additional context or description of the solution is welcomed.
@@ -24,14 +19,31 @@ Examples:
 - The *new feature/bugfix* uses *a new data structure/algorithm* to do *X* instead of *Y*.
 --->
 
-#### Additional information
-- Affected modules and functionalities:
+
+
+### Affected modules and functionalities:
 <!--- Describe here what was changed, added, removed. --->
 
-- Key points relevant for the review:
+
+
+### Key points relevant for the review:
 <!--- Describe here what is the most important part that reviewers should focus on. --->
 
+
+
+<!--- 
+At this point you can hit "Create".
+The checklist below may be filled in the created PR 
+--->
+
 ## Checklist
+
+### Description
+- [ ] **Bug fix** (*non-breaking change which fixes an issue*)
+- [ ] **New feature** (*non-breaking change which adds functionality*)
+- [ ] **Breaking change** (*fix or feature that would cause existing functionality to not work as expected*)
+- [ ] **Refactoring** (*Redesign of existing code that doesn't affect functionality*)
+- [ ] **Other** (*e.g. Documentation, Tests, Configuration*)
 
 ### Tests
 - [ ] Existing tests apply
