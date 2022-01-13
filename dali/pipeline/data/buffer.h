@@ -337,7 +337,7 @@ class DLL_PUBLIC Buffer {
     data_ = other.data_;
     allocate_ = {};
     size_ = other.size_;
-    shares_data_ = true;
+    shares_data_ = data_ != nullptr;
     num_bytes_ = other.num_bytes_;
     device_ = other.device_;
   }
