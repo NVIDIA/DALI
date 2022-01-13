@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include "dali/core/boundary.h"
 #include "dali/core/convert.h"
 #include "dali/core/format.h"
+#include "dali/core/span.h"
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/cutlass/device/gemm.h"
@@ -26,8 +27,32 @@
 #include "dali/kernels/reduce/online_reducer.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
+
 namespace dali {
 namespace kernels {
+
+struct ConvEpilogue {
+  ConvEpilogue(span<const float> scales, float beta = 0.f)  // NOLINT
+      : scales_{scales}, scale_{}, beta_{beta} {}
+  ConvEpilogue(float scale, float beta = 0.f) : scales_{}, scale_{scale}, beta_{beta} {}  // NOLINT
+
+  inline float num_samples() const {
+    return scales_.empty() ? 1 : scales_.size();
+  }
+
+  inline float alpha(int sample_idx) const {
+    return scales_.empty() ? scale_ : scales_[sample_idx];
+  }
+
+  inline float beta() const {
+    return beta_;
+  }
+
+ private:
+  span<const float> scales_;
+  float scale_;
+  float beta_;
+};
 
 /**
  * @brief Apply a convolution with a 1-channel `window` in the specified axis.
@@ -88,8 +113,9 @@ struct ConvolutionGpu {
   void Run(KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim> out,
            const TensorListView<StorageGPU, const In, ndim>& in,
            const TensorListView<StorageCPU, const W, 1>& windows,
-           span<const int> window_anchors = {}, float scale = 1) {
+           const span<const int> window_anchors = {}, const ConvEpilogue& conv_epilogue = 1.f) {
     int num_samples = in.size();
+    int num_scales = conv_epilogue.num_samples();
 
     DALI_ENFORCE(
         window_anchors.size() == num_samples || window_anchors.size() == 0,
@@ -97,6 +123,11 @@ struct ConvolutionGpu {
             "Unexpected number of window_anchors, expected either anchors for all samples ( ",
             num_samples,
             ") or no anchors for windows centered by default, got: ", window_anchors.size(), "."));
+
+    DALI_ENFORCE(num_scales == 1 || num_scales == num_samples,
+                 make_string("Scale argument must be either 1 or equal to batch size (",
+                             num_samples, "), got: ", num_scales, "."));
+
     auto* window_tmp_buffer_host_ptr =
         ctx.scratchpad->AllocateHost<W>(num_samples * kWindowCopyBufferSize);
     span<W> window_tmp_buffer_host(window_tmp_buffer_host_ptr, num_samples * kWindowCopyBufferSize);
@@ -120,7 +151,7 @@ struct ConvolutionGpu {
         DALI_ENFORCE(
             window_anchor == window_size / 2,
             make_string("Support for non-centered window is not yet implemented, got anchor: ",
-                        window_anchor, ", expected:", window_size / 2,  "."));
+                        window_anchor, ", expected: ", window_size / 2, "."));
         cutlass::Array<int, 2> size;
         auto sample_shape = in.tensor_shape(i);
         int num_channels = has_channels ? sample_shape[ndim - 1] : 1;
@@ -138,6 +169,8 @@ struct ConvolutionGpu {
             reinterpret_cast<cutlass_W*>(window_tmp_buffer_gpu + i * kWindowCopyBufferSize);
         const auto* cutlass_in = reinterpret_cast<const cutlass_In*>(in.tensor_data(i));
         auto* cutlass_out = reinterpret_cast<cutlass_Out*>(out.tensor_data(i));
+        float scale = conv_epilogue.alpha(i);
+        float beta = conv_epilogue.beta();
         args.sample_arguments.push_back(SampleArguments{
             size,                       // Input matrix dimensions
             window_size,                // Window size
@@ -147,7 +180,7 @@ struct ConvolutionGpu {
             window_gpu,                 // Pointers to windows
             {cutlass_out, row_stride},  // Tensor-ref for source matrix C
             {cutlass_out, row_stride},  // Tensor-ref for destination matrix D
-            {scale, 0.f}                // Epilogue scalars
+            {scale, beta}               // Epilogue scalars
         });
       }
     } else {
@@ -160,7 +193,7 @@ struct ConvolutionGpu {
         DALI_ENFORCE(
             window_anchor == window_size / 2,
             make_string("Support for non-centered window is not yet implemented, got anchor: ",
-                        window_anchor, ", expected:", window_size / 2,  "."));
+                        window_anchor, ", expected: ", window_size / 2, "."));
         cutlass::Array<int, 2> size;
         auto sample_shape = in.tensor_shape(i);
         // height
@@ -180,18 +213,20 @@ struct ConvolutionGpu {
             reinterpret_cast<cutlass_W*>(window_tmp_buffer_gpu + i * kWindowCopyBufferSize);
         const auto* cutlass_in = reinterpret_cast<const cutlass_In*>(in.tensor_data(i));
         auto* cutlass_out = reinterpret_cast<cutlass_Out*>(out.tensor_data(i));
-        args.sample_arguments.push_back(SampleArguments{
-            size,                       // Input matrix dimensions
-            window_size,                // Window size
-            window_anchor,              // Window anchor
-            1,                          // channels don't matter for outer dimensions
-            {cutlass_in, row_stride},   // Tensor-ref for source matrix A
-            window_gpu,                 // Pointers to windows
-            {cutlass_out, row_stride},  // Tensor-ref for source matrix C
-            {cutlass_out, row_stride},  // Tensor-ref for destination matrix D
-            {scale, 0.f},               // Epilogue scalars
-            planes,                     // For non-outermost we can have 1+ planes
-            plane_stride});
+        float scale = conv_epilogue.alpha(i);
+        float beta = conv_epilogue.beta();
+        args.sample_arguments.push_back(
+            SampleArguments{size,                       // Input matrix dimensions
+                            window_size,                // Window size
+                            window_anchor,              // Window anchor
+                            1,                          // channels don't matter for outer dim
+                            {cutlass_in, row_stride},   // Tensor-ref for source matrix A
+                            window_gpu,                 // Pointers to windows
+                            {cutlass_out, row_stride},  // Tensor-ref for source matrix C
+                            {cutlass_out, row_stride},  // Tensor-ref for destination matrix D
+                            {scale, beta},              // Epilogue scalars
+                            planes,                     // For non-outermost we can have 1+ planes
+                            plane_stride});
       }
     }
     // Construct and invoke the CUTLASS kernel

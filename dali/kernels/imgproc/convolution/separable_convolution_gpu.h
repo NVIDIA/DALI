@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ namespace dali {
 namespace kernels {
 
 
-
 /**
  * @brief Apply convolution in all spatial axes, starting from the innermost to outermost.
  *        If channel axis is pressent, the convolution is not applied there.
@@ -45,8 +44,7 @@ namespace kernels {
  *
  * Here be boilerplate.
  */
-template <typename Out, typename In, typename W, int axes, bool has_channels = false,
-          bool is_sequence = false>
+template <typename Out, typename In, typename W, int axes, bool has_channels, bool is_sequence>
 struct SeparableConvolutionGpu;
 
 template <typename Out, typename In, typename W, bool has_channels, bool is_sequence>
@@ -57,7 +55,9 @@ struct SeparableConvolutionGpu<Out, In, W, 1, has_channels, is_sequence> {
   static constexpr int ndim = sequence_axes + axes + channel_axes;
 
   KernelRequirements Setup(KernelContext& ctx, const TensorListShape<ndim>& in_shape,
-                           const std::array<TensorListShape<1>, axes>& window_sizes) {
+                           const std::array<TensorListShape<1>, axes>& window_sizes,
+                           bool enforce_intermediate = false) {
+    (void)enforce_intermediate;  // It's relevant only if `axes >= 3`
     KernelRequirements req;
     req.output_shapes.push_back(in_shape);
 
@@ -72,8 +72,8 @@ struct SeparableConvolutionGpu<Out, In, W, 1, has_channels, is_sequence> {
            const TensorListView<StorageGPU, const In, ndim>& in,
            const std::array<TensorListView<StorageCPU, const W, 1>, axes>& windows,
            const std::array<span<const int>, 1> anchors = {},
-           float scale = 1) {
-    conv_.Run(ctx, out, in, windows[0], anchors[0], scale);
+           const ConvEpilogue& conv_epilogue = 1.f) {
+    conv_.Run(ctx, out, in, windows[0], anchors[0], conv_epilogue);
   }
 
   ConvolutionGpu<Out, In, W, ndim, sequence_axes + 0, has_channels> conv_;
@@ -88,7 +88,9 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
   using Intermediate = decltype(std::declval<W>() * std::declval<In>());
 
   KernelRequirements Setup(KernelContext& ctx, const TensorListShape<ndim>& in_shape,
-                           const std::array<TensorListShape<1>, axes>& window_sizes) {
+                           const std::array<TensorListShape<1>, axes>& window_sizes,
+                           bool enforce_intermediate = false) {
+    (void)enforce_intermediate;  // It's relevant only if `axes >= 3`
     KernelRequirements req;
 
     ScratchpadEstimator se;
@@ -110,8 +112,8 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
            const TensorListView<StorageGPU, const In, ndim>& in,
            const std::array<TensorListView<StorageCPU, const W, 1>, axes>& windows,
            const std::array<span<const int>, 2> anchors = {},
-           float scale = 1) {
-    auto *tmp = ctx.scratchpad->AllocateGPU<Intermediate>(in.shape.num_elements());
+           const ConvEpilogue& conv_epilogue = 1.f) {
+    auto* tmp = ctx.scratchpad->AllocateGPU<Intermediate>(in.shape.num_elements());
 
     auto intermediate = TensorListView<StorageGPU, Intermediate, ndim>(tmp, in.shape);
 
@@ -121,8 +123,8 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
     for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
       auto sz = sub_scratch_sizes_[i];
       auto kind_id = static_cast<mm::memory_kind_id>(i);
-      sub_scratch.allocs[i] = BumpAllocator(
-        static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
+      sub_scratch.allocs[i] =
+          BumpAllocator(static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
     }
 
     KernelContext sub_ctx = ctx;
@@ -131,7 +133,7 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
     // Clear the scratchpad for sub-kernels to reuse memory
     conv_innermost_.Run(sub_ctx, intermediate, in, windows[1], anchors[1]);
     sub_scratch.Clear();
-    conv_outermost_.Run(sub_ctx, out, intermediate, windows[0], anchors[0], scale);
+    conv_outermost_.Run(sub_ctx, out, intermediate, windows[0], anchors[0], conv_epilogue);
   }
 
   scratch_sizes_t sub_scratch_sizes_;
@@ -146,14 +148,15 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
   static constexpr int channel_axes = static_cast<int>(has_channels);
   static constexpr int ndim = sequence_axes + axes + channel_axes;
   using Intermediate = decltype(std::declval<W>() * std::declval<In>());
-  static constexpr bool kUseOutAsIntermediate = sizeof(Intermediate) == sizeof(Out);
+  static constexpr bool outFitsIntermediate = sizeof(Intermediate) == sizeof(Out);
 
   KernelRequirements Setup(KernelContext& ctx, const TensorListShape<ndim>& in_shape,
-                           const std::array<TensorListShape<1>, axes>& window_sizes) {
+                           const std::array<TensorListShape<1>, axes>& window_sizes,
+                           bool enforce_intermediate = false) {
     KernelRequirements req;
-
     ScratchpadEstimator se;
-    int intermediate_count = kUseOutAsIntermediate ? 1 : 2;
+    bool use_out_as_intermediate_ = !enforce_intermediate && outFitsIntermediate;
+    int intermediate_count = use_out_as_intermediate_ ? 1 : 2;
     se.add<mm::memory_kind::device, Intermediate>(in_shape.num_elements() * intermediate_count);
     req.scratch_sizes = se.sizes;
     req.output_shapes.push_back(in_shape);
@@ -174,12 +177,12 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
            const TensorListView<StorageGPU, const In, ndim>& in,
            const std::array<TensorListView<StorageCPU, const W, 1>, axes>& windows,
            const std::array<span<const int>, 3> anchors = {},
-           float scale = 1) {
-    int intermediate_count = kUseOutAsIntermediate ? 1 : 2;
-    auto* tmp = ctx.scratchpad->AllocateGPU<Intermediate>(
-        in.shape.num_elements() * intermediate_count);
+           const ConvEpilogue& conv_epilogue = 1.f) {
+    int intermediate_count = use_out_as_intermediate_ ? 1 : 2;
+    auto* tmp =
+        ctx.scratchpad->AllocateGPU<Intermediate>(in.shape.num_elements() * intermediate_count);
     TensorListView<StorageGPU, Intermediate, ndim> intermediate_inner, intermediate_outer;
-    if (kUseOutAsIntermediate) {
+    if (use_out_as_intermediate_) {
       intermediate_inner = reinterpret<Intermediate>(out, in.shape);
       intermediate_outer = {tmp, in.shape};
     } else {
@@ -193,8 +196,8 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
     for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
       auto sz = sub_scratch_sizes_[i];
       auto kind_id = static_cast<mm::memory_kind_id>(i);
-      sub_scratch.allocs[i] = BumpAllocator(
-        static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
+      sub_scratch.allocs[i] =
+          BumpAllocator(static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
     }
 
     KernelContext sub_ctx = ctx;
@@ -205,10 +208,11 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
     sub_scratch.Clear();
     conv_middle_.Run(sub_ctx, intermediate_outer, intermediate_inner, windows[1], anchors[1]);
     sub_scratch.Clear();
-    conv_outermost_.Run(sub_ctx, out, intermediate_outer, windows[0], anchors[0], scale);
+    conv_outermost_.Run(sub_ctx, out, intermediate_outer, windows[0], anchors[0], conv_epilogue);
   }
 
   scratch_sizes_t sub_scratch_sizes_;
+  bool use_out_as_intermediate_;
   ConvolutionGpu<Intermediate, In, W, ndim, sequence_axes + 2, has_channels> conv_innermost_;
   ConvolutionGpu<Intermediate, Intermediate, W, ndim, sequence_axes + 1, has_channels> conv_middle_;
   ConvolutionGpu<Out, Intermediate, W, ndim, sequence_axes + 0, has_channels> conv_outermost_;
