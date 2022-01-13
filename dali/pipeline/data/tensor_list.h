@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/meta.h"
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
 
@@ -45,7 +46,7 @@ class TensorVector;
  * in the list.
  */
 template <typename Backend>
-class DLL_PUBLIC TensorList : private Buffer<Backend> {
+class DLL_PUBLIC TensorList {
  public:
   DLL_PUBLIC TensorList() {}
 
@@ -77,28 +78,8 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    * For this purpose the name is distinct so we can easily search and replace.
    */
   int64_t _num_elements() const {
-    return Buffer<Backend>::size();
+    return data_.size();
   }
-
-  // Reexpose all public Buffer functions apart from contiguous buffer accessors.
-  // TensorList is being reworked to sample-only access and this is intermediate step
-  // that prevents reintroducing that access in any of DALI operators
-
-  using Buffer<Backend>::nbytes;
-  using Buffer<Backend>::capacity;
-  using Buffer<Backend>::type;
-  using Buffer<Backend>::type_info;
-  using Buffer<Backend>::set_alloc_func;
-  using Buffer<Backend>::alloc_func;
-  using Buffer<Backend>::has_data;
-  using Buffer<Backend>::set_pinned;
-  using Buffer<Backend>::is_pinned;
-  using Buffer<Backend>::device_id;
-  using Buffer<Backend>::set_device_id;
-  using Buffer<Backend>::set_type;
-  using Buffer<Backend>::reserve;
-  // using Buffer<Backend>::reset;  // Available via USE_BUFFER_MEMBERS
-  using Buffer<Backend>::shares_data;
 
   /**
    * @brief Copies the input TensorList, resizing this TensorList and
@@ -112,9 +93,10 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     this->SetLayout(other.GetLayout());
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
-                       (std::is_same<Backend, GPUBackend>::value || pinned_);
-    type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(), other.raw_data(),
-                                             this->size(), stream, use_copy_kernel);
+                       (std::is_same<Backend, GPUBackend>::value || is_pinned());
+    type_info().template Copy<Backend, SrcBackend>(unsafe_raw_mutable_data(*this),
+                                                  unsafe_raw_data(other), this->_num_elements(),
+                                                  stream, use_copy_kernel);
   }
 
   template <typename SrcBackend>
@@ -154,9 +136,9 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     }
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
-                       (std::is_same<Backend, GPUBackend>::value || pinned_);
-    type_.template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(),
-                                             nsamples, stream, use_copy_kernel);
+                       (std::is_same<Backend, GPUBackend>::value || is_pinned());
+    type_info().template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(), nsamples,
+                                                   stream, use_copy_kernel);
   }
 
   inline void reserve(size_t bytes_per_tensor, int batch_size) {
@@ -164,19 +146,22 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
       offsets_.resize(batch_size, 0);
       meta_.resize(batch_size);
     }
-    reserve(bytes_per_tensor * batch_size);
+    data_.reserve(bytes_per_tensor * batch_size);
   }
 
+  inline void reserve(size_t bytes) {
+    data_.reserve(bytes);
+  }
   /**
    * @brief Resize function to allocate a list of tensors. The input vector
    * contains a set of dimensions for each tensor to be allocated in the
    * list.
    */
   DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape) {
-    DALI_ENFORCE(IsValidType(type_),
+    DALI_ENFORCE(IsValidType(type()),
                  "TensorList has no type, 'set_type<T>()' or Resize(shape, type) must be called "
                  "on the TensorList to set a valid type before it can be resized.");
-    Resize(new_shape, type_.id());
+    Resize(new_shape, type());
   }
 
   /**
@@ -201,7 +186,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     DALI_ENFORCE(new_size >= 0, "Invalid negative buffer size.");
 
     // Resize the underlying allocation and save the new shape
-    ResizeHelper(new_size, new_type);
+    data_.resize(new_size, new_type);
     shape_ = new_shape;
 
     // Tensor views of this TensorList is no longer valid
@@ -227,24 +212,16 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    * Size can be set to 0 and type to NoType as intermediate step.
    */
   DLL_PUBLIC inline void ShareData(const TensorList<Backend> &other) {
-    DALI_ENFORCE(IsValidType(other.type_), "To share data, "
+    DALI_ENFORCE(IsValidType(other.type()), "To share data, "
         "the input TensorList must have a valid data type");
 
     // Save the calling TensorLists meta-data
-    data_ = other.data_;
+    data_.ShareData(other.data_);
     shape_ = other.shape_;
-    size_ = other.size_;
     offsets_ = other.offsets_;
-    type_ = other.type_;
-    num_bytes_ = other.num_bytes_;
-    device_ = other.device_;
 
     // Tensor views of this TensorList is no longer valid
     tensor_views_.clear();
-
-    // If the other tensor has a non-zero size allocation, mark that
-    // we are now sharing an allocation with another buffer
-    shares_data_ = num_bytes_ > 0 ? true : false;
 
     // copy metadata
     meta_ = other.meta_;
@@ -268,25 +245,18 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    * the user to manage the lifetime of the allocation such that it
    * persist while it is in use by the Tensor.
    */
-  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, const TensorListShape<> &shape,
-                        DALIDataType type = DALI_NO_TYPE) {
+  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+                        const TensorListShape<> &shape, DALIDataType type = DALI_NO_TYPE) {
     // don't check ptr as we want to share empty data as well
 
     // Save our new pointer and bytes. Reset our type, shape, and size
-    data_ = ptr;
-    num_bytes_ = bytes;
-    type_ = TypeTable::GetTypeInfo(type);
+    data_.set_backing_allocation(ptr, bytes, pinned, type, shape.num_elements());
     shape_ = {};
     offsets_.clear();
-    size_ = 0;
-    device_ = CPU_ONLY_DEVICE_ID;
 
     // Tensor views of this TensorList is no longer valid
     tensor_views_.clear();
 
-    // If the input pointer stores a non-zero size allocation, mark
-    // that we are sharing our underlying data
-    shares_data_ = num_bytes_ > 0 ? true : false;
     // Set the proper shape and type in one step. No-op for empty values.
     if (!shape.empty() && type != DALIDataType::DALI_NO_TYPE) {
       Resize(shape, type);
@@ -310,9 +280,10 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    * the user to manage the lifetime of the allocation such that it
    * persist while it is in use by the Tensor.
    */
-  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, const TensorListShape<> &shape,
+  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, bool pinned,
+                                   const TensorListShape<> &shape,
                                    DALIDataType type = DALI_NO_TYPE) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape, type);
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type);
   }
 
   /**
@@ -332,13 +303,13 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    * the user to manage the lifetime of the allocation such that it
    * persist while it is in use by the Tensor.
    */
-  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes,
+  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, bool pinned = false,
                                    const DALIDataType type = DALI_NO_TYPE) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, TensorListShape<>{}, type);
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, TensorListShape<>{}, type);
   }
 
   DLL_PUBLIC void Reset() {
-    reset();  // free the underlying buffer
+    data_.reset();  // free the underlying buffer
     shape_ = {};
     offsets_.clear();
     meta_.clear();
@@ -359,7 +330,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
       other.meta_.clear();
       other.layout_ = {};
 
-      move_buffer(std::move(other));
+      data_ = std::move(other.data_);
     }
     return *this;
   }
@@ -384,7 +355,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    */
   template <typename T>
   DLL_PUBLIC inline T* mutable_tensor(int idx) {
-    return this->template mutable_data<T>() + tensor_offset(idx);
+    return data_.template mutable_data<T>() + tensor_offset(idx);
   }
 
   /**
@@ -392,7 +363,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    */
   template <typename T>
   DLL_PUBLIC inline const T* tensor(int idx) const {
-    return this->template data<T>() + tensor_offset(idx);
+    return data_.template data<T>() + tensor_offset(idx);
   }
 
   /**
@@ -400,8 +371,8 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    */
   DLL_PUBLIC inline void* raw_mutable_tensor(int idx) {
     return static_cast<void*>(
-        static_cast<uint8*>(this->raw_mutable_data()) +
-        (tensor_offset(idx) * type_.size()));
+        static_cast<uint8*>(data_.raw_mutable_data()) +
+        (tensor_offset(idx) * type_info().size()));
   }
 
   /**
@@ -409,8 +380,8 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    */
   DLL_PUBLIC inline const void* raw_tensor(int idx) const {
     return static_cast<const void*>(
-        static_cast<const uint8*>(this->raw_data()) +
-        (tensor_offset(idx) * type_.size()));
+        static_cast<const uint8*>(data_.raw_data()) +
+        (tensor_offset(idx) * type_info().size()));
   }
 
   /**
@@ -474,7 +445,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    * all of the stored Tensors are densely packed in memory.
    */
   inline bool IsContiguousTensor() const {
-    if (num_samples() == 0 || size_ == 0) {
+    if (num_samples() == 0 || _num_elements() == 0) {
       return true;
     }
     if (!IsContiguous()) {
@@ -498,7 +469,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    * and they are densely packed in memory.
    */
   inline bool IsDenseTensor() const {
-    if (num_samples() == 0 || size_ == 0) {
+    if (num_samples() == 0 || _num_elements() == 0) {
       return true;
     }
     if (!IsContiguous()) {
@@ -560,8 +531,8 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
 
     tensor_views_.emplace_back();
     auto &tensor = tensor_views_.back();
-    tensor.ShareData(data_, num_bytes_, new_shape, type_.id());
-    tensor.set_device_id(device_);
+    tensor.ShareData(data_.get_data_ptr(), data_.capacity(), data_.is_pinned(), new_shape, type());
+    tensor.set_device_id(data_.device_id());
 
     return &tensor;
   }
@@ -626,7 +597,128 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
     meta_[idx] = meta;
   }
 
+  // Reexpose all public Buffer functions apart from contiguous buffer accessors.
+  // TensorList is being reworked to sample-only access and this is intermediate step
+  // that prevents reintroducing that access in any of DALI operators
+
+
+  /**
+   * @brief Returns the TypeInfo object that keeps track of the
+   * datatype of the underlying storage.
+   */
+  const TypeInfo &type_info() const {
+    return data_.type_info();
+  }
+
+  /**
+   * @brief Returns the id of the datatype of the underlying storage.
+   */
+  DALIDataType type() const {
+    return data_.type();
+  }
+
+  /**
+   * @brief Returns the size in bytes of the underlying data
+   */
+  size_t nbytes() const {
+    return data_.nbytes();
+  }
+
+  /**
+   * @brief Returns the real size of the allocation
+   */
+  size_t capacity() const {
+    return data_.capacity();
+  }
+
+  /**
+   * @brief Set the type of the TensorList. The type needs to be set before calling
+   * the Resize function that gives the shape. Type can be changed, if the current storage
+   * is not big enough, the memory will be reallocated.
+   */
+  inline void set_type(const DALIDataType new_type_id) {
+    data_.set_type(new_type_id);
+  }
+
+  /**
+   * @brief Set the type of the TensorList. The type needs to be set before calling
+   * the Resize function that gives the shape. Type can be changed, if the current storage
+   * is not big enough, the memory will be reallocated.
+   */
+  template <typename T>
+  inline void set_type() {
+    data_.set_type(TypeTable::GetTypeId<T>());
+  }
+
+  /**
+   * @brief Sets the type of allocation (pinned/non-pinned) for CPU TensorList
+   */
+  inline void set_pinned(bool pinned) {
+    data_.set_pinned(pinned);
+  }
+
+  /**
+   * @brief Returns the type of allocation (pinned/non-pinned) for CPU TensorList
+   */
+  bool is_pinned() const {
+    return data_.is_pinned();
+  }
+
+   /**
+   * @brief Returns a device this TensorList was allocated on
+   * If the backend is CPUBackend, return -1
+   */
+  int device_id() const {
+    return data_.device_id();
+  }
+
+  /**
+   * @brief Sets a device this TensorList was allocated on
+   * If the backend is CPUBackend, should be -1
+   */
+  void set_device_id(int device) {
+    data_.set_device_id(device);
+  }
+
+  /**
+   * @brief Return true if there was data allocation
+   */
+  inline bool has_data() const noexcept {
+    return data_.has_data();
+  }
+
+  /**
+   * @brief Returns a bool indicating if the list shares its underlying storage.
+   */
+  inline bool shares_data() const {
+    return data_.shares_data();
+  }
+
+  /**
+   * @brief Sets a custom allocation function.
+   *
+   * Sets a custom allocation function. The allocation function returns
+   * a shared pointer with a matching deleter.
+   *
+   * @remarks Experimental - subject to change
+   */
+  inline void set_alloc_func(typename Buffer<Backend>::AllocFunc allocate) {
+    data_.set_alloc_func(std::move(allocate));
+  }
+
+  /**
+   * @brief Returns the current custom allocation function.
+   *
+   * @return Allocation function. If not set, an empty function object is returned.
+   *
+   * @remarks Experimental - subject to change
+   */
+  const typename Buffer<Backend>::AllocFunc &alloc_func() const noexcept {
+    return data_.alloc_func();
+  }
+
  protected:
+  Buffer<Backend> data_;
   // We store a set of dimension for each tensor in the list.
   // We also pre-compute the offsets of each tensor in the
   // underlying allocation for random access
@@ -639,9 +731,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   // when sharing data with a Tensor, we will store a pointer to
   // Tensor that shares the data with this TensorList (valid only
   // if IsDenseTensor returns true)
-  std::list<Tensor<Backend> > tensor_views_;
-
-  USE_BUFFER_MEMBERS();
+  std::list<Tensor<Backend>> tensor_views_;
 
  private:
   /** @defgroup ContiguousAccessorFunctions Fallback contiguous accessors
@@ -657,7 +747,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    */
   friend void *unsafe_raw_mutable_data(TensorList<Backend> &tl) {
     DALI_ENFORCE(tl.IsContiguous(), "Data pointer can be obtain only for contiguous TensorList.");
-    return tl.raw_mutable_data();
+    return tl.data_.raw_mutable_data();
   }
 
   /**
@@ -666,7 +756,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
    */
   friend const void *unsafe_raw_data(const TensorList<Backend> &tl) {
     DALI_ENFORCE(tl.IsContiguous(), "Data pointer can be obtain only for contiguous TensorList.");
-    return tl.raw_data();
+    return tl.data_.raw_data();
   }
 
   /**
@@ -676,7 +766,7 @@ class DLL_PUBLIC TensorList : private Buffer<Backend> {
   friend shared_ptr<void> unsafe_sample_owner(TensorList<Backend> &tl, int sample_idx) {
     // create new aliasing pointer to current data allocation, so we share the use count
     // and the deleter correctly.
-    return {tl.data_, tl.raw_mutable_tensor(sample_idx)};
+    return {tl.data_.get_data_ptr(), tl.raw_mutable_tensor(sample_idx)};
   }
 
   /** @} */  // end of ContiguousAccessorFunctions

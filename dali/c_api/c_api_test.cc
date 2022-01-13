@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -307,7 +307,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     MemCopy(input.get(), input_cpu.get(), num_elems * sizeof(uint8_t), cuda_stream);
     input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * sizeof(uint8_t),
-                            input_shape, DALI_UINT8);
+                            false, input_shape, DALI_UINT8);
     pipe_ptr->SetExternalInput(input_name, input_wrapper);
     daliSetExternalInputBatchSize(&handle, input_name.c_str(), input_shape.num_samples());
     daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
@@ -331,7 +331,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
   MemCopy(input.get(), input_cpu.get(), num_elems * sizeof(uint8_t), cuda_stream);
   input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * sizeof(uint8_t),
-                          input_shape, DALI_UINT8);
+                          false, input_shape, DALI_UINT8);
   pipe_ptr->SetExternalInput(input_name, input_wrapper);
   daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
                             input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
@@ -379,7 +379,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
       // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
       MemCopy(input.get(), input_cpu.get(), num_elems, cuda_stream);
       input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * sizeof(uint8_t),
-                              input_shape, DALI_UINT8);
+                              false, input_shape, DALI_UINT8);
       pipe_ptr->SetExternalInput(input_name, input_wrapper);
       daliSetExternalInputBatchSize(&handle, input_name.c_str(), input_shape.num_samples());
       daliSetExternalInputAsync(&handle, input_name.c_str(),
@@ -496,7 +496,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
     MemCopy(input.get(), input_cpu.get(), num_elems, cuda_stream);
     CUDA_CALL(cudaStreamSynchronize(cuda_stream));
     input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * sizeof(uint8_t),
-                            input_shape, DALI_UINT8);
+                            false, input_shape, DALI_UINT8);
     pipe_ptr->SetExternalInput(input_name, input_wrapper);
     daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
                          input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
@@ -520,7 +520,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   MemCopy(input.get(), input_cpu.get(), num_elems, cuda_stream);
   CUDA_CALL(cudaStreamSynchronize(cuda_stream));
   input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * sizeof(uint8_t),
-                          input_shape, DALI_UINT8);
+                          false, input_shape, DALI_UINT8);
   pipe_ptr->SetExternalInput(input_name, input_wrapper);
   daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
                         input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
@@ -658,7 +658,7 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     MemCopy(input.get(), input_cpu.get(), num_elems, cuda_stream);
     input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems * sizeof(uint8_t),
-                            input_shape, DALI_UINT8);
+                            std::is_same<TypeParam, CPUBackend>::value, input_shape, DALI_UINT8);
     pipe_ptr->SetExternalInput(input_name, input_wrapper);
     daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
                               input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
@@ -751,8 +751,8 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test) {
     SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape), 42 * i);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     MemCopy(data[i].get(), input_cpu.get(), num_elems, cuda_stream);
-    input_wrapper[i].ShareData(std::static_pointer_cast<void>(data[i]),
-                               num_elems * sizeof(uint8_t), input_shape, DALI_UINT8);
+    input_wrapper[i].ShareData(std::static_pointer_cast<void>(data[i]), num_elems * sizeof(uint8_t),
+                               false, input_shape, DALI_UINT8);
     pipe_ptr->SetExternalInput(input_name, input_wrapper[i]);
     if (flag_to_test == DALI_ext_force_no_copy) {
       // for no copy, we just pass the view to data

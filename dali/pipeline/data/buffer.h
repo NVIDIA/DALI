@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,10 +71,10 @@ inline string ShapeString(vector<Index> shape) {
  * underlying storage is located (CPU or GPU).
  *
  * Buffers are untyped on construction, and don't receive a valid type until
- * 'set_type' or 'data<T>()' is called on a non-const buffer. Upon receiving
+ * 'set_type' is called on a non-const buffer. Upon receiving
  * a valid type, the underlying storage for the buffer is allocated. The type
  * of the underlying data can change over the lifetime of an object if
- * 'set_type' or 'data<T>()' is called again where the calling type does not
+ * 'set_type' is called again where the calling type does not
  * match the underlying type on the buffer. In this case, the Buffer swaps its
  * current type, but only re-allocates memory if it does not have enough bytes
  * of allocated storage to store the number of elements in the buffer with the
@@ -91,6 +91,21 @@ class DLL_PUBLIC Buffer {
    */
   inline Buffer() = default;
   virtual ~Buffer() = default;
+  Buffer(const Buffer &other) = delete;
+  Buffer& operator=(const Buffer &other) = delete;
+
+  Buffer(Buffer &&other) {
+    move_buffer(std::move(other));
+  }
+
+  Buffer& operator=(Buffer &&other) {
+    if (this != &other) {
+      move_buffer(std::move(other));
+    }
+    return *this;
+  }
+
+
 
   /**
    * @brief Returns a typed pointer to the underlying storage.
@@ -148,7 +163,7 @@ class DLL_PUBLIC Buffer {
    */
   inline size_t nbytes() const {
     // Note: This returns the number of bytes occupied by the current
-    // number of elements stored in the buffer. This is not neccessarily
+    // number of elements stored in the buffer. This is not necessarily
     // the number of bytes of the underlying allocation (num_bytes_)
     return size_ * type_.size();
   }
@@ -205,6 +220,10 @@ class DLL_PUBLIC Buffer {
    */
   inline bool has_data() const noexcept {
     return !!data_;
+  }
+
+  std::shared_ptr<void> get_data_ptr() const {
+    return data_;
   }
 
   /**
@@ -307,7 +326,46 @@ class DLL_PUBLIC Buffer {
     return shares_data_;
   }
 
-  DISABLE_COPY_MOVE_ASSIGN(Buffer);
+  /**
+   * @brief Set another Buffer as the backing memory for this Buffer.
+   *
+   * Current Buffer will be marked as sharing data, and reallocation of memory will be
+   * prohibited until reset() is called.
+   */
+  inline void ShareData(const Buffer<Backend> &other) {
+    type_ = other.type_;
+    data_ = other.data_;
+    allocate_ = {};
+    size_ = other.size_;
+    shares_data_ = data_ != nullptr;
+    num_bytes_ = other.num_bytes_;
+    device_ = other.device_;
+  }
+
+  /**
+   * @brief Set external memory as the backing memory for this Buffer.
+   *
+   * Current Buffer will be marked as sharing data, and reallocation of memory will be
+   * prohibited until reset() is called.
+   *
+   * For GPU memory, it is assumed to be associated with current device.
+   */
+  inline void set_backing_allocation(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+                                     DALIDataType type = DALI_NO_TYPE, size_t size = 0) {
+    type_ = TypeTable::GetTypeInfo(type);
+    data_ = ptr;
+    allocate_ = {};
+    size_ = size;
+    shares_data_ = data_ != nullptr;
+    num_bytes_ = bytes;
+    pinned_ = pinned;
+    // setting the allocation, get the device
+    if ((std::is_same<Backend, GPUBackend>::value || pinned_) && device_ == CPU_ONLY_DEVICE_ID) {
+      CUDA_CALL(cudaGetDevice(&device_));
+    } else {
+      device_ = CPU_ONLY_DEVICE_ID;
+    }
+  }
 
   static void SetGrowthFactor(double factor) {
     assert(factor >= 1.0);
@@ -326,24 +384,28 @@ class DLL_PUBLIC Buffer {
 
   DLL_PUBLIC static constexpr double kMaxGrowthFactor = 4;
 
- protected:
-  // Helper to resize the underlying allocation
-  inline void ResizeHelper(Index new_size) {
-    ResizeHelper(new_size, type_);
+  /**
+   * @brief Resize the Buffer to hold `new_size` elements of current type.
+   */
+  inline void resize(Index new_size) {
+    resize(new_size, type_);
   }
 
-
-  // Helper to resize the underlying allocation
-  inline void ResizeHelper(Index new_size, DALIDataType new_type_id) {
+  /**
+   * @brief Resize the Buffer to hold `new_size` elements of type `new_type_id`.
+   */
+  inline void resize(Index new_size, DALIDataType new_type_id) {
     // don't look up the type unless it's different than current one
     const auto &new_type = new_type_id == type_.id() ? type_ : TypeTable::GetTypeInfo(new_type_id);
-    ResizeHelper(new_size, new_type);
+    resize(new_size, new_type);
   }
 
-  // Helper to resize the underlying allocation
-  inline void ResizeHelper(Index new_size, const TypeInfo &new_type) {
+  /**
+   * @brief Resize the Buffer to hold `new_size` elements of type `new_type_id`.
+   */
+  inline void resize(Index new_size, const TypeInfo &new_type) {
     DALI_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
-
+    DALI_ENFORCE(IsValidType(new_type), "Buffer can only be resized with a valid type.");
     // If we use NoType the result will always be 0
     size_t new_num_bytes = new_size * new_type.size();
 
@@ -377,6 +439,7 @@ class DLL_PUBLIC Buffer {
     }
   }
 
+ protected:
   void move_buffer(Buffer &&buffer) {
     type_         = std::move(buffer.type_);
     data_         = std::move(buffer.data_);
@@ -419,7 +482,7 @@ constexpr double Buffer<Backend>::kMaxGrowthFactor;
 // Macro so we don't have to list these in all
 // classes that derive from Buffer
 #define USE_BUFFER_MEMBERS()           \
-  using Buffer<Backend>::ResizeHelper; \
+  using Buffer<Backend>::resize;       \
   using Buffer<Backend>::reset;        \
   using Buffer<Backend>::type_;        \
   using Buffer<Backend>::data_;        \

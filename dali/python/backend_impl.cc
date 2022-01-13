@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -183,14 +183,14 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
   // empty lambda that just captures dlm_tensor_ptr unique ptr that would be destructed when
   // shared ptr is destroyed
   auto typed_shape = ConvertShape(shape, batch);
+  bool is_pinned = dl_tensor.device.device_type == kDLCUDAHost;
   batch->ShareData(shared_ptr<void>(dl_tensor.data,
                                     [dlm_tensor_ptr = move(dlm_tensor_ptr)](void*) {}),
-                                    bytes, typed_shape, dali_type.id());
+                                    bytes, is_pinned, typed_shape, dali_type.id());
 
   // according to the docs kDLCUDAHost = kDLCPU | kDLCUDA so test it as a the first option
   if (dl_tensor.device.device_type == kDLCUDAHost) {
     batch->set_device_id(-1);
-    batch->set_pinned(true);
   } else if (dl_tensor.device.device_type == kDLCPU) {
     batch->set_device_id(-1);
   } else if (dl_tensor.device.device_type == kDLCUDA) {
@@ -244,7 +244,7 @@ void FillTensorFromCudaArray(const py::object object, TensorType *batch, int dev
   // while this shared_ptr is alive (and the data should be kept alive)
   // We set the type and shape even before the set_device_id as we only wrap the allocation
   batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) {}),
-                   bytes, typed_shape, type.id());
+                   bytes, false, typed_shape, type.id());
   batch->SetLayout(layout);
   // it is for __cuda_array_interface__ so device_id < 0 is not a valid value
   if (device_id < 0) {
@@ -357,12 +357,11 @@ void ExposeTensor(py::module &m) {
 
           // Create the Tensor and wrap the data
           auto t = std::make_unique<Tensor<CPUBackend>>();
-          t->set_pinned(is_pinned);
           const TypeInfo &type = TypeFromFormatStr(info.format);
           // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
           // while this shared_ptr is alive (and the data should be kept alive)
           t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *) {}),
-                       bytes, i_shape, type.id());
+                       bytes, is_pinned, i_shape, type.id());
           t->SetLayout(layout);
           return t.release();
         }),
@@ -588,7 +587,7 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
   auto ptr = std::make_unique<Tensor<Backend>>();
   // TODO(klecki): Rework this with proper sample-based tensor batch data structure
   auto sample_shared_ptr = unsafe_sample_owner(t, id);
-  ptr->ShareData(sample_shared_ptr, t.capacity(), t.shape()[id], t.type());
+  ptr->ShareData(sample_shared_ptr, t.capacity(), t.is_pinned(), t.shape()[id], t.type());
   ptr->set_device_id(t.device_id());
   ptr->SetMeta(t.GetMeta(id));
   return ptr;
@@ -662,12 +661,11 @@ void ExposeTensorList(py::module &m) {
 
         // Create the Tensor and wrap the data
         auto t = std::make_shared<TensorList<CPUBackend>>();
-        t->set_pinned(false);
         const TypeInfo &type = TypeFromFormatStr(info.format);
         // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
         // while this shared_ptr is alive (and the data should be kept alive)
         t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *){}),
-                     bytes, i_shape, type.id());
+                     bytes, false, i_shape, type.id());
         t->SetLayout(layout);
         return t;
       }),

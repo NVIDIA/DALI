@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -75,7 +75,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       auto p = current_file_->Get(size);
       DALI_ENFORCE(p != nullptr, "Error reading from a file " + uris_[current_file_index_]);
       // Wrap the raw data in the Tensor object.
-      tensor.ShareData(p, size, {size}, DALI_UINT8);
+      tensor.ShareData(p, size, false, {size}, DALI_UINT8);
     } else {
       if (tensor.shares_data()) {
         tensor.Reset();
