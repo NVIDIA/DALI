@@ -228,6 +228,23 @@ def test_external_source_debug():
             yield _test_external_source_debug, source, batch
 
 
+@pipeline_def(num_threads=3, device_id=0)
+def es_pipeline_multiple_outputs(source, num_outputs):
+    out1, out2, out3 = fn.external_source(source, num_outputs=num_outputs)
+    return out1, out2, out3
+
+
+def test_external_source_debug_multiple_outputs():
+    n_iters = 13
+    batch_size = 8
+    num_outputs = 3
+    data = [[np.random.rand(batch_size, 120, 120, 3)]*num_outputs]*n_iters
+    pipe_debug = es_pipeline_multiple_outputs(data, num_outputs, batch_size=batch_size, debug=True)
+    pipe_standard = es_pipeline_multiple_outputs(data, num_outputs, batch_size=batch_size)
+
+    compare_pipelines(pipe_standard, pipe_debug, 8, n_iters)
+
+
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
 def order_change_pipeline():
     if order_change_pipeline.change:

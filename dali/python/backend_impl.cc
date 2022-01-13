@@ -601,7 +601,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
   TensorVector<Backend> tv(list_of_tensors.size());
   for (size_t i = 0; i < list_of_tensors.size(); ++i) {
     auto &t = list_of_tensors[i].cast<Tensor<Backend>&>();
-    tv[i] = std::move(t);
+    tv[i].ShareData(t);
   }
 
   cudaStream_t stream = 0;

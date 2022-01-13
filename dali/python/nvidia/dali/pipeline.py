@@ -15,12 +15,10 @@
 # pylint: disable=no-member
 from collections import deque
 from nvidia.dali import backend as b
-from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
 from nvidia.dali import internal
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali import pickling as dali_pickle
-from nvidia.dali.backend import CheckDLPackCapsule
 from threading import local as tls
 from . import data_node as _data_node
 import functools
@@ -57,54 +55,6 @@ def _get_default_stream_for_array(array):
     else:
         return None
 
-
-def _prep_data_for_feed_input(data, batch_size, layout):
-    from nvidia.dali.external_source import _check_data_batch
-
-    def to_numpy(x):
-        if types._is_mxnet_array(x):
-            return x.asnumpy()
-        elif types._is_torch_tensor(x):
-            return x.numpy()
-        else:
-            return x
-
-    # __cuda_array_interface__ doesn't provide any way to pass the information about the device
-    # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
-    # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
-    if isinstance(data, (Tensors.TensorListCPU, Tensors.TensorListGPU)):
-        if layout is not None:
-            _check_data_batch(data, batch_size, layout)
-            data = type(data)(data, layout)
-    elif isinstance(data, list):
-        inputs = []
-        checked = False
-        for datum in data:
-            info = CheckDLPackCapsule(datum)
-            if not info[0] and not checked:
-                _check_data_batch(data, batch_size, layout)
-                checked = True
-            if isinstance(datum, (Tensors.TensorCPU, Tensors.TensorGPU)):
-                inp = type(datum)(datum, layout=layout) if layout is not None else datum
-            elif hasattr(datum, "__cuda_array_interface__") or (info[0] and info[1]):
-                inp = Tensors.TensorGPU(datum, layout or "")
-            else:
-                datum = to_numpy(datum)
-                inp = Tensors.TensorCPU(datum, layout or "")
-            inputs.append(inp)
-        assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
-            "Mixed input types are not support, all need to reside on the CPU or GPU"
-        data = inputs
-    else:
-        info = CheckDLPackCapsule(data)
-        if not info[0]:
-            _check_data_batch(data, batch_size, layout)
-        if hasattr(data, "__cuda_array_interface__") or (info[0] and info[1]):
-            data = Tensors.TensorListGPU(data, layout or "")
-        else:
-            data = to_numpy(data)
-            data = Tensors.TensorListCPU(data, layout or "")
-    return data
 
 class Pipeline(object):
     """Pipeline class is the base of all DALI data pipelines. The pipeline
@@ -763,6 +713,7 @@ Parameters
         self._built = True
 
     def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
+        from nvidia.dali.external_source import _prep_data_for_feed_input
         if cuda_stream is None:
             cuda_stream = _get_default_stream_for_array(data)
         if cuda_stream == -1:

@@ -17,6 +17,7 @@ import nvidia.dali.pipeline as _pipeline
 import nvidia.dali.tensors as _Tensors
 import nvidia.dali.types as _types
 from nvidia.dali.data_node import DataNode as _DataNode, _arithm_op, _check
+from nvidia.dali.external_source import _prep_data_for_feed_input
 from nvidia.dali._utils.external_source_impl import \
     get_callback_from_source as _get_callback_from_source, \
     accepted_arg_count as _accepted_arg_count
@@ -119,7 +120,7 @@ class DataNodeDebug(_DataNode):
 
 
 def _transform_data_to_tensorlist(data, batch_size, layout=None):
-    data = _pipeline._prep_data_for_feed_input(data, batch_size, layout)
+    data = _prep_data_for_feed_input(data, batch_size, layout)
 
     if isinstance(data, list):
         if isinstance(data[0], _Tensors.TensorGPU):
@@ -201,25 +202,32 @@ class _ExternalSourceDebug:
     def _fetch(self, epoch_idx):
         """Fetches data from callback or provided with feed_input."""
 
+        def to_data_node_debug(data):
+            data = _transform_data_to_tensorlist(data, self._batch_size, layout)
+            device = 'gpu' if isinstance(data, _Tensors.TensorListGPU) else 'cpu'
+
+            return DataNodeDebug(data, self._name, device, self._source_desc)
+
         if self._callback is not None:
             callback_out = self._get_batch(epoch_idx)
             layout = self._layout
             if self._num_outputs is not None:
+                raw_data = []
                 for idx in range(self._num_outputs):
                     if self._batch:
-                        raw_data = callback_out[idx]
+                        raw_data.append(callback_out[idx])
                     else:
-                        raw_data = [callback_out[i][idx] for i in range(self._batch_size)]
+                        raw_data.append([callback_out[i][idx] for i in range(self._batch_size)])
             else:
                 raw_data = callback_out
         else:
             raw_data, feed_input_params = self._feed_inputs.get()
             layout = feed_input_params.get('layout', self._layout)
 
-        data = _transform_data_to_tensorlist(raw_data, self._batch_size, layout)
-        device = 'gpu' if isinstance(data, _Tensors.TensorListGPU) else 'cpu'
+        if self._num_outputs is not None:
+            return [to_data_node_debug(data) for data in raw_data]
 
-        return DataNodeDebug(data, self._name, device, self._source_desc)
+        return to_data_node_debug(raw_data)
 
 
 class _PipelineDebug(_pipeline.Pipeline):
