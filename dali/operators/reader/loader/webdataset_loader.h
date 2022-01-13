@@ -73,11 +73,6 @@ struct ComponentDesc {
   VectorRange<size_t> outputs;
 
   ComponentDesc() = default;
-  ComponentDesc(std::string new_filename, std::string new_ext, size_t new_size, int64_t new_offset)
-      : filename(std::move(new_filename)),
-        ext(std::move(new_ext)),
-        size(new_size),
-        offset(new_offset) {}
 };
 
 struct SampleDesc {

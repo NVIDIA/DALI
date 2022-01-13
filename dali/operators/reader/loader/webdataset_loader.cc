@@ -137,19 +137,19 @@ inline void ParseTarFile(std::vector<SampleDesc>& samples_container,
       continue;
     }
 
-    std::string root_name, ext;
-    std::tie(root_name, ext) = split_name(tar_archive.GetFileName());
+    std::string basename, ext;
+    std::tie(basename, ext) = split_name(tar_archive.GetFileName());
 
-    if (root_name.empty()) {
+    if (basename.empty()) {
       continue;
     }
 
-    if (root_name != last_filename) {
+    if (basename != last_filename) {
       samples_container.emplace_back();
       samples_container.back().components =
           VectorRange<ComponentDesc>(components_container, last_components_size,
                                      components_container.size() - last_components_size);
-      last_filename = root_name;
+      last_filename = basename;
       last_components_size = components_container.size();
     }
 
@@ -257,13 +257,12 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
     current_wds_shard->Seek(component.offset);
 
     // Skipping cached samples
-    const std::string image_key =
-        make_string_delim(" ", "Archive:", paths_[current_sample.wds_shard_index],
-                    GetSampleSource(current_sample), "; Component offset:", component.offset);
+    const std::string sample_key = make_string_delim(':', paths_[current_sample.wds_shard_index],
+                                                     component.offset, component.filename);
+
     DALIMeta meta;
-    meta.SetSourceInfo(make_string_delim(':', paths_[current_sample.wds_shard_index],
-                                         component.offset, component.filename));
-    if (ShouldSkipImage(image_key)) {
+    meta.SetSourceInfo(sample_key);
+    if (ShouldSkipImage(sample_key)) {
       meta.SetSkipSample(true);
       for (auto& output : component.outputs) {
         sample[output].Reset();
