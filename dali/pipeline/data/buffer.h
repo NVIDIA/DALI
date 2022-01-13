@@ -265,6 +265,10 @@ class DLL_PUBLIC Buffer {
     device_ = device;
   }
 
+  /**
+   * @brief Returns the order in which the data is accessed - it can be either host order
+   *        or a stream order (or unspecified).
+   */
   AccessOrder order() const {
     return order_;
   }
@@ -405,13 +409,13 @@ class DLL_PUBLIC Buffer {
 
   inline void ShareData(const Buffer<Backend> &other) {
     free_storage();
-    order_ = b.order_;
-    data_ = b.data_;
-    size_ = b.size_;
-    type_ = b.type_;
-    num_bytes_ = b.num_bytes_;
+    order_ = other.order_;
+    data_ = other.data_;
+    size_ = other.size_;
+    type_ = other.type_;
+    num_bytes_ = other.num_bytes_;
     shares_data_ = num_bytes_ > 0 ? true : false;
-    device_ = b.device_id();
+    device_ = other.device_id();
   }
 
   /**
@@ -528,6 +532,8 @@ class DLL_PUBLIC Buffer {
     num_bytes_ = 0;
   }
 
+  template <typename>
+  friend class TensorList;
 
   static double growth_factor_;
   static double shrink_threshold_;

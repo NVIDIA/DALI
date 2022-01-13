@@ -96,16 +96,18 @@ class DLL_PUBLIC TensorList {
                               bool use_copy_kernel = false) {
     Resize(other.shape(), other.type());
     if (!order)
-      order = other.order() ? other.order() : order();
-    order.join(order());
+      order = other.order() ? other.order() : this->order();
+    order.join(this->order());
     this->meta_ = other.meta_;
     this->SetLayout(other.GetLayout());
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
                        (std::is_same<Backend, GPUBackend>::value || is_pinned());
-    type_info().Copy<Backend, SrcBackend>(this->raw_mutable_data(), other.raw_data(),
-                                          this->size(), order.stream(), use_copy_kernel);
-    order().join(order);
+    type_info().template Copy<Backend, SrcBackend>(unsafe_raw_mutable_data(*this),
+                                                   unsafe_raw_data(other),
+                                                   this->_num_elements(), order.stream(),
+                                                   use_copy_kernel);
+    this->order().join(order);
   }
 
   template <typename SrcBackend>
@@ -127,11 +129,11 @@ class DLL_PUBLIC TensorList {
     }
 
     if (!order)
-      order = other.order() ? other.order() : order();
-    order.join(order());
+      order = other.order() ? other.order() : this->order();
+    order.join(this->order());
 
     this->Resize(new_shape, type);
-    order.join(order());
+    order.join(this->order());
     this->SetLayout(layout);
 
     auto nsamples = other.num_samples();
@@ -151,9 +153,9 @@ class DLL_PUBLIC TensorList {
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
                        (std::is_same<Backend, GPUBackend>::value || is_pinned());
-    type_info().Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(), nsamples,
-                                          nsamples, order.stream(), use_copy_kernel);
-    order().join(order);
+    type_info().template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(),
+                                                   nsamples, order.stream(), use_copy_kernel);
+    this->order().join(order);
   }
 
   inline void reserve(size_t bytes_per_tensor, int batch_size) {
@@ -258,7 +260,7 @@ class DLL_PUBLIC TensorList {
                         const TensorListShape<> &shape, DALIDataType type = DALI_NO_TYPE,
                         AccessOrder order = {}) {
     // Free the underlying storage.
-    free_storage();
+    data_.free_storage();
 
     // Set the new order, if provided.
     if (order)
@@ -545,8 +547,9 @@ class DLL_PUBLIC TensorList {
     tensor_views_.emplace_back();
     auto &tensor = tensor_views_.back();
 
-    tensor.set_device_id(device_);
-    tensor.ShareData(data_.get_data_ptr(), data_.capacity(), data_.is_pinned(), new_shape, type(), order());
+    tensor.set_device_id(device_id());
+    tensor.ShareData(data_.get_data_ptr(), data_.capacity(), data_.is_pinned(),
+                     new_shape, type(), order());
 
     return &tensor;
   }
@@ -692,6 +695,27 @@ class DLL_PUBLIC TensorList {
    */
   void set_device_id(int device) {
     data_.set_device_id(device);
+  }
+
+  /**
+   * @brief Returns the order in which the data is accessed - it can be either host order
+   *        or a stream order (or unspecified).
+   */
+  AccessOrder order() const {
+    return data_.order();
+  }
+
+  /**
+   * @brief Sets the associated access order.
+   *
+   * @param order       The new access order (stream or host). If the new order doesn't have
+   *                    a value, the function has no effect.
+   * @param synchronize If true, an appropriate synchronization is inserted between the old
+   *                    and the new order. The caller may specify `false` if appropriate
+   *                    synchronization is guaranteed by other means.
+   */
+  void set_order(AccessOrder order, bool synchronize = true) {
+    data_.set_order(order);
   }
 
   /**
