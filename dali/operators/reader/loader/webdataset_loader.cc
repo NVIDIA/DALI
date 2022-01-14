@@ -64,17 +64,25 @@ inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
   // Getting the components data
   std::string components_metadata;
   std::getline(index_file, components_metadata);
-  std::stringstream extensions_stream(components_metadata);
+  std::stringstream components_stream(components_metadata);
 
   // Reading consecutive components
   ComponentDesc component;
-  while (extensions_stream >> component.ext) {
-    DALI_ENFORCE(
-        extensions_stream >> component.offset >> component.size >> component.filename,
-        IndexFileErrMsg(
-            index_path, line,
-            "Could not find all necessary component parameters (offset, size or filename). Every "
-            "record in the index file should look like: `<ext> <offset> <size> <filename>`."));
+  while (components_stream >> component.ext) {
+    if (kCurrentIndexVersion >= "v1.2") {
+      DALI_ENFORCE(
+          components_stream >> component.offset >> component.size >> component.filename,
+          IndexFileErrMsg(
+              index_path, line,
+              "Could not find all necessary component parameters (offset, size or filename). Every "
+              "record in the index file should look like: `<ext> <offset> <size> <filename>`."));
+    } else {
+      DALI_ENFORCE(components_stream >> component.offset >> component.size,
+                   IndexFileErrMsg(
+                       index_path, line,
+                       "Could not find all necessary component parameters (offset or size). Every "
+                       "record in the index file should look like: `<ext> <offset> <size>`."));
+    }
     DALI_ENFORCE(
         component.offset % kBlockSize == 0,
         IndexFileErrMsg(index_path, line, "tar offset is not a multiple of tar block size (",
@@ -100,11 +108,15 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
   std::string index_version;
   DALI_ENFORCE(global_meta_stream >> index_version,
                IndexFileErrMsg(index_path, 0, "no version signature found"));
-  DALI_ENFORCE(kCurrentIndexVersion == index_version,
-               IndexFileErrMsg(
-                   index_path, 0,
-                   "the version of the index file does not match the expected version (expected: ",
-                   kCurrentIndexVersion, " actual: ", index_version, ")"));
+  DALI_ENFORCE(
+      kCurrentIndexVersion == index_version ||
+          std::accumulate(
+              kLegacyIndexVersions.begin(), kLegacyIndexVersions.end(), false,
+              [&index_version](bool a, const std::string& b) { return a || index_version == b; }),
+      IndexFileErrMsg(
+          index_path, 0,
+          make_string("The version of the index file (", index_version,
+                      ") does not match either the latest or any of the legacy versions.")));
 
   // Getting the number of samples in the index file
   int64_t sample_desc_num_signed;
