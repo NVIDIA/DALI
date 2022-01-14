@@ -31,7 +31,7 @@ namespace dali {
 namespace detail {
 namespace wds {
 
-constexpr char kCurrentIndexVersion[] = "v1.1";
+constexpr char kCurrentIndexVersion[] = "v1.2";
 constexpr char kExtDelim = ';';
 const std::set<DALIDataType> kSupportedTypes = {DALI_UINT8,   DALI_UINT16, DALI_UINT32, DALI_UINT64,
                                                 DALI_INT8,    DALI_INT16,  DALI_INT32,  DALI_INT64,

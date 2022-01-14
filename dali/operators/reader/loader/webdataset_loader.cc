@@ -69,9 +69,12 @@ inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
   // Reading consecutive components
   ComponentDesc component;
   while (extensions_stream >> component.ext) {
-    DALI_ENFORCE(extensions_stream >> component.offset >> component.size,
-                 IndexFileErrMsg(index_path, line,
-                                 "size or offset corresponding to the extension not found"));
+    DALI_ENFORCE(
+        extensions_stream >> component.offset >> component.size >> component.filename,
+        IndexFileErrMsg(
+            index_path, line,
+            "Could not find all necessary component parameters (offset, size or filename). Every "
+            "record in the index file should look like: `<ext> <offset> <size> <filename>`."));
     DALI_ENFORCE(
         component.offset % kBlockSize == 0,
         IndexFileErrMsg(index_path, line, "tar offset is not a multiple of tar block size (",

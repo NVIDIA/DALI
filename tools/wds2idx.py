@@ -28,9 +28,8 @@ class IndexCreator:
 
     Example usage:
     ----------
-    >>> creator = IndexCreator('data/test.tar','data/test.idx')
-    >>> creator.create_index()
-    >>> creator.close()
+    >>> with IndexCreator('data/test.tar','data/test.idx') as ic:
+    >>>     ic.create_index()
     >>> !ls data/
     test.tar  test.idx
 
@@ -43,12 +42,19 @@ class IndexCreator:
     """
 
     tar_block_size = 512
-    index_file_version = "v1.1"
+    index_file_version = "v1.2"
 
-    def __init__(self, uri, idx_path):
+    def __init__(self, uri, idx_path, verbose=True):
         self.uri = uri
         self.idx_path = idx_path
         self.fidx = open(self.idx_path, "w")
+        self.verbose = verbose
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self):
+        self.close()
 
     def open(self):
         """Opens the archive and index files and sets their read heads to 0."""
@@ -138,7 +144,8 @@ class IndexCreator:
         counter = 0
         report_step = 100000
 
-        print(f"time: {time.time() - pre_time:.2f} count: {counter} stage: collect")
+        if self.verbose:
+            print(f"time: {time.time() - pre_time:.2f} count: {counter} stage: collect")
 
         # Aggregates extensions in samples
         aggregated_data = []
@@ -149,7 +156,8 @@ class IndexCreator:
         ):
             if counter % report_step == 0 and counter > 0:
                 cur_time = time.time()
-                print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: collect")
+                if self.verbose:
+                    print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: collect")
             counter += 1
 
             basename, extension = IndexCreator.split_name(name)
@@ -159,10 +167,10 @@ class IndexCreator:
                 continue
 
             if last_basename != basename:
-                aggregated_data.append([(extension, offset, size)])
+                aggregated_data.append([(extension, offset, size, name)])
                 last_basename = basename
             else:
-                aggregated_data[-1].append((extension, offset, size))
+                aggregated_data[-1].append((extension, offset, size, name))
 
         if not aggregated_data:
             raise ValueError("Webdataset Tar File empty")
@@ -172,13 +180,15 @@ class IndexCreator:
         for bundle in aggregated_data:
             if counter % report_step == 0:
                 cur_time = time.time()
-                print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: index")
+                if self.verbose:
+                    print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: index")
             self.fidx.write(" ".join(map(lambda component: " ".join(map(str, component)), bundle)))
             self.fidx.write("\n")
             counter += 1
 
         cur_time = time.time()
-        print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: done")
+        if self.verbose:
+            print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: done")
 
 
 def parse_args():
