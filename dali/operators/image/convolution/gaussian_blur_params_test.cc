@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -84,6 +84,24 @@ void CheckMatchingShapes(const std::array<TensorView<StorageCPU, const float, 1>
   }
 }
 
+template <int axes, size_t num_iters>
+auto CollectWindowsForParams(
+    std::array<GaussianBlurParams<axes>, num_iters> &params) {
+  std::array<std::array<std::vector<float>, axes>, num_iters> windows_hist;
+  GaussianWindows<axes> windows;
+  for (size_t i = 0; i < num_iters; i++) {
+    windows.PrepareWindows(params[i]);
+    auto window_views = windows.GetWindows();
+    for (int axis = 0; axis < axes; axis++) {
+      auto *data = window_views[axis].data;
+      windows_hist[i][axis].assign(data, data + window_views[axis].num_elements());
+      TensorShape<1> expected_shape = {params[i].window_sizes[axis]};
+      EXPECT_EQ(window_views[axis].shape, expected_shape);
+    }
+  }
+  return windows_hist;
+}
+
 TEST(GaussianWindowsTest, InitUniform) {
   constexpr int axes = 2;
   GaussianWindows<axes> windows;
@@ -150,31 +168,62 @@ TEST(GaussianWindowsTest, NonUniform2Uniform) {
 
 TEST(GaussianWindowsTest, NoChangeUniform) {
   constexpr int axes = 2;
-  GaussianWindows<axes> windows;
-  GaussianBlurParams<axes> params_uniform = {{7, 7}, {1.0f, 1.0f}};
-
-  windows.PrepareWindows(params_uniform);
-  auto views_uniform_0 = windows.GetWindows();
-  windows.PrepareWindows(params_uniform);
-  auto views_uniform_1 = windows.GetWindows();
-  for (int i = 0; i < axes; i++) {
-    EXPECT_EQ(views_uniform_0[i].data, views_uniform_1[i].data);
-    EXPECT_EQ(views_uniform_0[i].shape, views_uniform_1[i].shape);
+  constexpr size_t num_iters = 3;
+  std::array<GaussianBlurParams<axes>, num_iters> params_uniform = {{
+    {{7, 7}, {1.0f, 1.0f}},
+    {{7, 7}, {1.0f, 1.0f}},
+    {{7, 7}, {1.0f, 1.0f}}
+  }};
+  auto windows_hist = CollectWindowsForParams(params_uniform);
+  for (size_t i = 1; i < num_iters; i++) {
+    EXPECT_EQ(windows_hist[i - 1], windows_hist[i]);
   }
 }
 
 TEST(GaussianWindowsTest, NoChangeNonUniform) {
   constexpr int axes = 2;
-  GaussianWindows<axes> windows;
-  GaussianBlurParams<axes> params_non_uniform = {{7, 14}, {2.0f, 1.0f}};
+  constexpr size_t num_iters = 3;
+  std::array<GaussianBlurParams<axes>, num_iters> params_non_uniform = {{
+    {{7, 14}, {2.0f, 1.0f}},
+    {{7, 14}, {2.0f, 1.0f}},
+    {{7, 14}, {2.0f, 1.0f}}
+  }};
+  auto windows_hist = CollectWindowsForParams(params_non_uniform);
+  for (size_t i = 1; i < num_iters; i++) {
+    EXPECT_EQ(windows_hist[i - 1], windows_hist[i]);
+  }
+}
 
-  windows.PrepareWindows(params_non_uniform);
-  auto views_non_uniform_0 = windows.GetWindows();
-  windows.PrepareWindows(params_non_uniform);
-  auto views_non_uniform_1 = windows.GetWindows();
-  for (int i = 0; i < axes; i++) {
-    EXPECT_EQ(views_non_uniform_0[i].data, views_non_uniform_1[i].data);
-    EXPECT_EQ(views_non_uniform_0[i].shape, views_non_uniform_1[i].shape);
+TEST(GaussianWindowsTest, UpdateWindowsOnSigmaChange) {
+  constexpr int axes = 2;
+  constexpr size_t num_iters = 4;
+  std::array<GaussianBlurParams<axes>, num_iters> params = {{
+    {{7, 7}, {1.0f, 1.0f}},
+    {{7, 7}, {2.0f, 3.0f}},
+    {{7, 7}, {1.0f, 1.0f}},
+    {{7, 7}, {1.0f, 2.0f}}
+  }};
+  auto windows_hist = CollectWindowsForParams(params);
+  for (int axis = 0; axis < axes; axis++) {
+    EXPECT_NE(windows_hist[0][axis], windows_hist[1][axis]);
+    EXPECT_EQ(windows_hist[0][axis], windows_hist[2][axis]);
+  }
+  EXPECT_EQ(windows_hist[0][0], windows_hist[3][0]);
+  EXPECT_EQ(windows_hist[1][0], windows_hist[3][1]);
+}
+
+TEST(GaussianWindowsTest, UpdateWindowsOnWindowSizeChange) {
+  constexpr int axes = 2;
+  constexpr size_t num_iters = 3;
+  std::array<GaussianBlurParams<axes>, num_iters> params = {{
+    {{7, 7}, {1.0f, 1.0f}},
+    {{5, 5}, {1.0f, 1.0f}},
+    {{7, 7}, {1.0f, 1.0f}}
+  }};
+  auto windows_hist = CollectWindowsForParams(params);
+  for (int axis = 0; axis < axes; axis++) {
+    EXPECT_NE(windows_hist[0][axis], windows_hist[1][axis]);
+    EXPECT_EQ(windows_hist[0][axis], windows_hist[2][axis]);
   }
 }
 

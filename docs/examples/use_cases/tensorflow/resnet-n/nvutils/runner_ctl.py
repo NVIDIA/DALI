@@ -17,7 +17,6 @@
 from builtins import range
 from nvutils import image_processing
 from nvutils import common
-from nvutils import hvd_patch
 
 import tensorflow as tf
 import tensorflow.keras as keras

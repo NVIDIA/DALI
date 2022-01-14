@@ -146,10 +146,10 @@ inline void synchronize(sync_scope scope) {
 
 }  // namespace detail
 
-template <typename Kind, typename Context, class FreeList, class LockType>
-class pool_resource_base : public memory_resource<Kind, Context> {
+template <typename Kind, class FreeList, class LockType>
+class pool_resource_base : public memory_resource<Kind> {
  public:
-  explicit pool_resource_base(memory_resource<Kind, Context> *upstream = nullptr,
+  explicit pool_resource_base(memory_resource<Kind> *upstream = nullptr,
                               const pool_options &opt = default_pool_opts<Kind>())
   : upstream_(upstream), options_(opt) {
      next_block_size_ = opt.min_block_size;
@@ -380,10 +380,6 @@ class pool_resource_base : public memory_resource<Kind, Context> {
     return new_block;
   }
 
-  Context do_get_context() const noexcept override {
-    return upstream_->get_context();
-  }
-
   size_t next_block_size(size_t upcoming_allocation_size) {
     size_t actual_block_size = std::max<size_t>(upcoming_allocation_size,
                                                 next_block_size_ * options_.growth_factor);
@@ -402,7 +398,7 @@ class pool_resource_base : public memory_resource<Kind, Context> {
     return actual_block_size;
   }
 
-  memory_resource<Kind, Context> *upstream_;
+  memory_resource<Kind> *upstream_;
   FreeList free_list_;
 
   // locking order: upstream_lock_, lock_
@@ -423,21 +419,21 @@ class pool_resource_base : public memory_resource<Kind, Context> {
   using upstream_lock_guard = std::lock_guard<std::mutex>;
 };
 
-template <typename Kind, typename Context, class FreeList, class LockType>
+template <typename Kind, class FreeList, class LockType>
 class deferred_dealloc_pool
-: public deferred_dealloc_resource<pool_resource_base<Kind, Context, FreeList, LockType>> {
+: public deferred_dealloc_resource<pool_resource_base<Kind, FreeList, LockType>> {
  public:
-  using base = deferred_dealloc_resource<pool_resource_base<Kind, Context, FreeList, LockType>>;
+  using base = deferred_dealloc_resource<pool_resource_base<Kind, FreeList, LockType>>;
   using base::base;
 };
 
 namespace detail {
 
-template <typename Kind, typename Context, class FreeList, class LockType>
-struct can_merge<pool_resource_base<Kind, Context, FreeList, LockType>> : can_merge<FreeList> {};
+template <typename Kind, class FreeList, class LockType>
+struct can_merge<pool_resource_base<Kind, FreeList, LockType>> : can_merge<FreeList> {};
 
-template <typename Kind, typename Context, class FreeList, class LockType>
-struct can_merge<deferred_dealloc_pool<Kind, Context, FreeList, LockType>> : can_merge<FreeList> {};
+template <typename Kind, class FreeList, class LockType>
+struct can_merge<deferred_dealloc_pool<Kind, FreeList, LockType>> : can_merge<FreeList> {};
 
 }  // namespace detail
 

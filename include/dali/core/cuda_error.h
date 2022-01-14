@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,6 +36,10 @@ class CUDAError : public std::runtime_error {
 
   bool is_drv_api() const noexcept { return drv_err != CUDA_SUCCESS; }
   bool is_rt_api() const noexcept { return rt_err != cudaSuccess; }
+
+  bool is_unloading() const noexcept {
+    return rt_err == cudaErrorCudartUnloading || drv_err == CUDA_ERROR_DEINITIALIZED;
+  }
 
  private:
   CUresult drv_err = CUDA_SUCCESS;
@@ -90,6 +94,12 @@ class CUDABadAlloc : public std::bad_alloc {
 
 template <typename Code>
 inline void cudaResultCheck(Code code) {
+  static_assert(!std::is_same<Code, Code>::value,
+    "cudaResultCheck not implemented for this type of status code");
+}
+
+template <typename Code>
+inline void cudaResultCheck(Code code, const std::string &extra) {
   static_assert(!std::is_same<Code, Code>::value,
     "cudaResultCheck not implemented for this type of status code");
 }
@@ -150,6 +160,17 @@ inline void cudaResultDestructorCheck<CUresult>(CUresult status) {
 template <typename T>
 inline void CUDA_CALL(T status) {
   return dali::cudaResultCheck(status);
+}
+
+/**
+  * @param status A status code that indicates an error or success
+  * @param extra Additional information about an error, if it occurs. The
+  *              caller should take care not to construct a string solely for the
+  *              purpose of this parameter due to performance overhead.
+  */
+template <typename T>
+inline void CUDA_CALL_EX(T status, const std::string &extra) {
+  return dali::cudaResultCheck(status, extra);
 }
 
 template <typename T>

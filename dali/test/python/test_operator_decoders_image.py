@@ -12,22 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali import Pipeline, pipeline_def
+from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
-import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import nvidia.dali.backend
 import math
 import os
 import random
 import numpy as np
 import glob
 
-from nose import SkipTest
 from nose_utils import assert_raises
 
-from test_utils import check_batch
 from test_utils import compare_pipelines
-from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
 from test_utils import check_output_pattern
 from test_utils import to_array
@@ -189,7 +186,9 @@ def test_image_decoder_fused():
     threads = 4
     batch_size = 10
     for test_fun in [create_decoder_slice_pipeline, create_decoder_crop_pipeline, create_decoder_random_crop_pipeline]:
-        if test_fun == create_decoder_random_crop_pipeline:
+        # before CUDA 11.4 HW decoder API doesn't support ROI so we get slightly different results HW decoder + slice vs
+        # fused which in this case is executed by the hybrid backend
+        if test_fun == create_decoder_random_crop_pipeline or nvidia.dali.backend.GetNvjpegVersion() < 11040:
             # random_resized_crop can properly handle border as it has pixels that are cropped out, while
             # plain resize following image_decoder_random_crop cannot do that and must duplicate the border pixels
             validation_fun = lambda x, y: np.mean(np.abs(x - y) < 0.5)

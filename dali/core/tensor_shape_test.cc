@@ -1316,5 +1316,50 @@ TEST(TensorListShapeTest, SampleRangeTest) {
   EXPECT_EQ(sample_range(TensorListShape<>(), 0, 0), TensorListShape<>());
 }
 
+
+TEST(TestListShapeTest, UnfoldOuterDimTest_static) {
+  TensorListShape<4> tls_rank4 = {{{1, 2, 3, 4}, {5, 6, 7, 8}}};
+  TensorListShape<1> tls_rank1 = {{{1}, {5}}};
+
+  TensorListShape<> ref_for_r4 = {
+      {{2, 3, 4}, {6, 7, 8}, {6, 7, 8}, {6, 7, 8}, {6, 7, 8}, {6, 7, 8}}};
+  TensorListShape<0> ref_for_r1 = {{{}, {}, {}, {}, {}, {}}};
+
+  EXPECT_EQ(unfold_outer_dim(tls_rank4), ref_for_r4);
+  EXPECT_EQ(unfold_outer_dim(tls_rank1), ref_for_r1);
+  EXPECT_EQ(unfold_outer_dim<3>(tls_rank4), ref_for_r4);
+  EXPECT_EQ(unfold_outer_dim<0>(tls_rank1), ref_for_r1);
+
+  constexpr bool ret_type_00 =
+      std::is_same<decltype(unfold_outer_dim<0>(tls_rank1)), TensorListShape<0>>::value;
+  EXPECT_TRUE(ret_type_00);
+  constexpr bool ret_type_i0 =
+      std::is_same<decltype(unfold_outer_dim(tls_rank1)), TensorListShape<0>>::value;
+  EXPECT_TRUE(ret_type_i0);
+}
+
+
+TEST(TestListShapeTest, UnfoldOuterDimTest_dynamic) {
+  TensorListShape<4> tls_rank4 = {{{1, 2, 3, 4}, {5, 6, 7, 8}}};
+  TensorListShape<1> tls_rank1 = {{{1}, {5}}};
+
+  TensorListShape<> ref_for_r4 = {
+      {{2, 3, 4}, {6, 7, 8}, {6, 7, 8}, {6, 7, 8}, {6, 7, 8}, {6, 7, 8}}};
+  TensorListShape<0> ref_for_r1 = {{{}, {}, {}, {}, {}, {}}};
+
+  EXPECT_EQ(unfold_outer_dim(TensorListShape<>(tls_rank4)), ref_for_r4);
+  EXPECT_EQ(unfold_outer_dim(TensorListShape<>(tls_rank1)), ref_for_r1);
+  EXPECT_EQ(unfold_outer_dim<3>(TensorListShape<>(tls_rank4)), ref_for_r4);
+  EXPECT_EQ(unfold_outer_dim<0>(TensorListShape<>(tls_rank1)), ref_for_r1);
+
+  constexpr bool ret_type_0d =
+      std::is_same<decltype(unfold_outer_dim<0>(TensorListShape<>(tls_rank1))),
+                   TensorListShape<0>>::value;
+  EXPECT_TRUE(ret_type_0d);
+  constexpr bool ret_type_id =
+      std::is_same<decltype(unfold_outer_dim(TensorListShape<>(tls_rank1))),
+                   TensorListShape<>>::value;
+  EXPECT_TRUE(ret_type_id);
+}
 }  // namespace kernels
 }  // namespace dali

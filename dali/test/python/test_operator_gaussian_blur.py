@@ -314,7 +314,7 @@ def test_fail_gaussian_blur():
             ((20, 20, 30, 3), "DHCW", 3,
              "Only channel-first or channel-last layouts are supported, got: .*\."),
             ((5, 20, 30, 3), "HFWC", 2,
-             "For sequences, layout should begin with 'F' or 'CF', got: .*\."),
+             "For sequences, layout should begin with 'F' or 'C', got: .*\."),
             ((5, 10, 10, 10, 7, 3), "FWXYZC", 4,
              "Too many dimensions, found: \d+ data axes, maximum supported is: 3\."),
             ((5, 3, 20, 3, 30), "FCHCW", 2,

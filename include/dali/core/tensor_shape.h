@@ -1473,6 +1473,60 @@ TensorListShape<output_ndim> sample_range(const TensorListShape<ndim> &in,
   return ret;
 }
 
+/**
+ * @brief Unfolds outer dimension of TensorShape in TensorShapeList, effectively converting elements
+ * of the outer dimension to separate sample shapes.
+ *
+ * @param shapes list of shapes with at least single dimension
+ *
+ * @details This function converts the slices of the input tensor shapes into new samples, for
+ * example
+ * ```
+ * unfold_outer_dim({ {3, 4, 5 }, { 2, 7, 7 } }) ->
+ * { { 4, 5 }, { 4, 5 }, { 4, 5 },
+ *   { 7, 7 }, { 7, 7 } }
+ *
+ * unfold_outer_dim({ {3}, {5} }) -> { {}, {}, {}, {}, {}, {}, {}, {} }
+ * ```
+ */
+template <int out_ndim = InferDimensions, int ndim,
+          int ret_ndim = out_ndim != InferDimensions ?
+                             out_ndim :
+                             (ndim != DynamicDimensions ? ndim - 1 : DynamicDimensions)>
+auto unfold_outer_dim(const TensorListShape<ndim> &shapes) -> TensorListShape<ret_ndim> {
+  static_assert(ret_ndim == DynamicDimensions ||
+                    (ndim != DynamicDimensions && ret_ndim == ndim - 1) ||
+                    ndim == DynamicDimensions,
+                "The input must have exactly one more dimension than the output.");
+
+  assert(shapes.sample_dim() >= 1 && "Can not unfold TensorShapeList of scalars");
+
+  const int dyn_out_ndim = shapes.sample_dim() - 1;
+
+  int nshapes = 0;
+  for (int i = 0; i < shapes.size(); ++i) {
+    nshapes += shapes[i][0];
+  }
+
+  TensorListShape<ret_ndim> result(nshapes, dyn_out_ndim);
+
+  if (out_ndim == 0) {
+    // NB: we don't need to create any shapes of dim equal 0
+    return result;
+  }
+
+  for (int i = 0, k = 0; i < shapes.size(); ++i) {
+    auto shape = shapes.tensor_shape_span(i);
+    auto subshape = make_span(shape.begin() + 1, dyn_out_ndim);
+    int nouter_dim = shape[0];
+    for (int j = 0; j < nouter_dim; j++) {
+      result.set_tensor_shape(k++, subshape);
+    }
+  }
+
+  return result;
+}
+
 }  // namespace dali
 
 #endif  // DALI_CORE_TENSOR_SHAPE_H_

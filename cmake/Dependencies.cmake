@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,8 +27,13 @@ if (BUILD_NVJPEG)
                     "requires NVIDIA drivers compatible with CUDA ${NVJPEG_VERSION} or later")
   endif()
   include_directories(SYSTEM ${NVJPEG_INCLUDE_DIR})
-  list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
-  list(APPEND DALI_EXCLUDES libnvjpeg_static.a)
+
+  # load using dlopen or link statically here
+  if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+    list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
+    list(APPEND DALI_EXCLUDES libnvjpeg_static.a)
+  endif (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+
   add_definitions(-DDALI_USE_NVJPEG)
 
   if (${NVJPEG_LIBRARY_0_2_0})
@@ -50,24 +55,30 @@ if (BUILD_NVJPEG2K)
     list(APPEND DALI_LIBS ${NVJPEG2K_LIBRARY})
     list(APPEND DALI_EXCLUDES libnvjpeg2k_static.a)
   endif()
-endif (BUILD_NVJPEG2K)
+endif ()
 
 # NVIDIA NPP library
-CUDA_find_library(CUDA_nppicc_static_LIBRARY nppicc_static)
-CUDA_find_library(CUDA_nppc_static_LIBRARY nppc_static)
-list(APPEND DALI_LIBS ${CUDA_nppicc_static_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppicc_static.a)
-list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppc_static.a)
+if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+  CUDA_find_library(CUDA_nppicc_LIBRARY nppicc_static)
+  CUDA_find_library(CUDA_nppc_LIBRARY nppc_static)
+  list(APPEND DALI_LIBS ${CUDA_nppicc_LIBRARY})
+  list(APPEND DALI_EXCLUDES libnppicc_static.a)
+  list(APPEND DALI_LIBS ${CUDA_nppc_LIBRARY})
+  list(APPEND DALI_EXCLUDES libnppc_static.a)
+endif ()
 
 # cuFFT library
-CUDA_find_library(CUDA_cufft_static_LIBRARY cufft_static)
-list(APPEND DALI_EXCLUDES libcufft_static.a)
+if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+  CUDA_find_library(CUDA_cufft_LIBRARY cufft_static)
+  list(APPEND DALI_EXCLUDES libcufft_static.a)
+endif ()
 
 # CULIBOS needed when using static CUDA libs
-CUDA_find_library(CUDA_culibos_LIBRARY culibos)
-list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
-list(APPEND DALI_EXCLUDES libculibos.a)
+if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+  CUDA_find_library(CUDA_culibos_LIBRARY culibos)
+  list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
+  list(APPEND DALI_EXCLUDES libculibos.a)
+endif()
 
 if (LINK_LIBCUDA)
   CUDA_find_library_stub(CUDA_cuda_LIBRARY cuda)

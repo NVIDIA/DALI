@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,6 +27,21 @@ namespace dali {
  * (no Executor or Pipeline), you may pass on @see daliInitialize().
  */
 void InitOperatorsLib();
+
+/**
+ * @brief  Returns version of available NPP library
+ *
+ * @returns MAJOR*1000 + MINOR*10 + PATH or -1 if not available
+ */
+int GetNppVersion();
+
+/**
+ * @brief  Returns version of available nvJPEG library
+ *
+ * @returns MAJOR*1000 + MINOR*10 + PATH or -1 if not available
+ */
+int GetNvjpegVersion();
+
 }  // namespace dali
 extern "C" void daliInitOperators();
 ///@}

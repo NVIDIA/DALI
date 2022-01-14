@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -82,13 +82,14 @@ class TransformTranslationCPU
   }
 
   void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-    assert(offset_.IsDefined());
-    offset_.Acquire(spec, ws, nsamples_, true);
+    assert(offset_.HasExplicitValue());
+    ArgValueFlags flags = ArgValue_EnforceUniform;
+    offset_.Acquire(spec, ws, nsamples_, flags);
     ndim_ = offset_[0].num_elements();
   }
 
   bool IsConstantTransform() const {
-    return !offset_.IsArgInput();
+    return !offset_.HasArgumentInput();
   }
 
  private:

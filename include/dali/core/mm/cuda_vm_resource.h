@@ -211,10 +211,11 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     void *va = get_va(size, alignment);
     try {
       map_storage(va, size);
-    } catch (std::bad_alloc &) {
-      print(std::cerr, "Could not allocate physical storage of size ", size, " on device ",
-        device_ordinal_);
-      dbg_dump(std::cerr);
+    } catch (const CUDABadAlloc &e) {
+      free_va_.put(va, size);
+      throw CUDABadAlloc(size);
+    } catch (...) {
+      free_va_.put(va, size);
       throw;
     }
     ptr = free_mapped_.get_specific_block(va, size);
@@ -309,6 +310,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
       mapped[block_idx] = true;
       available[block_idx] = true;
       available_blocks++;
+      assert(available_blocks >= 0 && available_blocks <= num_blocks());
     }
 
     cuvm::CUMem unmap_block(int block_idx) {
@@ -319,6 +321,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
       mapped[block_idx] = false;
       available[block_idx] = false;
       available_blocks--;
+      assert(available_blocks >= 0 && available_blocks <= num_blocks());
       return mem;
     }
 
@@ -359,6 +362,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
           }
         }
         available_blocks -= no_longer_in_range;
+        assert(available_blocks >= 0 && available_blocks <= new_num_blocks);
       }
       mapping.resize(new_num_blocks);
       mapped.resize(new_num_blocks);
@@ -397,6 +401,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
 
   std::vector<va_region> va_regions_;
   std::vector<cuvm::CUMemAddressRange> va_ranges_;
+  bitmask available_backup_;  // made a member to avoid unnecessary allocations
   size_t initial_va_size_ = 0;
   size_t block_size_ = 0;
   size_t total_mem_ = 0;
@@ -556,6 +561,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     stat_add_deallocation(size);
     free_mapped_.put(ptr, size);
     free_va_.put(ptr, size);
+    stat_add_free(size);
     mark_as_available(ptr, size);
   }
 
@@ -659,14 +665,47 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
       to_map.push_back({ next_unmapped, block_idx });
     }
 
-    // Prevent `get_free_blocks` from unmapping blocks that are already mapped to this range.
-    mark_as_unavailable(ptr, size);
+    // a list of blocks to unmap
+    SmallVector<std::pair<va_region*, int>, 256> to_unmap;
+    {
+      // Prevent `get_free_blocks` from unmapping blocks that are already mapped to this range.
+      available_backup_ = region->available;
+      int num_avail_backup = region->available_blocks;
+      mark_as_unavailable(ptr, size);
 
+      // Let's find some free blocks which we can reuse.
+      get_free_blocks(to_unmap, blocks_to_map);
+
+      // Restore original availability mask
+      region->available = available_backup_;
+      region->available_blocks = num_avail_backup;
+    }
+
+    int new_blocks = blocks_to_map - to_unmap.size();
     SmallVector<cuvm::CUMem, 256> free_blocks;
-    get_free_blocks(free_blocks, blocks_to_map);
-    assert(static_cast<int>(free_blocks.size()) == blocks_to_map);
+    free_blocks.resize(blocks_to_map);
+    for (int i = to_unmap.size(); i < blocks_to_map; i++) {
+      // This can throw, but we should leave the object in a consistent state
+      free_blocks[i] = cuvm::CUMem::Create(block_size_, device_ordinal_);
+    }
 
     int i = 0;
+    for (auto &region_block : to_unmap) {
+      // Each iteration should leave the resource in a consistent state.
+      va_region *r = region_block.first;
+      int block_idx = region_block.second;
+      auto mem = r->unmap_block(block_idx);  // This can (potentially) throw
+      stat_.total_unmaps++;
+      char *block_ptr = r->block_ptr<char>(block_idx);
+      free_mapped_.get_specific_block(block_ptr, block_size_);
+      stat_take_free(block_size_);
+      free_blocks[i++] = std::move(mem);
+    }
+    assert(free_blocks.size() == static_cast<size_t>(blocks_to_map));
+
+    stat_allocate_blocks(new_blocks);
+
+    i = 0;
     for (const block_range &br : to_map) {
       for (int b = br.begin; b < br.end; b++) {
         assert(i < static_cast<int>(free_blocks.size()));
@@ -682,12 +721,10 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
   }
 
   /**
-   * @brief Obtains `count` physical storage blocks.
+   * @brief Obtains up to `count` physical storage blocks from available ones.
    *
-   * Obtains `count` physical storage blocks and places them in the collection `out`.
-   * The blocks might be obtained either by:
-   * - unmapping existing mapped but free blocks, if available
-   * - allocating new blocks.
+   * Obtains `count` physical storage blocks and places their source regions and indices in `out`.
+   * The are obtained either by unmapping existing mapped but free blocks.
    */
   template <typename Collection>
   void get_free_blocks(Collection &out, int count) {
@@ -698,20 +735,12 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
         for (int block_idx = r.available.find(true);
              block_idx < r.num_blocks() && count > 0;
              block_idx = r.available.find(true, block_idx+1)) {
-          out.push_back(r.unmap_block(block_idx));
-          stat_.total_unmaps++;
-          char *ptr = r.block_ptr<char>(block_idx);
-          free_mapped_.get_specific_block(ptr, block_size_);
-          stat_take_free(block_size_);
+          out.push_back({ &r, block_idx });
           count--;
         }
       }
       if (!count)
         return;
-    }
-    while (count--) {
-      out.push_back(cuvm::CUMem::Create(block_size_, device_ordinal_));
-      stat_allocate_block();
     }
   }
 
@@ -754,18 +783,21 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     stat_.curr_allocations--;
     stat_.total_deallocations++;
     stat_.curr_allocated -= size;
+    assert(static_cast<ssize_t>(stat_.curr_allocated) >= 0);
   }
 
   void stat_add_free(size_t count) {
     stat_.curr_free += count;
+    assert(static_cast<ssize_t>(stat_.curr_free) >= 0);
   }
 
   void stat_take_free(size_t count) {
     stat_.curr_free -= count;
+    assert(static_cast<ssize_t>(stat_.curr_free) >= 0);
   }
 
-  void stat_allocate_block() {
-    stat_.allocated_blocks++;
+  void stat_allocate_blocks(int count) {
+    stat_.allocated_blocks += count;
     if (stat_.allocated_blocks > stat_.peak_allocated_blocks)
       stat_.peak_allocated_blocks = stat_.allocated_blocks;
   }
@@ -787,15 +819,6 @@ class cuda_vm_resource : public deferred_dealloc_resource<cuda_vm_resource_base>
   }
 };
 
-namespace detail {
-
-template <>
-struct can_merge<cuda_vm_resource_base> : std::true_type {};
-
-template <>
-struct can_merge<cuda_vm_resource> : std::true_type {};
-
-}  // namespace detail
 }  // namespace mm
 }  // namespace dali
 

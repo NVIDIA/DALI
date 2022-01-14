@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,14 +36,29 @@ if not initialized:
     initialized = True
 
     # py39 warning
-    if sys.version_info[0] == 3 and sys.version_info[1] == 9:
-        deprecation_warning("DALI support for Python 3.9 is experimental and some functionalities "
+    if sys.version_info[0] == 3 and sys.version_info[1] == 10:
+        deprecation_warning("DALI support for Python 3.10 is experimental and some functionalities "
                             "may not work.")
 
     if __cuda_version__ < 102:
         deprecation_warning("DALI 1.3 is the last official release that supports CUDA 10.0. "
                             "The next release will support only 10.2 from 10.x familly. "
                             "Please update your environment to CUDA version 10.2 or newer.")
+
+    if GetCudaVersion() == -1:
+        deprecation_warning("GPU is not available. Only CPU operators are available.")
+
+    if GetCufftVersion() == -1:
+        deprecation_warning("Cannot access cuFFT library. Please check cuda installation and/or "
+                            "if is an appropriate wheel is installed.")
+
+    if GetNppVersion() == -1:
+        deprecation_warning("Cannot access NPP library. Please check cuda installation and/or "
+                            "if is an appropriate wheel is installed.")
+
+    if GetNvjpegVersion() == -1:
+        deprecation_warning("Cannot access nvJPEG library. Please check cuda installation and/or "
+                            "if is an appropriate wheel is installed.")
 
     for lib in default_plugins:
         LoadLibrary(os.path.join(os.path.dirname(__file__), lib))

@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <utility>
 #include <vector>
-#include "dali/operators/image/distortion/jpeg_compression_distortion_op.h"
 #include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu_kernel.h"
 #include "dali/kernels/kernel_manager.h"
+#include "dali/operators/image/distortion/jpeg_compression_distortion_op.h"
 
 namespace dali {
 
 class JpegCompressionDistortionGPU : public JpegCompressionDistortion<GPUBackend> {
  public:
-  explicit JpegCompressionDistortionGPU(const OpSpec &spec)
-    : JpegCompressionDistortion(spec) {
-      kmgr_.Initialize<JpegDistortionKernel>();
-      kmgr_.Resize<JpegDistortionKernel>(1, 1);
+  explicit JpegCompressionDistortionGPU(const OpSpec &spec) : JpegCompressionDistortion(spec) {
+    kmgr_.Initialize<JpegDistortionKernel>();
+    kmgr_.Resize<JpegDistortionKernel>(1, 1);
   }
 
   using Operator<GPUBackend>::RunImpl;
@@ -38,17 +38,51 @@ class JpegCompressionDistortionGPU : public JpegCompressionDistortion<GPUBackend
   std::vector<int> quality_;
 };
 
+template <typename Type>
+TensorListView<StorageGPU, Type, 3> frames_to_samples(
+    const TensorListView<StorageGPU, Type, 4> &view) {
+  TensorListShape<3> new_shape = unfold_outer_dim(view.shape);
+  return reinterpret<Type>(view, std::move(new_shape));
+}
+
 void JpegCompressionDistortionGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
-  auto in_view = view<const uint8_t, 3>(input);
-  auto out_view = view<uint8_t, 3>(output);
-  int nsamples = in_view.shape.size();
 
-  quality_.resize(nsamples);
-  for (int i = 0; i < nsamples; i++) {
-    quality_[i] = quality_arg_[i].data[0];
+  const auto layout = input.GetLayout();
+  const int nsamples = input.num_samples();
+
+  TensorListView<StorageGPU, const uint8_t, 3> in_view;
+  TensorListView<StorageGPU, uint8_t, 3> out_view;
+
+  const bool is_sequence = layout.size() == 4;
+
+  if (is_sequence) {
+    in_view = frames_to_samples(view<const uint8_t, 4>(input));
+    out_view = frames_to_samples(view<uint8_t, 4>(output));
+    quality_.clear();
+    quality_.reserve(in_view.size());
+  } else {
+    in_view = view<const uint8_t, 3>(input);
+    out_view = view<uint8_t, 3>(output);
+    quality_.clear();
+    quality_.reserve(in_view.size());
   }
+
+  // Set quality argument for an image from samples
+  if (is_sequence) {
+    for (int i = 0; i < nsamples; i++) {
+      auto nframes = input.tensor_shape_span(i)[0];
+      for (int j = 0; j < nframes; ++j) {
+        quality_.push_back(quality_arg_[i].data[0]);
+      }
+    }
+  } else {
+    for (int i = 0; i < nsamples; i++) {
+      quality_.push_back(quality_arg_[i].data[0]);
+    }
+  }
+
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
   auto req = kmgr_.Setup<JpegDistortionKernel>(0, ctx, in_view.shape, true, true);

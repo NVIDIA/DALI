@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ class TransformShearCPU
       shear_("shear", spec),
       angles_("angles", spec),
       center_("center", spec) {
-    DALI_ENFORCE(shear_.IsDefined() + angles_.IsDefined() == 1,
+    DALI_ENFORCE(shear_.HasExplicitValue() + angles_.HasExplicitValue() == 1,
       "One and only one of the following arguments is expected: ``shear`` or ``angles``");
   }
 
@@ -96,17 +96,17 @@ class TransformShearCPU
   template <typename T>
   void DefineTransforms(span<affine_mat_t<T, 3>> matrices) {
     constexpr int ndim = 2;
-    assert((shear_.IsDefined() && matrices.size() <= static_cast<int>(shear_.size())) ||
-           (angles_.IsDefined() && matrices.size() <= static_cast<int>(angles_.size())));
+    assert((shear_.HasExplicitValue() && matrices.size() <= static_cast<int>(shear_.size())) ||
+           (angles_.HasExplicitValue() && matrices.size() <= static_cast<int>(angles_.size())));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      if (shear_.IsDefined()) {
+      if (shear_.HasExplicitValue()) {
         bool is_vec = shear_.get().sample_dim() == 1;
         vec2 shear_factors = is_vec ? as_vec<2>(shear_[i])
                                     : as_mat<2, 1>(shear_[i]).col(0);
         mat = shear(shear_factors);
       } else {
-        assert(angles_.IsDefined());
+        assert(angles_.HasExplicitValue());
         bool is_vec = angles_.get().sample_dim() == 1;
         vec2 angles = is_vec ? as_vec<2>(angles_[i])
                              : as_mat<2, 1>(angles_[i]).col(0);
@@ -116,7 +116,7 @@ class TransformShearCPU
         mat = shear(shear_factors);
       }
 
-      if (center_.IsDefined()) {
+      if (center_.HasExplicitValue()) {
         vec2 center = as_vec<2>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
@@ -129,21 +129,21 @@ class TransformShearCPU
   template <typename T>
   void DefineTransforms(span<affine_mat_t<T, 4>> matrices) {
     constexpr int ndim = 3;
-    assert((shear_.IsDefined() && matrices.size() <= static_cast<int>(shear_.size())) ||
-           (angles_.IsDefined() && matrices.size() <= static_cast<int>(angles_.size())));
+    assert((shear_.HasExplicitValue() && matrices.size() <= static_cast<int>(shear_.size())) ||
+           (angles_.HasExplicitValue() && matrices.size() <= static_cast<int>(angles_.size())));
     for (int i = 0; i < matrices.size(); i++) {
       auto &mat = matrices[i];
-      if (shear_.IsDefined()) {
+      if (shear_.HasExplicitValue()) {
         const mat3x2 &shear_factors = as_mat<3, 2>(shear_[i]);
         mat = shear(shear_factors);
       } else {
-        assert(angles_.IsDefined());
+        assert(angles_.HasExplicitValue());
         vec<6> shear_factors;
         for (int j = 0; j < 6; j++)
           shear_factors[j] = std::tan(deg2rad(angles_[i].data[j]));
         mat = shear(*reinterpret_cast<mat3x2*>(&shear_factors));
       }
-      if (center_.IsDefined()) {
+      if (center_.HasExplicitValue()) {
         const vec3 &center = as_vec<3>(center_[i]);
         mat.set_col(ndim, cat(sub<ndim, ndim>(mat) * -center + center, 1.0f));
       }
@@ -174,12 +174,13 @@ class TransformShearCPU
         return shape[0];
       }
     };
-    if (shear_.IsDefined()) {
-      shear_.Acquire(spec, ws, nsamples_, true, shape_from_size);
+    ArgValueFlags flags = ArgValue_EnforceUniform;
+    if (shear_.HasExplicitValue()) {
+      shear_.Acquire(spec, ws, nsamples_, flags, shape_from_size);
       ndim_ = analyze_shape(shear_.get().tensor_shape(0));
     } else {
-      assert(angles_.IsDefined());
-      angles_.Acquire(spec, ws, nsamples_, true, shape_from_size);
+      assert(angles_.HasExplicitValue());
+      angles_.Acquire(spec, ws, nsamples_, flags, shape_from_size);
       ndim_ = analyze_shape(angles_.get().tensor_shape(0));
       for (int i = 0; i < angles_.size(); i++) {
         const auto& angles = angles_[i];
@@ -189,13 +190,13 @@ class TransformShearCPU
         }
       }
     }
-    if (center_.IsDefined()) {
+    if (center_.HasExplicitValue()) {
       center_.Acquire(spec, ws, nsamples_, TensorShape<1>{ndim_});
     }
   }
 
   bool IsConstantTransform() const {
-    return !shear_.IsArgInput() && !angles_.IsArgInput() && !center_.IsArgInput();
+    return !shear_.HasArgumentInput() && !angles_.HasArgumentInput() && !center_.HasArgumentInput();
   }
 
  private:

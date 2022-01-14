@@ -1,0 +1,18 @@
+{
+   "extra_include":[
+      "<cufft.h>"
+   ],
+   "return_type":"cufftResult",
+   "calling_conv":"",
+   "not_found_error":"CUFFT_NOT_SUPPORTED",
+"functions": {
+      "cufftDestroy": {},
+      "cufftCreate": {},
+      "cufftSetAutoAllocation": {},
+      "cufftMakePlanMany": {},
+      "cufftSetStream": {},
+      "cufftSetWorkArea": {},
+      "cufftExecR2C": {},
+      "cufftGetProperty": {}
+   }
+}

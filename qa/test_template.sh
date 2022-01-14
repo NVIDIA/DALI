@@ -93,6 +93,7 @@ process_sanitizers_logs() {
         cat $topdir/sanitizer.log
         grep -q ERROR $topdir/sanitizer.log && exit 1 || true
     fi
+    find $topdir -iname "sanitizer.log*" -delete
 }
 
 # get extra index url for given packages
@@ -109,6 +110,12 @@ do
     for variant in $(seq 0 $((${numer_of_prolog_elms}-1))); do
         ${prolog[variant]}
         echo "Test variant run: $variant"
+        # install the latest cuda wheel for CUDA 11.x tests if not in conda and if it is x86_64
+        version_ge "$CUDA_VERSION" "110" && \
+          if [ -z "$CONDA_PREFIX" ] && [ "$(uname -m)" == "x86_64" ]; then
+            install_pip_pkg "pip install --upgrade nvidia-npp-cu11 nvidia-nvjpeg-cu11 nvidia-cufft-cu11 -f /pip-packages"
+          fi
+
         # install packages
         inst=$($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
         if [ -n "$inst" ]; then
@@ -136,10 +143,15 @@ do
         test_body_wrapper
         RV=$?
         set -e
-        # if sanitizers are enabled run test until the end so we have as much data as possible
-        if [ $RV -gt 0 ] && [ -z "$DALI_ENABLE_SANITIZERS" ]; then
-            mkdir -p $topdir/core_artifacts
-            cp core* $topdir/core_artifacts || true
+        if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
+            process_sanitizers_logs
+        fi
+        if [ $RV -gt 0 ]; then
+            # if sanitizers are enabled don't capture core
+            if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
+                mkdir -p $topdir/core_artifacts
+                cp core* $topdir/core_artifacts || true
+            fi
             exit ${RV}
         fi
         # remove packages
@@ -150,7 +162,3 @@ do
         ${epilog[variant]}
     done
 done
-
-if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
-    process_sanitizers_logs
-fi

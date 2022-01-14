@@ -273,8 +273,6 @@ class RandomlyShapedDataIterator(object):
 
     def __next__(self):
         import_numpy()
-        np.random.seed(self.seed)
-        random.seed(self.seed)
         self.test_data = []
         for _ in range(self.batch_size):
             # Scale between 0.5 and 1.0
@@ -294,7 +292,6 @@ class RandomlyShapedDataIterator(object):
 
         batch = self.test_data
         self.i = (self.i + 1) % self.n
-        self.seed = self.seed + 12345678
         return (batch)
 
     next = __next__
@@ -559,3 +556,72 @@ def restrict_python_version(major, minor=None):
         return lambda: _test_skipped(f"Insufficient Python version {version_info.major}.{version_info.minor} - required {major}.{minor}")
 
     return decorator
+
+def generator_random_data(batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3),
+                          dtype=None, val_range=[0, 255]):
+    import_numpy()
+    if dtype is None:
+        dtype = np.uint8
+    assert len(min_sh) == len(max_sh)
+    ndim = len(min_sh)
+    def gen():
+        out = []
+        for _ in range(batch_size):
+            shape = [
+                np.random.randint(min_sh[d], max_sh[d] + 1,
+                                  size=1, dtype=np.int32)[0]
+                    for d in range(ndim)
+            ]
+            arr = np.array(np.random.uniform(val_range[0], val_range[1], shape), dtype=dtype)
+            out += [arr]
+        return out
+    return gen
+
+def generator_random_axes_for_3d_input(batch_size, use_negative=False, use_empty=False,
+                                       extra_out_desc=[]):
+    import_numpy()
+    def gen():
+        ndim = 3
+        options = [
+            np.array([0, 1], dtype=np.int32),
+            np.array([1, 0], dtype=np.int32),
+            np.array([0], dtype=np.int32),
+            np.array([1], dtype=np.int32),
+        ]
+        if use_negative:
+            options += [
+                np.array([-2, -3], dtype=np.int32),
+                np.array([-2, 0], dtype=np.int32),
+                np.array([-3, 1], dtype=np.int32),
+                np.array([0, -2], dtype=np.int32),
+                np.array([1, -3], dtype=np.int32),
+                np.array([-2], dtype=np.int32),
+                np.array([-3], dtype=np.int32),
+            ]
+        if use_empty:
+            # Add it 4 times to increase the probability to be choosen
+            options += 4 * [
+                np.array([], dtype=np.int32)
+            ]
+
+        axes = []
+        for _ in range(batch_size):
+            axes.append(random.choice(options))
+
+        num_extra_outs = len(extra_out_desc)
+        extra_outputs = []
+        for out_idx in range(num_extra_outs):
+            extra_out = []
+            for i in range(batch_size):
+                axes_sh = axes[i].shape if axes[i].shape[0] > 0 else [ndim]
+                range_start, range_end, dtype = extra_out_desc[out_idx]
+                extra_out.append(
+                    np.array(np.random.uniform(range_start, range_end, axes_sh), dtype=dtype)
+                )
+            extra_outputs.append(extra_out)
+        return tuple([axes] + extra_outputs)
+    return gen
+
+def as_array(tensor):
+    import_numpy()
+    return np.array(tensor.as_cpu() if isinstance(tensor, TensorGPU) else tensor)

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,13 +42,18 @@ class StreamPool {
     DALI_ENFORCE(max_size != 0, "Stream pool must have non-zero size.");
   }
 
-  inline ~StreamPool() noexcept(false) {
-    for (auto &stream : streams_) {
-      int device = stream_devices_[stream];
-      DeviceGuard g(device);
+  inline ~StreamPool() {
+    try {
+      for (auto &stream : streams_) {
+        int device = stream_devices_[stream];
+        DeviceGuard g(device);
 
-      CUDA_CALL(cudaStreamSynchronize(stream));
-      CUDA_CALL(cudaStreamDestroy(stream));
+        CUDA_CALL(cudaStreamSynchronize(stream));
+        CUDA_CALL(cudaStreamDestroy(stream));
+      }
+    } catch (CUDAError &e) {
+      if (!e.is_unloading())
+        std::terminate();
     }
   }
 

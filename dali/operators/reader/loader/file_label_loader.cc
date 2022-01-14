@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
     auto p = current_image->Get(image_size);
     DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", image_pair.first));
     // Wrap the raw data in the Tensor object.
-    image_label.image.ShareData(p, image_size, {image_size}, DALI_UINT8);
+    image_label.image.ShareData(p, image_size, false, {image_size}, DALI_UINT8);
   }
 
   // close the file handle

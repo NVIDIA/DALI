@@ -25,6 +25,70 @@
 
 namespace dali {
 namespace kernels {
+
+namespace conv_transform {
+
+/** @defgroup ConvolutionTransforms Convolution postprocessing transformations
+ * Transforms enable postprocessing of values computed by 1D convolution before
+ * they are stored in the output. It may be just conversion and scaling,
+ * but also can be used to accumulate results in the output buffer.
+ * @{
+ */
+
+/**
+ * @brief Stores the convolution value in the output tensor, performs scaling and
+ * converts to the output type with saturation.
+ */
+template <typename Out, typename W>
+struct TransScaleSat {
+  TransScaleSat(float scale = 1.f) : scale{scale} {} // NOLINT
+
+  void operator()(Out *out_ptr, int64_t offset, W val) const {
+    out_ptr[offset] = ConvertSat<Out>(val * scale);
+  }
+
+  float scale;
+};
+
+/**
+ * @brief Adds the convolution value to the output tensor, performs scaling and
+ * converts to the output type with saturation.
+ */
+template <typename Out, typename W>
+struct TransScaleAddOutSat {
+  TransScaleAddOutSat(float scale = 1.f) : scale{scale} {} // NOLINT
+
+  void operator()(Out *out_ptr, int64_t offset, W val) const {
+    Out &out = out_ptr[offset];
+    out = ConvertSat<Out>(val * scale + out);
+  }
+
+  float scale;
+};
+
+/**
+ * @brief Stores in the output tensor the convolution values with pointwise addition of `acc_ptr`.
+ * Performs scaling and converts to the output type with saturation.
+ * The `acc_ptr` and `out_ptr` should not overlap, if the `acc_ptr` is same as `out_ptr`,
+ * use `TransScaleAddOutSat` instead.
+ */
+template <typename Intermediate, typename Out, typename W>
+struct TransScaleAddBufferSat {
+  TransScaleAddBufferSat(Intermediate* acc_ptr, float scale = 1.f) // NOLINT
+    : acc_ptr{acc_ptr}, scale{scale} {}
+
+  void operator()(Out *out_ptr, int64_t offset, W val) const {
+    out_ptr[offset] = ConvertSat<Out>(val * scale + acc_ptr[offset]);
+  }
+
+  Intermediate* acc_ptr;
+  float scale;
+};
+
+/** @} */  // end of ConvolutionTransforms
+
+}  // namespace conv_transform
+
 /**
  * @brief Cyclic buffer used for storing input window for convolution.
  *
@@ -104,12 +168,13 @@ class CyclicWindowWrapper {
     }
   }
 
-  template <typename U, typename W>
-  void CalculateDot(U* __restrict__ output, const W* __restrict__ window, float scale) const {
+  template <typename U, typename W, typename Transform = conv_transform::TransScaleSat<U, W>>
+  void CalculateDot(U* __restrict__ output, int64_t offset, const W* __restrict__ window,
+                    const Transform& transform) const {
     std::array<W, max_lanes> tmp;
     CalculateDot(tmp.data(), window);
     for (int c = 0; c < NumLanes(); c++) {
-      output[c] = ConvertSat<U>(tmp[c] * scale);
+      transform(output, c + offset, tmp[c]);
     }
   }
 
@@ -166,10 +231,11 @@ void load_pixel_no_border(CyclicWindowWrapper<T, max_lanes>& cww, const T* in_pt
   cww.PushBack(in_ptr + in_idx * stride);
 }
 
-template <bool has_channels, typename Out, typename In, typename W, int ndim>
+template <bool has_channels, typename Out, typename In, typename W, int ndim,
+          typename T = conv_transform::TransScaleSat<Out, W>>
 void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size,
                       const TensorShape<ndim>& shape, const TensorShape<ndim>& strides,
-                      float scale) {
+                      const T& transform) {
   constexpr int last_dim = has_channels ? ndim - 2 : ndim - 1;
   int channels = has_channels ? strides[last_dim] : 1;
   int64_t outer_elements = volume(&shape[0], &shape[last_dim]);
@@ -181,7 +247,7 @@ void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size,
   for (int64_t o = 0; o < outer_elements; o++) {
     int64_t x0 = -radius;
     int64_t xout = 0;
-    Out* out_axis = &out[o * axis_stride];
+    int64_t axis_offset = o * axis_stride;
     const In* in_axis = &in[o * axis_stride];
     // Left border
     for (; x0 < 0 && xout < axis_size; x0++, xout++) {
@@ -191,7 +257,7 @@ void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size,
           int x = boundary::idx_reflect_101(x0 + k, axis_size);
           acc += in_axis[x * channels + c] * window[k];
         }
-        out_axis[xout * channels + c] = ConvertSat<Out>(acc * scale);
+        transform(out, axis_offset + xout * channels + c, acc);
       }
     }
     int64_t flat_x = x0 * channels;
@@ -202,7 +268,7 @@ void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size,
       for (int k = 0; k < window_size; k++) {
         acc += in_axis[flat_x + k * channels] * window[k];
       }
-      out_axis[flat_xout] = ConvertSat<Out>(acc * scale);
+      transform(out, axis_offset + flat_xout, acc);
     }
     // get back from flat coordinates
     x0 = flat_x / channels;
@@ -215,23 +281,22 @@ void ConvolveInnerDim(Out* out, const In* in, const W* window, int window_size,
           int x = boundary::idx_reflect_101(x0 + k, axis_size);
           acc += in_axis[x * channels + c] * window[k];
         }
-        out_axis[xout * channels + c] = ConvertSat<Out>(acc * scale);
+        transform(out, axis_offset + xout * channels + c, acc);
       }
     }
   }
 }
 
 template <int axis, bool has_channels, int max_lanes, typename Out, typename In, typename W,
-          int ndim>
+          int ndim, typename T = conv_transform::TransScaleSat<Out, W>>
 void ConvolveInplaceAxisLoop(Out* out, const In* in, const W* window,
                              const TensorShape<ndim>& shape, const TensorShape<ndim>& strides,
-                             int diameter, int64_t offset, In* input_window_buffer, float scale,
-                             int num_lanes) {
+                             int diameter, int64_t offset, In* input_window_buffer, int num_lanes,
+                             const T& transform) {
   auto axis_stride = strides[axis];
   auto axis_size = shape[axis];
   int radius = (diameter - 1) / 2;
   // offset <- start of current axis
-  auto* out_ptr = out + offset;
   auto* in_ptr = in + offset;
 
   CyclicWindowWrapper<In, max_lanes> input_window(input_window_buffer, diameter, num_lanes);
@@ -251,7 +316,7 @@ void ConvolveInplaceAxisLoop(Out* out, const In* in, const W* window,
   for (; out_idx < axis_size && in_idx < axis_size; out_idx++, in_idx++) {
     // we load last element of the input window corresponding to the out_idx
     load_pixel_no_border(input_window, in_ptr, in_idx, axis_stride);
-    input_window.CalculateDot(out_ptr + out_idx * axis_stride, window, scale);
+    input_window.CalculateDot(out, offset + out_idx * axis_stride, window, transform);
     // remove one element, to make space for next out_idx and in_idx
     input_window.PopFront();
   }
@@ -260,16 +325,16 @@ void ConvolveInplaceAxisLoop(Out* out, const In* in, const W* window,
     // To process in-place, we need to pick the vales back from the CyclicBuffer,
     // as it may happen that we already stored the element.u
     reload_pixel_with_border(input_window, in_ptr, in_idx, out_idx, axis_stride, axis_size, radius);
-    input_window.CalculateDot(out_ptr + out_idx * axis_stride, window, scale);
+    input_window.CalculateDot(out, offset + out_idx * axis_stride, window, transform);
     input_window.PopFront();
   }
 }
 
 template <int axis, bool has_channels, int max_lanes, typename Out, typename In, typename W,
-          int ndim>
+          int ndim, typename T = conv_transform::TransScaleSat<Out, W>>
 void ConvolveInplaceOuterLoop(Out* out, const In* in, const W* window,
                               const TensorShape<ndim>& shape, const TensorShape<ndim>& strides,
-                              int diameter, In* input_window_buffer, float scale = 1.f) {
+                              int diameter, In* input_window_buffer, const T& transform) {
   int64_t outer_elements = volume(&shape[0], &shape[axis]);
   int64_t axis_elements = shape[axis];
   int64_t inner_elements = volume(&shape[axis + 1], &shape[ndim]);
@@ -288,7 +353,8 @@ void ConvolveInplaceOuterLoop(Out* out, const In* in, const W* window,
       int64_t offset = outer_idx * (axis > 0 ? strides[axis - 1] : 0) + inner_idx;
       int num_lanes = std::min(inner_elements - inner_idx, strip_size);
       ConvolveInplaceAxisLoop<axis, has_channels, max_lanes>(
-          out, in, window, shape, strides, diameter, offset, input_window_buffer, scale, num_lanes);
+        out, in, window, shape, strides, diameter, offset, input_window_buffer, num_lanes,
+        transform);
     }
   }
 }
@@ -304,7 +370,8 @@ void ConvolveInplaceOuterLoop(Out* out, const In* in, const W* window,
  *
  * The same implementation is used for in-place innermost convolution.
  */
-template <typename Out, typename In, typename W, int ndim, int axis, bool has_channels = true>
+template <typename Out, typename In, typename W, int ndim, int axis, bool has_channels = true,
+          typename T = conv_transform::TransScaleSat<Out, W>>
 struct ConvolutionCpu {
   // This can be ballanced between additional memory required and speed,
   // it will request memory for a cyclic helper buffer of kStripSize * window_size.
@@ -323,7 +390,8 @@ struct ConvolutionCpu {
 
   void Run(KernelContext& ctx, const TensorView<StorageCPU, Out, ndim> &out,
            const TensorView<StorageCPU, const In, ndim>& in,
-           const TensorView<StorageCPU, const W, 1>& window, float scale = 1) {
+           const TensorView<StorageCPU, const W, 1>& window,
+           const T &transform = {}) {
     auto diameter = window.num_elements();
     int input_window_buf_size = GetInputWindowBufSize(in.shape, diameter);
     auto* input_window_buffer = ctx.scratchpad->AllocateHost<In>(input_window_buf_size);
@@ -331,11 +399,12 @@ struct ConvolutionCpu {
 
     if (axis == ndim - has_channels - 1 &&
         static_cast<const void*>(out.data) != static_cast<const void*>(in.data)) {
-      ConvolveInnerDim<has_channels>(out.data, in.data, window.data, diameter, in.shape, strides,
-                                     scale);
+      ConvolveInnerDim<has_channels>(
+        out.data, in.data, window.data, diameter, in.shape, strides, transform);
     } else {
       ConvolveInplaceOuterLoop<axis, has_channels, kStripSize, Out, In, W, ndim>(
-          out.data, in.data, window.data, in.shape, strides, diameter, input_window_buffer, scale);
+        out.data, in.data, window.data, in.shape, strides, diameter, input_window_buffer,
+        transform);
     }
   }
 

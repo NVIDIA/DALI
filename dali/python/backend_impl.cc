@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #endif
 #include "dali/core/python_util.h"
 #include "dali/operators.h"
+#include "dali/kernels/kernel.h"
 #include "dali/operators/reader/parser/tfrecord_parser.h"
 #include "dali/pipeline/data/copy_to_external.h"
 #include "dali/pipeline/data/dltensor.h"
@@ -85,6 +86,15 @@ py::list as_py_list(const TensorShape<ndim> &shape) {
 template <typename Backend>
 py::list py_shape(const Tensor<Backend> &t) {
   return as_py_list(t.shape());
+}
+
+template <typename Backend>
+std::vector<py::tuple> py_shape_list(const TensorList<Backend> &tl) {
+  std::vector<py::tuple> ret(tl.shape().size());
+  for (int i = 0; i < tl.shape().size(); ++i) {
+    ret[i] = py::tuple(as_py_list(tl.tensor_shape(i)));
+  }
+  return ret;
 }
 
 static string TensorLayoutRepr(const TensorLayout &tl) {
@@ -173,14 +183,14 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
   // empty lambda that just captures dlm_tensor_ptr unique ptr that would be destructed when
   // shared ptr is destroyed
   auto typed_shape = ConvertShape(shape, batch);
+  bool is_pinned = dl_tensor.device.device_type == kDLCUDAHost;
   batch->ShareData(shared_ptr<void>(dl_tensor.data,
                                     [dlm_tensor_ptr = move(dlm_tensor_ptr)](void*) {}),
-                                    bytes, typed_shape, dali_type.id());
+                                    bytes, is_pinned, typed_shape, dali_type.id());
 
   // according to the docs kDLCUDAHost = kDLCPU | kDLCUDA so test it as a the first option
   if (dl_tensor.device.device_type == kDLCUDAHost) {
     batch->set_device_id(-1);
-    batch->set_pinned(true);
   } else if (dl_tensor.device.device_type == kDLCPU) {
     batch->set_device_id(-1);
   } else if (dl_tensor.device.device_type == kDLCUDA) {
@@ -234,7 +244,7 @@ void FillTensorFromCudaArray(const py::object object, TensorType *batch, int dev
   // while this shared_ptr is alive (and the data should be kept alive)
   // We set the type and shape even before the set_device_id as we only wrap the allocation
   batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) {}),
-                   bytes, typed_shape, type.id());
+                   bytes, false, typed_shape, type.id());
   batch->SetLayout(layout);
   // it is for __cuda_array_interface__ so device_id < 0 is not a valid value
   if (device_id < 0) {
@@ -347,12 +357,11 @@ void ExposeTensor(py::module &m) {
 
           // Create the Tensor and wrap the data
           auto t = std::make_unique<Tensor<CPUBackend>>();
-          t->set_pinned(is_pinned);
           const TypeInfo &type = TypeFromFormatStr(info.format);
           // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
           // while this shared_ptr is alive (and the data should be kept alive)
           t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *) {}),
-                       bytes, i_shape, type.id());
+                       bytes, is_pinned, i_shape, type.id());
           t->SetLayout(layout);
           return t.release();
         }),
@@ -392,6 +401,21 @@ void ExposeTensor(py::module &m) {
     .def("layout", [](Tensor<CPUBackend> &t) {
       return t.GetLayout().str();
     })
+    .def("_as_gpu", [](Tensor<CPUBackend> &t) -> Tensor<GPUBackend>* {
+          auto ret = std::make_unique<Tensor<GPUBackend>>();
+          int dev = -1;
+          CUDA_CALL(cudaGetDevice(&dev));
+          ret->set_device_id(dev);
+          UserStream *us = UserStream::Get();
+          cudaStream_t s = us->GetStream(*ret);
+          ret->Copy(t, s);
+          us->Wait(*ret);
+          return ret.release();
+        },
+      R"code(
+      Returns a `TensorGPU` object being a copy of this `TensorCPU`.
+      )code",
+      py::return_value_policy::take_ownership)
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {
           CopyToExternal<mm::memory_kind::host>(ctypes_void_ptr(p), t, 0, false);
@@ -563,10 +587,33 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
   auto ptr = std::make_unique<Tensor<Backend>>();
   // TODO(klecki): Rework this with proper sample-based tensor batch data structure
   auto sample_shared_ptr = unsafe_sample_owner(t, id);
-  ptr->ShareData(sample_shared_ptr, t.capacity(), t.shape()[id], t.type());
+  ptr->ShareData(sample_shared_ptr, t.capacity(), t.is_pinned(), t.shape()[id], t.type());
   ptr->set_device_id(t.device_id());
   ptr->SetMeta(t.GetMeta(id));
   return ptr;
+}
+
+template <typename Backend>
+std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_of_tensors,
+                                                                 string &layout) {
+  auto tl = std::make_shared<TensorList<Backend>>(list_of_tensors.size());
+  TensorVector<Backend> tv(list_of_tensors.size());
+  for (size_t i = 0; i < list_of_tensors.size(); ++i) {
+    auto &t = list_of_tensors[i].cast<Tensor<Backend>&>();
+    tv[i].ShareData(t);
+  }
+
+  cudaStream_t stream = 0;
+  if (!list_of_tensors.empty() && std::is_same<Backend, GPUBackend>::value) {
+    auto &t = list_of_tensors[0].cast<Tensor<GPUBackend>&>();
+    stream = UserStream::Get()->GetStream(t);
+  }
+
+  tl->Copy(tv, stream);
+  tl->SetLayout(layout);
+  CUDA_CALL(cudaStreamSynchronize(stream));
+
+  return tl;
 }
 
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
@@ -637,12 +684,11 @@ void ExposeTensorList(py::module &m) {
 
         // Create the Tensor and wrap the data
         auto t = std::make_shared<TensorList<CPUBackend>>();
-        t->set_pinned(false);
         const TypeInfo &type = TypeFromFormatStr(info.format);
         // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
         // while this shared_ptr is alive (and the data should be kept alive)
         t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *){}),
-                     bytes, i_shape, type.id());
+                     bytes, false, i_shape, type.id());
         t->SetLayout(layout);
         return t;
       }),
@@ -659,9 +705,41 @@ void ExposeTensorList(py::module &m) {
       is_pinned : bool
             If provided memory is page-locked (pinned)
       )code")
+    .def(py::init([](py::list &list_of_tensors, string layout = "") {
+        return TensorListFromListOfTensors<CPUBackend>(list_of_tensors, layout);
+      }),
+      "list_of_tensors"_a,
+      "layout"_a = "",
+      R"code(
+      List of tensors residing in the CPU memory.
+
+      list_of_tensors : [TensorCPU]
+            Python list of TensorCPU objects
+      layout : str
+            Layout of the data
+      )code")
+    .def("_as_gpu", [](TensorList<CPUBackend> &t) {
+          auto ret = std::make_shared<TensorList<GPUBackend>>();
+          int dev = -1;
+          CUDA_CALL(cudaGetDevice(&dev));
+          ret->set_device_id(dev);
+          UserStream *us = UserStream::Get();
+          cudaStream_t s = us->GetStream(*ret);
+          ret->Copy(t, s);
+          us->Wait(*ret);
+          return ret;
+        },
+      R"code(
+      Returns a `TensorListGPU` object being a copy of this `TensorListCPU`.
+      )code",
+      py::return_value_policy::take_ownership)
     .def("layout", [](TensorList<CPUBackend> &t) {
       return t.GetLayout().str();
     })
+    .def("shape", &py_shape_list<CPUBackend>,
+      R"code(
+      Shape of the tensor list.
+      )code")
     .def("at", [](TensorList<CPUBackend> &tl, Index id) -> py::array {
           DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
               "buffer info for tensor w/ invalid type.");
@@ -839,6 +917,19 @@ void ExposeTensorList(py::module &m) {
         }),
       "tl"_a,
       "layout"_a = py::none())
+    .def(py::init([](py::list &list_of_tensors, string layout = "") {
+        return TensorListFromListOfTensors<GPUBackend>(list_of_tensors, layout);
+      }),
+      "list_of_tensors"_a,
+      "layout"_a = "",
+      R"code(
+      List of tensors residing in the GPU memory.
+
+      list_of_tensors : [TensorGPU]
+            Python list of TensorGPU objects
+      layout : str
+            Layout of the data
+      )code")
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
           auto t = std::make_shared<TensorList<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
@@ -878,6 +969,10 @@ void ExposeTensorList(py::module &m) {
       Returns a `TensorListCPU` object being a copy of this `TensorListGPU`.
       )code",
       py::return_value_policy::take_ownership)
+    .def("shape", &py_shape_list<GPUBackend>,
+      R"code(
+      Shape of the tensor list.
+      )code")
     .def("__len__", [](TensorList<GPUBackend> &t) {
           return t.num_samples();
         })
@@ -1156,6 +1251,43 @@ PYBIND11_MODULE(backend_impl, m) {
     CUcontext context;
     CUDA_CALL(cuCtxGetCurrent(&context));
     return context != nullptr;
+  });
+
+  m.def("GetCudaVersion", [] {
+    int version = -1;
+    auto ret = cudaDriverGetVersion(&version);
+    if (ret != cudaSuccess) {
+      return -1;
+    } else {
+      return version;
+    }
+  });
+
+  m.def("GetCufftVersion", [] {
+    int ret = -1;
+    try {
+      // we don't want to throw when it is not available, just return -1
+      ret = GetCufftVersion();
+    } catch (const std::runtime_error &) {}
+    return ret;
+  });
+
+  m.def("GetNppVersion", [] {
+    int ret = -1;
+    try {
+      // we don't want to throw when it is not available, just return -1
+      ret = GetNppVersion();
+    } catch (const std::runtime_error &) {}
+    return ret;
+  });
+
+  m.def("GetNvjpegVersion", [] {
+    int ret = -1;
+    try {
+      // we don't want to throw when it is not available, just return -1
+      ret = GetNvjpegVersion();
+    } catch (const std::runtime_error &) {}
+    return ret;
   });
 
 #if SHM_WRAPPER_ENABLED

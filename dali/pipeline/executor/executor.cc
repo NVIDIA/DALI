@@ -28,15 +28,28 @@
 
 namespace dali {
 
-template class DLL_PUBLIC Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
-template class DLL_PUBLIC Executor<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
-
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::PreRun() {
   auto batch_size = InferBatchSize(batch_size_providers_);
   batch_sizes_cpu_.push(batch_size);
   batch_sizes_mixed_.push(batch_size);
   batch_sizes_gpu_.push(batch_size);
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+Executor<WorkspacePolicy, QueuePolicy>::~Executor() {
+  if (device_id_ != CPU_ONLY_DEVICE_ID) {
+    try {
+      DeviceGuard dg(device_id_);
+      if (mixed_op_stream_)
+        CUDA_DTOR_CALL(cudaStreamSynchronize(mixed_op_stream_));
+      if (gpu_op_stream_)
+        CUDA_DTOR_CALL(cudaStreamSynchronize(gpu_op_stream_));
+    } catch (const CUDAError &e) {
+      if (!e.is_unloading())
+        std::terminate();
+    }
+  }
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -370,5 +383,8 @@ int Executor<WorkspacePolicy, QueuePolicy>::InferBatchSize(
   }
   return batch_size;
 }
+
+template class DLL_PUBLIC Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
+template class DLL_PUBLIC Executor<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
 
 }  // namespace dali

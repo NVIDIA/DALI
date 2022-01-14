@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -256,8 +256,8 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
 
     // Skipping cached samples
     const std::string source_info =
-        make_string("archive ", paths_[current_sample.wds_shard_index],
-                    GetSampleSource(current_sample), "component offset ", component.offset);
+        make_string_delim(" ", "Archive:", paths_[current_sample.wds_shard_index],
+                    GetSampleSource(current_sample), "; Component offset:", component.offset);
     DALIMeta meta;
     meta.SetSourceInfo(source_info);
     if (ShouldSkipImage(source_info)) {
@@ -272,6 +272,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
     // Reading Data
     if (copy_read_data_) {
       uint8_t* shared_tensor_data = nullptr;
+      bool shared_tensor_is_pinned = false;
       for (auto& output : component.outputs) {
         if (!shared_tensor_data) {
           if (sample[output].shares_data()) {
@@ -281,9 +282,10 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
               {static_cast<int64_t>(component.size / sample[output].type_info().size())},
               dtypes_[output]);
           shared_tensor_data = reinterpret_cast<uint8_t*>(sample[output].raw_mutable_data());
+          shared_tensor_is_pinned = sample[output].is_pinned();
         } else {
           sample[output].ShareData(
-              shared_tensor_data, component.size,
+              shared_tensor_data, component.size, shared_tensor_is_pinned,
               {static_cast<int64_t>(component.size / sample[output].type_info().size())},
               sample[output].type());
         }
@@ -295,7 +297,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
       for (auto& output : component.outputs) {
         sample[output].SetMeta(meta);
         sample[output].ShareData(
-            data, component.size,
+            data, component.size, false,
             {static_cast<int64_t>(component.size / sample[output].type_info().size())},
             sample[output].type());
       }

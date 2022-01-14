@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -127,7 +127,7 @@ class RecordIOLoader : public IndexedFileLoader {
         } else {
           n_read = size;
           // Wrap the raw data in the Tensor object.
-          tensor.ShareData(p, size, {size}, DALI_UINT8);
+          tensor.ShareData(p, size, false, {size}, DALI_UINT8);
           next_seek_pos_ = seek_pos + size;
         }
       }

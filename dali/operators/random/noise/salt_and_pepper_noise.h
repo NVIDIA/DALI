@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -87,19 +87,19 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
         salt_val_("salt_val", spec),
         pepper_val_("pepper_val", spec),
         per_channel_(spec.GetArgument<bool>("per_channel")) {
-    if (prob_.IsDefined() || salt_vs_pepper_.IsDefined() ||
-        salt_val_.IsDefined() || pepper_val_.IsDefined()) {
+    if (prob_.HasExplicitValue() || salt_vs_pepper_.HasExplicitValue() ||
+        salt_val_.HasExplicitValue() || pepper_val_.HasExplicitValue()) {
       backend_data_.ReserveDistsData(sizeof(Impl<double>) * max_batch_size_);
     }
   }
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
-    prob_.Acquire(spec, ws, nsamples, true);
-    salt_vs_pepper_.Acquire(spec, ws, nsamples, true);
-    if (salt_val_.IsDefined())
-      salt_val_.Acquire(spec, ws, nsamples, true);
-    if (pepper_val_.IsDefined())
-      pepper_val_.Acquire(spec, ws, nsamples, true);
+    prob_.Acquire(spec, ws, nsamples);
+    salt_vs_pepper_.Acquire(spec, ws, nsamples);
+    if (salt_val_.HasExplicitValue())
+      salt_val_.Acquire(spec, ws, nsamples);
+    if (pepper_val_.HasExplicitValue())
+      pepper_val_.Acquire(spec, ws, nsamples);
   }
 
   DALIDataType DefaultDataType() const {
@@ -109,13 +109,14 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
 
   template <typename T>
   bool SetupDists(Impl<T>* dists_data, int nsamples) {
-    if (!prob_.IsDefined() && !salt_vs_pepper_.IsDefined() &&
-        !salt_val_.IsDefined() && !pepper_val_.IsDefined()) {
+    if (!prob_.HasExplicitValue() && !salt_vs_pepper_.HasExplicitValue() &&
+        !salt_val_.HasExplicitValue() && !pepper_val_.HasExplicitValue()) {
       return false;  // default constructed Impl will be used
     }
     for (int s = 0; s < nsamples; s++) {
-      T salt_val = salt_val_.IsDefined() ? salt_val_[s].data[0] : Impl<T>::kDefaultSalt;
-      T pepper_val = pepper_val_.IsDefined() ? pepper_val_[s].data[0] : Impl<T>::kDefaultPepper;
+      T salt_val = salt_val_.HasExplicitValue() ? salt_val_[s].data[0] : Impl<T>::kDefaultSalt;
+      T pepper_val =
+          pepper_val_.HasExplicitValue() ? pepper_val_[s].data[0] : Impl<T>::kDefaultPepper;
       float noise_prob = prob_[s].data[0];
       float salt_vs_pepper = salt_vs_pepper_[s].data[0];
       DALI_ENFORCE((0.0f <= noise_prob && noise_prob <= 1.0f),

@@ -240,7 +240,9 @@ TEST(MMDefaultResource, InitStampede) {
             return;
           std::this_thread::yield();
         }
+        std::atomic_thread_fence(std::memory_order::memory_order_acquire);
         GetDefaultResource<memory_kind::device>();
+        std::atomic_thread_fence(std::memory_order::memory_order_release);
         cnt++;
         while (!f2) {
           if (stop)
@@ -258,6 +260,7 @@ TEST(MMDefaultResource, InitStampede) {
     f1 = false;
     SetDefaultResource<memory_kind::device>(nullptr);
     _Test_FreeDeviceResources();
+    std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
     f2 = true;
     while (cnt != 0)
       std::this_thread::yield();

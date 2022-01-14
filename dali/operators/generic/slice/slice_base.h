@@ -54,7 +54,7 @@ class SliceBase : public Operator<Backend> {
   template <typename OutputType, int Dims>
   void FillArgs(std::vector<kernels::SliceArgs<OutputType, Dims>>& slice_args,
                 const workspace_t<Backend> &ws) {
-    this->ProcessCroppingAttrs(ws);
+    this->ProcessCroppingAttrs(spec_, ws);
     const auto &input = ws.template Input<Backend>(0);
     auto in_shape = input.shape();
     int nsamples = in_shape.num_samples();
@@ -79,7 +79,7 @@ class SliceBase : public Operator<Backend> {
    /**
    * @brief Implementation specific (Crop, Slice, ...)
    */
-  virtual void ProcessCroppingAttrs(const workspace_t<Backend> &ws) = 0;
+  virtual void ProcessCroppingAttrs(const OpSpec &spec, const workspace_t<Backend> &ws) = 0;
   virtual const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const = 0;
 
   bool CanInferOutputs() const override {

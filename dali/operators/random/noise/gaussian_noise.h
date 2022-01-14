@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,14 +62,14 @@ class GaussianNoise : public RNGBase<Backend, GaussianNoise<Backend>, true> {
       : BaseImpl(spec),
         mean_("mean", spec),
         stddev_("stddev", spec) {
-    if (mean_.IsDefined() || stddev_.IsDefined()) {
+    if (mean_.HasExplicitValue() || stddev_.HasExplicitValue()) {
       backend_data_.ReserveDistsData(sizeof(Impl<double>) * max_batch_size_);
     }
   }
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
-    mean_.Acquire(spec, ws, nsamples, true);
-    stddev_.Acquire(spec, ws, nsamples, true);
+    mean_.Acquire(spec, ws, nsamples);
+    stddev_.Acquire(spec, ws, nsamples);
   }
 
   DALIDataType DefaultDataType() const {
@@ -78,7 +78,7 @@ class GaussianNoise : public RNGBase<Backend, GaussianNoise<Backend>, true> {
 
   template <typename T>
   bool SetupDists(Impl<T>* dists_data, int nsamples) {
-    if (!mean_.IsDefined() && !stddev_.IsDefined()) {
+    if (!mean_.HasExplicitValue() && !stddev_.HasExplicitValue()) {
       return false;
     }
     for (int s = 0; s < nsamples; s++) {

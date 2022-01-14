@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -146,7 +146,7 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
     auto p = frame->Get(frame_size);
     DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", frame_filename));
     // Wrap the raw data in the Tensor object.
-    target->ShareData(p, frame_size, {frame_size}, DALI_UINT8);
+    target->ShareData(p, frame_size, false, {frame_size}, DALI_UINT8);
   }
   target->SetMeta(meta);
   frame->Close();

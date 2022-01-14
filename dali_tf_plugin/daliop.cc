@@ -350,8 +350,13 @@ class DaliOp : public tf::OpKernel {
           break;
       }
 
+
+      // Synchronize with the dataset()->stream_ when doing the last copy, so the outputs
+      // are fully finished before we release the output buffers for reuse.
+      unsigned int wait_flag = (i == dali_num_out - 1) ? DALI_ext_force_sync : DALI_ext_default;
+
       TF_DALI_CALL(
-          daliOutputCopy(&pipe_handle_, dst, i, this->device_type_, stream, DALI_ext_default));
+          daliOutputCopy(&pipe_handle_, dst, i, this->device_type_, stream, wait_flag));
       if (should_be_sparse_tensor) {
         ++j;
         // copy out shape
