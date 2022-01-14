@@ -18,6 +18,7 @@ import numpy as np
 from nvidia.dali import fn
 from test_utils import get_dali_extra_path
 from nose_utils import raises
+import tempfile
 
 test_data_root = get_dali_extra_path()
 
