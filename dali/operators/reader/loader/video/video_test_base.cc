@@ -29,19 +29,14 @@ namespace detail {
 static void parallel_for(int nb_elements, std::function<void(int start, int end, int id)> func) {
   int nb_threads_hint = std::thread::hardware_concurrency();
   int nb_threads = nb_threads_hint == 0 ? 8 : (nb_threads_hint);
-  int batch_size = nb_elements / nb_threads;
-  int batch_remainder = nb_elements % nb_threads;
 
   std::vector<std::thread> threads(nb_threads);
 
-  int start = 0;
-  for (int i = 0; i < nb_threads - 1; ++i) {
-      threads[i] = std::thread(func, start, start + batch_size, i);
-      start += batch_size;
+  for (int i = 0; i < nb_threads; ++i) {
+    int start = nb_elements * i / nb_threads;
+    int end = nb_elements * (i+1) / nb_threads;
+    threads[i] = std::thread(func, start, end, i);
   }
-
-  threads[nb_threads - 1] = std::thread(
-    func, start, start + batch_size + batch_remainder, nb_threads - 1);
 
   std::for_each(threads.begin(), threads.end(), std::mem_fn(&std::thread::join));
 }
@@ -117,7 +112,7 @@ void VideoTestBase::SaveFrame(
   int frame_id,
   int sample_id,
   int batch_id,
-  std::string folder_path,
+  const std::string &folder_path,
   int width,
   int height) {
   TensorView<StorageCPU, uint8_t> tv(frame, TensorShape<3>{height, width, 3});

@@ -55,7 +55,7 @@ class VideoTestBase : public ::testing::Test {
    * 
    * will save the frame as:
    * 
-   * '/tmp/batch_002_sample_001_frame_000.png
+   * /tmp/batch_002_sample_001_frame_000.png
    * 
    * @param frame Frame data
    * @param frame_id FrameId that will be included in output file name
@@ -70,7 +70,7 @@ class VideoTestBase : public ::testing::Test {
     int frame_id,
     int sample_id,
     int batch_id,
-    std::string folder_path,
+    const std::string &folder_path,
     int width,
     int height);
 
