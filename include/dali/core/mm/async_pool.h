@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -213,10 +213,18 @@ class async_pool_resource : public async_memory_resource<Kind> {
     if (!mem || !bytes)
       return;
     adjust_size_and_alignment(bytes, alignment, false);
+
+    // Record an event outside of the mutex - it may take considerable time
+    CUcontext ctx;
+    CUDA_CALL(cuStreamGetCtx(stream.get(), &ctx));
+    ContextScope scope(ctx);
+    CUDAEvent event = CUDAEventPool::instance().Get();
+    CUDA_CALL(cudaEventRecord(event, stream.get()));
+
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char*>(mem);
     pop_block_padding(ptr, bytes, alignment);
-    deallocate_async_impl(stream_free_[stream.get()], ptr, bytes, alignment, stream.get());
+    deallocate_async_impl(stream_free_[stream.get()], ptr, bytes, alignment, ctx, std::move(event));
   }
 
   /**
@@ -428,8 +436,8 @@ class async_pool_resource : public async_memory_resource<Kind> {
   }
 
   void deallocate_async_impl(PerStreamFreeBlocks &free, char *ptr, size_t bytes, size_t alignment,
-                             cudaStream_t stream) {
-    auto *pending = add_pending_free(free.free_list, ptr, bytes, alignment, stream);
+                             CUcontext ctx, CUDAEvent &&event) {
+    auto *pending = add_pending_free(free.free_list, ptr, bytes, alignment, ctx, std::move(event));
     try {
       free.by_size.insert({bytes, pending});
     } catch (...) {
@@ -459,11 +467,13 @@ class async_pool_resource : public async_memory_resource<Kind> {
   }
 
   auto *add_pending_free(PendingFreeList &free, char *base, size_t bytes, size_t alignment,
-                         cudaStream_t stream) {
+                         CUcontext ctx, CUDAEvent &&event) {
     if (!cuInitChecked())
       throw std::runtime_error("Cannot load CUDA driver API library");
     pending_free *f = FreeDescAlloc::allocate(1);
     f = new (f)pending_free();
+    f->ctx = ctx;
+    f->event = std::move(event);
     f->addr = base;
     f->bytes = bytes;
     f->alignment = alignment;
@@ -473,10 +483,6 @@ class async_pool_resource : public async_memory_resource<Kind> {
       f->next->prev = f;
     free.head = f;
     if (!free.tail) free.tail = f;
-    CUDA_CALL(cuStreamGetCtx(stream, &f->ctx));
-    ContextScope scope(f->ctx);
-    f->event = CUDAEventPool::instance().Get();
-    CUDA_CALL(cudaEventRecord(f->event, stream));
     num_pending_frees_++;
     return f;
   }
