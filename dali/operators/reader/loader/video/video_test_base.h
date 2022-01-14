@@ -38,11 +38,20 @@ class VideoTestBase : public ::testing::Test {
 
   void CompareFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps = 10);
 
-  void CompareFramesAvg(const uint8_t *frame, const uint8_t *gt, int size, double eps = 1.0);
+  void CompareFramesAvgError(const uint8_t *frame, const uint8_t *gt, int size, double eps = 1.0);
 
   uint8_t *GetCfrFrame(int video_id, int frame_id) { return cfr_frames_[video_id][frame_id].data; }
 
   uint8_t *GetVfrFrame(int video_id, int frame_id) { return vfr_frames_[video_id][frame_id].data; }
+
+  void SaveFrame(
+    uint8_t *frame,
+    int frame_id,
+    int sample_id,
+    int batch_id,
+    std::string folder_path,
+    int width,
+    int height);
 
  protected:
   static std::vector<std::vector<cv::Mat>> cfr_frames_;

@@ -25,6 +25,27 @@
 #include "dali/test/cv_mat_utils.h"
 
 namespace dali {
+namespace detail {
+static void parallel_for(int nb_elements, std::function<void(int start, int end, int id)> func) {
+  int nb_threads_hint = std::thread::hardware_concurrency();
+  int nb_threads = nb_threads_hint == 0 ? 8 : (nb_threads_hint);
+  int batch_size = nb_elements / nb_threads;
+  int batch_remainder = nb_elements % nb_threads;
+
+  std::vector<std::thread> threads(nb_threads);
+
+  int start = 0;
+  for (int i = 0; i < nb_threads - 1; ++i) {
+      threads[i] = std::thread(func, start, start + batch_size, i);
+      start += batch_size;
+  }
+
+  threads[nb_threads - 1] = std::thread(
+    func, start, start + batch_size + batch_remainder, nb_threads - 1);
+
+  std::for_each(threads.begin(), threads.end(), std::mem_fn(&std::thread::join));
+}
+}  // namespace detail
 
 // Define static tests members - needed to hold resources between tests
 std::vector<std::vector<cv::Mat>> VideoTestBase::cfr_frames_;
@@ -67,20 +88,43 @@ void VideoTestBase::LoadFrames(
 }
 
 void VideoTestBase::CompareFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps) {
-  for (int j = 0; j < size; ++j) {
-    ASSERT_NEAR(frame[j], gt[j], eps);
-  }
+  detail::parallel_for(size, [&](int start, int end, int id){
+    for (int j = start; j < end; ++j) {
+      ASSERT_NEAR(frame[j], gt[j], eps);
+  }});
 }
 
-void VideoTestBase::CompareFramesAvg(
+void VideoTestBase::CompareFramesAvgError(
   const uint8_t *frame, const uint8_t *gt, int size, double eps) {
-  double sum = 0.0;
-  for (int j = 0; j < size; ++j) {
-    sum += std::abs(frame[j]-gt[j]);
-  }
+  std::vector<double> sums(std::thread::hardware_concurrency(), 0.0);
 
+  detail::parallel_for(size, [&](int start, int end, int id){
+    double sum = 0.0;
+    for (int j = start; j < end; ++j) {
+      sum += std::abs(frame[j]-gt[j]);
+    }
+    sums[id] = sum;
+  });
+
+  double sum = std::accumulate(sums.begin(), sums.end(), 0.0);
   sum /= size;
+
   ASSERT_LT(sum, eps);
+}
+
+void VideoTestBase::SaveFrame(
+  uint8_t *frame,
+  int frame_id,
+  int sample_id,
+  int batch_id,
+  std::string folder_path,
+  int width,
+  int height) {
+  TensorView<StorageCPU, uint8_t> tv(frame, TensorShape<3>{height, width, 3});
+  char str[32];
+  snprintf(str, sizeof(str), "/batch_%03d_sample_%03d_frame_%03d", batch_id, sample_id, frame_id);
+  string full_path = folder_path + string(str) + ".png";
+  testing::SaveImage(full_path.c_str(), tv);
 }
 
 }  // namespace dali
