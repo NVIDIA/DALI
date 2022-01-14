@@ -15,11 +15,10 @@
 #include "dali/operators/reader/loader/video/frames_decoder.h"
 #include <memory>
 #include "dali/core/error_handling.h"
-#include "dali/operators/reader/loader/video/nvdecode/nvcuvid.h"
-#include "dali/operators/reader/loader/video/nvdecode/cuviddec.h"
 
 
 namespace dali {
+
 namespace detail {
 std::string av_error_string(int ret) {
     static char msg[AV_ERROR_MAX_STRING_SIZE];
@@ -27,7 +26,6 @@ std::string av_error_string(int ret) {
     return std::string(av_make_error_string(msg, AV_ERROR_MAX_STRING_SIZE, ret));
 }
 }
-
 
 void FramesDecoder::InitAvState() {
   av_state_->codec_ctx_ = avcodec_alloc_context3(av_state_->codec_);
@@ -88,14 +86,11 @@ void FramesDecoder::BuildIndex() {
   //  - index present in the header
 
   int last_keyframe = -1;
-  while (ReadRegularFrame(nullptr, false, true)) {
+  while (ReadRegularFrame(nullptr, false)) {
     IndexEntry entry;
     entry.is_keyframe = av_state_->frame_->key_frame;
     entry.pts = av_state_->frame_->pts;
     entry.is_flush_frame = false;
-
-    // DALI_ENFORCE(av_state_->packet_->pts == av_state_->frame_->pts);
-    // std::cout << av_state_->packet_->pts << ", " << av_state_->frame_->pts << std::endl;
 
     if (entry.is_keyframe) {
       last_keyframe = index_.size();
@@ -151,69 +146,43 @@ void FramesDecoder::LazyInitSwContext() {
   }
 }
 
-void FramesDecoder::SendFlushPacket() {
-  int ret = avcodec_send_packet(av_state_->codec_ctx_, nullptr);
-  DALI_ENFORCE(
-    ret >= 0,
-    make_string("Failed to send packet to decoder: ", detail::av_error_string(ret)));
-    flush_state_ = true;
-}
-
-bool FramesDecoder::DecodeFrameFfmpeg(uint8_t *data, bool copy_to_output) {
-  int ret = avcodec_send_packet(av_state_->codec_ctx_, av_state_->packet_);
-  DALI_ENFORCE(
-    ret >= 0,
-    make_string("Failed to send packet to decoder: ", detail::av_error_string(ret)));
-
-  if (copy_to_output)
-    cout << "CPU: "  << av_state_->packet_->size << endl;
-
-  ret = avcodec_receive_frame(av_state_->codec_ctx_, av_state_->frame_);
-
-  if (ret == AVERROR(EAGAIN)) {
-    return false;
-  }
-
-  if (ret == AVERROR_EOF) {
-    DALI_FAIL("Unexpected AVERROR_EOF when reading a regular frame.");
-  }
-
-  if (!copy_to_output) {
-    return true;
-  }
-
-  if (copy_to_output)
-    cout << "Decoded CPU: " << av_state_->packet_->size << endl;
-
-  CopyToOutput(data);
-  // LOG_LINE << "Read frame (ReadRegularFrame), timestamp " << av_state_->frame_->pts << std::endl;
-  return true;
-}
-
-bool FramesDecoder::DecodeFrame(uint8_t *data, bool copy_to_output) {
-  return DecodeFrameFfmpeg(data, copy_to_output);
-}
-
-bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output, bool for_index) {
+bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
   int ret = -1;
   while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
     if (av_state_->packet_->stream_index != av_state_->stream_id_) {
       continue;
     }
 
-    if (for_index) {
-      if (DecodeFrameFfmpeg(data, copy_to_output)) {
-        return true;
-      }
-    } else {
-      if (DecodeFrame(data, copy_to_output)) {
-        return true;
-      }
+    ret = avcodec_send_packet(av_state_->codec_ctx_, av_state_->packet_);
+    DALI_ENFORCE(
+      ret >= 0,
+      make_string("Failed to send packet to decoder: ", detail::av_error_string(ret)));
+
+    ret = avcodec_receive_frame(av_state_->codec_ctx_, av_state_->frame_);
+
+    if (ret == AVERROR(EAGAIN)) {
+      continue;
     }
 
+    if (ret == AVERROR_EOF) {
+      break;
+    }
+
+    if (!copy_to_output) {
+      return true;
+    }
+
+    CopyToOutput(data);
+    LOG_LINE << "Read frame (ReadRegularFrame), timestamp " << av_state_->frame_->pts << std::endl;
+    return true;
   }
 
-  SendFlushPacket();
+  ret = avcodec_send_packet(av_state_->codec_ctx_, nullptr);
+  DALI_ENFORCE(
+    ret >= 0,
+    make_string("Failed to send packet to decoder: ", detail::av_error_string(ret)));
+  flush_state_ = true;
+
   return false;
 }
 
@@ -227,7 +196,6 @@ void FramesDecoder::Reset() {
       "due to",
       detail::av_error_string(ret)));
   avcodec_flush_buffers(av_state_->codec_ctx_);
-  current_frame_ = 0;
 }
 
 void FramesDecoder::SeekFrame(int frame_id) {
@@ -244,7 +212,7 @@ void FramesDecoder::SeekFrame(int frame_id) {
   int keyframe_id = frame_entry.last_keyframe_id;
   auto &keyframe_entry = index_[keyframe_id];
 
-  // LOG_LINE << "Seeking to frame " << frame_id << " timestamp " << frame_entry.pts << std::endl;
+  LOG_LINE << "Seeking to frame " << frame_id << " timestamp " << frame_entry.pts << std::endl;
 
   // Seeking clears av buffers, so reset flush state info
   if (flush_state_) {
@@ -264,7 +232,6 @@ void FramesDecoder::SeekFrame(int frame_id) {
       filename_,
       "due to ",
       detail::av_error_string(ret)));
-    current_frame_ = keyframe_id;
 
   avcodec_flush_buffers(av_state_->codec_ctx_);
 
@@ -281,14 +248,13 @@ bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
 
   if (copy_to_output) {
     CopyToOutput(data);
-    // LOG_LINE << "Read frame (ReadFlushFrame), timestamp " << av_state_->frame_->pts << std::endl;
+    LOG_LINE << "Read frame (ReadFlushFrame), timestamp " << av_state_->frame_->pts << std::endl;
   }
 
   return true;
 }
 
 bool FramesDecoder::ReadNextFrame(uint8_t *data, bool copy_to_output) {
-  ++current_frame_;
   if (!flush_state_) {
       if (ReadRegularFrame(data, copy_to_output)) {
         return true;

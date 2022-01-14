@@ -131,7 +131,7 @@ class DLL_PUBLIC FramesDecoder {
    * 
    * @param frame_id Id of the frame to seek to
    */
-  virtual void SeekFrame(int frame_id);
+  void SeekFrame(int frame_id);
 
   /**
    * @brief Seeks to the first frame
@@ -139,7 +139,7 @@ class DLL_PUBLIC FramesDecoder {
    */
   void Reset();
 
- protected:
+ private:
    /**
    * @brief Gets the packet from the decoder and reads a frame from it to provided buffer. Returns 
    * boolean indicating, if the frame was succesfully read.
@@ -152,7 +152,7 @@ class DLL_PUBLIC FramesDecoder {
    * @returns True, if the read was succesful, or false, when all regular farmes were consumed.
    * 
    */
-  bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true, bool for_index = false);
+  bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true);
 
   /**
    * @brief Reads frames from the last packet. This packet can hold
@@ -164,12 +164,6 @@ class DLL_PUBLIC FramesDecoder {
    * @returns True, if the read was succesful, or false, when ther are no more frames in last the packet.
    */
   bool ReadFlushFrame(uint8_t *data, bool copy_to_output = true);
-
-  virtual bool DecodeFrame(uint8_t *data, bool copy_to_output = true);
-
-  bool DecodeFrameFfmpeg(uint8_t *data, bool copy_to_output = true) ;
-
-  void SendFlushPacket();
 
   void CopyToOutput(uint8_t *data);
 
@@ -187,7 +181,6 @@ class DLL_PUBLIC FramesDecoder {
   bool flush_state_ = false;
   std::string filename_;
   std::vector<IndexEntry> index_;
-  int current_frame_ = -1;
 };
 }  // namespace dali
 
