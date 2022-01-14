@@ -61,24 +61,26 @@ def wds_properties(root_path, device, idx_paths):
 
 def generate_wds_index(root_path, index_path):
     from wds2idx import IndexCreator
-    ic = IndexCreator(root_path, index_path)
-    ic.create_index()
-    ic.close()
+    with IndexCreator(root_path, index_path) as ic:
+        ic.create_index()
 
 
 def _test_wds_properties(device, generate_index):
     root_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
-    if generate_index:
-        index_paths = [os.path.join("/tmp", root_path.split('/')[-1] + ".idx")]
-        generate_wds_index(root_path, index_paths[0])
-    else:
-        index_paths = None
     ref_filenames = ["2000.jpg", "2001.jpg", "2002.jpg", "2003.jpg", "2004.jpg", "2005.jpg",
                      "2006.jpg", "2007.jpg"]
     ref_indices = [1536, 4096, 6144, 8704, 11264, 13824, 16384, 18432]
-    p = wds_properties(root_path, device, index_paths, batch_size=8, num_threads=4, device_id=0)
-    p.build()
-    output = p.run()
+    if generate_index:
+        with tempfile.TemporaryDirectory() as idx_dir:
+            index_paths = [os.path.join(idx_dir, os.path.basename(root_path) + ".idx")]
+            generate_wds_index(root_path, index_paths[0])
+            p = wds_properties(root_path, device, index_paths, batch_size=8, num_threads=4, device_id=0)
+            p.build()
+            output = p.run()
+    else:
+        p = wds_properties(root_path, device, None, batch_size=8, num_threads=4, device_id=0)
+        p.build()
+        output = p.run()
     for out in output:
         out = out if device == 'cpu' else out.as_cpu()
         for source_info, ref_fname, ref_idx in zip(out, ref_filenames, ref_indices):
