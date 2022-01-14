@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_
 inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
                             std::vector<ComponentDesc>& components_container,
                             std::ifstream& index_file, const std::string& index_path,
-                            int64_t line) {
+                            int64_t line, const std::string& index_version = kCurrentIndexVersion) {
   // Preparing the SampleDesc
   samples_container.emplace_back();
   samples_container.back().components =
@@ -69,7 +69,7 @@ inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
   // Reading consecutive components
   ComponentDesc component;
   while (components_stream >> component.ext) {
-    if (kCurrentIndexVersion >= "v1.2") {
+    if (index_version == "v1.2") {
       DALI_ENFORCE(
           components_stream >> component.offset >> component.size >> component.filename,
           IndexFileErrMsg(
@@ -129,7 +129,7 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
   samples_container.reserve(samples_container.size() + sample_desc_num);
   for (size_t sample_index = 0; sample_index < sample_desc_num; sample_index++) {
     ParseSampleDesc(samples_container, components_container, index_file, index_path,
-                    sample_index + 1);
+                    sample_index + 1, index_version);
   }
 }
 
