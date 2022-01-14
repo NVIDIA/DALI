@@ -44,6 +44,27 @@ class VideoTestBase : public ::testing::Test {
 
   uint8_t *GetVfrFrame(int video_id, int frame_id) { return vfr_frames_[video_id][frame_id].data; }
 
+  /**
+   * @brief Utility to save decoded frame as a PNG file.
+   * Frame is saved to the folder given as an argument.
+   * Output file name is created with provaided ids of frame, sample and batch.
+   * 
+   * For example:
+   * 
+   * SaveFrame(ptr, 0, 1, 2, '/tmp', 800, 600)
+   * 
+   * will save the frame as:
+   * 
+   * '/tmp/batch_002_sample_001_frame_000.png
+   * 
+   * @param frame Frame data
+   * @param frame_id FrameId that will be included in output file name
+   * @param sample_id SampleId that will be included in output file name
+   * @param batch_id BatchId that will be included in output file name
+   * @param folder_path Path to a destination folder
+   * @param width Frame width in pixels
+   * @param height Frame height in pixels
+   */
   void SaveFrame(
     uint8_t *frame,
     int frame_id,
