@@ -72,7 +72,8 @@ void VideoTestBase::CompareFrames(const uint8_t *frame, const uint8_t *gt, int s
   }
 }
 
-void VideoTestBase::CompareFramesAvg(const uint8_t *frame, const uint8_t *gt, int size, double eps) {
+void VideoTestBase::CompareFramesAvg(
+  const uint8_t *frame, const uint8_t *gt, int size, double eps) {
   double sum = 0.0;
   for (int j = 0; j < size; ++j) {
     sum += std::abs(frame[j]-gt[j]);

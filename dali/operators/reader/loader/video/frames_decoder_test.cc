@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <exception>
-#include <cuda_runtime_api.h>
 
 #include "dali/test/dali_test_config.h"
 #include "dali/core/error_handling.h"
