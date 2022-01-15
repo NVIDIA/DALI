@@ -11,20 +11,20 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "dali/operators/reader/video_reader_decoder_op.h"
+#include "dali/operators/reader/video_reader_decoder_cpu_op.h"
 
 #include <string>
 #include <vector>
 
 namespace dali {
 
-VideoReaderDecoder::VideoReaderDecoder(const OpSpec &spec)
-    : DataReader<CPUBackend, VideoSample>(spec),
+VideoReaderDecoderCpu::VideoReaderDecoderCpu(const OpSpec &spec)
+    : DataReader<CPUBackend, VideoSampleCpu>(spec),
       has_labels_(spec.HasArgument("labels")) {
-      loader_ = InitLoader<VideoLoaderDecoder>(spec);
+      loader_ = InitLoader<VideoLoaderDecoderCpu>(spec);
 }
 
-void VideoReaderDecoder::RunImpl(SampleWorkspace &ws) {
+void VideoReaderDecoderCpu::RunImpl(SampleWorkspace &ws) {
   const auto &sample = GetSample(ws.data_idx());
   auto &video_output = ws.Output<CPUBackend>(0);
 
@@ -43,7 +43,7 @@ inline int VideoReaderDecoderOutputFn(const OpSpec &spec) {
 }
 }  // namespace detail
 
-DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoder, CPU);
+DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoderCpu, CPU);
 
 DALI_SCHEMA(experimental__readers__Video)
   .DocStr(R"code(Loads and decodes video files using FFmpeg.

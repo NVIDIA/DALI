@@ -24,11 +24,13 @@
 
 
 namespace dali {
-class VideoReaderDecoderTest : public VideoTestBase {
+class VideoReaderDecoderCpuTest : public VideoTestBase {
 };
 
+class VideoReaderDecoderGpuTest : public VideoTestBase {
+};
 
-TEST_F(VideoReaderDecoderTest, CpuConstantFrameRate) {
+TEST_F(VideoReaderDecoderCpuTest, CpuConstantFrameRate) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
@@ -96,7 +98,7 @@ TEST_F(VideoReaderDecoderTest, CpuConstantFrameRate) {
   }
 }
 
-TEST_F(VideoReaderDecoderTest, CpuVariableFrameRate) {
+TEST_F(VideoReaderDecoderCpuTest, CpuVariableFrameRate) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
@@ -164,7 +166,7 @@ TEST_F(VideoReaderDecoderTest, CpuVariableFrameRate) {
   }
 }
 
-TEST_F(VideoReaderDecoderTest, RandomShuffle) {
+TEST_F(VideoReaderDecoderCpuTest, RandomShuffle) {
   const int batch_size = 1;
   const int sequence_length = 1;
   const int seed = 1;
@@ -201,7 +203,7 @@ TEST_F(VideoReaderDecoderTest, RandomShuffle) {
 }
 
 
-TEST_F(VideoReaderDecoderTest, CompareReaders) {
+TEST_F(VideoReaderDecoderCpuTest, CompareReaders) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
