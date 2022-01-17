@@ -262,9 +262,8 @@ class DLL_PUBLIC TensorList {
     // Free the underlying storage.
     data_.free_storage();
 
-    // Set the new order, if provided.
-    if (order)
-      this->set_order(order);
+    // Set the new order.
+    this->set_order(order);
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_.set_backing_allocation(ptr, bytes, pinned, type, shape.num_elements());

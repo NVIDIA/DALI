@@ -369,7 +369,11 @@ class DLL_PUBLIC Buffer {
     }
 
     free_storage();
-    set_order(order);
+    if (order) {
+      set_order(order);
+    } else if (!order_ && pinned_) {
+      set_order(AccessOrder::host());
+    }
 
     if (device_ < 0) {
       if (order.is_device() && order.device_id() >= 0) {
