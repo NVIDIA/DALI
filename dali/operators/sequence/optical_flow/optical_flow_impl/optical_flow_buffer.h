@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
-#define DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
+#ifndef DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_OPTICAL_FLOW_IMPL_OPTICAL_FLOW_BUFFER_H_
+#define DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_OPTICAL_FLOW_IMPL_OPTICAL_FLOW_BUFFER_H_
 
 #include <sstream>
 #include "dali/core/error_handling.h"
-#include "dali/operators/sequence/optical_flow/turing_of/utils.h"
-#include "dali/operators/sequence/optical_flow/turing_of/nvOpticalFlowCuda.h"
+#include "dali/operators/sequence/optical_flow/optical_flow_impl/utils.h"
+#include "dali/operators/sequence/optical_flow/optical_flow_impl/nvOpticalFlowCuda.h"
 
 namespace dali {
 namespace optical_flow {
@@ -111,4 +111,4 @@ class OpticalFlowBuffer {
 
 }  // namespace optical_flow
 }  // namespace dali
-#endif  // DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
+#endif  // DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_OPTICAL_FLOW_IMPL_OPTICAL_FLOW_BUFFER_H_

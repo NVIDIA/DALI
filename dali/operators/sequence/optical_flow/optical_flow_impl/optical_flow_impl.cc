@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 #include <dlfcn.h>
 
-#include "dali/operators/sequence/optical_flow/turing_of/optical_flow_turing.h"
+#include "dali/operators/sequence/optical_flow/optical_flow_impl/optical_flow_impl.h"
 #include "dali/core/device_guard.h"
 
 namespace dali {
@@ -22,19 +22,39 @@ namespace optical_flow {
 
 namespace {
 
-void VerifySupport(NV_OF_STATUS status) {
+NV_OF_STATUS VerifySupport(NV_OF_STATUS status) {
   switch (status) {
-    case NV_OF_SUCCESS:
-      return;
     case NV_OF_ERR_OF_NOT_AVAILABLE:
     case NV_OF_ERR_UNSUPPORTED_DEVICE:
       throw unsupported_exception("Feature unsupported");
     default:
-      DALI_FAIL("Optical flow failed, code: " + std::to_string(status));
+      return status;
   }
 }
 
 }  // namespace
+
+void ConvertGridToSize(VectorGridSize grid_size, size_t width, size_t height,
+                       size_t &out_width, size_t &out_height) {
+  switch (grid_size) {
+    case VectorGridSize::SIZE_1:
+      out_width = width;
+      out_height = height;
+      break;
+    case VectorGridSize::SIZE_2:
+      out_width = (width + 1) / 2;
+      out_height = (height + 1) / 2;
+      break;
+    case VectorGridSize::SIZE_4:
+      out_width = (width + 3) / 4;
+      out_height = (height + 3) /4;
+      break;
+    default:
+      out_width = width;
+      out_height = height;
+      break;
+  }
+}
 
 OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams params, size_t width,
                                      size_t height, size_t channels, DALIImageType image_type,
@@ -61,7 +81,8 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
     }
   }
   CUDA_CALL(turing_of_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
-  VerifySupport(turing_of_.nvOFInit(of_handle_, &init_params_));
+  auto status = VerifySupport(turing_of_.nvOFInit(of_handle_, &init_params_));
+  CUDA_CALL(status);
 
   inbuf_.reset(
           new OpticalFlowBuffer(of_handle_, width_, height_, turing_of_, NV_OF_BUFFER_USAGE_INPUT,
@@ -69,12 +90,17 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
   refbuf_.reset(
           new OpticalFlowBuffer(of_handle_, width_, height_, turing_of_, NV_OF_BUFFER_USAGE_INPUT,
                                 NV_OF_BUFFER_FORMAT_ABGR8));
+  size_t out_width = 0;
+  size_t out_height = 0;
+  ConvertGridToSize(params.out_grid_size, width, height, out_width, out_height);
+
   outbuf_.reset(
-          new OpticalFlowBuffer(of_handle_, (width_ + 3) / 4, (height_ + 3) / 4, turing_of_,
+          new OpticalFlowBuffer(of_handle_, out_width, out_height, turing_of_,
                                 NV_OF_BUFFER_USAGE_OUTPUT, NV_OF_BUFFER_FORMAT_SHORT2));
   if (of_params_.enable_external_hints) {
+    ConvertGridToSize(params.hint_grid_size, width, height, out_width, out_height);
     hintsbuf_.reset(
-            new OpticalFlowBuffer(of_handle_, (width_ + 3) / 4, (height_ + 3) / 4, turing_of_,
+            new OpticalFlowBuffer(of_handle_, out_width, out_height, turing_of_,
                                   NV_OF_BUFFER_USAGE_HINT, NV_OF_BUFFER_FORMAT_SHORT2));
   }
 }
@@ -156,12 +182,37 @@ void OpticalFlowTuring::SetInitParams(dali::optical_flow::OpticalFlowParams api_
   init_params_.width = static_cast<uint32_t>(width_);
   init_params_.height = static_cast<uint32_t>(height_);
 
-  if (api_params.grid_size == VectorGridSize::SIZE_4) {
-    init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_4;
-    init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_4;
-  } else {
-    init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_UNDEFINED;
-    init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_UNDEFINED;
+  switch (api_params.out_grid_size) {
+    case VectorGridSize::SIZE_1:
+      init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_1;
+      break;
+    case VectorGridSize::SIZE_2:
+      init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_2;
+      break;
+    case VectorGridSize::SIZE_4:
+      init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_4;
+      break;
+    default:
+      init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_UNDEFINED;
+      break;
+  }
+
+  switch (api_params.hint_grid_size) {
+    case VectorGridSize::SIZE_1:
+      init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_1;
+      break;
+    case VectorGridSize::SIZE_2:
+      init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_2;
+      break;
+    case VectorGridSize::SIZE_4:
+      init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_4;
+      break;
+    case VectorGridSize::SIZE_8:
+      init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_8;
+      break;
+    default:
+      init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_UNDEFINED;
+      break;
   }
 
   init_params_.mode = NV_OF_MODE_OPTICALFLOW;

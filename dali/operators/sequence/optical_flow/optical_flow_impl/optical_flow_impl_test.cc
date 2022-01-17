@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 #include <utility>
 
 #include "dali/kernels/common/copy.h"
-#include "dali/operators/sequence/optical_flow/turing_of/optical_flow_turing.h"
+#include "dali/operators/sequence/optical_flow/optical_flow_impl/optical_flow_impl.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/dev_buffer.h"
 
@@ -33,7 +33,7 @@ constexpr float kFlowVectorEpsilon = 1.f / 32;
 
 namespace kernel {
 
-class OpticalFlowTuringKernelTest : public ::testing::Test {
+class OpticalFlowKernelTest : public ::testing::Test {
  protected:
   void SetUp() final {
   }
@@ -105,24 +105,24 @@ class OpticalFlowTuringKernelTest : public ::testing::Test {
   size_t width_gray_ = 8, pitch_gray_ = 10, height_gray_ = 6;
 };
 
-TEST_F(OpticalFlowTuringKernelTest, RgbToRgbaTest) {
+TEST_F(OpticalFlowKernelTest, RgbToRgbaTest) {
   ColorConversionTest<false>(optical_flow::kernel::RgbToRgba, this->rgb_data_,
                              this->reference_data_);
 }
 
 
-TEST_F(OpticalFlowTuringKernelTest, BgrToRgbaTest) {
+TEST_F(OpticalFlowKernelTest, BgrToRgbaTest) {
   ColorConversionTest<false>(optical_flow::kernel::BgrToRgba, this->bgr_data_,
                              this->reference_data_);
 }
 
 
-TEST_F(OpticalFlowTuringKernelTest, GrayTest) {
+TEST_F(OpticalFlowKernelTest, GrayTest) {
   ColorConversionTest<true>(optical_flow::kernel::Gray, this->gray_data_, this->reference_data_);
 }
 
 
-TEST_F(OpticalFlowTuringKernelTest, FlowVectorTest) {
+TEST_F(OpticalFlowKernelTest, FlowVectorTest) {
   const std::vector<int16_t> reference_data = {
           73, 5, 47, 255, 71, 30, 1, 255, 0x5C5C, 0x5C5C,
           80, 41, 60, 255, 60, 85, 41, 255, 0x5C5C, 0x5C5C,
@@ -160,7 +160,7 @@ TEST_F(OpticalFlowTuringKernelTest, FlowVectorTest) {
 }  // namespace kernel
 
 
-TEST(OpticalFlowTuringTest, DecodeFlowVectorTest) {
+TEST(OpticalFlowTest, DecodeFlowVectorTest) {
   // (In)sanity test
   using std::vector;
   vector<int16_t> test_data = {101, -32376, 676, 3453, -23188};

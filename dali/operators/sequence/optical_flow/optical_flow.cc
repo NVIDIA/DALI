@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,8 +49,8 @@ This parameter specifies the size of the pixel grid cell corresponding to one mo
 For example, a value of 4 will produce one motion vector for each 4x4 pixel block.
 
 .. note::
-  Currently, only a grid_size=4 is supported.
-)code", -1, false)
+  Currently, only a 1, 2 and 4 are supported for Ampere and 4 for Turing.
+)code", 4, false)
                 .AddOptionalArg(detail::kEnableTemporalHintsArgName,
                                 R"code(Enables or disables temporal hints for sequences that are
 longer than two images.
@@ -60,6 +60,15 @@ the calculations. The hints are especially useful in presence of large displacem
 periodic patterns which might confuse the optical flow algorithms.
 ))code",
                                 false, false)
+                .AddOptionalArg(detail::kHintFormatArgName,
+                                R"code(Sets the grid size for the hint vector field.
+
+The hints are used to improve the quality of the output motion field as well as to speed up
+the calculations. The grid resolution could be set to a different value than the output.
+
+.. note::
+  Currently, only a 1, 2, 4 and 8 are supported for Ampere and 4 for Turing.
+)code", 4, false)
                 .AddOptionalArg(detail::kEnableExternalHintsArgName,
                                 R"code(Enables or disables the external hints for optical flow
 calculations.
@@ -82,21 +91,20 @@ constexpr int kNInputDims = 4;
 
 template<>
 void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
-  // This is a workaround for an issue with nvcuvid in drivers >460 where concurrent
+  // This is a workaround for an issue with nvcuvid in drivers >460 and < 470.21 where concurrent
   // use on default context and non-default streams may lead to memory corruption.
-  // TODO(michalz): add an upper bound when the problem is fixed
   cudaStream_t of_stream = ws.stream();
 #if NVML_ENABLED
   {
     static float driver_version = nvml::GetDriverVersion();
-    if (driver_version > 460)
+    if (driver_version > 460 && driver_version < 470.21)
       of_stream = 0;
   }
 #else
   {
     int driver_cuda_version = 0;
     CUDA_CALL(cuDriverGetVersion(&driver_cuda_version));
-    if (driver_cuda_version >= 11030)
+    if (driver_cuda_version >= 11030 && driver_cuda_version < 11040)
       of_stream = 0;
   }
 #endif

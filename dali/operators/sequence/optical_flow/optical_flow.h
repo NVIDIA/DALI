@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 #include <vector>
 #include "dali/core/cuda_event.h"
 #include "dali/operators/sequence/optical_flow/optical_flow_adapter/optical_flow_stub.h"
-#include "dali/operators/sequence/optical_flow/turing_of/optical_flow_turing.h"
+#include "dali/operators/sequence/optical_flow/optical_flow_impl/optical_flow_impl.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/operator.h"
@@ -41,6 +41,7 @@ struct backend_to_compute<GPUBackend> {
 
 const std::string kPresetArgName = "preset";                               // NOLINT
 const std::string kOutputFormatArgName = "output_format";                  // NOLINT
+const std::string kHintFormatArgName = "hint_format";                      // NOLINT
 const std::string kEnableTemporalHintsArgName = "enable_temporal_hints";   // NOLINT
 const std::string kEnableExternalHintsArgName = "enable_external_hints";   // NOLINT
 const std::string kImageTypeArgName = "image_type";                        // NOLINT
@@ -55,15 +56,23 @@ class OpticalFlow : public Operator<Backend> {
   explicit OpticalFlow(const OpSpec &spec)
       : Operator<Backend>(spec),
         quality_factor_(spec.GetArgument<float>(detail::kPresetArgName)),
-        grid_size_(spec.GetArgument<int>(detail::kOutputFormatArgName)),
+        out_grid_size_(spec.GetArgument<int>(detail::kOutputFormatArgName)),
+        hint_grid_size_(spec.GetArgument<int>(detail::kHintFormatArgName)),
         enable_temporal_hints_(spec.GetArgument<bool>(detail::kEnableTemporalHintsArgName)),
         enable_external_hints_(spec.GetArgument<bool>(detail::kEnableExternalHintsArgName)),
-        of_params_({quality_factor_, ConvertGridSize(grid_size_), enable_temporal_hints_,
+        of_params_({quality_factor_, ConvertGridSize(out_grid_size_),
+                    ConvertGridSize(hint_grid_size_), enable_temporal_hints_,
                     enable_external_hints_}),
         optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
             new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))),
         image_type_(spec.GetArgument<DALIImageType>(detail::kImageTypeArgName)),
         device_id_(spec.GetArgument<int>("device_id")) {
+    DALI_ENFORCE(out_grid_size_ == 1 || out_grid_size_ == 2 || out_grid_size_ == 4,
+                 "Optical flow output grid size supports only 1, 2 and 4.");
+    DALI_ENFORCE(hint_grid_size_ == 1 || hint_grid_size_ == 2 || hint_grid_size_ == 4 ||
+                 hint_grid_size_ == 8,
+                 "Optical flow hint grid size supports only 1, 2, 4 and 8.");
+
     // In case external hints are enabled, we need 2 inputs
     DALI_ENFORCE((enable_external_hints_ && spec.NumInput() == 2) || !enable_external_hints_,
                  "Incorrect number of inputs. Expected: 2, Obtained: " +
@@ -105,12 +114,19 @@ class OpticalFlow : public Operator<Backend> {
   }
 
   optical_flow::VectorGridSize ConvertGridSize(int grid_size) {
-    if (grid_size < 4) {
-      return optical_flow::VectorGridSize::UNDEF;
-    } else if (grid_size == 4) {
-      return optical_flow::VectorGridSize::SIZE_4;
+    switch (grid_size) {
+      case 1:
+        return optical_flow::VectorGridSize::SIZE_1;
+      case 2:
+        return optical_flow::VectorGridSize::SIZE_2;
+      case 4:
+        return optical_flow::VectorGridSize::SIZE_4;
+      case 8:
+        return optical_flow::VectorGridSize::SIZE_8;
+      default:
+        return optical_flow::VectorGridSize::UNDEF;
+        break;
     }
-    return optical_flow::VectorGridSize::MAX;
   }
 
   /**
@@ -165,7 +181,8 @@ class OpticalFlow : public Operator<Backend> {
 
 
   const float quality_factor_;
-  const int grid_size_;
+  const int out_grid_size_;
+  const int hint_grid_size_;
   const bool enable_temporal_hints_;
   const bool enable_external_hints_;
   std::once_flag of_initialized_;

@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,35 +15,46 @@
 import os
 import numpy as np
 import platform
+import random
 import cv2
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
+from nvidia.dali.pipeline import pipeline_def
+from nvidia.dali import fn
 from test_utils import get_dali_extra_path
+from nose_utils import raises
 
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, 'db', 'imgproc')
 
 is_of_supported_var = None
-def is_of_supported(device_id=0):
-    global is_of_supported_var
-    if is_of_supported_var is not None:
-        return is_of_supported_var
 
+def get_arch(device_id=0):
     compute_cap = 0
-    driver_version_major = 0
     try:
         import pynvml
         pynvml.nvmlInit()
         handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
         compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
         compute_cap = compute_cap[0] + compute_cap[1] / 10.
+    except ModuleNotFoundError:
+        print("NVML not found")
+    return compute_cap
+
+def is_of_supported(device_id=0):
+    global is_of_supported_var
+    if is_of_supported_var is not None:
+        return is_of_supported_var
+
+    driver_version_major = 0
+    try:
+        import pynvml
+        pynvml.nvmlInit()
         driver_version = pynvml.nvmlSystemGetDriverVersion().decode('utf-8')
         driver_version_major = int(driver_version.split('.')[0])
     except ModuleNotFoundError:
         print("NVML not found")
 
     # there is an issue with OpticalFlow driver in R495 and newer on aarch64 platform
-    is_of_supported_var = compute_cap >= 7.5 and (platform.machine() == "x86_64" or driver_version_major < 495)
+    is_of_supported_var = get_arch(device_id) >= 7.5 and (platform.machine() == "x86_64" or driver_version_major < 495)
     return is_of_supported_var
 
 def get_mapping(shape):
@@ -65,7 +76,7 @@ def get_mapping(shape):
 
     return xy, ofs
 
-def load_frames():
+def load_frames(hint_format=None):
     img = cv2.imread(os.path.join(images_dir, 'alley.png'))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
@@ -75,23 +86,24 @@ def load_frames():
     warped = cv2.remap(img, remap, None, interpolation = cv2.INTER_LINEAR)
     result = np.array([img, warped])
 
-    return [result]
+    ret = [result]
+    if hint_format is not None:
+        ret.append(np.zeros(shape=result[0].shape, dtype=np.uint8))
+        ret = [ret]
+    return ret
 
+@pipeline_def(batch_size=1, seed=16)
+def of_pipeline(output_format=1, hint_format=1, use_temporal_hints=False):
+    if hint_format is not None:
+        seq, hint = fn.external_source(load_frames(hint_format), batch=False, num_outputs=2)
 
-class OFPipeline(Pipeline):
-    def __init__(self, num_threads, device_id):
-        super(OFPipeline, self).__init__(1, num_threads, device_id, seed=16)
-
-        self.input = ops.ExternalSource()
-        self.of_op = ops.OpticalFlow(device="gpu", output_format=4)
-
-    def define_graph(self):
-        seq = self.data = self.input(name="input")
-        of = self.of_op(seq.gpu())
-        return [seq, of]
-
-    def iter_setup(self):
-        self.feed_input(self.data, load_frames(), layout="DHWC")
+        of = fn.optical_flow(seq.gpu(), hint.gpu(), device="gpu", output_format=output_format,
+                             hint_format=hint_format, enable_temporal_hints=use_temporal_hints)
+    else:
+        seq = fn.external_source(load_frames(hint_format), layout="DHWC", batch=False)
+        of = fn.optical_flow(seq.gpu(), device="gpu", output_format=output_format,
+                             enable_temporal_hints=use_temporal_hints)
+    return seq, of
 
 def make_colorwheel():
     '''
@@ -211,14 +223,16 @@ def flow_to_color(flow_uv, clip_flow=None, convert_to_bgr=False):
 
 interactive = False
 
-def test_optflow():
-    if not is_of_supported():
-        raise nose.SkipTest('Optical Flow is not supported on this platform')
-    pipe = OFPipeline(3, 0)
+def check_optflow(output_format=1, hint_format=1, use_temporal_hints=False):
+    if get_arch() < 8 and (output_format != 4 or hint_format != 4)
+        raise nose.SkipTest('Output format {} and hint format {} ' \
+                            'are not supported for this sm {}'.format(output_format, hint_format, get_arch()))
+    pipe = of_pipeline(num_threads=3, device_id=0, output_format=output_format,
+                       hint_format=hint_format, use_temporal_hints=use_temporal_hints)
     pipe.build()
     out = pipe.run()
     seq = out[0].at(0)
-    out_field = out[1].as_cpu().at(0)[0];
+    out_field = out[1].as_cpu().at(0)[0]
     _, ref_field = get_mapping(seq.shape[1:3])
     dsize = (out_field.shape[1], out_field.shape[0])
     ref_field = cv2.resize(ref_field, dsize = dsize, interpolation = cv2.INTER_AREA)
@@ -235,9 +249,20 @@ def test_optflow():
     assert(np.sum(err > 1) / np.prod(err.shape) < 0.1)  # 90% are within 1px
     assert(np.sum(err > 2) / np.prod(err.shape) < 0.05)  # 95% are within 2px
 
-def main():
-    test_optflow()
+def test_optflow():
+    if not is_of_supported():
+        raise nose.SkipTest('Optical Flow is not supported on this platform')
+    for output_format in [1, 2, 4]:
+        hint_format = random.choice([None, 1, 2, 4, 8])
+        for use_temporal_hints in [True, False]:
+            yield check_optflow, output_format, hint_format, use_temporal_hints
 
-if __name__ == '__main__':
-    interactive = True
-    main()
+@raises(RuntimeError, "Optical flow output grid size supports only")
+def test_wrong_out_grid_size():
+    pipe = of_pipeline(num_threads=3, device_id=0, output_format=3)
+    pipe.build()
+
+@raises(RuntimeError, "Optical flow hint grid size supports only")
+def test_wrong_hint_grid_size():
+    pipe = of_pipeline(num_threads=3, device_id=0, hint_format=3)
+    pipe.build()
