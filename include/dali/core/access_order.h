@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,10 +15,9 @@
 #ifndef DALI_CORE_ACCESS_ORDER_H_
 #define DALI_CORE_ACCESS_ORDER_H_
 
+#include <cuda_runtime.h>
 #include <cstddef>
 #include "dali/core/api_helper.h"
-#include "dali/core/cuda_error.h"
-#include "dali/core/cuda_stream.h"
 
 namespace dali {
 
@@ -47,8 +46,23 @@ class DLL_PUBLIC AccessOrder {
     return AccessOrder(host_sync_stream());
   }
 
+  /**
+   * @brief Returns the underlying handle.
+   *
+   * Returns the underlying handle. It can be either a genuine CUDA stream or a
+   * special host-sync value. When there's no value, the return value is 0, but it should
+   * not be treated as a valid CUDA stream.
+   */
   cudaStream_t get() const noexcept { return has_value() ? stream_ : 0; }
 
+  /**
+   * @brief Returns stream handle, if any.
+   *
+   * Returns the underlying handle when it denotes a CUDA stream. If this order does not
+   * represent a valid CUDA stream, the return value is 0, but it should not be treated
+   * as a valid CUDA stream. This behaviour is to facilitate the interoperatibility with
+   * legacy functions that take cudaStream_t.
+   */
   cudaStream_t stream() const noexcept { return is_device() ? stream_ : 0; }
 
   int device_id() const noexcept { return device_id_; }
@@ -93,12 +107,12 @@ class DLL_PUBLIC AccessOrder {
   /**
    * @brief Waits in `this` ordering context for the work scheduled in the `other` order.
    */
-  void join(const AccessOrder &other) const;
+  void wait(const AccessOrder &other) const;
 
   void wait(cudaEvent_t event) const;
 
   bool operator==(const AccessOrder &other) const noexcept {
-    return is_device() == other.is_device() && stream() == other.stream();
+    return stream_ == other.stream_ && device_id_ == other.device_id_;
   }
 
   bool operator!=(const AccessOrder &other) const noexcept {

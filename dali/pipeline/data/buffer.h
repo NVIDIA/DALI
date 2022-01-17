@@ -301,7 +301,7 @@ class DLL_PUBLIC Buffer {
     if (order == order_)
       return;
     if (has_data())  // if there's no data, we don't need to synchronize
-      order.join(order_);
+      order.wait(order_);
     order_ = order;
   }
 
@@ -377,11 +377,11 @@ class DLL_PUBLIC Buffer {
   /**
    * @brief Deallocates the data and clears the type.
    *
-   * The data, if any, is deallocated. The function will
+   * The data, if any, is deallocated.
    */
   void reset(AccessOrder order = {}) {
-    free_storage(order);
-    set_order(order);
+    set_order(order)
+    free_storage();
     type_ = {};
     allocate_ = {};
     size_ = 0;
@@ -525,7 +525,7 @@ class DLL_PUBLIC Buffer {
     if (data_) {
       if (!order)
         order = order_;
-      if (!set_deletion_order(data_, order))  // TODO(michalz): Check if it helps or hurts.
+      if (!set_deletion_order(data_, order))
         get_deletion_order(data_).join(order);
       data_.reset();
     }
@@ -548,7 +548,7 @@ class DLL_PUBLIC Buffer {
   int device_ = CPU_ONLY_DEVICE_ID;  // device the buffer was allocated on
   AccessOrder order_;                // The order of memory access (host or device)
   bool shares_data_ = false;         // Whether we aren't using our own allocation
-  bool pinned_ = false;              // Whether the allocation uses pinned memory
+  bool pinned_ = !RestrictPinnedMemUsage();  // Whether the allocation uses pinned memory
 };
 
 template <typename Backend>

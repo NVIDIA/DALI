@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool /* device_ordinal 
                                            AccessOrder order,
                                            GPUBackend *) {
   const size_t kDevAlignment = 256;  // warp alignment for 32x64-bit
-  cudaStream_t s = order.is_device() ? order.stream() : mm::host_sync;
+  cudaStream_t s = order.has_value() ? order.get() : AccessOrder::host_sync_stream();
   auto *rsrc = mm::GetDefaultDeviceResource(device_id);
   return mm::alloc_raw_async_shared<uint8_t>(rsrc, bytes, s, s, kDevAlignment);
 }
@@ -54,7 +54,7 @@ DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned,
                                            CPUBackend *) {
   const size_t kHostAlignment = 64;  // cache alignment
   if (pinned) {
-    cudaStream_t s = order.is_device() ? order.stream() : mm::host_sync;
+    cudaStream_t s = order.has_value() ? order.get() : AccessOrder::host_sync_stream();
     return mm::alloc_raw_async_shared<uint8_t, mm::memory_kind::pinned>(
       bytes, s, s, kHostAlignment);
   } else {

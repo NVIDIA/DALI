@@ -84,10 +84,10 @@ class Tensor : public Buffer<Backend> {
     if (!order)
       order = order_;
     else
-      order.join(order_);
+      order.wait(order_);
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
         data.data(), this->size(), order.stream());
-    order_.join(order);
+    order_.wait(order);
   }
 
   /**
@@ -100,10 +100,10 @@ class Tensor : public Buffer<Backend> {
     if (!order)
       order = order_;
     else
-      order.join(order_);
+      order.wait(order_);
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
         data.data(), this->size(), order.stream());
-    order_.join(order);
+    order_.wait(order);
   }
 
   /**
@@ -114,13 +114,13 @@ class Tensor : public Buffer<Backend> {
     if (!order)
       order = other.order() ? other.order() : order_;
     this->Resize(other.shape(), other.type());
-    order.join(order_);
+    order.wait(order_);
     this->SetLayout(other.GetLayout());
     this->SetSourceInfo(other.GetSourceInfo());
     this->SetSkipSample(other.ShouldSkipSample());
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), order.stream());
-    order_.join(order);
+    order_.wait(order);
   }
 
   /**
@@ -136,10 +136,10 @@ class Tensor : public Buffer<Backend> {
     this->SetLayout(other.GetLayout());
     this->SetSourceInfo(other.GetSourceInfo(idx));
     this->SetSkipSample(other.ShouldSkipSample(idx));
-    order.join(order_);
+    order.wait(order_);
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_tensor(idx), this->size(), order.stream());
-    order_.join(order);
+    order_.wait(order);
   }
 
   /**
@@ -226,7 +226,7 @@ class Tensor : public Buffer<Backend> {
    * state and is NOT marked as sharing data.
    *
    * After calling this function any following call to `set_type` and `Resize`
-   * must note exceed the total size of underlying allocation (`num_bytes_`) of
+   * must not exceed the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
    */
@@ -265,7 +265,7 @@ class Tensor : public Buffer<Backend> {
    * state and is NOT marked as sharing data.
    *
    * After calling this function any following call to `set_type` and `Resize`
-   * must note exceed the total size of underlying allocation (`num_bytes_`) of
+   * must not exceed the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
    *
@@ -302,8 +302,8 @@ class Tensor : public Buffer<Backend> {
     ShareData(ptr, bytes, pinned, { 0 }, type, order);
   }
 
-  inline void Reset(AccessOrder stream = {}) {
-    reset(stream);  // free the underlying buffer
+  inline void Reset(AccessOrder order = {}) {
+    reset(order);  // free the underlying buffer
     shape_ = { 0 };
     meta_ = {};
   }

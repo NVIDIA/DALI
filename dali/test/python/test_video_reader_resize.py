@@ -161,6 +161,9 @@ def run_for_params(batch_size, video_reader_params, resize_params):
     compare_video_resize_pipelines(
         pipeline, gt_pipeline, batch_size, video_reader_params['sequence_length'])
 
+    # The intermediate pipeline from ground_truth_pipeline gets entangled in cell objects
+    # and is not automatically destroyed. The pipeline outputs are kept alive,
+    # effectively leaking large amounts of GPU memory.
     gc.collect()
 
 

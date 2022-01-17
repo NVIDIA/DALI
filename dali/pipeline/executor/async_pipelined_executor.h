@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
     cpu_thread_.ForceStop();
     mixed_thread_.ForceStop();
     gpu_thread_.ForceStop();
-    SyncDevice();
+    PipelinedExecutor::Shutdown();
 
     /*
      * We need to notify all work that may is scheduled that it should stop now. It may

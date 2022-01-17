@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ void MakeContiguousCPU::RunImpl(HostWorkspace &ws) {
   auto &thread_pool = ws.GetThreadPool();
   for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
     thread_pool.AddWork([sample_id, &input, &output] (int tid) {
-      // HostWorkspace doesn't have any stream
       output[sample_id].Copy(input[sample_id], AccessOrder::host());
     }, shapes.tensor_size(sample_id));
   }

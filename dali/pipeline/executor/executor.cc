@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -309,14 +309,14 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   cudaStream_t prev_stage_stream = ws.has_stream() && ws.stream() == gpu_op_stream_
     ? mixed_op_stream_ : gpu_op_stream_;
 
-  for (int i = 0; i < ws.NumOutput(); i++) {
-    auto set_order = [&](auto &output) {
-      // NOTE: the stage streams are synchronized by the executor
-      bool need_sync = output.order().stream() != prev_stage_stream;
-      auto order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();
-      output.set_order(order, need_sync);
-    };
+  auto order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();
+  auto set_order = [&](auto &output) {
+    // NOTE: the stage streams are synchronized by the executor
+    bool need_sync = output.order().stream() != prev_stage_stream;
+    output.set_order(order, need_sync);
+  };
 
+  for (int i = 0; i < ws.NumOutput(); i++) {
     if (ws.template OutputIsType<CPUBackend>(i)) {
       set_order(ws.template Output<CPUBackend>(i));
     } else {

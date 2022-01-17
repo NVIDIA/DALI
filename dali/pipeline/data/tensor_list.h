@@ -97,7 +97,7 @@ class DLL_PUBLIC TensorList {
     Resize(other.shape(), other.type());
     if (!order)
       order = other.order() ? other.order() : this->order();
-    order.join(this->order());
+    order.wait(this->order());
     this->meta_ = other.meta_;
     this->SetLayout(other.GetLayout());
 
@@ -130,10 +130,10 @@ class DLL_PUBLIC TensorList {
 
     if (!order)
       order = other.order() ? other.order() : this->order();
-    order.join(this->order());
+    order.wait(this->order());
 
     this->Resize(new_shape, type);
-    order.join(this->order());
+    order.wait(this->order());
     this->SetLayout(layout);
 
     auto nsamples = other.num_samples();
@@ -252,7 +252,7 @@ class DLL_PUBLIC TensorList {
    * state and is NOT marked as sharing data.
    *
    * After calling this function any following call to `set_type` and `Resize`
-   * must note exceed the total size of underlying allocation (`num_bytes_`) of
+   * must not exceed the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
    */
@@ -287,7 +287,7 @@ class DLL_PUBLIC TensorList {
    * state and is NOT marked as sharing data.
    *
    * After calling this function any following call to `set_type` and `Resize`
-   * must note exceed the total size of underlying allocation (`num_bytes_`) of
+   * must not exceed the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
    *
@@ -309,7 +309,7 @@ class DLL_PUBLIC TensorList {
    * state and is NOT marked as sharing data.
    *
    * After calling this function any following call to `set_type` and `Resize`
-   * must note exceed the total size of underlying allocation (`num_bytes_`) of
+   * must not exceed the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
    *
@@ -323,8 +323,8 @@ class DLL_PUBLIC TensorList {
     ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, TensorListShape<>{}, type);
   }
 
-  DLL_PUBLIC void Reset() {
-    data_.reset();  // free the underlying buffer
+  DLL_PUBLIC void Reset(AccessOrder order = {}) {
+    data_.reset(order);  // free the underlying buffer
     shape_ = {};
     offsets_.clear();
     meta_.clear();
