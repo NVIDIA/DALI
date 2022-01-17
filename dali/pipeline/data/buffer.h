@@ -380,7 +380,7 @@ class DLL_PUBLIC Buffer {
    * The data, if any, is deallocated.
    */
   void reset(AccessOrder order = {}) {
-    set_order(order)
+    set_order(order);
     free_storage();
     type_ = {};
     allocate_ = {};
@@ -526,7 +526,7 @@ class DLL_PUBLIC Buffer {
       if (!order)
         order = order_;
       if (!set_deletion_order(data_, order))
-        get_deletion_order(data_).join(order);
+        get_deletion_order(data_).wait(order);
       data_.reset();
     }
     num_bytes_ = 0;

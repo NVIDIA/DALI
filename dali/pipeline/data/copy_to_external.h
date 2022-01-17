@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ inline void CopyToExternalImpl(void* dst,
   constexpr bool is_gpu_copy = std::is_same_v<DstBackend, GPUBackend> ||
                                std::is_same_v<SrcBackend, GPUBackend>;
   if constexpr (is_gpu_copy) {
-    src.order().join(stream);
+    src.order().wait(stream);
   }
 
   if (src.IsContiguous()) {
@@ -97,7 +97,7 @@ inline void CopyToExternalImpl(void** dsts,
   constexpr bool is_gpu_copy = std::is_same_v<DstBackend, GPUBackend> ||
                                std::is_same_v<SrcBackend, GPUBackend>;
   if constexpr (is_gpu_copy) {
-    src.order().join(stream);
+    src.order().wait(stream);
   }
 
   const auto &type_info = src.type_info();

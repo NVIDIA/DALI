@@ -107,7 +107,7 @@ class DLL_PUBLIC TensorList {
                                                    unsafe_raw_data(other),
                                                    this->_num_elements(), order.stream(),
                                                    use_copy_kernel);
-    this->order().join(order);
+    this->order().wait(order);
   }
 
   template <typename SrcBackend>
@@ -155,7 +155,7 @@ class DLL_PUBLIC TensorList {
                        (std::is_same<Backend, GPUBackend>::value || is_pinned());
     type_info().template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(),
                                                    nsamples, order.stream(), use_copy_kernel);
-    this->order().join(order);
+    this->order().wait(order);
   }
 
   inline void reserve(size_t bytes_per_tensor, int batch_size) {

@@ -120,7 +120,7 @@ void TensorVector<Backend>::set_order(AccessOrder order, bool synchronize) {
       }
     }
     if (need_sync)
-      this->order().join(order);
+      this->order().wait(order);
   }
   tl_->set_order(order, false);
   for (auto &t : tensors_)
