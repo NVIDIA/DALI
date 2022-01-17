@@ -249,7 +249,7 @@ def general_index_error(
 def test_index_errors():
     assert_raises(RuntimeError, general_index_error, b"", glob="no version signature found")
     assert_raises(RuntimeError, general_index_error, b"v0.1",
-                  glob="The version of the index file (v0.1) does not match either the latest or any of the legacy versions.",
+                  glob="Unsupported version of the index file (v0.1).",
                   )
     assert_raises(RuntimeError, general_index_error, b"v1.1", glob="no sample count found")
     assert_raises(

@@ -53,8 +53,8 @@ inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_
 
 inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
                             std::vector<ComponentDesc>& components_container,
-                            std::ifstream& index_file, const std::string& index_path,
-                            int64_t line, const std::string& index_version = kCurrentIndexVersion) {
+                            std::ifstream& index_file, const std::string& index_path, int64_t line,
+                            const std::string& index_version) {
   // Preparing the SampleDesc
   samples_container.emplace_back();
   samples_container.back().components =
@@ -109,14 +109,9 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
   DALI_ENFORCE(global_meta_stream >> index_version,
                IndexFileErrMsg(index_path, 0, "no version signature found"));
   DALI_ENFORCE(
-      kCurrentIndexVersion == index_version ||
-          std::accumulate(
-              kLegacyIndexVersions.begin(), kLegacyIndexVersions.end(), false,
-              [&index_version](bool a, const std::string& b) { return a || index_version == b; }),
-      IndexFileErrMsg(
-          index_path, 0,
-          make_string("The version of the index file (", index_version,
-                      ") does not match either the latest or any of the legacy versions.")));
+      kSupportedIndexVersions.count(index_version) > 0,
+      IndexFileErrMsg(index_path, 0,
+                      make_string("Unsupported version of the index file (", index_version, ").")));
 
   // Getting the number of samples in the index file
   int64_t sample_desc_num_signed;
