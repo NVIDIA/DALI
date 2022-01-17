@@ -107,13 +107,13 @@ inline __host__ __device__ int16_t encode_flow_component(float value) {
 
 }  // namespace kernel
 
-class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<ComputeGPU> {
+class DLL_PUBLIC OpticalFlowImpl : public OpticalFlowAdapter<ComputeGPU> {
  public:
-  OpticalFlowTuring(OpticalFlowParams params, size_t width, size_t height, size_t channels,
-                    DALIImageType image_type, int device_id_, cudaStream_t stream = 0);
+  OpticalFlowImpl(OpticalFlowParams params, size_t width, size_t height, size_t channels,
+                  DALIImageType image_type, int device_id_, cudaStream_t stream = 0);
 
 
-  virtual ~OpticalFlowTuring();
+  virtual ~OpticalFlowImpl();
 
 
   TensorShape<DynamicDimensions> GetOutputShape() override {
@@ -145,7 +145,7 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<ComputeGPU> {
   using ofDriverHandle = std::unique_ptr<std::remove_pointer<DLLDRIVER>::type,
                                          std::function< void(DLLDRIVER) >>;
 
-  DLLDRIVER LoadTuringOpticalFlow(const std::string &library_path);
+  DLLDRIVER LoadOpticalFlow(const std::string &library_path);
 
   const std::string kInitSymbol = "NvOFAPICreateInstanceCuda";
 
@@ -156,7 +156,7 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<ComputeGPU> {
   CUcontext context_            = nullptr;
   cudaStream_t stream_          = 0;
   NvOFHandle of_handle_         = nullptr;
-  NV_OF_CUDA_API_FUNCTION_LIST turing_of_ = {};
+  NV_OF_CUDA_API_FUNCTION_LIST of_inst_ = {};
   NV_OF_INIT_PARAMS init_params_ = {};
   std::unique_ptr<OpticalFlowBuffer> inbuf_, refbuf_, outbuf_, hintsbuf_;
   DALIImageType image_type_     = DALI_RGB;

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <dlfcn.h>
+#include <vector>
 
 #include "dali/operators/sequence/optical_flow/optical_flow_impl/optical_flow_impl.h"
 #include "dali/core/device_guard.h"
@@ -34,38 +35,44 @@ NV_OF_STATUS VerifySupport(NV_OF_STATUS status) {
 
 }  // namespace
 
-void ConvertGridToSize(VectorGridSize grid_size, size_t width, size_t height,
-                       size_t &out_width, size_t &out_height) {
-  switch (grid_size) {
-    case VectorGridSize::SIZE_1:
-      out_width = width;
-      out_height = height;
-      break;
-    case VectorGridSize::SIZE_2:
-      out_width = (width + 1) / 2;
-      out_height = (height + 1) / 2;
-      break;
-    case VectorGridSize::SIZE_4:
-      out_width = (width + 3) / 4;
-      out_height = (height + 3) /4;
-      break;
-    default:
-      out_width = width;
-      out_height = height;
-      break;
-  }
+std::vector<uint32_t> GetCapabilities(PFNNVOFGETCAPS get_cap, NvOFHandle handle, NV_OF_CAPS cap) {
+  uint32_t elm_num = 0;
+  CUDA_CALL(get_cap(handle, cap, nullptr, &elm_num));
+  std::vector<uint32_t> ret;
+  ret.resize(elm_num);
+  CUDA_CALL(get_cap(handle, cap, ret.data(), &elm_num));
+  return ret;
 }
 
-OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams params, size_t width,
-                                     size_t height, size_t channels, DALIImageType image_type,
-                                     int device_id, cudaStream_t stream) :
+void IsGridSupported(std::vector<uint32_t> &caps, int grid_val, const std::string grid_kind) {
+  bool is_grid_supported = false;
+  for (auto v : caps) {
+    if (v == static_cast<uint32_t>(grid_val)) {
+      is_grid_supported = true;
+      break;
+    }
+  }
+  DALI_ENFORCE(is_grid_supported, make_string(grid_kind, " grid size: ", grid_val,
+               " is not supported, supported are: ", caps));
+}
+
+void IsSizeSupported(std::vector<uint32_t> &caps_min, std::vector<uint32_t> &caps_max, int size,
+                     std::string size_kind) {
+  DALI_ENFORCE(caps_min[0] <= static_cast<uint32_t>(size) &&
+               caps_max[0] >= static_cast<uint32_t>(size), make_string(size_kind, " size ", size,
+               " should be between ", caps_min[0], " and ", caps_max[0]));
+}
+
+OpticalFlowImpl::OpticalFlowImpl(dali::optical_flow::OpticalFlowParams params, size_t width,
+                                 size_t height, size_t channels, DALIImageType image_type,
+                                 int device_id, cudaStream_t stream) :
         OpticalFlowAdapter<ComputeGPU>(params), width_(width), height_(height),
         channels_(channels), device_id_(device_id), context_(), stream_(stream),
         image_type_(image_type) {
   DALI_ENFORCE(channels_ == 1 || channels_ == 3 || channels_ == 4);
   DALI_ENFORCE(cuInitChecked(), "Failed to initialize driver");
 
-  lib_handle_ = ofDriverHandle(LoadTuringOpticalFlow("libnvidia-opticalflow.so"),
+  lib_handle_ = ofDriverHandle(LoadOpticalFlow("libnvidia-opticalflow.so"),
                                [](DLLDRIVER lib_handle) {
                                  dlclose(lib_handle);
                                });
@@ -74,46 +81,58 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
   DeviceGuard g(device_id_);
   CUDA_CALL(cuCtxGetCurrent(&context_));
   {
-    auto ret = turing_of_.nvCreateOpticalFlowCuda(context_, &of_handle_);
+    auto ret = of_inst_.nvCreateOpticalFlowCuda(context_, &of_handle_);
     if (ret != NV_OF_SUCCESS) {
       throw unsupported_exception(
           "Failed to create Optical Flow context: Verify that your device supports Optical Flow.");
     }
   }
-  CUDA_CALL(turing_of_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
-  auto status = VerifySupport(turing_of_.nvOFInit(of_handle_, &init_params_));
+  auto grid_sizes = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_,
+                                    NV_OF_CAPS_SUPPORTED_HINT_GRID_SIZES);
+  IsGridSupported(grid_sizes, params.out_grid_size, "Output");
+
+  auto hint_sizes = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_,
+                                    NV_OF_CAPS_SUPPORTED_HINT_GRID_SIZES);
+  IsGridSupported(hint_sizes, params.hint_grid_size, "Hint");
+
+  auto width_min = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_WIDTH_MIN);
+  auto height_min = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_HEIGHT_MIN);
+  auto width_max = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_WIDTH_MAX);
+  auto height_max = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_HEIGHT_MAX);
+  IsSizeSupported(width_min, width_max, width_, "Width");
+  IsSizeSupported(height_min, height_max, height_, "Height");
+
+  CUDA_CALL(of_inst_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
+  auto status = VerifySupport(of_inst_.nvOFInit(of_handle_, &init_params_));
   CUDA_CALL(status);
 
   inbuf_.reset(
-          new OpticalFlowBuffer(of_handle_, width_, height_, turing_of_, NV_OF_BUFFER_USAGE_INPUT,
+          new OpticalFlowBuffer(of_handle_, width_, height_, of_inst_, NV_OF_BUFFER_USAGE_INPUT,
                                 NV_OF_BUFFER_FORMAT_ABGR8));
   refbuf_.reset(
-          new OpticalFlowBuffer(of_handle_, width_, height_, turing_of_, NV_OF_BUFFER_USAGE_INPUT,
+          new OpticalFlowBuffer(of_handle_, width_, height_, of_inst_, NV_OF_BUFFER_USAGE_INPUT,
                                 NV_OF_BUFFER_FORMAT_ABGR8));
-  size_t out_width = 0;
-  size_t out_height = 0;
-  ConvertGridToSize(params.out_grid_size, width, height, out_width, out_height);
-
   outbuf_.reset(
-          new OpticalFlowBuffer(of_handle_, out_width, out_height, turing_of_,
+          new OpticalFlowBuffer(of_handle_, div_ceil(width_, params.out_grid_size),
+                                div_ceil(height_, params.out_grid_size), of_inst_,
                                 NV_OF_BUFFER_USAGE_OUTPUT, NV_OF_BUFFER_FORMAT_SHORT2));
   if (of_params_.enable_external_hints) {
-    ConvertGridToSize(params.hint_grid_size, width, height, out_width, out_height);
     hintsbuf_.reset(
-            new OpticalFlowBuffer(of_handle_, out_width, out_height, turing_of_,
+            new OpticalFlowBuffer(of_handle_, div_ceil(width_, params.hint_grid_size),
+                                  div_ceil(height_, params.hint_grid_size), of_inst_,
                                   NV_OF_BUFFER_USAGE_HINT, NV_OF_BUFFER_FORMAT_SHORT2));
   }
 }
 
 
-OpticalFlowTuring::~OpticalFlowTuring() {
+OpticalFlowImpl::~OpticalFlowImpl() {
   inbuf_.reset(nullptr);
   refbuf_.reset(nullptr);
   outbuf_.reset(nullptr);
   if (of_params_.enable_external_hints) {
     hintsbuf_.reset(nullptr);
   }
-  auto err = turing_of_.nvOFDestroy(of_handle_);
+  auto err = of_inst_.nvOFDestroy(of_handle_);
   // unload lib no matter if it was successful
   if (err != NV_OF_SUCCESS) {
     // Failing to destroy OF leads to significant GPU resource leak,
@@ -128,7 +147,7 @@ using dali::TensorView;
 using dali::StorageGPU;
 
 
-void OpticalFlowTuring::CalcOpticalFlow(
+void OpticalFlowImpl::CalcOpticalFlow(
         TensorView<StorageGPU, const uint8_t, 3> reference_image,
         TensorView<StorageGPU, const uint8_t, 3> input_image,
         TensorView<StorageGPU, float, 3> output_image,
@@ -168,7 +187,7 @@ void OpticalFlowTuring::CalcOpticalFlow(
                                            ? hintsbuf_->GetHandle()
                                            : nullptr);
   auto out_params = GenerateExecuteOutParams(outbuf_->GetHandle());
-  CUDA_CALL(turing_of_.nvOFExecute(of_handle_, &in_params, &out_params));
+  CUDA_CALL(of_inst_.nvOFExecute(of_handle_, &in_params, &out_params));
 
 
   kernel::DecodeFlowComponents(reinterpret_cast<int16_t *>(outbuf_->GetPtr()), output_image.data,
@@ -177,19 +196,19 @@ void OpticalFlowTuring::CalcOpticalFlow(
 }
 
 
-void OpticalFlowTuring::SetInitParams(dali::optical_flow::OpticalFlowParams api_params) {
+void OpticalFlowImpl::SetInitParams(dali::optical_flow::OpticalFlowParams api_params) {
   init_params_ = {};
   init_params_.width = static_cast<uint32_t>(width_);
   init_params_.height = static_cast<uint32_t>(height_);
 
   switch (api_params.out_grid_size) {
-    case VectorGridSize::SIZE_1:
+    case 1:
       init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_1;
       break;
-    case VectorGridSize::SIZE_2:
+    case 2:
       init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_2;
       break;
-    case VectorGridSize::SIZE_4:
+    case 4:
       init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_4;
       break;
     default:
@@ -198,16 +217,16 @@ void OpticalFlowTuring::SetInitParams(dali::optical_flow::OpticalFlowParams api_
   }
 
   switch (api_params.hint_grid_size) {
-    case VectorGridSize::SIZE_1:
+    case 1:
       init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_1;
       break;
-    case VectorGridSize::SIZE_2:
+    case 2:
       init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_2;
       break;
-    case VectorGridSize::SIZE_4:
+    case 4:
       init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_4;
       break;
-    case VectorGridSize::SIZE_8:
+    case 8:
       init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_8;
       break;
     default:
@@ -234,7 +253,7 @@ void OpticalFlowTuring::SetInitParams(dali::optical_flow::OpticalFlowParams api_
 }
 
 
-NV_OF_EXECUTE_INPUT_PARAMS OpticalFlowTuring::GenerateExecuteInParams
+NV_OF_EXECUTE_INPUT_PARAMS OpticalFlowImpl::GenerateExecuteInParams
         (NvOFGPUBufferHandle in_handle, NvOFGPUBufferHandle ref_handle,
          NvOFGPUBufferHandle hints_handle) {
   // zeroing required for padding, padding2 and hPrivData
@@ -247,7 +266,7 @@ NV_OF_EXECUTE_INPUT_PARAMS OpticalFlowTuring::GenerateExecuteInParams
 }
 
 
-NV_OF_EXECUTE_OUTPUT_PARAMS OpticalFlowTuring::GenerateExecuteOutParams
+NV_OF_EXECUTE_OUTPUT_PARAMS OpticalFlowImpl::GenerateExecuteOutParams
         (NvOFGPUBufferHandle out_handle) {
   NV_OF_EXECUTE_OUTPUT_PARAMS params;
   params.outputBuffer = out_handle;
@@ -257,14 +276,14 @@ NV_OF_EXECUTE_OUTPUT_PARAMS OpticalFlowTuring::GenerateExecuteOutParams
 }
 
 
-OpticalFlowTuring::DLLDRIVER OpticalFlowTuring::LoadTuringOpticalFlow
+OpticalFlowImpl::DLLDRIVER OpticalFlowImpl::LoadOpticalFlow
         (const std::string &library_path) {
   const std::string library_path_1 = library_path + ".1";
   DLLDRIVER lib_handle = dlopen(library_path_1.c_str(), RTLD_LOCAL | RTLD_LAZY);
   if (!lib_handle) {
     lib_handle = dlopen(library_path.c_str(), RTLD_LOCAL | RTLD_LAZY);
     if (!lib_handle) {
-      throw unsupported_exception("Failed to load TuringOF library: " + std::string(dlerror()));
+      throw unsupported_exception("Failed to load OF library: " + std::string(dlerror()));
     }
   }
 
@@ -274,7 +293,7 @@ OpticalFlowTuring::DLLDRIVER OpticalFlowTuring::LoadTuringOpticalFlow
   init = (decltype(init)) dlsym(lib_handle, kInitSymbol.c_str());
   DALI_ENFORCE(init, "Failed to find symbol " + kInitSymbol + ": " + std::string(dlerror()));
 
-  CUDA_CALL((*init)(NV_OF_API_VERSION, &turing_of_));
+  CUDA_CALL((*init)(NV_OF_API_VERSION, &of_inst_));
   return lib_handle;
 }
 

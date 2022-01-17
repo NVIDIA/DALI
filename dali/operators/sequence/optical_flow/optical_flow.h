@@ -60,19 +60,12 @@ class OpticalFlow : public Operator<Backend> {
         hint_grid_size_(spec.GetArgument<int>(detail::kHintFormatArgName)),
         enable_temporal_hints_(spec.GetArgument<bool>(detail::kEnableTemporalHintsArgName)),
         enable_external_hints_(spec.GetArgument<bool>(detail::kEnableExternalHintsArgName)),
-        of_params_({quality_factor_, ConvertGridSize(out_grid_size_),
-                    ConvertGridSize(hint_grid_size_), enable_temporal_hints_,
+        of_params_({quality_factor_, out_grid_size_, hint_grid_size_, enable_temporal_hints_,
                     enable_external_hints_}),
         optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
             new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))),
         image_type_(spec.GetArgument<DALIImageType>(detail::kImageTypeArgName)),
         device_id_(spec.GetArgument<int>("device_id")) {
-    DALI_ENFORCE(out_grid_size_ == 1 || out_grid_size_ == 2 || out_grid_size_ == 4,
-                 "Optical flow output grid size supports only 1, 2 and 4.");
-    DALI_ENFORCE(hint_grid_size_ == 1 || hint_grid_size_ == 2 || hint_grid_size_ == 4 ||
-                 hint_grid_size_ == 8,
-                 "Optical flow hint grid size supports only 1, 2, 4 and 8.");
-
     // In case external hints are enabled, we need 2 inputs
     DALI_ENFORCE((enable_external_hints_ && spec.NumInput() == 2) || !enable_external_hints_,
                  "Incorrect number of inputs. Expected: 2, Obtained: " +
@@ -103,30 +96,14 @@ class OpticalFlow : public Operator<Backend> {
     std::call_once(of_initialized_,
                    [&]() {
                        optical_flow_.reset(
-                               new optical_flow::OpticalFlowTuring(of_params_,
-                                                                   width,
-                                                                   height,
-                                                                   channels,
-                                                                   image_type,
-                                                                   device_id,
-                                                                   stream));
+                               new optical_flow::OpticalFlowImpl(of_params_,
+                                                                 width,
+                                                                 height,
+                                                                 channels,
+                                                                 image_type,
+                                                                 device_id,
+                                                                 stream));
                    });
-  }
-
-  optical_flow::VectorGridSize ConvertGridSize(int grid_size) {
-    switch (grid_size) {
-      case 1:
-        return optical_flow::VectorGridSize::SIZE_1;
-      case 2:
-        return optical_flow::VectorGridSize::SIZE_2;
-      case 4:
-        return optical_flow::VectorGridSize::SIZE_4;
-      case 8:
-        return optical_flow::VectorGridSize::SIZE_8;
-      default:
-        return optical_flow::VectorGridSize::UNDEF;
-        break;
-    }
   }
 
   /**

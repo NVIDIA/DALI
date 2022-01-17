@@ -20,7 +20,7 @@ import cv2
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali import fn
 from test_utils import get_dali_extra_path
-from nose_utils import raises
+from nose_utils import raises, assert_raises
 
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, 'db', 'imgproc')
@@ -224,13 +224,13 @@ def flow_to_color(flow_uv, clip_flow=None, convert_to_bgr=False):
 interactive = False
 
 def check_optflow(output_format=1, hint_format=1, use_temporal_hints=False):
-    if get_arch() < 8 and (output_format != 4 or hint_format != 4)
-        raise nose.SkipTest('Output format {} and hint format {} ' \
-                            'are not supported for this sm {}'.format(output_format, hint_format, get_arch()))
     pipe = of_pipeline(num_threads=3, device_id=0, output_format=output_format,
                        hint_format=hint_format, use_temporal_hints=use_temporal_hints)
     pipe.build()
-    out = pipe.run()
+    if get_arch() < 8 and (output_format != 4 or hint_format != 4):
+        assert_raises(RuntimeError, pipe.run, "grid size : * is not supported, supported are:")
+    else:
+        out = pipe.run()
     seq = out[0].at(0)
     out_field = out[1].as_cpu().at(0)[0]
     _, ref_field = get_mapping(seq.shape[1:3])
@@ -257,12 +257,14 @@ def test_optflow():
         for use_temporal_hints in [True, False]:
             yield check_optflow, output_format, hint_format, use_temporal_hints
 
-@raises(RuntimeError, "Optical flow output grid size supports only")
+@raises(RuntimeError, "Output grid size: 3 is not supported, supported are:")
 def test_wrong_out_grid_size():
     pipe = of_pipeline(num_threads=3, device_id=0, output_format=3)
     pipe.build()
+    pipe.run()
 
-@raises(RuntimeError, "Optical flow hint grid size supports only")
+@raises(RuntimeError, "Hint grid size: 3 is not supported, supported are:")
 def test_wrong_hint_grid_size():
     pipe = of_pipeline(num_threads=3, device_id=0, hint_format=3)
     pipe.build()
+    pipe.run()
