@@ -1,10 +1,21 @@
 <!---
-Thank you for contributing to NVIDIA DALI.
+Thank you for contributing to NVIDIA DALI! If you haven't yet,
+please read the contributing guidelines in the CONTRIBUTING.md file.
 
-Please fill the relevant information in this PR template.
+We need a few more information from you to proceed.
+Please fill the relevant sections in this PR template.
 
-Fields with `- [ ]` represent check-boxes that can be marked after you create and save the Pull Request.
+Fields in the Checklist section can be marked after you create and save the Pull Request.
 --->
+
+
+## This PR is a:
+<!--- Please pick one from below. Just uncomment what fits most. --->
+<!--- **Bug fix** (*non-breaking change which fixes an issue*) --->
+<!--- **New feature** (*non-breaking change which adds functionality*) --->
+<!--- **Breaking change** (*fix or feature that would cause existing functionality to not work as expected*) --->
+<!--- **Refactoring** (*Redesign of existing code that doesn't affect functionality*) --->
+<!--- **Other** (*e.g. Documentation, Tests, Configuration*) --->
 
 
 
@@ -21,6 +32,8 @@ Examples:
 
 
 
+## Additional information:
+
 ### Affected modules and functionalities:
 <!--- Describe here what was changed, added, removed. --->
 
@@ -33,17 +46,10 @@ Examples:
 
 <!--- 
 At this point you can hit "Create".
-The checklist below may be filled in the created PR 
+The checklist below shall be filled in the created PR.
 --->
 
 ## Checklist
-
-### Description
-- [ ] **Bug fix** (*non-breaking change which fixes an issue*)
-- [ ] **New feature** (*non-breaking change which adds functionality*)
-- [ ] **Breaking change** (*fix or feature that would cause existing functionality to not work as expected*)
-- [ ] **Refactoring** (*Redesign of existing code that doesn't affect functionality*)
-- [ ] **Other** (*e.g. Documentation, Tests, Configuration*)
 
 ### Tests
 - [ ] Existing tests apply
