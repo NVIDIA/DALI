@@ -339,10 +339,23 @@ class DLL_PUBLIC Buffer {
     set_type(TypeTable::GetTypeId<T>());
   }
 
+  /**
+   * @brief Reserves at least new_num_bytes of storage.
+   *
+   * @param new_num_bytes The minimum size, in bytes of the buffer. Note that alignment or
+   *                      other conditions may cause actual allocation to be larger.
+   *                      If the buffer is already as large as `new_num_bytes`, no allocation
+   *                      will occur.
+   * @param order         The order (stream or host) in which the deallocation is to occur.
+   *                      If possible, the new storage will be allocated asyncrhonously in the
+   *                      order specified by this argument.
+   *                      After this operation completes, the buffer is associated with this order.
+   *                      If order is empty, current order is used.
+   *
+   * @note For speed, use `buf.reserve(size, order)`
+   *       For better memory reusing, use `buf.set_order(order); buf.reserve(size);`
+   */
   inline void reserve(size_t new_num_bytes, AccessOrder order = {}) {
-    if (new_num_bytes <= num_bytes_)
-      return;
-
     DALI_ENFORCE(!shares_data_,
                  "Cannot reallocate Buffer if it is sharing data. "
                  "Clear the status by `Reset()` first.");
@@ -350,8 +363,13 @@ class DLL_PUBLIC Buffer {
     if (data_ && device_ >= 0 && order.is_device() && order.device_id() != device_)
       DALI_FAIL("Cannot reallocate a buffer on a different device!");
 
-    set_order(order);
+    if (new_num_bytes <= num_bytes_) {
+      set_order(order);
+      return;
+    }
+
     free_storage();
+    set_order(order);
 
     if (device_ < 0) {
       if (order.is_device() && order.device_id() >= 0) {
@@ -378,6 +396,14 @@ class DLL_PUBLIC Buffer {
    * @brief Deallocates the data and clears the type.
    *
    * The data, if any, is deallocated.
+   *
+   * @param order  The order (stream or host) in which the deallocation is to occur.
+   *               The order is changed to the provided one after the operation completes.
+   *               If order is empty, current order is used.
+   *
+   * @note Use reset(order) only when it is important that the memory is immediately available
+   *       in the context specified by order. Otherwise, call reset() first and then
+   *       set_order(order) separately for less synchronization.
    */
   void reset(AccessOrder order = {}) {
     set_order(order);
