@@ -35,7 +35,7 @@ namespace dali {
 namespace mm {
 
 template <typename Kind,
-    typename GlobalPool = deferred_dealloc_pool<Kind, any_context, coalescing_free_tree, spinlock>,
+    typename GlobalPool = deferred_dealloc_pool<Kind, coalescing_free_tree, spinlock>,
     typename LockType = std::mutex,
     typename Upstream = memory_resource<Kind>>
 class async_pool_resource : public async_memory_resource<Kind> {
@@ -49,6 +49,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
             typename = std::enable_if_t<std::is_constructible<P, Upstream*, pool_options>::value>>
   explicit async_pool_resource(Upstream *upstream, bool avoid_upstream = true)
   : global_pool_(upstream, global_pool_options()), avoid_upstream_(avoid_upstream) {
+    CUDAEventPool::instance();
   }
 
   /**
@@ -61,18 +62,20 @@ class async_pool_resource : public async_memory_resource<Kind> {
             typename = std::enable_if_t<std::is_constructible<P, PoolArgs...>::value>>
   explicit async_pool_resource(PoolArgs&&...args)
   : global_pool_(std::forward<PoolArgs>(args)...), avoid_upstream_(false) {
+    CUDAEventPool::instance();
   }
 
   ~async_pool_resource() {
     try {
       synchronize();
+      global_pool_.flush_deferred();
     } catch (const CUDAError &e) {
-      if ((e.is_rt_api() && e.rt_error() != cudaErrorCudartUnloading) ||
-          (e.is_drv_api() && e.drv_error() != CUDA_ERROR_DEINITIALIZED))
+      if (!e.is_unloading())
         std::terminate();
     }
     for (auto &kv : stream_free_) {
       PerStreamFreeBlocks &free_blocks = kv.second;
+      std::lock_guard<std::mutex> guard(lock_);
 
       // find_first_ready doesn't throw on shutdown - and we want to terminate on other errors
       assert(find_first_ready(free_blocks) == free_blocks.free_list.head);
@@ -81,8 +84,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
         try {
           global_pool_.deallocate_no_sync(f->addr, f->bytes, f->alignment);
         } catch (const CUDAError &e) {
-          if ((e.is_rt_api() && e.rt_error() != cudaErrorCudartUnloading) ||
-              (e.is_drv_api() && e.drv_error() != CUDA_ERROR_DEINITIALIZED))
+          if (!e.is_unloading())
             std::terminate();
         }
         f = remove_pending_free(free_blocks, f, false);

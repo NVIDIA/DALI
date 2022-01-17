@@ -648,8 +648,12 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
               std::to_string(out_id));
       }
 
+      // Synchronize with the dataset()->stream_ when doing the last copy, so the outputs
+      // are fully finished before we release the output buffers for reuse.
+      unsigned int wait_flag = (out_id == num_outputs - 1) ? DALI_ext_force_sync : DALI_ext_default;
+
       TF_DALI_CALL(daliOutputCopy(&pipeline_handle_, dst, out_id, dataset()->device_type_,
-                                  dataset()->stream_, false));
+                                  dataset()->stream_, wait_flag));
     }
 
     end_of_sequence = false;

@@ -72,6 +72,29 @@ struct SliceBlockDesc {
   uint64_t size;
 };
 
+template<typename T>
+union PackedBuffer {
+  using PackedType = uint32_t;
+  static constexpr size_t kCapacity = sizeof(T) >= sizeof(PackedType) ?
+                                      1 : sizeof(PackedType) / sizeof(T);
+
+  T values[kCapacity];
+  PackedType raw;
+
+  __device__ inline void store(T* mem, size_t count) {
+    if (kCapacity == 1) {
+      *mem = *values;
+    } else if (count == kCapacity && reinterpret_cast<uintptr_t>(mem) % sizeof(PackedType) == 0) {
+      *reinterpret_cast<PackedType*>(mem) = raw;
+    } else {
+      #pragma unroll
+      for (size_t i = 0; i < count; i++) {
+        mem[i] = values[i];
+      }
+    }
+  }
+};
+
 /**
  * @brief Simplified algorithm when no padding is necessary
  * @remarks `in` already refers to the slice anchor start
@@ -87,18 +110,25 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
     return;
   }
 
-  for (; offset < block_end; offset += blockDim.x) {
-    uint64_t idx = offset;
-    uint64_t out_idx = idx;
-    uint64_t in_idx = 0;
+  for (; offset < block_end; offset += blockDim.x * PackedBuffer<OutputType>::kCapacity) {
+    PackedBuffer<OutputType> result;
 
+    uint64_t i;
     #pragma unroll
-    for (int d = 0; d < Dims; d++) {
-      int i_d = div_mod(idx, idx, out_strides[d]);
-      in_idx += i_d * in_strides[d];
+    for (i = 0; i < PackedBuffer<OutputType>::kCapacity; i++) {
+      uint64_t idx = offset + i;
+      if (idx >= block_end) break;
+      uint64_t in_idx = 0;
+
+      #pragma unroll
+      for (int d = 0; d < Dims; d++) {
+        int i_d = div_mod(idx, idx, out_strides[d]);
+        in_idx += i_d * in_strides[d];
+      }
+      in_idx += idx;  // remaining dims have equal strides
+      result.values[i] = clamp<OutputType>(in[in_idx]);
     }
-    in_idx += idx;  // remaining dims have equal strides
-    out[out_idx] = clamp<OutputType>(in[in_idx]);
+    result.store(&out[offset], i);
   }
 }
 
@@ -131,44 +161,54 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
     inner_in_extent = Dims > 1 ? in_strides[LastDim - 1] : in_shape[LastDim] * in_strides[LastDim];
   }
 
-  for (; offset < block_end; offset += blockDim.x) {
-    uint64_t idx = offset;
-    uint64_t out_idx = idx;
+  for (; offset < block_end; offset += blockDim.x * PackedBuffer<OutputType>::kCapacity) {
+    PackedBuffer<OutputType> result;
 
-    // If no dimensions were skipped (AllDims=true) we can avoid division in the last dimension,
-    // because know the strides are 1 (or we treat them as 1 if we fused dimensions)
-    int i_c = 0;
-    int i_d;
-    bool out_of_bounds = false;
-    uint64_t in_idx = 0;
-
+    uint64_t i;
+    #ifndef __clang__
     #pragma unroll
-    for (int d = 0; d < Dims - 1; d++) {
-      i_d = div_mod(idx, idx, out_strides[d]);
-      if (d == channel_dim)
-        i_c = i_d;
-      out_of_bounds |= is_out_of_bounds(anchor[d] + i_d, in_shape[d]);
-      if (!out_of_bounds)
-        in_idx += i_d * in_strides[d];
-    }
+    #endif
+    for (i = 0; i < PackedBuffer<OutputType>::kCapacity; i++) {
+      uint64_t idx = offset + i;
+      if (idx >= block_end) break;
 
-    constexpr int d = LastDim;
-    i_d = idx;  // out_strides[d] is 1
-    if (AllDims && d == channel_dim)
-      i_c = i_d;
-    out_of_bounds |= is_out_of_bounds(inner_in_anchor + i_d, inner_in_extent);
-    if (!out_of_bounds)
+      // If no dimensions were skipped (AllDims=true) we can avoid division in the last dimension,
+      // because know the strides are 1 (or we treat them as 1 if we fused dimensions)
+      int i_c = 0;
+      int i_d;
+      bool out_of_bounds = false;
+      uint64_t in_idx = 0;
+
+      #pragma unroll
+      for (int d = 0; d < Dims - 1; d++) {
+        i_d = div_mod(idx, idx, out_strides[d]);
+        if (d == channel_dim)
+          i_c = i_d;
+        out_of_bounds |= is_out_of_bounds(anchor[d] + i_d, in_shape[d]);
+        in_idx += i_d * in_strides[d];
+      }
+
+      constexpr int d = LastDim;
+      i_d = idx;  // out_strides[d] is 1
+      if (AllDims && d == channel_dim)
+        i_c = i_d;
+      out_of_bounds |= is_out_of_bounds(inner_in_anchor + i_d, inner_in_extent);
       in_idx += i_d;  // in_strides[d] is 1
 
-    // Fill values are reused a lot, so let's make sure they are cached (by using __ldg())
-    out[out_idx] = out_of_bounds ? __ldg(&fill_values[i_c]) : clamp<OutputType>(in[in_idx]);
+      // Fill values are reused a lot, so let's make sure they are cached (by using __ldg())
+      OutputType value = __ldg(&fill_values[i_c]);
+      if (!out_of_bounds)
+        value = clamp<OutputType>(in[in_idx]);
+      result.values[i] = value;
+    }
+    result.store(&out[offset], i);
   }
 }
 
 template <typename OutputType, typename InputType, int Dims, bool SupportPad>
 __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const SliceBlockDesc *blocks) {
   int sampleIdx = blocks[blockIdx.x].sampleIdx;
-  uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x;
+  uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x * PackedBuffer<OutputType>::kCapacity;
   uint64_t block_end = blocks[blockIdx.x].offset + blocks[blockIdx.x].size;
   auto sample = samples[sampleIdx];
   auto *out = static_cast<OutputType*>(sample.out);
@@ -193,9 +233,13 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const SliceBlo
 template <typename OutputType, typename InputType, int Dims>
 class SliceGPU {
  private:
-  static constexpr int64_t kBlockDim = 256;
-  static constexpr int64_t kBlockSize = 64 * kBlockDim;
-  int64_t block_count_ = 0;
+  static constexpr uint64_t kBlockDim = 256;
+  static constexpr uint64_t kMinBlockSize = 4 * kBlockDim;
+  static constexpr uint64_t kMaxBlockSize = 64 * kBlockDim;
+
+  uint64_t block_size_ = kMaxBlockSize;
+  uint64_t block_count_ = 0;
+  int blocks_per_sm_ = 0;
 
  public:
   KernelRequirements Setup(KernelContext &context,
@@ -237,14 +281,25 @@ class SliceGPU {
 
     std::vector<int64_t> sample_sizes;
     sample_sizes.reserve(slice_args.size());
+    uint64_t total_volume = 0;
     for (auto &args : slice_args) {
       sample_sizes.push_back(volume(args.shape));
+      total_volume += volume(args.shape);
     }
+
+    if (blocks_per_sm_ == 0) {
+      CUDA_CALL(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm_,
+                detail::SliceKernel<OutputType, InputType, Dims, false>, kBlockDim, 0));
+    }
+    unsigned max_active_blocks = blocks_per_sm_ * GetSmCount();
+    uint64_t waves = div_ceil(total_volume + 1, kMaxBlockSize * max_active_blocks);
+    block_size_ = div_ceil(total_volume, max_active_blocks * waves);
+    if (block_size_ < kMinBlockSize) block_size_ = kMinBlockSize;
+    if (block_size_ > kMaxBlockSize) block_size_ = kMaxBlockSize;
 
     block_count_ = 0;
     for (auto sample_size : sample_sizes) {
-      block_count_ += std::ceil(
-        sample_size / static_cast<float>(kBlockSize));
+      block_count_ += div_ceil(sample_size, block_size_);
     }
 
     se.add<mm::memory_kind::host, detail::SliceBlockDesc>(block_count_);
@@ -319,7 +374,7 @@ class SliceGPU {
       uint64_t offset = 0;
       uint64_t remaining = sample_sizes[i];
       while (remaining > 0) {
-        uint64_t size = remaining < kBlockSize ? remaining : kBlockSize;
+        uint64_t size = remaining < block_size_ ? remaining : block_size_;
         block_descs_cpu[block_idx++] = {i, offset, size};
         remaining -= size;
         offset += size;

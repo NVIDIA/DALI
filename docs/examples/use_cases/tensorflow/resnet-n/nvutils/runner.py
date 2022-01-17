@@ -17,7 +17,6 @@
 from builtins import range
 from nvutils import image_processing
 from nvutils import common
-from nvutils import hvd_patch
 
 import tensorflow as tf
 import tensorflow.keras as keras
@@ -163,7 +162,7 @@ def train(model_func, params):
   opt = keras.optimizers.SGD(learning_rate=lr_schedule, momentum=momentum)
   # Horovod: add Horovod DistributedOptimizer. We use a modified version to
   # support the custom learning rate schedule.
-  opt = hvd_patch.DistributedOptimizer(opt)
+  opt = hvd.DistributedOptimizer(opt)
   if tf.__version__ >= "2.4.0" and precision == 'fp16':
     opt = keras.mixed_precision.LossScaleOptimizer(opt, dynamic=False,
                                                    initial_scale=loss_scale)

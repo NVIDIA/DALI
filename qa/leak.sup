@@ -1,5 +1,3 @@
-# NVJPEG
-leak:libnvcuvid.so
 # external libraries
 leak:paddle
 leak:llvm

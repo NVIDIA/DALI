@@ -18,7 +18,6 @@ set(DALI_INST_HDRS ${DALI_INST_HDRS}
   "${CMAKE_CURRENT_SOURCE_DIR}/image.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/mmaped_file.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/std_file.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/npp.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/ocv.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/thread_safe_queue.h"
@@ -29,7 +28,6 @@ set(DALI_SRCS ${DALI_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/image.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/mmaped_file.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/std_file.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/npp.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/ocv.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/user_stream.cc")
@@ -47,6 +45,13 @@ endif()
 set(DALI_TEST_SRCS ${DALI_TEST_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator_test.cc")
 
+# transform a list of paths into a list of include directives
+DETERMINE_GCC_SYSTEM_INCLUDE_DIRS("c++" "${CMAKE_CXX_COMPILER}" "${CMAKE_CXX_FLAGS}" INFERED_COMPILER_INCLUDE)
+set(DEFAULT_COMPILER_INCLUDE)
+foreach(incl_dir ${INFERED_COMPILER_INCLUDE})
+  set(DEFAULT_COMPILER_INCLUDE "${DEFAULT_COMPILER_INCLUDE} -I${incl_dir}")
+endforeach(incl_dir)
+separate_arguments(DEFAULT_COMPILER_INCLUDE UNIX_COMMAND  "${DEFAULT_COMPILER_INCLUDE}")
 
 if(BUILD_NVML)
   set(DALI_INST_HDRS ${DALI_INST_HDRS}
@@ -70,9 +75,9 @@ if(BUILD_NVML)
         VERBATIM)
 
     set_source_files_properties(${NVML_GENERATED_STUB} PROPERTIES GENERATED TRUE)
-    add_library(dynlink_nvml OBJECT nvml_wrap.cc nvml.cc ${NVML_GENERATED_STUB})
+    add_library(dynlink_nvml STATIC nvml_wrap.cc nvml.cc ${NVML_GENERATED_STUB})
   else()
-    add_library(dynlink_nvml OBJECT nvml_wrap.cc nvml.cc)
+    add_library(dynlink_nvml STATIC nvml_wrap.cc nvml.cc)
   endif()
 endif()
 
@@ -81,3 +86,4 @@ set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 set(DALI_TEST_SRCS ${DALI_TEST_SRCS} PARENT_SCOPE)
 
 list(FILTER DALI_SRCS EXCLUDE REGEX ".*nvml.*\.cc")
+set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)

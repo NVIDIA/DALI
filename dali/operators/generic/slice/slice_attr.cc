@@ -19,32 +19,16 @@
 
 namespace dali {
 
-bool ProcessAxesArgs(std::vector<int> &axes, TensorLayout &axis_names, const OpSpec &spec,
-                     const char *axes_arg_name, const char *axis_names_arg_name) {
-  axes.clear();
-  axis_names = TensorLayout{};
-  const bool has_axes_arg = axes_arg_name && spec.HasArgument(axes_arg_name);
-  const bool has_axis_names_arg = axis_names_arg_name && spec.HasArgument(axis_names_arg_name);
-  if (has_axes_arg && has_axis_names_arg) {
-    DALI_FAIL(make_string("\"", axes_arg_name, "\" and \"", axis_names_arg_name,
-                          "\" are mutually exclusive"));
-  } else if (has_axes_arg) {
-    axes = spec.GetRepeatedArgument<int>(axes_arg_name);
-    return true;
-  } else if (axis_names_arg_name && spec.TryGetArgument(axis_names, axis_names_arg_name)) {
-    return true;
-  } else if (axes_arg_name && spec.TryGetArgument(axes, axes_arg_name)) {
-    return true;
-  }
-  return false;
-}
-
 DALI_SCHEMA(SliceAttr)
     .DocStr(R"code(Slice attributes placeholder)code")
     .AddOptionalArg("axes",
         R"code(Order of dimensions used for the anchor and shape slice inputs as dimension
-indices.)code",
-        std::vector<int>{1, 0})
+indices.
+
+Negative values are interpreted as counting dimensions from the back.
+Valid range: ``[-ndim, ndim-1]``, where ndim is the number of dimensions in the input data.
+)code",
+        std::vector<int>{1, 0}, true)
     .AddOptionalArg("axis_names",
         R"code(Order of the dimensions used for the anchor and shape slice inputs,
 as described in layout.

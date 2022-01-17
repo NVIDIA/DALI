@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,11 +36,16 @@ class EventPool {
    */
   inline EventPool() = default;
 
-  inline ~EventPool() noexcept(false) {
-    for (auto &event_info : events_) {
-      DeviceGuard g(event_info.device);
-      CUDA_CALL(cudaEventSynchronize(event_info.event));
-      CUDA_CALL(cudaEventDestroy(event_info.event));
+  inline ~EventPool() {
+    try {
+      for (auto &event_info : events_) {
+        DeviceGuard g(event_info.device);
+        CUDA_CALL(cudaEventSynchronize(event_info.event));
+        CUDA_CALL(cudaEventDestroy(event_info.event));
+      }
+    } catch (const CUDAError &e) {
+      if (!e.is_unloading())
+        std::terminate();
     }
   }
 

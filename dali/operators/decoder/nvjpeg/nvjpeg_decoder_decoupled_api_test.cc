@@ -349,7 +349,7 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
     pipeline_.SetExternalInput("crop_data", crop_data);
 
     auto node = pipeline_.GetOperatorNode(decoder_name_);
-    if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+    if (!node->op->GetDiagnostic<bool>("using_hw_decoder_roi")) {
       PrintDeviceInfo();
       if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
@@ -375,7 +375,7 @@ TEST_F(HwDecoderSliceUtilizationTest, UtilizationTest) {
   EXPECT_EQ(nsamples_hw, 35) << "HW Decoder malfunction: incorrect number of images decoded in HW";
   EXPECT_EQ(nsamples_cuda, 12);
   EXPECT_EQ(nsamples_host, 0)
-                << "Image decoding malfuntion: all images should've been decoded by CUDA or HW";
+                << "Image decoding malfunction: all images should've been decoded by CUDA or HW";
 }
 
 class HwDecoderCropUtilizationTest : public ::testing::Test {
@@ -402,7 +402,7 @@ class HwDecoderCropUtilizationTest : public ::testing::Test {
     pipeline_.Build(outputs_);
 
     auto node = pipeline_.GetOperatorNode(decoder_name_);
-    if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+    if (!node->op->GetDiagnostic<bool>("using_hw_decoder_roi")) {
       PrintDeviceInfo();
       if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";

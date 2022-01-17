@@ -17,6 +17,7 @@ import ctypes
 import math
 
 import numpy as np
+import paddle
 
 from nvidia.dali import types
 from nvidia.dali.backend import TensorListCPU, TensorGPU, TensorListGPU
@@ -172,7 +173,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
                 Setting this flag to False will cause the iterator to return
                 exactly 'size' entries.
-    last_batch_policy : default = FILL
+    last_batch_policy, optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there is no enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
     last_batch_padded : bool, optional, default = False
@@ -193,17 +194,17 @@ class DALIGenericIterator(_DaliBaseIterator):
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    last_batch_policy = PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
 
     def __init__(self,
@@ -315,16 +316,11 @@ class DALIGenericIterator(_DaliBaseIterator):
                                          category_pd_type[cat])
             data_batches[i] = pd_tensors
 
-            # due to https://github.com/PaddlePaddle/Paddle/issues/35555 the tensors are allocated
-            # first by setting shape and calling _mutable_data, then the device is synchronized
-            # and after that, another call to _mutable_data is made to obtain the pointer and
-            # copy data from the pipeline to the tensor
-            # when the issue is solved the copy can be moved to the preceding loop
-            fluid.core._cuda_synchronize(pd_gpu_place)
+            stream = paddle.device.cuda.current_stream(dev_id).cuda_stream
             for cat, tensor in category_tensors.items():
                 ptr = pd_tensors[cat]._mutable_data(category_place[cat],
                                                category_pd_type[cat])
-                feed_ndarray(tensor, ptr)
+                feed_ndarray(tensor, ptr, stream)
 
         self._schedule_runs()
 
@@ -417,7 +413,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
                 Setting this flag to False will cause the iterator to return
                 exactly 'size' entries.
-    last_batch_policy : default = FILL
+    last_batch_policy, optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there is no enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
     last_batch_padded : bool, optional, default = False
@@ -438,17 +434,17 @@ class DALIClassificationIterator(DALIGenericIterator):
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    last_batch_policy = PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
 
-    last_batch_policy = DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
 
-    last_batch_policy = DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
 
     def __init__(self,

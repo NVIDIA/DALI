@@ -18,6 +18,7 @@
 #include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
 #include <cassert>
 #include <type_traits>
+#include <vector>
 #include "dali/core/host_dev.h"
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/cuda_error.h"
@@ -91,6 +92,24 @@ int MaxThreadsPerBlock(KernelFunction *f) {
     max_block_size[device] = attr.maxThreadsPerBlock;
   }
   return max_block_size[device];
+}
+
+inline int GetSmCount(int device_id = -1) {
+  if (device_id < 0) {
+    CUDA_CALL(cudaGetDevice(&device_id));
+  }
+  static int dev_count = []() {
+    int ndevs = 0;
+    CUDA_CALL(cudaGetDeviceCount(&ndevs));
+    return ndevs;
+  }();
+  static vector<int> count(dev_count);
+  if (!count[device_id]) {
+    cudaDeviceProp prop;
+    CUDA_CALL(cudaGetDeviceProperties(&prop, 0));
+    count[device_id] = prop.multiProcessorCount;
+  }
+  return count[device_id];
 }
 
 }  // namespace dali

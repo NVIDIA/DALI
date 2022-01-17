@@ -25,8 +25,6 @@ This part of the repository contains extra dependencies required to build DALI, 
 +-----------------+---------------------+---------------------+
 | |rapidjson|_    | |rapidjsonver|_     | |rapidjsonlic|_     |
 +-----------------+---------------------+---------------------+
-| |thrust|_       | |thrustver|_        | |thrustlic|_        |
-+-----------------+---------------------+---------------------+
 
 .. |benchmark| replace:: Google Benchmark
 .. _benchmark: https://github.com/google/benchmark
@@ -86,21 +84,14 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |pybind11| replace:: pybind11
 .. _pybind11: https://github.com/pybind/pybind11
-.. |pybind11ver| replace:: 2.7.1
-.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.7.1
+.. |pybind11ver| replace:: 2.8.1
+.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.8.1
 .. |pybind11lic| replace:: BSD 3-Clause License
 .. _pybind11lic: https://github.com/pybind/pybind11/blob/master/LICENSE
 
 .. |rapidjson| replace:: RapidJSON
 .. _rapidjson: https://github.com/Tencent/rapidjson
-.. |rapidjsonver| replace:: Top-of-tree (Aug 13, 2021)
-.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/00dbcf2c6e03c47d6c399338b6de060c71356464
+.. |rapidjsonver| replace:: Top-of-tree (Oct 29, 2021)
+.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/4d6cb08189cf7336821f04090b612baa2ca6a90d
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt
-
-.. |thrust| replace:: Thrust
-.. _thrust: https://github.com/NVIDIA/thrust
-.. |thrustver| replace:: 1.14.0
-.. _thrustver: https://github.com/NVIDIA/thrust/releases/tag/1.14.0
-.. |thrustlic| replace:: Apache License 2.0
-.. _thrustlic: https://github.com/NVIDIA/thrust/blob/main/LICENSE

@@ -28,12 +28,16 @@ class PckgVer():
             Maximum python version supported by this package. If empty there is no upper bound
         `python_min_ver`: str, optional, default = None
             Mimimum python version supported by this package. If empty there is no lower bound
+        `dependencies` : list of str, optional, default = None
+            List of packages in ["name==version", ] format that should be installed together with
+            a given package
     """
-    def __init__(self, ver, python_min_ver=None, python_max_ver=None, alias=None):
+    def __init__(self, ver, python_min_ver=None, python_max_ver=None, alias=None, dependencies=None):
         self.ver = ver
         self.python_min_ver = python_min_ver
         self.python_max_ver = python_max_ver
         self.name_alias = alias
+        self.dependent_packages = dependencies
 
     def __bool__(self):
         return (not self.python_min_ver or parse(PYTHON_VERSION) >= parse(self.python_min_ver)) and \
@@ -44,9 +48,14 @@ class PckgVer():
             return self.ver
         else:
             return ""
+
     @property
     def alias(self):
         return self.name_alias
+
+    @property
+    def dependencies(self):
+        return self.dependent_packages
 
 class BasePackage():
     """Class describing basic methods that package should provide
@@ -91,6 +100,18 @@ class BasePackage():
                 Package version
         """
         return getattr(version, "alias", None)
+
+
+    def get_dependencies(self, cuda_version=None, idx=None):
+        """Obtains dependant packages list if exists. Otherwise return None
+
+            Parameters
+            ----------
+            `version`: str or PckgVer
+                Package version
+        """
+        version = self.get_version(idx, cuda_version)
+        return getattr(version, "dependencies", None)
 
     def get_name(self, cuda_version=None, idx=None):
         """Retrives package name.
@@ -183,7 +204,11 @@ class BasePackage():
             `cuda_version`: str, optional, default = None
                 Cuda version used for this query
         """
-        return "{name}=={version}".format(name=self.get_name(cuda_version, idx), version=self.get_version(idx, cuda_version))
+        pkg_cmd = "{name}=={version}".format(name=self.get_name(cuda_version, idx), version=self.get_version(idx, cuda_version))
+        deps_cmd = self.get_dependencies(cuda_version, idx)
+        if deps_cmd is not None:
+            pkg_cmd =  " ".join([pkg_cmd] + deps_cmd)
+        return pkg_cmd
 
     def get_all_install_strings(self, cuda_version=None):
         """Gets all installation string that pip should accept for a given
@@ -408,12 +433,12 @@ all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
                         "mxnet-cu{cuda_v}"),
                 CudaPackage("tensorflow-gpu",
                         { "100" : [
-                              PckgVer("1.15.5",  python_max_ver="3.7"),
-                              "2.3.3"],
+                              PckgVer("1.15.5", python_max_ver="3.7"),
+                              PckgVer("2.3.4", python_max_ver="3.8")],
                           "110" : [
-                              PckgVer("1.15.5",  python_max_ver="3.7"),
-                              "2.5.1",
-                              "2.6.0",
+                              PckgVer("1.15.5", python_max_ver="3.7"),
+                              PckgVer("2.6.2", dependencies=["tensorflow-estimator==2.6.0"]),
+                              PckgVer("2.7.0", python_min_ver="3.7"),
                               PckgVer("1.15.5+nv21.09", python_min_ver="3.8", python_max_ver="3.8", alias="nvidia-tensorflow")]
                         }),
                 CudaPackageExtraIndex("torch",
@@ -423,8 +448,8 @@ all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
                         { "101" : ["0.9.0"],
                           "111" : ["0.9.0"] }, extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
                 CudaPackage("paddlepaddle-gpu",
-                        { "100" : ["2.0.2"],
-                          "110" : ["2.0.2"]})
+                        { "100" : ["2.2.0"],
+                          "110" : ["2.2.0"]})
                ]
 
 all_packages_keys = [pckg.key for pckg in all_packages]

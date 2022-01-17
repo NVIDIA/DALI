@@ -154,7 +154,7 @@ class CropMirrorNormalize : public Operator<Backend> {
   }
 
   template <int Dims>
-  void SetupCommonImplTyped(const workspace_t<Backend> &ws) {
+  void SetupCommonImplTyped(const OpSpec &spec, const workspace_t<Backend> &ws) {
     const auto &input = ws.template Input<Backend>(0);
     input_type_ = input.type();
     assert(output_type_ != DALI_NO_TYPE);
@@ -184,11 +184,12 @@ class CropMirrorNormalize : public Operator<Backend> {
     DALI_ENFORCE(ImageLayoutInfo::HasChannel(input_layout_),
       "This operator expects an explicit channel dimension, even for monochrome images");
 
-    crop_attr_.ProcessArguments(ws);
+    crop_attr_.ProcessArguments(spec, ws);
 
-    mean_arg_.Acquire(spec_, ws, nsamples, true);
-    std_arg_.Acquire(spec_, ws, nsamples, true);
-    bool per_sample_norm_args = mean_arg_.IsArgInput() || std_arg_.IsArgInput();
+    ArgValueFlags flags = ArgValue_EnforceUniform;
+    mean_arg_.Acquire(spec_, ws, nsamples, flags);
+    std_arg_.Acquire(spec_, ws, nsamples, flags);
+    bool per_sample_norm_args = mean_arg_.HasArgumentInput() || std_arg_.HasArgumentInput();
     if (!per_sample_norm_args && !const_norm_args_read_) {
       ProcessNormArgs(0);  // constant, only need to process the arguments once
       const_norm_args_read_ = true;
@@ -225,7 +226,7 @@ class CropMirrorNormalize : public Operator<Backend> {
     const auto &input = ws.template Input<Backend>(0);
     int ndim = input.shape().sample_dim();
     VALUE_SWITCH(ndim, Dims, CMN_NDIMS, (
-      SetupCommonImplTyped<Dims>(ws);
+      SetupCommonImplTyped<Dims>(spec_, ws);
     ), DALI_FAIL(make_string("Not supported number of dimensions: ", ndim)););  // NOLINT
   }
 

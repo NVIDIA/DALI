@@ -1,7 +1,8 @@
 DALI_KERNELS_@DALI_VERSION@ {
      global:
          *;
-     # cufile.h declares all its symbols with the default visibility so our wrappers
+     # cufile.h and cufft.h declares all its symbols with the default visibility so our wrappers
      # are exported as well. We don't want this so hide it explicitly here
      local: cuFile*;
+            cufft*;
 };

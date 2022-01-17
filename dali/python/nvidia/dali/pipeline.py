@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,11 +15,10 @@
 # pylint: disable=no-member
 from collections import deque
 from nvidia.dali import backend as b
-from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
+from nvidia.dali import internal
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali import pickling as dali_pickle
-from nvidia.dali.backend import CheckDLPackCapsule
 from threading import local as tls
 from . import data_node as _data_node
 import functools
@@ -27,6 +26,7 @@ import inspect
 import warnings
 import weakref
 import ctypes
+import sys
 
 pipeline_tls = tls()
 
@@ -44,6 +44,8 @@ def _show_deprecation_warning(deprecated, in_favor_of):
 
 
 def _get_default_stream_for_array(array):
+    if isinstance(array, list) and len(array):
+        array = array[0]
     if types._is_torch_tensor(array):
         import torch
         return torch.cuda.current_stream().cuda_stream
@@ -52,6 +54,7 @@ def _get_default_stream_for_array(array):
         return cupy.cuda.get_current_stream().ptr
     else:
         return None
+
 
 class Pipeline(object):
     """Pipeline class is the base of all DALI data pipelines. The pipeline
@@ -709,6 +712,23 @@ Parameters
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
+    def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
+        from nvidia.dali.external_source import _prep_data_for_feed_input
+        if cuda_stream is None:
+            cuda_stream = _get_default_stream_for_array(data)
+        if cuda_stream == -1:
+            cuda_stream = None
+        else:
+            cuda_stream = types._raw_cuda_stream(cuda_stream)
+
+        data = _prep_data_for_feed_input(data, self._max_batch_size, layout)
+
+        if isinstance(data, list):
+            self._pipe.SetExternalTensorInput(
+                name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
+        else:
+            self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
+
     def feed_input(self, data_node, data, layout = None, cuda_stream = None, use_copy_kernel = False):
         """Pass a mutlidimensional array or DLPack (or a list thereof) to an output of ExternalSource.
         In the case of the GPU input, the data must be modified on the same stream as the one
@@ -769,66 +789,12 @@ Parameters
             _data_node._check(data_node)
             name = data_node.name
 
-        from nvidia.dali.external_source import _check_data_batch
-
-        infer_stream = False
-        if cuda_stream is None:
-            infer_stream = True
-        if cuda_stream == -1:
-            cuda_stream = None
-        else:
-            cuda_stream = types._raw_cuda_stream(cuda_stream)
-
-        def to_numpy(x):
-            if types._is_mxnet_array(x):
-                return x.asnumpy()
-            elif types._is_torch_tensor(x):
-                return x.numpy()
-            else:
-                return x
-
-        # __cuda_array_interface__ doesn't provide any way to pass the information about the device
-        # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
-        # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
-        if isinstance(data, (Tensors.TensorListCPU, Tensors.TensorListGPU)):
-            if layout is not None:
-                _check_data_batch(data, self._max_batch_size, layout)
-                data = type(data)(data, layout)
-
-            self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
-        elif isinstance(data, list):
-            inputs = []
-            checked = False
-            for datum in data:
-                info = CheckDLPackCapsule(datum)
-                if not info[0] and not checked:
-                    _check_data_batch(data, self._max_batch_size, layout)
-                    checked = True
-                if isinstance(datum, (Tensors.TensorCPU, Tensors.TensorGPU)):
-                    inp = type(datum)(datum, layout=layout) if layout is not None else datum
-                elif hasattr(datum, "__cuda_array_interface__") or (info[0] and info[1]):
-                    if infer_stream:
-                        cuda_stream = _get_default_stream_for_array(datum)
-                    inp = Tensors.TensorGPU(datum, layout or "")
-                else:
-                    datum = to_numpy(datum)
-                    inp = Tensors.TensorCPU(datum, layout or "")
-                inputs.append(inp)
-            assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
-                   "Mixed input types are not support, all need to reside on the CPU or GPU"
-            self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream), use_copy_kernel)
-        else:
-            info = CheckDLPackCapsule(data)
-            if not info[0]:
-                _check_data_batch(data, self._max_batch_size, layout)
-            if hasattr(data, "__cuda_array_interface__") or (info[0] and info[1]):
-                if infer_stream:
-                    cuda_stream = _get_default_stream_for_array(data)
-                inp = Tensors.TensorListGPU(data, layout or "")
-            else:
-                data = to_numpy(data)
-                inp = Tensors.TensorListCPU(data, layout or "")
-            self._pipe.SetExternalTLInput(name, inp, ctypes.c_void_p(cuda_stream), use_copy_kernel)
+        # Check for use of feed_input on an external_source operator that was initialized with 'source'.
+        if next((op._callback is not None for op in self._ops if op.name == name), False):
+            raise RuntimeError(f"Cannot use `feed_input` on the external source '{name}' with a `source`"
+                                " argument specified.")
+        
+        self._feed_input(name, data, layout, cuda_stream, use_copy_kernel)
 
     def _run_cpu(self):
         """Run CPU portion of the pipeline."""
@@ -1250,6 +1216,9 @@ def _discriminate_args(func, **func_kwargs):
     func_argspec = inspect.getfullargspec(func)
     ctor_argspec = inspect.getfullargspec(Pipeline.__init__)
 
+    if 'debug' not in func_argspec.args and 'debug' not in func_argspec.kwonlyargs:
+        func_kwargs.pop('debug', False)
+
     ctor_args = {}
     fn_args = {}
 
@@ -1364,3 +1333,40 @@ def pipeline_def(fn=None, **pipeline_kwargs):
             return pipe
         return create_pipeline
     return actual_decorator(fn) if fn else actual_decorator
+
+
+def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
+    from nvidia.dali._debug_mode import _PipelineDebug
+    pipeline_debug =  pipeline_kwargs.pop('debug', False)
+    def actual_decorator(func):
+        @functools.wraps(func)
+        def create_pipeline(*args, **kwargs):
+            debug_mode_on = kwargs.get('debug', pipeline_debug)
+            ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
+            pipeline_args = {**pipeline_kwargs, **ctor_args}  # Merge and overwrite dict
+            if debug_mode_on:
+                pipe = _PipelineDebug(functools.partial(func, *args, **fn_kwargs),
+                                     **pipeline_args)
+            else:
+                pipe = Pipeline(**pipeline_args)
+                with pipe:
+                    pipe_outputs = func(*args, **fn_kwargs)
+                    if isinstance(pipe_outputs, tuple):
+                        po = pipe_outputs
+                    elif pipe_outputs is None:
+                        po = ()
+                    else:
+                        po = (pipe_outputs,)
+                    pipe.set_outputs(*po)
+            return pipe
+        return create_pipeline
+    return actual_decorator(fn) if fn else actual_decorator
+
+
+def _insert_experimental_pipeline_def():
+    current_module = sys.modules[__name__]
+    experimental_module = internal.get_submodule(current_module, 'experimental')
+    _pipeline_def_experimental.__module__ = experimental_module
+    setattr(experimental_module, 'pipeline_def', _pipeline_def_experimental)
+
+_insert_experimental_pipeline_def()

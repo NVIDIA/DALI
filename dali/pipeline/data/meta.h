@@ -35,7 +35,7 @@ class DALIMeta {
     layout_ = layout;
   }
 
-  inline std::string GetSourceInfo() const {
+  inline const std::string &GetSourceInfo() const {
     return source_info_;
   }
 

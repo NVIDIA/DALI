@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -121,7 +121,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
       DALI_FAIL("``pixelwise_masks`` and ``polygon_masks`` are mutually exclusive");
     }
 
-    if (HasSavePreprocessedAnnotations(spec) != HasSavePreprocessedAnnotationsDir(spec)) {
+    if (HasSavePreprocessedAnnotations(spec_) != HasSavePreprocessedAnnotationsDir(spec_)) {
       DALI_FAIL("``save_preprocessed_annotations`` and ``save_preprocessed_annotations_dir`` "
                 "should be provided together");
     }
@@ -200,7 +200,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
   void SavePreprocessedAnnotations(const std::string &path, const ImageIdPairs &image_id_pairs);
 
  private:
-  const OpSpec &spec_;
+  const OpSpec spec_;
 
   std::vector<int> heights_;
   std::vector<int> widths_;

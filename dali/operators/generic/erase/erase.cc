@@ -163,13 +163,17 @@ class EraseImplCpu : public OpImplBase<CPUBackend> {
  public:
   using EraseKernel = kernels::EraseCpu<T, Dims>;
 
-  explicit EraseImplCpu(const OpSpec &spec) : spec_(spec) {}
+  /**
+   * @param spec  Pointer to a persistent OpSpec object,
+   *              which is guaranteed to be alive for the entire lifetime of this object
+   */
+  explicit EraseImplCpu(const OpSpec *spec) : spec_(*spec) {}
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
  private:
-  OpSpec spec_;
+  const OpSpec &spec_;
   std::vector<int> axes_;
   std::vector<kernels::EraseArgs<T, Dims>> args_;
   kernels::KernelManager kmgr_;
@@ -224,7 +228,7 @@ bool Erase<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto in_shape = input.shape();
   TYPE_SWITCH(input.type(), type2id, T, ERASE_SUPPORTED_TYPES, (
     VALUE_SWITCH(in_shape.sample_dim(), Dims, ERASE_SUPPORTED_NDIMS, (
-      impl_ = std::make_unique<EraseImplCpu<T, Dims>>(spec_);
+      impl_ = std::make_unique<EraseImplCpu<T, Dims>>(&spec_);
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
 

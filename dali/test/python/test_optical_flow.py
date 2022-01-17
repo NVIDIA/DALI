@@ -14,17 +14,37 @@
 
 import os
 import numpy as np
-import shutil
-import sys
+import platform
 import cv2
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
-import nvidia.dali.types as types
-from random import shuffle
 from test_utils import get_dali_extra_path
 
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, 'db', 'imgproc')
+
+is_of_supported_var = None
+def is_of_supported(device_id=0):
+    global is_of_supported_var
+    if is_of_supported_var is not None:
+        return is_of_supported_var
+
+    compute_cap = 0
+    driver_version_major = 0
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+        compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
+        compute_cap = compute_cap[0] + compute_cap[1] / 10.
+        driver_version = pynvml.nvmlSystemGetDriverVersion().decode('utf-8')
+        driver_version_major = int(driver_version.split('.')[0])
+    except ModuleNotFoundError:
+        print("NVML not found")
+
+    # there is an issue with OpticalFlow driver in R495 and newer on aarch64 platform
+    is_of_supported_var = compute_cap >= 7.5 and (platform.machine() == "x86_64" or driver_version_major < 495)
+    return is_of_supported_var
 
 def get_mapping(shape):
     h, w = shape
@@ -192,7 +212,9 @@ def flow_to_color(flow_uv, clip_flow=None, convert_to_bgr=False):
 interactive = False
 
 def test_optflow():
-    pipe = OFPipeline(3, 0);
+    if not is_of_supported():
+        raise nose.SkipTest('Optical Flow is not supported on this platform')
+    pipe = OFPipeline(3, 0)
     pipe.build()
     out = pipe.run()
     seq = out[0].at(0)

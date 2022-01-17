@@ -342,14 +342,14 @@ function(build_per_python_lib)
                 COMMAND python${PYVER}-config --extension-suffix
                 OUTPUT_VARIABLE PYTHON_SUFIX)
             # remove newline and the extension
-            string(REPLACE ".so\n" "" PYTHON_SUFIX ${PYTHON_SUFIX})
+            string(REPLACE ".so\n" "" PYTHON_SUFIX "${PYTHON_SUFIX}")
 
             execute_process(
                 COMMAND python${PYVER}-config --includes
                 OUTPUT_VARIABLE PYTHON_INCLUDES)
             # split and make it a list
-            string(REPLACE "-I" "" PYTHON_INCLUDES ${PYTHON_INCLUDES})
-            string(REPLACE "\n" "" PYTHON_INCLUDES ${PYTHON_INCLUDES})
+            string(REPLACE "-I" "" PYTHON_INCLUDES "${PYTHON_INCLUDES}")
+            string(REPLACE "\n" "" PYTHON_INCLUDES "${PYTHON_INCLUDES}")
             separate_arguments(PYTHON_INCLUDES)
 
             add_library(${PYTHON_LIB_TARGET_FOR_PYVER} SHARED)

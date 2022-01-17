@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
 
 # custom wrappers around ops
 from nvidia.dali import backend as _b
+from nvidia.dali import tensors as _tensors
+from nvidia.dali import types as _types
 from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs, SampleRange as _SampleRange
 import nvidia.dali.types
 from nvidia.dali._utils.external_source_impl import \
@@ -51,6 +53,54 @@ def _check_data_batch(data, batch_size, layout):
                     raise RuntimeError("All tensors in a batch must have the same number of dimensions")
         if layout is not None and layout != "" and dim != len(layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
+
+
+def _prep_data_for_feed_input(data, batch_size, layout):
+    def to_numpy(x):
+        if _types._is_mxnet_array(x):
+            return x.asnumpy()
+        elif _types._is_torch_tensor(x):
+            return x.numpy()
+        else:
+            return x
+
+    # __cuda_array_interface__ doesn't provide any way to pass the information about the device
+    # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
+    # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
+    if isinstance(data, (_tensors.TensorListCPU, _tensors.TensorListGPU)):
+        if layout is not None:
+            _check_data_batch(data, batch_size, layout)
+            data = type(data)(data, layout)
+    elif isinstance(data, list):
+        inputs = []
+        checked = False
+        for datum in data:
+            info = _b.CheckDLPackCapsule(datum)
+            if not info[0] and not checked:
+                _check_data_batch(data, batch_size, layout)
+                checked = True
+            if isinstance(datum, (_tensors.TensorCPU, _tensors.TensorGPU)):
+                inp = type(datum)(datum, layout=layout) if layout is not None else datum
+            elif hasattr(datum, "__cuda_array_interface__") or (info[0] and info[1]):
+                inp = _tensors.TensorGPU(datum, layout or "")
+            else:
+                datum = to_numpy(datum)
+                inp = _tensors.TensorCPU(datum, layout or "")
+            inputs.append(inp)
+        assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
+            "Mixed input types are not support, all need to reside on the CPU or GPU"
+        data = inputs
+    else:
+        info = _b.CheckDLPackCapsule(data)
+        if not info[0]:
+            _check_data_batch(data, batch_size, layout)
+        if hasattr(data, "__cuda_array_interface__") or (info[0] and info[1]):
+            data = _tensors.TensorListGPU(data, layout or "")
+        else:
+            data = to_numpy(data)
+            data = _tensors.TensorListCPU(data, layout or "")
+    return data
+
 
 class _ExternalDataBatch:
     def __init__(self, group, pipeline, data, batch_size):
@@ -184,11 +234,11 @@ class _ExternalSourceGroup(object):
                 else:
                     # extract a single output
                     data = [callback_out[i][op._output_index] for i in range(batch_size)]
-                pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
+                pipeline._feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
         else:
             data = callback_out
             op = self.instances[0]
-            pipeline.feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
+            pipeline._feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
 
 
 class ExternalSource():
@@ -291,6 +341,15 @@ Keyword Args
     output. If the list has fewer than ``num_outputs`` elements, only the first
     outputs have the layout set, the rest of the outputs don't have a layout set.
 
+`dtype` : `nvidia.dali.types.DALIDataType` or list/tuple thereof, optional
+    Input data type.
+
+    The operator will validate that the fetched data is of the provided type.
+    If the argument is omitted or :const:`DALIDataType.NO_TYPE` is passed, the operator will infer
+    the type from the provided data.
+
+    This argument will be required starting from DALI 2.0.
+
 `cuda_stream` : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``, such as ``cupy.cuda.Stream`` or ``torch.cuda.Stream``
     The CUDA stream is used to copy data to the GPU or from a GPU source.
 
@@ -385,20 +444,21 @@ Keyword Args
 """
 
     def __init__(
-            self, source=None, num_outputs=None, *, cycle=None, layout=None, name=None,
+            self, source=None, num_outputs=None, *, cycle=None, layout=None, dtype=None, name=None,
             device="cpu", cuda_stream=None, use_copy_kernel=None, batch=None, parallel=None,
             no_copy=None, prefetch_queue_depth=None, batch_info=None, **kwargs):
         self._schema = _b.GetSchema("ExternalSource")
         self._spec = _b.OpSpec("ExternalSource")
         self._device = device
         self._layout = layout
+        self._dtype = dtype
         self._cuda_stream = cuda_stream
         self._use_copy_kernel = use_copy_kernel
 
         import nvidia.dali.ops
         kwargs, self._call_args = nvidia.dali.ops._separate_kwargs(kwargs)
 
-        callback, source_desc = _get_callback_from_source(source, cycle)
+        callback, source_desc = _get_callback_from_source(source, cycle, batch_info or False)
 
         if name is not None and num_outputs is not None:
             raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
@@ -434,11 +494,17 @@ Keyword Args
         return False
 
     def __call__(
-            self, *, source=None, cycle=None, name=None, layout=None, cuda_stream=None,
+            self, *, source=None, cycle=None, name=None, layout=None, dtype=None, cuda_stream=None,
             use_copy_kernel=None, batch=None, parallel=None, no_copy=None,
             prefetch_queue_depth=None, batch_info=None, **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
+
+        if batch_info is None:
+            batch_info = self._batch_info or False
+        elif self._batch_info is not None:
+            raise ValueError(
+                "The argument ``batch_info`` already specified in constructor.")
 
         if source is None:
             if cycle is not None:
@@ -454,7 +520,7 @@ Keyword Args
         else:
             if self._callback is not None:
                 raise RuntimeError("``source`` already specified in constructor.")
-            callback, source_desc = _get_callback_from_source(source, cycle)
+            callback, source_desc = _get_callback_from_source(source, cycle, self._batch_info)
 
             # Keep the metadata for Pipeline inspection
             self._source_desc = source_desc
@@ -478,12 +544,6 @@ Keyword Args
         elif self._prefetch_queue_depth is not None:
             raise ValueError(
                 "The argument ``prefetch_queue_depth`` already specified in constructor.")
-
-        if batch_info is None:
-            batch_info = self._batch_info or False
-        elif self._batch_info is not None:
-            raise ValueError(
-                "The argument ``batch_info`` already specified in constructor.")
 
         if no_copy is None:
             no_copy = self._no_copy
@@ -525,6 +585,12 @@ Keyword Args
             else:
                 layout = self._layout
 
+        if self._dtype is not None:
+            if dtype is not None:
+                raise RuntimeError("``dtype`` already specified in constructor.")
+            else:
+                dtype = self._dtype
+
         if self._cuda_stream is not None:
             if cuda_stream is not None:
                 raise RuntimeError("``cuda_stream`` already specified in constructor.")
@@ -559,6 +625,11 @@ Keyword Args
             kwargs = {"no_copy": no_copy}
             group = _ExternalSourceGroup(callback, source_desc, True, **group_common_kwargs)
             for i in range(self._num_outputs):
+                if dtype is not None:
+                    if isinstance(dtype, (list, tuple)):
+                        kwargs['dtype'] = dtype[i] if i < len(dtype) else nvidia.dali.types.DALIDataType.NO_TYPE
+                    else:
+                        kwargs['dtype'] = dtype
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
                 op_instance._output_index = i
@@ -570,6 +641,7 @@ Keyword Args
                         op_instance._layout = layout
                 else:
                     op_instance._layout = None
+
                 op_instance._batch = batch
 
                 group.append(op_instance)
@@ -582,6 +654,8 @@ Keyword Args
                 kwargs["name"] = name
             if no_copy is not None:
                 kwargs["no_copy"] = no_copy
+            if dtype is not None:
+                kwargs['dtype'] = dtype
             op_instance = _OperatorInstance([], self, **kwargs)
             op_instance._callback = callback
             op_instance._output_index = None
@@ -614,8 +688,8 @@ def _has_external_source(pipeline):
     return False
 
 
-def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None,
-                    cuda_stream = None, use_copy_kernel = None, batch = True, **kwargs):
+def external_source(source=None, num_outputs=None, *, cycle=None, name=None, device="cpu", layout=None,
+                    dtype=None, cuda_stream=None, use_copy_kernel=None, batch=True, **kwargs):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.
@@ -635,18 +709,32 @@ provided memory is copied to the internal buffer.
     which is more performant.
     """
 
-    if batch is None:
-        batch = True
+    from nvidia.dali._debug_mode import _PipelineDebug
 
-    if num_outputs is not None:
-        if source is None:
-            raise ValueError("The parameter ``num_outputs`` is only valid when using ``source`` to "
-                "provide data. To feed multiple external sources in ``feed_input``, use multiple "
-                "``external_source`` nodes.")
+    def _external_source(source=None, num_outputs=None, *, cycle=None, name=None, device="cpu", layout=None,
+                         dtype=None, cuda_stream=None, use_copy_kernel=None, batch=True, **kwargs):
+        if batch is None:
+            batch = True
 
-    op = ExternalSource(device = device, num_outputs = num_outputs, source = source,
-                        cycle = cycle, layout = layout, cuda_stream = cuda_stream,
-                        use_copy_kernel = use_copy_kernel, batch = batch, **kwargs)
-    return op(name = name)
+        if num_outputs is not None:
+            if source is None:
+                raise ValueError("The parameter ``num_outputs`` is only valid when using ``source`` to "
+                    "provide data. To feed multiple external sources in ``feed_input``, use multiple "
+                    "``external_source`` nodes.")
+
+        op = ExternalSource(device=device, num_outputs=num_outputs, source=source,
+                            cycle=cycle, layout=layout, dtype=dtype, cuda_stream=cuda_stream,
+                            use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
+        return op(name = name)
+
+    # Wrapper around external_source to switch between standard and debug mode.
+    current_pipeline = _PipelineDebug.current()
+    if getattr(current_pipeline, '_debug_on', False):
+        return current_pipeline._external_source(source=source, num_outputs=num_outputs, cycle=cycle, name=name,
+                                                 layout=layout, batch=batch, **kwargs)
+    else:
+        return _external_source(source, num_outputs, cycle=cycle, name=name, device=device, layout=layout, dtype=dtype,
+                                cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
+
 
 external_source.__doc__ += ExternalSource._args_doc
