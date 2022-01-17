@@ -37,13 +37,10 @@ class DLL_PUBLIC AccessOrder {
   AccessOrder(int) = delete;  // NOLINT  prevent construction from 0
   AccessOrder(std::nullptr_t) = delete;  // NOLINT
 
-  constexpr AccessOrder(cudaStream_t stream) : stream_(stream) {  // NOLINT
-    if (is_device())
-      device_id_ = DeviceFromStream(stream);
-  }
+  AccessOrder(cudaStream_t stream);  // NOLINT
 
   static constexpr AccessOrder host() {
-    return AccessOrder(host_sync_stream());
+    return AccessOrder(host_sync_stream(), -1);
   }
 
   /**

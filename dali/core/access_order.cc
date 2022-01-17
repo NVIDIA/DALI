@@ -13,9 +13,16 @@
 // limitations under the License.
 
 #include "dali/core/access_order.h"
+#include "dali/core/cuda_error.h"
+#include "dali/core/cuda_stream.h"
 #include "dali/core/cuda_event_pool.h"
 
 namespace dali {
+
+AccessOrder::AccessOrder(cudaStream_t stream) : stream_(stream) {
+  if (is_device())
+    device_id_ = DeviceFromStream(stream);
+}
 
 void AccessOrder::wait(const AccessOrder &other) const {
   if (*this == other)
