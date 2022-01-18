@@ -9,8 +9,8 @@ Fields in the Checklist section can be marked after you create and save the Pull
 --->
 
 
-## This PR is a:
-<!--- Please pick one from below. Just uncomment what fits most. --->
+## Category:
+<!--- Please pick one from below: --->
 <!--- **Bug fix** (*non-breaking change which fixes an issue*) --->
 <!--- **New feature** (*non-breaking change which adds functionality*) --->
 <!--- **Breaking change** (*fix or feature that would cause existing functionality to not work as expected*) --->
@@ -19,7 +19,7 @@ Fields in the Checklist section can be marked after you create and save the Pull
 
 
 
-## What happened in this PR?
+## Description:
 <!---
 Please explain what kind of change is in this PR and why it is submitted.
 Any additional context or description of the solution is welcomed.
