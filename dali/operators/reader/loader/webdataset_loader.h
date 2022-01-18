@@ -20,6 +20,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 #include "dali/core/bitmask.h"
@@ -31,7 +32,8 @@ namespace dali {
 namespace detail {
 namespace wds {
 
-constexpr char kCurrentIndexVersion[] = "v1.1";
+const std::string kCurrentIndexVersion = "v1.2";  // NOLINT
+const std::unordered_set<std::string> kSupportedIndexVersions = {"v1.1", kCurrentIndexVersion};
 constexpr char kExtDelim = ';';
 const std::set<DALIDataType> kSupportedTypes = {DALI_UINT8,   DALI_UINT16, DALI_UINT32, DALI_UINT64,
                                                 DALI_INT8,    DALI_INT16,  DALI_INT32,  DALI_INT64,
@@ -67,14 +69,12 @@ class VectorRange {
 };
 
 struct ComponentDesc {
-  std::string ext;
+  std::string filename, ext;
   size_t size = 0;
   int64_t offset = 0;
   VectorRange<size_t> outputs;
 
   ComponentDesc() = default;
-  ComponentDesc(std::string new_ext, size_t new_size, int64_t new_offset)
-      : ext(std::move(new_ext)), size(new_size), offset(new_offset) {}
 };
 
 struct SampleDesc {
