@@ -122,6 +122,8 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout("HWC");  // Channels represent the two flow vector components (x and y)
 
+  auto input_sh = input.shape();
+
   if (enable_external_hints_) {
     const auto &hints = ws.Input<GPUBackend>(1);
 
@@ -142,6 +144,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
         auto h = subtensor(hints_tv, i);
         auto out = subtensor(output_tv, i - 1);
 
+        optical_flow_->Prepare(input_sh[sequence_idx][2], input_sh[sequence_idx][1]);
         optical_flow_->CalcOpticalFlow(ref, in, out, h);
       }
     }
@@ -159,6 +162,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
         auto in = subtensor(sequence_tv, i);
         auto out = subtensor(output_tv, i - 1);
 
+        optical_flow_->Prepare(input_sh[sequence_idx][2], input_sh[sequence_idx][1]);
         optical_flow_->CalcOpticalFlow(ref, in, out);
       }
     }

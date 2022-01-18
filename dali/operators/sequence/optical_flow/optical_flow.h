@@ -106,9 +106,9 @@ class OpticalFlow : public Operator<Backend> {
       }
     #endif
 
-    auto input_sh = input.shape();
-    of_lazy_init(input_sh[0][2], input_sh[0][1], depth_, image_type_, device_id_, of_stream);
+    of_lazy_init(depth_, image_type_, device_id_, of_stream);
 
+    auto input_sh = input.shape();
     TensorListShape<> new_sizes(nsequences_, 4);
     for (int i = 0; i < nsequences_; i++) {
       auto out_shape = optical_flow_->CalcOutputShape(input_sh[i][1], input_sh[i][2]);
@@ -130,14 +130,12 @@ class OpticalFlow : public Operator<Backend> {
   /**
    * Optical flow lazy initialization
    */
-  void of_lazy_init(size_t width, size_t height, size_t channels, DALIImageType image_type,
+  void of_lazy_init(size_t channels, DALIImageType image_type,
                     int device_id, cudaStream_t stream) {
     std::call_once(of_initialized_,
                    [&]() {
                        optical_flow_.reset(
                                new optical_flow::OpticalFlowImpl(of_params_,
-                                                                 width,
-                                                                 height,
                                                                  channels,
                                                                  image_type,
                                                                  device_id,

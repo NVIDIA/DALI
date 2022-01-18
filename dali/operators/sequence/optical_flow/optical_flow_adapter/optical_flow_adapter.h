@@ -44,6 +44,11 @@ class DLL_PUBLIC OpticalFlowAdapter {
 
 
   /**
+   * Reconfigures Optical Flow HW for new frame dimensions if necessary
+   */
+  virtual void Prepare(size_t width, size_t height) = 0;
+
+  /**
    * Return shape of output tensor for given OpticalFlow class given height and width
    */
   virtual TensorShape<DynamicDimensions> CalcOutputShape(int height, int width) = 0;

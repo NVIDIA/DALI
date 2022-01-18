@@ -34,6 +34,7 @@ class DLL_PUBLIC OpticalFlowStub : public OpticalFlowAdapter<ComputeBackend> {
   explicit OpticalFlowStub(OpticalFlowParams params) :
           OpticalFlowAdapter<ComputeBackend>(params) {}
 
+  void Prepare(size_t /*width*/, size_t /*height*/) override {}
 
   TensorShape<DynamicDimensions> CalcOutputShape(int /*height*/, int /*width*/) override {
     return {2, 3, 4};

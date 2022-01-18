@@ -110,7 +110,7 @@ inline __host__ __device__ int16_t encode_flow_component(float value) {
 
 class DLL_PUBLIC OpticalFlowImpl : public OpticalFlowAdapter<ComputeGPU> {
  public:
-  OpticalFlowImpl(OpticalFlowParams params, size_t width, size_t height, size_t channels,
+  OpticalFlowImpl(OpticalFlowParams params, size_t channels,
                   DALIImageType image_type, int device_id_, cudaStream_t stream = 0);
 
   void Prepare(size_t width, size_t height);
@@ -138,7 +138,10 @@ class DLL_PUBLIC OpticalFlowImpl : public OpticalFlowAdapter<ComputeGPU> {
   void SetInitParams(OpticalFlowParams api_params);
 
   void CreateBuffers();
+  void DestroyBuffers();
 
+  void CreateOf();
+  void DestroyOf();
 
   NV_OF_EXECUTE_INPUT_PARAMS
   GenerateExecuteInParams(NvOFGPUBufferHandle in_handle, NvOFGPUBufferHandle ref_handle,

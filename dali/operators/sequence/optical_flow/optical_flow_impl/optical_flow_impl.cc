@@ -63,10 +63,10 @@ void IsSizeSupported(std::vector<uint32_t> &caps_min, std::vector<uint32_t> &cap
                " should be between ", caps_min[0], " and ", caps_max[0]));
 }
 
-OpticalFlowImpl::OpticalFlowImpl(dali::optical_flow::OpticalFlowParams params, size_t width,
-                                 size_t height, size_t channels, DALIImageType image_type,
+OpticalFlowImpl::OpticalFlowImpl(dali::optical_flow::OpticalFlowParams params,
+                                 size_t channels, DALIImageType image_type,
                                  int device_id, cudaStream_t stream) :
-        OpticalFlowAdapter<ComputeGPU>(params), width_(width), height_(height),
+        OpticalFlowAdapter<ComputeGPU>(params),
         channels_(channels), out_grid_size_(params.out_grid_size),
         hint_grid_size_(params.hint_grid_size), device_id_(device_id),
         context_(), stream_(stream), image_type_(image_type) {
@@ -81,13 +81,7 @@ OpticalFlowImpl::OpticalFlowImpl(dali::optical_flow::OpticalFlowParams params, s
   SetInitParams(params);
   DeviceGuard g(device_id_);
   CUDA_CALL(cuCtxGetCurrent(&context_));
-  {
-    auto ret = of_inst_.nvCreateOpticalFlowCuda(context_, &of_handle_);
-    if (ret != NV_OF_SUCCESS) {
-      throw unsupported_exception(
-          "Failed to create Optical Flow context: Verify that your device supports Optical Flow.");
-    }
-  }
+  CreateOf();
   auto grid_sizes = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_,
                                     NV_OF_CAPS_SUPPORTED_HINT_GRID_SIZES);
   IsGridSupported(grid_sizes, out_grid_size_, "Output");
@@ -96,18 +90,9 @@ OpticalFlowImpl::OpticalFlowImpl(dali::optical_flow::OpticalFlowParams params, s
                                     NV_OF_CAPS_SUPPORTED_HINT_GRID_SIZES);
   IsGridSupported(hint_sizes, hint_grid_size_, "Hint");
 
-  width_min_ = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_WIDTH_MIN);
-  height_min_ = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_HEIGHT_MIN);
-  width_max_ = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_WIDTH_MAX);
-  height_max_ = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_HEIGHT_MAX);
-  IsSizeSupported(width_min_, width_max_, width_, "Width");
-  IsSizeSupported(height_min_, height_max_, height_, "Height");
-
-  CUDA_CALL(of_inst_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
+  init_params_.width = 1;
+  init_params_.height = 1;
   auto status = VerifySupport(of_inst_.nvOFInit(of_handle_, &init_params_));
-  CUDA_CALL(status);
-
-  CreateBuffers();
 }
 
 void OpticalFlowImpl::CreateBuffers() {
@@ -129,6 +114,15 @@ void OpticalFlowImpl::CreateBuffers() {
   }
 }
 
+void OpticalFlowImpl::DestroyBuffers() {
+  inbuf_.reset(nullptr);
+  refbuf_.reset(nullptr);
+  outbuf_.reset(nullptr);
+  if (of_params_.enable_external_hints) {
+    hintsbuf_.reset(nullptr);
+  }
+}
+
 void OpticalFlowImpl::Prepare(size_t width, size_t height) {
   if (width == width_ && height == height_)
     return;
@@ -144,29 +138,44 @@ void OpticalFlowImpl::Prepare(size_t width, size_t height) {
   init_params_.width = static_cast<uint32_t>(width_);
   init_params_.height = static_cast<uint32_t>(height_);
 
+  // recreate OF instance
+  DestroyBuffers();
+  DestroyOf();
+  CreateOf();
+
   auto status = VerifySupport(of_inst_.nvOFInit(of_handle_, &init_params_));
   CUDA_CALL(status);
 
   CreateBuffers();
 }
 
-OpticalFlowImpl::~OpticalFlowImpl() {
-  inbuf_.reset(nullptr);
-  refbuf_.reset(nullptr);
-  outbuf_.reset(nullptr);
-  if (of_params_.enable_external_hints) {
-    hintsbuf_.reset(nullptr);
-  }
-  auto err = of_inst_.nvOFDestroy(of_handle_);
-  // unload lib no matter if it was successful
-  if (err != NV_OF_SUCCESS) {
-    // Failing to destroy OF leads to significant GPU resource leak,
-    // so we'd rather terminate than live with this
-    std::cerr << "Fatal error: failed to destroy optical flow" << std::endl;
-    std::terminate();
+void OpticalFlowImpl::CreateOf() {
+  DeviceGuard g(device_id_);
+  auto ret = of_inst_.nvCreateOpticalFlowCuda(context_, &of_handle_);
+  if (ret != NV_OF_SUCCESS) {
+    throw unsupported_exception(
+        "Failed to create Optical Flow context: Verify that your device supports Optical Flow.");
   }
 }
 
+void OpticalFlowImpl::DestroyOf() {
+  if (of_handle_) {
+    auto err = of_inst_.nvOFDestroy(of_handle_);
+    // unload lib no matter if it was successful
+    if (err != NV_OF_SUCCESS) {
+      // Failing to destroy OF leads to significant GPU resource leak,
+      // so we'd rather terminate than live with this
+      std::cerr << "Fatal error: failed to destroy optical flow" << std::endl;
+      std::terminate();
+    }
+  }
+  of_handle_ = nullptr;
+}
+
+OpticalFlowImpl::~OpticalFlowImpl() {
+  DestroyBuffers();
+  DestroyOf();
+}
 
 using dali::TensorView;
 using dali::StorageGPU;

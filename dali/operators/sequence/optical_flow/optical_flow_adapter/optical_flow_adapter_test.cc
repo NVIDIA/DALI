@@ -35,6 +35,7 @@ TEST(OpticalFlowAdapter, StubApiCpuBackend) {
   EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeCPU>::kStubValue / 2, *tvout(0, 0, 1));
   auto ts = of->CalcOutputShape(1, 1);
   TensorShape<3> ref_ts{2, 3, 4};
+  of->Prepare(1, 1);
   EXPECT_EQ(ref_ts, ts);
 }
 
@@ -61,6 +62,7 @@ TEST(OpticalFlowAdapter, StubApiGpuBackend) {
 
   auto ts = of->CalcOutputShape(1, 1);
   TensorShape<3> ref_ts{2, 3, 4};
+  of->Prepare(1, 1);
   EXPECT_EQ(ref_ts, ts);
 }
 
