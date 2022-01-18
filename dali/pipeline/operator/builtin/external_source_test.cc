@@ -150,7 +150,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     CUDA_CALL(cudaStreamSynchronize(0));
     ExtSrcSettingMode settings = {};
     settings.sync = true;
-    src_op->SetDataSource(vt_gpu_, 0, settings);
+    src_op->SetDataSource(vt_gpu_, {}, settings);
   }
 
   template<typename Backend>
@@ -165,7 +165,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
         ++fill_counter_;
       }
     }
-    src_op->SetDataSource(tl_cpu_);
+    src_op->SetDataSource(tl_cpu_, {});
   }
 
   template<typename Backend>
@@ -185,7 +185,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     CUDA_CALL(cudaStreamSynchronize(0));
     ExtSrcSettingMode settings = {};
     settings.sync = true;
-    src_op->SetDataSource(tl_gpu_, 0, settings);
+    src_op->SetDataSource(tl_gpu_, {}, settings);
   }
 
   void RunExe() {
