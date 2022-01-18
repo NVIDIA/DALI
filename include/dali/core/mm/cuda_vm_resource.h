@@ -757,18 +757,6 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
   }
 };
 
-class cuda_vm_resource : public deferred_dealloc_resource<cuda_vm_resource_base> {
- public:
-  using base = deferred_dealloc_resource<cuda_vm_resource_base>;
-
-  explicit cuda_vm_resource(int device_ordinal = -1,
-                            size_t block_size = 0,
-                            size_t initial_va_size = size_t(4) << 30)
-  : base(device_ordinal, block_size, initial_va_size) {
-    defer_dealloc_ = true;
-  }
-};
-
 }  // namespace mm
 }  // namespace dali
 

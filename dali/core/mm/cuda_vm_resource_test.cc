@@ -215,7 +215,7 @@ class VMResourceTest : public ::testing::Test {
     CUDA_CALL(cuMemGetInfo(&free, &total));
     size_t va_size = next_pow2(total * 3 / 2);
     size_t attempted_alloc = total - block_size;
-    cuda_vm_resource_base res(-1, block_size, va_size);
+    cuda_vm_resource res(-1, block_size, va_size);
     size_t size1 = 4*block_size + (4<<20);  // ends past 4 blocks
     size_t size2 = 2*block_size - (8<<20);  // ends before 6 blocks
     size_t size3 = size1;

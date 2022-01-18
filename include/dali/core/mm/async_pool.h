@@ -68,7 +68,6 @@ class async_pool_resource : public async_memory_resource<Kind> {
   ~async_pool_resource() {
     try {
       synchronize();
-      global_pool_.flush_deferred();
     } catch (const CUDAError &e) {
       if (!e.is_unloading())
         std::terminate();
