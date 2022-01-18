@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,7 +41,8 @@ class Paste : public Operator<Backend> {
     DALI_ENFORCE(C_ <= 1024, "n_channels of more than 1024 is not supported");
     std::vector<uint8> rgb;
     GetSingleOrRepeatedArg(spec, rgb, "fill_value", C_);
-    fill_value_.Copy(rgb, 0);
+    fill_value_.set_order(cudaStream_t(0));
+    fill_value_.Copy(rgb);
 
     input_ptrs_.reserve(max_batch_size_ * sizeof(uint8_t *));
     output_ptrs_.reserve(max_batch_size_ * sizeof(uint8_t *));

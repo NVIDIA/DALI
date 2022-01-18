@@ -1242,14 +1242,14 @@ py::dict ExecutorMetaToDict(const ExecutorMetaMap &meta) {
 }
 
 template <typename Backend>
-void FeedPipeline(Pipeline *p, const string &name, py::list list, cudaStream_t stream,
+void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder order,
                   bool sync = false, bool use_copy_kernel = false) {
   TensorVector<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
     auto &t = list[i].cast<Tensor<Backend>&>();
     tv[i] = std::move(t);
   }
-  p->SetExternalInput(name, tv, stream, sync, use_copy_kernel);
+  p->SetExternalInput(name, tv, order, sync, use_copy_kernel);
 }
 
 PYBIND11_MODULE(backend_impl, m) {
@@ -1538,7 +1538,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
            py::object /*cuda_stream*/, bool /*use_copy_kernel*/) {
-          p->SetExternalInput(name, tl, 0, true);
+          p->SetExternalInput(name, tl, {}, true);
         },
         "name"_a,
         "list"_a,
@@ -1574,7 +1574,7 @@ PYBIND11_MODULE(backend_impl, m) {
           py::detail::make_caster<Tensor<CPUBackend>&> conv;
           bool is_cpu_data = conv.load(static_cast<py::object>(list[0]), true);
           if (is_cpu_data) {
-            FeedPipeline<CPUBackend>(p, name, list, 0, true);
+            FeedPipeline<CPUBackend>(p, name, list, AccessOrder::host(), true);
           } else {
             cudaStream_t stream = cuda_stream.is_none()
                                 ? UserStream::Get()->GetStream(list[0].cast<Tensor<GPUBackend>&>())

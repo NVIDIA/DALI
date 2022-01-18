@@ -308,9 +308,9 @@ class DALISingleOpTest : public DALITest {
       auto idx = output_indices[i];
       if (output_device == "gpu") {
         // copy to host
-        calc_output->Copy(ws->Output<GPUBackend>(idx), nullptr);
+        calc_output->Copy(ws->Output<GPUBackend>(idx));
       } else {
-        calc_output->Copy(ws->Output<CPUBackend>(idx), nullptr);
+        calc_output->Copy(ws->Output<CPUBackend>(idx));
       }
 
       auto& ref_output = res[i];
@@ -465,14 +465,14 @@ class DALISingleOpTest : public DALITest {
     // copy to host
     vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;
     outputs.push_back(std::make_shared<TensorList<CPUBackend>>());
-    outputs[0]->Copy(calcOutput, 0);
+    outputs[0]->Copy(calcOutput);
     return outputs;
   }
 
   template <typename T>
   std::shared_ptr<TensorList<CPUBackend>> CopyTensorListToHost(const TensorList<T> &calcOutput) {
     auto output = std::make_shared<TensorList<CPUBackend>>();
-    output->Copy(calcOutput, 0);
+    output->Copy(calcOutput);
 
     return output;
   }

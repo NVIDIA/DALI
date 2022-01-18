@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,12 +22,13 @@ namespace dali {
 
 CUDAStreamPool::~CUDAStreamPool() {
   Purge();
-  assert(lease_count_ == 0);
 }
 
 CUDAStreamPool::CUDAStreamPool() {
   int num_devices = 0;
-  CUDA_CALL(cudaGetDeviceCount(&num_devices));
+  auto e = cudaGetDeviceCount(&num_devices);
+  if (e != cudaSuccess && e != cudaErrorNoDevice && e != cudaErrorInsufficientDriver)
+    throw CUDAError(e);
   dev_streams_.resize(num_devices);
 }
 

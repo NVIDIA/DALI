@@ -140,7 +140,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     } else {
       const auto &in_tensor = input[sample_idx];
       auto &out_tensor = output[sample_idx];
-      out_tensor.Copy(in_tensor, 0);
+      out_tensor.Copy(in_tensor);
     }
   }
 

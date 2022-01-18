@@ -28,7 +28,7 @@ void VideoReaderDecoderCpu::RunImpl(SampleWorkspace &ws) {
   const auto &sample = GetSample(ws.data_idx());
   auto &video_output = ws.Output<CPUBackend>(0);
 
-  video_output.Copy(sample.data_, 0);
+  video_output.Copy(sample.data_);
 
   if (has_labels_) {
     auto &label_output = ws.Output<CPUBackend>(1);
