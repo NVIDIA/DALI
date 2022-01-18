@@ -618,8 +618,8 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
       }
 
       tv[i].ShareData(t);
-    } catch (const py::type_error &e) {
-      throw e;
+    } catch (const py::type_error &) {
+      throw;
     } catch (const std::runtime_error &) {
       throw py::type_error(make_string("Object at position ", i, " cannot be converted to Tensor",
                                        std::is_same<Backend, GPUBackend>::value ? "GPU." : "CPU."));
