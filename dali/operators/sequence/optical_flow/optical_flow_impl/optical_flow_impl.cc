@@ -67,8 +67,9 @@ OpticalFlowImpl::OpticalFlowImpl(dali::optical_flow::OpticalFlowParams params, s
                                  size_t height, size_t channels, DALIImageType image_type,
                                  int device_id, cudaStream_t stream) :
         OpticalFlowAdapter<ComputeGPU>(params), width_(width), height_(height),
-        channels_(channels), device_id_(device_id), context_(), stream_(stream),
-        image_type_(image_type) {
+        channels_(channels), out_grid_size_(params.out_grid_size),
+        hint_grid_size_(params.hint_grid_size), device_id_(device_id),
+        context_(), stream_(stream), image_type_(image_type) {
   DALI_ENFORCE(channels_ == 1 || channels_ == 3 || channels_ == 4);
   DALI_ENFORCE(cuInitChecked(), "Failed to initialize driver");
 
@@ -89,23 +90,27 @@ OpticalFlowImpl::OpticalFlowImpl(dali::optical_flow::OpticalFlowParams params, s
   }
   auto grid_sizes = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_,
                                     NV_OF_CAPS_SUPPORTED_HINT_GRID_SIZES);
-  IsGridSupported(grid_sizes, params.out_grid_size, "Output");
+  IsGridSupported(grid_sizes, out_grid_size_, "Output");
 
   auto hint_sizes = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_,
                                     NV_OF_CAPS_SUPPORTED_HINT_GRID_SIZES);
-  IsGridSupported(hint_sizes, params.hint_grid_size, "Hint");
+  IsGridSupported(hint_sizes, hint_grid_size_, "Hint");
 
-  auto width_min = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_WIDTH_MIN);
-  auto height_min = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_HEIGHT_MIN);
-  auto width_max = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_WIDTH_MAX);
-  auto height_max = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_HEIGHT_MAX);
-  IsSizeSupported(width_min, width_max, width_, "Width");
-  IsSizeSupported(height_min, height_max, height_, "Height");
+  width_min_ = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_WIDTH_MIN);
+  height_min_ = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_HEIGHT_MIN);
+  width_max_ = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_WIDTH_MAX);
+  height_max_ = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_HEIGHT_MAX);
+  IsSizeSupported(width_min_, width_max_, width_, "Width");
+  IsSizeSupported(height_min_, height_max_, height_, "Height");
 
   CUDA_CALL(of_inst_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
   auto status = VerifySupport(of_inst_.nvOFInit(of_handle_, &init_params_));
   CUDA_CALL(status);
 
+  CreateBuffers();
+}
+
+void OpticalFlowImpl::CreateBuffers() {
   inbuf_.reset(
           new OpticalFlowBuffer(of_handle_, width_, height_, of_inst_, NV_OF_BUFFER_USAGE_INPUT,
                                 NV_OF_BUFFER_FORMAT_ABGR8));
@@ -113,17 +118,37 @@ OpticalFlowImpl::OpticalFlowImpl(dali::optical_flow::OpticalFlowParams params, s
           new OpticalFlowBuffer(of_handle_, width_, height_, of_inst_, NV_OF_BUFFER_USAGE_INPUT,
                                 NV_OF_BUFFER_FORMAT_ABGR8));
   outbuf_.reset(
-          new OpticalFlowBuffer(of_handle_, div_ceil(width_, params.out_grid_size),
-                                div_ceil(height_, params.out_grid_size), of_inst_,
+          new OpticalFlowBuffer(of_handle_, div_ceil(width_, out_grid_size_),
+                                div_ceil(height_, out_grid_size_), of_inst_,
                                 NV_OF_BUFFER_USAGE_OUTPUT, NV_OF_BUFFER_FORMAT_SHORT2));
   if (of_params_.enable_external_hints) {
     hintsbuf_.reset(
-            new OpticalFlowBuffer(of_handle_, div_ceil(width_, params.hint_grid_size),
-                                  div_ceil(height_, params.hint_grid_size), of_inst_,
+            new OpticalFlowBuffer(of_handle_, div_ceil(width_, hint_grid_size_),
+                                  div_ceil(height_, hint_grid_size_), of_inst_,
                                   NV_OF_BUFFER_USAGE_HINT, NV_OF_BUFFER_FORMAT_SHORT2));
   }
 }
 
+void OpticalFlowImpl::Prepare(size_t width, size_t height) {
+  if (width == width_ && height == height_)
+    return;
+  if (width == width_) {
+    width_ = width;
+    IsSizeSupported(width_min_, width_max_, width_, "Width");
+  }
+  if (height == height_) {
+    height_ = height;
+    IsSizeSupported(height_min_, height_max_, height_, "Height");
+  }
+
+  init_params_.width = static_cast<uint32_t>(width_);
+  init_params_.height = static_cast<uint32_t>(height_);
+
+  auto status = VerifySupport(of_inst_.nvOFInit(of_handle_, &init_params_));
+  CUDA_CALL(status);
+
+  CreateBuffers();
+}
 
 OpticalFlowImpl::~OpticalFlowImpl() {
   inbuf_.reset(nullptr);
