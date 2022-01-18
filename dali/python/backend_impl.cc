@@ -427,13 +427,13 @@ void ExposeTensor(py::module &m) {
       ptr : ctypes.c_void_p
             Destination of the copy.
       )code")
-    .def("dtype",
-        [](Tensor<CPUBackend> &t) {
-          return FormatStrFromType(t.type());
-        },
-      R"code(
-      String representing NumPy type of the Tensor.
-      )code")
+    // .def("dtype",
+    //     [](Tensor<CPUBackend> &t) {
+    //       return FormatStrFromType(t.type());
+    //     },
+    //   R"code(
+    //   String representing NumPy type of the Tensor.
+    //   )code")
     .def("data_ptr", [](Tensor<CPUBackend> &t) {
           return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
         },
@@ -443,6 +443,14 @@ void ExposeTensor(py::module &m) {
     .def_property("__array_interface__", &ArrayInterfaceRepr<CPUBackend>, nullptr,
       R"code(
       Returns Array Interface representation of TensorCPU.
+      )code")
+    .def_property_readonly("dtype", [](Tensor<CPUBackend> &t) {
+          py::object dtype = py::cast(t.type());
+          setattr(dtype, "__call__", py::cpp_function([&t]() {return FormatStrFromType(t.type()); }));
+          return dtype;
+        },
+      R"code(
+      Datatype of the TensorCPU's elements.
       )code");
   tensor_cpu_binding.doc() = R"code(
       Class representing a Tensor residing in host memory. It can be used to access individual
@@ -549,13 +557,15 @@ void ExposeTensor(py::module &m) {
       non_blocking : bool
             Asynchronous copy.
       )code")
-    .def("dtype",
-        [](Tensor<GPUBackend> &t) {
-          return FormatStrFromType(t.type());
-        },
-      R"code(
-      String representing NumPy type of the Tensor.
-      )code")
+    // .def("dtype",
+    //     [](Tensor<GPUBackend> &t) {
+    //       py::object dtype = py::cast(t.type());
+    //       dtype.attr("__call__") = [&t]() { return FormatStrFromType(t.type()); };
+    //       return dtype;
+    //     },
+    //   R"code(
+    //   String representing NumPy type of the Tensor.
+    //   )code")
     .def("data_ptr",
         [](Tensor<GPUBackend> &t) {
           return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
@@ -566,6 +576,14 @@ void ExposeTensor(py::module &m) {
     .def_property("__cuda_array_interface__",  &ArrayInterfaceRepr<GPUBackend>, nullptr,
       R"code(
       Returns CUDA Array Interface (Version 2) representation of TensorGPU.
+      )code")
+    .def_property_readonly("dtype", [](Tensor<GPUBackend> &t) {
+          py::object dtype = py::cast(t.type());
+          setattr(dtype, "__call__", py::cpp_function([&t]() {return FormatStrFromType(t.type()); }));
+          return dtype;
+        },
+      R"code(
+      Datatype of the TensorGPU's elements.
       )code");
   tensor_gpu_binding.doc() = R"code(
       Class representing a Tensor residing in GPU memory. It can be used to access individual
@@ -884,6 +902,12 @@ void ExposeTensorList(py::module &m) {
         },
       R"code(
       Returns the address of the first element of TensorList.
+      )code")
+    .def_property_readonly("dtype", [](TensorList<CPUBackend> &tl) {
+          return tl.type();
+        },
+      R"code(
+      Datatype of the TensorListCPU's elements.
       )code");
 
   py::class_<TensorList<GPUBackend>, std::shared_ptr<TensorList<GPUBackend>>>(
@@ -1074,6 +1098,12 @@ void ExposeTensorList(py::module &m) {
         },
       R"code(
       Returns the address of the first element of TensorList.
+      )code")
+    .def_property_readonly("dtype", [](TensorList<GPUBackend> &tl) {
+          return tl.type();
+        },
+      R"code(
+      Datatype of the TensorListGPU's elements.
       )code");
 }
 
@@ -1319,7 +1349,7 @@ PYBIND11_MODULE(backend_impl, m) {
   types_m.add_object("CPU_ONLY_DEVICE_ID", PyLong_FromLong(CPU_ONLY_DEVICE_ID));
 
   // DALIDataType
-  py::enum_<DALIDataType>(types_m, "DALIDataType", "Data type of image.\n<SPHINX_IGNORE>")
+  py::enum_<DALIDataType>(types_m, "DALIDataType", "Object representing the data type of Tensor.\n<SPHINX_IGNORE>", py::dynamic_attr())
     .value("NO_TYPE",       DALI_NO_TYPE)
     .value("UINT8",         DALI_UINT8)
     .value("UINT16",        DALI_UINT16)
