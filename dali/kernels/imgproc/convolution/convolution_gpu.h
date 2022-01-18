@@ -32,11 +32,11 @@ namespace kernels {
 
 struct ConvEpilogue {
   ConvEpilogue(span<const float> scales, float beta = 0.f)  // NOLINT
-      : scales_{scales}, scale_{}, beta_{beta} {}
+      : scales_{scales}, scale_{1.f}, beta_{beta} {}
   ConvEpilogue(float scale, float beta = 0.f) : scales_{}, scale_{scale}, beta_{beta} {}  // NOLINT
 
-  inline float num_samples() const {
-    return scales_.empty() ? 1 : scales_.size();
+  inline int num_samples() const {
+    return scales_.size();
   }
 
   inline float alpha(int sample_idx) const {
@@ -126,9 +126,11 @@ struct ConvolutionGpu {
             num_samples,
             ") or no anchors for windows centered by default, got: ", window_anchors.size(), "."));
 
-    DALI_ENFORCE(num_scales == 1 || num_scales == num_samples,
-                 make_string("Scale argument must be either 1 or equal to batch size (",
-                             num_samples, "), got: ", num_scales, "."));
+    DALI_ENFORCE(
+        num_scales == 0 || num_scales == num_samples,
+        make_string(
+            "Scale argument must be either a scalar or a span of length equal to the batch size (",
+            num_samples, "), got: ", num_scales, "."));
 
     auto* window_tmp_buffer_host_ptr =
         ctx.scratchpad->AllocateHost<W>(num_samples * kWindowCopyBufferSize);
