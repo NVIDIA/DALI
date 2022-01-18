@@ -18,7 +18,7 @@ import platform
 import random
 import cv2
 from nvidia.dali.pipeline import pipeline_def
-from nvidia.dali import fn
+from nvidia.dali import fn, types
 from test_utils import get_dali_extra_path
 from nose_utils import raises, assert_raises
 
@@ -76,14 +76,11 @@ def get_mapping(shape):
 
     return xy, ofs
 
-smaller = False
-def load_frames(hint_grid=None):
+def load_frames(sample_info=types.SampleInfo(0, 0, 0, 0), hint_grid=None):
     img = cv2.imread(os.path.join(images_dir, 'alley.png'))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    global smaller
-    if smaller:
+    if sample_info.idx_in_epoch % 2:
         img = cv2.resize(img, dsize = (img.shape[0]//2, img.shape[1]//2), interpolation = cv2.INTER_AREA)
-    smaller = not smaller
 
     xy, ofs = get_mapping(img.shape[:2])
     remap = (xy + ofs - np.array([[[0.5,0.5]]])).astype(np.float32)
@@ -99,12 +96,12 @@ def load_frames(hint_grid=None):
 @pipeline_def(batch_size=1, seed=16)
 def of_pipeline(output_grid=1, hint_grid=1, use_temporal_hints=False):
     if hint_grid is not None:
-        seq, hint = fn.external_source(lambda: load_frames(hint_grid), layout="DHWC", batch=False, num_outputs=2)
+        seq, hint = fn.external_source(lambda info: load_frames(info, hint_grid), layout="FHWC", batch=False, num_outputs=2)
 
         of = fn.optical_flow(seq.gpu(), hint.gpu(), device="gpu", output_grid=output_grid,
                              hint_grid=hint_grid, enable_temporal_hints=use_temporal_hints)
     else:
-        seq = fn.external_source(lambda: load_frames(hint_grid), layout="DHWC", batch=False)
+        seq = fn.external_source(lambda info: load_frames(info, hint_grid), layout="FHWC", batch=False)
         of = fn.optical_flow(seq.gpu(), device="gpu", output_grid=output_grid,
                              enable_temporal_hints=use_temporal_hints)
     return seq, of
@@ -228,7 +225,8 @@ def flow_to_color(flow_uv, clip_flow=None, convert_to_bgr=False):
 interactive = False
 
 def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
-    pipe = of_pipeline(num_threads=3, device_id=0, output_grid=output_grid,
+    batch_size = 3
+    pipe = of_pipeline(batch_size=batch_size, num_threads=3, device_id=0, output_grid=output_grid,
                        hint_grid=hint_grid, use_temporal_hints=use_temporal_hints)
     pipe.build()
     if get_arch() < 8 and (output_grid != 4 or hint_grid != 4):
@@ -236,23 +234,25 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
 
     for _ in range(2):
         out = pipe.run()
-        seq = out[0].at(0)
-        out_field = out[1].as_cpu().at(0)[0]
-        _, ref_field = get_mapping(seq.shape[1:3])
-        dsize = (out_field.shape[1], out_field.shape[0])
-        ref_field = cv2.resize(ref_field, dsize = dsize, interpolation = cv2.INTER_AREA)
-        if interactive:
-            cv2.imshow("out", flow_to_color(out_field, None, True))
-            cv2.imshow("ref", flow_to_color(ref_field, None, True))
-            print(np.max(out_field))
-            print(np.max(ref_field))
-            cv2.imshow("dif", flow_to_color(ref_field - out_field, None, True))
-            cv2.waitKey(0)
-        err = np.linalg.norm(ref_field-out_field, ord=2, axis=2)
-        assert(np.mean(err) < 1)   # average error of less than one pixel
-        assert(np.max(err) < 100)  # no point more than 100px off
-        assert(np.sum(err > 1) / np.prod(err.shape) < 0.1)  # 90% are within 1px
-        assert(np.sum(err > 2) / np.prod(err.shape) < 0.05)  # 95% are within 2px
+        for i in range(batch_size):
+            seq = out[0].at(i)
+            print(seq.shape)
+            out_field = out[1].as_cpu().at(i)[0]
+            _, ref_field = get_mapping(seq.shape[1:3])
+            dsize = (out_field.shape[1], out_field.shape[0])
+            ref_field = cv2.resize(ref_field, dsize = dsize, interpolation = cv2.INTER_AREA)
+            if interactive:
+                cv2.imshow("out", flow_to_color(out_field, None, True))
+                cv2.imshow("ref", flow_to_color(ref_field, None, True))
+                print(np.max(out_field))
+                print(np.max(ref_field))
+                cv2.imshow("dif", flow_to_color(ref_field - out_field, None, True))
+                cv2.waitKey(0)
+            err = np.linalg.norm(ref_field-out_field, ord=2, axis=2)
+            assert(np.mean(err) < 1)   # average error of less than one pixel
+            assert(np.max(err) < 100)  # no point more than 100px off
+            assert(np.sum(err > 1) / np.prod(err.shape) < 0.1)  # 90% are within 1px
+            assert(np.sum(err > 2) / np.prod(err.shape) < 0.05)  # 95% are within 2px
 
 def test_optflow():
     if not is_of_supported():

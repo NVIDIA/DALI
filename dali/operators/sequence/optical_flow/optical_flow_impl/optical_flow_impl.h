@@ -110,10 +110,10 @@ inline __host__ __device__ int16_t encode_flow_component(float value) {
 
 class DLL_PUBLIC OpticalFlowImpl : public OpticalFlowAdapter<ComputeGPU> {
  public:
-  OpticalFlowImpl(OpticalFlowParams params, size_t channels,
+  OpticalFlowImpl(OpticalFlowParams params, size_t width, size_t height, size_t channels,
                   DALIImageType image_type, int device_id_, cudaStream_t stream = 0);
 
-  void Prepare(size_t width, size_t height);
+  void Prepare(size_t width, size_t height) override;
 
   virtual ~OpticalFlowImpl();
 
@@ -123,7 +123,6 @@ class DLL_PUBLIC OpticalFlowImpl : public OpticalFlowAdapter<ComputeGPU> {
     // There are 2 flow vector components: (x, y)
     return {static_cast<int>(div_ceil(height, sz)),
             static_cast<int>(div_ceil(width, sz)), 2};
-    // return {static_cast<int>(height_ + sz - 1) / sz, static_cast<int>(width_ + sz - 1) / sz, 2};
   }
 
 
