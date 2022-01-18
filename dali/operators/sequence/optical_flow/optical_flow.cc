@@ -41,7 +41,7 @@ Allowed values are:
 
 The lower the speed, the more additional pre- and postprocessing is used to enhance the quality of the optical flow result.
 )code", .0f, false)
-                .AddOptionalArg(detail::kOutputFormatArgName,
+                .AddOptionalArg(detail::kOutputGridArgName,
                                 R"code(Sets the grid size for the output vector field.
 
 This operator produces the motion vector field at a coarser resolution than the input pixels.
@@ -51,6 +51,7 @@ For example, a value of 4 will produce one motion vector for each 4x4 pixel bloc
 .. note::
   Currently, only a 1, 2 and 4 are supported for Ampere and 4 for Turing.
 )code", 4, false)
+                .DeprecateArgInFavorOf("output_format", detail::kOutputGridArgName)
                 .AddOptionalArg(detail::kEnableTemporalHintsArgName,
                                 R"code(Enables or disables temporal hints for sequences that are
 longer than two images.
@@ -60,7 +61,7 @@ the calculations. The hints are especially useful in presence of large displacem
 periodic patterns which might confuse the optical flow algorithms.
 ))code",
                                 false, false)
-                .AddOptionalArg(detail::kHintFormatArgName,
+                .AddOptionalArg(detail::kHintGridArgName,
                                 R"code(Sets the grid size for the hint vector field.
 
 The hints are used to improve the quality of the output motion field as well as to speed up

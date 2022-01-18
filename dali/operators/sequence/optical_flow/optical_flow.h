@@ -39,12 +39,12 @@ struct backend_to_compute<GPUBackend> {
   using type = ComputeGPU;
 };
 
-const std::string kPresetArgName = "preset";                               // NOLINT
-const std::string kOutputFormatArgName = "output_format";                  // NOLINT
-const std::string kHintFormatArgName = "hint_format";                      // NOLINT
-const std::string kEnableTemporalHintsArgName = "enable_temporal_hints";   // NOLINT
-const std::string kEnableExternalHintsArgName = "enable_external_hints";   // NOLINT
-const std::string kImageTypeArgName = "image_type";                        // NOLINT
+static const std::string kPresetArgName = "preset";                               // NOLINT
+static const std::string kOutputGridArgName = "output_grid";                      // NOLINT
+static const std::string kHintGridArgName = "hint_grid";                          // NOLINT
+static const std::string kEnableTemporalHintsArgName = "enable_temporal_hints";   // NOLINT
+static const std::string kEnableExternalHintsArgName = "enable_external_hints";   // NOLINT
+static const std::string kImageTypeArgName = "image_type";                        // NOLINT
 
 }  // namespace detail
 
@@ -56,8 +56,8 @@ class OpticalFlow : public Operator<Backend> {
   explicit OpticalFlow(const OpSpec &spec)
       : Operator<Backend>(spec),
         quality_factor_(spec.GetArgument<float>(detail::kPresetArgName)),
-        out_grid_size_(spec.GetArgument<int>(detail::kOutputFormatArgName)),
-        hint_grid_size_(spec.GetArgument<int>(detail::kHintFormatArgName)),
+        out_grid_size_(spec.GetArgument<int>(detail::kOutputGridArgName)),
+        hint_grid_size_(spec.GetArgument<int>(detail::kHintGridArgName)),
         enable_temporal_hints_(spec.GetArgument<bool>(detail::kEnableTemporalHintsArgName)),
         enable_external_hints_(spec.GetArgument<bool>(detail::kEnableExternalHintsArgName)),
         of_params_({quality_factor_, out_grid_size_, hint_grid_size_, enable_temporal_hints_,
