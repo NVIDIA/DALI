@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ class DLL_PUBLIC OpticalFlowStub : public OpticalFlowAdapter<ComputeBackend> {
           OpticalFlowAdapter<ComputeBackend>(params) {}
 
 
-  TensorShape<DynamicDimensions> GetOutputShape() override {
+  TensorShape<DynamicDimensions> CalcOutputShape(int /*height*/, int /*width*/) override {
     return {2, 3, 4};
   }
 

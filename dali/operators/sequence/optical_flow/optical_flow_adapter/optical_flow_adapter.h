@@ -44,9 +44,9 @@ class DLL_PUBLIC OpticalFlowAdapter {
 
 
   /**
-   * Return shape of output tensor for given OpticalFlow class
+   * Return shape of output tensor for given OpticalFlow class given height and width
    */
-  virtual TensorShape<DynamicDimensions> GetOutputShape() = 0;
+  virtual TensorShape<DynamicDimensions> CalcOutputShape(int height, int width) = 0;
 
 
   /**

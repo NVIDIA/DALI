@@ -118,26 +118,12 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     CUDA_CALL(cudaEventRecord(sync_, ws.stream()));
     CUDA_CALL(cudaStreamWaitEvent(of_stream, sync_, 0));
   }
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
+  output.SetLayout("HWC");  // Channels represent the two flow vector components (x and y)
 
   if (enable_external_hints_) {
-    // Fetch data
-    // Input is a TensorList, where every Tensor is a sequence
-    const auto &input = ws.Input<GPUBackend>(0);
     const auto &hints = ws.Input<GPUBackend>(1);
-    auto &output = ws.Output<GPUBackend>(0);
-    output.SetLayout("HWC");  // Channels represent the two flow vector components (x and y)
-    // Extract calculation params
-    ExtractParams(input, hints);
-
-    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, of_stream);
-
-    auto out_shape = optical_flow_->GetOutputShape();
-    TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());
-    for (int i = 0; i < nsequences_; i++) {
-      auto shape = shape_cat(sequence_sizes_[i] - 1, out_shape);
-      new_sizes.set_tensor_shape(i, shape);
-    }
-    output.Resize(new_sizes, DALI_FLOAT);
 
     // Prepare input and output TensorViews
     auto tvlin = view<const uint8_t, kNInputDims>(input);
@@ -160,25 +146,6 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
       }
     }
   } else {
-    // Fetch data
-    // Input is a TensorList, where every Tensor is a sequence
-    const auto &input = ws.Input<GPUBackend>(0);
-    auto &output = ws.Output<GPUBackend>(0);
-    output.SetLayout(input.GetLayout());
-
-    // Extract calculation params
-    ExtractParams(input);
-
-    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, of_stream);
-
-    auto out_shape = optical_flow_->GetOutputShape();
-    TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());
-    for (int i = 0; i < nsequences_; i++) {
-      auto shape = shape_cat(sequence_sizes_[i] - 1, out_shape);
-      new_sizes.set_tensor_shape(i, shape);
-    }
-    output.Resize(new_sizes, DALI_FLOAT);
-
     // Prepare input and output TensorViews
     auto tvlin = view<const uint8_t, kNInputDims>(input);
     auto tvlout = view<float, kNInputDims>(output);

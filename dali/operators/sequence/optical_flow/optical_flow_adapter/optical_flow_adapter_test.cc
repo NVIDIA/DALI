@@ -33,7 +33,7 @@ TEST(OpticalFlowAdapter, StubApiCpuBackend) {
   of->CalcOpticalFlow(tvref, tvin, tvout);
   EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeCPU>::kStubValue, *tvout(0, 0, 0));
   EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeCPU>::kStubValue / 2, *tvout(0, 0, 1));
-  auto ts = of->GetOutputShape();
+  auto ts = of->CalcOutputShape(1, 1);
   TensorShape<3> ref_ts{2, 3, 4};
   EXPECT_EQ(ref_ts, ts);
 }
@@ -59,7 +59,7 @@ TEST(OpticalFlowAdapter, StubApiGpuBackend) {
 
   CUDA_CALL(cudaFree(tvout_data));
 
-  auto ts = of->GetOutputShape();
+  auto ts = of->CalcOutputShape(1, 1);
   TensorShape<3> ref_ts{2, 3, 4};
   EXPECT_EQ(ref_ts, ts);
 }

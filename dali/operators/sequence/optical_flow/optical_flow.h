@@ -81,11 +81,50 @@ class OpticalFlow : public Operator<Backend> {
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    return false;
+    const auto &input = ws.template Input<Backend>(0);
+    if (enable_external_hints_) {
+      const auto &hints = ws.template Input<Backend>(1);
+      // Extract calculation params
+      ExtractParams(input, hints);
+    } else {
+      ExtractParams(input);
+    }
+
+    cudaStream_t of_stream = ws.stream();
+    #if NVML_ENABLED
+      {
+        static float driver_version = nvml::GetDriverVersion();
+        if (driver_version > 460 && driver_version < 470.21)
+          of_stream = 0;
+      }
+    #else
+      {
+        int driver_cuda_version = 0;
+        CUDA_CALL(cuDriverGetVersion(&driver_cuda_version));
+        if (driver_cuda_version >= 11030 && driver_cuda_version < 11040)
+          of_stream = 0;
+      }
+    #endif
+
+    auto input_sh = input.shape();
+    of_lazy_init(input_sh[0][2], input_sh[0][1], depth_, image_type_, device_id_, of_stream);
+
+    TensorListShape<> new_sizes(nsequences_, 4);
+    for (int i = 0; i < nsequences_; i++) {
+      auto out_shape = optical_flow_->CalcOutputShape(input_sh[i][1], input_sh[i][2]);
+      auto shape = shape_cat(sequence_sizes_[i] - 1, out_shape);
+      new_sizes.set_tensor_shape(i, shape);
+    }
+    output_desc.resize(1);
+    output_desc[0] = {new_sizes, DALI_FLOAT};
+    return true;
   }
 
   void RunImpl(Workspace<Backend> &ws) override;
 
+  bool CanInferOutputs() const override {
+    return true;
+  }
 
  private:
   /**
@@ -114,8 +153,6 @@ class OpticalFlow : public Operator<Backend> {
     auto shape = tl.shape();
     nsequences_ = shape.size();
     DALI_ENFORCE(shape.sample_dim() == 4, "Input for Optical Flow must be a sequence of frames.");
-    frames_height_ = shape[0][1];
-    frames_width_ = shape[0][2];
     depth_ = shape[0][3];
     sequence_sizes_.reserve(nsequences_);
     for (int i = 0; i < nsequences_; i++) {

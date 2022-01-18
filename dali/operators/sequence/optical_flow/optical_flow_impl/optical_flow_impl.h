@@ -118,11 +118,11 @@ class DLL_PUBLIC OpticalFlowImpl : public OpticalFlowAdapter<ComputeGPU> {
   virtual ~OpticalFlowImpl();
 
 
-  TensorShape<DynamicDimensions> GetOutputShape() override {
+  TensorShape<DynamicDimensions> CalcOutputShape(int height, int width) override {
     auto sz = init_params_.outGridSize;
     // There are 2 flow vector components: (x, y)
-    return {static_cast<int>(div_ceil(height_, sz)),
-            static_cast<int>(div_ceil(width_, sz)), 2};
+    return {static_cast<int>(div_ceil(height, sz)),
+            static_cast<int>(div_ceil(width, sz)), 2};
     // return {static_cast<int>(height_ + sz - 1) / sz, static_cast<int>(width_ + sz - 1) / sz, 2};
   }
 
