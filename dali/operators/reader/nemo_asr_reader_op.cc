@@ -183,7 +183,7 @@ void NemoAsrReader::Prefetch() {
     for (int i = 0; i < nsamples; i++) {
       auto it = decoded_map_.find(curr_batch[i].get());
       if (it != decoded_map_.end() && it->second != i) {
-        audio_batch[i].Copy(audio_batch[it->second], 0);
+        audio_batch[i].Copy(audio_batch[it->second]);
       }
     }
   }
@@ -194,7 +194,7 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
   const auto &sample_audio = GetDecodedAudioSample(ws.data_idx());
 
   auto &audio = ws.Output<CPUBackend>(0);
-  audio.Copy(sample_audio, 0);
+  audio.Copy(sample_audio);
 
   DALIMeta meta;
   meta.SetSourceInfo(sample.audio_filepath());

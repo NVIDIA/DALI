@@ -26,6 +26,7 @@
 #include <mutex>
 
 #include "dali/core/common.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/nvtx.h"
 #include "dali/pipeline/data/backend.h"
@@ -80,6 +81,7 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void SetCompletionCallback(ExecutorCallback cb) = 0;
   DLL_PUBLIC virtual void EnableMemoryStats(bool enable_memory_stats = false) = 0;
   DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
+  DLL_PUBLIC virtual void Shutdown() = 0;
 
  protected:
   // virtual to allow the TestPruneWholeGraph test in gcc
@@ -96,7 +98,7 @@ class DLL_PUBLIC ExecutorBase {
  * other is in use by the user.
  */
 template <typename WorkspacePolicy, typename QueuePolicy>
-class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public QueuePolicy {
+class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
  public:
   DLL_PUBLIC inline Executor(int max_batch_size, int num_thread, int device_id,
                              size_t bytes_per_sample_hint, bool set_affinity = false,
@@ -106,13 +108,10 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
         callback_(nullptr),
-        stream_pool_(max_num_stream, true, default_cuda_stream_priority),
         event_pool_(),
         thread_pool_(num_thread, device_id, set_affinity),
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth),
-        mixed_op_stream_(0),
-        gpu_op_stream_(0),
         enable_memory_stats_(false) {
     DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0.");
 
@@ -134,6 +133,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DLL_PUBLIC void ReleaseOutputs() override;
   DLL_PUBLIC void SetCompletionCallback(ExecutorCallback cb) override;
   DLL_PUBLIC ExecutorMetaMap GetExecutorMeta() override;
+  DLL_PUBLIC void Shutdown() override;
 
   DLL_PUBLIC void ShutdownQueue() {
     QueuePolicy::SignalStop();
@@ -145,6 +145,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DLL_PUBLIC void RunCPUImpl();
   DLL_PUBLIC void RunMixedImpl();
   DLL_PUBLIC void RunGPUImpl();
+  DLL_PUBLIC void SyncDevice();
 
   template<typename T>
   inline void GetMaxSizesCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
@@ -281,9 +282,13 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
    private:
     vector<cudaEvent_t> events_;
   };
-
   int max_batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
+
+  std::mutex cpu_memory_stats_mutex_;
+  std::mutex mixed_memory_stats_mutex_;
+  std::mutex gpu_memory_stats_mutex_;
+
   cudaEvent_t mixed_stage_event_ = {};
   cudaEvent_t gpu_stage_event_ = {};
 
@@ -323,10 +328,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   std::queue<int> batch_sizes_cpu_, batch_sizes_mixed_, batch_sizes_gpu_;
 
   OpGraph *graph_ = nullptr;
-  // we need to keep this above the stream_pool_ so we still have it when the stream_pool_
-  // destructor runs and it waits for streams to finish
   ExecutorCallback callback_;
-  StreamPool stream_pool_;
   EventPool event_pool_;
   ThreadPool thread_pool_;
   std::vector<std::string> errors_;
@@ -334,7 +336,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   bool exec_error_;
   QueueSizes queue_sizes_;
   std::vector<tensor_data_store_queue_t> tensor_to_store_queue_;
-  cudaStream_t mixed_op_stream_, gpu_op_stream_;
+  CUDAStreamLease mixed_op_stream_, gpu_op_stream_;
   // MixedOpId -> queue_idx -> cudaEvent_t
   // To introduce dependency from MIXED to GPU Ops
   MixedOpEventMap mixed_op_events_;
@@ -345,12 +347,12 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
   std::atomic<bool> enable_memory_stats_;
   ExecutorMetaMap cpu_memory_stats_, mixed_memory_stats_, gpu_memory_stats_;
-  std::mutex cpu_memory_stats_mutex_;
-  std::mutex mixed_memory_stats_mutex_;
-  std::mutex gpu_memory_stats_mutex_;
+
 
   /// Graph nodes, which define batch size for the entire graph
   std::vector<BatchSizeProvider *> batch_size_providers_;
+
+  WorkspacePolicy ws_policy_;
 
  private:
   template <typename InputRef>
@@ -444,8 +446,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   // Setup stream and events that will be used for execution
   if (device_id_ != CPU_ONLY_DEVICE_ID) {
     DeviceGuard g(device_id_);
-    mixed_op_stream_ = stream_pool_.GetStream();
-    gpu_op_stream_ = stream_pool_.GetStream();
+    mixed_op_stream_ = CUDAStreamPool::instance().Get(device_id_);
+    gpu_op_stream_ = CUDAStreamPool::instance().Get(device_id_);
     mixed_op_events_ =
         CreateEventsForMixedOps(event_pool_, *graph_, stage_queue_depths_[OpType::MIXED]);
 
@@ -465,9 +467,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   // workspaces so that nothing has to be altered
   // during execution (this is necessary for
   // asynchronous executors that can overlap work issue)
-  WorkspacePolicy::InitializeWorkspaceStore(*graph_, tensor_to_store_queue_, &thread_pool_,
-                                            mixed_op_stream_, gpu_op_stream_, mixed_op_events_,
-                                            queue_sizes_);
+  ws_policy_.InitializeWorkspaceStore(*graph_, tensor_to_store_queue_, &thread_pool_,
+                                      mixed_op_stream_, gpu_op_stream_, mixed_op_events_,
+                                      queue_sizes_);
 
   // Producer-consumer queues info
   SetupOutputQueuesForGraph();
@@ -521,13 +523,16 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   // We than need to wait for GPU outputs from Mixed & GPU stages that are computed asynchronously.
   // If the output event list is not empty, it means that there are outputs on GPU that we
   // have to wait for.
+
+  AccessOrder sync_order = ws->has_stream() ? AccessOrder(ws->stream()) : AccessOrder::host();
+
   if (!mixed_output_events_.empty()) {
     auto queue_idx = output_idx[OpType::MIXED];
-    CUDA_CALL(cudaEventSynchronize(mixed_output_events_.GetEvent(queue_idx)));
+    sync_order.wait(mixed_output_events_.GetEvent(queue_idx));
   }
   if (!gpu_output_events_.empty()) {
     auto queue_idx = output_idx[OpType::GPU];
-    CUDA_CALL(cudaEventSynchronize(gpu_output_events_.GetEvent(queue_idx)));
+    sync_order.wait(gpu_output_events_.GetEvent(queue_idx));
   }
 }
 

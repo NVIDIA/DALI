@@ -596,11 +596,34 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
 template <typename Backend>
 std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_of_tensors,
                                                                  string &layout) {
+  if (list_of_tensors.empty()) {
+    throw std::runtime_error("Cannot create TensorList from an empty list.");
+  }
+
   auto tl = std::make_shared<TensorList<Backend>>(list_of_tensors.size());
   TensorVector<Backend> tv(list_of_tensors.size());
+  int expected_type = -2;
+
   for (size_t i = 0; i < list_of_tensors.size(); ++i) {
-    auto &t = list_of_tensors[i].cast<Tensor<Backend>&>();
-    tv[i].ShareData(t);
+    try {
+      auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
+      DALIDataType cur_type = t.type();
+
+      if (expected_type == -2) {
+        expected_type = t.type();
+      } else if (expected_type != cur_type) {
+        throw py::type_error(make_string(
+            "Tensors cannot have different data types. Tensor at position ", i, " has type '",
+            cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
+      }
+
+      tv[i].ShareData(t);
+    } catch (const py::type_error &) {
+      throw;
+    } catch (const std::runtime_error &) {
+      throw py::type_error(make_string("Object at position ", i, " cannot be converted to Tensor",
+                                       std::is_same<Backend, GPUBackend>::value ? "GPU." : "CPU."));
+    }
   }
 
   cudaStream_t stream = 0;
@@ -1219,14 +1242,14 @@ py::dict ExecutorMetaToDict(const ExecutorMetaMap &meta) {
 }
 
 template <typename Backend>
-void FeedPipeline(Pipeline *p, const string &name, py::list list, cudaStream_t stream,
+void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder order,
                   bool sync = false, bool use_copy_kernel = false) {
   TensorVector<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
     auto &t = list[i].cast<Tensor<Backend>&>();
     tv[i] = std::move(t);
   }
-  p->SetExternalInput(name, tv, stream, sync, use_copy_kernel);
+  p->SetExternalInput(name, tv, order, sync, use_copy_kernel);
 }
 
 PYBIND11_MODULE(backend_impl, m) {
@@ -1515,7 +1538,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
            py::object /*cuda_stream*/, bool /*use_copy_kernel*/) {
-          p->SetExternalInput(name, tl, 0, true);
+          p->SetExternalInput(name, tl, {}, true);
         },
         "name"_a,
         "list"_a,
@@ -1551,7 +1574,7 @@ PYBIND11_MODULE(backend_impl, m) {
           py::detail::make_caster<Tensor<CPUBackend>&> conv;
           bool is_cpu_data = conv.load(static_cast<py::object>(list[0]), true);
           if (is_cpu_data) {
-            FeedPipeline<CPUBackend>(p, name, list, 0, true);
+            FeedPipeline<CPUBackend>(p, name, list, AccessOrder::host(), true);
           } else {
             cudaStream_t stream = cuda_stream.is_none()
                                 ? UserStream::Get()->GetStream(list[0].cast<Tensor<GPUBackend>&>())

@@ -75,7 +75,6 @@ std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string
                                              prefetch_queue_depth, async);
   auto &pipe = *pipe_ptr;
   std::string exec_device = GetDeviceStr(execution_device);
-  TensorList<Backend> data;
   if (is_file_reader) {
     std::string file_root = testing::dali_extra_path() + "/db/single/jpeg/";
     std::string file_list = file_root + "image_list.txt";
@@ -268,7 +267,6 @@ TYPED_TEST(CApiTest, FileReaderDefaultPipe) {
   daliDeserializeDefault(&handle, serialized.c_str(), serialized.size());
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 
-  dali::DeviceWorkspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
   }

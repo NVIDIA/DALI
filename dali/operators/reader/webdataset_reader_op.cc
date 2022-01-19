@@ -99,8 +99,8 @@ Keep in mind though that it will add considerable startup time for big datasets.
 
 The format of the index file is::
 
-    )code" + detail::wds::kCurrentIndexVersion +
-            R"code( <num_samples>
+    )code" +
+    detail::wds::kCurrentIndexVersion + R"code( <num_samples>
     <component1_ext> <component1_data_offset> <component1_size> <component2_ext> <component2_data_offset> <component2_size> ...
     ...
 

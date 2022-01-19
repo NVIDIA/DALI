@@ -45,7 +45,7 @@ void PermuteBatch<CPUBackend>::RunImpl(HostWorkspace &ws) {
     int src = indices_[i];
     tp.AddWork([&, i, src](int tid) {
       output.SetMeta(i, input.GetMeta(i));
-      output[i].Copy(input[src], 0);
+      output[i].Copy(input[src]);
     }, size);
   }
   tp.RunAll();

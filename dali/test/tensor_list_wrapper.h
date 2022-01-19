@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -86,9 +86,9 @@ class TensorListWrapper {
     ASSERT_NE(has_cpu(), has_gpu())
         << "Should contain TensorList from exactly one backend", nullptr;
     if (has_cpu()) {
-      result->Copy(*cpu_, 0);
+      result->Copy(*cpu_, cudaStream_t(0));
     } else {
-      result->Copy(*gpu_, 0);
+      result->Copy(*gpu_, cudaStream_t(0));
     }
     CUDA_CALL(cudaStreamSynchronize(0));
     return result;

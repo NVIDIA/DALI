@@ -187,6 +187,7 @@ bool UseDeferredDealloc() {
 
 inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   static CUDARTLoader CUDAInit;
+  CUDAEventPool::instance();
   if (!UseDeviceMemoryPool()) {
     static auto rsrc = std::make_shared<mm::cuda_malloc_memory_resource>();
     return rsrc;
@@ -262,10 +263,10 @@ const std::shared_ptr<pinned_async_resource> &ShareDefaultResourceImpl<memory_ki
     std::lock_guard<std::mutex> lock(g_resources.mtx);
     if (!g_resources.pinned_async) {
       static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
+      g_resources.pinned_async = CreateDefaultPinnedResource();
       static auto cleanup = AtExit([] {
         g_resources.ReleasePinned();
       });
-      g_resources.pinned_async = CreateDefaultPinnedResource();
     }
   }
   return g_resources.pinned_async;
@@ -277,10 +278,10 @@ const std::shared_ptr<managed_async_resource> &ShareDefaultResourceImpl<memory_k
     std::lock_guard<std::mutex> lock(g_resources.mtx);
     if (!g_resources.managed) {
       static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
+      g_resources.managed = CreateDefaultManagedResource();
       static auto cleanup = AtExit([] {
         g_resources.ReleaseManaged();
       });
-      g_resources.managed = CreateDefaultManagedResource();
     }
   }
   return g_resources.managed;
@@ -297,10 +298,10 @@ const std::shared_ptr<device_async_resource> &ShareDefaultDeviceResourceImpl(int
     if (!g_resources.device[device_id]) {
       DeviceGuard devg(device_id);
       static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
+      g_resources.device[device_id] = CreateDefaultDeviceResource();
       static auto cleanup = AtExit([] {
         g_resources.ReleaseDevice();
       });
-      g_resources.device[device_id] = CreateDefaultDeviceResource();
     }
   }
   return g_resources.device[device_id];

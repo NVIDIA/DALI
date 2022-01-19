@@ -386,7 +386,7 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
   }
 
   TensorList<TypeParam> tl;
-  tl.Copy(tensors, 0);
+  tl.Copy(tensors);
 
   int num_tensor = tl.num_samples();
   ASSERT_EQ(num_tensor, tensors.num_samples());
@@ -404,7 +404,7 @@ TYPED_TEST(TensorTest, TestCopyEmptyToTensorList) {
   // Empty tensors
   TensorList<TypeParam> tl;
   tensors.template set_type<float>();
-  tl.Copy(tensors, 0);
+  tl.Copy(tensors);
 
   Tensor<TypeParam> tensor;
   int num_tensor = tl.num_samples();
@@ -500,7 +500,7 @@ TYPED_TEST(TensorTest, TestCopyFromBuf) {
   }
 
   Tensor<TypeParam> tensor1;
-  tensor1.Copy(vec, 0);
+  tensor1.Copy(vec);
   ASSERT_NE(tensor1.template mutable_data<float>(), nullptr);
   ASSERT_EQ(vec.size(), tensor1.size());
   ASSERT_EQ(vec.size() * sizeof(float), tensor1.nbytes());
@@ -510,7 +510,7 @@ TYPED_TEST(TensorTest, TestCopyFromBuf) {
   EXPECT_EQ(0, std::memcmp(vec.data(), tensor1_data.data(), vec.size() * sizeof(float)));
 
   Tensor<TypeParam> tensor2;
-  tensor2.Copy(make_span(vec), 0);
+  tensor2.Copy(make_span(vec));
   ASSERT_NE(tensor2.template mutable_data<float>(), nullptr);
   ASSERT_EQ(vec.size(), tensor2.size());
   ASSERT_EQ(1, tensor2.ndim());

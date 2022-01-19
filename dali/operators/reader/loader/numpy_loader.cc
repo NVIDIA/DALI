@@ -267,7 +267,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     auto p = current_file->Get(nbytes);
     DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", filename));
     // Wrap the raw data in the Tensor object.
-    target.data.ShareData(p, nbytes, false, {nbytes});
+    target.data.ShareData(p, nbytes, false, {nbytes}, parse_target.type());
     target.data.Resize(parse_target.shape, parse_target.type());
   }
 

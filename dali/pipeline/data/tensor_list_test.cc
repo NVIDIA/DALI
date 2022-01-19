@@ -418,7 +418,7 @@ TYPED_TEST(TensorListTest, TestCopy) {
   tl.Resize(shape);
 
   TensorList<TypeParam> tl2;
-  tl2.Copy(tl, 0);
+  tl2.Copy(tl);
 
   ASSERT_EQ(tl.num_samples(), tl2.num_samples());
   ASSERT_EQ(tl.type(), tl2.type());
@@ -436,7 +436,7 @@ TYPED_TEST(TensorListTest, TestCopyEmpty) {
   tl.template set_type<float>();
 
   TensorList<TypeParam> tl2;
-  tl2.Copy(tl, 0);
+  tl2.Copy(tl);
   ASSERT_EQ(tl.num_samples(), tl2.num_samples());
   ASSERT_EQ(tl.type(), tl2.type());
   ASSERT_EQ(tl._num_elements(), tl2._num_elements());
