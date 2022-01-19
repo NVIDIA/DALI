@@ -139,6 +139,10 @@ class DLL_PUBLIC FramesDecoder {
    */
   virtual void Reset();
 
+  FramesDecoder(FramesDecoder&&) = default;
+
+  virtual ~FramesDecoder() = default;
+
  protected:
   std::unique_ptr<AvState> av_state_;
 

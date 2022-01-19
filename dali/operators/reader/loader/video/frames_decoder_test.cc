@@ -17,6 +17,8 @@
 
 #include "dali/test/dali_test_config.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/dynlink_cuda.h"
+#include "dali/core/cuda_error.h"
 #include "dali/operators/reader/loader/video/video_test_base.h"
 #include "dali/operators/reader/loader/video/frames_decoder.h"
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
@@ -106,11 +108,11 @@ TEST_F(FramesDecoderTest, VariableFrameRate) {
 }
 
 TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
-    CUresult cuResult = cuInit(0);
+    ASSERT_TRUE(cuInitChecked());
     CUdevice device = { 0 };
-    cuResult = cuDeviceGet(&device, 0);
+    CUDA_CALL(cuDeviceGet(&device, 0));
     CUcontext context = { 0 };
-    cuResult = cuCtxCreate(&context, 0, device);
+    CUDA_CALL(cuCtxCreate(&context, 0, device));
 
 
     std::string path = testing::dali_extra_path() + "/db/video/vfr/test_2.avi";
