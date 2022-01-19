@@ -18,10 +18,7 @@
 #include <vector>
 
 #include "dali/core/convert.h"
-#include "dali/core/dev_buffer.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/kernels/common/block_setup.h"
-#include "dali/kernels/common/cast.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -50,27 +47,10 @@ class Cast : public Operator<Backend> {
     const auto &input = ws.template Input<Backend>(0);
     output_desc[0].shape = input.shape();
     output_desc[0].type = output_type_;
-    PrepareBlocks(ws);
     return true;
   }
 
-  void PrepareBlocks(const workspace_t<Backend> &ws);
-
-  void RunImpl(workspace_t<Backend> &ws) override;
-
- private:
   DALIDataType output_type_;
-
-  using GpuBlockSetup = kernels::BlockSetup<1, -1>;
-
-  GpuBlockSetup block_setup_;
-  std::vector<kernels::CastSampleDesc> samples_;
-  DeviceBuffer<GpuBlockSetup::BlockDesc> blocks_dev_;
-  DeviceBuffer<kernels::CastSampleDesc> samples_dev_;
-
-
-  USE_OPERATOR_MEMBERS();
-  using Operator<Backend>::RunImpl;
 };
 
 }  // namespace dali

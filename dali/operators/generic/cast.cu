@@ -13,18 +13,48 @@
 // limitations under the License.
 
 #include <utility>
+#include <vector>
 #include "dali/core/convert.h"
 #include "dali/core/cuda_utils.h"
+#include "dali/core/dev_buffer.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/common/cast.cuh"
 #include "dali/operators/generic/cast.h"
 
+
 namespace dali {
 
-template <>
-void Cast<GPUBackend>::PrepareBlocks(const DeviceWorkspace &ws) {
+class CastGPU : public Cast<GPUBackend> {
+ public:
+  explicit CastGPU(const OpSpec &spec) : Cast<GPUBackend>{spec} {}
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override;
+  void RunImpl(DeviceWorkspace &ws) override;
+
+  ~CastGPU() override = default;
+
+ protected:
+  void PrepareBlocks(const DeviceWorkspace &ws);
+
+ private:
+  using GpuBlockSetup = kernels::BlockSetup<1, -1>;
+
+  GpuBlockSetup block_setup_;
+  std::vector<kernels::CastSampleDesc> samples_;
+  DeviceBuffer<GpuBlockSetup::BlockDesc> blocks_dev_;
+  DeviceBuffer<kernels::CastSampleDesc> samples_dev_;
+
+  USE_OPERATOR_MEMBERS();
+};
+
+bool CastGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) {
+  PrepareBlocks(ws);
+  return Cast<GPUBackend>::SetupImpl(output_desc, ws);
+}
+
+void CastGPU::PrepareBlocks(const DeviceWorkspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   const auto &input_shape = input.shape();
   std::array<std::pair<int, int>, 1> collapse_groups = {{{0, input_shape.sample_dim()}}};
@@ -34,8 +64,7 @@ void Cast<GPUBackend>::PrepareBlocks(const DeviceWorkspace &ws) {
   blocks_dev_.from_host(block_setup_.Blocks(), ws.stream());
 }
 
-template <>
-void Cast<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+void CastGPU::RunImpl(DeviceWorkspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   const auto &input_shape = input.shape();
   auto &output = ws.Output<GPUBackend>(0);
@@ -60,6 +89,6 @@ void Cast<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   ), DALI_FAIL(make_string("Invalid output type: ", output_type_)););  // NOLINT(whitespace/parens)
 }
 
-DALI_REGISTER_OPERATOR(Cast, Cast<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(Cast, CastGPU, GPU);
 
 }  // namespace dali

@@ -15,15 +15,18 @@
 #ifndef DALI_KERNELS_COMMON_CAST_CUH_
 #define DALI_KERNELS_COMMON_CAST_CUH_
 
-#include "dali/kernels/common/cast.h"
 #include "dali/kernels/common/block_setup.h"
 
 namespace dali {
 namespace kernels {
 
+struct CastSampleDesc {
+  void *output;
+  const void *input;
+};
+
 template <typename OType, typename IType>
-__global__ void BatchedCastKernel(const CastSampleDesc *samples,
-                                  const BlockDesc<1> *blocks) {
+__global__ void BatchedCastKernel(const CastSampleDesc *samples, const BlockDesc<1> *blocks) {
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
   auto *out = reinterpret_cast<OType *>(sample.output);
