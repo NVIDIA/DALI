@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,23 +18,10 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/common/block_setup.h"
+#include "dali/kernels/common/cast.cuh"
 #include "dali/operators/generic/cast.h"
 
 namespace dali {
-
-
-template <typename OType, typename IType>
-__global__ void BatchedCastKernel(const CastSampleDesc *samples,
-                                  const kernels::BlockDesc<1> *blocks) {
-  const auto &block = blocks[blockIdx.x];
-  const auto &sample = samples[block.sample_idx];
-  auto *out = reinterpret_cast<OType *>(sample.output);
-  const auto *in = reinterpret_cast<const IType *>(sample.input);
-  for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
-    out[x] = ConvertSat<OType>(in[x]);
-  }
-}
-
 
 template <>
 void Cast<GPUBackend>::PrepareBlocks(const DeviceWorkspace &ws) {
@@ -46,7 +33,6 @@ void Cast<GPUBackend>::PrepareBlocks(const DeviceWorkspace &ws) {
   block_setup_.SetupBlocks(collapsed_shape, true);
   blocks_dev_.from_host(block_setup_.Blocks(), ws.stream());
 }
-
 
 template <>
 void Cast<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
@@ -68,7 +54,7 @@ void Cast<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   dim3 block_dim = block_setup_.BlockDim();
   TYPE_SWITCH(output_type_, type2id, OType, CAST_ALLOWED_TYPES, (
     TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
-      BatchedCastKernel<OType, IType>
+      kernels::BatchedCastKernel<OType, IType>
           <<<grid_dim, block_dim, 0, ws.stream()>>>(samples_dev_.data(), blocks_dev_.data());
     ), DALI_FAIL(make_string("Invalid input type: ", itype)););  // NOLINT(whitespace/parens)
   ), DALI_FAIL(make_string("Invalid output type: ", output_type_)););  // NOLINT(whitespace/parens)

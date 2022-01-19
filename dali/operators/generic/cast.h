@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,14 +21,10 @@
 #include "dali/core/dev_buffer.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/kernels/common/block_setup.h"
+#include "dali/kernels/common/cast.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
-
-struct CastSampleDesc {
-  void *output;
-  const void *input;
-};
 
 #define CAST_ALLOWED_TYPES                                                                         \
   (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float16, float, \
@@ -68,9 +64,9 @@ class Cast : public Operator<Backend> {
   using GpuBlockSetup = kernels::BlockSetup<1, -1>;
 
   GpuBlockSetup block_setup_;
-  std::vector<CastSampleDesc> samples_;
+  std::vector<kernels::CastSampleDesc> samples_;
   DeviceBuffer<GpuBlockSetup::BlockDesc> blocks_dev_;
-  DeviceBuffer<CastSampleDesc> samples_dev_;
+  DeviceBuffer<kernels::CastSampleDesc> samples_dev_;
 
 
   USE_OPERATOR_MEMBERS();

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_CONVOLUTION_LAPLACIAN_GPU_H_
-#define DALI_KERNELS_IMGPROC_CONVOLUTION_LAPLACIAN_GPU_H_
+#ifndef DALI_KERNELS_IMGPROC_CONVOLUTION_LAPLACIAN_GPU_CUH_
+#define DALI_KERNELS_IMGPROC_CONVOLUTION_LAPLACIAN_GPU_CUH_
 
 #include <memory>
 #include <utility>
@@ -22,6 +22,7 @@
 #include "dali/core/dev_buffer.h"
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/common/block_setup.h"
+#include "dali/kernels/common/cast.cuh"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/convolution_gpu.h"
 #include "dali/kernels/imgproc/convolution/separable_convolution_gpu.h"
@@ -34,27 +35,6 @@ namespace dali {
 namespace kernels {
 
 namespace laplacian {
-
-namespace detail {
-
-struct CastSampleDesc {
-  void* output;
-  const void* input;
-};
-
-template <typename Out, typename In>
-__global__ void BatchedCastKernel(const CastSampleDesc* samples,
-                                  const kernels::BlockDesc<1>* blocks) {
-  const auto& block = blocks[blockIdx.x];
-  const auto& sample = samples[block.sample_idx];
-  auto* out = reinterpret_cast<Out*>(sample.output);
-  const auto* in = reinterpret_cast<const In*>(sample.input);
-  for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
-    out[x] = ConvertSat<Out>(in[x]);
-  }
-}
-
-}  // namespace detail
 
 /**
  * @brief Computes convolution to obtain partial derivative in one of the dimensions.
@@ -79,13 +59,11 @@ struct PartialDerivGpu {
     has_smoothing_ = has_smoothing;
     if (has_smoothing_) {
       if (!multi_dim_impl_) {
-        single_dim_impl_.reset();
         multi_dim_impl_ = std::make_unique<MultiDimConv>();
       }
       return multi_dim_impl_->Setup(ctx, in_shape, window_sizes, true);
     }
     if (!single_dim_impl_) {
-      multi_dim_impl_.reset();
       single_dim_impl_ = std::make_unique<SingleDimConv>();
     }
     return single_dim_impl_->Setup(ctx, in_shape, window_sizes[deriv_axis]);
@@ -96,8 +74,10 @@ struct PartialDerivGpu {
            const std::array<TensorListView<StorageCPU, const W, 1>, axes>& windows,
            const ConvEpilogue& conv_epilogue) {
     if (has_smoothing_) {
+      assert(multi_dim_impl_);
       multi_dim_impl_->Run(ctx, out, in, windows, {}, conv_epilogue);
     } else {
+      assert(single_dim_impl_);
       single_dim_impl_->Run(ctx, out, in, windows[deriv_axis], {}, conv_epilogue);
     }
   }
@@ -316,14 +296,14 @@ struct LaplacianGpu<Intermediate, Out, In, W, axes, has_channels, is_sequence,
     samples_dev_.from_host(samples_, ctx.gpu.stream);
     dim3 grid_dim = block_setup_.GridDim();
     dim3 block_dim = block_setup_.BlockDim();
-    detail::BatchedCastKernel<Out, Intermediate>
+    BatchedCastKernel<Out, Intermediate>
         <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples_dev_.data(), blocks_dev_.data());
   }
 
   GpuBlockSetup block_setup_;
-  std::vector<detail::CastSampleDesc> samples_;
+  std::vector<CastSampleDesc> samples_;
   DeviceBuffer<GpuBlockSetup::BlockDesc> blocks_dev_;
-  DeviceBuffer<detail::CastSampleDesc> samples_dev_;
+  DeviceBuffer<CastSampleDesc> samples_dev_;
 };
 
 }  // namespace laplacian
@@ -335,4 +315,4 @@ using LaplacianGpu = laplacian::LaplacianGpu<decltype(std::declval<W>() * std::d
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_IMGPROC_CONVOLUTION_LAPLACIAN_GPU_H_
+#endif  // DALI_KERNELS_IMGPROC_CONVOLUTION_LAPLACIAN_GPU_CUH_
