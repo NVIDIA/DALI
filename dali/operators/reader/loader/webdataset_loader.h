@@ -33,7 +33,7 @@ namespace wds {
 
 constexpr int ParseIndexVersion(const char* index_version) {
   const char* it = nullptr;
-  for (it = index_version; *it != '\0'; it++);
+  for (it = index_version; *it != '\0'; it++) {}
   int mult = 1, ret = 0;
   auto update_ret = [&](auto it) { ret += mult * (*it - '0'); };
   assert(*it == '\0');
