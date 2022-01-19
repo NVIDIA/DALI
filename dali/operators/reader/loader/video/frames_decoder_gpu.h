@@ -38,9 +38,11 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
    */
   explicit FramesDecoderGpu(const std::string &filename);
 
-  bool DecodeFrame(uint8_t *data, bool copy_to_output = true) override;
+  bool ReadNextFrame(uint8_t *data, bool copy_to_output = true) override;
 
   void SeekFrame(int frame_id) override;
+
+  void Reset() override;
 
   std::unique_ptr<NvDecodeState> nvdecode_state_;
 
@@ -48,6 +50,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   bool current_copy_to_output_ = false;
   bool decode_success_ = false;
   bool flush_ = false;
+  bool last_frame_read_ = false;
 };
 
 }  // namespace dali

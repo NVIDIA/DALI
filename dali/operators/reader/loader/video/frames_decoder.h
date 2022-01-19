@@ -124,7 +124,7 @@ class DLL_PUBLIC FramesDecoder {
    * @param copy_to_output Whether copy the data to the output. 
    * @return Boolean indicating whether the frame was read or not. False means no more frames in the decoder.
    */
-  bool ReadNextFrame(uint8_t *data, bool copy_to_output = true);
+  virtual bool ReadNextFrame(uint8_t *data, bool copy_to_output = true);
 
   /**
    * @brief Seeks to the frame given by id. Next call to ReadNextFrame will return this frame
@@ -137,9 +137,14 @@ class DLL_PUBLIC FramesDecoder {
    * @brief Seeks to the first frame
    * 
    */
-  void Reset();
+  virtual void Reset();
 
  protected:
+  std::unique_ptr<AvState> av_state_;
+
+  std::vector<IndexEntry> index_;
+
+ private:
    /**
    * @brief Gets the packet from the decoder and reads a frame from it to provided buffer. Returns 
    * boolean indicating, if the frame was succesfully read.
@@ -152,7 +157,7 @@ class DLL_PUBLIC FramesDecoder {
    * @returns True, if the read was succesful, or false, when all regular farmes were consumed.
    * 
    */
-  bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true, bool for_index = false);
+  bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true);
 
   /**
    * @brief Reads frames from the last packet. This packet can hold
@@ -165,12 +170,6 @@ class DLL_PUBLIC FramesDecoder {
    */
   bool ReadFlushFrame(uint8_t *data, bool copy_to_output = true);
 
-  virtual bool DecodeFrame(uint8_t *data, bool copy_to_output = true);
-
-  bool DecodeFrameFfmpeg(uint8_t *data, bool copy_to_output = true) ;
-
-  void SendFlushPacket();
-
   void CopyToOutput(uint8_t *data);
 
   void BuildIndex();
@@ -181,13 +180,9 @@ class DLL_PUBLIC FramesDecoder {
 
   void LazyInitSwContext();
 
-  std::unique_ptr<AvState> av_state_;
-
   int channels_ = 3;
   bool flush_state_ = false;
   std::string filename_;
-  std::vector<IndexEntry> index_;
-  int current_frame_ = -1;
 };
 }  // namespace dali
 

@@ -40,11 +40,6 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
 
   CUDA_CALL(cuvidDecodePicture(frames_decoder->nvdecode_state_->decoder, picture_params));
 
-  static int counter = 0;
-  std::cout << "Call " << counter << ", pic index " << picture_params->CurrPicIdx << std::endl;
-  ++counter;
-
-
   // Copy decoded frame to output
   CUVIDPROCPARAMS videoProcessingParameters = {};
   videoProcessingParameters.progressive_frame = !picture_params->field_pic_flag;
@@ -62,7 +57,6 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
     &frame,
     &pitch,
     &videoProcessingParameters));
-
 
   if (frames_decoder->current_copy_to_output_) {
     CUDA_CALL(cudaDeviceSynchronize());
@@ -130,29 +124,64 @@ void FramesDecoderGpu::SeekFrame(int frame_id) {
   packet->flags = CUVID_PKT_ENDOFSTREAM;
   CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
 
+  last_frame_read_ = false;
+
   FramesDecoder::SeekFrame(frame_id);
 }
 
-bool FramesDecoderGpu::DecodeFrame(uint8_t *data, bool copy_to_output) {
-  static int counter = 0;
-  std::cout << "Decode call: " << counter << std::endl;
-  ++counter;
-
+bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
   decode_success_ = false;
-  current_frame_output_ = data;
   current_copy_to_output_ = copy_to_output;
+  current_frame_output_ = data;
 
-  CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
-  memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
-  packet->payload = av_state_->packet_->data;
-  packet->payload_size = av_state_->packet_->size;
-  packet->flags = CUVID_PKT_TIMESTAMP;
-  packet->timestamp = index_[current_frame_-1].pts;
+  while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
+    if (av_state_->packet_->stream_index != av_state_->stream_id_) {
+      continue;
+    }
 
-  CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+    CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
+    memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
+    packet->payload = av_state_->packet_->data;
+    packet->payload_size = av_state_->packet_->size;
+    packet->flags = CUVID_PKT_TIMESTAMP;
+    packet->timestamp = av_state_->packet_->pts;
 
-  return decode_success_;
+    CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+
+    if (decode_success_) {
+      return true;
+    }
+  }
+
+  if (!last_frame_read_) {
+    CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
+    memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
+    packet->payload = av_state_->packet_->data;
+    packet->payload_size = av_state_->packet_->size;
+    packet->flags = CUVID_PKT_TIMESTAMP;
+    packet->timestamp = av_state_->packet_->pts;
+
+    CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+  
+    last_frame_read_ = true;
+    return true;
+  }
+
+  return false;
 }
 
+void FramesDecoderGpu::Reset() { 
+  flush_ = true;
+  CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
+  memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
+  packet->payload = nullptr;
+  packet->payload_size = 0;
+  packet->flags = CUVID_PKT_ENDOFSTREAM;
+  CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
 
+  last_frame_read_ = false;
+
+  FramesDecoder::Reset();
+
+}
 }  // namespace dali
