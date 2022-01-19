@@ -16,6 +16,10 @@
 #define DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_GPU_H_
 
 #include "dali/operators/reader/loader/video/frames_decoder.h"
+
+#include <string>
+#include <memory>
+
 #include "dali/operators/reader/loader/video/nvdecode/cuviddec.h"
 #include "dali/operators/reader/loader/video/nvdecode/nvcuvid.h"
 

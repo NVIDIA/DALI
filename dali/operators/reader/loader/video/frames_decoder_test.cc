@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <exception>
 #include <cuda_runtime_api.h>
+#include <exception>
 
 #include "dali/test/dali_test_config.h"
 #include "dali/core/error_handling.h"
@@ -125,7 +125,7 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
 
     uint8_t *frame = nullptr;
     cuMemAlloc(
-        (CUdeviceptr*)&frame,
+        reinterpret_cast<CUdeviceptr*>(&frame),
         file.FrameSize());
     std::vector<uint8_t> frame_cpu(file.FrameSize());
 
@@ -137,8 +137,10 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
         file.FrameSize() * sizeof(uint8_t),
         cudaMemcpyDeviceToHost);
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 0), file.FrameSize());
-    // this->SaveFrame(frame_cpu.data(), 0, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    // this->SaveFrame(this->GetVfrFrame(1, 0), 0, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
+    // this->SaveFrame(
+    //     frame_cpu.data(), 0, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
+    // this->SaveFrame(
+    //     this->GetVfrFrame(1, 0), 0, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 
     // Seek to frame
     file.SeekFrame(25);
@@ -149,8 +151,10 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
         file.FrameSize() * sizeof(uint8_t),
         cudaMemcpyDeviceToHost);
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 25), file.FrameSize());
-    // this->SaveFrame(frame_cpu.data(), 25, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    // this->SaveFrame(this->GetVfrFrame(1, 25), 25, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
+    // this->SaveFrame(
+    //     frame_cpu.data(), 25, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
+    // this->SaveFrame(
+    //     this->GetVfrFrame(1, 25), 25, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 
     // Seek back to frame
     file.SeekFrame(12);
@@ -161,8 +165,10 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
         file.FrameSize() * sizeof(uint8_t),
         cudaMemcpyDeviceToHost);
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 12), file.FrameSize());
-    // this->SaveFrame(frame_cpu.data(), 12, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    // this->SaveFrame(this->GetVfrFrame(1, 12), 12, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
+    // this->SaveFrame(
+    //     frame_cpu.data(), 12, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
+    // this->SaveFrame(
+    //     this->GetVfrFrame(1, 12), 12, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 
     // Seek to last frame (flush frame)
     file.SeekFrame(59);
@@ -173,8 +179,10 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
         file.FrameSize() * sizeof(uint8_t),
         cudaMemcpyDeviceToHost);
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 59), file.FrameSize(), 1.1);
-    // this->SaveFrame(frame_cpu.data(), 59, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    // this->SaveFrame(this->GetVfrFrame(1, 59), 59, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
+    // this->SaveFrame(
+    //     frame_cpu.data(), 59, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
+    // this->SaveFrame(
+    //     this->GetVfrFrame(1, 59), 59, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 
     // Wrap around to first frame
     ASSERT_FALSE(file.ReadNextFrame(frame));
@@ -186,8 +194,10 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
         file.FrameSize() * sizeof(uint8_t),
         cudaMemcpyDeviceToHost);
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 0), file.FrameSize());
-    // this->SaveFrame(frame_cpu.data(), 0, 1, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    // this->SaveFrame(this->GetVfrFrame(1, 0), 0, 1, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
+    // this->SaveFrame(
+    //     frame_cpu.data(), 0, 1, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
+    // this->SaveFrame(
+    //     this->GetVfrFrame(1, 0), 0, 1, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 }
 
 TEST_F(FramesDecoderTest, VariableFrameRateAvi) {

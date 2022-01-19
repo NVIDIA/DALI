@@ -13,14 +13,18 @@
 // limitations under the License.
 
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
+
+#include <cuda.h>
+#include <unistd.h>
+
+#include <string>
+#include <memory>
+
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_utils.h"
-#include <cuda.h>
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/reader/loader/video/nvdecode/ColorSpace.h"
-#include <unistd.h>
-#include "dali/core/error_handling.h"
 
 namespace dali {
 namespace detail {
@@ -61,7 +65,7 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
   if (frames_decoder->current_copy_to_output_) {
     CUDA_CALL(cudaDeviceSynchronize());
     Nv12ToColor32(
-      (uint8_t *)frame,
+      reinterpret_cast<uint8_t *>(frame),
       pitch,
       frames_decoder->current_frame_output_,
       frames_decoder->Width()* 3,
@@ -77,7 +81,7 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
   frames_decoder->decode_success_ = true;
   return 1;
 }
-}
+}  // namespace detail
 
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename) :
   FramesDecoder(filename) {
@@ -162,7 +166,7 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
     packet->timestamp = av_state_->packet_->pts;
 
     CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
-  
+
     last_frame_read_ = true;
     return true;
   }
@@ -170,7 +174,7 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
   return false;
 }
 
-void FramesDecoderGpu::Reset() { 
+void FramesDecoderGpu::Reset() {
   flush_ = true;
   CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
   memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
@@ -182,6 +186,5 @@ void FramesDecoderGpu::Reset() {
   last_frame_read_ = false;
 
   FramesDecoder::Reset();
-
 }
 }  // namespace dali
