@@ -91,6 +91,8 @@ class ConstantStorage {
   template <typename T>
   void Rewrite(Tensor<GPUBackend> &result, const std::vector<T> &constants,
                const std::vector<ExprConstant *> &constant_nodes, AccessOrder order) {
+    if (!result_cpu_.has_data())
+      result_cpu_.set_pinned(true);
     Rewrite(result_cpu_, constants, constant_nodes, order);
     result.Copy(result_cpu_, order);
   }
