@@ -20,7 +20,6 @@
 #include <set>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 #include "dali/core/bitmask.h"
@@ -32,8 +31,32 @@ namespace dali {
 namespace detail {
 namespace wds {
 
-const std::string kCurrentIndexVersion = "v1.2";  // NOLINT
-const std::unordered_set<std::string> kSupportedIndexVersions = {"v1.1", kCurrentIndexVersion};
+constexpr int ParseIndexVersion(const char* index_version) {
+  const char* it = nullptr;
+  for (it = index_version; *it != '\0'; it++);
+  int mult = 1, ret = 0;
+  auto update_ret = [&](auto it) { ret += mult * (*it - '0'); };
+  assert(*it == '\0');
+  update_ret(--it);
+  mult *= 10;
+  if (*--it != '.') {
+    update_ret(it--);
+  }
+  assert(*it == '.');
+  mult *= 10;
+  while (*--it != 'v') {
+    mult *= 10;
+    update_ret(it);
+  }
+  return ret;
+}
+
+// Minor part of the index version may be at most two-digit.
+const char kCurrentIndexVersion[] = "v1.2";
+const std::set<int> kSupportedIndexVersions = {
+    ParseIndexVersion(kCurrentIndexVersion),
+    ParseIndexVersion("v1.1"),
+};
 constexpr char kExtDelim = ';';
 const std::set<DALIDataType> kSupportedTypes = {DALI_UINT8,   DALI_UINT16, DALI_UINT32, DALI_UINT64,
                                                 DALI_INT8,    DALI_INT16,  DALI_INT32,  DALI_INT64,

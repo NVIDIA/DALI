@@ -54,7 +54,7 @@ inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_
 inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
                             std::vector<ComponentDesc>& components_container,
                             std::ifstream& index_file, const std::string& index_path, int64_t line,
-                            const std::string& index_version) {
+                            int index_version) {
   // Preparing the SampleDesc
   samples_container.emplace_back();
   samples_container.back().components =
@@ -69,7 +69,7 @@ inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
   // Reading consecutive components
   ComponentDesc component;
   while (components_stream >> component.ext) {
-    if (index_version == "v1.2") {
+    if (index_version == ParseIndexVersion("v1.2")) {
       DALI_ENFORCE(
           components_stream >> component.offset >> component.size >> component.filename,
           IndexFileErrMsg(
@@ -105,13 +105,14 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
   std::string global_meta;
   getline(index_file, global_meta);
   std::stringstream global_meta_stream(global_meta);
-  std::string index_version;
-  DALI_ENFORCE(global_meta_stream >> index_version,
+  std::string index_version_string;
+  DALI_ENFORCE(global_meta_stream >> index_version_string,
                IndexFileErrMsg(index_path, 0, "no version signature found"));
-  DALI_ENFORCE(
-      kSupportedIndexVersions.count(index_version) > 0,
-      IndexFileErrMsg(index_path, 0,
-                      make_string("Unsupported version of the index file (", index_version, ").")));
+  auto index_version = ParseIndexVersion(index_version_string.c_str());
+  DALI_ENFORCE(kSupportedIndexVersions.count(index_version) > 0,
+               IndexFileErrMsg(index_path, 0,
+                               make_string("Unsupported version of the index file (",
+                                           index_version_string, ").")));
 
   // Getting the number of samples in the index file
   int64_t sample_desc_num_signed;
