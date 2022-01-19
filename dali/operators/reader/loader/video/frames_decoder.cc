@@ -78,7 +78,6 @@ FramesDecoder::FramesDecoder(const std::string &filename)
   FindVideoStream();
   InitAvState();
   BuildIndex();
-  InitAvState();
 }
 
 void FramesDecoder::BuildIndex() {

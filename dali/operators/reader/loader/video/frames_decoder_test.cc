@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -137,8 +137,8 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
         file.FrameSize() * sizeof(uint8_t),
         cudaMemcpyDeviceToHost);
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 0), file.FrameSize());
-    this->SaveFrame(frame_cpu.data(), 0, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    this->SaveFrame(this->GetVfrFrame(1, 0), 0, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
+    // this->SaveFrame(frame_cpu.data(), 0, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
+    // this->SaveFrame(this->GetVfrFrame(1, 0), 0, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 
     // Seek to frame
     file.SeekFrame(25);
@@ -149,8 +149,8 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
         file.FrameSize() * sizeof(uint8_t),
         cudaMemcpyDeviceToHost);
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 25), file.FrameSize());
-    this->SaveFrame(frame_cpu.data(), 25, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    this->SaveFrame(this->GetVfrFrame(1, 25), 25, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
+    // this->SaveFrame(frame_cpu.data(), 25, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
+    // this->SaveFrame(this->GetVfrFrame(1, 25), 25, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 
     // Seek back to frame
     file.SeekFrame(12);
@@ -161,8 +161,8 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
         file.FrameSize() * sizeof(uint8_t),
         cudaMemcpyDeviceToHost);
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 12), file.FrameSize());
-    this->SaveFrame(frame_cpu.data(), 12, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    this->SaveFrame(this->GetVfrFrame(1, 12), 12, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
+    // this->SaveFrame(frame_cpu.data(), 12, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
+    // this->SaveFrame(this->GetVfrFrame(1, 12), 12, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 
     // Seek to last frame (flush frame)
     file.SeekFrame(59);
@@ -173,8 +173,8 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
         file.FrameSize() * sizeof(uint8_t),
         cudaMemcpyDeviceToHost);
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 59), file.FrameSize(), 1.1);
-    this->SaveFrame(frame_cpu.data(), 59, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    this->SaveFrame(this->GetVfrFrame(1, 59), 59, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
+    // this->SaveFrame(frame_cpu.data(), 59, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
+    // this->SaveFrame(this->GetVfrFrame(1, 59), 59, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 
     // Wrap around to first frame
     ASSERT_FALSE(file.ReadNextFrame(frame));
@@ -186,8 +186,8 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
         file.FrameSize() * sizeof(uint8_t),
         cudaMemcpyDeviceToHost);
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 0), file.FrameSize());
-    this->SaveFrame(frame_cpu.data(), 0, 1, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    this->SaveFrame(this->GetVfrFrame(1, 0), 0, 1, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
+    // this->SaveFrame(frame_cpu.data(), 0, 1, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
+    // this->SaveFrame(this->GetVfrFrame(1, 0), 0, 1, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 }
 
 TEST_F(FramesDecoderTest, VariableFrameRateAvi) {
