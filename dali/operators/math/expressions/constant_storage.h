@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ namespace dali {
 template <typename Backend>
 class ConstantStorage {
  public:
-  void Initialize(const OpSpec &spec, cudaStream_t stream,
+  void Initialize(const OpSpec &spec, AccessOrder order,
                   const std::vector<ExprConstant *> &constant_nodes) {
     auto integers_vec = spec.HasArgument("integer_constants")
                             ? spec.GetRepeatedArgument<int>("integer_constants")
@@ -57,6 +57,11 @@ class ConstantStorage {
     auto reals_vec = spec.HasArgument("real_constants")
                          ? spec.GetRepeatedArgument<float>("real_constants")
                          : std::vector<float>{};
+
+    if (!order) {
+      order = std::is_same<Backend, CPUBackend>::value ? AccessOrder::host()
+                                                       : AccessOrder(cudaStream_t(0));
+    }
 
     std::vector<ExprConstant *> integer_nodes, real_nodes;
     for (auto *node : constant_nodes) {
@@ -68,8 +73,8 @@ class ConstantStorage {
     }
     integers_.set_pinned(false);
     reals_.set_pinned(false);
-    Rewrite(integers_, integers_vec, integer_nodes, stream);
-    Rewrite(reals_, reals_vec, real_nodes, stream);
+    Rewrite(integers_, integers_vec, integer_nodes, order);
+    Rewrite(reals_, reals_vec, real_nodes, order);
   }
 
   const void *GetPointer(int constant_idx, DALIDataType type_id) const {
@@ -82,22 +87,19 @@ class ConstantStorage {
  private:
   Tensor<Backend> integers_, reals_;
   Tensor<CPUBackend> result_cpu_;
-  cudaStream_t prev_copy_stream_ = NULL;
 
   template <typename T>
   void Rewrite(Tensor<GPUBackend> &result, const std::vector<T> &constants,
-               const std::vector<ExprConstant *> &constant_nodes, cudaStream_t stream) {
-    if (prev_copy_stream_ != stream) {
-      CUDA_CALL(cudaStreamSynchronize(prev_copy_stream_));
-    }
-    prev_copy_stream_ = stream;
-    Rewrite(result_cpu_, constants, constant_nodes);
-    result.Copy(result_cpu_, stream);
+               const std::vector<ExprConstant *> &constant_nodes, AccessOrder order) {
+    Rewrite(result_cpu_, constants, constant_nodes, order);
+    result.Copy(result_cpu_, order);
   }
 
   template <typename T>
   void Rewrite(Tensor<CPUBackend> &result, const std::vector<T> &constants,
-               const std::vector<ExprConstant *> &constant_nodes, cudaStream_t = NULL) {
+               const std::vector<ExprConstant *> &constant_nodes, AccessOrder order = {}) {
+    // The buffer will be populated on host
+    result.set_order(AccessOrder::host());
     result.Resize({static_cast<int64_t>(constants.size() * kPaddingSize)}, DALI_UINT8);
     auto *data = result.mutable_data<uint8_t>();
     DALI_ENFORCE(
@@ -112,6 +114,8 @@ class ConstantStorage {
           *ptr = cast_const<Type>(constants[idx]);
         ), DALI_FAIL(make_string("Unsupported type: ", node->GetTypeId())););  // NOLINT
     }
+    // The buffer will be consumed in the order specified in the argument
+    result.set_order(order);
   }
 
   template <typename T, typename U>
