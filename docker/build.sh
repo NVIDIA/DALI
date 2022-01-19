@@ -5,7 +5,7 @@ a build environment
 
 To change build configuration please export appropriate env variables (for exact meaning please check the README):
 PYVER=[default 3.6, required only by Run image]
-CUDA_VERSION=[default 11.4, accepts also 10.2, 11.0 and 11.1]
+CUDA_VERSION=[default 11.6, accepts also 10.2, 11.0 and 11.1, 11.2, 11.3, 11.4, 11.5]
 NVIDIA_BUILD_ID=[default 12345]
 CREATE_WHL=[default YES]
 CREATE_RUNNER=[default NO]
@@ -40,15 +40,16 @@ shift $((OPTIND - 1))
 export ARCH=${ARCH:-x86_64}
 export PYVER=${PYVER:-3.6}
 export PYV=${PYVER/./}
-export CUDA_VERSION=${CUDA_VERSION:-11.5}
+export CUDA_VERSION=${CUDA_VERSION:-11.6}
 export CUDA_VER=${CUDA_VERSION//./}
 
 if [ "${CUDA_VERSION%%\.*}" ]
 then
   if [ $CUDA_VER != "100" ] && [ $CUDA_VER != "102" ] && [ $CUDA_VER != "110" ] && [ $CUDA_VER != "111" ] && \
-     [ $CUDA_VER != "112" ] && [ $CUDA_VER != "113" ] && [ $CUDA_VER != "114" ] && [ $CUDA_VER != "115" ]
+     [ $CUDA_VER != "112" ] && [ $CUDA_VER != "113" ] && [ $CUDA_VER != "114" ] && [ $CUDA_VER != "115" ] && \
+     [ $CUDA_VER != "116" ]
   then
-      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 10.0, 10.2, 11.0, 11.1, 11.2, 11.3, 11.4 and 11.5 are supported"
+      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 10.0, 10.2, 11.0, 11.1, 11.2, 11.3, 11.4, 11.5 and 11.6 are supported"
       exit 1
   fi
 else
