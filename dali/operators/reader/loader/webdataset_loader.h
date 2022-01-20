@@ -54,6 +54,8 @@ constexpr int ParseIndexVersion(const char* index_version) {
   return ret;
 }
 
+bool DLL_PUBLIC VerifyIndexVersionString(const std::string& index_version_string);
+
 // Minor part of the index version may be at most two-digit.
 const char kCurrentIndexVersion[] = "v1.2";
 const std::set<int> kSupportedIndexVersions = {
