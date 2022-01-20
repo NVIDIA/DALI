@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,16 @@
 
 namespace dali {
 
+DALI_SCHEMA(ArgHelperTestOp)
+  .DocStr(R"(Dummy op schema)")
+  .AddOptionalArg<vector<float>>("arg", R"(dummy vector<float> argument)",
+    nullptr,  // no default value
+    true)
+  .AddOptionalArg<float>("scalar", R"(dummy float argument)",
+    nullptr,  // no default value
+    true);
+
+
 static constexpr int kNumSamples = 5;
 
 template <int ndim>
@@ -37,15 +47,14 @@ void SetupData(TensorVector<CPUBackend> &tv,
 
 template <int ndim, typename... AcquireArgs>
 void ArgValueTestTensorInput(TensorListShape<ndim> ts, AcquireArgs... args) {
-  // using a real operator to avoid registering a new one just for this test
-  OpSpec spec("MTTransformAttr");
+  OpSpec spec("ArgHelperTestOp");
   ArgumentWorkspace ws;
   auto arg_data = std::make_shared<TensorVector<CPUBackend>>();
   SetupData(*arg_data, ts);
-  ws.AddArgumentInput("M", arg_data);
-  spec.AddArgumentInput("M", "M");
+  ws.AddArgumentInput("arg", arg_data);
+  spec.AddArgumentInput("arg", "arg");
 
-  ArgValue<float, ndim> arg("M", spec);
+  ArgValue<float, ndim> arg("arg", spec);
   arg.Acquire(spec, ws, kNumSamples, args...);
 
   ASSERT_TRUE(arg.HasArgumentInput());
@@ -77,13 +86,13 @@ void ArgValueTestAllowEmpty(TensorListShape<ndim> expected_sh, AcquireArgs... ar
                std::runtime_error);
   ArgValueTestTensorInput<ndim>(sh, expected_sample_sh, ArgValue_AllowEmpty);
 
-  OpSpec spec("MTTransformAttr");  // need to use a real op name
+  OpSpec spec("ArgHelperTestOp");
   ArgumentWorkspace ws;
   auto arg_data = std::make_shared<TensorVector<CPUBackend>>();
   SetupData(*arg_data, sh);
-  ws.AddArgumentInput("M", arg_data);
-  spec.AddArgumentInput("M", "M");
-  ArgValue<float, ndim> arg("M", spec);
+  ws.AddArgumentInput("arg", arg_data);
+  spec.AddArgumentInput("arg", "arg");
+  ArgValue<float, ndim> arg("arg", spec);
   arg.Acquire(spec, ws, kNumSamples, expected_sample_sh, ArgValue_AllowEmpty);
 
   EXPECT_EQ(kNumSamples, arg.size());
@@ -94,10 +103,10 @@ void ArgValueTestAllowEmpty(TensorListShape<ndim> expected_sh, AcquireArgs... ar
     EXPECT_EQ(i == empty_sample_idx, arg.IsEmpty(i));
 
   // All empty
-  OpSpec spec2("MTTransformAttr");  // need to use a real op name
-  spec2.AddArg("M", std::vector<float>{});
+  OpSpec spec2("ArgHelperTestOp");
+  spec2.AddArg("arg", std::vector<float>{});
   ArgumentWorkspace ws2;
-  ArgValue<float, ndim> arg2("M", spec2);
+  ArgValue<float, ndim> arg2("arg", spec2);
   arg2.Acquire(spec2, ws2, kNumSamples, expected_sample_sh, ArgValue_AllowEmpty);
 
   EXPECT_EQ(kNumSamples, arg2.size());
@@ -107,9 +116,9 @@ void ArgValueTestAllowEmpty(TensorListShape<ndim> expected_sh, AcquireArgs... ar
     EXPECT_TRUE(arg2.IsEmpty(i));
 
   // Not provided
-  OpSpec spec3("MTTransformAttr");  // need to use a real op name
+  OpSpec spec3("ArgHelperTestOp");
   ArgumentWorkspace ws3;
-  ArgValue<float, ndim> arg3("M", spec3);
+  ArgValue<float, ndim> arg3("arg", spec3);
   EXPECT_FALSE(arg3.HasValue());
 }
 
@@ -159,8 +168,8 @@ TEST(ArgValue, TensorInput_3D_per_sample) {
 
 TEST(ArgValueTests, Constant_0D) {
   int nsamples = 5;
-  auto spec = OpSpec("Erase").AddArg("shape", 0.123f);
-  ArgValue<float, 0> arg("shape", spec);
+  auto spec = OpSpec("ArgHelperTestOp").AddArg("scalar", 0.123f);
+  ArgValue<float, 0> arg("scalar", spec);
   workspace_t<CPUBackend> ws;
   arg.Acquire(spec, ws, nsamples);
   ASSERT_TRUE(arg.HasExplicitConstant());
@@ -168,8 +177,8 @@ TEST(ArgValueTests, Constant_0D) {
   ASSERT_EQ(0.123f, *arg[0].data);
 
   // Passing a vector to a scalar ArgValue
-  auto spec2 = OpSpec("Erase").AddArg("shape", vector<float>{0.1f, 0.2f});
-  ArgValue<float, 0> arg2("shape", spec2);
+  auto spec2 = OpSpec("ArgHelperTestOp").AddArg("scalar", vector<float>{0.1f, 0.2f});
+  ArgValue<float, 0> arg2("scalar", spec2);
   EXPECT_THROW(arg2.Acquire(spec2, ws, nsamples), std::runtime_error);
 }
 
@@ -178,8 +187,8 @@ TEST(ArgValueTests, Constant_1D) {
   int nsamples = 5;
   std::vector<float> data{0.1f, 0.2f, 0.3f};
   TensorShape<1> expected_shape{3};
-  auto spec = OpSpec("Erase").AddArg("shape", data);
-  ArgValue<float, 1> arg("shape", spec);
+  auto spec = OpSpec("ArgHelperTestOp").AddArg("arg", data);
+  ArgValue<float, 1> arg("arg", spec);
   workspace_t<CPUBackend> ws;
   arg.Acquire(spec, ws, nsamples, ArgValue_EnforceUniform);
   ASSERT_TRUE(arg.HasExplicitConstant());
@@ -196,8 +205,8 @@ TEST(ArgValueTests, Constant_2D) {
   auto data = std::vector<float>{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f};
   TensorShape<2> expected_shape{2, 3};
   auto spec =
-    OpSpec("MTTransformAttr")
-      .AddArg("M", data);
+    OpSpec("ArgHelperTestOp")
+      .AddArg("arg", data);
   workspace_t<CPUBackend> ws;
 
   auto shape_from_size =
@@ -210,13 +219,13 @@ TEST(ArgValueTests, Constant_2D) {
     };
 
   ArgValueFlags flags = ArgValue_EnforceUniform;
-  ArgValue<float, 2> err("M", spec);
+  ArgValue<float, 2> err("arg", spec);
   EXPECT_THROW(err.Acquire(spec, ws, nsamples, flags), std::logic_error);  // can't infer shape
 
-  ArgValue<float, 2> arg1("M", spec);
+  ArgValue<float, 2> arg1("arg", spec);
   arg1.Acquire(spec, ws, nsamples, flags, shape_from_size);
 
-  ArgValue<float, 2> arg2("M", spec);
+  ArgValue<float, 2> arg2("arg", spec);
   arg2.Acquire(spec, ws, nsamples, expected_shape);
 
   for (auto &arg : {arg1, arg2}) {
