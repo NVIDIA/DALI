@@ -36,7 +36,7 @@ namespace detail {
 namespace wds {
 
 bool VerifyIndexVersionString(const std::string& index_string) {
-  return std::regex_match(index_string, std::regex(R"(v\d+\.\d+)"));
+  return std::regex_match(index_string, std::regex(R"(v\d{1,2}\.\d{1,2})"));
 }
 
 inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_behavior) {
@@ -113,10 +113,10 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
   std::string index_version_string;
   DALI_ENFORCE(global_meta_stream >> index_version_string,
                IndexFileErrMsg(index_path, 0, "no version signature found"));
-  DALI_ENFORCE(
-      VerifyIndexVersionString(index_version_string),
-      make_string("Malformed index file version string (\"", index_version_string,
-                  "\"). The version string shall follow the pattern: \"v<digits>.<digits>\"."));
+  DALI_ENFORCE(VerifyIndexVersionString(index_version_string),
+               make_string("Malformed index file version string (\"", index_version_string,
+                           "\"). The version string shall follow the pattern: "
+                           "\"v<one-or-two-digits>.<one-or-two-digits>\"."));
   auto index_version = ParseIndexVersion(index_version_string.c_str());
   DALI_ENFORCE(kSupportedIndexVersions.count(index_version) > 0,
                IndexFileErrMsg(index_path, 0,
