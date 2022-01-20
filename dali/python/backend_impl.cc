@@ -277,39 +277,7 @@ void ExposeTensorLayout(py::module &m) {
 #undef DEFINE_LAYOUT_CMP
 }
 
-enum _DALIDataType : int {
-  _DALI_NO_TYPE           = -1,
-  _DALI_UINT8             =  0,
-  _DALI_UINT16            =  1,
-  _DALI_UINT32            =  2,
-  _DALI_UINT64            =  3,
-  _DALI_INT8              =  4,
-  _DALI_INT16             =  5,
-  _DALI_INT32             =  6,
-  _DALI_INT64             =  7,
-  _DALI_FLOAT16           =  8,
-  _DALI_FLOAT             =  9,
-  _DALI_FLOAT64           = 10,
-  _DALI_BOOL              = 11,
-  _DALI_STRING            = 12,
-  _DALI_BOOL_VEC          = 13,
-  _DALI_INT_VEC           = 14,
-  _DALI_STRING_VEC        = 15,
-  _DALI_FLOAT_VEC         = 16,
-#ifdef DALI_BUILD_PROTO3
-  _DALI_TF_FEATURE        = 17,
-  _DALI_TF_FEATURE_VEC    = 18,
-  _DALI_TF_FEATURE_DICT   = 19,
-#endif  // DALI_BUILD_PROTO3
-  _DALI_IMAGE_TYPE        = 20,
-  _DALI_DATA_TYPE         = 21,
-  _DALI_INTERP_TYPE       = 22,
-  _DALI_TENSOR_LAYOUT     = 23,
-  _DALI_PYTHON_OBJECT     = 24,
-  _DALI_TENSOR_LAYOUT_VEC = 25,
-  _DALI_DATA_TYPE_VEC     = 26,
-  _DALI_DATATYPE_END      = 1000
-};
+enum _DALIDataType {};
 
 void ExposeTensor(py::module &m) {
   m.def("CheckDLPackCapsule",
@@ -1363,8 +1331,9 @@ PYBIND11_MODULE(backend_impl, m) {
   types_m.add_object("CPU_ONLY_DEVICE_ID", PyLong_FromLong(CPU_ONLY_DEVICE_ID));
 
   // DALIDataType
-  py::enum_<DALIDataType>(types_m, "DALIDataType", "Object representing the data type of Tensor.\n<SPHINX_IGNORE>")
-    .value("NO_TYPE",       DALI_NO_TYPE)
+  py::enum_<DALIDataType> dali_data_type(
+      types_m, "DALIDataType", "Object representing the data type of Tensor.\n<SPHINX_IGNORE>");
+  dali_data_type.value("NO_TYPE",       DALI_NO_TYPE)
     .value("UINT8",         DALI_UINT8)
     .value("UINT16",        DALI_UINT16)
     .value("UINT32",        DALI_UINT32)
@@ -1396,41 +1365,9 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("_DATA_TYPE_VEC", DALI_DATA_TYPE_VEC)
     .export_values();
 
-  py::enum_<_DALIDataType>(types_m, "_DALIDataType", "Object representing the data type of Tensor.\n<SPHINX_IGNORE>")
-    .value("NO_TYPE",       _DALI_NO_TYPE)
-    .value("UINT8",         _DALI_UINT8)
-    .value("UINT16",        _DALI_UINT16)
-    .value("UINT32",        _DALI_UINT32)
-    .value("UINT64",        _DALI_UINT64)
-    .value("INT8",          _DALI_INT8)
-    .value("INT16",         _DALI_INT16)
-    .value("INT32",         _DALI_INT32)
-    .value("INT64",         _DALI_INT64)
-    .value("FLOAT16",       _DALI_FLOAT16)
-    .value("FLOAT",         _DALI_FLOAT)
-    .value("FLOAT64",       _DALI_FLOAT64)
-    .value("BOOL",          _DALI_BOOL)
-    .value("STRING",        _DALI_STRING)
-    .value("_BOOL_VEC",     _DALI_BOOL_VEC)
-    .value("_INT32_VEC",    _DALI_INT_VEC)
-    .value("_STRING_VEC",   _DALI_STRING_VEC)
-    .value("_FLOAT_VEC",    _DALI_FLOAT_VEC)
-#ifdef DALI_BUILD_PROTO3
-    .value("FEATURE",       _DALI_TF_FEATURE)
-    .value("_FEATURE_VEC",  _DALI_TF_FEATURE_VEC)
-    .value("_FEATURE_DICT", _DALI_TF_FEATURE_DICT)
-#endif  // DALI_BUILD_PROTO3
-    .value("IMAGE_TYPE",    _DALI_IMAGE_TYPE)
-    .value("DATA_TYPE",     _DALI_DATA_TYPE)
-    .value("INTERP_TYPE",   _DALI_INTERP_TYPE)
-    .value("TENSOR_LAYOUT", _DALI_TENSOR_LAYOUT)
-    .value("PYTHON_OBJECT", _DALI_PYTHON_OBJECT)
-    .value("_TENSOR_LAYOUT_VEC", _DALI_TENSOR_LAYOUT_VEC)
-    .value("_DATA_TYPE_VEC", _DALI_DATA_TYPE_VEC)
-    .export_values()
-    .def("__call__", [](_DALIDataType self) {
-      return FormatStrFromType(static_cast<DALIDataType>(self));
-    });
+  py::class_<_DALIDataType>(types_m, "_DALIDataType", dali_data_type)
+      .def("__call__",
+           [](_DALIDataType self) { return FormatStrFromType(static_cast<DALIDataType>(self)); });
 
   // DALIImageType
   py::enum_<DALIImageType>(types_m, "DALIImageType", "Image type\n<SPHINX_IGNORE>")
