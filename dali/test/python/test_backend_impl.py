@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend_impl import *
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
+import warnings
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
+from numpy.testing import assert_array_equal
 from nose_utils import assert_raises
-from test_utils import py_buffer_from_address
+from test_utils import dali_type_to_np, py_buffer_from_address
+
+import nvidia.dali.types
+import nvidia.dali.fn as fn
+from nvidia.dali import pipeline_def
+from nvidia.dali.backend_impl import *
 
 
 def test_create_tensor():
@@ -180,3 +183,47 @@ def test_tl_from_list_of_tensors_different_shapes():
         for arr, tensor_cpu, tensor_gpu in zip(np_arrays, tl_cpu, tl_gpu):
             np.testing.assert_array_equal(arr, tensor_cpu)
             np.testing.assert_array_equal(arr, tensor_gpu.as_cpu())
+
+
+def test_dtype_deprecation_warning():
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+
+        TensorCPU(np.empty((0))).dtype()
+
+        assert "Calling '.dtype()' is deprecated, please use '.dtype' instead" == str(w[-1].message)
+
+
+def test_dtype_placeholder_equivalence():
+    dali_types = nvidia.dali.types._all_types
+    np_types = list(map(dali_type_to_np, dali_types))
+
+    for dali_type, np_type in zip(dali_types, np_types):
+        assert TensorCPU(np.zeros((1), dtype=np_type)).dtype == dali_type
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0)
+def dtype_pipeline(np_type, placeholder_dali_type):
+    res = fn.external_source(source=np.zeros((8, 1), dtype=np_type), dtype=placeholder_dali_type)
+
+    return res
+
+
+def test_dtype_converion():
+    dali_types = [types._DALIDataType.INT8, types._DALIDataType.UINT64, types._DALIDataType.FLOAT16]
+    np_types = list(map(dali_type_to_np, dali_types))
+    for dali_type, np_type in zip(dali_types, np_types):
+        pipe = dtype_pipeline(np_type, dali_type)
+        pipe.build()
+        assert pipe.run()[0].dtype == dali_type
+
+
+def test_tensorlist_dtype():
+    dali_types = nvidia.dali.types._all_types
+    np_types = list(map(dali_type_to_np, dali_types))
+
+    for dali_type, np_type in zip(dali_types, np_types):
+        tl = TensorListCPU([TensorCPU(np.zeros((1), dtype=np_type))])
+
+        assert tl.dtype == dali_type
+        assert tl._as_gpu().dtype == dali_type
