@@ -108,6 +108,7 @@ void BatchedPaste(
 template<>
 void Paste<GPUBackend>::RunHelper(DeviceWorkspace &ws) {
   auto curr_batch_size = ws.GetInputBatchSize(0);
+  fill_value_.set_order(ws.stream());
   BatchedPaste<<<curr_batch_size, PASTE_BLOCKSIZE, 0, ws.stream()>>>(
       curr_batch_size,
       C_,

@@ -86,7 +86,7 @@ class DLL_PUBLIC CUDAStreamPool {
   };
 
   StreamEntry *unused_ = nullptr;
-  std::atomic_int lease_count_ = 0;
+  std::atomic_int lease_count_{0};
 
   vector<StreamEntry *> dev_streams_;
   spinlock lock_;

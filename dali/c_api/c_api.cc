@@ -21,7 +21,7 @@
 #include <map>
 
 #include "dali/core/common.h"
-#include "dali/core/cuda_stream.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/init.h"
@@ -173,14 +173,14 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_
   pipeline->EnableExecutorMemoryStats(enable_memory_stats);
   pipeline->Build();
   auto ws = std::make_unique<dali::DeviceWorkspace>();
-  dali::CUDAStream stream;
+  dali::CUDAStreamLease stream;
   if (pipeline->device_id() >= 0) {
-    stream = dali::CUDAStream::Create(true);
+    stream = dali::CUDAStreamPool::instance().Get(pipeline->device_id());
   }
   auto bs_map = std::make_unique<batch_size_map_t>();
 
   pipe_handle->ws = ws.release();
-  pipe_handle->copy_stream = stream.release();
+  pipe_handle->copy_stream = stream.release().release();
   pipe_handle->pipe = pipeline.release();
   pipe_handle->batch_size_map = bs_map.release();
 }
@@ -190,14 +190,14 @@ void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *seriali
                             int length) {
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length));
   pipeline->Build();
-  dali::CUDAStream stream;
+  dali::CUDAStreamLease stream;
   if (pipeline->device_id() >= 0) {
-    stream = dali::CUDAStream::Create(true);
+    stream = dali::CUDAStreamPool::instance().Get(pipeline->device_id());
   }
   auto ws = std::make_unique<dali::DeviceWorkspace>();
   auto bs_map = std::make_unique<batch_size_map_t>();
   pipe_handle->ws = ws.release();
-  pipe_handle->copy_stream = stream.release();
+  pipe_handle->copy_stream = stream.release().release();
   pipe_handle->pipe = pipeline.release();
   pipe_handle->batch_size_map = bs_map.release();
 }
@@ -546,7 +546,8 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
   auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
   DALI_ENFORCE(pipeline != nullptr && ws != nullptr, "Pipeline already deleted");
   if (pipe_handle->copy_stream) {
-    CUDA_CALL(cudaStreamDestroy(pipe_handle->copy_stream));
+    CUDA_CALL(cudaStreamSynchronize(pipe_handle->copy_stream));
+    dali::CUDAStreamPool::instance().Put(dali::CUDAStream(pipe_handle->copy_stream));
   }
   pipe_handle->copy_stream = nullptr;
   delete ws;

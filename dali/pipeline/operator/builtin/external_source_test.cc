@@ -144,7 +144,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
         data[i] = fill_counter_;
         ++fill_counter_;
       }
-      vt_gpu_[j].Copy(tensor, 0);
+      vt_gpu_[j].Copy(tensor);
     }
     CUDA_CALL(cudaStreamSynchronize(0));
     src_op->SetDataSource(vt_gpu_);
@@ -177,7 +177,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
         data[i] = fill_counter_;
         ++fill_counter_;
       }
-      tl_gpu_.Copy(tensor_list, 0);
+      tl_gpu_.Copy(tensor_list);
     }
     CUDA_CALL(cudaStreamSynchronize(0));
     src_op->SetDataSource(tl_gpu_);
@@ -194,7 +194,8 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     exe_->Outputs(&ws);
     auto &tensor_gpu_list = ws.Output<GPUBackend>(0);
     TensorList<CPUBackend> tensor_cpu_list;
-    tensor_cpu_list.Copy(tensor_gpu_list, (ws.has_stream() ? ws.stream() : 0));
+    AccessOrder order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();
+    tensor_cpu_list.Copy(tensor_gpu_list, order);
     CUDA_CALL(cudaStreamSynchronize(ws.has_stream() ? ws.stream() : 0));
 
     for (int j = 0; j < this->batch_size_; ++j) {
@@ -569,7 +570,7 @@ void TestRunExternalSource(Pipeline &pipe, const std::string &name,
     pipe.SetExternalInput("es", input_cpu);
   } else {
     TensorList<GPUBackend> input_gpu;
-    input_gpu.Copy(input_cpu, 0);
+    input_gpu.Copy(input_cpu);
     cudaStreamSynchronize(0);
     pipe.SetExternalInput("es", input_gpu);
   }
@@ -579,10 +580,11 @@ void TestRunExternalSource(Pipeline &pipe, const std::string &name,
   TensorList<CPUBackend> output_cpu;
   pipe.Outputs(&ws);
   if (dev == "cpu") {
-    output_cpu.Copy(ws.Output<CPUBackend>(0), 0);
+    output_cpu.Copy(ws.Output<CPUBackend>(0), AccessOrder::host());
   } else {
-    output_cpu.Copy(ws.Output<GPUBackend>(0), 0);
-    cudaStreamSynchronize(0);
+    auto &output = ws.Output<GPUBackend>(0);
+    output_cpu.Copy(output, output.order());
+    CUDA_CALL(cudaStreamSynchronize(output.order().stream()));
   }
   ASSERT_EQ(input_cpu.shape(), output_cpu.shape());
   ASSERT_EQ(input_cpu.type(), output_cpu.type());

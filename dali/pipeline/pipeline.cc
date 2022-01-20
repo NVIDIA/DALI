@@ -137,6 +137,13 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
     }
   }
 
+Pipeline::~Pipeline() {
+  DeviceGuard dg(device_id_);
+  if (executor_)
+    executor_->Shutdown();
+  graph_ = {};
+}
+
 void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t seed,
                     bool pipelined_execution, bool separated_execution, bool async_execution,
                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,

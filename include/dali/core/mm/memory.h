@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <memory>
 #include <utility>
 #include "dali/core/mm/default_resources.h"
+#include "dali/core/access_order.h"
 
 namespace dali {
 namespace mm {
@@ -26,7 +27,7 @@ namespace mm {
  * @brief Special value that's not a valid CUDA stream handle and indicates that an operation
  *        should be performed in host order rather than stream order.
  */
-static const cudaStream_t host_sync = ((cudaStream_t)4321);  // NOLINT
+static const cudaStream_t host_sync = AccessOrder::host_sync_stream();
 
 /**
  * @brief A deleter that disposes of raw memory allocated from a specific memory resource.

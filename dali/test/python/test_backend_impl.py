@@ -185,6 +185,32 @@ def test_tl_from_list_of_tensors_different_shapes():
             np.testing.assert_array_equal(arr, tensor_gpu.as_cpu())
 
 
+def test_tl_from_list_of_tensors_empty():
+    with assert_raises(RuntimeError, glob='Cannot create TensorList from an empty list.'):
+        TensorListCPU([])
+    with assert_raises(RuntimeError, glob='Cannot create TensorList from an empty list.'):
+        TensorListGPU([])
+
+
+def test_tl_from_list_of_tensors_different_backends():
+    t1 = TensorCPU(np.zeros((1)))
+    t2 = TensorCPU(np.zeros((1)))._as_gpu()
+    with assert_raises(TypeError, glob='Object at position 1 cannot be converted to TensorCPU'):
+        TensorListCPU([t1, t2])
+    with assert_raises(TypeError, glob='Object at position 1 cannot be converted to TensorGPU'):
+        TensorListGPU([t2, t1])
+
+
+def test_tl_from_list_of_tensors_different_dtypes():
+    np_types = [np.float32, np.float16, np.int16, np.int8, np.uint16, np.uint8]
+    for dtypes in np.random.choice(np_types, size=(3, 2), replace=False):
+        t1 = TensorCPU(np.zeros((1), dtype=dtypes[0]))
+        t2 = TensorCPU(np.zeros((1), dtype=dtypes[1]))
+        with assert_raises(TypeError, glob=f"Tensors cannot have different data types. Tensor at position "
+                           "1 has type '*' expected to have type '*'."):
+            TensorListCPU([t1, t2])
+
+
 def test_dtype_deprecation_warning():
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
@@ -226,4 +252,4 @@ def test_tensorlist_dtype():
         tl = TensorListCPU([TensorCPU(np.zeros((1), dtype=np_type))])
 
         assert tl.dtype == dali_type
-        assert tl._as_gpu().dtype == dali_type
+        assert tl._as_gpu().dtype == dali_type 
