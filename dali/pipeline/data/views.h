@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -84,6 +84,29 @@ view(Tensor<Backend> &data) {
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
   return { data.template mutable_data<U>(),  convert_dim<ndim>(data.shape()) };
+}
+
+
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
+view(TensorView<Backend, void, ndim> &data) {
+  // if (data.shape().empty())
+  //   return {};
+  // using U = std::remove_const_t<T>;
+  // detail::enforce_dim_in_view<ndim>(data.shape());
+  // return { data.template mutable_data<U>(),  convert_dim<ndim>(data.shape()) };
+  return data.to_static<T, ndim>();
+}
+
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
+view(TensorView<Backend, const void, ndim> &data) {
+  // if (data.shape().empty())
+  //   return {};
+  // using U = std::remove_const_t<T>;
+  // detail::enforce_dim_in_view<ndim>(data.shape());
+  // return { data.template mutable_data<U>(),  convert_dim<ndim>(data.shape()) };
+  return data.to_static<T, ndim>();
 }
 
 

@@ -27,6 +27,28 @@
 
 #include "dali/core/tensor_shape.h"
 
+#include "dali/core/tensor_view.h"
+#include "dali/core/backend_tags.h"
+
+/**
+ * @brief Maps DALI Backend to dali::kernels storage backend.
+ */
+template <typename Backend>
+struct storage_tag_map3;
+
+template <>
+struct storage_tag_map3<CPUBackend> {
+  using type = StorageCPU;
+};
+
+template <>
+struct storage_tag_map3<GPUBackend> {
+  using type = StorageGPU;
+};
+
+template <typename Backend>
+using storage_tag_map3_t = typename storage_tag_map3<Backend>::type;
+
 namespace dali {
 
 /**
@@ -105,13 +127,23 @@ class DLL_PUBLIC TensorVector {
     // tensor_[idx].ShareData(owner);
   }
 
-  Tensor<Backend> &operator[](size_t pos) {
-    return *(tensors_[pos]);
+  DLL_PUBLIC TensorView<storage_tag_map3_t<Backend>, void, DynamicDimensions> operator[](
+      int sample_idx) {
+    return {tensors_[sample_idx].raw_mutable_data(), tensor_shape(sample_idx), type()};
   }
 
-  const Tensor<Backend> &operator[](size_t pos) const {
-    return *(tensors_[pos]);
+  DLL_PUBLIC TensorView<storage_tag_map3_t<Backend>, const void, DynamicDimensions> operator[](
+      int sample_idx) const {
+    return {tensors_[sample_idx].raw_data(), tensor_shape(sample_idx), type()};
   }
+
+  // Tensor<Backend> &operator[](size_t pos) {
+  //   return *(tensors_[pos]);
+  // }
+
+  // const Tensor<Backend> &operator[](size_t pos) const {
+  //   return *(tensors_[pos]);
+  // }
 
   auto tensor_handle(size_t pos) {
     return tensors_[pos];

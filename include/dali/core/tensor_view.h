@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <vector>
 #include <stdexcept>
 #include "dali/core/tensor_shape.h"
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
 
@@ -221,6 +222,110 @@ struct TensorView : TensorViewBase<Backend, DataType, ndim> {
     other.data = nullptr;
   }
 };
+
+
+// Todo, const, type promotions, move constructors etc.
+template <typename Backend>
+struct TensorView<Backend, void, DynamicDimensions> {
+  TensorView() = default;
+
+  template <typename DataType>
+  TensorView(DataType *data, const TensorShape<DynamicDimensions> &shape)
+      : data{data}, shape{shape}, type_id{type2id<DataType>::value} {}
+  template <typename DataType>
+  TensorView(DataType *data, TensorShape<DynamicDimensions> &&shape)
+      : data{data}, shape{std::move(shape)}, type_id{type2id<DataType>::value} {}
+  template <typename DataType, int ndim>
+  TensorView(DataType *data, const TensorShape<ndim> &shape)
+      : data{data}, shape{shape}, type_id{type2id<DataType>::value} {}
+  template <typename DataType, int ndim>
+  TensorView(DataType *data, TensorShape<ndim> &&shape)
+      : data{data}, shape{std::move(shape)}, type_id{type2id<DataType>::value} {}
+
+  TensorView(void *data, const TensorShape<DynamicDimensions> &shape, DALIDataType type_id)
+      : data{data}, shape{shape}, type_id{type_id} {}
+  TensorView(void *data, TensorShape<DynamicDimensions> &&shape, DALIDataType type_id)
+      : data{data}, shape{std::move(shape)}, type_id{type_id} {}
+  template <int ndim>
+  TensorView(void *data, const TensorShape<ndim> &shape, DALIDataType type_id)
+      : data{data}, shape{shape}, type_id{type_id} {}
+  template <int ndim>
+  TensorView(void *data, TensorShape<ndim> &&shape, DALIDataType type_id)
+      : data{data}, shape{std::move(shape)}, type_id{type_id} {}
+
+  TensorView(const TensorView &) = default;
+  TensorView &operator=(const TensorView &) = default;
+
+  void *data = nullptr;
+  TensorShape<DynamicDimensions> shape;
+  DALIDataType type_id = DALI_NO_TYPE;
+
+  DALIDataType type() const {
+    return type_id;
+  }
+
+
+  template <typename DataType, int other_ndim = DynamicDimensions>
+  TensorView<Backend, DataType, other_ndim> to_static() {
+    DALI_ENFORCE(type() == type2id<DataType>::value, "Type must match for the conversion");
+    DALI_ENFORCE(shape.sample_dim() == other_ndim || shape.static_ndim == DynamicDimensions,
+                 "Dimensionality must match for the conversion");
+    return {static_cast<DataType *>(data), shape};
+  }
+};
+
+
+template <typename Backend>
+struct TensorView<Backend, const void, DynamicDimensions> {
+  TensorView() = default;
+
+  template <typename DataType>
+  TensorView(const DataType *data, const TensorShape<DynamicDimensions> &shape)
+      : data{data}, shape{shape}, type_id{type2id<DataType>::value} {}
+  template <typename DataType>
+  TensorView(const DataType *data, TensorShape<DynamicDimensions> &&shape)
+      : data{data}, shape{std::move(shape)}, type_id{type2id<DataType>::value} {}
+  template <typename DataType, int ndim>
+  TensorView(const DataType *data, const TensorShape<ndim> &shape)
+      : data{data}, shape{shape}, type_id{type2id<DataType>::value} {}
+  template <typename DataType, int ndim>
+  TensorView(const DataType *data, TensorShape<ndim> &&shape)
+      : data{data}, shape{std::move(shape)}, type_id{type2id<DataType>::value} {}
+
+  TensorView(const void *data, const TensorShape<DynamicDimensions> &shape, DALIDataType type_id)
+      : data{data}, shape{shape}, type_id{type_id} {}
+  TensorView(const void *data, TensorShape<DynamicDimensions> &&shape, DALIDataType type_id)
+      : data{data}, shape{std::move(shape)}, type_id{type_id} {}
+  template <int ndim>
+  TensorView(const void *data, const TensorShape<ndim> &shape, DALIDataType type_id)
+      : data{data}, shape{shape}, type_id{type_id} {}
+  template <int ndim>
+  TensorView(const void *data, TensorShape<ndim> &&shape, DALIDataType type_id)
+      : data{data}, shape{std::move(shape)}, type_id{type_id} {}
+
+  TensorView(const TensorView &) = default;
+  TensorView &operator=(const TensorView &) = default;
+
+  const void *data = nullptr;
+  TensorShape<DynamicDimensions> shape;
+  DALIDataType type_id = DALI_NO_TYPE;
+
+  DALIDataType type() const {
+    return type_id;
+  }
+
+
+  template <typename DataType, int other_ndim = DynamicDimensions>
+  TensorView<Backend, DataType, other_ndim> to_static() {
+    DALI_ENFORCE(type() == type2id<DataType>::value, "Type must match for the conversion");
+    DALI_ENFORCE(shape.sample_dim() == other_ndim || shape.static_ndim == DynamicDimensions,
+                 "Dimensionality must match for the conversion");
+    return {static_cast<DataType *>(data), shape};
+  }
+};
+
+
+
 
 template <typename Backend, typename DataType, int ndim>
 template <int other_ndim>

@@ -28,6 +28,10 @@
 #include "dali/pipeline/data/meta.h"
 #include "dali/pipeline/data/types.h"
 
+
+#include "dali/core/tensor_view.h"
+#include "dali/core/backend_tags.h"
+
 namespace dali {
 
 template <typename Backend>
@@ -35,6 +39,25 @@ class Tensor;
 
 template <typename Backend>
 class TensorVector;
+
+/**
+ * @brief Maps DALI Backend to dali::kernels storage backend.
+ */
+template <typename Backend>
+struct storage_tag_map2;
+
+template <>
+struct storage_tag_map2<CPUBackend> {
+  using type = StorageCPU;
+};
+
+template <>
+struct storage_tag_map2<GPUBackend> {
+  using type = StorageGPU;
+};
+
+template <typename Backend>
+using storage_tag_map2_t = typename storage_tag_map2<Backend>::type;
 
 /**
  * @brief Stores a number of Tensors in a contiguous buffer.
@@ -70,6 +93,16 @@ class DLL_PUBLIC TensorList {
   }
 
   DLL_PUBLIC ~TensorList() = default;
+
+  DLL_PUBLIC TensorView<storage_tag_map2_t<Backend>, void, DynamicDimensions> operator[](
+      int sample_idx) {
+    return {samples_[sample_idx].raw_mutable_data(), shape_[sample_idx], type()};
+  }
+
+  DLL_PUBLIC TensorView<storage_tag_map2_t<Backend>, const void, DynamicDimensions> operator[](
+      int sample_idx) const {
+    return {samples_[sample_idx].raw_data(), shape_[sample_idx], type()};
+  }
 
   /**
    * @brief Number of elements in Tensor List.
