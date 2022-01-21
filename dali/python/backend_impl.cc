@@ -1392,11 +1392,22 @@ PYBIND11_MODULE(backend_impl, m) {
 
   // Placeholder data type allowing to use legacy __call__ method on dtype (to be deprecated).
   py::class_<DALIDataTypePlaceholder>(types_m, "_DALIDataType", dali_data_type)
-      .def("__call__", [](DALIDataTypePlaceholder self) {
-        auto deprecation_func =
-            py::module::import("nvidia.dali.backend").attr("deprecation_warning");
-        deprecation_func("Calling '.dtype()' is deprecated, please use '.dtype' instead");
-        return FormatStrFromType(static_cast<DALIDataType>(self));
+      .def("__call__",
+           [](DALIDataTypePlaceholder self) {
+             auto deprecation_func =
+                 py::module::import("nvidia.dali.backend").attr("deprecation_warning");
+             deprecation_func("Calling '.dtype()' is deprecated, please use '.dtype' instead");
+             return FormatStrFromType(static_cast<DALIDataType>(self));
+           })
+      .def("__repr__", [](DALIDataTypePlaceholder self) {
+             return py::module::import("nvidia.dali.types")
+                 .attr("DALIDataType")
+                 .attr("__repr__")(static_cast<DALIDataType>(self));
+           })
+      .def("__str__", [](DALIDataTypePlaceholder self) {
+        return py::module::import("nvidia.dali.types")
+            .attr("DALIDataType")
+            .attr("__str__")(static_cast<DALIDataType>(self));
       });
 
   // DALIImageType
