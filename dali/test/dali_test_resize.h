@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #ifndef DALI_TEST_DALI_TEST_RESIZE_H_
 #define DALI_TEST_DALI_TEST_RESIZE_H_
 
@@ -175,7 +175,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
         finalImg = &mirror_img;
       }
 
-      out[i].Resize({finalImg->rows, finalImg->cols, c}, DALI_UINT8);
+      out[i].Resize({finalImg->rows, finalImg->cols, c}, DALI_UINT8);  // todo view<void> THIS IS TOTALLY FORBIDDEN
       auto *out_data = out[i].mutable_data<unsigned char>();
 
       std::memcpy(out_data, finalImg->ptr(), finalImg->rows * finalImg->cols * c);

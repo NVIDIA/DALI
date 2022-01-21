@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -555,7 +555,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif  // NVJPEG2K_ENABLED
 
     for (int i = 0; i < curr_batch_size; i++) {
-      const auto &in = ws.Input<CPUBackend>(0)[i];
+      const auto &in = ws.Input<CPUBackend>(0)[i]; // todo view<void> - this one will be complicated
       const auto in_size = in.size();
       thread_pool_.AddWork([this, i, &in, in_size](int tid) {
         auto *input_data = in.data<uint8_t>();
@@ -851,7 +851,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         const auto &in = ws.Input<CPUBackend>(0)[i];
         const auto &out_shape = output_shape_.tensor_shape(i);
 
-        tv[j].ShareData(const_cast<Tensor<CPUBackend> &>(in));
+        tv[j].ShareData(const_cast<Tensor<CPUBackend> &>(in)); // todo view<void> - actually share owner needed
         in_lengths_[j] = in.size();
         nvjpeg_destinations_[j].channel[0] = output.mutable_tensor<uint8_t>(i);
         nvjpeg_destinations_[j].pitch[0] = out_shape[1] * out_shape[2];

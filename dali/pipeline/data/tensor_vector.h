@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,6 +65,46 @@ class DLL_PUBLIC TensorVector {
 
   void set_order(AccessOrder order, bool synchronize = true);
 
+  /**
+   * @brief Returns a typed pointer to the tensor with the given index.
+   */
+  template <typename T>
+  DLL_PUBLIC inline T* mutable_tensor(int idx) {
+    return tensors_[idx]->template mutable_data<T>();
+  }
+
+  /**
+   * @brief Returns a const typed pointer to the tensor with the given index.
+   */
+  template <typename T>
+  DLL_PUBLIC inline const T* tensor(int idx) const {
+    return tensors_[idx]->template data<T>();
+  }
+
+  /**
+   * @brief Returns a raw pointer to the tensor with the given index.
+   */
+  DLL_PUBLIC inline void* raw_mutable_tensor(int idx) {
+    return tensors_[idx]->raw_mutable_data();
+  }
+
+  /**
+   * @brief Returns a const raw pointer to the tensor with the given index.
+   */
+  DLL_PUBLIC inline const void* raw_tensor(int idx) const {
+    return  tensors_[idx]->raw_data();
+  }
+
+  DLL_PUBLIC void set_sample(int idx, const Buffer<Backend> &owner) {
+    // todo share_data replacement
+    // tensor_[idx].ShareData(owner);
+  }
+
+  DLL_PUBLIC void set_sample(int idx, const Tensor<Backend> &owner) {
+    // todo share_data replacement
+    // tensor_[idx].ShareData(owner);
+  }
+
   Tensor<Backend> &operator[](size_t pos) {
     return *(tensors_[pos]);
   }
@@ -121,14 +161,6 @@ class DLL_PUBLIC TensorVector {
 
   const TensorShape<> &tensor_shape(int idx) const {
     return tensors_[idx]->shape();
-  }
-
-  const void *raw_tensor(int idx) const {
-    return tensors_[idx]->raw_data();
-  }
-
-  void* raw_mutable_tensor(int idx) {
-    return tensors_[idx]->raw_mutable_data();
   }
 
   DLL_PUBLIC void Resize(const TensorListShape<> &new_shape) {

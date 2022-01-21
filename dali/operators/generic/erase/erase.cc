@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -213,8 +213,8 @@ void EraseImplCpu<T, Dims>::RunImpl(HostWorkspace &ws) {
     thread_pool.AddWork(
       [this, &input, &output, i](int thread_id) {
         kernels::KernelContext ctx;
-        auto in_view = view<const T, Dims>(input[i]);
-        auto out_view = view<T, Dims>(output[i]);
+        auto in_view = view<const T, Dims>(input[i]); // todo view<void>
+        auto out_view = view<T, Dims>(output[i]); // todo view<void>
         kmgr_.Run<EraseKernel>(thread_id, i, ctx, out_view, in_view, args_[i]);
       }, in_shape.tensor_size(i));
   }

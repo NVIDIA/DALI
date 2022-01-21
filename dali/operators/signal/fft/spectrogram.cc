@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -229,8 +229,8 @@ bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc
 
   auto view_window_fn = make_tensor_cpu<1>(window_fn_.data(), window_length_);
   for (int i = 0; i < nsamples; i++) {
-    auto view_signal_1d =
-        make_tensor_cpu<1>(input[i].template data<const InputType>(), {input[i].size()});
+    auto view_signal_1d = make_tensor_cpu<1>(input.template tensor<const InputType>(i),
+                                             {input.tensor_shape(i).num_elements()});
 
     auto &windows_req =
       kmgr_window_.Setup<WindowKernel>(
@@ -271,8 +271,8 @@ void SpectrogramImplCpu<time_major>::RunImpl(workspace_t<CPUBackend> &ws) {
         win_out.set_type<InputType>();
         win_out.Resize(window_out_desc_[0].shape.tensor_shape(i));
 
-        auto view_signal_1d =
-            make_tensor_cpu<1>(input[i].data<const InputType>(), {input[i].size()});
+        auto view_signal_1d = make_tensor_cpu<1>(input.tensor<const InputType>(i),
+                                                 {input.tensor_shape(i).num_elements()});
         kmgr_window_.Run<WindowKernel>(
           thread_id, i, ctx,
           view<InputType, WindowsDims>(win_out),
@@ -282,8 +282,8 @@ void SpectrogramImplCpu<time_major>::RunImpl(workspace_t<CPUBackend> &ws) {
 
         kmgr_fft_.Run<FftKernel>(
           thread_id, i, ctx,
-          view<OutputType, WindowsDims>(output[i]),
-          view<const InputType, WindowsDims>(win_out),
+          view<OutputType, WindowsDims>(output[i]), // todo view<void>
+          view<const InputType, WindowsDims>(win_out), // todo view<void> - this is actual Tensor!!
           fft_args_);
     }, out_shape.tensor_size(i));
   }

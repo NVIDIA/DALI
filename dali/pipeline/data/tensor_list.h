@@ -113,19 +113,20 @@ class DLL_PUBLIC TensorList {
   template <typename SrcBackend>
   DLL_PUBLIC inline void Copy(const TensorVector<SrcBackend> &other, AccessOrder order = {},
                               bool use_copy_kernel = false) {
-    auto type = other[0].type();
-    auto layout = other[0].GetLayout();
+    auto type = other.type();
+    auto layout = other.GetLayout();
 
-    int dim = other[0].shape().sample_dim();
+    int dim = other.sample_dim();
     TensorListShape<> new_shape(other.num_samples(), dim);
     for (size_t i = 0; i < other.num_samples(); ++i) {
-      DALI_ENFORCE(other[i].shape().sample_dim() == dim,
-         "TensorList can only have uniform dimensions across all samples, mismatch at index "
-         + std::to_string(i) + " expected Tensor with dim = " + to_string(dim)
-         + " found Tensor with dim = " + to_string(other[i].shape().sample_dim()));
-      assert(type == other[i].type());
-      assert(layout == other[i].GetLayout());
-      new_shape.set_tensor_shape(i, other[i].shape());
+      // todo COPY is samplebroken
+      // DALI_ENFORCE(other.tensor_shape(i).sample_dim() == dim,
+      //    "TensorList can only have uniform dimensions across all samples, mismatch at index "
+      //    + std::to_string(i) + " expected Tensor with dim = " + to_string(dim)
+      //    + " found Tensor with dim = " + to_string(other[i].shape().sample_dim()));
+      // assert(type == other[i].type());
+      // assert(layout == other[i].GetLayout());
+      new_shape.set_tensor_shape(i, other.tensor_shape(i));
     }
 
     if (!order)

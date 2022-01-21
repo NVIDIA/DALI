@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,9 +58,8 @@ bool SliceBaseCpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc
   output_desc[0].shape.resize(nsamples, Dims);
 
   kernels::KernelContext ctx;
-  auto in_view = view<const InputType, Dims>(input);
   for (int i = 0; i < nsamples; i++) {
-    auto in_view = view<const InputType, Dims>(input[i]);
+    auto in_view = view<const InputType, Dims>(input[i]);  // todo view<void>
     auto req = Kernel().Setup(ctx, in_view, args_[i]);
     auto out_shape = req.output_shapes[0][0].shape;
     output_desc[0].shape.set_tensor_shape(i, out_shape);

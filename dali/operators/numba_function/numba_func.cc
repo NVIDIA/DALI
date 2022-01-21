@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -260,13 +260,13 @@ void NumbaFuncImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
     auto& out = ws.Output<CPUBackend>(out_id);
     for (int i = 0; i < N; i++) {
-      out_ptrs[N * out_id + i] = reinterpret_cast<uint64_t>(out[i].raw_mutable_data());
+      out_ptrs[N * out_id + i] = reinterpret_cast<uint64_t>(out.raw_mutable_tensor(i));
     }
   }
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
     auto& in = ws.Input<CPUBackend>(in_id);
     for (int i = 0; i < N; i++) {
-      in_ptrs[N * in_id + i] = reinterpret_cast<uint64_t>(in[i].raw_data());
+      in_ptrs[N * in_id + i] = reinterpret_cast<uint64_t>(in.raw_tensor(i));
     }
   }
 

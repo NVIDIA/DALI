@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -105,8 +105,8 @@ void MelFilterBank<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
     for (int i = 0; i < input.shape().num_samples(); i++) {
       thread_pool.AddWork(
         [this, &input, &output, i](int thread_id) {
-          auto in_view = view<const T>(input[i]);
-          auto out_view = view<T>(output[i]);
+          auto in_view = view<const T>(input[i]); // todo view<void>
+          auto out_view = view<T>(output[i]); // todo view<void>
           kmgr_.Run<MelFilterBankKernel>(thread_id, i, ctx_, out_view, in_view);
         }, in_shape.tensor_size(i));
     }

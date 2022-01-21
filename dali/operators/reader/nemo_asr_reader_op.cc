@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -163,8 +163,8 @@ void NemoAsrReader::Prefetch() {
   // Waiting until all the audio samples are ready to be consumed
   decoded_map_.clear();
   for (int i = 0; i < nsamples; i++) {
-    auto &sample = *curr_batch[i];
-    auto &audio = audio_batch[i];
+    auto &sample = *curr_batch[i]; // todo view<void>
+    auto &audio = audio_batch[i]; // todo view<void>
 
     if (decoded_map_.find(&sample) != decoded_map_.end())
       continue;
@@ -183,7 +183,7 @@ void NemoAsrReader::Prefetch() {
     for (int i = 0; i < nsamples; i++) {
       auto it = decoded_map_.find(curr_batch[i].get());
       if (it != decoded_map_.end() && it->second != i) {
-        audio_batch[i].Copy(audio_batch[it->second]);
+        audio_batch[i].Copy(audio_batch[it->second]); // todo view<void>
       }
     }
   }
@@ -228,7 +228,7 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
 
 Tensor<CPUBackend>& NemoAsrReader::GetDecodedAudioSample(int sample_idx) {
   auto &curr_batch = *prefetched_decoded_audio_[curr_batch_consumer_];
-  return curr_batch[sample_idx];
+  return curr_batch[sample_idx]; // todo view<void>
 }
 
 }  // namespace dali

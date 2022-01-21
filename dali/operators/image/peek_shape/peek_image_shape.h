@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -77,7 +77,7 @@ class PeekImageShape : public Operator<CPUBackend> {
 
     for (size_t sample_id = 0; sample_id < batch_size; ++sample_id) {
       thread_pool.AddWork([sample_id, &input, &output, this] (int tid) {
-        const auto& image = input[sample_id];
+        const auto& image = input[sample_id];  // todo view<void> - this one needs more rework
         // Verify input
         DALI_ENFORCE(image.ndim() == 1,
                       "Input must be 1D encoded jpeg string.");
@@ -87,7 +87,7 @@ class PeekImageShape : public Operator<CPUBackend> {
         auto shape = img->PeekShape();
         TYPE_SWITCH(output_type_, type2id, type,
                 (int32_t, uint32_t, int64_t, uint64_t, float, double),
-          (WriteShape<type>(output[sample_id], shape);),
+          (WriteShape<type>(output[sample_id], shape);),  // todo view<void>
           (DALI_FAIL(make_string("Unsupported type for Shapes: ", output_type_))));
       }, 0);
       // the amount of work depends on the image format and exact sample which is unknown here

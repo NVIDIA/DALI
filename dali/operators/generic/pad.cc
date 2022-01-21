@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -210,7 +210,7 @@ bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       auto in_view = view<const T, Dims>(input);
       auto &kernel_sample_args = FillArgs<Args>(in_shape, in_layout);
       for (int i = 0; i < nsamples; i++) {
-        auto in_view = view<const T, Dims>(input[i]);
+        auto in_view = view<const T, Dims>(input[i]);  // todo view<void>
         kernels::KernelContext ctx;
         auto req = kmgr_.Setup<Kernel>(i, ctx, in_view, kernel_sample_args[i]);
         output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
@@ -238,8 +238,8 @@ void Pad<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
         thread_pool.AddWork(
           [this, &input, &output, i](int thread_id) {
             kernels::KernelContext ctx;
-            auto in_view = view<const T, Dims>(input[i]);
-            auto out_view = view<T, Dims>(output[i]);
+            auto in_view = view<const T, Dims>(input[i]); // todo view<void>
+            auto out_view = view<T, Dims>(output[i]); // todo view<void>
             auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
             kmgr_.Run<Kernel>(thread_id, i, ctx, out_view, in_view, kernel_sample_args[i]);
           }, out_shape.tensor_size(i));

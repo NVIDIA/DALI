@@ -305,7 +305,7 @@ class DummyPresizeOpCPU : public Operator<CPUBackend> {
     output.set_type<size_t>();
     output.Resize(uniform_list_shape(num_samples, std::vector<int64_t>{2}));
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      auto *out = output[sample_idx].mutable_data<size_t>();
+      auto *out = output.mutable_tensor<size_t>(sample_idx);
       out[0] = tmp_size;
       out[1] = input.capacity();
     }

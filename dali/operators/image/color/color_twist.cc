@@ -163,8 +163,8 @@ void ColorTwistCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
       for (int frame_id = 0; frame_id < num_frames; frame_id++) {
         tp.AddWork([&, i, frame_id](int thread_id) {
           kernels::KernelContext ctx;
-          auto tvin = subtensor(view<const InputType, 4>(input[i]), frame_id);
-          auto tvout = subtensor(view<OutputType, 4>(output[i]), frame_id);
+          auto tvin = subtensor(view<const InputType, 4>(input[i]), frame_id); // todo view<void>
+          auto tvout = subtensor(view<OutputType, 4>(output[i]), frame_id); // todo view<void>
           kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin,
                                       tmatrices_[i], toffsets_[i]);
         }, vol);
@@ -172,8 +172,8 @@ void ColorTwistCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
     } else {
       tp.AddWork([&, i](int thread_id) {
         kernels::KernelContext ctx;
-        auto tvin = view<const InputType, 3>(input[i]);
-        auto tvout = view<OutputType, 3>(output[i]);
+        auto tvin = view<const InputType, 3>(input[i]); // todo view<void>
+        auto tvout = view<OutputType, 3>(output[i]); // todo view<void>
         kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin,
                                     tmatrices_[i], toffsets_[i]);
       }, vol);

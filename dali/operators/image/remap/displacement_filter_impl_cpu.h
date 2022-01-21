@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -109,9 +109,9 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
 
     PrepareDisplacement(ws, sample_idx, thread_idx);
 
-    if (!has_mask_ || (*mask_)[sample_idx].data<int>()[0]) {
-      const auto &in_tensor = input[sample_idx];
-      auto &out_tensor = output[sample_idx];
+    if (!has_mask_ || mask_->tensor<int>(sample_idx)[0]) {
+      const auto &in_tensor = input[sample_idx]; // todo view<void>
+      auto &out_tensor = output[sample_idx]; // todo view<void>
 
       switch (interp_type_) {
         case DALI_INTERP_NN:
@@ -138,8 +138,8 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
               " only NN and LINEAR are supported for this operation");
       }
     } else {
-      const auto &in_tensor = input[sample_idx];
-      auto &out_tensor = output[sample_idx];
+      const auto &in_tensor = input[sample_idx]; // todo view<void>
+      auto &out_tensor = output[sample_idx]; // todo view<void>
       out_tensor.Copy(in_tensor);
     }
   }

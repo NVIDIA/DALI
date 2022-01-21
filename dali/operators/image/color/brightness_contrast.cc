@@ -121,16 +121,16 @@ void BrightnessContrastCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
       for (int frame_id = 0; frame_id < num_frames; frame_id++) {
         tp.AddWork([&, sample_id, frame_id, add, mul](int thread_id) {
           kernels::KernelContext ctx;
-          auto tvin = subtensor(view<const InputType, 4>(input[sample_id]), frame_id);
-          auto tvout = subtensor(view<OutputType, 4>(output[sample_id]), frame_id);
+          auto tvin = subtensor(view<const InputType, 4>(input[sample_id]), frame_id); // todo view<void>
+          auto tvout = subtensor(view<OutputType, 4>(output[sample_id]), frame_id); // todo view<void>
           kernel_manager_.Run<Kernel>(thread_id, 0, ctx, tvout, tvin, add, mul);
         }, vol);
       }
     } else {
       tp.AddWork([&, sample_id, add, mul](int thread_id) {
         kernels::KernelContext ctx;
-        auto tvin = view<const InputType, 3>(input[sample_id]);
-        auto tvout = view<OutputType, 3>(output[sample_id]);
+        auto tvin = view<const InputType, 3>(input[sample_id]);  // todo view<void>
+        auto tvout = view<OutputType, 3>(output[sample_id]);  // todo view<void>
         kernel_manager_.Run<Kernel>(thread_id, 0, ctx, tvout, tvin, add, mul);
       });
     }

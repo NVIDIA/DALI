@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ py::list PrepareDLTensorInputs<CPUBackend>(HostWorkspace &ws) {
   for (Index idx = 0; idx < ws.NumInput(); ++idx) {
     py::list dl_tensor_list;
     for (Index i = 0; i < ws.GetInputBatchSize(idx); ++i) {
-      auto &t = ws.UnsafeMutableInput<CPUBackend>(idx)[i];
+      auto &t = ws.UnsafeMutableInput<CPUBackend>(idx)[i];  // todo view<void>
       auto dl_capsule = TensorToDLPackView(t);
       dl_tensor_list.append(dl_capsule);
     }
@@ -106,7 +106,7 @@ py::list PrepareDLTensorInputsPerSample<CPUBackend>(HostWorkspace &ws) {
   for (Index s = 0; s < batch_size; ++s) {
     py::list tuple;
     for (Index idx = 0; idx < ws.NumInput(); ++idx) {
-      auto &t = ws.UnsafeMutableInput<CPUBackend>(idx)[s];
+      auto &t = ws.UnsafeMutableInput<CPUBackend>(idx)[s]; // todo view<void>
       auto dl_capsule = TensorToDLPackView(t);
       tuple.append(dl_capsule);
     }
@@ -148,7 +148,7 @@ void CopyOutputData(TensorVector<CPUBackend> &output, std::vector<DLMTensorPtr> 
   auto out_shape = output.shape();
   for (int i = 0; i < batch_size; ++i) {
     thread_pool.AddWork([&, i](int) {
-      CopyDlTensor<CPUBackend>(output[i].raw_mutable_data(), dl_tensors[i]);
+      CopyDlTensor<CPUBackend>(output.raw_mutable_tensor(i), dl_tensors[i]);
     }, out_shape.tensor_size(i));
   }
   thread_pool.RunAll();

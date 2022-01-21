@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -76,11 +76,12 @@ void FillTensorVector(
   TensorVector<CPUBackend> &dst, const TensorListShape<> &shape, const std::vector<Src> &src) {
   dst.SetContiguous(false);
   dst.set_type<Dst>();
+  // todo, create only one tensor, this is wasteful
   dst.Resize(shape);
   assert(is_uniform(shape));
   int64_t n = shape[0].num_elements();
   assert(src.size() == static_cast<size_t>(n) || src.size() == 1);
-  Dst *out = dst[0].mutable_data<Dst>();
+  Dst *out = dst.mutable_tensor<Dst>(0);
   if (src.size() == 1) {
     Dst val = ConvertSat<Dst>(src[0]);
     for (int64_t i = 0; i < n; i++) {
@@ -92,7 +93,7 @@ void FillTensorVector(
     }
   }
   for (int i = 1; i < shape.num_samples(); i++) {
-    dst[i].ShareData(dst[0]);
+    // dst.set_sample(i, dst.sample_owner(0));  // todo view<void> - this is broken, we need a better share
   }
 }
 }  // namespace

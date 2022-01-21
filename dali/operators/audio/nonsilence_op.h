@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -217,7 +217,7 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
       tp.AddWork(
               [&, sample_id](int thread_id) {
                   detail::Args<InputType> args;
-                  args.input = view<const InputType, 1>(input[sample_id]);
+                  args.input = view<const InputType, 1>(input[sample_id]); // todo view<void>
                   args.cutoff_db = cutoff_db_[sample_id];
                   if (!reference_max_) {
                     args.reference_power = reference_power_[sample_id];
@@ -228,8 +228,8 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
                   args.reset_interval = reset_interval_;
 
                   auto res = DetectNonsilenceRegion(intermediate_buffers_[thread_id], args);
-                  auto beg_ptr = output_begin[sample_id].mutable_data<int>();
-                  auto len_ptr = output_length[sample_id].mutable_data<int>();
+                  auto beg_ptr = output_begin.mutable_tensor<int>(sample_id);
+                  auto len_ptr = output_length.mutable_tensor<int>(sample_id);
                   *beg_ptr = res.first;
                   *len_ptr = res.second;
               }, in_shape.tensor_size(sample_id));

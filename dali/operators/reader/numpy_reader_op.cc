@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -245,18 +245,18 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
     const auto& file_sh = file_i.get_shape();
     int64_t sample_sz = volume(file_i.get_shape());
     if (need_slice_[i] && need_transpose_[i]) {
-      SlicePermuteHelper(output[i], file_i.data, rois_[i], fill_value_, thread_pool, kThreshold,
+      SlicePermuteHelper(output[i], file_i.data, rois_[i], fill_value_, thread_pool, kThreshold, // todo view<void>
                          blocks_per_sample);
     } else if (need_slice_[i]) {
-      SliceHelper(output[i], file_i.data, rois_[i], fill_value_, thread_pool, kThreshold,
+      SliceHelper(output[i], file_i.data, rois_[i], fill_value_, thread_pool, kThreshold, // todo view<void>
                   blocks_per_sample);
     } else if (need_transpose_[i]) {
       // TODO(janton): Parallelize when Transpose supports tiling
       thread_pool.AddWork([&, i](int tid) {
-        TransposeHelper(output[i], file_i.data);
+        TransposeHelper(output[i], file_i.data); // todo view<void>
       }, sample_sz * 8);  // 8 x (heuristic)
     } else {
-      CopyHelper(output[i], file_i.data, thread_pool, kThreshold, blocks_per_sample);
+      CopyHelper(output[i], file_i.data, thread_pool, kThreshold, blocks_per_sample); // todo view<void>
     }
   }
   thread_pool.RunAll();

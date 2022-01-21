@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,10 +25,10 @@ void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
   for (int i = 0; i < num_inputs; i++) {
     if (batch.InputIsType<CPUBackend>(i)) {
       auto &input_ref = batch.UnsafeMutableInput<CPUBackend>(i);
-      sample.AddInput(&input_ref[data_idx]);
+      sample.AddInput(input_ref.tensor_handle(data_idx).get());
     } else {
       auto &input_ref = batch.UnsafeMutableInput<GPUBackend>(i);
-      sample.AddInput(&input_ref[data_idx]);
+      sample.AddInput(input_ref.tensor_handle(data_idx).get());
     }
   }
 
@@ -36,10 +36,10 @@ void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
   for (int i = 0; i < num_outputs; i++) {
     if (batch.OutputIsType<CPUBackend>(i)) {
       auto &output_ref = batch.Output<CPUBackend>(i);
-      sample.AddOutput(&output_ref[data_idx]);
+      sample.AddOutput(output_ref.tensor_handle(data_idx).get());
     } else {
       auto &output_ref = batch.Output<GPUBackend>(i);
-      sample.AddOutput(&output_ref[data_idx]);
+      sample.AddOutput(output_ref.tensor_handle(data_idx).get());
     }
   }
   for (auto& arg_pair : batch) {

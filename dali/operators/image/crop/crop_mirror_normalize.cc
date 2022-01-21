@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -89,7 +89,7 @@ bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
         output_desc[0].shape.resize(nsamples, Dims);
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
         for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-          auto in_view = view<const InputType, Dims>(input[sample_idx]);
+          auto in_view = view<const InputType, Dims>(input[sample_idx]); // todo view<void>
           auto req = Kernel().Setup(ctx, in_view, kernel_sample_args[sample_idx]);
           output_desc[0].shape.set_tensor_shape(sample_idx, req.output_shapes[0][0].shape);
         }

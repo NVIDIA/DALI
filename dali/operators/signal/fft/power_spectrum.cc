@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -75,7 +75,7 @@ bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     output_desc[0].type = type2id<OutputType>::value;
     output_desc[0].shape.resize(nsamples, Dims);
     for (int i = 0; i < nsamples; i++) {
-      const auto in_view = view<const InputType, Dims>(input[i]);
+      const auto in_view = view<const InputType, Dims>(input[i]); // todo view<void>
       auto &req = kmgr_.Setup<FftKernel>(i, ctx, in_view, fft_args_);
       output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
     }
@@ -100,8 +100,8 @@ void PowerSpectrum<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
       thread_pool.AddWork(
         [this, &input, &output, i](int thread_id) {
           kernels::KernelContext ctx;
-          auto in_view = view<const InputType, Dims>(input[i]);
-          auto out_view = view<OutputType, Dims>(output[i]);
+          auto in_view = view<const InputType, Dims>(input[i]); // todo view<void>
+          auto out_view = view<OutputType, Dims>(output[i]); // todo view<void>
           kmgr_.Run<FftKernel>(thread_id, i, ctx, out_view, in_view, fft_args_);
         }, in_shape.tensor_size(i));
     }

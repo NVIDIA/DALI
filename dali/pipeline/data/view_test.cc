@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,10 +66,15 @@ TEST(TensorVector, View) {
   TensorVector<CPUBackend> tvec(10);
   tvec.set_type<int>();
   std::mt19937_64 rng;
+  TensorListShape<3> shape(10);
   for (int i = 0; i < 10; i++) {
-    tvec[i].Resize(TensorShape<3>(100+i, 40+i, 3+i));
-    UniformRandomFill(view<int>(tvec[i]), rng, 0, 10000);
+    shape.set_tensor_shape(i, TensorShape<3>(100+i, 40+i, 3+i));
   }
+  tvec.Resize(shape);
+  for (int i = 0; i < 10; i++) {
+    UniformRandomFill(view<int>(tvec[i]), rng, 0, 10000); // todo view<void>
+  }
+
 
   auto tlv = view<int, 3>(tvec);
   const TensorVector<CPUBackend> &ctvec = tvec;
@@ -79,9 +84,9 @@ TEST(TensorVector, View) {
   EXPECT_EQ(tv_shape, tlv.shape);
   EXPECT_EQ(tlv2.shape, tlv.shape);
   for (int i = 0; i < 10; i++) {
-    EXPECT_EQ(tlv[i].data, tvec[i].data<int>());
-    EXPECT_EQ(tlv2[i].data, tvec[i].data<int>());
-    Check(tlv[i], view<int>(tvec[i]));
+    EXPECT_EQ(tlv[i].data, tvec.tensor<int>(i));
+    EXPECT_EQ(tlv2[i].data, tvec.tensor<int>(i));
+    Check(tlv[i], view<int>(tvec[i]));  // todo view<void>
   }
 }
 
@@ -89,9 +94,13 @@ TEST(TensorVector, ReinterpretView) {
   TensorVector<CPUBackend> tvec(10);
   tvec.set_type<int>();
   std::mt19937_64 rng;
+  TensorListShape<3> shape(10);
   for (int i = 0; i < 10; i++) {
-    tvec[i].Resize(TensorShape<3>(100+i, 40+i, 3+i));
-    UniformRandomFill(view<int>(tvec[i]), rng, 0, 10000);
+    shape.set_tensor_shape(i, TensorShape<3>(100+i, 40+i, 3+i));
+  }
+  tvec.Resize(shape);
+  for (int i = 0; i < 10; i++) {
+    UniformRandomFill(view<int>(tvec[i]), rng, 0, 10000); // todo view<void>
   }
 
   auto tlv = view<int, 3>(tvec);

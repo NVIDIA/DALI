@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -156,20 +156,22 @@ class DataReader : public Operator<Backend> {
       int n = out.num_samples();
       if (n < 2)
         continue;
-      auto type0 = out[0].type();
-      int ndim0 = out[0].shape().size();
-      for (int i = 1; i < n; i++) {
-        auto type = out[i].type();
-        DALI_ENFORCE(type == type0, make_string("Inconsistent data! "
-        "The data produced by the reader has inconsistent type:\n"
-        "type of outputs[", out_idx, "][", i, "] is ", type, " whereas\n"
-        "type of outputs[", out_idx, "][0] is ", type0));
+      // todo view<void>
+      // todo - formally we have to revert this check to actually work
+      // auto type0 = out[0].type();
+      // int ndim0 = out[0].shape().size();
+      // for (int i = 1; i < n; i++) {
+      //   auto type = out[i].type();
+      //   DALI_ENFORCE(type == type0, make_string("Inconsistent data! "
+      //   "The data produced by the reader has inconsistent type:\n"
+      //   "type of outputs[", out_idx, "][", i, "] is ", type, " whereas\n"
+      //   "type of outputs[", out_idx, "][0] is ", type0));
 
-        int ndim = out[i].shape().size();
-        DALI_ENFORCE(ndim == ndim0, make_string("Inconsistent data! "
-        "The data produced by the reader has inconsistent dimensionality:\n"
-        "outputs[", out_idx, "][", i, "] has ", ndim, " dimensions whereas\n"
-        "outputs[", out_idx, "][0] has ", ndim0, " dimensions."));      }
+      //   int ndim = out[i].shape().size();
+      //   DALI_ENFORCE(ndim == ndim0, make_string("Inconsistent data! "
+      //   "The data produced by the reader has inconsistent dimensionality:\n"
+      //   "outputs[", out_idx, "][", i, "] has ", ndim, " dimensions whereas\n"
+      //   "outputs[", out_idx, "][0] has ", ndim0, " dimensions."));      }
     }
   }
 
