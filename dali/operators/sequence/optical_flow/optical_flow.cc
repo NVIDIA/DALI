@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include  <utility>
 #include "dali/util/nvml.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/operators/sequence/optical_flow/optical_flow.h"
@@ -90,14 +89,6 @@ DALI_REGISTER_OPERATOR(OpticalFlow, OpticalFlow<GPUBackend>, GPU);
 constexpr int kNOutputDims = 2;
 constexpr int kNInputDims = 4;
 
-struct DimsOrder {
-  std::pair<int, int> dims;
-  int idx;
-  bool operator<(const DimsOrder &rhs) const {
-    return dims < rhs.dims;
-  }
-};
-
 template<>
 void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   // This is a workaround for an issue with nvcuvid in drivers >460 and < 470.21 where concurrent
@@ -132,16 +123,6 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
 
   auto input_sh = input.shape();
 
-  // sort all sequences by size, to make sure that samples are processed grouped by shape to avoid
-  // NV OF reconfiguration as  much as possible
-  std::vector<DimsOrder> processing_order;
-  processing_order.resize(nsequences_);
-  for (int sequence_idx = 0; sequence_idx < nsequences_; sequence_idx++) {
-    processing_order[sequence_idx] = {{input_sh[sequence_idx][2], input_sh[sequence_idx][1]},
-                                      sequence_idx};
-  }
-  std::sort(processing_order.begin(), processing_order.end());
-
   if (enable_external_hints_) {
     const auto &hints = ws.Input<GPUBackend>(1);
 
@@ -152,7 +133,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     DALI_ENFORCE(tvlhints.size() == nsequences_,
                  "Number of tensors for hints and inputs doesn't match");
     for (int j = 0; j < nsequences_; j++) {
-      int sequence_idx = processing_order[j].idx;
+      int sequence_idx = processing_order_[j].idx;
       auto sequence_tv = tvlin[sequence_idx];
       auto output_tv = tvlout[sequence_idx];
       auto hints_tv = tvlhints[sequence_idx];
@@ -173,7 +154,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     auto tvlout = view<float, kNInputDims>(output);
 
     for (int j = 0; j < nsequences_; j++) {
-      int sequence_idx = processing_order[j].idx;
+      int sequence_idx = processing_order_[j].idx;
       auto sequence_tv = tvlin[sequence_idx];
       auto output_tv = tvlout[sequence_idx];
 

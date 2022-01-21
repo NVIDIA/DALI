@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_OPTICAL_FLOW_H_
 
 #include <memory>
+#include <utility>
 #include <vector>
 #include "dali/core/cuda_event.h"
 #include "dali/operators/sequence/optical_flow/optical_flow_adapter/optical_flow_stub.h"
@@ -107,6 +108,16 @@ class OpticalFlow : public Operator<Backend> {
     #endif
 
     auto input_sh = input.shape();
+
+    // sort all sequences by size, to make sure that samples are processed grouped by shape to avoid
+    // NV OF reconfiguration as  much as possible
+    processing_order_.resize(nsequences_);
+    for (int sequence_idx = 0; sequence_idx < nsequences_; sequence_idx++) {
+      processing_order_[sequence_idx] = {{input_sh[sequence_idx][2], input_sh[sequence_idx][1]},
+                                          sequence_idx};
+    }
+    std::sort(processing_order_.begin(), processing_order_.end());
+
     of_lazy_init(input_sh[0][2], input_sh[0][1], depth_, image_type_, device_id_, of_stream);
 
     TensorListShape<> new_sizes(nsequences_, 4);
@@ -190,6 +201,13 @@ class OpticalFlow : public Operator<Backend> {
                  "Width, height and depth must be equal for all hints");
   }
 
+  struct DimsOrder {
+    std::pair<int, int> dims;
+    int idx;
+    bool operator<(const DimsOrder &rhs) const {
+      return dims < rhs.dims;
+    }
+  };
 
   const float quality_factor_;
   const int out_grid_size_;
@@ -204,6 +222,7 @@ class OpticalFlow : public Operator<Backend> {
   int frames_width_ = -1, frames_height_ = -1, depth_ = -1, nsequences_ = -1;
   int hints_width_ = -1, hints_height_ = -1, hints_depth_ = -1;
   std::vector<int> sequence_sizes_;
+  std::vector<DimsOrder> processing_order_;
   CUDAEvent sync_;
 };
 
