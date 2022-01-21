@@ -252,4 +252,4 @@ def test_tensorlist_dtype():
         tl = TensorListCPU([TensorCPU(np.zeros((1), dtype=np_type))])
 
         assert tl.dtype == dali_type
-        assert tl._as_gpu().dtype == dali_type 
+        assert tl._as_gpu().dtype == dali_type
