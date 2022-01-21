@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/executor/async_separated_pipelined_executor.h"
+#include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 
@@ -68,18 +69,6 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
   vector<DeviceWorkspace> GPUData(ExecutorBase *exe, int idx) const {
     // return std::get<static_cast<int>(OpType::GPU)>(exe->wss_[idx].op_data);
     return {};
-  }
-
-  void VerifyDecode(const uint8 *img, int h, int w, int img_id) const {
-    // Load the image to host
-    uint8 *host_img = new uint8[h*w*c_];
-    CUDA_CALL(cudaMemcpy(host_img, img, h*w*c_, cudaMemcpyDefault));
-
-#if DALI_DEBUG
-    WriteHWCImage(host_img, h, w, c_, std::to_string(img_id) + "-img");
-#endif
-    GenericDecoderTest::VerifyDecode(host_img, h, w, jpegs_, img_id);
-    delete [] host_img;
   }
 
   int batch_size_, num_threads_ = 1;
@@ -409,7 +398,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("ImageDecoder")
+          OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu")), "");
@@ -428,7 +417,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
       dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(OpType::CPU, 0).op.get());
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
-  this->MakeJPEGBatch(&tl, this->batch_size_);
+  MakeRandomBatch(tl, this->batch_size_);
   src_op->SetDataSource(tl);
 
   exe->RunCPU();
@@ -455,7 +444,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("ImageDecoder")
+          OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu")), "");
@@ -482,7 +471,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
       dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(OpType::CPU, 0).op.get());
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
-  this->MakeJPEGBatch(&tl, this->batch_size_);
+  MakeRandomBatch(tl, this->batch_size_);
   src_op->SetDataSource(tl);
 
   exe->RunCPU();
@@ -517,7 +506,7 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("ImageDecoder")
+          OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu")), "");
@@ -554,8 +543,9 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   auto *src_op =
       dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(OpType::CPU, 0).op.get());
   ASSERT_NE(src_op, nullptr);
+
   TensorList<CPUBackend> tl;
-  this->MakeJPEGBatch(&tl, this->batch_size_*2);
+  MakeRandomBatch(tl, this->batch_size_ * 2);
 
   // Split the batch into two
   TensorList<CPUBackend> tl2;
@@ -600,11 +590,16 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
   TensorList<GPUBackend> &res1 = ws.Output<GPUBackend>(0);
-  for (int i = 0; i < batch_size; ++i) {
-    this->VerifyDecode(
-        res1.template tensor<uint8>(i),
-        res1.tensor_shape(i)[0],
-        res1.tensor_shape(i)[1], i);
+
+  TensorList<CPUBackend> res_cpu;
+  res_cpu.Copy(res1, cudaStream_t(0));
+  CUDA_CALL(cudaDeviceSynchronize());
+
+  auto res_cpu_view = view<uint8_t>(res_cpu);
+  auto data_view = view<uint8_t>(tl);
+  for (int j = 0; j < batch_size; ++j) {
+    int data_idx = j % data_view.shape.num_samples();
+    Check(res_cpu_view[j], data_view[data_idx]);
   }
 
   exe->Outputs(&ws);
@@ -616,12 +611,13 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   ASSERT_EQ(status_2, std::future_status::ready);
   ASSERT_EQ(cb_counter, 2);
   TensorList<GPUBackend> &res2 = ws.Output<GPUBackend>(0);
-  for (int i = 0; i < batch_size; ++i) {
-    this->VerifyDecode(
-        res2.template tensor<uint8>(i),
-        res2.tensor_shape(i)[0],
-        res2.tensor_shape(i)[1],
-        i+batch_size);
+  TensorList<CPUBackend> res_cpu2;
+  res_cpu2.Copy(res2, cudaStream_t(0));
+  CUDA_CALL(cudaDeviceSynchronize());
+  auto res_cpu_view2 = view<uint8_t>(res_cpu2);
+  for (int j = 0; j < batch_size; ++j) {
+    int data_idx = (j + batch_size) % data_view.shape.num_samples();
+    Check(res_cpu_view2[j], data_view[data_idx]);
   }
 }
 

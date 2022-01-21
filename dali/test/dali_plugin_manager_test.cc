@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #include "dali/plugin/plugin_manager.h"
 #include "dali/test/dali_test_matching.h"
 #include "dali/test/dali_test_utils.h"
+#include "dali/pipeline/pipeline.h"
 
 static const std::string& DummyPluginLibPath() {
     static const std::string plugin_lib = dali::CurrentExecutableDir() + "/libcustomdummyplugin.so";
@@ -24,20 +25,36 @@ static const std::string& DummyPluginLibPath() {
 
 namespace other_ns {
 
-template <typename ImgType>
-class DummyTest : public ::dali::GenericMatchingTest<ImgType> {
+class DummyTest : public ::dali::DALITest {
 };
-
-typedef ::testing::Types<::dali::RGB> Types;
-TYPED_TEST_SUITE(DummyTest, Types);
 
 static void LoadDummyPlugin() {
   ::dali::PluginManager::LoadLibrary(DummyPluginLibPath());
 }
 
-TYPED_TEST(DummyTest, PluginShouldBeUsable) {
+TEST_F(DummyTest, PluginShouldBeUsable) {
   LoadDummyPlugin();
-  this->RunTest("CustomDummy");
+
+  using namespace dali;
+  Pipeline pipe(3, 1, 0);
+
+  TensorList<CPUBackend> data;
+  MakeRandomBatch(data, 3);
+
+  pipe.AddExternalInput("data");
+  pipe.AddOperator(
+      OpSpec("CustomDummy")
+      .AddArg("device", "cpu")
+      .AddInput("data", "cpu")
+      .AddOutput("out", "cpu"));
+  vector<std::pair<string, string>> outputs = {{"out", "cpu"}};
+
+  pipe.Build(outputs);
+  pipe.SetExternalInput("data", data);
+  DeviceWorkspace ws;
+  pipe.RunCPU();
+  pipe.RunGPU();
+  pipe.Outputs(&ws);
 }
 
 }  // namespace other_ns

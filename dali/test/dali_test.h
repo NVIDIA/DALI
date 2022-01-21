@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,6 +53,28 @@ struct Gray {
 struct YCbCr {
   static const DALIImageType type = DALI_YCbCr;
 };
+
+
+inline void MakeRandomBatch(TensorList<CPUBackend> &data, int N,
+                              int64_t min_extent=10, int64_t max_extent=20) {
+  std::mt19937_64 rng(1234);
+  TensorListShape<3> tl_sh(N);
+  std::uniform_int_distribution<int> dist(min_extent, max_extent);
+  for (int sample_idx = 0; sample_idx < N; sample_idx++) {
+    auto sh = tl_sh.tensor_shape_span(sample_idx);
+    for (int d = 0; d < 3; d++)
+      sh[d] = dist(rng);
+  }
+  std::uniform_int_distribution<int> dist2(0, 255);
+  data.Resize(tl_sh, DALI_UINT8);
+  for (int sample_idx = 0; sample_idx < N; sample_idx++) {
+    int64_t vol = volume(tl_sh.tensor_shape_span(sample_idx));
+    uint8_t *ptr = data.mutable_tensor<uint8_t>(sample_idx);
+    for (int64_t i = 0; i < vol; i++)
+      ptr[i] = dist2(rng);
+  }
+}
+
 
 // Main testing fixture to provide common functionality across tests
 class DALITest : public ::testing::Test {
@@ -381,6 +403,7 @@ class DALITest : public ::testing::Test {
   static constexpr int kBBoxDim = 2;
   static constexpr int kLabelDim = 1;
 };
+
 }  // namespace dali
 
 #endif  // DALI_TEST_DALI_TEST_H_

@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,4 +15,6 @@
 # Get all the source files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_SRCS PARENT_SCOPE)
-collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
+
+# C-API test use actual operators
+collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
