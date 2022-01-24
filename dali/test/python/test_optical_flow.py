@@ -96,7 +96,7 @@ def load_frames(sample_info=types.SampleInfo(0, 0, 0, 0), hint_grid=None):
 @pipeline_def(batch_size=1, seed=16)
 def of_pipeline(output_grid=1, hint_grid=1, use_temporal_hints=False):
     if hint_grid is not None:
-        seq, hint = fn.external_source(lambda info: load_frames(info, hint_grid), layout="FHWC", batch=False, num_outputs=2)
+        seq, hint = fn.external_source(lambda info: load_frames(info, hint_grid), layout=["FHWC", "FHWC"], batch=False, num_outputs=2)
 
         of = fn.optical_flow(seq.gpu(), hint.gpu(), device="gpu", output_grid=output_grid,
                              hint_grid=hint_grid, enable_temporal_hints=use_temporal_hints)

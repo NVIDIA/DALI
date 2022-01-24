@@ -30,6 +30,8 @@ Turing and Ampere optical flow hardware that is used by DALI.
 )code")
                 .NumInput(1, 2)
                 .NumOutput(1)
+                .InputLayout(0, {"FHWC"})
+                .InputLayout(1, {"FHWC"})
                 .AddOptionalArg(detail::kPresetArgName, R"code(Speed and quality level of the
 optical flow calculation.
 
@@ -119,7 +121,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   }
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
-  output.SetLayout("HWC");  // Channels represent the two flow vector components (x and y)
+  output.SetLayout("FHWC");  // Channels represent the two flow vector components (x and y)
 
   auto input_sh = input.shape();
 

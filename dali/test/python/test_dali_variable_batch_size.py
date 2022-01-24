@@ -24,14 +24,13 @@ from nvidia.dali.plugin.numba.fn.experimental import numba_function
 import numpy as np
 import test_utils
 from test_detection_pipeline import coco_anchors
-from test_optical_flow import load_frames
+from test_optical_flow import load_frames, is_of_supported
 import inspect
 import os
 import re
 import random
 import nose
 from nose.plugins.attrib import attr
-from test_optical_flow import is_of_supported
 
 """
 How to test variable (iter-to-iter) batch size for a given op?
