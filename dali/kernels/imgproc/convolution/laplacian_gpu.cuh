@@ -107,8 +107,8 @@ struct LaplacianGpuBase<Out, In, W, 2, has_channels, is_sequence> {
     KernelRequirements req;
     req.output_shapes.push_back(in_shape);
 
-    auto req_dy = sobel_dy_.Setup(ctx, in_shape, window_sizes[0], has_smoothing);
-    auto req_dx = sobel_dx_.Setup(ctx, in_shape, window_sizes[1], has_smoothing);
+    auto req_dy = dy_kernel_.Setup(ctx, in_shape, window_sizes[0], has_smoothing);
+    auto req_dx = dx_kernel_.Setup(ctx, in_shape, window_sizes[1], has_smoothing);
 
     // Calculate max scratch memory required by sub-kernels
     sub_scratch_sizes_ = MaxScratchSize(req_dx.scratch_sizes, req_dy.scratch_sizes);
@@ -136,14 +136,14 @@ struct LaplacianGpuBase<Out, In, W, 2, has_channels, is_sequence> {
     sub_ctx.scratchpad = &sub_scratch;
 
     // Clear the scratchpad for sub-kernels to reuse memory
-    sobel_dy_.Run(sub_ctx, out, in, windows[0], {scale[0]});
+    dy_kernel_.Run(sub_ctx, out, in, windows[0], {scale[0]});
     sub_scratch.Clear();
-    sobel_dx_.Run(sub_ctx, out, in, windows[1], {scale[1], 1.f});
+    dx_kernel_.Run(sub_ctx, out, in, windows[1], {scale[1], 1.f});
   }
 
   scratch_sizes_t sub_scratch_sizes_;
-  DyKernel sobel_dy_;
-  DxKernel sobel_dx_;
+  DyKernel dy_kernel_;
+  DxKernel dx_kernel_;
 };
 
 template <typename Out, typename In, typename W, bool has_channels, bool is_sequence>
@@ -161,9 +161,9 @@ struct LaplacianGpuBase<Out, In, W, 3, has_channels, is_sequence> {
     KernelRequirements req;
     req.output_shapes.push_back(in_shape);
 
-    auto req_dz = sobel_dz_.Setup(ctx, in_shape, window_sizes[0], has_smoothing);
-    auto req_dy = sobel_dy_.Setup(ctx, in_shape, window_sizes[1], has_smoothing);
-    auto req_dx = sobel_dx_.Setup(ctx, in_shape, window_sizes[2], has_smoothing);
+    auto req_dz = dz_kernel_.Setup(ctx, in_shape, window_sizes[0], has_smoothing);
+    auto req_dy = dy_kernel_.Setup(ctx, in_shape, window_sizes[1], has_smoothing);
+    auto req_dx = dx_kernel_.Setup(ctx, in_shape, window_sizes[2], has_smoothing);
 
     // Calculate max scratch memory required by sub-kernels
     sub_scratch_sizes_ = MaxScratchSize(req_dx.scratch_sizes, req_dy.scratch_sizes);
@@ -192,17 +192,17 @@ struct LaplacianGpuBase<Out, In, W, 3, has_channels, is_sequence> {
     sub_ctx.scratchpad = &sub_scratch;
 
     // Clear the scratchpad for sub-kernels to reuse memory
-    sobel_dz_.Run(sub_ctx, out, in, windows[0], {scale[0]});
+    dz_kernel_.Run(sub_ctx, out, in, windows[0], {scale[0]});
     sub_scratch.Clear();
-    sobel_dy_.Run(sub_ctx, out, in, windows[1], {scale[1], 1.f});
+    dy_kernel_.Run(sub_ctx, out, in, windows[1], {scale[1], 1.f});
     sub_scratch.Clear();
-    sobel_dx_.Run(sub_ctx, out, in, windows[2], {scale[2], 1.f});
+    dx_kernel_.Run(sub_ctx, out, in, windows[2], {scale[2], 1.f});
   }
 
   scratch_sizes_t sub_scratch_sizes_;
-  DzKernel sobel_dz_;
-  DyKernel sobel_dy_;
-  DxKernel sobel_dx_;
+  DzKernel dz_kernel_;
+  DyKernel dy_kernel_;
+  DxKernel dx_kernel_;
 };
 
 
@@ -241,7 +241,7 @@ struct LaplacianGpu<Intermediate, Out, In, W, 1, has_channels, is_sequence> {
       const std::array<std::array<TensorListShape<1>, axes>, axes>& window_sizes,
       bool has_smoothing) {
     (void)has_smoothing;
-    return sobel_dx_.Setup(ctx, in_shape, window_sizes[0]);
+    return dx_kernel_.Setup(ctx, in_shape, window_sizes[0]);
   }
 
   void Run(
@@ -249,10 +249,10 @@ struct LaplacianGpu<Intermediate, Out, In, W, 1, has_channels, is_sequence> {
       const TensorListView<StorageGPU, const In, ndim>& in,
       const std::array<std::array<TensorListView<StorageCPU, const W, 1>, axes>, axes>& windows,
       std::array<span<const float>, axes> scale) {
-    return sobel_dx_.Run(ctx, out, in, windows[0], {}, {scale[0]});
+    return dx_kernel_.Run(ctx, out, in, windows[0], {}, {scale[0]});
   }
 
-  DxKernel sobel_dx_;
+  DxKernel dx_kernel_;
 };
 
 template <typename Intermediate, typename Out, typename In, typename W, int axes, bool has_channels,
