@@ -31,7 +31,6 @@
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
-#include "dali/core/mm/detail/deferred_dealloc.h"
 
 namespace dali {
 namespace mm {
@@ -40,11 +39,11 @@ namespace test {
 class VMResourceTest;
 }  // namespace test
 
-class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
+class cuda_vm_resource : public memory_resource<memory_kind::device> {
  public:
-  explicit cuda_vm_resource_base(int device_ordinal = -1,
-                                 size_t block_size = 0,
-                                 size_t initial_va_size = 0) {
+  explicit cuda_vm_resource(int device_ordinal = -1,
+                            size_t block_size = 0,
+                            size_t initial_va_size = 0) {
     device_ordinal_ = device_ordinal;
     if (block_size != 0 && !is_pow2(block_size))
       throw std::invalid_argument("block_size must be a power of 2");
@@ -55,7 +54,7 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
   }
   using mem_handle_t = CUmemGenericAllocationHandle;
 
-  ~cuda_vm_resource_base() {
+  ~cuda_vm_resource() {
     purge();
   }
 
@@ -70,35 +69,6 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
       stat_add_allocation(size);
     }
     return ptr;
-  }
-
-  void deallocate_no_sync(void *ptr, size_t size, size_t alignment) {
-    deallocate_impl(ptr, size, alignment, false, true);
-  }
-
-  /**
-   * @brief Deallocates multiple blocks of memory, but synchronizes only once
-   *
-   * @remarks This function must not use do_deallocate virtual function.
-   */
-  void bulk_deallocate(span<const dealloc_params> params) {
-    if (!params.empty()) {
-      synchronize(params);
-      lock_guard guard(pool_lock_);
-      for (const auto &p : params)
-        deallocate_impl(p.ptr, p.bytes, p.alignment, false, false);
-    }
-  }
-
-  void synchronize(span<const dealloc_params> params) {
-    assert(device_ordinal_ >= 0 && "synchronize called before the resource initialization");
-    for (auto &p : params) {
-      if (p.sync_device >= 0 && p.sync_device != device_ordinal_)
-        throw std::invalid_argument(
-          "Cannot synchronize with a different device than used by this resource");
-    }
-    DeviceGuard dg(device_ordinal_);
-    CUDA_CALL(cudaDeviceSynchronize());
   }
 
   struct Stat {
@@ -172,15 +142,9 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     }
   }
 
-  bool deferred_dealloc_enabled() const noexcept { return defer_dealloc_; }
-  static constexpr int deferred_dealloc_max_outstanding() { return 16; }
-  virtual void flush_deferred() {}
-
  protected:
-  bool defer_dealloc_ = false;
-
   void do_deallocate(void *ptr, size_t size, size_t alignment) override {
-    deallocate_impl(ptr, size, alignment, true, true);
+    deallocate_impl(ptr, size, alignment, true);
   }
 
   void *do_allocate(size_t size, size_t alignment) override {
@@ -195,16 +159,6 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     if (ptr) {
       stat_add_allocation(size);
       return ptr;
-    }
-    if (deferred_dealloc_enabled()) {
-      pool_guard.unlock();
-      flush_deferred();
-      pool_guard.lock();
-      ptr = try_get_mapped(size, alignment);
-      if (ptr) {
-        stat_add_allocation(size);
-        return ptr;
-      }
     }
     DeviceGuard dg(device_ordinal_);
     mem_lock_guard mem_guard(mem_lock_);
@@ -547,14 +501,10 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
     free_va_.put(reinterpret_cast<void*>(va.ptr()), va.size());
   }
 
-  void deallocate_impl(void *ptr, size_t size, size_t alignment, bool sync, bool lock) {
+  void deallocate_impl(void *ptr, size_t size, size_t alignment, bool lock) {
     if (size == 0)
       return;
     adjust_params(size, alignment, false);
-    if (sync) {
-      DeviceGuard dg(device_ordinal_);
-      CUDA_CALL(cudaDeviceSynchronize());
-    }
     std::unique_lock<pool_lock_t> pool_guard(pool_lock_, std::defer_lock);
     if (lock)
       pool_guard.lock();
@@ -804,18 +754,6 @@ class cuda_vm_resource_base : public memory_resource<memory_kind::device> {
 
   void stat_va_add(size_t size) {
     stat_.allocated_va += size;
-  }
-};
-
-class cuda_vm_resource : public deferred_dealloc_resource<cuda_vm_resource_base> {
- public:
-  using base = deferred_dealloc_resource<cuda_vm_resource_base>;
-
-  explicit cuda_vm_resource(int device_ordinal = -1,
-                            size_t block_size = 0,
-                            size_t initial_va_size = size_t(4) << 30)
-  : base(device_ordinal, block_size, initial_va_size) {
-    defer_dealloc_ = true;
   }
 };
 
