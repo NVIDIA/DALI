@@ -44,7 +44,7 @@ std::vector<uint32_t> GetCapabilities(PFNNVOFGETCAPS get_cap, NvOFHandle handle,
   return ret;
 }
 
-void IsGridSupported(std::vector<uint32_t> &caps, int grid_val, const std::string grid_kind) {
+void IsGridSupported(const std::vector<uint32_t> &caps, int grid_val, const std::string grid_kind) {
   bool is_grid_supported = false;
   for (auto v : caps) {
     if (v == static_cast<uint32_t>(grid_val)) {
