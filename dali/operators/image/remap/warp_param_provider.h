@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ class InterpTypeProvider {
         "interp_type must be a single value or contain one value per sample");
       interp_types_.resize(n);
       for (int i = 0; i < n; i++)
-        interp_types_[i] = tensor_vector[i].data<DALIInterpType>()[0];
+        interp_types_[i] = static_cast<const DALIInterpType*>(tensor_vector[i].data)[0];
     } else {
       interp_types_.resize(1, spec.template GetArgument<DALIInterpType>("interp_type"));
     }

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "dali/core/common.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/operators/image/remap/displacement_filter.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/kernels/kernel_params.h"
@@ -90,7 +91,8 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   }
 
   template <typename Out, typename In, DALIInterpType interp>
-  void RunWarp(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input, int thread_idx) {
+  void RunWarp(const TensorView<StorageCPU, void, DynamicDimensions> &output,
+               const TensorView<StorageCPU, const void, DynamicDimensions> &input, int thread_idx) {
     auto &displace = displace_[thread_idx];
     In fill[1024];
     auto in = view<const Out, 3>(input);
@@ -111,7 +113,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
 
     if (!has_mask_ || mask_->tensor<int>(sample_idx)[0]) {
       const auto &in_tensor = input[sample_idx]; // todo view<void>
-      auto &out_tensor = output[sample_idx]; // todo view<void>
+      const auto &out_tensor = output[sample_idx]; // todo view<void>
 
       switch (interp_type_) {
         case DALI_INTERP_NN:
@@ -138,8 +140,12 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
               " only NN and LINEAR are supported for this operation");
       }
     } else {
-      const auto &in_tensor = input[sample_idx]; // todo view<void>
-      auto &out_tensor = output[sample_idx]; // todo view<void>
+      // todo fixme
+      // const auto &in_tensor = input[sample_idx]; // todo view<void>
+      // const auto &out_tensor = output[sample_idx]; // todo view<void>
+
+      const auto &in_tensor = input.GetSample(sample_idx);
+      auto &out_tensor = output.GetSample(sample_idx);
       out_tensor.Copy(in_tensor);
     }
   }

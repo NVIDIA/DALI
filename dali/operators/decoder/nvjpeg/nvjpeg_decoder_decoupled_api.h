@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_DECODER_DECOUPLED_API_H_
 #define DALI_OPERATORS_DECODER_NVJPEG_NVJPEG_DECODER_DECOUPLED_API_H_
 
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <utility>
@@ -555,14 +556,16 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif  // NVJPEG2K_ENABLED
 
     for (int i = 0; i < curr_batch_size; i++) {
-      const auto &in = ws.Input<CPUBackend>(0)[i]; // todo view<void> - this one will be complicated
-      const auto in_size = in.size();
-      thread_pool_.AddWork([this, i, &in, in_size](int tid) {
-        auto *input_data = in.data<uint8_t>();
+      const auto &input = ws.Input<CPUBackend>(0);
+      const auto &in = ws.Input<CPUBackend>(0)[i].to_static<const uint8_t>(); // todo view<void> - this one will be complicated
+      const auto in_size = in.shape.num_elements();
+      const auto &source_info = input.GetMeta(i).GetSourceInfo();
+      thread_pool_.AddWork([this, i, &in, source_info, in_size](int tid) {
+        auto *input_data = in.data;
         SampleData &data = sample_data_[i];
         data.clear();
         data.sample_idx = i;
-        data.file_name = in.GetSourceInfo();
+        data.file_name = source_info;
         data.encoded_length = in_size;
 
         auto cached_shape = CacheImageShape(data.file_name);
@@ -708,11 +711,11 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       assert(sample);
       auto i = sample->sample_idx;
       auto *output_data = output.mutable_tensor<uint8_t>(i);
-      const auto &in = ws.Input<CPUBackend>(0)[i];
+      const auto &in = ws.Input<CPUBackend>(0)[i].to_static<const uint8_t>();
       thread_pool_.AddWork(
         [this, sample, &in, output_data](int tid) {
-          SampleWorker(sample->sample_idx, sample->file_name, in.size(), tid,
-            in.data<uint8_t>(), output_data, streams_[tid]);
+          SampleWorker(sample->sample_idx, sample->file_name, in.shape.num_elements(), tid,
+            in.data, output_data, streams_[tid]);
         }, task_priority_seq_--);  // FIFO order, since the samples were already ordered
     }
   }
@@ -812,11 +815,11 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     for (auto *sample : samples_host_) {
       auto i = sample->sample_idx;
       auto *output_data = output.mutable_tensor<uint8_t>(i);
-      const auto &in = ws.Input<CPUBackend>(0)[i];
+      const auto &in = ws.Input<CPUBackend>(0)[i].to_static<const uint8_t>();
       ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
       thread_pool_.AddWork(
         [this, sample, &in, output_data, shape](int tid) {
-          HostFallback<StorageGPU>(in.data<uint8_t>(), in.size(), output_image_type_, output_data,
+          HostFallback<StorageGPU>(in.data, in.shape.num_elements(), output_image_type_, output_data,
                                    streams_[tid], sample->file_name, sample->roi, use_fast_idct_);
           CacheStore(sample->file_name, output_data, shape, streams_[tid]);
         }, task_priority_seq_--);  // FIFO order, since the samples were already ordered
@@ -848,11 +851,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
       for (auto *sample : samples_hw_batched_) {
         int i = sample->sample_idx;
-        const auto &in = ws.Input<CPUBackend>(0)[i];
+        const auto &in = ws.Input<CPUBackend>(0);
         const auto &out_shape = output_shape_.tensor_shape(i);
 
-        tv[j].ShareData(const_cast<Tensor<CPUBackend> &>(in)); // todo view<void> - actually share owner needed
-        in_lengths_[j] = in.size();
+        // tv[j].ShareData(const_cast<Tensor<CPUBackend> &>(in)); // todo view<void> - actually share owner needed
+        tv.SetSample(j, in.GetSample(i));
+        in_lengths_[j] = in.tensor_shape(i).num_elements();  //in.size();
         nvjpeg_destinations_[j].channel[0] = output.mutable_tensor<uint8_t>(i);
         nvjpeg_destinations_[j].pitch[0] = out_shape[1] * out_shape[2];
         nvjpeg_params_[j] = sample->params;

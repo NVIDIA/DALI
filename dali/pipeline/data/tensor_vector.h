@@ -154,6 +154,15 @@ class DLL_PUBLIC TensorVector {
     return {tensors_[sample_idx]->raw_data(), tensor_shape(sample_idx), type()};
   }
 
+
+  Tensor<Backend> &GetSample(size_t pos) {
+    return *(tensors_[pos]);
+  }
+
+  const Tensor<Backend> &GetSample(size_t pos) const {
+    return *(tensors_[pos]);
+  }
+
   // Tensor<Backend> &operator[](size_t pos) {
   //   return *(tensors_[pos]);
   // }

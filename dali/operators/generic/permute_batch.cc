@@ -45,7 +45,9 @@ void PermuteBatch<CPUBackend>::RunImpl(HostWorkspace &ws) {
     int src = indices_[i];
     tp.AddWork([&, i, src](int tid) {
       output.SetMeta(i, input.GetMeta(i));
-      output[i].Copy(input[src]);  // todo view<void> - we need to rework this with true share data
+      // TODO fixme
+      output.SetSample(i, input.GetSample(src));
+      // output[i].Copy(input[src]);  // todo view<void> - we need to rework this with true share data
     }, size);
   }
   tp.RunAll();
