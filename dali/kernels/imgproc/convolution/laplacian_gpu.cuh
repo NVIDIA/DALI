@@ -40,10 +40,9 @@ namespace laplacian {
  * @brief Computes convolution to obtain partial derivative in one of the dimensions.
  * Convolution consits of `axes` windows, each to convolve along one dimension of the input data,
  * where `deriv_axis`-th window is supposed to compute partial derivative along that axis,
- * whereas the remaining windows should perform smoothing. Setup method expects
- * a `has_smoothing` hint if all window sizes in non-derivative directions are one. If so,
- * the smoothing convolutions can be skipped and only a single one-dimensional
- * convolution in derivative direction is performed.
+ * whereas the remaining windows should perform smoothing. If no smoothing is necessary in a whole
+ * batch, you can prevent smoothing convolutions form running by passing empty lists for
+ * `window_sizes[i]` such that `i != deriv_axis`.
  */
 template <typename Out, typename In, typename W, int axes, int deriv_axis, bool has_channels,
           bool is_sequence>
@@ -53,10 +52,18 @@ struct PartialDerivGpu {
   static constexpr int sequence_axes = MultiDimConv::sequence_axes;
   using SingleDimConv = ConvolutionGpu<Out, In, W, ndim, sequence_axes + deriv_axis, has_channels>;
 
+  bool HasSmoothing(const std::array<TensorListShape<1>, axes>& window_sizes) {
+    for (int axis = 0; axis < axes; axis++) {
+      if (axis != deriv_axis && window_sizes[axis].num_samples() > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   KernelRequirements Setup(KernelContext& ctx, const TensorListShape<ndim>& in_shape,
-                           const std::array<TensorListShape<1>, axes>& window_sizes,
-                           bool has_smoothing) {
-    has_smoothing_ = has_smoothing;
+                           const std::array<TensorListShape<1>, axes>& window_sizes) {
+    has_smoothing_ = HasSmoothing(window_sizes);
     if (has_smoothing_) {
       if (!multi_dim_impl_) {
         multi_dim_impl_ = std::make_unique<MultiDimConv>();
@@ -102,13 +109,12 @@ struct LaplacianGpuBase<Out, In, W, 2, has_channels, is_sequence> {
 
   KernelRequirements Setup(
       KernelContext& ctx, const TensorListShape<ndim>& in_shape,
-      const std::array<std::array<TensorListShape<1>, axes>, axes>& window_sizes,
-      bool has_smoothing) {
+      const std::array<std::array<TensorListShape<1>, axes>, axes>& window_sizes) {
     KernelRequirements req;
     req.output_shapes.push_back(in_shape);
 
-    auto req_dy = dy_kernel_.Setup(ctx, in_shape, window_sizes[0], has_smoothing);
-    auto req_dx = dx_kernel_.Setup(ctx, in_shape, window_sizes[1], has_smoothing);
+    auto req_dy = dy_kernel_.Setup(ctx, in_shape, window_sizes[0]);
+    auto req_dx = dx_kernel_.Setup(ctx, in_shape, window_sizes[1]);
 
     // Calculate max scratch memory required by sub-kernels
     sub_scratch_sizes_ = MaxScratchSize(req_dx.scratch_sizes, req_dy.scratch_sizes);
@@ -156,14 +162,13 @@ struct LaplacianGpuBase<Out, In, W, 3, has_channels, is_sequence> {
 
   KernelRequirements Setup(
       KernelContext& ctx, const TensorListShape<ndim>& in_shape,
-      const std::array<std::array<TensorListShape<1>, axes>, axes>& window_sizes,
-      bool has_smoothing) {
+      const std::array<std::array<TensorListShape<1>, axes>, axes>& window_sizes) {
     KernelRequirements req;
     req.output_shapes.push_back(in_shape);
 
-    auto req_dz = dz_kernel_.Setup(ctx, in_shape, window_sizes[0], has_smoothing);
-    auto req_dy = dy_kernel_.Setup(ctx, in_shape, window_sizes[1], has_smoothing);
-    auto req_dx = dx_kernel_.Setup(ctx, in_shape, window_sizes[2], has_smoothing);
+    auto req_dz = dz_kernel_.Setup(ctx, in_shape, window_sizes[0]);
+    auto req_dy = dy_kernel_.Setup(ctx, in_shape, window_sizes[1]);
+    auto req_dx = dx_kernel_.Setup(ctx, in_shape, window_sizes[2]);
 
     // Calculate max scratch memory required by sub-kernels
     sub_scratch_sizes_ = MaxScratchSize(req_dx.scratch_sizes, req_dy.scratch_sizes);
@@ -238,9 +243,7 @@ struct LaplacianGpu<Intermediate, Out, In, W, 1, has_channels, is_sequence> {
 
   KernelRequirements Setup(
       KernelContext& ctx, const TensorListShape<ndim>& in_shape,
-      const std::array<std::array<TensorListShape<1>, axes>, axes>& window_sizes,
-      bool has_smoothing) {
-    (void)has_smoothing;
+      const std::array<std::array<TensorListShape<1>, axes>, axes>& window_sizes) {
     return dx_kernel_.Setup(ctx, in_shape, window_sizes[0]);
   }
 
@@ -266,9 +269,8 @@ struct LaplacianGpu<Intermediate, Out, In, W, axes, has_channels, is_sequence,
 
   KernelRequirements Setup(
       KernelContext& ctx, const TensorListShape<ndim>& in_shape,
-      const std::array<std::array<TensorListShape<1>, axes>, axes>& window_sizes,
-      bool has_smoothing) {
-    auto req = Base::Setup(ctx, in_shape, window_sizes, has_smoothing);
+      const std::array<std::array<TensorListShape<1>, axes>, axes>& window_sizes) {
+    auto req = Base::Setup(ctx, in_shape, window_sizes);
     ScratchpadEstimator se;
     se.add<mm::memory_kind::device, Intermediate>(in_shape.num_elements());
     req.scratch_sizes = AppendScratchSize(se.sizes, req.scratch_sizes);

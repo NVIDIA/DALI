@@ -61,8 +61,8 @@ struct LaplacianGpuTest : public ::testing::Test {
 
   static TensorListShape<ndim> GetShape() {
     static const TensorListShape<> shapes = {
-        {7, 29, 145, 128}, {3, 64, 64, 64}, {4, 164, 164, 164}, {11, 12, 12, 12},
-        {4, 4, 200, 180},  {1, 200, 4, 180}, {1, 75, 75, 75},     {2, 16, 256, 256}};
+        {7, 29, 145, 128}, {3, 64, 64, 64},  {4, 164, 164, 164}, {11, 12, 12, 12},
+        {4, 4, 200, 180},  {1, 200, 4, 180}, {1, 75, 75, 75},    {2, 16, 256, 256}};
     static const TensorListShape<> channels = {{3}, {3}, {1}, {5}, {7}, {3}, {5}, {1}};
     if (!has_channels) {
       return shapes.template first<ndim>();
@@ -83,12 +83,20 @@ struct LaplacianGpuTest : public ::testing::Test {
     return window_sizes.template last<axes>();
   }
 
+  static TensorListShape<axes> GetSmoothingSize() {
+    // use 1 as the middle window size in a whole batch to test if optimization that removes
+    // unnecessary smoothing convolutions on per partial derivative basis gives correct results
+    static const TensorListShape<> window_sizes = {{3, 1, 1}, {5, 1, 9},   {7, 1, 7}, {1, 1, 7},
+                                                   {7, 1, 5}, {13, 1, 13}, {7, 1, 9}, {23, 1, 17}};
+    return window_sizes.template last<axes>();
+  }
+
   void FillWindows() {
     // get per sample x per axis window sizes
     auto deriv_sizes = GetWindowSize();
     int nsamples = deriv_sizes.num_samples();
     auto smoothing_sizes =
-        use_smoothing ? deriv_sizes : uniform_list_shape(nsamples, uniform_array<axes>(1));
+        use_smoothing ? GetSmoothingSize() : uniform_list_shape(nsamples, uniform_array<axes>(1));
     // flatten window sizes
     TensorListShape<1> flat_deriv_sizes;
     TensorListShape<1> flat_smoothing_sizes;
@@ -159,12 +167,16 @@ struct LaplacianGpuTest : public ::testing::Test {
     baseline_out_ = baseline_output_.cpu();
     out_ = output_.gpu();
 
+    std::array<bool, axes> has_smoothing = uniform_array<axes>(false);
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
       std::array<std::array<int, axes>, axes> window_size;
       std::array<std::array<TensorView<StorageCPU, const W, 1>, axes>, axes> windows;
       std::array<float, axes> scales;
       for (int i = 0; i < axes; i++) {
         for (int j = 0; j < axes; j++) {
+          if (i != j && win_sizes_[i][j][sample_idx].num_elements() > 1) {
+            has_smoothing[i] = true;
+          }
           window_size[i][j] = win_sizes_[i][j][sample_idx].num_elements();
           windows[i][j] = windows_[i][j][sample_idx];
         }
@@ -192,7 +204,18 @@ struct LaplacianGpuTest : public ::testing::Test {
       }
     }
 
-    auto req = kernel_gpu.Setup(ctx_gpu, in_.shape, win_sizes_, use_smoothing);
+    for (int i = 0; i < axes; i++) {
+      if (!has_smoothing[i]) {
+        for (int j = 0; j < axes; j++) {
+          if (i != j) {
+            win_sizes_[i][j].resize(0);
+            windows_[i][j].resize(0);
+          }
+        }
+      }
+    }
+
+    auto req = kernel_gpu.Setup(ctx_gpu, in_.shape, win_sizes_);
 
     ScratchpadAllocator scratch_alloc;
     scratch_alloc.Reserve(req.scratch_sizes);
@@ -227,34 +250,34 @@ struct LaplacianGpuTest : public ::testing::Test {
 
 TYPED_TEST_SUITE_P(LaplacianGpuTest);
 
-using LaplacianTestValues = ::testing::Types<
-    test_laplacian<float, float, 1, true, true, false>,
-    test_laplacian<float, float, 1, true, false, false>,
-    test_laplacian<float, float, 1, false, true, false>,
-    test_laplacian<float, float, 1, false, false, false>,
-    test_laplacian<float, float, 2, true, true, false>,
-    test_laplacian<float, float, 2, true, false, false>,
-    test_laplacian<float, float, 2, false, true, false>,
-    test_laplacian<float, float, 2, false, false, false>,
-    test_laplacian<float, float, 2, true, true, true>,
-    test_laplacian<float, float, 2, true, false, true>,
-    test_laplacian<float, float, 2, false, true, true>,
-    test_laplacian<float, float, 2, false, false, true>,
-    test_laplacian<float, float, 3, true, true, false>,
-    test_laplacian<float, float, 3, true, false, false>,
-    test_laplacian<float, float, 3, false, true, false>,
-    test_laplacian<float, float, 3, false, false, false>,
-    test_laplacian<float, float, 3, true, true, true>,
-    test_laplacian<float, float, 3, true, false, true>,
-    test_laplacian<float, float, 3, false, true, true>,
-    test_laplacian<float, float, 3, false, false, true>,
+using LaplacianTestValues =
+    ::testing::Types<test_laplacian<float, float, 1, true, true, false>,
+                     test_laplacian<float, float, 1, true, false, false>,
+                     test_laplacian<float, float, 1, false, true, false>,
+                     test_laplacian<float, float, 1, false, false, false>,
+                     test_laplacian<float, float, 2, true, true, false>,
+                     test_laplacian<float, float, 2, true, false, false>,
+                     test_laplacian<float, float, 2, false, true, false>,
+                     test_laplacian<float, float, 2, false, false, false>,
+                     test_laplacian<float, float, 2, true, true, true>,
+                     test_laplacian<float, float, 2, true, false, true>,
+                     test_laplacian<float, float, 2, false, true, true>,
+                     test_laplacian<float, float, 2, false, false, true>,
+                     test_laplacian<float, float, 3, true, true, false>,
+                     test_laplacian<float, float, 3, true, false, false>,
+                     test_laplacian<float, float, 3, false, true, false>,
+                     test_laplacian<float, float, 3, false, false, false>,
+                     test_laplacian<float, float, 3, true, true, true>,
+                     test_laplacian<float, float, 3, true, false, true>,
+                     test_laplacian<float, float, 3, false, true, true>,
+                     test_laplacian<float, float, 3, false, false, true>,
 
-    test_laplacian<uint8_t, uint8_t, 1, true, true, true>,
-    test_laplacian<uint8_t, uint8_t, 2, true, true, true>,
-    test_laplacian<uint8_t, uint8_t, 3, true, true, true>,
-    test_laplacian<uint8_t, uint8_t, 1, true, true, false>,
-    test_laplacian<uint8_t, uint8_t, 2, true, true, false>,
-    test_laplacian<uint8_t, uint8_t, 3, true, true, false>>;
+                     test_laplacian<uint8_t, uint8_t, 1, true, true, true>,
+                     test_laplacian<uint8_t, uint8_t, 2, true, true, true>,
+                     test_laplacian<uint8_t, uint8_t, 3, true, true, true>,
+                     test_laplacian<uint8_t, uint8_t, 1, true, true, false>,
+                     test_laplacian<uint8_t, uint8_t, 2, true, true, false>,
+                     test_laplacian<uint8_t, uint8_t, 3, true, true, false>>;
 
 TYPED_TEST_P(LaplacianGpuTest, DoLaplacian) {
   this->RunTest();
