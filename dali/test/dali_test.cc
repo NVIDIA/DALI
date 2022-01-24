@@ -33,6 +33,7 @@ void __dali_test_force_tls_align_fun(void) {
 void __dali_test_force_tls_align_fun(void) {}
 #endif
 
+
 int main(int argc, char **argv) {
   __dali_test_force_tls_align_fun();
   dali::DALIInit(dali::OpSpec("CPUAllocator"),

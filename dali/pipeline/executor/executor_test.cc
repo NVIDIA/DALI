@@ -22,6 +22,7 @@
 #include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/executor/async_separated_pipelined_executor.h"
+#include "dali/test/dali_test_utils.h"
 #include "dali/test/tensor_test_utils.h"
 
 namespace dali {
@@ -417,7 +418,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
       dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(OpType::CPU, 0).op.get());
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
-  MakeRandomBatch(tl, this->batch_size_);
+  test::MakeRandomBatch(tl, this->batch_size_);
   src_op->SetDataSource(tl);
 
   exe->RunCPU();
@@ -471,7 +472,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
       dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(OpType::CPU, 0).op.get());
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
-  MakeRandomBatch(tl, this->batch_size_);
+  test::MakeRandomBatch(tl, this->batch_size_);
   src_op->SetDataSource(tl);
 
   exe->RunCPU();
@@ -545,7 +546,7 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   ASSERT_NE(src_op, nullptr);
 
   TensorList<CPUBackend> tl;
-  MakeRandomBatch(tl, this->batch_size_ * 2);
+  test::MakeRandomBatch(tl, this->batch_size_ * 2);
 
   // Split the batch into two
   TensorList<CPUBackend> tl2;
@@ -583,42 +584,12 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   exe->RunMixed();
   exe->RunGPU();
 
-  // Verify that both sets of results are correct
   DeviceWorkspace ws;
   exe->Outputs(&ws);
-  ASSERT_EQ(ws.NumOutput(), 1);
-  ASSERT_EQ(ws.NumInput(), 0);
-  ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
-  TensorList<GPUBackend> &res1 = ws.Output<GPUBackend>(0);
-
-  TensorList<CPUBackend> res_cpu;
-  res_cpu.Copy(res1, cudaStream_t(0));
-  CUDA_CALL(cudaDeviceSynchronize());
-
-  auto res_cpu_view = view<uint8_t>(res_cpu);
-  auto data_view = view<uint8_t>(tl);
-  for (int j = 0; j < batch_size; ++j) {
-    int data_idx = j % data_view.shape.num_samples();
-    Check(res_cpu_view[j], data_view[data_idx]);
-  }
+  test::CheckResults(ws, batch_size, 0, tl);
 
   exe->Outputs(&ws);
-  ASSERT_EQ(ws.NumOutput(), 1);
-  ASSERT_EQ(ws.NumInput(), 0);
-  ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
-
-  auto status_2 = barrier_future_2.wait_for(std::chrono::seconds(5));
-  ASSERT_EQ(status_2, std::future_status::ready);
-  ASSERT_EQ(cb_counter, 2);
-  TensorList<GPUBackend> &res2 = ws.Output<GPUBackend>(0);
-  TensorList<CPUBackend> res_cpu2;
-  res_cpu2.Copy(res2, cudaStream_t(0));
-  CUDA_CALL(cudaDeviceSynchronize());
-  auto res_cpu_view2 = view<uint8_t>(res_cpu2);
-  for (int j = 0; j < batch_size; ++j) {
-    int data_idx = (j + batch_size) % data_view.shape.num_samples();
-    Check(res_cpu_view2[j], data_view[data_idx]);
-  }
+  test::CheckResults(ws, batch_size, 1, tl);
 }
 
 }  // namespace dali

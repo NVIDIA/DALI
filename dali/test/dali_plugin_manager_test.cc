@@ -19,8 +19,9 @@
 #include "dali/pipeline/pipeline.h"
 
 static const std::string& DummyPluginLibPath() {
-    static const std::string plugin_lib = dali::CurrentExecutableDir() + "/libcustomdummyplugin.so";
-    return plugin_lib;
+  static const std::string plugin_lib =
+      dali::test::CurrentExecutableDir() + "/libcustomdummyplugin.so";
+  return plugin_lib;
 }
 
 namespace other_ns {
@@ -35,23 +36,22 @@ static void LoadDummyPlugin() {
 TEST_F(DummyTest, PluginShouldBeUsable) {
   LoadDummyPlugin();
 
-  using namespace dali;
-  Pipeline pipe(3, 1, 0);
+  dali::Pipeline pipe(3, 1, 0);
 
-  TensorList<CPUBackend> data;
-  MakeRandomBatch(data, 3);
+  dali::TensorList<dali::CPUBackend> data;
+  dali::test::MakeRandomBatch(data, 3);
 
   pipe.AddExternalInput("data");
   pipe.AddOperator(
-      OpSpec("CustomDummy")
+      dali::OpSpec("CustomDummy")
       .AddArg("device", "cpu")
       .AddInput("data", "cpu")
       .AddOutput("out", "cpu"));
-  vector<std::pair<string, string>> outputs = {{"out", "cpu"}};
+  std::vector<std::pair<std::string, std::string>> outputs = {{"out", "cpu"}};
 
   pipe.Build(outputs);
   pipe.SetExternalInput("data", data);
-  DeviceWorkspace ws;
+  dali::DeviceWorkspace ws;
   pipe.RunCPU();
   pipe.RunGPU();
   pipe.Outputs(&ws);

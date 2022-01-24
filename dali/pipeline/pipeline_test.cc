@@ -25,6 +25,7 @@
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_decoder.h"
 #include "dali/util/image.h"
+#include "dali/test/dali_test_utils.h"
 #include "dali/test/tensor_test_utils.h"
 
 namespace dali {
@@ -392,7 +393,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
       presize_val_default);
 
   TensorList<CPUBackend> data;
-  MakeRandomBatch(data, batch_size);
+  test::MakeRandomBatch(data, batch_size);
   pipe.AddExternalInput("raw_jpegs");
 
   pipe.AddOperator(
@@ -492,7 +493,7 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
 
 
   TensorList<CPUBackend> batch;
-  MakeRandomBatch(batch, batch_size);
+  test::MakeRandomBatch(batch, batch_size);
 
   pipe.AddExternalInput("data");
 
@@ -526,27 +527,6 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
 
 class PrefetchedPipelineTest : public DALITest {
  public:
-
-  void CheckResults(Pipeline &pipe, int batch_size, int Iter, TensorList<CPUBackend> &data) {
-    DeviceWorkspace ws;
-    pipe.Outputs(&ws);
-    ASSERT_EQ(ws.NumOutput(), 1);
-    ASSERT_EQ(ws.NumInput(), 0);
-    ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
-    TensorList<GPUBackend> &res1 = ws.Output<GPUBackend>(0);
-
-    TensorList<CPUBackend> res_cpu;
-    res_cpu.Copy(res1, cudaStream_t(0));
-    CUDA_CALL(cudaDeviceSynchronize());
-
-    auto res_cpu_view = view<uint8_t>(res_cpu);
-    auto data_view = view<uint8_t>(data);
-    for (int j = 0; j < batch_size; ++j) {
-      int data_idx = (Iter * batch_size + j) % data_view.shape.num_samples();
-      Check(res_cpu_view[j], data_view[data_idx]);
-    }
-  }
-
   int batch_size_ = 5, num_threads_ = 1;
 };
 
@@ -607,7 +587,7 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   pipe.Build(outputs);
 
   TensorList<CPUBackend> tl;
-  MakeRandomBatch(tl, batch_size * N);
+  test::MakeRandomBatch(tl, batch_size * N);
 
   // Split the batch into 5
   std::array<TensorList<CPUBackend>, N> splited_tl;
@@ -644,7 +624,9 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // Now we interleave the calls to Outputs() and Run() for the rest of the batch
   int obtained_outputs = 0;
   for (int i = GPU + CPU; i < N; i++) {
-    CheckResults(pipe, batch_size, obtained_outputs++, tl);
+    DeviceWorkspace ws;
+    pipe.Outputs(&ws);
+    test::CheckResults(ws, batch_size, obtained_outputs++, tl);
     pipe.SetExternalInput("data", splited_tl[i]);
     pipe.RunCPU();
     pipe.RunGPU();
@@ -653,12 +635,16 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // We consumed all the data and have it in the Pipeline, now we need to run
   // Mixed and GPU stage to consume what was produced by the CPU
   for (int i = 0; i < CPU; i++) {
-    CheckResults(pipe, batch_size, obtained_outputs++, tl);
+    DeviceWorkspace ws;
+    pipe.Outputs(&ws);
+    test::CheckResults(ws, batch_size, obtained_outputs++, tl);
     pipe.RunGPU();
   }
   // Now we consule what we buffered in the beggining
   for (int i = 0; i < GPU; i++) {
-    CheckResults(pipe, batch_size, obtained_outputs++, tl);
+    DeviceWorkspace ws;
+    pipe.Outputs(&ws);
+    test::CheckResults(ws, batch_size, obtained_outputs++, tl);
   }
 }
 
