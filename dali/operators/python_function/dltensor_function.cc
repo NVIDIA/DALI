@@ -17,6 +17,7 @@
 #include <utility>
 #include <string>
 #include "dali/operators/python_function/dltensor_function.h"
+#include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/util/copy_with_stride.h"
 
 namespace dali {
@@ -78,8 +79,8 @@ py::list PrepareDLTensorInputs<CPUBackend>(HostWorkspace &ws) {
   for (Index idx = 0; idx < ws.NumInput(); ++idx) {
     py::list dl_tensor_list;
     for (Index i = 0; i < ws.GetInputBatchSize(idx); ++i) {
-      auto &t = ws.UnsafeMutableInput<CPUBackend>(idx)[i];  // todo view<void>
-      auto dl_capsule = TensorToDLPackView(t);
+      const auto &t = ws.UnsafeMutableInput<CPUBackend>(idx)[i];  // todo view<void>
+      auto dl_capsule = TensorToDLPackView(t, ws.Input<CPUBackend>(idx).device_id());
       dl_tensor_list.append(dl_capsule);
     }
     input_tuple.append(dl_tensor_list);
@@ -106,8 +107,8 @@ py::list PrepareDLTensorInputsPerSample<CPUBackend>(HostWorkspace &ws) {
   for (Index s = 0; s < batch_size; ++s) {
     py::list tuple;
     for (Index idx = 0; idx < ws.NumInput(); ++idx) {
-      auto &t = ws.UnsafeMutableInput<CPUBackend>(idx)[s]; // todo view<void>
-      auto dl_capsule = TensorToDLPackView(t);
+      const auto &t = ws.UnsafeMutableInput<CPUBackend>(idx)[s]; // todo view<void>
+      auto dl_capsule = TensorToDLPackView(t, ws.Input<CPUBackend>(idx).device_id());
       tuple.append(dl_capsule);
     }
     input_tuples.append(tuple);

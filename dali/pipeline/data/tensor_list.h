@@ -94,15 +94,15 @@ class DLL_PUBLIC TensorList {
 
   DLL_PUBLIC ~TensorList() = default;
 
-  DLL_PUBLIC TensorView<storage_tag_map2_t<Backend>, void, DynamicDimensions> operator[](
-      int sample_idx) {
-    return {samples_[sample_idx].raw_mutable_data(), shape_[sample_idx], type()};
-  }
+  // DLL_PUBLIC TensorView<storage_tag_map2_t<Backend>, void, DynamicDimensions> operator[](
+  //     int sample_idx) {
+  //   return {samples_[sample_idx].raw_mutable_data(), shape_[sample_idx], type()};
+  // }
 
-  DLL_PUBLIC TensorView<storage_tag_map2_t<Backend>, const void, DynamicDimensions> operator[](
-      int sample_idx) const {
-    return {samples_[sample_idx].raw_data(), shape_[sample_idx], type()};
-  }
+  // DLL_PUBLIC TensorView<storage_tag_map2_t<Backend>, const void, DynamicDimensions> operator[](
+  //     int sample_idx) const {
+  //   return {samples_[sample_idx].raw_data(), shape_[sample_idx], type()};
+  // }
 
   /**
    * @brief Number of elements in Tensor List.
@@ -179,10 +179,10 @@ class DLL_PUBLIC TensorList {
     sizes.reserve(nsamples);
     for (size_t i = 0; i < nsamples; i++) {
       dsts.emplace_back(this->raw_mutable_tensor(i));
-      srcs.emplace_back(other[i].raw_data());
-      sizes.emplace_back(other[i].size());
-      this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
-      this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
+      srcs.emplace_back(other.raw_tensor(i));
+      sizes.emplace_back(other.tensor_shape(i).num_elements()); // todo do this on span
+      this->meta_[i].SetSourceInfo(other.GetMeta(i).GetSourceInfo());
+      this->meta_[i].SetSkipSample(other.GetMeta(i).ShouldSkipSample());
     }
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&

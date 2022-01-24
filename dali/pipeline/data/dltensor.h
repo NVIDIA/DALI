@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <memory>
 #include <vector>
 #include <utility>
+#include "dali/core/tensor_shape.h"
 #include "third_party/dlpack/include/dlpack/dlpack.h"
 #include "dali/pipeline/data/tensor.h"
 
@@ -55,6 +56,16 @@ DLMTensorPtr GetDLTensorView(Tensor<Backend> &tensor) {
                       tensor.device_id(),
                       std::make_unique<DLTensorResource>(tensor.shape()));
 }
+
+template <typename Backend>
+DLMTensorPtr GetDLTensorView(const TensorView<Backend, void, DynamicDimensions> &tensor_view, int device_id) {
+  return MakeDLTensor(tensor_view.data,
+                      tensor_view.type(),
+                      std::is_same<Backend, GPUBackend>::value,
+                      device_id,
+                      std::make_unique<DLTensorResource>(tensor_view.shape));
+}
+
 
 template <typename Backend>
 std::vector<DLMTensorPtr> GetDLTensorListView(TensorList<Backend> &tensor_list) {

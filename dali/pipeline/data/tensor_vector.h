@@ -30,6 +30,10 @@
 #include "dali/core/tensor_view.h"
 #include "dali/core/backend_tags.h"
 
+
+namespace dali {
+
+
 /**
  * @brief Maps DALI Backend to dali::kernels storage backend.
  */
@@ -48,9 +52,6 @@ struct storage_tag_map3<GPUBackend> {
 
 template <typename Backend>
 using storage_tag_map3_t = typename storage_tag_map3<Backend>::type;
-
-namespace dali {
-
 /**
  * @brief Merges TensorList<Backend> and std::vector<std::shared_ptr<Tensor<Backend>>> APIs
  * providing an uniform way of handling a collection/batch of tensors_.
@@ -117,24 +118,40 @@ class DLL_PUBLIC TensorVector {
     return  tensors_[idx]->raw_data();
   }
 
-  DLL_PUBLIC void set_sample(int idx, const Buffer<Backend> &owner) {
-    // todo share_data replacement
-    // tensor_[idx].ShareData(owner);
-  }
+  // DLL_PUBLIC void SetSample(int idx, const Buffer<Backend> &owner) {
+  //   Tensor<Backend> tmp;
+  //   tmp.ShareData(owner);
+  //   tmp.Resize(shape()[idx], type());
+  //   SetSample(idx, owner);
+  //   // TODO checks
+  //   // todo share_data replacement
+  //   // tensor_[idx].ShareData(owner);
+  // }
 
-  DLL_PUBLIC void set_sample(int idx, const Tensor<Backend> &owner) {
-    // todo share_data replacement
-    // tensor_[idx].ShareData(owner);
+  DLL_PUBLIC void SetSample(int idx, const Tensor<Backend> &owner) {
+    SetContiguous(false);
+    // TODO checks
+    // DALI_ENFORCE(owner.shape().sample_dim() == shape().sample_dim(), "Sample must have the same dim");
+    if (type() == DALI_NO_TYPE && owner.type() != DALI_NO_TYPE) {
+      set_type(owner.type());
+    }
+    DALI_ENFORCE(type() == owner.type(), "Sample must have the same type as batch");
+    // kind (pinned?), order, layout, etc...
+    // The metadata
+
+    tensors_[idx]->ShareData(owner);
+    // todo v update shape
+    // shape().set_tensor_shape(idx, owner.shape());
   }
 
   DLL_PUBLIC TensorView<storage_tag_map3_t<Backend>, void, DynamicDimensions> operator[](
       int sample_idx) {
-    return {tensors_[sample_idx].raw_mutable_data(), tensor_shape(sample_idx), type()};
+    return {tensors_[sample_idx]->raw_mutable_data(), tensor_shape(sample_idx), type()};
   }
 
   DLL_PUBLIC TensorView<storage_tag_map3_t<Backend>, const void, DynamicDimensions> operator[](
       int sample_idx) const {
-    return {tensors_[sample_idx].raw_data(), tensor_shape(sample_idx), type()};
+    return {tensors_[sample_idx]->raw_data(), tensor_shape(sample_idx), type()};
   }
 
   // Tensor<Backend> &operator[](size_t pos) {
@@ -255,6 +272,10 @@ class DLL_PUBLIC TensorVector {
    *        should use TensorList or std::vector<Tensor> as backing memory
    */
   void SetContiguous(bool contiguous);
+
+  int device_id() const {
+    return 0;  // TODO fixme
+  }
 
   void Reset();
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -158,9 +158,12 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   template<typename T>
   inline void GetMaxSizesNonCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
+    max_out_size = in.nbytes() / in.shape().num_samples();
+    max_reserved_size = in.capacity() / in.shape().num_samples();
     for (size_t j = 0; j < in.num_samples(); ++j) {
-      max_out_size = std::max(in[j].nbytes(), max_out_size);
-      max_reserved_size = std::max(in[j].capacity(), max_reserved_size);
+      // TODO fixme
+      // max_out_size = std::max(in[j].nbytes(), max_out_size);
+      // max_reserved_size = std::max(in[j].capacity(), max_reserved_size);
     }
   }
 

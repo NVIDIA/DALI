@@ -93,7 +93,7 @@ void FillTensorVector(
     }
   }
   for (int i = 1; i < shape.num_samples(); i++) {
-    // dst.set_sample(i, dst.sample_owner(0));  // todo view<void> - this is broken, we need a better share
+    // dst.SetSample(i, dst.sample_owner(0));  // todo view<void> - this is broken, we need a better share
   }
 }
 }  // namespace

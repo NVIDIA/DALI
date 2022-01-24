@@ -267,7 +267,8 @@ struct TensorView<Backend, void, DynamicDimensions> {
 
   template <typename DataType, int other_ndim = DynamicDimensions>
   TensorView<Backend, DataType, other_ndim> to_static() {
-    DALI_ENFORCE(type() == type2id<DataType>::value, "Type must match for the conversion");
+    DALI_ENFORCE(type() == type2id<std::remove_cv_t<DataType>>::value,
+                 "Type must match for the conversion");
     DALI_ENFORCE(shape.sample_dim() == other_ndim || shape.static_ndim == DynamicDimensions,
                  "Dimensionality must match for the conversion");
     return {static_cast<DataType *>(data), shape};
@@ -317,7 +318,8 @@ struct TensorView<Backend, const void, DynamicDimensions> {
 
   template <typename DataType, int other_ndim = DynamicDimensions>
   TensorView<Backend, DataType, other_ndim> to_static() {
-    DALI_ENFORCE(type() == type2id<DataType>::value, "Type must match for the conversion");
+    DALI_ENFORCE(type() == type2id<std::remove_cv_t<DataType>>::value,
+                 "Type must match for the conversion");
     DALI_ENFORCE(shape.sample_dim() == other_ndim || shape.static_ndim == DynamicDimensions,
                  "Dimensionality must match for the conversion");
     return {static_cast<DataType *>(data), shape};

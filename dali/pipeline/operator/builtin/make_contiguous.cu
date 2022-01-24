@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,19 +19,24 @@ namespace dali {
 
 void MakeContiguousMixed::Run(MixedWorkspace &ws) {
   const auto& input = ws.template Input<CPUBackend>(0);
-  int sample_dim = input[0].shape().sample_dim();
+  // todo fixme, do it with shape span
+  int sample_dim = input.shape()[0].sample_dim();
   size_t batch_size = input.num_samples();
   DALIDataType type = input.type();
+  size_t elem_size = input.type_info().size();
 
   for (size_t i = 0; i < input.num_samples(); ++i) {
-    auto &sample = ws.Input<CPUBackend>(0)[i];
-    size_t sample_bytes = sample.nbytes();
+    // todo fixme
+    const auto &sample = ws.Input<CPUBackend>(0)[i]; // todo view<void>
+    size_t sample_bytes = input.shape()[i].num_elements() * elem_size;
     if (coalesced && sample_bytes > COALESCE_THRESHOLD)
       coalesced = false;
-    DALI_ENFORCE(type == sample.type(), "Inconsistent types in "
-        "input batch. Cannot copy to contiguous device buffer.");
-    DALI_ENFORCE(sample_dim == sample.shape().sample_dim(), "Inconsistent sample dimensions "
-        "in input batch. Cannot copy to contiguous device buffer.");
+
+    // todo fixme
+    // DALI_ENFORCE(type == sample.type(), "Inconsistent types in "
+    //     "input batch. Cannot copy to contiguous device buffer.");
+    // DALI_ENFORCE(sample_dim == sample.shape().sample_dim(), "Inconsistent sample dimensions "
+    //     "in input batch. Cannot copy to contiguous device buffer.");
   }
 
   auto &output = ws.Output<GPUBackend>(0);
