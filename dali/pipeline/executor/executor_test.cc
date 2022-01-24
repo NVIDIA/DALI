@@ -586,9 +586,20 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
 
   DeviceWorkspace ws;
   exe->Outputs(&ws);
+  ASSERT_EQ(ws.NumOutput(), 1);
+  ASSERT_EQ(ws.NumInput(), 0);
+  ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
   test::CheckResults(ws, batch_size, 0, tl);
 
   exe->Outputs(&ws);
+  ASSERT_EQ(ws.NumOutput(), 1);
+  ASSERT_EQ(ws.NumInput(), 0);
+  ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
+
+  auto status_2 = barrier_future_2.wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status_2, std::future_status::ready);
+  ASSERT_EQ(cb_counter, 2);
+
   test::CheckResults(ws, batch_size, 1, tl);
 }
 

@@ -39,17 +39,24 @@ std::string CurrentExecutableDir() {
     return {};
 }
 
-void MakeRandomBatch(TensorList<CPUBackend> &data, int N, int ndim,
-                     int64_t min_extent, int64_t max_extent) {
+void MakeRandomBatch(TensorList<CPUBackend> &data, int N,
+                     const TensorShape<> &min_sh,
+                     const TensorShape<> &max_sh) {
+  assert(min_sh.sample_dim() == max_sh.sample_dim());
+  int ndim = min_sh.sample_dim();
+  for (int d = 0; d < ndim; d++)
+    assert(min_sh[d] <=  max_sh[d]);
+
   std::mt19937_64 rng(1234);
-  TensorListShape<3> tl_sh(N);
-  std::uniform_int_distribution<int> dist(min_extent, max_extent);
+  TensorListShape<> tl_sh(N, ndim);
   for (int sample_idx = 0; sample_idx < N; sample_idx++) {
     auto sh = tl_sh.tensor_shape_span(sample_idx);
-    for (int d = 0; d < ndim; d++)
+    for (int d = 0; d < ndim; d++) {
+      std::uniform_int_distribution<int> dist(min_sh[d], max_sh[d]);
       sh[d] = dist(rng);
+    }
   }
-  std::uniform_int_distribution<int> dist2(0, 255);
+  std::uniform_int_distribution<int> dist2(0, std::numeric_limits<uint8_t>::max());
   data.Resize(tl_sh, DALI_UINT8);
   for (int sample_idx = 0; sample_idx < N; sample_idx++) {
     int64_t vol = volume(tl_sh.tensor_shape_span(sample_idx));
@@ -60,15 +67,14 @@ void MakeRandomBatch(TensorList<CPUBackend> &data, int N, int ndim,
 }
 
 void CheckResults(DeviceWorkspace ws, int batch_size, int i,
-                  TensorList<CPUBackend> &data) {
-  ASSERT_EQ(ws.NumOutput(), 1);
-  ASSERT_EQ(ws.NumInput(), 0);
-  ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
-
-  TensorList<GPUBackend> &res1 = ws.Output<GPUBackend>(0);
+                  TensorList<CPUBackend> &data, int output_idx) {
   TensorList<CPUBackend> res_cpu;
-  res_cpu.Copy(res1);
-  CUDA_CALL(cudaDeviceSynchronize());
+  if (ws.OutputIsType<GPUBackend>(output_idx)) {
+    res_cpu.Copy(ws.Output<GPUBackend>(output_idx));
+    CUDA_CALL(cudaDeviceSynchronize());
+  } else {
+    res_cpu.Copy(ws.Output<CPUBackend>(output_idx));
+  }
 
   auto res_cpu_view = view<uint8_t>(res_cpu);
   auto data_view = view<uint8_t>(data);

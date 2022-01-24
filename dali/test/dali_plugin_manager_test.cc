@@ -27,34 +27,47 @@ static const std::string& DummyPluginLibPath() {
 namespace other_ns {
 
 class DummyTest : public ::dali::DALITest {
+ public:
+  static void LoadDummyPlugin() {
+    ::dali::PluginManager::LoadLibrary(DummyPluginLibPath());
+  }
+
+  void TestPlugin(const std::string &backend) {
+    LoadDummyPlugin();
+
+    dali::TensorList<dali::CPUBackend> data;
+    dali::test::MakeRandomBatch(data, 3);
+
+    std::array<std::string, 2> backends = {"cpu", "gpu"};
+    for (auto backend : backends) {
+      dali::Pipeline pipe(3, 1, 0);
+      pipe.AddExternalInput("data");
+      pipe.AddOperator(
+          dali::OpSpec("CustomDummy")
+          .AddArg("device", backend)
+          .AddInput("data", backend)
+          .AddOutput("out", backend));
+      std::vector<std::pair<std::string, std::string>> outputs = {{"out", backend}};
+
+      pipe.Build(outputs);
+      pipe.SetExternalInput("data", data);
+      dali::DeviceWorkspace ws;
+      pipe.RunCPU();
+      pipe.RunGPU();
+      pipe.Outputs(&ws);
+
+      dali::test::CheckResults(ws, 3, 0, data);
+    }
+  }
 };
 
-static void LoadDummyPlugin() {
-  ::dali::PluginManager::LoadLibrary(DummyPluginLibPath());
+
+TEST_F(DummyTest, TestPluginCPU) {
+  this->TestPlugin("cpu");
 }
 
-TEST_F(DummyTest, PluginShouldBeUsable) {
-  LoadDummyPlugin();
-
-  dali::Pipeline pipe(3, 1, 0);
-
-  dali::TensorList<dali::CPUBackend> data;
-  dali::test::MakeRandomBatch(data, 3);
-
-  pipe.AddExternalInput("data");
-  pipe.AddOperator(
-      dali::OpSpec("CustomDummy")
-      .AddArg("device", "cpu")
-      .AddInput("data", "cpu")
-      .AddOutput("out", "cpu"));
-  std::vector<std::pair<std::string, std::string>> outputs = {{"out", "cpu"}};
-
-  pipe.Build(outputs);
-  pipe.SetExternalInput("data", data);
-  dali::DeviceWorkspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
-  pipe.Outputs(&ws);
+TEST_F(DummyTest, TestPluginGPU) {
+  this->TestPlugin("gpu");
 }
 
 }  // namespace other_ns

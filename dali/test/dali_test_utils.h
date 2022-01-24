@@ -16,6 +16,7 @@
 #define DALI_TEST_DALI_TEST_UTILS_H_
 
 #include <string>
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/workspace/device_workspace.h"
@@ -32,30 +33,32 @@ namespace test {
 std::string CurrentExecutableDir();
 
 /**
- * @brief Produces a batch of ND random data with variable shapes
+ * @brief Produces a batch of ND random data
+ *        with random shapes between a minimum and a maximum shape
  *
  * @param data output data
  * @param N number of samples
- * @param ndim number of dimensions
- * @param min_extent minimum extent in the shape
- * @param max_extent maximum extent in the shape
+ * @param min_sh minimum shape
+ * @param max_sh maximum shape
  */
-void MakeRandomBatch(TensorList<CPUBackend> &data, int N, int ndim = 3,
-                     int64_t min_extent = 10, int64_t max_extent = 20);
+void MakeRandomBatch(TensorList<CPUBackend> &data, int N,
+                     const TensorShape<> &min_sh = TensorShape<>{10, 10, 3},
+                     const TensorShape<> &max_sh = TensorShape<>{20, 20, 3});
 
 /**
- * @brief Compares the outputs of the pipeline for the i-th iteration, with the
- *        appropriate sample in the dataset, assuming wrap-around behavior.
+ * @brief Compares one of the output of a pipeline for the i-th iteration,
+ *        with the appropriate sample in the dataset, assuming wrap-around behavior.
  *
- * @param ws workspace. Should contain single GPU output
+ * @param ws workspace
  * @param batch_size batch size
  * @param i index of the iteration in the pipeline
  * @param data dataset used to drive the pipeline, the output of the pipeline should
  *             match those samples explicitly, and should wrap-around when reaching
  *             the end.
+ * @param output_idx Index of the output in the workspace
  */
 void CheckResults(DeviceWorkspace ws, int batch_size, int i,
-                  TensorList<CPUBackend> &data);
+                  TensorList<CPUBackend> &data, int output_idx = 0);
 
 }  // namespace test
 }  // namespace dali
