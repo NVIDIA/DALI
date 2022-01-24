@@ -147,11 +147,11 @@ class CVPipeline(Pipeline):
           outputs = self.warp(images)
         return outputs
 
-def compare(pipe1, pipe2, eps):
+def compare(pipe1, pipe2, max_err):
   epoch_size = pipe1.epoch_size("Reader")
   batch_size = pipe1.max_batch_size
   niter = (epoch_size + batch_size - 1) // batch_size
-  compare_pipelines(pipe1, pipe2, batch_size, niter, eps);
+  compare_pipelines(pipe1, pipe2, batch_size, niter, max_allowed_error=max_err)
 
 io_types = [
   (dali.types.UINT8, dali.types.UINT8),
