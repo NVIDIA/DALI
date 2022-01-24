@@ -17,6 +17,7 @@
 #include <libgen.h>
 #include <limits.h>
 #include <unistd.h>
+#include <limits>
 #include <opencv2/opencv.hpp>
 #include <random>
 #include <string>
