@@ -15,6 +15,7 @@
 #ifndef DALI_KERNELS_COMMON_CAST_CUH_
 #define DALI_KERNELS_COMMON_CAST_CUH_
 
+#include "dali/core/convert.h"
 #include "dali/kernels/common/block_setup.h"
 
 namespace dali {
