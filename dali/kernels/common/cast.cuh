@@ -29,8 +29,8 @@ template <typename OType, typename IType>
 __global__ void BatchedCastKernel(const CastSampleDesc *samples, const BlockDesc<1> *blocks) {
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
-  auto *out = reinterpret_cast<OType *>(sample.output);
-  const auto *in = reinterpret_cast<const IType *>(sample.input);
+  auto *out = static_cast<OType *>(sample.output);
+  const auto *in = static_cast<const IType *>(sample.input);
   for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
     out[x] = ConvertSat<OType>(in[x]);
   }
