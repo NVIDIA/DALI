@@ -35,7 +35,7 @@ namespace dali {
 namespace mm {
 
 template <typename Kind,
-    typename GlobalPool = deferred_dealloc_pool<Kind, coalescing_free_tree, spinlock>,
+    typename GlobalPool = pool_resource_base<Kind, coalescing_free_tree, spinlock>,
     typename LockType = std::mutex,
     typename Upstream = memory_resource<Kind>>
 class async_pool_resource : public async_memory_resource<Kind> {
@@ -68,7 +68,6 @@ class async_pool_resource : public async_memory_resource<Kind> {
   ~async_pool_resource() {
     try {
       synchronize();
-      global_pool_.flush_deferred();
     } catch (const CUDAError &e) {
       if (!e.is_unloading())
         std::terminate();
@@ -82,7 +81,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
 
       for (auto *f = free_blocks.free_list.head; f; ) {
         try {
-          global_pool_.deallocate_no_sync(f->addr, f->bytes, f->alignment);
+          global_pool_.deallocate(f->addr, f->bytes, f->alignment);
         } catch (const CUDAError &e) {
           if (!e.is_unloading())
             std::terminate();
@@ -134,20 +133,10 @@ class async_pool_resource : public async_memory_resource<Kind> {
     if (!mem || !bytes)
       return;
     adjust_size_and_alignment(bytes, alignment, false);
-    bool deferred = global_pool_.deferred_dealloc_enabled();
-    // If not deferred, we need to synchronize here (outside of the lock, to avoid blocking
-    // concurrent allocations).
-    if (!deferred) {
-      sync_scope sync = default_sync_scope<Kind>();
-      mm::detail::synchronize(sync);
-    }
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char *>(mem);
     pop_block_padding(ptr, bytes, alignment);
-    if (deferred)  // deferred - just use deallocate, it will schedule synchronization
-      global_pool_.deallocate(ptr, bytes, alignment);
-    else  // not deferred - don't synchronize, we've done it already
-      global_pool_.deallocate_no_sync(ptr, bytes, alignment);
+    global_pool_.deallocate(ptr, bytes, alignment);
   }
 
   /**
@@ -430,7 +419,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
   void free_ready(PerStreamFreeBlocks &free) {
     auto *f = find_first_ready(free);
     while (f) {
-      global_pool_.deallocate_no_sync(f->addr, f->bytes, f->alignment);
+      global_pool_.deallocate(f->addr, f->bytes, f->alignment);
       f = remove_pending_free(free, f);
     }
   }

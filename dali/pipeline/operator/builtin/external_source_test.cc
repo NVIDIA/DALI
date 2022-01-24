@@ -137,6 +137,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     int dims = this->RandInt(1, 4);
     for (int j = 0; j < this->batch_size_; ++j) {
       Tensor<CPUBackend> tensor;
+      tensor.set_pinned(false);
       auto shape = GetRandShape(dims);
       tensor.Resize(shape, DALI_INT32);
       auto data = tensor.template mutable_data<int>();
@@ -144,10 +145,11 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
         data[i] = fill_counter_;
         ++fill_counter_;
       }
+      vt_gpu_[j].set_order(cudaStream_t(0));
       vt_gpu_[j].Copy(tensor);
     }
     CUDA_CALL(cudaStreamSynchronize(0));
-    src_op->SetDataSource(vt_gpu_);
+    src_op->SetDataSource(vt_gpu_, cudaStream_t(0));
   }
 
   template<typename Backend>
@@ -162,7 +164,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
         ++fill_counter_;
       }
     }
-    src_op->SetDataSource(tl_cpu_);
+    src_op->SetDataSource(tl_cpu_, {});
   }
 
   template<typename Backend>
@@ -171,6 +173,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     auto rand_shape = GetRandShape(this->RandInt(1, 4));
     TensorListShape<> shape = uniform_list_shape(this->batch_size_, rand_shape);
     tensor_list.Resize(shape, DALI_INT32);
+    tl_gpu_.set_order(cudaStream_t(0));
     for (int j = 0; j < this->batch_size_; ++j) {
       auto data = tensor_list.template mutable_tensor<int>(j);
       for (int i = 0; i < volume(tensor_list.tensor_shape(j)); ++i) {
@@ -180,7 +183,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
       tl_gpu_.Copy(tensor_list);
     }
     CUDA_CALL(cudaStreamSynchronize(0));
-    src_op->SetDataSource(tl_gpu_);
+    src_op->SetDataSource(tl_gpu_, cudaStream_t(0));
   }
 
   void RunExe() {
