@@ -30,7 +30,7 @@ images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 
 test_iters = 4
 min_window_size = 3
-max_window_size = 23
+max_window_size = 31  # it is maximal window size supported by opencv
 
 shape_layout_axes_cases = [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
                            ((20, 30, 3), "HWC", 2), ((20, 30), "HW", 2),
@@ -106,11 +106,13 @@ def _test_kernels(device, num_dims, smoothing, normalize):
     scales = [np.array(sf).item() for sf in scales]
     win_sizes = range(min_window_size, max_window_size + 2, 2)
     assert(len(kernels) == len(win_sizes) == len(scales))
-    for scale_factor, kernel, win_size in zip(scales, kernels, win_sizes):
-        baseline_kernel = get_cv2_kernel(win_size, smoothing)
-        if normalize:
-            baseline_kernel *= scale_factor
-        np.testing.assert_allclose(kernel, baseline_kernel, rtol=1e-5)
+    baseline_kernels = [
+        get_cv2_kernel(win_size, smoothing) * scale
+        for win_size, scale in zip(win_sizes, scales)]
+    if not normalize:  # output was not normalized by the op
+        kernels = [kernel * scale for kernel, scale in zip(kernels, scales)]
+    check_batch(kernels, baseline_kernels, batch_size,
+                max_allowed_error=1e-5, expected_layout="HWC")
 
 
 def test_kernels():
@@ -207,7 +209,7 @@ def test_vs_open_cv():
                         if out_type is None and in_type == types.UINT8:
                             win_sizes = range(1, 13, 2)
                         else:
-                            win_sizes = range(1, max_window_size + 2, 2)
+                            win_sizes = [1] + list(range(3, max_window_size + 2, 4))
                         for window_size in win_sizes:
                             yield _test_vs_open_cv, device, batch_size, window_size, in_type, out_type, normalize, grayscale
 

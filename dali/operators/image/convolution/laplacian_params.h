@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 #include <numeric>
 #include <vector>
 
-#include "dali/core/small_vector.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 
@@ -35,98 +34,9 @@ constexpr static const float scaleArgDefault = 1.0f;
 constexpr static const char *normalizeArgName = "normalized_kernel";
 constexpr static const bool normalizeArgDefault = false;
 
-// The operator uses the same windows as OpenCV. OpenCV uses windows sizes up to 31,
-// but it may be run on double precision floats, while DALI supports only
-// float32 as intermediate type.
-// For reasonable precision with floats, 23 is set as a maximal window size, because it is
-// maximal value for which smoothing window coefficients difference do not exceed 10^6.
+// The operator uses the same windows as OpenCV. OpenCV uses windows sizes up to 31.
 // NB. For smoothing window of size 29, float64 and float32 coefficients start to differ.
-constexpr static const int maxWindowSize = 23;
-
-template <typename T>
-class LaplacianWindows {
- public:
-  LaplacianWindows()
-      : smooth_computed_{1}, deriv_computed_{1}, smoothing_memory_{}, deriv_memory_{} {
-    int offset = 0;
-    int window_size = 1;
-    for (int i = 0; i < num_windows_; i++) {
-      smoothing_views_[i] = {&smoothing_memory_[offset], {window_size}};
-      deriv_views_[i] = {&deriv_memory_[offset], {window_size}};
-      offset += window_size;
-      window_size += 2;
-    }
-    *smoothing_views_[0](0) = 1;
-    *deriv_views_[0](0) = 1;
-  }
-
-  TensorView<StorageCPU, const T, 1> GetWindow(int window_size, bool is_deriv) {
-    assert(1 <= window_size && window_size <= maxWindowSize);
-    assert(window_size % 2 == 1);
-    auto window_idx = window_size / 2;
-    if (!is_deriv) {
-      PrepareSmoothingWindow(window_size);
-      return smoothing_views_[window_idx];
-    } else {
-      PrepareSmoothingWindow(window_size - 2);
-      PrepareDerivWindow(window_size);
-      return deriv_views_[window_idx];
-    }
-  }
-
- private:
-  /**
-   * @brief Smoothing window of size 2n + 1 is [1, 2, 1] conv composed with itself n - 1 times
-   * so that the window has appropriate size: it boils down to computing binominal coefficients:
-   * (1 + 1) ^ (2n).
-   */
-  inline void PrepareSmoothingWindow(int window_size) {
-    for (; smooth_computed_ < window_size; smooth_computed_++) {
-      auto cur_size = smooth_computed_ + 1;
-      auto cur_idx = cur_size / 2;
-      auto &prev_view = smoothing_views_[cur_size % 2 == 0 ? cur_idx - 1 : cur_idx];
-      auto &view = smoothing_views_[cur_idx];
-      auto prev_val = *prev_view(0);
-      *view(0) = prev_val;
-      for (int j = 1; j < cur_size - 1; j++) {
-        auto val = *prev_view(j);
-        *view(j) = prev_val + *prev_view(j);
-        prev_val = val;
-      }
-      *view(cur_size - 1) = prev_val;
-    }
-  }
-
-  /**
-   * @brief Derivative window of size 3 is [1, -2, 1] (which is [1, -1] composed with itself).
-   * Bigger windows are convolutions of smoothing windows with [1, -2, 1].
-   */
-  inline void PrepareDerivWindow(int window_size) {
-    for (; deriv_computed_ < window_size; deriv_computed_++) {
-      auto cur_size = deriv_computed_ + 1;
-      auto cur_idx = cur_size / 2;
-      auto &prev_view = cur_size % 2 == 0 ? smoothing_views_[cur_idx - 1] : deriv_views_[cur_idx];
-      auto &view = deriv_views_[cur_idx];
-      auto prev_val = *prev_view(0);
-      *view(0) = -prev_val;
-      for (int j = 1; j < cur_size - 1; j++) {
-        auto val = *prev_view(j);
-        *view(j) = prev_val - *prev_view(j);
-        prev_val = val;
-      }
-      *view(cur_size - 1) = prev_val;
-    }
-  }
-
-  static constexpr int num_windows_ = (maxWindowSize + 1) / 2;
-  static constexpr int windows_size_ = (1 + maxWindowSize) / 2 * num_windows_;
-  int smooth_computed_, deriv_computed_;
-  std::array<T, windows_size_> smoothing_memory_;
-  std::array<T, windows_size_> deriv_memory_;
-  std::array<TensorView<StorageCPU, T, 1>, num_windows_> smoothing_views_;
-  std::array<TensorView<StorageCPU, T, 1>, num_windows_> deriv_views_;
-};
-
+constexpr static const int maxWindowSize = 31;
 
 template <int axes>
 std::array<float, axes> GetNormalizationFactors(

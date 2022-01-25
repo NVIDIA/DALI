@@ -21,6 +21,7 @@
 #include "dali/core/span.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/imgproc/convolution/laplacian_gpu.cuh"
+#include "dali/kernels/imgproc/convolution/laplacian_windows.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/convolution/laplacian.h"
 #include "dali/pipeline/data/views.h"
@@ -39,12 +40,8 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
   using Kernel = kernels::LaplacianGpu<Out, In, float, axes, has_channels, is_sequence>;
   static constexpr int ndim = Kernel::ndim;
 
-  /**
-   * @param spec  Pointer to a persistent OpSpec object,
-   *              which is guaranteed to be alive for the entire lifetime of this object
-   */
   explicit LaplacianOpGpu(const OpSpec& spec, const DimDesc& dim_desc)
-      : spec_{spec}, args{spec}, dim_desc_{dim_desc} {
+      : spec_{spec}, args{spec}, dim_desc_{dim_desc}, lap_windows_{maxWindowSize} {
     kmgr_.Resize<Kernel>(1, 1);
   }
 
@@ -85,7 +82,9 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
             has_smoothing[i] = true;
           }
           window_sizes_[i][j].set_tensor_shape(sample_idx, {window_sizes[i][j]});
-          const auto& window = lap_windows_.GetWindow(window_sizes[i][j], i == j);
+          auto window_size = window_sizes[i][j];
+          const auto& window = i == j ? lap_windows_.GetDerivWindow(window_size) :
+                                        lap_windows_.GetSmoothingWindow(window_size);
           windows_[i][j].data[sample_idx] = window.data;
           windows_[i][j].shape.set_tensor_shape(sample_idx, window.shape);
         }
@@ -119,11 +118,8 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
     }
 
     auto static_shape = processed_shape.to_static<ndim>();
-
     auto in_view_dyn = view<const In>(input);
     auto out_view_dyn = view<Out>(output);
-
-    // TODO(klecki): Just create it from the move(in_view_dyn.data), processed_shape
     auto in_view = reshape<ndim>(in_view_dyn, static_shape);
     auto out_view = reshape<ndim>(out_view_dyn, static_shape);
 
@@ -134,11 +130,11 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
   const OpSpec& spec_;
   LaplacianArgs<axes> args;
   DimDesc dim_desc_;
+  kernels::LaplacianWindows<float> lap_windows_;
 
   kernels::KernelManager kmgr_;
   kernels::KernelContext ctx_;
 
-  LaplacianWindows<float> lap_windows_;
   std::array<std::array<TensorListShape<1>, axes>, axes> window_sizes_;
   std::array<std::vector<float>, axes> scales_;
   std::array<span<const float>, axes> scale_spans_;

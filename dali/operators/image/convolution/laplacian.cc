@@ -20,6 +20,7 @@
 
 #include "dali/core/static_switch.h"
 #include "dali/kernels/imgproc/convolution/laplacian_cpu.h"
+#include "dali/kernels/imgproc/convolution/laplacian_windows.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/convolution/laplacian.h"
 #include "dali/pipeline/data/views.h"
@@ -107,7 +108,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
   static constexpr int ndim = Kernel::ndim;
 
   explicit LaplacianOpCpu(const OpSpec& spec, const DimDesc& dim_desc)
-      : spec_{spec}, args{spec}, dim_desc_{dim_desc} {}
+      : spec_{spec}, args{spec}, dim_desc_{dim_desc}, lap_windows_{maxWindowSize} {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template Input<CPUBackend>(0);
@@ -125,7 +126,9 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
       const auto& window_sizes = args.GetWindowSizes(sample_idx);
       for (int i = 0; i < axes; i++) {
         for (int j = 0; j < axes; j++) {
-          windows_[sample_idx][i][j] = lap_windows_.GetWindow(window_sizes[i][j], i == j);
+          auto window_size = window_sizes[i][j];
+          windows_[sample_idx][i][j] = i == j ? lap_windows_.GetDerivWindow(window_size) :
+                                                lap_windows_.GetSmoothingWindow(window_size);
         }
       }
     }
@@ -181,11 +184,11 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
 
   LaplacianArgs<axes> args;
   DimDesc dim_desc_;
+  kernels::LaplacianWindows<float> lap_windows_;
 
   kernels::KernelManager kmgr_;
   kernels::KernelContext ctx_;
 
-  LaplacianWindows<float> lap_windows_;
   // windows_[i][j] is a window used in convolution along j-th axis in the i-th partial derivative
   std::vector<std::array<std::array<TensorView<StorageCPU, const float, 1>, axes>, axes>> windows_;
 };
