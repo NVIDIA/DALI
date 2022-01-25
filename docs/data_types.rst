@@ -45,6 +45,10 @@ TensorCPU
    :members:
    :undoc-members:
    :special-members: __init__, __array_interface__
+   
+   .. method:: dtype(self: nvidia.dali.backend_impl.TensorCPU) -> str
+
+      (DEPRECATED) String representing NumPy type of the Tensor.
 
 TensorGPU
 ^^^^^^^^^
@@ -52,6 +56,10 @@ TensorGPU
    :members:
    :undoc-members:
    :special-members: __init__, __cuda_array_interface__
+
+   .. method:: dtype(self: nvidia.dali.backend_impl.TensorCPU) -> str
+
+      (DEPRECATED) String representing NumPy type of the Tensor.
 
 
 .. _layout_str_doc:
