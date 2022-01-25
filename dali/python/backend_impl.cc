@@ -445,6 +445,8 @@ void ExposeTensor(py::module &m) {
         },
       R"code(
       Data type of the TensorCPU's elements.
+
+      :type: DALIDataType
       )code");
   tensor_cpu_binding.doc() = R"code(
       Class representing a Tensor residing in host memory. It can be used to access individual
@@ -567,6 +569,8 @@ void ExposeTensor(py::module &m) {
         },
       R"code(
       Data type of the TensorGPU's elements.
+
+      :type: DALIDataType
       )code");
   tensor_gpu_binding.doc() = R"code(
       Class representing a Tensor residing in GPU memory. It can be used to access individual
@@ -914,6 +918,8 @@ void ExposeTensorList(py::module &m) {
         },
       R"code(
       Data type of the TensorListCPU's elements.
+
+      :type: DALIDataType
       )code");
 
   py::class_<TensorList<GPUBackend>, std::shared_ptr<TensorList<GPUBackend>>>(
@@ -1110,6 +1116,8 @@ void ExposeTensorList(py::module &m) {
         },
       R"code(
       Data type of the TensorListGPU's elements.
+
+      :type: DALIDataType
       )code");
 }
 
