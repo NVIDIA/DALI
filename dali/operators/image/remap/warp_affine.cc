@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ by using the following formula::
 Where ``[0, 0]`` coordinate means the corner of the first pixel.
 
 If the ``inverse_map`` option is set to false, the matrix represents a source to destination
-transform and it is inverted before applying to the formula above.
+transform and it is inverted before applying the formula above.
 
 It is equivalent to OpenCV's ``warpAffine`` operation with the ``inverse_map`` argument being
 analog to the ``WARP_INVERSE_MAP`` flag.
