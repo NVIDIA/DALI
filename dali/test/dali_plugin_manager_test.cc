@@ -38,26 +38,23 @@ class DummyTest : public ::dali::DALITest {
     dali::TensorList<dali::CPUBackend> data;
     dali::test::MakeRandomBatch(data, 3);
 
-    std::array<std::string, 2> backends = {"cpu", "gpu"};
-    for (auto backend : backends) {
-      dali::Pipeline pipe(3, 1, 0);
-      pipe.AddExternalInput("data");
-      pipe.AddOperator(
-          dali::OpSpec("CustomDummy")
-          .AddArg("device", backend)
-          .AddInput("data", backend)
-          .AddOutput("out", backend));
-      std::vector<std::pair<std::string, std::string>> outputs = {{"out", backend}};
+    dali::Pipeline pipe(3, 1, 0);
+    pipe.AddExternalInput("data");
+    pipe.AddOperator(
+        dali::OpSpec("CustomDummy")
+        .AddArg("device", backend)
+        .AddInput("data", backend)
+        .AddOutput("out", backend));
+    std::vector<std::pair<std::string, std::string>> outputs = {{"out", backend}};
 
-      pipe.Build(outputs);
-      pipe.SetExternalInput("data", data);
-      dali::DeviceWorkspace ws;
-      pipe.RunCPU();
-      pipe.RunGPU();
-      pipe.Outputs(&ws);
+    pipe.Build(outputs);
+    pipe.SetExternalInput("data", data);
+    dali::DeviceWorkspace ws;
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
 
-      dali::test::CheckResults(ws, 3, 0, data);
-    }
+    dali::test::CheckResults(ws, 3, 0, data);
   }
 };
 
