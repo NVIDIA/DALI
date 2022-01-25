@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -296,9 +296,9 @@ ops_image_custom_args = [
     (fn.flip, {'horizontal': True}),
     (fn.gaussian_blur, {'window_size': 5}),
     (fn.get_property, {'key': "layout"}),
-    (fn.laplacian, {'window_size': 3, 'devices': ['cpu']}),
-    (fn.laplacian, {'window_size': 3, 'smoothing_size': 1, 'devices': ['cpu']}),
-    (fn.laplacian, {'window_size': 3, 'normalized_kernel': True, 'devices': ['cpu']}),
+    (fn.laplacian, {'window_size': 3}),
+    (fn.laplacian, {'window_size': 3, 'smoothing_size': 1}),
+    (fn.laplacian, {'window_size': 3, 'normalized_kernel': True}),
     (fn.normalize, {'batch': True}),
     (fn.pad, {'fill_value': -1, 'axes': (0,), 'shape': (10,)}),
     (fn.pad, {'fill_value': -1, 'axes': (0,), 'align': 16}),

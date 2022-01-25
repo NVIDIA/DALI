@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -190,10 +190,11 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
   std::vector<std::array<std::array<TensorView<StorageCPU, const float, 1>, axes>, axes>> windows_;
 };
 
-
 }  // namespace laplacian
 
-bool Laplacian::SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) {
+template <>
+bool Laplacian<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
+                                      const workspace_t<CPUBackend>& ws) {
   const auto& input = ws.template Input<CPUBackend>(0);
   auto layout = input.GetLayout();
   auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
@@ -223,10 +224,11 @@ bool Laplacian::SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_
   return impl_->SetupImpl(output_desc, ws);
 }
 
-void Laplacian::RunImpl(workspace_t<CPUBackend>& ws) {
+template <>
+void Laplacian<CPUBackend>::RunImpl(workspace_t<CPUBackend>& ws) {
   impl_->RunImpl(ws);
 }
 
-DALI_REGISTER_OPERATOR(Laplacian, Laplacian, CPU);
+DALI_REGISTER_OPERATOR(Laplacian, Laplacian<CPUBackend>, CPU);
 
 }  // namespace dali
