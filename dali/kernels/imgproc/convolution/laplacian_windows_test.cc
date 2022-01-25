@@ -25,18 +25,33 @@
 namespace dali {
 namespace kernels {
 
+void CheckDerivWindow(int window_size, LaplacianWindows<float> &windows) {
+  cv::Mat d, s;
+  cv::getDerivKernels(d, s, 2, 0, window_size, true, CV_32F);
+  const auto &window_view = windows.GetDerivWindow(window_size);
+  float d_scale = exp2(-window_size + 3);
+  for (int i = 0; i < window_size; i++) {
+    EXPECT_NEAR(window_view.data[i] * d_scale, d.at<float>(i), 1e-6f)
+        << "window_size: " << window_size << ", position: " << i;
+  }
+}
+
+void CheckSmoothingWindow(int window_size, LaplacianWindows<float> &windows) {
+  cv::Mat d, s;
+  cv::getDerivKernels(d, s, 2, 0, window_size, true, CV_32F);
+  const auto &window_view = windows.GetSmoothingWindow(window_size);
+  float s_scale = exp2(-window_size + 1);
+  for (int i = 0; i < window_size; i++) {
+    EXPECT_NEAR(window_view.data[i] * s_scale, s.at<float>(i), 1e-6f)
+        << "window_size: " << window_size << ", position: " << i;
+  }
+}
+
 TEST(LaplacianWindowsTest, GetDerivWindows) {
   int max_window = 31;
   LaplacianWindows<float> windows{max_window};
   for (int window_size = 3; window_size <= max_window; window_size += 2) {
-    cv::Mat d, s;
-    cv::getDerivKernels(d, s, 2, 0, window_size, true, CV_32F);
-    const auto &window_view = windows.GetDerivWindow(window_size);
-    float d_scale = exp2(-window_size + 3);
-    for (int i = 0; i < window_size; i++) {
-      EXPECT_NEAR(window_view.data[i] * d_scale, d.at<float>(i), 1e-6f)
-          << "window_size: " << window_size << ", position: " << i;
-    }
+    CheckDerivWindow(window_size, windows);
   }
 }
 
@@ -44,33 +59,16 @@ TEST(LaplacianWindowsTest, GetSmoothingWindows) {
   int max_window = 31;
   LaplacianWindows<float> windows{max_window};
   for (int window_size = 3; window_size <= max_window; window_size += 2) {
-    cv::Mat d, s;
-    cv::getDerivKernels(d, s, 2, 0, window_size, true, CV_32F);
-    const auto &window_view = windows.GetSmoothingWindow(window_size);
-    float s_scale = exp2(-window_size + 1);
-    for (int i = 0; i < window_size; i++) {
-      EXPECT_NEAR(window_view.data[i] * s_scale, s.at<float>(i), 1e-6f)
-          << "window_size: " << window_size << ", position: " << i;
-    }
+    CheckSmoothingWindow(window_size, windows);
   }
 }
 
 TEST(LaplacianWindowsTest, CheckPrecomputed) {
   int max_window = 31;
   LaplacianWindows<float> windows{max_window};
-  for (int window_size = 31; window_size >= 3; window_size -= 2) {
-    cv::Mat d, s;
-    cv::getDerivKernels(d, s, 2, 0, window_size, true, CV_32F);
-    const auto &deriv_view = windows.GetDerivWindow(window_size);
-    const auto &smoothing_view = windows.GetSmoothingWindow(window_size);
-    float d_scale = exp2(-window_size + 3);
-    float s_scale = d_scale / 4;
-    for (int i = 0; i < window_size; i++) {
-      EXPECT_NEAR(deriv_view.data[i] * d_scale, d.at<float>(i), 1e-6f)
-          << "window_size: " << window_size << ", position: " << i;
-      EXPECT_NEAR(smoothing_view.data[i] * s_scale, s.at<float>(i), 1e-6f)
-          << "window_size: " << window_size << ", position: " << i;
-    }
+  for (int window_size = max_window; window_size >= 3; window_size -= 2) {
+    CheckDerivWindow(window_size, windows);
+    CheckSmoothingWindow(window_size, windows);
   }
 }
 
