@@ -48,7 +48,11 @@ TensorCPU
    
    .. method:: dtype(self: nvidia.dali.backend_impl.TensorCPU) -> str
 
-      (DEPRECATED) String representing NumPy type of the Tensor.
+      String representing NumPy type of the Tensor.
+
+      .. warning::
+         This method is **deprecated**. Please use :attr:`TensorCPU.dtype` instead.
+
 
 TensorGPU
 ^^^^^^^^^
@@ -59,7 +63,10 @@ TensorGPU
 
    .. method:: dtype(self: nvidia.dali.backend_impl.TensorCPU) -> str
 
-      (DEPRECATED) String representing NumPy type of the Tensor.
+      String representing NumPy type of the Tensor.
+
+      .. warning::
+         This method is **deprecated**. Please use :attr:`TensorGPU.dtype` instead.
 
 
 .. _layout_str_doc:
