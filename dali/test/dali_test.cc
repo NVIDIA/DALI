@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ void __dali_test_force_tls_align_fun(void) {
 void __dali_test_force_tls_align_fun(void) {}
 #endif
 
+
 int main(int argc, char **argv) {
   __dali_test_force_tls_align_fun();
   dali::DALIInit(dali::OpSpec("CPUAllocator"),
@@ -44,8 +45,6 @@ int main(int argc, char **argv) {
   ::testing::TestEventListeners& listeners = testing::UnitTest::GetInstance()->listeners();
   // Adds a listener to the end.  googletest takes the ownership.
   listeners.Append(new dali::CudaFinalizeEventListener);
-
-  dali::InitOperatorsLib();
 
   return RUN_ALL_TESTS();
 }
