@@ -40,8 +40,8 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     for (size_t i = 0; i < encoded_data.num_samples(); ++i) {
       auto *data = encoded_data.tensor<unsigned char>(i);
       auto data_size = volume(encoded_data.tensor_shape(i));
-
-      this->DecodeImage(data, data_size, c, this->ImageType(), &out[i]); // todo view<void>
+      // todo fixme - this is test so I don't care now
+      this->DecodeImage(data, data_size, c, this->ImageType(), &out.GetSample(i)); // todo view<void>
     }
 
     vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;

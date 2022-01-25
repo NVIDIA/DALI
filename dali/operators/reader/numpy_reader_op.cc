@@ -14,17 +14,21 @@
 
 #include <string>
 
+#include "dali/core/backend_tags.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_cpu.h"
 #include "dali/kernels/transpose/transpose.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/reader/numpy_reader_op.h"
+#include "dali/pipeline/data/backend.h"
 
 namespace dali {
 
-static void CopyHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
-                       ThreadPool &thread_pool, int min_blk_sz, int req_nblocks) {
-  auto out_ptr = static_cast<uint8_t*>(output.raw_mutable_data());
+static void CopyHelper(TensorView<StorageCPU, void> output,
+                       const Tensor<CPUBackend> &input, ThreadPool &thread_pool,
+                       int min_blk_sz, int req_nblocks) {
+  auto out_ptr = static_cast<uint8_t*>(output.data);
   auto in_ptr = static_cast<const uint8_t*>(input.raw_data());
   auto nelements = volume(input.shape());
   auto nbytes = input.nbytes();
@@ -45,7 +49,8 @@ static void CopyHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &inp
   }
 }
 
-static void TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input) {
+static void TransposeHelper(TensorView<StorageCPU, void> output,
+                            const Tensor<CPUBackend> &input) {
   int n_dims = input.shape().sample_dim();
   SmallVector<int, 6> perm;
   perm.resize(n_dims);
@@ -56,9 +61,10 @@ static void TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend>
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())));  // NOLINT
 }
 
-static void SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
-                        const CropWindow &roi, float fill_value, ThreadPool &thread_pool,
-                        int min_blk_sz, int req_nblocks) {
+static void SliceHelper(TensorView<StorageCPU, void> output,
+                        const Tensor<CPUBackend> &input, const CropWindow &roi,
+                        float fill_value, ThreadPool &thread_pool, int min_blk_sz,
+                        int req_nblocks) {
   int ndim = input.shape().sample_dim();
   VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
     TYPE_SWITCH(input.type(), type2id, T, NUMPY_ALLOWED_TYPES, (
@@ -77,9 +83,10 @@ static void SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &in
   ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
 }
 
-static void SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
-                               const CropWindow &roi, float fill_value, ThreadPool &thread_pool,
-                               int min_blk_sz, int req_nblocks) {
+static void SlicePermuteHelper(TensorView<StorageCPU, void> output,
+                               const Tensor<CPUBackend> &input, const CropWindow &roi,
+                               float fill_value, ThreadPool &thread_pool, int min_blk_sz,
+                               int req_nblocks) {
   const auto &in_shape = input.shape();
   int ndim = in_shape.sample_dim();
   VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (

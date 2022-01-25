@@ -261,7 +261,7 @@ reinterpret_view(const TensorVector<Backend> &data) {
   assert(data.type_info().size() >= sizeof(T));
   assert(data.type_info().size() % sizeof(T) == 0);
   for (int i = 0; i < ret.shape.num_samples(); i++) {
-    ret.data[i] = static_cast<T*>(data[i].raw_data());
+    ret.data[i] = static_cast<T*>(data.raw_tensor(i));
   }
   // If reinterpreting to a smaller type, adjust the inner extent
   if (data.type_info().size() > sizeof(T)) {

@@ -596,7 +596,8 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
           (input.tensor_shape(i).num_elements() > 0x80000000) ? DALI_INT64 : DALI_INT32;
       TYPE_SWITCH(blob_label, type2id, BlobLabel, (int32_t, int64_t), (
         auto &ctx = GetContext(BlobLabel());
-        ctx.Init(i, &input[i], &tp, tmp_filtered_storage_, tmp_blob_storage_); // todo view<void> -- this one looks complicated
+        // todo fixme - just placeholder escape hatch now
+        ctx.Init(i, &input.GetSample(i), &tp, tmp_filtered_storage_, tmp_blob_storage_); // todo view<void> -- this one looks complicated
         ctx.out1 = out1[i];
         if (out2.num_samples() > 0)
           ctx.out2 = out2[i];

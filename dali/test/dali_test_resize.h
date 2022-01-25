@@ -175,8 +175,9 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
         finalImg = &mirror_img;
       }
 
-      out[i].Resize({finalImg->rows, finalImg->cols, c}, DALI_UINT8);  // todo view<void> THIS IS TOTALLY FORBIDDEN
-      auto *out_data = out[i].mutable_data<unsigned char>();
+      // todo fixme
+      out.GetSample(i).Resize({finalImg->rows, finalImg->cols, c}, DALI_UINT8);  // todo view<void> THIS IS TOTALLY FORBIDDEN
+      auto *out_data = out.GetSample(i).mutable_data<unsigned char>();
 
       std::memcpy(out_data, finalImg->ptr(), finalImg->rows * finalImg->cols * c);
     }

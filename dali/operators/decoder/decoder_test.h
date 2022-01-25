@@ -70,9 +70,10 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
     for (size_t i = 0; i < encoded_data.num_samples(); ++i) {
       auto *data = encoded_data.tensor<unsigned char>(i);
       auto data_size = volume(encoded_data.tensor_shape(i));
+      // todo fixme - this is a test so I don't care now
       this->DecodeImage(
         data, data_size, c, this->ImageType(),
-        &out[i], GetCropWindowGenerator(i)); // todo view<void>
+        &out.GetSample(i), GetCropWindowGenerator(i)); // todo view<void>
     }
 
     vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;

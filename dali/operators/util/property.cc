@@ -24,7 +24,8 @@ void SourceInfo<CPUBackend>::FillOutput(workspace_t<CPUBackend>& ws) {
   auto& output = ws.template Output<CPUBackend>(0);
   for (size_t sample_id = 0; sample_id < input.num_samples(); sample_id++) {
     auto si = GetSourceInfo(input, sample_id);
-    output[sample_id].Copy(make_cspan((const uint8_t*)si.c_str(), si.length())); // todo view<void>
+    // todo fixme
+    output.GetSample(sample_id).Copy(make_cspan((const uint8_t*)si.c_str(), si.length())); // todo view<void>
   }
 }
 
@@ -34,7 +35,8 @@ void Layout<CPUBackend>::FillOutput(workspace_t<CPUBackend>& ws) {
   auto& output = ws.template Output<CPUBackend>(0);
   for (size_t sample_id = 0; sample_id < input.num_samples(); sample_id++) {
     auto layout = GetLayout(input, sample_id);
-    output[sample_id].Copy( // todo view<void>
+    // todo fixme
+    output.GetSample(sample_id).Copy( // todo view<void>
         make_cspan(reinterpret_cast<const uint8_t*>(layout.c_str()), layout.size()));
   }
 }
