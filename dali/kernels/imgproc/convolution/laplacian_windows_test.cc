@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <numeric>
+#include <cmath>
 #include <opencv2/imgproc.hpp>
 
 #include "dali/kernels/common/utils.h"
@@ -29,7 +29,7 @@ void CheckDerivWindow(int window_size, LaplacianWindows<float> &windows) {
   cv::Mat d, s;
   cv::getDerivKernels(d, s, 2, 0, window_size, true, CV_32F);
   const auto &window_view = windows.GetDerivWindow(window_size);
-  float d_scale = exp2(-window_size + 3);
+  float d_scale = std::exp2f(-window_size + 3);
   for (int i = 0; i < window_size; i++) {
     EXPECT_NEAR(window_view.data[i] * d_scale, d.at<float>(i), 1e-6f)
         << "window_size: " << window_size << ", position: " << i;
@@ -40,7 +40,7 @@ void CheckSmoothingWindow(int window_size, LaplacianWindows<float> &windows) {
   cv::Mat d, s;
   cv::getDerivKernels(d, s, 2, 0, window_size, true, CV_32F);
   const auto &window_view = windows.GetSmoothingWindow(window_size);
-  float s_scale = exp2(-window_size + 1);
+  float s_scale = std::exp2f(-window_size + 1);
   for (int i = 0; i < window_size; i++) {
     EXPECT_NEAR(window_view.data[i] * s_scale, s.at<float>(i), 1e-6f)
         << "window_size: " << window_size << ", position: " << i;
