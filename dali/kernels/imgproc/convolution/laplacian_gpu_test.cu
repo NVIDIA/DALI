@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <array>
-#include <numeric>
+#include <cmath>
 #include <vector>
 
 #include "dali/kernels/common/utils.h"
@@ -154,7 +154,7 @@ struct LaplacianGpuTest : public ::testing::Test {
           windows_[i][j].data[sample_idx] = window.data;
           windows_[i][j].shape.set_tensor_shape(sample_idx, window.shape);
         }
-        scales_[i][sample_idx] = exp2(-win_size_sum);
+        scales_[i][sample_idx] = std::exp2f(-win_size_sum);
       }
     }
   }
