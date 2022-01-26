@@ -26,7 +26,7 @@ on indices given in ``indices`` argument::
 )")
   .NumInput(1)
   .NumOutput(1)
-  .PassThrough({{0, 0}})
+  // .PassThrough({{0, 0}})
   .AddArg("indices", R"(List of indices, matching current batch size, or a batch
 of scalars representing indices of the tensors in the input batch.
 
@@ -47,7 +47,8 @@ void PermuteBatch<CPUBackend>::RunImpl(HostWorkspace &ws) {
     tp.AddWork([&, i, src](int tid) {
       output.SetMeta(i, input.GetMeta(i));
       // TODO fixme
-      output.SetSample(i, input.GetSample(src));
+      // output.SetSample(i, input.GetSample(src));
+      output.CopySample(i, input, src);
       // output[i].Copy(input[src]);  // todo view<void> - we need to rework this with true share data
     }, size);
   }

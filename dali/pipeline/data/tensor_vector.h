@@ -130,7 +130,6 @@ class DLL_PUBLIC TensorVector {
   // }
 
   DLL_PUBLIC void SetSample(int idx, const Tensor<Backend> &owner) {
-    SetContiguous(false);
     // TODO checks
     // DALI_ENFORCE(owner.shape().sample_dim() == shape().sample_dim(), "Sample must have the same dim");
     if (type() == DALI_NO_TYPE && owner.type() != DALI_NO_TYPE) {
@@ -140,13 +139,15 @@ class DLL_PUBLIC TensorVector {
     // kind (pinned?), order, layout, etc...
     // The metadata
 
+    if (tensors_[idx]->shape().num_elements() != owner.shape().num_elements()) {
+      SetContiguous(false);
+    }
     tensors_[idx]->ShareData(owner);
     // todo v update shape
     // shape().set_tensor_shape(idx, owner.shape());
   }
 
   DLL_PUBLIC void CopySample(int dst, const TensorVector<Backend> &data, int src, AccessOrder order = {}) {
-    SetContiguous(false);
     // TODO checks
     // DALI_ENFORCE(owner.shape().sample_dim() == shape().sample_dim(), "Sample must have the same dim");
     if (type() == DALI_NO_TYPE && data.type() != DALI_NO_TYPE) {
@@ -156,6 +157,9 @@ class DLL_PUBLIC TensorVector {
     // kind (pinned?), order, layout, etc...
     // The metadata
 
+    if (tensors_[dst]->shape().num_elements() != data.tensors_[src]->shape().num_elements()) {
+      SetContiguous(false);
+    }
     tensors_[dst]->Copy(*(data.tensors_[src]), order);
     // todo v update shape
     // shape().set_tensor_shape(idx, owner.shape());
