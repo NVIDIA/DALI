@@ -26,6 +26,7 @@ on indices given in ``indices`` argument::
 )")
   .NumInput(1)
   .NumOutput(1)
+  .PassThrough({{0, 0}})
   .AddArg("indices", R"(List of indices, matching current batch size, or a batch
 of scalars representing indices of the tensors in the input batch.
 
