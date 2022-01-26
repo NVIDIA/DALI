@@ -12,17 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
+from queue import Queue
+
 import nvidia.dali.fn as _fn
 import nvidia.dali.pipeline as _pipeline
-import nvidia.dali.tensors as _Tensors
+import nvidia.dali.tensors as _tensors
 import nvidia.dali.types as _types
 from nvidia.dali.data_node import DataNode as _DataNode, _arithm_op, _check
 from nvidia.dali.external_source import _prep_data_for_feed_input
 from nvidia.dali._utils.external_source_impl import \
     get_callback_from_source as _get_callback_from_source, \
     accepted_arg_count as _accepted_arg_count
-import inspect
-from queue import Queue
 
 
 class DataNodeDebug(_DataNode):
@@ -32,11 +33,11 @@ class DataNodeDebug(_DataNode):
         super().__init__(name, device, source)
         self._data = data
 
-    def __repr__(self):
-        return f'DataNodeDebug(data={self._data}, name="{self.name}", device="{self.device}", source={self.source})'
-
     def __str__(self):
-        return f'DataNodeDebug(data={self._data}, name="{self.name}", device="{self.device}", source={self.source}, dtype="{self._data[0].dtype()}", shape={"self.shape()"})'
+        indent = ' ' * 4
+        return f'DataNodeDebug(\n{indent}name="{self.name}",\n{indent}data={_tensors._tensorlist_to_string(self._data, indent + " " * 5)})'
+
+    __repr__ = __str__
 
     def gpu(self):
         if self.device == 'gpu':
@@ -129,10 +130,10 @@ def _transform_data_to_tensorlist(data, batch_size, layout=None):
     data = _prep_data_for_feed_input(data, batch_size, layout)
 
     if isinstance(data, list):
-        if isinstance(data[0], _Tensors.TensorGPU):
-            data = _Tensors.TensorListGPU(data, layout or "")
+        if isinstance(data[0], _tensors.TensorGPU):
+            data = _tensors.TensorListGPU(data, layout or "")
         else:
-            data = _Tensors.TensorListCPU(data, layout or "")
+            data = _tensors.TensorListCPU(data, layout or "")
 
     return data
 
@@ -210,7 +211,7 @@ class _ExternalSourceDebug:
 
         def to_data_node_debug(data):
             data = _transform_data_to_tensorlist(data, self._batch_size, layout)
-            device = 'gpu' if isinstance(data, _Tensors.TensorListGPU) else 'cpu'
+            device = 'gpu' if isinstance(data, _tensors.TensorListGPU) else 'cpu'
 
             return DataNodeDebug(data, self._name, device, self._source_desc)
 
@@ -293,7 +294,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         _pipeline.Pipeline.pop_current()
 
         # Transforming all variables to TensorLists.
-        return tuple([val.get() if isinstance(val, DataNodeDebug) else _Tensors.TensorListCPU(
+        return tuple([val.get() if isinstance(val, DataNodeDebug) else _tensors.TensorListCPU(
             np.tile(val, (self._max_batch_size, *[1]*np.array(val).ndim))) for val in res])
 
     def feed_input(self, data_node, data, **kwargs):
@@ -342,17 +343,17 @@ class _PipelineDebug(_pipeline.Pipeline):
             return True, device, data_list
         else:
             if is_primitive_type(data) or _types._is_numpy_array(data) or \
-                    _types._is_mxnet_array(data) or isinstance(data, _Tensors.TensorCPU):
+                    _types._is_mxnet_array(data) or isinstance(data, _tensors.TensorCPU):
                 return False, 'cpu', data
             if _types._is_torch_tensor(data):
                 return False, 'gpu' if data.is_cuda else 'cpu', data
-            if hasattr(data, '__cuda_array_interface__') or isinstance(data, _Tensors.TensorGPU):
+            if hasattr(data, '__cuda_array_interface__') or isinstance(data, _tensors.TensorGPU):
                 return False, 'gpu', data
             if isinstance(data, DataNodeDebug):
                 return True, data.device, data.get()
-            if isinstance(data, _Tensors.TensorListCPU):
+            if isinstance(data, _tensors.TensorListCPU):
                 return True, 'cpu', data
-            if isinstance(data, _Tensors.TensorListGPU):
+            if isinstance(data, _tensors.TensorListGPU):
                 return True, 'gpu', data
 
         return False, 'cpu', data
