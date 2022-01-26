@@ -22,9 +22,6 @@
 
 
 namespace dali {
-
-using namespace convolution_utils;  // NOLINT
-
 namespace laplacian {
 
 extern template op_impl_uptr GetLaplacianGpuImpl<uint8_t, uint8_t>(const OpSpec&,
