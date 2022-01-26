@@ -34,19 +34,19 @@ TEST(WebdatasetLoaderTest, ParseIndexStringTest) {
 }
 
 TEST(WebdatasetLoaderTest, VerifyIndexVersionStringTest) {
-  EXPECT_TRUE(VerifyIndexVersionString("v0.0"));
-  EXPECT_TRUE(VerifyIndexVersionString("v00.00"));
-  EXPECT_FALSE(VerifyIndexVersionString("anystring"));
-  EXPECT_FALSE(VerifyIndexVersionString("v."));
-  EXPECT_FALSE(VerifyIndexVersionString("v.1"));
-  EXPECT_FALSE(VerifyIndexVersionString("v1."));
-  EXPECT_FALSE(VerifyIndexVersionString("v 1.0"));
-  EXPECT_FALSE(VerifyIndexVersionString("v.1.0"));
-  EXPECT_FALSE(VerifyIndexVersionString("v1..0"));
-  EXPECT_FALSE(VerifyIndexVersionString("vv1.0"));
-  EXPECT_FALSE(VerifyIndexVersionString("1.0"));
-  EXPECT_FALSE(VerifyIndexVersionString("v1"));
-  EXPECT_FALSE(VerifyIndexVersionString("v1.0."));
+  EXPECT_TRUE(ValidateIndexVersionString("v0.0"));
+  EXPECT_TRUE(ValidateIndexVersionString("v00.00"));
+  EXPECT_FALSE(ValidateIndexVersionString("anystring"));
+  EXPECT_FALSE(ValidateIndexVersionString("v."));
+  EXPECT_FALSE(ValidateIndexVersionString("v.1"));
+  EXPECT_FALSE(ValidateIndexVersionString("v1."));
+  EXPECT_FALSE(ValidateIndexVersionString("v 1.0"));
+  EXPECT_FALSE(ValidateIndexVersionString("v.1.0"));
+  EXPECT_FALSE(ValidateIndexVersionString("v1..0"));
+  EXPECT_FALSE(ValidateIndexVersionString("vv1.0"));
+  EXPECT_FALSE(ValidateIndexVersionString("1.0"));
+  EXPECT_FALSE(ValidateIndexVersionString("v1"));
+  EXPECT_FALSE(ValidateIndexVersionString("v1.0."));
 }
 
 }  // namespace dali::detail::wds::test
