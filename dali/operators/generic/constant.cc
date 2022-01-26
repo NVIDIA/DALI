@@ -116,9 +116,9 @@ void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
   out.ShareData(output_);
   out.Resize(output_shape_);
   int N = output_shape_.num_samples();
-  for (int i = 0; i < N; i++) {
-    assert(out[i].raw_data() == output_[i].raw_data());
-  }
+  // for (int i = 0; i < N; i++) {
+  //   // assert(out[i].raw_data() == output_[i].raw_data());
+  // }
   out.SetLayout(layout_);
 }
 

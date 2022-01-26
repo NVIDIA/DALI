@@ -560,7 +560,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       const auto &in = ws.Input<CPUBackend>(0)[i].to_static<const uint8_t>(); // todo view<void> - this one will be complicated
       const auto in_size = in.shape.num_elements();
       const auto &source_info = input.GetMeta(i).GetSourceInfo();
-      thread_pool_.AddWork([this, i, &in, source_info, in_size](int tid) {
+      thread_pool_.AddWork([this, i, in, source_info, in_size](int tid) {
         auto *input_data = in.data;
         SampleData &data = sample_data_[i];
         data.clear();
@@ -713,7 +713,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       auto *output_data = output.mutable_tensor<uint8_t>(i);
       const auto &in = ws.Input<CPUBackend>(0)[i].to_static<const uint8_t>();
       thread_pool_.AddWork(
-        [this, sample, &in, output_data](int tid) {
+        [this, sample, in, output_data](int tid) {
           SampleWorker(sample->sample_idx, sample->file_name, in.shape.num_elements(), tid,
             in.data, output_data, streams_[tid]);
         }, task_priority_seq_--);  // FIFO order, since the samples were already ordered
@@ -818,7 +818,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       const auto &in = ws.Input<CPUBackend>(0)[i].to_static<const uint8_t>();
       ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
       thread_pool_.AddWork(
-        [this, sample, &in, output_data, shape](int tid) {
+        [this, sample, in, output_data, shape](int tid) {
           HostFallback<StorageGPU>(in.data, in.shape.num_elements(), output_image_type_, output_data,
                                    streams_[tid], sample->file_name, sample->roi, use_fast_idct_);
           CacheStore(sample->file_name, output_data, shape, streams_[tid]);

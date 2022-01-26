@@ -39,6 +39,8 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
             // TODO fixme
             // Tensor<CPUBackend> &output_tensor = ws.Output<CPUBackend>(0)[sample_id]; // todo view<void>
             // output_tensor.Copy((*tensor_vector_elm.front())[sample_id], AccessOrder::host()); // todo view<void>
+            const auto &input = *tensor_vector_elm.front();
+            ws.Output<CPUBackend>(0).CopySample(sample_id, input, sample_id, AccessOrder::host());
           },
           shapes.tensor_size(sample_id));
     }

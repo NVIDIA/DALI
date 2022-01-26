@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "dali/core/access_order.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
@@ -144,6 +145,22 @@ class DLL_PUBLIC TensorVector {
     // shape().set_tensor_shape(idx, owner.shape());
   }
 
+  DLL_PUBLIC void CopySample(int dst, const TensorVector<Backend> &data, int src, AccessOrder order = {}) {
+    SetContiguous(false);
+    // TODO checks
+    // DALI_ENFORCE(owner.shape().sample_dim() == shape().sample_dim(), "Sample must have the same dim");
+    if (type() == DALI_NO_TYPE && data.type() != DALI_NO_TYPE) {
+      set_type(data.type());
+    }
+    DALI_ENFORCE(type() == data.type(), "Sample must have the same type as batch");
+    // kind (pinned?), order, layout, etc...
+    // The metadata
+
+    tensors_[dst]->Copy(*(data.tensors_[src]), order);
+    // todo v update shape
+    // shape().set_tensor_shape(idx, owner.shape());
+  }
+
   DLL_PUBLIC TensorView<storage_tag_map3_t<Backend>, void, DynamicDimensions> operator[](
       int sample_idx) {
     return {tensors_[sample_idx]->raw_mutable_data(), tensor_shape(sample_idx), type()};
@@ -179,29 +196,29 @@ class DLL_PUBLIC TensorVector {
     return tensors_[pos];
   }
 
-  auto begin() noexcept {
-    return tensors_.begin();
-  }
+  // auto begin() noexcept {
+  //   return tensors_.begin();
+  // }
 
-  auto begin() const noexcept {
-    return tensors_.begin();
-  }
+  // auto begin() const noexcept {
+  //   return tensors_.begin();
+  // }
 
-  auto cbegin() const noexcept {
-    return tensors_.cbegin();
-  }
+  // auto cbegin() const noexcept {
+  //   return tensors_.cbegin();
+  // }
 
-  auto end() noexcept {
-    return tensors_.end();
-  }
+  // auto end() noexcept {
+  //   return tensors_.end();
+  // }
 
-  auto end() const noexcept {
-    return tensors_.end();
-  }
+  // auto end() const noexcept {
+  //   return tensors_.end();
+  // }
 
-  auto cend() const noexcept {
-    return tensors_.cend();
-  }
+  // auto cend() const noexcept {
+  //   return tensors_.cend();
+  // }
 
   size_t num_samples() const noexcept {
     return curr_tensors_size_;

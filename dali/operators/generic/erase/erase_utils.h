@@ -98,14 +98,14 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
   for (int i = 0; i < nsamples; i++) {
     if (has_tensor_roi_anchor) {
       const auto& anchor = ws.ArgumentInput("anchor")[i].to_static<const float>();
-      assert(anchor.size() > 0);
+      // assert(anchor.size() > 0);
       roi_anchor.resize(anchor.shape.num_elements());
       std::memcpy(roi_anchor.data(), anchor.data, sizeof(float) * roi_anchor.size());
     }
 
     if (has_tensor_roi_shape) {
       const auto& shape = ws.ArgumentInput("shape")[i].to_static<const float>();
-      assert(shape.size() > 0);
+      // assert(shape.size() > 0);
       roi_shape.resize(shape.shape.num_elements());
       std::memcpy(roi_shape.data(), shape.data, sizeof(float) * roi_shape.size());
     }

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,16 +54,14 @@ class OperatorBench : public DALIBenchmark {
     auto op_ptr = InstantiateOperator(op_spec);
 
     auto data_in = std::make_shared<TensorVector<CPUBackend>>(batch_size);
-    for (auto &in_ptr : *data_in) {
-      in_ptr = std::make_shared<Tensor<CPUBackend>>();
-      in_ptr->set_type<T>();
-      in_ptr->Resize({H, W, C});
-      in_ptr->SetLayout("HWC");
-    }
+    // todo fixme - we need to actually resize all with uniform
+    data_in->set_type<T>();
+    data_in->Resize(uniform_list_shape(batch_size, TensorShape<>{H, W, C}));
+    data_in->SetLayout("HWC");
 
     if (fill_in_data) {
-      for (auto &in_ptr : *data_in) {
-        auto *ptr = in_ptr->template mutable_data<T>();
+      for (int sample_id = 0; sample_id < batch_size; sample_id++) {
+        auto *ptr = data_in->template mutable_tensor<T>(sample_id);
         for (int i = 0; i < N; i++) {
           ptr[i] = static_cast<T>(i);
         }

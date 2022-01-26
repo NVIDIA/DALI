@@ -379,11 +379,11 @@ TYPED_TEST(TensorTest, TestShareData) {
 
 TYPED_TEST(TensorTest, TestCopyToTensorList) {
   TensorVector<TypeParam> tensors(16);
-  for (auto& t : tensors) {
-    auto shape = this->GetRandShape(4, 4);
-    t->template set_type<float>();
-    t->Resize(shape);
+  TensorListShape<4> shape(16);
+  for (int i = 0; i < 16; i++) {
+    shape.set_tensor_shape(i, this->GetRandShape(4, 4));
   }
+  tensors.Resize(shape, DALI_FLOAT);
 
   TensorList<TypeParam> tl;
   tl.Copy(tensors);

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -392,10 +392,10 @@ void Reshape<CPUBackend>::RunImpl(HostWorkspace &ws) {
   out.ShareData(in);
   out.Resize(output_shape_, output_type_->id());
   int N = output_shape_.num_samples();
-  for (int i = 0; i < N; i++) {
-    assert(out[i].raw_data() == in[i].raw_data());
-    assert(out[i].shape() == output_shape_[i]);
-  }
+  // for (int i = 0; i < N; i++) {
+  //   assert(out[i].raw_data() == in[i].raw_data());
+  //   assert(out[i].shape() == output_shape_[i]);
+  // }
   out.SetLayout(layout);
 }
 
