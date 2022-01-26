@@ -240,7 +240,12 @@ inline void TarArchive::ParseHeader() {
     } else if (TH_ISFIFO(ToTarHandle(handle_))) {
       filetype_ = ENTRY_FIFO;
     } else {
-      filetype_ = ENTRY_UNKNOWN;
+      /*
+       * POSIX.1-2001 tar format adds additional entries containing attributes.
+       * As we are interested only in parsing actual data, we mark them as unknown
+       * entries, and skip when reading data.
+       */
+       filetype_ = ENTRY_UNKNOWN;
     }
   }
   readoffset_ = 0;

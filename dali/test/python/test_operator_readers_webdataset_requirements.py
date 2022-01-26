@@ -254,11 +254,6 @@ def test_pax_format():
     pax_tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/pax/devel-0.tar")
     index_file = generate_temp_index_file(tar_file_path)
 
-    extract_dir = generate_temp_extract(tar_file_path)
-    equivalent_files = sorted(
-        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
-    )
-
     num_shards = 100
     for shard_id in range(num_shards):
         compare_pipelines(
