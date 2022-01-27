@@ -29,7 +29,7 @@ be excluded (for example, for RGB images, specify ``(480,640)``, not ``(480,640,
   .AddOptionalArg("fill_value", R"code(Value used to fill areas that are outside the source image.
 
 If a value is not specified, the source coordinates are clamped and the border pixel is
-repeated.)code", 0.0f)
+repeated.)code", DALI_FLOAT)
   .AddOptionalArg("dtype",
       R"code(Output data type.
 
