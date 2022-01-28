@@ -58,7 +58,6 @@ def _tensorlist_to_string(self, indent=''):
     spaces_indent = indent + ' ' * 4
     type_name = type(self).__name__
     layout = self.layout()
-    shape = list(map(str, self.shape()))
     data = _transfer_to_cpu(self, type_name[-3:])
     data_str = '[]'
     crop = False
@@ -68,14 +67,13 @@ def _tensorlist_to_string(self, indent=''):
             data_str = np.array2string(np.array(data.as_tensor()),
                                        prefix=spaces_indent, edgeitems=edgeitems)
         else:
-            data = list(data)
+            data = list(map(np.array, data))
 
-            # If number of tensors > 5 returns 2 first and 2 last tensors seperated by dots.
-            crop = len(data) > edgeitems * 2 + 1
+            # Triggers summarization if total number of elements exceeds 1000
+            # (empty tensor is treated as 1 element).
+            crop = len(data) > 2 * edgeitems + 1 and sum(max(arr.size, 1) for arr in data) > 1000
             if crop:
                 data = data[:edgeitems] + data[-edgeitems:]
-
-            data = list(map(np.array, data))
 
             # Seperator matching numpy standard.
             sep = '\n' * data[0].ndim + spaces_indent
@@ -84,10 +82,22 @@ def _tensorlist_to_string(self, indent=''):
                     for tensor in data]
             data_str = f'[{_join_string(data, crop, edgeitems, sep)}]'
 
+    shape = self.shape()
+    shape_len = len(shape)
+    shape_prefix = 'shape=['
+    shape_crop = shape_len > 16 or (shape_len > 2 * edgeitems + 1 and
+                                    shape_len * len(shape[0]) > 100)
+    shape = list(map(str, shape))
+    shape_str = _join_string(shape, shape_crop, edgeitems)
+
+    if len(shape_str) > 75:
+        # Break shapes into separate lines.
+        shape_str = _join_string(shape, shape_crop, edgeitems, ', \n' +
+                                 spaces_indent + ' ' * len(shape_prefix))
+
     params = [f'{type_name}(\n{spaces_indent}{data_str}', f'dtype={self.dtype}'] + \
         ([f'layout="{layout}"'] if layout else []) + \
-        [f'num_samples={len(self)}',
-         f'shape=[{_join_string(shape, len(shape) > edgeitems * 2 + 1, edgeitems)}])']
+        [f'num_samples={len(self)}', f'{shape_prefix}{shape_str}])']
 
     return _join_string(params, False, 0, ',\n' + spaces_indent)
 

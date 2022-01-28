@@ -291,7 +291,7 @@ def test_tensorlist_str_empty():
 def test_tensorlist_str_scalars():
     arr = np.arange(10)
     tl = TensorListCPU(arr)
-    params = [arr, 'DALIDataType.INT64', 10, '[(), (), ..., (), ()]']
+    params = [arr, 'DALIDataType.INT64', 10, '[(), (), (), (), (), (), (), (), (), ()]']
     _test_str(tl, params, _expected_tensorlist_str)
 
 
