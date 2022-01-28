@@ -18,7 +18,8 @@ from numpy.testing import assert_array_equal
 from nose_utils import assert_raises
 from test_utils import dali_type_to_np, py_buffer_from_address
 
-from nvidia.dali.backend_impl import *
+from nvidia.dali.backend_impl import TensorCPU, TensorListCPU, TensorListGPU
+from nvidia.dali.backend_impl import types as types_
 import nvidia.dali.types as types
 import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
@@ -236,7 +237,7 @@ def dtype_pipeline(np_type, placeholder_dali_type):
 
 
 def test_dtype_converion():
-    dali_types = [types.DALIDataType.INT8, types.DALIDataType.UINT64, types.DALIDataType.FLOAT16]
+    dali_types = [types_._DALIDataType.INT8, types_._DALIDataType.UINT64, types_._DALIDataType.FLOAT16]
     np_types = list(map(dali_type_to_np, dali_types))
     for dali_type, np_type in zip(dali_types, np_types):
         pipe = dtype_pipeline(np_type, dali_type)

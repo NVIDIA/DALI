@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,14 +24,14 @@ import ctypes
 import numpy as np
 
 to_torch_type = {
-    types.FLOAT   : torch.float32,
-    types.FLOAT64 : torch.float64,
-    types.FLOAT16 : torch.float16,
-    types.UINT8   : torch.uint8,
-    types.INT8    : torch.int8,
-    types.INT16   : torch.int16,
-    types.INT32   : torch.int32,
-    types.INT64   : torch.int64
+    types.DALIDataType.FLOAT   : torch.float32,
+    types.DALIDataType.FLOAT64 : torch.float64,
+    types.DALIDataType.FLOAT16 : torch.float16,
+    types.DALIDataType.UINT8   : torch.uint8,
+    types.DALIDataType.INT8    : torch.int8,
+    types.DALIDataType.INT16   : torch.int16,
+    types.DALIDataType.INT32   : torch.int32,
+    types.DALIDataType.INT64   : torch.int64
 }
 
 def feed_ndarray(dali_tensor, arr, cuda_stream = None):
@@ -50,13 +50,10 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
                     In most cases, using pytorch's current stream is expected (for example,
                     if we are copying to a tensor allocated with torch.zeros(...))
     """
-    if isinstance(dali_tensor, (TensorListCPU, TensorListGPU)):
-        dali_type = dali_tensor[0].dtype
-    else:
-        dali_type = dali_tensor.dtype
+    dali_type = to_torch_type[dali_tensor.dtype]
 
-    assert to_torch_type[dali_type] == arr.dtype, ("The element type of DALI Tensor/TensorList"
-            " doesn't match the element type of the target PyTorch Tensor: {} vs {}".format(to_torch_type[dali_type], arr.dtype))
+    assert dali_type == arr.dtype, ("The element type of DALI Tensor/TensorList"
+            " doesn't match the element type of the target PyTorch Tensor: {} vs {}".format(dali_type, arr.dtype))
     assert dali_tensor.shape() == list(arr.size()), \
             ("Shapes do not match: DALI tensor has size {0}"
             ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))

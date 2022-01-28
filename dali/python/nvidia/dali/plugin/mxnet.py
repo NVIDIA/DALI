@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,11 +51,7 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
                     In most cases, using the default internal user stream or stream 0
                     is expected.
     """
-    if isinstance(dali_tensor, (TensorListCPU, TensorListGPU)):
-        dali_type = dali_tensor[0].dtype
-    else:
-        dali_type = dali_tensor.dtype
-    dali_type = types.to_numpy_type(dali_type)
+    dali_type = types.to_numpy_type(dali_tensor.dtype)
 
     assert dali_type == arr.dtype, ("The element type of DALI Tensor/TensorList"
 	        " doesn't match the element type of the target MXNet NDArray: {} vs {}".format(dali_type, np.dtype(arr.dtype)))
