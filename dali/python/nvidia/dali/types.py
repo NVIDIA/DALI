@@ -105,29 +105,34 @@ def _default_converter(dtype, default_value):
         return repr(_type_convert_value(dtype, default_value))
 
 """
-Convest DALIDataType to numpy type
+Converts DALIDataType to NumPy type
 
 Args
 ----
 dali_type: DALIDataType input type
 """
+# avoid importing NumPy if to_numpy_type is not called to break strong NumPy dependency
+_numpy_types = None
 def to_numpy_type(dali_type):
     import numpy as np
-    numpy_types = {
-        DALIDataType.UINT8   : np.uint8,
-        DALIDataType.UINT16  : np.uint16,
-        DALIDataType.UINT32  : np.uint32,
-        DALIDataType.UINT64  : np.uint64,
-        DALIDataType.INT8    : np.int8,
-        DALIDataType.INT16   : np.int16,
-        DALIDataType.INT32   : np.int32,
-        DALIDataType.INT64   : np.int64,
-        DALIDataType.FLOAT16 : np.float16,
-        DALIDataType.FLOAT   : np.float32,
-        DALIDataType.FLOAT64 : np.float64,
-        DALIDataType.BOOL    : np.bool_
-    }
-    return numpy_types[dali_type]
+    global _numpy_types
+    if _numpy_types is None:
+        _numpy_types = {
+            DALIDataType.UINT8   : np.uint8,
+            DALIDataType.UINT16  : np.uint16,
+            DALIDataType.UINT32  : np.uint32,
+            DALIDataType.UINT64  : np.uint64,
+            DALIDataType.INT8    : np.int8,
+            DALIDataType.INT16   : np.int16,
+            DALIDataType.INT32   : np.int32,
+            DALIDataType.INT64   : np.int64,
+            DALIDataType.FLOAT16 : np.float16,
+            DALIDataType.FLOAT   : np.float32,
+            DALIDataType.FLOAT64 : np.float64,
+            DALIDataType.BOOL    : np.bool_
+        }
+
+    return _numpy_types[dali_type]
 
 @unique
 class PipelineAPIType(Enum):
