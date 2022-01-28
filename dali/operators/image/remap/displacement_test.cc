@@ -24,14 +24,14 @@ typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_SUITE(DisplacementTest, Types);
 
 TYPED_TEST(DisplacementTest, Sphere) {
-  this->RunTest("Sphere", nullptr, 0, false, 0.002);
+  this->RunTest("Sphere", nullptr, 0, false, 0.005);
 }
 
 TYPED_TEST(DisplacementTest, Water) {
   const OpArg params[] = {{"ampl_x", "2.", DALI_FLOAT},
                           {"ampl_y", "3.", DALI_FLOAT},
                           {"phase_x", "0.2", DALI_FLOAT}};
-  this->RunTest("Water", params, sizeof(params)/sizeof(params[0]), false, 0.002);
+  this->RunTest("Water", params, sizeof(params)/sizeof(params[0]), false, 0.005);
 }
 
 /*
