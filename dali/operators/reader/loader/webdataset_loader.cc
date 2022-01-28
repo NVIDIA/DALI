@@ -17,7 +17,6 @@
 #include <cstring>
 #include <limits>
 #include <memory>
-#include <regex>
 #include <tuple>
 #include <utility>
 #include "dali/core/error_handling.h"
@@ -34,10 +33,6 @@ inline std::string IndexFileErrMsg(const std::string& index_path, int64_t line,
 
 namespace detail {
 namespace wds {
-
-bool ValidateIndexVersionString(const std::string& index_string) {
-  return std::regex_match(index_string, std::regex(R"(v\d{1,2}\.\d{1,2})"));
-}
 
 inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_behavior) {
   for (auto& c : missing_component_behavior)
@@ -74,7 +69,7 @@ inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
   // Reading consecutive components
   ComponentDesc component;
   while (components_stream >> component.ext) {
-    if (index_version == ParseIndexVersion("v1.2")) {
+    if (index_version == 1002) {
       DALI_ENFORCE(
           components_stream >> component.offset >> component.size >> component.filename,
           IndexFileErrMsg(
@@ -113,11 +108,11 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
   std::string index_version_string;
   DALI_ENFORCE(global_meta_stream >> index_version_string,
                IndexFileErrMsg(index_path, 0, "no version signature found"));
-  DALI_ENFORCE(ValidateIndexVersionString(index_version_string),
+  auto index_version = CalcIndexVersion(index_version_string);
+  DALI_ENFORCE(index_version > 0,
                make_string("Malformed index file version string (\"", index_version_string,
                            "\"). The version string shall follow the pattern: "
                            "\"v<one-or-two-digits>.<one-or-two-digits>\"."));
-  auto index_version = ParseIndexVersion(index_version_string.c_str());
   DALI_ENFORCE(kSupportedIndexVersions.count(index_version) > 0,
                IndexFileErrMsg(index_path, 0,
                                make_string("Unsupported version of the index file (",

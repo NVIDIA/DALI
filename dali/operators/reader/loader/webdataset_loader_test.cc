@@ -19,34 +19,31 @@
 namespace dali::detail::wds::test {
 
 TEST(WebdatasetLoaderTest, ParseIndexStringTest) {
-  EXPECT_EQ(ParseIndexVersion("v1.0"), 1000);
-  EXPECT_EQ(ParseIndexVersion("v1.5"), 1005);
-  EXPECT_EQ(ParseIndexVersion("v1.10"), 1010);
-  EXPECT_EQ(ParseIndexVersion("v5.0"), 5000);
-  EXPECT_EQ(ParseIndexVersion("v5.5"), 5005);
-  EXPECT_EQ(ParseIndexVersion("v5.10"), 5010);
-  EXPECT_EQ(ParseIndexVersion("v10.0"), 10000);
-  EXPECT_EQ(ParseIndexVersion("v10.5"), 10005);
-  EXPECT_EQ(ParseIndexVersion("v10.10"), 10010);
-  EXPECT_EQ(ParseIndexVersion("v11.0"), 11000);
-  EXPECT_EQ(ParseIndexVersion("v11.5"), 11005);
-  EXPECT_EQ(ParseIndexVersion("v11.10"), 11010);
-}
+  EXPECT_EQ(CalcIndexVersion("v1.0"), 1000);
+  EXPECT_EQ(CalcIndexVersion("v1.5"), 1005);
+  EXPECT_EQ(CalcIndexVersion("v1.10"), 1010);
+  EXPECT_EQ(CalcIndexVersion("v5.0"), 5000);
+  EXPECT_EQ(CalcIndexVersion("v5.5"), 5005);
+  EXPECT_EQ(CalcIndexVersion("v5.10"), 5010);
+  EXPECT_EQ(CalcIndexVersion("v10.0"), 10000);
+  EXPECT_EQ(CalcIndexVersion("v10.5"), 10005);
+  EXPECT_EQ(CalcIndexVersion("v10.10"), 10010);
+  EXPECT_EQ(CalcIndexVersion("v11.0"), 11000);
+  EXPECT_EQ(CalcIndexVersion("v11.5"), 11005);
+  EXPECT_EQ(CalcIndexVersion("v11.10"), 11010);
 
-TEST(WebdatasetLoaderTest, VerifyIndexVersionStringTest) {
-  EXPECT_TRUE(ValidateIndexVersionString("v0.0"));
-  EXPECT_TRUE(ValidateIndexVersionString("v00.00"));
-  EXPECT_FALSE(ValidateIndexVersionString("anystring"));
-  EXPECT_FALSE(ValidateIndexVersionString("v."));
-  EXPECT_FALSE(ValidateIndexVersionString("v.1"));
-  EXPECT_FALSE(ValidateIndexVersionString("v1."));
-  EXPECT_FALSE(ValidateIndexVersionString("v 1.0"));
-  EXPECT_FALSE(ValidateIndexVersionString("v.1.0"));
-  EXPECT_FALSE(ValidateIndexVersionString("v1..0"));
-  EXPECT_FALSE(ValidateIndexVersionString("vv1.0"));
-  EXPECT_FALSE(ValidateIndexVersionString("1.0"));
-  EXPECT_FALSE(ValidateIndexVersionString("v1"));
-  EXPECT_FALSE(ValidateIndexVersionString("v1.0."));
+  // Incorrect input
+  EXPECT_EQ(CalcIndexVersion("anystring"), -1);
+  EXPECT_EQ(CalcIndexVersion("v."), -1);
+  EXPECT_EQ(CalcIndexVersion("v.1"), -1);
+  EXPECT_EQ(CalcIndexVersion("v1."), -1);
+  EXPECT_EQ(CalcIndexVersion("v 1.0"), -1);
+  EXPECT_EQ(CalcIndexVersion("v.1.0"), -1);
+  EXPECT_EQ(CalcIndexVersion("v1..0"), -1);
+  EXPECT_EQ(CalcIndexVersion("vv1.0"), -1);
+  EXPECT_EQ(CalcIndexVersion("1.0"), -1);
+  EXPECT_EQ(CalcIndexVersion("v1"), -1);
+  EXPECT_EQ(CalcIndexVersion("v1.0."), -1);
 }
 
 }  // namespace dali::detail::wds::test

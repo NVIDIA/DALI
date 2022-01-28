@@ -31,36 +31,36 @@ namespace dali {
 namespace detail {
 namespace wds {
 
-constexpr int ParseIndexVersion(const char* index_version) {
-  const char* it = nullptr;
-  for (it = index_version; *it != '\0'; it++) {}
-  int mult = 1, ret = 0;
-  auto update_ret = [&](auto it) {
-    assert(*it >= '0' && *it <= '9');
-    ret += mult * (*it - '0');
-  };
-  assert(*it == '\0');
-  update_ret(--it);
-  mult *= 10;
-  if (*--it != '.') {
-    update_ret(it--);
+/**
+ * The index version string should look like:
+ * v<one-or-two-digits>.<one-or-two-digits>
+ * e.g. v1.2, v10.1, v0.22, v12.12
+ */
+inline int DLL_PUBLIC CalcIndexVersion(const std::string& index_version_string) {
+  using std::isdigit;
+  auto it = index_version_string.rbegin();
+  int major = 0, minor = 0;
+  if (!isdigit(*it)) return -1;
+  minor += *it++ - '0';
+  if (isdigit(*it)) {
+    minor += (*it++ - '0') * 10;
   }
-  assert(*it == '.');
-  mult *= 10;
-  while (*--it != 'v') {
-    mult *= 10;
-    update_ret(it);
+  if (*it++ != '.') return -1;
+  if (!isdigit(*it)) return -1;
+  major += *it++ - '0';
+  if (isdigit(*it)) {
+    major += (*it++ - '0') * 10;
   }
-  return ret;
+  if (*it++ != 'v') return -1;
+  if (it != index_version_string.rend()) return -1;
+  return major * 1000 + minor;
 }
 
-bool DLL_PUBLIC ValidateIndexVersionString(const std::string& index_version_string);
-
 // Minor part of the index version may be at most two-digit.
-const char kCurrentIndexVersion[] = "v1.2";
+const std::string kCurrentIndexVersion = "v1.2";  // NOLINT
 const std::set<int> kSupportedIndexVersions = {
-    ParseIndexVersion(kCurrentIndexVersion),
-    ParseIndexVersion("v1.1"),
+    1002,  // v1.2
+    1001,  // v1.1
 };
 constexpr char kExtDelim = ';';
 const std::set<DALIDataType> kSupportedTypes = {DALI_UINT8,   DALI_UINT16, DALI_UINT32, DALI_UINT64,
