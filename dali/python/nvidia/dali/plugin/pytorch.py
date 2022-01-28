@@ -21,18 +21,17 @@ from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 import torch
 import torch.utils.dlpack as torch_dlpack
 import ctypes
-import math
 import numpy as np
 
 to_torch_type = {
-    np.dtype(np.float32) : torch.float32,
-    np.dtype(np.float64) : torch.float64,
-    np.dtype(np.float16) : torch.float16,
-    np.dtype(np.uint8)   : torch.uint8,
-    np.dtype(np.int8)    : torch.int8,
-    np.dtype(np.int16)   : torch.int16,
-    np.dtype(np.int32)   : torch.int32,
-    np.dtype(np.int64)   : torch.int64
+    types.FLOAT   : torch.float32,
+    types.FLOAT64 : torch.float64,
+    types.FLOAT16 : torch.float16,
+    types.UINT8   : torch.uint8,
+    types.INT8    : torch.int8,
+    types.INT16   : torch.int16,
+    types.INT32   : torch.int32,
+    types.INT64   : torch.int64
 }
 
 def feed_ndarray(dali_tensor, arr, cuda_stream = None):
@@ -52,10 +51,9 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
                     if we are copying to a tensor allocated with torch.zeros(...))
     """
     if isinstance(dali_tensor, (TensorListCPU, TensorListGPU)):
-        dali_type = dali_tensor[0].dtype()
+        dali_type = dali_tensor[0].dtype
     else:
-        dali_type = dali_tensor.dtype()
-    dali_type = np.dtype(dali_type)
+        dali_type = dali_tensor.dtype
 
     assert to_torch_type[dali_type] == arr.dtype, ("The element type of DALI Tensor/TensorList"
             " doesn't match the element type of the target PyTorch Tensor: {} vs {}".format(to_torch_type[dali_type], arr.dtype))
@@ -211,7 +209,7 @@ class DALIGenericIterator(_DaliBaseIterator):
             torch_cpu_device = torch.device('cpu')
             # check category and device
             for category in self._output_categories:
-                category_torch_type[category] = to_torch_type[np.dtype(category_tensors[category].dtype())]
+                category_torch_type[category] = to_torch_type[category_tensors[category].dtype]
                 if type(category_tensors[category]) is TensorGPU:
                     if not torch_gpu_device:
                         torch_gpu_device = torch.device('cuda', dev_id)
