@@ -104,16 +104,17 @@ def _default_converter(dtype, default_value):
     else:
         return repr(_type_convert_value(dtype, default_value))
 
-"""
-Converts DALIDataType to NumPy type
-
-Args
-----
-dali_type: DALIDataType input type
-"""
 # avoid importing NumPy if to_numpy_type is not called to break strong NumPy dependency
 _numpy_types = None
 def to_numpy_type(dali_type):
+    """
+    Converts DALIDataType to NumPy type
+
+    Args
+    ----
+    dali_type: DALIDataType
+               Input type to convert
+    """
     import numpy as np
     global _numpy_types
     if _numpy_types is None:
