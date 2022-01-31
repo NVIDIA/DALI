@@ -21,6 +21,7 @@ import cv2
 from scipy.ndimage import convolve1d, filters as sp_filters
 import os
 from nose_utils import assert_raises
+from nose.plugins.attrib import attr
 
 from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator
 
@@ -196,22 +197,25 @@ def _test_vs_open_cv(device, batch_size, window_size, in_type, out_type, normali
 def test_vs_open_cv():
     batch_size = 10
     for device in ["cpu", "gpu"]:
-        for normalize in [True, False]:
-            for grayscale in [True, False]:
-                for in_type in [types.UINT8, types.FLOAT]:
-                    output_types = [None] if in_type == types.FLOAT else [
-                        None, types.FLOAT]
-                    for out_type in output_types:
-                        # For bigger windows and uint8 mode, cv2 seems to use some integral type that
-                        # saturates too early (in any case the resulting picture is mostly black and
-                        # different from the result of running cv2.laplacian with floats and then
-                        # clamping the results)
-                        if out_type is None and in_type == types.UINT8:
-                            win_sizes = range(1, 13, 2)
-                        else:
-                            win_sizes = [1] + list(range(3, max_window_size + 2, 4))
-                        for window_size in win_sizes:
-                            yield _test_vs_open_cv, device, batch_size, window_size, in_type, out_type, normalize, grayscale
+        # they are independent parameters, it's just not to go overboard with test cases
+        for normalize, grayscale in ((True, False), (False, True)):
+            # For bigger windows and uint8 mode, cv2 seems to use some integral type that
+            # saturates too early (in any case the resulting picture is mostly black and
+            # different from the result of running cv2.laplacian with floats and then
+            # clamping the results)
+            for window_size in range(1, 13, 2):
+                yield _test_vs_open_cv, device, batch_size, window_size, types.UINT8, None, normalize, grayscale
+
+
+@attr('slow')
+def test_vs_open_cv_slow():
+    batch_size = 10
+    for device in ["cpu", "gpu"]:
+        # they are independent parameters, it's just not to go overboard with test cases
+        for normalize, grayscale in ((True, False), (False, True)):
+            for in_type, out_type in ((types.UINT8, types.FLOAT), (types.FLOAT, None)):
+                for window_size in [1] + list(range(3, max_window_size + 2, 4)):
+                    yield _test_vs_open_cv, device, batch_size, window_size, in_type, out_type, normalize, grayscale
 
 
 def laplacian_sp(input, out_type):
@@ -431,11 +435,26 @@ def check_per_sample_laplacian(device, batch_size, window_dim, smoothing_dim, no
 def test_per_sample_laplacian():
     batch_size = 10
     for device in ["cpu", "gpu"]:
-        for in_type in [np.uint8, np.int16, np.int32, np.float32]:
+        for in_type in [np.uint8]:
             for out_type in [None, np.float32]:
                 for shape, layout, axes in shape_layout_axes_cases:
-                    for window_dim in [None, 0, 1]:
-                        for smoothing_dim in [None, 0, 1]:
+                    for normalize in [True, False]:
+                        yield check_per_sample_laplacian, device, batch_size, 1, 1, \
+                            normalize, shape, layout, axes, in_type, out_type
+
+
+@attr('slow')
+def test_per_sample_laplacian_slow():
+    batch_size = 10
+    for device in ["cpu", "gpu"]:
+        for in_type in [np.int16, np.int32, np.float32]:
+            for out_type in [None, np.float32]:
+                if out_type == in_type:
+                    continue
+                for shape, layout, axes in shape_layout_axes_cases:
+                    full_test = [None, 0, 1]
+                    for window_dim in full_test if in_type == np.float32 else [1]:
+                        for smoothing_dim in full_test if in_type == np.float32 else [1]:
                             for normalize in [True, False]:
                                 yield check_per_sample_laplacian, device, batch_size, window_dim, smoothing_dim, \
                                     normalize, shape, layout, axes, in_type, out_type
@@ -490,6 +509,7 @@ def check_fixed_param_laplacian(device, batch_size, in_type, out_type, shape, la
                     max_allowed_error=max_error, expected_layout=layout)
 
 
+@attr('slow')
 def test_fixed_params_laplacian():
     batch_size = 10
     window_size_cases = {
@@ -516,6 +536,8 @@ def test_fixed_params_laplacian():
     for device in ["cpu", "gpu"]:
         for in_type in [np.uint8, np.int32, np.int64, np.float32]:
             for out_type in [None, np.float32]:
+                if in_type == out_type:
+                    continue
                 for shape, layout, axes in shape_layout_axes_cases:
                     for window_sizes in window_size_cases[axes]:
                         for smoothing_sizes in smoothing_size_cases[axes]:
