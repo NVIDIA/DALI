@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,31 +13,48 @@
 // limitations under the License.
 
 #include <utility>
+#include <vector>
 #include "dali/core/convert.h"
 #include "dali/core/cuda_utils.h"
+#include "dali/core/dev_buffer.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/common/block_setup.h"
+#include "dali/kernels/common/cast.cuh"
 #include "dali/operators/generic/cast.h"
+
 
 namespace dali {
 
+class CastGPU : public Cast<GPUBackend> {
+ public:
+  explicit CastGPU(const OpSpec &spec) : Cast<GPUBackend>{spec} {}
 
-template <typename OType, typename IType>
-__global__ void BatchedCastKernel(const CastSampleDesc *samples,
-                                  const kernels::BlockDesc<1> *blocks) {
-  const auto &block = blocks[blockIdx.x];
-  const auto &sample = samples[block.sample_idx];
-  auto *out = reinterpret_cast<OType *>(sample.output);
-  const auto *in = reinterpret_cast<const IType *>(sample.input);
-  for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
-    out[x] = ConvertSat<OType>(in[x]);
-  }
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override;
+  void RunImpl(DeviceWorkspace &ws) override;
+
+  ~CastGPU() override = default;
+
+ protected:
+  void PrepareBlocks(const DeviceWorkspace &ws);
+
+ private:
+  using GpuBlockSetup = kernels::BlockSetup<1, -1>;
+
+  GpuBlockSetup block_setup_;
+  std::vector<kernels::CastSampleDesc> samples_;
+  DeviceBuffer<GpuBlockSetup::BlockDesc> blocks_dev_;
+  DeviceBuffer<kernels::CastSampleDesc> samples_dev_;
+
+  USE_OPERATOR_MEMBERS();
+};
+
+bool CastGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) {
+  PrepareBlocks(ws);
+  return Cast<GPUBackend>::SetupImpl(output_desc, ws);
 }
 
-
-template <>
-void Cast<GPUBackend>::PrepareBlocks(const DeviceWorkspace &ws) {
+void CastGPU::PrepareBlocks(const DeviceWorkspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   const auto &input_shape = input.shape();
   std::array<std::pair<int, int>, 1> collapse_groups = {{{0, input_shape.sample_dim()}}};
@@ -47,9 +64,7 @@ void Cast<GPUBackend>::PrepareBlocks(const DeviceWorkspace &ws) {
   blocks_dev_.from_host(block_setup_.Blocks(), ws.stream());
 }
 
-
-template <>
-void Cast<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+void CastGPU::RunImpl(DeviceWorkspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   const auto &input_shape = input.shape();
   auto &output = ws.Output<GPUBackend>(0);
@@ -68,12 +83,12 @@ void Cast<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   dim3 block_dim = block_setup_.BlockDim();
   TYPE_SWITCH(output_type_, type2id, OType, CAST_ALLOWED_TYPES, (
     TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
-      BatchedCastKernel<OType, IType>
+      kernels::BatchedCastKernel<OType, IType>
           <<<grid_dim, block_dim, 0, ws.stream()>>>(samples_dev_.data(), blocks_dev_.data());
     ), DALI_FAIL(make_string("Invalid input type: ", itype)););  // NOLINT(whitespace/parens)
   ), DALI_FAIL(make_string("Invalid output type: ", output_type_)););  // NOLINT(whitespace/parens)
 }
 
-DALI_REGISTER_OPERATOR(Cast, Cast<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(Cast, CastGPU, GPU);
 
 }  // namespace dali

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ OpSpec MakeOpSpec(const std::string& operator_name) {
 TEST(InstantiateOperator, ValidOperatorName) {
   ASSERT_NE(nullptr,
     InstantiateOperator(
-      MakeOpSpec("Crop")));
+      MakeOpSpec("Copy")));
 }
 
 TEST(InstantiateOperator, InvalidOperatorName) {
@@ -41,7 +41,7 @@ TEST(InstantiateOperator, InvalidOperatorName) {
 
 TEST(InstantiateOperator, RunMethodIsAccessible) {
   HostWorkspace ws;
-  auto op = InstantiateOperator(MakeOpSpec("ImageDecoder"));
+  auto op = InstantiateOperator(MakeOpSpec("Copy"));
   // We just want to test that Run method is visible (exported to the so file)
   // It is expected that the call throws as the worspace is empty
   ASSERT_THROW(op->Run(ws), std::runtime_error);
@@ -57,7 +57,7 @@ class OperatorDiagnosticsTest : public ::testing::Test {
  protected:
   void SetUp() final {
     assign_value();
-    auto op_spec = OpSpec("CoinFlip").AddArg("num_threads", 1).AddArg("max_batch_size", 1);
+    auto op_spec = MakeOpSpec("Copy");
     operator_ = std::make_unique<OperatorBase>(op_spec);
   }
 
@@ -66,7 +66,7 @@ class OperatorDiagnosticsTest : public ::testing::Test {
   }
 
   std::unique_ptr<OperatorBase> operator_;
-  std::string value_name_ = "Lorem ipsum";
+  std::string value_name_ = "foo";
   T value_;
 };
 

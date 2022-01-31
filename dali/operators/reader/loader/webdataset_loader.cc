@@ -140,7 +140,13 @@ inline void ParseTarFile(std::vector<SampleDesc>& samples_container,
   TarArchive tar_archive(std::move(tar_file));
 
   std::string last_filename;
-  std::tie(last_filename, std::ignore) = split_name(tar_archive.GetFileName());
+  // rewind to the first valid entry
+  for (; !tar_archive.EndOfArchive(); tar_archive.NextFile()) {
+    if (tar_archive.GetFileType() == TarArchive::ENTRY_FILE) {
+      std::tie(last_filename, std::ignore) = split_name(tar_archive.GetFileName());
+      break;
+    }
+  }
   size_t last_components_size = components_container.size();
   for (; !tar_archive.EndOfArchive(); tar_archive.NextFile()) {
     if (tar_archive.GetFileType() != TarArchive::ENTRY_FILE) {

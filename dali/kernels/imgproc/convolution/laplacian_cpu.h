@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -113,8 +113,8 @@ struct LaplacianCpuBase<T, Intermediate, Out, In, W, 2, has_channels> {
     KernelRequirements req;
     req.output_shapes.push_back(uniform_list_shape<ndim>(1, in_shape));
 
-    auto req_dy = sobel_dy_.Setup(ctx, in_shape, window_sizes[0]);
-    auto req_dx = sobel_dx_.Setup(ctx, in_shape, window_sizes[1]);
+    auto req_dy = dy_kernel_.Setup(ctx, in_shape, window_sizes[0]);
+    auto req_dx = dx_kernel_.Setup(ctx, in_shape, window_sizes[1]);
 
     // Calculate max scratch memory required by sub-kernels
     sub_scratch_sizes_ = MaxScratchSize(req_dx.scratch_sizes, req_dy.scratch_sizes);
@@ -142,14 +142,14 @@ struct LaplacianCpuBase<T, Intermediate, Out, In, W, 2, has_channels> {
     sub_ctx.scratchpad = &sub_scratch;
 
     // Clear the scratchpad for sub-kernels to reuse memory
-    sobel_dy_.Run(sub_ctx, acc, in, windows[0], scale[0]);
+    dy_kernel_.Run(sub_ctx, acc, in, windows[0], scale[0]);
     sub_scratch.Clear();
-    sobel_dx_.Run(sub_ctx, out, in, windows[1], transform);
+    dx_kernel_.Run(sub_ctx, out, in, windows[1], transform);
   }
 
   scratch_sizes_t sub_scratch_sizes_;
-  DyKernel sobel_dy_;
-  DxKernel sobel_dx_;
+  DyKernel dy_kernel_;
+  DxKernel dx_kernel_;
 };
 
 template <typename T, typename Intermediate, typename Out, typename In, typename W,
@@ -168,9 +168,9 @@ struct LaplacianCpuBase<T, Intermediate, Out, In, W, 3, has_channels> {
     KernelRequirements req;
     req.output_shapes.push_back(uniform_list_shape<ndim>(1, in_shape));
 
-    auto req_dz = sobel_dz_.Setup(ctx, in_shape, window_sizes[0]);
-    auto req_dy = sobel_dy_.Setup(ctx, in_shape, window_sizes[1]);
-    auto req_dx = sobel_dx_.Setup(ctx, in_shape, window_sizes[2]);
+    auto req_dz = dz_kernel_.Setup(ctx, in_shape, window_sizes[0]);
+    auto req_dy = dy_kernel_.Setup(ctx, in_shape, window_sizes[1]);
+    auto req_dx = dx_kernel_.Setup(ctx, in_shape, window_sizes[2]);
 
     // Calculate max scratch memory required by sub-kernels
     sub_scratch_sizes_ = MaxScratchSize(req_dx.scratch_sizes, req_dy.scratch_sizes);
@@ -199,17 +199,17 @@ struct LaplacianCpuBase<T, Intermediate, Out, In, W, 3, has_channels> {
     sub_ctx.scratchpad = &sub_scratch;
 
     // Clear the scratchpad for sub-kernels to reuse memory
-    sobel_dz_.Run(sub_ctx, acc, in, windows[0], scale[0]);
+    dz_kernel_.Run(sub_ctx, acc, in, windows[0], scale[0]);
     sub_scratch.Clear();
-    sobel_dy_.Run(sub_ctx, acc, in, windows[1], scale[1]);
+    dy_kernel_.Run(sub_ctx, acc, in, windows[1], scale[1]);
     sub_scratch.Clear();
-    sobel_dx_.Run(sub_ctx, out, in, windows[2], transform);
+    dx_kernel_.Run(sub_ctx, out, in, windows[2], transform);
   }
 
   scratch_sizes_t sub_scratch_sizes_;
-  DzKernel sobel_dz_;
-  DyKernel sobel_dy_;
-  DxKernel sobel_dx_;
+  DzKernel dz_kernel_;
+  DyKernel dy_kernel_;
+  DxKernel dx_kernel_;
 };
 
 

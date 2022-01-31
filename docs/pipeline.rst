@@ -145,7 +145,7 @@ DataNode
    :members:
 
 Pipeline Debug Mode (experimental)
-------------------
+----------------------------------
 
 Pipeline can be run in debug mode by replacing ``@nvidia.dali.pipeline_def`` decorator with its
 experimental variant ``@nvidia.dali.experimental.pipeline_def`` and setting parameter ``debug`` to

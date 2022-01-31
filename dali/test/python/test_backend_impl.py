@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend_impl import *
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
+import warnings
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
+from numpy.testing import assert_array_equal
 from nose_utils import assert_raises
-from test_utils import py_buffer_from_address
+from test_utils import dali_type_to_np, py_buffer_from_address
+
+import nvidia.dali.types
+import nvidia.dali.fn as fn
+from nvidia.dali import pipeline_def
+from nvidia.dali.backend_impl import *
 
 
 def test_create_tensor():
@@ -26,16 +29,19 @@ def test_create_tensor():
     tensor = TensorCPU(arr, "NHWC")
     assert_array_equal(arr, np.array(tensor))
 
+
 def test_create_tensorlist():
     arr = np.random.rand(3, 5, 6)
     tensorlist = TensorListCPU(arr, "NHWC")
     assert_array_equal(arr, tensorlist.as_array())
+
 
 def test_create_tensorlist_as_tensor():
     arr = np.random.rand(3, 5, 6)
     tensorlist = TensorListCPU(arr, "NHWC")
     tensor = tensorlist.as_tensor()
     assert_array_equal(np.array(tensor), tensorlist.as_array())
+
 
 def test_empty_tensor_tensorlist():
     arr = np.array([], dtype=np.float32)
@@ -44,6 +50,7 @@ def test_empty_tensor_tensorlist():
     assert_array_equal(np.array(tensor), tensorlist.as_array())
     assert(np.array(tensor).shape == (0,))
     assert(tensorlist.as_array().shape == (0,))
+
 
 def test_tensorlist_getitem_cpu():
     arr = np.random.rand(3, 5, 6)
@@ -60,6 +67,7 @@ def test_tensorlist_getitem_cpu():
     with assert_raises(IndexError, glob="out of range"):
         tensorlist[-len(tensorlist) - 1]
 
+
 def test_data_ptr_tensor_cpu():
     arr = np.random.rand(3, 5, 6)
     tensor = TensorCPU(arr, "NHWC")
@@ -74,6 +82,7 @@ def test_data_ptr_tensor_list_cpu():
     from_tensor_list = py_buffer_from_address(tensorlist.data_ptr(), tensor.shape(), tensor.dtype())
     assert(np.array_equal(arr, from_tensor_list))
 
+
 def test_array_interface_tensor_cpu():
     arr = np.random.rand(3, 5, 6)
     tensorlist = TensorListCPU(arr, "NHWC")
@@ -81,6 +90,7 @@ def test_array_interface_tensor_cpu():
     assert tensorlist[0].__array_interface__['data'][1] == True
     assert np.array_equal(tensorlist[0].__array_interface__['shape'], tensorlist[0].shape())
     assert tensorlist[0].__array_interface__['typestr'] == tensorlist[0].dtype()
+
 
 def check_transfer(dali_type):
     arr = np.random.rand(3, 5, 6)
@@ -92,19 +102,22 @@ def check_transfer(dali_type):
     else:
         np.testing.assert_array_equal(arr, np.array(data_cpu))
 
+
 def test_transfer_cpu_gpu():
     for dali_type in [TensorCPU, TensorListCPU]:
         yield check_transfer, dali_type
+
 
 def check_array_types(t):
     arr = np.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=t)
     tensor = TensorCPU(arr, "NHWC")
     assert(np.allclose(np.array(arr), np.asanyarray(tensor)))
 
+
 def test_array_interface_types():
     for t in [np.bool_, np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64,
-             np.uint8, np.uint16, np.uint32, np.uint64, np.float_, np.float32, np.float16,
-             np.short, np.long, np.longlong, np.ushort, np.ulonglong]:
+              np.uint8, np.uint16, np.uint32, np.uint64, np.float_, np.float32, np.float16,
+              np.short, np.long, np.longlong, np.ushort, np.ulonglong]:
         yield check_array_types, t
 
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
@@ -206,3 +219,90 @@ def test_tl_from_list_of_tensors_different_dtypes():
         with assert_raises(TypeError, glob=f"Tensors cannot have different data types. Tensor at position "
                            "1 has type '*' expected to have type '*'."):
             TensorListCPU([t1, t2])
+
+
+def test_dtype_deprecation_warning():
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+
+        TensorCPU(np.empty((0))).dtype()
+
+        assert "Calling '.dtype()' is deprecated, please use '.dtype' instead" == str(w[-1].message)
+
+
+def test_dtype_placeholder_equivalence():
+    dali_types = nvidia.dali.types._all_types
+    np_types = list(map(dali_type_to_np, dali_types))
+
+    for dali_type, np_type in zip(dali_types, np_types):
+        assert TensorCPU(np.zeros((1), dtype=np_type)).dtype == dali_type
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0)
+def dtype_pipeline(np_type, placeholder_dali_type):
+    res = fn.external_source(source=np.zeros((8, 1), dtype=np_type), dtype=placeholder_dali_type)
+
+    return res
+
+
+def test_dtype_converion():
+    dali_types = [types._DALIDataType.INT8, types._DALIDataType.UINT64, types._DALIDataType.FLOAT16]
+    np_types = list(map(dali_type_to_np, dali_types))
+    for dali_type, np_type in zip(dali_types, np_types):
+        pipe = dtype_pipeline(np_type, dali_type)
+        pipe.build()
+        assert pipe.run()[0].dtype == dali_type
+
+
+def test_tensorlist_dtype():
+    dali_types = nvidia.dali.types._all_types
+    np_types = list(map(dali_type_to_np, dali_types))
+
+    for dali_type, np_type in zip(dali_types, np_types):
+        tl = TensorListCPU([TensorCPU(np.zeros((1), dtype=np_type))])
+
+        assert tl.dtype == dali_type
+        assert tl._as_gpu().dtype == dali_type
+
+
+def _expected_tensorlist_str(device, data, dtype, num_samples, shape, layout=None):
+    return '\n    '.join([f'TensorList{device.upper()}(', f'{data},', f'dtype={dtype},'] +
+                         ([f'layout={layout}'] if layout is not None else []) +
+                         [f'num_samples={num_samples},', f'shape={shape})'])
+
+
+def _expected_tensor_str(device, data, dtype, shape, layout=None):
+    return '\n    '.join([f'Tensor{device.upper()}(', f'{data},', f'dtype={dtype},'] +
+                         ([f'layout={layout}'] if layout is not None else []) +
+                         [f'shape={shape})'])
+
+
+def _test_str(tl, expected_params, expected_func):
+    assert str(tl) == expected_func('cpu', *expected_params)
+    assert str(tl._as_gpu()) == expected_func('gpu', *expected_params)
+
+
+def test_tensorlist_str_empty():
+    tl = TensorListCPU(np.empty(0))
+    params = [[], 'DALIDataType.FLOAT64', 0, []]
+    _test_str(tl, params, _expected_tensorlist_str)
+
+
+def test_tensorlist_str_scalars():
+    arr = np.arange(10)
+    tl = TensorListCPU(arr)
+    params = [arr, 'DALIDataType.INT64', 10, '[(), (), (), (), (), (), (), (), (), ()]']
+    _test_str(tl, params, _expected_tensorlist_str)
+
+
+def test_tensor_str_empty():
+    t = TensorCPU(np.empty(0))
+    params = [[], 'DALIDataType.FLOAT64', [0]]
+    _test_str(t, params, _expected_tensor_str)
+
+
+def test_tensor_str_sample():
+    arr = np.arange(16)
+    t = TensorCPU(arr)
+    params = [arr, 'DALIDataType.INT64', [16]]
+    _test_str(t, params, _expected_tensor_str)
