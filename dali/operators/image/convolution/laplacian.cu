@@ -24,47 +24,47 @@
 namespace dali {
 namespace laplacian {
 
-extern template op_impl_uptr GetLaplacianGpuImpl<uint8_t, uint8_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<uint8_t, uint8_t>(const OpSpec*,
                                                                    const DimDesc& dim_desc);
-extern template op_impl_uptr GetLaplacianGpuImpl<float, uint8_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<float, uint8_t>(const OpSpec*,
                                                                  const DimDesc& dim_desc);
 
-extern template op_impl_uptr GetLaplacianGpuImpl<int8_t, int8_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<int8_t, int8_t>(const OpSpec*,
                                                                  const DimDesc& dim_desc);
-extern template op_impl_uptr GetLaplacianGpuImpl<float, int8_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<float, int8_t>(const OpSpec*,
                                                                 const DimDesc& dim_desc);
 
-extern template op_impl_uptr GetLaplacianGpuImpl<uint16_t, uint16_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<uint16_t, uint16_t>(const OpSpec*,
                                                                      const DimDesc& dim_desc);
-extern template op_impl_uptr GetLaplacianGpuImpl<float, uint16_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<float, uint16_t>(const OpSpec*,
                                                                   const DimDesc& dim_desc);
 
-extern template op_impl_uptr GetLaplacianGpuImpl<int16_t, int16_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<int16_t, int16_t>(const OpSpec*,
                                                                    const DimDesc& dim_desc);
-extern template op_impl_uptr GetLaplacianGpuImpl<float, int16_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<float, int16_t>(const OpSpec*,
                                                                  const DimDesc& dim_desc);
 
-extern template op_impl_uptr GetLaplacianGpuImpl<uint32_t, uint32_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<uint32_t, uint32_t>(const OpSpec*,
                                                                      const DimDesc& dim_desc);
-extern template op_impl_uptr GetLaplacianGpuImpl<float, uint32_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<float, uint32_t>(const OpSpec*,
                                                                   const DimDesc& dim_desc);
 
-extern template op_impl_uptr GetLaplacianGpuImpl<int32_t, int32_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<int32_t, int32_t>(const OpSpec*,
                                                                    const DimDesc& dim_desc);
-extern template op_impl_uptr GetLaplacianGpuImpl<float, int32_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<float, int32_t>(const OpSpec*,
                                                                  const DimDesc& dim_desc);
 
-extern template op_impl_uptr GetLaplacianGpuImpl<uint64_t, uint64_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<uint64_t, uint64_t>(const OpSpec*,
                                                                      const DimDesc& dim_desc);
-extern template op_impl_uptr GetLaplacianGpuImpl<float, uint64_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<float, uint64_t>(const OpSpec*,
                                                                   const DimDesc& dim_desc);
 
-extern template op_impl_uptr GetLaplacianGpuImpl<int64_t, int64_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<int64_t, int64_t>(const OpSpec*,
                                                                    const DimDesc& dim_desc);
-extern template op_impl_uptr GetLaplacianGpuImpl<float, int64_t>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<float, int64_t>(const OpSpec*,
                                                                  const DimDesc& dim_desc);
 
-extern template op_impl_uptr GetLaplacianGpuImpl<float, float>(const OpSpec&,
+extern template op_impl_uptr GetLaplacianGpuImpl<float, float>(const OpSpec*,
                                                                const DimDesc& dim_desc);
 
 }  // namespace laplacian
@@ -85,9 +85,9 @@ bool Laplacian<GPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
 
     TYPE_SWITCH(input.type(), type2id, In, LAPLACIAN_GPU_SUPPORTED_TYPES, (
       if (dtype == input.type()) {
-        impl_ = laplacian::GetLaplacianGpuImpl<In, In>(spec_, dim_desc);
+        impl_ = laplacian::GetLaplacianGpuImpl<In, In>(&spec_, dim_desc);
       } else {
-        impl_ = laplacian::GetLaplacianGpuImpl<float, In>(spec_, dim_desc);
+        impl_ = laplacian::GetLaplacianGpuImpl<float, In>(&spec_, dim_desc);
       }
     ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
   }

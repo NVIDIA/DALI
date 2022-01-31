@@ -42,8 +42,12 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
   using Kernel = kernels::LaplacianGpu<Out, In, float, axes, has_channels, is_sequence>;
   static constexpr int ndim = Kernel::ndim;
 
-  explicit LaplacianOpGpu(const OpSpec& spec, const DimDesc& dim_desc)
-      : spec_{spec}, args{spec}, dim_desc_{dim_desc}, lap_windows_{maxWindowSize} {
+  /**
+   * @param spec  Pointer to a persistent OpSpec object,
+   *              which is guaranteed to be alive for the entire lifetime of this object
+   */
+  explicit LaplacianOpGpu(const OpSpec* spec, const DimDesc& dim_desc)
+      : spec_{*spec}, args{*spec}, dim_desc_{dim_desc}, lap_windows_{maxWindowSize} {
     kmgr_.Resize<Kernel>(1, 1);
   }
 
@@ -151,16 +155,17 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
  * to allow for parallel compilation of underlying kernels.
  */
 template <typename Out, typename In>
-op_impl_uptr GetLaplacianGpuImpl(const OpSpec& spec,
-                                                            const DimDesc& dim_desc) {
+op_impl_uptr GetLaplacianGpuImpl(const OpSpec* spec, const DimDesc& dim_desc) {
+  op_impl_uptr result;
   VALUE_SWITCH(dim_desc.usable_axes_count, Axes, LAPLACIAN_SUPPORTED_AXES, (
     BOOL_SWITCH(dim_desc.is_channel_last(), HasChannels, (
       BOOL_SWITCH(dim_desc.is_sequence(), IsSeq, (
         using LaplacianImpl = LaplacianOpGpu<Out, In, Axes, HasChannels, IsSeq>;
-        return std::make_unique<LaplacianImpl>(spec, dim_desc);
+        result.reset(new LaplacianImpl(spec, dim_desc))
       ));  // NOLINT
     ));  // NOLINT
   ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
+  return result;
 }
 
 }  // namespace laplacian

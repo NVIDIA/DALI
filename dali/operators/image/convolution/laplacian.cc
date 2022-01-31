@@ -107,8 +107,12 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
   using Kernel = kernels::LaplacianCpu<Out, In, float, axes, has_channels>;
   static constexpr int ndim = Kernel::ndim;
 
-  explicit LaplacianOpCpu(const OpSpec& spec, const DimDesc& dim_desc)
-      : spec_{spec}, args{spec}, dim_desc_{dim_desc}, lap_windows_{maxWindowSize} {}
+  /**
+   * @param spec  Pointer to a persistent OpSpec object,
+   *              which is guaranteed to be alive for the entire lifetime of this object
+   */
+  explicit LaplacianOpCpu(const OpSpec* spec, const DimDesc& dim_desc)
+      : spec_{*spec}, args{*spec}, dim_desc_{dim_desc}, lap_windows_{maxWindowSize} {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template Input<CPUBackend>(0);
@@ -214,10 +218,10 @@ bool Laplacian<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
         BOOL_SWITCH(dim_desc.is_channel_last(), HasChannels, (
           if (dtype == input.type()) {
             using LaplacianSame = laplacian::LaplacianOpCpu<In, In, Axes, HasChannels>;
-            impl_ = std::make_unique<LaplacianSame>(spec_, dim_desc);
+            impl_ = std::make_unique<LaplacianSame>(&spec_, dim_desc);
           } else {
             using LaplacianFloat = laplacian::LaplacianOpCpu<float, In, Axes, HasChannels>;
-            impl_ = std::make_unique<LaplacianFloat>(spec_, dim_desc);
+            impl_ = std::make_unique<LaplacianFloat>(&spec_, dim_desc);
           }
         )); // NOLINT
       ), DALI_FAIL("Axis count out of supported range."));  // NOLINT

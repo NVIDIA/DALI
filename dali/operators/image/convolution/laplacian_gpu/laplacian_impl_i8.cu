@@ -17,9 +17,9 @@
 namespace dali {
 namespace laplacian {
 
-template op_impl_uptr GetLaplacianGpuImpl<int8_t, int8_t>(const OpSpec& spec,
+template op_impl_uptr GetLaplacianGpuImpl<int8_t, int8_t>(const OpSpec* spec,
                                                           const DimDesc& dim_desc);
-template op_impl_uptr GetLaplacianGpuImpl<float, int8_t>(const OpSpec& spec,
+template op_impl_uptr GetLaplacianGpuImpl<float, int8_t>(const OpSpec* spec,
                                                          const DimDesc& dim_desc);
 
 }  // namespace laplacian
