@@ -42,7 +42,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && \
     apt-get install -y python3.9 python3.9-dev python3.9-distutils python3.10 python3.10-dev python3.10-distutils && \
     rm -rf /var/lib/apt/lists/* && \
-    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py && \
+    if [ $(python3 -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')") == "36" ]; then \
+        curl -O https://bootstrap.pypa.io/pip/3.6/get-pip.py; \
+    else \
+        curl -O https://bootstrap.pypa.io/get-pip.py; \
+    fi && python3 get-pip.py && rm get-pip.py && \
     # decouple libclang and clang installation so libclang changes are not overriden by clang
     pip install clang && pip install libclang && \
     rm -rf /root/.cache/pip/ && \
