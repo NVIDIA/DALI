@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,28 +16,55 @@
 #include "dali/plugin/plugin_manager.h"
 #include "dali/test/dali_test_matching.h"
 #include "dali/test/dali_test_utils.h"
+#include "dali/pipeline/pipeline.h"
 
 static const std::string& DummyPluginLibPath() {
-    static const std::string plugin_lib = dali::CurrentExecutableDir() + "/libcustomdummyplugin.so";
-    return plugin_lib;
+  static const std::string plugin_lib =
+      dali::test::CurrentExecutableDir() + "/libcustomdummyplugin.so";
+  return plugin_lib;
 }
 
 namespace other_ns {
 
-template <typename ImgType>
-class DummyTest : public ::dali::GenericMatchingTest<ImgType> {
+class DummyTest : public ::dali::DALITest {
+ public:
+  static void LoadDummyPlugin() {
+    ::dali::PluginManager::LoadLibrary(DummyPluginLibPath());
+  }
+
+  void TestPlugin(const std::string &backend) {
+    LoadDummyPlugin();
+
+    dali::TensorList<dali::CPUBackend> data;
+    dali::test::MakeRandomBatch(data, 3);
+
+    dali::Pipeline pipe(3, 1, 0);
+    pipe.AddExternalInput("data");
+    pipe.AddOperator(
+        dali::OpSpec("CustomDummy")
+        .AddArg("device", backend)
+        .AddInput("data", backend)
+        .AddOutput("out", backend));
+    std::vector<std::pair<std::string, std::string>> outputs = {{"out", backend}};
+
+    pipe.Build(outputs);
+    pipe.SetExternalInput("data", data);
+    dali::DeviceWorkspace ws;
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+
+    dali::test::CheckResults(ws, 3, 0, data);
+  }
 };
 
-typedef ::testing::Types<::dali::RGB> Types;
-TYPED_TEST_SUITE(DummyTest, Types);
 
-static void LoadDummyPlugin() {
-  ::dali::PluginManager::LoadLibrary(DummyPluginLibPath());
+TEST_F(DummyTest, TestPluginCPU) {
+  this->TestPlugin("cpu");
 }
 
-TYPED_TEST(DummyTest, PluginShouldBeUsable) {
-  LoadDummyPlugin();
-  this->RunTest("CustomDummy");
+TEST_F(DummyTest, TestPluginGPU) {
+  this->TestPlugin("gpu");
 }
 
 }  // namespace other_ns

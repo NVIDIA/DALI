@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #ifndef DALI_OPERATORS_IMAGE_CONVOLUTION_LAPLACIAN_PARAMS_H_
 #define DALI_OPERATORS_IMAGE_CONVOLUTION_LAPLACIAN_PARAMS_H_
 
-#include <numeric>
+#include <cmath>
 #include <vector>
 
 #include "dali/core/small_vector.h"
@@ -135,7 +135,7 @@ std::array<float, axes> GetNormalizationFactors(
   for (int i = 0; i < axes; i++) {
     auto initial = -axes - 2;
     auto exponent = std::accumulate(window_sizes[i].begin(), window_sizes[i].end(), initial);
-    factors[i] = exp2(-exponent);
+    factors[i] = std::exp2f(-exponent);
   }
   return factors;
 }

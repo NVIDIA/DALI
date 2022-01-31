@@ -84,7 +84,12 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
 }  // namespace detail
 
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename) :
+<<<<<<< HEAD
     FramesDecoder(filename), frame_buffer_(num_decode_surfaces_) {
+=======
+  // FramesDecoder(filename), frame_buffer_(num_decode_surfaces_) {
+    FramesDecoder(filename), frame_buffer_(60) {
+>>>>>>> b576df1c3e6d33ad80a5b064ba311625613147c2
     nvdecode_state_ = std::make_unique<NvDecodeState>();
 
     const AVBitStreamFilter *bsf = av_bsf_get_by_name("h264_mp4toannexb");
@@ -162,6 +167,7 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
   if (current_frame_ == -1) {
     return false;
   }
+<<<<<<< HEAD
   // // Maybe requested frame is already in the buffer?
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ == index_[current_frame_].pts) {
@@ -173,6 +179,17 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
       ++current_frame_;
       return true;
     }
+=======
+  // Maybe requested frame is already in the buffer?
+  if (frame_buffer_[current_frame_].pts_ != -1) {
+    if (copy_to_output) {
+      copyD2D(data, frame_buffer_[current_frame_].frame_.data(), FrameSize());
+    }
+    frame_buffer_[current_frame_].pts_ = -1;
+
+    ++current_frame_;
+    return true;
+>>>>>>> b576df1c3e6d33ad80a5b064ba311625613147c2
   }
 
   decode_success_ = false;
@@ -216,6 +233,7 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
         ++current_frame_;
         return true;
       } else {
+<<<<<<< HEAD
         int empty_slot_index = 0;
         while (frame_buffer_[empty_slot_index].pts_ != -1) {
           ++empty_slot_index;
@@ -224,6 +242,16 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
         frame_buffer_[empty_slot_index].pts_ = current_pts;
         copyD2D(
           frame_buffer_[empty_slot_index].frame_.data(),
+=======
+        int found_frame_index = 0;
+        while (current_pts != index_[found_frame_index].pts) {
+          ++found_frame_index;
+        }
+
+        frame_buffer_[found_frame_index].pts_ = current_pts;
+        copyD2D(
+          frame_buffer_[found_frame_index].frame_.data(),
+>>>>>>> b576df1c3e6d33ad80a5b064ba311625613147c2
           current_frame_buffer_.data(),
           FrameSize());
       }

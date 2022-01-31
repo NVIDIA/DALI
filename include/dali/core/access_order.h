@@ -97,7 +97,7 @@ class DLL_PUBLIC AccessOrder {
 #ifdef __GNUC__
     return __builtin_constant_p((cudaStream_t)i) ? (cudaStream_t)i : (cudaStream_t)i;
 #else
-    return static_cast<cudaStream_t>(static_cast<void *>(static_cast<char*>(nullptr) - i));
+    return static_cast<cudaStream_t>(static_cast<void *>(static_cast<char*>(nullptr) + i));
 #endif
   }
 

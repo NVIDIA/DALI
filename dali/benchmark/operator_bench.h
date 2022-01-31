@@ -119,19 +119,13 @@ class OperatorBench : public DALIBenchmark {
     op_ptr->Run(ws);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    int64_t batches = 0;
+    uint64_t batches = 0;
 
-    while (true) {
-      if (!st.KeepRunning()) {
-        // If no iterations left, synchronize and exit the loop
-        CUDA_CALL(cudaStreamSynchronize(0));
-        break;
-      }
-
+    while (st.KeepRunning()) {
       op_ptr->Run(ws);
       batches++;
 
-      if (sync_each_n > 0 && batches % sync_each_n == 0) {
+      if (batches == st.max_iterations || (sync_each_n > 0 && batches % sync_each_n == 0)) {
         CUDA_CALL(cudaStreamSynchronize(0));
       }
     }

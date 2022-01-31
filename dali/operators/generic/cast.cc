@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,18 @@
 
 namespace dali {
 
+class CastCPU : public Cast<CPUBackend> {
+ public:
+  explicit CastCPU(const OpSpec &spec) : Cast<CPUBackend>{spec} {}
+
+  void RunImpl(HostWorkspace &ws) override;
+
+  ~CastCPU() override = default;
+
+ private:
+  USE_OPERATOR_MEMBERS();
+};
+
 template <typename OType, typename IType>
 inline void CpuHelper(OType *out, const IType *in, size_t N) {
   for (size_t i = 0; i < N; ++i) {
@@ -25,11 +37,7 @@ inline void CpuHelper(OType *out, const IType *in, size_t N) {
   }
 }
 
-template <>
-void Cast<CPUBackend>::PrepareBlocks(const HostWorkspace &ws) {}
-
-template <>
-void Cast<CPUBackend>::RunImpl(HostWorkspace &ws) {
+void CastCPU::RunImpl(HostWorkspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   const auto &input_shape = input.shape();
   auto &output = ws.Output<CPUBackend>(0);
@@ -55,7 +63,7 @@ void Cast<CPUBackend>::RunImpl(HostWorkspace &ws) {
   tp.RunAll();
 }
 
-DALI_REGISTER_OPERATOR(Cast, Cast<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(Cast, CastCPU, CPU);
 
 DALI_SCHEMA(Cast)
     .DocStr("Cast tensor to a different type.")

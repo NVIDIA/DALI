@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -240,7 +240,12 @@ inline void TarArchive::ParseHeader() {
     } else if (TH_ISFIFO(ToTarHandle(handle_))) {
       filetype_ = ENTRY_FIFO;
     } else {
-      DALI_FAIL("Entry type in a tar archive not recognized");
+      /*
+       * POSIX.1-2001 tar format adds additional entries containing attributes.
+       * As we are interested only in parsing actual data, we mark them as unknown
+       * entries, and skip when reading data.
+       */
+       filetype_ = ENTRY_UNKNOWN;
     }
   }
   readoffset_ = 0;

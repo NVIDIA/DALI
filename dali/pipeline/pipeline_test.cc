@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 #include <cuda_runtime_api.h>
 #include <gtest/gtest.h>
-
 #include "dali/core/common.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
@@ -26,6 +25,8 @@
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_decoder.h"
 #include "dali/util/image.h"
+#include "dali/test/dali_test_utils.h"
+#include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 
@@ -257,22 +258,12 @@ TYPED_TEST(PipelineTest, TestSerialization) {
 
   Pipeline pipe(batch_size, num_thread, 0);
 
-
-  TensorList<CPUBackend> batch;
-  this->MakeJPEGBatch(&batch, batch_size);
-
   pipe.AddExternalInput("data");
-
-  pipe.AddOperator(
-      OpSpec("ImageDecoder")
-      .AddArg("device", "cpu")
-      .AddInput("data", "cpu")
-      .AddOutput("decoded", "cpu"));
 
   pipe.AddOperator(
       OpSpec("Copy")
       .AddArg("device", "gpu")
-      .AddInput("decoded", "gpu")
+      .AddInput("data", "gpu")
       .AddOutput("copied", "gpu"));
 
   auto serialized = pipe.SerializeToProtobuf();
@@ -402,7 +393,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
       presize_val_default);
 
   TensorList<CPUBackend> data;
-  this->MakeJPEGBatch(&data, batch_size);
+  test::MakeRandomBatch(data, batch_size);
   pipe.AddExternalInput("raw_jpegs");
 
   pipe.AddOperator(
@@ -502,21 +493,22 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
 
 
   TensorList<CPUBackend> batch;
-  this->MakeJPEGBatch(&batch, batch_size);
+  test::MakeRandomBatch(batch, batch_size);
 
   pipe.AddExternalInput("data");
 
   pipe.AddOperator(
-      OpSpec("ImageDecoder")
+      OpSpec("Copy")
       .AddArg("device", "cpu")
+      .AddArg("seed", seed_set)
       .AddInput("data", "cpu")
-      .AddOutput("decoded", "cpu"));
+      .AddOutput("copied0", "cpu"));
 
   pipe.AddOperator(
       OpSpec("Copy")
       .AddArg("device", "gpu")
       .AddArg("seed", seed_set)
-      .AddInput("decoded", "gpu")
+      .AddInput("copied0", "gpu")
       .AddOutput("copied", "gpu"));
 
   vector<std::pair<string, string>> outputs = {{"copied", "gpu"}};
@@ -533,51 +525,9 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
 }
 
 
-class PrefetchedPipelineTest : public GenericDecoderTest<RGB> {
- protected:
-  uint32_t GetImageLoadingFlags() const override {
-    return t_loadJPEGs + t_decodeJPEGs;
-  }
-
-  void SetUp() override {
-    DALISingleOpTest::SetUp();
-    batch_size_ = 5;
-    // set_batch_size(jpegs_.nImages());
-  }
-
-  void CheckResults(Pipeline &pipe, int batch_size, int Iter) {
-    DeviceWorkspace ws;
-    pipe.Outputs(&ws);
-    ASSERT_EQ(ws.NumOutput(), 1);
-    ASSERT_EQ(ws.NumInput(), 0);
-    ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
-    TensorList<GPUBackend> &res1 = ws.Output<GPUBackend>(0);
-    for (int j = 0; j < batch_size; ++j) {
-      this->VerifyDecode(
-          res1.template tensor<uint8>(j),
-          res1.tensor_shape(j)[0],
-          res1.tensor_shape(j)[1], (Iter * batch_size + j));
-    }
-  }
-
-  void VerifyDecode(const uint8 *img, int h, int w, int img_id) const {
-    // Although MakeJPEGBatch() allows us to create arbitrary big data set,
-    // by cyclically repeating the images, VerifyDecode does not, and we
-    // must handle the wrap-around ourselves.
-    const int total_images = jpegs_.nImages();
-
-    // Load the image to host
-    uint8 *host_img = new uint8[h*w*c_];
-    CUDA_CALL(cudaMemcpy(host_img, img, h*w*c_, cudaMemcpyDefault));
-
-#if DALI_DEBUG
-    WriteHWCImage(host_img, h, w, c_, std::to_string(img_id) + "-img");
-#endif
-    GenericDecoderTest::VerifyDecode(host_img, h, w, jpegs_, img_id % total_images);
-    delete [] host_img;
-  }
-
-  int batch_size_, num_threads_ = 1;
+class PrefetchedPipelineTest : public DALITest {
+ public:
+  int batch_size_ = 5, num_threads_ = 1;
 };
 
 TEST_F(PrefetchedPipelineTest, SetQueueSizesSeparatedFail) {
@@ -589,14 +539,9 @@ TEST_F(PrefetchedPipelineTest, SetQueueSizesSeparatedFail) {
 TEST_F(PrefetchedPipelineTest, SetExecutionTypesFailAfterBuild) {
   Pipeline pipe(this->batch_size_, 4, 0);
   pipe.AddExternalInput("data");
-  pipe.AddOperator(OpSpec("ImageDecoder")
-          .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("images", "cpu"));
-
   pipe.AddOperator(OpSpec("Copy")
           .AddArg("device", "gpu")
-          .AddInput("images", "gpu")
+          .AddInput("data", "gpu")
           .AddOutput("final_images", "gpu"));
 
   vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
@@ -607,14 +552,9 @@ TEST_F(PrefetchedPipelineTest, SetExecutionTypesFailAfterBuild) {
 TEST_F(PrefetchedPipelineTest, SetQueueSizesFailAfterBuild) {
   Pipeline pipe(this->batch_size_, 4, 0);
   pipe.AddExternalInput("data");
-  pipe.AddOperator(OpSpec("ImageDecoder")
-          .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("images", "cpu"));
-
   pipe.AddOperator(OpSpec("Copy")
           .AddArg("device", "gpu")
-          .AddInput("images", "gpu")
+          .AddInput("data", "gpu")
           .AddOutput("final_images", "gpu"));
 
   vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
@@ -626,9 +566,7 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // Test coprime queue sizes
   constexpr int CPU = 5, GPU = 3;
   constexpr int N = CPU + GPU + 5;
-  // this->set_batch_size(this->batch_size_);
   int batch_size = this->batch_size_;
-  this->SetEps(1.6);
 
   Pipeline pipe(batch_size, 4, 0);
   // Cannot test async while setting external input - need to make sure that
@@ -636,22 +574,20 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // Test coprime queue sizes
   pipe.SetQueueSizes(CPU, GPU);
   pipe.AddExternalInput("data");
-
-  pipe.AddOperator(OpSpec("ImageDecoder")
+  pipe.AddOperator(OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
-          .AddOutput("images", "cpu"));
-
+          .AddOutput("data1", "cpu"));
   pipe.AddOperator(OpSpec("Copy")
           .AddArg("device", "gpu")
-          .AddInput("images", "gpu")
+          .AddInput("data1", "gpu")
           .AddOutput("final_images", "gpu"));
 
   vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
   pipe.Build(outputs);
 
   TensorList<CPUBackend> tl;
-  this->MakeJPEGBatch(&tl, batch_size * N);
+  test::MakeRandomBatch(tl, batch_size * N);
 
   // Split the batch into 5
   std::array<TensorList<CPUBackend>, N> splited_tl;
@@ -688,7 +624,9 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // Now we interleave the calls to Outputs() and Run() for the rest of the batch
   int obtained_outputs = 0;
   for (int i = GPU + CPU; i < N; i++) {
-    CheckResults(pipe, batch_size, obtained_outputs++);
+    DeviceWorkspace ws;
+    pipe.Outputs(&ws);
+    test::CheckResults(ws, batch_size, obtained_outputs++, tl);
     pipe.SetExternalInput("data", splited_tl[i]);
     pipe.RunCPU();
     pipe.RunGPU();
@@ -697,12 +635,16 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // We consumed all the data and have it in the Pipeline, now we need to run
   // Mixed and GPU stage to consume what was produced by the CPU
   for (int i = 0; i < CPU; i++) {
-    CheckResults(pipe, batch_size, obtained_outputs++);
+    DeviceWorkspace ws;
+    pipe.Outputs(&ws);
+    test::CheckResults(ws, batch_size, obtained_outputs++, tl);
     pipe.RunGPU();
   }
   // Now we consule what we buffered in the beggining
   for (int i = 0; i < GPU; i++) {
-    CheckResults(pipe, batch_size, obtained_outputs++);
+    DeviceWorkspace ws;
+    pipe.Outputs(&ws);
+    test::CheckResults(ws, batch_size, obtained_outputs++, tl);
   }
 }
 

@@ -277,6 +277,9 @@ void ExposeTensorLayout(py::module &m) {
 #undef DEFINE_LAYOUT_CMP
 }
 
+// Placeholder enum for defining __call__ on dtype member of Tensor (to be deprecated).
+enum DALIDataTypePlaceholder {};
+
 void ExposeTensor(py::module &m) {
   m.def("CheckDLPackCapsule",
         [](py::object &p) {
@@ -427,13 +430,6 @@ void ExposeTensor(py::module &m) {
       ptr : ctypes.c_void_p
             Destination of the copy.
       )code")
-    .def("dtype",
-        [](Tensor<CPUBackend> &t) {
-          return FormatStrFromType(t.type());
-        },
-      R"code(
-      String representing NumPy type of the Tensor.
-      )code")
     .def("data_ptr", [](Tensor<CPUBackend> &t) {
           return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
         },
@@ -443,6 +439,14 @@ void ExposeTensor(py::module &m) {
     .def_property("__array_interface__", &ArrayInterfaceRepr<CPUBackend>, nullptr,
       R"code(
       Returns Array Interface representation of TensorCPU.
+      )code")
+    .def_property_readonly("dtype", [](Tensor<CPUBackend> &t) {
+          return static_cast<DALIDataTypePlaceholder>(t.type());
+        },
+      R"code(
+      Data type of the TensorCPU's elements.
+
+      :type: DALIDataType
       )code");
   tensor_cpu_binding.doc() = R"code(
       Class representing a Tensor residing in host memory. It can be used to access individual
@@ -549,13 +553,6 @@ void ExposeTensor(py::module &m) {
       non_blocking : bool
             Asynchronous copy.
       )code")
-    .def("dtype",
-        [](Tensor<GPUBackend> &t) {
-          return FormatStrFromType(t.type());
-        },
-      R"code(
-      String representing NumPy type of the Tensor.
-      )code")
     .def("data_ptr",
         [](Tensor<GPUBackend> &t) {
           return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
@@ -566,6 +563,14 @@ void ExposeTensor(py::module &m) {
     .def_property("__cuda_array_interface__",  &ArrayInterfaceRepr<GPUBackend>, nullptr,
       R"code(
       Returns CUDA Array Interface (Version 2) representation of TensorGPU.
+      )code")
+    .def_property_readonly("dtype", [](Tensor<GPUBackend> &t) {
+          return static_cast<DALIDataTypePlaceholder>(t.type());
+        },
+      R"code(
+      Data type of the TensorGPU's elements.
+
+      :type: DALIDataType
       )code");
   tensor_gpu_binding.doc() = R"code(
       Class representing a Tensor residing in GPU memory. It can be used to access individual
@@ -907,6 +912,14 @@ void ExposeTensorList(py::module &m) {
         },
       R"code(
       Returns the address of the first element of TensorList.
+      )code")
+    .def_property_readonly("dtype", [](TensorList<CPUBackend> &tl) {
+          return tl.type();
+        },
+      R"code(
+      Data type of the TensorListCPU's elements.
+
+      :type: DALIDataType
       )code");
 
   py::class_<TensorList<GPUBackend>, std::shared_ptr<TensorList<GPUBackend>>>(
@@ -1097,6 +1110,14 @@ void ExposeTensorList(py::module &m) {
         },
       R"code(
       Returns the address of the first element of TensorList.
+      )code")
+    .def_property_readonly("dtype", [](TensorList<GPUBackend> &tl) {
+          return tl.type();
+        },
+      R"code(
+      Data type of the TensorListGPU's elements.
+
+      :type: DALIDataType
       )code");
 }
 
@@ -1342,7 +1363,9 @@ PYBIND11_MODULE(backend_impl, m) {
   types_m.add_object("CPU_ONLY_DEVICE_ID", PyLong_FromLong(CPU_ONLY_DEVICE_ID));
 
   // DALIDataType
-  py::enum_<DALIDataType>(types_m, "DALIDataType", "Data type of image.\n<SPHINX_IGNORE>")
+  py::enum_<DALIDataType> dali_data_type(
+      types_m, "DALIDataType", "Object representing the data type of a Tensor.\n<SPHINX_IGNORE>");
+  dali_data_type
     .value("NO_TYPE",       DALI_NO_TYPE)
     .value("UINT8",         DALI_UINT8)
     .value("UINT16",        DALI_UINT16)
@@ -1374,6 +1397,26 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("_TENSOR_LAYOUT_VEC", DALI_TENSOR_LAYOUT_VEC)
     .value("_DATA_TYPE_VEC", DALI_DATA_TYPE_VEC)
     .export_values();
+
+  // Placeholder data type allowing to use legacy __call__ method on dtype (to be deprecated).
+  py::class_<DALIDataTypePlaceholder>(types_m, "_DALIDataType", dali_data_type)
+      .def("__call__",
+           [](DALIDataTypePlaceholder self) {
+             auto deprecation_func =
+                 py::module::import("nvidia.dali.backend").attr("deprecation_warning");
+             deprecation_func("Calling '.dtype()' is deprecated, please use '.dtype' instead");
+             return FormatStrFromType(static_cast<DALIDataType>(self));
+           })
+      .def("__repr__", [](DALIDataTypePlaceholder self) {
+             return py::module::import("nvidia.dali.types")
+                 .attr("DALIDataType")
+                 .attr("__repr__")(static_cast<DALIDataType>(self));
+           })
+      .def("__str__", [](DALIDataTypePlaceholder self) {
+        return py::module::import("nvidia.dali.types")
+            .attr("DALIDataType")
+            .attr("__str__")(static_cast<DALIDataType>(self));
+      });
 
   // DALIImageType
   py::enum_<DALIImageType>(types_m, "DALIImageType", "Image type\n<SPHINX_IGNORE>")

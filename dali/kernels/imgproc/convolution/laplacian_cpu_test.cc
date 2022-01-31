@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/laplacian_cpu.h"
+#include "dali/kernels/imgproc/convolution/laplacian_test.h"
 #include "dali/kernels/scratch.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
@@ -36,38 +37,29 @@ inline std::enable_if_t<!std::is_integral<Out>::value> CompareOut(
   Check(out, baseline, EqualEpsRel(1e-6, 1e-5));
 }
 
-/**
- * @brief Smoothing window (d_order=0) of size 2n + 1 is [1, 2, 1] conv composed
- * with itself n - 1 times so that the window has appropriate size: it boils down
- * to computing binominal coefficients: (1 + 1) ^ (2n). Derivative kernel of the order
- * 2 is [1, -2, 1] (in other words [1, -1] composed with itself) composed with
- * the smoothing window of appropriate size
- */
-template <int window_size>
-std::array<float, window_size> GetSobelWindow(int d_order) {
-  static_assert(window_size >= 3 && window_size % 2 == 1);
-  std::array<float, window_size> w = {0.};
-  w[0] = 1.;
+void FillSobelWindow(span<float> window, int d_order) {
+  int window_size = window.size();
+  assert(window_size >= 3 && window_size % 2 == 1);
+  window[0] = 1.;
   for (int i = 1; i < window_size - d_order; i++) {
-    auto prevval = w[0];
+    auto prevval = window[0];
     for (int j = 1; j < i; j++) {
-      auto val = w[j];
-      w[j] = prevval + w[j];
+      auto val = window[j];
+      window[j] = prevval + window[j];
       prevval = val;
     }
-    w[i] = prevval;
+    window[i] = prevval;
   }
   for (int i = window_size - d_order; i < window_size; i++) {
-    auto prevval = w[0];
-    w[0] = -prevval;
+    auto prevval = window[0];
+    window[0] = -prevval;
     for (int j = 1; j < i; j++) {
-      auto val = w[j];
-      w[j] = prevval - w[j];
+      auto val = window[j];
+      window[j] = prevval - window[j];
       prevval = val;
     }
-    w[i] = prevval;
+    window[i] = prevval;
   }
-  return w;
 }
 
 template <int axes, int window_size>
@@ -100,11 +92,11 @@ struct LaplacianWindows {
       for (int j = 0; j < axes; j++) {
         if (i == j) {
           window_sizes[i][j] = window_size;
-          windows[i][j] = GetSobelWindow<window_size>(2);
+          FillSobelWindow(make_span(windows[i][j]), 2);
           tensor_windows[i][j] = {windows[i][j].data(), window_size};
         } else if (use_smoothing) {
           window_sizes[i][j] = window_size;
-          windows[i][j] = GetSobelWindow<window_size>(0);
+          FillSobelWindow(make_span(windows[i][j]), 0);
           tensor_windows[i][j] = {windows[i][j].data(), window_size};
         } else {
           window_sizes[i][j] = 1;
