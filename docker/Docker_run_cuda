@@ -24,7 +24,8 @@ RUN rm -f /usr/bin/python && \
     ln -s /usr/bin/python$PYVER /usr/bin/python`echo $PYVER | cut -c1-1`
 
 # If installing multiple pips, install pip2 last so that pip == pip2 when done.
-RUN if [ $(python -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')") == "36" ]; then \
+RUN PYTHON_VER=$(python -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')") && \
+    if [ "${PYTHON_VER}" == "36" ]; then \
         curl -O https://bootstrap.pypa.io/pip/3.6/get-pip.py; \
     else \
         curl -O https://bootstrap.pypa.io/get-pip.py; \
