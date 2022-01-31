@@ -43,7 +43,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get install -y python3.9 python3.9-dev python3.9-distutils python3.10 python3.10-dev python3.10-distutils && \
     rm -rf /var/lib/apt/lists/* && \
     PYTHON_VER=$(python3 -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')") && \
-    if [ "${PYTHON_VER}" == "36" ]; then \
+    if [ "${PYTHON_VER}" = "36" ]; then \
         curl -O https://bootstrap.pypa.io/pip/3.6/get-pip.py; \
     else \
         curl -O https://bootstrap.pypa.io/get-pip.py; \

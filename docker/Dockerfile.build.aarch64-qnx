@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* && \
     ln -s /usr/bin/python3 /usr/bin/python && \
     PYTHON_VER=$(python -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')") && \
-    if [ "${PYTHON_VER}" == "36" ]; then \
+    if [ "${PYTHON_VER}" = "36" ]; then \
         curl -O https://bootstrap.pypa.io/pip/3.6/get-pip.py; \
     else \
         curl -O https://bootstrap.pypa.io/get-pip.py; \
