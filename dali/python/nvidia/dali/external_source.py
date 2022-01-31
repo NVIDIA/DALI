@@ -255,6 +255,17 @@ The simplest and preferred way is to specify a ``source``, which can be a callab
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
     which is more performant.
+
+.. note::
+    Iterator or generator will be assigned to a single worker that will iterate over it.
+    When ``batch`` is set to True multiple batches can be prepared in parallel for callables,
+    while for Iterator or generator the main advantage is execution in parallel to
+    the main Python process.
+
+.. note::
+    The ``source`` callback must raise StopIteration when the end of data is reached. Note, that due to
+    prefetching, the callback may be invoked with a few iterations past the end of dataset - make sure
+    it consistently raises StopIteration in that case.
 """
 
     _args_doc = """
@@ -431,17 +442,6 @@ Keyword Args
     the SampleInfo/BatchInfo instance or index in batch, so that they can be run in parallel in a number of workers.
     When batch is set to True, callables performance might especially benefit from increasing
     ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
-
-    .. note::
-        Iterator or generator will be assigned to a single worker that will iterate over it.
-        When ''batch'' is set to True multiple batches can be prepared in parallel for callables,
-        while for Iterator or generator the main advantage is execution in parallel to
-        the main Python process.
-
-    .. note::
-        The ``source`` callback must raise StopIteration when the end of data is reached. Note, that due to
-        prefetching, the callback may be invoked with a few iterations past the end of dataset - make sure
-        it consistently raises StopIteration in that case.
 
 `prefetch_queue_depth` : int, option, default = 1
     When run in ``parallel=True`` mode, specifies the number of batches to be computed in advance and stored
