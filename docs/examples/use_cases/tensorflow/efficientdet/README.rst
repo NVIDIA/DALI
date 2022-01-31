@@ -1,5 +1,5 @@
 EfficientDet with TensorFlow and DALI
-=================================
+=====================================
 
 This is a modified version of original EfficientDet implementation
 https://github.com/google/automl/tree/master/efficientdet.
@@ -58,7 +58,7 @@ Usage
                   [--eval_steps EVAL_STEPS] [--eval_freq EVAL_FREQ] [--eval_during_training] [--eval_after_training] --pipeline_type {synthetic,tensorflow,dali_cpu,dali_gpu}
                   [--multi_gpu [MULTI_GPU [MULTI_GPU ...]]] [--seed SEED] [--hparams HPARAMS] [--model_name MODEL_NAME] [--output_filename OUTPUT_FILENAME]
                   [--start_weights START_WEIGHTS] [--log_dir LOG_DIR] [--ckpt_dir CKPT_DIR]
-  
+
   optional arguments:
     -h, --help            show this help message and exit
     --initial_epoch INITIAL_EPOCH
@@ -102,11 +102,11 @@ Usage
     --log_dir LOG_DIR     Directory for tensorboard logs.
     --ckpt_dir CKPT_DIR   Directory for saving weights each step.
 
-.. code-block:: 
+.. code-block::
 
   usage: eval.py [-h] --input_type {tfrecord,coco} [--images_path IMAGES_PATH] [--annotations_path ANNOTATIONS_PATH] [--eval_file_pattern EVAL_FILE_PATTERN]
                  [--eval_steps EVAL_STEPS] --pipeline_type {synthetic,tensorflow,dali_cpu,dali_gpu} [--weights WEIGHTS] [--model_name MODEL_NAME] [--hparams HPARAMS]
-  
+
   optional arguments:
     -h, --help            show this help message and exit
     --input_type {tfrecord,coco}
