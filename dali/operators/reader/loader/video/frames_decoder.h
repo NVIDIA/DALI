@@ -139,6 +139,13 @@ class DLL_PUBLIC FramesDecoder {
    */
   virtual void Reset();
 
+  /**
+   * @brief Returns index of the frame that will be returned by the next call of ReadNextFrame
+   * 
+   * @return int Index of the next frame to be read
+   */
+  int CurrentFrame() { return current_frame_; }
+
   FramesDecoder(FramesDecoder&&) = default;
 
   virtual ~FramesDecoder() = default;
@@ -147,6 +154,8 @@ class DLL_PUBLIC FramesDecoder {
   std::unique_ptr<AvState> av_state_;
 
   std::vector<IndexEntry> index_;
+
+  int current_frame_;
 
  private:
    /**

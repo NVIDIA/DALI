@@ -381,7 +381,7 @@ if (BUILD_DALI_KERNELS)
 endif()
 
 if (BUILD_DALI_PIPELINE)
-  add_library(DALI::dali ALIAS dali)
+  # add_library(DALI::dali ALIAS dali)
 endif()
 
 if (BUILD_DALI_OPERATORS)

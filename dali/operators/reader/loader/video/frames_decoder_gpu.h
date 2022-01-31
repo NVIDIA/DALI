@@ -19,9 +19,12 @@
 
 #include <string>
 #include <memory>
+#include <queue>
 
 #include "dali/operators/reader/loader/video/nvdecode/cuviddec.h"
 #include "dali/operators/reader/loader/video/nvdecode/nvcuvid.h"
+
+#include "dali/core/dev_buffer.h"
 
 namespace dali {
 struct NvDecodeState {
@@ -31,6 +34,11 @@ struct NvDecodeState {
   CUVIDSOURCEDATAPACKET packet = { 0 };
 
   uint8_t *decoded_frame_yuv;
+};
+
+struct BufferedFrame {
+  DeviceBuffer<uint8_t> frame_;
+  int pts_;
 };
 
 class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
@@ -55,6 +63,17 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   bool decode_success_ = false;
   bool flush_ = false;
   bool last_frame_read_ = false;
+
+  AVBSFContext *bsfc_ = nullptr;
+  AVPacket *filtered_packet_ = nullptr;
+
+  const int num_decode_surfaces_ = 5;
+
+  std::vector<BufferedFrame> frame_buffer_;
+
+  DeviceBuffer<uint8_t> current_frame_buffer_;
+
+  std::queue<int> piped_pts_;
 };
 
 }  // namespace dali
