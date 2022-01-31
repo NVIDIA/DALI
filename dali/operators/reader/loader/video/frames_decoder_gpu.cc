@@ -129,7 +129,7 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename) :
     CUDA_CALL(cuvidCreateVideoParser(&nvdecode_state_->parser, &parser_info));
 
     // Init internal frame buffer
-    for (int i = 0; i < frame_buffer_.size(); ++i) {
+    for (size_t i = 0; i < frame_buffer_.size(); ++i) {
       frame_buffer_[i].frame_.resize(FrameSize());
       frame_buffer_[i].pts_ = -1;
     }
@@ -148,7 +148,7 @@ void FramesDecoderGpu::SeekFrame(int frame_id) {
   flush_ = false;
   last_frame_read_ = false;
 
-  for (int i = 0; i < frame_buffer_.size(); ++i) {
+  for (size_t i = 0; i < frame_buffer_.size(); ++i) {
     frame_buffer_[i].pts_ = -1;
   }
 
@@ -260,7 +260,7 @@ void FramesDecoderGpu::Reset() {
   flush_ = false;
   last_frame_read_ = false;
 
-  for (int i = 0; i < frame_buffer_.size(); ++i) {
+  for (size_t i = 0; i < frame_buffer_.size(); ++i) {
     frame_buffer_[i].pts_ = -1;
   }
 
