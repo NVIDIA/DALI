@@ -137,7 +137,6 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
 
     DeviceBuffer<uint8_t> frame;
     frame.resize(file.FrameSize());
-    
     std::vector<uint8_t> frame_cpu(file.FrameSize());
 
     for (int i = 0; i < 60; ++i) {
@@ -149,7 +148,6 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
         //     frame_cpu.data(), i, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
         // this->SaveFrame(
         //     this->GetVfrFrame(1, i), i, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
-    
     }
     ASSERT_EQ(file.CurrentFrame(), -1);
     file.Reset();

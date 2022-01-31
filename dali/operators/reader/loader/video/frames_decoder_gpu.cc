@@ -90,7 +90,8 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename) :
 
     const AVBitStreamFilter *bsf = av_bsf_get_by_name("h264_mp4toannexb");
     DALI_ENFORCE(av_bsf_alloc(bsf, &bsfc_) >= 0);
-    DALI_ENFORCE(avcodec_parameters_copy(bsfc_->par_in, av_state_->ctx_->streams[0]->codecpar) >= 0);
+    DALI_ENFORCE(avcodec_parameters_copy(
+      bsfc_->par_in, av_state_->ctx_->streams[0]->codecpar) >= 0);
     DALI_ENFORCE(av_bsf_init(bsfc_) >= 0);
 
     filtered_packet_ = av_packet_alloc();
@@ -147,7 +148,7 @@ void FramesDecoderGpu::SeekFrame(int frame_id) {
   flush_ = false;
   last_frame_read_ = false;
 
-  for(int i = 0; i < frame_buffer_.size(); ++i) {
+  for (int i = 0; i < frame_buffer_.size(); ++i) {
     frame_buffer_[i].pts_ = -1;
   }
 
@@ -204,23 +205,26 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
       int current_pts = piped_pts_.front();
       piped_pts_.pop();
 
-      int requested_pts = index_[current_frame_].pts; 
+      int requested_pts = index_[current_frame_].pts;
 
       if (current_pts == requested_pts) {
         // Currently returned frame is actually the one we wanted
-        if (copy_to_output){
+        if (copy_to_output) {
           copyD2D(data, current_frame_buffer_.data(), FrameSize());
         }
         ++current_frame_;
         return true;
-      } else {       
+      } else {
         int found_frame_index = 0;
         while (current_pts != index_[found_frame_index].pts) {
           ++found_frame_index;
         }
 
         frame_buffer_[found_frame_index].pts_ = current_pts;
-        copyD2D(frame_buffer_[found_frame_index].frame_.data(), current_frame_buffer_.data(), FrameSize());
+        copyD2D(
+          frame_buffer_[found_frame_index].frame_.data(),
+          current_frame_buffer_.data(),
+          FrameSize());
       }
     }
   }
@@ -256,7 +260,7 @@ void FramesDecoderGpu::Reset() {
   flush_ = false;
   last_frame_read_ = false;
 
-  for(int i = 0; i < frame_buffer_.size(); ++i) {
+  for (int i = 0; i < frame_buffer_.size(); ++i) {
     frame_buffer_[i].pts_ = -1;
   }
 

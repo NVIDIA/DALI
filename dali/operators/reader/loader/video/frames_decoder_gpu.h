@@ -20,6 +20,7 @@
 #include <string>
 #include <memory>
 #include <queue>
+#include <vector>
 
 #include "dali/operators/reader/loader/video/nvdecode/cuviddec.h"
 #include "dali/operators/reader/loader/video/nvdecode/nvcuvid.h"
