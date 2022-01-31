@@ -84,13 +84,13 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
 }  // namespace detail
 
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename) :
-  // FramesDecoder(filename), frame_buffer_(num_decode_surfaces_) {
-    FramesDecoder(filename), frame_buffer_(60) {
+    FramesDecoder(filename), frame_buffer_(num_decode_surfaces_) {
     nvdecode_state_ = std::make_unique<NvDecodeState>();
 
     const AVBitStreamFilter *bsf = av_bsf_get_by_name("h264_mp4toannexb");
     DALI_ENFORCE(av_bsf_alloc(bsf, &bsfc_) >= 0);
-    DALI_ENFORCE(avcodec_parameters_copy(bsfc_->par_in, av_state_->ctx_->streams[0]->codecpar) >= 0);
+    DALI_ENFORCE(avcodec_parameters_copy(
+      bsfc_->par_in, av_state_->ctx_->streams[0]->codecpar) >= 0);
     DALI_ENFORCE(av_bsf_init(bsfc_) >= 0);
 
     filtered_packet_ = av_packet_alloc();
@@ -128,7 +128,7 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename) :
     CUDA_CALL(cuvidCreateVideoParser(&nvdecode_state_->parser, &parser_info));
 
     // Init internal frame buffer
-    for (int i = 0; i < frame_buffer_.size(); ++i) {
+    for (size_t i = 0; i < frame_buffer_.size(); ++i) {
       frame_buffer_[i].frame_.resize(FrameSize());
       frame_buffer_[i].pts_ = -1;
     }
@@ -147,7 +147,7 @@ void FramesDecoderGpu::SeekFrame(int frame_id) {
   flush_ = false;
   last_frame_read_ = false;
 
-  for(int i = 0; i < frame_buffer_.size(); ++i) {
+  for (size_t i = 0; i < frame_buffer_.size(); ++i) {
     frame_buffer_[i].pts_ = -1;
   }
 
@@ -162,15 +162,17 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
   if (current_frame_ == -1) {
     return false;
   }
-  // Maybe requested frame is already in the buffer?
-  if (frame_buffer_[current_frame_].pts_ != -1) {
-    if (copy_to_output) {
-      copyD2D(data, frame_buffer_[current_frame_].frame_.data(), FrameSize());
-    }
-    frame_buffer_[current_frame_].pts_ = -1;
+  // // Maybe requested frame is already in the buffer?
+  for (auto &frame : frame_buffer_) {
+    if (frame.pts_ == index_[current_frame_].pts) {
+      if (copy_to_output) {
+        copyD2D(data, frame.frame_.data(), FrameSize());
+      }
+      frame.pts_ = -1;
 
-    ++current_frame_;
-    return true;
+      ++current_frame_;
+      return true;
+    }
   }
 
   decode_success_ = false;
@@ -204,23 +206,26 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
       int current_pts = piped_pts_.front();
       piped_pts_.pop();
 
-      int requested_pts = index_[current_frame_].pts; 
+      int requested_pts = index_[current_frame_].pts;
 
       if (current_pts == requested_pts) {
         // Currently returned frame is actually the one we wanted
-        if (copy_to_output){
+        if (copy_to_output) {
           copyD2D(data, current_frame_buffer_.data(), FrameSize());
         }
         ++current_frame_;
         return true;
-      } else {       
-        int found_frame_index = 0;
-        while (current_pts != index_[found_frame_index].pts) {
-          ++found_frame_index;
+      } else {
+        int empty_slot_index = 0;
+        while (frame_buffer_[empty_slot_index].pts_ != -1) {
+          ++empty_slot_index;
         }
 
-        frame_buffer_[found_frame_index].pts_ = current_pts;
-        copyD2D(frame_buffer_[found_frame_index].frame_.data(), current_frame_buffer_.data(), FrameSize());
+        frame_buffer_[empty_slot_index].pts_ = current_pts;
+        copyD2D(
+          frame_buffer_[empty_slot_index].frame_.data(),
+          current_frame_buffer_.data(),
+          FrameSize());
       }
     }
   }
@@ -256,7 +261,7 @@ void FramesDecoderGpu::Reset() {
   flush_ = false;
   last_frame_read_ = false;
 
-  for(int i = 0; i < frame_buffer_.size(); ++i) {
+  for (size_t i = 0; i < frame_buffer_.size(); ++i) {
     frame_buffer_[i].pts_ = -1;
   }
 
