@@ -63,7 +63,6 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
     &videoProcessingParameters));
 
   if (frames_decoder->current_copy_to_output_) {
-    // CUDA_CALL(cudaDeviceSynchronize());
     Nv12ToColor32(
       reinterpret_cast<uint8_t *>(frame),
       pitch,
@@ -71,11 +70,13 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
       frames_decoder->Width()* 3,
       frames_decoder->Width(),
       frames_decoder->Height(),
-      1);
+      1,
+      frames_decoder->stream_);
     CUDA_CALL(cudaDeviceSynchronize());
   }
 
-  CUDA_CALL(cuStreamSynchronize(0));
+  // TODO(awolant): Benchmark, if copy would be faster
+  CUDA_CALL(cuStreamSynchronize(frames_decoder->stream_));
   CUDA_CALL(cuvidUnmapVideoFrame(frames_decoder->nvdecode_state_->decoder, frame));
 
   frames_decoder->decode_success_ = true;
@@ -83,8 +84,10 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
 }
 }  // namespace detail
 
-FramesDecoderGpu::FramesDecoderGpu(const std::string &filename) :
-    FramesDecoder(filename), frame_buffer_(num_decode_surfaces_) {
+FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream) :
+    FramesDecoder(filename),
+    frame_buffer_(num_decode_surfaces_),
+    stream_(stream) {
     nvdecode_state_ = std::make_unique<NvDecodeState>();
 
     const AVBitStreamFilter *bsf = av_bsf_get_by_name("h264_mp4toannexb");

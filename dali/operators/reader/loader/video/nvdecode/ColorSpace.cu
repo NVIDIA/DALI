@@ -76,8 +76,8 @@ __global__ static void YuvToRgbKernel(uint8_t *pYuv, int nYuvPitch, uint8_t *pRg
 
 }
 
-void Nv12ToColor32(uint8_t *dpNv12, int nNv12Pitch, uint8_t *dpBgra, int nBgraPitch, int nWidth, int nHeight, int iMatrix) {
+void Nv12ToColor32(uint8_t *dpNv12, int nNv12Pitch, uint8_t *dpBgra, int nBgraPitch, int nWidth, int nHeight, int iMatrix, cudaStream_t stream) {
     YuvToRgbKernel
-        <<<dim3((nWidth + 63) / 32 / 2, (nHeight + 3) / 2 / 2), dim3(32, 2)>>>
+        <<<dim3((nWidth + 63) / 32 / 2, (nHeight + 3) / 2 / 2), dim3(32, 2), 0, stream>>>
         (dpNv12, nNv12Pitch, dpBgra, nBgraPitch, nWidth, nHeight);
 }

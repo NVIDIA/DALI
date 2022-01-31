@@ -49,7 +49,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
    * 
    * @param filename Path to a video file.
    */
-  explicit FramesDecoderGpu(const std::string &filename);
+  explicit FramesDecoderGpu(const std::string &filename, cudaStream_t stream = 0);
 
   bool ReadNextFrame(uint8_t *data, bool copy_to_output = true) override;
 
@@ -75,6 +75,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   DeviceBuffer<uint8_t> current_frame_buffer_;
 
   std::queue<int> piped_pts_;
+
+  cudaStream_t stream_;
 };
 
 }  // namespace dali
