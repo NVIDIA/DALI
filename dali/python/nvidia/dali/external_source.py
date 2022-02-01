@@ -418,6 +418,7 @@ Keyword Args
     When ``parallel`` is set to True, samples returned by ``source`` must be
     NumPy/MXNet/PyTorch CPU arrays or TensorCPU instances.
 
+    |
     Acceptable sources depend on the value specified for ``batch`` parameter.
 
     If ``batch`` is set to ``False``, the ``source`` must be:
@@ -432,6 +433,7 @@ Keyword Args
       * an iterable,
       * a generator function.
 
+    |
     .. warning::
         Irrespective of ``batch`` value, callables should produce requested sample or batch solely
         based on the :class:`~nvidia.dali.types.SampleInfo`/:class:`~nvidia.dali.types.BatchInfo`
@@ -441,6 +443,7 @@ Keyword Args
         prefetching, the callback may be invoked with a few iterations past the end of dataset - make sure
         it consistently raises StopIteration in that case.
 
+    |
     .. note::
         Callable ``source`` can be run in parallel by multiple workers.
         For ``batch=True`` multiple batches can be prepared in parallel, with ``batch=False``
@@ -449,6 +452,7 @@ Keyword Args
         When ``batch=True``, callables performance might especially benefit from increasing
         ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
 
+    |
     .. note::
         Iterators and generator functions will be assigned to a single worker that will iterate over them.
         The main advantage is execution in parallel to the main Python process, but due to their state
