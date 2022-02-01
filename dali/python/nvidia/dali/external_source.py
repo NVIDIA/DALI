@@ -454,7 +454,7 @@ Keyword Args
 
     |
     .. note::
-        Iterators and generator functions will be assigned to a single worker that will iterate over them.
+        Iterator or generator function will be assigned to a single worker that will iterate over it.
         The main advantage is execution in parallel to the main Python process, but due to their state
         it is not possible to calculate more than one batch at a time.
 
