@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend import TensorGPU, TensorListGPU, TensorListCPU
+from nvidia.dali.backend import TensorGPU, TensorListGPU
 from nvidia.dali import types
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
@@ -27,7 +27,6 @@ from collections.abc import Iterable
 ################## Common utils ##################
 ##################################################
 ##################################################
-
 
 # MXNet currently does not expose WaitToWrite C API call
 # in Python API
@@ -52,11 +51,7 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
                     In most cases, using the default internal user stream or stream 0
                     is expected.
     """
-    if isinstance(dali_tensor, (TensorListCPU, TensorListGPU)):
-        dali_type = dali_tensor[0].dtype()
-    else:
-        dali_type = dali_tensor.dtype()
-    dali_type = np.dtype(dali_type)
+    dali_type = types.to_numpy_type(dali_tensor.dtype)
 
     assert dali_type == arr.dtype, ("The element type of DALI Tensor/TensorList"
 	        " doesn't match the element type of the target MXNet NDArray: {} vs {}".format(dali_type, np.dtype(arr.dtype)))
@@ -322,7 +317,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             category_tensors[DALIGenericIterator.DATA_TAG] = \
                 [x.as_tensor() for x in category_outputs[DALIGenericIterator.DATA_TAG]]
             category_info[DALIGenericIterator.DATA_TAG] = \
-                [(x.shape(), np.dtype(x.dtype())) for x in category_tensors[DALIGenericIterator.DATA_TAG]]
+                [(x.shape(), types.to_numpy_type(x.dtype)) for x in category_tensors[DALIGenericIterator.DATA_TAG]]
             # For labels we squeeze the tensors
             category_tensors[DALIGenericIterator.LABEL_TAG] = \
                 [x.as_tensor() for x in category_outputs[DALIGenericIterator.LABEL_TAG]]
@@ -330,7 +325,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 for label in category_tensors[DALIGenericIterator.LABEL_TAG]:
                     label.squeeze(-1)  # Squeeze last dimension if necessary
             category_info[DALIGenericIterator.LABEL_TAG] = \
-                [(x.shape(), np.dtype(x.dtype())) for x in category_tensors[DALIGenericIterator.LABEL_TAG]]
+                [(x.shape(), types.to_numpy_type(x.dtype)) for x in category_tensors[DALIGenericIterator.LABEL_TAG]]
 
             mx_gpu_device = mx.gpu(self._pipes[i].device_id)
             mx_cpu_device = mx.cpu(0)
@@ -720,7 +715,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
         new_batch = []
         for j, output_el in enumerate(output_elements):
             first_t = output_el if self._outputs_types is None or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG else output_el[0]
-            dtype = np.dtype(first_t.dtype())
+            dtype = types.to_numpy_type(first_t.dtype)
             device = mx_gpu_device if type(first_t) is TensorGPU else mx_cpu_device
             if self._outputs_types is None or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG:
                 new_batch.append(get_mx_array(shapes[j], device, dtype=dtype))

@@ -1,5 +1,5 @@
 # Copyright (c) 2019 PaddlePaddle Authors. All Rights Reserved.
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,16 +26,15 @@ from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from paddle import fluid
 
 dtype_map = {
-    "=?": fluid.core.VarDesc.VarType.BOOL,
-    "=e": fluid.core.VarDesc.VarType.FP16,
-    "=f": fluid.core.VarDesc.VarType.FP32,
-    "=d": fluid.core.VarDesc.VarType.FP64,
-    "=B": fluid.core.VarDesc.VarType.UINT8,
-    "=b": fluid.core.VarDesc.VarType.INT8,
-    "=h": fluid.core.VarDesc.VarType.INT16,
-    "=i": fluid.core.VarDesc.VarType.INT32,
-    "=q": fluid.core.VarDesc.VarType.INT64,
-    "=l": fluid.core.VarDesc.VarType.INT64
+    types.DALIDataType.BOOL    : fluid.core.VarDesc.VarType.BOOL,
+    types.DALIDataType.FLOAT   : fluid.core.VarDesc.VarType.FP32,
+    types.DALIDataType.FLOAT64 : fluid.core.VarDesc.VarType.FP64,
+    types.DALIDataType.FLOAT16 : fluid.core.VarDesc.VarType.FP16,
+    types.DALIDataType.UINT8   : fluid.core.VarDesc.VarType.UINT8,
+    types.DALIDataType.INT8    : fluid.core.VarDesc.VarType.INT8,
+    types.DALIDataType.INT16   : fluid.core.VarDesc.VarType.INT16,
+    types.DALIDataType.INT32   : fluid.core.VarDesc.VarType.INT32,
+    types.DALIDataType.INT64   : fluid.core.VarDesc.VarType.INT64
 }
 
 
@@ -48,14 +47,7 @@ def to_paddle_type(tensor):
 
     Returns: fluid.core.VarDesc.VarType
     """
-    if isinstance(tensor, (TensorListCPU, TensorListGPU)):
-        tensor = tensor.at(0)
-    dtype = tensor.dtype
-    if callable(dtype):
-        dtype = dtype()
-    else:
-        dtype = '=' + dtype.char
-    return dtype_map[dtype]
+    return dtype_map[tensor.dtype]
 
 
 def feed_ndarray(dali_tensor, ptr, cuda_stream=None):

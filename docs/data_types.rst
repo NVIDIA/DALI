@@ -45,7 +45,7 @@ TensorCPU
    :members:
    :undoc-members:
    :special-members: __init__, __array_interface__
-   
+
    .. method:: dtype(self: nvidia.dali.backend_impl.TensorCPU) -> str
 
       String representing NumPy type of the Tensor.
@@ -99,6 +99,7 @@ DALIDataType
 
 DALIIterpType
 ^^^^^^^^^^^^^
+.. autofunction:: to_numpy_type
 .. autoenum:: DALIInterpType
    :members:
    :undoc-members:

@@ -18,10 +18,11 @@ from numpy.testing import assert_array_equal
 from nose_utils import assert_raises
 from test_utils import dali_type_to_np, py_buffer_from_address
 
-import nvidia.dali.types
+from nvidia.dali.backend_impl import TensorCPU, TensorListCPU, TensorListGPU
+from nvidia.dali.backend_impl import types as types_
+import nvidia.dali.types as types
 import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
-from nvidia.dali.backend_impl import *
 
 
 def test_create_tensor():
@@ -71,7 +72,7 @@ def test_tensorlist_getitem_cpu():
 def test_data_ptr_tensor_cpu():
     arr = np.random.rand(3, 5, 6)
     tensor = TensorCPU(arr, "NHWC")
-    from_tensor = py_buffer_from_address(tensor.data_ptr(), tensor.shape(), tensor.dtype())
+    from_tensor = py_buffer_from_address(tensor.data_ptr(), tensor.shape(), types.to_numpy_type(tensor.dtype))
     assert(np.array_equal(arr, from_tensor))
 
 
@@ -79,7 +80,7 @@ def test_data_ptr_tensor_list_cpu():
     arr = np.random.rand(3, 5, 6)
     tensorlist = TensorListCPU(arr, "NHWC")
     tensor = tensorlist.as_tensor()
-    from_tensor_list = py_buffer_from_address(tensorlist.data_ptr(), tensor.shape(), tensor.dtype())
+    from_tensor_list = py_buffer_from_address(tensorlist.data_ptr(), tensor.shape(), types.to_numpy_type(tensor.dtype))
     assert(np.array_equal(arr, from_tensor_list))
 
 
@@ -89,7 +90,7 @@ def test_array_interface_tensor_cpu():
     assert tensorlist[0].__array_interface__['data'][0] == tensorlist[0].data_ptr()
     assert tensorlist[0].__array_interface__['data'][1] == True
     assert np.array_equal(tensorlist[0].__array_interface__['shape'], tensorlist[0].shape())
-    assert tensorlist[0].__array_interface__['typestr'] == tensorlist[0].dtype()
+    assert np.dtype(tensorlist[0].__array_interface__['typestr']) == np.dtype(types.to_numpy_type(tensorlist[0].dtype))
 
 
 def check_transfer(dali_type):
@@ -231,7 +232,7 @@ def test_dtype_deprecation_warning():
 
 
 def test_dtype_placeholder_equivalence():
-    dali_types = nvidia.dali.types._all_types
+    dali_types = types._all_types
     np_types = list(map(dali_type_to_np, dali_types))
 
     for dali_type, np_type in zip(dali_types, np_types):
@@ -246,7 +247,7 @@ def dtype_pipeline(np_type, placeholder_dali_type):
 
 
 def test_dtype_converion():
-    dali_types = [types._DALIDataType.INT8, types._DALIDataType.UINT64, types._DALIDataType.FLOAT16]
+    dali_types = [types_._DALIDataType.INT8, types_._DALIDataType.UINT64, types_._DALIDataType.FLOAT16]
     np_types = list(map(dali_type_to_np, dali_types))
     for dali_type, np_type in zip(dali_types, np_types):
         pipe = dtype_pipeline(np_type, dali_type)
@@ -255,7 +256,7 @@ def test_dtype_converion():
 
 
 def test_tensorlist_dtype():
-    dali_types = nvidia.dali.types._all_types
+    dali_types = types._all_types
     np_types = list(map(dali_type_to_np, dali_types))
 
     for dali_type, np_type in zip(dali_types, np_types):
