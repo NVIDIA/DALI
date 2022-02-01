@@ -423,7 +423,7 @@ Keyword Args
 
     If ``batch`` is set to ``False``, the ``source`` must be:
 
-      * a callable (a function or an object with __call__ method) that accepts exactly one argument
+      * a callable (a function or an object with ``__call__`` method) that accepts exactly one argument
         (:class:`~nvidia.dali.types.SampleInfo` instance that represents the index of the requested sample).
 
     If ``batch`` is set to ``True``, the ``source`` can be either:
@@ -435,19 +435,20 @@ Keyword Args
 
     |
     .. warning::
-        Irrespective of ``batch`` value, callables should produce requested sample or batch solely
-        based on the :class:`~nvidia.dali.types.SampleInfo`/:class:`~nvidia.dali.types.BatchInfo`
+        Irrespective of ``batch`` value, callables should be stateless - they should produce
+        requested sample or batch solely based on the
+        :class:`~nvidia.dali.types.SampleInfo`/:class:`~nvidia.dali.types.BatchInfo`
         instance or index in batch, so that they can be run in parallel in a number of workers.
 
-        The ``source`` callback must raise StopIteration when the end of data is reached. Note, that due to
-        prefetching, the callback may be invoked with a few iterations past the end of dataset - make sure
-        it consistently raises StopIteration in that case.
+        The ``source`` callback must raise a ``StopIteration`` when the end of the data is reached.
+        Note, that due to prefetching, the callback may be invoked with a few iterations past
+        the end of dataset - make sure it consistently raises a ``StopIteration`` in that case.
 
     |
     .. note::
         Callable ``source`` can be run in parallel by multiple workers.
         For ``batch=True`` multiple batches can be prepared in parallel, with ``batch=False``
-        it is possible to parallelize computation within batch.
+        it is possible to parallelize computation within the batch.
 
         When ``batch=True``, callables performance might especially benefit from increasing
         ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
