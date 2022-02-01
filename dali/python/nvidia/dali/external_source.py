@@ -406,7 +406,7 @@ Keyword Args
 
 `batch_info` : bool, optional, default = False
     Controls if a callable ``source`` that accepts an argument and returns batches should receive
-    :meth:`~nvidia.dali.types.BatchInfo` instance or just an integer representing the iteration number.
+    :class:`~nvidia.dali.types.BatchInfo` instance or just an integer representing the iteration number.
     If set to False (the default), only the integer is passed. If ``source`` is not callable, does not
     accept arguments or ``batch`` is set to False, setting this flag has no effect.
 
@@ -423,34 +423,36 @@ Keyword Args
     If ``batch`` is set to ``False``, the ``source`` must be:
 
       * a callable (a function or an object with __call__ method) that accepts exactly one argument
-        (:meth:`~nvidia.dali.types.SampleInfo` instance that represents the index of the requested sample).
+        (:class:`~nvidia.dali.types.SampleInfo` instance that represents the index of the requested sample).
 
     If ``batch`` is set to ``True``, the ``source`` can be either:
 
-      * a callable that accepts exactly one argument (either :meth:`~nvidia.dali.types.BatchInfo`
+      * a callable that accepts exactly one argument (either :class:`~nvidia.dali.types.BatchInfo`
         instance or an integer - see ``batch_info`` for details)
       * an iterable,
       * a generator function.
 
-    Irrespective of ``batch`` value, callables should produce requested sample or batch solely based on
-    the SampleInfo/BatchInfo instance or index in batch, so that they can be run in parallel in a number of workers.
+    .. warning::
+        Irrespective of ``batch`` value, callables should produce requested sample or batch solely
+        based on the :class:`~nvidia.dali.types.SampleInfo`/:class:`~nvidia.dali.types.BatchInfo`
+        instance or index in batch, so that they can be run in parallel in a number of workers.
 
-    When ``batch=True``, callables performance might especially benefit from increasing
-    ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
-
-    .. note::
-        Iterators and generator functions will be assigned to a single worker that will iterate over it.
-        The main advantage is execution in parallel to the main Python process, but due to their state
-        it is not possible to calculate more than one batch at a time.
-
-        For ``source`` that are callables multiple workers can compute the callable in parallel.
-        For ``batch=True`` multiple batches can be prepared in parallel, with ``batch=False``
-        it is possible to parallelize computation within batch.
-
-    .. note::
         The ``source`` callback must raise StopIteration when the end of data is reached. Note, that due to
         prefetching, the callback may be invoked with a few iterations past the end of dataset - make sure
         it consistently raises StopIteration in that case.
+
+    .. note::
+        Callable ``source`` can be run in parallel by multiple workers.
+        For ``batch=True`` multiple batches can be prepared in parallel, with ``batch=False``
+        it is possible to parallelize computation within batch.
+
+        When ``batch=True``, callables performance might especially benefit from increasing
+        ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
+
+    .. note::
+        Iterators and generator functions will be assigned to a single worker that will iterate over them.
+        The main advantage is execution in parallel to the main Python process, but due to their state
+        it is not possible to calculate more than one batch at a time.
 
 `prefetch_queue_depth` : int, option, default = 1
     When run in ``parallel=True`` mode, specifies the number of batches to be computed in advance and stored
