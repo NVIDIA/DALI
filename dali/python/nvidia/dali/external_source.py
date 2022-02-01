@@ -420,23 +420,32 @@ Keyword Args
 
     Acceptable sources depend on the value specified for ``batch`` parameter.
 
-    If batch is set to False, source must be a callable (a function or an object with __call__ method)
-    that accepts exactly one argument (:meth:`~nvidia.dali.types.SampleInfo` instance that
-    represents the index of the requested sample).
-    If batch is set to True, the ``source`` can be either a callable, an iterable or a generator function.
-    Callable in batch mode must accept exactly one argument - either :meth:`~nvidia.dali.types.BatchInfo`
-    instance or an integer (see `batch_info`).
+    If ``batch`` is set to ``False``, the ``source`` must be:
+
+      * a callable (a function or an object with __call__ method) that accepts exactly one argument
+        (:meth:`~nvidia.dali.types.SampleInfo` instance that represents the index of the requested sample).
+
+    If ``batch`` is set to ``True``, the ``source`` can be either:
+
+      * a callable that accepts exactly one argument (either :meth:`~nvidia.dali.types.BatchInfo`
+        instance or an integer - see ``batch_info`` for details)
+      * an iterable,
+      * a generator function.
 
     Irrespective of ``batch`` value, callables should produce requested sample or batch solely based on
     the SampleInfo/BatchInfo instance or index in batch, so that they can be run in parallel in a number of workers.
-    When batch is set to True, callables performance might especially benefit from increasing
+
+    When ``batch=True``, callables performance might especially benefit from increasing
     ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
 
     .. note::
-        Iterator or generator will be assigned to a single worker that will iterate over it.
-        When ``batch`` is set to True multiple batches can be prepared in parallel for callables,
-        while for Iterator or generator the main advantage is execution in parallel to
-        the main Python process.
+        Iterators and generator functions will be assigned to a single worker that will iterate over it.
+        The main advantage is execution in parallel to the main Python process, but due to their state
+        it is not possible to calculate more than one batch at a time.
+
+        For ``source`` that are callables multiple workers can compute the callable in parallel.
+        For ``batch=True`` multiple batches can be prepared in parallel, with ``batch=False``
+        it is possible to parallelize computation within batch.
 
     .. note::
         The ``source`` callback must raise StopIteration when the end of data is reached. Note, that due to
