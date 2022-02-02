@@ -145,10 +145,6 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
         file.ReadNextFrame(frame.data());
         copyD2H(frame_cpu.data(), frame.data(), frame.size());
         this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, i), file.FrameSize());
-        // this->SaveFrame(
-        //     frame_cpu.data(), i, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-        // this->SaveFrame(
-        //     this->GetVfrFrame(1, i), i, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
     }
     ASSERT_EQ(file.CurrentFrame(), -1);
     file.Reset();
@@ -158,40 +154,24 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
     file.ReadNextFrame(frame);
     copyD2H(frame_cpu.data(), frame.data(), frame.size());
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 0), file.FrameSize());
-    this->SaveFrame(
-        frame_cpu.data(), 0, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    // this->SaveFrame(
-    //     this->GetVfrFrame(1, 0), 0, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 
     // Seek to frame
     file.SeekFrame(25);
     file.ReadNextFrame(frame);
     copyD2H(frame_cpu.data(), frame.data(), frame.size());
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 25), file.FrameSize());
-    this->SaveFrame(
-        frame_cpu.data(), 25, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    // this->SaveFrame(
-    //     this->GetVfrFrame(1, 25), 25, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 
     // Seek back to frame
     file.SeekFrame(12);
     file.ReadNextFrame(frame);
     copyD2H(frame_cpu.data(), frame.data(), frame.size());
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 12), file.FrameSize());
-    this->SaveFrame(
-        frame_cpu.data(), 12, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    this->SaveFrame(
-        this->GetVfrFrame(1, 12), 12, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 
     // Seek to last frame (flush frame)
     file.SeekFrame(59);
     file.ReadNextFrame(frame);
     copyD2H(frame_cpu.data(), frame.data(), frame.size());
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 59), file.FrameSize(), 1.1);
-    this->SaveFrame(
-        frame_cpu.data(), 59, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    // this->SaveFrame(
-    //     this->GetVfrFrame(1, 59), 59, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
     ASSERT_EQ(file.CurrentFrame(), -1);
 
     // Wrap around to first frame
@@ -200,10 +180,6 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
     file.ReadNextFrame(frame);
     copyD2H(frame_cpu.data(), frame.data(), frame.size());
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 0), file.FrameSize());
-    this->SaveFrame(
-        frame_cpu.data(), 0, 1, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
-    // // this->SaveFrame(
-    // //     this->GetVfrFrame(1, 0), 0, 1, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 }
 
 

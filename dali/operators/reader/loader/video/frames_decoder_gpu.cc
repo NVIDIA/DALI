@@ -182,7 +182,7 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
       continue;
     }
 
-    // Store pts from current packet to indicate, 
+    // Store pts from current packet to indicate,
     // that this frame is in the decoder
     piped_pts_.push(av_state_->packet_->pts);
 
