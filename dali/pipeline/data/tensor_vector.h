@@ -128,42 +128,11 @@ class DLL_PUBLIC TensorVector {
   //   // todo share_data replacement
   //   // tensor_[idx].ShareData(owner);
   // }
+  DLL_PUBLIC void SetSample(int dst, const TensorVector<Backend> &owner, int src);
 
-  DLL_PUBLIC void SetSample(int idx, const Tensor<Backend> &owner) {
-    // TODO checks
-    // DALI_ENFORCE(owner.shape().sample_dim() == shape().sample_dim(), "Sample must have the same dim");
-    if (type() == DALI_NO_TYPE && owner.type() != DALI_NO_TYPE) {
-      set_type(owner.type());
-    }
-    DALI_ENFORCE(type() == owner.type(), "Sample must have the same type as batch");
-    // kind (pinned?), order, layout, etc...
-    // The metadata
+  DLL_PUBLIC void SetSample(int dst, const Tensor<Backend> &owner);
 
-    if (tensors_[idx]->shape().num_elements() != owner.shape().num_elements()) {
-      SetContiguous(false);
-    }
-    tensors_[idx]->ShareData(owner);
-    // todo v update shape
-    // shape().set_tensor_shape(idx, owner.shape());
-  }
-
-  DLL_PUBLIC void CopySample(int dst, const TensorVector<Backend> &data, int src, AccessOrder order = {}) {
-    // TODO checks
-    // DALI_ENFORCE(owner.shape().sample_dim() == shape().sample_dim(), "Sample must have the same dim");
-    if (type() == DALI_NO_TYPE && data.type() != DALI_NO_TYPE) {
-      set_type(data.type());
-    }
-    DALI_ENFORCE(type() == data.type(), "Sample must have the same type as batch");
-    // kind (pinned?), order, layout, etc...
-    // The metadata
-
-    if (tensors_[dst]->shape().num_elements() != data.tensors_[src]->shape().num_elements()) {
-      SetContiguous(false);
-    }
-    tensors_[dst]->Copy(*(data.tensors_[src]), order);
-    // todo v update shape
-    // shape().set_tensor_shape(idx, owner.shape());
-  }
+  DLL_PUBLIC void CopySample(int dst, const TensorVector<Backend> &data, int src, AccessOrder order = {});
 
   DLL_PUBLIC TensorView<storage_tag_map3_t<Backend>, void, DynamicDimensions> operator[](
       int sample_idx) {

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/pipeline/operator/builtin/make_contiguous.h"
+#include "dali/core/access_order.h"
 #include "dali/pipeline/data/backend.h"
 
 namespace dali {
@@ -31,6 +32,7 @@ void MakeContiguousCPU::RunImpl(HostWorkspace &ws) {
       // TODO, tbh, this is bonkers that we go through resize twice, once in setup, and once
       // with the "rich copy" here:
       // output[sample_id].Copy(input[sample_id], AccessOrder::host());  // todo view<void>
+      output.CopySample(sample_id, input, sample_id, AccessOrder::host());
 
       // if (!order)
       //   order = other.order() ? other.order() : order_;
@@ -44,17 +46,17 @@ void MakeContiguousCPU::RunImpl(HostWorkspace &ws) {
       // order_.wait(order);
 
       // todo: this is probably not necessary
-      auto order = AccessOrder::host();
-      order.wait(output.order());
-      type.template Copy<CPUBackend, CPUBackend>(
-          output.raw_mutable_tensor(sample_id), input.raw_tensor(sample_id),
-          shapes[sample_id].num_elements(), order.stream());
-      output.order().wait(order);
-      auto out_meta = output.GetMeta(sample_id);
-      const auto &in_meta = input.GetMeta(sample_id);
-      out_meta.SetSourceInfo(in_meta.GetSourceInfo());
-      out_meta.SetSkipSample(in_meta.ShouldSkipSample());
-      output.SetMeta(sample_id, out_meta);
+      // auto order = AccessOrder::host();
+      // order.wait(output.order());
+      // type.template Copy<CPUBackend, CPUBackend>(
+      //     output.raw_mutable_tensor(sample_id), input.raw_tensor(sample_id),
+      //     shapes[sample_id].num_elements(), order.stream());
+      // output.order().wait(order);
+      // auto out_meta = output.GetMeta(sample_id);
+      // const auto &in_meta = input.GetMeta(sample_id);
+      // out_meta.SetSourceInfo(in_meta.GetSourceInfo());
+      // out_meta.SetSkipSample(in_meta.ShouldSkipSample());
+      // output.SetMeta(sample_id, out_meta);
     }, shapes.tensor_size(sample_id));
   }
   thread_pool.RunAll();

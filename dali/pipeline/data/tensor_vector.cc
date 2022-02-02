@@ -92,6 +92,58 @@ size_t TensorVector<Backend>::capacity() const noexcept {
 
 
 template <typename Backend>
+void TensorVector<Backend>::SetSample(int dst, const TensorVector<Backend> &owner, int src) {
+  // TODO checks
+  if (type() == DALI_NO_TYPE && owner.type() != DALI_NO_TYPE) {
+    set_type(owner.type());
+  }
+  DALI_ENFORCE(type() == owner.type(), "Sample must have the same type as batch");
+
+  tensors_[dst]->ShareData(*(owner.tensors_[src]));
+}
+
+template <typename Backend>
+void TensorVector<Backend>::SetSample(int dst, const Tensor<Backend> &owner) {
+  // TODO checks
+  // DALI_ENFORCE(owner.shape().sample_dim() == shape().sample_dim(), "Sample must have the same
+  // dim");
+  if (type() == DALI_NO_TYPE && owner.type() != DALI_NO_TYPE) {
+    set_type(owner.type());
+  }
+  DALI_ENFORCE(type() == owner.type(), "Sample must have the same type as batch");
+  // kind (pinned?), order, layout, etc...
+  // The metadata
+
+  if (tensors_[dst]->shape().num_elements() != owner.shape().num_elements()) {
+    SetContiguous(false);
+  }
+  tensors_[dst]->ShareData(owner);
+  // todo v update shape
+  // shape().set_tensor_shape(idx, owner.shape());
+}
+
+template <typename Backend>
+void TensorVector<Backend>::CopySample(int dst, const TensorVector<Backend> &data, int src,
+                                       AccessOrder order) {
+  // TODO checks
+  // DALI_ENFORCE(owner.shape().sample_dim() == shape().sample_dim(), "Sample must have the same
+  // dim");
+  if (type() == DALI_NO_TYPE && data.type() != DALI_NO_TYPE) {
+    set_type(data.type());
+  }
+  DALI_ENFORCE(type() == data.type(), "Sample must have the same type as batch");
+  // kind (pinned?), order, layout, etc...
+  // The metadata
+
+  if (tensors_[dst]->shape().num_elements() != data.tensors_[src]->shape().num_elements()) {
+    SetContiguous(false);
+  }
+  tensors_[dst]->Copy(*(data.tensors_[src]), order);
+  // todo v update shape
+  // shape().set_tensor_shape(idx, owner.shape());
+}
+
+template <typename Backend>
 TensorListShape<> TensorVector<Backend>::shape() const {
   if (state_ == State::contiguous) {
     return tl_->shape();
@@ -458,7 +510,7 @@ void TensorVector<Backend>::update_view(int idx) {
   // TODO(klecki): deleter that reduces views_count or just noop sharing?
   // tensors_[i]->ShareData(tl_.get(), static_cast<int>(idx));
   if (tensors_[idx]->raw_data() != ptr || tensors_[idx]->shape() != shape) {
-    tensors_[idx]->ShareData(std::shared_ptr<void>(ptr, ViewRefDeleter{&views_count_}),
+    tensors_[idx]->ShareData(unsafe_sample_owner(*tl_, idx),
                              volume(tl_->tensor_shape(idx)) * tl_->type_info().size(),
                              tl_->is_pinned(),
                              shape, tl_->type(),
