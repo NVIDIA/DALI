@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ to the derivative direction.
 Both ``window_size`` and ``smoothing_size`` can be specified as a single value or per axis.
 For example, for volumetric input, if ``window_size=[dz, dy, dx]``
 and ``smoothing_size=[sz, sy, sx]`` are specified, the following windows will be used:
+
   * for partial derivative in ``z`` direction: derivative windows of size ``dz`` along ``z`` axis,
     and smoothing windows of size ``sy`` and ``sx`` along `y` and `x` respectively.
   * for partial derivative in ``y`` direction: derivative windows of size ``dy`` along ``y`` axis,

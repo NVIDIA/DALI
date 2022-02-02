@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ class ConstantStorageTest : public ::testing::Test {
 
 TEST_F(ConstantStorageTest, CpuValid) {
   ConstantStorage<CPUBackend> st;
-  st.Initialize(good_spec_, 0, constant_ptrs_);
+  st.Initialize(good_spec_, {}, constant_ptrs_);
   for (auto &node : constant_nodes_) {
     auto type_id = node.GetTypeId();
     TYPE_SWITCH(type_id, type2id, Type, CONSTANT_STORAGE_ALLOWED_TYPES, (
@@ -78,7 +78,7 @@ TEST_F(ConstantStorageTest, CpuValid) {
 
 TEST_F(ConstantStorageTest, GpuValid) {
   ConstantStorage<GPUBackend> st;
-  st.Initialize(good_spec_, 0, constant_ptrs_);
+  st.Initialize(good_spec_, {}, constant_ptrs_);
   char buf[sizeof(int64_t)];
   for (auto &node : constant_nodes_) {
     auto type_id = node.GetTypeId();
@@ -98,9 +98,9 @@ TEST_F(ConstantStorageTest, GpuValid) {
 
 TEST_F(ConstantStorageTest, Invalid) {
   ConstantStorage<CPUBackend> cpu_st;
-  ASSERT_THROW(cpu_st.Initialize(bad_spec_, 0, constant_ptrs_), std::runtime_error);
+  ASSERT_THROW(cpu_st.Initialize(bad_spec_, {}, constant_ptrs_), std::runtime_error);
   ConstantStorage<GPUBackend> gpu_st;
-  ASSERT_THROW(gpu_st.Initialize(bad_spec_, 0, constant_ptrs_), std::runtime_error);
+  ASSERT_THROW(gpu_st.Initialize(bad_spec_, {}, constant_ptrs_), std::runtime_error);
 }
 
 }  // namespace dali

@@ -190,6 +190,7 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
       if (stream) {
         pool.deallocate_async(blk.ptr, blk.size, sv);
       } else {
+        CUDA_CALL(cudaStreamSynchronize(stream));
         pool.deallocate(blk.ptr, blk.size);
       }
     }
