@@ -3,7 +3,6 @@ import nvidia.dali.ops as ops
 import nvidia.dali.plugin.pytorch
 import nvidia.dali.plugin.numba
 import sys
-import inspect
 
 # Dictionary with modules that can have registered Ops
 ops_modules = {
@@ -24,6 +23,12 @@ fn_modules = {
 exclude_fn_members = {
 }
 
+mod_aditional_doc = {
+    'nvidia.dali.fn.transforms' : "All operators in this module supports only CPU device as they are meant " +
+"to be provided as an input to named operator arguments. Check for more details the relevant " +
+":ref:`pipeline documentation section<Processing Graph Structure>`."
+}
+
 def get_modules(top_modules):
     modules = []
     for module in sys.modules.keys():
@@ -37,6 +42,9 @@ def op_autodoc(out_filename):
     for module in get_modules(ops_modules):
         s += module + "\n"
         s += "~" * len(module) + "\n"
+        normalize_mod = module.replace("nvidia.dali.ops", "nvidia.dali.fn")
+        if normalize_mod in mod_aditional_doc:
+            s += mod_aditional_doc[normalize_mod] + "\n" + "\n"
         s += ".. automodule:: {}\n".format(module)
         s += "   :members:\n"
         s += "   :special-members: __call__\n"
@@ -52,6 +60,8 @@ def fn_autodoc(out_filename):
     for module in get_modules(fn_modules):
         s += module + "\n"
         s += "~" * len(module) + "\n"
+        if module in mod_aditional_doc:
+            s += mod_aditional_doc[module] + "\n" + "\n"
         s += ".. automodule:: {}\n".format(module)
         s += "   :members:\n"
         s += "   :undoc-members:\n"
