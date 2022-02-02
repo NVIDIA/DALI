@@ -24,8 +24,8 @@ exclude_fn_members = {
 }
 
 mod_aditional_doc = {
-    'nvidia.dali.fn.transforms' : "All operators in this module supports only CPU device as they are meant " +
-"to be provided as an input to named operator arguments. Check for more details the relevant " +
+    'nvidia.dali.fn.transforms' : "All operators in this module support only CPU device as they are meant " +
+"to be provided as an input to named keyword operator arguments. Check for more details the relevant " +
 ":ref:`pipeline documentation section<Processing Graph Structure>`."
 }
 
