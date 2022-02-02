@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "dali/core/backend_tags.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/signal/resampling.h"
@@ -65,7 +66,7 @@ class AsrSample {
     return shape_;
   }
 
-  void decode_audio(Tensor<CPUBackend>& audio, int tid) {
+  void decode_audio(TensorView<StorageCPU, void> audio, int tid) {
     decode_f_(audio, tid);
   }
 
@@ -87,7 +88,7 @@ class AsrSample {
   std::string audio_filepath_;  // for tensor metadata purposes
   TensorShape<> shape_;
 
-  std::function<void(Tensor<CPUBackend>&, int)> decode_f_;
+  std::function<void(TensorView<StorageCPU, void>, int)> decode_f_;
   std::unique_ptr<AudioDecoderBase> decoder_;
 };
 
@@ -158,7 +159,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
 
  private:
   template <typename OutputType>
-  void ReadAudio(Tensor<CPUBackend> &audio,
+  void ReadAudio(TensorView<StorageCPU, OutputType> audio,
                  const AudioMetadata &audio_meta,
                  const NemoAsrEntry &entry,
                  AudioDecoderBase &decoder,

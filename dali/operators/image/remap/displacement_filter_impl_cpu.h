@@ -140,13 +140,10 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
               " only NN and LINEAR are supported for this operation");
       }
     } else {
-      // todo fixme
       // const auto &in_tensor = input[sample_idx]; // todo view<void>
       // const auto &out_tensor = output[sample_idx]; // todo view<void>
 
-      const auto &in_tensor = input.GetSample(sample_idx);
-      auto &out_tensor = output.GetSample(sample_idx);
-      out_tensor.Copy(in_tensor);
+      output.CopySample(sample_idx, input, sample_idx);
     }
   }
 

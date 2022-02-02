@@ -165,7 +165,7 @@ void NemoAsrReader::Prefetch() {
   for (int i = 0; i < nsamples; i++) {
     // todo fixme - we should not use Get/SetSample, but I just want to compile
     auto &sample = *curr_batch[i]; // todo view<void>
-    auto &audio = audio_batch.GetSample(i); // todo view<void>
+    auto audio = audio_batch[i]; // todo view<void>
 
     if (decoded_map_.find(&sample) != decoded_map_.end())
       continue;
@@ -174,7 +174,7 @@ void NemoAsrReader::Prefetch() {
     const auto &audio_meta = sample.audio_meta();
     int64_t priority = audio_meta.length * audio_meta.channels;
     thread_pool_.AddWork(
-      [&audio, &sample](int tid) {
+      [audio, &sample](int tid) {
         sample.decode_audio(audio, tid);
       }, priority);
   }
@@ -185,7 +185,7 @@ void NemoAsrReader::Prefetch() {
       auto it = decoded_map_.find(curr_batch[i].get());
       if (it != decoded_map_.end() && it->second != i) {
         // todo fixme - we can share instead of copy?
-        audio_batch.GetSample(i).Copy(audio_batch.GetSample(it->second)); // todo view<void>
+        audio_batch.CopySample(i, audio_batch, it->second); // todo view<void>
       }
     }
   }

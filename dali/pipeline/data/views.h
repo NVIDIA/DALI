@@ -77,13 +77,24 @@ TensorShape<ndim> get_tensor_shape(const TensorList<Backend> &tl) {
 
 
 template <typename T, int ndim = DynamicDimensions, typename Backend>
-TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
+std::enable_if_t<!std::is_same<std::remove_cv_t<T>, void>::value,
+                 TensorView<detail::storage_tag_map_t<Backend>, T, ndim>>
 view(Tensor<Backend> &data) {
   if (data.shape().empty())
     return {};
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
   return { data.template mutable_data<U>(),  convert_dim<ndim>(data.shape()) };
+}
+
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+std::enable_if_t<std::is_same<std::remove_cv_t<T>, void>::value,
+                 TensorView<detail::storage_tag_map_t<Backend>, T, ndim>>
+view(Tensor<Backend> &data) {
+  if (data.shape().empty())
+    return {};
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  return { data.raw_mutable_data(),  convert_dim<ndim>(data.shape()), data.type() };
 }
 
 // todo fixme: const & vs copy
@@ -133,7 +144,8 @@ view(TensorView<Backend, const void, DynamicDimensions> data) {
 
 
 template <typename T, int ndim = DynamicDimensions, typename Backend>
-TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
+std::enable_if_t<!std::is_same<std::remove_cv_t<T>, void>::value,
+                 TensorView<detail::storage_tag_map_t<Backend>, T, ndim>>
 view(const Tensor<Backend> &data) {
   static_assert(std::is_const<T>::value,
                 "Cannot create a non-const view of a `const Tensor<>`. "
@@ -143,6 +155,19 @@ view(const Tensor<Backend> &data) {
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
   return { data.template data<U>(), convert_dim<ndim>(data.shape()) };
+}
+
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+std::enable_if_t<std::is_same<std::remove_cv_t<T>, void>::value,
+                 TensorView<detail::storage_tag_map_t<Backend>, T, ndim>>
+view(const Tensor<Backend> &data) {
+  static_assert(std::is_const<T>::value,
+                "Cannot create a non-const view of a `const Tensor<>`. "
+                "Missing `const` in T?");
+  if (data.shape().empty())
+    return {};
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  return { data.raw_data(), convert_dim<ndim>(data.shape()), data.type() };
 }
 
 

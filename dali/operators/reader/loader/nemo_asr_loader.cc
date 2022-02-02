@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,8 +14,10 @@
 
 #include <string>
 #include <numeric>
+#include "dali/core/backend_tags.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/tensor_view.h"
 #include "dali/operators/decoder/audio/generic_decoder.h"
 #include "dali/operators/decoder/audio/audio_decoder_impl.h"
 #include "dali/operators/reader/loader/nemo_asr_loader.h"
@@ -108,7 +110,7 @@ void NemoAsrLoader::PrepareEmpty(AsrSample &sample) {
 }
 
 template <typename OutputType>
-void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
+void NemoAsrLoader::ReadAudio(TensorView<StorageCPU, OutputType> audio,
                               const AudioMetadata &audio_meta,
                               const NemoAsrEntry &entry,
                               AudioDecoderBase &decoder,
@@ -131,12 +133,10 @@ void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
         should_downmix ? audio_meta.length : audio_meta.length * audio_meta.channels;
   resample_scratch.resize(resample_scratch_sz);
 
-  DecodeAudio<OutputType>(
-    view<OutputType>(audio), decoder, audio_meta, resampler_,
-    {decode_scratch.data(), decode_scratch_sz},
-    {resample_scratch.data(), resample_scratch_sz},
-    sample_rate_, downmix_,
-    entry.audio_filepath.c_str());
+  DecodeAudio<OutputType>(audio, decoder, audio_meta, resampler_,
+                          {decode_scratch.data(), decode_scratch_sz},
+                          {resample_scratch.data(), resample_scratch_sz}, sample_rate_, downmix_,
+                          entry.audio_filepath.c_str());
 }
 
 void NemoAsrLoader::ReadSample(AsrSample& sample) {
@@ -170,12 +170,12 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
 
   TYPE_SWITCH(dtype_, type2id, OutputType, (int16_t, int32_t, float), (
     // Audio decoding will be run in the prefetch function, once the batch is formed
-    sample.decode_f_ = [this, &sample, &entry, offset](Tensor<CPUBackend> &audio, int tid) {
+    sample.decode_f_ = [this, &sample, &entry, offset](TensorView<StorageCPU, void> audio, int tid) {
       sample.decoder().OpenFromFile(entry.audio_filepath);
       if (offset > 0)
         sample.decoder().SeekFrames(offset);
       ReadAudio<OutputType>(
-        audio, sample.audio_meta_, entry, sample.decoder(),
+        view<OutputType>(audio), sample.audio_meta_, entry, sample.decoder(),
         decode_scratch_[tid], resample_scratch_[tid]);
       sample.decoder().Close();
     };
