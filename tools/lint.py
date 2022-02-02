@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,8 +44,8 @@ negative_filters = [
     ".*operators/reader/nvdecoder/nvcuvid.h",
     ".*operators/reader/nvdecoder/cuviddec.h",
     ".*operators/reader/loader/video/nvdecode/*",
-    ".*operators/sequence/optical_flow/turing_of/nvOpticalFlowCuda.h",
-    ".*operators/sequence/optical_flow/turing_of/nvOpticalFlowCommon.h",
+    ".*operators/sequence/optical_flow/optical_flow_impl/nvOpticalFlowCuda.h",
+    ".*operators/sequence/optical_flow/optical_flow_impl/nvOpticalFlowCommon.h",
     ".*python/dummy.cu"
 ]
 

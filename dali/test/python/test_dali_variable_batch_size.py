@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,14 +24,13 @@ from nvidia.dali.plugin.numba.fn.experimental import numba_function
 import numpy as np
 import test_utils
 from test_detection_pipeline import coco_anchors
-from test_optical_flow import load_frames
+from test_optical_flow import load_frames, is_of_supported
 import inspect
 import os
 import re
 import random
 import nose
 from nose.plugins.attrib import attr
-from test_optical_flow import is_of_supported
 
 """
 How to test variable (iter-to-iter) batch size for a given op?
@@ -992,13 +991,13 @@ def test_optical_flow():
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         with pipe:
             data = fn.external_source(device=device, source=input_data, cycle=False, layout=input_layout)
-            processed = fn.optical_flow(data, device=device, output_format=4)
+            processed = fn.optical_flow(data, device=device, output_grid=4)
         pipe.set_outputs(processed)
         return pipe
 
     max_batch_size = 5
     bach_sizes = [max_batch_size // 2, max_batch_size // 4, max_batch_size]
-    input_data = [[load_frames()[0] for _ in range(bs)] for bs in bach_sizes]
+    input_data = [[load_frames() for _ in range(bs)] for bs in bach_sizes]
     check_pipeline(input_data, pipeline_fn=pipe, devices=["gpu"], input_layout="FHWC")
 
 def test_tensor_subscript():

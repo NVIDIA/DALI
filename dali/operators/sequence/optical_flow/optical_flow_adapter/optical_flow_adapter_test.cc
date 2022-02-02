@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,13 +28,14 @@ TEST(OpticalFlowAdapter, StubApiCpuBackend) {
   TensorView<StorageCPU, uint8_t, 3> tvref, tvin;
   std::vector<float> in_data(kTestDataSize);
   TensorView<StorageCPU, float, 3> tvout(in_data.data(), {1, 1, 2});
-  OpticalFlowParams params = {0.f, VectorGridSize::SIZE_4, false, false};
+  OpticalFlowParams params = {0.f, 4, 4, false, false};
   std::unique_ptr<OpticalFlowAdapter<ComputeCPU>> of(new OpticalFlowStub<ComputeCPU>(params));
   of->CalcOpticalFlow(tvref, tvin, tvout);
   EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeCPU>::kStubValue, *tvout(0, 0, 0));
   EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeCPU>::kStubValue / 2, *tvout(0, 0, 1));
-  auto ts = of->GetOutputShape();
+  auto ts = of->CalcOutputShape(1, 1);
   TensorShape<3> ref_ts{2, 3, 4};
+  of->Prepare(1, 1);
   EXPECT_EQ(ref_ts, ts);
 }
 
@@ -47,7 +48,7 @@ TEST(OpticalFlowAdapter, StubApiGpuBackend) {
 
   TensorView<StorageGPU, uint8_t, 3> tvref, tvin;
   TensorView<StorageGPU, float, 3> tvout(tvout_data, {1, 1, 2});
-  OpticalFlowParams params = {0.f, VectorGridSize::SIZE_4, false, false};
+  OpticalFlowParams params = {0.f, 4, 4, false, false};
   std::unique_ptr<OpticalFlowAdapter<ComputeGPU>> of(new OpticalFlowStub<ComputeGPU>(params));
   of->CalcOpticalFlow(tvref, tvin, tvout);
 
@@ -59,8 +60,9 @@ TEST(OpticalFlowAdapter, StubApiGpuBackend) {
 
   CUDA_CALL(cudaFree(tvout_data));
 
-  auto ts = of->GetOutputShape();
+  auto ts = of->CalcOutputShape(1, 1);
   TensorShape<3> ref_ts{2, 3, 4};
+  of->Prepare(1, 1);
   EXPECT_EQ(ref_ts, ts);
 }
 
