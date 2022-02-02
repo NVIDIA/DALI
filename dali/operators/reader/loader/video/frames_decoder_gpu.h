@@ -29,8 +29,8 @@
 
 namespace dali {
 struct NvDecodeState {
-  CUvideodecoder decoder;
-  CUvideoparser parser;
+  CUvideodecoder decoder_;
+  CUvideoparser parser_;
 
   CUVIDSOURCEDATAPACKET packet = { 0 };
 
@@ -57,11 +57,13 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   void Reset() override;
 
+  int CurrentFramePts() { return index_[CurrentFrame()].pts; }
+
   std::unique_ptr<NvDecodeState> nvdecode_state_;
 
   uint8_t *current_frame_output_ = nullptr;
   bool current_copy_to_output_ = false;
-  bool decode_success_ = false;
+  bool frame_returned_ = false;
   bool flush_ = false;
   bool last_frame_read_ = false;
 
@@ -72,11 +74,13 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   std::vector<BufferedFrame> frame_buffer_;
 
-  DeviceBuffer<uint8_t> current_frame_buffer_;
-
   std::queue<int> piped_pts_;
 
   cudaStream_t stream_;
+
+  void SendLastPacket(bool flush = false);
+
+  BufferedFrame& FindEmptySlot();
 };
 
 }  // namespace dali

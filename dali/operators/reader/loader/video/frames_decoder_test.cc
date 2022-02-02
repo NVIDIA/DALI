@@ -20,6 +20,7 @@
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/dev_buffer.h"
+#include "dali/core/device_guard.h"
 #include "dali/operators/reader/loader/video/video_test_base.h"
 #include "dali/operators/reader/loader/video/frames_decoder.h"
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
@@ -157,8 +158,8 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
     file.ReadNextFrame(frame);
     copyD2H(frame_cpu.data(), frame.data(), frame.size());
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 0), file.FrameSize());
-    // this->SaveFrame(
-    //     frame_cpu.data(), 0, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
+    this->SaveFrame(
+        frame_cpu.data(), 0, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
     // this->SaveFrame(
     //     this->GetVfrFrame(1, 0), 0, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 
@@ -167,8 +168,8 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
     file.ReadNextFrame(frame);
     copyD2H(frame_cpu.data(), frame.data(), frame.size());
     this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(1, 25), file.FrameSize());
-    // this->SaveFrame(
-    //     frame_cpu.data(), 25, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
+    this->SaveFrame(
+        frame_cpu.data(), 25, 0, 0, "/home/awolant/Downloads/frames/reader/", 800, 600);
     // this->SaveFrame(
     //     this->GetVfrFrame(1, 25), 25, 0, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 
@@ -205,44 +206,6 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
     // //     this->GetVfrFrame(1, 0), 0, 1, 0, "/home/awolant/Downloads/frames/gt", 800, 600);
 }
 
-// TEST_F(FramesDecoderTest, VariableFrameRateAvi) {
-//     std::string path = testing::dali_extra_path() + "/db/video/vfr/test_2.avi";
-
-//     // Create file, build index
-//     FramesDecoder file(path);
-
-//     ASSERT_EQ(file.Height(), 600);
-//     ASSERT_EQ(file.Width(), 800);
-//     ASSERT_EQ(file.Channels(), 3);
-//     ASSERT_EQ(file.NumFrames(), 60);
-
-//     std::vector<uint8_t> frame(file.FrameSize());
-
-//     // Read first frame
-//     file.ReadNextFrame(frame.data());
-//     this->CompareFramesAvgError(frame.data(), this->GetVfrFrame(1, 0), file.FrameSize());
-
-//     // Seek to frame
-//     file.SeekFrame(25);
-//     file.ReadNextFrame(frame.data());
-//     this->CompareFramesAvgError(frame.data(), this->GetVfrFrame(1, 25), file.FrameSize());
-
-//     // Seek back to frame
-//     file.SeekFrame(12);
-//     file.ReadNextFrame(frame.data());
-//     this->CompareFramesAvgError(frame.data(), this->GetVfrFrame(1, 12), file.FrameSize());
-
-//     // Seek to last frame (flush frame)
-//     file.SeekFrame(59);
-//     file.ReadNextFrame(frame.data());
-//     this->CompareFramesAvgError(frame.data(), this->GetVfrFrame(1, 59), file.FrameSize());
-
-//     // Wrap around to first frame
-//     ASSERT_FALSE(file.ReadNextFrame(frame.data()));
-//     file.Reset();
-//     file.ReadNextFrame(frame.data());
-//     this->CompareFramesAvgError(frame.data(), this->GetVfrFrame(1, 0), file.FrameSize());
-// }
 
 TEST_F(FramesDecoderTest, InvalidPath) {
     std::string path = "invalid_path.mp4";

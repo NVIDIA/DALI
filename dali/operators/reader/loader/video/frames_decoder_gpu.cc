@@ -24,7 +24,7 @@
 #include "dali/core/cuda_utils.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
-#include "dali/operators/reader/loader/video/nvdecode/ColorSpace.h"
+#include "dali/operators/reader/loader/video/nvdecode/color_space.h"
 
 namespace dali {
 namespace detail {
@@ -34,52 +34,65 @@ int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
 
 int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
+
+  // Sending empty packet will call this callback.
+  // If we want to flush the decoder, we do not need to do anything here
   if (frames_decoder->flush_) {
-    frames_decoder->flush_ = false;
-    frames_decoder->decode_success_ = false;
     return 0;
   }
 
-  frames_decoder->decode_success_ = false;
+  CUDA_CALL(cuvidDecodePicture(frames_decoder->nvdecode_state_->decoder_, picture_params));
 
-  CUDA_CALL(cuvidDecodePicture(frames_decoder->nvdecode_state_->decoder, picture_params));
-
-  // Copy decoded frame to output
+  // Process decoded frame for output
   CUVIDPROCPARAMS videoProcessingParameters = {};
   videoProcessingParameters.progressive_frame = !picture_params->field_pic_flag;
   videoProcessingParameters.second_field = 1;
   videoProcessingParameters.top_field_first = picture_params->bottom_field_flag ^ 1;
   videoProcessingParameters.unpaired_field = 0;
-  videoProcessingParameters.output_stream = 0;
+  videoProcessingParameters.output_stream = frames_decoder->stream_;
 
-  CUdeviceptr frame = 0;
+  uint8_t *frame_output = nullptr;
+
+  // Take pts of the currently decoded frame
+  int current_pts = frames_decoder->piped_pts_.front();
+  frames_decoder->piped_pts_.pop();
+
+  if (current_pts == frames_decoder->CurrentFramePts()) {
+    // Currently decoded frame is actually the one we wanted
+    frames_decoder->frame_returned_ = true;
+    frame_output = frames_decoder->current_frame_output_;
+  } else {
+    // Put currently decoded frame to the buffer for later
+    auto &slot = frames_decoder->FindEmptySlot();
+    slot.pts_ = current_pts;
+    frame_output = slot.frame_.data();
+  }
+
+  if (frames_decoder->current_copy_to_output_ == false) {
+    return 1;
+  }
+
+  CUdeviceptr frame = {};
   unsigned int pitch = 0;
 
   CUDA_CALL(cuvidMapVideoFrame(
-    frames_decoder->nvdecode_state_->decoder,
+    frames_decoder->nvdecode_state_->decoder_,
     picture_params->CurrPicIdx,
     &frame,
     &pitch,
     &videoProcessingParameters));
 
-  if (frames_decoder->current_copy_to_output_) {
-    Nv12ToColor32(
-      reinterpret_cast<uint8_t *>(frame),
-      pitch,
-      frames_decoder->current_frame_output_,
-      frames_decoder->Width()* 3,
-      frames_decoder->Width(),
-      frames_decoder->Height(),
-      1,
-      frames_decoder->stream_);
-    CUDA_CALL(cudaDeviceSynchronize());
-  }
-
   // TODO(awolant): Benchmark, if copy would be faster
-  CUDA_CALL(cuStreamSynchronize(frames_decoder->stream_));
-  CUDA_CALL(cuvidUnmapVideoFrame(frames_decoder->nvdecode_state_->decoder, frame));
+  yuv_to_rgb(
+    reinterpret_cast<uint8_t *>(frame),
+    pitch,
+    frame_output,
+    frames_decoder->Width()* 3,
+    frames_decoder->Width(),
+    frames_decoder->Height(),
+    frames_decoder->stream_);
+  CUDA_CALL(cuvidUnmapVideoFrame(frames_decoder->nvdecode_state_->decoder_, frame));
 
-  frames_decoder->decode_success_ = true;
   return 1;
 }
 }  // namespace detail
@@ -115,57 +128,40 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     decoder_info.ulNumDecodeSurfaces = num_decode_surfaces_;
     decoder_info.ulNumOutputSurfaces = 2;
 
-    CUDA_CALL(cuvidCreateDecoder(&nvdecode_state_->decoder, &decoder_info));
+    CUDA_CALL(cuvidCreateDecoder(&nvdecode_state_->decoder_, &decoder_info));
 
     // Create nv parser
     CUVIDPARSERPARAMS parser_info;
     memset(&parser_info, 0, sizeof(CUVIDPARSERPARAMS));
     parser_info.CodecType = cudaVideoCodec_H264;
-    parser_info.ulMaxNumDecodeSurfaces = 1;
+    parser_info.ulMaxNumDecodeSurfaces = num_decode_surfaces_;
     parser_info.ulMaxDisplayDelay = 0;
     parser_info.pUserData = this;
     parser_info.pfnSequenceCallback = detail::process_video_sequence;
     parser_info.pfnDecodePicture = detail::process_picture_decode;
     parser_info.pfnDisplayPicture = nullptr;
 
-    CUDA_CALL(cuvidCreateVideoParser(&nvdecode_state_->parser, &parser_info));
+    CUDA_CALL(cuvidCreateVideoParser(&nvdecode_state_->parser_, &parser_info));
 
     // Init internal frame buffer
     for (size_t i = 0; i < frame_buffer_.size(); ++i) {
       frame_buffer_[i].frame_.resize(FrameSize());
       frame_buffer_[i].pts_ = -1;
     }
-
-    current_frame_buffer_.resize(FrameSize());
 }
 
 void FramesDecoderGpu::SeekFrame(int frame_id) {
-  flush_ = true;
-  CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
-  memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
-  packet->payload = nullptr;
-  packet->payload_size = 0;
-  packet->flags = CUVID_PKT_ENDOFSTREAM;
-  CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
-  flush_ = false;
-  last_frame_read_ = false;
-
-  for (size_t i = 0; i < frame_buffer_.size(); ++i) {
-    frame_buffer_[i].pts_ = -1;
-  }
-
-  while (piped_pts_.size() > 0) {
-    piped_pts_.pop();
-  }
-
+  SendLastPacket(true);
   FramesDecoder::SeekFrame(frame_id);
 }
 
 bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
+  // No more frames in the file
   if (current_frame_ == -1) {
     return false;
   }
-  // // Maybe requested frame is already in the buffer?
+
+  // Check if requested frame was buffered earlier
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ == index_[current_frame_].pts) {
       if (copy_to_output) {
@@ -178,100 +174,88 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
     }
   }
 
-  decode_success_ = false;
   current_copy_to_output_ = copy_to_output;
-  current_frame_output_ = current_frame_buffer_.data();
+  current_frame_output_ = data;
 
   while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
     if (av_state_->packet_->stream_index != av_state_->stream_id_) {
       continue;
     }
 
+    // Store pts from current packet to indicate, 
+    // that this frame is in the decoder
     piped_pts_.push(av_state_->packet_->pts);
 
+    // Add header needed for NVDECODE to the packet
     if (filtered_packet_->data) {
       av_packet_unref(filtered_packet_);
     }
-
     DALI_ENFORCE(av_bsf_send_packet(bsfc_, av_state_->packet_) >= 0);
     DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
 
+    // Prepare nv packet
     CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
     memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
     packet->payload = filtered_packet_->data;
     packet->payload_size = filtered_packet_->size;
     packet->flags = CUVID_PKT_TIMESTAMP;
-    packet->timestamp = av_state_->packet_->pts;
+    packet->timestamp = filtered_packet_->pts;
 
-    CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+    // Send packet to the nv deocder
+    frame_returned_ = false;
+    CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser_, packet));
 
-    if (decode_success_) {
-      int current_pts = piped_pts_.front();
-      piped_pts_.pop();
-
-      int requested_pts = index_[current_frame_].pts;
-
-      if (current_pts == requested_pts) {
-        // Currently returned frame is actually the one we wanted
-        if (copy_to_output) {
-          copyD2D(data, current_frame_buffer_.data(), FrameSize());
-        }
-        ++current_frame_;
-        return true;
-      } else {
-        int empty_slot_index = 0;
-        while (frame_buffer_[empty_slot_index].pts_ != -1) {
-          ++empty_slot_index;
-        }
-
-        frame_buffer_[empty_slot_index].pts_ = current_pts;
-        copyD2D(
-          frame_buffer_[empty_slot_index].frame_.data(),
-          current_frame_buffer_.data(),
-          FrameSize());
-      }
+    if (frame_returned_) {
+      ++current_frame_;
+      return true;
     }
   }
 
   if (!last_frame_read_) {
-    CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
-    memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
-    packet->payload = nullptr;
-    packet->payload_size = 0;
-    packet->flags = CUVID_PKT_ENDOFSTREAM;
-    CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
-
-    last_frame_read_ = true;
-    piped_pts_.pop();
-    if (copy_to_output) {
-      copyD2D(data, current_frame_buffer_.data(), FrameSize());
-    }
+    SendLastPacket();
     current_frame_ = -1;
     return true;
   }
-
   return false;
 }
 
-void FramesDecoderGpu::Reset() {
-  flush_ = true;
+void FramesDecoderGpu::SendLastPacket(bool flush) {
+  flush_ = flush;
   CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
   memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
   packet->payload = nullptr;
   packet->payload_size = 0;
   packet->flags = CUVID_PKT_ENDOFSTREAM;
-  CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+  CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser_, packet));
   flush_ = false;
-  last_frame_read_ = false;
 
-  for (size_t i = 0; i < frame_buffer_.size(); ++i) {
-    frame_buffer_[i].pts_ = -1;
+  if (flush) {
+    last_frame_read_ = false;
+
+    // Clear frames buffer
+    for (size_t i = 0; i < frame_buffer_.size(); ++i) {
+      frame_buffer_[i].pts_ = -1;
+    }
+
+    // Clear piped pts
+    while (piped_pts_.size() > 0) {
+      piped_pts_.pop();
+    }
   }
+}
 
-  while (piped_pts_.size() > 0) {
-    piped_pts_.pop();
+BufferedFrame& FramesDecoderGpu::FindEmptySlot() {
+  for (auto &frame : frame_buffer_) {
+    if (frame.pts_ == -1) {
+      return frame;
+    }
   }
+  DALI_FAIL("Could not find empty slot in the frame buffer");
+}
 
+
+void FramesDecoderGpu::Reset() {
+  SendLastPacket(true);
   FramesDecoder::Reset();
 }
 }  // namespace dali
