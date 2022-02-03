@@ -236,7 +236,6 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
             out = pipe.run()
             for i in range(batch_size):
                 seq = out[0].at(i)
-                print(seq.shape)
                 out_field = out[1].as_cpu().at(i)[0]
                 _, ref_field = get_mapping(seq.shape[1:3])
                 dsize = (out_field.shape[1], out_field.shape[0])

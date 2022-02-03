@@ -31,8 +31,10 @@ template<typename ComputeBackend>
 class DLL_PUBLIC OpticalFlowStub : public OpticalFlowAdapter<ComputeBackend> {
   using StorageBackend = typename OpticalFlowAdapter<ComputeBackend>::StorageBackend;
  public:
-  explicit OpticalFlowStub(OpticalFlowParams params) :
+  explicit OpticalFlowStub(const OpticalFlowParams &params) :
           OpticalFlowAdapter<ComputeBackend>(params) {}
+
+  void Init(OpticalFlowParams &/*params*/) override {}
 
   void Prepare(size_t /*width*/, size_t /*height*/) override {}
 

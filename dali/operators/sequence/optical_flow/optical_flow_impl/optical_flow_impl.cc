@@ -63,13 +63,44 @@ void IsSizeSupported(std::vector<uint32_t> &caps_min, std::vector<uint32_t> &cap
                " should be between ", caps_min[0], " and ", caps_max[0]));
 }
 
-OpticalFlowImpl::OpticalFlowImpl(dali::optical_flow::OpticalFlowParams params, size_t width,
+NV_OF_OUTPUT_VECTOR_GRID_SIZE OutGridSizeToEnum(int out_grid) {
+  switch (out_grid) {
+    case 1:
+      return NV_OF_OUTPUT_VECTOR_GRID_SIZE_1;
+    case 2:
+      return NV_OF_OUTPUT_VECTOR_GRID_SIZE_2;
+    case 4:
+      return NV_OF_OUTPUT_VECTOR_GRID_SIZE_4;
+    default:
+      return NV_OF_OUTPUT_VECTOR_GRID_SIZE_UNDEFINED;
+  }
+}
+
+NV_OF_HINT_VECTOR_GRID_SIZE HintGridSizeToEnum(int grid_hint) {
+  switch (grid_hint) {
+    case 1:
+      return NV_OF_HINT_VECTOR_GRID_SIZE_1;
+    case 2:
+      return NV_OF_HINT_VECTOR_GRID_SIZE_2;
+    case 4:
+      return NV_OF_HINT_VECTOR_GRID_SIZE_4;
+    case 8:
+      return NV_OF_HINT_VECTOR_GRID_SIZE_8;
+    default:
+      return NV_OF_HINT_VECTOR_GRID_SIZE_UNDEFINED;
+  }
+}
+
+OpticalFlowImpl::OpticalFlowImpl(const dali::optical_flow::OpticalFlowParams &params, size_t width,
                                  size_t height, size_t channels, DALIImageType image_type,
                                  int device_id, cudaStream_t stream) :
         OpticalFlowAdapter<ComputeGPU>(params), width_(width), height_(height),
         channels_(channels), out_grid_size_(params.out_grid_size),
         hint_grid_size_(params.hint_grid_size), device_id_(device_id),
         context_(), stream_(stream), image_type_(image_type) {
+}
+
+void OpticalFlowImpl::Init(dali::optical_flow::OpticalFlowParams &params) {
   DALI_ENFORCE(channels_ == 1 || channels_ == 3 || channels_ == 4);
   DALI_ENFORCE(cuInitChecked(), "Failed to initialize driver");
 
@@ -85,22 +116,28 @@ OpticalFlowImpl::OpticalFlowImpl(dali::optical_flow::OpticalFlowParams params, s
 
   auto grid_sizes = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_,
                                     NV_OF_CAPS_SUPPORTED_HINT_GRID_SIZES);
-  IsGridSupported(grid_sizes, out_grid_size_, "Output");
 
   auto hint_sizes = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_,
                                     NV_OF_CAPS_SUPPORTED_HINT_GRID_SIZES);
-  IsGridSupported(hint_sizes, hint_grid_size_, "Hint");
 
   width_min_ = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_WIDTH_MIN);
   height_min_ = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_HEIGHT_MIN);
   width_max_ = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_WIDTH_MAX);
   height_max_ = GetCapabilities(of_inst_.nvOFGetCaps, of_handle_, NV_OF_CAPS_HEIGHT_MAX);
+
+  if (width_min_.size()) default_init_params_.width = width_min_[0];
+  if (height_min_.size()) default_init_params_.height = height_min_[0];
+  if (grid_sizes.size()) default_init_params_.outGridSize = OutGridSizeToEnum(grid_sizes[0]);
+
+  IsGridSupported(grid_sizes, out_grid_size_, "Output");
+  IsGridSupported(hint_sizes, hint_grid_size_, "Hint");
   IsSizeSupported(width_min_, width_max_, width_, "Width");
   IsSizeSupported(height_min_, height_max_, height_, "Height");
 
   CUDA_CALL(of_inst_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
   auto status = VerifySupport(of_inst_.nvOFInit(of_handle_, &init_params_));
   CUDA_CALL(status);
+  is_initialized_ = true;
 
   CreateBuffers();
 }
@@ -144,6 +181,12 @@ void OpticalFlowImpl::CreateOf() {
 
 void OpticalFlowImpl::DestroyOf() {
   if (of_handle_) {
+    // it is not possible to release all driver allocated data strucutres by calling nvOFDestroy
+    // if nvOFInit was not successfully called before, so run init with the default args just
+    // to successfully call nvOFDestroy
+    if (!is_initialized_) {
+      of_inst_.nvOFInit(of_handle_, &default_init_params_);
+    }
     auto err = of_inst_.nvOFDestroy(of_handle_);
     // unload lib no matter if it was successful
     if (err != NV_OF_SUCCESS) {
@@ -154,6 +197,7 @@ void OpticalFlowImpl::DestroyOf() {
     }
   }
   of_handle_ = nullptr;
+  is_initialized_ = false;
 }
 
 void OpticalFlowImpl::Prepare(size_t width, size_t height) {
@@ -179,6 +223,7 @@ void OpticalFlowImpl::Prepare(size_t width, size_t height) {
   CUDA_CALL(of_inst_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
   auto status = VerifySupport(of_inst_.nvOFInit(of_handle_, &init_params_));
   CUDA_CALL(status);
+  is_initialized_ = true;
 
   CreateBuffers();
 }
@@ -241,46 +286,19 @@ void OpticalFlowImpl::CalcOpticalFlow(
                                outbuf_->GetDescriptor().height, stream_);
 }
 
-
 void OpticalFlowImpl::SetInitParams(dali::optical_flow::OpticalFlowParams api_params) {
   init_params_ = {};
+  default_init_params_ = {};
   init_params_.width = static_cast<uint32_t>(width_);
   init_params_.height = static_cast<uint32_t>(height_);
 
-  switch (api_params.out_grid_size) {
-    case 1:
-      init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_1;
-      break;
-    case 2:
-      init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_2;
-      break;
-    case 4:
-      init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_4;
-      break;
-    default:
-      init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_UNDEFINED;
-      break;
-  }
+  init_params_.outGridSize = OutGridSizeToEnum(api_params.out_grid_size);
+  init_params_.hintGridSize = HintGridSizeToEnum(api_params.hint_grid_size);
 
-  switch (api_params.hint_grid_size) {
-    case 1:
-      init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_1;
-      break;
-    case 2:
-      init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_2;
-      break;
-    case 4:
-      init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_4;
-      break;
-    case 8:
-      init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_8;
-      break;
-    default:
-      init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_UNDEFINED;
-      break;
-  }
+  default_init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_UNDEFINED;
 
   init_params_.mode = NV_OF_MODE_OPTICALFLOW;
+  default_init_params_.mode = NV_OF_MODE_OPTICALFLOW;
 
   if (api_params.perf_quality_factor >= 0.0 && api_params.perf_quality_factor < 0.375f) {
     init_params_.perfLevel = NV_OF_PERF_LEVEL_SLOW;
@@ -291,11 +309,17 @@ void OpticalFlowImpl::SetInitParams(dali::optical_flow::OpticalFlowParams api_pa
   } else {
     init_params_.perfLevel = NV_OF_PERF_LEVEL_UNDEFINED;
   }
+  default_init_params_.perfLevel = NV_OF_PERF_LEVEL_SLOW;
 
   init_params_.enableExternalHints = of_params_.enable_external_hints ? NV_OF_TRUE : NV_OF_FALSE;
   init_params_.enableOutputCost = NV_OF_FALSE;
   init_params_.hPrivData = NULL;
   init_params_.disparityRange = NV_OF_STEREO_DISPARITY_RANGE_UNDEFINED;
+
+  default_init_params_.enableExternalHints = NV_OF_FALSE;
+  default_init_params_.enableOutputCost = NV_OF_FALSE;
+  default_init_params_.hPrivData = NULL;
+  default_init_params_.disparityRange = NV_OF_STEREO_DISPARITY_RANGE_UNDEFINED;
 }
 
 

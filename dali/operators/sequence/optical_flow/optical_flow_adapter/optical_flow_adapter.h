@@ -40,8 +40,12 @@ class DLL_PUBLIC OpticalFlowAdapter {
   using StorageBackend = typename compute_to_storage<ComputeBackend>::type;
 
  public:
-  explicit OpticalFlowAdapter(OpticalFlowParams params) : of_params_(params) {}
+  explicit OpticalFlowAdapter(const OpticalFlowParams &params) : of_params_(params) {}
 
+  /**
+   *  Runs the initialization code that may throw
+   */
+  virtual void Init(OpticalFlowParams &params) = 0;
 
   /**
    * Reconfigures Optical Flow HW for new frame dimensions if necessary

@@ -110,8 +110,10 @@ inline __host__ __device__ int16_t encode_flow_component(float value) {
 
 class DLL_PUBLIC OpticalFlowImpl : public OpticalFlowAdapter<ComputeGPU> {
  public:
-  OpticalFlowImpl(OpticalFlowParams params, size_t width, size_t height, size_t channels,
+  OpticalFlowImpl(const OpticalFlowParams &params, size_t width, size_t height, size_t channels,
                   DALIImageType image_type, int device_id_, cudaStream_t stream = 0);
+
+  void Init(OpticalFlowParams &params) override;
 
   void Prepare(size_t width, size_t height) override;
 
@@ -168,6 +170,7 @@ class DLL_PUBLIC OpticalFlowImpl : public OpticalFlowAdapter<ComputeGPU> {
   NvOFHandle of_handle_         = nullptr;
   NV_OF_CUDA_API_FUNCTION_LIST of_inst_ = {};
   NV_OF_INIT_PARAMS init_params_ = {};
+  NV_OF_INIT_PARAMS default_init_params_ = {};
   std::unique_ptr<OpticalFlowBuffer> inbuf_, refbuf_, outbuf_, hintsbuf_;
   DALIImageType image_type_     = DALI_RGB;
   ofDriverHandle lib_handle_    = nullptr;
@@ -175,6 +178,7 @@ class DLL_PUBLIC OpticalFlowImpl : public OpticalFlowAdapter<ComputeGPU> {
   std::vector<uint32_t> width_max_;
   std::vector<uint32_t> height_min_;
   std::vector<uint32_t> height_max_;
+  bool is_initialized_ = false;
 };
 
 }  // namespace optical_flow
