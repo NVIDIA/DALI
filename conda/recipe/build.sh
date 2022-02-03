@@ -109,7 +109,7 @@ DEPS_LIST=(
     "$PREFIX/lib/libavcodec.so.59"
     "$PREFIX/lib/libavfilter.so.8"
     "$PREFIX/lib/libavutil.so.57"
-    "$PREFIX/lib/libswscale.so.5"
+    "$PREFIX/lib/libswscale.so.6"
 )
 
 DEPS_SONAME=(
