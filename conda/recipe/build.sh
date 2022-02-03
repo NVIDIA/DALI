@@ -105,19 +105,19 @@ fname_with_sha256() {
 }
 
 DEPS_LIST=(
-    "$PREFIX/lib/libavformat.so.58"
-    "$PREFIX/lib/libavcodec.so.58"
-    "$PREFIX/lib/libavfilter.so.7"
-    "$PREFIX/lib/libavutil.so.56"
+    "$PREFIX/lib/libavformat.so.59"
+    "$PREFIX/lib/libavcodec.so.59"
+    "$PREFIX/lib/libavfilter.so.8"
+    "$PREFIX/lib/libavutil.so.57"
     "$PREFIX/lib/libswscale.so.5"
 )
 
 DEPS_SONAME=(
-    "libavformat.so.58"
-    "libavcodec.so.58"
-    "libavfilter.so.7"
-    "libavutil.so.56"
-    "libswscale.so.5"
+    "libavformat.so.59"
+    "libavcodec.so.59"
+    "libavfilter.so.8"
+    "libavutil.so.57"
+    "libswscale.so.6"
 )
 
 PKGNAME_PATH=dali/python/nvidia/dali/
