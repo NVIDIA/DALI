@@ -402,19 +402,24 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
         filtername = "mpeg4_unpack_bframes";
       } else if (codec_id == AV_CODEC_ID_HEVC) {
         filtername = "hevc_mp4toannexb";
-      } else {
-        filtername = "null";
       }
 
 #if HAVE_AVBSFCONTEXT
-      auto bsf = av_bsf_get_by_name(filtername);
-      if (!bsf) {
-        DALI_FAIL("Error finding bit stream filter.");
-      }
       AVBSFContext* raw_bsf_ctx_ = nullptr;
-      if (av_bsf_alloc(bsf, &raw_bsf_ctx_) < 0) {
-        DALI_FAIL("Error allocating bit stream filter context.");
+      if (filtername != nullptr) {
+        auto bsf = av_bsf_get_by_name(filtername);
+        if (!bsf) {
+          DALI_FAIL("Error finding bit stream filter.");
+        }
+        if (av_bsf_alloc(bsf, &raw_bsf_ctx_) < 0) {
+          DALI_FAIL("Error allocating bit stream filter context.");
+        }
+      } else {
+        if (av_bsf_get_null_filter(&raw_bsf_ctx_) < 0) {
+          DALI_FAIL("Error creating pass-through filter.");
+        }
       }
+      
       file.bsf_ctx_ = make_unique_av<AVBSFContext>(raw_bsf_ctx_, av_bsf_free);
 
       if (avcodec_parameters_copy(file.bsf_ctx_->par_in, codecpar(stream)) < 0) {
