@@ -419,7 +419,7 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
           DALI_FAIL("Error creating pass-through filter.");
         }
       }
-      
+
       file.bsf_ctx_ = make_unique_av<AVBSFContext>(raw_bsf_ctx_, av_bsf_free);
 
       if (avcodec_parameters_copy(file.bsf_ctx_->par_in, codecpar(stream)) < 0) {
