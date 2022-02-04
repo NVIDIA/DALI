@@ -153,6 +153,7 @@ class OpticalFlow : public Operator<Backend> {
                                                                  image_type,
                                                                  device_id,
                                                                  stream));
+                        optical_flow_->Init(of_params_);
                    });
   }
 
