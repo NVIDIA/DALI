@@ -144,7 +144,7 @@ class DLL_PUBLIC FramesDecoder {
    * 
    * @return int Index of the next frame to be read
    */
-  int CurrentFrame() { return current_frame_; }
+  int NextFrameIdx() { return next_frame_idx_; }
 
   FramesDecoder(FramesDecoder&&) = default;
 
@@ -155,7 +155,7 @@ class DLL_PUBLIC FramesDecoder {
 
   std::vector<IndexEntry> index_;
 
-  int current_frame_;
+  int next_frame_idx_;
 
  private:
    /**

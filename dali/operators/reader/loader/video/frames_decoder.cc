@@ -169,13 +169,13 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
     }
 
     if (!copy_to_output) {
-      ++current_frame_;
+      ++next_frame_idx_;
       return true;
     }
 
     CopyToOutput(data);
     LOG_LINE << "Read frame (ReadRegularFrame), timestamp " << av_state_->frame_->pts << std::endl;
-    ++current_frame_;
+    ++next_frame_idx_;
     return true;
   }
 
@@ -189,7 +189,7 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
 }
 
 void FramesDecoder::Reset() {
-  current_frame_ = 0;
+  next_frame_idx_ = 0;
   int ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME);
   DALI_ENFORCE(
     ret >= 0,
@@ -237,7 +237,7 @@ void FramesDecoder::SeekFrame(int frame_id) {
       detail::av_error_string(ret)));
 
   avcodec_flush_buffers(av_state_->codec_ctx_);
-  current_frame_ = keyframe_id;
+  next_frame_idx_ = keyframe_id;
 
   for (int i = 0; i < (frame_id - keyframe_id); ++i) {
     ReadNextFrame(nullptr, false);
@@ -255,7 +255,11 @@ bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
     LOG_LINE << "Read frame (ReadFlushFrame), timestamp " << av_state_->frame_->pts << std::endl;
   }
 
-  ++current_frame_;
+  ++next_frame_idx_;
+  if (next_frame_idx_ >= NumFrames()) {
+    next_frame_idx_ = -1;
+  }
+
   return true;
 }
 

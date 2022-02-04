@@ -41,7 +41,7 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
     return 0;
   }
 
-  CUDA_CALL(cuvidDecodePicture(frames_decoder->nvdecode_state_->decoder_, picture_params));
+  CUDA_CALL(cuvidDecodePicture(frames_decoder->nvdecode_state_->decoder, picture_params));
 
   // Process decoded frame for output
   CUVIDPROCPARAMS videoProcessingParameters = {};
@@ -57,9 +57,18 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
   int current_pts = frames_decoder->piped_pts_.front();
   frames_decoder->piped_pts_.pop();
 
-  if (current_pts == frames_decoder->CurrentFramePts()) {
+  // current_pts is pts of frame that came from the decoder
+  // CurrentFramePts() is pts of the frame that we want to return
+  // in this call to ReadNextFrame
+  // If they are the same, we just return this frame
+  // If not, we store it in the buffer for later
+
+  if (current_pts == frames_decoder->NextFramePts()) {
     // Currently decoded frame is actually the one we wanted
     frames_decoder->frame_returned_ = true;
+    if (frames_decoder->current_copy_to_output_ == false) {
+      return 1;
+  }
     frame_output = frames_decoder->current_frame_output_;
   } else {
     // Put currently decoded frame to the buffer for later
@@ -68,15 +77,11 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
     frame_output = slot.frame_.data();
   }
 
-  if (frames_decoder->current_copy_to_output_ == false) {
-    return 1;
-  }
-
   CUdeviceptr frame = {};
   unsigned int pitch = 0;
 
   CUDA_CALL(cuvidMapVideoFrame(
-    frames_decoder->nvdecode_state_->decoder_,
+    frames_decoder->nvdecode_state_->decoder,
     picture_params->CurrPicIdx,
     &frame,
     &pitch,
@@ -91,7 +96,7 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
     frames_decoder->Width(),
     frames_decoder->Height(),
     frames_decoder->stream_);
-  CUDA_CALL(cuvidUnmapVideoFrame(frames_decoder->nvdecode_state_->decoder_, frame));
+  CUDA_CALL(cuvidUnmapVideoFrame(frames_decoder->nvdecode_state_->decoder, frame));
 
   return 1;
 }
@@ -113,7 +118,7 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     DALI_ENFORCE(filtered_packet_, "Could not allocate av packet");
 
     // Create nv decoder
-    CUVIDDECODECREATEINFO decoder_info = {};
+    CUVIDDECODECREATEINFO decoder_info;
     memset(&decoder_info, 0, sizeof(CUVIDDECODECREATEINFO));
 
     decoder_info.bitDepthMinus8 = 0;
@@ -128,7 +133,7 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     decoder_info.ulNumDecodeSurfaces = num_decode_surfaces_;
     decoder_info.ulNumOutputSurfaces = 2;
 
-    CUDA_CALL(cuvidCreateDecoder(&nvdecode_state_->decoder_, &decoder_info));
+    CUDA_CALL(cuvidCreateDecoder(&nvdecode_state_->decoder, &decoder_info));
 
     // Create nv parser
     CUVIDPARSERPARAMS parser_info;
@@ -141,9 +146,10 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     parser_info.pfnDecodePicture = detail::process_picture_decode;
     parser_info.pfnDisplayPicture = nullptr;
 
-    CUDA_CALL(cuvidCreateVideoParser(&nvdecode_state_->parser_, &parser_info));
+    CUDA_CALL(cuvidCreateVideoParser(&nvdecode_state_->parser, &parser_info));
 
     // Init internal frame buffer
+    // TODO(awolant): Check, if continous buffer would be faster
     for (size_t i = 0; i < frame_buffer_.size(); ++i) {
       frame_buffer_[i].frame_.resize(FrameSize());
       frame_buffer_[i].pts_ = -1;
@@ -157,19 +163,19 @@ void FramesDecoderGpu::SeekFrame(int frame_id) {
 
 bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
   // No more frames in the file
-  if (current_frame_ == -1) {
+  if (next_frame_idx_ == -1) {
     return false;
   }
 
   // Check if requested frame was buffered earlier
   for (auto &frame : frame_buffer_) {
-    if (frame.pts_ == index_[current_frame_].pts) {
+    if (frame.pts_ == index_[next_frame_idx_].pts) {
       if (copy_to_output) {
         copyD2D(data, frame.frame_.data(), FrameSize());
       }
       frame.pts_ = -1;
 
-      ++current_frame_;
+      ++next_frame_idx_;
       return true;
     }
   }
@@ -203,20 +209,17 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
 
     // Send packet to the nv deocder
     frame_returned_ = false;
-    CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser_, packet));
+    CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
 
     if (frame_returned_) {
-      ++current_frame_;
+      ++next_frame_idx_;
       return true;
     }
   }
 
-  if (!last_frame_read_) {
-    SendLastPacket();
-    current_frame_ = -1;
-    return true;
-  }
-  return false;
+  SendLastPacket();
+  next_frame_idx_ = -1;
+  return true;
 }
 
 void FramesDecoderGpu::SendLastPacket(bool flush) {
@@ -226,12 +229,10 @@ void FramesDecoderGpu::SendLastPacket(bool flush) {
   packet->payload = nullptr;
   packet->payload_size = 0;
   packet->flags = CUVID_PKT_ENDOFSTREAM;
-  CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser_, packet));
+  CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
   flush_ = false;
 
   if (flush) {
-    last_frame_read_ = false;
-
     // Clear frames buffer
     for (size_t i = 0; i < frame_buffer_.size(); ++i) {
       frame_buffer_[i].pts_ = -1;
