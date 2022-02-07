@@ -221,7 +221,7 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
     }
   }
 
-  DALI_ASSERT(piped_pts_.size() == 1);
+  DALI_ENFORCE(piped_pts_.size() == 1);
 
   SendLastPacket();
   next_frame_idx_ = -1;
