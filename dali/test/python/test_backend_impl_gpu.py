@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend_impl import *
+from nvidia.dali.backend_impl import TensorGPU, TensorListGPU
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.tensors as tensors
+import nvidia.dali.types as types
 import numpy as np
 from nose_utils import assert_raises, raises
 import cupy as cp
@@ -56,7 +57,7 @@ def test_data_ptr_tensor_gpu():
     pipe = ExternalSourcePipe(arr.shape[0], arr)
     pipe.build()
     tensor = pipe.run()[0][0]
-    from_tensor = py_buffer_from_address(tensor.data_ptr(), tensor.shape(), tensor.dtype(), gpu=True)
+    from_tensor = py_buffer_from_address(tensor.data_ptr(), tensor.shape(), types.to_numpy_type(tensor.dtype), gpu=True)
     # from_tensor is cupy array, convert arr to cupy as well
     assert(cp.allclose(arr[0], from_tensor))
 
@@ -66,7 +67,7 @@ def test_data_ptr_tensor_list_gpu():
     pipe.build()
     tensor_list = pipe.run()[0]
     tensor = tensor_list.as_tensor()
-    from_tensor = py_buffer_from_address(tensor_list.data_ptr(), tensor.shape(), tensor.dtype(), gpu=True)
+    from_tensor = py_buffer_from_address(tensor_list.data_ptr(), tensor.shape(), types.to_numpy_type(tensor.dtype), gpu=True)
     # from_tensor is cupy array, convert arr to cupy as well
     assert(cp.allclose(arr, from_tensor))
 
@@ -78,7 +79,7 @@ def test_cuda_array_interface_tensor_gpu():
     assert tensor_list[0].__cuda_array_interface__['data'][0] == tensor_list[0].data_ptr()
     assert tensor_list[0].__cuda_array_interface__['data'][1] == True
     assert np.array_equal(tensor_list[0].__cuda_array_interface__['shape'], tensor_list[0].shape())
-    assert tensor_list[0].__cuda_array_interface__['typestr'] == tensor_list[0].dtype()
+    assert np.dtype(tensor_list[0].__cuda_array_interface__['typestr']) == np.dtype(types.to_numpy_type(tensor_list[0].dtype))
     assert(cp.allclose(arr[0], cp.asanyarray(tensor_list[0])))
 
 def test_cuda_array_interface_tensor_gpu_create():

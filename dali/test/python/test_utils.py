@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -371,7 +371,9 @@ def dali_type(t):
 
 
 def py_buffer_from_address(address, shape, dtype, gpu=False):
-    buff = {'data': (address, False), 'shape': tuple(shape), 'typestr': dtype}
+    import_numpy()
+
+    buff = {'data': (address, False), 'shape': tuple(shape), 'typestr': np.dtype(dtype).str}
 
     class py_holder(object):
         pass
@@ -380,7 +382,6 @@ def py_buffer_from_address(address, shape, dtype, gpu=False):
     holder.__array_interface__ = buff
     holder.__cuda_array_interface__ = buff
     if not gpu:
-        import_numpy()
         return np.array(holder, copy=False)
     else:
         import_cupy()

@@ -20,6 +20,7 @@
 
 #include "dali/core/static_switch.h"
 #include "dali/kernels/imgproc/convolution/laplacian_cpu.h"
+#include "dali/kernels/imgproc/convolution/laplacian_windows.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/convolution/laplacian.h"
 #include "dali/pipeline/data/views.h"
@@ -107,8 +108,12 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
   using Kernel = kernels::LaplacianCpu<Out, In, float, axes, has_channels>;
   static constexpr int ndim = Kernel::ndim;
 
-  explicit LaplacianOpCpu(const OpSpec& spec, const DimDesc& dim_desc)
-      : spec_{spec}, args{spec}, dim_desc_{dim_desc} {}
+  /**
+   * @param spec  Pointer to a persistent OpSpec object,
+   *              which is guaranteed to be alive for the entire lifetime of this object
+   */
+  explicit LaplacianOpCpu(const OpSpec* spec, const DimDesc& dim_desc)
+      : spec_{*spec}, args{*spec}, dim_desc_{dim_desc}, lap_windows_{maxWindowSize} {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template Input<CPUBackend>(0);
@@ -126,7 +131,9 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
       const auto& window_sizes = args.GetWindowSizes(sample_idx);
       for (int i = 0; i < axes; i++) {
         for (int j = 0; j < axes; j++) {
-          windows_[sample_idx][i][j] = lap_windows_.GetWindow(window_sizes[i][j], i == j);
+          auto window_size = window_sizes[i][j];
+          windows_[sample_idx][i][j] = i == j ? lap_windows_.GetDerivWindow(window_size) :
+                                                lap_windows_.GetSmoothingWindow(window_size);
         }
       }
     }
@@ -182,19 +189,20 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
 
   LaplacianArgs<axes> args;
   DimDesc dim_desc_;
+  kernels::LaplacianWindows<float> lap_windows_;
 
   kernels::KernelManager kmgr_;
   kernels::KernelContext ctx_;
 
-  LaplacianWindows<float> lap_windows_;
   // windows_[i][j] is a window used in convolution along j-th axis in the i-th partial derivative
   std::vector<std::array<std::array<TensorView<StorageCPU, const float, 1>, axes>, axes>> windows_;
 };
 
-
 }  // namespace laplacian
 
-bool Laplacian::SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) {
+template <>
+bool Laplacian<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
+                                      const workspace_t<CPUBackend>& ws) {
   const auto& input = ws.template Input<CPUBackend>(0);
   auto layout = input.GetLayout();
   auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
@@ -211,10 +219,10 @@ bool Laplacian::SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_
         BOOL_SWITCH(dim_desc.is_channel_last(), HasChannels, (
           if (dtype == input.type()) {
             using LaplacianSame = laplacian::LaplacianOpCpu<In, In, Axes, HasChannels>;
-            impl_ = std::make_unique<LaplacianSame>(spec_, dim_desc);
+            impl_ = std::make_unique<LaplacianSame>(&spec_, dim_desc);
           } else {
             using LaplacianFloat = laplacian::LaplacianOpCpu<float, In, Axes, HasChannels>;
-            impl_ = std::make_unique<LaplacianFloat>(spec_, dim_desc);
+            impl_ = std::make_unique<LaplacianFloat>(&spec_, dim_desc);
           }
         )); // NOLINT
       ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
@@ -224,10 +232,11 @@ bool Laplacian::SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_
   return impl_->SetupImpl(output_desc, ws);
 }
 
-void Laplacian::RunImpl(workspace_t<CPUBackend>& ws) {
+template <>
+void Laplacian<CPUBackend>::RunImpl(workspace_t<CPUBackend>& ws) {
   impl_->RunImpl(ws);
 }
 
-DALI_REGISTER_OPERATOR(Laplacian, Laplacian, CPU);
+DALI_REGISTER_OPERATOR(Laplacian, Laplacian<CPUBackend>, CPU);
 
 }  // namespace dali

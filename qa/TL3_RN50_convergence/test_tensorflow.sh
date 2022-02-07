@@ -7,8 +7,9 @@ mkdir -p idx-files/
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
 DATA_SET_DIR=/data/imagenet/train-val-tfrecord
-for file in $(ls $DATA_SET_DIR --ignore *\.txt);
+for file in $(ls $DATA_SET_DIR/*-of-*);
 do
+    file=$(basename ${file})
     echo ${file}
     python /opt/dali/tools/tfrecord2idx $DATA_SET_DIR/${file} \
         idx-files/${file}.idx;

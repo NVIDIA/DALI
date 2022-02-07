@@ -59,7 +59,12 @@ RUN rm -f /usr/bin/python && \
     else \
         ln -s /usr/bin/python$PYVER /usr/bin/python && \
         ln -s /usr/bin/python$PYVER /usr/bin/python`echo $PYVER | cut -c1-1` && \
-        curl -O https://bootstrap.pypa.io/get-pip.py && \
+        PYTHON_VER=$(python -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')") && \
+        if [ "${PYTHON_VER}" == "36" ]; then \
+            curl -O https://bootstrap.pypa.io/pip/3.6/get-pip.py; \
+        else \
+            curl -O https://bootstrap.pypa.io/get-pip.py; \
+        fi && \
         python get-pip.py && \
         rm get-pip.py; \
     fi && \

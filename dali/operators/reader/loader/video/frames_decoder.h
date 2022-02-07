@@ -38,7 +38,7 @@ struct IndexEntry {
 
 struct AvState {
   AVFormatContext *ctx_ = nullptr;
-  AVCodec *codec_ = nullptr;
+  const AVCodec *codec_ = nullptr;
   AVCodecParameters *codec_params_ = nullptr;
   AVCodecContext *codec_ctx_ = nullptr;
   AVFrame *frame_ = nullptr;

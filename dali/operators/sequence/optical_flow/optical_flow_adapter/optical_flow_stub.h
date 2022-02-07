@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,11 +31,14 @@ template<typename ComputeBackend>
 class DLL_PUBLIC OpticalFlowStub : public OpticalFlowAdapter<ComputeBackend> {
   using StorageBackend = typename OpticalFlowAdapter<ComputeBackend>::StorageBackend;
  public:
-  explicit OpticalFlowStub(OpticalFlowParams params) :
+  explicit OpticalFlowStub(const OpticalFlowParams &params) :
           OpticalFlowAdapter<ComputeBackend>(params) {}
 
+  void Init(OpticalFlowParams &/*params*/) override {}
 
-  TensorShape<DynamicDimensions> GetOutputShape() override {
+  void Prepare(size_t /*width*/, size_t /*height*/) override {}
+
+  TensorShape<DynamicDimensions> CalcOutputShape(int /*height*/, int /*width*/) override {
     return {2, 3, 4};
   }
 
