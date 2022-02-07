@@ -60,8 +60,10 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   int NextFramePts() { return index_[NextFrameIdx()].pts; }
 
-  std::unique_ptr<NvDecodeState> nvdecode_state_;
+  int ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params);
 
+ private:
+  std::unique_ptr<NvDecodeState> nvdecode_state_;
   uint8_t *current_frame_output_ = nullptr;
   bool current_copy_to_output_ = false;
   bool frame_returned_ = false;

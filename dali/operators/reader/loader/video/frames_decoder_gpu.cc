@@ -35,70 +35,7 @@ int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
 int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
 
-  // Sending empty packet will call this callback.
-  // If we want to flush the decoder, we do not need to do anything here
-  if (frames_decoder->flush_) {
-    return 0;
-  }
-
-  CUDA_CALL(cuvidDecodePicture(frames_decoder->nvdecode_state_->decoder, picture_params));
-
-  // Process decoded frame for output
-  CUVIDPROCPARAMS videoProcessingParameters = {};
-  videoProcessingParameters.progressive_frame = !picture_params->field_pic_flag;
-  videoProcessingParameters.second_field = 1;
-  videoProcessingParameters.top_field_first = picture_params->bottom_field_flag ^ 1;
-  videoProcessingParameters.unpaired_field = 0;
-  videoProcessingParameters.output_stream = frames_decoder->stream_;
-
-  uint8_t *frame_output = nullptr;
-
-  // Take pts of the currently decoded frame
-  int current_pts = frames_decoder->piped_pts_.front();
-  frames_decoder->piped_pts_.pop();
-
-  // current_pts is pts of frame that came from the decoder
-  // CurrentFramePts() is pts of the frame that we want to return
-  // in this call to ReadNextFrame
-  // If they are the same, we just return this frame
-  // If not, we store it in the buffer for later
-
-  if (current_pts == frames_decoder->NextFramePts()) {
-    // Currently decoded frame is actually the one we wanted
-    frames_decoder->frame_returned_ = true;
-    if (frames_decoder->current_copy_to_output_ == false) {
-      return 1;
-  }
-    frame_output = frames_decoder->current_frame_output_;
-  } else {
-    // Put currently decoded frame to the buffer for later
-    auto &slot = frames_decoder->FindEmptySlot();
-    slot.pts_ = current_pts;
-    frame_output = slot.frame_.data();
-  }
-
-  CUdeviceptr frame = {};
-  unsigned int pitch = 0;
-
-  CUDA_CALL(cuvidMapVideoFrame(
-    frames_decoder->nvdecode_state_->decoder,
-    picture_params->CurrPicIdx,
-    &frame,
-    &pitch,
-    &videoProcessingParameters));
-
-  // TODO(awolant): Benchmark, if copy would be faster
-  yuv_to_rgb(
-    reinterpret_cast<uint8_t *>(frame),
-    pitch,
-    frame_output,
-    frames_decoder->Width()* 3,
-    frames_decoder->Width(),
-    frames_decoder->Height(),
-    frames_decoder->stream_);
-  CUDA_CALL(cuvidUnmapVideoFrame(frames_decoder->nvdecode_state_->decoder, frame));
-
-  return 1;
+  return frames_decoder->ProcessPictureDecode(user_data, picture_params);
 }
 }  // namespace detail
 
@@ -156,6 +93,73 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     }
 }
 
+int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params) {
+  // Sending empty packet will call this callback.
+  // If we want to flush the decoder, we do not need to do anything here
+  if (flush_) {
+    return 0;
+  }
+
+  CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
+
+  // Process decoded frame for output
+  CUVIDPROCPARAMS videoProcessingParameters = {};
+  videoProcessingParameters.progressive_frame = !picture_params->field_pic_flag;
+  videoProcessingParameters.second_field = 1;
+  videoProcessingParameters.top_field_first = picture_params->bottom_field_flag ^ 1;
+  videoProcessingParameters.unpaired_field = 0;
+  videoProcessingParameters.output_stream = stream_;
+
+  uint8_t *frame_output = nullptr;
+
+  // Take pts of the currently decoded frame
+  int current_pts = piped_pts_.front();
+  piped_pts_.pop();
+
+  // current_pts is pts of frame that came from the decoder
+  // NextFramePts() is pts of the frame that we want to return
+  // in this call to ReadNextFrame
+  // If they are the same, we just return this frame
+  // If not, we store it in the buffer for later
+
+  if (current_pts == NextFramePts()) {
+    // Currently decoded frame is actually the one we wanted
+    frame_returned_ = true;
+    if (current_copy_to_output_ == false) {
+      return 1;
+    }
+    frame_output = current_frame_output_;
+  } else {
+    // Put currently decoded frame to the buffer for later
+    auto &slot = FindEmptySlot();
+    slot.pts_ = current_pts;
+    frame_output = slot.frame_.data();
+  }
+
+  CUdeviceptr frame = {};
+  unsigned int pitch = 0;
+
+  CUDA_CALL(cuvidMapVideoFrame(
+    nvdecode_state_->decoder,
+    picture_params->CurrPicIdx,
+    &frame,
+    &pitch,
+    &videoProcessingParameters));
+
+  // TODO(awolant): Benchmark, if copy would be faster
+  yuv_to_rgb(
+    reinterpret_cast<uint8_t *>(frame),
+    pitch,
+    frame_output,
+    Width()* 3,
+    Width(),
+    Height(),
+    stream_);
+  CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame));
+
+  return 1;
+}
+
 void FramesDecoderGpu::SeekFrame(int frame_id) {
   SendLastPacket(true);
   FramesDecoder::SeekFrame(frame_id);
@@ -207,7 +211,7 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
     packet->flags = CUVID_PKT_TIMESTAMP;
     packet->timestamp = filtered_packet_->pts;
 
-    // Send packet to the nv deocder
+    // Send packet to the nv decoder
     frame_returned_ = false;
     CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
 
