@@ -24,19 +24,19 @@
 
 
 namespace dali {
-class VideoReaderDecoderCpuTest_CpuOnlyTests : public VideoTestBase {
+class VideoReaderDecoderCpuTest : public VideoTestBase {
 };
 
 class VideoReaderDecoderGpuTest : public VideoTestBase {
 };
 
-TEST_F(VideoReaderDecoderCpuTest_CpuOnlyTests, CpuConstantFrameRate) {
+TEST_F(VideoReaderDecoderCpuTest, CpuConstantFrameRate_CpuOnlyTests) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
   const int step = 10;
 
-  Pipeline pipe(batch_size, 4, 0);
+  Pipeline pipe(batch_size, 4, dali::CPU_ONLY_DEVICE_ID);
 
   pipe.AddOperator(OpSpec("experimental__readers__Video")
     .AddArg("device", "cpu")
@@ -98,13 +98,13 @@ TEST_F(VideoReaderDecoderCpuTest_CpuOnlyTests, CpuConstantFrameRate) {
   }
 }
 
-TEST_F(VideoReaderDecoderCpuTest_CpuOnlyTests, CpuVariableFrameRate) {
+TEST_F(VideoReaderDecoderCpuTest, CpuVariableFrameRate_CpuOnlyTests) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
   const int step = 10;
 
-  Pipeline pipe(batch_size, 4, 0);
+  Pipeline pipe(batch_size, 4, dali::CPU_ONLY_DEVICE_ID);
 
   pipe.AddOperator(OpSpec("experimental__readers__Video")
     .AddArg("device", "cpu")
@@ -166,12 +166,12 @@ TEST_F(VideoReaderDecoderCpuTest_CpuOnlyTests, CpuVariableFrameRate) {
   }
 }
 
-TEST_F(VideoReaderDecoderCpuTest_CpuOnlyTests, RandomShuffle) {
+TEST_F(VideoReaderDecoderCpuTest, RandomShuffle_CpuOnlyTests) {
   const int batch_size = 1;
   const int sequence_length = 1;
   const int seed = 1;
 
-  Pipeline pipe(batch_size, 1, 0, seed);
+  Pipeline pipe(batch_size, 1, dali::CPU_ONLY_DEVICE_ID, seed);
 
   pipe.AddOperator(OpSpec("experimental__readers__Video")
     .AddArg("device", "cpu")
@@ -202,8 +202,7 @@ TEST_F(VideoReaderDecoderCpuTest_CpuOnlyTests, RandomShuffle) {
   }
 }
 
-
-TEST_F(VideoReaderDecoderCpuTest_CpuOnlyTests, CompareReaders) {
+TEST_F(VideoReaderDecoderCpuTest, CompareReaders) {
   const int batch_size = 4;
   const int sequence_length = 6;
   const int stride = 3;
