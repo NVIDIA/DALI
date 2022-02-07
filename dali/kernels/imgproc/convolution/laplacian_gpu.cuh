@@ -40,8 +40,8 @@ namespace laplacian {
  * @brief Computes convolution to obtain partial derivative in one of the dimensions.
  * Convolution consits of `axes` windows, each to convolve along one dimension of the input data,
  * where `deriv_axis`-th window is supposed to compute partial derivative along that axis,
- * whereas the remaining windows should perform smoothing. If no smoothing is necessary in a whole
- * batch, you can prevent smoothing convolutions form running by passing empty lists for
+ * whereas the remaining windows should perform smoothing. If no smoothing is necessary in
+ * the whole batch, you can prevent smoothing convolutions from running by passing empty lists for
  * `window_sizes[i]` such that `i != deriv_axis`.
  */
 template <typename Out, typename In, typename W, int axes, int deriv_axis, bool has_channels,
@@ -61,6 +61,18 @@ struct PartialDerivGpu {
     return false;
   }
 
+  /**
+   * @param ctx             Kernel context, used for scratch-pad.
+   * @param in_shape        List of input shapes, used by underlaying convolution kernels to infer
+   *                        intermediate buffer sizes.
+   * @param window_sizes    For given `i`, `window_sizes[i]` contains per-sample window sizes
+   *                        to be applied in a convolution along `i-th` axis. The length of
+   *                        `window_sizes[deriv_axis]` must be equal to the input batch size.
+   *                        Lists for other axes must either all have length equal to the input
+   *                        batch size or all be empty. In the latter case, smoothing convolutions
+   *                        will be omitted, i.e. only one convolution, along `deriv_axis`
+   *                        will be applied.
+   */
   KernelRequirements Setup(KernelContext& ctx, const TensorListShape<ndim>& in_shape,
                            const std::array<TensorListShape<1>, axes>& window_sizes) {
     has_smoothing_ = HasSmoothing(window_sizes);

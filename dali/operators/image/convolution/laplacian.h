@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,13 +29,19 @@ namespace dali {
 #define LAPLACIAN_CPU_SUPPORTED_TYPES \
   (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float16, float)
 
+// TODO(klecki): float16 support - it's not easily compatible with float window,
+// need to introduce some cast in between and expose it in the kernels
+#define LAPLACIAN_GPU_SUPPORTED_TYPES \
+  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)
+
 #define LAPLACIAN_SUPPORTED_AXES (1, 2, 3)
 
 
-class Laplacian : public Operator<CPUBackend> {
+template <typename Backend>
+class Laplacian : public Operator<Backend> {
  public:
   inline explicit Laplacian(const OpSpec& spec)
-      : Operator<CPUBackend>(spec), dtype_(spec.GetArgument<DALIDataType>("dtype")) {}
+      : Operator<Backend>(spec), dtype_(spec.GetArgument<DALIDataType>("dtype")) {}
 
   DISABLE_COPY_MOVE_ASSIGN(Laplacian);
 
@@ -44,14 +50,14 @@ class Laplacian : public Operator<CPUBackend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override;
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<Backend>& ws) override;
 
-  void RunImpl(workspace_t<CPUBackend>& ws) override;
+  void RunImpl(workspace_t<Backend>& ws) override;
 
  private:
   DALIDataType dtype_;
   USE_OPERATOR_MEMBERS();
-  std::unique_ptr<OpImplBase<CPUBackend>> impl_;
+  std::unique_ptr<OpImplBase<Backend>> impl_;
   DALIDataType impl_in_dtype_ = DALI_NO_TYPE;
   convolution_utils::DimDesc impl_dim_desc_ = {};
 };
