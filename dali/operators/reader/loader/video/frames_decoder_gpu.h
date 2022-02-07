@@ -15,6 +15,10 @@
 #ifndef DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_GPU_H_
 #define DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_GPU_H_
 
+extern "C" {
+#include <libavcodec/bsf.h>
+}
+
 #include "dali/operators/reader/loader/video/frames_decoder.h"
 
 #include <string>
