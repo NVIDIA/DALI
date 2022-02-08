@@ -28,11 +28,14 @@
 
 
 namespace dali {
-class FramesDecoderTest : public VideoTestBase {
+class FramesDecoderTest_CpuOnlyTests : public VideoTestBase {
+};
+
+class FramesDecoderGpuTest : public VideoTestBase {
 };
 
 
-TEST_F(FramesDecoderTest, ConstantFrameRate) {
+TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
     std::string path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";
 
     // Create file, build index
@@ -77,7 +80,7 @@ TEST_F(FramesDecoderTest, ConstantFrameRate) {
     this->CompareFrames(frame.data(), this->GetCfrFrame(0, 0), file.FrameSize());
 }
 
-TEST_F(FramesDecoderTest, VariableFrameRateCpu) {
+TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRate) {
     std::string path = testing::dali_extra_path() + "/db/video/vfr/test_2.mp4";
 
     // Create file, build index
@@ -121,7 +124,44 @@ TEST_F(FramesDecoderTest, VariableFrameRateCpu) {
     this->CompareFrames(frame.data(), this->GetVfrFrame(1, 0), file.FrameSize());
 }
 
-TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
+TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidPath) {
+    std::string path = "invalid_path.mp4";
+
+    try {
+        FramesDecoder file(path);
+    } catch (const DALIException &e) {
+        EXPECT_TRUE(strstr(
+            e.what(),
+            make_string("Failed to open video file at path ", path).c_str()));
+    }
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, NoVideoStream) {
+    std::string path = testing::dali_extra_path() + "/db/audio/wav/dziendobry.wav";
+
+    try {
+        FramesDecoder file(path);
+    } catch (const DALIException &e) {
+        EXPECT_TRUE(strstr(
+            e.what(),
+            make_string("Could not find a valid video stream in a file ", path).c_str()));
+    }
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
+    std::string path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";
+    FramesDecoder file(path);
+
+    try {
+        file.SeekFrame(60);
+    } catch (const DALIException &e) {
+        EXPECT_TRUE(strstr(
+            e.what(),
+            "Invalid seek frame id. frame_id = 60, num_frames = 50"));
+    }
+}
+
+TEST_F(FramesDecoderGpuTest, VariableFrameRateGpu) {
     DeviceGuard(0);
     CUDA_CALL(cudaDeviceSynchronize());
 
@@ -192,44 +232,6 @@ TEST_F(FramesDecoderTest, VariableFrameRateGpu) {
         copyD2H(frame_cpu.data(), frame.data(), frame.size());
         this->CompareFramesAvgError(
             frame_cpu.data(), this->GetVfrFrame(1, next_index), file.FrameSize());
-    }
-}
-
-
-TEST_F(FramesDecoderTest, InvalidPath) {
-    std::string path = "invalid_path.mp4";
-
-    try {
-        FramesDecoder file(path);
-    } catch (const DALIException &e) {
-        EXPECT_TRUE(strstr(
-            e.what(),
-            make_string("Failed to open video file at path ", path).c_str()));
-    }
-}
-
-TEST_F(FramesDecoderTest, NoVideoStream) {
-    std::string path = testing::dali_extra_path() + "/db/audio/wav/dziendobry.wav";
-
-    try {
-        FramesDecoder file(path);
-    } catch (const DALIException &e) {
-        EXPECT_TRUE(strstr(
-            e.what(),
-            make_string("Could not find a valid video stream in a file ", path).c_str()));
-    }
-}
-
-TEST_F(FramesDecoderTest, InvalidSeek) {
-    std::string path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";
-    FramesDecoder file(path);
-
-    try {
-        file.SeekFrame(60);
-    } catch (const DALIException &e) {
-        EXPECT_TRUE(strstr(
-            e.what(),
-            "Invalid seek frame id. frame_id = 60, num_frames = 50"));
     }
 }
 
