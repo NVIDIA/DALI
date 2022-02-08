@@ -18,11 +18,12 @@
 #include <memory>
 #include <vector>
 
-#include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/operator_impl_utils.h"
-#include "dali/operators/image/convolution/laplacian_params.h"
 #include "dali/operators/image/convolution/convolution_utils.h"
+#include "dali/operators/image/convolution/laplacian_params.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/sequence_op.h"
+#include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
 
@@ -38,16 +39,23 @@ namespace dali {
 
 
 template <typename Backend>
-class Laplacian : public Operator<Backend> {
+class Laplacian : public SequenceOperator<Backend> {
  public:
   inline explicit Laplacian(const OpSpec& spec)
-      : Operator<Backend>(spec), dtype_(spec.GetArgument<DALIDataType>("dtype")) {}
+      : SequenceOperator<Backend>(spec), dtype_(spec.GetArgument<DALIDataType>("dtype")) {}
 
   DISABLE_COPY_MOVE_ASSIGN(Laplacian);
 
  protected:
   bool CanInferOutputs() const override {
     return true;
+  }
+
+  bool ShouldExpand(const workspace_t<Backend>& ws) override {
+    const auto& input = ws.template Input<Backend>(0);
+    auto layout = input.GetLayout();
+    convolution_utils::ValidateLayout(input.shape().sample_dim(), layout);
+    return SequenceOperator<Backend>::ShouldExpand(ws);
   }
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<Backend>& ws) override;

@@ -74,7 +74,7 @@ bool Laplacian<GPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
                                       const workspace_t<GPUBackend>& ws) {
   const auto& input = ws.template Input<GPUBackend>(0);
   auto layout = input.GetLayout();
-  auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
+  auto dim_desc = ParseSampleLayout(input.shape().sample_dim(), layout);
   auto dtype = dtype_ == DALI_NO_TYPE ? input.type() : dtype_;
   DALI_ENFORCE(dtype == input.type() || dtype == DALI_FLOAT,
                "Output data type must be same as input, FLOAT or skipped (defaults to input type)");

@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,40 +20,49 @@
 namespace dali {
 namespace convolution_utils {
 
-DimDesc ParseAndValidateDim(int ndim, const TensorLayout &layout) {
+void ValidateLayout(int ndim, const TensorLayout &layout) {
   static constexpr int kMaxDim = 3;
   if (layout.empty()) {
     // assuming plain data with no channels
     DALI_ENFORCE(ndim <= kMaxDim,
                  make_string("Input data with empty layout cannot have more than ", kMaxDim,
                              " dimensions, got input with ", ndim, " dimensions."));
-    return {0, ndim, ndim};
+  } else {
+    int axes_start = 0;
+    int axes_end = ndim;
+    while (axes_start < ndim && (layout[axes_start] == 'C' || layout[axes_start] == 'F')) {
+      axes_start++;
+    }
+    if (axes_end > 0 && layout[axes_end - 1] == 'C') {
+      axes_end--;
+    }
+    int axes_count = axes_end - axes_start;
+    DALI_ENFORCE(axes_count > 0, make_string("No spatial axes found in the layout: ", layout));
+    DALI_ENFORCE(std::all_of(layout.begin() + axes_start, layout.begin() + axes_end,
+                             std::bind(std::not_equal_to<char>(), 'C', std::placeholders::_1)),
+                 make_string("Only channel-first or channel-last layouts are supported, got: ",
+                             layout, "."));
+    DALI_ENFORCE(
+        std::all_of(layout.begin() + axes_start, layout.begin() + axes_end,
+                    std::bind(std::not_equal_to<char>(), 'F', std::placeholders::_1)),
+        make_string("For sequences, layout should begin with 'F' or 'C', got: ", layout, "."));
+    DALI_ENFORCE(
+        axes_start <= 2,
+        make_string("Found more the one occurrence of 'F' or 'C' axes in layout: ", layout, "."));
+    DALI_ENFORCE(axes_count <= kMaxDim,
+                 make_string("Too many dimensions, found: ", axes_count,
+                             " data axes, maximum supported is: ", kMaxDim, "."));
   }
-  int axes_start = 0;
-  int axes_end = ndim;
-  while (axes_start < ndim && (layout[axes_start] == 'C' || layout[axes_start] == 'F')) {
-    axes_start++;
+}
+
+DimDesc ParseSampleLayout(int ndim, const TensorLayout &sample_layout) {
+  if (sample_layout.empty()) {
+    return {ndim, false};
   }
-  if (axes_end > 0 && layout[axes_end - 1] == 'C') {
-    axes_end--;
+  if (*(sample_layout.end() - 1) == 'C') {
+    return {ndim - 1, true};
   }
-  int axes_count = axes_end - axes_start;
-  DALI_ENFORCE(axes_count > 0, make_string("No spatial axes found in the layout: ", layout));
-  DALI_ENFORCE(
-      std::all_of(layout.begin() + axes_start, layout.begin() + axes_end,
-                  std::bind(std::not_equal_to<char>(), 'C', std::placeholders::_1)),
-      make_string("Only channel-first or channel-last layouts are supported, got: ", layout, "."));
-  DALI_ENFORCE(
-      std::all_of(layout.begin() + axes_start, layout.begin() + axes_end,
-                  std::bind(std::not_equal_to<char>(), 'F', std::placeholders::_1)),
-      make_string("For sequences, layout should begin with 'F' or 'C', got: ", layout, "."));
-  DALI_ENFORCE(
-      axes_start <= 2,
-      make_string("Found more the one occurrence of 'F' or 'C' axes in layout: ", layout, "."));
-  DALI_ENFORCE(axes_count <= kMaxDim,
-               make_string("Too many dimensions, found: ", axes_count,
-                           " data axes, maximum supported is: ", kMaxDim, "."));
-  return {axes_start, axes_count, ndim};
+  return {ndim, false};
 }
 
 }  // namespace convolution_utils

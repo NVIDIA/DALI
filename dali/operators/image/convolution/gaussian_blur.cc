@@ -27,7 +27,7 @@
 
 namespace dali {
 
-using namespace gaussian_blur;  // NOLINT
+using namespace gaussian_blur;      // NOLINT
 using namespace convolution_utils;  // NOLINT
 
 DALI_SCHEMA(GaussianBlur)
@@ -62,15 +62,14 @@ The same input can be provided as per-sample tensors.
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
-    .AddOptionalArg<int>(kWindowSizeArgName, "The diameter of the kernel.",
-                         std::vector<int>{0}, true)
+    .AddOptionalArg<int>(kWindowSizeArgName, "The diameter of the kernel.", std::vector<int>{0},
+                         true)
     .AddOptionalArg<float>(kSigmaArgName, "Sigma value for the Gaussian Kernel.",
                            std::vector<float>{0.f}, true)
-    .AddOptionalArg(
-        "dtype", R"code(Output data type.
+    .AddOptionalArg("dtype", R"code(Output data type.
 
 Supported type: `FLOAT`. If not set, the input type is used.)code",
-        DALI_NO_TYPE);
+                    DALI_NO_TYPE);
 
 
 namespace gaussian_blur {
@@ -87,8 +86,8 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit GaussianBlurOpCpu(const OpSpec* spec, const DimDesc& dim_desc)
-      : spec_(*spec), dim_desc_(dim_desc) {}
+  explicit GaussianBlurOpCpu(const OpSpec* spec)
+      : spec_(*spec) {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template Input<CPUBackend>(0);
@@ -97,7 +96,8 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
 
     output_desc.resize(1);
     output_desc[0].type = type2id<Out>::value;
-    output_desc[0].shape.resize(nsamples, input.shape().sample_dim());
+    // The shape of data stays untouched
+    output_desc[0].shape = input.shape();
 
     params_.resize(nsamples);
     windows_.resize(nsamples);
@@ -107,11 +107,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     for (int i = 0; i < nsamples; i++) {
       params_[i] = ObtainSampleParams<axes>(i, spec_, ws);
       windows_[i].PrepareWindows(params_[i]);
-      // We take only last `ndim` siginificant dimensions to handle sequences as well
-      auto elem_shape = input[i].shape().template last<ndim>();
-      auto& req = kmgr_.Setup<Kernel>(i, ctx_, elem_shape, params_[i].window_sizes);
-      // The shape of data stays untouched
-      output_desc[0].shape.set_tensor_shape(i, input[i].shape());
+      auto& req = kmgr_.Setup<Kernel>(i, ctx_, input[i].shape(), params_[i].window_sizes);
     }
     return true;
   }
@@ -126,36 +122,26 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     int nsamples = input.shape().num_samples();
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
       const auto& shape = input[sample_idx].shape();
-      auto elem_volume = volume(shape.begin() + dim_desc_.usable_axes_start, shape.end());
-
-      int seq_elements = 1;
-      int64_t stride = 0;
-      if (dim_desc_.is_sequence()) {
-        seq_elements = volume(shape.begin(), shape.begin() + dim_desc_.usable_axes_start);
-        stride = elem_volume;
-      }
-      for (int elem_idx = 0; elem_idx < seq_elements; elem_idx++) {
-        thread_pool.AddWork(
-            [this, &input, &output, sample_idx, elem_idx, stride](int thread_id) {
-              auto gaussian_windows = windows_[sample_idx].GetWindows();
-              auto elem_shape = input[sample_idx].shape().template last<ndim>();
-              auto in_view = TensorView<StorageCPU, const In, ndim>{
-                  input[sample_idx].template data<In>() + stride * elem_idx, elem_shape};
-              auto out_view = TensorView<StorageCPU, Out, ndim>{
-                  output[sample_idx].template mutable_data<Out>() + stride * elem_idx, elem_shape};
-              // I need a context for that particular run (or rather matching the thread &
-              // scratchpad)
-              auto ctx = ctx_;
-              kmgr_.Run<Kernel>(sample_idx, ctx, out_view, in_view, gaussian_windows);
-            }, elem_volume);
-      }
+      auto elem_volume = volume(shape);
+      thread_pool.AddWork(
+          [this, &input, &output, shape, sample_idx](int thread_id) {
+            auto gaussian_windows = windows_[sample_idx].GetWindows();
+            auto in_view = TensorView<StorageCPU, const In, ndim>{
+                input[sample_idx].template data<In>(), shape};
+            auto out_view = TensorView<StorageCPU, Out, ndim>{
+                output[sample_idx].template mutable_data<Out>(), shape};
+            // I need a context for that particular run (or rather matching the thread &
+            // scratchpad)
+            auto ctx = ctx_;
+            kmgr_.Run<Kernel>(sample_idx, ctx, out_view, in_view, gaussian_windows);
+          },
+          elem_volume);
     }
     thread_pool.RunAll();
   }
 
  private:
-  const OpSpec &spec_;
-  DimDesc dim_desc_;
+  const OpSpec& spec_;
 
   kernels::KernelManager kmgr_;
   kernels::KernelContext ctx_;
@@ -172,9 +158,9 @@ bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
                                          const workspace_t<CPUBackend>& ws) {
   const auto& input = ws.template Input<CPUBackend>(0);
   auto layout = input.GetLayout();
-  auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
-  dtype_ = dtype_ != DALI_NO_TYPE ? dtype_ : input.type();
-  DALI_ENFORCE(dtype_ == input.type() || dtype_ == DALI_FLOAT,
+  auto dim_desc = ParseSampleLayout(input.shape().sample_dim(), layout);
+  auto dtype = dtype_ == DALI_NO_TYPE ? input.type() : dtype_;
+  DALI_ENFORCE(dtype == input.type() || dtype == DALI_FLOAT,
                "Output data type must be same as input, FLOAT or skipped (defaults to input type)");
 
   if (!impl_ || impl_in_dtype_ != input.type() || impl_dim_desc_ != dim_desc) {
@@ -183,14 +169,14 @@ bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
 
     // clang-format off
     TYPE_SWITCH(input.type(), type2id, In, GAUSSIAN_BLUR_CPU_SUPPORTED_TYPES, (
-      VALUE_SWITCH(dim_desc.usable_axes_count, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
-        BOOL_SWITCH(dim_desc.is_channel_last(), HasChannels, (
-          if (dtype_ == input.type()) {
+      VALUE_SWITCH(dim_desc.axes, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
+        BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
+          if (dtype == input.type()) {
             impl_ =
-              std::make_unique<GaussianBlurOpCpu<In, In, Axes, HasChannels>>(&spec_, dim_desc);
+              std::make_unique<GaussianBlurOpCpu<In, In, Axes, HasChannels>>(&spec_);
           } else {
             impl_ =
-              std::make_unique<GaussianBlurOpCpu<float, In, Axes, HasChannels>>(&spec_, dim_desc);
+              std::make_unique<GaussianBlurOpCpu<float, In, Axes, HasChannels>>(&spec_);
           }
         ));  // NOLINT
       ), DALI_FAIL("Axis count out of supported range."));  // NOLINT

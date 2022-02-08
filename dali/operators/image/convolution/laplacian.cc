@@ -112,8 +112,8 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit LaplacianOpCpu(const OpSpec* spec, const DimDesc& dim_desc)
-      : spec_{*spec}, args{*spec}, dim_desc_{dim_desc}, lap_windows_{maxWindowSize} {}
+  explicit LaplacianOpCpu(const OpSpec* spec)
+      : spec_{*spec}, args{*spec}, lap_windows_{maxWindowSize} {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template Input<CPUBackend>(0);
@@ -122,7 +122,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
 
     output_desc.resize(1);
     output_desc[0].type = type2id<Out>::value;
-    output_desc[0].shape.resize(nsamples, input.shape().sample_dim());
+    output_desc[0].shape = input.shape();
 
     args.ObtainLaplacianArgs(spec_, ws, nsamples);
     windows_.resize(nsamples);
@@ -140,11 +140,8 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
 
     kmgr_.template Resize<Kernel>(nsamples);
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-      // We take only last `ndim` siginificant dimensions to handle sequences as well
-      auto elem_shape = input[sample_idx].shape().template last<ndim>();
-      kmgr_.Setup<Kernel>(sample_idx, ctx_, elem_shape, args.GetWindowSizes(sample_idx));
-      // The shape of data stays untouched
-      output_desc[0].shape.set_tensor_shape(sample_idx, input[sample_idx].shape());
+      kmgr_.Setup<Kernel>(sample_idx, ctx_, input[sample_idx].shape(),
+                          args.GetWindowSizes(sample_idx));
     }
     return true;
   }
@@ -159,27 +156,21 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
 
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
       const auto& shape = input[sample_idx].shape();
-      auto elem_volume = volume(shape.begin() + dim_desc_.usable_axes_start, shape.end());
-      auto priority = elem_volume * args.GetTotalWindowSizes(sample_idx);
-      int seq_elements = volume(shape.begin(), shape.begin() + dim_desc_.usable_axes_start);
-      int64_t stride = elem_volume;
+      auto priority = volume(shape) * args.GetTotalWindowSizes(sample_idx);
 
-      for (int elem_idx = 0; elem_idx < seq_elements; elem_idx++) {
-        thread_pool.AddWork(
-            [this, &input, &output, sample_idx, elem_idx, stride](int thread_id) {
-              const auto& scales = args.GetScales(sample_idx);
-              auto elem_shape = input[sample_idx].shape().template last<ndim>();
-              auto in_view = TensorView<StorageCPU, const In, ndim>{
-                  input[sample_idx].template data<In>() + stride * elem_idx, elem_shape};
-              auto out_view = TensorView<StorageCPU, Out, ndim>{
-                  output[sample_idx].template mutable_data<Out>() + stride * elem_idx, elem_shape};
-              // Copy context so that the kernel instance can modify scratchpad
-              auto ctx = ctx_;
-              kmgr_.Run<Kernel>(sample_idx, ctx, out_view, in_view, windows_[sample_idx],
-                                scales);
-            },
-            priority);
-      }
+      thread_pool.AddWork(
+          [this, &input, &output, sample_idx, shape](int thread_id) {
+            const auto& scales = args.GetScales(sample_idx);
+            auto in_view = TensorView<StorageCPU, const In, ndim>{
+                input[sample_idx].template data<In>(), shape};
+            auto out_view = TensorView<StorageCPU, Out, ndim>{
+                output[sample_idx].template mutable_data<Out>(), shape};
+            // Copy context so that the kernel instance can modify scratchpad
+            auto ctx = ctx_;
+            kmgr_.Run<Kernel>(sample_idx, ctx, out_view, in_view, windows_[sample_idx],
+                              scales);
+          },
+          priority);
     }
     thread_pool.RunAll();
   }
@@ -188,7 +179,6 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
   const OpSpec& spec_;
 
   LaplacianArgs<axes> args;
-  DimDesc dim_desc_;
   kernels::LaplacianWindows<float> lap_windows_;
 
   kernels::KernelManager kmgr_;
@@ -205,7 +195,7 @@ bool Laplacian<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
                                       const workspace_t<CPUBackend>& ws) {
   const auto& input = ws.template Input<CPUBackend>(0);
   auto layout = input.GetLayout();
-  auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
+  auto dim_desc = ParseSampleLayout(input.shape().sample_dim(), layout);
   auto dtype = dtype_ == DALI_NO_TYPE ? input.type() : dtype_;
   DALI_ENFORCE(dtype == input.type() || dtype == DALI_FLOAT,
                "Output data type must be same as input, FLOAT or skipped (defaults to input type)");
@@ -215,14 +205,14 @@ bool Laplacian<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
     impl_dim_desc_ = dim_desc;
 
     TYPE_SWITCH(input.type(), type2id, In, LAPLACIAN_CPU_SUPPORTED_TYPES, (
-      VALUE_SWITCH(dim_desc.usable_axes_count, Axes, LAPLACIAN_SUPPORTED_AXES, (
-        BOOL_SWITCH(dim_desc.is_channel_last(), HasChannels, (
+      VALUE_SWITCH(dim_desc.axes, Axes, LAPLACIAN_SUPPORTED_AXES, (
+        BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
           if (dtype == input.type()) {
             using LaplacianSame = laplacian::LaplacianOpCpu<In, In, Axes, HasChannels>;
-            impl_ = std::make_unique<LaplacianSame>(&spec_, dim_desc);
+            impl_ = std::make_unique<LaplacianSame>(&spec_);
           } else {
             using LaplacianFloat = laplacian::LaplacianOpCpu<float, In, Axes, HasChannels>;
-            impl_ = std::make_unique<LaplacianFloat>(&spec_, dim_desc);
+            impl_ = std::make_unique<LaplacianFloat>(&spec_);
           }
         )); // NOLINT
       ), DALI_FAIL("Axis count out of supported range."));  // NOLINT

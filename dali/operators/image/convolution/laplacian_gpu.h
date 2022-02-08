@@ -46,8 +46,8 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit LaplacianOpGpu(const OpSpec* spec, const DimDesc& dim_desc)
-      : spec_{*spec}, args{*spec}, dim_desc_{dim_desc}, lap_windows_{maxWindowSize} {
+  explicit LaplacianOpGpu(const OpSpec* spec)
+      : spec_{*spec}, args{*spec}, lap_windows_{maxWindowSize} {
     kmgr_.Resize<Kernel>(1);
   }
 
@@ -57,10 +57,6 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
     const auto& input = ws.template Input<GPUBackend>(0);
     auto processed_shape = input.shape();
     int nsamples = processed_shape.num_samples();
-    // If we are sequence-like, make sure that all sequence elements are compressed to first dim
-    if (is_sequence) {
-      processed_shape = collapse_dims(processed_shape, {{0, dim_desc_.usable_axes_start}});
-    }
 
     output_desc.resize(1);
     output_desc[0].type = type2id<Out>::value;
@@ -116,18 +112,8 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
     const auto& input = ws.template Input<GPUBackend>(0);
     auto& output = ws.template Output<GPUBackend>(0);
     output.SetLayout(input.GetLayout());
-
-    auto processed_shape = input.shape();
-    // If we are sequence-like, make sure that all sequence elements are compressed to first dim
-    if (is_sequence) {
-      processed_shape = collapse_dims(processed_shape, {{0, dim_desc_.usable_axes_start}});
-    }
-
-    auto static_shape = processed_shape.to_static<ndim>();
-    auto in_view_dyn = view<const In>(input);
-    auto out_view_dyn = view<Out>(output);
-    auto in_view = reshape<ndim>(in_view_dyn, static_shape);
-    auto out_view = reshape<ndim>(out_view_dyn, static_shape);
+    auto in_view = view<const In, ndim>(input);
+    auto out_view = view<Out, ndim>(output);
 
     kmgr_.Run<Kernel>(0, ctx_, out_view, in_view, windows_, scale_spans_);
   }
@@ -135,7 +121,6 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
  private:
   const OpSpec& spec_;
   LaplacianArgs<axes> args;
-  DimDesc dim_desc_;
   kernels::LaplacianWindows<float> lap_windows_;
 
   kernels::KernelManager kmgr_;
@@ -157,12 +142,10 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
 template <typename Out, typename In>
 op_impl_uptr GetLaplacianGpuImpl(const OpSpec* spec, const DimDesc& dim_desc) {
   op_impl_uptr result;
-  VALUE_SWITCH(dim_desc.usable_axes_count, Axes, LAPLACIAN_SUPPORTED_AXES, (
-    BOOL_SWITCH(dim_desc.is_channel_last(), HasChannels, (
-      BOOL_SWITCH(dim_desc.is_sequence(), IsSeq, (
-        using LaplacianImpl = LaplacianOpGpu<Out, In, Axes, HasChannels, IsSeq>;
-        result.reset(new LaplacianImpl(spec, dim_desc))
-      ));  // NOLINT
+  VALUE_SWITCH(dim_desc.axes, Axes, LAPLACIAN_SUPPORTED_AXES, (
+    BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
+        using LaplacianImpl = LaplacianOpGpu<Out, In, Axes, HasChannels, false>;
+        result.reset(new LaplacianImpl(spec));
     ));  // NOLINT
   ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
   return result;

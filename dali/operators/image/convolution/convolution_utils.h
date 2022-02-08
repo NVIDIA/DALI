@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,22 +21,11 @@ namespace dali {
 namespace convolution_utils {
 
 struct DimDesc {
-  int usable_axes_start;
-  int usable_axes_count;
-  int total_axes_count;
-
-  inline bool is_channel_last() const {
-    return usable_axes_start + usable_axes_count < total_axes_count;
-  }
-
-  inline bool is_sequence() const {
-    return usable_axes_start > 0;
-  }
+  int axes;
+  bool has_channels;
 
   inline bool operator==(const DimDesc &other) const {
-    return usable_axes_start == other.usable_axes_start &&
-           usable_axes_count == other.usable_axes_count &&
-           total_axes_count == other.total_axes_count;
+    return axes == other.axes && has_channels == other.has_channels;
   }
 
   inline bool operator!=(const DimDesc &other) const {
@@ -44,7 +33,9 @@ struct DimDesc {
   }
 };
 
-DimDesc ParseAndValidateDim(int ndim, const TensorLayout &layout);
+void ValidateLayout(int ndim, const TensorLayout &layout);
+DimDesc ParseSampleLayout(int ndim, const TensorLayout &sample_layout);
+
 
 }  // namespace convolution_utils
 }  // namespace dali
