@@ -260,9 +260,16 @@ BufferedFrame& FramesDecoderGpu::FindEmptySlot() {
   DALI_FAIL("Could not find empty slot in the frame buffer");
 }
 
-
 void FramesDecoderGpu::Reset() {
   SendLastPacket(true);
   FramesDecoder::Reset();
+}
+
+FramesDecoderGpu::~FramesDecoderGpu() {
+  cuvidDestroyVideoParser(nvdecode_state_->parser);
+  cuvidDestroyDecoder(nvdecode_state_->decoder);
+
+  av_packet_free(&filtered_packet_);
+  av_bsf_free(&bsfc_);
 }
 }  // namespace dali

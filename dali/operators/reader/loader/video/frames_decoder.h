@@ -48,9 +48,12 @@ struct AvState {
 
   ~AvState() {
     sws_freeContext(sws_ctx_);
+    av_packet_unref(packet_);
     av_packet_free(&packet_);
+    av_frame_unref(frame_);
     av_frame_free(&frame_);
     avcodec_free_context(&codec_ctx_);
+    avcodec_parameters_free(&codec_params_);
     avformat_close_input(&ctx_);
     avformat_free_context(ctx_);
 

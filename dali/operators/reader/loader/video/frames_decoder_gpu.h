@@ -66,6 +66,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   int ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params);
 
+  ~FramesDecoderGpu();
+
  private:
   std::unique_ptr<NvDecodeState> nvdecode_state_;
   uint8_t *current_frame_output_ = nullptr;
