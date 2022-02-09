@@ -159,6 +159,8 @@ class monotonic_memory_resource<Kind, Upstream, true>
   void *do_allocate(size_t bytes, size_t alignment) override {
     char *ret = detail::align_ptr(curr_, alignment);
     if (ret + bytes > limit_) {
+      if (next_block_size_ == 0)
+        next_block_size_ = alignment;  // must be a power of 2
       while (next_block_size_ < bytes + sizeof(block_info))
         next_block_size_ += next_block_size_;
       alignment = std::max(alignment, alignof(block_info));
@@ -276,6 +278,8 @@ class monotonic_memory_resource<Kind, Upstream, false>
   void *do_allocate(size_t bytes, size_t alignment) override {
     char *ret = detail::align_ptr(curr_, alignment);
     if (ret + bytes > limit_) {
+      if (next_block_size_ == 0)
+        next_block_size_ = alignment;  // must be a power of 2
       while (next_block_size_ < bytes)
         next_block_size_ += next_block_size_;
 
