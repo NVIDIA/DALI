@@ -54,7 +54,7 @@ struct AvState {
     }
     if (frame_ != nullptr) {
       av_frame_unref(frame_);
-      av_frame_free(&frame_);  
+      av_frame_free(&frame_);
     }
     avcodec_free_context(&codec_ctx_);
     avformat_close_input(&ctx_);
