@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,6 +74,8 @@ class DLL_PUBLIC CUDAStreamPool {
  private:
   friend class CUDAStreamLease;
   friend class CUDAStreamPoolTest;
+
+  void Init();
 
   CUDAStream GetFromPool(int device_id);
 
