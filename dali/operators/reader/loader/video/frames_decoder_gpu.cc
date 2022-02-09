@@ -266,8 +266,8 @@ void FramesDecoderGpu::Reset() {
 }
 
 NvDecodeState::~NvDecodeState() {
-  cuvidDestroyVideoParser(nvdecode_state_->parser);
-  cuvidDestroyDecoder(nvdecode_state_->decoder);
+  cuvidDestroyVideoParser(parser);
+  cuvidDestroyDecoder(decoder);
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
