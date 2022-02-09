@@ -98,7 +98,7 @@ struct ConvolutionGpu {
           window_size[i][0] % 2 == 1,
           make_string(
               "Even or non-centered windows are not supported yet, got window with even length: ",
-              window_size, " for sample ", i, "."));
+              window_size[i][0], " for sample ", i, "."));
 
       DALI_ENFORCE(window_size[i][0] * num_channels < kMaxWindowSize,
                    make_string("Window is too big for sample ", i, ", got: ", window_size[i][0],
