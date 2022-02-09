@@ -138,23 +138,6 @@ class monotonic_memory_resource<Kind, Upstream, true>
     next_block_size_ = first_block_size_;
   }
 
-
-  /**
-   * @brief Releases, in stream order, all memory blocks that were taken from upstream
-   */
-  void free_all_async(stream_view stream) {
-    while (curr_block_) {
-      assert(curr_block_->sentinel == sentinel_value && "Memory corruption detected");
-      auto *prev = curr_block_->prev;
-      auto *base = reinterpret_cast<char*>(curr_block_) - curr_block_->usable_size;
-      size_t alloc_size = curr_block_->usable_size + sizeof(block_info);
-      auto &up = dynamic_cast<async_memory_resource<Kind>&>(*upstream_);
-      up.deallocate_async(base, alloc_size, curr_block_->alignment, stream);
-      curr_block_ = prev;
-    }
-    next_block_size_ = first_block_size_;
-  }
-
  private:
   void *do_allocate(size_t bytes, size_t alignment) override {
     char *ret = detail::align_ptr(curr_, alignment);
@@ -253,19 +236,6 @@ class monotonic_memory_resource<Kind, Upstream, false>
     for (int i = blocks_.size() - 1; i >= 0; i--) {
       auto &blk = blocks_[i];
       upstream_->deallocate(blk.base, blk.size, blk.alignment);
-    }
-    blocks_.clear();
-    next_block_size_ = first_block_size_;
-  }
-
-  /**
-   * @brief Releases, in stream order, all memory blocks that were taken from upstream
-   */
-  void free_all_async(stream_view stream) {
-    for (int i = blocks_.size() - 1; i >= 0; i--) {
-      auto &blk = blocks_[i];
-      auto &up = dynamic_cast<async_memory_resource<Kind>&>(*upstream_);
-      up.deallocate_async(blk.base, blk.size, blk.alignment, stream);
     }
     blocks_.clear();
     next_block_size_ = first_block_size_;
