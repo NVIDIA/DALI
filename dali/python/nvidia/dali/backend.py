@@ -62,12 +62,12 @@ def check_cuda_runtime():
 
         if GetCufftVersion() == -1:
             deprecation_warning("Cannot access cuFFT library. Please check cuda installation and/or "
-                                "if is an appropriate wheel is installed.")
+                                "if an appropriate wheel is installed.")
 
         if GetNppVersion() == -1:
             deprecation_warning("Cannot access NPP library. Please check cuda installation and/or "
-                                "if is an appropriate wheel is installed.")
+                                "if an appropriate wheel is installed.")
 
         if GetNvjpegVersion() == -1:
             deprecation_warning("Cannot access nvJPEG library. Please check cuda installation and/or "
-                                "if is an appropriate wheel is installed.")
+                                "if an appropriate wheel is installed.")
