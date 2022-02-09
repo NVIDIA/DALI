@@ -87,7 +87,7 @@ class FilterbankFeatures():
         window_fn = torch_windows.get(window, None)
         self.window = window_fn(self.win_length, periodic=False) if window_fn else None
         self.fb = torch.tensor(
-            librosa.filters.mel(sample_rate, self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq), dtype=torch.float).unsqueeze(0)
+            librosa.filters.mel(sr=sample_rate, n_fft=self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq), dtype=torch.float).unsqueeze(0)
 
     @staticmethod
     def normalize_batch(x, seq_len, normalize_type):
