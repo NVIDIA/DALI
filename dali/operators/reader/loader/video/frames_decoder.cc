@@ -154,7 +154,7 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
     // We want to make sure that we call av_packet_unref in every iteration
     auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
 
-    if (packet.get()->stream_index != av_state_->stream_id_) {
+    if (packet->stream_index != av_state_->stream_id_) {
       continue;
     }
 

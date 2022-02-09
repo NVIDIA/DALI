@@ -265,10 +265,12 @@ void FramesDecoderGpu::Reset() {
   FramesDecoder::Reset();
 }
 
-FramesDecoderGpu::~FramesDecoderGpu() {
+NvDecodeState::~NvDecodeState() {
   cuvidDestroyVideoParser(nvdecode_state_->parser);
   cuvidDestroyDecoder(nvdecode_state_->decoder);
+}
 
+FramesDecoderGpu::~FramesDecoderGpu() {
   av_packet_free(&filtered_packet_);
   av_bsf_free(&bsfc_);
 }

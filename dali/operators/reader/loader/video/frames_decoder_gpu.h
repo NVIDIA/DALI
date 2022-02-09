@@ -39,6 +39,8 @@ struct NvDecodeState {
   CUVIDSOURCEDATAPACKET packet = { 0 };
 
   uint8_t *decoded_frame_yuv;
+
+  ~NvDecodeState();
 };
 
 struct BufferedFrame {
