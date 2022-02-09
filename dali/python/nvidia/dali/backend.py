@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,20 +45,29 @@ if not initialized:
                             "The next release will support only 10.2 from 10.x familly. "
                             "Please update your environment to CUDA version 10.2 or newer.")
 
-    if GetCudaVersion() == -1:
-        deprecation_warning("GPU is not available. Only CPU operators are available.")
-
-    if GetCufftVersion() == -1:
-        deprecation_warning("Cannot access cuFFT library. Please check cuda installation and/or "
-                            "if is an appropriate wheel is installed.")
-
-    if GetNppVersion() == -1:
-        deprecation_warning("Cannot access NPP library. Please check cuda installation and/or "
-                            "if is an appropriate wheel is installed.")
-
-    if GetNvjpegVersion() == -1:
-        deprecation_warning("Cannot access nvJPEG library. Please check cuda installation and/or "
-                            "if is an appropriate wheel is installed.")
-
     for lib in default_plugins:
         LoadLibrary(os.path.join(os.path.dirname(__file__), lib))
+
+cuda_checked = False
+def check_cuda_runtime():
+    """
+    Checks the availability of CUDA runtime/GPU, and NPP, nvJEPG, and cuFFT libraries and prints an
+    appropriate warning.
+    """
+    global cuda_checked
+    if not cuda_checked:
+        cuda_checked = True
+        if GetCudaVersion() == -1:
+            deprecation_warning("GPU is not available. Only CPU operators are available.")
+
+        if GetCufftVersion() == -1:
+            deprecation_warning("Cannot access cuFFT library. Please check cuda installation and/or "
+                                "if an appropriate wheel is installed.")
+
+        if GetNppVersion() == -1:
+            deprecation_warning("Cannot access NPP library. Please check cuda installation and/or "
+                                "if an appropriate wheel is installed.")
+
+        if GetNvjpegVersion() == -1:
+            deprecation_warning("Cannot access nvJPEG library. Please check cuda installation and/or "
+                                "if an appropriate wheel is installed.")
