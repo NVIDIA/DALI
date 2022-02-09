@@ -150,6 +150,7 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
   int ret = -1;
   while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
     if (av_state_->packet_->stream_index != av_state_->stream_id_) {
+      av_packet_unref(av_state_->packet_);
       continue;
     }
 
@@ -159,6 +160,7 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
       make_string("Failed to send packet to decoder: ", detail::av_error_string(ret)));
 
     ret = avcodec_receive_frame(av_state_->codec_ctx_, av_state_->frame_);
+    av_packet_unref(av_state_->packet_);
 
     if (ret == AVERROR(EAGAIN)) {
       continue;
