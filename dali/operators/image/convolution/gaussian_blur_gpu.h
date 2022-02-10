@@ -39,12 +39,12 @@ using namespace convolution_utils;  // NOLINT
 
 using op_impl_uptr = std::unique_ptr<OpImplBase<GPUBackend>>;
 
-template <typename Out, typename In, int axes, bool has_channels, bool is_sequence>
+template <typename Out, typename In, int axes, bool has_channels>
 class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
  public:
   using WindowType = float;
   using Kernel =
-      kernels::SeparableConvolutionGpu<Out, In, WindowType, axes, has_channels, is_sequence>;
+      kernels::SeparableConvolutionGpu<Out, In, WindowType, axes, has_channels, false>;
   static constexpr int ndim = Kernel::ndim;
 
   /**
@@ -79,7 +79,7 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
     kmgr_.template Resize<Kernel>(nsamples);
 
     for (int i = 0; i < nsamples; i++) {
-      params_[i] = ObtainSampleParams<axes>(i, spec_, ws);
+      params_[i] = ObtainSampleParams<axes>(i, spec_, ws, GetFrameInfoForInput<GPUBackend>(ws, 0));
       if (windows_[i].PrepareWindows(params_[i])) {
         for (int axis = 0; axis < axes; axis++) {
           window_shapes_[axis].set_tensor_shape(i, {params_[i].window_sizes[axis]});
@@ -128,7 +128,7 @@ std::unique_ptr<OpImplBase<GPUBackend>> GetGaussianBlurGpuImpl(const OpSpec* spe
   VALUE_SWITCH(dim_desc.axes, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
     BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
       result.reset(
-        new GaussianBlurOpGpu<Out, In, Axes, HasChannels, false>(spec));
+        new GaussianBlurOpGpu<Out, In, Axes, HasChannels>(spec));
     ));  // NOLINT
   ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
   return result;

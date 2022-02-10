@@ -26,9 +26,16 @@
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/operator/sequence_helper.h"
+#include "dali/pipeline/operator/sequence_info.h"
+#include "dali/pipeline/operator/sequence_shape.h"
+#include "dali/pipeline/operator/sequence_workspace.h"
 
 namespace dali {
+
+template <typename T>
+struct is_shared_ptr : std::false_type {};
+template <typename T>
+struct is_shared_ptr<std::shared_ptr<T>> : std::true_type {};
 
 template <typename Backend>
 class SequenceOperator : public Operator<Backend> {
@@ -50,7 +57,7 @@ class SequenceOperator : public Operator<Backend> {
     if (!expand_) {
       is_inferred = Operator<Backend>::Setup(output_desc, ws);
     } else {
-      SetupExpandedWorkspace(expanded_, ws);
+      SetupExpandedWorkspace(ws);
       ExpandInputs(ws);
       ExpandArguments(ws);
       is_inferred = Operator<Backend>::Setup(output_desc, expanded_);
@@ -78,6 +85,16 @@ class SequenceOperator : public Operator<Backend> {
   }
 
  protected:
+  void SetupExpandedWorkspace(const workspace_t<Backend> &ws) {
+    std::vector<SampleFrameInfoFn> input_sample_info;
+    for (const auto &expand_desc : input_expand_desc_) {
+      ExpandDescFrameInfoFn fn{&expand_desc};
+      input_sample_info.push_back({fn});
+    }
+    expanded_.SetFrameInfoFns(std::move(input_sample_info));
+    SetupExpandedWorkspace(expanded_, ws);
+  }
+
   void SetupExpandedWorkspace(workspace_t<CPUBackend> &expanded,
                               const workspace_t<CPUBackend> &ws) {
     expanded.SetThreadPool(&ws.GetThreadPool());
@@ -147,7 +164,7 @@ class SequenceOperator : public Operator<Backend> {
                              const TensorVector<CPUBackend> &arg_tensor) {
     const auto &expand_desc = GetArgExpandDesc(arg_name);
     const auto &tv = ws.ArgumentInput(arg_name);
-    auto expanded_arg = expand_desc.SpreadTensorArgumentLike(tv, arg_name);
+    auto expanded_arg = SpreadTensorArgumentLike(tv, arg_name, expand_desc);
     auto expanded_handle = std::make_shared<TensorVector<CPUBackend>>(std::move(expanded_arg));
     expanded_.AddArgumentInput(arg_name, expanded_handle);
   }
@@ -187,7 +204,7 @@ class SequenceOperator : public Operator<Backend> {
     DALI_ENFORCE(output_desc.size() == static_cast<size_t>(ws.NumOutput()));
     for (size_t output_idx = 0; output_idx < output_desc.size(); output_idx++) {
       const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
-      output_desc[output_idx].shape = expand_desc.FoldLike(output_desc[output_idx].shape);
+      output_desc[output_idx].shape = FoldLike(output_desc[output_idx].shape, expand_desc);
     }
   }
 
@@ -197,10 +214,6 @@ class SequenceOperator : public Operator<Backend> {
       CoalesceOutputShapes(output_desc, ws);
     }
     return is_inferred;
-  }
-
-  FrameInfoForSample GetFrameInfoForInput(int input_idx) {
-    return {&input_expand_desc_[input_idx]};
   }
 
  private:
@@ -241,9 +254,9 @@ class SequenceOperator : public Operator<Backend> {
   void ExpandInputHelper(const workspace_t<Backend> &ws, int input_idx,
                          const ExpandDesc &expand_desc) {
     const auto &input = ws.template Input<InputBackend>(input_idx);
-    auto expanded_input = expand_desc.Unfold(input);
-    auto layout = expand_desc.TrimFlattenedLayout(input.GetLayout());
-    expanded_input.SetLayout(layout);
+    auto expanded_input = Unfold(input, expand_desc.NumExpandDims());
+    const auto &input_layout = input.GetLayout();
+    expanded_input.SetLayout(input_layout.sub(expand_desc.NumExpandDims()));
     using input_handle_t = ws_input_t<InputBackend>;
     static_assert(is_shared_ptr<input_handle_t>::value,
                   "Workspace input handle expected to be shared_ptr");
@@ -256,7 +269,7 @@ class SequenceOperator : public Operator<Backend> {
   void ExpandOutputHelper(const workspace_t<Backend> &ws, int output_idx,
                           const ExpandDesc &expand_desc) {
     const auto &output = ws.template Output<OutputBackend>(output_idx);
-    auto expanded_output = expand_desc.Unfold(output);
+    auto expanded_output = Unfold(output, expand_desc.NumExpandDims());
     using output_handle_t = ws_output_t<OutputBackend>;
     static_assert(is_shared_ptr<output_handle_t>::value,
                   "Workspace output handle expected to be shared_ptr");
@@ -273,14 +286,14 @@ class SequenceOperator : public Operator<Backend> {
     if (layout.size() == 0) {
       output.SetLayout(layout);
     } else {
-      auto expanded_layout = expand_desc.AppendFlattenedLayout(layout);
+      auto expanded_layout = expand_desc.expanded_layout_ + layout;
       output.SetLayout(expanded_layout);
     }
   }
 
   bool expand_;
   std::vector<ExpandDesc> input_expand_desc_;
-  workspace_t<Backend> expanded_;
+  SequenceWorkspaceView<Backend> expanded_;
 };
 
 

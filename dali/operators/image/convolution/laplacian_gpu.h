@@ -36,10 +36,10 @@ namespace laplacian {
 
 using op_impl_uptr = std::unique_ptr<OpImplBase<GPUBackend>>;
 
-template <typename Out, typename In, int axes, bool has_channels, bool is_sequence>
+template <typename Out, typename In, int axes, bool has_channels>
 class LaplacianOpGpu : public OpImplBase<GPUBackend> {
  public:
-  using Kernel = kernels::LaplacianGpu<Out, In, float, axes, has_channels, is_sequence>;
+  using Kernel = kernels::LaplacianGpu<Out, In, float, axes, has_channels, false>;
   static constexpr int ndim = Kernel::ndim;
 
   /**
@@ -63,7 +63,7 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
     // The shape of data stays untouched
     output_desc[0].shape = input.shape();
 
-    args.ObtainLaplacianArgs(spec_, ws, nsamples);
+    args.ObtainLaplacianArgs(spec_, ws, nsamples, GetFrameInfoForInput<GPUBackend>(ws, 0));
 
     for (int i = 0; i < axes; i++) {
       for (int j = 0; j < axes; j++) {
@@ -144,7 +144,7 @@ op_impl_uptr GetLaplacianGpuImpl(const OpSpec* spec, const DimDesc& dim_desc) {
   op_impl_uptr result;
   VALUE_SWITCH(dim_desc.axes, Axes, LAPLACIAN_SUPPORTED_AXES, (
     BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
-        using LaplacianImpl = LaplacianOpGpu<Out, In, Axes, HasChannels, false>;
+        using LaplacianImpl = LaplacianOpGpu<Out, In, Axes, HasChannels>;
         result.reset(new LaplacianImpl(spec));
     ));  // NOLINT
   ), DALI_FAIL("Axis count out of supported range."));  // NOLINT

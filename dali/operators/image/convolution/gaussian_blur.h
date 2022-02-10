@@ -22,6 +22,7 @@
 #include "dali/operators/image/convolution/gaussian_blur_params.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/sequence_info.h"
 #include "dali/pipeline/operator/sequence_op.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
@@ -79,21 +80,22 @@ constexpr static const char* kWindowSizeArgName = "window_size";
  */
 template <int axes>
 inline GaussianBlurParams<axes> ObtainSampleParams(int sample, const OpSpec& spec,
-                                                   const ArgumentWorkspace& ws) {
+                                                   const ArgumentWorkspace& ws,
+                                                   const SampleFrameInfoFn& fr_info = {}) {
   GaussianBlurParams<axes> params;
-  GetGeneralizedArg<float>(make_span(params.sigmas), kSigmaArgName, sample, spec, ws);
-  GetGeneralizedArg<int>(make_span(params.window_sizes), kWindowSizeArgName, sample, spec, ws);
+  GetGeneralizedArg<float>(make_span(params.sigmas), kSigmaArgName, sample, spec, ws, fr_info);
+  GetGeneralizedArg<int>(make_span(params.window_sizes), kWindowSizeArgName, sample, spec, ws,
+                         fr_info);
   for (int i = 0; i < axes; i++) {
-    DALI_ENFORCE(
-        !(params.sigmas[i] == 0 && params.window_sizes[i] == 0),
-        make_string("`sigma` and `window_size` shouldn't be 0 at the same time for sample: ",
-                    sample, ", axis: ", i, "."));
+    DALI_ENFORCE(!(params.sigmas[i] == 0 && params.window_sizes[i] == 0),
+                 make_string("`sigma` and `window_size` shouldn't be 0 at the same time for ",
+                             fr_info(sample), ", axis ", i, "."));
     DALI_ENFORCE(params.sigmas[i] >= 0,
                  make_string("`sigma` must have non-negative values, got ", params.sigmas[i],
-                             " for sample: ", sample, ", axis: ", i, "."));
+                             " for ", fr_info(sample), ", axis ", i, "."));
     DALI_ENFORCE(params.window_sizes[i] >= 0,
                  make_string("`window_size` must have non-negative values, got ",
-                             params.window_sizes[i], " for sample: ", sample, ", axis : ", i, "."));
+                             params.window_sizes[i], " for ", fr_info(sample), ", axis ", i, "."));
     if (params.window_sizes[i] == 0) {
       params.window_sizes[i] = SigmaToDiameter(params.sigmas[i]);
     } else if (params.sigmas[i] == 0.f) {

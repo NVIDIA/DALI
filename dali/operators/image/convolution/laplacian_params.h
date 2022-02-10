@@ -62,10 +62,11 @@ class LaplacianArgs {
         has_scales_tensor_(spec.HasTensorArgument(scaleArgName)),
         normalize_{spec.GetArgument<bool>(normalizeArgName)} {}
 
-  void ObtainLaplacianArgs(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples) {
-    ObtainWindowSizes(spec, ws, nsamples);
+  void ObtainLaplacianArgs(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples,
+                           const SampleFrameInfoFn &fr_info) {
+    ObtainWindowSizes(spec, ws, nsamples, fr_info);
     if (!normalize_) {
-      ObtainScales(spec, ws, nsamples);
+      ObtainScales(spec, ws, nsamples, fr_info);
     } else {
       DALI_ENFORCE(!HasScaleSpecified(),
                    make_string("Parameter ``", scaleArgName, "`` cannot be specified when ``",
@@ -103,25 +104,27 @@ class LaplacianArgs {
     return has_scales_const_ || has_scales_tensor_;
   }
 
-  void ObtainWindowSizes(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples) {
+  void ObtainWindowSizes(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples,
+                         const SampleFrameInfoFn &fr_info) {
     int prev_size = window_sizes_.size();
     if (HasPerSampleWindows() || prev_size < nsamples) {
       window_sizes_.resize(nsamples);
     }
     int sample_idx = HasPerSampleWindows() ? 0 : prev_size;
     for (; sample_idx < nsamples; sample_idx++) {
-      SetSampleWindowSizes(spec, ws, sample_idx);
+      SetSampleWindowSizes(spec, ws, sample_idx, fr_info);
     }
   }
 
-  void SetSampleWindowSizes(const OpSpec &spec, const ArgumentWorkspace &ws, int sample_idx) {
+  void SetSampleWindowSizes(const OpSpec &spec, const ArgumentWorkspace &ws, int sample_idx,
+                            const SampleFrameInfoFn &fr_info) {
     auto &window_sizes = window_sizes_[sample_idx];
     std::array<int, axes> deriv_arg;
-    GetGeneralizedArg<int>(make_span(deriv_arg), windowSizeArgName, sample_idx, spec, ws);
+    GetGeneralizedArg<int>(make_span(deriv_arg), windowSizeArgName, sample_idx, spec, ws, fr_info);
     for (auto d_size : deriv_arg) {
       DALI_ENFORCE(3 <= d_size && d_size <= maxWindowSize && d_size % 2 == 1,
                    make_string("Window size must be an odd integer between 3 and ", maxWindowSize,
-                               ", got ", d_size, " for sample: ", sample_idx, "."));
+                               ", got ", d_size, " for ", fr_info(sample_idx), "."));
     }
     if (!HasSmoothingSpecified()) {
       for (int i = 0; i < axes; i++) {
@@ -129,12 +132,12 @@ class LaplacianArgs {
       }
     } else {
       std::array<int, axes> smooth_arg;
-      GetGeneralizedArg<int>(make_span(smooth_arg), smoothingSizeArgName, sample_idx, spec, ws);
+      GetGeneralizedArg<int>(make_span(smooth_arg), smoothingSizeArgName, sample_idx, spec, ws, fr_info);
       for (auto s_size : smooth_arg) {
         DALI_ENFORCE(
             1 <= s_size && s_size <= maxWindowSize && s_size % 2 == 1,
             make_string("Smoothing window size must be an odd integer between 1 and ",
-                        maxWindowSize, ", got ", s_size, " for sample: ", sample_idx, "."));
+                        maxWindowSize, ", got ", s_size, " for ", fr_info(sample_idx), "."));
       }
       for (int i = 0; i < axes; i++) {
         for (int j = 0; j < axes; j++) {
@@ -159,13 +162,15 @@ class LaplacianArgs {
     }
   }
 
-  void ObtainScales(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples) {
+  void ObtainScales(const OpSpec &spec, const ArgumentWorkspace &ws, int nsamples,
+                    const SampleFrameInfoFn &fr_info) {
     int prev_size = scales_.size();
     if (has_scales_tensor_ || prev_size < nsamples) {
       scales_.resize(nsamples);
     }
     for (int sample_idx = has_scales_tensor_ ? 0 : prev_size; sample_idx < nsamples; sample_idx++) {
-      GetGeneralizedArg<float>(make_span(scales_[sample_idx]), scaleArgName, sample_idx, spec, ws);
+      GetGeneralizedArg<float>(make_span(scales_[sample_idx]), scaleArgName, sample_idx, spec, ws,
+                               fr_info);
     }
   }
 

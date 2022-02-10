@@ -105,7 +105,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     kmgr_.template Resize<Kernel>(nsamples);
 
     for (int i = 0; i < nsamples; i++) {
-      params_[i] = ObtainSampleParams<axes>(i, spec_, ws);
+      params_[i] = ObtainSampleParams<axes>(i, spec_, ws, GetFrameInfoForInput<CPUBackend>(ws, 0));
       windows_[i].PrepareWindows(params_[i]);
       auto& req = kmgr_.Setup<Kernel>(i, ctx_, input[i].shape(), params_[i].window_sizes);
     }
