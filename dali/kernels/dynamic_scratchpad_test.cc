@@ -130,7 +130,7 @@ TEST(DynamicScratchpad, Perf) {
     }
     {
       auto s = std::chrono::high_resolution_clock::now();
-      scratch->~DynamicScratchpad();
+      scratch->DynamicScratchpad::~DynamicScratchpad();
       auto e = std::chrono::high_resolution_clock::now();
       destroy_times.push_back((e-s).count());
     }
