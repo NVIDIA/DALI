@@ -18,6 +18,7 @@
 #include <iostream>
 #include <chrono>
 #include <random>
+#include <string>
 #include <vector>
 #include "dali/core/cuda_utils.h"
 #include "dali/core/cuda_stream_pool.h"
@@ -76,6 +77,20 @@ TEST(DynamicScratchpad, BasicTest) {
               << std::endl;
 }
 
+inline void ProcessResults(vector<double> &times, const string &header) {
+  std::sort(times.begin(), times.end());
+  double sum = std::accumulate(times.begin(), times.end(), 0);
+  auto b98 = times.begin() + times.size()/100;
+  auto e98 = times.end() - times.size()/100;
+  double sum98 = std::accumulate(b98, e98, 0);
+  std::cout << header << "\n"
+            << "Median time:            " << times[times.size()/2] << " ns\n"
+            << "90th percentile:        " << times[times.size()*90/100] << " ns\n"
+            << "99th percentile:        " << times[times.size()*99/100] << " ns\n"
+            << "Mean time:              " << sum/times.size() << " ns\n"
+            << "Mean time (middle 98%): " << sum98/(e98-b98) << " ns\n";
+}
+
 TEST(DynamicScratchpad, Perf) {
   std::poisson_distribution size_dist(1024);  // 1 KiB average
   int max_size = 64 << 20;  // 64 MiB max
@@ -93,7 +108,8 @@ TEST(DynamicScratchpad, Perf) {
   std::vector<double> alloc_times[nkinds];
   std::vector<double> destroy_times;
   for (auto &v : alloc_times)
-    v.reserve(max_attempts*10);
+    v.reserve(max_attempts*100);
+  destroy_times.reserve(max_attempts);
 
   for (int attempt = 0; attempt < max_attempts; attempt++) {
     auto s = streams[attempt % 2];
@@ -125,35 +141,11 @@ TEST(DynamicScratchpad, Perf) {
   for (int k = 0; k < nkinds; k++) {
     if (k == mm::memory_kind_id::managed)
       continue;
-    auto &v = alloc_times[k];
-
-    std::sort(v.begin(), v.end());
-    double sum = std::accumulate(v.begin(), v.end(), 0);
-    auto b98 = v.begin() + v.size()/100;
-    auto e98 = v.end() - v.size()/100;
-    double sum98 = std::accumulate(b98, e98, 0);
-    std::cout << "Allocation performance for " << names[k] << " memory.\n"
-              << "Median time:            " << v[v.size()/2] << " ns\n"
-              << "90th percentile:        " << v[v.size()*90/100] << " ns\n"
-              << "99th percentile:        " << v[v.size()*99/100] << " ns\n"
-              << "Mean time:              " << sum/v.size() << " ns\n"
-              << "Mean time (middle 98%): " << sum98/(e98-b98) << " ns\n";
+    ProcessResults(alloc_times[k],
+                   make_string("Allocation performance for ", names[k], " memory"));
   }
 
-  {
-    auto &v = destroy_times;
-    std::sort(v.begin(), v.end());
-    double sum = std::accumulate(v.begin(), v.end(), 0);
-    auto b98 = v.begin() + v.size()/100;
-    auto e98 = v.end() - v.size()/100;
-    double sum98 = std::accumulate(b98, e98, 0);
-    std::cout << "Scratchpad destruction\n"
-              << "Median time:            " << v[v.size()/2] << " ns\n"
-              << "90th percentile:        " << v[v.size()*90/100] << " ns\n"
-              << "99th percentile:        " << v[v.size()*99/100] << " ns\n"
-              << "Mean time:              " << sum/v.size() << " ns\n"
-              << "Mean time (middle 98%): " << sum98/(e98-b98) << " ns\n";
-  }
+  ProcessResults(destroy_times, "Scratchpad destruction time");
 }
 
 

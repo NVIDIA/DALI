@@ -43,9 +43,6 @@ template <typename T, typename U, typename... Ts>
 struct index_in_pack<T, U, Ts...> :
     std::integral_constant<int, index_in_pack<T, Ts...>::value + 1> {};
 
-template <typename T, typename... Ts>
-struct index_in_pack;
-
 /**
  * @brief Implements upstream handling and ordered wrappers.
  */
@@ -53,18 +50,18 @@ template <typename... Kinds>
 class DynamicScratchpadImplT {
  protected:
   template <typename Kind>
-  void set_upstream_resrouce(mm::memory_resource<Kind> *rsrc) {
+  void set_upstream_resource(mm::memory_resource<Kind> *rsrc) {
     resource<Kind>() = mm::monotonic_memory_resource<Kind>(rsrc, initial_size<Kind>());
   }
 
   template <typename Kind>
-  void set_upstream_resrouce(mm::async_memory_resource<Kind> *rsrc,
+  void set_upstream_resource(mm::async_memory_resource<Kind> *rsrc,
                              AccessOrder alloc_order,
                              AccessOrder dealloc_order = {}) {
     static_assert(!std::is_same<Kind, mm::memory_kind::host>::value,
       "Cannot use a stream-ordered resource for plain host memory");
     adapter<Kind>() = { rsrc, alloc_order, dealloc_order };
-    set_upstream_resrouce<Kind>(&adapter<Kind>());
+    set_upstream_resource<Kind>(&adapter<Kind>());
   }
 
   template <typename Kind>
@@ -133,18 +130,18 @@ class DynamicScratchpad
     if (!managed_dealloc_order.has_value())
       managed_dealloc_order = device_order;
 
-    set_upstream_resrouce<mm::memory_kind::host>(mm::GetDefaultResource<mm::memory_kind::host>());
+    set_upstream_resource<mm::memory_kind::host>(mm::GetDefaultResource<mm::memory_kind::host>());
 
-    set_upstream_resrouce<mm::memory_kind::pinned>(
+    set_upstream_resource<mm::memory_kind::pinned>(
         mm::GetDefaultResource<mm::memory_kind::pinned>(),
         AccessOrder::host(),
         pinned_dealloc_order);
 
-    set_upstream_resrouce<mm::memory_kind::device>(
+    set_upstream_resource<mm::memory_kind::device>(
         mm::GetDefaultResource<mm::memory_kind::device>(),
         device_order);
 
-    set_upstream_resrouce<mm::memory_kind::managed>(
+    set_upstream_resource<mm::memory_kind::managed>(
         mm::GetDefaultResource<mm::memory_kind::managed>(),
         AccessOrder::host(),
         managed_dealloc_order);
