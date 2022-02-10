@@ -255,15 +255,18 @@ bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
   if (avcodec_receive_frame(av_state_->codec_ctx_, av_state_->frame_) < 0) {
     flush_state_ = false;
     return false;
+
   }
 
   if (copy_to_output) {
     CopyToOutput(data);
   }
 
-  LOG_LINE << "Read frame (ReadFlushFrame), index " << next_frame_idx_ << "timestamp " <<
+  LOG_LINE << "Read frame (ReadFlushFrame), index " << next_frame_idx_ << " timestamp " <<
     std::setw(5) << av_state_->frame_->pts << ", current copy " << copy_to_output << std::endl;
   ++next_frame_idx_;
+
+  // TODO(awolant): Figure out how to handle this during index building
   if (next_frame_idx_ >= NumFrames()) {
     next_frame_idx_ = -1;
   }
