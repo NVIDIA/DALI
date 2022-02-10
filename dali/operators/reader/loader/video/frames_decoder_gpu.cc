@@ -178,7 +178,8 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
       if (copy_to_output) {
         copyD2D(data, frame.frame_.data(), FrameSize());
       }
-      LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " << std::setw(5) << frame.pts_ << ", current copy " << current_copy_to_output_ << std::endl;
+      LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
+        std::setw(5) << frame.pts_ << ", current copy " << current_copy_to_output_ << std::endl;
 
       frame.pts_ = -1;
 
@@ -219,7 +220,8 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
     CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
 
     if (frame_returned_) {
-      LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " << std::setw(5) << filtered_packet_->pts << ", current copy " << current_copy_to_output_ << std::endl;
+      LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
+        std::setw(5) << filtered_packet_->pts << ", current copy " << current_copy_to_output_ << std::endl;
       ++next_frame_idx_;
       return true;
     }

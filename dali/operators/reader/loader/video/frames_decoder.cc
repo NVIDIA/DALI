@@ -174,7 +174,8 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
       break;
     }
 
-    LOG_LINE << "Read frame (ReadRegularFrame), index " << next_frame_idx_ << ", timestamp " << std::setw(5)  << av_state_->frame_->pts << ", current copy " << copy_to_output << std::endl;  ++next_frame_idx_;
+    LOG_LINE << "Read frame (ReadRegularFrame), index " << next_frame_idx_ << ", timestamp " <<
+      std::setw(5)  << av_state_->frame_->pts << ", current copy " << copy_to_output << std::endl;
     if (!copy_to_output) {
       ++next_frame_idx_;
       return true;
@@ -260,7 +261,8 @@ bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
     CopyToOutput(data);
   }
 
-  LOG_LINE << "Read frame (ReadFlushFrame), index " << next_frame_idx_ << "timestamp " << std::setw(5) << av_state_->frame_->pts << ", current copy " << copy_to_output << std::endl;  ++next_frame_idx_;
+  LOG_LINE << "Read frame (ReadFlushFrame), index " << next_frame_idx_ << "timestamp " <<
+    std::setw(5) << av_state_->frame_->pts << ", current copy " << copy_to_output << std::endl;
   ++next_frame_idx_;
   if (next_frame_idx_ >= NumFrames()) {
     next_frame_idx_ = -1;
