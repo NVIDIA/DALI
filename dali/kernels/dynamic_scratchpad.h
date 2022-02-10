@@ -60,6 +60,8 @@ class DynamicScratchpadImplT {
                              AccessOrder dealloc_order = {}) {
     static_assert(!std::is_same<Kind, mm::memory_kind::host>::value,
       "Cannot use a stream-ordered resource for plain host memory");
+    if (!dealloc_order.has_value())
+      dealloc_order = alloc_order;
     adapter<Kind>() = { rsrc, alloc_order, dealloc_order };
     set_upstream_resource<Kind>(&adapter<Kind>());
   }
