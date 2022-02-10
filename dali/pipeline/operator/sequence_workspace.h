@@ -30,6 +30,8 @@ class SequenceWorkspaceView : public workspace_t<Backend> {
   }
 
   const SampleFrameInfoFn GetFrameInfoForInput(int input_idx) const {
+    DALI_ENFORCE(0 <= input_idx && static_cast<size_t>(input_idx) < input_sample_info_.size());
+    DALI_ENFORCE(input_sample_info_.size() == static_cast<size_t>(this->NumInput()));
     return input_sample_info_[input_idx];
   }
 
@@ -38,8 +40,8 @@ class SequenceWorkspaceView : public workspace_t<Backend> {
 };
 
 
-// TODO(ktokarski) Consider making it a method of workspace/argument workspace instead of
-// dynamic_cast. For now it seems too specific for a sequence operator context to place it there
+// TODO(ktokarski) Consider making it a method of workspace/argument workspace instead of resroting
+// RTTI. For now it seems too sequence-operator-specific to place in workspace base class.
 template <typename Backend>
 const SampleFrameInfoFn GetFrameInfoForInput(const workspace_t<Backend> &ws, int input_idx) {
   auto ws_ptr = dynamic_cast<const SequenceWorkspaceView<Backend> *>(&ws);

@@ -32,11 +32,6 @@
 
 namespace dali {
 
-template <typename T>
-struct is_shared_ptr : std::false_type {};
-template <typename T>
-struct is_shared_ptr<std::shared_ptr<T>> : std::true_type {};
-
 template <typename Backend>
 class SequenceOperator : public Operator<Backend> {
  public:
@@ -45,18 +40,23 @@ class SequenceOperator : public Operator<Backend> {
   using Operator<Backend>::Setup;
   using Operator<Backend>::Run;
 
+  template <typename T>
+  struct is_shared_ptr : std::false_type {};
+  template <typename T>
+  struct is_shared_ptr<std::shared_ptr<T>> : std::true_type {};
+
   template <typename InputBackend>
   using ws_input_t = typename workspace_t<Backend>::template input_t<InputBackend>;
   template <typename OutputBackend>
   using ws_output_t = typename workspace_t<Backend>::template output_t<OutputBackend>;
 
   bool Setup(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    SetupSequenceOperator(ws);
     expand_ = ShouldExpand(ws);
     bool is_inferred;
     if (!expand_) {
       is_inferred = Operator<Backend>::Setup(output_desc, ws);
     } else {
+      SetupSequenceOperator(ws);
       SetupExpandedWorkspace(ws);
       ExpandInputs(ws);
       ExpandArguments(ws);
@@ -73,6 +73,7 @@ class SequenceOperator : public Operator<Backend> {
       Operator<Backend>::Run(expanded_);
       SetOutputLayouts(ws);
       expanded_.Clear();
+      input_expand_desc_.clear();
     }
   }
 
@@ -85,79 +86,92 @@ class SequenceOperator : public Operator<Backend> {
   }
 
  protected:
-  void SetupExpandedWorkspace(const workspace_t<Backend> &ws) {
-    std::vector<SampleFrameInfoFn> input_sample_info;
-    for (const auto &expand_desc : input_expand_desc_) {
-      ExpandDescFrameInfoFn fn{&expand_desc};
-      input_sample_info.push_back({fn});
-    }
-    expanded_.SetFrameInfoFns(std::move(input_sample_info));
-    SetupExpandedWorkspace(expanded_, ws);
-  }
-
-  void SetupExpandedWorkspace(workspace_t<CPUBackend> &expanded,
-                              const workspace_t<CPUBackend> &ws) {
-    expanded.SetThreadPool(&ws.GetThreadPool());
-  }
-
-  void SetupExpandedWorkspace(workspace_t<GPUBackend> &expanded,
-                              const workspace_t<GPUBackend> &ws) {
-    if (ws.has_stream()) {
-      expanded.set_stream(ws.stream());
-    }
-  }
-
   virtual bool ShouldExpand(const workspace_t<Backend> &ws) {
-    (void)ws;
-    return std::any_of(input_expand_desc_.begin(), input_expand_desc_.end(),
-                       [](const ExpandDesc &desc) { return desc.ShouldExpand(); });
+    auto num_inputs = ws.NumInput();
+    for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
+      const auto &layout = GetInputLayout(ws, input_idx);
+      auto layout_desc = LayoutDesc::Create(layout, ShouldExpandChannels());
+      if (layout_desc.NumDims() > 0) {
+        return true;
+      }
+    }
+    return false;
   }
 
-  virtual void ExpandInput(const workspace_t<Backend> &ws, int input_idx) {
-    const auto &expand_desc = input_expand_desc_[input_idx];
-    if (!expand_desc.ShouldExpand()) {
-      AddUnchangedInputHelper(expanded_, ws, input_idx);
-    } else if (ws.template InputIsType<GPUBackend>(input_idx)) {
-      ExpandInputHelper<GPUBackend>(ws, input_idx, expand_desc);
-    } else {
-      ExpandInputHelper<CPUBackend>(ws, input_idx, expand_desc);
+  virtual void SetupSequenceOperator(const workspace_t<Backend> &ws) {
+    auto num_inputs = ws.NumInput();
+    input_expand_desc_.resize(num_inputs);
+    for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
+      const auto &input_shape = ws.GetInputShape(input_idx);
+      const auto &layout = GetInputLayout(ws, input_idx);
+      DALI_ENFORCE(layout.empty() || input_shape.sample_dim() == layout.size());
+      input_expand_desc_[input_idx] = {input_shape, layout, ShouldExpandChannels()};
     }
   }
 
   virtual void ExpandInputs(const workspace_t<Backend> &ws) {
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
-      ExpandInput(ws, input_idx);
+      const auto &expand_desc = GetInputExpandDesc(input_idx);
+      auto num_expand_dims = expand_desc.NumDims();
+      if (ws.template InputIsType<GPUBackend>(input_idx)) {
+        ExpandInputHelper<GPUBackend>(ws, input_idx, num_expand_dims);
+      } else {
+        ExpandInputHelper<CPUBackend>(ws, input_idx, num_expand_dims);
+      }
     }
-    DALI_ENFORCE(ws.NumInput() == expanded_.NumInput());
   }
 
   virtual const ExpandDesc &GetOutputExpandDesc(const workspace_t<Backend> &ws, int output_idx) {
-    return input_expand_desc_[output_idx];
-  }
-
-  virtual void ExpandOutput(const workspace_t<Backend> &ws, int output_idx) {
-    const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
-    if (!expand_desc.ShouldExpand()) {
-      AddUnchangedOutputHelper(expanded_, ws, output_idx);
-    } else if (ws.template OutputIsType<GPUBackend>(output_idx)) {
-      ExpandOutputHelper<GPUBackend>(ws, output_idx, expand_desc);
-    } else {
-      ExpandOutputHelper<CPUBackend>(ws, output_idx, expand_desc);
-    }
+    (void)ws;
+    return GetInputExpandDesc(output_idx);
   }
 
   virtual void ExpandOutputs(const workspace_t<Backend> &ws) {
     for (int output_idx = 0; output_idx < ws.NumInput(); output_idx++) {
-      ExpandOutput(ws, output_idx);
+      const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
+      auto num_expand_dims = expand_desc.NumDims();
+      if (ws.template OutputIsType<GPUBackend>(output_idx)) {
+        ExpandOutputHelper<GPUBackend>(ws, output_idx, num_expand_dims);
+      } else {
+        ExpandOutputHelper<CPUBackend>(ws, output_idx, num_expand_dims);
+      }
     }
-    DALI_ENFORCE(ws.NumOutput() == expanded_.NumOutput());
+  }
+
+  virtual void SetOutputLayouts(workspace_t<Backend> &ws) {
+    auto num_output = ws.NumOutput();
+    DALI_ENFORCE(num_output == expanded_.NumOutput());
+    for (int output_idx = 0; output_idx < num_output; output_idx++) {
+      const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
+      auto layout_prefix = expand_desc.ExpandedLayout();
+      if (expanded_.template OutputIsType<GPUBackend>(output_idx)) {
+        SetOutputLayoutHelper<GPUBackend>(ws, output_idx, layout_prefix);
+      } else {
+        SetOutputLayoutHelper<CPUBackend>(ws, output_idx, layout_prefix);
+      }
+    }
+  }
+
+  virtual void CoalesceOutputShapes(std::vector<OutputDesc> &output_desc,
+                                    const workspace_t<Backend> &ws) {
+    for (size_t output_idx = 0; output_idx < output_desc.size(); output_idx++) {
+      const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
+      output_desc[output_idx].shape =
+          fold_outermost_like(output_desc[output_idx].shape, expand_desc);
+    }
+  }
+
+  virtual bool ProcessOutputDesc(std::vector<OutputDesc> &output_desc,
+                                 const workspace_t<Backend> &ws, bool is_inferred) {
+    if (is_inferred && expand_) {
+      CoalesceOutputShapes(output_desc, ws);
+    }
+    return is_inferred;
   }
 
   virtual const ExpandDesc &GetArgExpandDesc(const std::string &arg_name) {
     (void)arg_name;
-    DALI_ENFORCE(input_expand_desc_.size() > 0,
-                 "Cannot expand argument tensor input without matching input tensor");
-    return input_expand_desc_[0];
+    return GetInputExpandDesc(0);
   }
 
   virtual void ExpandArgment(const workspace_t<Backend> &ws, const std::string &arg_name,
@@ -179,84 +193,21 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
-  virtual void SetOutputLayout(workspace_t<Backend> &ws, int output_idx) {
-    const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
-    if (!expand_desc.ShouldExpand()) {
-      return;
+  virtual void SetupFrameInfoFns(const workspace_t<Backend> &ws) {
+    std::vector<SampleFrameInfoFn> input_sample_info;
+    for (const auto &expand_desc : input_expand_desc_) {
+      ExpandDescFrameInfoFn fn{&expand_desc};
+      input_sample_info.push_back({fn});
     }
-    if (expanded_.template OutputIsType<GPUBackend>(output_idx)) {
-      SetOutputLayoutHelper<GPUBackend>(ws, output_idx, expand_desc);
-    } else {
-      SetOutputLayoutHelper<CPUBackend>(ws, output_idx, expand_desc);
-    }
-  }
-
-  virtual void SetOutputLayouts(workspace_t<Backend> &ws) {
-    auto num_output = ws.NumOutput();
-    DALI_ENFORCE(num_output == expanded_.NumOutput());
-    for (int output_idx = 0; output_idx < num_output; output_idx++) {
-      SetOutputLayout(ws, output_idx);
-    }
-  }
-
-  virtual void CoalesceOutputShapes(std::vector<OutputDesc> &output_desc,
-                                    const workspace_t<Backend> &ws) {
-    DALI_ENFORCE(output_desc.size() == static_cast<size_t>(ws.NumOutput()));
-    for (size_t output_idx = 0; output_idx < output_desc.size(); output_idx++) {
-      const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
-      output_desc[output_idx].shape = FoldLike(output_desc[output_idx].shape, expand_desc);
-    }
-  }
-
-  virtual bool ProcessOutputDesc(std::vector<OutputDesc> &output_desc,
-                                 const workspace_t<Backend> &ws, bool is_inferred) {
-    if (is_inferred && expand_) {
-      CoalesceOutputShapes(output_desc, ws);
-    }
-    return is_inferred;
-  }
-
- private:
-  void SetupSequenceOperator(const workspace_t<Backend> &ws) {
-    auto num_inputs = ws.NumInput();
-    input_expand_desc_.resize(num_inputs);
-    for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
-      const auto &input_shape = ws.GetInputShape(input_idx);
-      const auto &layout = GetInputLayout(ws, input_idx);
-      DALI_ENFORCE(layout.empty() || input_shape.sample_dim() == layout.size());
-      input_expand_desc_[input_idx] = {input_shape, layout, ShouldExpandChannels()};
-    }
-  }
-
-  void AddUnchangedInputHelper(workspace_t<Backend> &expanded, const workspace_t<Backend> &ws,
-                               int input_idx) {
-    if (ws.template InputIsType<GPUBackend>(input_idx)) {
-      auto input = ws.template InputPtr<GPUBackend>(input_idx);
-      expanded.AddInput(input);
-    } else {
-      auto input = ws.template InputPtr<CPUBackend>(input_idx);
-      expanded.AddInput(input);
-    }
-  }
-
-  void AddUnchangedOutputHelper(workspace_t<Backend> &expanded, const workspace_t<Backend> &ws,
-                                int output_idx) {
-    if (ws.template OutputIsType<GPUBackend>(output_idx)) {
-      auto output = ws.template OutputPtr<GPUBackend>(output_idx);
-      expanded.AddOutput(output);
-    } else {
-      auto output = ws.template OutputPtr<CPUBackend>(output_idx);
-      expanded.AddOutput(output);
-    }
+    expanded_.SetFrameInfoFns(std::move(input_sample_info));
   }
 
   template <typename InputBackend>
-  void ExpandInputHelper(const workspace_t<Backend> &ws, int input_idx,
-                         const ExpandDesc &expand_desc) {
+  void ExpandInputHelper(const workspace_t<Backend> &ws, int input_idx, int num_expand_dims) {
     const auto &input = ws.template Input<InputBackend>(input_idx);
-    auto expanded_input = Unfold(input, expand_desc.NumExpandDims());
+    auto expanded_input = unfold_outer_dims(input, num_expand_dims);
     const auto &input_layout = input.GetLayout();
-    expanded_input.SetLayout(input_layout.sub(expand_desc.NumExpandDims()));
+    expanded_input.SetLayout(input_layout.sub(num_expand_dims));
     using input_handle_t = ws_input_t<InputBackend>;
     static_assert(is_shared_ptr<input_handle_t>::value,
                   "Workspace input handle expected to be shared_ptr");
@@ -266,10 +217,9 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   template <typename OutputBackend>
-  void ExpandOutputHelper(const workspace_t<Backend> &ws, int output_idx,
-                          const ExpandDesc &expand_desc) {
+  void ExpandOutputHelper(const workspace_t<Backend> &ws, int output_idx, int num_expand_dims) {
     const auto &output = ws.template Output<OutputBackend>(output_idx);
-    auto expanded_output = Unfold(output, expand_desc.NumExpandDims());
+    auto expanded_output = unfold_outer_dims(output, num_expand_dims);
     using output_handle_t = ws_output_t<OutputBackend>;
     static_assert(is_shared_ptr<output_handle_t>::value,
                   "Workspace output handle expected to be shared_ptr");
@@ -279,15 +229,39 @@ class SequenceOperator : public Operator<Backend> {
 
   template <typename OutputBackend>
   void SetOutputLayoutHelper(const workspace_t<Backend> &ws, int output_idx,
-                             const ExpandDesc &expand_desc) {
+                             TensorLayout layout_prefix) {
     auto &expanded_output = expanded_.template Output<OutputBackend>(output_idx);
     auto &output = ws.template Output<OutputBackend>(output_idx);
     const auto &layout = expanded_output.GetLayout();
     if (layout.size() == 0) {
       output.SetLayout(layout);
     } else {
-      auto expanded_layout = expand_desc.expanded_layout_ + layout;
+      auto expanded_layout = layout_prefix + layout;
       output.SetLayout(expanded_layout);
+    }
+  }
+
+  const ExpandDesc &GetInputExpandDesc(int input_idx) {
+    DALI_ENFORCE(expand_ && 0 <= input_idx &&
+                 static_cast<size_t>(input_idx) < input_expand_desc_.size());
+    return input_expand_desc_[input_idx];
+  }
+
+ private:
+  void SetupExpandedWorkspace(const workspace_t<Backend> &ws) {
+    SetupFrameInfoFns(ws);
+    SetupExpandedWorkspace(expanded_, ws);
+  }
+
+  void SetupExpandedWorkspace(workspace_t<CPUBackend> &expanded,
+                              const workspace_t<CPUBackend> &ws) {
+    expanded.SetThreadPool(&ws.GetThreadPool());
+  }
+
+  void SetupExpandedWorkspace(workspace_t<GPUBackend> &expanded,
+                              const workspace_t<GPUBackend> &ws) {
+    if (ws.has_stream()) {
+      expanded.set_stream(ws.stream());
     }
   }
 

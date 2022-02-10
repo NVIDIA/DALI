@@ -27,94 +27,136 @@
 
 namespace dali {
 
-struct ExpandDesc {
-  inline ExpandDesc() = default;
-  inline ExpandDesc(const TensorListShape<> &shape, const TensorLayout &layout,
-                    bool expand_channels) {
+struct LayoutDesc {
+  static inline LayoutDesc Create(const TensorLayout &layout, bool expand_channels) {
     if (!expand_channels) {
       if (VideoLayoutInfo::FrameDimIndex(layout) == 0) {
-        frame_dim_ = 0;
+        return {0};
+      } else {
+        return {};
       }
     } else {
-      int frames_dim = VideoLayoutInfo::FrameDimIndex(layout);
+      int frame_dim = VideoLayoutInfo::FrameDimIndex(layout);
       int channel_dim = ImageLayoutInfo::ChannelDimIndex(layout);
-      frames_dim = frames_dim > 1 ? -1 : frames_dim;
+      frame_dim = frame_dim > 1 ? -1 : frame_dim;
       channel_dim = channel_dim > 1 ? -1 : channel_dim;
-      if (frames_dim == 0 || channel_dim == 0) {
-        frame_dim_ = frames_dim;
-        channel_dim_ = channel_dim;
+      if (frame_dim != 0 && channel_dim != 0) {
+        return {};
+      } else {
+        return {frame_dim, channel_dim};
       }
     }
-    int num_dims = NumExpandDims();
-    if (num_dims > 0) {
-      expanded_layout_ = layout.first(num_dims);
-      initial_shape_ = shape.first(num_dims);
-      num_elements_ = initial_shape_.num_elements();
-    }
   }
 
-  inline int NumExpandDims() const {
-    return (frame_dim_ >= 0) + (channel_dim_ >= 0);
+  inline int NumDims() const {
+    return (frame_dim >= 0) + (channel_dim >= 0);
   }
 
-  inline int NumElements() const {
+  int frame_dim = -1;
+  int channel_dim = -1;
+};
+
+class ExpandDesc {
+ public:
+  inline ExpandDesc() = default;
+  inline ExpandDesc(const TensorListShape<> &shape, const TensorLayout &layout,
+                    bool expand_channels)
+      : layout_desc_{LayoutDesc::Create(layout, expand_channels)},
+        has_channels_{layout_desc_.channel_dim >= 0},
+        has_frames_{layout_desc_.frame_dim >= 0},
+        is_channel_first_{has_channels_ && layout_desc_.channel_dim < layout_desc_.frame_dim},
+        num_dims_{has_channels_ + has_frames_},
+        expanded_layout_{layout.first(num_dims_)},
+        expanded_shape_{shape.first(num_dims_)},
+        num_elements_{expanded_shape_.num_elements()} {}
+
+  inline int NumDims() const {
+    return num_dims_;
+  }
+
+  inline ptrdiff_t NumElements() const {
     return num_elements_;
   }
 
-  inline bool ShouldExpand() const {
-    return NumExpandDims() > 0;
+  inline int NumSamples() const {
+    return expanded_shape_.num_samples();
   }
 
   inline bool HasChannels() const {
-    return (channel_dim_ >= 0);
+    return has_channels_;
   }
 
   inline bool HasFrames() const {
-    return (frame_dim_ >= 0);
+    return has_frames_;
   }
 
   inline bool IsChannelFirst() const {
-    return HasChannels() && channel_dim_ < frame_dim_;
+    return is_channel_first_;
   }
 
-  int frame_dim_ = -1;
-  int channel_dim_ = -1;
-  TensorLayout expanded_layout_ = {};
-  TensorListShape<> initial_shape_ = {};
-  int num_elements_;
+  inline int NumFrames(int sample_idx) const {
+    return expanded_shape_[sample_idx][layout_desc_.frame_dim];
+  }
+
+  inline int NumChannels(int sample_idx) const {
+    return expanded_shape_[sample_idx][layout_desc_.channel_dim];
+  }
+
+  inline int NumElements(int sample_idx) const {
+    return volume(expanded_shape_[sample_idx]);
+  }
+
+  inline TensorShape<> ExpandedShape(int sample_idx) const {
+    return expanded_shape_[sample_idx];
+  }
+
+  inline TensorLayout ExpandedLayout() const {
+    return expanded_layout_;
+  }
+
+ private:
+  LayoutDesc layout_desc_;
+  bool has_channels_;
+  bool has_frames_;
+  bool is_channel_first_;
+  int num_dims_;
+  TensorLayout expanded_layout_;
+  TensorListShape<> expanded_shape_;
+  ptrdiff_t num_elements_;
 };
 
 
-struct ExpandDescFrameInfoFn {
+class ExpandDescFrameInfoFn {
+ public:
   ExpandDescFrameInfoFn(const ExpandDesc *expand_desc)  // NOLINT
       : expand_desc_{expand_desc} {};
 
   inline FrameInfo operator()(int flat_sample_idx) const {
     DALI_ENFORCE(expand_desc_);
-    if (!expand_desc_->ShouldExpand()) {
+    const auto &expand_desc = *expand_desc_;
+    if (expand_desc.NumDims() == 0) {
       return {flat_sample_idx};
     }
-    const auto &shape = expand_desc_->initial_shape_;
-    DALI_ENFORCE(0 <= flat_sample_idx && flat_sample_idx < shape.num_elements());
+    DALI_ENFORCE(0 <= flat_sample_idx && flat_sample_idx < expand_desc.NumElements());
     int sample_idx = 0;
     int frame_offset = flat_sample_idx;
-    int sample_num_elements = volume(shape[sample_idx]);
+    int sample_num_elements = expand_desc.NumElements(sample_idx);
     while (frame_offset - sample_num_elements >= 0) {
       frame_offset -= sample_num_elements;
-      sample_num_elements = volume(shape[++sample_idx]);
+      sample_num_elements = expand_desc.NumElements(++sample_idx);
     }
-    if (!expand_desc_->HasChannels()) {
+    if (!expand_desc.HasChannels()) {
       return {sample_idx, frame_offset};
-    } else if (!expand_desc_->HasFrames()) {
+    } else if (!expand_desc.HasFrames()) {
       return {sample_idx};
-    } else if (expand_desc_->IsChannelFirst()) {
-      auto num_frames = shape[sample_idx][expand_desc_->frame_dim_];
-      DALI_ENFORCE(num_frames >= 0);
+    } else if (expand_desc.IsChannelFirst()) {
+      auto num_frames = expand_desc.NumFrames(sample_idx);
+      DALI_ENFORCE(num_frames > 0);
       int frame_idx = frame_offset % num_frames;
       return {sample_idx, frame_idx};
     } else {
-      auto num_channels = shape[sample_idx][expand_desc_->channel_dim_];
-      DALI_ENFORCE(num_channels >= 0);
+      auto num_channels = expand_desc.NumChannels(sample_idx);
+      DALI_ENFORCE(num_channels > 0);
       int frame_idx = frame_offset / num_channels;
       return {sample_idx, frame_idx};
     }
@@ -125,7 +167,7 @@ struct ExpandDescFrameInfoFn {
 };
 
 template <typename Backend>
-TensorVector<Backend> Unfold(const TensorVector<Backend> &data, int num_unfold_dims) {
+TensorVector<Backend> unfold_outer_dims(const TensorVector<Backend> &data, int num_unfold_dims) {
   const auto &initial_shape = data.shape();
   auto unfold_shape = initial_shape.first(num_unfold_dims);
   const auto target_num_samples = unfold_shape.num_elements();
@@ -156,15 +198,15 @@ TensorVector<Backend> Unfold(const TensorVector<Backend> &data, int num_unfold_d
 }
 
 template <typename Backend>
-TensorList<Backend> Unfold(const TensorList<Backend> &data, int num_unfold_dims) {
+TensorList<Backend> unfold_outer_dims(const TensorList<Backend> &data, int num_unfold_dims) {
   TensorList<Backend> tl;
   tl.ShareData(data);
-  auto shape = Unfold(data.shape(), num_unfold_dims);
+  auto shape = unfold_outer_dims(data.shape(), num_unfold_dims);
   tl.Resize(shape, data.type());
   return tl;
 }
 
-inline TensorListShape<> Unfold(const TensorListShape<> &shape, int num_unfold_dims) {
+inline TensorListShape<> unfold_outer_dims(const TensorListShape<> &shape, int num_unfold_dims) {
   DALI_ENFORCE(num_unfold_dims >= 0 && num_unfold_dims < shape.sample_dim(),
                "TODO: maybe just an assert?");
   if (num_unfold_dims == 0) {
@@ -177,18 +219,22 @@ inline TensorListShape<> Unfold(const TensorListShape<> &shape, int num_unfold_d
   }
 }
 
-inline TensorListShape<> FoldLike(const TensorListShape<> &shape, const ExpandDesc &expand_desc) {
+inline TensorListShape<> fold_outermost_like(const TensorListShape<> &shape,
+                                             const ExpandDesc &expand_desc) {
+  if (expand_desc.NumDims() == 0) {
+    return shape;
+  }
   auto num_samples = shape.num_samples();
-  const auto &initial_shape = expand_desc.initial_shape_;
   auto num_elements = expand_desc.NumElements();
-  auto num_groups = initial_shape.num_samples();
+  auto num_groups = expand_desc.NumSamples();
   DALI_ENFORCE(num_samples == num_elements);
-  TensorListShape<> res(num_groups, initial_shape.sample_dim() + shape.sample_dim());
+  TensorListShape<> res(num_groups, expand_desc.NumDims() + shape.sample_dim());
   int sample_offset = 0;
   for (int i = 0; i < num_groups; i++) {
     const auto &frame_shape = shape[sample_offset];
-    res.set_tensor_shape(i, shape_cat(initial_shape[i], frame_shape));
-    auto num_frames = volume(initial_shape[i]);
+    auto expanded_shape = expand_desc.ExpandedShape(i);
+    res.set_tensor_shape(i, shape_cat(expanded_shape, frame_shape));
+    auto num_frames = volume(expanded_shape);
     for (int j = 1; j < num_frames; j++) {
       DALI_ENFORCE(shape[sample_offset + j] == frame_shape);
     }
@@ -201,25 +247,24 @@ inline TensorVector<CPUBackend> SpreadTensorArgumentLike(const TensorVector<CPUB
                                                          const std::string &name,
                                                          const ExpandDesc &expand_desc) {
   const auto &layout = tv.GetLayout();
-  bool argument_has_frames_dim = VideoLayoutInfo::FrameDimIndex(layout) == 0;
+  bool arg_has_frames_dim = VideoLayoutInfo::FrameDimIndex(layout) == 0;
   DALI_ENFORCE(
-      !argument_has_frames_dim || expand_desc.HasFrames(),
+      !arg_has_frames_dim || expand_desc.HasFrames(),
       "Argument input contains frames but the input of the operator does not. How ridiculous.");
-  DALI_ENFORCE(expand_desc.initial_shape_.sample_dim() >= expand_desc.NumExpandDims(),
-               "Inital shape must be greater than number of expanded dims");
-  TensorVector<CPUBackend> flat_tensor(expand_desc.NumElements());
+  auto num_elements = expand_desc.NumElements();
+  int num_samples = expand_desc.NumSamples();
+  TensorVector<CPUBackend> flat_tensor(num_elements);
   int arg_sample_dim = tv.sample_dim();
-  DALI_ENFORCE(!argument_has_frames_dim || arg_sample_dim >= 1,
-               "No frames found for per-frame argument");  // TODO(ktokarski) adjust the message
+  DALI_ENFORCE(!arg_has_frames_dim || arg_sample_dim >= 1,
+               make_string("The layout of tensor argument ", name,
+                           "contains frames, but it has 0 dimensionality."));
   int sample_offset = 0;
-  for (int sample_idx = 0; sample_idx < expand_desc.initial_shape_.num_samples(); sample_idx++) {
+  for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
     const auto &arg_tensor = tv[sample_idx];
     const auto &arg_shape = arg_tensor.shape();
-    int num_input_frames = !expand_desc.HasFrames() ?
-                               1 :
-                               expand_desc.initial_shape_[sample_idx][expand_desc.frame_dim_];
-    int num_arg_frames = !argument_has_frames_dim ? 1 : arg_shape[0];
-    auto elem_shape = argument_has_frames_dim ? arg_shape.last(arg_sample_dim - 1) : arg_shape;
+    int num_input_frames = expand_desc.HasFrames() ? expand_desc.NumFrames(sample_idx) : 1;
+    int num_arg_frames = !arg_has_frames_dim ? 1 : arg_shape[0];
+    auto elem_shape = arg_has_frames_dim ? arg_shape.last(arg_sample_dim - 1) : arg_shape;
     DALI_ENFORCE(
         num_arg_frames == 1 || num_input_frames == num_arg_frames,
         make_string("The tensor argument ", name, " for sample ", sample_idx,
@@ -234,9 +279,7 @@ inline TensorVector<CPUBackend> SpreadTensorArgumentLike(const TensorVector<CPUB
     auto type = type_info.id();
     auto is_pinned = arg_tensor.is_pinned();
     auto order = arg_tensor.order();
-    int num_input_channels = !expand_desc.HasChannels() ?
-                                 1 :
-                                 expand_desc.initial_shape_[sample_idx][expand_desc.channel_dim_];
+    int num_input_channels = expand_desc.HasChannels() ? expand_desc.NumChannels(sample_idx) : 1;
     int num_repeat =
         num_arg_frames == 1 ? num_input_channels * num_input_frames : num_input_channels;
     int inner_stride, outer_stride;
@@ -259,9 +302,7 @@ inline TensorVector<CPUBackend> SpreadTensorArgumentLike(const TensorVector<CPUB
     }
     sample_offset += num_input_channels * num_input_frames;
   }
-  DALI_ENFORCE(sample_offset == expand_desc.NumElements(),
-               make_string("TODO: change me to assert", sample_offset, " ",
-                           expand_desc.num_elements_, " ", expand_desc.initial_shape_));
+  DALI_ENFORCE(sample_offset == num_elements);
   return flat_tensor;
 }
 
