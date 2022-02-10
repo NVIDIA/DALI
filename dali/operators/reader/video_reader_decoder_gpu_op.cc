@@ -25,7 +25,6 @@ VideoReaderDecoderGpu::VideoReaderDecoderGpu(const OpSpec &spec)
 }
 
 void VideoReaderDecoderGpu::PrepareOutput(TensorList<GPUBackend> &video_output) {
-
 }
 
 void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {

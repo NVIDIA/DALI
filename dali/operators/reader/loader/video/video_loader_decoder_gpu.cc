@@ -26,7 +26,8 @@ void VideoLoaderDecoderGpu::ReadSample(VideoSample<GPUBackend> &sample) {
   ++current_index_;
   MoveToNextShard(current_index_);
 
-  TensorShape<4> sequence_shape = {sequence_len_, video_file.Height(), video_file.Width(), video_file.Channels()};
+  TensorShape<4> sequence_shape = {
+    sequence_len_, video_file.Height(), video_file.Width(), video_file.Channels()};
 
   sample.data_.Resize(
     sequence_shape,
