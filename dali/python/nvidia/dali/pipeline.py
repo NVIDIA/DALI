@@ -606,6 +606,7 @@ Parameters
         self._py_pool_started = True
 
     def _init_pipeline_backend(self):
+        b.check_cuda_runtime()
         self._pipe = b.Pipeline(self._max_batch_size,
                                 self._num_threads,
                                 self._device_id if self._device_id is not None else types.CPU_ONLY_DEVICE_ID,
@@ -793,7 +794,7 @@ Parameters
         if next((op._callback is not None for op in self._ops if op.name == name), False):
             raise RuntimeError(f"Cannot use `feed_input` on the external source '{name}' with a `source`"
                                 " argument specified.")
-        
+
         self._feed_input(name, data, layout, cuda_stream, use_copy_kernel)
 
     def _run_cpu(self):
@@ -1089,6 +1090,7 @@ Parameters
         if filename is not None:
             with open(filename, 'rb') as pipeline_file:
                 serialized_pipeline = pipeline_file.read()
+        b.check_cuda_runtime()
         pipeline._pipe = b.Pipeline(
             serialized_pipeline,
             kw.get("batch_size", -1),
