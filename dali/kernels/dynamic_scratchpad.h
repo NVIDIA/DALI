@@ -135,7 +135,7 @@ class DynamicScratchpad
     initial_sizes_ = initial_sizes;
     for (auto &s : initial_sizes_) {
       if (s == 0)
-        s = 4096;
+        s = 0x10000;  // 64k
     }
     if (!pinned_dealloc_order.has_value())
       pinned_dealloc_order = device_order;
