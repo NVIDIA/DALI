@@ -39,6 +39,8 @@ struct NvDecodeState {
   CUVIDSOURCEDATAPACKET packet = { 0 };
 
   uint8_t *decoded_frame_yuv;
+
+  ~NvDecodeState();
 };
 
 struct BufferedFrame {
@@ -65,6 +67,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   int NextFramePts() { return index_[NextFrameIdx()].pts; }
 
   int ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params);
+
+  ~FramesDecoderGpu();
 
  private:
   std::unique_ptr<NvDecodeState> nvdecode_state_;

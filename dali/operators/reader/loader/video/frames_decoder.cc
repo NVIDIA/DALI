@@ -27,6 +27,8 @@ std::string av_error_string(int ret) {
 }
 }
 
+using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
+
 void FramesDecoder::InitAvState() {
   av_state_->codec_ctx_ = avcodec_alloc_context3(av_state_->codec_);
   DALI_ENFORCE(av_state_->codec_ctx_, "Could not alloc av codec context");
@@ -149,11 +151,14 @@ void FramesDecoder::LazyInitSwContext() {
 bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
   int ret = -1;
   while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-    if (av_state_->packet_->stream_index != av_state_->stream_id_) {
+    // We want to make sure that we call av_packet_unref in every iteration
+    auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
+
+    if (packet->stream_index != av_state_->stream_id_) {
       continue;
     }
 
-    ret = avcodec_send_packet(av_state_->codec_ctx_, av_state_->packet_);
+    ret = avcodec_send_packet(av_state_->codec_ctx_, packet.get());
     DALI_ENFORCE(
       ret >= 0,
       make_string("Failed to send packet to decoder: ", detail::av_error_string(ret)));
