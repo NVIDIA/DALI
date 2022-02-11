@@ -79,7 +79,7 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
     kmgr_.template Resize<Kernel>(nsamples);
 
     for (int i = 0; i < nsamples; i++) {
-      params_[i] = ObtainSampleParams<axes>(i, spec_, ws, GetFrameInfoForInput<GPUBackend>(ws, 0));
+      params_[i] = ObtainSampleParams<axes>(i, spec_, ws, get_frame_info<GPUBackend>(ws, 0));
       if (windows_[i].PrepareWindows(params_[i])) {
         for (int axis = 0; axis < axes; axis++) {
           window_shapes_[axis].set_tensor_shape(i, {params_[i].window_sizes[axis]});

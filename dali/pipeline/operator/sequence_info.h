@@ -34,23 +34,7 @@ inline std::ostream &operator<<(std::ostream &os, const FrameInfo &frame_info) {
   return os;
 }
 
-// Accessing initial sample indicies defeats the purpose of hiding frames
-// handling from the operator, the utility is expected for exceptional use
-// such as reporting errors to user with clearer message
-struct DLL_PUBLIC SampleFrameInfoFn {
-  DLL_PUBLIC inline SampleFrameInfoFn(std::function<FrameInfo(int)> frame_info_fn = nullptr)
-      : frame_info_fn_{frame_info_fn} {}
-
-  DLL_PUBLIC inline FrameInfo operator()(int flat_sample_idx) const {
-    if (!frame_info_fn_) {
-      return {flat_sample_idx};
-    }
-    return frame_info_fn_(flat_sample_idx);
-  }
-
- private:
-  std::function<FrameInfo(int)> frame_info_fn_;
-};
+using SampleFrameInfoFn = std::function<FrameInfo(int)>;
 
 }  // namespace dali
 

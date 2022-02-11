@@ -63,7 +63,7 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
     // The shape of data stays untouched
     output_desc[0].shape = input.shape();
 
-    args.ObtainLaplacianArgs(spec_, ws, nsamples, GetFrameInfoForInput<GPUBackend>(ws, 0));
+    args.ObtainLaplacianArgs(spec_, ws, nsamples, get_frame_info<GPUBackend>(ws, 0));
 
     for (int i = 0; i < axes; i++) {
       for (int j = 0; j < axes; j++) {

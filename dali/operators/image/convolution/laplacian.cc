@@ -124,7 +124,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
     output_desc[0].type = type2id<Out>::value;
     output_desc[0].shape = input.shape();
 
-    args.ObtainLaplacianArgs(spec_, ws, nsamples, GetFrameInfoForInput<CPUBackend>(ws, 0));
+    args.ObtainLaplacianArgs(spec_, ws, nsamples, get_frame_info<CPUBackend>(ws, 0));
     windows_.resize(nsamples);
 
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {

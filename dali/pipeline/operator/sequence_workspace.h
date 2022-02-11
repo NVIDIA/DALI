@@ -25,30 +25,61 @@ namespace dali {
 template <typename Backend>
 class SequenceWorkspaceView : public workspace_t<Backend> {
  public:
-  void SetFrameInfoFns(std::vector<SampleFrameInfoFn> &&input_sample_info) {
-    input_sample_info_ = input_sample_info;
+  using Base = workspace_t<Backend>;
+
+  void AddArgumentInput(const std::string &arg_name, shared_ptr<TensorVector<CPUBackend>> input,
+                        SampleFrameInfoFn fn) {
+    Base::AddArgumentInput(arg_name, input);
+    arg_frame_info_[arg_name] = fn;
   }
 
-  const SampleFrameInfoFn GetFrameInfoForInput(int input_idx) const {
-    DALI_ENFORCE(0 <= input_idx && static_cast<size_t>(input_idx) < input_sample_info_.size());
-    DALI_ENFORCE(input_sample_info_.size() == static_cast<size_t>(this->NumInput()));
-    return input_sample_info_[input_idx];
+  void AddInput(typename Base::template input_t<CPUBackend> input, SampleFrameInfoFn fn) {
+    Base::AddInput(input);
+    input_frame_info_.push_back(fn);
+  }
+
+  void AddInput(typename Base::template input_t<GPUBackend> input, SampleFrameInfoFn fn) {
+    Base::AddInput(input);
+    input_frame_info_.push_back(fn);
+  }
+
+  void Clear() {
+    Base::Clear();
+    arg_frame_info_.clear();
+    input_frame_info_.clear();
+  }
+
+  SampleFrameInfoFn GetFrameInfo(int input_idx) const {
+    DALI_ENFORCE(0 <= input_idx && static_cast<size_t>(input_idx) < input_frame_info_.size());
+    DALI_ENFORCE(input_frame_info_.size() == static_cast<size_t>(this->NumInput()));
+    auto fn = input_frame_info_[input_idx];
+    DALI_ENFORCE(fn);
+    return fn;
+  }
+
+  SampleFrameInfoFn GetFrameInfo(const std::string &arg_name) const {
+    auto it = arg_frame_info_.find(arg_name);
+    DALI_ENFORCE(it != arg_frame_info_.end(), "Argument \"" + arg_name + "\" not found.");
+    auto fn = it->second;
+    DALI_ENFORCE(fn);
+    return fn;
   }
 
  private:
-  std::vector<SampleFrameInfoFn> input_sample_info_;
+  std::unordered_map<std::string, SampleFrameInfoFn> arg_frame_info_;
+  std::vector<SampleFrameInfoFn> input_frame_info_;
 };
 
 
-// TODO(ktokarski) Consider making it a method of workspace/argument workspace instead of resroting
-// RTTI. For now it seems too sequence-operator-specific to place in workspace base class.
+// TODO(ktokarski) Consider making it a virtual method of workspace/argument workspace instead of
+// resroting RTTI. For now it seems too sequence-operator-specific to place in workspace base class.
 template <typename Backend>
-const SampleFrameInfoFn GetFrameInfoForInput(const workspace_t<Backend> &ws, int input_idx) {
+const SampleFrameInfoFn get_frame_info(const workspace_t<Backend> &ws, int input_idx) {
   auto ws_ptr = dynamic_cast<const SequenceWorkspaceView<Backend> *>(&ws);
   if (!ws_ptr) {
-    return {};
+    return [](int sample_idx) -> FrameInfo { return {sample_idx}; };
   }
-  return ws_ptr->GetFrameInfoForInput(input_idx);
+  return ws_ptr->GetFrameInfo(input_idx);
 }
 
 }  // namespace dali

@@ -57,7 +57,7 @@ class SequenceOperator : public Operator<Backend> {
       is_inferred = Operator<Backend>::Setup(output_desc, ws);
     } else {
       SetupSequenceOperator(ws);
-      SetupExpandedWorkspace(ws);
+      SetupExpandedWorkspace(expanded_, ws);
       ExpandInputs(ws);
       ExpandArguments(ws);
       is_inferred = Operator<Backend>::Setup(output_desc, expanded_);
@@ -71,7 +71,7 @@ class SequenceOperator : public Operator<Backend> {
     } else {
       ExpandOutputs(ws);
       Operator<Backend>::Run(expanded_);
-      SetOutputLayouts(ws);
+      PostprocessOutputs(ws);
       expanded_.Clear();
       input_expand_desc_.clear();
     }
@@ -114,9 +114,11 @@ class SequenceOperator : public Operator<Backend> {
       const auto &expand_desc = GetInputExpandDesc(input_idx);
       auto num_expand_dims = expand_desc.NumDims();
       if (ws.template InputIsType<GPUBackend>(input_idx)) {
-        ExpandInputHelper<GPUBackend>(ws, input_idx, num_expand_dims);
+        auto expanded_handle = ExpandInputHelper<GPUBackend>(ws, input_idx, num_expand_dims);
+        expanded_.AddInput(expanded_handle, ExpandDescFrameInfoFn{&expand_desc});
       } else {
-        ExpandInputHelper<CPUBackend>(ws, input_idx, num_expand_dims);
+        auto expanded_handle = ExpandInputHelper<CPUBackend>(ws, input_idx, num_expand_dims);
+        expanded_.AddInput(expanded_handle, ExpandDescFrameInfoFn{&expand_desc});
       }
     }
   }
@@ -138,7 +140,7 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
-  virtual void SetOutputLayouts(workspace_t<Backend> &ws) {
+  virtual void PostprocessOutputs(workspace_t<Backend> &ws) {
     auto num_output = ws.NumOutput();
     DALI_ENFORCE(num_output == expanded_.NumOutput());
     for (int output_idx = 0; output_idx < num_output; output_idx++) {
@@ -180,7 +182,7 @@ class SequenceOperator : public Operator<Backend> {
     const auto &tv = ws.ArgumentInput(arg_name);
     auto expanded_arg = SpreadTensorArgumentLike(tv, arg_name, expand_desc);
     auto expanded_handle = std::make_shared<TensorVector<CPUBackend>>(std::move(expanded_arg));
-    expanded_.AddArgumentInput(arg_name, expanded_handle);
+    expanded_.AddArgumentInput(arg_name, expanded_handle, ExpandDescFrameInfoFn{&expand_desc});
   }
 
   virtual void ExpandArguments(const workspace_t<Backend> &ws) {
@@ -193,27 +195,16 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
-  virtual void SetupFrameInfoFns(const workspace_t<Backend> &ws) {
-    std::vector<SampleFrameInfoFn> input_sample_info;
-    for (const auto &expand_desc : input_expand_desc_) {
-      ExpandDescFrameInfoFn fn{&expand_desc};
-      input_sample_info.push_back({fn});
-    }
-    expanded_.SetFrameInfoFns(std::move(input_sample_info));
-  }
-
   template <typename InputBackend>
-  void ExpandInputHelper(const workspace_t<Backend> &ws, int input_idx, int num_expand_dims) {
+  auto ExpandInputHelper(const workspace_t<Backend> &ws, int input_idx, int num_expand_dims) {
+    using input_handle_t = ws_input_t<InputBackend>;
+    static_assert(is_shared_ptr<input_handle_t>::value,
+                  "Workspace input handle expected to be shared_ptr");
     const auto &input = ws.template Input<InputBackend>(input_idx);
     auto expanded_input = unfold_outer_dims(input, num_expand_dims);
     const auto &input_layout = input.GetLayout();
     expanded_input.SetLayout(input_layout.sub(num_expand_dims));
-    using input_handle_t = ws_input_t<InputBackend>;
-    static_assert(is_shared_ptr<input_handle_t>::value,
-                  "Workspace input handle expected to be shared_ptr");
-    auto expaned_handle =
-        std::make_shared<typename input_handle_t::element_type>(std::move(expanded_input));
-    expanded_.AddInput(expaned_handle);
+    return std::make_shared<typename input_handle_t::element_type>(std::move(expanded_input));
   }
 
   template <typename OutputBackend>
@@ -245,12 +236,6 @@ class SequenceOperator : public Operator<Backend> {
     DALI_ENFORCE(expand_ && 0 <= input_idx &&
                  static_cast<size_t>(input_idx) < input_expand_desc_.size());
     return input_expand_desc_[input_idx];
-  }
-
- private:
-  void SetupExpandedWorkspace(const workspace_t<Backend> &ws) {
-    SetupFrameInfoFns(ws);
-    SetupExpandedWorkspace(expanded_, ws);
   }
 
   void SetupExpandedWorkspace(workspace_t<CPUBackend> &expanded,
