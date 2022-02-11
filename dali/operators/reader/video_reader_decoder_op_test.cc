@@ -222,6 +222,25 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
       for (int i = 0; i < sequence_length; ++i) {
         copyD2H(frame_cpu.data(), sample + i * this->FrameSize(video_idx),   this->FrameSize(video_idx));
         this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(video_idx, gt_frame_id + i * stride), this->FrameSize(video_idx));
+        
+        // this->SaveFrame(
+        //   frame_cpu.data(),
+        //   i,
+        //   sample_id,
+        //   sequence_id,
+        //   "/home/wazka/Downloads/frames/reader/",
+        //   this->Width(video_idx),
+        //   this->Height(video_idx));
+
+        // this->SaveFrame(
+        //   this->GetVfrFrame(video_idx, gt_frame_id + i * stride),
+        //   i,
+        //   sample_id,
+        //   sequence_id,
+        //   "/home/wazka/Downloads/frames/gt/",
+        //   this->Width(video_idx),
+        //   this->Height(video_idx));
+
       }
 
       gt_frame_id += step;
