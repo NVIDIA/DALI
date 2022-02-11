@@ -21,6 +21,7 @@
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/cv_mat_utils.h"
+#include "dali/core/dev_buffer.h"
 
 
 namespace dali {
@@ -200,26 +201,27 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
 
   int video_idx = 0;
 
+  std::vector<uint8_t> frame_cpu(std::max(
+    this->FrameSize(0), this->FrameSize(1)));
+
   while (sequence_id < num_sequences) {
     DeviceWorkspace ws;
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
-    // auto &frame_video_output = ws.template Output<dali::CPUBackend>(0);
+    auto &frame_video_output = ws.template Output<dali::GPUBackend>(0);
     // auto &frame_label_output = ws.template Output<dali::CPUBackend>(1);
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-      // const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
+      const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
       // const auto label = frame_label_output.tensor<int>(sample_id);
 
       // ASSERT_EQ(label[0], video_idx);
 
       for (int i = 0; i < sequence_length; ++i) {
-      //   this->CompareFrames(
-      //     sample + i * this->FrameSize(video_idx),
-      //     this->GetVfrFrame(video_idx, gt_frame_id + i * stride),
-      //     this->FrameSize(video_idx));
+        copyD2H(frame_cpu.data(), sample + i * this->FrameSize(video_idx),   this->FrameSize(video_idx));
+        this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(video_idx, gt_frame_id + i * stride), this->FrameSize(video_idx));
       }
 
       gt_frame_id += step;
