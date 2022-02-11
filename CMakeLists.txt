@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,6 +75,15 @@ cmake_dependent_option(BUILD_LIBSND "Build with support for libsnd library" ON
 cmake_dependent_option(BUILD_LIBTAR "Build with support for libtar library" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
+
+set(CUSTOM_KERNEL_SRCS_PATTERN "" CACHE STRING
+    "Glob expression to build a subset of files for the kernel lib")
+set(CUSTOM_KERNEL_TEST_SRCS_PATTERN "" CACHE STRING
+    "Glob expression to build a subset of files for the kernel test binary")
+set(CUSTOM_OPERATOR_SRCS_PATTERN "" CACHE STRING
+    "Glob expression to build a subset of files for the operators lib")
+set(CUSTOM_OPERATOR_TEST_SRCS_PATTERN "" CACHE STRING
+    "Glob expression to build a subset of files for the operators test binary")
 
 # NVIDIA libraries
 cmake_dependent_option(BUILD_NVDEC "Build with NVIDIA NVDEC support" ON
