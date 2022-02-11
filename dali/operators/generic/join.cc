@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -178,7 +178,8 @@ void TensorJoin<Backend, new_axis>::RunImpl(workspace_t<Backend> &ws) {
     TensorListShape<> shape;
     if (new_axis)
       shape = out.shape();
-    out.Copy(ws.template Input<Backend>(copy_idx_), ws.has_stream() ? ws.stream() : 0);
+    out.Copy(ws.template Input<Backend>(copy_idx_), ws.has_stream() ? ws.stream()
+                                                                    : AccessOrder::host());
     if (new_axis)
       out.Resize(shape);
     out.SetLayout(output_layout_);

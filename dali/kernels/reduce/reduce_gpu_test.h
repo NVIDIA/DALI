@@ -37,7 +37,6 @@ struct ReductionKernelTest {
   TestTensorList<Out> out, ref;
 
   KernelContext ctx;
-  ctx.gpu.stream = 0;
   ScratchpadAllocator sa;
   std::mt19937_64 rng{12345};
 
@@ -50,6 +49,7 @@ struct ReductionKernelTest {
       Args &&...args) {
     in.reshape(in_shape);
     ref.reshape(ref_out_shape);
+    ctx.gpu.stream = 0;
     auto req = kernel.Setup(ctx, in_shape, axes, keep_dims, batch, std::forward<Args>(args)...);
     ASSERT_EQ(req.output_shapes.size(), 1), req;
     ASSERT_EQ(req.output_shapes[0], ref_out_shape), req;
@@ -67,6 +67,7 @@ struct ReductionKernelTest {
   template <typename... Args>
   void Run(Args &&...args) {
     auto scratchpad = sa.GetScratchpad();
+    ctx.gpu.stream = 0;
     ctx.scratchpad = &scratchpad;
     kernel.Run(ctx, out.gpu(stream()), in.gpu(stream()), std::forward<Args>(args)...);
   }

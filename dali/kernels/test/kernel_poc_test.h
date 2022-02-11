@@ -41,9 +41,8 @@ struct KernelPoCFixture : Base {
     ASSERT_NO_FATAL_FAILURE(Verify());
   }
 
- private:
+ protected:
   KernelContext ctx;
-  ctx.gpu.stream = 0;
   Kernel kernel;
   TestTensorList<Input1> tl1;
   TestTensorList<Input2> tl2;
