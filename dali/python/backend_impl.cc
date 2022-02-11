@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <cuda_runtime_api.h>
+#include <fstream>
+#include <iostream>
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
 #if SHM_WRAPPER_ENABLED
@@ -1288,13 +1290,19 @@ PYBIND11_MODULE(backend_impl, m) {
 
   m.def("GetCxx11AbiFlag", &GetCxx11AbiFlag);
 
-  m.def("IsDriverInitialized", []{
-    int place_holder = 0;
-    // driver is not initialized so we don't have context
-    if (CUDA_SUCCESS != cuDeviceGetCount(&place_holder)) {
-      return false;
+  m.def("IsDriverInitialized", [] {
+    auto this_pid = getpid();
+    std::ifstream maps_file(make_string("/proc/", this_pid, "/maps"));
+    string line;
+    while (maps_file >> line) {
+      if (line.find("libcuda.so") != string::npos) {
+        int place_holder = -1;
+        // call cuDeviceGetCount only if cuda is loaded, if not there is not point in calling
+        // a check that would load it
+        return CUDA_SUCCESS == cuDeviceGetCount(&place_holder);
+      }
     }
-    return true;
+    return false;
   });
 
   m.def("GetCudaVersion", [] {
