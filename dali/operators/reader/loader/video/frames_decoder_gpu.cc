@@ -129,7 +129,7 @@ int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *pict
 
     LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
         std::setw(5) << current_pts << ", current copy " << current_copy_to_output_ << std::endl;
-        
+
     if (current_copy_to_output_ == false) {
       return 1;
     }

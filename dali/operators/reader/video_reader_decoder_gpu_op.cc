@@ -75,7 +75,6 @@ void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
       sizeof(DALIDataType::DALI_INT32),
       ws.stream());
   }
-
 }
 
 DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoderGpu, GPU);

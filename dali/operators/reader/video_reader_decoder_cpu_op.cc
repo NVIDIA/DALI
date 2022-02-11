@@ -21,6 +21,7 @@ namespace dali {
 VideoReaderDecoderCpu::VideoReaderDecoderCpu(const OpSpec &spec)
     : DataReader<CPUBackend, VideoSampleCpu>(spec),
       has_labels_(spec.HasArgument("labels")) {
+      // TODO(awolant): Add stream support for loader
       loader_ = InitLoader<VideoLoaderDecoderCpu>(spec);
 }
 

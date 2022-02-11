@@ -255,7 +255,6 @@ bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
   if (avcodec_receive_frame(av_state_->codec_ctx_, av_state_->frame_) < 0) {
     flush_state_ = false;
     return false;
-
   }
 
   if (copy_to_output) {

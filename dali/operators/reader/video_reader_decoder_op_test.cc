@@ -188,8 +188,7 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
     .AddArg("labels", std::vector<int>{0, 1})
     .AddArg("initial_fill", 1)
     .AddOutput("frames", "gpu")
-    .AddOutput("labels", "gpu")
-    );
+    .AddOutput("labels", "gpu"));
 
   pipe.Build({{"frames", "gpu"}, {"labels", "gpu"}});
   // pipe.Build({{"frames", "gpu"}});
@@ -220,12 +219,16 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
       int label_cpu = -1;
       MemCopy(
         &label_cpu, label, sizeof(DALIDataType::DALI_INT32));
-        
+
       ASSERT_TRUE(label_cpu == video_idx);
 
       for (int i = 0; i < sequence_length; ++i) {
-        MemCopy(frame_cpu.data(), sample + i * this->FrameSize(video_idx),   this->FrameSize(video_idx));
-        this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(video_idx, gt_frame_id + i * stride), this->FrameSize(video_idx));
+        MemCopy(
+          frame_cpu.data(), sample + i * this->FrameSize(video_idx),   this->FrameSize(video_idx));
+        this->CompareFramesAvgError(
+          frame_cpu.data(),
+          this->GetVfrFrame(video_idx, gt_frame_id + i * stride),
+          this->FrameSize(video_idx));
 
         // this->SaveFrame(
         //   frame_cpu.data(),
@@ -244,7 +247,6 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
         //   "/home/wazka/Downloads/frames/gt/",
         //   this->Width(video_idx),
         //   this->Height(video_idx));
-
       }
 
       gt_frame_id += step;
