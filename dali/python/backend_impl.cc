@@ -1288,13 +1288,16 @@ PYBIND11_MODULE(backend_impl, m) {
 
   m.def("GetCxx11AbiFlag", &GetCxx11AbiFlag);
 
-  m.def("HasCudaContext", []{
-    if (!cuInitChecked()) {
-      return false;
+  m.def("IsDriverInitialized", [] {
+    // we just want to check if cuda has been loaded already
+    if (dlopen("libcuda.so", RTLD_NOLOAD | RTLD_NOW) ||
+        dlopen("libcuda.so.1", RTLD_NOLOAD | RTLD_NOW)) {
+      int place_holder = -1;
+      // call cuDeviceGetCount only if cuda is loaded, if not there is not point in calling
+      // a check that would load it
+      return CUDA_SUCCESS == cuDeviceGetCount(&place_holder);
     }
-    CUcontext context;
-    CUDA_CALL(cuCtxGetCurrent(&context));
-    return context != nullptr;
+    return false;
   });
 
   m.def("GetCudaVersion", [] {
