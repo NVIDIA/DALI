@@ -606,10 +606,12 @@ Parameters
         self._py_pool_started = True
 
     def _init_pipeline_backend(self):
-        b.check_cuda_runtime()
+        device_id = self._device_id if self._device_id is not None else types.CPU_ONLY_DEVICE_ID
+        if device_id != types.CPU_ONLY_DEVICE_ID:
+            b.check_cuda_runtime()
         self._pipe = b.Pipeline(self._max_batch_size,
                                 self._num_threads,
-                                self._device_id if self._device_id is not None else types.CPU_ONLY_DEVICE_ID,
+                                device_id,
                                 self._seed if self._seed is not None else -1,
                                 self._exec_pipelined,
                                 self._cpu_queue_size,
@@ -1090,7 +1092,6 @@ Parameters
         if filename is not None:
             with open(filename, 'rb') as pipeline_file:
                 serialized_pipeline = pipeline_file.read()
-        b.check_cuda_runtime()
         pipeline._pipe = b.Pipeline(
             serialized_pipeline,
             kw.get("batch_size", -1),
@@ -1104,6 +1105,8 @@ Parameters
             kw.get("max_streams", -1),
             kw.get("default_cuda_stream_priority", 0)
         )
+        if pipeline.device_id != types.CPU_ONLY_DEVICE_ID:
+            b.check_cuda_runtime()
         pipeline._pipe.SetExecutionTypes(pipeline._exec_pipelined, pipeline._exec_separated,
                                          pipeline._exec_async)
         pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)

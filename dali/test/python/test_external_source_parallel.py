@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -177,7 +177,7 @@ def test_parallel_fork():
     # test that another pipline with forking initialization fails as there is CUDA contexts already initialized
     parallel_pipe = create_pipe(callback, 'cpu', 16, py_num_workers=4,
                                 py_start_method='fork', parallel=True)
-    yield raises(RuntimeError, "Cannot fork a process when there is a CUDA context already bound to the process.")(
+    yield raises(RuntimeError, "Cannot fork a process when the CUDA has been initialized in the process.")(
         build_and_run_pipeline), parallel_pipe, 1
 
 

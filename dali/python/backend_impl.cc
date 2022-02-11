@@ -1288,13 +1288,13 @@ PYBIND11_MODULE(backend_impl, m) {
 
   m.def("GetCxx11AbiFlag", &GetCxx11AbiFlag);
 
-  m.def("HasCudaContext", []{
-    if (!cuInitChecked()) {
+  m.def("IsDriverInitialized", []{
+    int place_holder = 0;
+    // driver is not initialized so we don't have context
+    if (CUDA_SUCCESS != cuDeviceGetCount(&place_holder)) {
       return false;
     }
-    CUcontext context;
-    CUDA_CALL(cuCtxGetCurrent(&context));
-    return context != nullptr;
+    return true;
   });
 
   m.def("GetCudaVersion", [] {
