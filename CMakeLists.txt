@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -341,6 +341,10 @@ if (DALI_CLANG_ONLY)
 endif()
 
 # Add ptx & bin flags for cuda compiler (nvcc)
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.16.0")
+  set(USE_CMAKE_CUDA_ARCHITECTURES "ON")
+endif()
+
 if(USE_CMAKE_CUDA_ARCHITECTURES)
   CUDA_get_cmake_cuda_archs(CMAKE_CUDA_ARCHITECTURES ${CUDA_targeted_archs})
   message(STATUS "Generated CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
