@@ -185,14 +185,14 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
       std::vector<std::string>{
         testing::dali_extra_path() + "/db/video/vfr/test_1.mp4",
         testing::dali_extra_path() + "/db/video/vfr/test_2.mp4"})
-    // .AddArg("labels", std::vector<int>{0, 1})
+    .AddArg("labels", std::vector<int>{0, 1})
     .AddArg("initial_fill", 1)
     .AddOutput("frames", "gpu")
-    // .AddOutput("labels", "gpu")
+    .AddOutput("labels", "gpu")
     );
 
-  // pipe.Build({{"frames", "gpu"}, {"labels", "gpu"}});
-  pipe.Build({{"frames", "gpu"}});
+  pipe.Build({{"frames", "gpu"}, {"labels", "gpu"}});
+  // pipe.Build({{"frames", "gpu"}});
 
   int num_sequences = 20;
   int sequence_id = 0;
@@ -211,18 +211,22 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
     pipe.Outputs(&ws);
 
     auto &frame_video_output = ws.template Output<dali::GPUBackend>(0);
-    // auto &frame_label_output = ws.template Output<dali::CPUBackend>(1);
+    auto &frame_label_output = ws.template Output<dali::GPUBackend>(1);
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
-      // const auto label = frame_label_output.tensor<int>(sample_id);
+      const auto label = frame_label_output.tensor<int>(sample_id);
 
-      // ASSERT_EQ(label[0], video_idx);
+      int label_cpu = -1;
+      MemCopy(
+        &label_cpu, label, sizeof(DALIDataType::DALI_INT32));
+        
+      ASSERT_TRUE(label_cpu == video_idx);
 
       for (int i = 0; i < sequence_length; ++i) {
-        copyD2H(frame_cpu.data(), sample + i * this->FrameSize(video_idx),   this->FrameSize(video_idx));
+        MemCopy(frame_cpu.data(), sample + i * this->FrameSize(video_idx),   this->FrameSize(video_idx));
         this->CompareFramesAvgError(frame_cpu.data(), this->GetVfrFrame(video_idx, gt_frame_id + i * stride), this->FrameSize(video_idx));
-        
+
         // this->SaveFrame(
         //   frame_cpu.data(),
         //   i,

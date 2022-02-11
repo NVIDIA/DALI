@@ -50,6 +50,32 @@ void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
       sample->data_.size(),
       ws.stream());
   }
+
+  if (!has_labels_) {
+    return;
+  }
+
+  auto &labels_output = ws.Output<GPUBackend>(1);
+  TensorListShape<1> labels_shape;
+  labels_shape.resize(batch_size);
+
+  TensorShape<1> one_label_shape = { 1 };
+
+  for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+    labels_shape.set_tensor_shape(sample_id, one_label_shape);
+  }
+
+  labels_output.Resize(labels_shape, DALIDataType::DALI_INT32);
+
+  for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+    auto &sample = current_batch[sample_id];
+    MemCopy(
+      labels_output.raw_mutable_tensor(sample_id),
+      &sample->label_,
+      sizeof(DALIDataType::DALI_INT32),
+      ws.stream());
+  }
+
 }
 
 DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoderGpu, GPU);
