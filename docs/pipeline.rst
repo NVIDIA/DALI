@@ -174,6 +174,16 @@ Use non-DALI data types (e.g. NumPy ndarray, PyTorch Tensor) directly with DALI 
         output = fn.flip(img)
         ...
 
+Notice
+^^^^^^
+
+* Seed generation in debug mode works differently than in standard mode (it is deterministic but
+  different). If you want to achieve the same results in debug mode as in standard mode initialize
+  operators with the ``seed`` parameter.
+* Direct calls to operators work only in a scope of the ``pipeline_def`` function, you cannot use
+  them this way outside of ``pipeline_def``.
+* You cannot change the order of operators inside the pipeline between the iterations.
+
 .. warning::
     Using debug mode will drastically worsen performance of your pipeline. Use it only for
     debugging purposes.
