@@ -302,7 +302,7 @@ class ProcPool:
             raise RuntimeError(
                 "Error when starting Python worker threads for DALI parallel External Source. "
                 "Cannot fork a process when the CUDA has been initialized in the process. "
-                "CUDA is initialized during ``Pipeline.build()``, or can ne initalized by another "
+                "CUDA is initialized during ``Pipeline.build()``, or can be initalized by another "
                 "library that interacts with CUDA, for example a DL framework creating CUDA tensors."
                 "If you are trying to build multiple pipelines that use Python workers, you will need to "
                 "call ``start_py_workers`` method on all of them before calling ``build`` method of any pipeline "
