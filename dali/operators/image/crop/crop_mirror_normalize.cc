@@ -47,8 +47,9 @@ Supported types: ``FLOAT``, ``FLOAT16``, ``INT8``, ``UINT8``.
   .AddOptionalArg("output_layout",
     R"code(Tensor data layout for the output.)code", TensorLayout("CHW"))
   .AddOptionalArg("pad_output",
-    R"code(Determines whether to pad the output using ``fill_values`` value to the number
-of channels as a power of 2).)code", false)
+    R"code(Determines whether to pad the output so that the number of channels is a power of 2.
+
+The value used for padding is determined by the ``fill_values`` argument.)code", false)
   .AddOptionalArg("mirror",
     R"code(If nonzero, the image will be flipped (mirrored) horizontally.)code",
     0, true)
