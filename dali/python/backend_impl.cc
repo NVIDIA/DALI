@@ -13,8 +13,6 @@
 // limitations under the License.
 
 #include <cuda_runtime_api.h>
-#include <fstream>
-#include <iostream>
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
 #if SHM_WRAPPER_ENABLED
