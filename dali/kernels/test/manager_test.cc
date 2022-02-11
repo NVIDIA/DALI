@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -113,6 +113,7 @@ TEST(KernelManager, CreateOrGet_Get) {
   in.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};
   out.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};
   KernelContext ctx;
+  ctx.gpu.stream = 0;
   mgr.Setup<TestKernel>(0, ctx, in, 100, 1.25f);
   mgr.Run<TestKernel>(0, 0, ctx, out, in, 100, 1.25f);
 }
@@ -125,6 +126,7 @@ TEST(KernelManager, TemplateResize) {
   in.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};
   out.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};
   KernelContext ctx;
+  ctx.gpu.stream = 0;
   mgr.Setup<TestKernel>(0, ctx, in, 100, 1.25f);
   mgr.Run<TestKernel>(0, 0, ctx, out, in, 100, 1.25f);
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -70,6 +70,7 @@ struct TransformPointsTest : ::testing::Test {
       const auto *in_points = reinterpret_cast<const vec<in_dim, In> *>(in_tensor.data);
       const auto *out_points = reinterpret_cast<const vec<out_dim, Out> *>(out_tensor.data);
       KernelContext ctx;
+      ctx.gpu.stream = 0;
       auto &req = kmgr_.Setup<Kernel>(0, ctx, in_tensor.shape);
       ASSERT_EQ(req.output_shapes[0][0], out_tensor.shape);
       kmgr_.Run<Kernel>(0, 0, ctx, out_tensor, in_tensor, M, T);
@@ -103,6 +104,7 @@ struct TransformPointsTest : ::testing::Test {
 
     kmgr_.Resize<Kernel>(1, 1);
     KernelContext ctx;
+    ctx.gpu.stream = 0;
     auto &req = kmgr_.Setup<Kernel>(0, ctx, in_gpu.shape);
     ASSERT_EQ(req.output_shapes[0], out_gpu.shape);
     kmgr_.Run<Kernel>(0, 0, ctx, out_gpu, in_gpu, make_span(M), make_span(T));

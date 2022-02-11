@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ class FlipGpuTest: public testing::TestWithParam<std::array<Index, sample_ndim>>
 
 TEST_P(FlipGpuTest, ImplTest) {
   KernelContext ctx;
+  ctx.gpu.stream = 0;
   FlipGPU<float> kernel;
   auto in_view = ttl_in_.gpu(nullptr);
   ttl_in_.invalidate_cpu();
@@ -75,6 +76,7 @@ TEST_P(FlipGpuTest, ImplTest) {
 
 TEST_P(FlipGpuTest, KernelTest) {
   KernelContext ctx;
+  ctx.gpu.stream = 0;
   FlipGPU<float> kernel;
   auto in_view = ttl_in_.gpu(nullptr);
   ttl_in_.invalidate_cpu();

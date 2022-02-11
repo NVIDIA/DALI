@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -130,6 +130,7 @@ TYPED_TEST(MultiplyAddGpuTest, check_kernel) {
 TYPED_TEST(MultiplyAddGpuTest, setup_test) {
   TheKernel<TypeParam> kernel;
   KernelContext ctx;
+  ctx.gpu.stream = 0;
   InListGPU<typename TypeParam::In, kNdims> in(this->input_device_, this->shapes_);
   auto reqs = kernel.Setup(ctx, in, this->addends_, this->multipliers_);
   ASSERT_EQ(this->shapes_.size(), static_cast<size_t>(reqs.output_shapes[0].num_samples()))

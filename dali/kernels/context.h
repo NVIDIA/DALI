@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <vector>
 #include <algorithm>
 #include <type_traits>
+#include "dali/core/access_order.h"
 #include "dali/core/tensor_view.h"
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/memory_kind.h"
@@ -34,7 +35,7 @@ struct Context {};
 
 template <>
 struct Context<ComputeGPU> {
-  cudaStream_t stream = 0;
+  cudaStream_t stream = AccessOrder::null_stream();
 };
 
 class Scratchpad;

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -246,6 +246,7 @@ class NormalizeImplGPUTest<std::pair<Out, In>> : public ::testing::Test {
   void RunTest() {
     kmgr_.Resize<Kernel>(1, 1);
     KernelContext ctx;
+    ctx.gpu.stream = 0;
     for (int iter = 0; iter < 3; iter++) {
       auto req = kmgr_.Setup<Kernel>(0, ctx, data_shape_, param_shape_,
                                      use_scalar_base_, use_scalar_scale_, scale_is_stddev_);
@@ -276,6 +277,7 @@ class NormalizeImplGPUTest<std::pair<Out, In>> : public ::testing::Test {
   void RunPerf() {
     kmgr_.Resize<Kernel>(1, 1);
     KernelContext ctx;
+    ctx.gpu.stream = 0;
     auto req = kmgr_.Setup<Kernel>(0, ctx, data_shape_, param_shape_,
                                    use_scalar_base_, use_scalar_scale_, scale_is_stddev_);
     ASSERT_EQ(req.output_shapes.size(), 1u);

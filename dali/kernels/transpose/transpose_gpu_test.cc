@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -68,6 +68,7 @@ TEST(TransposeGPU, Test4DAll) {
     UniformRandomFill(in_cpu, rng, 0, 1000);
 
     KernelContext ctx;
+    ctx.gpu.stream = 0;
     auto req = transpose.Setup(ctx, shape, make_span(perm), sizeof(int));
     auto out_shape = req.output_shapes[0];
     ASSERT_EQ(out_shape.num_elements(), shape.num_elements());
@@ -122,6 +123,7 @@ void RunPerfTest(RNG &rng, const TensorListShape<> &shape, span<const int> perm)
   UniformRandomFill(in_cpu, rng, 0, 100);
 
   KernelContext ctx;
+  ctx.gpu.stream = 0;
   auto req = transpose.Setup(ctx, shape, perm, sizeof(T));
   auto out_shape = req.output_shapes[0];
   ASSERT_EQ(out_shape.num_elements(), shape.num_elements());
