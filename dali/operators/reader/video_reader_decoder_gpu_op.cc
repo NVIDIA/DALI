@@ -44,10 +44,8 @@ void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
 
   for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
     auto &sample = current_batch[sample_id];
-    MemCopy(
-      video_output.raw_mutable_tensor(sample_id),
-      sample->data_.raw_mutable_data(),
-      sample->data_.size(),
+    sample->CopyToOutput(static_cast<uint8_t *>(
+      video_output.raw_mutable_tensor(sample_id)),
       ws.stream());
   }
 

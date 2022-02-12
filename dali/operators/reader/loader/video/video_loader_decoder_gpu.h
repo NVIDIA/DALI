@@ -23,7 +23,11 @@
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
 
 namespace dali {
-using VideoSampleGpu = VideoSample<GPUBackend>;
+struct VideoSampleGpu : VideoSample<GPUBackend> {
+  void CopyToOutput(uint8_t *output, cudaStream_t stream);
+
+};
+
 
 class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
  public:

@@ -19,7 +19,7 @@
 #include "dali/operators/reader/loader/video/video_loader_decoder_gpu.h"
 
 namespace dali {
-class VideoReaderDecoderGpu : public DataReader<GPUBackend, VideoSample<GPUBackend>> {
+class VideoReaderDecoderGpu : public DataReader<GPUBackend, VideoSampleGpu> {
  public:
   explicit VideoReaderDecoderGpu(const OpSpec &spec);
 

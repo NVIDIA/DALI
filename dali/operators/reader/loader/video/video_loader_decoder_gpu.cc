@@ -15,11 +15,20 @@
 #include "dali/operators/reader/loader/video/video_loader_decoder_gpu.h"
 
 namespace dali {
-void VideoLoaderDecoderGpu::PrepareEmpty(VideoSample<GPUBackend> &sample) {
+void VideoSampleGpu::CopyToOutput(uint8_t *output, cudaStream_t stream) {
+  MemCopy(
+    output,
+    data_.raw_mutable_data(),
+    data_.size(),
+    stream);
+
+}
+
+void VideoLoaderDecoderGpu::PrepareEmpty(VideoSampleGpu &sample) {
   sample = {};
 }
 
-void VideoLoaderDecoderGpu::ReadSample(VideoSample<GPUBackend> &sample) {
+void VideoLoaderDecoderGpu::ReadSample(VideoSampleGpu &sample) {
   auto &sample_span = sample_spans_[current_index_];
   auto &video_file = video_files_[sample_span.video_idx_];
 

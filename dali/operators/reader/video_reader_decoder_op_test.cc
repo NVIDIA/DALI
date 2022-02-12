@@ -187,6 +187,7 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
         testing::dali_extra_path() + "/db/video/vfr/test_2.mp4"})
     .AddArg("labels", std::vector<int>{0, 1})
     .AddArg("initial_fill", 1)
+    .AddArg("lazy_init", true)
     .AddOutput("frames", "gpu")
     .AddOutput("labels", "gpu"));
 
