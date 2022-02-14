@@ -1,7 +1,5 @@
 #!/bin/bash -e
 
-export THIS_PATH=`pwd`
-
 do_once() {
   apt-get update && apt-get -y install wget
   wget https://github.com/Kitware/CMake/releases/download/v3.18.4/cmake-3.18.4-Linux-x86_64.sh
@@ -50,6 +48,7 @@ example_2() {
 
 
 test_body() {
+    export DALI_DIR=$PWD
     export TMP_DIR="$(mktemp -d)"
     pushd ${TMP_DIR}
     example_1
