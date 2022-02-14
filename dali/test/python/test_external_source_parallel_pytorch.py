@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ class ExtCallbackTorch(ExtCallback):
 
 
 @raises(RuntimeError, "Error*starting Python worker threads for*parallel External Source*"
-                      "Cannot fork*CUDA context already bound*"
+                      "Cannot fork*CUDA has been initialized*"
                       "*start_py_workers*fork*spawn*")
 def test_pytorch_cuda_context():
     # Create a dummy torch CUDA tensor so we acquire CUDA context
