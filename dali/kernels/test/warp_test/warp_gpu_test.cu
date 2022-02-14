@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,6 +69,7 @@ void WarpGPU_Affine_Transpose(bool force_variable) {
   auto mapping_gpu = mm::alloc_raw_unique<AffineMapping2D, mm::memory_kind::device>(1);
   TensorShape<2> out_shape = { img_tensor.shape[1], img_tensor.shape[0] };
   KernelContext ctx = {};
+  ctx.gpu.stream = 0;
   auto out_shapes_hw = make_span<1>(&out_shape);
   auto mappings = make_tensor_gpu<1>(mapping_gpu.get(), { 1 });
   copy(mappings, make_tensor_cpu<1>(&mapping_cpu, { 1 }));
@@ -169,6 +170,7 @@ TEST(WarpGPU, Affine_RotateScale_Single) {
   auto mapping_gpu = mm::alloc_raw_unique<AffineMapping2D, mm::memory_kind::device>(1);
   TensorShape<2> out_shape = { img_tensor.shape[0] * scale, img_tensor.shape[1] * scale };
   KernelContext ctx = {};
+  ctx.gpu.stream = 0;
   auto out_shapes_hw = make_span<1>(&out_shape);
   auto mappings = make_tensor_gpu<1>(mapping_gpu.get(), { 1 });
   copy(mappings, make_tensor_cpu<1>(&mapping_cpu, { 1 }));
@@ -237,6 +239,7 @@ TEST(WarpGPU, Affine_RotateScale_Uniform) {
   auto mapping_gpu = mm::alloc_raw_unique<AffineMapping2D, mm::memory_kind::device>(samples);
   TensorShape<2> out_shape = { img_tensor.shape[0] * scale, img_tensor.shape[1] * scale };
   KernelContext ctx = {};
+  ctx.gpu.stream = 0;
   std::vector<TensorShape<2>> out_shapes_hw(samples);
   for (int i = 0; i < samples; i++)
     out_shapes_hw[i] = out_shape;

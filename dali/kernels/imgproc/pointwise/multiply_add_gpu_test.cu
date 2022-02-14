@@ -144,18 +144,19 @@ TYPED_TEST(MultiplyAddGpuTest, setup_test) {
 
 TYPED_TEST(MultiplyAddGpuTest, run_test) {
   TheKernel<TypeParam> kernel;
-  KernelContext c;
+  KernelContext ctx;
+  ctx.gpu.stream = 0;
   InListGPU<typename TypeParam::In, kNdims> in(this->input_device_, this->shapes_);
   OutListGPU<typename TypeParam::Out, kNdims> out(this->output_,
                                                   TensorListShape<kNdims>(this->shapes_));
 
-  auto reqs = kernel.Setup(c, in, this->addends_, this->multipliers_);
+  auto reqs = kernel.Setup(ctx, in, this->addends_, this->multipliers_);
 
   ScratchpadAllocator sa;
   sa.Reserve(reqs.scratch_sizes);
   auto scratchpad = sa.GetScratchpad();
-  c.scratchpad = &scratchpad;
-  kernel.Run(c, out, in, this->addends_, this->multipliers_);
+  ctx.scratchpad = &scratchpad;
+  kernel.Run(ctx, out, in, this->addends_, this->multipliers_);
   CUDA_CALL(cudaDeviceSynchronize());
 
   auto res = copy<mm::memory_kind::host>(out[0]);
