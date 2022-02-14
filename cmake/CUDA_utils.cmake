@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,6 +35,26 @@ function(adjust_source_file_language_property SOURCES)
   endif()
 endfunction()
 
+# Generate list of xx-real for every specified supported architecture.
+# List should be sorted in increasing order.
+#
+# The last one will also be repeated as xx-virtual to ensure the generation of PTX for most recent
+# virtual architecture and maintain forward compatibility.
+function(CUDA_get_cmake_cuda_archs out_args_list arch_values)
+  # allow the user to pass the list like a normal variable
+  set(arch_list ${arch_values} ${ARGN})
+  set(out "")
+  foreach(arch IN LISTS arch_list)
+    set(out "${out};${arch}-real")
+  endforeach(arch)
+
+  # Repeat the last one as to ensure the generation of PTX for most
+  # recent virtual architecture for forward compatibility
+  list(GET arch_list -1 last_arch)
+  set(out "${out};${last_arch}-virtual")
+
+  set(${out_args_list} ${out} PARENT_SCOPE)
+endfunction()
 
 
 # List of currently used arch values
@@ -48,10 +68,20 @@ else()
   set(CUDA_known_archs "35" "50" "52" "60" "61" "70" "75" "80" "86")
 endif()
 
-set(CUDA_TARGET_ARCHS ${CUDA_known_archs} CACHE STRING "List of target CUDA architectures")
-if ("${CUDA_TARGET_ARCHS}" STREQUAL "")
-  message("CUDA_TARGET_ARCHS cannot be empty, setting to the default")
-  set(CUDA_TARGET_ARCHS ${CUDA_known_archs} CACHE STRING "List of target CUDA architectures" FORCE)
+if ("${CMAKE_VERSION}" VERSION_GREATER_EQUAL "3.16.0")
+  if ("${CUDA_TARGET_ARCHS}" STRGREATER "")
+    message(WARNING, "CMake starting from 3.16 uses CMAKE_CUDA_ARCHITECTURES variable to pass CUDA architectures used for build. Please use it instead of CUDA_TARGET_ARCHS.")
+
+    set(CUDA_TARGET_ARCHS_SORTED ${CUDA_TARGET_ARCHS})
+    list(SORT CUDA_TARGET_ARCHS_SORTED)
+    set(CMAKE_CUDA_ARCHITECTURES ${CUDA_TARGET_ARCHS_SORTED})
+  endif()
+else()
+  if ("${CUDA_TARGET_ARCHS}" STREQUAL "")
+    message("CUDA_TARGET_ARCHS cannot be empty, setting to the default")
+    set(CUDA_TARGET_ARCHS ${CUDA_known_archs} CACHE STRING "List of target CUDA architectures" FORCE)
+  endif()
+  set(CUDA_TARGET_ARCHS ${CUDA_known_archs} CACHE STRING "List of target CUDA architectures")
 endif()
 
 # Find if passing `flags` to CUDA compiler producess success or failure
@@ -143,23 +173,15 @@ function(CUDA_get_gencode_args out_args_string compiler arch_values)
   set(${out_args_string} ${out} PARENT_SCOPE)
 endfunction()
 
-# Generate list of xx-real for every specified supported architecture.
-# List should be sorted in increasing order.
-#
-# The last one will also be repeated as xx-virtual to ensure the generation of PTX for most recent
-# virtual architecture and maintain forward compatibility.
-function(CUDA_get_cmake_cuda_archs out_args_list arch_values)
-  # allow the user to pass the list like a normal variable
+function(CUDA_parse_archs out_args_list arch_values)
   set(arch_list ${arch_values} ${ARGN})
-  set(out "")
   foreach(arch IN LISTS arch_list)
-    set(out "${out};${arch}-real")
+    if (${arch} MATCHES "-virtual")
+    else()
+      string(REPLACE "-real" "" arch ${arch})
+    set(out ${out} ${arch})
+    endif()
   endforeach(arch)
-
-  # Repeat the last one as to ensure the generation of PTX for most
-  # recent virtual architecture for forward compatibility
-  list(GET arch_list -1 last_arch)
-  set(out "${out};${last_arch}-virtual")
 
   set(${out_args_list} ${out} PARENT_SCOPE)
 endfunction()

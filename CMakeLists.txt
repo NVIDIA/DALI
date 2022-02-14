@@ -321,15 +321,27 @@ message(STATUS "CUDA .cu files compiler: ${USED_CUDA_COMPILER}")
 CUDA_find_supported_arch_values(CUDA_supported_archs ${USED_CUDA_COMPILER} ${CUDA_known_archs})
 message(STATUS "CUDA supported archs: ${CUDA_supported_archs}")
 
-set(CUDA_TARGET_ARCHS_SORTED ${CUDA_TARGET_ARCHS})
-list(SORT CUDA_TARGET_ARCHS_SORTED)
-CUDA_find_supported_arch_values(CUDA_targeted_archs ${USED_CUDA_COMPILER} ${CUDA_TARGET_ARCHS_SORTED})
+if ("${CMAKE_VERSION}" VERSION_GREATER_EQUAL "3.16.0")
+  CUDA_parse_archs(CUDA_candidate_archs ${CMAKE_CUDA_ARCHITECTURES})
+else()
+  set(CUDA_candidate_archs ${CUDA_TARGET_ARCHS_SORTED})
+endif()
+CUDA_find_supported_arch_values(CUDA_targeted_archs ${USED_CUDA_COMPILER} ${CUDA_candidate_archs})
+
 message(STATUS "CUDA targeted archs: ${CUDA_targeted_archs}")
 if (NOT CUDA_targeted_archs)
-  message(FATAL_ERROR "None of the provided CUDA architectures ({${CUDA_TARGET_ARCHS}})"
-      " is supported by ${USED_CUDA_COMPILER}, use one or more of: ${CUDA_supported_archs}")
+  if ("${CMAKE_VERSION}" VERSION_GREATER_EQUAL "3.16.0")
+    message(FATAL_ERROR "None of the provided CUDA architectures ({${CMAKE_CUDA_ARCHITECTURES}})"
+        " is supported by ${USED_CUDA_COMPILER}, use one or more of: ${CUDA_supported_archs}")
+  else()
+    message(FATAL_ERROR "None of the provided CUDA architectures ({${CUDA_TARGET_ARCHS}})"
+        " is supported by ${USED_CUDA_COMPILER}, use one or more of: ${CUDA_supported_archs}")
+  endif()
 endif()
 
+if ("${CMAKE_VERSION}" VERSION_GREATER_EQUAL "3.16.0")
+  set(CMAKE_CUDA_ARCHITECTURES ${CUDA_targeted_archs})
+endif()
 
 # Add gpu-arch and toolkit flags for clang when compiling cuda (if used)
 if (DALI_CLANG_ONLY)
@@ -340,13 +352,8 @@ if (DALI_CLANG_ONLY)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-cuda-version --cuda-path=${CUDA_TOOLKIT_PATH_VAR} ${CUDA_gencode_flags_clang}")
 endif()
 
-# Add ptx & bin flags for cuda compiler (nvcc)
-if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.16.0")
-  set(USE_CMAKE_CUDA_ARCHITECTURES "ON")
-endif()
 
-if(USE_CMAKE_CUDA_ARCHITECTURES)
-  CUDA_get_cmake_cuda_archs(CMAKE_CUDA_ARCHITECTURES ${CUDA_targeted_archs})
+if ("${CMAKE_VERSION}" VERSION_GREATER_EQUAL "3.16.0")
   message(STATUS "Generated CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
 else()
   CUDA_get_gencode_args(CUDA_gencode_flags_nvcc ${CMAKE_CUDA_COMPILER} ${CUDA_targeted_archs})
