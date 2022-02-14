@@ -26,7 +26,6 @@ VideoReaderDecoderGpu::VideoReaderDecoderGpu(const OpSpec &spec)
 
 void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
   auto &video_output = ws.Output<GPUBackend>(0);
-  auto &current_batch = prefetched_batch_queue_[curr_batch_consumer_];
   int batch_size = GetCurrBatchSize();
 
   TensorListShape<4> output_shape;
@@ -38,6 +37,7 @@ void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
   }
 
   video_output.Resize(output_shape, GetSample(0).data_.type());
+  video_output.SetLayout("NFHWC");
 
   for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
     auto &sample = GetSample(sample_id);

@@ -213,6 +213,8 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
     auto &frame_video_output = ws.template Output<dali::GPUBackend>(0);
     auto &frame_label_output = ws.template Output<dali::GPUBackend>(1);
 
+    ASSERT_EQ(frame_video_output.GetLayout(), "NFHWC");
+
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
       const auto label = frame_label_output.tensor<int>(sample_id);
