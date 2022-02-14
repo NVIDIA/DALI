@@ -190,6 +190,9 @@ class DynamicScratchpad
 
   template <typename Kind>
   void *AllocImpl(size_t bytes, size_t alignment) {
+    if (bytes == 0)
+      return nullptr;  // do not initialize the resource in case of 0-sized allocation
+
     auto &r = resource<Kind>();
     if (!r.get_upstream()) {
       InitResource(type_tag<Kind>());
