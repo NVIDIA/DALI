@@ -15,6 +15,8 @@
 #ifndef DALI_OPERATORS_READER_VIDEO_READER_DECODER_GPU_OP_H_
 #define DALI_OPERATORS_READER_VIDEO_READER_DECODER_GPU_OP_H_
 
+#include <vector>
+
 #include "dali/operators/reader/reader_op.h"
 #include "dali/operators/reader/loader/video/video_loader_decoder_gpu.h"
 
@@ -27,8 +29,6 @@ class VideoReaderDecoderGpu : public DataReader<GPUBackend, VideoSampleGpu> {
 
  private:
   bool has_labels_ = false;
-
-  void PrepareOutput(TensorList<GPUBackend> &video_output);
 };
 
 }  // namespace dali

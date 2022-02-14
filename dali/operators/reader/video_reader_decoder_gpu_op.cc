@@ -24,27 +24,24 @@ VideoReaderDecoderGpu::VideoReaderDecoderGpu(const OpSpec &spec)
       loader_ = InitLoader<VideoLoaderDecoderGpu>(spec);
 }
 
-void VideoReaderDecoderGpu::PrepareOutput(TensorList<GPUBackend> &video_output) {
-}
-
 void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
   auto &video_output = ws.Output<GPUBackend>(0);
   auto &current_batch = prefetched_batch_queue_[curr_batch_consumer_];
-  int batch_size = current_batch.size();
+  int batch_size = GetCurrBatchSize();
 
   TensorListShape<4> output_shape;
   output_shape.resize(batch_size);
 
   for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-    auto &sample = current_batch[sample_id];
-    output_shape.set_tensor_shape(sample_id, sample->data_.shape());
+    auto &sample = GetSample(sample_id);
+    output_shape.set_tensor_shape(sample_id, sample.data_.shape());
   }
 
-  video_output.Resize(output_shape, current_batch[0]->data_.type());
+  video_output.Resize(output_shape, GetSample(0).data_.type());
 
   for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-    auto &sample = current_batch[sample_id];
-    sample->CopyToOutput(static_cast<uint8_t *>(
+    auto &sample = GetSample(sample_id);
+    sample.DecodeToOutput(static_cast<uint8_t *>(
       video_output.raw_mutable_tensor(sample_id)),
       ws.stream());
   }
@@ -66,10 +63,10 @@ void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
   labels_output.Resize(labels_shape, DALIDataType::DALI_INT32);
 
   for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-    auto &sample = current_batch[sample_id];
+    auto &sample = GetSample(sample_id);
     MemCopy(
       labels_output.raw_mutable_tensor(sample_id),
-      &sample->label_,
+      &sample.label_,
       sizeof(DALIDataType::DALI_INT32),
       ws.stream());
   }

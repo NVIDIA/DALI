@@ -24,8 +24,11 @@
 
 namespace dali {
 struct VideoSampleGpu : VideoSample<GPUBackend> {
-  void CopyToOutput(uint8_t *output, cudaStream_t stream);
+  FramesDecoderGpu *video_file = nullptr;
+  VideoSampleDesc *span = nullptr;
+  int sequence_len = 0;
 
+  void DecodeToOutput(uint8_t *output, cudaStream_t stream);
 };
 
 

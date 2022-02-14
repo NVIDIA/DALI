@@ -160,12 +160,17 @@ int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *pict
     Width(),
     Height(),
     stream_);
+  // TODO(awolant): Alterantive is to copy the data to a buffer
+  // and then process it on the stream. Check, if this is faster, when
+  // the benchamrk is ready.
+  CUDA_CALL(cudaStreamSynchronize(stream_));
   CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame));
 
   return 1;
 }
 
 void FramesDecoderGpu::SeekFrame(int frame_id) {
+  // TODO(awolant): This seek can be optimized - for consecutive frames not needed etc.
   SendLastPacket(true);
   FramesDecoder::SeekFrame(frame_id);
 }

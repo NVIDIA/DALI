@@ -66,6 +66,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   int NextFramePts() { return index_[NextFrameIdx()].pts; }
 
+  void SetCudaStream(cudaStream_t stream) { stream_ = stream; }
+
   int ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params);
 
   FramesDecoderGpu(FramesDecoderGpu&&) = default;
