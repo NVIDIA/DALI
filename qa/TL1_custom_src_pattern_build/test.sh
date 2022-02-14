@@ -27,7 +27,7 @@ example_1() {
         -DBUILD_TEST=ON \
         -DBUILD_BENCHMARK=OFF \
         -DCUSTOM_OPERATOR_SRCS_PATTERN="random/*.cc" \
-        -DCUSTOM_OPERATOR_SRCS_PATTERN_EXCLUDE="random/noise/*;*test*" \
+        -DCUSTOM_OPERATOR_SRCS_PATTERN_EXCLUDE="random/noise/*" \
         -DCUSTOM_OPERATOR_TEST_SRCS_PATTERN="*random/*test*.cc" \
         -DCUSTOM_KERNEL_SRCS_PATTERN="*slice*" \
         -DCUSTOM_KERNEL_TEST_SRCS_PATTERN="slice_*test*" \

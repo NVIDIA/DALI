@@ -87,11 +87,11 @@ set(CUSTOM_KERNEL_TEST_SRCS_PATTERN_EXCLUDE "*test*" CACHE STRING
 
 set(CUSTOM_OPERATOR_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the operators lib")
-set(CUSTOM_OPERATOR_SRCS_PATTERN_EXCLUDE "*test*" CACHE STRING
+set(CUSTOM_OPERATOR_SRCS_PATTERN_EXCLUDE "" CACHE STRING
     "Glob expression to exclude from CUSTOM_OPERATOR_SRCS_PATTERN")
 set(CUSTOM_OPERATOR_TEST_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the operators test binary")
-set(CUSTOM_OPERATOR_TEST_SRCS_PATTERN_EXCLUDE "*test*" CACHE STRING
+set(CUSTOM_OPERATOR_TEST_SRCS_PATTERN_EXCLUDE "" CACHE STRING
     "Glob expression to exclude from CUSTOM_OPERATOR_TEST_SRCS_PATTERN")
 
 # NVIDIA libraries
