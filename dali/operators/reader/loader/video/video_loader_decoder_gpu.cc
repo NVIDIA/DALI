@@ -17,7 +17,7 @@
 namespace dali {
 void VideoSampleGpu::DecodeToOutput(uint8_t *output, cudaStream_t stream) {
   video_file->SetCudaStream(stream);
-  
+
   for (int i = 0; i < sequence_len; ++i) {
     // TODO(awolant): This seek can be optimized - for consecutive frames not needed etc.
     int frame_id = span->start_ + i * span->stride_;
