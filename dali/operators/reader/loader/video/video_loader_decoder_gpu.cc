@@ -15,13 +15,15 @@
 #include "dali/operators/reader/loader/video/video_loader_decoder_gpu.h"
 
 namespace dali {
-void VideoSampleGpu::CopyToOutput(uint8_t *output, cudaStream_t stream) {
-  MemCopy(
-    output,
-    data_.raw_mutable_data(),
-    data_.size(),
-    stream);
-
+void VideoSampleGpu::DecodeToOutput(uint8_t *output, cudaStream_t stream) {
+  video_file->SetCudaStream(stream);
+  
+  for (int i = 0; i < sequence_len; ++i) {
+    // TODO(awolant): This seek can be optimized - for consecutive frames not needed etc.
+    int frame_id = span->start_ + i * span->stride_;
+    video_file->SeekFrame(frame_id);
+    video_file->ReadNextFrame(output + i * video_file->FrameSize());
+  }
 }
 
 void VideoLoaderDecoderGpu::PrepareEmpty(VideoSampleGpu &sample) {
@@ -32,9 +34,6 @@ void VideoLoaderDecoderGpu::ReadSample(VideoSampleGpu &sample) {
   auto &sample_span = sample_spans_[current_index_];
   auto &video_file = video_files_[sample_span.video_idx_];
 
-  ++current_index_;
-  MoveToNextShard(current_index_);
-
   TensorShape<4> sequence_shape = {
     sequence_len_, video_file.Height(), video_file.Width(), video_file.Channels()};
 
@@ -44,17 +43,17 @@ void VideoLoaderDecoderGpu::ReadSample(VideoSampleGpu &sample) {
 
   auto data = sample.data_.mutable_data<uint8_t>();
 
-  // TODO(awolant): Extract decoding outside of ReadSample (ReaderDecoder abstraction)
-  for (int i = 0; i < sequence_len_; ++i) {
-    // TODO(awolant): This seek can be optimized - for consecutive frames not needed etc.
-    int frame_id = sample_span.start_ + i * sample_span.stride_;
-    video_file.SeekFrame(frame_id);
-    video_file.ReadNextFrame(data + i * video_file.FrameSize());
-  }
+  // Bind sample to the video and span, so it can be decoded later
+  sample.span = &sample_spans_[current_index_];
+  sample.video_file = &video_files_[sample_span.video_idx_];
+  sample.sequence_len = sequence_len_;
 
   if (has_labels_) {
     sample.label_ = labels_[sample_span.video_idx_];
   }
+
+  ++current_index_;
+  MoveToNextShard(current_index_);
 }
 
 Index VideoLoaderDecoderGpu::SizeImpl() {
