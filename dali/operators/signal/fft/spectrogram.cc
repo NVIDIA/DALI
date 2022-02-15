@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -204,8 +204,7 @@ bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc
     if (!w.raw_data()) w.set_pinned(false);
   }
 
-  kmgr_window_.Initialize<WindowKernel>();
-  kmgr_window_.Resize<WindowKernel>(nthreads, nsamples);
+  kmgr_window_.Resize<WindowKernel>(nsamples);
   constexpr int axis = 0;
   window_args_ = {window_length_, window_center_, window_step_, axis, padding_};
 
@@ -215,8 +214,7 @@ bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc
       make_string("Signal is too short (", signal_length, ") for sample ", sample_id));
   }
 
-  kmgr_fft_.Initialize<FftKernel>();
-  kmgr_fft_.Resize<FftKernel>(nthreads, nsamples);
+  kmgr_fft_.Resize<FftKernel>(nsamples);
   FillFftArgs(fft_args_, power_, window_length_, nfft_, transform_dim);
 
   window_out_desc_.resize(1);
@@ -274,14 +272,14 @@ void SpectrogramImplCpu<time_major>::RunImpl(workspace_t<CPUBackend> &ws) {
         auto view_signal_1d =
             make_tensor_cpu<1>(input[i].data<const InputType>(), {input[i].size()});
         kmgr_window_.Run<WindowKernel>(
-          thread_id, i, ctx,
+          i, ctx,
           view<InputType, WindowsDims>(win_out),
           view_signal_1d,
           view_window_fn,
           window_args_);
 
         kmgr_fft_.Run<FftKernel>(
-          thread_id, i, ctx,
+          i, ctx,
           view<OutputType, WindowsDims>(output[i]),
           view<const InputType, WindowsDims>(win_out),
           fft_args_);

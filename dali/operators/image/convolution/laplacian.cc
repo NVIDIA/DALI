@@ -138,7 +138,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
       }
     }
 
-    kmgr_.template Resize<Kernel>(nthreads, nsamples);
+    kmgr_.template Resize<Kernel>(nsamples);
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
       // We take only last `ndim` siginificant dimensions to handle sequences as well
       auto elem_shape = input[sample_idx].shape().template last<ndim>();
@@ -175,7 +175,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
                   output[sample_idx].template mutable_data<Out>() + stride * elem_idx, elem_shape};
               // Copy context so that the kernel instance can modify scratchpad
               auto ctx = ctx_;
-              kmgr_.Run<Kernel>(thread_id, sample_idx, ctx, out_view, in_view, windows_[sample_idx],
+              kmgr_.Run<Kernel>(sample_idx, ctx, out_view, in_view, windows_[sample_idx],
                                 scales);
             },
             priority);

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
     int num_threads = thread_pool.NumThreads();
 
     using Kernel = ReductionType<OutputType, InputType, OutputType>;
-    kmgr_.template Resize<Kernel>(num_threads, num_threads);
+    kmgr_.template Resize<Kernel>(num_threads);
 
     for (int sample = 0; sample < in_view.num_samples(); sample++) {
       int64_t priority = volume(in_view.shape.tensor_shape_span(sample));
@@ -117,7 +117,7 @@ class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
             mean_sample_view,
             ddof_);
           if (!has_empty_axes_arg_) {
-            kmgr_.Run<Kernel>(thread_id, thread_id, ctx);
+            kmgr_.Run<Kernel>(thread_id, ctx);
           } else {
             OutputType *data = out_sample_view.data;
             std::fill(data, data + out_sample_view.num_elements(), 0);
@@ -140,7 +140,7 @@ class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
     auto out_view = view<OutputType>(out);
 
     using Kernel = ReductionType<OutputType, InputType, OutputType>;
-    kmgr_.template Resize<Kernel>(1, 1);
+    kmgr_.template Resize<Kernel>(1);
 
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
@@ -153,7 +153,7 @@ class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
       keep_dims_,
       false);
     if (!has_empty_axes_arg_) {
-      kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, mean_view, ddof_);
+      kmgr_.Run<Kernel>(0, ctx, out_view, in_view, mean_view, ddof_);
     } else {
       for (int i = 0; i < out_view.num_samples(); ++i) {
         auto out_sample_view = out_view[i];

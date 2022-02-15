@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -120,7 +120,6 @@ bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
   int nsamples = input.num_samples();
-  auto nthreads = ws.GetThreadPool().NumThreads();
 
   int64_t max_length = -1;
 
@@ -131,8 +130,7 @@ bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   TYPE_SWITCH(input.type(), type2id, T, MFCC_SUPPORTED_TYPES, (
     VALUE_SWITCH(in_shape.sample_dim(), Dims, MFCC_SUPPORTED_NDIMS, (
       using DctKernel = kernels::signal::dct::Dct1DCpu<T, T, Dims>;
-      kmgr_.Initialize<DctKernel>();
-      kmgr_.Resize<DctKernel>(nthreads, nsamples);
+      kmgr_.Resize<DctKernel>(nsamples);
       output_desc[0].type = type2id<T>::value;
       output_desc[0].shape.resize(nsamples, Dims);
       for (int i = 0; i < nsamples; i++) {
@@ -167,7 +165,7 @@ void MFCC<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
             kernels::KernelContext ctx;
             auto in_view = view<const T, Dims>(input[i]);
             auto out_view = view<T, Dims>(output[i]);
-            kmgr_.Run<DctKernel>(thread_id, i, ctx, out_view, in_view, args_[i], axis_);
+            kmgr_.Run<DctKernel>(i, ctx, out_view, in_view, args_[i], axis_);
             if (lifter_ != 0.0f) {
               assert(static_cast<int64_t>(lifter_coeffs_.size()) >= out_view.shape[axis_]);
               detail::ApplyLifter(out_view, axis_, lifter_coeffs_.data());

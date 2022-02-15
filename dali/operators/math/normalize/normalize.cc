@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -148,10 +148,9 @@ template <typename OutputType, typename InputType>
 void Normalize<CPUBackend>::SetupTyped(const HostWorkspace &ws) {
   auto &input = ws.Input<CPUBackend>(0);
   int nsamples = input.num_samples();
-  int nthreads = ws.GetThreadPool().NumThreads();
 
   using Kernel = kernels::NormalizeCPU<OutputType, InputType, float>;
-  kmgr_.Resize<Kernel>(nthreads, nsamples);
+  kmgr_.Resize<Kernel>(nsamples);
 
   kernels::KernelContext ctx;
   for (int i = 0; i < nsamples; i++) {
@@ -385,7 +384,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
       }
       kernels::KernelContext ctx;
       using Kernel = kernels::NormalizeCPU<OutputType, InputType, float>;
-      kmgr_.Run<Kernel>(thread_idx, i, ctx,
+      kmgr_.Run<Kernel>(i, ctx,
           out_view[i], in_view[i], sample_mean, sample_inv_stddev, shift_);
     }, in_shape.tensor_size(i));
   }

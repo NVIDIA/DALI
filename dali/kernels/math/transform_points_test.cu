@@ -62,7 +62,7 @@ struct TransformPointsTest : ::testing::Test {
     }
     auto in = in_data_.cpu();
     auto out = out_data_.cpu();
-    kmgr_.Resize<Kernel>(1, 1);
+    kmgr_.Resize<Kernel>(1);
     double eps = std::is_integral<Out>::value ? 0.501 : 1e-3;
     for (int i = 0; i < in.num_samples(); i++) {
       TensorView<StorageCPU, const In> in_tensor = in[i];
@@ -73,7 +73,7 @@ struct TransformPointsTest : ::testing::Test {
       ctx.gpu.stream = 0;
       auto &req = kmgr_.Setup<Kernel>(0, ctx, in_tensor.shape);
       ASSERT_EQ(req.output_shapes[0][0], out_tensor.shape);
-      kmgr_.Run<Kernel>(0, 0, ctx, out_tensor, in_tensor, M, T);
+      kmgr_.Run<Kernel>(0, ctx, out_tensor, in_tensor, M, T);
       for (int j = 0; j < in_tensor.shape[0]; j++) {
         vec<out_dim> ref = M * in_points[j] + T;
         for (int d = 0; d < out_dim; d++) {
@@ -102,12 +102,12 @@ struct TransformPointsTest : ::testing::Test {
         T[s][i] = t_dist(rng_);
       }
 
-    kmgr_.Resize<Kernel>(1, 1);
+    kmgr_.Resize<Kernel>(1);
     KernelContext ctx;
     ctx.gpu.stream = 0;
     auto &req = kmgr_.Setup<Kernel>(0, ctx, in_gpu.shape);
     ASSERT_EQ(req.output_shapes[0], out_gpu.shape);
-    kmgr_.Run<Kernel>(0, 0, ctx, out_gpu, in_gpu, make_span(M), make_span(T));
+    kmgr_.Run<Kernel>(0, ctx, out_gpu, in_gpu, make_span(M), make_span(T));
 
     auto in_cpu = in_data_.cpu();
     auto out_cpu = out_data_.cpu();

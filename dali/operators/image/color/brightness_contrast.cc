@@ -123,7 +123,7 @@ void BrightnessContrastCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
           kernels::KernelContext ctx;
           auto tvin = subtensor(view<const InputType, 4>(input[sample_id]), frame_id);
           auto tvout = subtensor(view<OutputType, 4>(output[sample_id]), frame_id);
-          kernel_manager_.Run<Kernel>(thread_id, 0, ctx, tvout, tvin, add, mul);
+          kernel_manager_.Run<Kernel>(0, ctx, tvout, tvin, add, mul);
         }, vol);
       }
     } else {
@@ -131,7 +131,7 @@ void BrightnessContrastCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
         kernels::KernelContext ctx;
         auto tvin = view<const InputType, 3>(input[sample_id]);
         auto tvout = view<OutputType, 3>(output[sample_id]);
-        kernel_manager_.Run<Kernel>(thread_id, 0, ctx, tvout, tvin, add, mul);
+        kernel_manager_.Run<Kernel>(0, ctx, tvout, tvin, add, mul);
       });
     }
   }

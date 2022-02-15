@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -145,8 +145,7 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
   args.normalize = false;
 
   using Kernel = kernels::audio::MelFilterBankGpu<T>;
-  kmgr.Initialize<Kernel>();
-  kmgr.Resize<Kernel>(1, 1);
+  kmgr.Resize<Kernel>(1);
   auto in_view = in_.gpu();
   auto req = kmgr.Setup<Kernel>(0, ctx, in_view, args);
   ASSERT_EQ(out_shape, req.output_shapes[0]);
@@ -154,7 +153,7 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
   out.reshape(out_shape);
 
   auto out_view = out.gpu();
-  kmgr.Run<Kernel>(0, 0, ctx, out_view, in_view);
+  kmgr.Run<Kernel>(0, ctx, out_view, in_view);
   auto out_view_cpu = out.cpu();
   CUDA_CALL(cudaStreamSynchronize(0));
   for (int b = 0; b < batch_size; ++b) {

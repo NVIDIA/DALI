@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
       args.window_center = 0;
     }
 
-    kmgr.Resize<SpectrogramGPU>(1, 1);
+    kmgr.Resize<SpectrogramGPU>(1);
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
@@ -142,7 +142,7 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
     auto out_view_2D = view<float, 2>(out);
     KernelContext ctx;
     ctx.gpu.stream = ws.stream();
-    kmgr.Run<SpectrogramGPU>(0, 0, ctx, out_view_2D, in_view_1D, gpu_window);
+    kmgr.Run<SpectrogramGPU>(0, ctx, out_view_2D, in_view_1D, gpu_window);
   }
 
   void CopyWindowToDevice(cudaStream_t stream) {

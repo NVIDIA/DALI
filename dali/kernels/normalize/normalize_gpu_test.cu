@@ -244,7 +244,7 @@ class NormalizeImplGPUTest<std::pair<Out, In>> : public ::testing::Test {
   }
 
   void RunTest() {
-    kmgr_.Resize<Kernel>(1, 1);
+    kmgr_.Resize<Kernel>(1);
     KernelContext ctx;
     ctx.gpu.stream = 0;
     for (int iter = 0; iter < 3; iter++) {
@@ -275,7 +275,7 @@ class NormalizeImplGPUTest<std::pair<Out, In>> : public ::testing::Test {
   }
 
   void RunPerf() {
-    kmgr_.Resize<Kernel>(1, 1);
+    kmgr_.Resize<Kernel>(1);
     KernelContext ctx;
     ctx.gpu.stream = 0;
     auto req = kmgr_.Setup<Kernel>(0, ctx, data_shape_, param_shape_,
@@ -310,18 +310,18 @@ class NormalizeImplGPUTest<std::pair<Out, In>> : public ::testing::Test {
   void Launch(KernelContext &ctx) {
     if (use_scalar_base_) {
       if (use_scalar_scale_) {
-        kmgr_.Run<Kernel>(0, 0, ctx, out_.gpu(), in_.gpu(), scalar_base_, scalar_scale_,
+        kmgr_.Run<Kernel>(0, ctx, out_.gpu(), in_.gpu(), scalar_base_, scalar_scale_,
                           global_scale_, shift_, epsilon_);
       } else {
-        kmgr_.Run<Kernel>(0, 0, ctx, out_.gpu(), in_.gpu(), scalar_base_, scale_.gpu(),
+        kmgr_.Run<Kernel>(0, ctx, out_.gpu(), in_.gpu(), scalar_base_, scale_.gpu(),
                           global_scale_, shift_, epsilon_);
       }
     } else {
       if (use_scalar_scale_) {
-        kmgr_.Run<Kernel>(0, 0, ctx, out_.gpu(), in_.gpu(), base_.gpu(), scalar_scale_,
+        kmgr_.Run<Kernel>(0, ctx, out_.gpu(), in_.gpu(), base_.gpu(), scalar_scale_,
                           global_scale_, shift_, epsilon_);
       } else {
-        kmgr_.Run<Kernel>(0, 0, ctx, out_.gpu(), in_.gpu(), base_.gpu(), scale_.gpu(),
+        kmgr_.Run<Kernel>(0, ctx, out_.gpu(), in_.gpu(), base_.gpu(), scale_.gpu(),
                           global_scale_, shift_, epsilon_);
       }
     }

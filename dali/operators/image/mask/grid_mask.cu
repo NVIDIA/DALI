@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ bool GridMaskGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_desc.resize(1);
   GetArguments(ws);
   output_desc[0] = {input.shape(), input.type()};
-  kernel_manager_.Resize(1, 1);
+  kernel_manager_.Resize(1);
   TYPE_SWITCH(input.type(), type2id, Type, GRID_MASK_TYPES, (
       {
           using Kernel = kernels::GridMaskGpu<Type>;
@@ -53,7 +53,7 @@ void GridMaskGpu::RunImpl(workspace_t<GPUBackend> &ws) {
           auto in_view = view<const Type, 3>(input);
           auto out_view = view<Type, 3>(output);
 
-          kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, out_view, in_view,
+          kernel_manager_.Run<Kernel>(0, ctx, out_view, in_view,
                 tile_, ratio_, angle_, shift_x_, shift_y_);
       }
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type()))) // NOLINT

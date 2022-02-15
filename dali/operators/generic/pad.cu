@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       auto in_view = view<const T, Dims>(input);
       auto &kernel_sample_args = FillArgs<Args>(in_shape, in_layout);
 
-      kmgr_.Resize<Kernel>(1, 1);
+      kmgr_.Resize<Kernel>(1);
       auto req = kmgr_.Setup<Kernel>(0, ctx, in_view, kernel_sample_args);
 
       output_desc[0].type = type2id<T>::value;
@@ -71,7 +71,7 @@ void Pad<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
       kernels::KernelContext ctx;
       ctx.gpu.stream = ws.stream();
       auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
-      kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, kernel_sample_args);
+      kmgr_.Run<Kernel>(0, ctx, out_view, in_view, kernel_sample_args);
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", ndim)));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
 }

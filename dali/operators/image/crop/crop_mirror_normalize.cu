@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ bool CropMirrorNormalize<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
         output_desc[0].type = output_type_;
         output_desc[0].shape.resize(curr_batch_size, Dims);
-        kmgr_.Resize<Kernel>(1, 1);
+        kmgr_.Resize<Kernel>(1);
 
         kernels::KernelContext ctx;
         ctx.gpu.stream = ws.stream();
@@ -66,7 +66,7 @@ void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
         kernels::KernelContext ctx;
         ctx.gpu.stream = ws.stream();
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
-        kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, kernel_sample_args);
+        kmgr_.Run<Kernel>(0, ctx, out_view, in_view, kernel_sample_args);
       ), DALI_FAIL(make_string("Not supported number of dimensions:", ndim));); // NOLINT
     ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
   ), DALI_FAIL(make_string("Not supported input type:", input_type_));); // NOLINT

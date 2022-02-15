@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -76,9 +76,9 @@ class MultiPasteOp : public Operator<Backend> {
       , shapes_("shapes", spec)
       , out_anchors_("out_anchors", spec) {
     if (std::is_same<Backend, GPUBackend>::value) {
-      kernel_manager_.Resize(1, 1);
+      kernel_manager_.Resize(1);
     } else {
-      kernel_manager_.Resize(num_threads_, max_batch_size_);
+      kernel_manager_.Resize(max_batch_size_);
     }
   }
 

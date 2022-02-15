@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ void CoordTransform<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   auto out_view = view<OutputType>(out);
 
   using Kernel = kernels::TransformPointsGPU<OutputType, InputType, out_dim, in_dim>;
-  kmgr_.template Resize<Kernel>(1, 1);
+  kmgr_.template Resize<Kernel>(1);
 
   int N = in_view.num_samples();
   auto M = GetMatrices<out_dim, in_dim>();
@@ -36,7 +36,7 @@ void CoordTransform<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
   kmgr_.Setup<Kernel>(0, ctx, in_view.shape);
-  kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, M, T);
+  kmgr_.Run<Kernel>(0, ctx, out_view, in_view, M, T);
 }
 
 DALI_REGISTER_OPERATOR(CoordTransform, CoordTransform<GPUBackend>, GPU);

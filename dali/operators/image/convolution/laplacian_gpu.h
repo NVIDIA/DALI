@@ -48,7 +48,7 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
    */
   explicit LaplacianOpGpu(const OpSpec* spec, const DimDesc& dim_desc)
       : spec_{*spec}, args{*spec}, dim_desc_{dim_desc}, lap_windows_{maxWindowSize} {
-    kmgr_.Resize<Kernel>(1, 1);
+    kmgr_.Resize<Kernel>(1);
   }
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<GPUBackend>& ws) override {
@@ -129,7 +129,7 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
     auto in_view = reshape<ndim>(in_view_dyn, static_shape);
     auto out_view = reshape<ndim>(out_view_dyn, static_shape);
 
-    kmgr_.Run<Kernel>(0, 0, ctx_, out_view, in_view, windows_, scale_spans_);
+    kmgr_.Run<Kernel>(0, ctx_, out_view, in_view, windows_, scale_spans_);
   }
 
  private:
