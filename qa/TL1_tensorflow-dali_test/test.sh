@@ -63,8 +63,9 @@ do_once() {
     for file in $(ls /data/imagenet/train-val-tfrecord-480-subset);
     do
         python ../../../../../tools/tfrecord2idx /data/imagenet/train-val-tfrecord-480-subset/${file} \
-            idx-files/${file}.idx;
+            idx-files/${file}.idx &
     done
+    wait
 
     # OMPI_MCA_blt is needed if running in a container w/o cap SYS_PRACE
     # More info: https://github.com/radiasoft/devops/issues/132
@@ -73,7 +74,7 @@ do_once() {
 
 test_body() {
     # test code
-    mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
+    mpiexec --allow-run-as-root --bind-to none -np ${NUM_GPUS} \
         python -u resnet.py \
         --data_dir=/data/imagenet/train-val-tfrecord-480-subset --data_idx_dir=idx-files/ \
         --precision=fp16 --num_iter=100  --iter_unit=batch --display_every=50 \
