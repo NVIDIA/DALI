@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -126,6 +126,7 @@ TYPED_TEST(LinearTransformationGpuTest, check_kernel) {
 TYPED_TEST(LinearTransformationGpuTest, setup_test) {
   TheKernel<TypeParam> kernel;
   KernelContext ctx;
+  ctx.gpu.stream = 0;
   InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
   auto reqs = kernel.Setup(ctx, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
   ASSERT_EQ(this->out_shapes_.size(), static_cast<size_t>(reqs.output_shapes[0].num_samples()))
@@ -140,6 +141,7 @@ TYPED_TEST(LinearTransformationGpuTest, setup_test) {
 TYPED_TEST(LinearTransformationGpuTest, setup_test_with_roi) {
   TheKernel<TypeParam> kernel;
   KernelContext ctx;
+  ctx.gpu.stream = 0;
   InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
   auto reqs = kernel.Setup(ctx, in, make_cspan(this->vmat_), make_cspan(this->vvec_),
                            make_cspan(this->rois_));
@@ -150,20 +152,21 @@ TYPED_TEST(LinearTransformationGpuTest, setup_test_with_roi) {
 
 TYPED_TEST(LinearTransformationGpuTest, run_test) {
   TheKernel<TypeParam> kernel;
-  KernelContext c;
+  KernelContext ctx;
+  ctx.gpu.stream = 0;
   InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
 
-  auto reqs = kernel.Setup(c, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
+  auto reqs = kernel.Setup(ctx, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
 
   ScratchpadAllocator sa;
   sa.Reserve(reqs.scratch_sizes);
   auto scratchpad = sa.GetScratchpad();
-  c.scratchpad = &scratchpad;
+  ctx.scratchpad = &scratchpad;
 
   OutListGPU<typename TypeParam::Out, kNDims> out(
           this->output_, reqs.output_shapes[0].template to_static<kNDims>());
 
-  kernel.Run(c, out, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
+  kernel.Run(ctx, out, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
   CUDA_CALL(cudaDeviceSynchronize());
 
   auto res = copy<mm::memory_kind::host>(out[0]);
@@ -175,22 +178,24 @@ TYPED_TEST(LinearTransformationGpuTest, run_test) {
 
 TYPED_TEST(LinearTransformationGpuTest, run_test_with_roi) {
   TheKernel<TypeParam> kernel;
-  KernelContext c;
+  KernelContext ctx;
+  ctx.gpu.stream = 0;
   InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
 
-  auto reqs = kernel.Setup(c, in,
+  auto reqs = kernel.Setup(ctx, in,
                            make_cspan(this->vmat_), make_cspan(this->vvec_),
                            make_cspan(this->rois_));
 
   ScratchpadAllocator sa;
   sa.Reserve(reqs.scratch_sizes);
   auto scratchpad = sa.GetScratchpad();
-  c.scratchpad = &scratchpad;
+  ctx.scratchpad = &scratchpad;
 
   OutListGPU<typename TypeParam::Out, kNDims> out(
           this->output_, reqs.output_shapes[0].template to_static<kNDims>());
 
-  kernel.Run(c, out, in, make_cspan(this->vmat_), make_cspan(this->vvec_), make_cspan(this->rois_));
+  kernel.Run(ctx, out, in,
+             make_cspan(this->vmat_), make_cspan(this->vvec_), make_cspan(this->rois_));
   CUDA_CALL(cudaDeviceSynchronize());
 
   auto res = copy<mm::memory_kind::host>(out[0]);

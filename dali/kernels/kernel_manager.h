@@ -22,6 +22,7 @@
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/context.h"
 #include "dali/kernels/kernel_req.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/mm/memory_kind.h"
 
@@ -218,9 +219,15 @@ class DLL_PUBLIC KernelManager {
    */
   template <typename Kernel, typename... OutInArgs>
   void Run(int thread_idx, int instance_idx, KernelContext &context, OutInArgs &&...out_in_args) {
-    assert(static_cast<size_t>(thread_idx) < scratchpads.size());
-    auto &sa = GetScratchpadAllocator(thread_idx);
-    Run<Kernel>(sa, instance_idx, context, std::forward<OutInArgs>(out_in_args)...);
+    assert(instance_idx >= 0 &&
+           static_cast<size_t>(instance_idx) < NumInstances() &&
+           "Kernel instance index (instance_idx) out of range");
+    auto &inst = instances[instance_idx];
+    DynamicScratchpad scratchpad({}, AccessOrder(context.gpu.stream));
+    auto *old_scratchpad = context.scratchpad;
+    context.scratchpad = &scratchpad;
+    inst.get<Kernel>().Run(context, std::forward<OutInArgs>(out_in_args)...);
+    context.scratchpad = old_scratchpad;
   }
 
   /**

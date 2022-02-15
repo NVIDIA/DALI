@@ -60,6 +60,8 @@ class DynamicScratchpadImplT {
                              AccessOrder dealloc_order = {}) {
     static_assert(!std::is_same<Kind, mm::memory_kind::host>::value,
       "Cannot use a stream-ordered resource for plain host memory");
+    if (!dealloc_order.has_value())
+      dealloc_order = alloc_order;
     adapter<Kind>() = { rsrc, alloc_order, dealloc_order };
     set_upstream_resource<Kind>(&adapter<Kind>());
   }
@@ -135,28 +137,16 @@ class DynamicScratchpad
     initial_sizes_ = initial_sizes;
     for (auto &s : initial_sizes_) {
       if (s == 0)
-        s = 4096;
+        s = 0x10000;  // 64k
     }
     if (!pinned_dealloc_order.has_value())
       pinned_dealloc_order = device_order;
     if (!managed_dealloc_order.has_value())
       managed_dealloc_order = device_order;
 
-    set_upstream_resource<mm::memory_kind::host>(mm::GetDefaultResource<mm::memory_kind::host>());
-
-    set_upstream_resource<mm::memory_kind::pinned>(
-        mm::GetDefaultResource<mm::memory_kind::pinned>(),
-        AccessOrder::host(),
-        pinned_dealloc_order);
-
-    set_upstream_resource<mm::memory_kind::device>(
-        mm::GetDefaultResource<mm::memory_kind::device>(),
-        device_order);
-
-    set_upstream_resource<mm::memory_kind::managed>(
-        mm::GetDefaultResource<mm::memory_kind::managed>(),
-        AccessOrder::host(),
-        managed_dealloc_order);
+    device_order_ = device_order;
+    pinned_dealloc_order_ = pinned_dealloc_order;
+    managed_dealloc_order_ = managed_dealloc_order;
   }
 
   virtual void *Alloc(mm::memory_kind_id kind_id, size_t bytes, size_t alignment) {
@@ -166,10 +156,52 @@ class DynamicScratchpad
        mm::memory_kind::pinned,
        mm::memory_kind::device,
        mm::memory_kind::managed),
-      (ret = resource<Kind>().allocate(bytes, alignment)),
+      (ret = AllocImpl<Kind>(bytes, alignment)),
       (assert(!"Incorrect memory kind id");));
     return ret;
   }
+
+  template <typename T>
+  struct type_tag {};
+
+  void InitResource(type_tag<mm::memory_kind::host>) {
+    set_upstream_resource<mm::memory_kind::host>(mm::GetDefaultResource<mm::memory_kind::host>());
+  }
+
+  void InitResource(type_tag<mm::memory_kind::pinned>) {
+    set_upstream_resource<mm::memory_kind::pinned>(
+        mm::GetDefaultResource<mm::memory_kind::pinned>(),
+        AccessOrder::host(),
+        pinned_dealloc_order_);
+  }
+
+  void InitResource(type_tag<mm::memory_kind::device>) {
+    set_upstream_resource<mm::memory_kind::device>(
+        mm::GetDefaultResource<mm::memory_kind::device>(),
+        device_order_);
+  }
+
+  void InitResource(type_tag<mm::memory_kind::managed>) {
+    set_upstream_resource<mm::memory_kind::managed>(
+        mm::GetDefaultResource<mm::memory_kind::managed>(),
+        AccessOrder::host(),
+        managed_dealloc_order_);
+  }
+
+  template <typename Kind>
+  void *AllocImpl(size_t bytes, size_t alignment) {
+    if (bytes == 0)
+      return nullptr;  // do not initialize the resource in case of 0-sized allocation
+
+    auto &r = resource<Kind>();
+    if (!r.get_upstream()) {
+      InitResource(type_tag<Kind>());
+      assert(r.get_upstream() != nullptr);
+    }
+    return r.allocate(bytes, alignment);
+  }
+
+  AccessOrder device_order_, pinned_dealloc_order_, managed_dealloc_order_;
 };
 
 }  // namespace kernels

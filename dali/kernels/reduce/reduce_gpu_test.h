@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ struct ReductionKernelTest {
       Args &&...args) {
     in.reshape(in_shape);
     ref.reshape(ref_out_shape);
+    ctx.gpu.stream = 0;
     auto req = kernel.Setup(ctx, in_shape, axes, keep_dims, batch, std::forward<Args>(args)...);
     ASSERT_EQ(req.output_shapes.size(), 1), req;
     ASSERT_EQ(req.output_shapes[0], ref_out_shape), req;
@@ -66,6 +67,7 @@ struct ReductionKernelTest {
   template <typename... Args>
   void Run(Args &&...args) {
     auto scratchpad = sa.GetScratchpad();
+    ctx.gpu.stream = 0;
     ctx.scratchpad = &scratchpad;
     kernel.Run(ctx, out.gpu(stream()), in.gpu(stream()), std::forward<Args>(args)...);
   }

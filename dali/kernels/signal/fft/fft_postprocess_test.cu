@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -108,6 +108,7 @@ class FFTPostprocessTest<FFTPostprocessArgs<Out, In, Convert>> : public ::testin
 
     ToFreqMajorSpectrum<Out, In, Convert> tr;
     KernelContext ctx;
+    ctx.gpu.stream = 0;
     ScratchpadAllocator sa;
     KernelRequirements req = tr.Setup(ctx, in_shape);
     ASSERT_EQ(req.output_shapes.size(), 1u);
@@ -174,6 +175,7 @@ class FFTPostprocessTest<FFTPostprocessArgs<Out, In, Convert>> : public ::testin
 
     ConvertTimeMajorSpectrum<Out, In, Convert> tr;
     KernelContext ctx;
+    ctx.gpu.stream = 0;
     tr.Setup(ctx, in_shape);
     tr.Run(ctx, out_gpu, in.gpu());
     CUDA_CALL(cudaGetLastError());

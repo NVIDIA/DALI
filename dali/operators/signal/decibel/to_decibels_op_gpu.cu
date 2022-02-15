@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,6 +63,7 @@ bool ToDecibelsImpl<T>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto type = type2id<T>::value;
 
   kernels::KernelContext ctx;
+  ctx.gpu.stream = ws.stream();
   if (args_.ref_max) {
     auto& req_max = kmgr_max_.Setup<MaxKernel>(0, ctx, in_view);
     max_out_desc_.resize(1);

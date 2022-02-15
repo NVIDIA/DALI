@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -160,6 +160,7 @@ TEST(StftGPU, Setup) {
     args.time_major_layout = time_major;
 
     KernelContext ctx;
+    ctx.gpu.stream = 0;
     KernelRequirements req = stft.Setup(ctx, lengths, args);
     ASSERT_EQ(req.output_shapes.size(), 1u);
     auto &o_shape = req.output_shapes[0];
@@ -218,6 +219,7 @@ class StftGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
       TestTensorList<OutputType, 2> out;
 
       KernelContext ctx;
+      ctx.gpu.stream = 0;
       KernelRequirements req = stft.Setup(ctx, in_shape, args);
       auto stream = ctx.gpu.stream;
       ASSERT_EQ(req.output_shapes.size(), 1u);

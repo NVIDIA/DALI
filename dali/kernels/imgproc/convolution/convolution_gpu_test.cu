@@ -158,6 +158,7 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
 
   void RunTest() {
     KernelContext ctx_cpu, ctx_gpu;
+    ctx_gpu.gpu.stream = 0;
     KernelCpu kernel_cpu;
     KernelGpu kernel_gpu;
 

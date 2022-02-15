@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -130,6 +130,7 @@ void TestBatchedExtract(
   int in_win_start = (out_win_len_actual - args.window_length) / 2;
 
   KernelContext ctx;
+  ctx.gpu.stream = 0;
 
   auto in_gpu = in_list.gpu(0);
 
