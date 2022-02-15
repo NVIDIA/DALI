@@ -18,9 +18,9 @@ namespace dali {
 namespace laplacian {
 
 template op_impl_uptr GetLaplacianGpuImpl<uint8_t, uint8_t>(const OpSpec* spec,
-                                                            const DimDesc& dim_desc);
+                                                            const DimDesc&, const SampleFrameCtx&);
 template op_impl_uptr GetLaplacianGpuImpl<float, uint8_t>(const OpSpec* spec,
-                                                          const DimDesc& dim_desc);
+                                                          const DimDesc&, const SampleFrameCtx&);
 
 }  // namespace laplacian
 }  // namespace dali

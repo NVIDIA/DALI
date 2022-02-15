@@ -112,8 +112,8 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit LaplacianOpCpu(const OpSpec* spec)
-      : spec_{*spec}, args{*spec}, lap_windows_{maxWindowSize} {}
+  explicit LaplacianOpCpu(const OpSpec* spec, const SampleFrameCtx& sample_ctx)
+      : spec_{*spec}, sample_ctx_{sample_ctx}, args{*spec}, lap_windows_{maxWindowSize} {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template Input<CPUBackend>(0);
@@ -124,7 +124,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
     output_desc[0].type = type2id<Out>::value;
     output_desc[0].shape = input.shape();
 
-    args.ObtainLaplacianArgs(spec_, ws, nsamples, get_frame_info<CPUBackend>(ws, 0));
+    args.ObtainLaplacianArgs(spec_, ws, nsamples, sample_ctx_);
     windows_.resize(nsamples);
 
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
@@ -177,6 +177,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
 
  private:
   const OpSpec& spec_;
+  const SampleFrameCtx& sample_ctx_;
 
   LaplacianArgs<axes> args;
   kernels::LaplacianWindows<float> lap_windows_;
@@ -209,10 +210,10 @@ bool Laplacian<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
         BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
           if (dtype == input.type()) {
             using LaplacianSame = laplacian::LaplacianOpCpu<In, In, Axes, HasChannels>;
-            impl_ = std::make_unique<LaplacianSame>(&spec_);
+            impl_ = std::make_unique<LaplacianSame>(&spec_, GetSampleFrameCtx());
           } else {
             using LaplacianFloat = laplacian::LaplacianOpCpu<float, In, Axes, HasChannels>;
-            impl_ = std::make_unique<LaplacianFloat>(&spec_);
+            impl_ = std::make_unique<LaplacianFloat>(&spec_, GetSampleFrameCtx());
           }
         )); // NOLINT
       ), DALI_FAIL("Axis count out of supported range."));  // NOLINT

@@ -86,8 +86,8 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit GaussianBlurOpCpu(const OpSpec* spec)
-      : spec_(*spec) {}
+  explicit GaussianBlurOpCpu(const OpSpec* spec, const SampleFrameCtx& sample_ctx)
+      : spec_(*spec), sample_ctx_{sample_ctx} {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template Input<CPUBackend>(0);
@@ -105,7 +105,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     kmgr_.template Resize<Kernel>(nsamples);
 
     for (int i = 0; i < nsamples; i++) {
-      params_[i] = ObtainSampleParams<axes>(i, spec_, ws, get_frame_info<CPUBackend>(ws, 0));
+      params_[i] = ObtainSampleParams<axes>(i, spec_, ws, sample_ctx_);
       windows_[i].PrepareWindows(params_[i]);
       auto& req = kmgr_.Setup<Kernel>(i, ctx_, input[i].shape(), params_[i].window_sizes);
     }
@@ -142,6 +142,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
 
  private:
   const OpSpec& spec_;
+  const SampleFrameCtx& sample_ctx_;
 
   kernels::KernelManager kmgr_;
   kernels::KernelContext ctx_;
@@ -172,11 +173,11 @@ bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
       VALUE_SWITCH(dim_desc.axes, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
         BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
           if (dtype == input.type()) {
-            impl_ =
-              std::make_unique<GaussianBlurOpCpu<In, In, Axes, HasChannels>>(&spec_);
+            using Impl = GaussianBlurOpCpu<In, In, Axes, HasChannels>;
+            impl_ = std::make_unique<Impl>(&spec_, GetSampleFrameCtx());
           } else {
-            impl_ =
-              std::make_unique<GaussianBlurOpCpu<float, In, Axes, HasChannels>>(&spec_);
+            using Impl = GaussianBlurOpCpu<float, In, Axes, HasChannels>;
+            impl_ = std::make_unique<Impl>(&spec_, GetSampleFrameCtx());
           }
         ));  // NOLINT
       ), DALI_FAIL("Axis count out of supported range."));  // NOLINT

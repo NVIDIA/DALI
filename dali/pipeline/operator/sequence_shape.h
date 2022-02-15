@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATOR_SEQUENCE_SHAPE_HELPER_H_
-#define DALI_PIPELINE_OPERATOR_SEQUENCE_SHAPE_HELPER_H_
+#ifndef DALI_PIPELINE_OPERATOR_SEQUENCE_SHAPE_H_
+#define DALI_PIPELINE_OPERATOR_SEQUENCE_SHAPE_H_
 
 #include <memory>
 #include <string>
@@ -28,24 +28,22 @@
 namespace dali {
 
 struct LayoutDesc {
-  static inline LayoutDesc Create(const TensorLayout &layout, bool expand_channels) {
-    if (!expand_channels) {
-      if (VideoLayoutInfo::FrameDimIndex(layout) == 0) {
-        return {0};
-      } else {
-        return {};
-      }
-    } else {
-      int frame_dim = VideoLayoutInfo::FrameDimIndex(layout);
-      int channel_dim = ImageLayoutInfo::ChannelDimIndex(layout);
-      frame_dim = frame_dim > 1 ? -1 : frame_dim;
-      channel_dim = channel_dim > 1 ? -1 : channel_dim;
-      if (frame_dim != 0 && channel_dim != 0) {
-        return {};
-      } else {
-        return {frame_dim, channel_dim};
-      }
+  static inline LayoutDesc FrameAndChannel(const TensorLayout &layout) {
+    int frame_dim = VideoLayoutInfo::FrameDimIndex(layout);
+    int channel_dim = ImageLayoutInfo::ChannelDimIndex(layout);
+    frame_dim = frame_dim > 1 ? -1 : frame_dim;
+    channel_dim = channel_dim > 1 ? -1 : channel_dim;
+    if (frame_dim != 0 && channel_dim != 0) {
+      return {};
     }
+    return {frame_dim, channel_dim};
+  }
+
+  static inline LayoutDesc Frame(const TensorLayout &layout) {
+    if (VideoLayoutInfo::FrameDimIndex(layout) != 0) {
+      return {};
+    }
+    return {0};
   }
 
   inline int NumDims() const {
@@ -59,9 +57,11 @@ struct LayoutDesc {
 class ExpandDesc {
  public:
   inline ExpandDesc() = default;
-  inline ExpandDesc(const TensorListShape<> &shape, const TensorLayout &layout,
-                    bool expand_channels)
-      : layout_desc_{LayoutDesc::Create(layout, expand_channels)},
+  inline ExpandDesc(const TensorListShape<> &shape, const TensorLayout &layout, bool should_expand)
+      : layout_desc_{([should_expand, &shape, &layout]() {
+          DALI_ENFORCE(layout.empty() || shape.sample_dim() == layout.size());
+          return should_expand ? LayoutDesc::FrameAndChannel(layout) : LayoutDesc::Frame(layout);
+        })()},
         has_channels_{layout_desc_.channel_dim >= 0},
         has_frames_{layout_desc_.frame_dim >= 0},
         is_channel_first_{has_channels_ && layout_desc_.channel_dim < layout_desc_.frame_dim},
@@ -243,9 +243,9 @@ inline TensorListShape<> fold_outermost_like(const TensorListShape<> &shape,
   return res;
 }
 
-inline TensorVector<CPUBackend> SpreadTensorArgumentLike(const TensorVector<CPUBackend> &tv,
-                                                         const std::string &name,
-                                                         const ExpandDesc &expand_desc) {
+inline TensorVector<CPUBackend> expand_argument_like(const TensorVector<CPUBackend> &tv,
+                                                     const std::string &name,
+                                                     const ExpandDesc &expand_desc) {
   const auto &layout = tv.GetLayout();
   bool arg_has_frames_dim = VideoLayoutInfo::FrameDimIndex(layout) == 0;
   DALI_ENFORCE(
@@ -308,4 +308,4 @@ inline TensorVector<CPUBackend> SpreadTensorArgumentLike(const TensorVector<CPUB
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATOR_SEQUENCE_SHAPE_HELPER_H_
+#endif  // DALI_PIPELINE_OPERATOR_SEQUENCE_SHAPE_H_

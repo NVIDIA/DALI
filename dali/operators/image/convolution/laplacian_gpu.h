@@ -46,8 +46,8 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit LaplacianOpGpu(const OpSpec* spec)
-      : spec_{*spec}, args{*spec}, lap_windows_{maxWindowSize} {
+  explicit LaplacianOpGpu(const OpSpec* spec, const SampleFrameCtx& sample_ctx)
+      : spec_{*spec}, sample_ctx_{sample_ctx}, args{*spec}, lap_windows_{maxWindowSize} {
     kmgr_.Resize<Kernel>(1);
   }
 
@@ -63,7 +63,7 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
     // The shape of data stays untouched
     output_desc[0].shape = input.shape();
 
-    args.ObtainLaplacianArgs(spec_, ws, nsamples, get_frame_info<GPUBackend>(ws, 0));
+    args.ObtainLaplacianArgs(spec_, ws, nsamples, sample_ctx_);
 
     for (int i = 0; i < axes; i++) {
       for (int j = 0; j < axes; j++) {
@@ -120,6 +120,7 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
 
  private:
   const OpSpec& spec_;
+  const SampleFrameCtx& sample_ctx_;
   LaplacianArgs<axes> args;
   kernels::LaplacianWindows<float> lap_windows_;
 
@@ -140,12 +141,13 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
  * to allow for parallel compilation of underlying kernels.
  */
 template <typename Out, typename In>
-op_impl_uptr GetLaplacianGpuImpl(const OpSpec* spec, const DimDesc& dim_desc) {
+op_impl_uptr GetLaplacianGpuImpl(const OpSpec* spec, const DimDesc& dim_desc,
+                                 const SampleFrameCtx& sample_ctx) {
   op_impl_uptr result;
   VALUE_SWITCH(dim_desc.axes, Axes, LAPLACIAN_SUPPORTED_AXES, (
     BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
         using LaplacianImpl = LaplacianOpGpu<Out, In, Axes, HasChannels>;
-        result.reset(new LaplacianImpl(spec));
+        result.reset(new LaplacianImpl(spec, sample_ctx));
     ));  // NOLINT
   ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
   return result;

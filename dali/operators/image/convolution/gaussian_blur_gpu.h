@@ -25,9 +25,9 @@
 #include "dali/core/static_switch.h"
 #include "dali/kernels/imgproc/convolution/separable_convolution_gpu.h"
 #include "dali/kernels/kernel_manager.h"
+#include "dali/operators/image/convolution/convolution_utils.h"
 #include "dali/operators/image/convolution/gaussian_blur.h"
 #include "dali/operators/image/convolution/gaussian_blur_params.h"
-#include "dali/operators/image/convolution/convolution_utils.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 
@@ -43,16 +43,15 @@ template <typename Out, typename In, int axes, bool has_channels>
 class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
  public:
   using WindowType = float;
-  using Kernel =
-      kernels::SeparableConvolutionGpu<Out, In, WindowType, axes, has_channels, false>;
+  using Kernel = kernels::SeparableConvolutionGpu<Out, In, WindowType, axes, has_channels, false>;
   static constexpr int ndim = Kernel::ndim;
 
   /**
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit GaussianBlurOpGpu(const OpSpec* spec)
-      : spec_(*spec) {}
+  explicit GaussianBlurOpGpu(const OpSpec* spec, const SampleFrameCtx& sample_ctx)
+      : spec_(*spec), sample_ctx_{sample_ctx} {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<GPUBackend>& ws) override {
     ctx_.gpu.stream = ws.stream();
@@ -68,10 +67,10 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
 
     params_.resize(nsamples);
     windows_.resize(nsamples);
-    for (auto &win_shape : window_shapes_) {
+    for (auto& win_shape : window_shapes_) {
       win_shape.resize(nsamples);
     }
-    for (auto &windows : windows_tl_) {
+    for (auto& windows : windows_tl_) {
       windows.data.resize(nsamples);
       windows.shape.resize(nsamples);
     }
@@ -79,7 +78,7 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
     kmgr_.template Resize<Kernel>(nsamples);
 
     for (int i = 0; i < nsamples; i++) {
-      params_[i] = ObtainSampleParams<axes>(i, spec_, ws, get_frame_info<GPUBackend>(ws, 0));
+      params_[i] = ObtainSampleParams<axes>(i, spec_, ws, sample_ctx_);
       if (windows_[i].PrepareWindows(params_[i])) {
         for (int axis = 0; axis < axes; axis++) {
           window_shapes_[axis].set_tensor_shape(i, {params_[i].window_sizes[axis]});
@@ -103,7 +102,8 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
   }
 
  private:
-  const OpSpec &spec_;
+  const OpSpec& spec_;
+  const SampleFrameCtx& sample_ctx_;
 
   kernels::KernelManager kmgr_;
   kernels::KernelContext ctx_;
@@ -122,13 +122,13 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
  * to allow for parallel compilation of underlying kernels.
  */
 template <typename Out, typename In>
-std::unique_ptr<OpImplBase<GPUBackend>> GetGaussianBlurGpuImpl(const OpSpec* spec,
-                                                               DimDesc dim_desc) {
+std::unique_ptr<OpImplBase<GPUBackend>> GetGaussianBlurGpuImpl(const OpSpec* spec, DimDesc dim_desc,
+                                                               const SampleFrameCtx& sample_ctx) {
   std::unique_ptr<OpImplBase<GPUBackend>> result;
   VALUE_SWITCH(dim_desc.axes, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
     BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
       result.reset(
-        new GaussianBlurOpGpu<Out, In, Axes, HasChannels>(spec));
+        new GaussianBlurOpGpu<Out, In, Axes, HasChannels>(spec, sample_ctx));
     ));  // NOLINT
   ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
   return result;

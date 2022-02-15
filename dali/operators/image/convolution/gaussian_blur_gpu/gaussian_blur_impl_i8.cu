@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,17 +22,19 @@
 #include "dali/kernels/imgproc/convolution/separable_convolution_gpu.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/convolution/gaussian_blur.h"
+#include "dali/operators/image/convolution/gaussian_blur_gpu.h"
 #include "dali/operators/image/convolution/gaussian_blur_params.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
-#include "dali/operators/image/convolution/gaussian_blur_gpu.h"
 
 namespace dali {
 namespace gaussian_blur {
 
 
-template op_impl_uptr GetGaussianBlurGpuImpl<int8_t, int8_t>(const OpSpec*, DimDesc);
-template op_impl_uptr GetGaussianBlurGpuImpl<float, int8_t>(const OpSpec*, DimDesc);
+template op_impl_uptr GetGaussianBlurGpuImpl<int8_t, int8_t>(const OpSpec*, DimDesc,
+                                                             const SampleFrameCtx&);
+template op_impl_uptr GetGaussianBlurGpuImpl<float, int8_t>(const OpSpec*, DimDesc,
+                                                            const SampleFrameCtx&);
 
 }  // namespace gaussian_blur
 }  // namespace dali

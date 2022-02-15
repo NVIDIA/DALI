@@ -17,10 +17,10 @@
 namespace dali {
 namespace laplacian {
 
-template op_impl_uptr GetLaplacianGpuImpl<uint16_t, uint16_t>(const OpSpec* spec,
-                                                              const DimDesc& dim_desc);
-template op_impl_uptr GetLaplacianGpuImpl<float, uint16_t>(const OpSpec* spec,
-                                                           const DimDesc& dim_desc);
+template op_impl_uptr GetLaplacianGpuImpl<uint16_t, uint16_t>(const OpSpec* spec, const DimDesc&,
+                                                              const SampleFrameCtx&);
+template op_impl_uptr GetLaplacianGpuImpl<float, uint16_t>(const OpSpec* spec, const DimDesc&,
+                                                           const SampleFrameCtx&);
 
 }  // namespace laplacian
 }  // namespace dali

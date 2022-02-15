@@ -99,9 +99,11 @@ void GetPerSampleArgument(std::vector<T> &output, const std::string &argument_na
  */
 template <typename T>
 void GetGeneralizedArg(span<T> result, const std::string &name, int sample_idx, const OpSpec &spec,
-                       const ArgumentWorkspace &ws, const SampleFrameInfoFn &fr_info = {}) {
+                       const ArgumentWorkspace &ws,
+                       const SampleFrameCtx sample_ctx = {}) {
   int argument_length = result.size();
   if (spec.HasTensorArgument(name)) {
+    auto fr_info = sample_ctx.GetFrameInfo(name);
     const auto &tv = ws.ArgumentInput(name);
     const auto &tensor = tv[sample_idx];
     const auto &shape = tensor.shape();
