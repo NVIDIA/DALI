@@ -23,6 +23,7 @@
 #include "dali/kernels/context.h"
 #include "dali/kernels/kernel_req.h"
 #include "dali/kernels/dynamic_scratchpad.h"
+#include "dali/core/call_at_exit.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/mm/memory_kind.h"
 
@@ -189,10 +190,11 @@ class DLL_PUBLIC KernelManager {
     auto &inst = instances[instance_idx];
     if (!context.scratchpad) {
       DynamicScratchpad scratchpad({}, AccessOrder(context.gpu.stream));
-      auto *old_scratchpad = context.scratchpad;
       context.scratchpad = &scratchpad;
+      auto finally = AtBlockExit([&]() {
+        context.scratchpad = nullptr;
+      });
       inst.get<Kernel>().Run(context, std::forward<OutInArgs>(out_in_args)...);
-      context.scratchpad = old_scratchpad;
     } else {
       inst.get<Kernel>().Run(context, std::forward<OutInArgs>(out_in_args)...);
     }
