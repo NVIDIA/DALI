@@ -1,12 +1,5 @@
 #!/bin/bash -e
 
-do_once() {
-  apt-get update && apt-get -y install wget
-  wget https://github.com/Kitware/CMake/releases/download/v3.18.4/cmake-3.18.4-Linux-x86_64.sh
-  bash cmake-*.sh --skip-license --prefix=/usr
-  rm cmake-*.sh
-}
-
 build_and_check() {
   make -j
   pip install ./dali/python
@@ -36,13 +29,13 @@ example_1() {
 # Example 2: Building only TFRecord reader
 example_2() {
   cmake -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
-            -DBUILD_TEST=ON \
-            -DBUILD_BENCHMARK=OFF \
-            -DCUSTOM_OPERATOR_SRCS_PATTERN="reader/tf*.cc;reader/loader/loader.cc;decoder/cache/*" \
-            -DCUSTOM_OPERATOR_TEST_SRCS_PATTERN=" " \
-            -DCUSTOM_KERNEL_SRCS_PATTERN=" " \
-            -DCUSTOM_KERNEL_TEST_SRCS_PATTERN=" " \
-            ${DALI_DIR}
+        -DBUILD_TEST=ON \
+        -DBUILD_BENCHMARK=OFF \
+        -DCUSTOM_OPERATOR_SRCS_PATTERN="reader/tf*.cc;reader/loader/loader.cc;decoder/cache/*" \
+        -DCUSTOM_OPERATOR_TEST_SRCS_PATTERN=" " \
+        -DCUSTOM_KERNEL_SRCS_PATTERN=" " \
+        -DCUSTOM_KERNEL_TEST_SRCS_PATTERN=" " \
+        ${DALI_DIR}
   build_and_check
 }
 
