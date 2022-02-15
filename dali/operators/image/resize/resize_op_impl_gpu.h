@@ -79,7 +79,6 @@ class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
       kernels::KernelRequirements &req = kmgr_.Setup<Kernel>(mb_idx, ctx, mb.input, param_slice);
       mb.out_shape = req.output_shapes[0].to_static<frame_ndim>();
     }
-    // kmgr_.ReserveMaxScratchpad(0);
   }
 
   void RunResize(DeviceWorkspace &ws,

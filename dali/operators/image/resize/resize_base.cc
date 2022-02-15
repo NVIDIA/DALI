@@ -121,8 +121,6 @@ void ResizeBase<GPUBackend>::InitializeGPU(int minibatch_size, size_t temp_buffe
     minibatch_size_ = minibatch_size;
   }
   kmgr_.Resize(1, 0);
-  // kmgr_.SetMemoryHint<mm::memory_kind::device>(temp_buffer_hint);
-  // kmgr_.GetScratchpadAllocator(0).Reserve<mm::memory_kind::device>(temp_buffer_hint);
 }
 
 template <typename Backend>
