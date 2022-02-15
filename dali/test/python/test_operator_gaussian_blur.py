@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -326,11 +326,11 @@ def test_fail_gaussian_blur():
             yield check_fail_gaussian_blur, 10, 1.0, 11, shape, layout, axes, dev, err_regex
         # Negative, disallowed or both unspecified values of sigma and window size
         yield check_fail_gaussian_blur, 10, 0.0, 0, (100, 20, 3), "HWC", 3, dev, \
-              "`sigma` and `window_size` shouldn't be 0 at the same time for sample: \d+, axis: \d+\."
+              "`sigma` and `window_size` shouldn't be 0 at the same time for sample \d+, axis \d+\."
         yield check_fail_gaussian_blur, 10, -1.0, 0, (100, 20, 3), "HWC", 3, dev, \
-              "`sigma` must have non-negative values, got .\d* for sample: \d*, axis: \d*\."
+              "`sigma` must have non-negative values, got .\d* for sample \d*, axis \d*\."
         yield check_fail_gaussian_blur, 10, 0.0, -11, (100, 20, 3), "HWC", 3, dev, \
-              "`window_size` must have non-negative values, got .\d* for sample: \d*, axis : \d*\."
+              "`window_size` must have non-negative values, got .\d* for sample \d*, axis \d*\."
 
     yield check_fail_gaussian_blur, 10, 0.0, 2, (100, 20, 3), "HWC", 3, "cpu", \
           "Kernel window should have odd length, got: \d*\."
