@@ -57,7 +57,7 @@ void MakeRandomBatch(TensorList<CPUBackend> &data, int N,
  *             the end.
  * @param output_idx Index of the output in the workspace
  */
-void CheckResults(DeviceWorkspace ws, int batch_size, int i,
+void CheckResults(const DeviceWorkspace& ws, int batch_size, int i,
                   TensorList<CPUBackend> &data, int output_idx = 0);
 
 }  // namespace test
