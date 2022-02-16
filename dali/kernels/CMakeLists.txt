@@ -37,17 +37,17 @@ if (NOT CUSTOM_KERNEL_SRCS_PATTERN STREQUAL "")
   file(GLOB_RECURSE DALI_KERNEL_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
        "${CUSTOM_KERNEL_SRCS_PATTERN}")
 
+  # Needed for a usable build
+  list(APPEND DALI_KERNEL_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/kernel.cc")
+  list(APPEND DALI_KERNEL_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/common/scatter_gather.cu")
+  list(APPEND DALI_KERNEL_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/signal/fft/cufft_helper.cc")
+
   list(APPEND CUSTOM_KERNEL_SRCS_PATTERN_EXCLUDE "*test")
   foreach(exclude_pattern IN LISTS CUSTOM_KERNEL_SRCS_PATTERN_EXCLUDE)
     file(GLOB_RECURSE DALI_KERNEL_SRCS_EXCLUDE RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
           "${exclude_pattern}")
     remove(DALI_KERNEL_SRCS "${DALI_KERNEL_SRCS}" ${DALI_KERNEL_SRCS_EXCLUDE})
   endforeach()
-
-  # Needed for a usable build
-  list(APPEND DALI_KERNEL_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/kernel.cc")
-  list(APPEND DALI_KERNEL_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/common/scatter_gather.cu")
-  list(APPEND DALI_KERNEL_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/signal/fft/cufft_helper.cc")
 
   message("Filtering ${CUSTOM_KERNEL_SRCS_PATTERN}")
   message("Excluding ${CUSTOM_KERNEL_SRCS_PATTERN_EXCLUDE}")

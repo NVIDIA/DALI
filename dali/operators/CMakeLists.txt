@@ -55,18 +55,19 @@ if (NOT CUSTOM_OPERATOR_SRCS_PATTERN STREQUAL "")
   file(GLOB_RECURSE DALI_OPERATOR_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
        ${CUSTOM_OPERATOR_SRCS_PATTERN})
 
+  # Needed for a usable build
+  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/operators.cc")
+  # Those are needed for operators.cc to have all symbols
+  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/util/npp.cc")
+  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/decoder/nvjpeg/nvjpeg_helper.cc")
+  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/reader/nvdecoder/dynlink_nvcuvid.cc")
+
   list(APPEND CUSTOM_OPERATOR_SRCS_PATTERN_EXCLUDE "*test*")
   foreach(exclude_pattern IN LISTS CUSTOM_OPERATOR_SRCS_PATTERN_EXCLUDE)
     file(GLOB_RECURSE DALI_OPERATOR_SRCS_EXCLUDE RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
           "${exclude_pattern}")
     remove(DALI_OPERATOR_SRCS "${DALI_OPERATOR_SRCS}" ${DALI_OPERATOR_SRCS_EXCLUDE})
   endforeach()
-
-  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/operators.cc")
-  # Those are needed for operators.cc to have all symbols
-  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/util/npp.cc")
-  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/decoder/nvjpeg/nvjpeg_helper.cc")
-  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/reader/nvdecoder/dynlink_nvcuvid.cc")
 
   message("Filtering ${CUSTOM_OPERATOR_SRCS_PATTERN}")
   message("Excluding ${CUSTOM_OPERATOR_SRCS_PATTERN_EXCLUDE}")
