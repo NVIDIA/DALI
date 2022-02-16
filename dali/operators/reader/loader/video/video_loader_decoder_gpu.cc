@@ -15,21 +15,19 @@
 #include "dali/operators/reader/loader/video/video_loader_decoder_gpu.h"
 
 namespace dali {
-void VideoSampleGpu::DecodeToOutput(uint8_t *output, cudaStream_t stream) {
-  video_file->SetCudaStream(stream);
-
-  for (int i = 0; i < sequence_len; ++i) {
-    int frame_id = span->start_ + i * span->stride_;
-    video_file->SeekFrame(frame_id);
-    video_file->ReadNextFrame(output + i * video_file->FrameSize());
-  }
-}
-
 void VideoSampleGpu::Decode() {
+  TensorShape<4> shape = {
+    sequence_len, video_file->Height(), video_file->Width(), video_file->Channels()};
+
+  data_.Resize(
+    shape,
+    DALIDataType::DALI_UINT8);
+
   for (int i = 0; i < sequence_len; ++i) {
     int frame_id = span->start_ + i * span->stride_;
     video_file->SeekFrame(frame_id);
-    video_file->ReadNextFrame(static_cast<uint8_t *>(data_.raw_mutable_data()) + i * video_file->FrameSize());
+    video_file->ReadNextFrame(
+      static_cast<uint8_t *>(data_.raw_mutable_data()) + i * video_file->FrameSize());
   }
 }
 
@@ -39,20 +37,10 @@ void VideoLoaderDecoderGpu::PrepareEmpty(VideoSampleGpu &sample) {
 
 void VideoLoaderDecoderGpu::ReadSample(VideoSampleGpu &sample) {
   auto &sample_span = sample_spans_[current_index_];
-  auto &video_file = video_files_[sample_span.video_idx_];
-
-  TensorShape<4> sequence_shape = {
-    sequence_len_, video_file.Height(), video_file.Width(), video_file.Channels()};
-
-  sample.data_.Resize(
-    sequence_shape,
-    DALIDataType::DALI_UINT8);
-
-  auto data = sample.data_.mutable_data<uint8_t>();
 
   // Bind sample to the video and span, so it can be decoded later
   sample.span = &sample_span;
-  sample.video_file = &video_file;
+  sample.video_file = &video_files_[sample_span.video_idx_];
   sample.sequence_len = sequence_len_;
 
   if (has_labels_) {

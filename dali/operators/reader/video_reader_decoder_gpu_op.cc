@@ -33,20 +33,41 @@ void VideoReaderDecoderGpu::Prefetch() {
   }
 }
 
+bool VideoReaderDecoderGpu::SetupImpl(
+  std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) {
+  DataReader<GPUBackend, VideoSampleGpu>::SetupImpl(output_desc, ws);
+
+  output_desc.resize(has_labels_ ? 2 : 1);
+  int batch_size = GetCurrBatchSize();
+
+  TensorListShape<4> video_shape(batch_size);
+
+  for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+    auto &sample = GetSample(sample_id);
+    video_shape.set_tensor_shape(sample_id, sample.data_.shape());
+  }
+
+  output_desc[0] = { video_shape, DALI_UINT8 };
+
+  if (!has_labels_) {
+    return true;
+  }
+
+  output_desc[1] = {
+    uniform_list_shape<1>(batch_size, {1}),
+    DALI_INT32
+  };
+
+  return true;
+}
+
 void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
   auto &video_output = ws.Output<GPUBackend>(0);
   int batch_size = GetCurrBatchSize();
 
-  TensorListShape<4> output_shape(batch_size);
-
-  for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-    auto &sample = GetSample(sample_id);
-    output_shape.set_tensor_shape(sample_id, sample.data_.shape());
-  }
-
-  video_output.Resize(output_shape, GetSample(0).data_.type());
   video_output.SetLayout("FHWC");
 
+  // TODO(awolant): Would struct of arrays work better?
   for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
     auto &sample = GetSample(sample_id);
 
@@ -54,8 +75,7 @@ void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
       video_output.raw_mutable_tensor(sample_id),
       sample.data_.raw_data(),
       sample.data_.size(),
-      ws.stream()
-    );
+      ws.stream());
   }
 
   if (!has_labels_) {
@@ -63,25 +83,18 @@ void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
   }
 
   auto &labels_output = ws.Output<GPUBackend>(1);
-  TensorListShape<1> labels_shape;
-  labels_shape.resize(batch_size);
-
-  TensorShape<1> one_label_shape = { 1 };
-
-  for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-    labels_shape.set_tensor_shape(sample_id, one_label_shape);
-  }
-
-  labels_output.Resize(labels_shape, DALIDataType::DALI_INT32);
+  vector<int> labels_cpu(batch_size);
 
   for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
     auto &sample = GetSample(sample_id);
-    MemCopy(
-      labels_output.raw_mutable_tensor(sample_id),
-      &sample.label_,
-      sizeof(DALIDataType::DALI_INT32),
-      ws.stream());
+    labels_cpu[sample_id] = sample.label_;
   }
+
+  MemCopy(
+    labels_output.AsTensor()->raw_mutable_data(),
+    labels_cpu.data(),
+    batch_size * sizeof(DALI_INT32),
+    ws.stream());
 }
 
 DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoderGpu, GPU);

@@ -28,8 +28,6 @@ struct VideoSampleGpu : VideoSample<GPUBackend> {
   VideoSampleDesc *span = nullptr;
   int sequence_len = 0;
 
-  void DecodeToOutput(uint8_t *output, cudaStream_t stream);
-
   void Decode();
 };
 
