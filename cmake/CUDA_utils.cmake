@@ -45,12 +45,12 @@ elseif (${ARCH} MATCHES "aarch64")
   # aarch64 SBSA, only >=Volta
   # from the whole list/; "70" "75" "80" "86"
   # we pick only major arch as minor should be compatible without JITing, it should
-  # srhing the output binary
+  # shrink  the output binary
   set(CUDA_known_archs "70" "80")
 else()
   # from the whole list: "35" "50" "52" "60" "61" "70" "75" "80" "86"
   # we pick only major arch as minor should be compatible without JITing, it should
-  # srhing the output binary
+  # shrink  the output binary
   set(CUDA_known_archs "35" "50" "60" "70" "80")
 endif()
 
