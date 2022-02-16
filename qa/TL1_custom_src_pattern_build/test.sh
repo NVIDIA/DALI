@@ -17,11 +17,11 @@ example_1() {
   cmake -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
         -DBUILD_TEST=ON \
         -DBUILD_BENCHMARK=OFF \
-        -DCUSTOM_OPERATOR_SRCS_PATTERN="random/*.cc" \
-        -DCUSTOM_OPERATOR_SRCS_PATTERN_EXCLUDE="random/noise/*" \
-        -DCUSTOM_OPERATOR_TEST_SRCS_PATTERN="*random/*test*.cc" \
-        -DCUSTOM_KERNEL_SRCS_PATTERN="*slice*" \
-        -DCUSTOM_KERNEL_TEST_SRCS_PATTERN="slice_*test*" \
+        -DOPERATOR_SRCS_PATTERN="random/*.cc" \
+        -DOPERATOR_SRCS_PATTERN_EXCLUDE="random/noise/*" \
+        -DOPERATOR_TEST_SRCS_PATTERN="*random/*test*.cc" \
+        -DKERNEL_SRCS_PATTERN="*slice*" \
+        -DKERNEL_TEST_SRCS_PATTERN="slice_*test*" \
         ${DALI_DIR}
   build_and_check
 }
@@ -31,10 +31,10 @@ example_2() {
   cmake -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
         -DBUILD_TEST=ON \
         -DBUILD_BENCHMARK=OFF \
-        -DCUSTOM_OPERATOR_SRCS_PATTERN="reader/tf*.cc;reader/loader/loader.cc;decoder/cache/*" \
-        -DCUSTOM_OPERATOR_TEST_SRCS_PATTERN=" " \
-        -DCUSTOM_KERNEL_SRCS_PATTERN=" " \
-        -DCUSTOM_KERNEL_TEST_SRCS_PATTERN=" " \
+        -DOPERATOR_SRCS_PATTERN="reader/tf*.cc;reader/loader/loader.cc;decoder/cache/*" \
+        -DOPERATOR_TEST_SRCS_PATTERN=" " \
+        -DKERNEL_SRCS_PATTERN=" " \
+        -DKERNEL_TEST_SRCS_PATTERN=" " \
         ${DALI_DIR}
   build_and_check
 }

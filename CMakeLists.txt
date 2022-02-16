@@ -76,23 +76,23 @@ cmake_dependent_option(BUILD_LIBTAR "Build with support for libtar library" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
 
-set(CUSTOM_KERNEL_SRCS_PATTERN "" CACHE STRING
+set(KERNEL_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the kernel lib")
-set(CUSTOM_KERNEL_SRCS_PATTERN_EXCLUDE "" CACHE STRING
-    "Glob expression to exclude from CUSTOM_KERNEL_SRCS_PATTERN")
-set(CUSTOM_KERNEL_TEST_SRCS_PATTERN "" CACHE STRING
+set(KERNEL_SRCS_PATTERN_EXCLUDE "" CACHE STRING
+    "Glob expression to exclude from KERNEL_SRCS_PATTERN")
+set(KERNEL_TEST_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the kernel test binary")
-set(CUSTOM_KERNEL_TEST_SRCS_PATTERN_EXCLUDE "" CACHE STRING
-    "Glob expression to exclude from CUSTOM_KERNEL_SRCS_PATTERN")
+set(KERNEL_TEST_SRCS_PATTERN_EXCLUDE "" CACHE STRING
+    "Glob expression to exclude from KERNEL_SRCS_PATTERN")
 
-set(CUSTOM_OPERATOR_SRCS_PATTERN "" CACHE STRING
+set(OPERATOR_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the operators lib")
-set(CUSTOM_OPERATOR_SRCS_PATTERN_EXCLUDE "" CACHE STRING
-    "Glob expression to exclude from CUSTOM_OPERATOR_SRCS_PATTERN")
-set(CUSTOM_OPERATOR_TEST_SRCS_PATTERN "" CACHE STRING
+set(OPERATOR_SRCS_PATTERN_EXCLUDE "" CACHE STRING
+    "Glob expression to exclude from OPERATOR_SRCS_PATTERN")
+set(OPERATOR_TEST_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the operators test binary")
-set(CUSTOM_OPERATOR_TEST_SRCS_PATTERN_EXCLUDE "" CACHE STRING
-    "Glob expression to exclude from CUSTOM_OPERATOR_TEST_SRCS_PATTERN")
+set(OPERATOR_TEST_SRCS_PATTERN_EXCLUDE "" CACHE STRING
+    "Glob expression to exclude from OPERATOR_TEST_SRCS_PATTERN")
 
 # NVIDIA libraries
 cmake_dependent_option(BUILD_NVDEC "Build with NVIDIA NVDEC support" ON
