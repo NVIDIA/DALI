@@ -162,7 +162,7 @@ int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *pict
     stream_);
   // TODO(awolant): Alterantive is to copy the data to a buffer
   // and then process it on the stream. Check, if this is faster, when
-  // the benchamrk is ready.
+  // the benchmark is ready.
   CUDA_CALL(cudaStreamSynchronize(stream_));
   CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame));
 

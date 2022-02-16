@@ -23,12 +23,15 @@
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
 
 namespace dali {
-struct VideoSampleGpu : VideoSample<GPUBackend> {
-  FramesDecoderGpu *video_file = nullptr;
-  VideoSampleDesc *span = nullptr;
-  int sequence_len = 0;
-
+class VideoSampleGpu {
+ public:
   void Decode();
+
+  FramesDecoderGpu *video_file_ = nullptr;
+  VideoSampleDesc *span_ = nullptr;
+  int sequence_len_ = 0;
+  Tensor<GPUBackend> data_;
+  int label_ = -1;
 };
 
 
