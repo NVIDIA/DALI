@@ -78,12 +78,12 @@ option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
 
 set(CUSTOM_KERNEL_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the kernel lib")
-set(CUSTOM_KERNEL_SRCS_PATTERN_EXCLUDE "*test*" CACHE STRING
+set(CUSTOM_KERNEL_SRCS_PATTERN_EXCLUDE "" CACHE STRING
     "Glob expression to exclude from CUSTOM_KERNEL_SRCS_PATTERN")
 set(CUSTOM_KERNEL_TEST_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the kernel test binary")
-set(CUSTOM_KERNEL_TEST_SRCS_PATTERN_EXCLUDE "*test*" CACHE STRING
-"Glob expression to exclude from CUSTOM_KERNEL_SRCS_PATTERN")
+set(CUSTOM_KERNEL_TEST_SRCS_PATTERN_EXCLUDE "" CACHE STRING
+    "Glob expression to exclude from CUSTOM_KERNEL_SRCS_PATTERN")
 
 set(CUSTOM_OPERATOR_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the operators lib")
