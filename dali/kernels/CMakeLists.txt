@@ -41,7 +41,7 @@ if (NOT KERNEL_SRCS_PATTERN STREQUAL "" OR
   list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/common/scatter_gather.cu")
   list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/signal/fft/cufft_helper.cc")
 
-  list(APPEND KERNEL_SRCS_PATTERN_EXCLUDE "*test")
+  list(APPEND KERNEL_SRCS_PATTERN_EXCLUDE "*test*")
   custom_filter(CMAKE_CURRENT_SOURCE_DIR
                 DALI_KERNEL_SRCS
                 EXTRA_FILES
