@@ -69,9 +69,9 @@ class BrightnessContrastOp : public Operator<Backend> {
       contrast_center_ = spec.GetArgument<float>("contrast_center");
 
     if (std::is_same<Backend, GPUBackend>::value) {
-      kernel_manager_.Resize(1, 1);
+      kernel_manager_.Resize(1);
     } else {
-      kernel_manager_.Resize(num_threads_, max_batch_size_);
+      kernel_manager_.Resize(max_batch_size_);
     }
   }
 

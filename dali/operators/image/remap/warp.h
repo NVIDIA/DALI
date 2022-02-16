@@ -117,7 +117,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
 
   void SetupBackend(TensorListShape<> &shape, const DeviceWorkspace &ws) {
     auto context = GetContext(ws);
-    kmgr_.Resize<Kernel>(1, 1);
+    kmgr_.Resize<Kernel>(1);
     auto &req = kmgr_.Setup<Kernel>(
         0, context,
         input_,
@@ -129,9 +129,8 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   }
 
   void SetupBackend(TensorListShape<> &shape, const HostWorkspace &ws) {
-    int threads = ws.HasThreadPool() ? ws.GetThreadPool().NumThreads() : 1;
     int N = input_.num_samples();
-    kmgr_.Resize<Kernel>(threads, N);
+    kmgr_.Resize<Kernel>(N);
 
     shape.resize(N, input_.sample_dim());
     auto interp_types = param_provider_->InterpTypes();
@@ -165,7 +164,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
         DALIInterpType interp_type = interp_types.size() > 1 ? interp_types[i] : interp_types[0];
         auto context = GetContext(ws);
         kmgr_.Run<Kernel>(
-            tid, i, context,
+            i, context,
             output[i],
             input_[i],
             *param_provider_->ParamsCPU()(i),
@@ -184,7 +183,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
     input_ = view<const InputType,  tensor_ndim>(ws.template Input<Backend>(0));
     auto context = GetContext(ws);
     kmgr_.Run<Kernel>(
-        0, 0, context,
+        0, context,
         output,
         input_,
         param_provider_->ParamsGPU(),

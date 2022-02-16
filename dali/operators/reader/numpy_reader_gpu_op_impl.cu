@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -115,9 +115,9 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
     using Kernel = kernels::SliceGPU<T, T, Dims>;
-    kmgr_slice_.Resize<Kernel>(1, 1);
+    kmgr_slice_.Resize<Kernel>(1);
     kmgr_slice_.Setup<Kernel>(0, ctx, from, slice_args);
-    kmgr_slice_.Run<Kernel>(0, 0, ctx, to, from, slice_args);
+    kmgr_slice_.Run<Kernel>(0, ctx, to, from, slice_args);
   }
 
   if (nsamples_transpose) {
@@ -147,7 +147,7 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
     kmgr_transpose_.Setup<TransposeKernel>(0, ctx, from.shape, make_span(perm), dtype.size());
-    kmgr_transpose_.Run<TransposeKernel>(0, 0, ctx, to, from);
+    kmgr_transpose_.Run<TransposeKernel>(0, ctx, to, from);
   }
 }
 

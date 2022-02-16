@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ class TransposeGPU : public Transpose<GPUBackend> {
   using Kernel = kernels::TransposeGPU;
 
   explicit inline TransposeGPU(const OpSpec &spec) : Transpose(spec) {
-    kmgr_.Resize<Kernel>(1, 1);
+    kmgr_.Resize<Kernel>(1);
   }
 
   bool CanInferOutputs() const override {
@@ -58,7 +58,7 @@ class TransposeGPU : public Transpose<GPUBackend> {
 
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
-    kmgr_.Run<Kernel>(0, 0, ctx, out_data_.data(), in_data_.data());
+    kmgr_.Run<Kernel>(0, ctx, out_data_.data(), in_data_.data());
   }
 
  private:

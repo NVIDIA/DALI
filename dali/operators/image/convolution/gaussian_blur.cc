@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     params_.resize(nsamples);
     windows_.resize(nsamples);
 
-    kmgr_.template Resize<Kernel>(nthreads, nsamples);
+    kmgr_.template Resize<Kernel>(nsamples);
 
     for (int i = 0; i < nsamples; i++) {
       params_[i] = ObtainSampleParams<axes>(i, spec_, ws);
@@ -146,7 +146,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
               // I need a context for that particular run (or rather matching the thread &
               // scratchpad)
               auto ctx = ctx_;
-              kmgr_.Run<Kernel>(thread_id, sample_idx, ctx, out_view, in_view, gaussian_windows);
+              kmgr_.Run<Kernel>(sample_idx, ctx, out_view, in_view, gaussian_windows);
             }, elem_volume);
       }
     }

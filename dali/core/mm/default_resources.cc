@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "dali/core/mm/async_pool.h"
 #include "dali/core/mm/composite_resource.h"
 #include "dali/core/mm/cuda_vm_resource.h"
+#include "dali/core/call_at_exit.h"
 
 namespace dali {
 namespace mm {
@@ -138,21 +139,6 @@ struct CUDARTLoader {
   }
 };
 
-
-template <typename Callable>
-struct CallAtExit {
-  explicit CallAtExit(Callable &&c) : callable(std::move(c)) {}
-  ~CallAtExit() {
-    callable();
-  }
-  Callable callable;
-};
-
-template <typename Callable>
-CallAtExit<Callable> AtExit(Callable &&c) {
-  return CallAtExit<Callable>(std::forward<Callable>(c));
-}
-
 bool UseDeviceMemoryPool() {
   static bool value = []() {
     const char *env = std::getenv("DALI_USE_DEVICE_MEM_POOL");
@@ -239,7 +225,7 @@ const std::shared_ptr<pinned_async_resource> &ShareDefaultResourceImpl<memory_ki
     if (!g_resources.pinned_async) {
       static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
       g_resources.pinned_async = CreateDefaultPinnedResource();
-      static auto cleanup = AtExit([] {
+      static auto cleanup = AtScopeExit([] {
         g_resources.ReleasePinned();
       });
     }
@@ -254,7 +240,7 @@ const std::shared_ptr<managed_async_resource> &ShareDefaultResourceImpl<memory_k
     if (!g_resources.managed) {
       static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
       g_resources.managed = CreateDefaultManagedResource();
-      static auto cleanup = AtExit([] {
+      static auto cleanup = AtScopeExit([] {
         g_resources.ReleaseManaged();
       });
     }
@@ -274,7 +260,7 @@ const std::shared_ptr<device_async_resource> &ShareDefaultDeviceResourceImpl(int
       DeviceGuard devg(device_id);
       static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
       g_resources.device[device_id] = CreateDefaultDeviceResource();
-      static auto cleanup = AtExit([] {
+      static auto cleanup = AtScopeExit([] {
         g_resources.ReleaseDevice();
       });
     }

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,8 +51,7 @@ std::vector<OutputDesc> SetupKernel(kernels::KernelManager &kmgr, kernels::Kerne
                                     const TensorList<GPUBackend> &input,
                                     span<const MFCC<GPUBackend>::DctArgs> args, int axis) {
   using Kernel = kernels::signal::dct::Dct1DGpu<T>;
-  kmgr.Initialize<Kernel>();
-  kmgr.Resize<Kernel>(1, 1);
+  kmgr.Resize<Kernel>(1);
   auto in_view = view<const T>(input);
   auto &req = kmgr.Setup<Kernel>(0, ctx, in_view, args, axis);
   return {{req.output_shapes[0], input.type()}};
@@ -94,7 +93,7 @@ void MFCC<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
     auto out_view = view<T>(ws.Output<GPUBackend>(0));
     auto lifter_view = make_tensor_gpu<1>(lifter_coeffs_.data(),
                                           {static_cast<int64_t>(lifter_coeffs_.size())});
-    kmgr_.Run<Kernel>(0, 0, ctx_, out_view, in_view, lifter_view);
+    kmgr_.Run<Kernel>(0, ctx_, out_view, in_view, lifter_view);
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
 }
 

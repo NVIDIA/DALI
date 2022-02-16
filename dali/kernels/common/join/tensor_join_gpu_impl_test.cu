@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ struct TensorJoinGPUTest : public ::testing::Test {
     using Kernel = TensorJoinGPU<T, new_axis>;
     CUDAStream stream = CUDAStream::Create(true);
     KernelManager mgr;
-    mgr.Resize<Kernel>(1, 1);
+    mgr.Resize<Kernel>(1);
     KernelContext ctx;
     ctx.gpu.stream = stream;
 
@@ -79,7 +79,7 @@ struct TensorJoinGPUTest : public ::testing::Test {
       KernelRequirements &req = mgr.Setup<Kernel>(0, ctx, make_cspan(in_gpu_tls), axis);
       ASSERT_EQ(req.output_shapes.size(), 1);
       ASSERT_EQ(req.output_shapes[0], out_shape);
-      mgr.Run<Kernel>(0, 0, ctx, out.gpu(stream), make_cspan(in_gpu_tls));
+      mgr.Run<Kernel>(0, ctx, out.gpu(stream), make_cspan(in_gpu_tls));
 
       CUDA_CALL(cudaStreamSynchronize(stream));
       CheckResult(stream);

@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ void TensorSubscript<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   int N = input.num_samples();
   using T = kernels::type_of_size<element_size>;
   using Kernel = kernels::SliceGPU<T, T, ndim>;
-  kmgr_.Resize<Kernel>(1, 1);
+  kmgr_.Resize<Kernel>(1);
 
   struct Ctx {
     TensorListView<StorageGPU, const T, ndim> tmp_in;
@@ -55,7 +55,7 @@ void TensorSubscript<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   kernels::KernelContext kctx;
   kctx.gpu.stream = ws.stream();
   kmgr_.Setup<Kernel>(0, kctx, ctx->tmp_in, ctx->args);
-  kmgr_.Run<Kernel>(0, 0, kctx, ctx->tmp_out, ctx->tmp_in, ctx->args);
+  kmgr_.Run<Kernel>(0, kctx, ctx->tmp_out, ctx->tmp_in, ctx->args);
 }
 
 DALI_REGISTER_OPERATOR(TensorSubscript, TensorSubscript<GPUBackend>, GPU);

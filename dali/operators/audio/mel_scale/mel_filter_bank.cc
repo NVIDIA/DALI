@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -72,7 +72,6 @@ bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   const auto &input = ws.Input<CPUBackend>(0);
   auto in_shape = input.shape();
   int nsamples = input.num_samples();
-  auto nthreads = ws.GetThreadPool().NumThreads();
   auto layout = input.GetLayout();
   auto ndim = in_shape.sample_dim();
   args_.axis = layout.empty() ? std::max(0, ndim - 2) : layout.find('f');
@@ -80,8 +79,7 @@ bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     make_string("'f' axis not present in the layout. Got: `", layout, "`"));
   TYPE_SWITCH(input.type(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
     using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T>;
-    kmgr_.Initialize<MelFilterBankKernel>();
-    kmgr_.Resize<MelFilterBankKernel>(nthreads, nsamples);
+    kmgr_.Resize<MelFilterBankKernel>(nsamples);
     output_desc[0].type = type2id<T>::value;
     const auto in_view = view<const T>(input);
     output_desc[0].shape.resize(nsamples, in_view.sample_dim());
@@ -107,7 +105,7 @@ void MelFilterBank<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
         [this, &input, &output, i](int thread_id) {
           auto in_view = view<const T>(input[i]);
           auto out_view = view<T>(output[i]);
-          kmgr_.Run<MelFilterBankKernel>(thread_id, i, ctx_, out_view, in_view);
+          kmgr_.Run<MelFilterBankKernel>(i, ctx_, out_view, in_view);
         }, in_shape.tensor_size(i));
     }
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT

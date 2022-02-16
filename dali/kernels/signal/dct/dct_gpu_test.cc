@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -122,8 +122,7 @@ TEST_P(Dct1DGpuTest, DctTest) {
   KernelContext ctx;
   ctx.gpu.stream = 0;
   KernelManager kmgr;
-  kmgr.Initialize<Kernel>();
-  kmgr.Resize<Kernel>(1, 1);
+  kmgr.Resize<Kernel>(1);
 
   for (auto axis : axes_) {
     PrepareInput();
@@ -133,7 +132,7 @@ TEST_P(Dct1DGpuTest, DctTest) {
     ASSERT_EQ(out_shape, req.output_shapes[0]);
     ttl_out_.reshape(out_shape);
     auto out_view = ttl_out_.gpu();
-    kmgr.Run<Kernel>(0, 0, ctx, out_view, in_view, lifter_coeffs_gpu_);
+    kmgr.Run<Kernel>(0, ctx, out_view, in_view, lifter_coeffs_gpu_);
     CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
     auto cpu_in_view = ttl_in_.cpu();
     auto cpu_out_view = ttl_out_.cpu();
@@ -249,8 +248,7 @@ TEST_P(Dct1DGpuPerfTest, DISABLED_PerfTest) {
   KernelContext ctx;
   ctx.gpu.stream = 0;
   KernelManager kmgr;
-  kmgr.Initialize<Kernel>();
-  kmgr.Resize<Kernel>(1, 1);
+  kmgr.Resize<Kernel>(1);
   CUDAEvent start = CUDAEvent::CreateWithFlags(0);
   CUDAEvent end = CUDAEvent::CreateWithFlags(0);
   double tops = 0;
@@ -268,7 +266,7 @@ TEST_P(Dct1DGpuPerfTest, DISABLED_PerfTest) {
     int axis = inner_ ? 2 : 1;
     auto req = kmgr.Setup<Kernel>(0, ctx, in_view_gpu, make_cspan(args_batch_), axis);
     CUDA_CALL(cudaEventRecord(start));
-    kmgr.Run<Kernel>(0, 0, ctx, out_view_gpu, in_view_gpu, InTensorGPU<float, 1>{});
+    kmgr.Run<Kernel>(0, ctx, out_view_gpu, in_view_gpu, InTensorGPU<float, 1>{});
     CUDA_CALL(cudaEventRecord(end));
     CUDA_CALL(cudaDeviceSynchronize());
     float time;

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ NumpyReaderGPU::NumpyReaderGPU(const OpSpec& spec)
   bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
   loader_ = InitLoader<NumpyLoaderGPU>(spec, std::vector<string>(), shuffle_after_epoch);
 
-  kmgr_transpose_.Resize<TransposeKernel>(1, 1);
+  kmgr_transpose_.Resize<TransposeKernel>(1);
 }
 
 void NumpyReaderGPU::Prefetch() {

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ bool GridMaskCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_desc.resize(1);
   GetArguments(ws);
   output_desc[0] = {input.shape(), input.type()};
-  kernel_manager_.Resize(num_threads_, max_batch_size_);
+  kernel_manager_.Resize(max_batch_size_);
   TYPE_SWITCH(input.type(), type2id, Type, TYPES, (
       {
           using Kernel = kernels::GridMaskCpu<Type>;
@@ -75,9 +75,9 @@ void GridMaskCpu::RunImpl(workspace_t<CPUBackend> &ws) {
           auto in_view = view<const Type>(input);
           auto out_view = view<Type>(output);
           for (int sid = 0; sid < input.shape().num_samples(); sid++) {
-            tp.AddWork([&, sid](int tid) {
+            tp.AddWork([&, sid](int) {
               kernels::KernelContext ctx;
-              kernel_manager_.Run<Kernel>(tid, sid, ctx, out_view[sid], in_view[sid],
+              kernel_manager_.Run<Kernel>(sid, ctx, out_view[sid], in_view[sid],
                 tile_[sid], ratio_[sid], angle_[sid], shift_x_[sid], shift_y_[sid]);
             }, out_shape.tensor_size(sid));
           }

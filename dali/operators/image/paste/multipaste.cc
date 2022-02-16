@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ void MultiPasteCPU::RunTyped(workspace_t<CPUBackend> &ws) {
             auto region_shape = GetShape(i, iter, in_sh_view, in_anchor_view);
             Coords region_shape_view{region_shape.data(), coords_sh_};
             kernel_manager_.Run<Kernel>(
-                    thread_id, to_sample, ctx, tvout, tvin,
+                    to_sample, ctx, tvout, tvin,
                     in_anchor_view, region_shape_view, out_anchor_view);
           },
           out_shape.tensor_size(to_sample));
@@ -125,7 +125,7 @@ void MultiPasteCPU::RunTyped(workspace_t<CPUBackend> &ws) {
             Coords region_shape_view{region_shape.data(), coords_sh_};
 
             kernel_manager_.Run<Kernel>(
-                    thread_id, to_sample, ctx, tvout, tvin,
+                    to_sample, ctx, tvout, tvin,
                     in_anchor_view, region_shape_view, out_anchor_view);
           }
         },
