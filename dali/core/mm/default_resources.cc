@@ -225,7 +225,7 @@ const std::shared_ptr<pinned_async_resource> &ShareDefaultResourceImpl<memory_ki
     if (!g_resources.pinned_async) {
       static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
       g_resources.pinned_async = CreateDefaultPinnedResource();
-      static auto cleanup = AtBlockExit([] {
+      static auto cleanup = AtScopeExit([] {
         g_resources.ReleasePinned();
       });
     }
@@ -240,7 +240,7 @@ const std::shared_ptr<managed_async_resource> &ShareDefaultResourceImpl<memory_k
     if (!g_resources.managed) {
       static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
       g_resources.managed = CreateDefaultManagedResource();
-      static auto cleanup = AtBlockExit([] {
+      static auto cleanup = AtScopeExit([] {
         g_resources.ReleaseManaged();
       });
     }
@@ -260,7 +260,7 @@ const std::shared_ptr<device_async_resource> &ShareDefaultDeviceResourceImpl(int
       DeviceGuard devg(device_id);
       static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
       g_resources.device[device_id] = CreateDefaultDeviceResource();
-      static auto cleanup = AtBlockExit([] {
+      static auto cleanup = AtScopeExit([] {
         g_resources.ReleaseDevice();
       });
     }

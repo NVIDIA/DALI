@@ -79,7 +79,6 @@ bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     make_string("'f' axis not present in the layout. Got: `", layout, "`"));
   TYPE_SWITCH(input.type(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
     using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T>;
-    kmgr_.Initialize<MelFilterBankKernel>();
     kmgr_.Resize<MelFilterBankKernel>(nsamples);
     output_desc[0].type = type2id<T>::value;
     const auto in_view = view<const T>(input);

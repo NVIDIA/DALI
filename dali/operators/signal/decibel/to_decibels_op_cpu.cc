@@ -59,7 +59,6 @@ bool ToDecibels<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   TYPE_SWITCH(input.type(), type2id, T, (float), (
     using ToDbKernel = kernels::signal::ToDecibelsCpu<T>;
-    kmgr_.Initialize<ToDbKernel>();
     kmgr_.Resize<ToDbKernel>(nsamples);
     output_desc[0].shape = in_shape;
     output_desc[0].type = type2id<T>::value;

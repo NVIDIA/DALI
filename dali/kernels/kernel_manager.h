@@ -191,7 +191,7 @@ class DLL_PUBLIC KernelManager {
     if (!context.scratchpad) {
       DynamicScratchpad scratchpad({}, AccessOrder(context.gpu.stream));
       context.scratchpad = &scratchpad;
-      auto finally = AtBlockExit([&]() {
+      auto finally = AtScopeExit([&]() {
         context.scratchpad = nullptr;
       });
       inst.get<Kernel>().Run(context, std::forward<OutInArgs>(out_in_args)...);

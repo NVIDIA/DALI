@@ -23,7 +23,6 @@ namespace dali {
 class JpegCompressionDistortionGPU : public JpegCompressionDistortion<GPUBackend> {
  public:
   explicit JpegCompressionDistortionGPU(const OpSpec &spec) : JpegCompressionDistortion(spec) {
-    kmgr_.Initialize<JpegDistortionKernel>();
     kmgr_.Resize<JpegDistortionKernel>(1);
   }
 

@@ -108,7 +108,6 @@ class JpegDistortionTestGPU : public ::testing::TestWithParam<std::tuple<bool, b
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
 
-    kmgr_.Initialize<Kernel>();
     kmgr_.Resize<Kernel>(1);
 
     KernelContext ctx;

@@ -51,7 +51,6 @@ std::vector<OutputDesc> SetupKernel(kernels::KernelManager &kmgr, kernels::Kerne
                                     const TensorList<GPUBackend> &input,
                                     span<const MFCC<GPUBackend>::DctArgs> args, int axis) {
   using Kernel = kernels::signal::dct::Dct1DGpu<T>;
-  kmgr.Initialize<Kernel>();
   kmgr.Resize<Kernel>(1);
   auto in_view = view<const T>(input);
   auto &req = kmgr.Setup<Kernel>(0, ctx, in_view, args, axis);

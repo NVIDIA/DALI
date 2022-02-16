@@ -248,7 +248,6 @@ TEST_P(Dct1DGpuPerfTest, DISABLED_PerfTest) {
   KernelContext ctx;
   ctx.gpu.stream = 0;
   KernelManager kmgr;
-  kmgr.Initialize<Kernel>();
   kmgr.Resize<Kernel>(1);
   CUDAEvent start = CUDAEvent::CreateWithFlags(0);
   CUDAEvent end = CUDAEvent::CreateWithFlags(0);

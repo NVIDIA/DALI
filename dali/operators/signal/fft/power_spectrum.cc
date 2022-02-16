@@ -69,7 +69,6 @@ bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   using OutputType = float;
   VALUE_SWITCH(in_shape.sample_dim(), Dims, FFT_SUPPORTED_NDIMS, (
     using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, Dims>;
-    kmgr_.Initialize<FftKernel>();
     kmgr_.Resize<FftKernel>(nsamples);
     output_desc[0].type = type2id<OutputType>::value;
     output_desc[0].shape.resize(nsamples, Dims);

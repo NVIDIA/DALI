@@ -190,7 +190,6 @@ bool EraseImplCpu<T, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   args_ = detail::GetEraseArgs<T, Dims>(spec_, ws, shape, layout);
 
-  kmgr_.Initialize<EraseKernel>();
   kmgr_.Resize<EraseKernel>(nsamples);
   // the setup step is not necessary for this kernel (output and input shapes are the same)
 

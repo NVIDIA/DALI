@@ -35,7 +35,7 @@ struct CallAtExit {
 }  // namespace detail
 
 template <typename Callable>
-detail::CallAtExit<Callable> AtBlockExit(Callable &&c) {
+detail::CallAtExit<Callable> AtScopeExit(Callable &&c) {
   return detail::CallAtExit<Callable>(std::forward<Callable>(c));
 }
 
