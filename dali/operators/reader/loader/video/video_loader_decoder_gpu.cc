@@ -19,10 +19,17 @@ void VideoSampleGpu::DecodeToOutput(uint8_t *output, cudaStream_t stream) {
   video_file->SetCudaStream(stream);
 
   for (int i = 0; i < sequence_len; ++i) {
-    // TODO(awolant): This seek can be optimized - for consecutive frames not needed etc.
     int frame_id = span->start_ + i * span->stride_;
     video_file->SeekFrame(frame_id);
     video_file->ReadNextFrame(output + i * video_file->FrameSize());
+  }
+}
+
+void VideoSampleGpu::Decode() {
+  for (int i = 0; i < sequence_len; ++i) {
+    int frame_id = span->start_ + i * span->stride_;
+    video_file->SeekFrame(frame_id);
+    video_file->ReadNextFrame(static_cast<uint8_t *>(data_.raw_mutable_data()) + i * video_file->FrameSize());
   }
 }
 
@@ -44,8 +51,8 @@ void VideoLoaderDecoderGpu::ReadSample(VideoSampleGpu &sample) {
   auto data = sample.data_.mutable_data<uint8_t>();
 
   // Bind sample to the video and span, so it can be decoded later
-  sample.span = &sample_spans_[current_index_];
-  sample.video_file = &video_files_[sample_span.video_idx_];
+  sample.span = &sample_span;
+  sample.video_file = &video_file;
   sample.sequence_len = sequence_len_;
 
   if (has_labels_) {
@@ -75,14 +82,14 @@ void VideoLoaderDecoderGpu::PrepareMetadataImpl() {
     }
   }
   if (shuffle_) {
-      // seeded with hardcoded value to get
-      // the same sequence on every shard
-      std::mt19937 g(kDaliDataloaderSeed);
-      std::shuffle(std::begin(sample_spans_), std::end(sample_spans_), g);
-    }
+    // seeded with hardcoded value to get
+    // the same sequence on every shard
+    std::mt19937 g(kDaliDataloaderSeed);
+    std::shuffle(std::begin(sample_spans_), std::end(sample_spans_), g);
+  }
 
-    // set the initial index for each shard
-    Reset(true);
+  // set the initial index for each shard
+  Reset(true);
 }
 
 void VideoLoaderDecoderGpu::Reset(bool wrap_to_shard) {

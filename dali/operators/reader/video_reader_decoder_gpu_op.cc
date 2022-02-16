@@ -24,12 +24,20 @@ VideoReaderDecoderGpu::VideoReaderDecoderGpu(const OpSpec &spec)
       loader_ = InitLoader<VideoLoaderDecoderGpu>(spec);
 }
 
+void VideoReaderDecoderGpu::Prefetch() {
+  DataReader<GPUBackend, VideoSampleGpu>::Prefetch();
+
+  auto &current_batch = prefetched_batch_queue_[curr_batch_producer_];
+  for (auto &sample : current_batch) {
+    sample->Decode();
+  }
+}
+
 void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
   auto &video_output = ws.Output<GPUBackend>(0);
   int batch_size = GetCurrBatchSize();
 
-  TensorListShape<4> output_shape;
-  output_shape.resize(batch_size);
+  TensorListShape<4> output_shape(batch_size);
 
   for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
     auto &sample = GetSample(sample_id);
@@ -37,13 +45,17 @@ void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
   }
 
   video_output.Resize(output_shape, GetSample(0).data_.type());
-  video_output.SetLayout("NFHWC");
+  video_output.SetLayout("FHWC");
 
   for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
     auto &sample = GetSample(sample_id);
-    sample.DecodeToOutput(static_cast<uint8_t *>(
-      video_output.raw_mutable_tensor(sample_id)),
-      ws.stream());
+
+    MemCopy(
+      video_output.raw_mutable_tensor(sample_id),
+      sample.data_.raw_data(),
+      sample.data_.size(),
+      ws.stream()
+    );
   }
 
   if (!has_labels_) {

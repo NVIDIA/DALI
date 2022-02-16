@@ -27,6 +27,8 @@ class VideoReaderDecoderGpu : public DataReader<GPUBackend, VideoSampleGpu> {
 
   void RunImpl(DeviceWorkspace &ws) override;
 
+  void Prefetch() override;
+
  private:
   bool has_labels_ = false;
 };

@@ -192,7 +192,6 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
     .AddOutput("labels", "gpu"));
 
   pipe.Build({{"frames", "gpu"}, {"labels", "gpu"}});
-  // pipe.Build({{"frames", "gpu"}});
 
   int num_sequences = 20;
   int sequence_id = 0;
@@ -213,7 +212,7 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
     auto &frame_video_output = ws.template Output<dali::GPUBackend>(0);
     auto &frame_label_output = ws.template Output<dali::GPUBackend>(1);
 
-    ASSERT_EQ(frame_video_output.GetLayout(), "NFHWC");
+    ASSERT_EQ(frame_video_output.GetLayout(), "FHWC");
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
@@ -232,6 +231,24 @@ TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
           frame_cpu.data(),
           this->GetVfrFrame(video_idx, gt_frame_id + i * stride),
           this->FrameSize(video_idx));
+
+        this->SaveFrame(
+          frame_cpu.data(),
+          i,
+          sample_id,
+          sequence_id,
+          "/home/wazka/Downloads/frames/reader/",
+          this->Width(video_idx),
+          this->Height(video_idx));
+
+        this->SaveFrame(
+          this->GetVfrFrame(video_idx, gt_frame_id + i * stride),
+          i,
+          sample_id,
+          sequence_id,
+          "/home/wazka/Downloads/frames/gt/",
+          this->Width(video_idx),
+          this->Height(video_idx));
       }
 
       gt_frame_id += step;
