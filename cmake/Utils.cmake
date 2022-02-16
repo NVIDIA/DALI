@@ -409,6 +409,7 @@ function(custom_filter CURR_DIR ORIG_FILE_LIST EXTRA_FILE_LIST INCLUDE_PATTERNS 
     message("Including ${INCLUDE_PATTERNS}: ${${INCLUDE_PATTERNS}}")
     message("Excluding ${EXCLUDE_PATTERNS}: ${${EXCLUDE_PATTERNS}}")
     message("${${ORIG_FILE_LIST}}")
+    set(${ORIG_FILE_LIST} ${${ORIG_FILE_LIST}} PARENT_SCOPE)
   endif()
 
 endfunction()
