@@ -14,6 +14,9 @@
 
 #include "dali/operators/reader/loader/video/video_loader_decoder_gpu.h"
 
+#include "dali/util/nvml.h"
+#include "dali/core/cuda_stream.h"
+
 namespace dali {
 void VideoSampleGpu::Decode() {
   TensorShape<4> shape = {
@@ -32,6 +35,38 @@ void VideoSampleGpu::Decode() {
     video_file_->ReadNextFrame(
       static_cast<uint8_t *>(data_.raw_mutable_data()) + i * video_file_->FrameSize());
   }
+}
+
+VideoLoaderDecoderGpu::~VideoLoaderDecoderGpu() {
+  CUDA_CALL(cudaStreamDestroy(cuda_stream_));
+}
+
+cudaStream_t VideoLoaderDecoderGpu::GetCudaStream() {
+  #if NVML_ENABLED
+  {
+    nvml::Init();
+    static float driver_version = nvml::GetDriverVersion();
+    if (driver_version > 460 && driver_version < 470.21) {
+      DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
+      return 0;
+    }
+  }
+  #else
+  {
+    int driver_cuda_version = 0;
+    CUDA_CALL(cuDriverGetVersion(&driver_cuda_version));
+    if (driver_cuda_version >= 11030 && driver_cuda_version < 11040) {
+      DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
+      return 0;
+    }
+  }
+  #endif
+
+  // TODO(awolant): Check per decoder stream
+  cudaStream_t stream;
+  DeviceGuard dg(device_id_);
+  CUDA_CALL(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+  return stream;
 }
 
 void VideoLoaderDecoderGpu::PrepareEmpty(VideoSampleGpu &sample) {
@@ -61,7 +96,7 @@ Index VideoLoaderDecoderGpu::SizeImpl() {
 void VideoLoaderDecoderGpu::PrepareMetadataImpl() {
   video_files_.reserve(filenames_.size());
   for (auto &filename : filenames_) {
-    video_files_.emplace_back(filename);
+    video_files_.emplace_back(filename, cuda_stream_);
   }
 
   for (size_t video_idx = 0; video_idx < video_files_.size(); ++video_idx) {

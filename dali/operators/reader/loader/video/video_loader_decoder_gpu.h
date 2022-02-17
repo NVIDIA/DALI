@@ -42,7 +42,8 @@ class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
     sequence_len_(spec.GetArgument<int>("sequence_length")),
     stride_(spec.GetArgument<int>("stride")),
-    step_(spec.GetArgument<int>("step")) {
+    step_(spec.GetArgument<int>("step")),
+    cuda_stream_(GetCudaStream()) {
     if (step_ <= 0) {
       step_ = stride_ * sequence_len_;
     }
@@ -53,6 +54,8 @@ class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
 
   void PrepareEmpty(VideoSampleGpu &sample) override;
 
+  ~VideoLoaderDecoderGpu();
+
  protected:
   Index SizeImpl() override;
 
@@ -60,6 +63,8 @@ class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
 
  private:
   void Reset(bool wrap_to_shard) override;
+
+  cudaStream_t GetCudaStream();
 
   std::vector<std::string> filenames_;
   std::vector<int> labels_;
@@ -72,6 +77,8 @@ class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
   int sequence_len_;
   int stride_;
   int step_;
+
+  cudaStream_t cuda_stream_;
 };
 
 }  // namespace dali
