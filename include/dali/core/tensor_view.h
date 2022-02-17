@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -121,7 +121,7 @@ struct TensorViewBase {
   }
 
   template <int other_ndim>
-  TensorView<Backend, DataType, other_ndim> to_static();
+  TensorView<Backend, DataType, other_ndim> to_static() const;
 
   DataType *data = nullptr;
   TensorShape<ndim> shape;
@@ -224,7 +224,8 @@ struct TensorView : TensorViewBase<Backend, DataType, ndim> {
 
 template <typename Backend, typename DataType, int ndim>
 template <int other_ndim>
-TensorView<Backend, DataType, other_ndim> TensorViewBase<Backend, DataType, ndim>::to_static() {
+TensorView<Backend, DataType, other_ndim>
+TensorViewBase<Backend, DataType, ndim>::to_static() const {
   static_assert(other_ndim != DynamicDimensions,
                 "Conversion to static only allowed for static shape");
   static_assert(ndim == other_ndim || ndim == DynamicDimensions, "Cannot convert to other ndim");
