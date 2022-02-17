@@ -83,7 +83,7 @@ void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
   }
 
   auto &labels_output = ws.Output<GPUBackend>(1);
-  vector<int> labels_cpu(batch_size);
+  SmallVector<int, 32> labels_cpu;
 
   for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
     auto &sample = GetSample(sample_id);
