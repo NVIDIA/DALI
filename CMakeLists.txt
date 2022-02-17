@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -124,6 +124,7 @@ cmake_dependent_option(STATIC_LIBS "Build static libraries instead of shared-obj
 
 option(VERBOSE_LOGS "Adds verbose loging to DALI" OFF)
 option(WERROR "Treat all warnings as errors" OFF)
+option(RELWITHDEBINFO_CUDA_DEBUG "Add device side debug info for RelWithDebInfo build conifguration" OFF)
 
 cmake_dependent_option(DALI_CLANG_ONLY "Compile DALI using only Clang. Suitable only for developement."
     OFF "CMAKE_CXX_COMPILER_ID STREQUAL Clang" OFF)
@@ -215,7 +216,10 @@ set(CMAKE_CUDA_FLAGS_RELEASE "${CMAKE_CUDA_FLAGS_RELEASE} -DDALI_DEBUG=0")
 
 # Release with debug info flags
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -g3")
-set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "${CMAKE_CUDA_FLAGS_RELWITHDEBINFO} -g -lineinfo")
+set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "${CMAKE_CUDA_FLAGS_RELWITHDEBINFO} -g")
+if (RELWITHDEBINFO_CUDA_DEBUG)
+  set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO ${CMAKE_CUDA_FLAGS_RELWITHDEBINFO} " -lineinfo")
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
