@@ -25,7 +25,6 @@
 #include "dali/kernels/imgproc/convolution/cutlass/utility.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/reduce/online_reducer.h"
-#include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
 namespace kernels {

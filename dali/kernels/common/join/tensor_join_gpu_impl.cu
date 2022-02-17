@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,8 +31,8 @@ void TensorJoinImplGPU<T, new_axis>::Setup(
   int N = output_shape.num_samples();
   se.add<mm::memory_kind::device, OutputDesc<T>>(N);
   se.add<mm::memory_kind::device, InputDesc<T>>(num_inputs * N);
-  se.add<mm::memory_kind::host, OutputDesc<T>>(N);
-  se.add<mm::memory_kind::host, InputDesc<T>>(num_inputs * N);
+  se.add<mm::memory_kind::pinned, OutputDesc<T>>(N);
+  se.add<mm::memory_kind::pinned, InputDesc<T>>(num_inputs * N);
   axis_ = axis;
 }
 
@@ -45,8 +45,8 @@ void TensorJoinImplGPU<T, new_axis>::Run(
   int N = out.num_samples();
   int N_in = N * njoin;
 
-  auto output_descs_cpu = make_span(ctx.scratchpad->AllocateHost<OutputDesc<T>>(N), N);
-  auto input_descs_cpu  = make_span(ctx.scratchpad->AllocateHost<InputDesc<T>>(N_in), N_in);
+  auto output_descs_cpu = make_span(ctx.scratchpad->AllocatePinned<OutputDesc<T>>(N), N);
+  auto input_descs_cpu  = make_span(ctx.scratchpad->AllocatePinned<InputDesc<T>>(N_in), N_in);
 
   FillDescs(output_descs_cpu, input_descs_cpu, out, in_lists, axis_);
 

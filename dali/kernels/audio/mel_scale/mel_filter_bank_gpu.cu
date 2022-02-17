@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -157,12 +157,12 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
     } else {
       FillBlockDescsOuterFft(in_list, out_list);
     }
-    auto block_descs = scratchpad->ToGPU(stream, block_descs_);
-    auto interval_ends = scratchpad->ToGPU(stream, interval_ends_);
-    auto weights_down = scratchpad->ToGPU(stream, weights_down_);
-    T *norm_factors = nullptr;
-    if (args_.normalize)
-      norm_factors = scratchpad->ToGPU(stream, norm_factors_);
+    BlockDesc<T> *block_descs = nullptr;
+    int *interval_ends = nullptr;
+    T *weights_down = nullptr, *norm_factors = nullptr;
+    std::tie(block_descs, interval_ends, weights_down, norm_factors) =
+          scratchpad->ToContiguousGPU(stream, block_descs_, interval_ends_,
+                                      weights_down_, norm_factors_);
     if (inner_fft_) {
       MelFilterBankKernelInnerFft
           <<<block_descs_.size(), kBlockDim1, 0, stream>>>

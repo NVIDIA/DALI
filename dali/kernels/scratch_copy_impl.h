@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <tuple>
 #include <memory>
 #include "dali/core/traits.h"
+#include "dali/core/mm/memory.h"
 #include "dali/kernels/context.h"
 
 namespace dali {
@@ -34,9 +35,9 @@ inline void copy_to_buffer(char *buffer, const size_t *offsets) {}
  */
 template <typename Collection, typename... Collections>
 void copy_to_buffer(char *buffer,
-                   const size_t *offsets,
-                   const Collection &c,
-                   const Collections &... tail) {
+                    const size_t *offsets,
+                    const Collection &c,
+                    const Collections &... tail) {
   using T = std::remove_cv_t<element_t<Collection>>;
   std::copy(dali::begin(c), dali::end(c), reinterpret_cast<T*>(buffer + offsets[0]));
   copy_to_buffer(buffer, offsets+1, tail...);
@@ -134,19 +135,13 @@ ToContiguousGPUMem(Scratchpad &scratchpad, cudaStream_t stream, const Collection
   size_t alignment = detail::variadic_max(alignof(element_t<Collections>)...);
   size_t total_size = std::get<N>(offsets);
 
-  char *tmp;
-  std::unique_ptr<char[]> heap_buf;
-  if (total_size <= 0x2000) {
-     tmp = static_cast<char*>(alloca(0x2000));
-  } else {
-    heap_buf.reset(new char[total_size]);
-    tmp = heap_buf.get();
-  }
+  auto tmp = mm::alloc_raw_async_unique<char, mm::memory_kind::pinned>(
+        total_size, mm::host_sync, stream, 256);
 
-  detail::copy_to_buffer(tmp, &offsets[0], c...);
+  detail::copy_to_buffer(tmp.get(), &offsets[0], c...);
   void *out_ptr = scratchpad.Alloc<mm::memory_kind::device>(total_size, alignment);
 
-  CUDA_CALL(cudaMemcpyAsync(out_ptr, tmp, total_size, cudaMemcpyHostToDevice, stream));
+  CUDA_CALL(cudaMemcpyAsync(out_ptr, tmp.get(), total_size, cudaMemcpyHostToDevice, stream));
   return detail::GetCollectionPtrs(out_ptr, &offsets[0], c...);
 }
 

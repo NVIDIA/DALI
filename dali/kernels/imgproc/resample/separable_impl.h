@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -108,7 +108,7 @@ struct SeparableResamplingGPUImpl : Interface {
       num_blocks += x;
 
     se.add<mm::memory_kind::device, BlockDesc>(num_blocks);
-    se.add<mm::memory_kind::host, BlockDesc>(num_blocks);
+    se.add<mm::memory_kind::pinned, BlockDesc>(num_blocks);
 
     // Request memory for intermediate storage.
     se.add<mm::memory_kind::device, IntermediateElement>(GetTmpMemSize());
@@ -146,7 +146,7 @@ struct SeparableResamplingGPUImpl : Interface {
       blocks_in_all_passes += x;
 
     OutTensorCPU<BlockDesc, 1> sample_lookup_cpu = {
-      context.scratchpad->AllocateHost<BlockDesc>(blocks_in_all_passes),
+      context.scratchpad->AllocatePinned<BlockDesc>(blocks_in_all_passes),
       { blocks_in_all_passes }
     };
     OutTensorGPU<BlockDesc, 1> sample_lookup_gpu = {
