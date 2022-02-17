@@ -15,7 +15,6 @@
 #include "dali/operators/reader/loader/video/video_loader_decoder_gpu.h"
 
 #include "dali/util/nvml.h"
-#include "dali/core/cuda_stream.h"
 
 namespace dali {
 void VideoSampleGpu::Decode() {
@@ -38,7 +37,7 @@ void VideoSampleGpu::Decode() {
 }
 
 VideoLoaderDecoderGpu::~VideoLoaderDecoderGpu() {
-  CUDA_CALL(cudaStreamDestroy(cuda_stream_));
+  CUDA_DTOR_CALL(cudaStreamDestroy(cuda_stream_));
 }
 
 cudaStream_t VideoLoaderDecoderGpu::GetCudaStream() {
