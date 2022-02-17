@@ -293,7 +293,8 @@ class SliceGPU {
     }
     unsigned max_active_blocks = blocks_per_sm_ * GetSmCount();
     uint64_t waves = div_ceil(total_volume + 1, kMaxBlockSize * max_active_blocks);
-    block_size_ = div_ceil(total_volume, max_active_blocks * waves);
+    unsigned block_align = 32 * detail::PackedBuffer<OutputType>::kCapacity;
+    block_size_ = block_align * div_ceil(total_volume, max_active_blocks * waves * block_align);
     if (block_size_ < kMinBlockSize) block_size_ = kMinBlockSize;
     if (block_size_ > kMaxBlockSize) block_size_ = kMaxBlockSize;
 
