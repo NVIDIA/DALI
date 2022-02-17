@@ -25,6 +25,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/fast_div.h"
 #include "dali/core/static_switch.h"
+#include "dali/core/util.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/common/type_erasure.h"
 #include "dali/kernels/kernel.h"
@@ -294,7 +295,7 @@ class SliceGPU {
     unsigned max_active_blocks = blocks_per_sm_ * GetSmCount();
     uint64_t waves = div_ceil(total_volume + 1, kMaxBlockSize * max_active_blocks);
     unsigned block_align = 32 * detail::PackedBuffer<OutputType>::kCapacity;
-    block_size_ = block_align * div_ceil(total_volume, max_active_blocks * waves * block_align);
+    block_size_ = align_up(div_ceil(total_volume, max_active_blocks * waves), block_align);
     if (block_size_ < kMinBlockSize) block_size_ = kMinBlockSize;
     if (block_size_ > kMaxBlockSize) block_size_ = kMaxBlockSize;
 
