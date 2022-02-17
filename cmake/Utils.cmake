@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 # caffe_parse_header
 # Reads set of version defines from the header file
@@ -390,3 +390,26 @@ macro(DETERMINE_GCC_SYSTEM_INCLUDE_DIRS _lang _compiler _flags _result)
         separate_arguments(${_result})
     endif ()
 endmacro()
+
+function(custom_filter CURR_DIR ORIG_FILE_LIST EXTRA_FILE_LIST INCLUDE_PATTERNS EXCLUDE_PATTERNS)
+  if (NOT ${INCLUDE_PATTERNS} STREQUAL "")
+    file(GLOB_RECURSE ${ORIG_FILE_LIST} RELATIVE ${${CURR_DIR}}
+        "${${INCLUDE_PATTERNS}}")
+
+    foreach(file IN LISTS ${EXTRA_FILE_LIST})
+      list(APPEND ${ORIG_FILE_LIST} "${file}")
+    endforeach()
+
+    foreach(exclude_pattern IN LISTS ${EXCLUDE_PATTERNS})
+      file(GLOB_RECURSE excluded RELATIVE ${${CURR_DIR}} "${exclude_pattern}")
+      remove(${ORIG_FILE_LIST} "${${ORIG_FILE_LIST}}" ${excluded})
+    endforeach()
+
+    message("Filtering ${ORIG_FILE_LIST}")
+    message("Including ${INCLUDE_PATTERNS}: ${${INCLUDE_PATTERNS}}")
+    message("Excluding ${EXCLUDE_PATTERNS}: ${${EXCLUDE_PATTERNS}}")
+    message("${${ORIG_FILE_LIST}}")
+    set(${ORIG_FILE_LIST} ${${ORIG_FILE_LIST}} PARENT_SCOPE)
+  endif()
+
+endfunction()

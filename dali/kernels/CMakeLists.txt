@@ -33,6 +33,32 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_KERNEL_SRCS)
 collect_test_sources(DALI_KERNEL_TEST_SRCS)
 
+if (NOT KERNEL_SRCS_PATTERN STREQUAL "" OR
+    NOT KERNEL_SRCS_PATTERN_EXCLUDE STREQUAL "")
+  # Needed for a usable build
+  set(EXTRA_FILES "")
+  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/kernel.cc")
+  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/common/scatter_gather.cu")
+  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/signal/fft/cufft_helper.cc")
+
+  list(APPEND KERNEL_SRCS_PATTERN_EXCLUDE "*test*")
+  custom_filter(CMAKE_CURRENT_SOURCE_DIR
+                DALI_KERNEL_SRCS
+                EXTRA_FILES
+                KERNEL_SRCS_PATTERN
+                KERNEL_SRCS_PATTERN_EXCLUDE)
+endif()
+
+if (NOT KERNEL_TEST_SRCS_PATTERN STREQUAL "" OR
+    NOT KERNEL_TEST_SRCS_PATTERN_EXCLUDE STREQUAL "")
+  set(EXTRA_FILES "")
+  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/dali_kernel_test.cc")
+  custom_filter(CMAKE_CURRENT_SOURCE_DIR
+                DALI_KERNEL_TEST_SRCS
+                EXTRA_FILES KERNEL_TEST_SRCS_PATTERN
+                KERNEL_TEST_SRCS_PATTERN_EXCLUDE)
+endif()
+
 # cuFFT library
 adjust_source_file_language_property("${DALI_KERNEL_SRCS}")
 set_source_files_properties("dummy.cu" PROPERTIES LANGUAGE CUDA)
