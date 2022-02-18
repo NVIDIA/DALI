@@ -59,11 +59,10 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
     const auto& input = ws.template Input<GPUBackend>(0);
     auto processed_shape = input.shape();
     int nsamples = processed_shape.num_samples();
-    constexpr int nthreads = 1;
 
     output_desc.resize(1);
     output_desc[0].type = type2id<Out>::value;
-    output_desc[0].shape = input.shape();
+    // Shape is set by ProcessOutputDesc
 
     params_.resize(nsamples);
     windows_.resize(nsamples);
@@ -75,7 +74,7 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
       windows.shape.resize(nsamples);
     }
 
-    kmgr_.template Resize<Kernel>(nsamples);
+    kmgr_.template Resize<Kernel>(1);
 
     for (int i = 0; i < nsamples; i++) {
       params_[i] = ObtainSampleParams<axes>(i, spec_, ws, sample_ctx_);

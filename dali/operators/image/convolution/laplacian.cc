@@ -122,7 +122,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
 
     output_desc.resize(1);
     output_desc[0].type = type2id<Out>::value;
-    output_desc[0].shape = input.shape();
+    // Shape is set by ProcessOutputDesc
 
     args.ObtainLaplacianArgs(spec_, ws, nsamples, sample_ctx_);
     windows_.resize(nsamples);

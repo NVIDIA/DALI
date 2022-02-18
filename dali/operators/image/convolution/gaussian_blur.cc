@@ -96,8 +96,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
 
     output_desc.resize(1);
     output_desc[0].type = type2id<Out>::value;
-    // The shape of data stays untouched
-    output_desc[0].shape = input.shape();
+    // Shape is set by ProcessOutputDesc
 
     params_.resize(nsamples);
     windows_.resize(nsamples);
