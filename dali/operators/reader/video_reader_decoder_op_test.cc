@@ -21,6 +21,7 @@
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/cv_mat_utils.h"
+#include "dali/core/dev_buffer.h"
 
 
 namespace dali {
@@ -147,6 +148,87 @@ TEST_F(VideoReaderDecoderCpuTest, CpuVariableFrameRate_CpuOnlyTests) {
       for (int i = 0; i < sequence_length; ++i) {
         this->CompareFrames(
           sample + i * this->FrameSize(video_idx),
+          this->GetVfrFrame(video_idx, gt_frame_id + i * stride),
+          this->FrameSize(video_idx));
+      }
+
+      gt_frame_id += step;
+      ++sequence_id;
+
+      if (gt_frame_id + stride * sequence_length >= this->NumFrames(video_idx)) {
+        gt_frame_id = 0;
+        ++video_idx;
+        if (video_idx == this->NumVideos()) {
+          video_idx = 0;
+        }
+      }
+    }
+    ++batch_id;
+  }
+}
+
+TEST_F(VideoReaderDecoderGpuTest, GpuVariableFrameRate) {
+  const int batch_size = 4;
+  const int sequence_length = 6;
+  const int stride = 3;
+  const int step = 10;
+
+  Pipeline pipe(batch_size, 4, 0);
+
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "gpu")
+    .AddArg("sequence_length", sequence_length)
+    .AddArg("stride", stride)
+    .AddArg("step", step)
+    .AddArg(
+      "filenames",
+      std::vector<std::string>{
+        testing::dali_extra_path() + "/db/video/vfr/test_1.mp4",
+        testing::dali_extra_path() + "/db/video/vfr/test_2.mp4"})
+    .AddArg("labels", std::vector<int>{0, 1})
+    .AddArg("initial_fill", 1)
+    .AddArg("lazy_init", true)
+    .AddOutput("frames", "gpu")
+    .AddOutput("labels", "gpu"));
+
+  pipe.Build({{"frames", "gpu"}, {"labels", "gpu"}});
+
+  int num_sequences = 20;
+  int sequence_id = 0;
+  int batch_id = 0;
+  int gt_frame_id = 0;
+
+  int video_idx = 0;
+
+  std::vector<uint8_t> frame_cpu(std::max(
+    this->FrameSize(0), this->FrameSize(1)));
+
+  DeviceWorkspace ws;
+  while (sequence_id < num_sequences) {
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+
+    auto &frame_video_output = ws.template Output<dali::GPUBackend>(0);
+    auto &frame_label_output = ws.template Output<dali::GPUBackend>(1);
+
+    ASSERT_EQ(frame_video_output.GetLayout(), "FHWC");
+
+    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+      const auto sample = frame_video_output.tensor<uint8_t>(sample_id);
+      const auto label = frame_label_output.tensor<int>(sample_id);
+
+      int label_cpu = -1;
+      MemCopy(
+        &label_cpu, label, sizeof(DALIDataType::DALI_INT32));
+
+      ASSERT_TRUE(label_cpu == video_idx);
+
+      for (int i = 0; i < sequence_length; ++i) {
+        MemCopy(
+          frame_cpu.data(), sample + i * this->FrameSize(video_idx),   this->FrameSize(video_idx));
+        this->CompareFramesAvgError(
+          frame_cpu.data(),
           this->GetVfrFrame(video_idx, gt_frame_id + i * stride),
           this->FrameSize(video_idx));
       }

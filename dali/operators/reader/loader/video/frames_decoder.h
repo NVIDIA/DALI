@@ -161,7 +161,7 @@ class DLL_PUBLIC FramesDecoder {
 
   std::vector<IndexEntry> index_;
 
-  int next_frame_idx_;
+  int next_frame_idx_ = 0;
 
  private:
    /**

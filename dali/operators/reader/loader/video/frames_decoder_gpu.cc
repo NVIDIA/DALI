@@ -19,6 +19,7 @@
 
 #include <string>
 #include <memory>
+#include <iomanip>
 
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_utils.h"
@@ -125,6 +126,10 @@ int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *pict
   if (current_pts == NextFramePts()) {
     // Currently decoded frame is actually the one we wanted
     frame_returned_ = true;
+
+    LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
+        std::setw(5) << current_pts << ", current copy " << current_copy_to_output_ << std::endl;
+
     if (current_copy_to_output_ == false) {
       return 1;
     }
@@ -155,12 +160,17 @@ int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *pict
     Width(),
     Height(),
     stream_);
+  // TODO(awolant): Alterantive is to copy the data to a buffer
+  // and then process it on the stream. Check, if this is faster, when
+  // the benchmark is ready.
+  CUDA_CALL(cudaStreamSynchronize(stream_));
   CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame));
 
   return 1;
 }
 
 void FramesDecoderGpu::SeekFrame(int frame_id) {
+  // TODO(awolant): This seek can be optimized - for consecutive frames not needed etc.
   SendLastPacket(true);
   FramesDecoder::SeekFrame(frame_id);
 }
@@ -177,6 +187,9 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
       if (copy_to_output) {
         copyD2D(data, frame.frame_.data(), FrameSize());
       }
+      LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
+        std::setw(5) << frame.pts_ << ", current copy " << copy_to_output << std::endl;
+
       frame.pts_ = -1;
 
       ++next_frame_idx_;

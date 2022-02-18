@@ -68,6 +68,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   int ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params);
 
+  FramesDecoderGpu(FramesDecoderGpu&&) = default;
+
   ~FramesDecoderGpu();
 
  private:

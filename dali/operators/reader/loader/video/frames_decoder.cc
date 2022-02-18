@@ -14,6 +14,7 @@
 
 #include "dali/operators/reader/loader/video/frames_decoder.h"
 #include <memory>
+#include <iomanip>
 #include "dali/core/error_handling.h"
 
 
@@ -173,13 +174,14 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
       break;
     }
 
+    LOG_LINE << "Read frame (ReadRegularFrame), index " << next_frame_idx_ << ", timestamp " <<
+      std::setw(5)  << av_state_->frame_->pts << ", current copy " << copy_to_output << std::endl;
     if (!copy_to_output) {
       ++next_frame_idx_;
       return true;
     }
 
     CopyToOutput(data);
-    LOG_LINE << "Read frame (ReadRegularFrame), timestamp " << av_state_->frame_->pts << std::endl;
     ++next_frame_idx_;
     return true;
   }
@@ -257,10 +259,13 @@ bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
 
   if (copy_to_output) {
     CopyToOutput(data);
-    LOG_LINE << "Read frame (ReadFlushFrame), timestamp " << av_state_->frame_->pts << std::endl;
   }
 
+  LOG_LINE << "Read frame (ReadFlushFrame), index " << next_frame_idx_ << " timestamp " <<
+    std::setw(5) << av_state_->frame_->pts << ", current copy " << copy_to_output << std::endl;
   ++next_frame_idx_;
+
+  // TODO(awolant): Figure out how to handle this during index building
   if (next_frame_idx_ >= NumFrames()) {
     next_frame_idx_ = -1;
   }
