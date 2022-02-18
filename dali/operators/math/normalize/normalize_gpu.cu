@@ -219,7 +219,6 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   cudaStream_t stream = ws.stream();
   DynamicScratchpad buffer_scratchpad({}, stream);;
   KernelContext ctx;
-  ctx.scratchpad = &buffer_scratchpad;
   ctx.gpu.stream = stream;
 
   // Prepare mean and stddev
@@ -232,7 +231,9 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   if (!has_scalar_mean_) {
     mean_gpu = buffer_scratchpad.AllocTensorList<mm::memory_kind::device, float>(param_shape_);
   } else if (ShouldCalcStdDev()) {
+    ctx.scratchpad = &buffer_scratchpad;
     mean_gpu = BroadcastMean(ctx, scalar_mean);
+    ctx.scratchpad = nullptr;
   }
 
   if (!has_scalar_stddev_) {
@@ -244,6 +245,7 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
     ctx.scratchpad = &scratchpad;
     auto &mean_kernel = GetMeanKernel<float, InputType>();
     mean_kernel.Run(ctx, mean_gpu, in_view);
+    ctx.scratchpad = nullptr;
   } else if (has_tensor_mean_) {
     kernels::copy(mean_gpu, mean_input_, stream);
   }
@@ -253,6 +255,7 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
     ctx.scratchpad = &scratchpad;
     auto &stddev_kernel = GetInvStdDevKernel<float, InputType>();
     stddev_kernel.Run(ctx, stddev_gpu, in_view, mean_gpu, degrees_of_freedom_, epsilon_);
+    ctx.scratchpad = nullptr;
   } else if (has_tensor_stddev_) {
     kernels::copy(stddev_gpu, stddev_input_, stream);
   }

@@ -77,8 +77,8 @@ KernelRequirements Fft1DImplFfts<OutputType, InputType, Dims>::Setup(
   auto out_shape = in.shape;
 
   ScratchpadEstimator se;
-  se.add<mm::memory_kind::pinned, float>(size_in_buf(nfft),  32);
-  se.add<mm::memory_kind::pinned, float>(size_out_buf(nfft), 32);
+  se.add<mm::memory_kind::host, float>(size_in_buf(nfft),  32);
+  se.add<mm::memory_kind::host, float>(size_out_buf(nfft), 32);
   req.scratch_sizes = se.sizes;
 
   out_shape[transform_axis_] = nfft / 2 + 1;
@@ -118,12 +118,12 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
 
   auto in_buf_sz = size_in_buf(nfft_);
   // ffts requires 32-byte aligned memory
-  float* in_buf = context.scratchpad->AllocatePinned<float>(in_buf_sz, 32);
+  float* in_buf = context.scratchpad->AllocateHost<float>(in_buf_sz, 32);
   memset(in_buf, 0, in_buf_sz*sizeof(float));
 
   auto out_buf_sz = size_out_buf(nfft_);
   // ffts requires 32-byte aligned memory
-  float* out_buf = context.scratchpad->AllocatePinned<float>(out_buf_sz, 32);
+  float* out_buf = context.scratchpad->AllocateHost<float>(out_buf_sz, 32);
   memset(out_buf, 0, out_buf_sz*sizeof(float));
 
   auto in_shape = in.shape;

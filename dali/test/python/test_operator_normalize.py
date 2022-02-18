@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -390,9 +390,12 @@ def _test_up_to_5D_all_axis_combinations(device):
                     yield _run_test, device, batch_size, dim, None, axis_names, batch_norm
 
 def test_cpu_up_to_5D_all_axis_combinations():
-    for device in ["cpu", "gpu"]:
+    for device in ["gpu"]:
         for x in _test_up_to_5D_all_axis_combinations(device):
             yield x
+
+_run_test("gpu", 5, 5, [0, 2, 4], None, False)
+
 
 def test_types():
     batch_size = 50
@@ -404,5 +407,3 @@ def test_types():
         for out_type, scale, shift in [(np.uint8, 64, 128), (np.int16, 1000, 0), (np.float32, 0.5, 0.5)]:
             for in_type in [None, np.uint8, np.int16, np.float32]:
                 yield _run_test, device, batch_size, dim, axes, None, False, out_type, in_type, shift, scale
-
-import nvidia.dali.fn as fn
