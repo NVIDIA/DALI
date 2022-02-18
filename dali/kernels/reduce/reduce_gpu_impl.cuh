@@ -228,7 +228,8 @@ struct WorkArea {
       offset = buffer_sizes.param_buffers;
       offset = align_up(offset, alignof(T));
     }
-    assert(offset >= buffer_sizes.param_buffers && offset + elements*sizeof(T) <= buffer_sizes.io_buffers + buffer_sizes.param_buffers);
+    assert(offset >= buffer_sizes.param_buffers &&
+           offset + elements*sizeof(T) <= buffer_sizes.io_buffers + buffer_sizes.param_buffers);
     return reinterpret_cast<T *>(gpu_memory + offset);
   }
 
