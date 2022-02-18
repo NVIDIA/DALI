@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -112,8 +112,9 @@ This operator can be used in the following modes:
 3. Read files listed in ``files`` argument.
 
 .. note::
-  The ``gpu`` backend requires cuFile/GDS support (418.x driver family or newer). Please check
-  the relevant GDS package for more details.
+  The ``gpu`` backend requires cuFile/GDS support (418.x driver family or newer). which is
+  shipped with the CUDA toolkit starting from CUDA 11.4. Please check the GDS documentation
+  for more details.
 )")
   .NumInput(0)
   .NumOutput(1)  // (Arrays)
