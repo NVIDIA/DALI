@@ -179,8 +179,7 @@ class SequenceOperator : public Operator<Backend> {
   virtual void ExpandArgment(const workspace_t<Backend> &ws, const std::string &arg_name,
                              const TensorVector<CPUBackend> &arg_tensor) {
     const auto &expand_desc = GetArgExpandDesc(arg_name);
-    const auto &tv = ws.ArgumentInput(arg_name);
-    auto expanded_arg = ExpandArgumentLike(tv, arg_name, expand_desc);
+    auto expanded_arg = ExpandArgumentLike(arg_tensor, arg_name, expand_desc);
     auto expanded_handle = std::make_shared<TensorVector<CPUBackend>>(std::move(expanded_arg));
     AddArgumentInputHelper(arg_name, expanded_handle, {ExpandDescFrameInfoFn{&expand_desc}});
   }
@@ -201,6 +200,22 @@ class SequenceOperator : public Operator<Backend> {
   virtual const ExpandDesc &GetArgExpandDesc(const std::string &arg_name) {
     (void)arg_name;
     return GetInputExpandDesc(0);
+  }
+
+  bool HasPerFrameArgInput(const workspace_t<Backend> &ws) {
+    for (const auto &arg_input : ws) {
+      auto shared_tvec = arg_input.second.tvec;
+      assert(shared_tvec);
+      if (IsPerFrame(*shared_tvec)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool IsPerFrame(const TensorVector<CPUBackend> &arg_tensor) {
+    const auto &layout = arg_tensor.GetLayout();
+    return layout.size() > 0 && layout[0] == 'F';
   }
 
   template <typename InputBackend>
@@ -323,16 +338,16 @@ class SequenceOperator : public Operator<Backend> {
   TensorVector<CPUBackend> ExpandArgumentLike(const TensorVector<CPUBackend> &tv,
                                               const std::string &name,
                                               const ExpandDesc &expand_desc) {
-    const auto &layout = tv.GetLayout();
-    bool arg_has_frames_dim = VideoLayoutInfo::FrameDimIndex(layout) == 0;
+    bool is_arg_per_frame = IsPerFrame(tv);
     int arg_sample_dim = tv.sample_dim();
     DALI_ENFORCE(
-        !arg_has_frames_dim || expand_desc.HasFrames(),
+        !is_arg_per_frame || expand_desc.HasFrames(),
         make_string(
-            "Tensor input for argument ", name, " is specified per frame (got ", layout,
+            "Tensor input for argument ", name, " is specified per frame (got ", tv.GetLayout(),
             " layout), but samples in the input batch do not contain frames (expected input "
-            "layout that starts with 'F', ", ShouldExpandChannels()? " or 'CF'" : "", ")."));
-    DALI_ENFORCE(!arg_has_frames_dim || arg_sample_dim >= 1,
+            "layout that starts with 'F', ",
+            ShouldExpandChannels() ? " or 'CF'" : "", ")."));
+    DALI_ENFORCE(!is_arg_per_frame || arg_sample_dim >= 1,
                  make_string("The layout of tensor argument ", name,
                              "contains frames, but the tensor has 0 dimensionality."));
     auto num_elements = expand_desc.NumElements();
@@ -343,8 +358,8 @@ class SequenceOperator : public Operator<Backend> {
       const auto &arg_tensor = tv[sample_idx];
       const auto &arg_shape = arg_tensor.shape();
       int num_input_frames = expand_desc.HasFrames() ? expand_desc.NumFrames(sample_idx) : 1;
-      int num_arg_frames = !arg_has_frames_dim ? 1 : arg_shape[0];
-      auto elem_shape = arg_has_frames_dim ? arg_shape.last(arg_sample_dim - 1) : arg_shape;
+      int num_arg_frames = !is_arg_per_frame ? 1 : arg_shape[0];
+      auto elem_shape = is_arg_per_frame ? arg_shape.last(arg_sample_dim - 1) : arg_shape;
       DALI_ENFORCE(
           num_arg_frames == 1 || num_input_frames == num_arg_frames,
           make_string("The tensor argument ", name, " for sample ", sample_idx,

@@ -54,7 +54,7 @@ class GaussianBlur : public SequenceOperator<Backend> {
   bool ShouldExpand(const workspace_t<Backend>& ws) override {
     const auto& input = ws.template Input<Backend>(0);
     auto layout = input.GetLayout();
-    convolution_utils::ValidateLayout(input.shape().sample_dim(), layout);
+    dim_desc_ = convolution_utils::ParseAndValidateDim(input.shape().sample_dim(), layout);
     return SequenceOperator<Backend>::ShouldExpand(ws);
   }
 
@@ -77,6 +77,7 @@ class GaussianBlur : public SequenceOperator<Backend> {
   USE_OPERATOR_MEMBERS();
   std::unique_ptr<OpImplBase<Backend>> impl_;
   DALIDataType impl_in_dtype_ = DALI_NO_TYPE;
+  convolution_utils::DimDesc dim_desc_ = {};
   convolution_utils::DimDesc impl_dim_desc_ = {};
 };
 

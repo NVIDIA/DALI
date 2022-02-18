@@ -39,19 +39,21 @@ using namespace convolution_utils;  // NOLINT
 
 using op_impl_uptr = std::unique_ptr<OpImplBase<GPUBackend>>;
 
-template <typename Out, typename In, int axes, bool has_channels>
+template <typename Out, typename In, int axes, bool has_channels, bool is_sequence>
 class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
  public:
   using WindowType = float;
-  using Kernel = kernels::SeparableConvolutionGpu<Out, In, WindowType, axes, has_channels, false>;
+  using Kernel =
+      kernels::SeparableConvolutionGpu<Out, In, WindowType, axes, has_channels, is_sequence>;
   static constexpr int ndim = Kernel::ndim;
 
   /**
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit GaussianBlurOpGpu(const OpSpec* spec, const SampleFrameCtx& sample_ctx)
-      : spec_(*spec), sample_ctx_{sample_ctx} {}
+  explicit GaussianBlurOpGpu(const OpSpec* spec, const DimDesc& dim_desc,
+                             const SampleFrameCtx& sample_ctx)
+      : spec_(*spec), dim_desc_(dim_desc), sample_ctx_{sample_ctx} {}
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<GPUBackend>& ws) override {
     ctx_.gpu.stream = ws.stream();
@@ -59,6 +61,10 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
     const auto& input = ws.template Input<GPUBackend>(0);
     auto processed_shape = input.shape();
     int nsamples = processed_shape.num_samples();
+    // If we are sequence-like, make sure that all sequence elements are compressed to first dim
+    if (is_sequence) {
+      processed_shape = collapse_dims(processed_shape, {{0, dim_desc_.usable_axes_start}});
+    }
 
     output_desc.resize(1);
     output_desc[0].type = type2id<Out>::value;
@@ -95,13 +101,28 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
     auto& output = ws.template Output<GPUBackend>(0);
     output.SetLayout(input.GetLayout());
 
-    auto in_view = view<const In, ndim>(input);
-    auto out_view = view<Out, ndim>(output);
+    auto processed_shape = input.shape();
+    int nsamples = processed_shape.num_samples();
+    // If we are sequence-like, make sure that all sequence elements are compressed to first dim
+    if (is_sequence) {
+      processed_shape = collapse_dims(processed_shape, {{0, dim_desc_.usable_axes_start}});
+    }
+
+    auto static_shape = processed_shape.to_static<ndim>();
+
+    auto in_view_dyn = view<const In>(input);
+    auto out_view_dyn = view<Out>(output);
+
+    // TODO(klecki): Just create it from the move(in_view_dyn.data), processed_shape
+    auto in_view = reshape<ndim>(in_view_dyn, static_shape);
+    auto out_view = reshape<ndim>(out_view_dyn, static_shape);
+
     kmgr_.Run<Kernel>(0, ctx_, out_view, in_view, windows_tl_);
   }
 
  private:
   const OpSpec& spec_;
+  DimDesc dim_desc_;
   const SampleFrameCtx& sample_ctx_;
 
   kernels::KernelManager kmgr_;
@@ -124,10 +145,13 @@ template <typename Out, typename In>
 std::unique_ptr<OpImplBase<GPUBackend>> GetGaussianBlurGpuImpl(const OpSpec* spec, DimDesc dim_desc,
                                                                const SampleFrameCtx& sample_ctx) {
   std::unique_ptr<OpImplBase<GPUBackend>> result;
-  VALUE_SWITCH(dim_desc.axes, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
-    BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
-      result.reset(
-        new GaussianBlurOpGpu<Out, In, Axes, HasChannels>(spec, sample_ctx));
+  VALUE_SWITCH(dim_desc.usable_axes_count, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
+    BOOL_SWITCH(dim_desc.is_channel_last(), HasChannels, (
+      BOOL_SWITCH(dim_desc.is_sequence(), IsSequence, (
+        using GaussianBlurOpImpl = GaussianBlurOpGpu<Out, In, Axes, HasChannels, IsSequence>;
+        result.reset(
+          new GaussianBlurOpImpl(spec, std::move(dim_desc), sample_ctx));
+      ));  // NOLINT
     ));  // NOLINT
   ), DALI_FAIL("Axis count out of supported range."));  // NOLINT
   return result;

@@ -154,23 +154,36 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
 }  // namespace gaussian_blur
 
 template <>
+bool GaussianBlur<CPUBackend>::ShouldExpand(const workspace_t<CPUBackend>& ws) {
+  const auto& input = ws.template Input<CPUBackend>(0);
+  auto layout = input.GetLayout();
+  dim_desc_ = convolution_utils::ParseAndValidateDim(input.shape().sample_dim(), layout);
+  bool should_expand = SequenceOperator<CPUBackend>::ShouldExpand(ws);
+  if (should_expand) {
+    assert(dim_desc_.usable_axes_start > 0);
+    dim_desc_.total_axes_count -= dim_desc_.usable_axes_start;
+    dim_desc_.usable_axes_start = 0;
+  }
+  return should_expand;
+}
+
+template <>
 bool GaussianBlur<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
                                          const workspace_t<CPUBackend>& ws) {
   const auto& input = ws.template Input<CPUBackend>(0);
-  auto layout = input.GetLayout();
-  auto dim_desc = ParseSampleLayout(input.shape().sample_dim(), layout);
+  assert(input.GetLayout().size() == dim_desc_.total_axes_count);
   auto dtype = dtype_ == DALI_NO_TYPE ? input.type() : dtype_;
   DALI_ENFORCE(dtype == input.type() || dtype == DALI_FLOAT,
                "Output data type must be same as input, FLOAT or skipped (defaults to input type)");
 
-  if (!impl_ || impl_in_dtype_ != input.type() || impl_dim_desc_ != dim_desc) {
+  if (!impl_ || impl_in_dtype_ != input.type() || impl_dim_desc_ != dim_desc_) {
     impl_in_dtype_ = input.type();
-    impl_dim_desc_ = dim_desc;
+    impl_dim_desc_ = dim_desc_;
 
     // clang-format off
     TYPE_SWITCH(input.type(), type2id, In, GAUSSIAN_BLUR_CPU_SUPPORTED_TYPES, (
-      VALUE_SWITCH(dim_desc.axes, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
-        BOOL_SWITCH(dim_desc.has_channels, HasChannels, (
+      VALUE_SWITCH(dim_desc_.usable_axes_count, Axes, GAUSSIAN_BLUR_SUPPORTED_AXES, (
+        BOOL_SWITCH(dim_desc_.is_channel_last(), HasChannels, (
           if (dtype == input.type()) {
             using Impl = GaussianBlurOpCpu<In, In, Axes, HasChannels>;
             impl_ = std::make_unique<Impl>(&spec_, GetSampleFrameCtx());

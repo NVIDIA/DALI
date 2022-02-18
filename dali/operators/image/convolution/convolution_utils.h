@@ -21,11 +21,22 @@ namespace dali {
 namespace convolution_utils {
 
 struct DimDesc {
-  int axes;
-  bool has_channels;
+  int usable_axes_start;
+  int usable_axes_count;
+  int total_axes_count;
+
+  inline bool is_channel_last() const {
+    return usable_axes_start + usable_axes_count < total_axes_count;
+  }
+
+  inline bool is_sequence() const {
+    return usable_axes_start > 0;
+  }
 
   inline bool operator==(const DimDesc &other) const {
-    return axes == other.axes && has_channels == other.has_channels;
+    return usable_axes_start == other.usable_axes_start &&
+           usable_axes_count == other.usable_axes_count &&
+           total_axes_count == other.total_axes_count;
   }
 
   inline bool operator!=(const DimDesc &other) const {
@@ -33,9 +44,7 @@ struct DimDesc {
   }
 };
 
-void ValidateLayout(int ndim, const TensorLayout &layout);
-DimDesc ParseSampleLayout(int ndim, const TensorLayout &sample_layout);
-
+DimDesc ParseAndValidateDim(int ndim, const TensorLayout &layout);
 
 }  // namespace convolution_utils
 }  // namespace dali
