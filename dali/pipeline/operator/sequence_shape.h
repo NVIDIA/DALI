@@ -57,10 +57,7 @@ struct LayoutDesc {
 class ExpandDesc {
  public:
   inline ExpandDesc(const TensorListShape<> &shape, const LayoutDesc &layout_desc)
-      : layout_desc_{([&layout_desc, &shape]() {
-          DALI_ENFORCE(shape.sample_dim() >= layout_desc.NumDims());
-          return layout_desc;
-        })()},
+      : layout_desc_{layout_desc},
         has_channels_{layout_desc_.channel_dim >= 0},
         has_frames_{layout_desc_.frame_dim >= 0},
         is_channel_first_{has_channels_ && layout_desc_.channel_dim < layout_desc_.frame_dim},

@@ -107,6 +107,11 @@ class SequenceOperator : public Operator<Backend> {
     for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
       const auto &input_shape = ws.GetInputShape(input_idx);
       const auto &layout = GetInputLayout(ws, input_idx);
+      DALI_ENFORCE(layout.size() == 0 || layout.size() == input_shape.sample_dim(),
+                   make_string("Layout of input ", input_idx, " has size ", layout.size(),
+                               " which does not match the dimensionality of the input (got input "
+                               "with dimensionality ",
+                               input_shape.sample_dim(), ")."));
       auto layout_desc =
           ShouldExpandChannels() ? LayoutDesc::FrameAndChannel(layout) : LayoutDesc::Frame(layout);
       input_expand_desc_.emplace_back(input_shape, layout_desc);
@@ -335,71 +340,121 @@ class SequenceOperator : public Operator<Backend> {
     input_expand_desc_.clear();
   }
 
-  TensorVector<CPUBackend> ExpandArgumentLike(const TensorVector<CPUBackend> &tv,
-                                              const std::string &name,
+  TensorVector<CPUBackend> ExpandArgumentLike(const TensorVector<CPUBackend> &arg_tensor,
+                                              const std::string &arg_name,
                                               const ExpandDesc &expand_desc) {
-    bool is_arg_per_frame = IsPerFrame(tv);
-    int arg_sample_dim = tv.sample_dim();
+    DALI_ENFORCE(static_cast<ptrdiff_t>(arg_tensor.num_samples()) == expand_desc.NumSamples(),
+                 make_string("Number of samples passed for argument ", arg_name, " (got ",
+                             arg_tensor.num_samples(),
+                             ") does not match the number of samples in the input (got ",
+                             expand_desc.NumSamples(), ")."));
+    const auto &arg_layout = arg_tensor.GetLayout();
+    int arg_sample_dim = arg_tensor.sample_dim();
     DALI_ENFORCE(
-        !is_arg_per_frame || expand_desc.HasFrames(),
+        arg_layout.size() == 0 || arg_sample_dim == arg_layout.size(),
+        make_string("Layout of argument input ", arg_name, " has size ", arg_layout.size(),
+                    " which does not match the dimensionality of the argument (got argument "
+                    "with dimensionality ",
+                    arg_sample_dim, ")."));
+    if (!IsPerFrame(arg_tensor)) {
+      return BroadcastArgumentLike(arg_tensor, expand_desc);
+    }
+    return ExpandFramesLike(arg_tensor, arg_name, expand_desc);
+  }
+
+  TensorVector<CPUBackend> ExpandFramesLike(const TensorVector<CPUBackend> &arg_tensor,
+                                            const std::string &arg_name,
+                                            const ExpandDesc &expand_desc) {
+    DALI_ENFORCE(
+        expand_desc.HasFrames(),
         make_string(
-            "Tensor input for argument ", name, " is specified per frame (got ", tv.GetLayout(),
+            "Tensor input for argument ", arg_name, " is specified per frame (got ",
+            arg_tensor.GetLayout(),
             " layout), but samples in the input batch do not contain frames (expected input "
             "layout that starts with 'F', ",
             ShouldExpandChannels() ? " or 'CF'" : "", ")."));
-    DALI_ENFORCE(!is_arg_per_frame || arg_sample_dim >= 1,
-                 make_string("The layout of tensor argument ", name,
-                             "contains frames, but the tensor has 0 dimensionality."));
-    auto num_elements = expand_desc.NumElements();
+    const auto &shape = arg_tensor.shape();
+    int arg_sample_dim = shape.sample_dim();
+    TensorVector<CPUBackend> flat_tensor(expand_desc.NumElements());
     int num_samples = expand_desc.NumSamples();
-    TensorVector<CPUBackend> flat_tensor(num_elements);
-    int sample_offset = 0;
+    auto type_info = arg_tensor.type_info();
+    auto type = type_info.id();
+    auto is_pinned = arg_tensor.is_pinned();
+    auto order = arg_tensor.order();
+    int elem_idx = 0;
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      const auto &arg_tensor = tv[sample_idx];
-      const auto &arg_shape = arg_tensor.shape();
-      int num_input_frames = expand_desc.HasFrames() ? expand_desc.NumFrames(sample_idx) : 1;
-      int num_arg_frames = !is_arg_per_frame ? 1 : arg_shape[0];
-      auto elem_shape = is_arg_per_frame ? arg_shape.last(arg_sample_dim - 1) : arg_shape;
+      const auto &sample_shape = shape[sample_idx];
+      int num_input_frames = expand_desc.NumFrames(sample_idx);
+      int num_arg_frames = sample_shape[0];
       DALI_ENFORCE(
           num_arg_frames == 1 || num_input_frames == num_arg_frames,
-          make_string("The tensor argument ", name, " for sample ", sample_idx,
+          make_string("The tensor argument ", arg_name, " for sample ", sample_idx,
                       " should either be a single argument to be reused accross all frames in the "
                       "sample or should be specified per each frame. Got ",
                       num_arg_frames, " arguments for the sample but there are ", num_input_frames,
                       " frames in the sample."));
-      uint8_t *base_ptr =
-          const_cast<uint8_t *>(static_cast<const uint8_t *>(arg_tensor.raw_data()));
+      auto elem_shape = sample_shape.last(arg_sample_dim - 1);
       auto elem_volume = volume(elem_shape);
-      auto type_info = arg_tensor.type_info();
+      uint8_t *base_ptr =
+          const_cast<uint8_t *>(static_cast<const uint8_t *>(arg_tensor.raw_tensor(sample_idx)));
       auto num_bytes = type_info.size() * elem_volume;
-      auto type = type_info.id();
-      auto is_pinned = arg_tensor.is_pinned();
-      auto order = arg_tensor.order();
-      int num_input_channels = expand_desc.HasChannels() ? expand_desc.NumChannels(sample_idx) : 1;
-      int num_repeat =
-          num_arg_frames == 1 ? num_input_channels * num_input_frames : num_input_channels;
-      int inner_stride, outer_stride;
-      if (num_arg_frames == 1) {
-        inner_stride = 1;
-        outer_stride = 1;
-      } else if (expand_desc.IsChannelFirst()) {
-        inner_stride = num_input_frames;
-        outer_stride = 1;
-      } else {
-        inner_stride = 1;
-        outer_stride = num_input_channels;
-      }
-      for (int i = 0; i < num_arg_frames; i++) {  // expands argument
-        uint8_t *ptr = base_ptr + i * num_bytes;
-        for (int j = 0; j < num_repeat; j++) {  // repeats argument
-          flat_tensor[sample_offset + i * outer_stride + j * inner_stride].ShareData(
-              ptr, num_bytes, is_pinned, elem_shape, type, order);
+      if (num_arg_frames == 1) {  // broadcast the sample
+        for (int j = 0; j < expand_desc.NumElements(sample_idx); j++) {
+          flat_tensor[elem_idx++].ShareData(base_ptr, num_bytes, is_pinned, elem_shape, type,
+                                            order);
         }
+      } else if (!expand_desc.HasChannels()) {  // expand frames dimension
+        assert(num_arg_frames == expand_desc.NumElements(sample_idx));
+        for (int i = 0; i < num_arg_frames; i++, base_ptr += num_bytes) {
+          flat_tensor[elem_idx++].ShareData(base_ptr, num_bytes, is_pinned, elem_shape, type,
+                                            order);
+        }
+      } else {
+        int num_input_channels = expand_desc.NumChannels(sample_idx);
+        assert(num_arg_frames * num_input_channels == expand_desc.NumElements(sample_idx));
+        int inner_stride, outer_stride;
+        if (expand_desc.IsChannelFirst()) {
+          inner_stride = num_input_frames;
+          outer_stride = 1;
+        } else {
+          inner_stride = 1;
+          outer_stride = num_input_channels;
+        }
+        for (int i = 0; i < num_arg_frames; i++, base_ptr += num_bytes) {
+          for (int j = 0; j < num_input_channels; j++) {
+            flat_tensor[elem_idx + i * outer_stride + j * inner_stride].ShareData(
+                base_ptr, num_bytes, is_pinned, elem_shape, type, order);
+          }
+        }
+        elem_idx += num_input_channels * num_input_frames;
       }
-      sample_offset += num_input_channels * num_input_frames;
     }
-    assert(sample_offset == num_elements);
+    assert(elem_idx == expand_desc.NumElements());
     return flat_tensor;
+  }
+
+  TensorVector<CPUBackend> BroadcastArgumentLike(const TensorVector<CPUBackend> &arg_tensor,
+                                                 const ExpandDesc &expand_desc) {
+    const auto &shape = arg_tensor.shape();
+    TensorVector<CPUBackend> res(expand_desc.NumElements());
+    int num_samples = expand_desc.NumSamples();
+    auto type_info = arg_tensor.type_info();
+    auto type = type_info.id();
+    auto is_pinned = arg_tensor.is_pinned();
+    auto order = arg_tensor.order();
+    int elem_idx = 0;
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      const auto &elem_shape = shape[sample_idx];
+      int num_elements = expand_desc.NumElements(sample_idx);
+      auto num_bytes = type_info.size() * num_elements;
+      uint8_t *ptr =
+          const_cast<uint8_t *>(static_cast<const uint8_t *>(arg_tensor.raw_tensor(sample_idx)));
+      for (int sample_elem_idx = 0; sample_elem_idx < num_elements; sample_elem_idx++) {
+        res[elem_idx++].ShareData(ptr, num_bytes, is_pinned, elem_shape, type, order);
+      }
+    }
+    assert(elem_idx == expand_desc.NumElements());
+    return res;
   }
 
   std::vector<ExpandDesc> input_expand_desc_;
