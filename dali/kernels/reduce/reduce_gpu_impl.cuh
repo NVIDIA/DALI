@@ -536,6 +536,7 @@ class ReduceImplGPU {
       buffer_sizes_.AddStage(stage_buffers);
     }
     buffer_sizes_.param_buffers = align_up(buffer_sizes_.param_buffers, 64);
+    buffer_sizes_.host_param_buffers = align_up(buffer_sizes_.host_param_buffers, 64);
 
     // Now reserve the scratchpad - it's overaligned, because the buffer is opaque
     // and may contain any type - possibly with alignment requirements.
@@ -627,6 +628,7 @@ class ReduceImplGPU {
           case ReductionKind::Inner:
           case ReductionKind::None:
           case ReductionKind::Sample:
+          case ReductionKind::Block:
             buf_sizes.AddParam<postprocessor_t<ReduceImplGPU>>(N);
             break;
           default:
