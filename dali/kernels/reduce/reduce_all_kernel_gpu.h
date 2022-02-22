@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,8 +54,8 @@ class DLL_PUBLIC ReduceAllGPU {
       blocks_per_sample_ = static_cast<int>(std::sqrt(max_sample_size));
     }
 
-    se.add<mm::memory_kind::host, const In*>(num_samples);
-    se.add<mm::memory_kind::host, int64_t>(num_samples);
+    se.add<mm::memory_kind::pinned, const In*>(num_samples);
+    se.add<mm::memory_kind::pinned, int64_t>(num_samples);
     se.add<mm::memory_kind::device, const In*>(num_samples);
     se.add<mm::memory_kind::device, int64_t>(num_samples);
     tmp_buffer_size_ = num_samples * blocks_per_sample_;
@@ -74,8 +74,8 @@ class DLL_PUBLIC ReduceAllGPU {
     auto* out_start = out[0].data;
 
     auto num_samples = in.size();
-    auto* sample_data = context.scratchpad->AllocateHost<const In*>(num_samples);
-    auto* sample_size = context.scratchpad->AllocateHost<int64_t>(num_samples);
+    auto* sample_data = context.scratchpad->AllocatePinned<const In*>(num_samples);
+    auto* sample_size = context.scratchpad->AllocatePinned<int64_t>(num_samples);
     for (int i = 0; i < num_samples; i++) {
       sample_data[i] = in.tensor_data(i);
       sample_size[i] = volume(in.tensor_shape(i));

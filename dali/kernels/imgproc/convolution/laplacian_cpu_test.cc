@@ -39,7 +39,6 @@ inline std::enable_if_t<!std::is_integral<Out>::value> CompareOut(
 
 void FillSobelWindow(span<float> window, int d_order) {
   int window_size = window.size();
-  assert(window_size >= 3 && window_size % 2 == 1);
   window[0] = 1.;
   for (int i = 1; i < window_size - d_order; i++) {
     auto prevval = window[0];

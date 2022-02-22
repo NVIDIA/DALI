@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ class TensorJoinGPU : public tensor_join::TensorJoinImplGPU<type_of_size<sizeof(
     ScratchpadEstimator se;
     KernelRequirements req;
     req.output_shapes.resize(1);
-    se.add<mm::memory_kind::host, const InListU *>(num_inputs);
+    se.add<mm::memory_kind::pinned, const InListU *>(num_inputs);
     Base::Setup(req.output_shapes[0], se, get_input_shape, num_inputs, axis);
     req.scratch_sizes = se.sizes;
     return req;
@@ -118,7 +118,7 @@ class TensorJoinGPU : public tensor_join::TensorJoinImplGPU<type_of_size<sizeof(
   void Run(KernelContext &ctx, const OutListGPU<T> &out,
            span<const InListGPU<T, in_ndim>> in_lists) {
     int njoin = in_lists.size();
-    auto *in_list_ptrs = ctx.scratchpad->AllocateHost<const InListU *>(njoin);
+    auto *in_list_ptrs = ctx.scratchpad->AllocatePinned<const InListU *>(njoin);
     for (int i = 0; i < njoin; i++)
       in_list_ptrs[i] = reinterpret_cast<const InListU *>(&in_lists[i]);
     Base::Run(ctx, reinterpret_cast<const OutListGPU<U> &>(out), make_span(in_list_ptrs, njoin));

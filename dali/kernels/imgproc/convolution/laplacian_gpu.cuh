@@ -284,13 +284,13 @@ struct LaplacianGpu<Intermediate, Out, In, W, axes, has_channels, is_sequence,
       const std::array<std::array<TensorListShape<1>, axes>, axes>& window_sizes) {
     auto req = Base::Setup(ctx, in_shape, window_sizes);
     ScratchpadEstimator se;
-    se.add<mm::memory_kind::device, Intermediate>(in_shape.num_elements());
-    req.scratch_sizes = AppendScratchSize(se.sizes, req.scratch_sizes);
-    samples_.resize(in_shape.num_samples());
     std::array<std::pair<int, int>, 1> collapse_groups = {{{0, in_shape.sample_dim()}}};
     auto collapsed_shape = collapse_dims<1>(in_shape, collapse_groups);
     block_setup_.SetupBlocks(collapsed_shape, true);
-    blocks_dev_.from_host(block_setup_.Blocks(), ctx.gpu.stream);
+    se.add<mm::memory_kind::device, Intermediate>(in_shape.num_elements());
+    se.add<mm::memory_kind::device, GpuBlockSetup::BlockDesc>(block_setup_.Blocks().size());
+    se.add<mm::memory_kind::device, CastSampleDesc>(in_shape.num_samples());
+    req.scratch_sizes = AppendScratchSize(se.sizes, req.scratch_sizes);
     return req;
   }
 
@@ -303,21 +303,22 @@ struct LaplacianGpu<Intermediate, Out, In, W, axes, has_channels, is_sequence,
     auto intermediate = TensorListView<StorageGPU, Intermediate, ndim>(tmp, in.shape);
     Base::Run(ctx, intermediate, in, windows, scale);
     int nsamples = intermediate.shape.num_samples();
+    CastSampleDesc *host_samples = ctx.scratchpad->AllocateHost<CastSampleDesc>(nsamples);
     for (int sample_id = 0; sample_id < nsamples; sample_id++) {
-      samples_[sample_id].output = out.tensor_data(sample_id);
-      samples_[sample_id].input = intermediate.tensor_data(sample_id);
+      host_samples[sample_id].output = out.tensor_data(sample_id);
+      host_samples[sample_id].input = intermediate.tensor_data(sample_id);
     }
-    samples_dev_.from_host(samples_, ctx.gpu.stream);
+    GpuBlockSetup::BlockDesc *blocks_dev;
+    CastSampleDesc *samples_dev;
+    std::tie(blocks_dev, samples_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream,
+      block_setup_.Blocks(), make_span(host_samples, nsamples));
     dim3 grid_dim = block_setup_.GridDim();
     dim3 block_dim = block_setup_.BlockDim();
     BatchedCastKernel<Out, Intermediate>
-        <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples_dev_.data(), blocks_dev_.data());
+        <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples_dev, blocks_dev);
   }
 
   GpuBlockSetup block_setup_;
-  std::vector<CastSampleDesc> samples_;
-  DeviceBuffer<GpuBlockSetup::BlockDesc> blocks_dev_;
-  DeviceBuffer<CastSampleDesc> samples_dev_;
 };
 
 }  // namespace laplacian

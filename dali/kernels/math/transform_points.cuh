@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ class TransformPointsGPU {
 
     ScratchpadEstimator se;
     int N = in_shape.num_samples();
-    se.add<mm::memory_kind::host, SampleDesc>(N);
+    se.add<mm::memory_kind::pinned, SampleDesc>(N);
     se.add<mm::memory_kind::device, SampleDesc>(N);
 
     req.scratch_sizes = se.sizes;
@@ -74,7 +74,7 @@ class TransformPointsGPU {
   void Run(KernelContext &ctx, const OutListGPU<Out> &out, const InListGPU<In> &in,
            span<const mat<out_pt_dim, in_pt_dim>> M, span<const vec<out_pt_dim>> T) {
     int N = in.shape.num_samples();
-    auto *host_descs = ctx.scratchpad->AllocateHost<SampleDesc>(N);
+    auto *host_descs = ctx.scratchpad->AllocatePinned<SampleDesc>(N);
     int64_t max_size = 0;
     for (int i = 0, i_m = 0, i_t = 0; i < N; i++) {
       host_descs[i].out = out.data[i];

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #include <vector>
 #include "dali/core/format.h"
 #include "dali/operators/bbox/bb_flip.cuh"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 
@@ -92,7 +93,7 @@ void BbFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   TensorListShape<2> strong_shape = GetNormalizedShape(shape);
 
   block_setup_.SetupBlocks(strong_shape, true);
-  blocks_dev_.from_host(block_setup_.Blocks(), ws.stream());
+  kernels::DynamicScratchpad scratchpad({}, ws.stream());
 
   samples_.resize(nsamples);
 
@@ -111,15 +112,19 @@ void BbFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
     samples_[sample_idx].vert = vert_[sample_idx].data[0];
   }
 
-  samples_dev_.from_host(samples_, ws.stream());
+
+  GpuBlockSetup::BlockDesc *blocks_dev;
+  BbFlipSampleDesc *samples_dev;
+  std::tie(samples_dev, blocks_dev) = scratchpad.ToContiguousGPU(ws.stream(),
+    samples_, block_setup_.Blocks());
 
   dim3 grid = block_setup_.GridDim();
   dim3 block = block_setup_.BlockDim();
 
   if (ltrb_) {
-    BbFlipKernel<true><<<grid, block, 0, stream>>>(samples_dev_.data(), blocks_dev_.data());
+    BbFlipKernel<true><<<grid, block, 0, stream>>>(samples_dev, blocks_dev);
   } else {
-    BbFlipKernel<false><<<grid, block, 0, stream>>>(samples_dev_.data(), blocks_dev_.data());
+    BbFlipKernel<false><<<grid, block, 0, stream>>>(samples_dev, blocks_dev);
   }
   CUDA_CALL(cudaGetLastError());
 }

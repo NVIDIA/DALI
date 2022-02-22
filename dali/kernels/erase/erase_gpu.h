@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -405,14 +405,14 @@ struct EraseGpu {
 
     ScratchpadEstimator se;
 
-    se.add<mm::memory_kind::host, sample_t>(num_samples);
+    se.add<mm::memory_kind::pinned, sample_t>(num_samples);
     se.add<mm::memory_kind::device, sample_t>(num_samples);
     if (channel_dim >= 0) {
       int num_channels = in.shape.tensor_shape_span(0)[channel_dim];
-      se.add<mm::memory_kind::host, T>(num_channels);
+      se.add<mm::memory_kind::pinned, T>(num_channels);
       se.add<mm::memory_kind::device, T>(num_channels);
     } else {
-      se.add<mm::memory_kind::host, T>(1);
+      se.add<mm::memory_kind::pinned, T>(1);
       se.add<mm::memory_kind::device, T>(1);
     }
 
@@ -490,8 +490,8 @@ struct EraseGpu {
     dim3 grid_dim = {(uint32_t)max_regions, (uint32_t)num_samples, 1};
     dim3 block_dim = {32, 32, 1};  // fixed block dim
 
-    auto* sample_desc_cpu = ctx.scratchpad->AllocateHost<sample_t>(num_samples);
-    auto* fill_values_cpu = ctx.scratchpad->AllocateHost<T>(num_fill_values);
+    auto* sample_desc_cpu = ctx.scratchpad->AllocatePinned<sample_t>(num_samples);
+    auto* fill_values_cpu = ctx.scratchpad->AllocatePinned<T>(num_fill_values);
 
     for (int i = 0; i < num_fill_values; i++) {
       fill_values_cpu[i] = fill_values.size() == 1 ? fill_values[0] : fill_values[i];
