@@ -278,14 +278,15 @@ struct DynamicTensorView : DynamicTensorViewBase<Backend, void, ndim> {
   // @}
 
   /**
-   * @brief Convert to strongly-typed TensorView
+   * @name Convert to strongly-typed TensorView
    *
-   * Requires match between runtime and static types.
+   * Requires match between runtime and static types, no-op if DataType = DynamicType
    */
+  // @{
   template <typename DataType, int other_ndim = ndim>
   std::enable_if_t<!std::is_same<std::remove_const_t<DataType>, DynamicType>::value,
                    TensorView<Backend, DataType, other_ndim>>
-  to_static_type() const {
+  to_static_type() const & {
     DALI_ENFORCE(type_id == TypeTable::GetTypeId<DataType>(),
                  make_string("Calling type does not match view data type, requested type: ",
                              TypeTable::GetTypeId<DataType>(), " current view type: ", type_id));
@@ -293,18 +294,33 @@ struct DynamicTensorView : DynamicTensorViewBase<Backend, void, ndim> {
     return {static_cast<DataType *>(data), shape};
   }
 
-  /**
-   * @brief Convert to strongly-typed TensorView
-   *
-   * No-op conversion to DynamicType
-   */
+  template <typename DataType, int other_ndim = ndim>
+  std::enable_if_t<!std::is_same<std::remove_const_t<DataType>, DynamicType>::value,
+                   TensorView<Backend, DataType, other_ndim>>
+  to_static_type() && {
+    DALI_ENFORCE(type_id == TypeTable::GetTypeId<DataType>(),
+                 make_string("Calling type does not match view data type, requested type: ",
+                             TypeTable::GetTypeId<DataType>(), " current view type: ", type_id));
+    detail::check_compatible_ndim<ndim, other_ndim>();
+    return {static_cast<DataType *>(data), std::move(shape)};
+  }
+
   template <typename DataType, int other_ndim = ndim>
   std::enable_if_t<std::is_same<std::remove_const_t<DataType>, DynamicType>::value,
                    TensorView<Backend, DataType, other_ndim>>
-  to_static_type() const {
+  to_static_type() const & {
     detail::check_compatible_ndim<ndim, other_ndim>();
     return {data, shape, type_id};
   }
+
+  template <typename DataType, int other_ndim = ndim>
+  std::enable_if_t<std::is_same<std::remove_const_t<DataType>, DynamicType>::value,
+                   TensorView<Backend, DataType, other_ndim>>
+  to_static_type() && {
+    detail::check_compatible_ndim<ndim, other_ndim>();
+    return {data, std::move(shape), type_id};
+  }
+  // @}
 
   /**
    * @brief Change the ndim, compatible with TensorView API
@@ -491,15 +507,16 @@ struct ConstDynamicTensorView : DynamicTensorViewBase<Backend, const void, ndim>
   // @}
 
   /**
-   * @brief Convert to strongly-typed TensorView
+   * @name Convert to strongly-typed TensorView
    *
-   * Requires match between runtime and static types.
+   * Requires match between runtime and static types, no-op if DataType = DynamicType
    */
+  // @{
   template <typename DataType, int other_ndim = ndim>
   std::enable_if_t<!std::is_same<std::remove_const_t<DataType>, DynamicType>::value,
                    TensorView<Backend, DataType, other_ndim>>
-  to_static_type() const {
-    DALI_ENFORCE(type_id == TypeTable::GetTypeId<std::remove_const_t<DataType>>(),
+  to_static_type() const & {
+    DALI_ENFORCE(type_id == TypeTable::GetTypeId<DataType>(),
                  make_string("Calling type does not match view data type, requested type: ",
                              TypeTable::GetTypeId<DataType>(), " current view type: ", type_id));
     static_assert(std::is_const<DataType>::value,
@@ -508,22 +525,39 @@ struct ConstDynamicTensorView : DynamicTensorViewBase<Backend, const void, ndim>
     return {static_cast<DataType *>(data), shape};
   }
 
+  template <typename DataType, int other_ndim = ndim>
+  std::enable_if_t<!std::is_same<std::remove_const_t<DataType>, DynamicType>::value,
+                   TensorView<Backend, DataType, other_ndim>>
+  to_static_type() && {
+    DALI_ENFORCE(type_id == TypeTable::GetTypeId<DataType>(),
+                 make_string("Calling type does not match view data type, requested type: ",
+                             TypeTable::GetTypeId<DataType>(), " current view type: ", type_id));
+    static_assert(std::is_const<DataType>::value,
+                  "This view contains a pointer to const, so the target type must also be const.");
+    detail::check_compatible_ndim<ndim, other_ndim>();
+    return {static_cast<DataType *>(data), std::move(shape)};
+  }
 
-  /**
-   * @brief Convert to strongly-typed TensorView
-   *
-   * No-op conversion to DynamicType
-   */
   template <typename DataType, int other_ndim = ndim>
   std::enable_if_t<std::is_same<std::remove_const_t<DataType>, DynamicType>::value,
                    TensorView<Backend, DataType, other_ndim>>
-  to_static_type() const {
+  to_static_type() const & {
     static_assert(std::is_const<DataType>::value,
                   "This view contains a pointer to const, so the target type must also be const.");
     detail::check_compatible_ndim<ndim, other_ndim>();
     return {data, shape, type_id};
   }
 
+  template <typename DataType, int other_ndim = ndim>
+  std::enable_if_t<std::is_same<std::remove_const_t<DataType>, DynamicType>::value,
+                   TensorView<Backend, DataType, other_ndim>>
+  to_static_type() && {
+    static_assert(std::is_const<DataType>::value,
+                  "This view contains a pointer to const, so the target type must also be const.");
+    detail::check_compatible_ndim<ndim, other_ndim>();
+    return {data, std::move(shape), type_id};
+  }
+  // @}
 
   /**
    * @brief Change the ndim, compatible with TensorView API
