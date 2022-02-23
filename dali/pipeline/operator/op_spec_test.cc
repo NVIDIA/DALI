@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ TEST(OpSpecTest, GetArgumentTensorSet) {
     auto tv = std::make_shared<TensorVector<CPUBackend>>(2);
     tv->Resize(TensorListShape<0>(2), DALI_INT32);
     for (int i = 0; i < 2; i++) {
-      tv->tensor_handle(i)->mutable_data<int32_t>()[0] = 42 + i;
+      view<int32_t>((*tv)[i]).data[0] = 42 + i;
     }
     ws0.AddArgumentInput(arg_name, tv);
     auto spec0 = OpSpec("DummyOpForSpecTest")
@@ -325,18 +325,18 @@ class TestArgumentInput_Producer : public Operator<CPUBackend> {
     // Initialize all the data with a 0, 1, 2 .... sequence
     auto &out0 = ws.Output<CPUBackend>(0);
     for (int i = 0; i < out0.shape().num_samples(); i++) {
-      *out0[i].mutable_data<int>() = i;
+      *out0.mutable_tensor<int>(i) = i;
     }
 
     auto &out1 = ws.Output<CPUBackend>(1);
     for (int i = 0; i < out1.shape().num_samples(); i++) {
-      *out1[i].mutable_data<float>() = i;
+      *out1.mutable_tensor<float>(i) = i;
     }
 
     auto &out2 = ws.Output<CPUBackend>(2);
     for (int i = 0; i < out2.shape().num_samples(); i++) {
       for (int j = 0; j < 2; j++) {
-        out2[i].mutable_data<int>()[j] = i;
+        out2.mutable_tensor<int>(i)[j] = i;
       }
     }
   }
@@ -379,7 +379,7 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
     ASSERT_TRUE(is_uniform(ref_1.shape()));
     ASSERT_EQ(ref_1.shape()[0], TensorShape<>(1));
     for (int i = 0; i < ref_1.shape().num_samples(); i++) {
-      EXPECT_EQ(ref_1[i].data<float>()[0], i);
+      EXPECT_EQ(ref_1.tensor<float>(i)[0], i);
     }
 
     auto &ref_2 = ws.ArgumentInput("arg2");
@@ -388,7 +388,7 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
     ASSERT_EQ(ref_2.shape()[0], TensorShape<>(1, 2));
     for (int i = 0; i < ref_2.shape().num_samples(); i++) {
       for (int j = 0; j < 2; j++) {
-        EXPECT_EQ(ref_2[i].data<int>()[j], i);
+        EXPECT_EQ(ref_2.tensor<int>(i)[j], i);
       }
     }
   }

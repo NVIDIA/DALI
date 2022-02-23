@@ -33,11 +33,12 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     auto curr_batch_size = shapes.num_samples();
     output.Resize(shapes, tensor_vector_elm.front()->type());
 
+
     for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {
       thread_pool.AddWork(
-          [&ws, sample_id, &tensor_vector_elm](int tid) {
-            Tensor<CPUBackend> &output_tensor = ws.Output<CPUBackend>(0)[sample_id];
-            output_tensor.Copy((*tensor_vector_elm.front())[sample_id], AccessOrder::host());
+          [&output, sample_id, &tensor_vector_elm](int tid) {
+            output.UnsafeCopySample(sample_id, *tensor_vector_elm.front(), sample_id,
+                                    AccessOrder::host());
           },
           shapes.tensor_size(sample_id));
     }

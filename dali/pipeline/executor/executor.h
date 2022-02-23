@@ -147,31 +147,37 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DLL_PUBLIC void RunGPUImpl();
   DLL_PUBLIC void SyncDevice();
 
-  template<typename T>
+  template <typename T>
   inline void GetMaxSizesCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
-    auto out_size = in.nbytes();
-    auto reserved_size = in.capacity();
+    auto out_size = in.total_nbytes();
+    auto reserved_size = in.total_capacity();
     max_out_size = std::max<size_t>(std::ceil((out_size * 1.0) / in.num_samples()), max_out_size);
     max_reserved_size = std::max<size_t>(std::ceil((reserved_size * 1.0) / in.num_samples()),
                                          max_reserved_size);
   }
 
-  template<typename T>
+  template <typename T>
   inline void GetMaxSizesNonCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
-    for (size_t j = 0; j < in.num_samples(); ++j) {
-      max_out_size = std::max(in[j].nbytes(), max_out_size);
-      max_reserved_size = std::max(in[j].capacity(), max_reserved_size);
+    const auto &nbytes = in.nbytes();
+    const auto &capacity = in.capacity();
+    max_out_size = 0;
+    max_reserved_size = 0;
+    for (auto &elem : nbytes) {
+      max_out_size = std::max(max_out_size, elem);
+    }
+    for (auto &elem : capacity) {
+      max_reserved_size = std::max(max_reserved_size, elem);
     }
   }
 
-  template<typename backend>
-  inline void GetMaxSizes(TensorList<backend> &in, size_t &max_out_size,
+  template <typename Backend>
+  inline void GetMaxSizes(TensorList<Backend> &in, size_t &max_out_size,
                           size_t &max_reserved_size) {
     GetMaxSizesCont(in, max_out_size, max_reserved_size);
   }
 
-  template<typename backend>
-  inline void GetMaxSizes(TensorVector<backend> &in, size_t &max_out_size,
+  template <typename Backend>
+  inline void GetMaxSizes(TensorVector<Backend> &in, size_t &max_out_size,
                           size_t &max_reserved_size) {
     if (in.IsContiguous()) {
       GetMaxSizesCont(in, max_out_size, max_reserved_size);
@@ -199,13 +205,13 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
           max_reserved_size = 0;
           if (ws.template OutputIsType<CPUBackend>(i)) {
             auto &out = ws.template Output<CPUBackend>(i);
-            out_size = out.nbytes();
-            reserved_size = out.capacity();
+            out_size = out.total_nbytes();
+            reserved_size = out.total_capacity();
             GetMaxSizes(out, max_out_size, max_reserved_size);
           } else {
             auto &out = ws.template Output<GPUBackend>(i);
-            out_size = out.nbytes();
-            reserved_size = out.capacity();
+            out_size = out.total_nbytes();
+            reserved_size = out.total_capacity();
             GetMaxSizes(out, max_out_size, max_reserved_size);
           }
           stats[i].real_size = std::max(out_size, stats[i].real_size);

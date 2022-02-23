@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ void GetPerSampleArgument(std::vector<T> &output, const std::string &argument_na
                                                batch_size, ") tensor list. Got: ", shape));
 
       output.resize(batch_size);
-      auto *data = arg[0].template data<T>();
+      auto *data = arg.template tensor<T>(0);
 
       for (int i = 0; i < batch_size; i++) {
         output[i] = data[i];
@@ -75,7 +75,7 @@ void GetPerSampleArgument(std::vector<T> &output, const std::string &argument_na
 
       output.resize(batch_size);
       for (int i = 0; i < batch_size; i++) {
-        output[i] = arg[i].template data<T>()[0];
+        output[i] = arg.template tensor<T>(i)[0];
       }
     }
   } else {
@@ -103,8 +103,7 @@ void GetGeneralizedArg(span<T> result, const std::string &name, int sample_idx, 
   int argument_length = result.size();
   if (spec.HasTensorArgument(name)) {
     const auto& tv = ws.ArgumentInput(name);
-    const auto& tensor = tv[sample_idx];
-    const auto& shape = tensor.shape();
+    const auto& shape = tv.tensor_shape(sample_idx);
     auto vol = volume(shape);
     if (shape.size() != 0) {
       DALI_ENFORCE(shape.size() == 1,
@@ -118,10 +117,10 @@ void GetGeneralizedArg(span<T> result, const std::string &name, int sample_idx, 
     }
     if (vol == 1) {
       for (int i = 0; i < argument_length; i++) {
-        result[i] = tensor.data<T>()[0];
+        result[i] = tv.tensor<T>(sample_idx)[0];
       }
     } else {
-      memcpy(result.data(), tensor.data<T>(), sizeof(T) * argument_length);
+      memcpy(result.data(), tv.tensor<T>(sample_idx), sizeof(T) * argument_length);
     }
     return;
   }

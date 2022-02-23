@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -175,12 +175,12 @@ class RandomObjectBBox : public Operator<CPUBackend> {
 
   template <typename BlobLabel>
   struct SampleContext {
-    void Init(int sample_idx, const Tensor<CPUBackend> *in, ThreadPool *tp,
+    void Init(int sample_idx, ConstSampleView<CPUBackend> in, ThreadPool *tp,
               Tensor<CPUBackend> &tmp_filtered, Tensor<CPUBackend> &tmp_blob) {
       this->sample_idx = sample_idx;
       thread_pool = tp;
       input = in;
-      auto &shape = input->shape();
+      auto &shape = input.shape();
       tmp_filtered.Resize(shape, DALI_UINT8);
       tmp_blob.Resize(shape, TypeTable::GetTypeId<BlobLabel>());
       filtered = view<uint8_t>(tmp_filtered);
@@ -192,7 +192,7 @@ class RandomObjectBBox : public Operator<CPUBackend> {
 
     ThreadPool *thread_pool = nullptr;
     TensorView<StorageCPU, int> out1, out2;
-    const Tensor<CPUBackend> *input = nullptr;
+    ConstSampleView<CPUBackend> input = {};
 
     int sample_idx;
     int class_idx;

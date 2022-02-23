@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -186,7 +186,7 @@ class DALITest : public ::testing::Test {
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i), data[i % nImgs],
                   data_sizes[i % nImgs]);
-      tl->SetSourceInfo(i, imgs.filenames_[i % nImgs]);
+      tl->GetMeta(i).SetSourceInfo(imgs.filenames_[i % nImgs]);
     }
   }
 

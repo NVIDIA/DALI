@@ -361,7 +361,8 @@ TYPED_TEST(TensorTest, TestShareData) {
   for (int i = 0; i < num_tensor; ++i) {
     // TODO(klecki): Rework this with proper sample-based tensor batch data structure
     auto sample_shared_ptr = unsafe_sample_owner(tl, i);
-    tensor.ShareData(sample_shared_ptr, tl.capacity(), tl.is_pinned(), tl.shape()[i], tl.type());
+    tensor.ShareData(sample_shared_ptr, tl.total_capacity(), tl.is_pinned(), tl.shape()[i],
+                     tl.type());
     tensor.set_device_id(tl.device_id());
     tensor.SetMeta(tl.GetMeta(i));
 
@@ -379,11 +380,11 @@ TYPED_TEST(TensorTest, TestShareData) {
 
 TYPED_TEST(TensorTest, TestCopyToTensorList) {
   TensorVector<TypeParam> tensors(16);
-  for (auto& t : tensors) {
-    auto shape = this->GetRandShape(4, 4);
-    t->template set_type<float>();
-    t->Resize(shape);
+  TensorListShape<4> shape(16);
+  for (int i = 0; i < 16; i++) {
+    shape.set_tensor_shape(i, this->GetRandShape(4, 4));
   }
+  tensors.Resize(shape, DALI_FLOAT);
 
   TensorList<TypeParam> tl;
   tl.Copy(tensors);
@@ -394,8 +395,8 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
     ASSERT_EQ(tensors[i].type(), tl.type());
     ASSERT_EQ(tensors[i].shape(), tl.tensor_shape(i));
     Index size = volume(tl.tensor_shape(i));
-    ASSERT_EQ(tensors[i].size(), size);
-    ASSERT_EQ(tensors[i].nbytes(), size*sizeof(float));
+    ASSERT_EQ(tensors[i].shape().num_elements(), size);
+    ASSERT_EQ(tensors[i].shape().num_elements() * tensors.type_info().size(), size*sizeof(float));
   }
 }
 

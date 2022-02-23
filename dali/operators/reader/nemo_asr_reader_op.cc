@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "dali/operators/reader/nemo_asr_reader_op.h"
+#include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
 
@@ -163,8 +165,8 @@ void NemoAsrReader::Prefetch() {
   // Waiting until all the audio samples are ready to be consumed
   decoded_map_.clear();
   for (int i = 0; i < nsamples; i++) {
-    auto &sample = *curr_batch[i];
-    auto &audio = audio_batch[i];
+    AsrSample &sample = *curr_batch[i];
+    SampleView<CPUBackend> audio = audio_batch[i];
 
     if (decoded_map_.find(&sample) != decoded_map_.end())
       continue;
@@ -173,7 +175,7 @@ void NemoAsrReader::Prefetch() {
     const auto &audio_meta = sample.audio_meta();
     int64_t priority = audio_meta.length * audio_meta.channels;
     thread_pool_.AddWork(
-      [&audio, &sample](int tid) {
+      [audio, &sample](int tid) {
         sample.decode_audio(audio, tid);
       }, priority);
   }
@@ -183,7 +185,7 @@ void NemoAsrReader::Prefetch() {
     for (int i = 0; i < nsamples; i++) {
       auto it = decoded_map_.find(curr_batch[i].get());
       if (it != decoded_map_.end() && it->second != i) {
-        audio_batch[i].Copy(audio_batch[it->second]);
+        audio_batch.UnsafeCopySample(i, audio_batch, it->second);
       }
     }
   }
@@ -191,10 +193,13 @@ void NemoAsrReader::Prefetch() {
 
 void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
   const auto &sample = GetSample(ws.data_idx());
-  const auto &sample_audio = GetDecodedAudioSample(ws.data_idx());
+  auto sample_audio = GetDecodedAudioSample(ws.data_idx());
 
   auto &audio = ws.Output<CPUBackend>(0);
-  audio.Copy(sample_audio);
+  audio.Resize(sample_audio.shape(), sample_audio.type());
+  std::memcpy(
+      audio.raw_mutable_data(), sample_audio._raw_data(),
+      sample_audio.shape().num_elements() * TypeTable::GetTypeInfo(sample_audio.type()).size());
 
   DALIMeta meta;
   meta.SetSourceInfo(sample.audio_filepath());
@@ -226,8 +231,8 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
   }
 }
 
-Tensor<CPUBackend>& NemoAsrReader::GetDecodedAudioSample(int sample_idx) {
-  auto &curr_batch = *prefetched_decoded_audio_[curr_batch_consumer_];
+ConstSampleView<CPUBackend> NemoAsrReader::GetDecodedAudioSample(int sample_idx) {
+  const auto &curr_batch = *prefetched_decoded_audio_[curr_batch_consumer_];
   return curr_batch[sample_idx];
 }
 

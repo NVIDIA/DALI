@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -521,9 +521,9 @@ bool RandomObjectBBox::PickForegroundBox(
 template <typename BlobLabel>
 bool RandomObjectBBox::PickForegroundBox(SampleContext<BlobLabel> &context) {
   bool ret = false;
-  TYPE_SWITCH(context.input->type(), type2id, T, INPUT_TYPES,
-    (ret = PickForegroundBox(context, view<const T>(*context.input));),
-    (DALI_FAIL(make_string("Unsupported input type: ", context.input->type())))
+  TYPE_SWITCH(context.input.type(), type2id, T, INPUT_TYPES,
+    (ret = PickForegroundBox(context, view<const T>(context.input));),
+    (DALI_FAIL(make_string("Unsupported input type: ", context.input.type())))
   );  // NOLINT
   return ret;
 }
@@ -533,7 +533,7 @@ void RandomObjectBBox::AllocateTempStorage(const TensorVector<CPUBackend> &input
   int64_t max_filtered_bytes = 0;
   int N = input.num_samples();
   for (int i = 0; i < N; i++) {
-    int64_t vol = input[i].size();
+    int64_t vol = input[i].shape().num_elements();
     int label_size = vol > 0x80000000 ? 8 : 4;
     int64_t blob_bytes = vol * label_size;
     if (blob_bytes > max_blob_bytes)
@@ -592,10 +592,10 @@ void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
       // We want to limit the size of this auxiliary storage to limit memory traffic.
       // To that end, when the indices fit in int32_t, we use that type for the labels,
       // otherwise we fall back to int64_t.
-      auto blob_label = (input[i].size() > 0x80000000) ? DALI_INT64 : DALI_INT32;
+      auto blob_label = (input[i].shape().num_elements() > 0x80000000) ? DALI_INT64 : DALI_INT32;
       TYPE_SWITCH(blob_label, type2id, BlobLabel, (int32_t, int64_t), (
         auto &ctx = GetContext(BlobLabel());
-        ctx.Init(i, &input[i], &tp, tmp_filtered_storage_, tmp_blob_storage_);
+        ctx.Init(i, input[i], &tp, tmp_filtered_storage_, tmp_blob_storage_);
         ctx.out1 = out1[i];
         if (out2.num_samples() > 0)
           ctx.out2 = out2[i];

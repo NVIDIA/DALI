@@ -141,10 +141,10 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
     kmgr_.template Resize<Kernel>(nsamples);
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
       // We take only last `ndim` siginificant dimensions to handle sequences as well
-      auto elem_shape = input[sample_idx].shape().template last<ndim>();
+      auto elem_shape = input.shape()[sample_idx].template last<ndim>();
       kmgr_.Setup<Kernel>(sample_idx, ctx_, elem_shape, args.GetWindowSizes(sample_idx));
       // The shape of data stays untouched
-      output_desc[0].shape.set_tensor_shape(sample_idx, input[sample_idx].shape());
+      output_desc[0].shape.set_tensor_shape(sample_idx, input.tensor_shape(sample_idx));
     }
     return true;
   }
@@ -158,7 +158,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
     int nsamples = input.shape().num_samples();
 
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-      const auto& shape = input[sample_idx].shape();
+      const auto& shape = input.tensor_shape(sample_idx);
       auto elem_volume = volume(shape.begin() + dim_desc_.usable_axes_start, shape.end());
       auto priority = elem_volume * args.GetTotalWindowSizes(sample_idx);
       int seq_elements = volume(shape.begin(), shape.begin() + dim_desc_.usable_axes_start);
@@ -170,9 +170,9 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
               const auto& scales = args.GetScales(sample_idx);
               auto elem_shape = input[sample_idx].shape().template last<ndim>();
               auto in_view = TensorView<StorageCPU, const In, ndim>{
-                  input[sample_idx].template data<In>() + stride * elem_idx, elem_shape};
+                  input.template tensor<In>(sample_idx) + stride * elem_idx, elem_shape};
               auto out_view = TensorView<StorageCPU, Out, ndim>{
-                  output[sample_idx].template mutable_data<Out>() + stride * elem_idx, elem_shape};
+                  output.template mutable_tensor<Out>(sample_idx) + stride * elem_idx, elem_shape};
               // Copy context so that the kernel instance can modify scratchpad
               auto ctx = ctx_;
               kmgr_.Run<Kernel>(sample_idx, ctx, out_view, in_view, windows_[sample_idx],

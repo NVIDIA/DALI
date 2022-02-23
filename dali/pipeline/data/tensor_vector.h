@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,11 +21,13 @@
 #include <utility>
 #include <vector>
 
+#include "dali/core/access_order.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/sample_view.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
 
-#include "dali/core/tensor_shape.h"
 
 namespace dali {
 
@@ -35,6 +37,13 @@ namespace dali {
  *
  * Propagates Buffer calls to every tensor uniformly
  *
+ * TODO(klecki): Expected improvements to TensorVector
+ * 1. Remove superfluous indirection via shared_ptr to samples.
+ * 2. Keep metadata (shape, sample_dim, layout, order) at batch level like we already do with type
+ * 3. Detect and convert between contiguous and non-contiguous when possible:
+ *    a. CopySample of bigger size
+ *    b. Resize with coalesce option
+ * 4. Contiguity check
  * @tparam Backend
  */
 template <typename Backend>
@@ -60,7 +69,7 @@ class DLL_PUBLIC TensorVector {
   DLL_PUBLIC TensorVector<Backend>(TensorVector<Backend> &&other) noexcept;
 
   AccessOrder order() const {
-    return tl_->order();
+    return order_;
   }
 
   /**
@@ -78,12 +87,12 @@ class DLL_PUBLIC TensorVector {
    */
   void set_order(AccessOrder order, bool synchronize = true);
 
-  Tensor<Backend> &operator[](size_t pos) {
-    return *(tensors_[pos]);
+  SampleView<Backend> operator[](size_t pos) {
+    return {tensors_[pos]->raw_mutable_data(), tensors_[pos]->shape(), tensors_[pos]->type()};
   }
 
-  const Tensor<Backend> &operator[](size_t pos) const {
-    return *(tensors_[pos]);
+  ConstSampleView<Backend> operator[](size_t pos) const {
+    return {tensors_[pos]->raw_data(), tensors_[pos]->shape(), tensors_[pos]->type()};
   }
 
   auto tensor_handle(size_t pos) {
@@ -126,9 +135,13 @@ class DLL_PUBLIC TensorVector {
     return IsContiguous() ? tl_->sample_dim() : num_samples() ? tensors_[0]->shape().size() : 0;
   }
 
-  size_t nbytes() const noexcept;
+  size_t total_nbytes() const noexcept;
 
-  size_t capacity() const noexcept;
+  size_t total_capacity() const noexcept;
+
+  std::vector<size_t> nbytes() const noexcept;
+
+  std::vector<size_t> capacity() const noexcept;
 
   TensorListShape<> shape() const;
 
@@ -136,13 +149,82 @@ class DLL_PUBLIC TensorVector {
     return tensors_[idx]->shape();
   }
 
-  const void *raw_tensor(int idx) const {
-    return tensors_[idx]->raw_data();
+  /**
+   * @brief Returns a typed pointer to the tensor with the given index.
+   */
+  template <typename T>
+  DLL_PUBLIC inline T* mutable_tensor(int idx) {
+    return tensors_[idx]->template mutable_data<T>();
   }
 
-  void* raw_mutable_tensor(int idx) {
+  /**
+   * @brief Returns a const typed pointer to the tensor with the given index.
+   */
+  template <typename T>
+  DLL_PUBLIC inline const T* tensor(int idx) const {
+    return tensors_[idx]->template data<T>();
+  }
+
+  /**
+   * @brief Returns a raw pointer to the tensor with the given index.
+   */
+  DLL_PUBLIC inline void* raw_mutable_tensor(int idx) {
     return tensors_[idx]->raw_mutable_data();
   }
+
+  /**
+   * @brief Returns a const raw pointer to the tensor with the given index.
+   */
+  DLL_PUBLIC inline const void* raw_tensor(int idx) const {
+    return  tensors_[idx]->raw_data();
+  }
+
+  /**
+   * @brief Analogue of TensorVector[dst].ShareData(owner[src]);
+   *
+   * The target TensorVector (this) must have enough samples for this to work (see SetSize()).
+   * After this operation the TensorVector is converted into non-contiguous.
+   *
+   * Warning: If the TensorVector was contiguous, the samples that weren't overwritten by this
+   * function would still report that they are sharing data. It is assumed that all samples are
+   * replaced this way - TODO(klecki): this might be adjusted in follow-up.
+   *
+   * @param dst index of sample to be set
+   * @param owner owner of source sample
+   * @param src index of source sample in owner.
+   */
+  DLL_PUBLIC void UnsafeSetSample(int dst, const TensorVector<Backend> &owner, int src);
+
+  /**
+   * @brief Analogue of TensorVector[dst].ShareData(owner);
+   *
+   * The target TensorVector (this) must have enough samples for this to work (see SetSize()).
+   * After this operation the TensorVector is converted into non-contiguous.
+   *
+   * Warning: If the TensorVector was contiguous, the samples that weren't overwritten by this
+   * function would still report that they are sharing data. It is assumed that all samples are
+   * replaced this way - TODO(klecki): this might be adjusted in follow-up.
+   *
+   * @param dst index of sample to be set
+   * @param owner sample owner
+   */
+  DLL_PUBLIC void UnsafeSetSample(int dst, const Tensor<Backend> &owner);
+
+  /**
+   * @brief Analogue of TensorVector[dst].Copy(data[src]);
+   *
+   * The target TensorVector (this) must have enough samples for this to work (see SetSize()).
+   * It must either be already non-contiguous or the shapes of copied samples must match exactly.
+   *
+   * Warning: It is assumed that the TensorVector is either first resized to desired shape,
+   * or all samples are copied over. Automatically converting to non-contiguous container from
+   * contiguous one by invoking copy of non-matching size is not supported yet.
+   *
+   * @param dst index of sample to be set
+   * @param owner sample owner
+   */
+  DLL_PUBLIC void UnsafeCopySample(int dst, const TensorVector<Backend> &data, int src,
+                                   AccessOrder order = {});
 
   DLL_PUBLIC void Resize(const TensorListShape<> &new_shape) {
     DALI_ENFORCE(IsValidType(type()),
@@ -176,6 +258,7 @@ class DLL_PUBLIC TensorVector {
 
   TensorLayout GetLayout() const;
 
+  DALIMeta &GetMeta(int idx);
   const DALIMeta &GetMeta(int idx) const;
 
   void SetMeta(int idx, const DALIMeta &meta);
@@ -183,6 +266,8 @@ class DLL_PUBLIC TensorVector {
   void set_pinned(bool pinned);
 
   bool is_pinned() const;
+
+  int device_id() const;
 
   /**
    * @brief Reserve as contiguous tensor list internally
@@ -226,6 +311,21 @@ class DLL_PUBLIC TensorVector {
  private:
   enum class State { contiguous, noncontiguous };
 
+  // Forward declarations in signature, beware
+  friend void MakeSampleView(class SampleWorkspace &sample, class HostWorkspace &batch,
+                             int data_idx, int thread_idx);
+  friend void EnforceCorrectness(class HostWorkspace &ws, bool contiguous);
+
+  /**
+   * @brief After RunImpl(SampleWorkspace&) operated on individual samples without propagating
+   * the allocation metadata back to the the batch structure, take that metadata from the samples
+   * and update it in TensorVector.
+   *
+   * @param contiguous if the Tensor was previously preallocated and should remain contiguous
+   * or be treated as non-contiguous set of individual samples.
+   */
+  void PropagateUp(bool contiguous);
+
   struct ViewRefDeleter {
     void operator()(void*) { --*ref; }
     std::atomic<int> *ref;
@@ -243,6 +343,7 @@ class DLL_PUBLIC TensorVector {
   // pinned status and type info should be uniform
   bool pinned_ = true;
   TypeInfo type_{};
+  AccessOrder order_;
 
   // So we can access the members of other TensorVectors
   // with different template types

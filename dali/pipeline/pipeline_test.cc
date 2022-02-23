@@ -301,13 +301,13 @@ class DummyPresizeOpCPU : public Operator<CPUBackend> {
     const auto &input = ws.Input<CPUBackend>(0);
     int num_samples = input.shape().num_samples();
     auto &output = ws.Output<CPUBackend>(0);
-    auto tmp_size = output.capacity();
+    auto tmp_size = output.total_capacity();
     output.set_type<size_t>();
     output.Resize(uniform_list_shape(num_samples, std::vector<int64_t>{2}));
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      auto *out = output[sample_idx].mutable_data<size_t>();
+      auto *out = output.mutable_tensor<size_t>(sample_idx);
       out[0] = tmp_size;
-      out[1] = input.capacity();
+      out[1] = input.total_capacity();
     }
   }
 };
@@ -327,7 +327,7 @@ class DummyPresizeOpGPU : public Operator<GPUBackend> {
     int num_samples = input.shape().num_samples();
     auto &output = ws.Output<GPUBackend>(0);
     output.set_type<size_t>();
-    size_t tmp_size[2] = {output.capacity(), input.capacity()};
+    size_t tmp_size[2] = {output.total_capacity(), input.total_capacity()};
     output.Resize(uniform_list_shape(num_samples, std::vector<int64_t>{2}));
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       auto *out = output.mutable_tensor<size_t>(sample_idx);
@@ -353,7 +353,7 @@ class DummyPresizeOpMixed : public Operator<MixedBackend> {
     int num_samples = input.shape().num_samples();
     auto &output = ws.Output<GPUBackend>(0);
     output.set_type<size_t>();
-    size_t tmp_size[2] = {output.capacity(), input.capacity()};
+    size_t tmp_size[2] = {output.total_capacity(), input.total_capacity()};
     output.Resize(uniform_list_shape(num_samples, std::vector<int64_t>{2}));
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       auto *out = output.mutable_tensor<size_t>(sample_idx);

@@ -337,7 +337,11 @@ class Operator<CPUBackend> : public OperatorBase {
         this->RunImpl(sample);
       }, -data_idx);  // -data_idx for FIFO order
     }
+    // Run all tasks and wait for them to finish
     thread_pool.RunAll();
+    // Propagate metadata from individual samples to the whole batch as working with SampleWorkspace
+    // breaks metadata consistency - it sets it only to samples
+    EnforceCorrectness(ws, CanInferOutputs());
   }
 
   /**

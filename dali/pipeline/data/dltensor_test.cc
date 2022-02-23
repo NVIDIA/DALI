@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,19 +14,24 @@
 
 #include <gtest/gtest.h>
 #include <utility>
+
+#include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/dltensor.h"
+#include "dali/pipeline/data/sample_view.h"
+#include "dali/pipeline/data/tensor.h"
 
 namespace dali {
 
 TEST(DLMTensorPtr, CPU) {
   Tensor<CPUBackend> tensor;
   tensor.Resize({100, 50, 3}, DALI_FLOAT);
-  DLMTensorPtr dlm_tensor = GetDLTensorView(tensor);
+  SampleView<CPUBackend> sv{tensor.raw_mutable_data(), tensor.shape(), tensor.type()};
+  DLMTensorPtr dlm_tensor = GetDLTensorView(sv, tensor.device_id());
   ASSERT_EQ(dlm_tensor->dl_tensor.ndim, 3);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[0], 100);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[1], 50);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[2], 3);
-  ASSERT_EQ(dlm_tensor->dl_tensor.data, tensor.raw_data());
+  ASSERT_EQ(dlm_tensor->dl_tensor.data, sv._raw_data());
   ASSERT_EQ(dlm_tensor->dl_tensor.dtype.code, kDLFloat);
   ASSERT_EQ(dlm_tensor->dl_tensor.dtype.bits, sizeof(float) * 8);
   ASSERT_EQ(dlm_tensor->dl_tensor.device.device_type, kDLCPU);
@@ -36,12 +41,13 @@ TEST(DLMTensorPtr, CPU) {
 TEST(DLMTensorPtr, GPU) {
   Tensor<GPUBackend> tensor;
   tensor.Resize({100, 50, 1}, DALI_INT32);
-  DLMTensorPtr dlm_tensor = GetDLTensorView(tensor);
+  SampleView<GPUBackend> sv{tensor.raw_mutable_data(), tensor.shape(), tensor.type()};
+  DLMTensorPtr dlm_tensor = GetDLTensorView(sv, tensor.device_id());
   ASSERT_EQ(dlm_tensor->dl_tensor.ndim, 3);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[0], 100);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[1], 50);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[2], 1);
-  ASSERT_EQ(dlm_tensor->dl_tensor.data, tensor.raw_data());
+  ASSERT_EQ(dlm_tensor->dl_tensor.data, sv._raw_data());
   ASSERT_EQ(dlm_tensor->dl_tensor.dtype.code, kDLInt);
   ASSERT_EQ(dlm_tensor->dl_tensor.dtype.bits, sizeof(int) * 8);
   ASSERT_EQ(dlm_tensor->dl_tensor.device.device_type, kDLCUDA);

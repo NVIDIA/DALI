@@ -593,7 +593,7 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
   auto ptr = std::make_unique<Tensor<Backend>>();
   // TODO(klecki): Rework this with proper sample-based tensor batch data structure
   auto sample_shared_ptr = unsafe_sample_owner(t, id);
-  ptr->ShareData(sample_shared_ptr, t.capacity(), t.is_pinned(), t.shape()[id], t.type());
+  ptr->ShareData(sample_shared_ptr, t.total_capacity(), t.is_pinned(), t.shape()[id], t.type());
   ptr->set_device_id(t.device_id());
   ptr->SetMeta(t.GetMeta(id));
   return ptr;
@@ -623,7 +623,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
             cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
       }
 
-      tv[i].ShareData(t);
+      tv.UnsafeSetSample(i, t);
     } catch (const py::type_error &) {
       throw;
     } catch (const std::runtime_error &) {
@@ -1269,7 +1269,8 @@ void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder or
   TensorVector<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
     auto &t = list[i].cast<Tensor<Backend>&>();
-    tv[i] = std::move(t);
+    tv.UnsafeSetSample(i, t);
+    // TODO(klecki): tv[i] = std::move(t);
   }
   p->SetExternalInput(name, tv, order, sync, use_copy_kernel);
 }

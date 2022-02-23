@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   tl.template set_type<float>();
 
   ASSERT_EQ(tl._num_elements(), 0);
-  ASSERT_EQ(tl.nbytes(), 0);
+  ASSERT_EQ(tl.total_nbytes(), 0);
   ASSERT_FALSE(tl.has_data());
 
   // Give the tensor list a size. This
@@ -127,7 +127,7 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   ASSERT_TRUE(tl.has_data());
   ASSERT_EQ(tl.num_samples(), num_tensor);
   ASSERT_EQ(tl._num_elements(), size);
-  ASSERT_EQ(tl.nbytes(), size*sizeof(float));
+  ASSERT_EQ(tl.total_nbytes(), size*sizeof(float));
   ASSERT_TRUE(IsType<float>(tl.type()));
 
   tl.reserve(shape.num_elements() * sizeof(float));
@@ -146,8 +146,8 @@ TYPED_TEST(TensorListTest, TestReserveResize) {
   ASSERT_THROW(tl.set_pinned(true), std::runtime_error);
 
   ASSERT_TRUE(tl.has_data());
-  ASSERT_EQ(tl.capacity(), shape.num_elements() * sizeof(float));
-  ASSERT_EQ(tl.nbytes(), 0);
+  ASSERT_EQ(tl.total_capacity(), shape.num_elements() * sizeof(float));
+  ASSERT_EQ(tl.total_nbytes(), 0);
   ASSERT_EQ(tl._num_elements(), 0);
   ASSERT_NE(unsafe_raw_data(tl), nullptr);
 
@@ -155,7 +155,7 @@ TYPED_TEST(TensorListTest, TestReserveResize) {
   tl.template set_type<float>();
 
   ASSERT_EQ(tl._num_elements(), 0);
-  ASSERT_EQ(tl.nbytes(), 0);
+  ASSERT_EQ(tl.total_nbytes(), 0);
   ASSERT_TRUE(tl.has_data());
 
   // We already had the allocation, just give it a shape and a type
@@ -173,7 +173,7 @@ TYPED_TEST(TensorListTest, TestReserveResize) {
   ASSERT_TRUE(tl.has_data());
   ASSERT_EQ(tl.num_samples(), num_tensor);
   ASSERT_EQ(tl._num_elements(), size);
-  ASSERT_EQ(tl.nbytes(), size*sizeof(float));
+  ASSERT_EQ(tl.total_nbytes(), size*sizeof(float));
   ASSERT_TRUE(IsType<float>(tl.type()));
 
 
@@ -214,7 +214,7 @@ TYPED_TEST(TensorListTest, TestGetContiguousPointer) {
   // Verify the internals
   ASSERT_EQ(tl._num_elements(), volume);
   ASSERT_EQ(tl.num_samples(), num_tensor);
-  ASSERT_EQ(tl.nbytes(), volume * sizeof(uint32_t));
+  ASSERT_EQ(tl.total_nbytes(), volume * sizeof(uint32_t));
   ASSERT_EQ(tl.type(), DALI_UINT32);
   ASSERT_TRUE(tl.IsContiguous());
   ASSERT_NE(unsafe_raw_data(tl), nullptr);
@@ -244,7 +244,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenNoAlloc) {
     ASSERT_EQ(tl.raw_tensor(i), sharer.raw_tensor(i));
   }
   ASSERT_EQ(tl._num_elements(), size);
-  ASSERT_EQ(tl.nbytes(), size*sizeof(float));
+  ASSERT_EQ(tl.total_nbytes(), size*sizeof(float));
   ASSERT_EQ(tl.type(), sharer.type());
   ASSERT_EQ(tl.num_samples(), num_tensor);
   ASSERT_TRUE(tl.shares_data());
@@ -279,7 +279,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
     ASSERT_EQ(tl.raw_tensor(i), sharer.raw_tensor(i));
   }
   ASSERT_EQ(tl._num_elements(), size);
-  ASSERT_EQ(tl.nbytes(), size*sizeof(float));
+  ASSERT_EQ(tl.total_nbytes(), size*sizeof(float));
   ASSERT_EQ(tl.type(), sharer.type());
   ASSERT_EQ(tl.num_samples(), num_tensor);
   ASSERT_TRUE(tl.shares_data());
@@ -298,7 +298,7 @@ TYPED_TEST(TensorListTest, TestZeroSizeResize) {
   tensor_list.Resize(shape);
 
   ASSERT_FALSE(tensor_list.has_data());
-  ASSERT_EQ(tensor_list.nbytes(), 0);
+  ASSERT_EQ(tensor_list.total_nbytes(), 0);
   ASSERT_EQ(tensor_list._num_elements(), 0);
   ASSERT_FALSE(tensor_list.shares_data());
 }
@@ -311,7 +311,7 @@ TYPED_TEST(TensorListTest, TestMultipleZeroSizeResize) {
   tensor_list.Resize(shape, DALI_FLOAT);
 
   ASSERT_FALSE(tensor_list.has_data());
-  ASSERT_EQ(tensor_list.nbytes(), 0);
+  ASSERT_EQ(tensor_list.total_nbytes(), 0);
   ASSERT_EQ(tensor_list.num_samples(), num_tensor);
   ASSERT_EQ(tensor_list._num_elements(), 0);
   ASSERT_FALSE(tensor_list.shares_data());
@@ -333,7 +333,7 @@ TYPED_TEST(TensorListTest, TestFakeScalarResize) {
   tensor_list.Resize(shape);
 
   ASSERT_TRUE(tensor_list.has_data());
-  ASSERT_EQ(tensor_list.nbytes(), num_scalar*sizeof(float));
+  ASSERT_EQ(tensor_list.total_nbytes(), num_scalar*sizeof(float));
   ASSERT_EQ(tensor_list._num_elements(), num_scalar);
   ASSERT_FALSE(tensor_list.shares_data());
 
@@ -353,7 +353,7 @@ TYPED_TEST(TensorListTest, TestTrueScalarResize) {
   tensor_list.Resize(shape);
 
   ASSERT_TRUE(tensor_list.has_data());
-  ASSERT_EQ(tensor_list.nbytes(), num_scalar*sizeof(float));
+  ASSERT_EQ(tensor_list.total_nbytes(), num_scalar*sizeof(float));
   ASSERT_EQ(tensor_list._num_elements(), num_scalar);
   ASSERT_FALSE(tensor_list.shares_data());
 
@@ -456,7 +456,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeSameSize) {
   for (size_t i = 0; i < tensor_list.num_samples(); i++) {
     ptrs.push_back(tensor_list.raw_tensor(i));
   }
-  size_t nbytes = tensor_list.nbytes();
+  size_t nbytes = tensor_list.total_nbytes();
 
   // Change the data type
   tensor_list.template set_type<int>();
@@ -470,7 +470,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeSameSize) {
   }
 
   // No memory allocation should have occurred
-  ASSERT_EQ(nbytes, tensor_list.nbytes());
+  ASSERT_EQ(nbytes, tensor_list.total_nbytes());
 }
 
 TYPED_TEST(TensorListTest, TestTypeChangeSmaller) {
@@ -482,7 +482,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeSmaller) {
 
   this->SetupTensorList(&tensor_list, shape, &offsets);
 
-  size_t nbytes = tensor_list.nbytes();
+  size_t nbytes = tensor_list.total_nbytes();
   const auto *base_ptr = unsafe_raw_data(tensor_list);
 
   // Change the data type to something smaller
@@ -497,7 +497,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeSmaller) {
   }
 
   // nbytes should have reduced by a factor of 4
-  ASSERT_EQ(nbytes / sizeof(float) * sizeof(uint8), tensor_list.nbytes());
+  ASSERT_EQ(nbytes / sizeof(float) * sizeof(uint8), tensor_list.total_nbytes());
 }
 
 TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
@@ -509,7 +509,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
 
   this->SetupTensorList(&tensor_list, shape, &offsets);
 
-  size_t nbytes = tensor_list.nbytes();
+  size_t nbytes = tensor_list.total_nbytes();
 
   // Change the data type to something larger
   tensor_list.template set_type<double>();
@@ -522,7 +522,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
   }
 
   // nbytes should have increased by a factor of 2
-  ASSERT_EQ(nbytes / sizeof(float) * sizeof(double), tensor_list.nbytes());
+  ASSERT_EQ(nbytes / sizeof(float) * sizeof(double), tensor_list.total_nbytes());
 }
 
 TYPED_TEST(TensorListTest, TestShareData) {
@@ -559,7 +559,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
 
   // Check the internals
   ASSERT_TRUE(tensor_list2.shares_data());
-  ASSERT_EQ(tensor_list2.nbytes(), tensor_list.nbytes());
+  ASSERT_EQ(tensor_list2.total_nbytes(), tensor_list.total_nbytes());
   ASSERT_EQ(tensor_list2.num_samples(), tensor_list.num_samples());
   ASSERT_EQ(tensor_list2._num_elements(), tensor_list._num_elements());
   for (size_t i = 0; i < tensor_list.num_samples(); ++i) {
@@ -575,7 +575,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
 
   // Check the internals
   ASSERT_EQ(tensor_list2._num_elements(), 0);
-  ASSERT_EQ(tensor_list2.nbytes(), 0);
+  ASSERT_EQ(tensor_list2.total_nbytes(), 0);
   ASSERT_EQ(tensor_list2.num_samples(), 0);
   ASSERT_EQ(tensor_list2.shape(), TensorListShape<>());
 }

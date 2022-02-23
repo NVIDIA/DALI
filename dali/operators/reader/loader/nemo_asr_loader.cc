@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -108,7 +108,7 @@ void NemoAsrLoader::PrepareEmpty(AsrSample &sample) {
 }
 
 template <typename OutputType>
-void NemoAsrLoader::ReadAudio(Tensor<CPUBackend> &audio,
+void NemoAsrLoader::ReadAudio(SampleView<CPUBackend> audio,
                               const AudioMetadata &audio_meta,
                               const NemoAsrEntry &entry,
                               AudioDecoderBase &decoder,
@@ -170,7 +170,7 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
 
   TYPE_SWITCH(dtype_, type2id, OutputType, (int16_t, int32_t, float), (
     // Audio decoding will be run in the prefetch function, once the batch is formed
-    sample.decode_f_ = [this, &sample, &entry, offset](Tensor<CPUBackend> &audio, int tid) {
+    sample.decode_f_ = [this, &sample, &entry, offset](SampleView<CPUBackend> audio, int tid) {
       sample.decoder().OpenFromFile(entry.audio_filepath);
       if (offset > 0)
         sample.decoder().SeekFrames(offset);

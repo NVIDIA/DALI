@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include <utility>
 #include <sstream>
 #include <string>
+#include "dali/pipeline/data/backend.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/test/tensor_test_utils.h"
@@ -219,7 +220,8 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     Tensor<CPUBackend> sample_audio;
     loader.ReadSample(sample);
     sample_audio.Resize(sample.shape(), DALI_INT16);
-    sample.decode_audio(sample_audio, 0);
+    auto sample_audio_view = sample_view(sample_audio);
+    sample.decode_audio(sample_audio_view, 0);
     ASSERT_EQ(sample.index(), 0);
     TensorView<StorageCPU, int16_t> ref(ref_data.data(), {ref_samples, 2});
     Check(ref, view<const int16_t>(sample_audio));
@@ -246,7 +248,8 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     Tensor<CPUBackend> sample_audio;
     loader.ReadSample(sample);
     sample_audio.Resize(sample.shape(), DALI_FLOAT);
-    sample.decode_audio(sample_audio, 0);
+    auto sample_audio_view = sample_view(sample_audio);
+    sample.decode_audio(sample_audio_view, 0);
     ASSERT_EQ(sample.index(), 0);
     TensorView<StorageCPU, float> ref(downmixed.data(), {ref_samples});
     Check(ref, view<const float>(sample_audio), EqualEpsRel(1e-5, 1e-5));
@@ -271,7 +274,8 @@ TEST(NemoAsrLoaderTest, ReadSample) {
       loader.PrepareMetadata();
       loader.ReadSample(sample);
       sample_audio.Resize(sample.shape(), DALI_FLOAT);
-      sample.decode_audio(sample_audio, 0);
+    auto sample_audio_view = sample_view(sample_audio);
+      sample.decode_audio(sample_audio_view, 0);
     }
 
     int64_t downsampled_len =
@@ -302,7 +306,10 @@ TEST(NemoAsrLoaderTest, ReadSample) {
       loader.PrepareMetadata();
       loader.ReadSample(sample_int16);
       sample_int16_audio.Resize(sample_int16.shape(), DALI_INT16);
-      sample_int16.decode_audio(sample_int16_audio, 0);
+      SampleView<CPUBackend> sample_audio_view(sample_int16_audio.raw_mutable_data(),
+                                               sample_int16_audio.shape(),
+                                               sample_int16_audio.type());
+      sample_int16.decode_audio(sample_audio_view, 0);
     }
 
     ASSERT_EQ(volume(sample_audio.shape()), volume(sample_int16_audio.shape()));
@@ -381,7 +388,8 @@ TEST(NemoAsrLoaderTest, ReadSample_OffsetAndDuration) {
     TensorShape<> expected_sh{length, 2};
     ASSERT_EQ(expected_sh, sample.shape());
     sample_audio.Resize(sample.shape(), DALI_INT16);
-    sample.decode_audio(sample_audio, 0);
+    auto sample_audio_view = sample_view(sample_audio);
+    sample.decode_audio(sample_audio_view, 0);
 
     TensorView<StorageCPU, int16_t> ref(ref_data.data() + offset * 2, expected_sh);
     Check(ref, view<const int16_t>(sample_audio));

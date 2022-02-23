@@ -203,8 +203,8 @@ static py::capsule DLTensorToCapsule(DLMTensorPtr dl_tensor) {
 }
 
 template <typename Backend>
-py::capsule TensorToDLPackView(Tensor<Backend> &tensor) {
-  DLMTensorPtr dl_tensor = GetDLTensorView(tensor);
+py::capsule TensorToDLPackView(SampleView<Backend> tensor, int device_id) {
+  DLMTensorPtr dl_tensor = GetDLTensorView(tensor, device_id);
   return DLTensorToCapsule(std::move(dl_tensor));
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ void LookupValuesImpl(ThreadPool &tp, TensorVector<CPUBackend> &output,
                       const Output *lookup_table, const Output default_value) {
   for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
     auto data_size = shape.tensor_size(sample_idx);
-    auto *out_data = output[sample_idx].mutable_data<Output>();
-    const auto *in_data = input[sample_idx].data<Input>();
+    auto *out_data = output.mutable_tensor<Output>(sample_idx);
+    const auto *in_data = input.tensor<Input>(sample_idx);
     tp.AddWork(
         [=](int thread_id) {
           for (int64_t i = 0; i < data_size; i++) {

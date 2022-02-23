@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -554,15 +554,16 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     samples_jpeg2k_.clear();
 #endif  // NVJPEG2K_ENABLED
 
+    const auto &input = ws.Input<CPUBackend>(0);
     for (int i = 0; i < curr_batch_size; i++) {
-      const auto &in = ws.Input<CPUBackend>(0)[i];
-      const auto in_size = in.size();
-      thread_pool_.AddWork([this, i, &in, in_size](int tid) {
-        auto *input_data = in.data<uint8_t>();
+      auto *input_data = input.tensor<uint8_t>(i);
+      const auto in_size = input.tensor_shape(i).num_elements();
+      const auto &source_info = input.GetMeta(i).GetSourceInfo();
+      thread_pool_.AddWork([this, i, input_data, in_size, source_info](int tid) {
         SampleData &data = sample_data_[i];
         data.clear();
         data.sample_idx = i;
-        data.file_name = in.GetSourceInfo();
+        data.file_name = source_info;
         data.encoded_length = in_size;
 
         auto cached_shape = CacheImageShape(data.file_name);
@@ -704,15 +705,17 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   void ProcessImagesCuda(MixedWorkspace &ws) {
     auto& output = ws.Output<GPUBackend>(0);
+    const auto &input = ws.Input<CPUBackend>(0);
     for (auto *sample : samples_single_) {
       assert(sample);
       auto i = sample->sample_idx;
       auto *output_data = output.mutable_tensor<uint8_t>(i);
-      const auto &in = ws.Input<CPUBackend>(0)[i];
+      const auto *in_data = input.tensor<uint8_t>(i);
+      const auto in_size = input.tensor_shape(i).num_elements();
       thread_pool_.AddWork(
-        [this, sample, &in, output_data](int tid) {
-          SampleWorker(sample->sample_idx, sample->file_name, in.size(), tid,
-            in.data<uint8_t>(), output_data, streams_[tid]);
+        [this, sample, in_data, in_size, output_data](int tid) {
+          SampleWorker(sample->sample_idx, sample->file_name, in_size, tid,
+            in_data, output_data, streams_[tid]);
         }, task_priority_seq_--);  // FIFO order, since the samples were already ordered
     }
   }
@@ -808,15 +811,17 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   void ProcessImagesHost(MixedWorkspace &ws) {
+    const auto &input = ws.Input<CPUBackend>(0);
     auto& output = ws.Output<GPUBackend>(0);
     for (auto *sample : samples_host_) {
       auto i = sample->sample_idx;
+      const auto *input_data = input.tensor<uint8_t>(i);
+      auto in_size = input.tensor_shape(i).num_elements();
       auto *output_data = output.mutable_tensor<uint8_t>(i);
-      const auto &in = ws.Input<CPUBackend>(0)[i];
       ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
       thread_pool_.AddWork(
-        [this, sample, &in, output_data, shape](int tid) {
-          HostFallback<StorageGPU>(in.data<uint8_t>(), in.size(), output_image_type_, output_data,
+        [this, sample, input_data, in_size, output_data, shape](int tid) {
+          HostFallback<StorageGPU>(input_data, in_size, output_image_type_, output_data,
                                    streams_[tid], sample->file_name, sample->roi, use_fast_idct_);
           CacheStore(sample->file_name, output_data, shape, streams_[tid]);
         }, task_priority_seq_--);  // FIFO order, since the samples were already ordered
@@ -846,13 +851,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       int j = 0;
       TensorVector<CPUBackend> tv(samples_hw_batched_.size());
 
+      const auto &input = ws.Input<CPUBackend>(0);
       for (auto *sample : samples_hw_batched_) {
         int i = sample->sample_idx;
-        const auto &in = ws.Input<CPUBackend>(0)[i];
         const auto &out_shape = output_shape_.tensor_shape(i);
 
-        tv[j].ShareData(const_cast<Tensor<CPUBackend> &>(in));
-        in_lengths_[j] = in.size();
+        tv.UnsafeSetSample(j, input, i);
+        in_lengths_[j] = input.tensor_shape(i).num_elements();
         nvjpeg_destinations_[j].channel[0] = output.mutable_tensor<uint8_t>(i);
         nvjpeg_destinations_[j].pitch[0] = out_shape[1] * out_shape[2];
         nvjpeg_params_[j] = sample->params;

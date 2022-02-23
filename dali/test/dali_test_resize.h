@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #ifndef DALI_TEST_DALI_TEST_RESIZE_H_
 #define DALI_TEST_DALI_TEST_RESIZE_H_
 
@@ -28,6 +28,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
     // single input - encoded images
     // single output - decoded images
     TensorVector<CPUBackend> out(inputs[0]->num_samples());
+    std::vector<Tensor<CPUBackend>> tmp_out(inputs[0]->num_samples());
     const TensorList<CPUBackend>& image_data = *inputs[0];
 
     const uint32_t resizeOptions = getResizeOptions();
@@ -175,10 +176,21 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
         finalImg = &mirror_img;
       }
 
-      out[i].Resize({finalImg->rows, finalImg->cols, c}, DALI_UINT8);
-      auto *out_data = out[i].mutable_data<unsigned char>();
+      tmp_out[i].Resize({finalImg->rows, finalImg->cols, c}, DALI_UINT8);
+      auto *out_data = tmp_out[i].mutable_data<unsigned char>();
 
       std::memcpy(out_data, finalImg->ptr(), finalImg->rows * finalImg->cols * c);
+    }
+
+    TensorListShape<> shape(tmp_out.size(), tmp_out[0].shape().sample_dim());
+    for (size_t i = 0; i < image_data.num_samples(); ++i) {
+      shape.set_tensor_shape(i, tmp_out[i].shape());
+    }
+    // TODO(klecki): If sharing we do not need to resize, we just need to enforce that we have
+    // enough samples
+    out.Resize(shape, tmp_out[0].type());
+    for (size_t i = 0; i < image_data.num_samples(); ++i) {
+      out.UnsafeSetSample(i, tmp_out[i]);
     }
 
     vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;

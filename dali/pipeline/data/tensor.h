@@ -422,6 +422,10 @@ class Tensor : public Buffer<Backend> {
     return *this;
   }
 
+  DALIMeta &GetMeta() {
+    return meta_;
+  }
+
   const DALIMeta &GetMeta() const {
     return meta_;
   }
