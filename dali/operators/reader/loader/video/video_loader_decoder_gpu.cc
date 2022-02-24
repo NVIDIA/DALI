@@ -36,18 +36,14 @@ void VideoSampleGpu::Decode() {
   }
 }
 
-VideoLoaderDecoderGpu::~VideoLoaderDecoderGpu() {
-  CUDA_DTOR_CALL(cudaStreamDestroy(cuda_stream_));
-}
-
-cudaStream_t VideoLoaderDecoderGpu::GetCudaStream() {
+void VideoLoaderDecoderGpu::InitCudaStream() {
   #if NVML_ENABLED
   {
     nvml::Init();
     static float driver_version = nvml::GetDriverVersion();
     if (driver_version > 460 && driver_version < 470.21) {
       DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
-      return 0;
+      return;
     }
   }
   #else
@@ -56,16 +52,13 @@ cudaStream_t VideoLoaderDecoderGpu::GetCudaStream() {
     CUDA_CALL(cuDriverGetVersion(&driver_cuda_version));
     if (driver_cuda_version >= 11030 && driver_cuda_version < 11040) {
       DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
-      return 0;
+      return;
     }
   }
   #endif
 
   // TODO(awolant): Check per decoder stream
-  cudaStream_t stream;
-  DeviceGuard dg(device_id_);
-  CUDA_CALL(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-  return stream;
+  cuda_stream_ = CUDAStreamPool::instance().Get(device_id_);
 }
 
 void VideoLoaderDecoderGpu::PrepareEmpty(VideoSampleGpu &sample) {
