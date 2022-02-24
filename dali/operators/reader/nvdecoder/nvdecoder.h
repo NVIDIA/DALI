@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ extern "C" {
 #include <vector>
 
 #include "dali/core/dynlink_cuda.h"
-#include "dali/core/cuda_stream.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/operators/reader/nvdecoder/sequencewrapper.h"
 #include "dali/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/operators/reader/nvdecoder/cuvideodecoder.h"
@@ -173,7 +173,7 @@ class NvDecoder {
 
 
   const int device_id_;
-  CUDAStream stream_;
+  CUDAStreamLease stream_;
 
   bool rgb_;
   DALIDataType dtype_;
