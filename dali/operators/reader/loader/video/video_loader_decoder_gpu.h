@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/loader/video/video_loader_decoder_cpu.h"
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
@@ -42,8 +43,8 @@ class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
     sequence_len_(spec.GetArgument<int>("sequence_length")),
     stride_(spec.GetArgument<int>("stride")),
-    step_(spec.GetArgument<int>("step")),
-    cuda_stream_(GetCudaStream()) {
+    step_(spec.GetArgument<int>("step")) {
+    InitCudaStream();
     if (step_ <= 0) {
       step_ = stride_ * sequence_len_;
     }
@@ -54,8 +55,6 @@ class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
 
   void PrepareEmpty(VideoSampleGpu &sample) override;
 
-  ~VideoLoaderDecoderGpu();
-
  protected:
   Index SizeImpl() override;
 
@@ -64,7 +63,7 @@ class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
  private:
   void Reset(bool wrap_to_shard) override;
 
-  cudaStream_t GetCudaStream();
+  void InitCudaStream();
 
   std::vector<std::string> filenames_;
   std::vector<int> labels_;
@@ -78,7 +77,7 @@ class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
   int stride_;
   int step_;
 
-  cudaStream_t cuda_stream_;
+  CUDAStreamLease cuda_stream_;
 };
 
 }  // namespace dali
