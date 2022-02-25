@@ -45,7 +45,7 @@ void compare(const TensorView &left, const TensorView &right) {
 
 TEST(SampleView, Constructors) {
   SampleView<CPUBackend> default_view{};
-  compare(default_view, nullptr, {}, DALI_NO_TYPE);
+  compare(default_view, nullptr, {0}, DALI_NO_TYPE);
 
   int32_t data{};
   SampleView<CPUBackend> from_ptr{&data, {1, 2, 3}};

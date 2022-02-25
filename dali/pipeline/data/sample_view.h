@@ -110,12 +110,7 @@ class SampleView {
   SampleView &operator=(const SampleView &) = default;
 
   SampleView(SampleView &&other) {
-    data_ = other.data_;
-    other.data_ = nullptr;
-    shape_ = std::move(other.shape_);
-    other.shape_ = {};
-    type_id_ = other.type_id_;
-    other.type_id_ = DALI_NO_TYPE;
+    *this = std::move(other);
   }
 
   SampleView &operator=(SampleView &&other) {
@@ -123,7 +118,7 @@ class SampleView {
       data_ = other.data_;
       other.data_ = nullptr;
       shape_ = std::move(other.shape_);
-      other.shape_ = {};
+      other.shape_ = {0};
       type_id_ = other.type_id_;
       other.type_id_ = DALI_NO_TYPE;
     }
@@ -148,7 +143,7 @@ class SampleView {
   // if the usage of shared_ptr is possbile and adjusted if necessary.
   // Using shared_ptr might allow for sample exchange between two batches using operator[]
   void *data_ = nullptr;
-  TensorShape<> shape_ = {};
+  TensorShape<> shape_ = {0};
   DALIDataType type_id_ = DALI_NO_TYPE;
 };
 
