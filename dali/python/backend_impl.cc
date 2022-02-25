@@ -1291,7 +1291,6 @@ PYBIND11_MODULE(backend_impl, m) {
 
   m.def("IsDriverInitialized", [] {
     // we just want to check if cuda has been loaded already
-
     if (dlopen("libcuda.so", RTLD_NOLOAD | RTLD_NOW) ||
         dlopen("libcuda.so.1", RTLD_NOLOAD | RTLD_NOW)) {
       int place_holder = -1;
