@@ -42,8 +42,6 @@ class SampleView {
   // @{
   /**
    * @brief Return an un-typed pointer to the underlying storage.
-   * A valid type must be set prior to calling this method by calling
-   * the non-const version of the method, or calling 'set_type'.
    */
   void *raw_mutable_data() {
     return data_;
@@ -51,8 +49,6 @@ class SampleView {
 
   /**
    * @brief Return a const, un-typed pointer to the underlying storage.
-   * A valid type must be set prior to calling this method by calling
-   * the non-const version of the method, or calling 'set_type'.
    */
   const void *raw_data() const {
     return data_;
