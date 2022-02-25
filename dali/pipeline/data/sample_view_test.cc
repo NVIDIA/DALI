@@ -74,4 +74,13 @@ TEST(SampleView, ViewConversion) {
           TensorView<StorageCPU, const int32_t, 3>{&data, {1, 2, 3}});
 }
 
+TEST(SampleView, ViewConversionError) {
+  int32_t data{};
+  SampleView<CPUBackend> sample_view{&data, {1, 2, 3}};
+  const SampleView<CPUBackend> const_sample_view{&data, {1, 2, 3}};
+
+  EXPECT_THROW(view<float>(sample_view), std::runtime_error);
+  EXPECT_THROW(view<const float>(sample_view), std::runtime_error);
+  EXPECT_THROW(view<const float>(const_sample_view), std::runtime_error);
+}
 }  // namespace dali

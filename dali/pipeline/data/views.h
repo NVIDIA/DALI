@@ -111,11 +111,8 @@ view(const Tensor<Backend> &data) {
 template <typename T, int ndim = DynamicDimensions, typename Backend>
 TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(SampleView<Backend> &data) {
   using U = std::remove_const_t<T>;
-  DALI_ENFORCE(TypeTable::GetTypeId<U>() == data.type(),
-               make_string("Cannot create TensorView of type ", TypeTable::GetTypeId<U>(),
-                           " from SampleView containing ", data.type(), "."));
   detail::enforce_dim_in_view<ndim>(data.shape());
-  return {static_cast<T *>(data.raw_mutable_data()), data.shape()};
+  return {data.template mutable_data<U>(), data.shape()};
 }
 
 
@@ -125,11 +122,8 @@ TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(const SampleView<Ba
                 "Cannot create a non-const view of a `const Tensor<>`. "
                 "Missing `const` in T?");
   using U = std::remove_const_t<T>;
-  DALI_ENFORCE(TypeTable::GetTypeId<U>() == data.type(),
-               make_string("Cannot create TensorView of type ", TypeTable::GetTypeId<U>(),
-                           " from SampleView containing ", data.type(), "."));
   detail::enforce_dim_in_view<ndim>(data.shape());
-  return {static_cast<T *>(data.raw_data()), data.shape()};
+  return {data.template data<U>(), data.shape()};
 }
 // @}
 

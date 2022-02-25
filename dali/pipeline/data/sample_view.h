@@ -40,12 +40,52 @@ class SampleView {
    * @name Get the underlying pointer to data
    */
   // @{
+  /**
+   * @brief Return an un-typed pointer to the underlying storage.
+   * A valid type must be set prior to calling this method by calling
+   * the non-const version of the method, or calling 'set_type'.
+   */
   void *raw_mutable_data() {
     return data_;
   }
 
+  /**
+   * @brief Return a const, un-typed pointer to the underlying storage.
+   * A valid type must be set prior to calling this method by calling
+   * the non-const version of the method, or calling 'set_type'.
+   */
   const void *raw_data() const {
     return data_;
+  }
+
+  /**
+   * @brief Returns a typed pointer to the underlying storage.
+   * The calling type must match the underlying type of the buffer.
+   */
+  template <typename T>
+  inline T *mutable_data() {
+    DALI_ENFORCE(
+        type() == TypeTable::GetTypeId<T>(),
+        make_string(
+            "Calling type does not match buffer data type, requested type: ",
+            TypeTable::GetTypeId<T>(), " current buffer type: ", type(),
+            ". To set type for the Buffer use 'set_type<T>()' or Resize(shape, type) first."));
+    return static_cast<T *>(data_);
+  }
+
+  /**
+   * @brief Returns a const, typed pointer to the underlying storage.
+   * The calling type must match the underlying type of the buffer.
+   */
+  template <typename T>
+  inline const T *data() const {
+    DALI_ENFORCE(
+        type() == TypeTable::GetTypeId<T>(),
+        make_string(
+            "Calling type does not match buffer data type, requested type: ",
+            TypeTable::GetTypeId<T>(), " current buffer type: ", type(),
+            ". To set type for the Buffer use 'set_type<T>()' or Resize(shape, type) first."));
+    return static_cast<T *>(data_);
   }
   //@}
 
@@ -101,7 +141,7 @@ class SampleView {
    * @brief Construct the view with explicitly provided type_id.
    */
   SampleView(void *data, const TensorShape<> shape, DALIDataType type_id)
-      : data_(data), shape_(std::move(shape)), type_id_(type_id)  {}
+      : data_(data), shape_(std::move(shape)), type_id_(type_id) {}
 
  private:
   // TODO(klecki): The view is introduced with no co-owning pointer, it will be evaluated
