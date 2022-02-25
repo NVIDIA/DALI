@@ -40,15 +40,11 @@ class SampleView {
    * @name Get the underlying pointer to data
    */
   // @{
-  void *data() {
+  void *raw_mutable_data() {
     return data_;
   }
 
-  const void *data() const {
-    return data_;
-  }
-
-  const void *cdata() const {
+  const void *raw_data() const {
     return data_;
   }
   //@}

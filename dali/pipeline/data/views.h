@@ -115,7 +115,7 @@ TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(SampleView<Backend>
                make_string("Cannot create TensorView of type ", TypeTable::GetTypeId<U>(),
                            " from SampleView containing ", data.type(), "."));
   detail::enforce_dim_in_view<ndim>(data.shape());
-  return {static_cast<T *>(data.data()), data.shape()};
+  return {static_cast<T *>(data.raw_mutable_data()), data.shape()};
 }
 
 
@@ -129,7 +129,7 @@ TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(const SampleView<Ba
                make_string("Cannot create TensorView of type ", TypeTable::GetTypeId<U>(),
                            " from SampleView containing ", data.type(), "."));
   detail::enforce_dim_in_view<ndim>(data.shape());
-  return {static_cast<T *>(data.cdata()), data.shape()};
+  return {static_cast<T *>(data.raw_data()), data.shape()};
 }
 // @}
 
