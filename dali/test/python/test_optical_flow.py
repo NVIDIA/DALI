@@ -258,7 +258,8 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
 
 def test_optflow():
     if not is_of_supported():
-        raise nose.SkipTest('Optical Flow is not supported on this platform')
+        from nose import SkipTest
+        raise SkipTest('Optical Flow is not supported on this platform')
     for output_grid in [1, 2, 4]:
         hint_grid = random.choice([None, 1, 2, 4, 8])
         for use_temporal_hints in [True, False]:
