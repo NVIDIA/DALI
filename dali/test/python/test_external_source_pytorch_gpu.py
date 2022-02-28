@@ -46,14 +46,24 @@ def test_external_source_callback_torch_stream():
 
 def _test_cross_device(src, dst):
     import nvidia.dali.fn as fn
+    import numpy as np
+
     pipe = Pipeline(1, 3, dst)
-    data = torch.tensor([[1,2,3,4],[5,6,7,8]], dtype=torch.float32).cuda(device=dst)
+
+    iter = 0
+    def get_data():
+        nonlocal iter
+        data = torch.tensor([[1,2,3,4],[5,6,7,8]], dtype=torch.float32).cuda(device=dst) + iter
+        iter += 1
+        return data
+
     with pipe:
-        pipe.set_outputs(fn.external_source([data], batch=False, device='gpu', cycle=True))
+        pipe.set_outputs(fn.external_source(get_data, batch=False, device='gpu'))
 
     pipe.build()
-    for _ in range(10):
-        pipe.run()
+    for i in range(10):
+        out, = pipe.run()
+        assert np.array_equal(np.array(out[0].as_cpu()), np.array([[1,2,3,4],[5,6,7,8]]) + i)
 
 def test_cross_device():
     if torch.cuda.device_count() > 1:

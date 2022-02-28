@@ -1619,7 +1619,7 @@ PYBIND11_MODULE(backend_impl, m) {
 
           // not the most beautiful but at least it doesn't throw as plain cast<T>()
           py::detail::make_caster<Tensor<CPUBackend>&> conv;
-          bool is_cpu_data = conv.load(static_cast<py::object>(list[0]), true);
+          bool is_cpu_data = list.empty() || conv.load(static_cast<py::object>(list[0]), true);
           if (is_cpu_data) {
             FeedPipeline<CPUBackend>(p, name, list, AccessOrder::host(), true);
           } else {
