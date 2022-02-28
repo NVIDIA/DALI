@@ -16,6 +16,7 @@
 #include "dali/core/cuda_error.h"
 #include "dali/core/cuda_stream.h"
 #include "dali/core/cuda_event_pool.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 
@@ -37,7 +38,18 @@ void AccessOrder::wait(const AccessOrder &other) const {
     int other_dev = other.device_id();
     auto event = pool.Get(other_dev);
     // Record an event in the preceding stream
-    CUDA_CALL(cudaEventRecord(event, other.stream()));
+
+    // If the stream handle has a special value, we can't refer to it directly - it is
+    // inherently associated with the concept of "current device" and it must be switched
+    if (other_dev != device_id_ &&
+        (other.stream_ == 0 ||
+         other.stream_ == cudaStreamPerThread ||
+         other.stream_ == cudaStreamLegacy)) {
+      DeviceGuard dg(other.device_id_);
+      CUDA_CALL(cudaEventRecord(event, other.stream()));
+    } else {
+      CUDA_CALL(cudaEventRecord(event, other.stream()));
+    }
     // and wait for it in this stream
     CUDA_CALL(cudaStreamWaitEvent(stream(), event, 0));
     pool.Put(std::move(event), other_dev);

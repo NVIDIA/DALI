@@ -1619,14 +1619,23 @@ PYBIND11_MODULE(backend_impl, m) {
 
           // not the most beautiful but at least it doesn't throw as plain cast<T>()
           py::detail::make_caster<Tensor<CPUBackend>&> conv;
-          bool is_cpu_data = conv.load(static_cast<py::object>(list[0]), true);
+          bool is_cpu_data = list.empty() || conv.load(static_cast<py::object>(list[0]), true);
           if (is_cpu_data) {
             FeedPipeline<CPUBackend>(p, name, list, AccessOrder::host(), true);
           } else {
-            cudaStream_t stream = cuda_stream.is_none()
-                                ? UserStream::Get()->GetStream(list[0].cast<Tensor<GPUBackend>&>())
-                                : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-            FeedPipeline<GPUBackend>(p, name, list, stream, cuda_stream.is_none(), use_copy_kernel);
+            int device_id = p->device_id();
+            cudaStream_t stream = 0;
+            if (!cuda_stream.is_none())
+              stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+
+            if (!list.empty()) {
+              auto &sample0 = list[0].cast<Tensor<GPUBackend>&>();
+              if (cuda_stream.is_none())
+                stream = UserStream::Get()->GetStream(sample0);
+              device_id = sample0.device_id();
+            }
+            AccessOrder order(stream, device_id);
+            FeedPipeline<GPUBackend>(p, name, list, order, cuda_stream.is_none(), use_copy_kernel);
           }
         },
         "name"_a,

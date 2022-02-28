@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ def assert_cpu_sample_data_type(sample, error_str="Unsupported callback return t
     if isinstance(sample, np.ndarray):
         return True
     if types._is_mxnet_array(sample):
-        if sample.ctx.device_type != 'cpu':
+        if sample.context.device_type != 'cpu':
             raise TypeError("Unsupported callback return type. "
                             "GPU tensors are not supported. Got an MXNet GPU tensor.")
         return True
@@ -111,7 +111,7 @@ def sample_to_numpy(sample, error_str="Unsupported callback return type. Got: `{
     if isinstance(sample, np.ndarray):
         return sample
     if types._is_mxnet_array(sample):
-        if sample.ctx.device_type != 'cpu':
+        if sample.context.device_type != 'cpu':
             raise TypeError("Unsupported callback return type. "
                             "GPU tensors are not supported. Got an MXNet GPU tensor.")
         return sample.asnumpy()

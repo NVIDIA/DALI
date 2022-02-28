@@ -43,19 +43,6 @@ def _show_deprecation_warning(deprecated, in_favor_of):
                       Warning, stacklevel=2)
 
 
-def _get_default_stream_for_array(array):
-    if isinstance(array, list) and len(array):
-        array = array[0]
-    if types._is_torch_tensor(array):
-        import torch
-        return torch.cuda.current_stream().cuda_stream
-    elif types._is_cupy_array(array):
-        import cupy
-        return cupy.cuda.get_current_stream().ptr
-    else:
-        return None
-
-
 class Pipeline(object):
     """Pipeline class is the base of all DALI data pipelines. The pipeline
 encapsulates the data processing graph and the execution engine.
@@ -718,13 +705,13 @@ Parameters
     def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
         from nvidia.dali.external_source import _prep_data_for_feed_input
         if cuda_stream is None:
-            cuda_stream = _get_default_stream_for_array(data)
+            cuda_stream = types._get_default_stream_for_array(data)
         if cuda_stream == -1:
             cuda_stream = None
         else:
             cuda_stream = types._raw_cuda_stream(cuda_stream)
 
-        data = _prep_data_for_feed_input(data, self._max_batch_size, layout)
+        data = _prep_data_for_feed_input(data, self._max_batch_size, layout, self._device_id)
 
         if isinstance(data, list):
             self._pipe.SetExternalTensorInput(
