@@ -55,3 +55,22 @@ def test_external_source_mixed_contiguous():
     with check_output_pattern(pattern):
         for _ in range(iterations):
             pipe.run()
+
+
+def _test_cross_device(src, dst):
+    import nvidia.dali.fn as fn
+    pipe = Pipeline(1, 3, dst)
+    with cp.cuda.Device(src):
+        data = cp.array([[1,2,3,4],[5,6,7,8]], dtype=cp.float32)
+    with pipe:
+        pipe.set_outputs(fn.external_source([data], batch=False, device='gpu', cycle=True))
+
+    pipe.build()
+    for _ in range(10):
+        pipe.run()
+
+def test_cross_device():
+    if cp.cuda.runtime.getDeviceCount() > 1:
+        for src in [0,1]:
+            for dst in [0,1]:
+                yield _test_cross_device, src, dst

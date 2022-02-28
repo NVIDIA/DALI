@@ -126,8 +126,8 @@ class DataNodeDebug(_DataNode):
         return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["bitxor", other, self], {})
 
 
-def _transform_data_to_tensorlist(data, batch_size, layout=None):
-    data = _prep_data_for_feed_input(data, batch_size, layout)
+def _transform_data_to_tensorlist(data, batch_size, layout=None, device_id=None):
+    data = _prep_data_for_feed_input(data, batch_size, layout, device_id)
 
     if isinstance(data, list):
         if isinstance(data[0], _tensors.TensorGPU):
@@ -268,7 +268,7 @@ class _PipelineDebug(_pipeline.Pipeline):
 
     def build(self):
         """Build the pipeline.
-        
+
         Refer to :meth:`Pipeline.build() <nvidia.dali.Pipeline.build>` for details."""
         self._built = True
 
@@ -299,7 +299,7 @@ class _PipelineDebug(_pipeline.Pipeline):
 
     def feed_input(self, data_node, data, **kwargs):
         """Pass data to an ExternalSource operator inside the pipeline.
-        
+
         Refer to :meth:`Pipeline.feed_input() <nvidia.dali.Pipeline.feed_input>` for details."""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")

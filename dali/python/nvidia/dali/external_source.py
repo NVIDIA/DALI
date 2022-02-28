@@ -54,8 +54,7 @@ def _check_data_batch(data, batch_size, layout):
         if layout is not None and layout != "" and dim != len(layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
 
-
-def _prep_data_for_feed_input(data, batch_size, layout):
+def _prep_data_for_feed_input(data, batch_size, layout, device_id = None):
     def to_numpy(x):
         if _types._is_mxnet_array(x):
             return x.asnumpy()
@@ -82,7 +81,10 @@ def _prep_data_for_feed_input(data, batch_size, layout):
             if isinstance(datum, (_tensors.TensorCPU, _tensors.TensorGPU)):
                 inp = type(datum)(datum, layout=layout) if layout is not None else datum
             elif hasattr(datum, "__cuda_array_interface__") or (info[0] and info[1]):
-                inp = _tensors.TensorGPU(datum, layout or "")
+                array_device_id = _types._get_device_id_for_array(datum)
+                if array_device_id is None:
+                    array_device_id = device_id
+                inp = _tensors.TensorGPU(datum, layout or "", array_device_id)
             else:
                 datum = to_numpy(datum)
                 inp = _tensors.TensorCPU(datum, layout or "")
