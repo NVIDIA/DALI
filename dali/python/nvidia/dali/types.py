@@ -333,6 +333,30 @@ def _raw_cuda_stream(stream_obj):
     else:
         return stream_obj
 
+def _get_default_stream_for_array(array):
+    if isinstance(array, list) and len(array):
+        array = array[0]
+    if _is_torch_tensor(array):
+        import torch
+        return _raw_cuda_stream(torch.cuda.current_stream())
+    elif _is_cupy_array(array):
+        import cupy
+        return _raw_cuda_stream(cupy.cuda.get_current_stream())
+    else:
+        return None
+
+def _get_device_id_for_array(array):
+    if isinstance(array, list) and len(array):
+        array = array[0]
+    if _is_torch_tensor(array):
+        return array.device.index
+    elif _is_cupy_array(array):
+        return array.device
+    elif _is_mxnet_array(array):
+        return array.context.device_id
+    else:
+        return None
+
 _cupy_array_type_regex = re.compile('.*cupy\..*\.ndarray.*')
 
 def _is_cupy_array(value):
