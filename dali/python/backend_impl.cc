@@ -281,18 +281,26 @@ void ExposeTensorLayout(py::module &m) {
 // Placeholder enum for defining __call__ on dtype member of Tensor (to be deprecated).
 enum DALIDataTypePlaceholder {};
 
+int GetDLCapsuleType(const py::object &p) {
+   if (PyCapsule_CheckExact(p.ptr())) {
+      py::capsule capsule = py::reinterpret_borrow<py::capsule>(p);
+      // do not consume capsule
+      auto dlm_tensor_ptr = DLMTensorRawPtrFromCapsule(capsule, false);
+      const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
+      return dl_tensor.device.device_type;
+   } else {
+     return -1;
+   }
+}
 void ExposeTensor(py::module &m) {
   m.def("CheckDLPackCapsule",
         [](py::object &p) {
           py::list list;
-          if (PyCapsule_CheckExact(p.ptr())) {
-            py::capsule capsule = py::reinterpret_borrow<py::capsule>(p);
-            // do not consume capsule
-            auto dlm_tensor_ptr = DLMTensorRawPtrFromCapsule(capsule, false);
-            const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
-            list.append(dl_tensor.device.device_type == kDLCUDA ||
-                        dl_tensor.device.device_type == kDLCPU);
-            list.append(dl_tensor.device.device_type == kDLCUDA);
+          auto type = GetDLCapsuleType(p);
+          if (type > 0) {
+            list.append(type == kDLCUDA ||
+                        type == kDLCPU);
+            list.append(type == kDLCUDA);
           } else {
             list.append(false);
             list.append(false);
@@ -302,7 +310,8 @@ void ExposeTensor(py::module &m) {
       "ptr"_a,
       R"code(
       Check if provided python object represent a valid DLPack capsule.
-      It returns a tuple of two boolean values: one indicating if this is a valid DLPack object, and the other if the data
+      It returns a tuple of two boolean values: one indicating if this is a valid DLPack object,
+      and the other if the data is on the GPU
 
       p : python object
           Python object to be checked
@@ -458,31 +467,20 @@ void ExposeTensor(py::module &m) {
       and `NumPy Array Interface <https://numpy.org/doc/stable/reference/arrays.interface.html>`_.)code";
 
   auto tensor_gpu_binding = py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
-    .def(py::init([](py::capsule &capsule, string layout = "") {
-          auto t = std::make_unique<Tensor<GPUBackend>>();
-          FillTensorFromDlPack(capsule, t.get(), layout);
-          return t.release();
-        }),
-      "object"_a,
-      "layout"_a = "",
-      R"code(
-      Wrap a DLPack Tensor residing in the GPU memory.
-
-      object : DLPack object
-            Python DLPack object
-      layout : str
-            Layout of the data
-      )code")
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
           auto t = std::make_unique<Tensor<GPUBackend>>();
-          FillTensorFromCudaArray(object, t.get(), device_id, layout);
+          if (GetDLCapsuleType(object) > 0) {
+            FillTensorFromDlPack(object, t.get(), layout);
+          } else {
+            FillTensorFromCudaArray(object, t.get(), device_id, layout);
+          }
           return t.release();
         }),
       "object"_a,
       "layout"_a = "",
       "device_id"_a = -1,
       R"code(
-      Wrap a Tensor residing in the GPU memory that implements CUDA Array Interface.
+      Wrap a Tensor residing in the GPU memory that implements CUDA Array Interface or is a DLPack object.
 
       object : object
             Python object that implements CUDA Array Interface
