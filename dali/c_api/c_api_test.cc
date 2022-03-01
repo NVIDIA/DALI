@@ -962,7 +962,7 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
   daliDeletePipeline(&handle);
 }
 
-TYPED_TEST(CApiTest, CpuOnlyTest) {
+TEST(CApiTest, CpuOnlyTest) {
   dali::Pipeline pipe(1, 1, dali::CPU_ONLY_DEVICE_ID);
   pipe.AddExternalInput("dummy");
   std::vector<std::pair<std::string, std::string>> outputs = {{"dummy", "cpu"}};
