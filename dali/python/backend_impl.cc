@@ -282,15 +282,15 @@ void ExposeTensorLayout(py::module &m) {
 enum DALIDataTypePlaceholder {};
 
 int GetDLCapsuleType(const py::object &p) {
-   if (PyCapsule_CheckExact(p.ptr())) {
-      py::capsule capsule = py::reinterpret_borrow<py::capsule>(p);
-      // do not consume capsule
-      auto dlm_tensor_ptr = DLMTensorRawPtrFromCapsule(capsule, false);
-      const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
-      return dl_tensor.device.device_type;
-   } else {
-     return -1;
-   }
+  if (PyCapsule_CheckExact(p.ptr())) {
+    py::capsule capsule = py::reinterpret_borrow<py::capsule>(p);
+    // do not consume capsule
+    auto dlm_tensor_ptr = DLMTensorRawPtrFromCapsule(capsule, false);
+    const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
+    return dl_tensor.device.device_type;
+  } else {
+    return -1;
+  }
 }
 void ExposeTensor(py::module &m) {
   m.def("CheckDLPackCapsule",

@@ -80,7 +80,12 @@ def _prep_data_for_feed_input(data, batch_size, layout, device_id = None):
                 checked = True
             if isinstance(datum, (_tensors.TensorCPU, _tensors.TensorGPU)):
                 inp = type(datum)(datum, layout=layout) if layout is not None else datum
-            elif hasattr(datum, "__cuda_array_interface__") or (is_dlpack and is_gpu_data):
+            elif is_dlpack:
+                if is_gpu_data:
+                    inp = _tensors.TensorGPU(datum, layout or "")
+                else:
+                    inp = _tensors.TensorCPU(datum, layout or "")
+            elif hasattr(datum, "__cuda_array_interface__"):
                 array_device_id = _types._get_device_id_for_array(datum)
                 if array_device_id is None:
                     array_device_id = device_id
@@ -96,8 +101,16 @@ def _prep_data_for_feed_input(data, batch_size, layout, device_id = None):
         (is_dlpack, is_gpu_data) = _b.CheckDLPackCapsule(data)
         if not is_dlpack:
             _check_data_batch(data, batch_size, layout)
-        if hasattr(data, "__cuda_array_interface__") or (is_dlpack and is_gpu_data):
-            data = _tensors.TensorListGPU(data, layout or "")
+        if hasattr(data, "__cuda_array_interface__"):
+            array_device_id = _types._get_device_id_for_array(data)
+            if array_device_id is None:
+                array_device_id = device_id
+            data = _tensors.TensorListGPU(data, layout or "", array_device_id)
+        elif is_dlpack:
+            if is_gpu_data:
+                inp = _tensors.TensorListGPU(data, layout or "")
+            else:
+                inp = _tensors.TensorListCPU(data, layout or "")
         else:
             data = to_numpy(data)
             data = _tensors.TensorListCPU(data, layout or "")
