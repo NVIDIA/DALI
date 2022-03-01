@@ -193,6 +193,8 @@ def test_external_source_debug_sample_pipeline():
     pipe_debug = es_pipeline_debug(prefetch_queue_depth=prefetch_queue_depth)
     pipe_load.build()
     pipe_debug.build()
+    # Call feed_input `prefetch_queue_depth` extra times to avoid issues with
+    # missing batches near the end of the epoch caused by prefetching
     for _ in range(n_iters + prefetch_queue_depth):
         images, labels = pipe_load.run()
         pipe_debug.feed_input('input', [np.array(t) for t in images])
@@ -216,6 +218,8 @@ def _test_external_source_debug(source, batch):
     pipe_debug.build()
     pipe_standard.build()
     if source is None:
+        # Call feed_input `prefetch_queue_depth` extra times to avoid issues with
+        # missing batches near the end of the epoch caused by prefetching
         for _ in range(n_iters + prefetch_queue_depth):
             x = np.random.rand(8, 5, 1)
             pipe_debug.feed_input('input', x)
