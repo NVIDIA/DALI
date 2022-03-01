@@ -108,9 +108,9 @@ def _prep_data_for_feed_input(data, batch_size, layout, device_id = None):
             data = _tensors.TensorListGPU(data, layout or "", array_device_id)
         elif is_dlpack:
             if is_gpu_data:
-                inp = _tensors.TensorListGPU(data, layout or "")
+                data = _tensors.TensorListGPU(data, layout or "")
             else:
-                inp = _tensors.TensorListCPU(data, layout or "")
+                data = _tensors.TensorListCPU(data, layout or "")
         else:
             data = to_numpy(data)
             data = _tensors.TensorListCPU(data, layout or "")
