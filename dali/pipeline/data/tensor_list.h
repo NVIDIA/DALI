@@ -755,7 +755,7 @@ class DLL_PUBLIC TensorList {
   }
 
  protected:
-  Buffer<Backend> data_;
+  Buffer<Backend> data_ = {};
   // We store a set of dimension for each tensor in the list.
   // We also pre-compute the offsets of each tensor in the
   // underlying allocation for random access

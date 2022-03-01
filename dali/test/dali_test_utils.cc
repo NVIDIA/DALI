@@ -67,7 +67,7 @@ void MakeRandomBatch(TensorList<CPUBackend> &data, int N,
   }
 }
 
-void CheckResults(DeviceWorkspace ws, int batch_size, int i,
+void CheckResults(const DeviceWorkspace& ws, int batch_size, int i,
                   TensorList<CPUBackend> &data, int output_idx) {
   TensorList<CPUBackend> res_cpu;
   if (ws.OutputIsType<GPUBackend>(output_idx)) {
