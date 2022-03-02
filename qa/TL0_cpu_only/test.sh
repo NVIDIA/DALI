@@ -31,7 +31,7 @@ test_body() {
         exit 1
     fi
 
-    "$FULLPATH" --gtest_filter="*CpuOnlyTest*"
+    "$FULLPATH" --gtest_filter="*CpuOnly*:*CApi*/0.*-*0.UseCopyKernel:*ForceNoCopyFail:*daliOutputCopySamples"
   done
 }
 
