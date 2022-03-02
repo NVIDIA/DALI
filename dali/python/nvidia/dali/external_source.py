@@ -74,13 +74,18 @@ def _prep_data_for_feed_input(data, batch_size, layout, device_id = None):
         inputs = []
         checked = False
         for datum in data:
-            info = _b.CheckDLPackCapsule(datum)
-            if not info[0] and not checked:
+            (is_dlpack, is_gpu_data) = _b.CheckDLPackCapsule(datum)
+            if not is_dlpack and not checked:
                 _check_data_batch(data, batch_size, layout)
                 checked = True
             if isinstance(datum, (_tensors.TensorCPU, _tensors.TensorGPU)):
                 inp = type(datum)(datum, layout=layout) if layout is not None else datum
-            elif hasattr(datum, "__cuda_array_interface__") or (info[0] and info[1]):
+            elif is_dlpack:
+                if is_gpu_data:
+                    inp = _tensors.TensorGPU(datum, layout or "")
+                else:
+                    inp = _tensors.TensorCPU(datum, layout or "")
+            elif hasattr(datum, "__cuda_array_interface__"):
                 array_device_id = _types._get_device_id_for_array(datum)
                 if array_device_id is None:
                     array_device_id = device_id
@@ -93,11 +98,19 @@ def _prep_data_for_feed_input(data, batch_size, layout, device_id = None):
             "Mixed input types are not support, all need to reside on the CPU or GPU"
         data = inputs
     else:
-        info = _b.CheckDLPackCapsule(data)
-        if not info[0]:
+        (is_dlpack, is_gpu_data) = _b.CheckDLPackCapsule(data)
+        if not is_dlpack:
             _check_data_batch(data, batch_size, layout)
-        if hasattr(data, "__cuda_array_interface__") or (info[0] and info[1]):
-            data = _tensors.TensorListGPU(data, layout or "")
+        if hasattr(data, "__cuda_array_interface__"):
+            array_device_id = _types._get_device_id_for_array(data)
+            if array_device_id is None:
+                array_device_id = device_id
+            data = _tensors.TensorListGPU(data, layout or "", array_device_id)
+        elif is_dlpack:
+            if is_gpu_data:
+                data = _tensors.TensorListGPU(data, layout or "")
+            else:
+                data = _tensors.TensorListCPU(data, layout or "")
         else:
             data = to_numpy(data)
             data = _tensors.TensorListCPU(data, layout or "")
