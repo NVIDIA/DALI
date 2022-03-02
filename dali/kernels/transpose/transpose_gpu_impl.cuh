@@ -135,8 +135,8 @@ __device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc, const
     uint64_t in_ofs = 0, out_ofs = 0;
     #pragma unroll
     for (int d = 0; d < ndim - 2; d++) {
-      in_ofs  += desc.in_strides[d] * pos[d];
-      out_ofs += desc.out_strides[d] * pos[d];
+      in_ofs  += desc.in_strides[d]/pack_ratio * pos[d];
+      out_ofs += desc.out_strides[d]/pack_ratio * pos[d];
     }
     int64_t in_x  = pos[ndim-1] + threadIdx.x;
     int64_t in_y  = pos[ndim-2] + threadIdx.y;

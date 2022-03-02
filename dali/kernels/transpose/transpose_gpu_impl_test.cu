@@ -259,7 +259,6 @@ TEST(TransposeTiled, BuildDescVectorized16BitOpt) {
   }
 }
 
-
 TEST(TransposeDeinterleave, AllPerm4DInnermost) {
   int channels = 3;
   TensorShape<> shape = { 19, 157, 137, channels };  // small inner dimension
