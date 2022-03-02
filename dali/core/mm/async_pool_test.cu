@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -137,7 +137,7 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
   std::uniform_int_distribution<> fill_dist(1, 255);
   DeviceBuffer<int> failure_buf;
   int failures = 0;
-  failure_buf.from_host(&failures, 1, stream);
+  failure_buf.from_host(&failures, 1, sv.get());
   GPUHog hog;
   if (use_hog)
     hog.init();
@@ -195,7 +195,7 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
       }
     }
   }
-  copyD2H<int>(&failures, failure_buf, 1, stream);
+  copyD2H<int>(&failures, failure_buf, 1, AccessOrder(stream));
   CUDA_CALL(cudaStreamSynchronize(stream));
   ASSERT_EQ(failures, 0);
 }
