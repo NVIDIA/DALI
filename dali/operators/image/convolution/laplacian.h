@@ -18,11 +18,12 @@
 #include <memory>
 #include <vector>
 
-#include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/operator_impl_utils.h"
-#include "dali/operators/image/convolution/laplacian_params.h"
 #include "dali/operators/image/convolution/convolution_utils.h"
+#include "dali/operators/image/convolution/laplacian_params.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/sequence_op.h"
+#include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
 
@@ -38,15 +39,31 @@ namespace dali {
 
 
 template <typename Backend>
-class Laplacian : public Operator<Backend> {
+class Laplacian : public SequenceOperator<Backend> {
  public:
   inline explicit Laplacian(const OpSpec& spec)
-      : Operator<Backend>(spec), dtype_(spec.GetArgument<DALIDataType>("dtype")) {}
+      : SequenceOperator<Backend>(spec), dtype_(spec.GetArgument<DALIDataType>("dtype")) {}
 
   DISABLE_COPY_MOVE_ASSIGN(Laplacian);
 
  protected:
   bool CanInferOutputs() const override {
+    return true;
+  }
+
+  bool ShouldExpandChannels() const override {
+    return true;
+  }
+
+  bool ShouldExpand(const workspace_t<Backend>& ws) override;
+
+  // Overrides unnecessary coalescing
+  bool ProcessOutputDesc(std::vector<OutputDesc>& output_desc, const workspace_t<Backend>& ws,
+                         bool is_inferred) override {
+    assert(is_inferred && output_desc.size() == 1);
+    const auto& input = ws.template Input<Backend>(0);
+    // The shape of data stays untouched
+    output_desc[0].shape = input.shape();
     return true;
   }
 
@@ -59,6 +76,7 @@ class Laplacian : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
   std::unique_ptr<OpImplBase<Backend>> impl_;
   DALIDataType impl_in_dtype_ = DALI_NO_TYPE;
+  convolution_utils::DimDesc dim_desc_ = {};
   convolution_utils::DimDesc impl_dim_desc_ = {};
 };
 
