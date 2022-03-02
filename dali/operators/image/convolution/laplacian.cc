@@ -205,7 +205,7 @@ template <>
 bool Laplacian<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
                                       const workspace_t<CPUBackend>& ws) {
   const auto& input = ws.template Input<CPUBackend>(0);
-  assert(input.GetLayout().size() == dim_desc_.total_axes_count);
+  assert(input.GetLayout().empty() || input.GetLayout().size() == dim_desc_.total_axes_count);
   auto dtype = dtype_ == DALI_NO_TYPE ? input.type() : dtype_;
   DALI_ENFORCE(dtype == input.type() || dtype == DALI_FLOAT,
                "Output data type must be same as input, FLOAT or skipped (defaults to input type)");
