@@ -187,12 +187,15 @@ def es_pipeline_standard():
 
 def test_external_source_debug_sample_pipeline():
     n_iters = 10
+    prefetch_queue_depth = 2
     pipe_load = load_images_pipeline()
-    pipe_standard = es_pipeline_standard()
-    pipe_debug = es_pipeline_debug()
+    pipe_standard = es_pipeline_standard(prefetch_queue_depth=prefetch_queue_depth)
+    pipe_debug = es_pipeline_debug(prefetch_queue_depth=prefetch_queue_depth)
     pipe_load.build()
     pipe_debug.build()
-    for _ in range(n_iters):
+    # Call feed_input `prefetch_queue_depth` extra times to avoid issues with
+    # missing batches near the end of the epoch caused by prefetching
+    for _ in range(n_iters + prefetch_queue_depth):
         images, labels = pipe_load.run()
         pipe_debug.feed_input('input', [np.array(t) for t in images])
         pipe_debug.feed_input('labels', np.array(labels.as_tensor()))
@@ -209,12 +212,15 @@ def es_pipeline(source, batch):
 
 def _test_external_source_debug(source, batch):
     n_iters = 8
-    pipe_debug = es_pipeline(source, batch, debug=True)
-    pipe_standard = es_pipeline(source, batch)
+    prefetch_queue_depth = 2
+    pipe_debug = es_pipeline(source, batch, prefetch_queue_depth=prefetch_queue_depth, debug=True)
+    pipe_standard = es_pipeline(source, batch, prefetch_queue_depth=prefetch_queue_depth)
     pipe_debug.build()
     pipe_standard.build()
     if source is None:
-        for _ in range(n_iters):
+        # Call feed_input `prefetch_queue_depth` extra times to avoid issues with
+        # missing batches near the end of the epoch caused by prefetching
+        for _ in range(n_iters + prefetch_queue_depth):
             x = np.random.rand(8, 5, 1)
             pipe_debug.feed_input('input', x)
             pipe_standard.feed_input('input', x)
