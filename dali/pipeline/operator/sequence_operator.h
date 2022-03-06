@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATOR_SEQUENCE_OP_H_
-#define DALI_PIPELINE_OPERATOR_SEQUENCE_OP_H_
+#ifndef DALI_PIPELINE_OPERATOR_SEQUENCE_OPERATOR_H_
+#define DALI_PIPELINE_OPERATOR_SEQUENCE_OPERATOR_H_
 
 #include <memory>
 #include <string>
@@ -170,7 +170,7 @@ class SequenceOperator : public Operator<Backend> {
     return is_inferred;
   }
 
-  virtual void ExpandArgment(const workspace_t<Backend> &ws, const std::string &arg_name,
+  virtual void ExpandArgument(const workspace_t<Backend> &ws, const std::string &arg_name,
                              const TensorVector<CPUBackend> &arg_tensor) {
     const auto &expand_desc = GetArgExpandDesc(arg_name);
     auto expanded_arg = ExpandArgumentLike(arg_tensor, arg_name, expand_desc);
@@ -182,7 +182,7 @@ class SequenceOperator : public Operator<Backend> {
     for (const auto &arg_input : ws) {
       auto shared_tvec = arg_input.second.tvec;
       assert(shared_tvec);
-      ExpandArgment(ws, arg_input.first, *shared_tvec);
+      ExpandArgument(ws, arg_input.first, *shared_tvec);
     }
   }
 
@@ -219,9 +219,9 @@ class SequenceOperator : public Operator<Backend> {
     auto sample_dim = input.shape().sample_dim();
     DALI_ENFORCE(
         sample_dim > num_expand_dims,
-        make_string("Cannot flatten the input ", input_idx,
-                    ". Samples should have more dimensions (got ", sample_dim,
-                    ") than requested number of dimensions to unfold: ", num_expand_dims, "."));
+        make_string("Cannot flatten the sequence-like input ", input_idx,
+                    ". Samples must have more dimensions (got ", sample_dim,
+                    ") than the requested number of dimensions to unfold: ", num_expand_dims, "."));
     // TODO(ktokarski) TODO(klecki)
     // Rework it when TensorList stops being contigious and supports "true sample" mode
     auto expanded_input = unfold_outer_dims(input, num_expand_dims);
@@ -238,9 +238,9 @@ class SequenceOperator : public Operator<Backend> {
     auto sample_dim = output.shape().sample_dim();
     DALI_ENFORCE(
         sample_dim > num_expand_dims,
-        make_string("Cannot flatten the output ", output_idx,
-                    ". Samples should have more dimensions (got ", sample_dim,
-                    ") than requested number of dimensions to unfold: ", num_expand_dims, "."));
+        make_string("Cannot flatten the sequence-like output ", output_idx,
+                    ". Samples must have more dimensions (got ", sample_dim,
+                    ") than the requested number of dimensions to unfold: ", num_expand_dims, "."));
     // TODO(ktokarski) TODO(klecki)
     // Rework it when TensorList stops being contigious and supports "true sample" mode
     auto expanded_output = unfold_outer_dims(output, num_expand_dims);
@@ -338,14 +338,14 @@ class SequenceOperator : public Operator<Backend> {
                     "with dimensionality ",
                     arg_sample_dim, ")."));
     if (!IsPerFrame(arg_tensor)) {
-      return BroadcastArgumentLike(arg_tensor, expand_desc);
+      return BroadcastPerFrameLike(arg_tensor, expand_desc);
     }
-    return ExpandFramesLike(arg_tensor, arg_name, expand_desc);
+    return ExpandPerFrameLike(arg_tensor, arg_name, expand_desc);
   }
 
-  TensorVector<CPUBackend> ExpandFramesLike(const TensorVector<CPUBackend> &arg_tensor,
-                                            const std::string &arg_name,
-                                            const ExpandDesc &expand_desc) {
+  TensorVector<CPUBackend> ExpandPerFrameLike(const TensorVector<CPUBackend> &arg_tensor,
+                                              const std::string &arg_name,
+                                              const ExpandDesc &expand_desc) {
     DALI_ENFORCE(
         expand_desc.HasFrames(),
         make_string(
@@ -414,7 +414,7 @@ class SequenceOperator : public Operator<Backend> {
     return flat_tensor;
   }
 
-  TensorVector<CPUBackend> BroadcastArgumentLike(const TensorVector<CPUBackend> &arg_tensor,
+  TensorVector<CPUBackend> BroadcastPerFrameLike(const TensorVector<CPUBackend> &arg_tensor,
                                                  const ExpandDesc &expand_desc) {
     const auto &shape = arg_tensor.shape();
     TensorVector<CPUBackend> res(expand_desc.NumElements());
@@ -448,4 +448,4 @@ class SequenceOperator : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATOR_SEQUENCE_OP_H_
+#endif  // DALI_PIPELINE_OPERATOR_SEQUENCE_OPERATOR_H_

@@ -98,7 +98,7 @@ class ExpandDesc {
     return expanded_shape_[sample_idx][layout_desc_.channel_dim];
   }
 
-  const TensorListShape<> &ExpandedShape() const {
+  inline const TensorListShape<> &ExpandedShape() const {
     return expanded_shape_;
   }
 
@@ -123,7 +123,6 @@ TensorVector<Backend> unfold_outer_dims(const TensorVector<Backend> &data, int n
   auto group_shapes = shape.first(num_unfold_dims);
   const auto num_unfolded_samples = group_shapes.num_elements();
   TensorVector<Backend> unfolded_tensor(num_unfolded_samples);
-  int elem_idx = 0;
   auto type_info = data.type_info();
   auto type = type_info.id();
   auto is_pinned = data.is_pinned();
@@ -131,14 +130,15 @@ TensorVector<Backend> unfold_outer_dims(const TensorVector<Backend> &data, int n
   unfolded_tensor.set_type(type);
   unfolded_tensor.set_pinned(is_pinned);
   unfolded_tensor.set_order(order);
+  int elem_idx = 0;
   for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
     const auto &sample_shape = shape[sample_idx];
     int num_frames = volume(sample_shape.begin(), sample_shape.begin() + num_unfold_dims);
     TensorShape<> element_shape{sample_shape.begin() + num_unfold_dims, sample_shape.end()};
     int element_volume = volume(element_shape);
     auto num_bytes = type_info.size() * element_volume;
-    uint8_t *base_ptr;
-    base_ptr = const_cast<uint8_t *>(static_cast<const uint8_t *>(data.raw_tensor(sample_idx)));
+    uint8_t *base_ptr =
+        const_cast<uint8_t *>(static_cast<const uint8_t *>(data.raw_tensor(sample_idx)));
     for (int frame_idx = 0; frame_idx < num_frames; ++frame_idx) {
       uint8_t *ptr = base_ptr + frame_idx * num_bytes;
       unfolded_tensor[elem_idx++].ShareData(ptr, num_bytes, is_pinned, element_shape, type, order);
@@ -150,6 +150,8 @@ TensorVector<Backend> unfold_outer_dims(const TensorVector<Backend> &data, int n
 
 template <typename Backend>
 TensorList<Backend> unfold_outer_dims(const TensorList<Backend> &data, int num_unfold_dims) {
+  // TODO(ktokarski) TODO(klecki)
+  // Rework it when TensorList stops being contigious and supports "true sample" mode
   const auto &shape = data.shape();
   TensorList<Backend> tl;
   tl.ShareData(data);
@@ -176,8 +178,7 @@ inline TensorListShape<> fold_outermost_like(const TensorListShape<> &shape,
   }
   auto num_samples = folded_shape.num_samples();
   TensorListShape<> res(num_samples, folded_shape.sample_dim() + shape.sample_dim());
-  int element_idx = 0;
-  for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+  for (int sample_idx = 0, element_idx = 0; sample_idx < num_samples; sample_idx++) {
     auto group_shape = folded_shape[sample_idx];
     auto num_elements = volume(group_shape);
     DALI_ENFORCE(num_elements > 0,
