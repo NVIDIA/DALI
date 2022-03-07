@@ -242,13 +242,13 @@ class InstallerHelper:
         import tensorflow as tf
         try:
             from tensorflow.compat.v1 import Session
-        except:
+        except Exception:
             # Older TF versions don't have compat.v1 layer
             from tensorflow import Session
 
         try:
             tf.compat.v1.disable_eager_execution()
-        except:
+        except Exception:
             pass
 
         @pipeline_def()
