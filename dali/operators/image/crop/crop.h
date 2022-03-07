@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,10 +40,21 @@ class Crop : public SliceBase<Backend> {
   void ProcessCroppingAttrs(const OpSpec &spec, const workspace_t<Backend> &ws) override {
     const auto &input = ws.template Input<Backend>(0);
     const TensorLayout in_layout = input.GetLayout();
-    DALI_ENFORCE(in_layout.ndim() == input.shape().sample_dim());
-    DALI_ENFORCE(ImageLayoutInfo::HasChannel(in_layout) &&
-      (ImageLayoutInfo::IsImage(in_layout) || VideoLayoutInfo::IsVideo(in_layout)),
-      "Unexpected data layout");
+
+    DALI_ENFORCE(
+        ImageLayoutInfo::HasChannel(in_layout) &&
+            (ImageLayoutInfo::IsImage(in_layout) || VideoLayoutInfo::IsVideo(in_layout)),
+        make_string("Unexpected layout: ", in_layout, "\n\n",
+                    "Expected a non-empty layout including spatial dimensions "
+                    "(H, W, D) and a channel dimension. Examples: \"HWC\", \"DHWC\", \"FHWC\".\n\n"
+                    "To specify a layout manually, use ``fn.reshape``.\n"
+                    "Example:\n\n"
+                    "  ``data = fn.reshape(data, layout=\"HWC\")"));
+
+    DALI_ENFORCE(
+        in_layout.ndim() == input.shape().sample_dim(),
+        make_string("The data shape is incompatible with the data layout. Layout is ", in_layout,
+                    ", but got a shape with ", input.shape().sample_dim(), " dimensions."));
 
     crop_attr_.ProcessArguments(spec, ws);
   }
