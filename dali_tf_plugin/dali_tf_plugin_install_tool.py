@@ -273,27 +273,35 @@ class InstallerHelper:
         with Session() as sess:
             print(sess.run(test_batch))
 
-    def install(self):
-        self.check_install_env()
-
-        if self.prebuilt_exact_ver:
-            self.install_prebuilt()
-        else:
-            try:
-                self.build()
-            except Exception as e:
-                print("Build from source failed with error: ", e)
-                if self.can_install_prebuilt:
-                    print("Trying to install prebuilt plugin")
-                    self.install_prebuilt()
-                else:
-                    raise e
-
+    def test_if_dali_available(self):
         try:
             self.test()
         except ImportError as e:
             print("DALI is not available yet. Skipping tests...")
 
+    def install(self):
+        self.check_install_env()
+
+        if self.prebuilt_exact_ver:
+            self.install_prebuilt()
+            try:
+                self.test_if_dali_available()
+                return  # We can finish the installation here
+            except Exception as e:
+                print("Error while testing the prebuilt plugin: ", e)
+                # Will try building from source
+
+        try:
+            self.build()
+        except Exception as e:
+            print("Build from source failed with error: ", e)
+            if self.can_install_prebuilt:
+                print("Trying to install prebuilt plugin")
+                self.install_prebuilt()
+            else:
+                raise e
+
+        self.test_if_dali_available()
 
 def main():
     env = InstallerHelper()
