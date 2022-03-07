@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.17)
 project(nodeps_test CUDA CXX)
 
 set(BUILD_DALI_NODEPS ON)

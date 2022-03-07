@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.17)
 set(CMAKE_SYSTEM_NAME Linux) # Set it to force CMAKE_CROSSCOMPILING to true
 set(CMAKE_SYSTEM_PROCESSOR aarch64)
 

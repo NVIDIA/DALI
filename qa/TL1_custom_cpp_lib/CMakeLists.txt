@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.17)
 project(CustomCppLib)
 find_package(CUDA REQUIRED)
 include(/opt/dali/tools/find_dali.cmake)
