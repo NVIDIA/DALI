@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,6 +61,7 @@ class InstallerHelper:
         self.prebuilt_plugin_best_match = None
         self.plugin_name = None
 
+        self.prebuilt_exact_ver = False
         if self.can_install_prebuilt:
             self.prebuilt_plugins_available = find('libdali_tf_*.so', self.prebuilt_dir)
             best_version = find_available_prebuilt_tf(self.tf_version, self.prebuilt_plugins_available)
@@ -68,6 +69,7 @@ class InstallerHelper:
                 # No prebuilt plugins available
                 self.can_install_prebuilt = False
             else:
+                self.prebuilt_exact_ver = (best_version == self.tf_version)
                 tf_version_underscore = best_version.replace('.', '_')
                 self.plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
                 self.prebuilt_plugin_best_match = os.path.join(self.prebuilt_dir, self.plugin_name)
@@ -97,6 +99,7 @@ class InstallerHelper:
             s += "\n g++ version used to compile TF:       {}".format(self.tf_compiler or "Unknown")
             s += "\n Is {} present in the system?     {}".format(self.alt_compiler, "Yes" if self.has_alt_compiler else "No")
             s += "\n Can install prebuilt plugin?          {}".format("Yes" if self.can_install_prebuilt else "No")
+            s += "\n Prebuilt for exact TF version?        {}".format("Yes" if self.prebuilt_exact_ver else "No")
             s += "\n Prebuilt plugin path:                 {}".format(self.prebuilt_plugin_best_match or "N/A")
             s += "\n Prebuilt plugins available:           {}".format(", ".join(self.prebuilt_plugins_available) or "N/A")
             s += "\n Prebuilt DALI stub available:         {}".format(self.prebuilt_dali_stub or "N/A")
@@ -151,34 +154,8 @@ class InstallerHelper:
             print(f"Error importing {self.prebuilt_plugin_best_match}, will not install prebuilt plugin")
             return False
 
-    def install(self):
-        print("Checking build environment for DALI TF plugin ...")
-        print(self.debug_str())
-
-        Path(self.plugin_dest_dir).mkdir(parents=True, exist_ok=True)
-
-        if not self.tf_version or not self.tf_path:
-            error_msg = "Installation error:"
-            error_msg += "\n Tensorflow installation not found. Install `tensorflow-gpu` and try again"
-            error_msg += '\n' + self.debug_str()
-            raise ImportError(error_msg)
-
+    def get_compiler(self):
         compiler = self.cpp_compiler
-
-        # From tensorflow team (https://github.com/tensorflow/tensorflow/issues/29643):
-        # Our pip packages are still built with gcc 4.8."
-        # To make anything that uses C++ APIs work, all custom ops need to be built
-        # with the same compiler (and the version) we use to build the pip packages.
-        # Anything not built with that may break due to compilers generating ABIs differently."
-
-        # Note: https://github.com/tensorflow/custom-op
-        # Packages are also built for gcc 5.4 now, so we are also providing prebuilt plugins for 5.4
-        if self.can_install_prebuilt:
-            if self.install_prebuilt():
-                return
-            else:
-                print("Installation of prebuilt plugins failed, will try building from source")
-
         if not self.can_default_compile:
             if self.has_alt_compiler:
                 print("Will use alternative compiler {}".format(self.alt_compiler))
@@ -195,8 +172,11 @@ class InstallerHelper:
                 error_msg += "\n Try to install `g++-{}` or use CXX environment variable to point to the right compiler and install again".format(self.tf_compiler)
                 error_msg += '\n' + self.debug_str()
                 raise ImportError(error_msg)
+        return compiler
 
-        print("Proceed with build...")
+    def build(self):
+        print("Proceed with build from source...")
+        compiler = self.get_compiler()
         cuda_cflags, cuda_lflags = get_cuda_build_flags()
 
         with tempfile.TemporaryDirectory(prefix="dali_stub_") as tmpdir:
@@ -242,6 +222,78 @@ class InstallerHelper:
             if not self.check_import(lib_path, dali_stub_lib):
                 raise ImportError("Error while importing the DALI TF plugin built from source, will not install")
             print("Installation successful")
+
+    def check_install_env(self):
+        print("Checking build environment for DALI TF plugin ...")
+        print(self.debug_str())
+
+        Path(self.plugin_dest_dir).mkdir(parents=True, exist_ok=True)
+
+        if not self.tf_version or not self.tf_path:
+            error_msg = "Installation error:"
+            error_msg += "\n Tensorflow installation not found. Install `tensorflow-gpu` and try again"
+            error_msg += '\n' + self.debug_str()
+            raise ImportError(error_msg)
+
+    def test(self):
+        from nvidia.dali.pipeline import pipeline_def
+        import nvidia.dali.types as types
+        import nvidia.dali.plugin.tf as dali_tf
+        import tensorflow as tf
+        try:
+            from tensorflow.compat.v1 import Session
+        except:
+            # Older TF versions don't have compat.v1 layer
+            from tensorflow import Session
+
+        try:
+            tf.compat.v1.disable_eager_execution()
+        except:
+            pass
+
+        @pipeline_def()
+        def get_dali_pipe():
+            data = types.Constant(1)
+            return data
+
+        def get_data():
+            batch_size = 3
+            pipe = get_dali_pipe(batch_size=batch_size, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1)
+            daliop = dali_tf.DALIIterator()
+            out = []
+            with tf.device('/cpu'):
+                data = daliop(pipeline = pipe,
+                              shapes = [(batch_size)],
+                              dtypes = [tf.int32],
+                              device_id = types.CPU_ONLY_DEVICE_ID)
+                out.append(data)
+            return [out]
+
+        test_batch = get_data()
+        with Session() as sess:
+            print(sess.run(test_batch))
+
+    def install(self):
+        self.check_install_env()
+
+        if self.prebuilt_exact_ver:
+            self.install_prebuilt()
+        else:
+            try:
+                self.build()
+            except Exception as e:
+                print("Build from source failed with error: ", e)
+                if self.can_install_prebuilt:
+                    print("Trying to install prebuilt plugin")
+                    self.install_prebuilt()
+                else:
+                    raise e
+
+        try:
+            self.test()
+        except ImportError as e:
+            print("DALI is not available yet. Skipping tests...")
+
 
 def main():
     env = InstallerHelper()
