@@ -21,6 +21,7 @@ import nvidia.dali.tensors as _tensors
 import nvidia.dali.types as _types
 from nvidia.dali.data_node import DataNode as _DataNode, _arithm_op, _check
 from nvidia.dali.external_source import _prep_data_for_feed_input
+from nvidia.dali.ops import _callable_op_factory
 from nvidia.dali._utils.external_source_impl import \
     get_callback_from_source as _get_callback_from_source, \
     accepted_arg_count as _accepted_arg_count
@@ -38,6 +39,9 @@ class DataNodeDebug(_DataNode):
         return f'DataNodeDebug(\n{indent}name="{self.name}",\n{indent}data={_tensors._tensorlist_to_string(self._data, indent + " " * 5)})'
 
     __repr__ = __str__
+
+    def __len__(self):
+        return len(self._data)
 
     def gpu(self):
         if self.device == 'gpu':
@@ -127,6 +131,9 @@ class DataNodeDebug(_DataNode):
 
 
 def _transform_data_to_tensorlist(data, batch_size, layout=None, device_id=None):
+    if isinstance(data, DataNodeDebug):
+        return data.get()
+
     data = _prep_data_for_feed_input(data, batch_size, layout, device_id)
 
     if isinstance(data, list):
@@ -256,6 +263,10 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._cur_subpipeline_id = -1
         self._exec_func = exec_func
 
+        self._cur_op_id = -1
+        self._ops = {}
+        self._ops_built = False
+
         import numpy as np
         seed = kwargs.get('seed', -1)
         if seed < 0:
@@ -272,6 +283,31 @@ class _PipelineDebug(_pipeline.Pipeline):
         Refer to :meth:`Pipeline.build() <nvidia.dali.Pipeline.build>` for details."""
         self._built = True
 
+    # def run(self):
+    #     """Run the pipeline and return the result."""
+    #     import numpy as np
+    #     if not self._built:
+    #         raise RuntimeError('Pipeline must be built first.')
+
+    #     self._debug_on = True
+    #     self._cur_subpipeline_id = -1
+    #     _pipeline.Pipeline.push_current(self)
+
+    #     res = self._exec_func()
+    #     if res is None:
+    #         res = ()
+    #     elif not isinstance(res, tuple):
+    #         res = (res,)
+
+    #     self._debug_on = False
+    #     if not self._subpipelines_built:
+    #         self._subpipelines_built = True
+    #     _pipeline.Pipeline.pop_current()
+
+    #     # Transforming all variables to TensorLists.
+    #     return tuple([val.get() if isinstance(val, DataNodeDebug) else _tensors.TensorListCPU(
+    #         np.tile(val, (self._max_batch_size, *[1]*np.array(val).ndim))) for val in res])
+    
     def run(self):
         """Run the pipeline and return the result."""
         import numpy as np
@@ -279,7 +315,7 @@ class _PipelineDebug(_pipeline.Pipeline):
             raise RuntimeError('Pipeline must be built first.')
 
         self._debug_on = True
-        self._cur_subpipeline_id = -1
+        self._cur_op_id = -1
         _pipeline.Pipeline.push_current(self)
 
         res = self._exec_func()
@@ -289,8 +325,8 @@ class _PipelineDebug(_pipeline.Pipeline):
             res = (res,)
 
         self._debug_on = False
-        if not self._subpipelines_built:
-            self._subpipelines_built = True
+        if not self._ops_built:
+            self._ops_built = True
         _pipeline.Pipeline.pop_current()
 
         # Transforming all variables to TensorLists.
@@ -358,6 +394,20 @@ class _PipelineDebug(_pipeline.Pipeline):
 
         return False, 'cpu', data
 
+    @staticmethod
+    def _separate_kwargs(kwargs):
+        init_args, call_args, classification = {}, {}, {}
+
+        for key, value in kwargs.items():
+            is_batch, _, data = _PipelineDebug._classify_data(value)
+            if is_batch:
+                call_args[key] = data
+            else:
+                init_args[key] = data
+            classification[key] = is_batch
+        
+        return init_args, call_args, classification
+
     def _create_subpipeline(self, op_wrapper, inputs, kwargs):
         """Creates pipeline wrapper around operator call (only in the first run).
         Each pipeline uses ExternalSource operators for processing inputs and kwargs.
@@ -399,6 +449,16 @@ class _PipelineDebug(_pipeline.Pipeline):
         p = pipe()
         p.build()
         return (p, inputs_external_source, kwargs_external_source)
+
+    def _create_op(self, op_name, kwargs):
+        """Creates callable operator."""
+        init_args, _, kwargs_classification = _PipelineDebug._separate_kwargs(kwargs)
+
+        if 'seed' not in init_args and op_name != '_arithm_op':
+            init_args['seed'] = self._seed_generator.integers(0, 2**32)
+
+        return _callable_op_factory(op_name)(batch_size=self._max_batch_size, device_id=self._device_id, **init_args), \
+            init_args, kwargs_classification
 
     def _external_source(self, name=None, **kwargs):
         self._cur_subpipeline_id += 1
@@ -449,6 +509,7 @@ class _PipelineDebug(_pipeline.Pipeline):
                     f"In operator '{op_name}' argument '{key}' {unexpected_argument_msg(to_external_source)}.")
             if to_external_source:
                 pipe.feed_input(f'{self._es_kwarg_name}{key}', data)
+            #TODO save value to dict
 
         res = pipe.run()
         res = tuple([DataNodeDebug(tensor, **data_node.__dict__)
@@ -461,15 +522,62 @@ class _PipelineDebug(_pipeline.Pipeline):
 
         return res
 
-    def _wrap_op_call(self, op_wrapper, inputs, kwargs):
-        self._cur_subpipeline_id += 1
-        key = inspect.getframeinfo(
-            inspect.currentframe().f_back.f_back)[:3] + (self._cur_subpipeline_id,)
-        if not self._subpipelines_built:
-            self._subpipelines[key] = self._create_subpipeline(op_wrapper, inputs, kwargs)
+    def _run_op(self, op_tuple, op_name, inputs, kwargs):
+        op, init_args, kwargs_classification, expected_inputs_size = op_tuple
 
-        if key in self._subpipelines:
-            return self._run_subpipeline(self._subpipelines[key], op_wrapper.__name__, inputs, kwargs)
+        if expected_inputs_size != len(inputs):
+            raise RuntimeError(f"Trying to use operator '{op_name}' with different number of inputs than when"
+                               f" it was built. {expected_inputs_size} != {len(inputs)}")
+        if len(kwargs_classification) != len(kwargs):
+            raise RuntimeError(f"Trying to use operator '{op_name}' with different number of keyward arguments"
+                               " than when it was built.")
+
+        def unexpected_argument_msg(key, is_batch):
+            return f"In operator '{op_name}' argument '{key}' recognized as {'batch' if is_batch else 'constant'} but when built value" \
+                f" in its place was recognized as {'constant' if is_batch else 'batch'}"
+        
+        call_args = {}
+
+        for key, value in kwargs.items():
+            is_batch, _, data = _PipelineDebug._classify_data(value)
+            if is_batch != kwargs_classification[key]:
+                raise RuntimeError(unexpected_argument_msg(key, is_batch))
+            if not is_batch and data != init_args[key]:
+                raise RuntimeError(
+                    f"In operator '{op_name}' argument '{key}' unexpectedly changed value from '{init_args[key]}' to '{data}'")
+            if is_batch:
+                call_args[key] = data
+        
+        res = op(*inputs, **call_args)
+
+        #TODO(ksztenderski): Assign proper name and source.
+        if isinstance(res, list):
+            return tuple([DataNodeDebug(tl, op_name, 'gpu' if isinstance(tl, _tensors.TensorListGPU) else 'cpu', None) for tl in res])
+
+        return DataNodeDebug(res, op_name, 'gpu' if isinstance(res, _tensors.TensorListGPU) else 'cpu', None)
+
+    # def _wrap_op_call(self, op_wrapper, inputs, kwargs):
+    #     self._cur_subpipeline_id += 1
+    #     key = inspect.getframeinfo(
+    #         inspect.currentframe().f_back.f_back)[:3] + (self._cur_subpipeline_id,)
+    #     if not self._subpipelines_built:
+    #         self._subpipelines[key] = self._create_subpipeline(op_wrapper, inputs, kwargs)
+
+    #     if key in self._subpipelines:
+    #         return self._run_subpipeline(self._subpipelines[key], op_wrapper.__name__, inputs, kwargs)
+    #     else:
+    #         raise RuntimeError(f"Unexpected operator '{op_wrapper.__name__}'. Debug mode does not support"
+    #                            " changing the order of operators executed within the pipeline.")
+
+    def _wrap_op_call(self, op_name, inputs, kwargs):
+        self._cur_op_id += 1
+        key = inspect.getframeinfo(
+            inspect.currentframe().f_back.f_back)[:3] + (self._cur_op_id,)
+        if not self._ops_built:
+            self._ops[key] = self._create_op(op_name, kwargs) + (len(inputs),)
+
+        if key in self._ops:
+            return self._run_op(self._ops[key], op_name, inputs, kwargs)
         else:
-            raise RuntimeError(f"Unexpected operator '{op_wrapper.__name__}'. Debug mode does not support"
-                               " changing the order of operators executed within the pipeline.")
+            raise RuntimeError(f"Unexpected operator '{op_name}'. Debug mode does not support"
+                            " changing the order of operators executed within the pipeline.")

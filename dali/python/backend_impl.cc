@@ -28,6 +28,7 @@
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/init.h"
+#include "dali/pipeline/operator/callable_operator.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
@@ -579,6 +580,44 @@ void ExposeTensor(py::module &m) {
       to be passed as an input to DALI.
 
       It is compatible with `CUDA Array Interface <https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html>`_.)code";
+}
+
+void ExposeCallableOperator(py::module &m) {
+  py::class_<CallableOperator<CPUBackend>>(m, "CallableOperatorCPU")
+      .def(py::init([](const OpSpec &op_spec) {
+             return std::make_unique<CallableOperator<CPUBackend>>(op_spec);
+           }),
+           "op_spec"_a)
+      .def("__call__",
+           [](CallableOperator<CPUBackend> &op,
+              const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
+              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
+                  &kwargs) { return op.Run<CPUBackend, CPUBackend>(inputs, kwargs); })
+      .def("SetOpSpec", &CallableOperator<CPUBackend>::SetOpSpec);
+
+  py::class_<CallableOperator<GPUBackend>>(m, "CallableOperatorGPU")
+      .def(py::init([](const OpSpec &op_spec) {
+             return std::make_unique<CallableOperator<GPUBackend>>(op_spec);
+           }),
+           "op_spec"_a)
+      .def("__call__",
+           [](CallableOperator<GPUBackend> &op,
+              const std::vector<std::shared_ptr<TensorList<GPUBackend>>> &inputs,
+              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
+                  &kwargs) { return op.Run<GPUBackend, GPUBackend>(inputs, kwargs); })
+      .def("SetOpSpec", &CallableOperator<GPUBackend>::SetOpSpec);
+
+  py::class_<CallableOperator<MixedBackend>>(m, "CallableOperatorMixed")
+      .def(py::init([](const OpSpec &op_spec) {
+             return std::make_unique<CallableOperator<MixedBackend>>(op_spec);
+           }),
+           "op_spec"_a)
+      .def("__call__",
+           [](CallableOperator<MixedBackend> &op,
+              const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
+              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
+                  &kwargs) { return op.Run<CPUBackend, GPUBackend>(inputs, kwargs); })
+      .def("SetOpSpec", &CallableOperator<MixedBackend>::SetOpSpec);
 }
 
 template <typename Backend>
@@ -1788,6 +1827,10 @@ PYBIND11_MODULE(backend_impl, m) {
   ExposeTensorLayout(types_m);
   ExposeTensor(m);
   ExposeTensorList(m);
+  ExposeCallableOperator(m);
+
+  py::module op_experimental_m = m.def_submodule("experimental");
+  op_experimental_m.def("SetThreadPool", &CallableOperator<CPUBackend>::SetThreadPool);
 
   types_m.attr("NHWC") = "HWC";
   types_m.attr("NCHW") = "CHW";

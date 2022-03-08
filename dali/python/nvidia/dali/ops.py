@@ -13,13 +13,19 @@
 # limitations under the License.
 
 #pylint: disable=no-member
-import sys
-import copy
 import ast
-from itertools import count
+from distutils.log import error
+import sys
 import threading
 import warnings
+from itertools import count
+
+import nvidia.dali.python_function_plugin
 from nvidia.dali import backend as _b
+from nvidia.dali import fn as _functional
+from nvidia.dali import internal as _internal
+from nvidia.dali.data_node import DataNode as _DataNode
+from nvidia.dali.pipeline import Pipeline as _Pipeline
 from nvidia.dali.types import \
         _type_name_convert_to_string, _type_convert_value, _default_converter, \
         _vector_element_type, _bool_types, _int_types, _int_like_types, _float_types, \
@@ -27,11 +33,6 @@ from nvidia.dali.types import \
         CUDAStream as _CUDAStream, \
         ScalarConstant as _ScalarConstant, \
         Constant as _Constant
-from nvidia.dali.pipeline import Pipeline as _Pipeline
-from nvidia.dali import fn as _functional
-import nvidia.dali.python_function_plugin
-from nvidia.dali.data_node import DataNode as _DataNode
-from nvidia.dali import internal as _internal
 
 cupy = None
 def _setup_cupy():
@@ -528,99 +529,166 @@ def _check_arg_input(schema, op_name, name):
         raise TypeError("The argument `{}` for operator `{}` should not be a `DataNode` but a {}".format(
             name, op_name, _type_name_convert_to_string(schema.GetArgumentType(name), False)))
 
-def python_op_factory(name, schema_name = None, op_device = "cpu"):
-    class Operator(metaclass=_DaliOperatorMeta):
-        def __init__(self, **kwargs):
-            schema_name = _schema_name(type(self))
-            self._spec = _b.OpSpec(schema_name)
-            self._schema = _b.GetSchema(schema_name)
+class _OperatorBase(metaclass=_DaliOperatorMeta):
+    def __init__(self, device="cpu", **kwargs):
+        schema_name = _schema_name(type(self))
+        self._spec = _b.OpSpec(schema_name)
+        self._schema = _b.GetSchema(schema_name)
 
-            # Get the device argument. We will need this to determine
-            # the device that our outputs will be stored on
-            if "device" in kwargs.keys():
-                self._device = kwargs["device"]
-                del kwargs["device"]
+        # Get the device argument. We will need this to determine
+        # the device that our outputs will be stored on
+        self._device = device
+        self._spec.AddArg("device", self._device)
+
+        kwargs, self._call_args = _separate_kwargs(kwargs)
+
+        for k in self._call_args.keys():
+            _check_arg_input(self._schema, type(self).__name__, k)
+
+        if "preserve" in kwargs.keys():
+            self._preserve = kwargs["preserve"]
+            # we don't want to set "preserve" arg twice
+            del kwargs["preserve"]
+        else:
+            self._preserve = False
+        self._spec.AddArg("preserve", self._preserve)
+        self._preserve = self._preserve or self._schema.IsNoPrune()
+
+        # Check for any deprecated arguments that should be replaced or removed
+        arg_names = list(kwargs.keys())
+        for arg_name in arg_names:
+            if not self._schema.IsDeprecatedArg(arg_name):
+                continue
+            meta = self._schema.DeprecatedArgMeta(arg_name)
+            new_name = meta['renamed_to']
+            removed = meta['removed']
+            msg = meta['msg']
+            if new_name:
+                if new_name in kwargs:
+                    raise TypeError("Operator {} got an unexpected '{}' deprecated argument when '{}' was already provided".format(
+                        type(self).__name__, arg_name, new_name))
+                kwargs[new_name] = kwargs[arg_name]
+                del kwargs[arg_name]
+            elif removed:
+                del kwargs[arg_name]
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("default")
+                warnings.warn(msg, DeprecationWarning, stacklevel=2)
+
+        # Store the specified arguments
+        _add_spec_args(self._schema, self._spec, kwargs)
+
+    @property
+    def spec(self):
+        return self._spec
+
+    @property
+    def schema(self):
+        return self._schema
+
+    @property
+    def device(self):
+        return self._device
+
+    @property
+    def preserve(self):
+        return self._preserve
+
+    # Check if any of inputs is a list
+    def _detect_multiple_input_sets(self, inputs):
+        return any(isinstance(input, list) for input in inputs)
+
+    # Check if all list representing multiple input sets have the same length and return it
+    def _check_common_length(self, inputs):
+        arg_list_len = max(self._safe_len(input) for input in inputs)
+        for input in inputs:
+            if isinstance(input, list):
+                if len(input) != arg_list_len:
+                    raise ValueError(("All argument lists for Multpile Input Sets used " +
+                                        "with operator {} must have the same length")
+                                        .format(type(self).__name__))
+        return arg_list_len
+
+    def _safe_len(self, input):
+        if isinstance(input, _DataNode):
+            return 1
+        else:
+            return len(input)
+
+    # Pack single _DataNodes into lists, so they are treated as Multiple Input Sets
+    # consistently with the ones already present
+    def _unify_lists(self, inputs, arg_list_len):
+        result = ()
+        for input in inputs:
+            if isinstance(input, list):
+                result = result + (input,)
             else:
-                self._device = op_device
-            self._spec.AddArg("device", self._device)
+                result = result + ([input] * arg_list_len,)
+        return result
 
-            kwargs, self._call_args = _separate_kwargs(kwargs)
+    # Zip the list from [[arg0, arg0', arg0''], [arg1', arg1'', arg1''], ...]
+    # to [(arg0, arg1, ...), (arg0', arg1', ...), (arg0'', arg1'', ...)]
+    def _repack_input_sets(self, inputs):
+        return self._repack_list(inputs, tuple)
 
-            for k in self._call_args.keys():
-                _check_arg_input(self._schema, type(self).__name__, k)
+    # Unzip the list from [[out0, out1, out2], [out0', out1', out2'], ...]
+    # to [[out0, out0', ...], [out1, out1', ...], [out2, out2', ...]]
+    # Assume that all elements of input have the same length
+    # If the inputs were 1-elem lists, return just a list, that is:
+    # [[out0], [out0'], [out0''], ...] -> [out0, out0', out0'', ...]
+    def _repack_output_sets(self, outputs):
+        if len(outputs) > 1 and len(outputs[0]) == 1:
+            output = []
+            for elem in outputs:
+                output.append(elem[0])
+            return output
+        return self._repack_list(outputs, list)
 
-            if "preserve" in kwargs.keys():
-                self._preserve = kwargs["preserve"]
-                # we don't want to set "preserve" arg twice
-                del kwargs["preserve"]
-            else:
-                self._preserve = False
-            self._spec.AddArg("preserve", self._preserve)
-            self._preserve = self._preserve or self._schema.IsNoPrune()
+    # Repack list from [[a, b, c], [a', b', c'], ....]
+    # to [fn(a, a', ...), fn(b, b', ...), fn(c, c', ...)]
+    # where fn can be `tuple` or `list`
+    # Assume that all elements of input have the same length
+    def _repack_list(self, sets, fn):
+        output_list = []
+        arg_list_len = len(sets[0])
+        for i in range(arg_list_len):
+            output_list.append(fn(input_set[i] for input_set in sets))
+        return output_list
 
-            # Check for any deprecated arguments that should be replaced or removed
-            arg_names = list(kwargs.keys())
-            for arg_name in arg_names:
-                if not self._schema.IsDeprecatedArg(arg_name):
-                    continue
-                meta = self._schema.DeprecatedArgMeta(arg_name)
-                new_name = meta['renamed_to']
-                removed = meta['removed']
-                msg = meta['msg']
-                if new_name:
-                    if new_name in kwargs:
-                        raise TypeError("Operator {} got an unexpected '{}' deprecated argument when '{}' was already provided".format(
-                            type(self).__name__, arg_name, new_name))
-                    kwargs[new_name] = kwargs[arg_name]
-                    del kwargs[arg_name]
-                elif removed:
-                    del kwargs[arg_name]
+    def _check_schema_num_inputs(self, inputs):
+        if (len(inputs) > self._schema.MaxNumInput() or
+                len(inputs) < self._schema.MinNumInput()):
+            raise ValueError(
+                ("Operator {} expects from {} to " +
+                "{} inputs, but received {}.")
+                .format(type(self).__name__,
+                        self._schema.MinNumInput(),
+                        self._schema.MaxNumInput(),
+                        len(inputs)))
+    
+    def _build_input_sets(self, inputs):
+        # Build input sets, most of the time we only have one
+        input_sets = []
+        if self._detect_multiple_input_sets(inputs):
+            arg_list_len = self._check_common_length(inputs)
+            packed_inputs = self._unify_lists(inputs, arg_list_len)
+            input_sets = self._repack_input_sets(packed_inputs)
+        else:
+            input_sets = [inputs]
+        
+        return input_sets
 
-                with warnings.catch_warnings():
-                    warnings.simplefilter("default")
-                    warnings.warn(msg, DeprecationWarning, stacklevel=2)
 
-            # Store the specified arguments
-            _add_spec_args(self._schema, self._spec, kwargs)
-
-        @property
-        def spec(self):
-            return self._spec
-
-        @property
-        def schema(self):
-            return self._schema
-
-        @property
-        def device(self):
-            return self._device
-
-        @property
-        def preserve(self):
-            return self._preserve
-
+def python_op_factory(name, schema_name = None):
+    class Operator(_OperatorBase):
         def __call__(self, *inputs, **kwargs):
-            if (len(inputs) > self._schema.MaxNumInput() or
-                    len(inputs) < self._schema.MinNumInput()):
-                raise ValueError(
-                    ("Operator {} expects from {} to " +
-                    "{} inputs, but received {}.")
-                    .format(type(self).__name__,
-                            self._schema.MinNumInput(),
-                            self._schema.MaxNumInput(),
-                            len(inputs)))
+            self._check_schema_num_inputs(inputs)
 
             inputs = _preprocess_inputs(inputs, self.__class__.__name__, self._device, self._schema)
 
-            # Build input sets, most of the time we only have one
-            input_sets = []
-            if self._detect_multiple_input_sets(inputs):
-                arg_list_len = self._check_common_length(inputs)
-                packed_inputs = self._unify_lists(inputs, arg_list_len)
-                input_sets = self._repack_input_sets(packed_inputs)
-            else:
-                input_sets = [inputs]
-
+            input_sets = self._build_input_sets(inputs)
+           
             # Create OperatorInstance for every input set
             op_instances = []
             for input_set in input_sets:
@@ -640,72 +708,68 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
                 outputs.append(op.outputs)
             return self._repack_output_sets(outputs)
 
-        # Check if any of inputs is a list
-        def _detect_multiple_input_sets(self, inputs):
-            return any(isinstance(input, list) for input in inputs)
-
-        # Check if all list representing multiple input sets have the same length and return it
-        def _check_common_length(self, inputs):
-            arg_list_len = max(self._safe_len(input) for input in inputs)
-            for input in inputs:
-                if isinstance(input, list):
-                    if len(input) != arg_list_len:
-                        raise ValueError(("All argument lists for Multpile Input Sets used " +
-                                          "with operator {} must have the same length")
-                                          .format(type(self).__name__))
-            return arg_list_len
-
-        def _safe_len(self, input):
-            if isinstance(input, _DataNode):
-                return 1
-            else:
-                return len(input)
-
-        # Pack single _DataNodes into lists, so they are treated as Multiple Input Sets
-        # consistently with the ones already present
-        def _unify_lists(self, inputs, arg_list_len):
-            result = ()
-            for input in inputs:
-                if isinstance(input, list):
-                    result = result + (input,)
-                else:
-                    result = result + ([input] * arg_list_len,)
-            return result
-
-        # Zip the list from [[arg0, arg0', arg0''], [arg1', arg1'', arg1''], ...]
-        # to [(arg0, arg1, ...), (arg0', arg1', ...), (arg0'', arg1'', ...)]
-        def _repack_input_sets(self, inputs):
-            return self._repack_list(inputs, tuple)
-
-        # Unzip the list from [[out0, out1, out2], [out0', out1', out2'], ...]
-        # to [[out0, out0', ...], [out1, out1', ...], [out2, out2', ...]]
-        # Assume that all elements of input have the same length
-        # If the inputs were 1-elem lists, return just a list, that is:
-        # [[out0], [out0'], [out0''], ...] -> [out0, out0', out0'', ...]
-        def _repack_output_sets(self, outputs):
-            if len(outputs) > 1 and len(outputs[0]) == 1:
-                output = []
-                for elem in outputs:
-                    output.append(elem[0])
-                return output
-            return self._repack_list(outputs, list)
-
-        # Repack list from [[a, b, c], [a', b', c'], ....]
-        # to [fn(a, a', ...), fn(b, b', ...), fn(c, c', ...)]
-        # where fn can be `tuple` or `list`
-        # Assume that all elements of input have the same length
-        def _repack_list(self, sets, fn):
-            output_list = []
-            arg_list_len = len(sets[0])
-            for i in range(arg_list_len):
-                output_list.append(fn(input_set[i] for input_set in sets))
-            return output_list
-
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
     Operator.__call__.__doc__ = _docstring_generator_call(Operator.schema_name)
     return Operator
+
+
+def _callable_op_factory(name, schema_name=None):
+    def select_callable_operator(device):
+        if device == 'cpu':
+            return _b.CallableOperatorCPU
+        elif device == 'gpu':
+            return _b.CallableOperatorGPU
+        elif device == 'mixed':
+            return _b.CallableOperatorMixed
+        else:
+            raise ValueError(f'Incorrect device type "{device}" in operator {name}.')
+
+    class CallableOperator(_OperatorBase):
+        def __init__(self, batch_size=-1, device_id=0, cuda_stream=None, **kwargs):
+            # Here all kwargs are supposed to be constants.
+            super().__init__(**kwargs)
+
+            self._spec.AddArg('max_batch_size', batch_size)
+            self._spec.AddArg('device_id', device_id)
+            # self._spec.AddArg('cuda_stream', cuda_stream)
+
+            self._op = select_callable_operator(self._device)(self._spec)
+
+        @staticmethod
+        def _prep_args(args):
+            from nvidia.dali._debug_mode import _transform_data_to_tensorlist
+            import nvidia.dali.tensors as tensors
+
+            for i, arg in enumerate(args):
+                if not isinstance(arg, (tensors.TensorListCPU, tensors.TensorListGPU)) or \
+                        not (isinstance(arg, list) and
+                             all([isinstance(arg, (tensors.TensorListCPU, tensors.TensorListGPU)) for arg in args])):
+                    args[i] = _transform_data_to_tensorlist(arg, len(arg))
+            return args
+
+        def __call__(self, *inputs, **kwargs):
+            # Here all kwargs are supposed to be TensorLists.
+            def manage_packed_outputs(output):
+                if len(output) == 1:
+                    return output[0]
+                
+                return output
+
+            inputs = self._prep_args(list(inputs))
+            input_sets = self._build_input_sets(inputs)
+
+            outputs = [manage_packed_outputs(self._op(input, kwargs)) for input in input_sets]
+            
+            return manage_packed_outputs(outputs)
+    
+    CallableOperator.__name__ = str(name)
+    CallableOperator.schema_name = schema_name or CallableOperator.__name__
+    CallableOperator.__call__.__doc__ = _docstring_generator_call(CallableOperator.schema_name)
+    return CallableOperator
+
+
 
 def _process_op_name(op_schema_name, make_hidden=False):
     namespace_delim = "__"  # Two underscores (reasoning: we might want to have single underscores in the namespace itself)
@@ -741,12 +805,16 @@ def _load_ops():
     for op_reg_name in _cpu_gpu_ops:
         schema = _b.TryGetSchema(op_reg_name)
         make_hidden = schema.IsDocHidden() if schema else False
-        op_full_name, submodule, op_name = _process_op_name(op_reg_name, make_hidden)
+        _, submodule, op_name = _process_op_name(op_reg_name, make_hidden)
         module = _internal.get_submodule(ops_module, submodule)
         if not hasattr(module, op_name):
-            op_class = python_op_factory(op_name, op_reg_name, op_device = "cpu")
+            op_class = python_op_factory(op_name, op_reg_name)
             op_class.__module__ = module.__name__
             setattr(module, op_name, op_class)
+            
+            experimental_module = _internal.get_submodule(module, 'experimental')
+            callable_op_class = _callable_op_factory(op_name, op_reg_name)
+            setattr(experimental_module, op_name, callable_op_class)
 
             if op_name not in ["ExternalSource"]:
                 _wrap_op(op_class, submodule)
