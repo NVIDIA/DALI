@@ -80,15 +80,15 @@ Operator uses 32-bit floats as an intermediate type.
                          R"code(Size of derivative window used in convolutions.
 
 Window size must be odd and between 3 and 23.)code",
-                         std::vector<int>{laplacian::defaultWindowSize}, true)
+                         std::vector<int>{laplacian::defaultWindowSize}, true, true)
     .AddOptionalArg<std::vector<int>>(laplacian::smoothingSizeArgName,
                                       R"code(Size of smoothing window used in convolutions.
 
 Smoothing size must be odd and between 1 and 23.)code",
-                                      laplacian::smoothingSizeDefault, true)
+                                      laplacian::smoothingSizeDefault, true, true)
     .AddOptionalArg<float>(laplacian::scaleArgName,
                            "Factors to manually scale partial derivatives.",
-                           std::vector<float>{laplacian::scaleArgDefault}, true)
+                           std::vector<float>{laplacian::scaleArgDefault}, true, true)
     .AddOptionalArg<bool>(
         laplacian::normalizeArgName,
         "If set to True, automatically scales partial derivatives kernels. Must be False "

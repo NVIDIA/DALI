@@ -63,9 +63,9 @@ The same input can be provided as per-sample tensors.
     .AllowSequences()
     .SupportVolumetric()
     .AddOptionalArg<int>(kWindowSizeArgName, "The diameter of the kernel.",
-                         std::vector<int>{0}, true)
+                         std::vector<int>{0}, true, true)
     .AddOptionalArg<float>(kSigmaArgName, "Sigma value for the Gaussian Kernel.",
-                           std::vector<float>{0.f}, true)
+                           std::vector<float>{0.f}, true, true)
     .AddOptionalArg(
         "dtype", R"code(Output data type.
 

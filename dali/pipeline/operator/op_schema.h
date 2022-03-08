@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -354,11 +355,15 @@ graph even if its outputs are not used.)code", false);
   DLL_PUBLIC inline OpSchema& AddArg(const std::string &s,
                                      const std::string &doc,
                                      const DALIDataType dtype,
-                                     bool enable_tensor_input = false) {
+                                     bool enable_tensor_input = false,
+                                     bool support_per_frame_input = false) {
     CheckArgument(s);
     arguments_[s] = {doc, dtype};
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
+      if (support_per_frame_input) {
+        SupportPerFrameInput(s);
+      }
     }
     return *this;
   }
@@ -465,11 +470,15 @@ graph even if its outputs are not used.)code", false);
    */
   DLL_PUBLIC inline OpSchema &AddOptionalArg(const std::string &s, const std::string &doc,
                                              DALIDataType dtype, std::nullptr_t,
-                                             bool enable_tensor_input = false) {
+                                             bool enable_tensor_input = false,
+                                             bool support_per_frame_input = false) {
     CheckArgument(s);
     optional_arguments_[s] = {doc, dtype, nullptr};
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
+      if (support_per_frame_input) {
+        SupportPerFrameInput(s);
+      }
     }
     return *this;
   }
@@ -480,8 +489,10 @@ graph even if its outputs are not used.)code", false);
    */
   template <typename T>
   DLL_PUBLIC inline OpSchema &AddOptionalArg(const std::string &s, const std::string &doc,
-                                             std::nullptr_t, bool enable_tensor_input = false) {
-    AddOptionalArg(s, doc, type2id<T>::value, nullptr, enable_tensor_input);
+                                             std::nullptr_t, bool enable_tensor_input = false,
+                                             bool support_per_frame_input = false) {
+    AddOptionalArg(s, doc, type2id<T>::value, nullptr, enable_tensor_input,
+                   support_per_frame_input);
     return *this;
   }
 
@@ -494,13 +505,17 @@ graph even if its outputs are not used.)code", false);
   AddOptionalArg(const std::string &s,
                  const std::string &doc,
                  T default_value,
-                 bool enable_tensor_input = false) {
+                 bool enable_tensor_input = false,
+                 bool support_per_frame_input = false) {
     CheckArgument(s);
     auto to_store = Value::construct(default_value);
     optional_arguments_[s] = {doc, type2id<T>::value, to_store.get()};
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
+      if (support_per_frame_input) {
+        SupportPerFrameInput(s);
+      }
     }
     return *this;
   }
@@ -517,7 +532,8 @@ graph even if its outputs are not used.)code", false);
   template <typename T>
   DLL_PUBLIC inline OpSchema& AddOptionalArg(const std::string &s, const std::string &doc,
                                              std::vector<T> default_value,
-                                             bool enable_tensor_input = false) {
+                                             bool enable_tensor_input = false,
+                                             bool support_per_frame_input = false) {
     CheckArgument(s);
     using S = argument_storage_t<T>;
     auto to_store = Value::construct(detail::convert_vector<S>(default_value));
@@ -525,6 +541,9 @@ graph even if its outputs are not used.)code", false);
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
+      if (support_per_frame_input) {
+        SupportPerFrameInput(s);
+      }
     }
     return *this;
   }
@@ -562,6 +581,25 @@ graph even if its outputs are not used.)code", false);
     if (msg.empty())
       msg = DefaultDeprecatedArgMsg(arg_name, {}, removed);
     deprecated_arguments_[arg_name] = {{}, std::move(msg), removed};
+    return *this;
+  }
+
+  /**
+   * @brief Marks a tensor argument as supporting per-frame input.
+   * @remarks Only tensor arguments can be marked as supporting per-frame input.
+   *          Per-frame support is not inherited from a parent schema.
+   *
+   */
+  DLL_PUBLIC inline OpSchema &SupportPerFrameInput(const std::string& arg_name) {
+    DALI_ENFORCE(HasArgument(arg_name),
+                 make_string("Argument \"", arg_name,
+                             "\" has been marked as supporting per-frame input but it is not "
+                             "present in the schema."));
+    DALI_ENFORCE(IsTensorArgument(arg_name),
+                make_string("Argument \"", arg_name,
+                             "\" has been marked as supporting per-frame input but it is not "
+                             "a tensor argument."));
+    per_frame_arguments_.insert(arg_name);
     return *this;
   }
 
@@ -863,6 +901,7 @@ graph even if its outputs are not used.)code", false);
    */
   DLL_PUBLIC std::vector<std::string> GetArgumentNames() const;
   DLL_PUBLIC bool IsTensorArgument(const std::string &name) const;
+  DLL_PUBLIC bool ArgSupportsPerFrameInput(const std::string &arg_name) const;
 
  private:
   inline void CheckArgument(const std::string &s) {
@@ -965,6 +1004,7 @@ graph even if its outputs are not used.)code", false);
   std::vector<dali::InputDevice> input_devices_;
 
   std::set<std::string> tensor_arguments_;
+  std::unordered_set<std::string> per_frame_arguments_;
 };
 
 class SchemaRegistry {

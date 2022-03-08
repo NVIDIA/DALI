@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -280,7 +280,6 @@ OpSchema::FindDefaultValue(const std::string &name, bool local_only, bool includ
   return { nullptr, nullptr };
 }
 
-
 bool OpSchema::IsTensorArgument(const std::string &name) const {
   bool ret = tensor_arguments_.find(name) != tensor_arguments_.end();
   if (ret) {
@@ -291,6 +290,10 @@ bool OpSchema::IsTensorArgument(const std::string &name) const {
     ret = ret || parent.IsTensorArgument(name);
   }
   return ret;
+}
+
+bool OpSchema::ArgSupportsPerFrameInput(const std::string &arg_name) const {
+  return per_frame_arguments_.find(arg_name) != per_frame_arguments_.end();
 }
 
 }  // namespace dali
