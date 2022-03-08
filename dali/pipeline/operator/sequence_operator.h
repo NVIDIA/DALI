@@ -84,7 +84,7 @@ class SequenceOperator : public Operator<Backend> {
       const auto &layout = GetInputLayout(ws, input_idx);
       auto layout_desc =
           ShouldExpandChannels() ? LayoutDesc::FrameAndChannel(layout) : LayoutDesc::Frame(layout);
-      if (layout_desc.NumDims() > 0) {
+      if (layout_desc.NumDimsToExpand() > 0) {
         return true;
       }
     }
@@ -111,12 +111,12 @@ class SequenceOperator : public Operator<Backend> {
   virtual void ExpandInputs(const workspace_t<Backend> &ws) {
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
       const auto &expand_desc = GetInputExpandDesc(input_idx);
-      auto num_expand_dims = expand_desc.NumDims();
+      auto num_expand_dims = expand_desc.NumDimsToExpand();
       if (ws.template InputIsType<GPUBackend>(input_idx)) {
-        auto expanded_handle = ExpandInputHelper<GPUBackend>(ws, input_idx, num_expand_dims);
+        auto expanded_handle = ExpandInput<GPUBackend>(ws, input_idx, num_expand_dims);
         AddInputHelper<GPUBackend>(expanded_handle);
       } else {
-        auto expanded_handle = ExpandInputHelper<CPUBackend>(ws, input_idx, num_expand_dims);
+        auto expanded_handle = ExpandInput<CPUBackend>(ws, input_idx, num_expand_dims);
         AddInputHelper<CPUBackend>(expanded_handle);
       }
     }
@@ -125,12 +125,12 @@ class SequenceOperator : public Operator<Backend> {
   virtual void ExpandOutputs(const workspace_t<Backend> &ws) {
     for (int output_idx = 0; output_idx < ws.NumInput(); output_idx++) {
       const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
-      auto num_expand_dims = expand_desc.NumDims();
+      auto num_expand_dims = expand_desc.NumDimsToExpand();
       if (ws.template OutputIsType<GPUBackend>(output_idx)) {
-        auto expanded_handle = ExpandOutputHelper<GPUBackend>(ws, output_idx, num_expand_dims);
+        auto expanded_handle = ExpandOutput<GPUBackend>(ws, output_idx, num_expand_dims);
         AddOutputHelper<GPUBackend>(expanded_handle);
       } else {
-        auto expanded_handle = ExpandOutputHelper<CPUBackend>(ws, output_idx, num_expand_dims);
+        auto expanded_handle = ExpandOutput<CPUBackend>(ws, output_idx, num_expand_dims);
         AddOutputHelper<CPUBackend>(expanded_handle);
       }
     }
@@ -142,9 +142,9 @@ class SequenceOperator : public Operator<Backend> {
       const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
       auto layout_prefix = expand_desc.ExpandedLayout();
       if (ws.template OutputIsType<GPUBackend>(output_idx)) {
-        SetOutputLayoutHelper<GPUBackend>(ws, output_idx, layout_prefix);
+        SetOutputLayout<GPUBackend>(ws, output_idx, layout_prefix);
       } else {
-        SetOutputLayoutHelper<CPUBackend>(ws, output_idx, layout_prefix);
+        SetOutputLayout<CPUBackend>(ws, output_idx, layout_prefix);
       }
     }
   }
@@ -154,11 +154,11 @@ class SequenceOperator : public Operator<Backend> {
     for (size_t output_idx = 0; output_idx < output_desc.size(); output_idx++) {
       const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
       const auto &shape = output_desc[output_idx].shape;
-      DALI_ENFORCE(shape.num_samples() == expand_desc.NumElements(),
+      DALI_ENFORCE(shape.num_samples() == expand_desc.NumExpanded(),
                    make_string("Unexpected number of frames inferred in the operator for output ",
-                               output_idx, ". Expected ", expand_desc.NumElements(),
+                               output_idx, ". Expected ", expand_desc.NumExpanded(),
                                " but the operator returned ", shape.num_samples(), "."));
-      output_desc[output_idx].shape = fold_outermost_like(shape, expand_desc.ExpandedShape());
+      output_desc[output_idx].shape = fold_outermost_like(shape, expand_desc.DimsToExpand());
     }
   }
 
@@ -170,17 +170,17 @@ class SequenceOperator : public Operator<Backend> {
     return is_inferred;
   }
 
-  virtual void ExpandArgument(const workspace_t<Backend> &ws, const std::string &arg_name,
-                             const TensorVector<CPUBackend> &arg_tensor) {
+  virtual void ExpandArgument(const ArgumentWorkspace &ws, const std::string &arg_name,
+                              const TensorVector<CPUBackend> &arg_tensor) {
     const auto &expand_desc = GetArgExpandDesc(arg_name);
     auto expanded_arg = ExpandArgumentLike(arg_tensor, arg_name, expand_desc);
     auto expanded_handle = std::make_shared<TensorVector<CPUBackend>>(std::move(expanded_arg));
     AddArgumentInputHelper(arg_name, expanded_handle);
   }
 
-  virtual void ExpandArguments(const workspace_t<Backend> &ws) {
+  virtual void ExpandArguments(const ArgumentWorkspace &ws) {
     for (const auto &arg_input : ws) {
-      auto shared_tvec = arg_input.second.tvec;
+      auto &shared_tvec = arg_input.second.tvec;
       assert(shared_tvec);
       ExpandArgument(ws, arg_input.first, *shared_tvec);
     }
@@ -213,8 +213,8 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   template <typename InputBackend>
-  ws_input_t<InputBackend> ExpandInputHelper(const workspace_t<Backend> &ws, int input_idx,
-                                             int num_expand_dims) {
+  ws_input_t<InputBackend> ExpandInput(const workspace_t<Backend> &ws, int input_idx,
+                                       int num_expand_dims) {
     const auto &input = ws.template Input<InputBackend>(input_idx);
     auto sample_dim = input.shape().sample_dim();
     DALI_ENFORCE(
@@ -232,8 +232,8 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   template <typename OutputBackend>
-  ws_input_t<OutputBackend> ExpandOutputHelper(const workspace_t<Backend> &ws, int output_idx,
-                                               int num_expand_dims) {
+  ws_input_t<OutputBackend> ExpandOutput(const workspace_t<Backend> &ws, int output_idx,
+                                         int num_expand_dims) {
     const auto &output = ws.template Output<OutputBackend>(output_idx);
     auto sample_dim = output.shape().sample_dim();
     DALI_ENFORCE(
@@ -249,8 +249,7 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   template <typename OutputBackend>
-  void SetOutputLayoutHelper(const workspace_t<Backend> &ws, int output_idx,
-                             TensorLayout layout_prefix) {
+  void SetOutputLayout(const workspace_t<Backend> &ws, int output_idx, TensorLayout layout_prefix) {
     DALI_ENFORCE(ExpandedOutputIsType<OutputBackend>(output_idx));
     auto &expanded_output = ExpandedOutput<OutputBackend>(output_idx);
     auto &output = ws.template Output<OutputBackend>(output_idx);
@@ -347,7 +346,7 @@ class SequenceOperator : public Operator<Backend> {
                                               const std::string &arg_name,
                                               const ExpandDesc &expand_desc) {
     DALI_ENFORCE(
-        expand_desc.HasFrames(),
+        expand_desc.ExpandFrames(),
         make_string(
             "Tensor input for argument ", arg_name, " is specified per frame (got ",
             arg_tensor.GetLayout(),
@@ -356,13 +355,13 @@ class SequenceOperator : public Operator<Backend> {
             ShouldExpandChannels() ? " or 'CF'" : "", ")."));
     const auto &shape = arg_tensor.shape();
     int arg_sample_dim = shape.sample_dim();
-    TensorVector<CPUBackend> flat_tensor(expand_desc.NumElements());
+    TensorVector<CPUBackend> flat_tensor(expand_desc.NumExpanded());
     int num_samples = expand_desc.NumSamples();
     auto type_info = arg_tensor.type_info();
     auto type = type_info.id();
     auto is_pinned = arg_tensor.is_pinned();
     auto order = arg_tensor.order();
-    int elem_idx = 0;
+    int slice_idx = 0;
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       const auto &sample_shape = shape[sample_idx];
       int num_input_frames = expand_desc.NumFrames(sample_idx);
@@ -374,25 +373,25 @@ class SequenceOperator : public Operator<Backend> {
                       "sample or should be specified per each frame. Got ",
                       num_arg_frames, " arguments for the sample but there are ", num_input_frames,
                       " frames in the sample."));
-      auto elem_shape = sample_shape.last(arg_sample_dim - 1);
-      auto elem_volume = volume(elem_shape);
+      auto slice_shape = sample_shape.last(arg_sample_dim - 1);
+      auto slice_volume = volume(slice_shape);
       uint8_t *base_ptr =
           const_cast<uint8_t *>(static_cast<const uint8_t *>(arg_tensor.raw_tensor(sample_idx)));
-      auto num_bytes = type_info.size() * elem_volume;
+      auto num_bytes = type_info.size() * slice_volume;
       if (num_arg_frames == 1) {  // broadcast the sample
-        for (int j = 0; j < expand_desc.NumElements(sample_idx); j++) {
-          flat_tensor[elem_idx++].ShareData(base_ptr, num_bytes, is_pinned, elem_shape, type,
-                                            order);
+        for (int j = 0; j < expand_desc.NumExpanded(sample_idx); j++) {
+          flat_tensor[slice_idx++].ShareData(base_ptr, num_bytes, is_pinned, slice_shape, type,
+                                             order);
         }
-      } else if (!expand_desc.HasChannels()) {  // expand frames dimension
-        assert(num_arg_frames == expand_desc.NumElements(sample_idx));
+      } else if (!expand_desc.ExpandChannels()) {  // expand frames dimension
+        assert(num_arg_frames == expand_desc.NumExpanded(sample_idx));
         for (int i = 0; i < num_arg_frames; i++, base_ptr += num_bytes) {
-          flat_tensor[elem_idx++].ShareData(base_ptr, num_bytes, is_pinned, elem_shape, type,
-                                            order);
+          flat_tensor[slice_idx++].ShareData(base_ptr, num_bytes, is_pinned, slice_shape, type,
+                                             order);
         }
       } else {
         int num_input_channels = expand_desc.NumChannels(sample_idx);
-        assert(num_arg_frames * num_input_channels == expand_desc.NumElements(sample_idx));
+        assert(num_arg_frames * num_input_channels == expand_desc.NumExpanded(sample_idx));
         int inner_stride, outer_stride;
         if (expand_desc.IsChannelFirst()) {
           inner_stride = num_input_frames;
@@ -403,38 +402,38 @@ class SequenceOperator : public Operator<Backend> {
         }
         for (int i = 0; i < num_arg_frames; i++, base_ptr += num_bytes) {
           for (int j = 0; j < num_input_channels; j++) {
-            flat_tensor[elem_idx + i * outer_stride + j * inner_stride].ShareData(
-                base_ptr, num_bytes, is_pinned, elem_shape, type, order);
+            flat_tensor[slice_idx + i * outer_stride + j * inner_stride].ShareData(
+                base_ptr, num_bytes, is_pinned, slice_shape, type, order);
           }
         }
-        elem_idx += num_input_channels * num_input_frames;
+        slice_idx += num_input_channels * num_input_frames;
       }
     }
-    assert(elem_idx == expand_desc.NumElements());
+    assert(slice_idx == expand_desc.NumExpanded());
     return flat_tensor;
   }
 
   TensorVector<CPUBackend> BroadcastPerFrameLike(const TensorVector<CPUBackend> &arg_tensor,
                                                  const ExpandDesc &expand_desc) {
     const auto &shape = arg_tensor.shape();
-    TensorVector<CPUBackend> res(expand_desc.NumElements());
+    TensorVector<CPUBackend> res(expand_desc.NumExpanded());
     int num_samples = expand_desc.NumSamples();
     auto type_info = arg_tensor.type_info();
     auto type = type_info.id();
     auto is_pinned = arg_tensor.is_pinned();
     auto order = arg_tensor.order();
-    int elem_idx = 0;
+    int slice_idx = 0;
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      const auto &elem_shape = shape[sample_idx];
-      int num_elements = expand_desc.NumElements(sample_idx);
+      const auto &slice_shape = shape[sample_idx];
+      int num_elements = expand_desc.NumExpanded(sample_idx);
       auto num_bytes = type_info.size() * num_elements;
       uint8_t *ptr =
           const_cast<uint8_t *>(static_cast<const uint8_t *>(arg_tensor.raw_tensor(sample_idx)));
-      for (int sample_elem_idx = 0; sample_elem_idx < num_elements; sample_elem_idx++) {
-        res[elem_idx++].ShareData(ptr, num_bytes, is_pinned, elem_shape, type, order);
+      for (int sample_slice_idx = 0; sample_slice_idx < num_elements; sample_slice_idx++) {
+        res[slice_idx++].ShareData(ptr, num_bytes, is_pinned, slice_shape, type, order);
       }
     }
-    assert(elem_idx == expand_desc.NumElements());
+    assert(slice_idx == expand_desc.NumExpanded());
     return res;
   }
 

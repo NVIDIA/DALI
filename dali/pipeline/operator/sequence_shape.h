@@ -16,8 +16,6 @@
 #define DALI_PIPELINE_OPERATOR_SEQUENCE_SHAPE_H_
 
 #include <string>
-#include <type_traits>
-#include <vector>
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/views.h"
 
@@ -42,7 +40,7 @@ struct LayoutDesc {
     return {layout, 0};
   }
 
-  inline int NumDims() const {
+  inline int NumDimsToExpand() const {
     return (frame_dim >= 0) + (channel_dim >= 0);
   }
 
@@ -55,72 +53,72 @@ class ExpandDesc {
  public:
   inline ExpandDesc(const TensorListShape<> &shape, const LayoutDesc &layout_desc)
       : layout_desc_{layout_desc},
-        has_channels_{layout_desc_.channel_dim >= 0},
-        has_frames_{layout_desc_.frame_dim >= 0},
-        is_channel_first_{has_channels_ && layout_desc_.channel_dim < layout_desc_.frame_dim},
-        num_dims_{has_channels_ + has_frames_},
-        expanded_shape_{shape.first(num_dims_)},
-        num_elements_{expanded_shape_.num_elements()} {}
+        expand_channels_{layout_desc_.channel_dim >= 0},
+        expand_frames_{layout_desc_.frame_dim >= 0},
+        is_channel_first_{expand_channels_ && layout_desc_.channel_dim < layout_desc_.frame_dim},
+        num_expand_dims_{expand_channels_ + expand_frames_},
+        dims_to_expand_{shape.first(num_expand_dims_)},
+        num_expanded_{dims_to_expand_.num_elements()} {}
 
-  inline bool HasChannels() const {
-    return has_channels_;
+  inline bool ExpandChannels() const {
+    return expand_channels_;
   }
 
-  inline bool HasFrames() const {
-    return has_frames_;
+  inline bool ExpandFrames() const {
+    return expand_frames_;
   }
 
   inline bool IsChannelFirst() const {
     return is_channel_first_;
   }
 
-  inline int NumDims() const {
-    return num_dims_;
+  inline int NumDimsToExpand() const {
+    return num_expand_dims_;
   }
 
-  inline ptrdiff_t NumElements() const {
-    return num_elements_;
+  inline ptrdiff_t NumExpanded() const {
+    return num_expanded_;
   }
 
   inline ptrdiff_t NumSamples() const {
-    return expanded_shape_.num_samples();
+    return dims_to_expand_.num_samples();
   }
 
-  inline int NumElements(int sample_idx) const {
-    return volume(expanded_shape_[sample_idx]);
+  inline int NumExpanded(int sample_idx) const {
+    return volume(dims_to_expand_[sample_idx]);
   }
 
   inline int NumFrames(int sample_idx) const {
-    return expanded_shape_[sample_idx][layout_desc_.frame_dim];
+    return dims_to_expand_[sample_idx][layout_desc_.frame_dim];
   }
 
   inline int NumChannels(int sample_idx) const {
-    return expanded_shape_[sample_idx][layout_desc_.channel_dim];
+    return dims_to_expand_[sample_idx][layout_desc_.channel_dim];
   }
 
-  inline const TensorListShape<> &ExpandedShape() const {
-    return expanded_shape_;
+  inline const TensorListShape<> &DimsToExpand() const {
+    return dims_to_expand_;
   }
 
   inline TensorLayout ExpandedLayout() const {
-    return layout_desc_.layout.first(num_dims_);
+    return layout_desc_.layout.first(num_expand_dims_);
   }
 
  private:
   LayoutDesc layout_desc_;
-  bool has_channels_;
-  bool has_frames_;
+  bool expand_channels_;
+  bool expand_frames_;
   bool is_channel_first_;
-  int num_dims_;
-  TensorListShape<> expanded_shape_;
-  ptrdiff_t num_elements_;
+  int num_expand_dims_;
+  TensorListShape<> dims_to_expand_;
+  ptrdiff_t num_expanded_;
 };
 
 
 template <typename Backend>
-TensorVector<Backend> unfold_outer_dims(const TensorVector<Backend> &data, int num_unfold_dims) {
+TensorVector<Backend> unfold_outer_dims(const TensorVector<Backend> &data, int ndims_to_unfold) {
   const auto &shape = data.shape();
-  auto group_shapes = shape.first(num_unfold_dims);
+  auto group_shapes = shape.first(ndims_to_unfold);
   const auto num_unfolded_samples = group_shapes.num_elements();
   TensorVector<Backend> unfolded_tensor(num_unfolded_samples);
   auto type_info = data.type_info();
@@ -133,8 +131,8 @@ TensorVector<Backend> unfold_outer_dims(const TensorVector<Backend> &data, int n
   int elem_idx = 0;
   for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
     const auto &sample_shape = shape[sample_idx];
-    int num_frames = volume(sample_shape.begin(), sample_shape.begin() + num_unfold_dims);
-    TensorShape<> element_shape{sample_shape.begin() + num_unfold_dims, sample_shape.end()};
+    int num_frames = volume(sample_shape.begin(), sample_shape.begin() + ndims_to_unfold);
+    TensorShape<> element_shape{sample_shape.begin() + ndims_to_unfold, sample_shape.end()};
     int element_volume = volume(element_shape);
     auto num_bytes = type_info.size() * element_volume;
     uint8_t *base_ptr =
@@ -149,43 +147,42 @@ TensorVector<Backend> unfold_outer_dims(const TensorVector<Backend> &data, int n
 }
 
 template <typename Backend>
-TensorList<Backend> unfold_outer_dims(const TensorList<Backend> &data, int num_unfold_dims) {
+TensorList<Backend> unfold_outer_dims(const TensorList<Backend> &data, int ndims_to_unfold) {
   // TODO(ktokarski) TODO(klecki)
   // Rework it when TensorList stops being contigious and supports "true sample" mode
   const auto &shape = data.shape();
   TensorList<Backend> tl;
   tl.ShareData(data);
-  auto expanded_shape = unfold_outer_dims(shape, num_unfold_dims);
+  auto expanded_shape = unfold_outer_dims(shape, ndims_to_unfold);
   tl.Resize(expanded_shape, data.type());
   return tl;
 }
 
-inline TensorListShape<> unfold_outer_dims(const TensorListShape<> &shape, int num_unfold_dims) {
-  if (num_unfold_dims == 0) {
+inline TensorListShape<> unfold_outer_dims(const TensorListShape<> &shape, int ndims_to_unfold) {
+  if (ndims_to_unfold == 0) {
     return shape;
-  } else if (num_unfold_dims == 1) {
+  } else if (ndims_to_unfold == 1) {
     return unfold_outer_dim(shape);
   } else {
-    auto data_shape = collapse_dims(shape, {{0, num_unfold_dims}});
+    auto data_shape = collapse_dims(shape, {{0, ndims_to_unfold}});
     return unfold_outer_dim(data_shape);
   }
 }
 
 inline TensorListShape<> fold_outermost_like(const TensorListShape<> &shape,
-                                             const TensorListShape<> &folded_shape) {
-  if (folded_shape.sample_dim() == 0) {
+                                             const TensorListShape<> &unfolded_extents) {
+  if (unfolded_extents.sample_dim() == 0) {
     return shape;
   }
-  auto num_samples = folded_shape.num_samples();
-  TensorListShape<> res(num_samples, folded_shape.sample_dim() + shape.sample_dim());
+  auto num_samples = unfolded_extents.num_samples();
+  TensorListShape<> res(num_samples, unfolded_extents.sample_dim() + shape.sample_dim());
   for (int sample_idx = 0, element_idx = 0; sample_idx < num_samples; sample_idx++) {
-    auto group_shape = folded_shape[sample_idx];
-    auto num_elements = volume(group_shape);
-    DALI_ENFORCE(num_elements > 0,
-                 make_string("Zero-volume samples are not allowed. Got volume 0 for sample ",
-                             sample_idx, "."));
+    auto group_shape = unfolded_extents[sample_idx];
+    auto num_frames = volume(group_shape);
+    DALI_ENFORCE(num_frames > 0, make_string("Samples with no frames are not allowed. The ",
+                                             sample_idx, " has 0 volume."));
     TensorShape<> element_shape = shape[element_idx++];
-    for (int j = 1; j < num_elements; j++) {
+    for (int j = 1; j < num_frames; j++) {
       DALI_ENFORCE(element_shape == shape[element_idx++],
                    make_string("Frames in the sample must have equal shapes. Got "
                                "frames of different shape for sample ",

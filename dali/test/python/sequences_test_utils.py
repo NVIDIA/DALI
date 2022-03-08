@@ -25,7 +25,6 @@ from test_utils import get_dali_extra_path, check_batch
 
 
 data_root = get_dali_extra_path()
-images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 vid_file = os.path.join(data_root, 'db', 'video',
                         'sintel', 'sintel_trailer-720p.mp4')
 
