@@ -22,32 +22,20 @@ import numpy as np
 
 
 @pipeline_def()
-def get_datali_pipe(value):
+def get_dali_pipe(value):
     data = types.Constant(value)
     return data
-
-def get_data(batch_size, value):
-    pipe = get_datali_pipe(batch_size=batch_size, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1, value=value)
-    daliop = dali_tf.DALIIterator()
-    out = []
-    with tf.device('/cpu'):
-        data = daliop(pipeline = pipe,
-            shapes = [(batch_size)],
-            dtypes = [tf.int32],
-            device_id = types.CPU_ONLY_DEVICE_ID)
-        out.append(data)
-    return [out]
 
 def test_dali_tf_dataset_cpu_only():
     skip_for_incompatible_tf()
     try:
         tf.compat.v1.enable_eager_execution()
-    except:
+    except Exception:
         pass
 
     batch_size = 3
     value = random.randint(0, 1000)
-    pipe = get_datali_pipe(batch_size=batch_size, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1, value=value)
+    pipe = get_dali_pipe(batch_size=batch_size, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1, value=value)
     with tf.device('/cpu'):
         ds = dali_tf.DALIDataset(pipe, device_id = types.CPU_ONLY_DEVICE_ID, batch_size=1, output_dtypes=(tf.int32), output_shapes=[(1)])
     ds = iter(ds)

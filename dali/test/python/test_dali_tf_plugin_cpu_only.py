@@ -21,17 +21,17 @@ import numpy as np
 
 try:
     from tensorflow.compat.v1 import Session
-except:
+except Exception:
     # Older TF versions don't have compat.v1 layer
     from tensorflow import Session
 
 @pipeline_def()
-def get_datali_pipe(value):
+def test_dali_tf_op_cpu_only(value):
     data = types.Constant(value)
     return data
 
 def get_data(batch_size, value):
-    pipe = get_datali_pipe(batch_size=batch_size, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1, value=value)
+    pipe = test_dali_tf_op_cpu_only(batch_size=batch_size, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1, value=value)
     daliop = dali_tf.DALIIterator()
     out = []
     with tf.device('/cpu'):
@@ -45,7 +45,7 @@ def get_data(batch_size, value):
 def test_dali_tf_op_cpu_only():
     try:
         tf.compat.v1.disable_eager_execution()
-    except:
+    except Exception:
         pass
 
     value = random.randint(0, 1000)

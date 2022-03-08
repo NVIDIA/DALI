@@ -353,9 +353,9 @@ class DaliOp : public tf::OpKernel {
       // Synchronize with the dataset()->stream_ when doing the last copy, so the outputs
       // are fully finished before we release the output buffers for reuse.
       // if the OP runs on the CPU the output memory is not pinned and we don't need to sync
-      unsigned int wait_flag = (i == dali_num_out - 1) ?
-                            (this->device_type_ == device_type_t::CPU ? 0 : DALI_ext_force_sync) :
-                            DALI_ext_default;
+      unsigned int wait_flag = this->device_type_ != device_type_t::CPU && (i == dali_num_out - 1) ?
+                                  DALI_ext_force_sync :
+                                  DALI_ext_default;
 
       TF_DALI_CALL(
           daliOutputCopy(&pipe_handle_, dst, i, this->device_type_, stream, wait_flag));
