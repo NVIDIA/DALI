@@ -509,7 +509,6 @@ def test_slice_with_out_of_bounds_error():
 
 
 def check_crop_wrong_layout(device, batch_size, input_shape=(100, 200, 3), layout="ABC"):
-    assert(len(input_shape) == len(layout))
     @pipeline_def
     def get_pipe():
         def get_data():
@@ -519,15 +518,19 @@ def check_crop_wrong_layout(device, batch_size, input_shape=(100, 200, 3), layou
         return fn.crop(data, crop_h=10, crop_w=10)
     pipe = get_pipe(batch_size=batch_size, device_id=0, num_threads=3)
     pipe.build()
-    with assert_raises(RuntimeError, glob=f"The layout \"{layout}\" does not match any of the allowed layouts"):
+    if len(layout) == len(input_shape):
+        glob_pattern = f"The layout \"{layout}\" does not match any of the allowed layouts"
+    else:
+        glob_pattern = f"The layout '{layout}' cannot describe {len(input_shape)}-dimensional data"
+    with assert_raises(RuntimeError, glob=glob_pattern):
         pipe.run()
 
 def test_crop_wrong_layout():
     in_shape = (40, 80, 3)
-    layout = "ABC"
     batch_size = 3
     for device in ['gpu', 'cpu']:
-        yield check_crop_wrong_layout, device, batch_size, in_shape, layout
+        for layout in ['ABC', 'HW']:
+            yield check_crop_wrong_layout, device, batch_size, in_shape, layout
 
 def check_crop_empty_layout(device, batch_size, input_shape=(100, 200, 3)):
     @pipeline_def

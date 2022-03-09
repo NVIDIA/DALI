@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -161,12 +161,6 @@ class CropMirrorNormalize : public Operator<Backend> {
 
     auto in_shape = input.shape();
     input_layout_ = input.GetLayout();
-    DALI_ENFORCE(ImageLayoutInfo::IsImage(input_layout_),
-      ("Unsupported layout: '" + input_layout_.str() + "' for input 0 '" +
-      this->spec_.InputName(0) + "'"));
-    DALI_ENFORCE(input_layout_.ndim() == in_shape.sample_dim(),
-      "Number of dimension in layout description does not match the number"
-      " of dimensions in the input.");
     if (output_layout_.empty())
       output_layout_ = input_layout_;
     else

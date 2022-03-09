@@ -34,8 +34,9 @@ Normalization takes the input images and produces the output by using the follow
 )code")
   .NumInput(1)
   .NumOutput(1)
-  .InputLayout(0, {"HWC", "CHW", "DHWC",
-                   "FHWC", "FCHW", "CDHW", "CFHW",
+  .InputLayout(0, {"HWC", "CHW",
+                   "DHWC", "CDHW",
+                   "FHWC", "FCHW", "CFHW",
                    "FDHWC", "FCDHW", "CFDHW"})
   .AllowSequences()
   .SupportVolumetric()
