@@ -54,7 +54,7 @@ class OperatorBench : public DALIBenchmark {
     auto op_ptr = InstantiateOperator(op_spec);
 
     auto data_in = std::make_shared<TensorVector<CPUBackend>>(batch_size);
-    // todo fixme - we need to actually resize all with uniform
+    // TODO fixme - we need to actually resize all with uniform
     data_in->set_type<T>();
     data_in->Resize(uniform_list_shape(batch_size, TensorShape<>{H, W, C}));
     data_in->SetLayout("HWC");
