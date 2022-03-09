@@ -44,12 +44,14 @@ class SequenceOperator : public Operator<Backend> {
   using ws_output_t = typename workspace_t<Backend>::template output_t<OutputBackend>;
 
   bool Setup(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    expand_ = ShouldExpand(ws);
+    SetupSequenceOperator(ws);
+    is_expanding_ = ShouldExpand(ws);
     bool is_inferred;
-    if (!expand_) {
+    if (!IsExpanding()) {
       is_inferred = Operator<Backend>::Setup(output_desc, ws);
     } else {
-      SetupSequenceOperator(ws);
+      DALI_ENFORCE(ExpandLikeIdx() >= 0 &&
+                   GetInputExpandDesc(ExpandLikeIdx()).NumDimsToExpand() > 0);
       SetupExpandedWorkspace(expanded_, ws);
       ExpandInputs(ws);
       ExpandArguments(ws);
@@ -59,7 +61,7 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   void Run(workspace_t<Backend> &ws) override {
-    if (!expand_) {
+    if (!IsExpanding()) {
       Operator<Backend>::Run(ws);
     } else {
       ExpandOutputs(ws);
@@ -69,55 +71,40 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
-  bool IsExpanded() const {
-    return expand_;
+  bool IsExpanding() const {
+    return is_expanding_;
   }
 
-  virtual bool ShouldExpandChannels() const {
+  virtual bool ShouldExpandChannels(int input_idx) const {
+    (void)input_idx;
     return false;
   }
 
  protected:
   virtual bool ShouldExpand(const workspace_t<Backend> &ws) {
-    auto num_inputs = ws.NumInput();
-    for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
-      const auto &layout = GetInputLayout(ws, input_idx);
-      auto layout_desc =
-          ShouldExpandChannels() ? LayoutDesc::FrameAndChannel(layout) : LayoutDesc::Frame(layout);
-      if (layout_desc.NumDimsToExpand() > 0) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  virtual void SetupSequenceOperator(const workspace_t<Backend> &ws) {
-    auto num_inputs = ws.NumInput();
-    input_expand_desc_.reserve(num_inputs);
-    for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
-      const auto &input_shape = ws.GetInputShape(input_idx);
-      const auto &layout = GetInputLayout(ws, input_idx);
-      DALI_ENFORCE(layout.size() == 0 || layout.size() == input_shape.sample_dim(),
-                   make_string("Layout of input ", input_idx, " has size ", layout.size(),
-                               " which does not match the dimensionality of the input (got input "
-                               "with dimensionality ",
-                               input_shape.sample_dim(), ")."));
-      auto layout_desc =
-          ShouldExpandChannels() ? LayoutDesc::FrameAndChannel(layout) : LayoutDesc::Frame(layout);
-      input_expand_desc_.emplace_back(input_shape, layout_desc);
-    }
+    return ExpandLikeIdx() >= 0;
   }
 
   virtual void ExpandInputs(const workspace_t<Backend> &ws) {
+    int expand_idx = ExpandLikeIdx();
+    const auto &expand_desc = GetInputExpandDesc(expand_idx);
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
-      const auto &expand_desc = GetInputExpandDesc(input_idx);
-      auto num_expand_dims = expand_desc.NumDimsToExpand();
-      if (ws.template InputIsType<GPUBackend>(input_idx)) {
-        auto expanded_handle = ExpandInput<GPUBackend>(ws, input_idx, num_expand_dims);
-        AddInputHelper<GPUBackend>(expanded_handle);
+      const auto &input_desc = GetInputExpandDesc(input_idx);
+      if (expand_idx != input_idx) {
+        DALI_ENFORCE(
+            input_desc.NumSamples() == expand_desc.NumSamples(),
+            make_string("All inputs of the operator must have the same number of samples in "
+                        "the batch. However, inputs: ",
+                        expand_idx, " and ", input_idx, " have ", expand_desc.NumSamples(), " and ",
+                        input_desc.NumSamples(), " samples respectively."));
+      }
+      if (input_desc.NumDimsToExpand() == 0) {
+        AddInputBroadcastedLike(ws, input_idx, expand_desc);
       } else {
-        auto expanded_handle = ExpandInput<CPUBackend>(ws, input_idx, num_expand_dims);
-        AddInputHelper<CPUBackend>(expanded_handle);
+        if (expand_idx != input_idx) {
+          ValidateAgreeableInputDesc(expand_idx, expand_desc, input_idx, input_desc);
+        }
+        AddInputExpandedLike(ws, input_idx, input_desc);
       }
     }
   }
@@ -164,7 +151,7 @@ class SequenceOperator : public Operator<Backend> {
 
   virtual bool ProcessOutputDesc(std::vector<OutputDesc> &output_desc,
                                  const workspace_t<Backend> &ws, bool is_inferred) {
-    if (is_inferred && expand_) {
+    if (is_inferred && IsExpanding()) {
       CoalesceOutputShapes(output_desc, ws);
     }
     return is_inferred;
@@ -172,8 +159,8 @@ class SequenceOperator : public Operator<Backend> {
 
   virtual void ExpandArgument(const ArgumentWorkspace &ws, const std::string &arg_name,
                               const TensorVector<CPUBackend> &arg_tensor) {
-    const auto &expand_desc = GetArgExpandDesc(arg_name);
-    auto expanded_arg = ExpandArgumentLike(arg_tensor, arg_name, expand_desc);
+    auto expand_idx = GetArgExpandDescIdx(arg_name);
+    auto expanded_arg = ExpandArgumentLike(arg_tensor, arg_name, expand_idx);
     auto expanded_handle = std::make_shared<TensorVector<CPUBackend>>(std::move(expanded_arg));
     AddArgumentInputHelper(arg_name, expanded_handle);
   }
@@ -187,18 +174,46 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   virtual const ExpandDesc &GetOutputExpandDesc(const workspace_t<Backend> &ws, int output_idx) {
-    (void)ws;
-    return GetInputExpandDesc(output_idx);
+    (void)output_idx;
+    return GetInputExpandDesc(ExpandLikeIdx());
   }
 
-  virtual const ExpandDesc &GetArgExpandDesc(const std::string &arg_name) {
+  virtual int GetArgExpandDescIdx(const std::string &arg_name) {
     (void)arg_name;
-    return GetInputExpandDesc(0);
+    return ExpandLikeIdx();
+  }
+
+  const ExpandDesc &GetInputExpandDesc(int input_idx) {
+    DALI_ENFORCE(0 <= input_idx && static_cast<size_t>(input_idx) < input_expand_desc_.size());
+    return input_expand_desc_[input_idx];
+  }
+
+  int ExpandLikeIdx() const {
+    return expand_like_idx_;
+  }
+
+  void SetupSequenceOperator(const workspace_t<Backend> &ws) {
+    expand_like_idx_ = -1;
+    auto num_inputs = ws.NumInput();
+    input_expand_desc_.reserve(num_inputs);
+    for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
+      const auto &input_shape = ws.GetInputShape(input_idx);
+      const auto &layout = GetInputLayout(ws, input_idx);
+      DALI_ENFORCE(layout.size() == 0 || layout.size() == input_shape.sample_dim(),
+                   make_string("Layout of input ", input_idx, " has size ", layout.size(),
+                               " which does not match the dimensionality of the input (got input "
+                               "with dimensionality ",
+                               input_shape.sample_dim(), ")."));
+      input_expand_desc_.emplace_back(input_shape, layout, ShouldExpandChannels(input_idx));
+      if (input_expand_desc_[input_idx].NumDimsToExpand() > 0) {
+        expand_like_idx_ = input_idx;
+      }
+    }
   }
 
   bool HasPerFrameArgInput(const workspace_t<Backend> &ws) {
     for (const auto &arg_input : ws) {
-      auto shared_tvec = arg_input.second.tvec;
+      auto &shared_tvec = arg_input.second.tvec;
       assert(shared_tvec);
       if (IsPerFrame(*shared_tvec)) {
         return true;
@@ -210,6 +225,57 @@ class SequenceOperator : public Operator<Backend> {
   bool IsPerFrame(const TensorVector<CPUBackend> &arg_tensor) {
     const auto &layout = arg_tensor.GetLayout();
     return layout.size() > 0 && layout[0] == 'F';
+  }
+
+  void AddInputBroadcastedLike(const workspace_t<Backend> &ws, int input_idx,
+                               const ExpandDesc &expand_desc) {
+    // TODO(ktokarski) Add support for broadcasting inputs in multi-input case.
+    DALI_FAIL("Broadcasting of inputs for multi-input operators is not supported.")
+  }
+
+  void ValidateAgreeableInputDesc(int expand_idx, const ExpandDesc &expand_desc, int input_idx,
+                                  const ExpandDesc &input_desc) {
+    // TODO(ktokarski) consider mix of expansion and broadcasting similar to handling of
+    // per-frame arguments for "FC" or "CF" layouts. Consider agreeing "FC" and "CF" inputs.
+    DALI_ENFORCE(
+        input_desc.ExpandedLayout() == expand_desc.ExpandedLayout(),
+        make_string("Failed to agree expanding of sequence-like inputs for multiple-input "
+                    "operator. For the ",
+                    expand_idx, " input with layout ", expand_desc.Layout(),
+                    " the following outermost dimension(s) should be expanded into samples: `",
+                    expand_desc.ExpandedLayout(), "`. The input ", input_idx, " with layout ",
+                    input_desc.Layout(),
+                    " is expected to either: have no outermost dimensions planned for expanding or "
+                    "have exactly the same outermost dimensions to expand. However, got `",
+                    input_desc.ExpandedLayout(), "` planned for expanding."));
+    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); ++sample_idx) {
+      if (expand_desc.ExpandFrames()) {
+        DALI_ENFORCE(expand_desc.NumFrames(sample_idx) == input_desc.NumFrames(sample_idx),
+                     make_string("Inputs ", expand_idx, " and ", input_idx,
+                                 " have different number of frames for sample ", sample_idx,
+                                 ", respectively: ", expand_desc.NumFrames(sample_idx), " and ",
+                                 input_desc.NumFrames(sample_idx)));
+      }
+      if (expand_desc.ExpandChannels()) {
+        DALI_ENFORCE(expand_desc.NumChannels(sample_idx) == input_desc.NumChannels(sample_idx),
+                     make_string("Inputs ", expand_idx, " and ", input_idx,
+                                 " have different number of channels for sample ", sample_idx,
+                                 ", respectively: ", expand_desc.NumChannels(sample_idx), " and ",
+                                 input_desc.NumChannels(sample_idx)));
+      }
+    }
+  }
+
+  void AddInputExpandedLike(const workspace_t<Backend> &ws, int input_idx,
+                            const ExpandDesc &input_desc) {
+    auto num_expand_dims = input_desc.NumDimsToExpand();
+    if (ws.template InputIsType<GPUBackend>(input_idx)) {
+      auto expanded_handle = ExpandInput<GPUBackend>(ws, input_idx, num_expand_dims);
+      AddInputHelper<GPUBackend>(expanded_handle);
+    } else {
+      auto expanded_handle = ExpandInput<CPUBackend>(ws, input_idx, num_expand_dims);
+      AddInputHelper<CPUBackend>(expanded_handle);
+    }
   }
 
   template <typename InputBackend>
@@ -260,12 +326,6 @@ class SequenceOperator : public Operator<Backend> {
       auto expanded_layout = layout_prefix + layout;
       output.SetLayout(expanded_layout);
     }
-  }
-
-  const ExpandDesc &GetInputExpandDesc(int input_idx) {
-    DALI_ENFORCE(expand_ && 0 <= input_idx &&
-                 static_cast<size_t>(input_idx) < input_expand_desc_.size());
-    return input_expand_desc_[input_idx];
   }
 
   void SetupExpandedWorkspace(workspace_t<CPUBackend> &expanded,
@@ -321,8 +381,8 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   TensorVector<CPUBackend> ExpandArgumentLike(const TensorVector<CPUBackend> &arg_tensor,
-                                              const std::string &arg_name,
-                                              const ExpandDesc &expand_desc) {
+                                              const std::string &arg_name, int expand_idx) {
+    const auto &expand_desc = GetInputExpandDesc(expand_idx);
     DALI_ENFORCE(static_cast<ptrdiff_t>(arg_tensor.num_samples()) == expand_desc.NumSamples(),
                  make_string("Number of samples passed for argument ", arg_name, " (got ",
                              arg_tensor.num_samples(),
@@ -337,13 +397,18 @@ class SequenceOperator : public Operator<Backend> {
                     "with dimensionality ",
                     arg_sample_dim, ")."));
     if (!IsPerFrame(arg_tensor)) {
-      return BroadcastPerFrameLike(arg_tensor, expand_desc);
+      return BroadcastLike(arg_tensor, expand_desc);
     }
-    return ExpandPerFrameLike(arg_tensor, arg_name, expand_desc);
+    const auto &schema = Operator<Backend>::GetSpec().GetSchema();
+    DALI_ENFORCE(schema.ArgSupportsPerFrameInput(arg_name),
+                 make_string("Argument ", arg_name,
+                             " does not support per-frame tensor input. Sequence input with `",
+                             arg_layout, "` layout was passed as the argument."));
+    return ExpandPerFrameLike(arg_tensor, arg_name, expand_idx, expand_desc);
   }
 
   TensorVector<CPUBackend> ExpandPerFrameLike(const TensorVector<CPUBackend> &arg_tensor,
-                                              const std::string &arg_name,
+                                              const std::string &arg_name, int expand_idx,
                                               const ExpandDesc &expand_desc) {
     DALI_ENFORCE(
         expand_desc.ExpandFrames(),
@@ -352,7 +417,8 @@ class SequenceOperator : public Operator<Backend> {
             arg_tensor.GetLayout(),
             " layout), but samples in the input batch do not contain frames (expected input "
             "layout that starts with 'F', ",
-            ShouldExpandChannels() ? " or 'CF'" : "", ")."));
+            ShouldExpandChannels(expand_idx) ? " or 'CF'" : "", "). Got layout ",
+            expand_desc.Layout(), " for operator intput ", expand_idx, "."));
     const auto &shape = arg_tensor.shape();
     int arg_sample_dim = shape.sample_dim();
     TensorVector<CPUBackend> flat_tensor(expand_desc.NumExpanded());
@@ -413,8 +479,8 @@ class SequenceOperator : public Operator<Backend> {
     return flat_tensor;
   }
 
-  TensorVector<CPUBackend> BroadcastPerFrameLike(const TensorVector<CPUBackend> &arg_tensor,
-                                                 const ExpandDesc &expand_desc) {
+  TensorVector<CPUBackend> BroadcastLike(const TensorVector<CPUBackend> &arg_tensor,
+                                         const ExpandDesc &expand_desc) {
     const auto &shape = arg_tensor.shape();
     TensorVector<CPUBackend> res(expand_desc.NumExpanded());
     int num_samples = expand_desc.NumSamples();
@@ -440,7 +506,8 @@ class SequenceOperator : public Operator<Backend> {
   std::vector<ExpandDesc> input_expand_desc_;
 
  private:
-  bool expand_;
+  int expand_like_idx_ = -1;
+  bool is_expanding_ = false;
   workspace_t<Backend> expanded_;
 };
 

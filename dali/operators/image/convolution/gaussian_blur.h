@@ -50,7 +50,8 @@ class GaussianBlur : public SequenceOperator<Backend> {
     return true;
   }
 
-  bool ShouldExpandChannels() const override {
+  bool ShouldExpandChannels(int input_idx) const override {
+    (void)input_idx;
     return true;
   }
 

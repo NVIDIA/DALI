@@ -21,44 +21,21 @@
 
 namespace dali {
 
-struct LayoutDesc {
-  static inline LayoutDesc FrameAndChannel(const TensorLayout &layout) {
-    int frame_dim = VideoLayoutInfo::FrameDimIndex(layout);
-    int channel_dim = ImageLayoutInfo::ChannelDimIndex(layout);
-    frame_dim = frame_dim > 1 ? -1 : frame_dim;
-    channel_dim = channel_dim > 1 ? -1 : channel_dim;
-    if (frame_dim != 0 && channel_dim != 0) {
-      return {};
-    }
-    return {layout, frame_dim, channel_dim};
-  }
-
-  static inline LayoutDesc Frame(const TensorLayout &layout) {
-    if (VideoLayoutInfo::FrameDimIndex(layout) != 0) {
-      return {};
-    }
-    return {layout, 0};
-  }
-
-  inline int NumDimsToExpand() const {
-    return (frame_dim >= 0) + (channel_dim >= 0);
-  }
-
-  TensorLayout layout = {};
-  int frame_dim = -1;
-  int channel_dim = -1;
-};
-
 class ExpandDesc {
  public:
-  inline ExpandDesc(const TensorListShape<> &shape, const LayoutDesc &layout_desc)
-      : layout_desc_{layout_desc},
-        expand_channels_{layout_desc_.channel_dim >= 0},
-        expand_frames_{layout_desc_.frame_dim >= 0},
-        is_channel_first_{expand_channels_ && layout_desc_.channel_dim < layout_desc_.frame_dim},
+  inline ExpandDesc(const TensorListShape<> &shape, TensorLayout layout,
+                    bool should_expand_channels)
+      : layout_{layout},
+        frames_dim_{VideoLayoutInfo::FrameDimIndex(layout)},
+        channels_dim_{VideoLayoutInfo::ChannelDimIndex(layout)},
+        expand_frames_{frames_dim_ == 0 ||
+                       (should_expand_channels && frames_dim_ == 1 && channels_dim_ == 0)},
+        expand_channels_{should_expand_channels && 0 <= channels_dim_ && channels_dim_ <= 1},
         num_expand_dims_{expand_channels_ + expand_frames_},
+        is_channel_first_{num_expand_dims_ == 2 && channels_dim_ < frames_dim_},
         dims_to_expand_{shape.first(num_expand_dims_)},
         num_expanded_{dims_to_expand_.num_elements()} {}
+
 
   inline bool ExpandChannels() const {
     return expand_channels_;
@@ -85,35 +62,45 @@ class ExpandDesc {
   }
 
   inline int NumExpanded(int sample_idx) const {
+    assert(sample_idx < NumSamples());
     return volume(dims_to_expand_[sample_idx]);
   }
 
   inline int NumFrames(int sample_idx) const {
-    return dims_to_expand_[sample_idx][layout_desc_.frame_dim];
+    assert(sample_idx < NumSamples());
+    assert(frames_dim_ < NumDimsToExpand());
+    return dims_to_expand_[sample_idx][frames_dim_];
   }
 
   inline int NumChannels(int sample_idx) const {
-    return dims_to_expand_[sample_idx][layout_desc_.channel_dim];
+    assert(sample_idx < NumSamples());
+    assert(channels_dim_ < NumDimsToExpand());
+    return dims_to_expand_[sample_idx][channels_dim_];
   }
 
   inline const TensorListShape<> &DimsToExpand() const {
     return dims_to_expand_;
   }
 
+  inline TensorLayout Layout() const {
+    return layout_;
+  }
+
   inline TensorLayout ExpandedLayout() const {
-    return layout_desc_.layout.first(num_expand_dims_);
+    return layout_.first(num_expand_dims_);
   }
 
  private:
-  LayoutDesc layout_desc_;
-  bool expand_channels_;
+  TensorLayout layout_;
+  int frames_dim_;
+  int channels_dim_;
   bool expand_frames_;
-  bool is_channel_first_;
+  bool expand_channels_;
   int num_expand_dims_;
+  bool is_channel_first_;
   TensorListShape<> dims_to_expand_;
   ptrdiff_t num_expanded_;
 };
-
 
 template <typename Backend>
 TensorVector<Backend> unfold_outer_dims(const TensorVector<Backend> &data, int ndims_to_unfold) {
