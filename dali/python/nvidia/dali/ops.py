@@ -715,18 +715,23 @@ def python_op_factory(name, schema_name = None):
     return Operator
 
 
-def _callable_op_factory(name, schema_name=None):
-    def select_callable_operator(device):
-        if device == 'cpu':
-            return _b.CallableOperatorCPU
-        elif device == 'gpu':
-            return _b.CallableOperatorGPU
-        elif device == 'mixed':
-            return _b.CallableOperatorMixed
-        else:
-            raise ValueError(f'Incorrect device type "{device}" in operator {name}.')
+def _direct_op_factory(name, schema_name=None, callable=True):    
+    class DirectOperatorBase(_OperatorBase):
+        def _prep_input_sets(self, inputs):
+            from nvidia.dali._debug_mode import _transform_data_to_tensorlist
+            import nvidia.dali.tensors as tensors
 
-    class CallableOperator(_OperatorBase):
+            inputs = list(inputs)
+
+            for i, input in enumerate(inputs):
+                if not isinstance(input, (tensors.TensorListCPU, tensors.TensorListGPU)) and \
+                        not (isinstance(input, list) and
+                                all([isinstance(elem, (tensors.TensorListCPU, tensors.TensorListGPU)) for elem in input])):
+                    inputs[i] = _transform_data_to_tensorlist(input, len(input))
+
+            return self._build_input_sets(inputs)
+
+    class DirectOperator(DirectOperatorBase):
         def __init__(self, batch_size=-1, device_id=0, cuda_stream=None, **kwargs):
             # Here all kwargs are supposed to be constants.
             super().__init__(**kwargs)
@@ -735,39 +740,44 @@ def _callable_op_factory(name, schema_name=None):
             self._spec.AddArg('device_id', device_id)
             # self._spec.AddArg('cuda_stream', cuda_stream)
 
-            self._op = select_callable_operator(self._device)(self._spec)
-
+            self._op = self._select_direct_operator(self._device)(self._spec)
+        
         @staticmethod
-        def _prep_args(args):
-            from nvidia.dali._debug_mode import _transform_data_to_tensorlist
-            import nvidia.dali.tensors as tensors
-
-            for i, arg in enumerate(args):
-                if not isinstance(arg, (tensors.TensorListCPU, tensors.TensorListGPU)) or \
-                        not (isinstance(arg, list) and
-                             all([isinstance(arg, (tensors.TensorListCPU, tensors.TensorListGPU)) for arg in args])):
-                    args[i] = _transform_data_to_tensorlist(arg, len(arg))
-            return args
+        def _select_direct_operator(device):
+            if device == 'cpu':
+                return _b.DirectOperatorCPU
+            elif device == 'gpu':
+                return _b.DirectOperatorGPU
+            elif device == 'mixed':
+                return _b.DirectOperatorMixed
+            else:
+                raise ValueError(f'Incorrect device type "{device}" in operator {name}.')
 
         def __call__(self, *inputs, **kwargs):
             # Here all kwargs are supposed to be TensorLists.
             def manage_packed_outputs(output):
                 if len(output) == 1:
                     return output[0]
-                
+
                 return output
 
-            inputs = self._prep_args(list(inputs))
-            input_sets = self._build_input_sets(inputs)
+            input_sets = self._prep_input_sets(inputs)
 
             outputs = [manage_packed_outputs(self._op(input, kwargs)) for input in input_sets]
-            
+
             return manage_packed_outputs(outputs)
+
+    DirectOperatorBase.__name__ = str(name)
+    DirectOperatorBase.schema_name = schema_name or DirectOperatorBase.__name__
+
+    DirectOperator.__name__ = str(name)
+    DirectOperator.schema_name = schema_name or DirectOperator.__name__
+    DirectOperator.__call__.__doc__ = _docstring_generator_call(DirectOperator.schema_name)
     
-    CallableOperator.__name__ = str(name)
-    CallableOperator.schema_name = schema_name or CallableOperator.__name__
-    CallableOperator.__call__.__doc__ = _docstring_generator_call(CallableOperator.schema_name)
-    return CallableOperator
+    if callable:
+        return DirectOperator
+    else:
+        return DirectOperatorBase
 
 
 
@@ -813,8 +823,8 @@ def _load_ops():
             setattr(module, op_name, op_class)
             
             experimental_module = _internal.get_submodule(module, 'experimental')
-            callable_op_class = _callable_op_factory(op_name, op_reg_name)
-            setattr(experimental_module, op_name, callable_op_class)
+            direct_op_class = _direct_op_factory(op_name, op_reg_name)
+            setattr(experimental_module, op_name, direct_op_class)
 
             if op_name not in ["ExternalSource"]:
                 _wrap_op(op_class, submodule)

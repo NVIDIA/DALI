@@ -18,7 +18,7 @@
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/thread_pool.h"
-#include "dali/pipeline/operator/callable_operator.h"
+#include "dali/pipeline/operator/direct_operator.h"
 #include "dali/pipeline/pipeline.h"
 
 namespace dali {
@@ -31,7 +31,7 @@ void cropOperatorCallableTest() {
   spec1.AddArg("shard_id", 0);
   spec1.AddArg("num_shards", 2);
 
-  CallableOperator<CPUBackend> reader(spec1);
+  DirectOperator<CPUBackend> reader(spec1);
 
   std::vector<std::shared_ptr<TensorList<CPUBackend>>> inputs1{};
   std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> kwargs1;
@@ -43,7 +43,7 @@ void cropOperatorCallableTest() {
   spec2.AddArg("device_id", 0);
   spec2.AddArg("output_type", 0);
 
-  CallableOperator<CPUBackend> decoder(spec2);
+  DirectOperator<CPUBackend> decoder(spec2);
 
   std::vector<std::shared_ptr<TensorList<CPUBackend>>> inputs2{reader_out[0]};
   std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> kwargs2;
@@ -57,7 +57,7 @@ void test_op() {
   spec.AddArg("device_id", 0);
   spec.AddArg("probability", 0.5f);
 
-  CallableOperator<CPUBackend> op(spec);
+  DirectOperator<CPUBackend> op(spec);
   std::vector<std::shared_ptr<TensorList<CPUBackend>>> inputs{};
   std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> kwargs;
 
@@ -77,7 +77,7 @@ void test_pipeline() {
   pipe.RunCPU();
 }
 
-TEST(CallableOperatorsTest, TestOperator) {
+TEST(DirectOperatorsTest, TestOperator) {
   test_op();
 }
 

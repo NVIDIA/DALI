@@ -28,11 +28,12 @@
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/init.h"
-#include "dali/pipeline/operator/callable_operator.h"
+#include "dali/pipeline/operator/direct_operator.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/pipeline.h"
+#include "dali/pipeline/pipeline_debug.h"
 #include "dali/plugin/plugin_manager.h"
 #include "dali/python/python3_compat.h"
 #include "dali/util/half.hpp"
@@ -582,42 +583,50 @@ void ExposeTensor(py::module &m) {
       It is compatible with `CUDA Array Interface <https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html>`_.)code";
 }
 
-void ExposeCallableOperator(py::module &m) {
-  py::class_<CallableOperator<CPUBackend>>(m, "CallableOperatorCPU")
+void ExposeDirectOperator(py::module &m) {
+  py::class_<DirectOperator<CPUBackend>>(m, "DirectOperatorCPU")
       .def(py::init([](const OpSpec &op_spec) {
-             return std::make_unique<CallableOperator<CPUBackend>>(op_spec);
+             return std::make_unique<DirectOperator<CPUBackend>>(op_spec);
            }),
            "op_spec"_a)
       .def("__call__",
-           [](CallableOperator<CPUBackend> &op,
+           [](DirectOperator<CPUBackend> &op,
               const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
               const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
-                  &kwargs) { return op.Run<CPUBackend, CPUBackend>(inputs, kwargs); })
-      .def("SetOpSpec", &CallableOperator<CPUBackend>::SetOpSpec);
+                  &kwargs) { return op.Run<CPUBackend, CPUBackend>(inputs, kwargs); });
 
-  py::class_<CallableOperator<GPUBackend>>(m, "CallableOperatorGPU")
+  py::class_<DirectOperator<GPUBackend>>(m, "DirectOperatorGPU")
       .def(py::init([](const OpSpec &op_spec) {
-             return std::make_unique<CallableOperator<GPUBackend>>(op_spec);
+             return std::make_unique<DirectOperator<GPUBackend>>(op_spec);
            }),
            "op_spec"_a)
       .def("__call__",
-           [](CallableOperator<GPUBackend> &op,
+           [](DirectOperator<GPUBackend> &op,
               const std::vector<std::shared_ptr<TensorList<GPUBackend>>> &inputs,
               const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
-                  &kwargs) { return op.Run<GPUBackend, GPUBackend>(inputs, kwargs); })
-      .def("SetOpSpec", &CallableOperator<GPUBackend>::SetOpSpec);
+                  &kwargs) { return op.Run<GPUBackend, GPUBackend>(inputs, kwargs); });
 
-  py::class_<CallableOperator<MixedBackend>>(m, "CallableOperatorMixed")
+  py::class_<DirectOperator<MixedBackend>>(m, "DirectOperatorMixed")
       .def(py::init([](const OpSpec &op_spec) {
-             return std::make_unique<CallableOperator<MixedBackend>>(op_spec);
+             return std::make_unique<DirectOperator<MixedBackend>>(op_spec);
            }),
            "op_spec"_a)
       .def("__call__",
-           [](CallableOperator<MixedBackend> &op,
+           [](DirectOperator<MixedBackend> &op,
               const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
               const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
-                  &kwargs) { return op.Run<CPUBackend, GPUBackend>(inputs, kwargs); })
-      .def("SetOpSpec", &CallableOperator<MixedBackend>::SetOpSpec);
+                  &kwargs) { return op.Run<CPUBackend, GPUBackend>(inputs, kwargs); });
+}
+
+void ExposePipelineDebug(py::module &m) {
+  py::class_<PipelineDebug>(m, "PipelineDebug")
+      .def(py::init([](int batch_size, int num_threads, int device_id, bool set_affinity = false) {
+        return std::make_unique<PipelineDebug>(batch_size, num_threads, device_id, set_affinity);
+      }))
+      .def("AddOperator", &PipelineDebug::AddOperator)
+      .def("RunOperatorCPU", &PipelineDebug::RunOperator<CPUBackend, CPUBackend>)
+      .def("RunOperatorGPU", &PipelineDebug::RunOperator<GPUBackend, GPUBackend>)
+      .def("RunOperatorMixed", &PipelineDebug::RunOperator<CPUBackend, GPUBackend>);
 }
 
 template <typename Backend>
@@ -1827,10 +1836,11 @@ PYBIND11_MODULE(backend_impl, m) {
   ExposeTensorLayout(types_m);
   ExposeTensor(m);
   ExposeTensorList(m);
-  ExposeCallableOperator(m);
+  ExposeDirectOperator(m);
+  ExposePipelineDebug(m);
 
   py::module op_experimental_m = m.def_submodule("experimental");
-  op_experimental_m.def("SetThreadPool", &CallableOperator<CPUBackend>::SetThreadPool);
+  op_experimental_m.def("SetThreadPool", &DirectOperator<CPUBackend>::SetThreadPool);
 
   types_m.attr("NHWC") = "HWC";
   types_m.attr("NCHW") = "CHW";
