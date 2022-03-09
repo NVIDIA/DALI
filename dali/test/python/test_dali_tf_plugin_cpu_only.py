@@ -26,12 +26,12 @@ except Exception:
     from tensorflow import Session
 
 @pipeline_def()
-def test_dali_tf_op_cpu_only(value):
+def get_dali_pipe(value):
     data = types.Constant(value)
     return data
 
 def get_data(batch_size, value):
-    pipe = test_dali_tf_op_cpu_only(batch_size=batch_size, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1, value=value)
+    pipe = get_dali_pipe(batch_size=batch_size, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1, value=value)
     daliop = dali_tf.DALIIterator()
     out = []
     with tf.device('/cpu'):
