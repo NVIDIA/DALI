@@ -17,7 +17,6 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import nvidia.dali.math as dmath
-import torch.utils.dlpack as torch_dlpack
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 from test_utils import get_dali_extra_path, get_files, module_functions
 from segmentation_test_utils import make_batch_select_masks
@@ -318,7 +317,9 @@ def test_numba_func_cpu():
                        run_fn=set_all_values_to_255_batch, out_types=[types.UINT8], in_types=[types.UINT8],
                        outs_ndim=[3], ins_ndim=[3], setup_fn=setup_out_shape, batch_processing=True)
 
+@attr('pytorch')
 def test_dl_tensor_python_function_cpu():
+    import torch.utils.dlpack as torch_dlpack
     def dl_tensor_operation(tensor):
         tensor = torch_dlpack.from_dlpack(tensor)
         tensor_n = tensor.double() / 255
