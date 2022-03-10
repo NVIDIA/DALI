@@ -396,15 +396,14 @@ class SequenceOperator : public Operator<Backend> {
                     " which does not match the dimensionality of the argument (got argument "
                     "with dimensionality ",
                     arg_sample_dim, ")."));
-    if (!IsPerFrame(arg_tensor)) {
-      return BroadcastLike(arg_tensor, expand_desc);
-    }
     const auto &schema = Operator<Backend>::GetSpec().GetSchema();
-    DALI_ENFORCE(schema.ArgSupportsPerFrameInput(arg_name),
-                 make_string("Argument ", arg_name,
-                             " does not support per-frame tensor input. Sequence input with `",
-                             arg_layout, "` layout was passed as the argument."));
-    return ExpandPerFrameLike(arg_tensor, arg_name, expand_idx, expand_desc);
+    if (schema.ArgSupportsPerFrameInput(arg_name) && IsPerFrame(arg_tensor)) {
+      // Do not error out but simply ignore `F` layout of the argument input
+      // if it is not marked as per-frame in schema to be consistent with operators
+      // that do not support per-frame at all
+      return ExpandPerFrameLike(arg_tensor, arg_name, expand_idx, expand_desc);
+    }
+    return BroadcastLike(arg_tensor, expand_desc);
   }
 
   TensorVector<CPUBackend> ExpandPerFrameLike(const TensorVector<CPUBackend> &arg_tensor,
