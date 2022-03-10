@@ -714,6 +714,7 @@ def test_numpy_reader_cpu():
 
         check_no_input(fn.readers.numpy, file_root=test_data_root)
 
+@attr('pytorch')
 def test_python_function_cpu():
     from PIL import Image
     def resize(image):
