@@ -22,7 +22,6 @@ from test_utils import get_dali_extra_path, get_files, module_functions
 from segmentation_test_utils import make_batch_select_masks
 from test_audio_decoder_utils import generate_waveforms
 import scipy.io.wavfile
-from PIL import Image
 from test_detection_pipeline import coco_anchors
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 import re
@@ -716,6 +715,7 @@ def test_numpy_reader_cpu():
         check_no_input(fn.readers.numpy, file_root=test_data_root)
 
 def test_python_function_cpu():
+    from PIL import Image
     def resize(image):
         return np.array(Image.fromarray(image).resize((50, 10)))
 
