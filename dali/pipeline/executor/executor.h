@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -640,13 +640,29 @@ std::vector<int> Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(con
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
     std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, const OpGraph &graph) {
-  // We only pin what we need
+  // We only pin what we need:
+  // The inputs of mixed ops are potentially used for H2D copies...
   for (int i = 0; i < graph.NumOp(OpType::MIXED); i++) {
     auto &node = graph.Node(OpType::MIXED, i);
-    for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
+    if (node.spec.name().find("decoders__") == 0)
+      continue;  // don't pin inputs to decoders
+    for (int j = 0; j < node.spec.NumInput(); ++j) {
       auto tid = node.parent_tensors[j];
       // Use pinned memory only when it is useful
-      if (node.spec.name() == "MakeContiguous" && node.spec.NumOutput() == 1) {
+      auto &parent_tensor_queue =
+          get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
+      for (auto &tensor : parent_tensor_queue) {
+        tensor->set_pinned(node.spec.OutputDevice(0) == "gpu" && !RestrictPinnedMemUsage());
+      }
+    }
+  }
+
+  // ...as are CPU inputs of GPU ops (e.g. argument inputs)
+  for (int i = 0; i < graph.NumOp(OpType::GPU); i++) {
+    auto &node = graph.Node(OpType::GPU, i);
+    for (int j = 0; j < node.spec.NumInput(); ++j) {
+      auto tid = node.parent_tensors[j];
+      if (graph.Tensor(tid).producer.storage_device == StorageDevice::CPU) {
         auto &parent_tensor_queue =
             get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
         for (auto &tensor : parent_tensor_queue) {
