@@ -314,7 +314,8 @@ class InstallerHelper:
             self.build()
         except Exception as e:
             print("Build from source failed with error: ", e)
-            if self.can_install_prebuilt:
+            # If we haven't tried the prebuilt binary yet but there is one available, try now
+            if self.can_install_prebuilt and not self.prebuilt_exact_ver:
                 print("Trying to install prebuilt plugin")
                 if self.install_prebuilt():
                     return
