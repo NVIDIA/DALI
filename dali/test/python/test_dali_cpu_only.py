@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,14 +17,11 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import nvidia.dali.math as dmath
-import nvidia.dali.plugin.pytorch as pytorch
-import torch.utils.dlpack as torch_dlpack
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
-from test_utils import get_dali_extra_path, get_files, check_batch, RandomlyShapedDataIterator, dali_type, module_functions
+from test_utils import get_dali_extra_path, get_files, module_functions
 from segmentation_test_utils import make_batch_select_masks
 from test_audio_decoder_utils import generate_waveforms
 import scipy.io.wavfile
-from PIL import Image, ImageEnhance
 from test_detection_pipeline import coco_anchors
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 import re
@@ -33,11 +30,10 @@ import numpy as np
 from nose_utils import assert_raises
 import os
 import glob
-from math import ceil, sqrt
 import tempfile
-import sys
 import json
 from collections.abc import Iterable
+from nose.plugins.attrib import attr
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -320,7 +316,9 @@ def test_numba_func_cpu():
                        run_fn=set_all_values_to_255_batch, out_types=[types.UINT8], in_types=[types.UINT8],
                        outs_ndim=[3], ins_ndim=[3], setup_fn=setup_out_shape, batch_processing=True)
 
+@attr('pytorch')
 def test_dl_tensor_python_function_cpu():
+    import torch.utils.dlpack as torch_dlpack
     def dl_tensor_operation(tensor):
         tensor = torch_dlpack.from_dlpack(tensor)
         tensor_n = tensor.double() / 255
@@ -716,7 +714,9 @@ def test_numpy_reader_cpu():
 
         check_no_input(fn.readers.numpy, file_root=test_data_root)
 
+@attr('pytorch')
 def test_python_function_cpu():
+    from PIL import Image
     def resize(image):
         return np.array(Image.fromarray(image).resize((50, 10)))
 
@@ -890,7 +890,9 @@ def test_arithm_ops_cpu_gpu():
         pipe.build,
         glob="Cannot add a GPU operator ArithmeticGenericOp, device_id should not be equal CPU_ONLY_DEVICE_ID.")
 
+@attr('pytorch')
 def test_pytorch_plugin_cpu():
+    import nvidia.dali.plugin.pytorch as pytorch
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
     outs = fn.external_source(source=get_data, layout="HWC")
     pipe.set_outputs(outs)

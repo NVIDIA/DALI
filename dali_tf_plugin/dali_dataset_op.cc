@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -650,7 +650,11 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 
       // Synchronize with the dataset()->stream_ when doing the last copy, so the outputs
       // are fully finished before we release the output buffers for reuse.
-      unsigned int wait_flag = (out_id == num_outputs - 1) ? DALI_ext_force_sync : DALI_ext_default;
+      // if the OP runs on the CPU the output memory is not pinned and we don't need to sync
+      unsigned int wait_flag = dataset()->device_type_ != device_type_t::CPU &&
+                               (out_id == num_outputs - 1) ?
+                                  DALI_ext_force_sync :
+                                  DALI_ext_default;
 
       TF_DALI_CALL(daliOutputCopy(&pipeline_handle_, dst, out_id, dataset()->device_type_,
                                   dataset()->stream_, wait_flag));
