@@ -20,6 +20,7 @@
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/pipeline/operator/direct_operator.h"
 #include "dali/pipeline/pipeline.h"
+#include "dali/pipeline/pipeline_debug.h"
 
 namespace dali {
 
@@ -64,7 +65,7 @@ void test_op() {
   auto out = op.Run<CPUBackend, CPUBackend>(inputs, kwargs);
 }
 
-void test_pipeline() {
+void test_standerd_pipeline() {
   auto pipe_ptr = std::make_unique<Pipeline>(8, 1, 0, 43, true, 2, false);
   auto &pipe = *pipe_ptr;
   pipe.AddOperator(
@@ -77,8 +78,54 @@ void test_pipeline() {
   pipe.RunCPU();
 }
 
+/*
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def rn50_pipeline_base():
+    rng = fn.random.coin_flip(probability=0.5)
+    jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
+    images = fn.decoders.image(jpegs, device='mixed')
+    resized_images = fn.random_resized_crop(images, size=(224, 224), seed=27, device='gpu')
+    out_type = types.FLOAT16
+    output = fn.crop_mirror_normalize(resized_images, mirror=rng, device='gpu', dtype=out_type, crop=(
+        224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    return images, output
+*/
+
+void test_debug_pipeline() {
+  OpSpec spec1("random__CoinFlip");
+  spec1.AddArg("probability", 0.5f);
+
+  OpSpec spec2("readers__File");
+  spec2.AddArg("file_root", "/home/ksztenderski/DALI_extra/db/single/jpeg");
+  spec2.AddArg("shard_id", 0);
+  spec2.AddArg("num_shards", 2);
+
+  OpSpec spec3("decoders__Image");
+  spec3.AddArg("device", "mixed");
+
+  OpSpec spec4("RandomResizedCrop");
+  spec4.AddArg("device", "gpu");
+  spec4.AddArg("size", std::vector<int>{224, 224});
+  spec4.AddArg("seed", 27);
+
+  std::vector<std::shared_ptr<TensorList<CPUBackend>>> empty_inputs{};
+  std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> empty_kwargs;
+
+  PipelineDebug pipe(8, 3, 0);
+  pipe.AddOperator(spec1, 0);
+  pipe.AddOperator(spec2, 1);
+  pipe.AddOperator(spec3, 2);
+  pipe.AddOperator(spec4, 3);
+
+  auto rng = pipe.RunOperator<CPUBackend, CPUBackend>(0, empty_inputs, empty_kwargs);
+  auto jpegs_labels = pipe.RunOperator<CPUBackend, CPUBackend>(1, empty_inputs, empty_kwargs);
+  std::vector<std::shared_ptr<TensorList<CPUBackend>>> jpegs{jpegs_labels[0]};
+  auto images = pipe.RunOperator<CPUBackend, GPUBackend>(2, jpegs, empty_kwargs);
+  auto resized_images = pipe.RunOperator<GPUBackend, GPUBackend>(3, images, empty_kwargs);
+}
+
 TEST(DirectOperatorsTest, TestOperator) {
-  test_op();
+  test_debug_pipeline();
 }
 
 }  // namespace dali
