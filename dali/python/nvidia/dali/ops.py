@@ -131,7 +131,7 @@ def _get_kwargs(schema):
                     type_name += ", default = `{}`".format(_default_converter(dtype, default_value))
             doc += schema.GetArgumentDox(arg)
             if schema.ArgSupportsPerFrameInput(arg):
-                doc += "\n\nSupports per-frame inputs."
+                doc += "\n\nSupports :func:`per-frame<nvidia.dali.fn.per_frame>` inputs."
             if deprecation_warning:
                 doc += "\n\n" + deprecation_warning
         elif deprecation_warning:
