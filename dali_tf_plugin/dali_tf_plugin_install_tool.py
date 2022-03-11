@@ -295,20 +295,19 @@ class InstallerHelper:
         print("Checking build environment for DALI TF plugin ...")
         print(self.debug_str())
 
-        Path(self.plugin_dest_dir).mkdir(parents=True, exist_ok=True)
-
         if not self.tf_version or not self.tf_path:
             error_msg = "Installation error:"
             error_msg += "\n Tensorflow installation not found. Install `tensorflow-gpu` and try again"
             error_msg += '\n' + self.debug_str()
             raise ImportError(error_msg)
 
+        Path(self.plugin_dest_dir).mkdir(parents=True, exist_ok=True)
+
     def install(self):
         self.check_install_env()
 
-        if self.prebuilt_exact_ver:
-            if self.install_prebuilt():
-                return
+        if self.prebuilt_exact_ver and self.install_prebuilt():
+            return
 
         try:
             self.build()
