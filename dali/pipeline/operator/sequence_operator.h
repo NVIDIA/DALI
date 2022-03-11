@@ -71,17 +71,26 @@ class SequenceOperator : public Operator<Backend> {
       ExpandArguments(ws);
       is_inferred = Operator<Backend>::Setup(output_desc, expanded_);
     }
-    return ProcessOutputDesc(output_desc, ws, is_inferred);
+    is_inferred_ = ProcessOutputDesc(output_desc, ws, is_inferred);
+    return is_inferred_;
   }
 
   void Run(workspace_t<Backend> &ws) override {
     if (!IsExpanding()) {
       Operator<Backend>::Run(ws);
     } else {
-      ExpandOutputs(ws);
+      if (is_inferred_) {
+        ExpandOutputs(ws);
+      } else {
+        // nothing could be presized, so there is nothing to expand
+        // just copy the handles from ``ws`` to ``expanded_``
+        ShareOutputs(ws);
+      }
       Operator<Backend>::Run(expanded_);
-      PostprocessOutputs(ws);
-      Clear();
+      if (is_inferred_) {
+        PostprocessOutputs(ws);
+      }
+      ClearExpanded();
     }
   }
 
@@ -166,6 +175,16 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
+  virtual void ShareOutputs(const workspace_t<Backend> &ws) {
+    for (int output_idx = 0; output_idx < ws.NumInput(); output_idx++) {
+      if (ws.template OutputIsType<GPUBackend>(output_idx)) {
+        AddOutputHelper<GPUBackend>(ws.template OutputPtr<GPUBackend>(output_idx));
+      } else {
+        AddOutputHelper<CPUBackend>(ws.template OutputPtr<CPUBackend>(output_idx));
+      }
+    }
+  }
+
   virtual void PostprocessOutputs(workspace_t<Backend> &ws) {
     auto num_output = ws.NumOutput();
     for (int output_idx = 0; output_idx < num_output; output_idx++) {
@@ -180,10 +199,7 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   /**
-   * @brief By default, the expanded output is assumed to have the same expandable layout and
-   * expandable shape as the expandable input. The inferred shapes are coalesced, i.e. the
-   * SequenceOperator verifies if the the shapes of frames corresponding to the same sequence are
-   * equal and merges them into sequences.
+   * @brief Coalesces batch of frames shapes into batch of sequence shapes.
    *
    * For example if in the input there is a ``FCHW`` batch of shape
    * ``[{1, 3, 20, 20}, {2, 2, 40, 20}]`` with ``FC`` expandable layout, the inferred output shape
@@ -207,6 +223,11 @@ class SequenceOperator : public Operator<Backend> {
   /**
    * @brief A common path for processing inferred output shapes for expanding and non-expanding
    * cases.
+   *
+   * By default, the expanded output is assumed to have the same expandable layout and
+   * expandable shape as the expandable input. The inferred shapes are coalesced, i.e. the
+   * SequenceOperator verifies if the the shapes of frames corresponding to the same sequence are
+   * equal and merges them into sequences.
    *
    * May be overriden to infer output shapes outside of the operator's SetupImpl method (which does
    * not have access to not expanded workspace in expanding case).
@@ -249,17 +270,18 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
-  virtual const ExpandDesc &GetOutputExpandDesc(const workspace_t<Backend> &ws, int output_idx) {
+  virtual const ExpandDesc &GetOutputExpandDesc(const workspace_t<Backend> &ws,
+                                                int output_idx) const {
     (void)output_idx;
     return GetInputExpandDesc(ExpandLikeIdx());
   }
 
-  virtual int GetArgExpandDescIdx(const std::string &arg_name) {
+  virtual int GetArgExpandDescIdx(const std::string &arg_name) const {
     (void)arg_name;
     return ExpandLikeIdx();
   }
 
-  const ExpandDesc &GetInputExpandDesc(int input_idx) {
+  const ExpandDesc &GetInputExpandDesc(int input_idx) const {
     DALI_ENFORCE(0 <= input_idx && static_cast<size_t>(input_idx) < input_expand_desc_.size());
     return input_expand_desc_[input_idx];
   }
@@ -271,6 +293,7 @@ class SequenceOperator : public Operator<Backend> {
   void SetupSequenceOperator(const workspace_t<Backend> &ws) {
     expand_like_idx_ = -1;
     auto num_inputs = ws.NumInput();
+    input_expand_desc_.clear();
     input_expand_desc_.reserve(num_inputs);
     for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
       const auto &input_shape = ws.GetInputShape(input_idx);
@@ -451,9 +474,8 @@ class SequenceOperator : public Operator<Backend> {
     return expanded_.template Output<OutputBackend>(output_idx);
   }
 
-  void Clear() {
+  void ClearExpanded() {
     expanded_.Clear();
-    input_expand_desc_.clear();
   }
 
   TensorVector<CPUBackend> ExpandArgumentLike(const TensorVector<CPUBackend> &arg_tensor,
@@ -583,6 +605,7 @@ class SequenceOperator : public Operator<Backend> {
  private:
   int expand_like_idx_ = -1;
   bool is_expanding_ = false;
+  bool is_inferred_;
   workspace_t<Backend> expanded_;
 };
 
