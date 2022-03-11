@@ -50,8 +50,9 @@ class SequenceOperator : public Operator<Backend> {
     if (!IsExpanding()) {
       is_inferred = Operator<Backend>::Setup(output_desc, ws);
     } else {
-      DALI_ENFORCE(ExpandLikeIdx() >= 0 &&
-                   GetInputExpandDesc(ExpandLikeIdx()).NumDimsToExpand() > 0);
+      DALI_ENFORCE(IsExpandable() && GetInputExpandDesc(ExpandLikeIdx()).NumDimsToExpand() > 0,
+                   "Operator requested to expand the sequence-like inputs, but no expandable input "
+                   "was found");
       SetupExpandedWorkspace(expanded_, ws);
       ExpandInputs(ws);
       ExpandArguments(ws);
@@ -75,6 +76,10 @@ class SequenceOperator : public Operator<Backend> {
     return is_expanding_;
   }
 
+  bool IsExpandable() const {
+    return ExpandLikeIdx() >= 0;
+  }
+
   virtual bool ShouldExpandChannels(int input_idx) const {
     (void)input_idx;
     return false;
@@ -82,7 +87,7 @@ class SequenceOperator : public Operator<Backend> {
 
  protected:
   virtual bool ShouldExpand(const workspace_t<Backend> &ws) {
-    return ExpandLikeIdx() >= 0;
+    return IsExpandable();
   }
 
   virtual void ExpandInputs(const workspace_t<Backend> &ws) {
