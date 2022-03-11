@@ -21,7 +21,6 @@
 #include <set>
 #include <sstream>
 #include <string>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -52,6 +51,10 @@ struct DeprecatedArgDef {
   std::string renamed_to = {};
   std::string msg = {};
   bool removed = false;
+};
+
+struct TensorArgDesc {
+  bool supports_per_frame = false;
 };
 
 enum class InputDevice : uint8_t {
@@ -360,10 +363,7 @@ graph even if its outputs are not used.)code", false);
     CheckArgument(s);
     arguments_[s] = {doc, dtype};
     if (enable_tensor_input) {
-      tensor_arguments_.insert(s);
-      if (support_per_frame_input) {
-        SupportPerFrameInput(s);
-      }
+      tensor_arguments_[s] = {support_per_frame_input};
     }
     return *this;
   }
@@ -475,10 +475,7 @@ graph even if its outputs are not used.)code", false);
     CheckArgument(s);
     optional_arguments_[s] = {doc, dtype, nullptr};
     if (enable_tensor_input) {
-      tensor_arguments_.insert(s);
-      if (support_per_frame_input) {
-        SupportPerFrameInput(s);
-      }
+      tensor_arguments_[s] = {support_per_frame_input};
     }
     return *this;
   }
@@ -512,10 +509,7 @@ graph even if its outputs are not used.)code", false);
     optional_arguments_[s] = {doc, type2id<T>::value, to_store.get()};
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
-      tensor_arguments_.insert(s);
-      if (support_per_frame_input) {
-        SupportPerFrameInput(s);
-      }
+      tensor_arguments_[s] = {support_per_frame_input};
     }
     return *this;
   }
@@ -540,10 +534,7 @@ graph even if its outputs are not used.)code", false);
     optional_arguments_[s] = {doc, type2id<std::vector<T>>::value, to_store.get()};
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
-      tensor_arguments_.insert(s);
-      if (support_per_frame_input) {
-        SupportPerFrameInput(s);
-      }
+      tensor_arguments_[s] = {support_per_frame_input};
     }
     return *this;
   }
@@ -581,25 +572,6 @@ graph even if its outputs are not used.)code", false);
     if (msg.empty())
       msg = DefaultDeprecatedArgMsg(arg_name, {}, removed);
     deprecated_arguments_[arg_name] = {{}, std::move(msg), removed};
-    return *this;
-  }
-
-  /**
-   * @brief Marks a tensor argument as supporting per-frame input.
-   * @remarks Only tensor arguments can be marked as supporting per-frame input.
-   *          Per-frame support is not inherited from a parent schema.
-   *
-   */
-  DLL_PUBLIC inline OpSchema &SupportPerFrameInput(const std::string& arg_name) {
-    DALI_ENFORCE(HasArgument(arg_name),
-                 make_string("Argument \"", arg_name,
-                             "\" has been marked as supporting per-frame input but it is not "
-                             "present in the schema."));
-    DALI_ENFORCE(IsTensorArgument(arg_name),
-                make_string("Argument \"", arg_name,
-                             "\" has been marked as supporting per-frame input but it is not "
-                             "a tensor argument."));
-    per_frame_arguments_.insert(arg_name);
     return *this;
   }
 
@@ -904,6 +876,8 @@ graph even if its outputs are not used.)code", false);
   DLL_PUBLIC bool ArgSupportsPerFrameInput(const std::string &arg_name) const;
 
  private:
+  const TensorArgDesc* FindTensorArgument(const std::string &name) const;
+
   inline void CheckArgument(const std::string &s) {
     DALI_ENFORCE(!HasArgument(s),
                  "Argument \"" + s + "\" already added to the schema");
@@ -1003,8 +977,7 @@ graph even if its outputs are not used.)code", false);
   std::vector<std::vector<TensorLayout>> input_layouts_;
   std::vector<dali::InputDevice> input_devices_;
 
-  std::set<std::string> tensor_arguments_;
-  std::unordered_set<std::string> per_frame_arguments_;
+  std::map<std::string, TensorArgDesc> tensor_arguments_;
 };
 
 class SchemaRegistry {
