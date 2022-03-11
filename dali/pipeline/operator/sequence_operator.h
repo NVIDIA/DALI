@@ -30,6 +30,19 @@
 
 namespace dali {
 
+/**
+ * @brief SequenceOperator
+ * Provides generic support for sequence processing to an operator by unfolding
+ * a batch of sequences into a batch of frames. Applicability of the SequenceOperator
+ * is limited to operators that can process frames independently. For example, an operator
+ * that applies convolution to a batch of images can be turned into the operator that supports
+ * batches of sequences of frames, given that there is no need to convolve along frames dimension.
+ *
+ * Adds support for per-frame tensor arguments: if a tensor argument is marked in the schema as
+ * supporting per-frame tensor arguments and the tensor argument layout starts with `F`, the
+ * outermost dimension of the tensor argument will be unfolded to match the frames in the expanded
+ * input of the operator.
+ */
 template <typename Backend>
 class SequenceOperator : public Operator<Backend> {
  public:
@@ -50,7 +63,7 @@ class SequenceOperator : public Operator<Backend> {
     if (!IsExpanding()) {
       is_inferred = Operator<Backend>::Setup(output_desc, ws);
     } else {
-      DALI_ENFORCE(IsExpandable() && GetInputExpandDesc(ExpandLikeIdx()).NumDimsToExpand() > 0,
+      DALI_ENFORCE(IsExpandable(),
                    "Operator requested to expand the sequence-like inputs, but no expandable input "
                    "was found");
       SetupExpandedWorkspace(expanded_, ws);
@@ -77,19 +90,44 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   bool IsExpandable() const {
-    return ExpandLikeIdx() >= 0;
+    auto expand_like_idx = ExpandLikeIdx();
+    assert(expand_like_idx == -1 || GetInputExpandDesc(expand_like_idx).NumDimsToExpand() > 0);
+    return expand_like_idx >= 0;
   }
 
+ protected:
+  /**
+   * @brief If false, only batch whose layout starts with ``F`` will be considered expandable
+   * (for example ``FHWC -> HWC``). If true, layouts starting with ``C`` will be expandable as well,
+   * i.e. ``FCHW -> HW, CFHW -> HW, CHW -> HW`` etc.
+   */
   virtual bool ShouldExpandChannels(int input_idx) const {
     (void)input_idx;
     return false;
   }
 
- protected:
+  /**
+   * @brief Controls if the SequenceOperator should expand batches in the current iteration. It can
+   * be used to restrict cases when the expansion is performed, but it is an error for
+   * ``ShouldExpand`` to return true if none of the inputs is expandable.
+   */
   virtual bool ShouldExpand(const workspace_t<Backend> &ws) {
     return IsExpandable();
   }
 
+  /**
+   * Expands (and broadcasts) inputs from the provided workspace and adds them to the expanded
+   * workspace.
+   *
+   * Assumes ``IsExpandble()`` is true, i.e. there is at least one expandable input.
+   *
+   * For multiple-input operators, if any of the inputs is to be expanded, all other inputs
+   * must be expandable in an agreeable way, i.e:
+   * 1. have the same expandble layout prefix and matching outermost dimensions that are to
+   *    be expanded, or
+   * 2. have no expandable layout prefix, in which case the samples are going to be broadcasted
+   *    to match the frames from other inputs (TODO).
+   */
   virtual void ExpandInputs(const workspace_t<Backend> &ws) {
     int expand_idx = ExpandLikeIdx();
     const auto &expand_desc = GetInputExpandDesc(expand_idx);
@@ -141,6 +179,18 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
+  /**
+   * @brief By default, the expanded output is assumed to have the same expandable layout and
+   * expandable shape as the expandable input. The inferred shapes are coalesced, i.e. the
+   * SequenceOperator verifies if the the shapes of frames corresponding to the same sequence are
+   * equal and merges them into sequences.
+   *
+   * For example if in the input there is a ``FCHW`` batch of shape
+   * ``[{1, 3, 20, 20}, {2, 2, 40, 20}]`` with ``FC`` expandable layout, the inferred output shape
+   * (if any) is expected to be of the form
+   * ``[shape_1, shape_1, shape_1, shape_2, shape_2, shape_2, shape_2]``, so that it can be
+   * coalesced into ``[{1, 3, shape_1...}, {2, 2, shape_2...}]``.
+   */
   virtual void CoalesceOutputShapes(std::vector<OutputDesc> &output_desc,
                                     const workspace_t<Backend> &ws) {
     for (size_t output_idx = 0; output_idx < output_desc.size(); output_idx++) {
@@ -154,6 +204,13 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
+  /**
+   * @brief A common path for processing inferred output shapes for expanding and non-expanding
+   * cases.
+   *
+   * May be overriden to infer output shapes outside of the operator's SetupImpl method (which does
+   * not have access to not expanded workspace in expanding case).
+   */
   virtual bool ProcessOutputDesc(std::vector<OutputDesc> &output_desc,
                                  const workspace_t<Backend> &ws, bool is_inferred) {
     if (is_inferred && IsExpanding()) {
@@ -170,6 +227,20 @@ class SequenceOperator : public Operator<Backend> {
     AddArgumentInputHelper(arg_name, expanded_handle);
   }
 
+  /**
+   * @brief Expands the tensor arguments from ``ws`` and adds them to expanded workspace.
+   * Arguments marked as supporting per-frame tensors and with leading `F` in tensor layout are
+   * unfolded (and additionally broadcasted if the channels in the operator's input are unfolded) to
+   * match the operator's input. If the argument is unfolded, each sample of the argument must have
+   * the number of frames equal to either: one (so it can be broadcasted) or to the number of frames
+   * in the corresponding sample of operator's expandable input.
+   *
+   * Tensor inputs not marked per-frame or with no leading frames in the layout are broadcasted to
+   * match the operator's expandable input.
+   *
+   * Assumes ``IsExpandble()`` is true, i.e. there is some expandable input to match the expanded
+   * arguments.
+   */
   virtual void ExpandArguments(const ArgumentWorkspace &ws) {
     for (const auto &arg_input : ws) {
       auto &shared_tvec = arg_input.second.tvec;
