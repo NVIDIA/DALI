@@ -23,6 +23,10 @@ from stubgen import stubgen
 from multiprocessing import Process
 
 def plugin_load_and_test(dali_tf_path):
+    # Make sure that TF won't try using CUDA
+    import os
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
     from nvidia.dali.pipeline import pipeline_def
     import nvidia.dali.types as types
     import tensorflow as tf
