@@ -40,7 +40,7 @@ namespace dali {
  *
  * Adds support for per-frame tensor arguments: if a tensor argument is marked in the schema as
  * supporting per-frame tensor arguments and the tensor argument layout starts with `F`, the
- * outermost dimension of the tensor argument will be unfolded to match the frames in the expanded
+ * outermost dimension of the tensor argument will be unfolded to match the the expanded
  * input of the operator.
  */
 template <typename Backend>
@@ -106,7 +106,9 @@ class SequenceOperator : public Operator<Backend> {
 
  protected:
   /**
-   * @brief If false, only batch whose layout starts with ``F`` will be considered expandable
+   * @brief Controls if given input should expand leading channel dimensions.
+   *
+   * If false, only a batch whose layout starts with ``F`` will be considered expandable
    * (for example ``FHWC -> HWC``). If true, layouts starting with ``C`` will be expandable as well,
    * i.e. ``FCHW -> HW, CFHW -> HW, CHW -> HW`` etc.
    */
@@ -116,17 +118,17 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   /**
-   * @brief Controls if the SequenceOperator should expand batches in the current iteration. It can
-   * be used to restrict cases when the expansion is performed, but it is an error for
-   * ``ShouldExpand`` to return true if none of the inputs is expandable.
+   * @brief Controls if the SequenceOperator should expand batches in the current iteration.
+   *
+   * It can be used to restrict cases when the expansion is performed, but it is an error for
+   * ``ShouldExpand`` to return true if none of the inputs is expandable (i.e. !IsExpandable()).
    */
   virtual bool ShouldExpand(const workspace_t<Backend> &ws) {
     return IsExpandable();
   }
 
   /**
-   * Expands (and broadcasts) inputs from the provided workspace and adds them to the expanded
-   * workspace.
+   * @brief Expands inputs from the provided workspace and adds them to the expanded workspace.
    *
    * Assumes ``IsExpandble()`` is true, i.e. there is at least one expandable input.
    *
@@ -134,8 +136,8 @@ class SequenceOperator : public Operator<Backend> {
    * must be expandable in an agreeable way, i.e:
    * 1. have the same expandble layout prefix and matching outermost dimensions that are to
    *    be expanded, or
-   * 2. have no expandable layout prefix, in which case the samples are going to be broadcasted
-   *    to match the frames from other inputs (TODO).
+   * 2. have no expandable layout prefix, in that case the samples are going to be broadcasted
+   *    to match the other expanded inputs (TODO).
    */
   virtual void ExpandInputs(const workspace_t<Backend> &ws) {
     int expand_idx = ExpandLikeIdx();
@@ -185,6 +187,10 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
+  /**
+   * @brief If the outputs were expanded, the meta-data from the expanded outputs
+   * needs to be reflected in the original workspace outputs.
+   */
   virtual void PostprocessOutputs(workspace_t<Backend> &ws) {
     auto num_output = ws.NumOutput();
     for (int output_idx = 0; output_idx < num_output; output_idx++) {
@@ -230,7 +236,7 @@ class SequenceOperator : public Operator<Backend> {
    * equal and merges them into sequences.
    *
    * May be overriden to infer output shapes outside of the operator's SetupImpl method (which does
-   * not have access to not expanded workspace in expanding case).
+   * not have access to ``ws`` in expanded case).
    */
   virtual bool ProcessOutputDesc(std::vector<OutputDesc> &output_desc,
                                  const workspace_t<Backend> &ws, bool is_inferred) {
@@ -270,6 +276,12 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
+  /**
+   * @brief Gets the ExpandDesc instance that describes the expandable prefix of the layout and
+   * corresponding prefixes of the shapes in the batch. By default, the sequence shape and
+   * expandable layout are assumed to be the same for the output and the expandable input. If that's
+   * not the case, the method may be overriden to provide different ExpandDesc instance.
+   */
   virtual const ExpandDesc &GetOutputExpandDesc(const workspace_t<Backend> &ws,
                                                 int output_idx) const {
     (void)output_idx;
