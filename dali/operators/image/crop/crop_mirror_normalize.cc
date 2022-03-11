@@ -34,6 +34,10 @@ Normalization takes the input images and produces the output by using the follow
 )code")
   .NumInput(1)
   .NumOutput(1)
+  .InputLayout(0, {"HWC", "CHW",
+                   "DHWC", "CDHW",
+                   "FHWC", "FCHW", "CFHW",
+                   "FDHWC", "FCDHW", "CFDHW"})
   .AllowSequences()
   .SupportVolumetric()
   .AddOptionalArg<DALIImageType>("image_type", "Image type", nullptr)

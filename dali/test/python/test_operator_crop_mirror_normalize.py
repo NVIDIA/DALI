@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,9 +22,11 @@ import numpy as np
 import os
 from functools import partial
 from nose_utils import raises
+from nose_utils import assert_raises
 from test_utils import compare_pipelines, dali_type_to_np
 from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
+from test_utils import as_array
 from test_operator_slice import check_slice_output, abs_slice_start_and_end
 
 
@@ -576,3 +578,44 @@ def test_per_sample_norm_args():
         for random_mean, random_stdev in [(True, True), (True, False), (False, True)]:
             for scale, shift in [(None, None), (255.0, -128.0)]:
                 yield check_cmn_per_sample_norm_args, device, random_mean, random_stdev, scale, shift
+
+def check_crop_mirror_normalize_wrong_layout(device, batch_size, input_shape=(100, 200, 3), layout="ABC"):
+    assert len(layout) == len(input_shape)
+    @pipeline_def
+    def get_pipe():
+        def get_data():
+            out = [np.zeros(input_shape, dtype=np.uint8) for _ in range(batch_size)]
+            return out
+        data = fn.external_source(source=get_data, layout=layout, device=device)
+        return fn.crop_mirror_normalize(data, crop_h=10, crop_w=10)
+    pipe = get_pipe(batch_size=batch_size, device_id=0, num_threads=3)
+    pipe.build()
+    with assert_raises(RuntimeError, glob=f"The layout \"{layout}\" does not match any of the allowed layouts"):
+        pipe.run()
+
+def test_crop_mirror_normalize_wrong_layout():
+    in_shape = (40, 80, 3)
+    batch_size = 3
+    for device in ['gpu', 'cpu']:
+        for layout in ['ABC']:
+            yield check_crop_mirror_normalize_wrong_layout, device, batch_size, in_shape, layout
+
+def check_crop_mirror_normalize_empty_layout(device, batch_size, input_shape=(100, 200, 3)):
+    @pipeline_def
+    def get_pipe():
+        def get_data():
+            out = [np.zeros(input_shape, dtype=np.uint8) for _ in range(batch_size)]
+            return out
+        data = fn.external_source(source=get_data, device=device)
+        return fn.crop_mirror_normalize(data, crop_h=10, crop_w=20)
+    pipe = get_pipe(batch_size=batch_size, device_id=0, num_threads=3)
+    pipe.build()
+    data, = pipe.run()
+    for i in range(batch_size):
+        assert as_array(data[i]).shape == (3, 10, 20)  # CHW by default
+
+def test_crop_mirror_normalize_empty_layout():
+    in_shape = (40, 80, 3)
+    batch_size = 3
+    for device in ['gpu', 'cpu']:
+        yield check_crop_mirror_normalize_empty_layout, device, batch_size, in_shape

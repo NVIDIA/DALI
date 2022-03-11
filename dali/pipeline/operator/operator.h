@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -288,11 +288,11 @@ class Operator<CPUBackend> : public OperatorBase {
 
   bool Setup(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     EnforceUniformInputBatchSize<CPUBackend>(ws);
+    CheckInputLayouts(ws, spec_);
     return SetupImpl(output_desc, ws);
   }
 
   void Run(HostWorkspace &ws) override {
-    CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
     RunImpl(ws);
     ws.GetThreadPool().WaitForWork();
@@ -369,11 +369,11 @@ class Operator<GPUBackend> : public OperatorBase {
 
   bool Setup(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
     EnforceUniformInputBatchSize<GPUBackend>(ws);
+    CheckInputLayouts(ws, spec_);
     return SetupImpl(output_desc, ws);
   }
 
   void Run(DeviceWorkspace &ws) override {
-    CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
     RunImpl(ws);
     EnforceUniformOutputBatchSize<GPUBackend>(ws);

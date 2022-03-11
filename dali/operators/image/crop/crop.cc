@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,6 +27,10 @@ DALI_SCHEMA(Crop)
 (upper left corner).)code")
     .NumInput(1)
     .NumOutput(1)
+    .InputLayout(0, {"HWC", "CHW",
+                     "DHWC", "CDHW",
+                     "FHWC", "FCHW", "CFHW",
+                     "FDHWC", "FCDHW", "CFDHW"})
     .AllowSequences()
     .SupportVolumetric()
     .AddOptionalArg<DALIImageType>("image_type", "Image type", nullptr)

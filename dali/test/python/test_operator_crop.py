@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,15 +13,15 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import pipeline_def, fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
 import os
 from nose_utils import assert_raises
-from test_utils import check_batch
+from test_utils import as_array
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
@@ -506,3 +506,45 @@ def test_slice_with_out_of_bounds_error():
         for batch_size in [1, 3]:
             yield check_crop_with_out_of_bounds_error, \
                 device, batch_size, in_shape
+
+
+def check_crop_wrong_layout(device, batch_size, input_shape=(100, 200, 3), layout="ABC"):
+    assert len(layout) == len(input_shape)
+    @pipeline_def
+    def get_pipe():
+        def get_data():
+            out = [np.zeros(input_shape, dtype=np.uint8) for _ in range(batch_size)]
+            return out
+        data = fn.external_source(source=get_data, layout=layout, device=device)
+        return fn.crop(data, crop_h=10, crop_w=10)
+    pipe = get_pipe(batch_size=batch_size, device_id=0, num_threads=3)
+    pipe.build()
+    with assert_raises(RuntimeError, glob=f"The layout \"{layout}\" does not match any of the allowed layouts"):
+        pipe.run()
+
+def test_crop_wrong_layout():
+    in_shape = (40, 80, 3)
+    batch_size = 3
+    for device in ['gpu', 'cpu']:
+        for layout in ['ABC']:
+            yield check_crop_wrong_layout, device, batch_size, in_shape, layout
+
+def check_crop_empty_layout(device, batch_size, input_shape=(100, 200, 3)):
+    @pipeline_def
+    def get_pipe():
+        def get_data():
+            out = [np.zeros(input_shape, dtype=np.uint8) for _ in range(batch_size)]
+            return out
+        data = fn.external_source(source=get_data, device=device)
+        return fn.crop(data, crop_h=10, crop_w=20)
+    pipe = get_pipe(batch_size=batch_size, device_id=0, num_threads=3)
+    pipe.build()
+    data, = pipe.run()
+    for i in range(batch_size):
+        assert as_array(data[i]).shape == (10, 20, 3)
+
+def test_crop_empty_layout():
+    in_shape = (40, 80, 3)
+    batch_size = 3
+    for device in ['gpu', 'cpu']:
+        yield check_crop_empty_layout, device, batch_size, in_shape
