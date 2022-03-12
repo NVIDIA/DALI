@@ -161,7 +161,6 @@ TEST(TransposeTiled, AllPerm4DInnermost) {
   }
 }
 
-
 TEST(TransposeTiled, BuildDescVectorized) {
   TensorShape<> shape = { 57, 37, 53, 4 };  // a bunch of primes, just to make it harder
   int size = volume(shape);
@@ -190,13 +189,53 @@ TEST(TransposeTiled, BuildDescVectorized) {
   }
 }
 
-TEST(TransposeTiled, BuildDescAndForceNonAlignment) {
+TEST(TransposeTiled, BuildDescAndForceMisalignment) {
   TensorShape<> shape = { 57, 37, 53, 4 };  // a bunch of primes, just to make it harder
   int size = volume(shape);
   vector<uint8> in_cpu(size), out_cpu(size);
   vector<uint8> ref(size);
-  std::iota(in_cpu.begin(), in_cpu.end(), 0);
+    
   DeviceBuffer<uint8> in_gpu, out_gpu;
+  in_gpu.resize(size);
+  out_gpu.resize(size);
+    
+  for(uintptr_t offset = 0; offset < 4; offset++)
+  {
+    shape = { 57, 37, 53, 4 };
+    size = volume(shape);
+    std::iota(in_cpu.begin(), in_cpu.end(), 0);
+    CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
+    shape = { 57, 37, 52, 4 };
+    size = volume(shape);
+  
+    copyH2D(in_gpu.data() + offset, in_cpu.data(), size);
+  
+    SmallVector<int, 6> perm = { 1, 2, 0, 3 };
+  
+    int grid_size = 1024;
+    TiledTransposeDesc<uint8> desc;
+    memset(&desc, 0xCC, sizeof(desc));
+    InitTiledTranspose(desc, shape, make_span(perm), out_gpu.data() + offset, in_gpu.data() + offset, grid_size);
+    EXPECT_EQ(desc.lanes, 4) << "Lanes not detected";
+    EXPECT_EQ(desc.ndim, 3) << "Number of dimensions should have shrunk in favor of lanes";
+  
+    TransposeTiledSingle<<<grid_size, dim3(32, 16), kTiledTransposeMaxSharedMem>>>(desc);
+    copyD2H(out_cpu.data(), out_gpu.data() + offset, size);
+    testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm.data(), perm.size());
+    
+    for (int i = 0; i < size; i++) {
+      ASSERT_EQ(out_cpu[i], ref[i]) << " at " << i;
+    }
+  }
+}
+
+TEST(TransposeTiled, BuildDescVectorized16BitOpt) {
+  TensorShape<> shape = { 57, 37, 53, 4 };  // a bunch of primes, just to make it harder
+  int size = volume(shape);
+  vector<uint16_t> in_cpu(size), out_cpu(size);
+  vector<uint16_t> ref(size);
+  std::iota(in_cpu.begin(), in_cpu.end(), 0);
+  DeviceBuffer<uint16_t> in_gpu, out_gpu;
   in_gpu.resize(size);
   out_gpu.resize(size);
   CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
@@ -205,7 +244,7 @@ TEST(TransposeTiled, BuildDescAndForceNonAlignment) {
   SmallVector<int, 6> perm = { 1, 2, 0, 3 };
 
   int grid_size = 1024;
-  TiledTransposeDesc<uint8> desc;
+  TiledTransposeDesc<uint16_t> desc;
   memset(&desc, 0xCC, sizeof(desc));
   InitTiledTranspose(desc, shape, make_span(perm), out_gpu, in_gpu, grid_size);
   EXPECT_EQ(desc.lanes, 4) << "Lanes not detected";
@@ -220,35 +259,6 @@ TEST(TransposeTiled, BuildDescAndForceNonAlignment) {
   }
 }
 
-TEST(TransposeTiled, BuildDescVectorizedFor) {
-  TensorShape<> shape = { 57, 37, 53, 4 };  // a bunch of primes, just to make it harder
-  int size = volume(shape);
-  vector<uint8> in_cpu(size), out_cpu(size);
-  vector<uint8> ref(size);
-  std::iota(in_cpu.begin(), in_cpu.end(), 0);
-  DeviceBuffer<uint8> in_gpu, out_gpu;
-  in_gpu.resize(size);
-  out_gpu.resize(size);
-  CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
-  copyH2D(in_gpu.data(), in_cpu.data(), size);
-
-  SmallVector<int, 6> perm = { 1, 2, 0, 3 };
-
-  int grid_size = 1024;
-  TiledTransposeDesc<uint8> desc;
-  memset(&desc, 0xCC, sizeof(desc));
-  InitTiledTranspose(desc, shape, make_span(perm), out_gpu, in_gpu, grid_size);
-  EXPECT_EQ(desc.lanes, 4) << "Lanes not detected";
-  EXPECT_EQ(desc.ndim, 3) << "Number of dimensions should have shrunk in favor of lanes";
-
-  TransposeTiledSingle<<<grid_size, dim3(32, 16), kTiledTransposeMaxSharedMem>>>(desc);
-  copyD2H(out_cpu.data(), out_gpu.data(), size);
-  testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm.data(), perm.size());
-  
-  for (int i = 0; i < size; i++) {
-    ASSERT_EQ(out_cpu[i], ref[i]) << " at " << i;
-  }
-}
 
 TEST(TransposeDeinterleave, AllPerm4DInnermost) {
   int channels = 3;
