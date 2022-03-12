@@ -101,7 +101,7 @@ namespace transpose_shared {
 }  // namespace transpose_shared
 
 template <int ndim, typename T, typename OldT>
-__device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc,const int pack_ratio)
+__device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc, const unsigned pack_ratio)
 {
   unsigned start_tile = blockIdx.x * desc.tiles_per_block;
   unsigned end_tile = min(desc.total_tiles, start_tile + desc.tiles_per_block);
@@ -110,7 +110,7 @@ __device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc,const 
   T (*tmp)[kTileSize][kTileSize+1] =
       reinterpret_cast<T (*)[kTileSize][kTileSize+1]>(transpose_shared::shared_tmp);
 
-  int lanes = desc.lanes/pack_ratio;
+  int lanes = desc.lanes >> pack_ratio;
 
   unsigned tile_in_slice = start_tile;
   uint64_t fused_slice = ndim > 2
@@ -146,12 +146,12 @@ __device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc,const 
     in_ofs  += desc.in_strides[ndim-2]  * in_y  + desc.in_strides[ndim-1]  * in_x;
     out_ofs += desc.out_strides[ndim-2] * out_y + desc.out_strides[ndim-1] * out_x;
 
-    in_ofs /= pack_ratio;
-    out_ofs /= pack_ratio;
+    in_ofs >>= pack_ratio;
+    out_ofs >>= pack_ratio;
 
     unsigned tile_w = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-1] - pos[ndim-1]);
     unsigned tile_h = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-2] - pos[ndim-2]);
-    unsigned jump = blockDim.y/pack_ratio;
+    unsigned jump = blockDim.y >> pack_ratio;
     
     if (threadIdx.x < tile_w) {
       for (unsigned ty = threadIdx.y, dy = 0; ty < tile_h; ty += blockDim.y, dy += jump) {
@@ -188,17 +188,19 @@ __device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc,const 
 
 template <int ndim, typename T>
 __device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
-  if(sizeof(T) == 1 && desc.lanes % 4 == 0&&reinterpret_cast<int64_t>(desc.out) % 4 ==0 && reinterpret_cast<int64_t>(desc.in) % 4 == 0 ) {
-    return TransposeTiledPacked<ndim, type_of_size<4>>(desc, 4);
+  if(sizeof(T) == 1 && desc.lanes % 4 == 0 && reinterpret_cast<uintptr_t>(desc.out) % 4 == 0 && 
+      reinterpret_cast<uintptr_t>(desc.in) % 4 == 0 ) {
+    return TransposeTiledPacked<ndim, type_of_size<4>>(desc, 2);
   }
-  if(sizeof(T) < 4 && desc.lanes % 2 == 0&&reinterpret_cast<int64_t>(desc.out) % 2 ==0 && reinterpret_cast<int64_t>(desc.in) % 2 == 0) {
+  if(sizeof(T) < 4 && desc.lanes % 2 == 0 && reinterpret_cast<uintptr_t>(desc.out) % 2 == 0 && 
+      reinterpret_cast<uintptr_t>(desc.in) % 2 == 0) {
     if (sizeof(T) == 2) { 
-      return TransposeTiledPacked<ndim, type_of_size<4>>(desc, 2);
+      return TransposeTiledPacked<ndim, type_of_size<4>>(desc, 1);
     } else {
-      return TransposeTiledPacked<ndim, type_of_size<2>>(desc, 2);
+      return TransposeTiledPacked<ndim, type_of_size<2>>(desc, 1);
     }
   }
-  return TransposeTiledPacked<ndim, T>(desc, 1);
+  return TransposeTiledPacked<ndim, T>(desc, 0);
 }
 
 template <typename T>
