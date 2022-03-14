@@ -20,7 +20,7 @@
 #include "dali/core/fast_div.h"
 #include "dali/kernels/transpose/transpose_gpu_def.h"
 #include "dali/core/static_switch.h"
-
+#include "dali/kernels/common/type_erasure.h"
 /**
  * @file
  *
@@ -100,18 +100,17 @@ namespace transpose_shared {
   extern __shared__ uint8_t shared_tmp[];
 }  // namespace transpose_shared
 
-
-template <int ndim, typename T>
-__device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
+template <int ndim, typename T, typename OldT>
+__device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc, const unsigned pack_ratio)
+{
   unsigned start_tile = blockIdx.x * desc.tiles_per_block;
   unsigned end_tile = min(desc.total_tiles, start_tile + desc.tiles_per_block);
   if (start_tile >= end_tile)
     return;
-
   T (*tmp)[kTileSize][kTileSize+1] =
       reinterpret_cast<T (*)[kTileSize][kTileSize+1]>(transpose_shared::shared_tmp);
 
-  int lanes = desc.lanes;
+  int lanes = desc.lanes >> pack_ratio;
 
   unsigned tile_in_slice = start_tile;
   uint64_t fused_slice = ndim > 2
@@ -129,17 +128,16 @@ __device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
   pos[ndim - 1] = tile_x * kTileSize;
   pos[ndim - 2] = tile_y * kTileSize;
 
-  T *out = desc.out;
-  const T *in = desc.in;
+  T *out = reinterpret_cast<T*> (desc.out);
+  const T *in = reinterpret_cast<const T*>(desc.in);
 
   for (uint64_t tile = start_tile;;) {
     uint64_t in_ofs = 0, out_ofs = 0;
     #pragma unroll
     for (int d = 0; d < ndim - 2; d++) {
-      in_ofs  += desc.in_strides[d] * pos[d];
-      out_ofs += desc.out_strides[d] * pos[d];
+      in_ofs  += desc.in_strides[d]/pack_ratio * pos[d];
+      out_ofs += desc.out_strides[d]/pack_ratio * pos[d];
     }
-
     int64_t in_x  = pos[ndim-1] + threadIdx.x;
     int64_t in_y  = pos[ndim-2] + threadIdx.y;
     int64_t out_x = pos[ndim-1] + threadIdx.y;
@@ -148,10 +146,15 @@ __device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
     in_ofs  += desc.in_strides[ndim-2]  * in_y  + desc.in_strides[ndim-1]  * in_x;
     out_ofs += desc.out_strides[ndim-2] * out_y + desc.out_strides[ndim-1] * out_x;
 
+    in_ofs >>= pack_ratio;
+    out_ofs >>= pack_ratio;
+
     unsigned tile_w = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-1] - pos[ndim-1]);
     unsigned tile_h = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-2] - pos[ndim-2]);
+    unsigned jump = blockDim.y >> pack_ratio;
+    
     if (threadIdx.x < tile_w) {
-      for (unsigned ty = threadIdx.y, dy = 0; ty < tile_h; ty += blockDim.y, dy += blockDim.y) {
+      for (unsigned ty = threadIdx.y, dy = 0; ty < tile_h; ty += blockDim.y, dy += jump) {
         #pragma unroll 4
         for (int lane = 0; lane < lanes; lane++) {
           tmp[lane][ty][threadIdx.x] = __ldg(&in[in_ofs + desc.in_strides[ndim-2]*dy + lane]);
@@ -161,7 +164,7 @@ __device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
     __syncthreads();
 
     if (threadIdx.x < tile_h) {
-      for (unsigned ty = threadIdx.y, dy = 0; ty < tile_w; ty += blockDim.y, dy += blockDim.y) {
+      for (unsigned ty = threadIdx.y, dy = 0; ty < tile_w; ty += blockDim.y, dy += jump) {
         #pragma unroll 4
         for (int lane = 0; lane < lanes; lane++)
           out[out_ofs + desc.out_strides[ndim-1]*dy + lane] = tmp[lane][threadIdx.x][ty];
@@ -181,6 +184,23 @@ __device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
     }
     __syncthreads();
   }
+}
+
+template <int ndim, typename T>
+__device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
+  if(sizeof(T) == 1 && desc.lanes % 4 == 0 && reinterpret_cast<uintptr_t>(desc.out) % 4 == 0 && 
+      reinterpret_cast<uintptr_t>(desc.in) % 4 == 0 ) {
+    return TransposeTiledPacked<ndim, type_of_size<4>>(desc, 2);
+  }
+  if(sizeof(T) < 4 && desc.lanes % 2 == 0 && reinterpret_cast<uintptr_t>(desc.out) % 2 == 0 && 
+      reinterpret_cast<uintptr_t>(desc.in) % 2 == 0) {
+    if (sizeof(T) == 2) { 
+      return TransposeTiledPacked<ndim, type_of_size<4>>(desc, 1);
+    } else {
+      return TransposeTiledPacked<ndim, type_of_size<2>>(desc, 1);
+    }
+  }
+  return TransposeTiledPacked<ndim, T>(desc, 0);
 }
 
 template <typename T>
