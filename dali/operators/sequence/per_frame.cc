@@ -19,8 +19,9 @@ namespace dali {
 DALI_SCHEMA(PerFrame)
     .DocStr(R"code(Marks the input tensor as a sequence.
 
-The operator modifies the layout string of the input tensor to indicate that
-the tensor contains a sequence. Only the layout is affected, while the data stays untouched.
+The operator modifies the layout string of the input data to indicate that
+the batch contains sequences.
+Only the layout is affected, while the data stays untouched.
 
 The operator can be used to feed per-frame tensor arguments when procesing sequences.
 For example, the following snippet shows how to apply ``gaussian_blur`` to a batch of sequences,
@@ -33,9 +34,9 @@ so that a different ``sigma`` is used for each frame in each sequence::
     blurred = fn.gaussian_blur(video, sigma=fn.per_frame(sigma))
     return blurred
 
-Note that the outermost dimension of a tensor used as a per-frame argument must
-match the number of frames in the sequences processed by a given operator.
-For instance, in the presented example, every ``video`` sequence has 50 frames,
+Note that the outermost dimension of each tensor from a batch specified as per-frame argument
+must match the number of frames in the corresponding sequence processed by a given operator.
+For instance, in the presented example, every sequence in ``video`` batch has 50 frames,
 thus the shape of ``sigma`` is ``(50,)``.
 
 Please consult documentation of a given argument of a sequence processing operator
