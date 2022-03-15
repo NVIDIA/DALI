@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -70,8 +70,13 @@ void AddMemStats(size_t size);
  */
 void PrintMemStats();
 
+#if NVJPEG_STREAM_ALLOC
+nvjpegDevAllocatorV2_t GetDeviceAllocator();
+nvjpegPinnedAllocatorV2_t GetPinnedAllocator();
+#else
 nvjpegDevAllocator_t GetDeviceAllocator();
 nvjpegPinnedAllocator_t GetPinnedAllocator();
+#endif
 
 #if NVJPEG2K_ENABLED
 nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k();

@@ -37,7 +37,7 @@ if(NVJPEG_FOUND)
   endif()
 
   set(CMAKE_REQUIRED_INCLUDES_OLD ${CMAKE_REQUIRED_INCLUDES_OLD})
-  set(CMAKE_REQUIRED_INCLUDES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+  set(CMAKE_REQUIRED_INCLUDES ${NVJPEG_INCLUDE_DIR} ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
   set(CMAKE_REQUIRED_LIBRARIES_OLD ${CMAKE_REQUIRED_LIBRARIES})
   foreach(DIR ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
     list(APPEND CMAKE_REQUIRED_LIBRARIES "-L${DIR}")
@@ -45,6 +45,7 @@ if(NVJPEG_FOUND)
 
   list(APPEND CMAKE_REQUIRED_LIBRARIES "${NVJPEG_LIBRARY}" cudart_static culibos dl m pthread rt)
   check_cxx_symbol_exists("nvjpegCreateEx" "nvjpeg.h" NVJPEG_LIBRARY_0_2_0)
+  check_cxx_symbol_exists("nvjpegCreateExV2" "nvjpeg.h" NVJPEG_STREAM_ALLOC)
   check_cxx_symbol_exists("nvjpegBufferPinnedCreate" "nvjpeg.h" NVJPEG_DECOUPLED_API)
   check_cxx_symbol_exists("nvjpegDecodeBatchedPreAllocate" "nvjpeg.h" NVJPEG_PREALLOCATE_API)
 

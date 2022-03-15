@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -106,7 +106,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         hw_decoder_load_ = 0;
         CUDA_CALL(nvjpegDestroy(handle_));
         LOG_LINE << "NVJPEG_BACKEND_HARDWARE is disabled due to performance reason" << std::endl;
+#if NVJPEG_STREAM_ALLOC
+        CUDA_CALL(nvjpegCreateExV2(NVJPEG_BACKEND_DEFAULT,
+            &device_allocator_, &pinned_allocator_, 0, &handle_));
+#else
         CUDA_CALL(nvjpegCreateSimple(&handle_));
+#endif
+
         DALI_WARN("Due to performance reason HW NVJPEG decoder is disbaled for the driver "
                   "older than 455.x");
       } else {
@@ -160,10 +166,20 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
     } else {
       LOG_LINE << "NVJPEG_BACKEND_HARDWARE is either disabled or not supported" << std::endl;
-      CUDA_CALL(nvjpegCreateSimple(&handle_));
+#if NVJPEG_STREAM_ALLOC
+        CUDA_CALL(nvjpegCreateExV2(NVJPEG_BACKEND_DEFAULT,
+            &device_allocator_, &pinned_allocator_, 0, &handle_));
+#else
+        CUDA_CALL(nvjpegCreateSimple(&handle_));
+#endif
     }
 #else
-    CUDA_CALL(nvjpegCreateSimple(&handle_));
+#if NVJPEG_STREAM_ALLOC
+      CUDA_CALL(nvjpegCreateExV2(NVJPEG_BACKEND_DEFAULT,
+            &device_allocator_, &pinned_allocator_, 0, &handle_));
+#else
+      CUDA_CALL(nvjpegCreateSimple(&handle_));
+#endif
 #endif
 
     size_t device_memory_padding = spec.GetArgument<Index>("device_memory_padding");
@@ -172,9 +188,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     size_t host_memory_padding_jpeg2k = spec.GetArgument<Index>("host_memory_padding_jpeg2k");
     CUDA_CALL(nvjpegSetDeviceMemoryPadding(device_memory_padding, handle_));
     CUDA_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding, handle_));
-
-    nvjpegDevAllocator_t *device_allocator_ptr = &device_allocator_;
-    nvjpegPinnedAllocator_t *pinned_allocator_ptr = &pinned_allocator_;
 
     nvjpeg_memory::SetEnableMemStats(spec.GetArgument<bool>("memory_stats"));
 
@@ -198,10 +211,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       CUDA_CALL(nvjpegJpegStreamCreate(handle_, &stream));
     }
     for (auto &buffer : pinned_buffers_) {
-      CUDA_CALL(nvjpegBufferPinnedCreate(handle_, pinned_allocator_ptr, &buffer));
+      CUDA_CALL(nvjpegBufferPinnedCreate(handle_, &pinned_allocator_, &buffer));
     }
     for (auto &buffer : device_buffers_) {
-      CUDA_CALL(nvjpegBufferDeviceCreate(handle_, device_allocator_ptr, &buffer));
+      CUDA_CALL(nvjpegBufferDeviceCreate(handle_, &device_allocator_, &buffer));
     }
     for (auto &stream : streams_) {
       CUDA_CALL(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking,
@@ -1091,8 +1104,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   std::vector<nvjpegDecodeParams_t> nvjpeg_params_;
 
   // Allocators
-  nvjpegDevAllocator_t device_allocator_;
-  nvjpegPinnedAllocator_t pinned_allocator_;
+  nvjpegDevAllocatorV2_t device_allocator_;
+  nvjpegPinnedAllocatorV2_t pinned_allocator_;
 
   ThreadPool thread_pool_;
   ThreadPool nvjpeg2k_thread_;

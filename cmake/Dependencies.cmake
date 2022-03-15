@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,6 +38,10 @@ if (BUILD_NVJPEG)
 
   if (${NVJPEG_LIBRARY_0_2_0})
     add_definitions(-DNVJPEG_LIBRARY_0_2_0)
+  endif()
+
+  if (${NVJPEG_STREAM_ALLOC})
+    add_definitions(-DNVJPEG_STREAM_ALLOC)
   endif()
 
   if (${NVJPEG_PREALLOCATE_API})

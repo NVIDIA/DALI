@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -356,6 +356,48 @@ static int HostNew(void **ptr, size_t size, unsigned int flags) {
   }
 }
 
+#if NVJPEG_STREAM_ALLOC
+
+template <typename memory_kind>
+int nvjpeg_alloc_async(void *resource, void **ptr, size_t size, cudaStream_t stream) {
+  try {
+    *ptr = static_cast<memory_resource<memory_kind>>*>(resource)->allocate_async(size, 256, stream);
+    return 0;
+  } catch (const std::bad_alloc &)
+    return cudaErrorMemoryAllocation;
+  } catch (const CUDAError &e) {
+    return e.is_drv_api() ? e.drv_error() : e.rt_error();
+  }
+}
+
+template <typename memory_kind>
+int nvjpeg_free(void *resource, void *ptr, size_t size, cudaStream_t stream) {
+  try {
+    static_cast<memory_resource<memory_kind>>*>(resource)->deallocate_async(ptr, size, 256, stream);
+    return 0;
+  } catch (const CUDAError &e) {
+    return e.is_drv_api() ? e.drv_error() : e.rt_error();
+  }
+}
+
+
+nvjpegDevAllocatorV2_t GetDeviceAllocator() {
+  nvjpegDevAllocatorV2_t allocator;
+  allocator.dev_malloc = &nvjpeg_alloc_async<memory_kind::device>;
+  allocator.dev_free = &nvjpeg_free_async<memory_kind::device>;
+  allocator.dev_ctx = rsrc;
+  return allocator;
+}
+
+nvjpegPinnedAllocatorV2_t GetPinnedAllocator() {
+  nvjpegPinnedAllocatorV2_t allocator;
+  allocator.pinned_malloc = &nvjpeg_alloc_async<memory_kind::pinned>;
+  allocator.pinned_free = &nvjpeg_free_async<memory_kind::pinned>;
+  allocator.pinned_ctx = rsrc;
+  return allocator;
+}
+
+#else
 nvjpegDevAllocator_t GetDeviceAllocator() {
   nvjpegDevAllocator_t allocator;
   allocator.dev_malloc = &DeviceNew;
@@ -369,6 +411,7 @@ nvjpegPinnedAllocator_t GetPinnedAllocator() {
   allocator.pinned_free = &ReturnBufferToPool;
   return allocator;
 }
+#endif
 
 #if NVJPEG2K_ENABLED
 nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k() {
