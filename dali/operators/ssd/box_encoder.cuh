@@ -68,7 +68,7 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
     stds_.Resize({BoundingBox::size}, DALI_FLOAT);
     auto stds_data = stds_.mutable_data<float>();
     MemCopy(stds_data, stds.data(), BoundingBox::size * sizeof(float));
-    cudaStreamSynchronize(0);
+    CUDA_CALL(cudaStreamSynchronize(0));
   }
 
   virtual ~BoxEncoder() = default;
