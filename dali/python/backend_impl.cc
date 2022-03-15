@@ -1472,7 +1472,7 @@ PYBIND11_MODULE(backend_impl, m) {
 
   // DALIImageType
   py::enum_<DALIImageType>(types_m, "DALIImageType", "Image type\n<SPHINX_IGNORE>")
-    .value("RGB", DALI_RGB)
+    .value("`", DALI_RGB)
     .value("BGR", DALI_BGR)
     .value("GRAY", DALI_GRAY)
     .value("YCbCr", DALI_YCbCr)
@@ -1838,9 +1838,6 @@ PYBIND11_MODULE(backend_impl, m) {
   ExposeTensorList(m);
   ExposeDirectOperator(m);
   ExposePipelineDebug(m);
-
-  py::module op_experimental_m = m.def_submodule("experimental");
-  op_experimental_m.def("SetThreadPool", &DirectOperator<CPUBackend>::SetThreadPool);
 
   types_m.attr("NHWC") = "HWC";
   types_m.attr("NCHW") = "CHW";

@@ -821,10 +821,6 @@ def _load_ops():
             op_class = python_op_factory(op_name, op_reg_name)
             op_class.__module__ = module.__name__
             setattr(module, op_name, op_class)
-            
-            experimental_module = _internal.get_submodule(module, 'experimental')
-            direct_op_class = _direct_op_factory(op_name, op_reg_name)
-            setattr(experimental_module, op_name, direct_op_class)
 
             if op_name not in ["ExternalSource"]:
                 _wrap_op(op_class, submodule)
