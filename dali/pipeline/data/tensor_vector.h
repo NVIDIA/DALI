@@ -63,6 +63,19 @@ class DLL_PUBLIC TensorVector {
     return tl_->order();
   }
 
+  /**
+   * @brief Sets the associated access order.
+   *
+   * @note The caller must ensure that if `order` represents a CUDA stream, that stream
+   *       is alive when this buffer is destroyed. This extends to buffers with which this
+   *       one shares data. Use CUDAStreamPool::instance to get streams with indefinite lifetime.
+   *
+   * @param order       The new access order (stream or host). If the new order doesn't have
+   *                    a value, the function has no effect.
+   * @param synchronize If true, an appropriate synchronization is inserted between the old
+   *                    and the new order. The caller may specify `false` if appropriate
+   *                    synchronization is guaranteed by other means.
+   */
   void set_order(AccessOrder order, bool synchronize = true);
 
   Tensor<Backend> &operator[](size_t pos) {
