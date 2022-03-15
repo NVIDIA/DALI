@@ -16,15 +16,31 @@
 #define DALI_PIPELINE_OPERATOR_DIRECT_OPERATOR_H_
 
 #include "dali/core/common.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/pipeline/data/tensor_list.h"
-#include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
 
+template <typename Backend>
+std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorList<Backend>> input) {
+  return input;
+}
+
+template <typename Backend>
+std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorVector<Backend>> input) {
+  auto tl = std::make_shared<TensorList<Backend>>();
+  tl->Copy(*input);
+  return tl;
+}
+
+/**
+ * @brief Direct operator providing direct execution of an operator in Run.
+ */
 template <typename Backend>
 class DLL_PUBLIC DirectOperator {
  public:
@@ -33,6 +49,7 @@ class DLL_PUBLIC DirectOperator {
         num_outputs(spec.GetSchema().NumOutput()),
         op(InstantiateOperator(spec)) {}
 
+  // Runs operator using shared thread pool and shared CUDA stream.
   template <typename InBackend, typename OutBackend>
   DLL_PUBLIC std::vector<std::shared_ptr<TensorList<OutBackend>>> Run(
       const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
@@ -40,6 +57,7 @@ class DLL_PUBLIC DirectOperator {
     DALI_FAIL("Unsupported backends in DirectOperator.Run().");
   }
 
+  // Runs operator using specified thread pool.
   template <typename InBackend, typename OutBackend>
   DLL_PUBLIC std::vector<std::shared_ptr<TensorList<OutBackend>>> Run(
       const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
@@ -48,6 +66,7 @@ class DLL_PUBLIC DirectOperator {
     DALI_FAIL("Unsupported backends in DirectOperator.Run() with thread pool.");
   }
 
+  // Runs operator using specified CUDA stream.
   template <typename InBackend, typename OutBackend>
   DLL_PUBLIC std::vector<std::shared_ptr<TensorList<OutBackend>>> Run(
       const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
@@ -60,8 +79,11 @@ class DLL_PUBLIC DirectOperator {
     shared_thread_pool = std::make_unique<ThreadPool>(num_threads, device_id, set_affinity);
   }
 
-  DLL_PUBLIC inline static void SetCudaStream(cudaStream_t cuda_stream) {
-    shared_cuda_stream = cuda_stream;
+  DLL_PUBLIC inline static void SetCudaStream(int device_id) {
+    if (device_id != CPU_ONLY_DEVICE_ID) {
+      DeviceGuard g(device_id);
+      shared_cuda_stream = CUDAStreamPool::instance().Get(device_id);
+    }
   }
 
  private:
@@ -150,6 +172,7 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> DirectOperator<Backend>::Ru
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs) {
   ws.Clear();
 
+  // Converts and adds inputs to the workspace.
   for (auto &input : inputs) {
     auto tensor_in = std::make_shared<WSInputType>();
     tensor_in->ShareData(*input);
@@ -171,7 +194,7 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> DirectOperator<Backend>::Ru
 
   ws.SetBatchSizes(batch_size);
 
-  // Setup outputs. We need to SetBatchSizes first, so we cannot do it in the previous loop.
+  // Setup outputs.
   if (op->Setup(output_desc, ws) && op->CanInferOutputs()) {
     for (size_t i = 0; i < num_outputs; ++i) {
       ws.template Output<OutBackend>(i).Resize(output_desc[i].shape, output_desc[i].type);
@@ -181,10 +204,8 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> DirectOperator<Backend>::Ru
   op->Run(ws);
 
   for (size_t i = 0; i < num_outputs; ++i) {
-    // TODO(ksztenderski): Remove Copy
-    auto tl = std::make_shared<TensorList<OutBackend>>();
-    tl->Copy(ws.template Output<OutBackend>(i));
-    outputs.push_back(tl);
+    // TODO(ksztenderski): Remove Copy for TV.
+    outputs.push_back(AsTensorList<OutBackend>(ws.template OutputPtr<OutBackend>(i)));
   }
 
   return outputs;
