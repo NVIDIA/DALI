@@ -106,7 +106,7 @@ class DLL_PUBLIC AccessOrder {
    *
    * Waits for work scheduled in `other` order to complete. If `other` is host, this function
    * is a no-op.
-   * If either `other` or `this` is a null order, this function has no efect.
+   * If either `other` or `this` is a null order, this function has no effect.
    *
    * @note `wait` is transitive with a notable exception of null streams, for which the funcion
    * is a no-op and can break transitivity.
@@ -133,7 +133,7 @@ class DLL_PUBLIC AccessOrder {
   /**
    * @brief Waits in `this` ordering context for a CUDA event
    *
-   * This function executes cudaStreamWaitEvent in case `this` is a stream or
+   * This function executes `cudaStreamWaitEvent` in case `this` is a stream, or
    * `cudaEventSynchronize` if `this` is host-sync.
    *
    * @note This function is a no-op if `this` is a null order.
