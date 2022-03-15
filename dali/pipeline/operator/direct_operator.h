@@ -107,6 +107,7 @@ std::vector<std::shared_ptr<TensorList<CPUBackend>>> DirectOperator<CPUBackend>:
     const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     ThreadPool *thread_pool) {
+  ws.Clear();
   ws.SetThreadPool(thread_pool);
 
   return RunImpl<CPUBackend, CPUBackend, TensorVector<CPUBackend>, TensorVector<CPUBackend>>(
@@ -119,6 +120,7 @@ std::vector<std::shared_ptr<TensorList<GPUBackend>>> DirectOperator<GPUBackend>:
     const std::vector<std::shared_ptr<TensorList<GPUBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     cudaStream_t cuda_stream) {
+  ws.Clear();
   ws.set_stream(cuda_stream);
   CUDA_CALL(cudaStreamSynchronize(cuda_stream));
   auto output = RunImpl<GPUBackend, GPUBackend, TensorList<GPUBackend>, TensorList<GPUBackend>>(
@@ -133,6 +135,7 @@ std::vector<std::shared_ptr<TensorList<GPUBackend>>> DirectOperator<MixedBackend
     const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     cudaStream_t cuda_stream) {
+  ws.Clear();
   ws.set_stream(cuda_stream);
   CUDA_CALL(cudaStreamSynchronize(cuda_stream));
   auto output = RunImpl<CPUBackend, GPUBackend, TensorVector<CPUBackend>, TensorList<GPUBackend>>(
@@ -170,8 +173,6 @@ template <typename InBackend, typename OutBackend, typename WSInputType, typenam
 std::vector<std::shared_ptr<TensorList<OutBackend>>> DirectOperator<Backend>::RunImpl(
     const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs) {
-  ws.Clear();
-
   // Converts and adds inputs to the workspace.
   for (auto &input : inputs) {
     auto tensor_in = std::make_shared<WSInputType>();

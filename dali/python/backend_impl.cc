@@ -1472,7 +1472,7 @@ PYBIND11_MODULE(backend_impl, m) {
 
   // DALIImageType
   py::enum_<DALIImageType>(types_m, "DALIImageType", "Image type\n<SPHINX_IGNORE>")
-    .value("`", DALI_RGB)
+    .value("RGB", DALI_RGB)
     .value("BGR", DALI_BGR)
     .value("GRAY", DALI_GRAY)
     .value("YCbCr", DALI_YCbCr)

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import inspect
-from multiprocessing.sharedctypes import Value
 from queue import Queue
 
 import nvidia.dali.backend as _b
@@ -378,9 +377,12 @@ class _PipelineDebug(_pipeline.Pipeline):
 
         return init_args, call_args, classification
 
-    def _create_op(self, op_name, kwargs):
+    def _create_op(self, op_name, inputs, kwargs):
         """Creates callable operator."""
         init_args, _, kwargs_classification = _PipelineDebug._separate_kwargs(kwargs)
+        
+        if 'device' not in init_args and len(inputs) > 0:
+            init_args['device'] = _PipelineDebug._classify_data(inputs[0])[1]
 
         if 'seed' not in init_args and op_name != '_arithm_op':
             init_args['seed'] = self._seed_generator.integers(0, 2**32)
@@ -464,8 +466,10 @@ class _PipelineDebug(_pipeline.Pipeline):
                 call_args[key] = data
 
         input_sets = op_base._prep_input_sets(_PipelineDebug._unpack_from_data_node_debug(inputs))
-        op_device = kwargs.get('device', 'cpu')
+        op_device = init_args.get('device', 'cpu')
+        print(call_args)
         res = [self._run_op_on_device(op_name, op_device, input, call_args) for input in input_sets]
+        print(call_args)
 
         if len(res) == 1:
             res = _PipelineDebug._pack_to_data_node_debug(res[0], op_name)
@@ -483,7 +487,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         key = inspect.getframeinfo(
             inspect.currentframe().f_back.f_back)[:3] + (self._cur_op_id,)
         if not self._ops_built:
-            self._ops[key] = self._create_op(op_name, kwargs) + (len(inputs),)
+            self._ops[key] = self._create_op(op_name, inputs, kwargs) + (len(inputs),)
 
         if key in self._ops:
             return self._run_op(self._ops[key], op_name, inputs, kwargs)

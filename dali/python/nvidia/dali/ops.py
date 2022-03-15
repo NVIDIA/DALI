@@ -14,7 +14,6 @@
 
 #pylint: disable=no-member
 import ast
-from distutils.log import error
 import sys
 import threading
 import warnings
@@ -715,7 +714,7 @@ def python_op_factory(name, schema_name = None):
     return Operator
 
 
-def _direct_op_factory(name, schema_name=None, callable=True):    
+def _direct_op_factory(name, schema_name=None, callable=True):
     class DirectOperatorBase(_OperatorBase):
         def _prep_input_sets(self, inputs):
             from nvidia.dali._debug_mode import _transform_data_to_tensorlist
@@ -772,7 +771,6 @@ def _direct_op_factory(name, schema_name=None, callable=True):
 
     DirectOperator.__name__ = str(name)
     DirectOperator.schema_name = schema_name or DirectOperator.__name__
-    DirectOperator.__call__.__doc__ = _docstring_generator_call(DirectOperator.schema_name)
     
     if callable:
         return DirectOperator
