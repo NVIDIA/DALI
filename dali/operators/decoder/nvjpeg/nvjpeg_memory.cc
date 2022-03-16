@@ -306,7 +306,7 @@ static int DeviceNew(void **ptr, size_t size) {
     *ptr = nullptr;
     return cudaErrorMemoryAllocation;
   } catch (const CUDAError &e) {
-    return e.is_rt_api() ? e.rt_error() : cudaErrorUnknown;
+    return e.is_rt_api() ? static_cast<int>(e.rt_error()) : static_cast<int>(cudaErrorUnknown);
   } catch (...) {
     *ptr = nullptr;
     return cudaErrorUnknown;
@@ -356,43 +356,51 @@ static int HostNew(void **ptr, size_t size, unsigned int flags) {
   }
 }
 
-#if NVJPEG_STREAM_ALLOC
+#ifdef NVJPEG_STREAM_ALLOC
+
+using mm::async_memory_resource;
 
 template <typename memory_kind>
 int nvjpeg_alloc_async(void *resource, void **ptr, size_t size, cudaStream_t stream) {
   try {
-    *ptr = static_cast<memory_resource<memory_kind>>*>(resource)->allocate_async(size, 256, stream);
+    *ptr = static_cast<async_memory_resource<memory_kind>*>(resource)->allocate_async(
+      size, 256, stream);
     return 0;
-  } catch (const std::bad_alloc &)
+  } catch (const std::bad_alloc &) {
     return cudaErrorMemoryAllocation;
   } catch (const CUDAError &e) {
-    return e.is_drv_api() ? e.drv_error() : e.rt_error();
+    return e.is_drv_api() ? static_cast<int>(e.drv_error()) : static_cast<int>(e.rt_error());
   }
 }
 
 template <typename memory_kind>
-int nvjpeg_free(void *resource, void *ptr, size_t size, cudaStream_t stream) {
+int nvjpeg_free_async(void *resource, void *ptr, size_t size, cudaStream_t stream) {
   try {
-    static_cast<memory_resource<memory_kind>>*>(resource)->deallocate_async(ptr, size, 256, stream);
+    static_cast<async_memory_resource<memory_kind>*>(resource)->deallocate_async(
+      ptr, size, 256, stream);
     return 0;
   } catch (const CUDAError &e) {
-    return e.is_drv_api() ? e.drv_error() : e.rt_error();
+    return e.is_drv_api() ? static_cast<int>(e.drv_error()) : static_cast<int>(e.rt_error());
   }
 }
 
 
 nvjpegDevAllocatorV2_t GetDeviceAllocator() {
   nvjpegDevAllocatorV2_t allocator;
-  allocator.dev_malloc = &nvjpeg_alloc_async<memory_kind::device>;
-  allocator.dev_free = &nvjpeg_free_async<memory_kind::device>;
+  using kind = mm::memory_kind::device;
+  async_memory_resource<kind> *rsrc = mm::GetDefaultResource<kind>();
+  allocator.dev_malloc = &nvjpeg_alloc_async<kind>;
+  allocator.dev_free = &nvjpeg_free_async<kind>;  allocator.dev_ctx = rsrc;
   allocator.dev_ctx = rsrc;
   return allocator;
 }
 
 nvjpegPinnedAllocatorV2_t GetPinnedAllocator() {
   nvjpegPinnedAllocatorV2_t allocator;
-  allocator.pinned_malloc = &nvjpeg_alloc_async<memory_kind::pinned>;
-  allocator.pinned_free = &nvjpeg_free_async<memory_kind::pinned>;
+  using kind = mm::memory_kind::pinned;
+  async_memory_resource<kind> *rsrc = mm::GetDefaultResource<kind>();
+  allocator.pinned_malloc = &nvjpeg_alloc_async<kind>;
+  allocator.pinned_free = &nvjpeg_free_async<kind>;
   allocator.pinned_ctx = rsrc;
   return allocator;
 }

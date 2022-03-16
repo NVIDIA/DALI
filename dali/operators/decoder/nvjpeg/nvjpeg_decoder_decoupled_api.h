@@ -106,7 +106,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         hw_decoder_load_ = 0;
         CUDA_CALL(nvjpegDestroy(handle_));
         LOG_LINE << "NVJPEG_BACKEND_HARDWARE is disabled due to performance reason" << std::endl;
-#if NVJPEG_STREAM_ALLOC
+#ifdef NVJPEG_STREAM_ALLOC
         CUDA_CALL(nvjpegCreateExV2(NVJPEG_BACKEND_DEFAULT,
             &device_allocator_, &pinned_allocator_, 0, &handle_));
 #else
@@ -166,7 +166,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
     } else {
       LOG_LINE << "NVJPEG_BACKEND_HARDWARE is either disabled or not supported" << std::endl;
-#if NVJPEG_STREAM_ALLOC
+#ifdef NVJPEG_STREAM_ALLOC
         CUDA_CALL(nvjpegCreateExV2(NVJPEG_BACKEND_DEFAULT,
             &device_allocator_, &pinned_allocator_, 0, &handle_));
 #else
@@ -174,7 +174,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
     }
 #else
-#if NVJPEG_STREAM_ALLOC
+#ifdef NVJPEG_STREAM_ALLOC
       CUDA_CALL(nvjpegCreateExV2(NVJPEG_BACKEND_DEFAULT,
             &device_allocator_, &pinned_allocator_, 0, &handle_));
 #else
@@ -211,10 +211,18 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       CUDA_CALL(nvjpegJpegStreamCreate(handle_, &stream));
     }
     for (auto &buffer : pinned_buffers_) {
+#ifdef NVJPEG_STREAM_ALLOC
+      CUDA_CALL(nvjpegBufferPinnedCreateV2(handle_, &pinned_allocator_, &buffer));
+#else
       CUDA_CALL(nvjpegBufferPinnedCreate(handle_, &pinned_allocator_, &buffer));
+#endif
     }
     for (auto &buffer : device_buffers_) {
+#ifdef NVJPEG_STREAM_ALLOC
+      CUDA_CALL(nvjpegBufferDeviceCreateV2(handle_, &device_allocator_, &buffer));
+#else
       CUDA_CALL(nvjpegBufferDeviceCreate(handle_, &device_allocator_, &buffer));
+#endif
     }
     for (auto &stream : streams_) {
       CUDA_CALL(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking,
@@ -1104,8 +1112,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   std::vector<nvjpegDecodeParams_t> nvjpeg_params_;
 
   // Allocators
+#ifdef NVJPEG_STREAM_ALLOC
   nvjpegDevAllocatorV2_t device_allocator_;
   nvjpegPinnedAllocatorV2_t pinned_allocator_;
+#else
+  nvjpegDevAllocator_t device_allocator_;
+  nvjpegPinnedAllocator_t pinned_allocator_;
+#endif
 
   ThreadPool thread_pool_;
   ThreadPool nvjpeg2k_thread_;
