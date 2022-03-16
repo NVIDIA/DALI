@@ -103,9 +103,41 @@ class DLL_PUBLIC AccessOrder {
 
   /**
    * @brief Waits in `this` ordering context for the work scheduled in the `other` order.
+   *
+   * Waits for work scheduled in `other` order to complete. If `other` is host, this function
+   * is a no-op.
+   * If either `other` or `this` is a null order, this function has no effect.
+   *
+   * @note `wait` is transitive with a notable exception of null streams, for which the funcion
+   * is a no-op and can break transitivity.
+   *
+   * ```
+   * AccessOrder o1(stream1), o2(stream2), o3(stream3);
+   * o2.wait(o1);
+   * o3.wait(o2);  // o3 is now synchronized with o1
+   * ```
+   * ```
+   * AccessOrder o1(stream1), o2(AccessOrder::host()), o3(stream3);
+   * o2.wait(o1);  // waits for o1 on host
+   * o3.wait(o2);  // no-op, but host is now synchronized with o1, so all new work in o3 will
+   *               // be scheduled after o2.wait(o1);
+   * ```
+   * ```
+   * AccessOrder o1(stream1), o2{}, o3(stream3);
+   * o2.wait(o1);  // no-op
+   * o3.wait(o2);  // no-op - o3 is not synchronized with o1!
+   * ```
    */
   void wait(const AccessOrder &other) const;
 
+  /**
+   * @brief Waits in `this` ordering context for a CUDA event
+   *
+   * This function executes `cudaStreamWaitEvent` in case `this` is a stream, or
+   * `cudaEventSynchronize` if `this` is host-sync.
+   *
+   * @note This function is a no-op if `this` is a null order.
+   */
   void wait(cudaEvent_t event) const;
 
   bool operator==(const AccessOrder &other) const noexcept {
