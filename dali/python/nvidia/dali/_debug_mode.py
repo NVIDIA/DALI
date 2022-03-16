@@ -55,79 +55,81 @@ class DataNodeDebug(_DataNode):
         return self._data.shape()
 
     def __add__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["add", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["add", self, other], {})
 
     def __radd__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["add", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["add", other, self], {})
 
     def __sub__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["sub", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["sub", self, other], {})
 
     def __rsub__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["sub", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["sub", other, self], {})
 
     def __mul__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["mul", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["mul", self, other], {})
 
     def __rmul__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["mul", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["mul", other, self], {})
 
     def __pow__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["pow", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["pow", self, other], {})
 
     def __rpow__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["pow", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["pow", other, self], {})
 
     def __truediv__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["fdiv", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["fdiv", self, other], {})
 
     def __rtruediv__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["fdiv", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["fdiv", other, self], {})
 
     def __floordiv__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["div", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["div", self, other], {})
 
     def __rfloordiv__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["div", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["div", other, self], {})
 
     def __neg__(self):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["minus", self], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["minus", self], {})
 
     def __eq__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["eq", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["eq", self, other], {})
 
     def __ne__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["neq", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["neq", self, other], {})
 
     def __lt__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["lt", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["lt", self, other], {})
 
     def __le__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["leq", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["leq", self, other], {})
 
     def __gt__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["gt", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["gt", self, other], {})
 
     def __ge__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["geq", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["geq", self, other], {})
 
     def __and__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["bitand", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["bitand", self, other], {})
 
     def __rand__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["bitand", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["bitand", other, self], {})
 
     def __or__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["bitor", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["bitor", self, other], {})
 
     def __ror__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["bitor", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["bitor", other, self], {})
 
     def __xor__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["bitxor", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["bitxor", self, other], {})
 
     def __rxor__(self, other):
-        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["bitxor", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call(DataNodeDebug._arithm_op_name, ["bitxor", other, self], {})
+
+    _arithm_op_name = 'ArithmeticGenericOp'
 
 
 def _transform_data_to_tensorlist(data, batch_size, layout=None, device_id=None):
@@ -245,8 +247,7 @@ class _ExternalSourceDebug:
 
 
 class _PipelineDebug(_pipeline.Pipeline):
-    """Debug mode for pipeline. Allows access to data inside the pipeline execution by wrapping all
-     operators inside their pipelines"""
+    """Debug mode for pipeline. Allows access to data inside the pipeline execution."""
 
     def __init__(self, exec_func, **kwargs):
         super().__init__(**kwargs)
@@ -272,6 +273,9 @@ class _PipelineDebug(_pipeline.Pipeline):
 
     def build(self):
         """Build the pipeline.
+
+        Symbolic version of build from the standard pipeline. In debug mode operators are built during
+        the first run of the pipeline.
 
         Refer to :meth:`Pipeline.build() <nvidia.dali.Pipeline.build>` for details."""
         self._built = True
@@ -323,11 +327,13 @@ class _PipelineDebug(_pipeline.Pipeline):
 
     @staticmethod
     def _classify_data(data):
-        """ Returns tuple (use_external_source, device, unpacked data).
-        Based on data type determines if we should use external_source and with which device. If the type can be
-        recognized as a batch without being falsely categorized as such, it is. This includes lists of supported
-        tensor-like objects e.g. numpy arrays (the only list not treated as a batch is a list of objects of
-        primitive types), :class:`DataNodeDebug` and TensorLists.
+        """ Returns tuple (is_batch, device, unpacked data).
+
+        Based on data type determines if data should be treated as a batch and with which device.
+        If the type can be recognized as a batch without being falsely categorized as such, it is.
+        This includes lists of supported tensor-like objects e.g. numpy arrays (the only list not
+        treated as a batch is a list of objects of primitive types), :class:`DataNodeDebug` and
+        TensorLists.
         """
 
         def is_primitive_type(x):
@@ -378,18 +384,21 @@ class _PipelineDebug(_pipeline.Pipeline):
 
     @staticmethod
     def _create_arithm_op(init_args, name, *inputs):
-        categories_idxs, edges, integers, reals = _ops._group_inputs(inputs)
+        """Initializes arithmetic operator and returns inputs that are DataNodes."""
+
+        categories_idxs, data_nodes, integers, reals = _ops._group_inputs(inputs)
         input_desc = _ops._generate_input_desc(categories_idxs, integers, reals)
-        expression_desc = "{}({})".format(name, input_desc)
-        dev = _ops._choose_device(edges)
-        init_args['device'] = dev
-        init_args['expression_desc'] = expression_desc
+
+        init_args['device'] = _ops._choose_device(data_nodes)
+        init_args['expression_desc'] = "{}({})".format(name, input_desc)
         init_args['integer_constants'] = integers
         init_args['real_constants'] = reals
-        return edges
+
+        return data_nodes
 
     def _create_op(self, op_name, inputs, kwargs):
-        """Creates callable operator."""
+        """Creates direct operator."""
+
         init_args, call_args, kwargs_classification = _PipelineDebug._separate_kwargs(kwargs)
 
         if op_name == 'ArithmeticGenericOp':
@@ -407,6 +416,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         op_base = _ops._direct_op_factory(op_name, callable=False)(**init_args)
 
         for arg_name in call_args.keys():
+            # To use argument inputs OpSpec needs it specified (can be an empty placeholder).
             op_base._spec.AddArgumentInput(arg_name, '')
 
         self._pipe.AddOperator(op_base._spec, self._cur_op_id)
@@ -442,43 +452,53 @@ class _PipelineDebug(_pipeline.Pipeline):
 
         raise ValueError(f"Unknown device: '{device}' in operator '{op_name}'.")
 
-    @staticmethod
-    def _pack_to_data_node_debug(data, op_name):
+    def _pack_to_data_node_debug(self, data, op_name):
         if isinstance(data, (list, tuple)):
-            return [_PipelineDebug._pack_to_data_node_debug(elem, op_name) for elem in data]
+            return [self._pack_to_data_node_debug(elem, op_name) for elem in data]
 
-        # TODO(ksztenderski): Assign proper name and source.
-        return DataNodeDebug(data, op_name, 'gpu' if isinstance(data, _tensors.TensorListGPU) else 'cpu', None)
+        return DataNodeDebug(data, op_name, 'gpu' if isinstance(data, _tensors.TensorListGPU) else 'cpu', self)
 
     def _run_op(self, op_tuple, op_name, inputs, kwargs):
+        """Run a single operator."""
+
+        def check_arg_len(expected_len, actual_len, args_type):
+            if expected_len != actual_len:
+                raise RuntimeError(f"Trying to use operator '{op_name}' with different number of {args_type} than when"
+                                   f" it was built. Expected: {expected_len} {args_type}, got {actual_len}.")
+
+        def check_classification(expected_is_batch, actual_is_batch, arg_type, value):
+            def classification_to_str(is_batch):
+                return 'batch' if is_batch else 'constant'
+
+            if expected_is_batch != actual_is_batch:
+                expected_str = classification_to_str(expected_is_batch)
+                actual_str = classification_to_str(actual_is_batch)
+
+                raise RuntimeError(f"In operator '{op_name}' {arg_type} {value} recognized as {actual_str} but built value"
+                                   f" in its place was recognized as {expected_str}.")
+
         op_base, init_args, inputs_classification, kwargs_classification, expected_inputs_size = op_tuple
 
-        if expected_inputs_size != len(inputs):
-            raise RuntimeError(f"Trying to use operator '{op_name}' with different number of inputs than when"
-                               f" it was built. {expected_inputs_size} != {len(inputs)}")
-        if len(kwargs_classification) != len(kwargs):
-            raise RuntimeError(f"Trying to use operator '{op_name}' with different number of keyward arguments"
-                               " than when it was built.")
-
-        def unexpected_argument_msg(is_batch):
-            return f"recognized as {'batch' if is_batch else 'constant'} but when built value" \
-                f" in its place was recognized as {'constant' if is_batch else 'batch'}"
+        check_arg_len(expected_inputs_size, len(inputs), 'inputs')
+        check_arg_len(len(kwargs_classification), len(kwargs), 'keyward arguments')
 
         call_args = {}
         inputs = list(inputs)
 
+        # Check inputs classification as batches and extract data from DataNodeDebugs.
         for i, input in enumerate(inputs):
             classification, _, data = _PipelineDebug._classify_data(input)
-            if classification != inputs_classification[i]:
-                raise RuntimeError(
-                    f"In operator '{op_name}' input {input} {unexpected_argument_msg(classification)}.")
-            inputs[i] = input
 
+            check_classification(inputs_classification[i], classification, 'input', input)
+
+            inputs[i] = data
+
+        # Check kwargs classification as batches and setup call args.
         for key, value in kwargs.items():
             is_batch, _, data = _PipelineDebug._classify_data(value)
-            if is_batch != kwargs_classification[key]:
-                raise RuntimeError(
-                    f"In operator '{op_name}' argument '{key}' {unexpected_argument_msg(is_batch)}")
+
+            check_classification(kwargs_classification[key], is_batch, 'argument', key)
+
             if not is_batch and data != init_args[key]:
                 raise RuntimeError(
                     f"In operator '{op_name}' argument '{key}' unexpectedly changed value from '{init_args[key]}' to '{data}'")
@@ -487,13 +507,14 @@ class _PipelineDebug(_pipeline.Pipeline):
 
         input_sets = op_base._prep_input_sets(inputs)
         op_device = init_args.get('device', 'cpu')
+
         res = [self._run_op_on_device(op_name, op_device, input, call_args) for input in input_sets]
 
         if len(res) == 1:
-            res = _PipelineDebug._pack_to_data_node_debug(res[0], op_name)
+            res = self._pack_to_data_node_debug(res[0], op_name)
         else:
             res = op_base._repack_output_sets(res)
-            res = _PipelineDebug._pack_to_data_node_debug(res, op_name)
+            res = self._pack_to_data_node_debug(res, op_name)
 
         if len(res) == 1:
             return res[0]
@@ -501,11 +522,19 @@ class _PipelineDebug(_pipeline.Pipeline):
         return res
 
     @staticmethod
-    def _prep_arithm_op_inputs(_, *inputs):
-        _, edges, _, _ = _ops._group_inputs(inputs)
-        if _ops._choose_device(edges) == "gpu":
-            edges = list(edge.gpu() for edge in edges)
-        return edges
+    def _extract_data_node_inputs(_, *inputs):
+        """Extracts DataNodeDebugs from inputs for arithmetic operator and transforms data to GPU if needed."""
+        data_nodes = []
+        to_gpu = any([input.device == 'gpu' for input in inputs if isinstance(input, DataNodeDebug)])
+
+        for input in inputs:
+            if isinstance(input, DataNodeDebug):
+                if to_gpu and input.device != 'gpu':
+                    data_nodes.append(input.gpu())
+                else:
+                    data_nodes.append(input)
+
+        return data_nodes
 
     def _wrap_op_call(self, op_name, inputs, kwargs):
         self._cur_op_id += 1
@@ -516,7 +545,7 @@ class _PipelineDebug(_pipeline.Pipeline):
 
         if key in self._ops:
             if op_name == 'ArithmeticGenericOp':
-                inputs = _PipelineDebug._prep_arithm_op_inputs(*inputs)
+                inputs = _PipelineDebug._extract_data_node_inputs(*inputs)
             return self._run_op(self._ops[key], op_name, inputs, kwargs)
         else:
             raise RuntimeError(f"Unexpected operator '{op_name}'. Debug mode does not support"

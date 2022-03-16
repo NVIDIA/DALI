@@ -15,7 +15,10 @@
 #ifndef DALI_PIPELINE_OPERATOR_DIRECT_OPERATOR_H_
 #define DALI_PIPELINE_OPERATOR_DIRECT_OPERATOR_H_
 
-#include "dali/core/common.h"
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/operator/op_spec.h"
@@ -33,13 +36,14 @@ std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorList<Bac
 
 template <typename Backend>
 std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorVector<Backend>> input) {
+  // TODO(ksztenderski): Remove copy.
   auto tl = std::make_shared<TensorList<Backend>>();
   tl->Copy(*input);
   return tl;
 }
 
 /**
- * @brief Direct operator providing direct execution of an operator in Run.
+ * @brief Direct operator providing eager execution of an operator in Run.
  */
 template <typename Backend>
 class DLL_PUBLIC DirectOperator {
@@ -76,10 +80,12 @@ class DLL_PUBLIC DirectOperator {
     DALI_FAIL("Unsupported backends in DirectOperator.Run() with CUDA stream");
   }
 
+  // Set shared thread pool used for all direct operators.
   DLL_PUBLIC inline static void SetThreadPool(int num_threads, int device_id, bool set_affinity) {
     shared_thread_pool = std::make_unique<ThreadPool>(num_threads, device_id, set_affinity);
   }
 
+  // Set shared CUDA stream used for all direct operators.
   DLL_PUBLIC inline static void SetCudaStream(int device_id) {
     if (device_id != CPU_ONLY_DEVICE_ID) {
       DeviceGuard g(device_id);
@@ -175,10 +181,12 @@ template <typename InBackend, typename OutBackend, typename WSInputType, typenam
 std::vector<std::shared_ptr<TensorList<OutBackend>>> DirectOperator<Backend>::RunImpl(
     const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs) {
-  // Converts and adds inputs to the workspace.
+  // Convert and add inputs to the workspace.
   for (size_t in_idx = 0; in_idx < inputs.size(); ++in_idx) {
     auto tensor_in = std::make_shared<WSInputType>();
     tensor_in->ShareData(*inputs[in_idx]);
+
+    // Set default layout for input if not specified.
     if (tensor_in->GetLayout().empty()) {
       auto default_layout = op_spec.GetSchema().GetInputLayout(
           in_idx, tensor_in->shape().sample_dim(), tensor_in->GetLayout());
@@ -186,6 +194,7 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> DirectOperator<Backend>::Ru
         tensor_in->SetLayout(default_layout);
       }
     }
+
     ws.AddInput(tensor_in);
   }
 
@@ -214,7 +223,6 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> DirectOperator<Backend>::Ru
   op->Run(ws);
 
   for (size_t i = 0; i < num_outputs; ++i) {
-    // TODO(ksztenderski): Remove Copy for TV.
     outputs.push_back(AsTensorList<OutBackend>(ws.template OutputPtr<OutBackend>(i)));
   }
 

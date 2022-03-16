@@ -730,6 +730,7 @@ def _direct_op_factory(name, schema_name=None, callable=True):
 
             return self._build_input_sets(inputs)
 
+    # TODO(ksztenderski): Just a template for eager operator.
     class DirectOperator(DirectOperatorBase):
         def __init__(self, batch_size=-1, device_id=0, cuda_stream=None, **kwargs):
             # Here all kwargs are supposed to be constants.
