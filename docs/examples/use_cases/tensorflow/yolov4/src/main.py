@@ -15,14 +15,11 @@
 
 from model import YOLOv4Model
 from dali.pipeline import YOLOv4Pipeline
-import numpy as np
 
 from img import read_img, draw_img, save_img, add_bboxes
 import inference
 import train
 
-import math
-import sys
 import os
 
 
