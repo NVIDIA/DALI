@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ NVMLRIVER loadNvmlLibrary() {
     ret = dlopen(__NvmlLibName, RTLD_NOW);
 
     if (!ret) {
-      printf("dlopen \"%s\" failed!\n", __NvmlLibName);
+      fprintf(stderr, "dlopen libnvidia-ml.so failed!. Please install GPU dirver");
     }
   }
   return ret;

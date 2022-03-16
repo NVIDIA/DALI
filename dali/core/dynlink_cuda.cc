@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ CUDADRIVER loadCudaLibrary() {
     ret = dlopen(__CudaLibName, RTLD_NOW);
 
     if (!ret) {
-      printf("dlopen \"%s\" failed!\n", __CudaLibName);
+      fprintf(stderr, "dlopen libcuda.so failed!. Please install GPU dirver");
     }
   }
   return ret;
