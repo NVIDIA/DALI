@@ -401,6 +401,9 @@ class _PipelineDebug(_pipeline.Pipeline):
             if 'seed' not in init_args:
                 init_args['seed'] = self._seed_generator.integers(0, 2**32)
 
+        # Save inputs classification for later verification.
+        inputs_classification = [_PipelineDebug._classify_data(input)[0] for input in inputs]
+
         op_base = _ops._direct_op_factory(op_name, callable=False)(**init_args)
 
         for arg_name in call_args.keys():
@@ -408,7 +411,7 @@ class _PipelineDebug(_pipeline.Pipeline):
 
         self._pipe.AddOperator(op_base._spec, self._cur_op_id)
 
-        return op_base, init_args, kwargs_classification, len(inputs)
+        return op_base, init_args, inputs_classification, kwargs_classification, len(inputs)
 
     def _external_source(self, name=None, **kwargs):
         self._cur_op_id += 1
@@ -447,18 +450,8 @@ class _PipelineDebug(_pipeline.Pipeline):
         # TODO(ksztenderski): Assign proper name and source.
         return DataNodeDebug(data, op_name, 'gpu' if isinstance(data, _tensors.TensorListGPU) else 'cpu', None)
 
-    @staticmethod
-    def _unpack_from_data_node_debug(data):
-        if isinstance(data, (list, tuple)):
-            return [_PipelineDebug._unpack_from_data_node_debug(elem) for elem in data]
-
-        if isinstance(data, DataNodeDebug):
-            return data.get()
-
-        return data
-
     def _run_op(self, op_tuple, op_name, inputs, kwargs):
-        op_base, init_args, kwargs_classification, expected_inputs_size = op_tuple
+        op_base, init_args, inputs_classification, kwargs_classification, expected_inputs_size = op_tuple
 
         if expected_inputs_size != len(inputs):
             raise RuntimeError(f"Trying to use operator '{op_name}' with different number of inputs than when"
@@ -467,23 +460,32 @@ class _PipelineDebug(_pipeline.Pipeline):
             raise RuntimeError(f"Trying to use operator '{op_name}' with different number of keyward arguments"
                                " than when it was built.")
 
-        def unexpected_argument_msg(key, is_batch):
-            return f"In operator '{op_name}' argument '{key}' recognized as {'batch' if is_batch else 'constant'} but when built value" \
+        def unexpected_argument_msg(is_batch):
+            return f"recognized as {'batch' if is_batch else 'constant'} but when built value" \
                 f" in its place was recognized as {'constant' if is_batch else 'batch'}"
 
         call_args = {}
+        inputs = list(inputs)
+
+        for i, input in enumerate(inputs):
+            classification, _, data = _PipelineDebug._classify_data(input)
+            if classification != inputs_classification[i]:
+                raise RuntimeError(
+                    f"In operator '{op_name}' input {input} {unexpected_argument_msg(classification)}.")
+            inputs[i] = input
 
         for key, value in kwargs.items():
             is_batch, _, data = _PipelineDebug._classify_data(value)
             if is_batch != kwargs_classification[key]:
-                raise RuntimeError(unexpected_argument_msg(key, is_batch))
+                raise RuntimeError(
+                    f"In operator '{op_name}' argument '{key}' {unexpected_argument_msg(is_batch)}")
             if not is_batch and data != init_args[key]:
                 raise RuntimeError(
                     f"In operator '{op_name}' argument '{key}' unexpectedly changed value from '{init_args[key]}' to '{data}'")
             if is_batch:
                 call_args[key] = data
 
-        input_sets = op_base._prep_input_sets(_PipelineDebug._unpack_from_data_node_debug(inputs))
+        input_sets = op_base._prep_input_sets(inputs)
         op_device = init_args.get('device', 'cpu')
         res = [self._run_op_on_device(op_name, op_device, input, call_args) for input in input_sets]
 

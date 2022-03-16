@@ -47,6 +47,7 @@ class DLL_PUBLIC DirectOperator {
   DLL_PUBLIC inline DirectOperator(const OpSpec &spec)
       : batch_size(spec.GetArgument<int>("max_batch_size")),
         num_outputs(spec.GetSchema().NumOutput()),
+        op_spec(spec),
         op(InstantiateOperator(spec)) {}
 
   // Runs operator using shared thread pool and shared CUDA stream.
@@ -95,6 +96,7 @@ class DLL_PUBLIC DirectOperator {
   int batch_size;
   size_t num_outputs;
   workspace_t<Backend> ws;
+  OpSpec op_spec;
   std::unique_ptr<OperatorBase> op;
 
   static cudaStream_t shared_cuda_stream;
@@ -174,9 +176,16 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> DirectOperator<Backend>::Ru
     const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs) {
   // Converts and adds inputs to the workspace.
-  for (auto &input : inputs) {
+  for (size_t in_idx = 0; in_idx < inputs.size(); ++in_idx) {
     auto tensor_in = std::make_shared<WSInputType>();
-    tensor_in->ShareData(*input);
+    tensor_in->ShareData(*inputs[in_idx]);
+    if (tensor_in->GetLayout().empty()) {
+      auto default_layout = op_spec.GetSchema().GetInputLayout(
+          in_idx, tensor_in->shape().sample_dim(), tensor_in->GetLayout());
+      if (!default_layout.empty()) {
+        tensor_in->SetLayout(default_layout);
+      }
+    }
     ws.AddInput(tensor_in);
   }
 
