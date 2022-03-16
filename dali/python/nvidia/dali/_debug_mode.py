@@ -16,13 +16,12 @@ import inspect
 from queue import Queue
 
 import nvidia.dali.backend as _b
-import nvidia.dali.fn as _fn
+import nvidia.dali.ops as _ops
 import nvidia.dali.pipeline as _pipeline
 import nvidia.dali.tensors as _tensors
 import nvidia.dali.types as _types
-from nvidia.dali.data_node import DataNode as _DataNode, _arithm_op, _check
+from nvidia.dali.data_node import DataNode as _DataNode, _check
 from nvidia.dali.external_source import _prep_data_for_feed_input
-from nvidia.dali.ops import _direct_op_factory
 from nvidia.dali._utils.external_source_impl import \
     get_callback_from_source as _get_callback_from_source, \
     accepted_arg_count as _accepted_arg_count
@@ -56,79 +55,79 @@ class DataNodeDebug(_DataNode):
         return self._data.shape()
 
     def __add__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["add", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["add", self, other], {})
 
     def __radd__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["add", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["add", other, self], {})
 
     def __sub__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["sub", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["sub", self, other], {})
 
     def __rsub__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["sub", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["sub", other, self], {})
 
     def __mul__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["mul", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["mul", self, other], {})
 
     def __rmul__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["mul", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["mul", other, self], {})
 
     def __pow__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["pow", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["pow", self, other], {})
 
     def __rpow__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["pow", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["pow", other, self], {})
 
     def __truediv__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["fdiv", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["fdiv", self, other], {})
 
     def __rtruediv__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["fdiv", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["fdiv", other, self], {})
 
     def __floordiv__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["div", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["div", self, other], {})
 
     def __rfloordiv__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["div", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["div", other, self], {})
 
     def __neg__(self):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["minus", self], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["minus", self], {})
 
     def __eq__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["eq", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["eq", self, other], {})
 
     def __ne__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["neq", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["neq", self, other], {})
 
     def __lt__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["lt", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["lt", self, other], {})
 
     def __le__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["leq", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["leq", self, other], {})
 
     def __gt__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["gt", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["gt", self, other], {})
 
     def __ge__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["geq", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["geq", self, other], {})
 
     def __and__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["bitand", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["bitand", self, other], {})
 
     def __rand__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["bitand", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["bitand", other, self], {})
 
     def __or__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["bitor", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["bitor", self, other], {})
 
     def __ror__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["bitor", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["bitor", other, self], {})
 
     def __xor__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["bitxor", self, other], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["bitxor", self, other], {})
 
     def __rxor__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(_arithm_op, ["bitxor", other, self], {})
+        return _PipelineDebug.current()._wrap_op_call('ArithmeticGenericOp', ["bitxor", other, self], {})
 
 
 def _transform_data_to_tensorlist(data, batch_size, layout=None, device_id=None):
@@ -377,26 +376,45 @@ class _PipelineDebug(_pipeline.Pipeline):
 
         return init_args, call_args, classification
 
+    @staticmethod
+    def _create_arithm_op(init_args, name, *inputs):
+        categories_idxs, edges, integers, reals = _ops._group_inputs(inputs)
+        input_desc = _ops._generate_input_desc(categories_idxs, integers, reals)
+        expression_desc = "{}({})".format(name, input_desc)
+        dev = _ops._choose_device(edges)
+        init_args['device'] = dev
+        init_args['expression_desc'] = expression_desc
+        init_args['integer_constants'] = integers
+        init_args['real_constants'] = reals
+        return edges
+
     def _create_op(self, op_name, inputs, kwargs):
         """Creates callable operator."""
-        init_args, _, kwargs_classification = _PipelineDebug._separate_kwargs(kwargs)
-        
-        if 'device' not in init_args and len(inputs) > 0:
-            init_args['device'] = _PipelineDebug._classify_data(inputs[0])[1]
+        init_args, call_args, kwargs_classification = _PipelineDebug._separate_kwargs(kwargs)
 
-        if 'seed' not in init_args and op_name != '_arithm_op':
-            init_args['seed'] = self._seed_generator.integers(0, 2**32)
+        if op_name == 'ArithmeticGenericOp':
+            inputs = _PipelineDebug._create_arithm_op(init_args, *inputs)
+        else:
+            if 'device' not in init_args and len(inputs) > 0:
+                init_args['device'] = _PipelineDebug._classify_data(inputs[0])[1]
 
-        op_base = _direct_op_factory(op_name, callable=False)(**init_args)
+            if 'seed' not in init_args:
+                init_args['seed'] = self._seed_generator.integers(0, 2**32)
+
+        op_base = _ops._direct_op_factory(op_name, callable=False)(**init_args)
+
+        for arg_name in call_args.keys():
+            op_base._spec.AddArgumentInput(arg_name, '')
+
         self._pipe.AddOperator(op_base._spec, self._cur_op_id)
 
-        return op_base, init_args, kwargs_classification
+        return op_base, init_args, kwargs_classification, len(inputs)
 
     def _external_source(self, name=None, **kwargs):
-        self._cur_subpipeline_id += 1
+        self._cur_op_id += 1
         key = inspect.getframeinfo(
-            inspect.currentframe().f_back.f_back)[:3] + (self._cur_subpipeline_id,)
-        if not self._subpipelines_built:
+            inspect.currentframe().f_back.f_back)[:3] + (self._cur_op_id,)
+        if not self._ops_built:
             es = _ExternalSourceDebug(batch_size=self._max_batch_size, name=name, **kwargs)
 
             # feed_input all data collected after build and before run
@@ -433,10 +451,10 @@ class _PipelineDebug(_pipeline.Pipeline):
     def _unpack_from_data_node_debug(data):
         if isinstance(data, (list, tuple)):
             return [_PipelineDebug._unpack_from_data_node_debug(elem) for elem in data]
-        
+
         if isinstance(data, DataNodeDebug):
             return data.get()
-        
+
         return data
 
     def _run_op(self, op_tuple, op_name, inputs, kwargs):
@@ -467,9 +485,7 @@ class _PipelineDebug(_pipeline.Pipeline):
 
         input_sets = op_base._prep_input_sets(_PipelineDebug._unpack_from_data_node_debug(inputs))
         op_device = init_args.get('device', 'cpu')
-        print(call_args)
         res = [self._run_op_on_device(op_name, op_device, input, call_args) for input in input_sets]
-        print(call_args)
 
         if len(res) == 1:
             res = _PipelineDebug._pack_to_data_node_debug(res[0], op_name)
@@ -482,14 +498,23 @@ class _PipelineDebug(_pipeline.Pipeline):
 
         return res
 
+    @staticmethod
+    def _prep_arithm_op_inputs(_, *inputs):
+        _, edges, _, _ = _ops._group_inputs(inputs)
+        if _ops._choose_device(edges) == "gpu":
+            edges = list(edge.gpu() for edge in edges)
+        return edges
+
     def _wrap_op_call(self, op_name, inputs, kwargs):
         self._cur_op_id += 1
         key = inspect.getframeinfo(
             inspect.currentframe().f_back.f_back)[:3] + (self._cur_op_id,)
         if not self._ops_built:
-            self._ops[key] = self._create_op(op_name, inputs, kwargs) + (len(inputs),)
+            self._ops[key] = self._create_op(op_name, inputs, kwargs)
 
         if key in self._ops:
+            if op_name == 'ArithmeticGenericOp':
+                inputs = _PipelineDebug._prep_arithm_op_inputs(*inputs)
             return self._run_op(self._ops[key], op_name, inputs, kwargs)
         else:
             raise RuntimeError(f"Unexpected operator '{op_name}'. Debug mode does not support"
