@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -816,3 +816,50 @@ def check_scalar(device):
 def test_scalar():
     for device in ['cpu', 'gpu']:
         yield check_scalar, device
+
+def test_gpu_args():
+    batch_size=10
+    num_threads=3
+    image_gen = generator_random_data(
+        batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3),
+        dtype=np.float32, val_range=[0.0, 1.0])
+
+    @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=0)
+    def make_pipe():
+        image = fn.external_source(source=image_gen, device='gpu')
+        rel_start = fn.random.uniform(range=(0.1, 0.2), shape=(2,), dtype=types.FLOAT, device='gpu')
+        rel_shape = fn.random.uniform(range=(0.4, 0.6), shape=(2,), dtype=types.FLOAT, device='gpu')
+        sliced = fn.slice(image, rel_start, rel_shape, axes=[0, 1])
+        return image, rel_start, rel_shape, sliced
+    pipe = make_pipe()
+    pipe.build()
+    ndim = 3
+    for _ in range(3):
+        outs = pipe.run()
+        for sample_idx in range(batch_size):
+            in_img = as_array(outs[0][sample_idx])
+            rel_start = as_array(outs[1][sample_idx])
+            rel_shape = as_array(outs[2][sample_idx])
+            sliced1 = as_array(outs[3][sample_idx])
+
+            start = np.zeros([ndim], dtype=np.int32)
+            end = np.array([in_img.shape[i] for i in range(ndim)], dtype=np.int32)
+            for a in [0, 1]:
+                start[a] = roundint(rel_start[a] * in_img.shape[a])
+                end[a] = roundint((rel_start[a] + rel_shape[a]) * in_img.shape[a])
+            ref_sliced = in_img[start[0]:end[0], start[1]:end[1], :]
+            np.testing.assert_allclose(ref_sliced, sliced1)
+
+def test_wrong_arg_backend():
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def make_pipe():
+        fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device='cpu')
+        rel_start = fn.random.uniform(range=[0.0, 0.3], shape=(2,), dtype=types.FLOAT, device='gpu')
+        rel_shape = fn.random.uniform(range=[0.4, 0.6], shape=(2,), dtype=types.FLOAT, device='gpu')
+        sliced = fn.slice(fake_data, rel_start, rel_shape, device='cpu')
+        return sliced
+
+    with assert_raises(ValueError, glob='An operator with device=\'cpu\' cannot accept GPU inputs'):
+        p = make_pipe()
+        p.build()
+        p.run()
