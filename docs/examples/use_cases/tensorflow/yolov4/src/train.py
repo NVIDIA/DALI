@@ -13,18 +13,16 @@
 # limitations under the License.
 # ==============================================================================
 
-from model import YOLOv4Model, calc_loss
+from model import YOLOv4Model
 import numpy as np
 import tensorflow as tf
 
-from img import read_img, draw_img
 from dali.pipeline import YOLOv4Pipeline
 from np.pipeline import YOLOv4PipelineNumpy
-import utils
 
-import math
 import os
 import random
+import atexit
 
 
 SET_MEMORY_GROWTH = True
@@ -114,6 +112,7 @@ def train(file_root, annotations, batch_size, epochs, steps_per_epoch, **kwargs)
 
     multigpu = kwargs.get("multigpu")
     strategy = tf.distribute.MirroredStrategy() if multigpu else tf.distribute.get_strategy()
+    atexit.register(strategy._extended._collective_ops._pool.close) # type: ignore
 
     with strategy.scope():
         model = YOLOv4Model()
