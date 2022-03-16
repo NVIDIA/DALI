@@ -222,8 +222,8 @@ class PositionalSliceAttr {
                  make_string("Anchor and shape should have the same type. Got: ",
                              crop_anchor_type, " and ", crop_shape_type));
     TYPE_SWITCH(crop_anchor_type, type2id, ArgsType, SLICE_ARGS_TYPES, (
-      auto anchor = GetInputArgumentCPU<const ArgsType, Backend>(ws, 1, crop_anchor_cpu);
-      auto shape = GetInputArgumentCPU<const ArgsType, Backend>(ws, 2, crop_shape_cpu);
+      auto anchor = GetInputArgumentCPU<const ArgsType, Backend>(ws, 1, crop_anchor_cpu_);
+      auto shape = GetInputArgumentCPU<const ArgsType, Backend>(ws, 2, crop_shape_cpu_);
       for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
         ProcessPositionalInputArgs(data_idx,
                                    Span(anchor, data_idx),
@@ -333,7 +333,7 @@ class PositionalSliceAttr {
   std::vector<CropWindowGenerator> crop_window_generators_;
 
   // To be used to copy GPU arguments
-  TensorList<CPUBackend> crop_anchor_cpu, crop_shape_cpu;
+  TensorList<CPUBackend> crop_anchor_cpu_, crop_shape_cpu_;
 };
 
 class SliceAttr {

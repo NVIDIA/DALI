@@ -235,7 +235,7 @@ class WorkspaceBase : public ArgumentWorkspace {
   }
 
   /**
-   * Returns data type of input at given index
+   * Returns the data type of the input at given index
    * @return DALIDataType
    */
   DALIDataType GetInputDataType(int input_idx) const {
