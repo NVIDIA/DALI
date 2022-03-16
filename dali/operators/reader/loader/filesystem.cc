@@ -114,7 +114,7 @@ vector<std::pair<string, int>> traverse_directories(const std::string &file_root
   }
   // sort file names as well
   std::sort(file_label_pairs.begin(), file_label_pairs.end());
-  LOG_LINE  << "read " << file_label_pairs.size() << " files from " << entry_name_list.size() 
+  LOG_LINE  << "read " << file_label_pairs.size() << " files from " << entry_name_list.size()
             << "directories\n";
 
   closedir(dir);
