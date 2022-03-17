@@ -147,6 +147,49 @@ struct Resampler {
     windowed_sinc(window, lookup_size, lobes);
   }
 
+#if defined(__ARM_NEON)
+  inline float filter_vec(int &i_ref, float in_pos, int i1, const float *in) const {
+    const float32x4_t _0123 = vsetq_f32(0, 1, 2, 3);
+    float32x4_t f4 = vdupq_n_f32(0);
+
+    int i = i_ref;
+    float32x4_t x4 = vaddq_f32(vdupq_n_f32(i - in_pos), _0123);
+
+    for (; i + 3 <= i1; i += 4) {
+        float32x4_t w4 = window(x4);
+        f4 = vfmaq_f32(f4, vld1q_f32(in + i), w4);
+        x4 = vaddq_f32(x4, vdupq_n_f32(4));
+    }
+    // Sum elements in f4
+    float32x2_t f2 = vpadd_f32(vget_low_f32(f4), vget_high_f32(f4));
+    f2 = vpadd_f32(f2, f2);
+    i_ref = i;
+    return vget_lane_f32(f2, 0);
+  }
+#elif  defined(__SSE2__)
+  inline float filter_vec(int &i_ref, float in_pos, int i1, const float *in) const {
+    __m128 f4 = _mm_setzero_ps();
+    int i = i_ref;
+    __m128 x4 = _mm_setr_ps(i - in_pos, i+1 - in_pos, i+2 - in_pos, i+3 - in_pos);
+    for (; i + 3 <= i1; i += 4) {
+      __m128 w4 = window(x4);
+
+      f4 = _mm_add_ps(f4, _mm_mul_ps(_mm_loadu_ps(in + i), w4));
+      x4 = _mm_add_ps(x4, _mm_set1_ps(4));
+    }
+    i_ref = i;
+
+    // Sum elements in f4
+    f4 = _mm_add_ps(f4, _mm_shuffle_ps(f4, f4, _MM_SHUFFLE(1, 0, 3, 2)));
+    f4 = _mm_add_ps(f4, _mm_shuffle_ps(f4, f4, _MM_SHUFFLE(0, 1, 0, 1)));
+    return _mm_cvtss_f32(f4);
+  }
+#else
+  static float filter_vec(int &, float, int, const float *) {
+    return 0;
+  }
+#endif
+
   /**
    * @brief Resample single-channel signal and convert to Out
    *
@@ -163,10 +206,6 @@ struct Resampler {
     double scale = in_rate / out_rate;
     float fscale = scale;
 
-#ifdef __ARM_NEON
-    const float32x4_t _0123 = vsetq_f32(0, 1, 2, 3);
-#endif
-
     for (int64_t out_block = out_begin; out_block < out_end; out_block += block) {
       int64_t block_end = std::min(out_block + block, out_end);
       double in_block_f = out_block * scale;
@@ -180,39 +219,9 @@ struct Resampler {
           i0 = -in_block_i;
         if (i1 + in_block_i > n_in)
           i1 = n_in - in_block_i;
-        float f = 0;
         int i = i0;
 
-#ifdef __ARM_NEON
-        float32x4_t f4 = vdupq_n_f32(0);
-
-        float32x4_t x4 = vaddq_f32(vdupq_n_f32(i - in_pos), _0123);
-
-        for (; i + 3 <= i1; i += 4) {
-            float32x4_t w4 = window(x4);
-            f4 = vfmaq_f32(f4, vld1q_f32(in_block_ptr + i), w4);
-            x4 = vaddq_f32(x4, vdupq_n_f32(4));
-        }
-        // Reduce elements in f4
-        float32x2_t f2 = vpadd_f32(vget_low_f32(f4), vget_high_f32(f4));
-        f2 = vpadd_f32(f2, f2);
-        f = vget_lane_f32(f2, 0);
-#endif
-
-#ifdef __SSE2__
-        __m128 f4 = _mm_setzero_ps();
-        __m128 x4 = _mm_setr_ps(i - in_pos, i+1 - in_pos, i+2 - in_pos, i+3 - in_pos);
-        for (; i + 3 <= i1; i += 4) {
-          __m128 w4 = window(x4);
-
-          f4 = _mm_add_ps(f4, _mm_mul_ps(_mm_loadu_ps(in_block_ptr + i), w4));
-          x4 = _mm_add_ps(x4, _mm_set1_ps(4));
-        }
-
-        f4 = _mm_add_ps(f4, _mm_shuffle_ps(f4, f4, _MM_SHUFFLE(1, 0, 3, 2)));
-        f4 = _mm_add_ps(f4, _mm_shuffle_ps(f4, f4, _MM_SHUFFLE(0, 1, 0, 1)));
-        f = _mm_cvtss_f32(f4);
-#endif
+        float f = filter_vec(i, in_pos, i1, in_block_ptr);
 
         float x = i - in_pos;
         for (; i < i1; i++, x++) {
@@ -224,6 +233,7 @@ struct Resampler {
       }
     }
   }
+
 
 
   /**
