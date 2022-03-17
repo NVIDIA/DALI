@@ -29,9 +29,6 @@
 #include "dali/core/small_vector.h"
 #include "dali/core/convert.h"
 #include "dali/core/static_switch.h"
-#include <cstdint>
-#include <limits>
-#include <type_traits>
 
 namespace dali {
 namespace kernels {
@@ -108,7 +105,7 @@ struct ResamplingWindow {
                               lookup[idx[2]],   lookup[idx[3]]);
     __m128 next = _mm_setr_ps(lookup[idx[0]+1], lookup[idx[1]+1],
                               lookup[idx[2]+1], lookup[idx[3]+1]);
-    return _mm_add_ps(curr, _mm_mul_ps(di, _mm_sub_ps(next, curr)));//*/
+    return _mm_add_ps(curr, _mm_mul_ps(di, _mm_sub_ps(next, curr)));
   }
 #endif
 
@@ -259,7 +256,7 @@ struct Resampler {
     int64_t block = 1 << 10;  // still leaves 13 significant bits for fractional part
     double scale = in_rate / out_rate;
     float fscale = scale;
-    std::vector<float> tmp;
+    SmallVector<float, (static_channels < 0 ? 16 : static_channels)> tmp;
     tmp.resize(num_channels);
     for (int64_t out_block = out_begin; out_block < out_end; out_block += block) {
       int64_t block_end = std::min(out_block + block, out_end);
