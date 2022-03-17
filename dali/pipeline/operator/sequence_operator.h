@@ -39,7 +39,7 @@ namespace dali {
  * batches of sequences of frames, given that there is no need to convolve along frames dimension.
  *
  * Adds support for per-frame tensor arguments: if a tensor argument is marked in the schema as
- * supporting per-frame tensor arguments and the tensor argument layout starts with `F`, the
+ * supporting per-frame tensor values and the tensor argument layout starts with `F`, the
  * outermost dimension of the tensor argument will be unfolded to match the the expanded
  * input of the operator.
  */
@@ -99,7 +99,7 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   bool IsExpandable() const {
-    auto expand_like_idx = ExpandLikeIdx();
+    auto expand_like_idx = GetExpandableInputIdx();
     assert(expand_like_idx == -1 || GetInputExpandDesc(expand_like_idx).NumDimsToExpand() > 0);
     return expand_like_idx >= 0;
   }
@@ -140,7 +140,7 @@ class SequenceOperator : public Operator<Backend> {
    *    to match the other expanded inputs (TODO).
    */
   virtual void ExpandInputs(const workspace_t<Backend> &ws) {
-    int expand_idx = ExpandLikeIdx();
+    int expand_idx = GetExpandableInputIdx();
     const auto &expand_desc = GetInputExpandDesc(expand_idx);
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
       const auto &input_desc = GetInputExpandDesc(input_idx);
@@ -156,7 +156,7 @@ class SequenceOperator : public Operator<Backend> {
         AddInputBroadcastedLike(ws, input_idx, expand_desc);
       } else {
         if (expand_idx != input_idx) {
-          ValidateAgreeableInputDesc(expand_idx, expand_desc, input_idx, input_desc);
+          VerifyExpanionConsistency(expand_idx, expand_desc, input_idx, input_desc);
         }
         AddInputExpandedLike(ws, input_idx, input_desc);
       }
@@ -285,12 +285,12 @@ class SequenceOperator : public Operator<Backend> {
   virtual const ExpandDesc &GetOutputExpandDesc(const workspace_t<Backend> &ws,
                                                 int output_idx) const {
     (void)output_idx;
-    return GetInputExpandDesc(ExpandLikeIdx());
+    return GetInputExpandDesc(GetExpandableInputIdx());
   }
 
   virtual int GetArgExpandDescIdx(const std::string &arg_name) const {
     (void)arg_name;
-    return ExpandLikeIdx();
+    return GetExpandableInputIdx();
   }
 
   const ExpandDesc &GetInputExpandDesc(int input_idx) const {
@@ -298,12 +298,16 @@ class SequenceOperator : public Operator<Backend> {
     return input_expand_desc_[input_idx];
   }
 
-  int ExpandLikeIdx() const {
+  /**
+   * @brief Returns the index of the operator input which is expandable and other
+   * inputs should be expanded or broadcasted in a manner consistent with the
+   * given input. If no input is expandable, returns -1.
+   */
+  int GetExpandableInputIdx() const {
     return expand_like_idx_;
   }
 
   void SetupSequenceOperator(const workspace_t<Backend> &ws) {
-    expand_like_idx_ = -1;
     auto num_inputs = ws.NumInput();
     input_expand_desc_.clear();
     input_expand_desc_.reserve(num_inputs);
@@ -316,13 +320,21 @@ class SequenceOperator : public Operator<Backend> {
                                "with dimensionality ",
                                input_shape.sample_dim(), ")."));
       input_expand_desc_.emplace_back(input_shape, layout, ShouldExpandChannels(input_idx));
-      if (input_expand_desc_[input_idx].NumDimsToExpand() > 0) {
-        expand_like_idx_ = input_idx;
-      }
     }
+    expand_like_idx_ = InferExpandableInputIdx(ws);
   }
 
-  bool HasPerFrameArgInput(const workspace_t<Backend> &ws) {
+  int InferExpandableInputIdx(const workspace_t<Backend> &ws) {
+    auto num_inputs = ws.NumInput();
+    for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
+      if (input_expand_desc_[input_idx].NumDimsToExpand() > 0) {
+        return input_idx;
+      }
+    }
+    return -1;
+  }
+
+  bool HasPerFrameArgInputs(const workspace_t<Backend> &ws) {
     for (const auto &arg_input : ws) {
       auto &shared_tvec = arg_input.second.tvec;
       assert(shared_tvec);
@@ -344,13 +356,13 @@ class SequenceOperator : public Operator<Backend> {
     DALI_FAIL("Broadcasting of inputs for multi-input operators is not supported.")
   }
 
-  void ValidateAgreeableInputDesc(int expand_idx, const ExpandDesc &expand_desc, int input_idx,
+  void VerifyExpanionConsistency(int expand_idx, const ExpandDesc &expand_desc, int input_idx,
                                   const ExpandDesc &input_desc) {
     // TODO(ktokarski) consider mix of expansion and broadcasting similar to handling of
     // per-frame arguments for "FC" or "CF" layouts. Consider agreeing "FC" and "CF" inputs.
     DALI_ENFORCE(
         input_desc.ExpandedLayout() == expand_desc.ExpandedLayout(),
-        make_string("Failed to agree expanding of sequence-like inputs for multiple-input "
+        make_string("Failed to match expanding of sequence-like inputs for multiple-input "
                     "operator. For the ",
                     expand_idx, " input with layout ", expand_desc.Layout(),
                     " the following outermost dimension(s) should be expanded into samples: `",

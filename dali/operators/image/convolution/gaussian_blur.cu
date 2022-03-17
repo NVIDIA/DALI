@@ -77,7 +77,7 @@ bool GaussianBlur<GPUBackend>::ShouldExpand(const workspace_t<GPUBackend>& ws) {
   const auto& input = ws.template Input<GPUBackend>(0);
   auto layout = input.GetLayout();
   dim_desc_ = convolution_utils::ParseAndValidateDim(input.shape().sample_dim(), layout);
-  bool should_expand = SequenceOperator<GPUBackend>::ShouldExpand(ws) && HasPerFrameArgInput(ws);
+  bool should_expand = SequenceOperator<GPUBackend>::ShouldExpand(ws) && HasPerFrameArgInputs(ws);
   if (should_expand) {
     assert(dim_desc_.usable_axes_start > 0);
     dim_desc_.total_axes_count -= dim_desc_.usable_axes_start;
