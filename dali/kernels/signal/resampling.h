@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,9 @@
 #ifdef __SSE2__
 #include <emmintrin.h>
 #endif
+#ifdef __ARM_NEON
+#include <arm_neon.h>
+#endif
 #include <cmath>
 #include <functional>
 #include <utility>
@@ -26,6 +29,9 @@
 #include "dali/core/small_vector.h"
 #include "dali/core/convert.h"
 #include "dali/core/static_switch.h"
+#include <cstdint>
+#include <limits>
+#include <type_traits>
 
 namespace dali {
 namespace kernels {
@@ -37,25 +43,63 @@ inline double Hann(double x) {
   return 0.5 * (1 + std::cos(x * M_PI));
 }
 
+#ifdef __ARM_NEON
+
+inline float32x4_t vsetq_f32(float x0, float x1, float x2, float x3) {
+    float32x4_t x;
+    x = vdupq_n_f32(x0);
+    x = vsetq_lane_f32(x1, x, 1);
+    x = vsetq_lane_f32(x2, x, 2);
+    x = vsetq_lane_f32(x3, x, 3);
+    return x;
+}
+
+#endif
+
 struct ResamplingWindow {
   inline std::pair<int, int> input_range(float x) const {
-    int i0 = std::ceil(x) - lobes;
-    int i1 = std::floor(x) + lobes;
+    int xc = std::ceil(x);
+    int i0 = xc - lobes;
+    int i1 = xc + lobes;
     return {i0, i1};
   }
 
   inline float operator()(float x) const {
     float fi = x * scale + center;
-    int i = std::floor(fi);
-    float di = fi - i;
+    float floori = std::floor(fi);
+    float di = fi - floori;
+    int i = floori;
     assert(i >= 0 && i < static_cast<int>(lookup.size()));
     return lookup[i] + di * (lookup[i + 1] - lookup[i]);
   }
 
+#ifdef __ARM_NEON
+  inline float32x4_t operator()(float32x4_t x) const {
+    float32x4_t fi = vfmaq_n_f32(vdupq_n_f32(center), x, scale);
+    int32x4_t i = vcvtq_s32_f32(fi);
+    float32x4_t fifloor = vcvtq_f32_s32(i);
+    float32x4_t di = vsubq_f32(fi, fifloor);
+    int idx[4] = {
+        vgetq_lane_s32(i, 0),
+        vgetq_lane_s32(i, 1),
+        vgetq_lane_s32(i, 2),
+        vgetq_lane_s32(i, 3)
+    };
+    float32x2_t c0 = vld1_f32(&lookup[idx[0]]);
+    float32x2_t c1 = vld1_f32(&lookup[idx[1]]);
+    float32x2_t c2 = vld1_f32(&lookup[idx[2]]);
+    float32x2_t c3 = vld1_f32(&lookup[idx[3]]);
+    float32x4x2_t w = vuzpq_f32(vcombine_f32(c0, c1), vcombine_f32(c2, c3));
+    float32x4_t curr = w.val[0];
+    float32x4_t next = w.val[1];
+    return vfmaq_f32(curr, di, vsubq_f32(next, curr));
+  }
+#endif
+
 #ifdef __SSE2__
   inline __m128 operator()(__m128 x) const {
     __m128 fi = _mm_add_ps(x * _mm_set1_ps(scale), _mm_set1_ps(center));
-    __m128i i = _mm_cvtps_epi32(fi);
+    __m128i i = _mm_cvttps_epi32(fi);
     __m128 fifloor = _mm_cvtepi32_ps(i);
     __m128 di = _mm_sub_ps(fi, fifloor);
     int idx[4];
@@ -64,7 +108,7 @@ struct ResamplingWindow {
                               lookup[idx[2]],   lookup[idx[3]]);
     __m128 next = _mm_setr_ps(lookup[idx[0]+1], lookup[idx[1]+1],
                               lookup[idx[2]+1], lookup[idx[3]+1]);
-    return _mm_add_ps(curr, _mm_mul_ps(di, _mm_sub_ps(next, curr)));
+    return _mm_add_ps(curr, _mm_mul_ps(di, _mm_sub_ps(next, curr)));//*/
   }
 #endif
 
@@ -81,7 +125,8 @@ inline void windowed_sinc(ResamplingWindow &window,
   float scale_envelope = 2.0f / coeffs;
   window.coeffs = coeffs;
   window.lobes = lobes;
-  window.lookup.resize(coeffs + 2);  // add zeros
+  window.lookup.clear();
+  window.lookup.resize(coeffs + 5);  // add zeros and a full 4-lane vector
   int center = (coeffs - 1) * 0.5f;
   for (int i = 0; i < coeffs; i++) {
     float x = (i - center) * scale;
@@ -117,10 +162,14 @@ struct Resampler {
         Out *__restrict__ out, int64_t out_begin, int64_t out_end, double out_rate,
         const float *__restrict__ in, int64_t n_in, double in_rate) const {
     assert(out_rate > 0 && in_rate > 0 && "Sampling rate must be positive");
-    int64_t in_pos = 0;
     int64_t block = 1 << 10;  // still leaves 13 significant bits for fractional part
     double scale = in_rate / out_rate;
     float fscale = scale;
+
+#ifdef __ARM_NEON
+    const float32x4_t _0123 = vsetq_f32(0, 1, 2, 3);
+#endif
+
     for (int64_t out_block = out_begin; out_block < out_end; out_block += block) {
       int64_t block_end = std::min(out_block + block, out_end);
       double in_block_f = out_block * scale;
@@ -132,10 +181,26 @@ struct Resampler {
         std::tie(i0, i1) = window.input_range(in_pos);
         if (i0 + in_block_i < 0)
           i0 = -in_block_i;
-        if (i1 + in_block_i >= n_in)
-          i1 = n_in - 1 - in_block_i;
+        if (i1 + in_block_i > n_in)
+          i1 = n_in - in_block_i;
         float f = 0;
         int i = i0;
+
+#ifdef __ARM_NEON
+        float32x4_t f4 = vdupq_n_f32(0);
+
+        float32x4_t x4 = vaddq_f32(vdupq_n_f32(i - in_pos), _0123);
+
+        for (; i + 3 <= i1; i += 4) {
+            float32x4_t w4 = window(x4);
+            f4 = vfmaq_f32(f4, vld1q_f32(in_block_ptr + i), w4);
+            x4 = vaddq_f32(x4, vdupq_n_f32(4));
+        }
+        // Reduce elements in f4
+        float32x2_t f2 = vpadd_f32(vget_low_f32(f4), vget_high_f32(f4));
+        f2 = vpadd_f32(f2, f2);
+        f = vget_lane_f32(f2, 0);
+#endif
 
 #ifdef __SSE2__
         __m128 f4 = _mm_setzero_ps();
@@ -153,7 +218,7 @@ struct Resampler {
 #endif
 
         float x = i - in_pos;
-        for (; i <= i1; i++, x++) {
+        for (; i < i1; i++, x++) {
           float w = window(x);
           f += in_block_ptr[i] * w;
         }
@@ -191,11 +256,10 @@ struct Resampler {
     const int num_channels = static_channels < 0 ? dynamic_num_channels : static_channels;
     assert(num_channels > 0);
 
-    int64_t in_pos = 0;
     int64_t block = 1 << 10;  // still leaves 13 significant bits for fractional part
     double scale = in_rate / out_rate;
     float fscale = scale;
-    SmallVector<float, (static_channels < 0 ? 16 : static_channels)> tmp;
+    std::vector<float> tmp;
     tmp.resize(num_channels);
     for (int64_t out_block = out_begin; out_block < out_end; out_block += block) {
       int64_t block_end = std::min(out_block + block, out_end);
@@ -208,8 +272,8 @@ struct Resampler {
         std::tie(i0, i1) = window.input_range(in_pos);
         if (i0 + in_block_i < 0)
           i0 = -in_block_i;
-        if (i1 + in_block_i >= n_in)
-          i1 = n_in - 1 - in_block_i;
+        if (i1 + in_block_i > n_in)
+          i1 = n_in - in_block_i;
 
         for (int c = 0; c < num_channels; c++)
           tmp[c] = 0;
@@ -217,7 +281,7 @@ struct Resampler {
         float x = i0 - in_pos;
         int ofs0 = i0 * num_channels;
         int ofs1 = i1 * num_channels;
-        for (int in_ofs = ofs0; in_ofs <= ofs1; in_ofs += num_channels, x++) {
+        for (int in_ofs = ofs0; in_ofs < ofs1; in_ofs += num_channels, x++) {
           float w = window(x);
           for (int c = 0; c < num_channels; c++) {
             assert(in_block_ptr + in_ofs + c >= in &&
@@ -231,7 +295,6 @@ struct Resampler {
       }
     }
   }
-
 
   /**
    * @brief Resample multi-channel signal and convert to Out
