@@ -4,6 +4,8 @@ import nvidia.dali.plugin.pytorch
 import nvidia.dali.plugin.numba
 import sys
 
+from inspect import getmembers, isfunction
+
 # Dictionary with modules that can have registered Ops
 ops_modules = {
     'nvidia.dali.ops': nvidia.dali.ops,
@@ -51,23 +53,33 @@ def op_autodoc(out_filename):
         if module in exclude_ops_members:
             excluded = exclude_ops_members[module]
             s += "   :exclude-members: {}\n".format(", ".join(excluded))
-        s += "\n"
+        s += "\n\n"
     with open(out_filename, 'w') as f:
         f.write(s)
 
 def fn_autodoc(out_filename):
     s = ""
     for module in get_modules(fn_modules):
+        dali_module = sys.modules[module]
+        funs_in_module = list(filter(lambda x: not str(x).startswith("_"), dir(dali_module)))
         s += module + "\n"
         s += "~" * len(module) + "\n"
         if module in mod_aditional_doc:
             s += mod_aditional_doc[module] + "\n" + "\n"
         s += ".. automodule:: {}\n".format(module)
-        s += "   :members:\n"
-        s += "   :undoc-members:\n"
-        if module in exclude_fn_members:
-            excluded = exclude_fn_members[module]
-            s += "   :exclude-members: {}\n".format(", ".join(excluded))
+        # s += "   :members:\n"
+        # s += "   :undoc-members:\n"
+        # TODO excluded members:
+        # if module in exclude_fn_members:
+        #     excluded = exclude_fn_members[module]
+        #     s += "   :exclude-members: {}\n".format(", ".join(excluded))
+        examples = [("Name", "general/data_loading/external_input.html")]
+        for fun in funs_in_module:
+            s += ".. autofunction:: {}.{}\n".format(module, fun)
+            s += "\n"
+            s += "  See also\n"
+            for example in examples:
+                s += "    * `{} <../examples/{}>`_\n".format(example[0], example[1])
         s += "\n"
     with open(out_filename, 'w') as f:
         f.write(s)

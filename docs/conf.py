@@ -138,7 +138,7 @@ autodoc_mock_imports = ['paddle', 'torch', 'torchvision']
 
 # -- Options for Napoleon ----------------------------------------------------
 
-napoleon_custom_sections = ['Supported backends']
+napoleon_custom_sections = ['Supported backends', 'See also']
 
 
 # -- Options for HTML output -------------------------------------------------
