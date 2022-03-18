@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -114,7 +114,8 @@ vector<std::pair<string, int>> traverse_directories(const std::string &file_root
   }
   // sort file names as well
   std::sort(file_label_pairs.begin(), file_label_pairs.end());
-  printf("read %lu files from %lu directories\n", file_label_pairs.size(), entry_name_list.size());
+  LOG_LINE  << "read " << file_label_pairs.size() << " files from " << entry_name_list.size()
+            << "directories\n";
 
   closedir(dir);
 
@@ -202,7 +203,8 @@ vector<std::string> traverse_directories(const std::string &file_root, const std
   }
   // sort file names as well
   std::sort(file_list.begin(), file_list.end());
-  printf("read %lu files from %lu directories\n", file_list.size(), entry_name_list.size());
+  LOG_LINE  << "read " << file_list.size() << " files from " << entry_name_list.size()
+            << "directories\n";
 
   closedir(dir);
 
