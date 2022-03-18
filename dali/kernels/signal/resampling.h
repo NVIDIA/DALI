@@ -155,7 +155,7 @@ struct Resampler {
     int i = i_ref;
     float32x4_t x4 = vaddq_f32(vdupq_n_f32(i - in_pos), _0123);
 
-    for (; i + 3 <= i1; i += 4) {
+    for (; i + 3 < i1; i += 4) {
         float32x4_t w4 = window(x4);
         f4 = vfmaq_f32(f4, vld1q_f32(in + i), w4);
         x4 = vaddq_f32(x4, vdupq_n_f32(4));
@@ -171,7 +171,7 @@ struct Resampler {
     __m128 f4 = _mm_setzero_ps();
     int i = i_ref;
     __m128 x4 = _mm_setr_ps(i - in_pos, i+1 - in_pos, i+2 - in_pos, i+3 - in_pos);
-    for (; i + 3 <= i1; i += 4) {
+    for (; i + 3 < i1; i += 4) {
       __m128 w4 = window(x4);
 
       f4 = _mm_add_ps(f4, _mm_mul_ps(_mm_loadu_ps(in + i), w4));
