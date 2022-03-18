@@ -8,17 +8,8 @@ FROM ${BUILDER_EXTRA_DEPS} as extra_deps
 FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
-RUN yum install -y wget nasm doxygen graphviz gettext xz openssl-devel autogen
+RUN yum install -y wget nasm doxygen graphviz gettext xz openssl autogen
 ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
-
-ARG CMAKE_VERSION=3.17
-ARG CMAKE_BUILD=3.17.4
-RUN wget -nv https://cmake.org/files/v${CMAKE_VERSION}/cmake-${CMAKE_BUILD}.tar.gz && \
-    tar -xf cmake-${CMAKE_BUILD}.tar.gz && \
-    cd cmake-${CMAKE_BUILD} && \
-    ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l) && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
-    rm -rf /cmake-${CMAKE_BUILD}
 
 # add devtoolset-7 to paths
 ENV PATH=/opt/rh/devtoolset-7/root/usr/bin:$PATH \
