@@ -357,7 +357,7 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   void VerifyExpanionConsistency(int expand_idx, const ExpandDesc &expand_desc, int input_idx,
-                                  const ExpandDesc &input_desc) {
+                                 const ExpandDesc &input_desc) {
     // TODO(ktokarski) consider mix of expansion and broadcasting similar to handling of
     // per-frame arguments for "FC" or "CF" layouts. Consider agreeing "FC" and "CF" inputs.
     DALI_ENFORCE(
@@ -537,7 +537,7 @@ class SequenceOperator : public Operator<Backend> {
             "Tensor input for argument ", arg_name, " is specified per frame (got ",
             arg_tensor.GetLayout(),
             " layout), but samples in the input batch do not contain frames (expected input "
-            "layout that starts with 'F', ",
+            "layout that starts with 'F'",
             ShouldExpandChannels(expand_idx) ? " or 'CF'" : "", "). Got layout ",
             expand_desc.Layout(), " for operator intput ", expand_idx, "."));
     const auto &shape = arg_tensor.shape();
