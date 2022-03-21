@@ -158,13 +158,17 @@ class SequenceOperator : public Operator<Backend> {
     int ref_input_idx = GetReferentialInputIdx();
     const auto &ref_expand_desc = GetInputExpandDesc(ref_input_idx);
     const auto &input_desc = GetInputExpandDesc(input_idx);
-    if (input_desc.NumDimsToExpand() == 0) {
-      AddInputBroadcastedLike(ws, input_idx, ref_expand_desc);
+    int num_dims_to_expand = input_desc.NumDimsToExpand();
+    if (num_dims_to_expand == 0) {
+      // TODO(ktokarski) Add support for broadcasting inputs in multi-input case.
+      DALI_FAIL("Broadcasting of inputs for multi-input operators is not supported.")
     } else {
       if (ref_input_idx != input_idx) {
         VerifyExpanionConsistency(ref_input_idx, ref_expand_desc, input_idx, input_desc);
       }
-      AddInputExpandedLike(ws, input_idx, input_desc);
+      ExpandedAddProcessededInput(ws, input_idx, [&](const auto &input) {
+        return UnfoldInput(ws, input, input_idx, num_dims_to_expand);
+      });
     }
   }
 
@@ -350,12 +354,6 @@ class SequenceOperator : public Operator<Backend> {
     return false;
   }
 
-  void AddInputBroadcastedLike(const workspace_t<Backend> &ws, int input_idx,
-                               const ExpandDesc &expand_desc) {
-    // TODO(ktokarski) Add support for broadcasting inputs in multi-input case.
-    DALI_FAIL("Broadcasting of inputs for multi-input operators is not supported.")
-  }
-
   void VerifyExpanionConsistency(int expand_idx, const ExpandDesc &expand_desc, int input_idx,
                                  const ExpandDesc &input_desc) {
     // TODO(ktokarski) consider mix of expansion and broadcasting similar to handling of
@@ -389,20 +387,9 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
-  void AddInputExpandedLike(const workspace_t<Backend> &ws, int input_idx,
-                            const ExpandDesc &input_desc) {
-    auto num_expand_dims = input_desc.NumDimsToExpand();
-    if (ws.template InputIsType<GPUBackend>(input_idx)) {
-      ExpandedAddInput(ExpandInput<GPUBackend>(ws, input_idx, num_expand_dims));
-    } else {
-      ExpandedAddInput(ExpandInput<CPUBackend>(ws, input_idx, num_expand_dims));
-    }
-  }
-
-  template <typename InputBackend>
-  ws_input_t<InputBackend> ExpandInput(const workspace_t<Backend> &ws, int input_idx,
-                                       int num_expand_dims) {
-    const auto &input = ws.template Input<InputBackend>(input_idx);
+  template <typename InputType>
+  auto UnfoldInput(const workspace_t<Backend> &ws, const InputType &input, int input_idx,
+                   int num_expand_dims) {
     auto sample_dim = input.shape().sample_dim();
     DALI_ENFORCE(
         sample_dim > num_expand_dims,
@@ -414,8 +401,7 @@ class SequenceOperator : public Operator<Backend> {
     auto expanded_input = unfold_outer_dims(input, num_expand_dims);
     const auto &input_layout = input.GetLayout();
     expanded_input.SetLayout(input_layout.sub(num_expand_dims));
-    return std::make_shared<typename ws_input_t<InputBackend>::element_type>(
-        std::move(expanded_input));
+    return std::make_shared<InputType>(std::move(expanded_input));
   }
 
   template <typename OutputBackend>
@@ -437,7 +423,6 @@ class SequenceOperator : public Operator<Backend> {
 
   template <typename OutputBackend>
   void SetOutputLayout(const workspace_t<Backend> &ws, int output_idx, TensorLayout layout_prefix) {
-    DALI_ENFORCE(ExpandedOutputIsType<OutputBackend>(output_idx));
     auto &expanded_output = ExpandedOutput<OutputBackend>(output_idx);
     auto &output = ws.template Output<OutputBackend>(output_idx);
     const auto &layout = expanded_output.GetLayout();
@@ -461,11 +446,18 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
-  void ExpandedAddInput(ws_input_t<CPUBackend> &&input) {
-    expanded_.AddInput(input);
+  template <typename ProcessFunc>
+  void ExpandedAddProcessededInput(const workspace_t<Backend> &ws, int input_idx,
+                                   ProcessFunc &&process) {
+    if (ws.template InputIsType<GPUBackend>(input_idx)) {
+      ExpandedAddInput<GPUBackend>(process(ws.template Input<GPUBackend>(input_idx)));
+    } else {
+      ExpandedAddInput<CPUBackend>(process(ws.template Input<CPUBackend>(input_idx)));
+    }
   }
 
-  void ExpandedAddInput(ws_input_t<GPUBackend> &&input) {
+  template <typename InputBackend>
+  void ExpandedAddInput(ws_input_t<InputBackend> &&input) {
     expanded_.AddInput(input);
   }
 
@@ -477,16 +469,6 @@ class SequenceOperator : public Operator<Backend> {
   template <typename OutputBackend>
   void AddOutputHelper(ws_input_t<OutputBackend> output) {
     expanded_.AddOutput(output);
-  }
-
-  template <typename InputBackend>
-  bool ExpandedInputIsType(int input_idx) const {
-    return expanded_.template InputIsType<InputBackend>(input_idx);
-  }
-
-  template <typename OutputBackend>
-  bool ExpandedOutputIsType(int output_idx) const {
-    return expanded_.template OutputIsType<OutputBackend>(output_idx);
   }
 
   template <typename InputBackend>
