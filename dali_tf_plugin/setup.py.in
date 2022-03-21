@@ -1,4 +1,4 @@
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,6 +43,14 @@ setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIG
       packages=find_namespace_packages(include=['nvidia.*']),
       include_package_data=True,
       zip_safe=False,
+      python_requires='>=3.6, <3.11',
+      classifiers=[
+          'Programming Language :: Python :: 3.6',
+          'Programming Language :: Python :: 3.7',
+          'Programming Language :: Python :: 3.8',
+          'Programming Language :: Python :: 3.9',
+          'Programming Language :: Python :: 3.10',
+          ],
       install_requires = [
           'nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@==@DALI_VERSION@'
           ],
