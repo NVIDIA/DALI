@@ -59,8 +59,8 @@ class OperatorBench : public DALIBenchmark {
     data_in->SetLayout("HWC");
 
     if (fill_in_data) {
-      for (int sample_id = 0; sample_id < batch_size; sample_id++) {
-        auto *ptr = data_in->template mutable_tensor<T>(sample_id);
+      for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
+        auto *ptr = data_in->template mutable_tensor<T>(sample_idx);
         for (int i = 0; i < N; i++) {
           ptr[i] = static_cast<T>(i);
         }

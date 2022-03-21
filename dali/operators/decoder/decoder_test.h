@@ -81,6 +81,7 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
     for (size_t i = 0; i < encoded_data.num_samples(); ++i) {
       out_shape.set_tensor_shape(i, tmp_out[i].shape());
     }
+    out.SetupLike(tmp_out[0]);
     out.Resize(out_shape, DALI_UINT8);
     for (size_t i = 0; i < encoded_data.num_samples(); ++i) {
       out.UnsafeSetSample(i, tmp_out[i]);

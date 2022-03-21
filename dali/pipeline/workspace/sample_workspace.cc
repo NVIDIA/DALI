@@ -48,9 +48,9 @@ void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
   }
 }
 
-void EnforceCorrectness(HostWorkspace& ws, bool contiguous) {
+void FixBatchPropertiesConsistency(HostWorkspace& ws, bool contiguous) {
   for (int i = 0; i < ws.NumOutput(); i++) {
-    ws.Output<CPUBackend>(i).PropagateUp(contiguous);
+    ws.Output<CPUBackend>(i).UpdatePropertiesFromSamples(contiguous);
   }
 }
 

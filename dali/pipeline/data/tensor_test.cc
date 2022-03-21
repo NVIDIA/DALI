@@ -361,7 +361,7 @@ TYPED_TEST(TensorTest, TestShareData) {
   for (int i = 0; i < num_tensor; ++i) {
     // TODO(klecki): Rework this with proper sample-based tensor batch data structure
     auto sample_shared_ptr = unsafe_sample_owner(tl, i);
-    tensor.ShareData(sample_shared_ptr, tl.total_capacity(), tl.is_pinned(), tl.shape()[i],
+    tensor.ShareData(sample_shared_ptr, tl.capacity(), tl.is_pinned(), tl.shape()[i],
                      tl.type());
     tensor.set_device_id(tl.device_id());
     tensor.SetMeta(tl.GetMeta(i));

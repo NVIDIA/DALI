@@ -144,6 +144,7 @@ class SampleViewBase {
   ptr_t data_ = nullptr;
   TensorShape<> shape_ = {0};
   DALIDataType type_id_ = DALI_NO_TYPE;
+  ~SampleViewBase() = default;
 };
 
 
@@ -166,7 +167,7 @@ class ConstSampleView : public SampleViewBase<Backend, const void *> {
   using Base = SampleViewBase<Backend, const void *>;
   using Base::Base;
 
-  explicit ConstSampleView(const SampleView<Backend> &other)
+  ConstSampleView(const SampleView<Backend> &other)  // NOLINT
       : Base(other._raw_data(), other.shape(), other.type()) {}
 
   ConstSampleView &operator=(const SampleView<Backend> &other) {

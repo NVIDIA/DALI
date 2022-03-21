@@ -255,7 +255,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
     assert(vect_of_tensors.size() > 0);
-    tv.set_pinned(vect_of_tensors[0].is_pinned());
+    tv.SetupLike(vect_of_tensors[0]);
     for (size_t i = 0; i < tv.num_samples(); ++i) {
       tv.UnsafeSetSample(i, const_cast<Tensor<SrcBackend> &>(vect_of_tensors[i]));
     }

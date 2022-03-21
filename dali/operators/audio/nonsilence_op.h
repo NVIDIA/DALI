@@ -228,8 +228,8 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
                   args.reset_interval = reset_interval_;
 
                   auto res = DetectNonsilenceRegion(intermediate_buffers_[thread_id], args);
-                  auto beg_ptr = output_begin.mutable_tensor<int>(sample_id);
-                  auto len_ptr = output_length.mutable_tensor<int>(sample_id);
+                  auto *beg_ptr = output_begin.mutable_tensor<int>(sample_id);
+                  auto *len_ptr = output_length.mutable_tensor<int>(sample_id);
                   *beg_ptr = res.first;
                   *len_ptr = res.second;
               }, in_shape.tensor_size(sample_id));

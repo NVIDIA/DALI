@@ -93,8 +93,8 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeContiguous) {
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
   EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
   EXPECT_EQ(tv.is_pinned(), false);
-  for (auto &t : tv) {
-    EXPECT_EQ(t->type(), DALI_INT32);
+  for (size_t i = 0; i < tv.num_samples(); i++) {
+    EXPECT_EQ(tv[i].type(), DALI_INT32);
   }
 }
 
@@ -109,8 +109,8 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeNoncontiguous) {
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
   EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
   EXPECT_EQ(tv.is_pinned(), false);
-  for (auto &t : tv) {
-    EXPECT_EQ(t->type(), DALI_INT32);
+  for (size_t i = 0; i < tv.num_samples(); i++) {
+    EXPECT_EQ(tv[i].type(), DALI_INT32);
   }
 }
 
@@ -121,9 +121,6 @@ TYPED_TEST(TensorVectorSuite, BatchResize) {
   tv.reserve(200);
   tv.template set_type<int32_t>();
   tv.Resize(uniform_list_shape(5, {10, 20}));
-  // for (auto &t : tv) {
-  //   EXPECT_TRUE(t->shares_data());
-  // }
 }
 
 TYPED_TEST(TensorVectorSuite, VariableBatchResizeDown) {

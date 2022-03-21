@@ -186,7 +186,7 @@ class DALITest : public ::testing::Test {
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i), data[i % nImgs],
                   data_sizes[i % nImgs]);
-      tl->GetMeta(i).SetSourceInfo(imgs.filenames_[i % nImgs]);
+      tl->SetSourceInfo(i, imgs.filenames_[i % nImgs]);
     }
   }
 

@@ -65,8 +65,8 @@ void PreemphasisFilterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   for (int sample_id = 0; sample_id < nsamples; sample_id++) {
     tp.AddWork(
       [this, &output, &input, sample_id](int thread_id) {
-        const auto in_ptr = input.tensor<InputType>(sample_id);
-        auto out_ptr = output.mutable_tensor<OutputType>(sample_id);
+        const auto *in_ptr = input.tensor<InputType>(sample_id);
+        auto *out_ptr = output.mutable_tensor<OutputType>(sample_id);
         DALI_ENFORCE(input.tensor_shape(sample_id) == output.tensor_shape(sample_id),
                      "Input and output shapes don't match");
         auto n = volume(output.tensor_shape(sample_id));

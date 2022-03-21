@@ -341,7 +341,7 @@ class Operator<CPUBackend> : public OperatorBase {
     thread_pool.RunAll();
     // Propagate metadata from individual samples to the whole batch as working with SampleWorkspace
     // breaks metadata consistency - it sets it only to samples
-    EnforceCorrectness(ws, CanInferOutputs());
+    FixBatchPropertiesConsistency(ws, CanInferOutputs());
   }
 
   /**

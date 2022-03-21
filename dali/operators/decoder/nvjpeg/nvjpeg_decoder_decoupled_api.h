@@ -852,6 +852,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       TensorVector<CPUBackend> tv(samples_hw_batched_.size());
 
       const auto &input = ws.Input<CPUBackend>(0);
+      tv.SetupLike(input);
       for (auto *sample : samples_hw_batched_) {
         int i = sample->sample_idx;
         const auto &out_shape = output_shape_.tensor_shape(i);

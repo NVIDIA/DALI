@@ -33,6 +33,10 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     auto curr_batch_size = shapes.num_samples();
     output.Resize(shapes, tensor_vector_elm.front()->type());
 
+    // as we copy element by element and the output is contiguous we need to set layout
+    // for the whole output not each element(view)
+    auto &output = ws.template Output<CPUBackend>(0);
+    output.SetLayout(tensor_vector_elm.front()->GetLayout());
 
     for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {
       thread_pool.AddWork(
@@ -43,10 +47,6 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
           shapes.tensor_size(sample_id));
     }
     thread_pool.RunAll();
-    // as we copy element by element and the output is contiguous we need to set layout
-    // for the whole output not each element(view)
-    auto &output = ws.template Output<CPUBackend>(0);
-    output.SetLayout(tensor_vector_elm.front()->GetLayout());
   } else {
     // swap output with tensor_vector_elm content
     std::swap(output, *tensor_vector_elm.front());

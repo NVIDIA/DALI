@@ -182,13 +182,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
       std::memcpy(out_data, finalImg->ptr(), finalImg->rows * finalImg->cols * c);
     }
 
-    TensorListShape<> shape(tmp_out.size(), tmp_out[0].shape().sample_dim());
-    for (size_t i = 0; i < image_data.num_samples(); ++i) {
-      shape.set_tensor_shape(i, tmp_out[i].shape());
-    }
-    // TODO(klecki): If sharing we do not need to resize, we just need to enforce that we have
-    // enough samples
-    out.Resize(shape, tmp_out[0].type());
+    out.SetupLike(tmp_out[0]);
     for (size_t i = 0; i < image_data.num_samples(); ++i) {
       out.UnsafeSetSample(i, tmp_out[i]);
     }

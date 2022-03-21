@@ -74,7 +74,7 @@ TEST(OpSpecTest, GetArgumentTensorSet) {
     auto tv = std::make_shared<TensorVector<CPUBackend>>(2);
     tv->Resize(TensorListShape<0>(2), DALI_INT32);
     for (int i = 0; i < 2; i++) {
-      view<int32_t>((*tv)[i]).data[0] = 42 + i;
+      tv->mutable_tensor<int32_t>(i)[0] = 42 + i;
     }
     ws0.AddArgumentInput(arg_name, tv);
     auto spec0 = OpSpec("DummyOpForSpecTest")

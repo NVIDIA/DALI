@@ -135,15 +135,17 @@ DLL_PUBLIC void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, in
                                  int thread_idx);
 
 /**
- * @brief After running sample-wise operator we need to fix the Tensor Vector guarantees that were
- * broken by the legacy operators operating just on samples. We propagate the properties from
- * samples and enforce they are consistent.
+ * @brief Update the TensorVector properties based on the ones that were set in the individual
+ * samples during execution of the sample-wise operator.
  *
- * TODO(klecki): Introduce RAII wrapper for MakeSampleView and EnforceCorrectness
- * @param batch The workspace to update after executing samplewise operator
+ * After running sample-wise operator we need to fix the Tensor Vector guarantees that were
+ * broken by the legacy operators operating just on samples.
+ *
+ * TODO(klecki): Introduce RAII wrapper for MakeSampleView and FixBatchPropertiesConsistency
+ * @param ws The workspace to update after executing samplewise operator
  * @param contiguous If the operator infers outputs and thus uses contiguous allocations
  */
-DLL_PUBLIC void EnforceCorrectness(HostWorkspace& ws, bool contiguous);
+DLL_PUBLIC void FixBatchPropertiesConsistency(HostWorkspace& ws, bool contiguous);
 
 }  // namespace dali
 

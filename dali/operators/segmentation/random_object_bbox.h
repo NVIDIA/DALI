@@ -192,7 +192,7 @@ class RandomObjectBBox : public Operator<CPUBackend> {
 
     ThreadPool *thread_pool = nullptr;
     TensorView<StorageCPU, int> out1, out2;
-    ConstSampleView<CPUBackend> input = {};
+    ConstSampleView<CPUBackend> input;
 
     int sample_idx;
     int class_idx;

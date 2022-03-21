@@ -45,11 +45,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
       this->DecodeImage(data, data_size, c, this->ImageType(), &tmp_out[i]);
     }
 
-    TensorListShape<> out_shape(inputs[0]->num_samples(), 3);
-    for (size_t i = 0; i < encoded_data.num_samples(); ++i) {
-      out_shape.set_tensor_shape(i, tmp_out[i].shape());
-    }
-    out.Resize(out_shape, DALI_UINT8);
+    out.SetupLike(tmp_out[0]);
     for (size_t i = 0; i < encoded_data.num_samples(); ++i) {
       out.UnsafeSetSample(i, tmp_out[i]);
     }

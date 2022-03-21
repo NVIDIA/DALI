@@ -75,16 +75,13 @@ class PeekImageShape : public Operator<CPUBackend> {
     const auto &input = ws.template Input<CPUBackend>(0);
     auto &output = ws.template Output<CPUBackend>(0);
     size_t batch_size = input.num_samples();
-    DALI_ENFORCE(input.type() == DALI_UINT8, "Input must be stored as uint8 data.");
+    DALI_ENFORCE(input.type() == DALI_UINT8,
+                 "The input must be raw, undecoded files stored as a flat uint8 arrays.");
+    DALI_ENFORCE(input.sample_dim() == 1, "Input must be 1D encoded jpeg string.");
 
     for (size_t sample_id = 0; sample_id < batch_size; ++sample_id) {
       thread_pool.AddWork([sample_id, &input, &output, this] (int tid) {
         const auto& image = input[sample_id];
-        // Verify input
-        // TODO(klecki): Move the checks to scope above
-        DALI_ENFORCE(image.shape().sample_dim() == 1,
-                      "Input must be 1D encoded jpeg string.");
-        DALI_ENFORCE(image.type() == DALI_UINT8, "Input must be stored as uint8 data.");
         auto img =
             ImageFactory::CreateImage(image._data<uint8>(), image.shape().num_elements(), {});
         auto shape = img->PeekShape();
