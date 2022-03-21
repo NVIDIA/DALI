@@ -698,27 +698,35 @@ def test_no_slice():
         for dtype in [types.UINT8, types.UINT16, types.FLOAT]:
             yield check_no_slice, device, dtype, batch_size, num_threads
 
-def check_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty):
-    get_dynamic_axes = generator_random_axes_for_3d_input(
-        batch_size, use_negative=use_negative, use_empty=use_empty,
-        extra_out_desc=[
-            (0.0, 0.2, np.float32),  # rel_start
-            (0.4, 0.6, np.float32)   # rel_shape
-    ])
-
+def check_rel_start_rel_shape(device, batch_size, num_threads,
+                              get_dynamic_axes=None, args_device='cpu'):
     image_gen = generator_random_data(
         batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3),
         dtype=np.float32, val_range=[0.0, 1.0])
+
+    # Args GPU only possible with GPU backend
+    assert args_device == device or device == 'gpu'
 
     @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=0)
     def make_pipe():
         image = fn.external_source(source=image_gen)
         if device == 'gpu':
             image = image.gpu()
-        axes, rel_start, rel_shape = fn.external_source(source=get_dynamic_axes, num_outputs=3)
-        sliced1 = fn.slice(image, rel_start=rel_start, rel_shape=rel_shape, axes=axes)
-        sliced2 = fn.slice(image, rel_start, rel_shape, axes=axes)
-        return image, axes, rel_start, rel_shape, sliced1, sliced2
+        if get_dynamic_axes:
+            axes, rel_start, rel_shape = fn.external_source(source=get_dynamic_axes, num_outputs=3)
+        else:
+            axes = types.Constant(np.array([0, 1], dtype = np.int32), device='cpu')
+            rel_start = fn.random.uniform(range=(0.1, 0.2), shape=(2,), dtype=types.FLOAT,
+                                          device=args_device)
+            rel_shape = fn.random.uniform(range=(0.4, 0.6), shape=(2,), dtype=types.FLOAT,
+                                          device=args_device)
+        if args_device == 'gpu':
+            sliced = fn.slice(image, rel_start, rel_shape, axes=axes)
+            return image, axes, rel_start, rel_shape, sliced
+        else:
+            sliced1 = fn.slice(image, rel_start=rel_start, rel_shape=rel_shape, axes=axes)
+            sliced2 = fn.slice(image, rel_start, rel_shape, axes=axes)
+            return image, axes, rel_start, rel_shape, sliced1, sliced2
     pipe = make_pipe()
     pipe.build()
     ndim = 3
@@ -732,8 +740,6 @@ def check_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty)
                 axes = np.array(range(ndim), dtype=np.int32)
             rel_start = as_array(outs[2][sample_idx])
             rel_shape = as_array(outs[3][sample_idx])
-            sliced1 = as_array(outs[4][sample_idx])
-            sliced2 = as_array(outs[5][sample_idx])
             start = np.zeros([ndim], dtype=np.int32)
             end = np.array([in_img.shape[i] for i in range(ndim)], dtype=np.int32)
             for i in range(len(axes)):
@@ -742,8 +748,20 @@ def check_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty)
                 start[a] = roundint(rel_start[i] * in_img.shape[a])
                 end[a] = roundint((rel_start[i] + rel_shape[i]) * in_img.shape[a])
             ref_sliced = in_img[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
-            np.testing.assert_allclose(ref_sliced, sliced1)
-            np.testing.assert_allclose(ref_sliced, sliced2)
+            # With GPU arguments we don't test named arguments
+            for out_idx in range(2 if args_device == 'cpu' else 1):
+                sliced = as_array(outs[4 + out_idx][sample_idx])
+                np.testing.assert_allclose(ref_sliced, sliced)
+
+def check_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty):
+    get_dynamic_axes = generator_random_axes_for_3d_input(
+        batch_size, use_negative=use_negative, use_empty=use_empty,
+        extra_out_desc=[
+            (0.0, 0.2, np.float32),  # rel_start
+            (0.4, 0.6, np.float32)   # rel_shape
+    ])
+    check_rel_start_rel_shape(device, batch_size, num_threads,
+                              get_dynamic_axes=get_dynamic_axes, args_device='cpu')
 
 def test_dynamic_axes():
     batch_size=10
@@ -820,35 +838,7 @@ def test_scalar():
 def test_gpu_args():
     batch_size=10
     num_threads=3
-    image_gen = generator_random_data(
-        batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3),
-        dtype=np.float32, val_range=[0.0, 1.0])
-
-    @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=0)
-    def make_pipe():
-        image = fn.external_source(source=image_gen, device='gpu')
-        rel_start = fn.random.uniform(range=(0.1, 0.2), shape=(2,), dtype=types.FLOAT, device='gpu')
-        rel_shape = fn.random.uniform(range=(0.4, 0.6), shape=(2,), dtype=types.FLOAT, device='gpu')
-        sliced = fn.slice(image, rel_start, rel_shape, axes=[0, 1])
-        return image, rel_start, rel_shape, sliced
-    pipe = make_pipe()
-    pipe.build()
-    ndim = 3
-    for _ in range(3):
-        outs = pipe.run()
-        for sample_idx in range(batch_size):
-            in_img = as_array(outs[0][sample_idx])
-            rel_start = as_array(outs[1][sample_idx])
-            rel_shape = as_array(outs[2][sample_idx])
-            sliced1 = as_array(outs[3][sample_idx])
-
-            start = np.zeros([ndim], dtype=np.int32)
-            end = np.array([in_img.shape[i] for i in range(ndim)], dtype=np.int32)
-            for a in [0, 1]:
-                start[a] = roundint(rel_start[a] * in_img.shape[a])
-                end[a] = roundint((rel_start[a] + rel_shape[a]) * in_img.shape[a])
-            ref_sliced = in_img[start[0]:end[0], start[1]:end[1], :]
-            np.testing.assert_allclose(ref_sliced, sliced1)
+    check_rel_start_rel_shape('gpu', batch_size, num_threads, args_device='gpu')
 
 def test_wrong_arg_backend():
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
@@ -860,6 +850,20 @@ def test_wrong_arg_backend():
         return sliced
 
     with assert_raises(ValueError, glob='An operator with device=\'cpu\' cannot accept GPU inputs'):
+        p = make_pipe()
+        p.build()
+        p.run()
+
+def test_wrong_backend_named_args():
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def make_pipe():
+        fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device='cpu')
+        rel_start = fn.random.uniform(range=[0.0, 0.3], shape=(2,), dtype=types.FLOAT, device='gpu')
+        rel_shape = fn.random.uniform(range=[0.4, 0.6], shape=(2,), dtype=types.FLOAT, device='gpu')
+        sliced = fn.slice(fake_data, rel_start=rel_start, rel_shape=rel_shape, device='cpu')
+        return sliced
+
+    with assert_raises(RuntimeError, glob='Named arguments inputs to operators must be CPU data nodes'):
         p = make_pipe()
         p.build()
         p.run()

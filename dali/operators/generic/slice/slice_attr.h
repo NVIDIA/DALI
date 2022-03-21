@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 #include "dali/core/common.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
@@ -204,6 +205,9 @@ class PositionalSliceAttr {
     normalized_shape_ = spec.GetArgument<bool>("normalized_shape");
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
+
+    crop_anchor_cpu_.set_pinned(true);
+    crop_shape_cpu_.set_pinned(true);
   }
 
   template <typename Backend>
@@ -222,12 +226,11 @@ class PositionalSliceAttr {
                  make_string("Anchor and shape should have the same type. Got: ",
                              crop_anchor_type, " and ", crop_shape_type));
     TYPE_SWITCH(crop_anchor_type, type2id, ArgsType, SLICE_ARGS_TYPES, (
-      auto anchor = GetInputArgumentCPU<const ArgsType, Backend>(ws, 1, crop_anchor_cpu_);
-      auto shape = GetInputArgumentCPU<const ArgsType, Backend>(ws, 2, crop_shape_cpu_);
+      auto slice_arg_views = GetPositionalSliceArgsCPU<const ArgsType, Backend>(ws);
       for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
         ProcessPositionalInputArgs(data_idx,
-                                   Span(anchor, data_idx),
-                                   Span(shape, data_idx));
+                                   sample_as_span(slice_arg_views.first, data_idx),
+                                   sample_as_span(slice_arg_views.second, data_idx));
       }
     ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", crop_anchor_type)));  // NOLINT
     return true;
@@ -240,23 +243,43 @@ class PositionalSliceAttr {
 
  private:
   template <typename T>
-  span<T> Span(const TensorListView<StorageCPU, T, DynamicDimensions>& v, int sample_idx) {
+  span<T> sample_as_span(const TensorListView<StorageCPU, T, DynamicDimensions>& v,
+                         int sample_idx) {
     ptrdiff_t vol = volume(v.tensor_shape_span(sample_idx));
     return span<T>(v.tensor_data(sample_idx), vol);
   }
 
   template <typename T, typename Backend>
-  const TensorListView<StorageCPU, T, DynamicDimensions> GetInputArgumentCPU(
-      const workspace_t<Backend>& ws, int idx, TensorList<CPUBackend>& cpu_buffer) {
-    if (ws.template InputIsType<CPUBackend>(idx)) {
-      const auto &arg = ws.template Input<CPUBackend>(idx);
-      return view<T>(arg);
-    } else {
-      const auto &arg = ws.template Input<GPUBackend>(idx);
-      cpu_buffer.set_order(AccessOrder::host());
-      cpu_buffer.Copy(arg);
-      return view<T>(cpu_buffer);
-    }
+  std::pair<TensorListView<StorageCPU, T, DynamicDimensions>,
+            TensorListView<StorageCPU, T, DynamicDimensions>>
+  GetPositionalSliceArgsCPU(const workspace_t<Backend>& ws) {
+    AccessOrder order;
+    CUDAStreamLease stream;
+
+    auto in_cpu_view = [&](int idx, TensorList<CPUBackend>& cpu_buffer) {
+      if (ws.template InputIsType<CPUBackend>(idx)) {
+        return view<T>(ws.template Input<CPUBackend>(idx));
+      } else {
+        const auto& arg = ws.template Input<GPUBackend>(idx);
+        if (!order) {
+          stream = CUDAStreamPool::instance().Get(arg.order().device_id());
+          order = AccessOrder(stream);
+        }
+        assert(cpu_buffer.is_pinned());
+        cpu_buffer.set_order(order);
+        cpu_buffer.Copy(arg);
+        return view<T>(cpu_buffer);
+      }
+    };
+
+    auto v1 = in_cpu_view(1, crop_anchor_cpu_);
+    auto v2 = in_cpu_view(2, crop_shape_cpu_);
+
+    // Sync
+    if (!order)
+      AccessOrder::host().wait(order);
+
+    return std::make_pair(std::move(v1), std::move(v2));
   }
 
   template <typename AnchorT, typename ShapeT>
