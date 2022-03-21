@@ -100,7 +100,7 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
         header_cache_.UpdateCache(filename, parse_target);
       }
     } catch (const std::runtime_error &e) {
-      DALI_FAIL(e.what() + " File: " + filename);
+      DALI_FAIL(e.what() + ". File: " + filename);
     }
 
 
