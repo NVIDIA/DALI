@@ -30,6 +30,13 @@
 
 namespace dali {
 
+namespace detail {
+inline bool is_per_frame(const TensorVector<CPUBackend> &arg_tensor) {
+  const auto &layout = arg_tensor.GetLayout();
+  return layout.size() > 0 && layout[0] == 'F';
+}
+}  // namespace detail
+
 /**
  * @brief SequenceOperator
  * Provides generic support for sequence processing to an operator by unfolding
@@ -42,6 +49,9 @@ namespace dali {
  * supporting per-frame tensor values and the tensor argument layout starts with `F`, the
  * outermost dimension of the tensor argument will be unfolded to match the the expanded
  * input of the operator.
+ *
+ * The operator must infer input shapes in the setup stage and must not manually
+ * resize the outputs.
  */
 template <typename Backend>
 class SequenceOperator : public Operator<Backend> {
@@ -71,25 +81,18 @@ class SequenceOperator : public Operator<Backend> {
       ExpandArguments(ws);
       is_inferred = Operator<Backend>::Setup(output_desc, expanded_);
     }
-    is_inferred_ = ProcessOutputDesc(output_desc, ws, is_inferred);
-    return is_inferred_;
+    is_inferred = ProcessOutputDesc(output_desc, ws, is_inferred);
+    DALI_ENFORCE(is_inferred, "SequenceOperator must be able to infer the input shape");
+    return is_inferred;
   }
 
   void Run(workspace_t<Backend> &ws) override {
     if (!IsExpanding()) {
       Operator<Backend>::Run(ws);
     } else {
-      if (is_inferred_) {
-        ExpandOutputs(ws);
-      } else {
-        // nothing could be presized, so there is nothing to expand
-        // just copy the handles from ``ws`` to ``expanded_``
-        ShareOutputs(ws);
-      }
+      ExpandOutputs(ws);
       Operator<Backend>::Run(expanded_);
-      if (is_inferred_) {
-        PostprocessOutputs(ws);
-      }
+      PostprocessOutputs(ws);
       ClearExpanded();
     }
   }
@@ -177,16 +180,6 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
-  virtual void ShareOutputs(const workspace_t<Backend> &ws) {
-    for (int output_idx = 0; output_idx < ws.NumInput(); output_idx++) {
-      if (ws.template OutputIsType<GPUBackend>(output_idx)) {
-        AddOutputHelper<GPUBackend>(ws.template OutputPtr<GPUBackend>(output_idx));
-      } else {
-        AddOutputHelper<CPUBackend>(ws.template OutputPtr<CPUBackend>(output_idx));
-      }
-    }
-  }
-
   /**
    * @brief If the outputs were expanded, the meta-data from the expanded outputs
    * needs to be reflected in the original workspace outputs.
@@ -246,12 +239,12 @@ class SequenceOperator : public Operator<Backend> {
     return is_inferred;
   }
 
-  virtual void ExpandArgument(const ArgumentWorkspace &ws, const std::string &arg_name,
-                              const TensorVector<CPUBackend> &arg_tensor) {
+  virtual void AddExpandedArgument(const ArgumentWorkspace &ws, const std::string &arg_name,
+                                   const TensorVector<CPUBackend> &arg_tensor) {
     auto expand_idx = GetArgExpandDescIdx(arg_name);
-    auto expanded_arg = ExpandArgumentLike(arg_tensor, arg_name, expand_idx);
+    auto expanded_arg = ExpandArgument(arg_tensor, arg_name, expand_idx);
     auto expanded_handle = std::make_shared<TensorVector<CPUBackend>>(std::move(expanded_arg));
-    AddArgumentInputHelper(arg_name, expanded_handle);
+    ExpandedAddArgument(arg_name, expanded_handle);
   }
 
   /**
@@ -268,11 +261,11 @@ class SequenceOperator : public Operator<Backend> {
    * Assumes ``IsExpandble()`` is true, i.e. there is some expandable input to match the expanded
    * arguments.
    */
-  virtual void ExpandArguments(const ArgumentWorkspace &ws) {
+  void ExpandArguments(const ArgumentWorkspace &ws) {
     for (const auto &arg_input : ws) {
       auto &shared_tvec = arg_input.second.tvec;
       assert(shared_tvec);
-      ExpandArgument(ws, arg_input.first, *shared_tvec);
+      AddExpandedArgument(ws, arg_input.first, *shared_tvec);
     }
   }
 
@@ -338,16 +331,11 @@ class SequenceOperator : public Operator<Backend> {
     for (const auto &arg_input : ws) {
       auto &shared_tvec = arg_input.second.tvec;
       assert(shared_tvec);
-      if (IsPerFrame(*shared_tvec)) {
+      if (detail::is_per_frame(*shared_tvec)) {
         return true;
       }
     }
     return false;
-  }
-
-  bool IsPerFrame(const TensorVector<CPUBackend> &arg_tensor) {
-    const auto &layout = arg_tensor.GetLayout();
-    return layout.size() > 0 && layout[0] == 'F';
   }
 
   void AddInputBroadcastedLike(const workspace_t<Backend> &ws, int input_idx,
@@ -468,8 +456,8 @@ class SequenceOperator : public Operator<Backend> {
     expanded_.AddInput(input);
   }
 
-  void AddArgumentInputHelper(const std::string &arg_name,
-                              std::shared_ptr<TensorVector<CPUBackend>> arg_input) {
+  void ExpandedAddArgument(const std::string &arg_name,
+                           std::shared_ptr<TensorVector<CPUBackend>> arg_input) {
     expanded_.AddArgumentInput(arg_name, arg_input);
   }
 
@@ -502,8 +490,8 @@ class SequenceOperator : public Operator<Backend> {
     expanded_.Clear();
   }
 
-  TensorVector<CPUBackend> ExpandArgumentLike(const TensorVector<CPUBackend> &arg_tensor,
-                                              const std::string &arg_name, int expand_idx) {
+  TensorVector<CPUBackend> ExpandArgument(const TensorVector<CPUBackend> &arg_tensor,
+                                          const std::string &arg_name, int expand_idx) {
     const auto &expand_desc = GetInputExpandDesc(expand_idx);
     DALI_ENFORCE(static_cast<ptrdiff_t>(arg_tensor.num_samples()) == expand_desc.NumSamples(),
                  make_string("Number of samples passed for argument ", arg_name, " (got ",
@@ -519,27 +507,27 @@ class SequenceOperator : public Operator<Backend> {
                     "with dimensionality ",
                     arg_sample_dim, ")."));
     const auto &schema = Operator<Backend>::GetSpec().GetSchema();
-    if (schema.ArgSupportsPerFrameInput(arg_name) && IsPerFrame(arg_tensor)) {
-      // Do not error out but simply ignore `F` layout of the argument input
-      // if it is not marked as per-frame in schema to be consistent with operators
-      // that do not support per-frame at all
-      return ExpandPerFrameLike(arg_tensor, arg_name, expand_idx, expand_desc);
+    // Do not error out but simply ignore `F` layout of the argument input
+    // if it is not marked as per-frame in schema to be consistent with operators
+    // that do not support per-frame at all
+    if (schema.ArgSupportsPerFrameInput(arg_name) && detail::is_per_frame(arg_tensor)) {
+      DALI_ENFORCE(
+          expand_desc.ExpandFrames(),
+          make_string(
+              "Tensor input for argument ", arg_name, " is specified per frame (got ",
+              arg_tensor.GetLayout(),
+              " layout), but samples in the input batch do not contain frames (expected input "
+              "layout that starts with 'F'",
+              ShouldExpandChannels(expand_idx) ? " or 'CF'" : "", "). Got layout ",
+              expand_desc.Layout(), " for operator intput ", expand_idx, "."));
+      return ExpandPerFrameLike(arg_tensor, arg_name, expand_desc);
     }
     return BroadcastLike(arg_tensor, expand_desc);
   }
 
   TensorVector<CPUBackend> ExpandPerFrameLike(const TensorVector<CPUBackend> &arg_tensor,
-                                              const std::string &arg_name, int expand_idx,
+                                              const std::string &arg_name,
                                               const ExpandDesc &expand_desc) {
-    DALI_ENFORCE(
-        expand_desc.ExpandFrames(),
-        make_string(
-            "Tensor input for argument ", arg_name, " is specified per frame (got ",
-            arg_tensor.GetLayout(),
-            " layout), but samples in the input batch do not contain frames (expected input "
-            "layout that starts with 'F'",
-            ShouldExpandChannels(expand_idx) ? " or 'CF'" : "", "). Got layout ",
-            expand_desc.Layout(), " for operator intput ", expand_idx, "."));
     const auto &shape = arg_tensor.shape();
     int arg_sample_dim = shape.sample_dim();
     TensorVector<CPUBackend> flat_tensor(expand_desc.NumExpanded());
@@ -629,7 +617,6 @@ class SequenceOperator : public Operator<Backend> {
  private:
   int expand_like_idx_ = -1;
   bool is_expanding_ = false;
-  bool is_inferred_;
   workspace_t<Backend> expanded_;
 };
 
