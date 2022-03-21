@@ -130,6 +130,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     layout = dali::TensorLayout(layout_str);
   }
   dali::TensorVector<Backend> data(curr_batch_size);
+  data.set_pinned(flags & DALI_ext_pinned);
   auto type_id = static_cast<dali::DALIDataType>(data_type);
   auto elem_sizeof = dali::TypeTable::GetTypeInfo(type_id).size();
 
@@ -138,6 +139,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     order = AccessOrder(stream);
   else
     order = AccessOrder::host();
+
 
   for (int i = 0; i < curr_batch_size; i++) {
     // We cast away the const from data_ptr, as there is no other way of passing it to the

@@ -88,6 +88,10 @@ void TensorVector<Backend>::UnsafeSetSample(int dst, const TensorVector<Backend>
       GetLayout() == "" || GetLayout() == owner.GetLayout(),
       make_string("Sample must have the same layout as a target batch current: ", GetLayout(),
                   " new: ", owner.GetLayout(), " for ", dst, " <- ", src, "."));
+  DALI_ENFORCE(
+      is_pinned() == owner.is_pinned(),
+      make_string("Sample must have the same pinned status as target batch, current: ", is_pinned(),
+                  " new: ", owner.is_pinned(), " for ", dst, " <- ", src, "."));
 
   SetContiguous(false);
   // Setting a new share overwrites the previous one - so we can safely assume that even if
@@ -120,6 +124,10 @@ void TensorVector<Backend>::UnsafeSetSample(int dst, const Tensor<Backend> &owne
       GetLayout() == "" || GetLayout() == owner.GetLayout(),
       make_string("Sample must have the same layout as a target batch current: ", GetLayout(),
                   " new: ", owner.GetLayout(), " for ", dst, " <-."));
+  DALI_ENFORCE(
+      is_pinned() == owner.is_pinned(),
+      make_string("Sample must have the same pinned status as target batch, current: ", is_pinned(),
+                  " new: ", owner.is_pinned(), " for ", dst, " <-."));
   SetContiguous(false);
   // Setting a new share overwrites the previous one - so we can safely assume that even if
   // we had a sample sharing into TL, it will be overwritten
@@ -386,16 +394,7 @@ void TensorVector<Backend>::set_pinned(bool pinned) {
 
 template <typename Backend>
 bool TensorVector<Backend>::is_pinned() const {
-  if (state_ == State::contiguous) {
-    return tl_->is_pinned();
-  }
-  if (curr_tensors_size_ == 0) {
-    return pinned_;
-  }
-  for (size_t i = 1; i < curr_tensors_size_; i++) {
-    assert(tensors_[i]->is_pinned() == tensors_[0]->is_pinned());
-  }
-  return tensors_[0]->is_pinned();
+  return pinned_;
 }
 
 

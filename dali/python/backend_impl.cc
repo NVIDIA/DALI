@@ -1269,6 +1269,10 @@ void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder or
   TensorVector<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
     auto &t = list[i].cast<Tensor<Backend>&>();
+    // TODO(klecki): evaluate if we want to keep such code
+    if (i == 0) {
+      tv.set_pinned(t.is_pinned());
+    }
     tv.UnsafeSetSample(i, t);
     // TODO(klecki): tv[i] = std::move(t);
   }
