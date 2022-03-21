@@ -82,7 +82,7 @@ class SequenceOperator : public Operator<Backend> {
       is_inferred = Operator<Backend>::Setup(output_desc, expanded_);
     }
     is_inferred = ProcessOutputDesc(output_desc, ws, is_inferred);
-    DALI_ENFORCE(is_inferred, "SequenceOperator must be able to infer the input shape");
+    DALI_ENFORCE(is_inferred, "SequenceOperator must infer the input shape");
     return is_inferred;
   }
 
@@ -158,32 +158,32 @@ class SequenceOperator : public Operator<Backend> {
     int ref_input_idx = GetReferentialInputIdx();
     const auto &ref_expand_desc = GetInputExpandDesc(ref_input_idx);
     const auto &input_desc = GetInputExpandDesc(input_idx);
-    int num_dims_to_expand = input_desc.NumDimsToExpand();
-    if (num_dims_to_expand == 0) {
+    int num_expand_dims = input_desc.NumDimsToExpand();
+    if (num_expand_dims == 0) {
       // TODO(ktokarski) Add support for broadcasting inputs in multi-input case.
       DALI_FAIL("Broadcasting of inputs for multi-input operators is not supported.")
     } else {
       if (ref_input_idx != input_idx) {
         VerifyExpanionConsistency(ref_input_idx, ref_expand_desc, input_idx, input_desc);
       }
-      ExpandedAddProcessededInput(ws, input_idx, [&](const auto &input) {
-        return UnfoldInput(ws, input, input_idx, num_dims_to_expand);
+      ExpandedAddProcessedInput(ws, input_idx, [&](const auto &input) {
+        return UnfoldInput(ws, input, input_idx, num_expand_dims);
       });
     }
   }
 
-  virtual void ExpandOutputs(const workspace_t<Backend> &ws) {
+  void ExpandOutputs(const workspace_t<Backend> &ws) {
     for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
-      const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
-      auto num_expand_dims = expand_desc.NumDimsToExpand();
-      if (ws.template OutputIsType<GPUBackend>(output_idx)) {
-        auto expanded_handle = ExpandOutput<GPUBackend>(ws, output_idx, num_expand_dims);
-        AddOutputHelper<GPUBackend>(expanded_handle);
-      } else {
-        auto expanded_handle = ExpandOutput<CPUBackend>(ws, output_idx, num_expand_dims);
-        AddOutputHelper<CPUBackend>(expanded_handle);
-      }
+      ExpandOutput(ws, output_idx);
     }
+  }
+
+  virtual void ExpandOutput(const workspace_t<Backend> &ws, int output_idx) {
+    const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
+    auto num_expand_dims = expand_desc.NumDimsToExpand();
+    ExpandedAddProcessedOutput(ws, output_idx, [&](const auto &output) {
+      return UnfoldOutput(ws, output, output_idx, num_expand_dims);
+    });
   }
 
   /**
@@ -396,29 +396,23 @@ class SequenceOperator : public Operator<Backend> {
         make_string("Cannot flatten the sequence-like input ", input_idx,
                     ". Samples must have more dimensions (got ", sample_dim,
                     ") than the requested number of dimensions to unfold: ", num_expand_dims, "."));
-    // TODO(ktokarski) TODO(klecki)
-    // Rework it when TensorList stops being contigious and supports "true sample" mode
     auto expanded_input = unfold_outer_dims(input, num_expand_dims);
     const auto &input_layout = input.GetLayout();
     expanded_input.SetLayout(input_layout.sub(num_expand_dims));
     return std::make_shared<InputType>(std::move(expanded_input));
   }
 
-  template <typename OutputBackend>
-  ws_input_t<OutputBackend> ExpandOutput(const workspace_t<Backend> &ws, int output_idx,
-                                         int num_expand_dims) {
-    const auto &output = ws.template Output<OutputBackend>(output_idx);
+  template <typename OutputType>
+  auto UnfoldOutput(const workspace_t<Backend> &ws, const OutputType &output, int output_idx,
+                    int num_expand_dims) {
     auto sample_dim = output.shape().sample_dim();
     DALI_ENFORCE(
         sample_dim > num_expand_dims,
         make_string("Cannot flatten the sequence-like output ", output_idx,
                     ". Samples must have more dimensions (got ", sample_dim,
                     ") than the requested number of dimensions to unfold: ", num_expand_dims, "."));
-    // TODO(ktokarski) TODO(klecki)
-    // Rework it when TensorList stops being contigious and supports "true sample" mode
     auto expanded_output = unfold_outer_dims(output, num_expand_dims);
-    return std::make_shared<typename ws_input_t<OutputBackend>::element_type>(
-        std::move(expanded_output));
+    return std::make_shared<OutputType>(std::move(expanded_output));
   }
 
   template <typename OutputBackend>
@@ -447,12 +441,22 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   template <typename ProcessFunc>
-  void ExpandedAddProcessededInput(const workspace_t<Backend> &ws, int input_idx,
-                                   ProcessFunc &&process) {
+  void ExpandedAddProcessedInput(const workspace_t<Backend> &ws, int input_idx,
+                                 ProcessFunc &&process) {
     if (ws.template InputIsType<GPUBackend>(input_idx)) {
-      ExpandedAddInput<GPUBackend>(process(ws.template Input<GPUBackend>(input_idx)));
+      ExpandedAddInput(process(ws.template Input<GPUBackend>(input_idx)));
     } else {
-      ExpandedAddInput<CPUBackend>(process(ws.template Input<CPUBackend>(input_idx)));
+      ExpandedAddInput(process(ws.template Input<CPUBackend>(input_idx)));
+    }
+  }
+
+  template <typename ProcessFunc>
+  void ExpandedAddProcessedOutput(const workspace_t<Backend> &ws, int output_idx,
+                                  ProcessFunc &&process) {
+    if (ws.template OutputIsType<GPUBackend>(output_idx)) {
+      ExpandedAddOutput(process(ws.template Output<GPUBackend>(output_idx)));
+    } else {
+      ExpandedAddOutput(process(ws.template Output<CPUBackend>(output_idx)));
     }
   }
 
@@ -461,14 +465,14 @@ class SequenceOperator : public Operator<Backend> {
     expanded_.AddInput(input);
   }
 
+  template <typename OutputBackend>
+  void ExpandedAddOutput(ws_input_t<OutputBackend> &&output) {
+    expanded_.AddOutput(output);
+  }
+
   void ExpandedAddArgument(const std::string &arg_name,
                            std::shared_ptr<TensorVector<CPUBackend>> &&arg_input) {
     expanded_.AddArgumentInput(arg_name, arg_input);
-  }
-
-  template <typename OutputBackend>
-  void AddOutputHelper(ws_input_t<OutputBackend> output) {
-    expanded_.AddOutput(output);
   }
 
   template <typename InputBackend>
