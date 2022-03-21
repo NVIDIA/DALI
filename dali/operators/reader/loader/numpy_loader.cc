@@ -245,11 +245,15 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   // read the header
   NumpyParseTarget parse_target;
   auto ret = header_cache_.GetFromCache(filename, parse_target);
-  if (ret) {
-    current_file->Seek(parse_target.data_offset);
-  } else {
-    detail::ParseHeader(current_file.get(), parse_target);
-    header_cache_.UpdateCache(filename, parse_target);
+  try {
+    if (ret) {
+      current_file->Seek(parse_target.data_offset);
+    } else {
+      detail::ParseHeader(current_file.get(), parse_target);
+      header_cache_.UpdateCache(filename, parse_target);
+    }
+  } catch (const std::runtime_error &e) {
+    DALI_FAIL(e.what() + " File: " + filename);
   }
 
   Index nbytes = parse_target.nbytes();
