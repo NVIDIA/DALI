@@ -173,7 +173,7 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   virtual void ExpandOutputs(const workspace_t<Backend> &ws) {
-    for (int output_idx = 0; output_idx < ws.NumInput(); output_idx++) {
+    for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
       const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
       auto num_expand_dims = expand_desc.NumDimsToExpand();
       if (ws.template OutputIsType<GPUBackend>(output_idx)) {
