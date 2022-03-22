@@ -226,11 +226,12 @@ class PositionalSliceAttr {
                  make_string("Anchor and shape should have the same type. Got: ",
                              crop_anchor_type, " and ", crop_shape_type));
     TYPE_SWITCH(crop_anchor_type, type2id, ArgsType, SLICE_ARGS_TYPES, (
-      auto slice_arg_views = GetPositionalSliceArgsCPU<const ArgsType, Backend>(ws);
+      TensorListView<StorageCPU, const ArgsType> anchor, shape;
+      GetPositionalSliceArgsCPU<const ArgsType, Backend>(anchor, shape, ws);
       for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
         ProcessPositionalInputArgs(data_idx,
-                                   sample_as_span(slice_arg_views.first, data_idx),
-                                   sample_as_span(slice_arg_views.second, data_idx));
+                                   sample_as_span(anchor, data_idx),
+                                   sample_as_span(shape, data_idx));
       }
     ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", crop_anchor_type)));  // NOLINT
     return true;
@@ -243,16 +244,16 @@ class PositionalSliceAttr {
 
  private:
   template <typename T>
-  span<T> sample_as_span(const TensorListView<StorageCPU, T, DynamicDimensions>& v,
+  span<T> sample_as_span(const TensorListView<StorageCPU, T>& v,
                          int sample_idx) {
     ptrdiff_t vol = volume(v.tensor_shape_span(sample_idx));
     return span<T>(v.tensor_data(sample_idx), vol);
   }
 
   template <typename T, typename Backend>
-  std::pair<TensorListView<StorageCPU, T, DynamicDimensions>,
-            TensorListView<StorageCPU, T, DynamicDimensions>>
-  GetPositionalSliceArgsCPU(const workspace_t<Backend>& ws) {
+  void GetPositionalSliceArgsCPU(TensorListView<StorageCPU, T> &anchor,
+                                 TensorListView<StorageCPU, T> &shape,
+                                 const workspace_t<Backend>& ws) {
     AccessOrder order;
     auto in_cpu_view = [&](int idx, TensorList<CPUBackend>& cpu_buffer) {
       if (ws.template InputIsType<CPUBackend>(idx)) {
@@ -268,14 +269,12 @@ class PositionalSliceAttr {
       }
     };
 
-    auto v1 = in_cpu_view(1, crop_anchor_cpu_);
-    auto v2 = in_cpu_view(2, crop_shape_cpu_);
+    anchor = in_cpu_view(1, crop_anchor_cpu_);
+    shape = in_cpu_view(2, crop_shape_cpu_);
 
     // Sync with stream used for copy, only if needed
     if (!order)
       AccessOrder::host().wait(order);
-
-    return std::make_pair(std::move(v1), std::move(v2));
   }
 
   template <typename AnchorT, typename ShapeT>
