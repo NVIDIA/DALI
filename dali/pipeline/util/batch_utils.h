@@ -45,11 +45,13 @@ inline void CheckInputLayouts(const Workspace &ws, const OpSpec &spec) {
 
 template <typename InputRef>
 bool SetDefaultLayoutIfNeeded(InputRef &in, const OpSchema &schema, int in_idx) {
-  if (!in.GetLayout().empty())
+  if (!in.GetLayout().empty()) {
     return false;
+  }
   auto default_layout = schema.GetInputLayout(in_idx, in.shape().sample_dim(), in.GetLayout());
-  if (default_layout.empty())
+  if (default_layout.empty()) {
     return false;
+  }
   in.SetLayout(default_layout);
   return true;
 }

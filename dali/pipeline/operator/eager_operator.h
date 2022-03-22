@@ -174,13 +174,7 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> EagerOperator<Backend>::Run
     tensor_in->ShareData(*inputs[in_idx]);
 
     // Set default layout for input if not specified.
-    if (tensor_in->GetLayout().empty()) {
-      auto default_layout = op_spec_.GetSchema().GetInputLayout(
-          in_idx, tensor_in->shape().sample_dim(), tensor_in->GetLayout());
-      if (!default_layout.empty()) {
-        tensor_in->SetLayout(default_layout);
-      }
-    }
+    SetDefaultLayoutIfNeeded(tensor_in)
 
     ws_.AddInput(tensor_in);
   }
