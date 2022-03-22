@@ -109,11 +109,44 @@ class SequenceOperator : public Operator<Backend> {
 
  protected:
   /**
+   * @brief Controls if the SequenceOperator should expand batches in the current iteration.
+   *
+   * It can be used to restrict cases when the expansion is performed, but it is an error for
+   * ``ShouldExpand`` to return true if none of the inputs is expandable (i.e. !IsExpandable()).
+   * Overriding the method may be useful for validation of the initial input layouts.
+   */
+  virtual bool ShouldExpand(const workspace_t<Backend> &ws) {
+    return IsExpandable();
+  }
+
+  /**
+   * @brief A common path for processing inferred output shapes for expanding and non-expanding
+   * cases.
+   *
+   * By default, the expanded output is assumed to have the same expandable layout and
+   * expandable shape as the expandable input. The inferred shapes are coalesced, i.e. the
+   * SequenceOperator verifies if the the shapes of frames corresponding to the same sequence are
+   * equal and merges them into sequences.
+   *
+   * May be overriden to infer output shapes outside of the operator's SetupImpl method,
+   * which may be easier or more performant.
+   */
+  virtual bool ProcessOutputDesc(std::vector<OutputDesc> &output_desc,
+                                 const workspace_t<Backend> &ws, bool is_inferred) {
+    if (is_inferred && IsExpanding()) {
+      CoalesceOutputShapes(output_desc, ws);
+    }
+    return is_inferred;
+  }
+
+  /**
    * @brief Controls if given input should expand leading channel dimensions.
    *
    * If false, only a batch whose layout starts with ``F`` will be considered expandable
    * (for example ``FHWC -> HWC``). If true, layouts starting with ``C`` will be expandable as well,
    * i.e. ``FCHW -> HW, CFHW -> HW, CHW -> HW`` etc.
+   *
+   * However, operator does not support specifing tensor arguments per-chanel.
    */
   virtual bool ShouldExpandChannels(int input_idx) const {
     (void)input_idx;
@@ -121,39 +154,56 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   /**
-   * @brief Controls if the SequenceOperator should expand batches in the current iteration.
-   *
-   * It can be used to restrict cases when the expansion is performed, but it is an error for
-   * ``ShouldExpand`` to return true if none of the inputs is expandable (i.e. !IsExpandable()).
+   * @brief Gets the ExpandDesc instance that describes the expandable prefix of the output layout
+   * and corresponding prefixes of the shapes in the batch. By default, the sequence shape and
+   * expandable layout are assumed to be the same for the output and the expandable input. If that's
+   * not the case, the method may be overriden to provide different ExpandDesc instance.
    */
-  virtual bool ShouldExpand(const workspace_t<Backend> &ws) {
-    return IsExpandable();
+  virtual const ExpandDesc &GetOutputExpandDesc(const workspace_t<Backend> &ws,
+                                                int output_idx) const {
+    (void)output_idx;
+    return GetInputExpandDesc(GetReferentialInputIdx());
+  }
+
+  virtual int GetArgExpandDescInputIdx(const std::string &arg_name) const {
+    (void)arg_name;
+    return GetReferentialInputIdx();
   }
 
   /**
-   * @brief Expands inputs from the provided workspace and adds them to the expanded workspace.
+   * @brief Expands the tensor arguments from ``ws`` and adds them to expanded workspace.
+   * Arguments marked as supporting per-frame tensors and with leading `F` in tensor layout are
+   * unfolded (and additionally broadcasted if the channels in the operator's input are unfolded) to
+   * match the operator's input. If the argument is unfolded, each sample of the argument must have
+   * the number of frames equal to either: one (so it can be broadcasted) or to the number of frames
+   * in the corresponding sample of operator's expandable input.
+   *
+   * Tensor inputs not marked per-frame or with no leading frames in the layout are broadcasted to
+   * match the operator's expandable input.
+   *
+   * Assumes ``IsExpandble()`` is true, i.e. there is some expandable input to match the expanded
+   * arguments.
+   */
+  virtual void ExpandArgument(const ArgumentWorkspace &ws, const std::string &arg_name,
+                              const TensorVector<CPUBackend> &arg_tensor) {
+    auto input_idx = GetArgExpandDescInputIdx(arg_name);
+    auto expanded_arg = ExpandArgumentLikeInput(arg_tensor, arg_name, input_idx);
+    auto expanded_handle = std::make_shared<TensorVector<CPUBackend>>(std::move(expanded_arg));
+    ExpandedAddArgument(arg_name, std::move(expanded_handle));
+  }
+
+  /**
+   * @brief Expands the input from the provided workspace and adds to the expanded workspace.
    *
    * Assumes ``IsExpandble()`` is true, i.e. there is at least one expandable input.
    *
-   * For multiple-input operators, if any of the inputs is to be expanded, all other inputs
-   * must be expandable in an agreeable way, i.e:
+   * By default, for multiple-input operators, if any of the inputs is to be expanded,
+   * all other inputs must be expandable in an agreeable way, i.e:
    * 1. have the same expandble layout prefix and matching outermost dimensions that are to
    *    be expanded, or
    * 2. have no expandable layout prefix, in that case the samples are going to be broadcasted
    *    to match the other expanded inputs (TODO).
    */
-  void ExpandInputs(const workspace_t<Backend> &ws) {
-    auto num_samples = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
-    for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
-      DALI_ENFORCE(ws.GetInputBatchSize(input_idx) == num_samples,
-                   make_string("All inputs of the operator must have the same number of samples in "
-                               "the batch. However, inputs: ",
-                               0, " and ", input_idx, " have ", num_samples, " and ",
-                               ws.GetInputBatchSize(input_idx), " samples respectively."));
-      ExpandInput(ws, input_idx);
-    }
-  }
-
   virtual void ExpandInput(const workspace_t<Backend> &ws, int input_idx) {
     int ref_input_idx = GetReferentialInputIdx();
     const auto &ref_expand_desc = GetInputExpandDesc(ref_input_idx);
@@ -172,12 +222,11 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
-  void ExpandOutputs(const workspace_t<Backend> &ws) {
-    for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
-      ExpandOutput(ws, output_idx);
-    }
-  }
-
+  /**
+   * @brief Expands the input from the provided workspace and adds to the expanded workspace.
+   *
+   * Assumes ``IsExpandble()`` is true, i.e. there is at least one expandable input.
+   */
   virtual void ExpandOutput(const workspace_t<Backend> &ws, int output_idx) {
     const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
     auto num_expand_dims = expand_desc.NumDimsToExpand();
@@ -225,95 +274,9 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
-  /**
-   * @brief A common path for processing inferred output shapes for expanding and non-expanding
-   * cases.
-   *
-   * By default, the expanded output is assumed to have the same expandable layout and
-   * expandable shape as the expandable input. The inferred shapes are coalesced, i.e. the
-   * SequenceOperator verifies if the the shapes of frames corresponding to the same sequence are
-   * equal and merges them into sequences.
-   *
-   * May be overriden to infer output shapes outside of the operator's SetupImpl method (which does
-   * not have access to ``ws`` in expanded case).
-   */
-  virtual bool ProcessOutputDesc(std::vector<OutputDesc> &output_desc,
-                                 const workspace_t<Backend> &ws, bool is_inferred) {
-    if (is_inferred && IsExpanding()) {
-      CoalesceOutputShapes(output_desc, ws);
-    }
-    return is_inferred;
-  }
-
-  virtual void ExpandArgument(const ArgumentWorkspace &ws, const std::string &arg_name,
-                              const TensorVector<CPUBackend> &arg_tensor) {
-    auto input_idx = GetArgExpandDescInputIdx(arg_name);
-    auto expanded_arg = ExpandArgumentLikeInput(arg_tensor, arg_name, input_idx);
-    auto expanded_handle = std::make_shared<TensorVector<CPUBackend>>(std::move(expanded_arg));
-    ExpandedAddArgument(arg_name, std::move(expanded_handle));
-  }
-
-  /**
-   * @brief Expands the tensor arguments from ``ws`` and adds them to expanded workspace.
-   * Arguments marked as supporting per-frame tensors and with leading `F` in tensor layout are
-   * unfolded (and additionally broadcasted if the channels in the operator's input are unfolded) to
-   * match the operator's input. If the argument is unfolded, each sample of the argument must have
-   * the number of frames equal to either: one (so it can be broadcasted) or to the number of frames
-   * in the corresponding sample of operator's expandable input.
-   *
-   * Tensor inputs not marked per-frame or with no leading frames in the layout are broadcasted to
-   * match the operator's expandable input.
-   *
-   * Assumes ``IsExpandble()`` is true, i.e. there is some expandable input to match the expanded
-   * arguments.
-   */
-  void ExpandArguments(const ArgumentWorkspace &ws) {
-    for (const auto &arg_input : ws) {
-      auto &shared_tvec = arg_input.second.tvec;
-      assert(shared_tvec);
-      const auto &arg_name = arg_input.first;
-      const auto &arg_tensor = *shared_tvec;
-      const auto &arg_layout = arg_tensor.GetLayout();
-      int arg_sample_dim = arg_tensor.sample_dim();
-      DALI_ENFORCE(
-          arg_layout.size() == 0 || arg_sample_dim == arg_layout.size(),
-          make_string("Layout of argument input ", arg_name, " has size ", arg_layout.size(),
-                      " which does not match the dimensionality of the argument (got argument "
-                      "with dimensionality ",
-                      arg_sample_dim, ")."));
-      ExpandArgument(ws, arg_name, arg_tensor);
-    }
-  }
-
-  /**
-   * @brief Gets the ExpandDesc instance that describes the expandable prefix of the layout and
-   * corresponding prefixes of the shapes in the batch. By default, the sequence shape and
-   * expandable layout are assumed to be the same for the output and the expandable input. If that's
-   * not the case, the method may be overriden to provide different ExpandDesc instance.
-   */
-  virtual const ExpandDesc &GetOutputExpandDesc(const workspace_t<Backend> &ws,
-                                                int output_idx) const {
-    (void)output_idx;
-    return GetInputExpandDesc(GetReferentialInputIdx());
-  }
-
-  virtual int GetArgExpandDescInputIdx(const std::string &arg_name) const {
-    (void)arg_name;
-    return GetReferentialInputIdx();
-  }
-
   const ExpandDesc &GetInputExpandDesc(int input_idx) const {
     DALI_ENFORCE(0 <= input_idx && static_cast<size_t>(input_idx) < input_expand_desc_.size());
     return input_expand_desc_[input_idx];
-  }
-
-  /**
-   * @brief Returns the index of the operator input which is expandable and other
-   * inputs should be expanded or broadcasted in a manner consistent with the
-   * given input. If no input is expandable, returns -1.
-   */
-  int GetReferentialInputIdx() const {
-    return expand_like_idx_;
   }
 
   void SetupSequenceOperator(const workspace_t<Backend> &ws) {
@@ -341,6 +304,52 @@ class SequenceOperator : public Operator<Backend> {
       }
     }
     return -1;
+  }
+
+  /**
+   * @brief Returns the index of the operator input which is expandable and other
+   * inputs should be expanded or broadcasted in a manner consistent with the
+   * given input. If no input is expandable, returns -1.
+   */
+  int GetReferentialInputIdx() const {
+    return expand_like_idx_;
+  }
+
+
+  void ExpandInputs(const workspace_t<Backend> &ws) {
+    auto num_samples = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
+    for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
+      DALI_ENFORCE(ws.GetInputBatchSize(input_idx) == num_samples,
+                   make_string("All inputs of the operator must have the same number of samples in "
+                               "the batch. However, inputs: ",
+                               0, " and ", input_idx, " have ", num_samples, " and ",
+                               ws.GetInputBatchSize(input_idx), " samples respectively."));
+      ExpandInput(ws, input_idx);
+    }
+  }
+
+  void ExpandOutputs(const workspace_t<Backend> &ws) {
+    for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
+      ExpandOutput(ws, output_idx);
+    }
+  }
+
+  void ExpandArguments(const ArgumentWorkspace &ws) {
+    for (const auto &arg_input : ws) {
+      auto &shared_tvec = arg_input.second.tvec;
+      assert(shared_tvec);
+      const auto &arg_name = arg_input.first;
+      const auto &arg_tensor = *shared_tvec;
+      const auto &arg_layout = arg_tensor.GetLayout();
+      int arg_sample_dim = arg_tensor.sample_dim();
+      DALI_ENFORCE(
+          arg_layout.size() == 0 || arg_sample_dim == arg_layout.size(),
+          make_string("Layout of argument input ", arg_name, " has size ", arg_layout.size(),
+                      " which does not match the dimensionality of the argument (got argument "
+                      "with dimensionality ",
+                      arg_sample_dim, ")."));
+      ExpandArgument(ws, arg_name, arg_tensor);
+    }
   }
 
   bool HasPerFrameArgInputs(const workspace_t<Backend> &ws) {
@@ -385,34 +394,6 @@ class SequenceOperator : public Operator<Backend> {
                                  input_desc.NumChannels(sample_idx)));
       }
     }
-  }
-
-  template <typename InputType>
-  auto UnfoldInput(const workspace_t<Backend> &ws, const InputType &input, int input_idx,
-                   int num_expand_dims) {
-    auto sample_dim = input.shape().sample_dim();
-    DALI_ENFORCE(
-        sample_dim > num_expand_dims,
-        make_string("Cannot flatten the sequence-like input ", input_idx,
-                    ". Samples must have more dimensions (got ", sample_dim,
-                    ") than the requested number of dimensions to unfold: ", num_expand_dims, "."));
-    auto expanded_input = unfold_outer_dims(input, num_expand_dims);
-    const auto &input_layout = input.GetLayout();
-    expanded_input.SetLayout(input_layout.sub(num_expand_dims));
-    return std::make_shared<InputType>(std::move(expanded_input));
-  }
-
-  template <typename OutputType>
-  auto UnfoldOutput(const workspace_t<Backend> &ws, const OutputType &output, int output_idx,
-                    int num_expand_dims) {
-    auto sample_dim = output.shape().sample_dim();
-    DALI_ENFORCE(
-        sample_dim > num_expand_dims,
-        make_string("Cannot flatten the sequence-like output ", output_idx,
-                    ". Samples must have more dimensions (got ", sample_dim,
-                    ") than the requested number of dimensions to unfold: ", num_expand_dims, "."));
-    auto expanded_output = unfold_outer_dims(output, num_expand_dims);
-    return std::make_shared<OutputType>(std::move(expanded_output));
   }
 
   template <typename OutputBackend>
@@ -487,6 +468,34 @@ class SequenceOperator : public Operator<Backend> {
 
   void ClearExpanded() {
     expanded_.Clear();
+  }
+
+  template <typename InputType>
+  auto UnfoldInput(const workspace_t<Backend> &ws, const InputType &input, int input_idx,
+                   int num_expand_dims) {
+    auto sample_dim = input.shape().sample_dim();
+    DALI_ENFORCE(
+        sample_dim > num_expand_dims,
+        make_string("Cannot flatten the sequence-like input ", input_idx,
+                    ". Samples must have more dimensions (got ", sample_dim,
+                    ") than the requested number of dimensions to unfold: ", num_expand_dims, "."));
+    auto expanded_input = unfold_outer_dims(input, num_expand_dims);
+    const auto &input_layout = input.GetLayout();
+    expanded_input.SetLayout(input_layout.sub(num_expand_dims));
+    return std::make_shared<InputType>(std::move(expanded_input));
+  }
+
+  template <typename OutputType>
+  auto UnfoldOutput(const workspace_t<Backend> &ws, const OutputType &output, int output_idx,
+                    int num_expand_dims) {
+    auto sample_dim = output.shape().sample_dim();
+    DALI_ENFORCE(
+        sample_dim > num_expand_dims,
+        make_string("Cannot flatten the sequence-like output ", output_idx,
+                    ". Samples must have more dimensions (got ", sample_dim,
+                    ") than the requested number of dimensions to unfold: ", num_expand_dims, "."));
+    auto expanded_output = unfold_outer_dims(output, num_expand_dims);
+    return std::make_shared<OutputType>(std::move(expanded_output));
   }
 
   TensorVector<CPUBackend> ExpandArgumentLikeInput(const TensorVector<CPUBackend> &arg_tensor,
