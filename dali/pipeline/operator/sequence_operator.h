@@ -67,12 +67,14 @@ class SequenceOperator : public Operator<Backend> {
   using ws_output_t = typename workspace_t<Backend>::template output_t<OutputBackend>;
 
   bool Setup(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    CheckInputLayouts(ws, spec_);
     SetupSequenceOperator(ws);
     is_expanding_ = ShouldExpand(ws);
     bool is_inferred;
     if (!IsExpanding()) {
       is_inferred = Operator<Backend>::Setup(output_desc, ws);
     } else {
+      Operator<Backend>::template EnforceUniformInputBatchSize<Backend>(ws);
       DALI_ENFORCE(IsExpandable(),
                    "Operator requested to expand the sequence-like inputs, but no expandable input "
                    "was found");
@@ -223,7 +225,7 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   /**
-   * @brief Expands the input from the provided workspace and adds to the expanded workspace.
+   * @brief Expands the output from the provided workspace and adds to the expanded workspace.
    *
    * Assumes ``IsExpandble()`` is true, i.e. there is at least one expandable input.
    */
@@ -286,11 +288,6 @@ class SequenceOperator : public Operator<Backend> {
     for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
       const auto &input_shape = ws.GetInputShape(input_idx);
       const auto &layout = GetInputLayout(ws, input_idx);
-      DALI_ENFORCE(layout.size() == 0 || layout.size() == input_shape.sample_dim(),
-                   make_string("Layout of input ", input_idx, " has size ", layout.size(),
-                               " which does not match the dimensionality of the input (got input "
-                               "with dimensionality ",
-                               input_shape.sample_dim(), ")."));
       input_expand_desc_.emplace_back(input_shape, layout, ShouldExpandChannels(input_idx));
     }
     expand_like_idx_ = InferExpandableInputIdx(ws);
@@ -315,15 +312,8 @@ class SequenceOperator : public Operator<Backend> {
     return expand_like_idx_;
   }
 
-
   void ExpandInputs(const workspace_t<Backend> &ws) {
-    auto num_samples = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
-      DALI_ENFORCE(ws.GetInputBatchSize(input_idx) == num_samples,
-                   make_string("All inputs of the operator must have the same number of samples in "
-                               "the batch. However, inputs: ",
-                               0, " and ", input_idx, " have ", num_samples, " and ",
-                               ws.GetInputBatchSize(input_idx), " samples respectively."));
       ExpandInput(ws, input_idx);
     }
   }
@@ -338,17 +328,7 @@ class SequenceOperator : public Operator<Backend> {
     for (const auto &arg_input : ws) {
       auto &shared_tvec = arg_input.second.tvec;
       assert(shared_tvec);
-      const auto &arg_name = arg_input.first;
-      const auto &arg_tensor = *shared_tvec;
-      const auto &arg_layout = arg_tensor.GetLayout();
-      int arg_sample_dim = arg_tensor.sample_dim();
-      DALI_ENFORCE(
-          arg_layout.size() == 0 || arg_sample_dim == arg_layout.size(),
-          make_string("Layout of argument input ", arg_name, " has size ", arg_layout.size(),
-                      " which does not match the dimensionality of the argument (got argument "
-                      "with dimensionality ",
-                      arg_sample_dim, ")."));
-      ExpandArgument(ws, arg_name, arg_tensor);
+      ExpandArgument(ws, arg_input.first, *shared_tvec);
     }
   }
 
@@ -613,6 +593,7 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   std::vector<ExpandDesc> input_expand_desc_;
+  USE_OPERATOR_MEMBERS();
 
  private:
   int expand_like_idx_ = -1;
