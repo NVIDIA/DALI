@@ -55,18 +55,6 @@ inline std::ostream &operator<<(std::ostream &os, StorageDevice device) {
   }
 }
 
-template<typename backend>
-std::shared_ptr<TensorList<backend>> PresentAsTensorList(
-    const std::shared_ptr<TensorList<backend>> &in) {
-  return in;
-}
-
-template<typename backend>
-std::shared_ptr<TensorList<backend>> PresentAsTensorList(
-    const std::shared_ptr<TensorVector<backend>> &in) {
-  return in->AsTensorList(false);
-}
-
 template<typename workspace, typename T>
 void AddInputHelper(workspace &ws, T &tensor) {
   ws.AddInput(tensor);

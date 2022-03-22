@@ -38,6 +38,7 @@
 #include "dali/pipeline/graph/op_graph_verifier.h"
 #include "dali/pipeline/operator/batch_size_provider.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
 #include "dali/pipeline/util/thread_pool.h"
@@ -355,15 +356,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   WorkspacePolicy ws_policy_;
 
  private:
-  template <typename InputRef>
-  static bool SetDefaultLayoutIfNeeded(InputRef &in, const OpSchema &schema, int in_idx) {
-    if (!in.GetLayout().empty()) return false;
-    auto default_layout = schema.GetInputLayout(in_idx, in.shape().sample_dim(), in.GetLayout());
-    if (default_layout.empty()) return false;
-    in.SetLayout(default_layout);
-    return true;
-  }
-
   template <typename Workspace>
   void RunHelper(OpNode &op_node, Workspace &ws);
 

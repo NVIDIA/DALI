@@ -714,8 +714,8 @@ def python_op_factory(name, schema_name = None):
     return Operator
 
 
-def _direct_op_factory(name, schema_name=None, callable=True):
-    class DirectOperatorBase(_OperatorBase):
+def _eager_op_factory(name, schema_name=None):
+    class EagerOperatorHelper(_OperatorBase):
         def _prep_input_sets(self, inputs):
             from nvidia.dali._debug_mode import _transform_data_to_tensorlist
             import nvidia.dali.tensors as tensors
@@ -730,53 +730,12 @@ def _direct_op_factory(name, schema_name=None, callable=True):
 
             return self._build_input_sets(inputs)
 
-    # TODO(ksztenderski): Just a template for eager operator.
-    class DirectOperator(DirectOperatorBase):
-        def __init__(self, batch_size=-1, device_id=0, cuda_stream=None, **kwargs):
-            # Here all kwargs are supposed to be constants.
-            super().__init__(**kwargs)
-
-            self._spec.AddArg('max_batch_size', batch_size)
-            self._spec.AddArg('device_id', device_id)
-            # self._spec.AddArg('cuda_stream', cuda_stream)
-
-            self._op = self._select_direct_operator(self._device)(self._spec)
-        
-        @staticmethod
-        def _select_direct_operator(device):
-            if device == 'cpu':
-                return _b.DirectOperatorCPU
-            elif device == 'gpu':
-                return _b.DirectOperatorGPU
-            elif device == 'mixed':
-                return _b.DirectOperatorMixed
-            else:
-                raise ValueError(f'Incorrect device type "{device}" in operator {name}.')
-
-        def __call__(self, *inputs, **kwargs):
-            # Here all kwargs are supposed to be TensorLists.
-            def manage_packed_outputs(output):
-                if len(output) == 1:
-                    return output[0]
-
-                return output
-
-            input_sets = self._prep_input_sets(inputs)
-
-            outputs = [manage_packed_outputs(self._op(input, kwargs)) for input in input_sets]
-
-            return manage_packed_outputs(outputs)
-
-    DirectOperatorBase.__name__ = str(name)
-    DirectOperatorBase.schema_name = schema_name or DirectOperatorBase.__name__
-
-    DirectOperator.__name__ = str(name)
-    DirectOperator.schema_name = schema_name or DirectOperator.__name__
     
-    if callable:
-        return DirectOperator
-    else:
-        return DirectOperatorBase
+
+    EagerOperatorHelper.__name__ = str(name)
+    EagerOperatorHelper.schema_name = schema_name or EagerOperatorHelper.__name__
+
+    return EagerOperatorHelper
 
 
 

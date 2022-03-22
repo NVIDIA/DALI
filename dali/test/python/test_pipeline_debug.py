@@ -330,7 +330,7 @@ def inputs_batch_change():
     return fn.random.coin_flip(input)
 
 
-@raises(RuntimeError, glob='In operator * input *')
+@raises(RuntimeError, glob='Input * for operator * is')
 def test_inputs_batch_change():
     inputs_batch_change.change = True
     pipe = inputs_batch_change()
@@ -350,7 +350,7 @@ def kwargs_batch_change():
     return fn.random.coin_flip(**kwargs)
 
 
-@raises(RuntimeError, glob='In operator * argument *')
+@raises(RuntimeError, glob='Argument * for operator * is')
 def test_kwargs_batch_change():
     kwargs_batch_change.change = True
     pipe = kwargs_batch_change()
@@ -427,3 +427,43 @@ def test_seed_generation_base():
     pipe1 = seed_rn50_pipeline_base()
     pipe2 = seed_rn50_pipeline_base()
     compare_pipelines(pipe1, pipe2, 8, 10)
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def device_change_rn50_pipeline_base():
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2, random_shuffle=True)
+    images = fn.decoders.image(jpegs, output_type=types.RGB)
+
+    if device_change_rn50_pipeline_base.change:
+        images = images.gpu()
+
+    output = fn.random_resized_crop(images, size=(224, 224))
+    return labels, output
+
+
+@raises(RuntimeError, glob='Input * for operator * is on * but was on * when created.')
+def test_device_change():
+    pipe = device_change_rn50_pipeline_base()
+    pipe.build()
+    device_change_rn50_pipeline_base.change = True
+    pipe.run()
+    device_change_rn50_pipeline_base.change = False
+    pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def cpu_after_gpu_pipeline():
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2, random_shuffle=True)
+    images = fn.decoders.image(jpegs, output_type=types.RGB, device='mixed')
+
+    output = fn.random_resized_crop(images, size=(224, 224), device='cpu')
+    return labels, output
+
+
+@raises(RuntimeError, glob='Cannot call * operator * with * input *')
+def test_cpu_operator_after_gpu():
+    pipe = cpu_after_gpu_pipeline()
+    pipe.build()
+    pipe.run()
