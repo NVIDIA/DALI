@@ -262,7 +262,6 @@ class PositionalSliceAttr {
         const auto& arg = ws.template Input<GPUBackend>(idx);
         if (!order)
           order = AccessOrder(ws.stream());
-        assert(cpu_buffer.is_pinned());
         cpu_buffer.set_order(order);
         cpu_buffer.Copy(arg);
         return view<T>(cpu_buffer);
@@ -273,7 +272,7 @@ class PositionalSliceAttr {
     shape = in_cpu_view(2, crop_shape_cpu_);
 
     // Sync with stream used for copy, only if needed
-    if (!order)
+    if (order)
       AccessOrder::host().wait(order);
   }
 
