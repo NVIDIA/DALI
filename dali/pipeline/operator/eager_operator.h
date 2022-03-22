@@ -172,10 +172,7 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> EagerOperator<Backend>::Run
   for (size_t in_idx = 0; in_idx < inputs.size(); ++in_idx) {
     auto tensor_in = std::make_shared<WSInputType>();
     tensor_in->ShareData(*inputs[in_idx]);
-
-    // Set default layout for input if not specified.
     SetDefaultLayoutIfNeeded(tensor_in)
-
     ws_.AddInput(tensor_in);
   }
 
