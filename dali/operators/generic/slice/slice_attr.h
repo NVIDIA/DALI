@@ -254,17 +254,13 @@ class PositionalSliceAttr {
             TensorListView<StorageCPU, T, DynamicDimensions>>
   GetPositionalSliceArgsCPU(const workspace_t<Backend>& ws) {
     AccessOrder order;
-    CUDAStreamLease stream;
-
     auto in_cpu_view = [&](int idx, TensorList<CPUBackend>& cpu_buffer) {
       if (ws.template InputIsType<CPUBackend>(idx)) {
         return view<T>(ws.template Input<CPUBackend>(idx));
       } else {
         const auto& arg = ws.template Input<GPUBackend>(idx);
-        if (!order) {
-          stream = CUDAStreamPool::instance().Get(arg.order().device_id());
-          order = AccessOrder(stream);
-        }
+        if (!order)
+          order = AccessOrder(ws.stream());
         assert(cpu_buffer.is_pinned());
         cpu_buffer.set_order(order);
         cpu_buffer.Copy(arg);
@@ -275,7 +271,7 @@ class PositionalSliceAttr {
     auto v1 = in_cpu_view(1, crop_anchor_cpu_);
     auto v2 = in_cpu_view(2, crop_shape_cpu_);
 
-    // Sync
+    // Sync with stream used for copy, only if needed
     if (!order)
       AccessOrder::host().wait(order);
 
