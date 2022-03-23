@@ -220,6 +220,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         device_id_(spec.GetArgument<int>("device_id")),
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
         previous_dtype_(DALIDataType::DALI_NO_TYPE),
+        ndim_(spec.GetArgument<int>("ndim")),
+        previous_ndim_(-1),
         sync_worker_(device_id_, false) {
     output_name_ = spec.Output(0);
     sync_worker_.WaitForInit();
@@ -490,9 +492,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     }
   }
 
-  template<typename SrcBackend, template<typename> class SourceDataType>
-  inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &batch, cudaStream_t stream = 0,
-                                  ExtSrcSettingMode ext_src_setting_mode = {}) {
+  template <typename SrcBackend, template<typename> class SourceDataType>
+  inline void ValidateInputData(const SourceDataType<SrcBackend> &batch) {
     bool is_gpu_src = std::is_same<SrcBackend, GPUBackend>::value;
     bool is_gpu_dst = std::is_same<Backend, GPUBackend>::value;
     if (is_gpu_src && !is_gpu_dst) {
@@ -500,6 +501,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
           "Warning: Loading GPU-originated data into CPU ExternalSource operator is discouraged "
           "and might be inefficient.");
     }
+
     DALI_ENFORCE(
         OperatorBase::max_batch_size_ >= static_cast<int>(batch.num_samples()),
         make_string("Data list provided to ExternalSource needs to have batch_size <= ",
@@ -516,6 +518,23 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
                   TypeTable::GetTypeInfo(previous_dtype_).name(),
                   " and the current type is ", batch.type_info().name(), "."));
     previous_dtype_ = batch.type();
+
+    auto current_ndim = batch.shape().sample_dim();
+    DALI_ENFORCE(ndim_ == -1 || ndim_ == current_ndim,
+      make_string("ExternalSource expected data with ", ndim_, " dimensions and got ",
+                   current_ndim, " dimensions."));
+
+    DALI_ENFORCE(previous_ndim_ == -1 || previous_ndim_ == current_ndim,
+      make_string("Dimensionality of the data fed to the external source has changed "
+                  "from previous iteration. Dimensionality in the previous iteration was ",
+                  previous_ndim_, " and the current is ", current_ndim, "."));
+    previous_ndim_ = current_ndim;
+  }
+
+  template<typename SrcBackend, template<typename> class SourceDataType>
+  inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &batch, cudaStream_t stream = 0,
+                                  ExtSrcSettingMode ext_src_setting_mode = {}) {
+    ValidateInputData(batch);
 
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
@@ -554,6 +573,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   int device_id_;
   DALIDataType dtype_;
   DALIDataType previous_dtype_;
+  int ndim_;
+  int previous_ndim_;
 
   /*
    * now it only indicates that there is data in the ExternalSource, in the future

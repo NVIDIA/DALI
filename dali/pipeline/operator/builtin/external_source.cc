@@ -99,6 +99,11 @@ The operator will validate that the fetched data is of the provided type.
 If the argument is omitted or ``DALIDataType.NO_TYPE`` is passed, the operator will infer
 the type based on the provided data.
 
-This argument will be required starting from DALI 2.0.)code", DALI_NO_TYPE);
+This argument will be required starting from DALI 2.0.)code", DALI_NO_TYPE)
+  .AddOptionalArg("ndim", R"code(Input dimensionality.
+
+The operator will validate that the fetched data has the provided dimensionality.
+
+Specifying the input dimensionality will be required starting from DALI 2.0)code", -1);
 
 }  // namespace dali

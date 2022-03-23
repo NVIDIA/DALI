@@ -332,6 +332,8 @@ def _separate_kwargs(kwargs):
     def is_call_arg(name, value):
         if name == "device":
             return False
+        if name == "ndim":
+            return False
         if name == "name" or is_data_node(value):
             return True
         if isinstance(value, (str, list, tuple, nvidia.dali.types.ScalarConstant)):
