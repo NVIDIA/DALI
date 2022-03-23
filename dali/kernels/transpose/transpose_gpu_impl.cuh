@@ -16,11 +16,11 @@
 #define DALI_KERNELS_TRANSPOSE_TRANSPOSE_GPU_IMPL_CUH_
 
 #include <cuda_runtime.h>
-#include "dali/core/fast_div.h"
-#include "dali/core/static_switch.h"
 #include "dali/core/tensor_view.h"
-#include "dali/kernels/common/type_erasure.h"
+#include "dali/core/fast_div.h"
 #include "dali/kernels/transpose/transpose_gpu_def.h"
+#include "dali/core/static_switch.h"
+#include "dali/kernels/common/type_erasure.h"
 /**
  * @file
  *
@@ -97,24 +97,26 @@ struct TiledTransposeDesc {
 };
 
 namespace transpose_shared {
-extern __shared__ uint8_t shared_tmp[];
+  extern __shared__ uint8_t shared_tmp[];
 }  // namespace transpose_shared
 
 template <int ndim, typename T, typename OldT>
-__device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc,
-                                            const unsigned pack_ratio) {
+__device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc, const unsigned pack_ratio)
+{
   unsigned start_tile = blockIdx.x * desc.tiles_per_block;
   unsigned end_tile = min(desc.total_tiles, start_tile + desc.tiles_per_block);
   if (start_tile >= end_tile)
     return;
-  T(*tmp)
-  [kTileSize][kTileSize + 1] =
-      reinterpret_cast<T(*)[kTileSize][kTileSize + 1]>(transpose_shared::shared_tmp);
+
+  T (*tmp)[kTileSize][kTileSize+1] =
+      reinterpret_cast<T (*)[kTileSize][kTileSize+1]>(transpose_shared::shared_tmp);
 
   int lanes = desc.lanes >> pack_ratio;
 
   unsigned tile_in_slice = start_tile;
-  uint64_t fused_slice = ndim > 2 ? div_mod(tile_in_slice, start_tile, desc.tiles_per_slice) : 0;
+  uint64_t fused_slice = ndim > 2
+    ? div_mod(tile_in_slice, start_tile, desc.tiles_per_slice)
+    : 0;
 
   uint64_t pos[ndim];  // NOLINT
 
@@ -124,39 +126,40 @@ __device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc,
 
   unsigned tile_x, tile_y;
   tile_y = div_mod(tile_x, tile_in_slice, desc.tiles_x);
-  pos[ndim - 1] = tile_x * kTileSize;
-  pos[ndim - 2] = tile_y * kTileSize;
+  pos[ndim-1] = tile_x * kTileSize;
+  pos[ndim-2] = tile_y * kTileSize;
 
-  T *out = reinterpret_cast<T *>(desc.out);
-  const T *in = reinterpret_cast<const T *>(desc.in);
+  T *out = reinterpret_cast<T*> (desc.out);
+  const T *in = reinterpret_cast<const T*>(desc.in);
 
   for (uint64_t tile = start_tile;;) {
     uint64_t in_ofs = 0, out_ofs = 0;
-#pragma unroll
+    #pragma unroll
     for (int d = 0; d < ndim - 2; d++) {
-      in_ofs += desc.in_strides[d] / pack_ratio * pos[d];
-      out_ofs += desc.out_strides[d] / pack_ratio * pos[d];
+      in_ofs  += desc.in_strides[d] * pos[d];
+      out_ofs += desc.out_strides[d] * pos[d];
     }
-    int64_t in_x = pos[ndim - 1] + threadIdx.x;
-    int64_t in_y = pos[ndim - 2] + threadIdx.y;
-    int64_t out_x = pos[ndim - 1] + threadIdx.y;
-    int64_t out_y = pos[ndim - 2] + threadIdx.x;
+    
+    int64_t in_x  = pos[ndim-1] + threadIdx.x;
+    int64_t in_y  = pos[ndim-2] + threadIdx.y;
+    int64_t out_x = pos[ndim-1] + threadIdx.y;
+    int64_t out_y = pos[ndim-2] + threadIdx.x;
 
-    in_ofs += desc.in_strides[ndim - 2] * in_y + desc.in_strides[ndim - 1] * in_x;
-    out_ofs += desc.out_strides[ndim - 2] * out_y + desc.out_strides[ndim - 1] * out_x;
+    in_ofs  += desc.in_strides[ndim-2]  * in_y  + desc.in_strides[ndim-1]  * in_x;
+    out_ofs += desc.out_strides[ndim-2] * out_y + desc.out_strides[ndim-1] * out_x;
 
     in_ofs >>= pack_ratio;
     out_ofs >>= pack_ratio;
 
-    unsigned tile_w = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim - 1] - pos[ndim - 1]);
-    unsigned tile_h = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim - 2] - pos[ndim - 2]);
+    unsigned tile_w = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-1] - pos[ndim-1]);
+    unsigned tile_h = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-2] - pos[ndim-2]);
     unsigned jump = blockDim.y >> pack_ratio;
-
+    
     if (threadIdx.x < tile_w) {
       for (unsigned ty = threadIdx.y, dy = 0; ty < tile_h; ty += blockDim.y, dy += jump) {
-#pragma unroll 4
+        #pragma unroll 4
         for (int lane = 0; lane < lanes; lane++) {
-          tmp[lane][ty][threadIdx.x] = __ldg(&in[in_ofs + desc.in_strides[ndim - 2] * dy + lane]);
+          tmp[lane][ty][threadIdx.x] = __ldg(&in[in_ofs + desc.in_strides[ndim-2]*dy + lane]);
         }
       }
     }
@@ -164,18 +167,18 @@ __device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc,
 
     if (threadIdx.x < tile_h) {
       for (unsigned ty = threadIdx.y, dy = 0; ty < tile_w; ty += blockDim.y, dy += jump) {
-#pragma unroll 4
+        #pragma unroll 4
         for (int lane = 0; lane < lanes; lane++)
-          out[out_ofs + desc.out_strides[ndim - 1] * dy + lane] = tmp[lane][threadIdx.x][ty];
+          out[out_ofs + desc.out_strides[ndim-1]*dy + lane] = tmp[lane][threadIdx.x][ty];
       }
     }
 
     if (++tile >= end_tile)
       break;  // avoid advancing the offset and __syncthreads in last tile
 
-#pragma unroll
+    #pragma unroll
     for (int d = ndim - 1; d >= 0; d--) {
-      uint64_t delta = d < ndim - 2 ? 1 : kTileSize;  // inner two dimensions are tiled
+      uint64_t delta = d < ndim-2 ? 1 : kTileSize;  // inner two dimensions are tiled
       pos[d] += delta;
       if (pos[d] < desc.shape[d])
         break;
@@ -235,9 +238,9 @@ __device__ void TransposeDeinterleave(const DeinterleaveDesc<T> &desc) {
   const int tid = threadIdx.x;
 
   int ndim = desc.ndim;
-  int lanes = desc.in_strides[ndim - 2];
+  int lanes = desc.in_strides[ndim-2];
 
-  uint64_t lane_stride = desc.out_strides[ndim - 1];
+  uint64_t lane_stride = desc.out_strides[ndim-1];
 
   const uint64_t block_size = blockDim.x;
   uint64_t start_ofs = (blockIdx.x * block_size + tid) * lanes;
@@ -293,7 +296,7 @@ __device__ void TransposeGeneric(const GenericTransposeDesc<T> &desc) {
       uint64_t a = div_mod(tmp_idx, tmp_idx, desc.out_strides[d]);
       in_ofs += a * desc.in_strides[d];
     }
-    in_ofs += tmp_idx * desc.in_strides[ndim - 1];
+    in_ofs += tmp_idx * desc.in_strides[ndim-1];
 
     out[out_ofs] = in[in_ofs];
   }
