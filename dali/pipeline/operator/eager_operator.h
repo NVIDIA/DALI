@@ -30,6 +30,25 @@
 
 namespace dali {
 
+template <typename Backend>
+std::shared_ptr<TensorList<Backend>> AsTensorList(
+    const std::shared_ptr<TensorList<Backend>> &in) {
+  return in;
+}
+
+template <typename Backend>
+std::shared_ptr<TensorList<Backend>> AsTensorList(
+    const std::shared_ptr<TensorVector<Backend>> &in) {
+  if (in->IsContiguous()) {
+    // Filled contiguous TensorVector, we can return TensorList directly.
+    return in->AsTensorList(false);
+  }
+
+  auto tl = std::make_shared<TensorList<Backend>>();
+  tl->Copy(*in);
+  return tl;
+}
+
 /**
  * @brief Direct operator providing eager execution of an operator in Run.
  */
@@ -201,7 +220,7 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> EagerOperator<Backend>::Run
   op_->Run(ws_);
 
   for (size_t i = 0; i < num_outputs_; ++i) {
-    outputs.push_back(PresentAsTensorList<OutBackend>(ws_.template OutputPtr<OutBackend>(i)));
+    outputs.push_back(AsTensorList<OutBackend>(ws_.template OutputPtr<OutBackend>(i)));
   }
 
   return outputs;

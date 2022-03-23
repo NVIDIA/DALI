@@ -56,24 +56,6 @@ bool SetDefaultLayoutIfNeeded(InputRef &in, const OpSchema &schema, int in_idx) 
   return true;
 }
 
-template <typename Backend>
-std::shared_ptr<TensorList<Backend>> PresentAsTensorList(
-    const std::shared_ptr<TensorList<Backend>> &in) {
-  return in;
-}
-
-template <typename Backend>
-std::shared_ptr<TensorList<Backend>> PresentAsTensorList(
-    const std::shared_ptr<TensorVector<Backend>> &in) {
-  if (in->IsContiguous()) {
-    return in->AsTensorList(false);
-  }
-
-  auto tl = std::make_shared<TensorList<Backend>>();
-  tl->Copy(*in);
-  return tl;
-}
-
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_UTIL_BATCH_UTILS_H_

@@ -20,7 +20,6 @@
 #include <unordered_map>
 #include <vector>
 #include "dali/core/cuda_stream_pool.h"
-#include "dali/core/format.h"
 #include "dali/pipeline/operator/eager_operator.h"
 #include "dali/pipeline/util/thread_pool.h"
 
